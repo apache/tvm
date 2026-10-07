@@ -52,7 +52,7 @@ target = tvm.target.Target({"kind": "llvm", "num-cores": 16})
 
 @tvm.script.ir_module
 class InputModule:
-    @Ts.prim_func
+    @Ts.function
     def tir_matmul(A: T.Tensor((32, 32)), B: T.Tensor((32, 32)), C: T.Tensor((32, 32))) -> None:
         T.func_attr({"global_symbol": "tir_matmul"})
 
@@ -63,7 +63,7 @@ class InputModule:
                     C[i, j] = 0.0
                 C[i, j] += A[i, k] * B[j, k]
 
-    @Ts.prim_func
+    @Ts.function
     def tir_relu(A: T.Tensor((32, 32)), B: T.Tensor((32, 32))):
         T.func_attr({"global_symbol": "tir_relu"})
 
@@ -115,7 +115,7 @@ def test_ms_tuning_irmodule():
             assert not tvm_ffi.structural_equal(mod, out_mod)
 
 
-def test_ms_tuning_primfunc():
+def test_ms_tuning_function():
     mod = InputModule
     assert isinstance(mod, IRModule)
     with tempfile.TemporaryDirectory() as work_dir:
@@ -164,7 +164,7 @@ def test_ms_tuning_primfunc():
 
 @tvm.script.ir_module
 class DefaultScheduledModule:
-    @Ts.prim_func
+    @Ts.function
     def tir_matmul(
         A: T.Tensor((32, 32), "float32"),
         B: T.Tensor((32, 32), "float32"),
@@ -185,7 +185,7 @@ class DefaultScheduledModule:
                             C[i, j] = T.float32(0)
                         C[i, j] = C[i, j] + A[i, k] * B[j, k]
 
-    @Ts.prim_func
+    @Ts.function
     def tir_relu(A: T.Tensor((32, 32), "float32"), B: T.Tensor((32, 32), "float32")):
         T.func_attr({"global_symbol": "tir_relu", "tirx.is_scheduled": True})
         # with Ts.sblock("root"):

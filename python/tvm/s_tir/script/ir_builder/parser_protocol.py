@@ -33,9 +33,9 @@ from .ir import _get_sblock_name_suffix
 # --------------------------------------
 
 
-def prim_func(is_private=False, persistent=False, *, private=None):
+def function(is_private=False, persistent=False, *, private=None):
     """Create an S-TIR function frame."""
-    return _ffi_api.PrimFunc(is_private if private is None else private, persistent)
+    return _ffi_api.Function(is_private if private is None else private, persistent)
 
 
 def function_(*, private=False, persistent=False, decl=False, span=None):
@@ -43,7 +43,7 @@ def function_(*, private=False, persistent=False, decl=False, span=None):
     native = (
         _ffi_api.DeclFunction(private, persistent)
         if decl
-        else _ffi_api.PrimFunc(private, persistent)
+        else _ffi_api.Function(private, persistent)
     )
     return _base.at_(span, native)
 
@@ -77,7 +77,7 @@ def _check_module_well_formed(module):
     functions = {
         gv: fn
         for gv, fn in module.functions.items()
-        if isinstance(fn, _tir.PrimFunc) and fn.attrs.get("s_tir", False)
+        if isinstance(fn, _tir.Function) and fn.attrs.get("s_tir", False)
     }
     if functions:
         analysis.verify_well_formed(_ir.IRModule(functions))
@@ -147,4 +147,4 @@ def init() -> BlockInitFrame:
 # --------------------------------------
 # Operator hooks are inherited from TIRx.
 
-__all__ = ["arg_", "bind_", "check_well_formed_", "function_", "init", "prim_func", "sblock"]
+__all__ = ["arg_", "bind_", "check_well_formed_", "function", "function_", "init", "sblock"]

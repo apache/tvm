@@ -19,7 +19,7 @@
 
 from tvm.backend.trn.layout import is_trainium_layout
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import ReduceOpType
 from tvm.tirx.tile_primitive import TilePrimitiveCall
@@ -60,7 +60,7 @@ def generate_intermediate_buffer(
 
 def reduction_trn(
     op: TilePrimitiveCall, reduce_op: ReduceOpType, sctx: DispatchContext, negate: bool = False
-) -> PrimFunc | None:
+) -> Function | None:
     """Schedule reduction operation on Trainium.
 
     Args:
@@ -70,7 +70,7 @@ def reduction_trn(
         negate: Whether to negate the result.
 
     Returns:
-        Optional[PrimFunc]: The scheduled function, or None if not applicable.
+        Optional[Function]: The scheduled function, or None if not applicable.
     """
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
         fail("requires Trainium target and thread exec_scope")
@@ -129,7 +129,7 @@ def reduction_trn(
     # Single-stage reduction implementation
     if reduction_b_extent == 1:
         # This fragment captures buffers and indices from its insertion scope.
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
                 with T.nki.tensorized_instruction():
@@ -144,7 +144,7 @@ def reduction_trn(
     # Two-stage reduction implementation
     else:
         # This fragment captures buffers and indices from its insertion scope.
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def two_stage_reduction():
             for b_loop in T.serial(0, spatial_b_extent):
                 for reduction_b_loop in T.serial(0, reduction_b_extent):

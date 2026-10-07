@@ -39,7 +39,7 @@ def test_rewrite_cuda_graph():
     # fmt: off
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             # function attr dict
             T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
@@ -79,7 +79,7 @@ def test_rewrite_cuda_graph():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             # function attr dict
             T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
@@ -149,7 +149,7 @@ def test_tuple():
     # fmt: off
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             # function attr dict
             T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
@@ -191,7 +191,7 @@ def test_tuple():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             T.func_attr({"global_symbol": "exp", "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -256,7 +256,7 @@ def test_vm_builtin():
     # fmt: off
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             # function attr dict
             T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
@@ -291,7 +291,7 @@ def test_vm_builtin():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             T.func_attr({"global_symbol": "exp", "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -390,7 +390,7 @@ def test_capture_fixed_inputs():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def fused_conv2d_relu(
             data: T.Tensor((T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"),
             weight1: T.Tensor((T.int64(16), T.int64(3), T.int64(3), T.int64(16)), "float16"),
@@ -453,7 +453,7 @@ def test_capture_fixed_inputs():
                         var_conv2d_nhwc_intermediate[v_i0, v_i1, v_i2, v_i3], T.float16(0)
                     )
 
-        @Ts.prim_func
+        @Ts.function
         def layer_norm(
             A: T.Tensor((T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"),
             B: T.Tensor((T.int64(16),), "float16"),
@@ -764,7 +764,7 @@ def test_dynamic_capture():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def add_one(x: T.Tensor((m_add_one,), "float32"), y: T.Tensor((m_add_one,), "float32")):
             # Use T.serial with explicit int64 min so the inner sblock iter_var
             # dom is all-int64 (matches what Expected emits via Ts.axis.spatial(m, i)).
@@ -802,7 +802,7 @@ def test_dynamic_capture():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def add_one(x: T.Tensor((m_add_one,)), y: T.Tensor((m_add_one,))):
             # with Ts.sblock("root"):
             for i in T.serial(T.int64(0), m_add_one):

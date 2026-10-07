@@ -26,7 +26,7 @@ from tvm.error import register_error
 from tvm.ir import Expr, GlobalVar, IRModule, is_prim_expr
 from tvm.runtime import DataTypeCode, Object
 from tvm.s_tir import SBlock
-from tvm.tirx import FloatImm, For, IntImm, PrimFunc, Var, is_tensor_var
+from tvm.tirx import FloatImm, For, Function, IntImm, Var, is_tensor_var
 from tvm.tirx.function import IndexMap
 
 from . import _ffi_api
@@ -129,7 +129,7 @@ class Schedule(Object):
     @type_checked
     def __init__(
         self,
-        mod: PrimFunc | IRModule,
+        mod: Function | IRModule,
         *,
         seed: int | None = None,
         debug_mask: str | int = "none",
@@ -140,8 +140,8 @@ class Schedule(Object):
 
         Parameters
         ----------
-        mod : PrimFunc | IRModule
-            The IRModule or PrimFunc to be scheduled
+        mod : Function | IRModule
+            The IRModule or Function to be scheduled
         seed: Optional[int]
             The seed value for schedule's random state
             Note that None and -1 means use device random, otherwise only integer between 1 and
@@ -186,7 +186,7 @@ class Schedule(Object):
 
     @staticmethod
     def _create_non_traced(
-        mod: PrimFunc | IRModule,
+        mod: Function | IRModule,
         *,
         seed: int | None = None,
         debug_mask: str | int = "none",
@@ -580,7 +580,7 @@ class Schedule(Object):
     def get_output_blocks(self, scope_block: SBlockRV | str) -> list[SBlockRV]:
         """Get the list of output blocks within the given scope
         An output block is a block which has atleast one buffer being written
-        to, but is not allocated within the PrimFunc
+        to, but is not allocated within the Function
 
         Parameters
         ----------
@@ -623,7 +623,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_merge(
                 A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))
             ) -> None:
@@ -651,7 +651,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_fuse(
                 A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))
             ) -> None:
@@ -700,7 +700,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_fuse(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -722,7 +722,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_fuse(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -790,7 +790,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_split(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -812,7 +812,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_split(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -877,7 +877,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_partition(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -971,7 +971,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_reorder(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -993,7 +993,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_reorder(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -1024,7 +1024,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def matmul(
                 A: T.Tensor((128, 128), "float32"),
                 B: T.Tensor((128, 128), "float32"),
@@ -1049,7 +1049,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def matmul_after_reorder_block_iter_var(
                 A: T.Tensor((128, 128), "float32"),
                 B: T.Tensor((128, 128), "float32"),
@@ -1092,7 +1092,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_add_unit_loop(
                 A: T.Tensor((), "int32"),
                 B: T.Tensor((), "int32"),
@@ -1114,7 +1114,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_add_unit_loop(
                 A: T.Tensor((), "int32"),
                 B: T.Tensor((), "int32"),
@@ -1152,7 +1152,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_parallel(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -1173,7 +1173,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_parallel(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -1208,7 +1208,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_vectorize(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -1229,7 +1229,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_vectorize(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -1269,7 +1269,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_bind(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -1291,7 +1291,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_bind(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -1320,7 +1320,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_unroll(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -1341,7 +1341,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_unroll(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -1399,7 +1399,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_cache_read(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -1421,7 +1421,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_cache_read(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -1494,7 +1494,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_cache_write(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -1516,7 +1516,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_cache_write(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -1587,7 +1587,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_reindex_cache_read(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -1609,7 +1609,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_reindex_cache_read(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -1687,7 +1687,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_reindex_cache_write(
                 A: T.Tensor((128, 128)), B: T.Tensor((128, 128))
             ) -> None:
@@ -1710,7 +1710,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_cache_write(A: T.Tensor((128, 128)), B: T.Tensor((64, 2, 128))) -> None:
 
 
@@ -1780,7 +1780,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_cache_inplace(data_io: T.Tensor((64), "int32")):
                 for i0 in T.serial(1):
                     with Ts.sblock("A"):
@@ -1801,7 +1801,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def cache_inplace(data_io: T.Tensor(64, "int32")) -> None:
                 data_io_local = Ts.sblock_alloc_buffer([64], dtype="int32", scope="local")
                 for i0 in T.serial(1):
@@ -1864,7 +1864,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def resize(A: T.Tensor((1, 3, 40, 40)), B: T.Tensor((1, 3, 80, 80))) -> None:
 
 
@@ -1886,7 +1886,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def resize_cache_index(
                 A: T.Tensor((1, 3, 40, 40), "float32"), B: T.Tensor((1, 3, 80, 80), "float32")
             ) -> None:
@@ -1964,7 +1964,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_reindex(
                 A: T.Tensor((128, 128), "float32"),
                 B: T.Tensor((128, 128), "float32")
@@ -1986,7 +1986,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_reindex(
                 A: T.Tensor((128, 128), "float32"),
                 B: T.Tensor((128, 128), "float32")
@@ -2078,7 +2078,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_compute_at(
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
@@ -2108,7 +2108,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_compute_at(
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
@@ -2178,7 +2178,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_reverse_compute_at(
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
@@ -2208,7 +2208,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_reverse_compute_at(
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
@@ -2258,7 +2258,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_inline(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
 
                 B = Ts.sblock_alloc_buffer((128, 128))
@@ -2284,7 +2284,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_inline(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
 
 
@@ -2327,7 +2327,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_inline(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
 
                 B = Ts.sblock_alloc_buffer((128, 128))
@@ -2353,7 +2353,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_inline(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
 
 
@@ -2460,7 +2460,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_decompose(
                 A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
             ) -> None:
@@ -2486,7 +2486,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_decompose(
                 A: Ts.Tensor([128, 128]), B: Ts.Tensor([128, 128]), C: Ts.Tensor([128, 128])
             ) -> None:
@@ -2585,7 +2585,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_rfactor(A: T.Tensor((128, 128, 128)), B: T.Tensor((128,))) -> None:
                 for ii, i, j in T.grid(128, 128, 128):
                     with Ts.sblock("B"):
@@ -2607,7 +2607,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_rfactor(A: T.Tensor([128, 128, 128]), B: T.Tensor([128])) -> None:
 
 
@@ -2683,7 +2683,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_storage_align(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
 
                 B = Ts.sblock_alloc_buffer((128, 128))
@@ -2709,7 +2709,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_storage_align(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
 
                 B = Ts.sblock_alloc_buffer((128, 128))
@@ -2758,7 +2758,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_set_scope(
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
@@ -2785,7 +2785,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_set_scope(
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
@@ -2837,7 +2837,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_set_dtype(
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
@@ -2864,7 +2864,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_set_dtype(
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
@@ -2916,7 +2916,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_blockize(
                 A: T.Tensor((128, 128), "float32"),
                 B: T.Tensor((128, 128), "float32")
@@ -2943,7 +2943,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_blockize(
                 A: T.Tensor((128, 128), "float32"),
                 B: T.Tensor((128, 128), "float32")
@@ -2995,7 +2995,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_tensorize(
                 A: T.Tensor((128, 128), "float32"),
                 B: T.Tensor((128, 128), "float32"),
@@ -3016,7 +3016,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def mma_desc(
                 A: T.Tensor((16, 16), align=128, offset_factor=1),
                 B: T.Tensor((16, 16), align=128, offset_factor=1),
@@ -3031,7 +3031,7 @@ class Schedule(Object):
                             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
-            @Ts.prim_func
+            @Ts.function
             def mma_intrin(
                 A: T.Tensor((16, 16), align=128, offset_factor=1),
                 B: T.Tensor((16, 16), align=128, offset_factor=1),
@@ -3071,7 +3071,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_tensorize(
                 A: T.Tensor((128, 128), "float32"),
                 B: T.Tensor((128, 128), "float32"),
@@ -3155,7 +3155,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_annotate(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -3176,7 +3176,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_annotate(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -3209,7 +3209,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_unannotate(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -3231,7 +3231,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_unannotate(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
@@ -3404,7 +3404,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_transform_layout(
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
@@ -3433,7 +3433,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def two_elementwise_transformed_intermediate_buffer(
                 A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
             ) -> None:
@@ -3518,7 +3518,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_transform_block_layout(
                 A: T.Tensor((16, 16), "float32"),
                 B: T.Tensor((16, 16), "float32")
@@ -3540,7 +3540,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_transform_block_layout(
                 A: T.Tensor((16, 16), "float32"),
                 B: T.Tensor((16, 16), "float32")
@@ -3597,7 +3597,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_decompose(x: T.Tensor(128, "int32"), y: T.Tensor(140, "int32")):
                 for i in range(140):
                     with Ts.sblock("block"):
@@ -3617,7 +3617,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_decompose(x: T.Tensor(128, "int32"), y: T.Tensor(140, "int32")):
                 for i in T.serial(140):
                     with Ts.sblock("block_pad_const"):
@@ -3666,7 +3666,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_pad_einsum(
                 A: T.Tensor((127, 127), "float32"),
                 B: T.Tensor((127, 127), "float32"),
@@ -3692,7 +3692,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def main(
                 A: T.Tensor((127, 127), "float32"),
                 B: T.Tensor((127, 127), "float32"),
@@ -3769,7 +3769,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_rolling_buffer(
                 A: T.Tensor((12, 12), "int8"), C: T.Tensor((8, 8), "int8")
             ) -> None:
@@ -3806,7 +3806,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_rolling_buffer(
                 A: T.Tensor((12, 12), "int8"),
                 C: T.Tensor((8, 8), "int8")
@@ -3908,7 +3908,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def before_annotate_buffer_access(
                 A: T.Tensor((128, 128), "float32"),
                 C: T.Tensor((128, 128), "float32")
@@ -3937,7 +3937,7 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @Ts.prim_func
+            @Ts.function
             def after_annotate_buffer_access(
                 A: T.Tensor((128, 128), "float32"),
                 C: T.Tensor((128, 128), "float32")

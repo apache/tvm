@@ -41,7 +41,7 @@ def test_image_resize2d():
             gv = R.call_tir(Expected.resize2d, (x,), R.Tensor((2, 16, 16, 3), dtype="float32"))
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def resize2d(rxplaceholder: T.Tensor((T.int64(2), T.int64(8), T.int64(8), T.int64(3)), "float32"), resize: T.Tensor((T.int64(2), T.int64(16), T.int64(16), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(16), T.int64(16), T.int64(3)):
@@ -92,7 +92,7 @@ def test_image_resize2d_symbolic():
             gv = R.call_tir(Expected.resize2d, (x,), R.Tensor((n_main, c_main, oh_main, ow_main, 16), dtype="float32"))
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def resize2d(rxplaceholder: T.Tensor([n_resize2d, c_resize2d, h_resize2d, w_resize2d, T.int64(16)], dtype='float32'), resize: T.Tensor([n_resize2d, c_resize2d, oh_resize2d, ow_resize2d, T.int64(16)], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
@@ -124,7 +124,7 @@ def test_image_affine_grid():
             gv = R.call_tir(Expected.affine_grid, (theta,), R.Tensor((2, 2, 16, 16), dtype="float32"))
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def affine_grid(theta: T.Tensor((T.int64(2), T.int64(2), T.int64(3))), compute: T.Tensor((T.int64(2), T.int64(2), T.int64(16), T.int64(16)))):
             T.func_attr({"tirx.noalias": True})
 

@@ -62,7 +62,7 @@ axis ``-1``) to a ``4``-vector (from ``test_reduction.py``):
 
 .. code-block:: python
 
-    @Tx.prim_func
+    @Tx.function
     def test_reduction(
         A: Tx.Tensor((4, 8), "float32", layout=TileLayout(S[4, 8])),
         B: Tx.Tensor((4,), "float32", layout=TileLayout(S[4,])),

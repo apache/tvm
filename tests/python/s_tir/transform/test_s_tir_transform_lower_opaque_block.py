@@ -35,7 +35,7 @@ def _check(original, transformed):
     )
 
 
-@Ts.prim_func
+@Ts.function
 def compacted_elementwise_func(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ) -> None:
@@ -56,7 +56,7 @@ def compacted_elementwise_func(
                     C[i, j] = B[0, j] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_elementwise_func(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ) -> None:
@@ -72,7 +72,7 @@ def transformed_elementwise_func(
             C[i, j] = B_new[0, j] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def compacted_gpu_func(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
     for i0 in T.thread_binding(0, 4, thread="blockIdx.x"):
         for i1 in T.thread_binding(0, 2, thread="threadIdx.x"):
@@ -93,7 +93,7 @@ def compacted_gpu_func(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "
                             C[i0 * 4 + i1 * 2 + i2, j] = B[0, j] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_gpu_func(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ) -> None:
@@ -112,7 +112,7 @@ def transformed_gpu_func(
         C[i0 * 4 + i1 * 2 + i2, j] = B[0, j] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def compacted_symbolic_func(
     A: T.Tensor((n, m), "float32"),  # noqa: F821
     C: T.Tensor((n, m), "float32"),  # noqa: F821
@@ -136,7 +136,7 @@ def compacted_symbolic_func(
                     C[i, j] = B[j] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_symbolic_func(
     A: T.Tensor((n, m), "float32"),  # noqa: F821
     C: T.Tensor((n, m), "float32"),  # noqa: F821
@@ -155,7 +155,7 @@ def transformed_symbolic_func(
             C[i, j] = B[j] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def compacted_predicate_func(A: T.Tensor(32, "float32"), C: T.Tensor(32, "float32")) -> None:
     for i, j in T.grid(5, 7):
         with Ts.sblock():
@@ -165,14 +165,14 @@ def compacted_predicate_func(A: T.Tensor(32, "float32"), C: T.Tensor(32, "float3
             C[i * 7 + j] = A[i * 7 + j] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_predicate_func(A: T.Tensor(32, "float32"), C: T.Tensor(32, "float32")) -> None:
     for i, j in T.grid(5, 7):
         if i * 7 + j < 32:
             C[i * 7 + j] = A[i * 7 + j] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def compacted_unit_loop_func(A: T.Tensor(32, "float32"), C: T.Tensor(32, "float32")) -> None:
     for x, y, z in T.grid(4, 1, 8):
         with Ts.sblock():
@@ -181,13 +181,13 @@ def compacted_unit_loop_func(A: T.Tensor(32, "float32"), C: T.Tensor(32, "float3
             C[x * 8 + y * 8 + z] = A[x * 8 + y * 8 + z] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_unit_loop_func(A: T.Tensor(32, "float32"), C: T.Tensor(32, "float32")) -> None:
     for x, z in T.grid(4, 8):
         C[x * 8 + z] = A[x * 8 + z] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def compacted_multi_alloc_func(A: T.Tensor(32, "float32"), D: T.Tensor(32, "float32")) -> None:
     for i in range(0, 32):
         with Ts.sblock():
@@ -200,7 +200,7 @@ def compacted_multi_alloc_func(A: T.Tensor(32, "float32"), D: T.Tensor(32, "floa
             D[i] = C[i] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_multi_alloc_func(A: T.Tensor(32, "float32"), D: T.Tensor(32, "float32")) -> None:
     for i in range(0, 32):
         B = T.alloc_tensor(
@@ -218,7 +218,7 @@ def transformed_multi_alloc_func(A: T.Tensor(32, "float32"), D: T.Tensor(32, "fl
         D[i] = C[i] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def compacted_strided_buffer_func(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ) -> None:
@@ -241,7 +241,7 @@ def compacted_strided_buffer_func(
                         C[i0 * 4 + i1, j] = B[i1, j] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_strided_buffer_func(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ) -> None:
@@ -262,7 +262,7 @@ def transformed_strided_buffer_func(
 n = T.dynamic("n", "int32")
 
 
-@Ts.prim_func
+@Ts.function
 def compacted_symbolic_strided_buffer_func(A: T.Tensor((1, n, 10240))) -> None:
     padded_size = T.meta_var(T.min((n + 63) // 64 * 64, 96))
     # with Ts.sblock("root"):
@@ -284,7 +284,7 @@ def compacted_symbolic_strided_buffer_func(A: T.Tensor((1, n, 10240))) -> None:
 n = T.dynamic("n", "int32")
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_symbolic_strided_buffer_func(A: T.Tensor((1, n, 10240))):
     padded_size = T.min((n + 63) // 64 * 64, 96)
     for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):
@@ -303,7 +303,7 @@ def transformed_symbolic_strided_buffer_func(A: T.Tensor((1, n, 10240))):
                 )
 
 
-@Ts.prim_func
+@Ts.function
 def boolean_handling_before(a: T.Tensor(10, "bool"), b: T.Tensor(10, "bool")) -> None:
     for i0 in T.serial(10):
         with Ts.sblock("b"):
@@ -312,7 +312,7 @@ def boolean_handling_before(a: T.Tensor(10, "bool"), b: T.Tensor(10, "bool")) ->
             b[i0] = a[i0]
 
 
-@Ts.prim_func
+@Ts.function
 def boolean_handling_after(a: T.Tensor(10, "bool"), b: T.Tensor(10, "bool")) -> None:
     # body
     for i0 in T.serial(10):
@@ -352,14 +352,14 @@ def test_symbolic_strided_buffer():
 
 
 def test_preserved_annotations():
-    @Ts.prim_func
+    @Ts.function
     def before(A: T.Tensor(8, "float32"), B: T.Tensor(8, "float32")):
         for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3], "k_2": 3.14}):
             with Ts.sblock("block"):
                 Ts.sblock_attr({"k_3": "oops"})
                 B[i] = A[i] + 1.0
 
-    @Ts.prim_func
+    @Ts.function
     def after(A: T.Tensor(8, "float32"), B: T.Tensor(8, "float32")):
         for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3], "k_2": 3.14}):
             B[i] = A[i] + 1.0
@@ -370,13 +370,13 @@ def test_preserved_annotations():
 
 
 def test_none_pragma_annotation():
-    @Ts.prim_func
+    @Ts.function
     def before(A: T.Tensor(8, "float32"), B: T.Tensor(8, "float32")):
         for i in T.serial(8, annotations={"unroll_explicit": None}):
             with Ts.sblock("block"):
                 B[i] = A[i] + 1.0
 
-    @Ts.prim_func
+    @Ts.function
     def after(A: T.Tensor(8, "float32"), B: T.Tensor(8, "float32")):
         for i in T.serial(8):
             B[i] = A[i] + 1.0

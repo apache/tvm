@@ -315,7 +315,8 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
 
   /*!
    *\brief Start a new static region. This method should be called when encountering a
-   * CUDA kernel launch (calls to PrimFunc or ExternFunc) that only depends on static parameters.
+   * CUDA kernel launch (calls to tirx::Function or ExternFunc) that only depends on static
+   *parameters.
    */
   void StartRegion() { current_block_scope_.capture_builder = arena_->make<FuncBuilder>(); }
 
@@ -364,8 +365,8 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
     }
 
     const auto* call_gv = call->op.as<GlobalVarNode>();
-    bool call_prim_func =
-        call_gv ? mod_->Lookup(ffi::GetRef<GlobalVar>(call_gv))->IsInstance<tirx::PrimFuncNode>()
+    bool call_function =
+        call_gv ? mod_->Lookup(ffi::GetRef<GlobalVar>(call_gv))->IsInstance<tirx::FunctionNode>()
                 : false;
 
     // Check whether the call can be lifted to the capture function. It requires all the arguments
@@ -376,7 +377,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
       if (!IsStatic(call->args, &args, &tir_vars)) {
         return false;
       }
-      if (call_gv != nullptr && !call_prim_func) {
+      if (call_gv != nullptr && !call_function) {
         // calls to other Relax functions are not allowed
         return false;
       }
@@ -391,7 +392,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
       bool is_kernel_launch = [&]() {
         static const auto null_value_op = Op::Get("relax.null_value");
 
-        if (call_prim_func) {
+        if (call_function) {
           return true;
         }
         if (call->op.as<ExternFuncNode>()) {

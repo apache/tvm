@@ -23,7 +23,7 @@ from collections.abc import Callable
 import tvm
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 
 
 def _is_power_of_two(n: int):
@@ -40,7 +40,7 @@ def gpu_multinomial_from_uniform(
     tx_len: int = 32,
     thread_elem: int = 4,
     eps: float = 1e-6,
-) -> PrimFunc:
+) -> Function:
     """Generate GPU kernel for multinomial_from_uniform operator.
 
     Parameters
@@ -68,7 +68,7 @@ def gpu_multinomial_from_uniform(
 
     Returns
     -------
-    func : PrimFunc
+    func : Function
         The generated function
     """
 
@@ -263,7 +263,7 @@ def gpu_multinomial_from_uniform(
     vocab_size = T.dynamic("vocab_size")
     batch_size = T.dynamic("batch_size")
 
-    @Ts.prim_func
+    @Ts.function
     def parallel_sampling_from_prob(
         prob: T.Tensor((n, vocab_size), prob_dtype),
         uniform_samples: T.Tensor((batch_size, 1), sample_dtype),
@@ -322,7 +322,7 @@ def generic_get_sample_index(
     vocab_size = T.dynamic("vocab_size")
     out_batch = T.dynamic("out_batch")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _get_sample_index(
         prob: T.Tensor((batch, vocab_size), prob_dtype),
         usample: T.Tensor((out_batch, 1), sample_dtype),

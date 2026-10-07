@@ -19,7 +19,7 @@
 
 """Prefill attention kernels for (paged/ragged/MLA/dense) KV storage.
 
-All of the ``@T.prim_func`` factories below share the same online-softmax
+All of the ``@T.function`` factories below share the same online-softmax
 skeleton that is built up from ``@T.macro`` helpers in
 ``_kernel_common._make_prefill_macros``. Each kernel only supplies the
 K/V loading path that is specific to its storage layout.
@@ -79,7 +79,7 @@ def _attention_prefill_cpu(
     k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
     q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_prefill_paged_kv_cpu(
         q: T.Tensor((total_len, h_q, d), dtype), # [total_len, h_q, d]
         q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
@@ -233,7 +233,7 @@ def _attention_prefill(
     k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
     q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_prefill_paged_kv(
         q: T.Tensor((total_len, h_q, d), dtype), # [total_len, h_q, d]
         q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
@@ -376,7 +376,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
     batch_size = T.dynamic("batch_size", "int32")
     qo_len = T.dynamic("qo_len", "int32")
     kv_len = T.dynamic("kv_len", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_sequence_prefill_kv(  # pylint: disable=too-many-branches
         q: T.Tensor((batch_size, qo_len, h_q, d), dtype), # [total_len, h_q, d]
         k: T.Tensor((batch_size, kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
@@ -522,7 +522,7 @@ def _attention_sequence_prefill_with_mask(
 
     def _q_row_valid(row, valid_len, qo_len):
         # Row-validity predicate for Q load (TIR expression); mask_mode is
-        # captured at closure time so the prim_func body stays specialised.
+        # captured at closure time so the function body stays specialised.
         if mask_mode == "padded":
             return tirx.And(row < qo_len, row < valid_len)
         pad = qo_len - valid_len
@@ -538,7 +538,7 @@ def _attention_sequence_prefill_with_mask(
     batch_size = T.dynamic("batch_size", "int32")
     qo_len = T.dynamic("qo_len", "int32")
     kv_len = T.dynamic("kv_len", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_sequence_prefill_kv_masked(  # pylint: disable=too-many-branches
         q: T.Tensor((batch_size, qo_len, h_q, d), dtype), # [batch_size, qo_len, h_q, d]
         k: T.Tensor((batch_size, kv_len, h_kv, d), dtype), # [batch_size, kv_len, h_kv, d]
@@ -648,7 +648,7 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dic
     kv_indptr_elem_offset = T.dynamic("kv_indptr_elem_offset", "int32")
     q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
     k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_prefill_ragged_kv(  # pylint: disable=too-many-branches
         q: T.Tensor((qo_len, h_q, d_qk), dtype),  # [total_len, h_q, d_qk]
         q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset),  # [batch_size + 1]
@@ -757,7 +757,7 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
     kv_indptr_elem_offset = T.dynamic("kv_indptr_elem_offset", "int32")
     q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
     k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_prefill_ragged_kv(  # pylint: disable=too-many-branches
         q: T.Tensor((qo_len, h_q, d_qk), dtype), # [total_len, h_q, d_qk]
         q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
@@ -887,7 +887,7 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
     page_indptr_elem_offset = T.dynamic("page_indptr_elem_offset", "int32")
     page_values_elem_offset = T.dynamic("page_values_elem_offset", "int32")
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_prefill_paged_kv_mla(
         q: T.Tensor((total_len, h_q, d_qk), dtype), # [total_len, h_q, d_qk]
         q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]

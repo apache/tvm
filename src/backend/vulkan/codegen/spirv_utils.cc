@@ -122,10 +122,10 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
   CodeGenSPIRV cg(target);
 
   for (auto kv : mod->functions) {
-    TVM_FFI_ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenSPIRV: Can only take PrimFunc";
-    auto func = kv.second.as<PrimFunc>();
+    TVM_FFI_ICHECK(kv.second->IsInstance<FunctionNode>()) << "CodeGenSPIRV: Can only take Function";
+    auto func = kv.second.as<Function>();
     TVM_FFI_ICHECK(func);
-    PrimFunc f = func.value();
+    Function f = func.value();
     auto calling_conv = f->GetAttr<CallingConv>(tvm::attr::kCallingConv);
     TVM_FFI_ICHECK(calling_conv.has_value())
         << "CodeGenSPIRV: expected kCallingConv attribute to be set.";
@@ -134,7 +134,7 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
         << static_cast<int>(calling_conv.value());
     auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     TVM_FFI_ICHECK(global_symbol.has_value())
-        << "CodeGenSPIRV: Expect PrimFunc to have the global_symbol attribute";
+        << "CodeGenSPIRV: Expect Function to have the global_symbol attribute";
 
     std::string f_name = global_symbol.value();
     std::string entry = f_name;

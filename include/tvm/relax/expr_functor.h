@@ -145,7 +145,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   }
   // Functions that can be overriden by subclass
   // NOTE: cross dialect calls are invoked through global var
-  // We do not expect inline PrimFunc to appear in relax IR.
+  // We do not expect inline tirx::Function to appear in relax IR.
   virtual R VisitExpr_(const GenericConstNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const TupleNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const VarNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;

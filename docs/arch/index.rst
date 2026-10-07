@@ -64,10 +64,10 @@ contains a collection of functions. Currently, we support two primary variants o
 - **relax::Function** is a high-level functional program representation. A relax.Function represents high-level graph structure,
   usually corresponds to an end-to-end model or a sub-graph of the overall model. You can view a relax.Function as a computational
   graph with additional support for control-flow, and complex data structures.
-- **tirx::PrimFunc** is a low-level program representation that contains elements including loop-nest choices, multi-dimensional load/store,
+- **tirx::Function** is a low-level program representation that contains elements including loop-nest choices, multi-dimensional load/store,
   threading, and vector/tensor instructions. It is usually used to represent an operator program that executes a (possibly-fused) layer in a model.
 
-During the compilation and transformation, all relax operators are lowered to ``tirx::PrimFunc`` or ``TVM PackedFunc``, which can be executed directly
+During the compilation and transformation, all relax operators are lowered to ``tirx::Function`` or ``TVM PackedFunc``, which can be executed directly
 on the target device, while the calls to relax operators are lowered to calls to low-level functions (e.g. ``R.call_tir`` or ``R.call_dps_packed``).
 
 Transformations
@@ -87,10 +87,10 @@ TensorIR transformations
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 - **TensorIR schedule**: TensorIR schedules are designed to optimize the TensorIR functions for a specific target, with user-guided instructions and control how the target code is generated.
-  For CPU targets, a TensorIR PrimFunc can generate valid code and execute on the target device without schedule but with very-low performance. However, for GPU targets, the schedule is essential
+  For CPU targets, a TensorIR Function can generate valid code and execute on the target device without schedule but with very-low performance. However, for GPU targets, the schedule is essential
   for generating valid code with thread bindings. For more details, please refer to the :ref:`TensorIR Transformation <tirx-transform>` section. Additionally, we provides ``MetaSchedule`` to
   automate the search of TensorIR schedule.
-- **Lowering Passes**: These passes usually perform after the schedule is applied, transforming a TensorIR PrimFunc into another functionally equivalent PrimFunc, but closer to the
+- **Lowering Passes**: These passes usually perform after the schedule is applied, transforming a TensorIR Function into another functionally equivalent Function, but closer to the
   target-specific representation. For example, there are passes to flatten multi-dimensional access to one-dimensional pointer access, to expand the intrinsics into target-specific ones,
   and to decorate the function entry to meet the runtime calling convention.
 
@@ -104,8 +104,8 @@ cross-level transformations
 Apache TVM enables cross-level optimization of end-to-end models. As the IRModule includes both Relax and TensorIR functions, the cross-level transformations are designed to mutate
 the IRModule by applying different transformations to these two types of functions.
 
-For example, ``relax.LegalizeOps`` pass mutates the IRModule by lowering relax operators, adding corresponding TensorIR PrimFunc into the IRModule, and replacing the relax operators
-with calls to the lowered TensorIR PrimFunc. Another example is the operator fusion pipeline
+For example, ``relax.LegalizeOps`` pass mutates the IRModule by lowering relax operators, adding corresponding TensorIR Function into the IRModule, and replacing the relax operators
+with calls to the lowered TensorIR Function. Another example is the operator fusion pipeline
 (``relax.FuseOps`` + ``relax.FuseTIR``), which fuses multiple consecutive tensor operations into a
 single kernel. See :ref:`fusion-arch` for a detailed explanation of the fusion algorithm, operator
 pattern classification, and pattern-based fusion for external backends.
@@ -184,7 +184,7 @@ Summary and Discussions
 
 In summary, the key data structures in the compilation flows are:
 
-- IRModule: contains relax.Function and tirx.PrimFunc
+- IRModule: contains relax.Function and tirx.Function
 - runtime.Module: contains runtime.PackedFunc
 
 Most parts of the compilation are transformations among the key data structures.
@@ -308,7 +308,7 @@ The components in `tvm/ir` are shared by `tvm/relax` and `tvm/tirx`, notable one
 - PassContext and Pass
 - Op
 
-Different variants of functions(e.g. relax.Function and tirx.PrimFunc) can co-exist in an IRModule.
+Different variants of functions(e.g. relax.Function and tirx.Function) can co-exist in an IRModule.
 While these variants may not have the same content representation, they use the same data structure to represent types.
 As a consequence, we use the same data structure to represent function (type) signatures of these variants.
 The unified type system allows one function variant to call another function
@@ -336,10 +336,10 @@ tvm/script (TVMScript)
 ----------------------
 
 TVMScript is a Python-based DSL for writing TVM IR. It allows users to define ``IRModule``\ s
-— containing both Relax functions and TIR ``PrimFunc``\ s — using familiar Python syntax with
+— containing both Relax functions and TIR ``Function``\ s — using familiar Python syntax with
 three import aliases: ``I`` (module-level), ``T`` (TIR), and ``R`` (Relax). Although TVMScript
 uses Python syntax, it is not executed by the Python interpreter — decorators like
-``@I.ir_module``, ``@T.prim_func``, and ``@R.function`` extract the Python AST and transform
+``@I.ir_module``, ``@T.function``, and ``@R.function`` extract the Python AST and transform
 it into TVM IR through a parser and IR builder pipeline.
 
 TVMScript also supports **roundtrip**: any ``IRModule`` can be printed back to TVMScript via
@@ -395,12 +395,12 @@ tvm/tirx
 --------
 
 ``tirx`` contains the core IR definitions and lowering infrastructure
-for TensorIR (split from the former ``tir`` module). ``tirx::PrimFunc``
+for TensorIR (split from the former ``tir`` module). ``tirx::Function``
 represents low-level tensor functions that can be transformed by tirx passes.
 
 The tirx module includes:
 
-- IR data structures (PrimFunc, Buffer, SBlock, expressions, statements).
+- IR data structures (Function, Buffer, SBlock, expressions, statements).
 - Analysis passes in ``tirx/analysis``.
 - Transformation and lowering passes in ``tirx/transform``.
 
@@ -408,7 +408,7 @@ tvm/s_tir
 ---------
 
 ``s_tir`` (Schedulable TIR, split from the former ``tir`` module) contains
-schedule primitives and auto-tuning tools that operate on ``tirx::PrimFunc``:
+schedule primitives and auto-tuning tools that operate on ``tirx::Function``:
 
 - Schedule primitives to control code generation (tiling, vectorization, thread
   binding) in ``s_tir/schedule``.
@@ -429,7 +429,7 @@ tvm/te and tvm/topi
 -------------------
 
 TE stands for Tensor Expression. TE is a domain-specific language (DSL) for describing tensor computations. Importantly, a tensor expression
-itself is not a self-contained function that can be stored into IRModule. We can use ``te.create_prim_func`` to convert a tensor expression to a ``tirx::PrimFunc``
+itself is not a self-contained function that can be stored into IRModule. We can use ``te.create_function`` to convert a tensor expression to a ``tirx::Function``
 and then integrate it into the IRModule.
 
 While possible to construct operators directly via TensorIR or tensor expressions (TE) for each use case, it is tedious to do so.

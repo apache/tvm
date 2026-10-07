@@ -41,9 +41,9 @@ struct ReductionBlockFinder : public StmtExprVisitor {
     for (const auto& kv : self->mod->functions) {
       GlobalVar g_var = kv.first;
       BaseFunc base_func = kv.second;
-      if (const auto* prim_func = base_func.as<PrimFuncNode>()) {
+      if (const auto* function = base_func.as<FunctionNode>()) {
         auto finder = ffi::make_object<ReductionBlockFinder>();
-        finder->Visit(prim_func->body);
+        finder->Visit(function->body);
         for (const SBlockNode* block : finder->results_) {
           results.emplace_back(self->stmt2ref.at(block), g_var->name_hint);
         }

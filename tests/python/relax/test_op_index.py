@@ -919,7 +919,7 @@ def test_legalize_dynamic_begin_end():
                 out_ty=R.Tensor((1, 16), "float32"),
             )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def strided_slice(
             A: T.Tensor((T.int64(16), T.int64(16))),
             index: T.int64,
@@ -955,7 +955,7 @@ def test_legalize_dynamic_begin_inf_end():
     class expected:
         strided_slice_index = T.int64()
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def strided_slice(A: T.Tensor((T.int64(16), T.int64(16)), "float32"), index: strided_slice_index, T_dynamic_strided_slice_with_axes: T.Tensor((T.max(T.int64(16) - T.max(T.if_then_else(strided_slice_index < T.int64(0), strided_slice_index + T.int64(16), strided_slice_index), T.int64(0)), T.int64(0)), T.int64(16)))):
             T.func_attr({"tirx.noalias": True})
 

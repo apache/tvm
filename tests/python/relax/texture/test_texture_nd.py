@@ -123,7 +123,7 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
 
     @I.ir_module
     class TextureCopy:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((M, N), dtype), B: T.Tensor((M, N), dtype)):
             T.func_attr({"global_symbol": "main"})
             for li, lj in T.grid(M, N):

@@ -22,7 +22,7 @@ import tvm_ffi
 from tvm import s_tir, sym, tirx
 from tvm.target import Target
 
-from ..analysis import get_root_block, normalize_prim_func
+from ..analysis import get_root_block, normalize_function
 from ..base import try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
@@ -32,11 +32,11 @@ class GeneralReduction(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
 
         if target.kind.name == "cuda":
@@ -50,7 +50,7 @@ class GeneralReduction(GPUScheduleRule):
             unroll_depth = 64
 
         sch = s_tir.Schedule(func)
-        block_infos = normalize_prim_func(sch)
+        block_infos = normalize_function(sch)
         block_infos = try_inline_contiguous_spatial(sch, block_infos)
         if block_infos is None or len(block_infos) == 0:
             return None

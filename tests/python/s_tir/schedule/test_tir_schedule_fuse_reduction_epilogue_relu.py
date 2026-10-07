@@ -32,7 +32,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_bias_relu_before(
     A: T.Tensor((16, 16), "float32"),
     B: T.Tensor((16, 16), "float32"),
@@ -54,7 +54,7 @@ def matmul_bias_relu_before(
             D[vi, vj] = T.max(temp[vi, vj] + C[vi, vj], T.float32(0))
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_bias_relu_before_per_iteration(
     A: T.Tensor((16, 16), "float32"),
     B: T.Tensor((16, 16), "float32"),
@@ -80,7 +80,7 @@ def matmul_bias_relu_before_per_iteration(
             D[vi, vj] = temp[vi, vj]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_bias_relu_expected(
     A: T.Tensor((16, 16), "float32"),
     B: T.Tensor((16, 16), "float32"),
@@ -155,7 +155,7 @@ def test_matmul_bias_relu_correctness_unified():
     np.testing.assert_allclose(D_original, D_fused, rtol=1e-5, atol=1e-6)
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_bias_relu_multiple_epilogue_before(
     A: T.Tensor((16, 16), "float32"),
     B: T.Tensor((16, 16), "float32"),
@@ -183,7 +183,7 @@ def matmul_bias_relu_multiple_epilogue_before(
             E[vi, vj] = temp[vi, vj] + C[vi, vj]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_bias_relu_multiple_epilogue_expected(
     A: T.Tensor((16, 16), "float32"),
     B: T.Tensor((16, 16), "float32"),

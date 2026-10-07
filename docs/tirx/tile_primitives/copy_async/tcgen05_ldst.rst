@@ -84,7 +84,7 @@ fp16):
     local_view = TileLayout(S[(128, WIDTH) : (1 @ axis_tid_in_wg, 1)])
 
 
-    @Tx.prim_func
+    @Tx.function
     def copy_async_test(
         A: Tx.Tensor((128, WIDTH), "float16"), B: Tx.Tensor((128, WIDTH), "float16")
     ):

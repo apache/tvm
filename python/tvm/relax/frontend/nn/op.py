@@ -2030,8 +2030,8 @@ def tensor_expr_op(
         BlockBuilder.current().emit_te(
             tensor_expr_func,
             *[_convert(arg) for arg in args],
-            primfunc_name_hint=name_hint,
-            primfunc_attrs=attrs,
+            function_name_hint=name_hint,
+            function_attrs=attrs,
         ),
         name=name_hint,
     )
@@ -2041,23 +2041,23 @@ OutType = TypeVar("OutType", bound=Tensor | Sequence[Tensor])
 
 
 def tensor_ir_op(
-    func: _tir.PrimFunc,
+    func: _tir.Function,
     name_hint: str,
     args: Tensor | Sequence[Tensor | rx.ShapeExpr | _tir.Expr],
     out: OutType,
 ) -> OutType:
-    """Create a `call_tir` binding with given PrimFunc
+    """Create a `call_tir` binding with given Function
 
     Parameters
     ----------
-    func : _tir.PrimFunc
-        The PrimFunc to call.
+    func : _tir.Function
+        The Function to call.
 
     name_hint : str
         Name hint.
 
     args : Union[Tensor, Sequence[Tensor | rx.ShapeExpr | _tir.Expr]]
-        The arguments to pass to the PrimFunc.
+        The arguments to pass to the Function.
 
     out : Union[Tensor, List[Tensor]]
         The output tensors.
@@ -2101,24 +2101,24 @@ def tensor_ir_op(
 
 
 def tensor_ir_inplace_op(
-    func: _tir.PrimFunc,
+    func: _tir.Function,
     name_hint: str,
     args: Tensor | Sequence[Tensor | rx.ShapeExpr | _tir.Expr],
     inplace_indices: int | list[int],
     out: OutType,
 ) -> OutType:
-    """Create a `call_tir_inplace` binding with given PrimFunc
+    """Create a `call_tir_inplace` binding with given Function
 
     Parameters
     ----------
-    func : _tir.PrimFunc
-        The PrimFunc to call.
+    func : _tir.Function
+        The Function to call.
 
     name_hint : str
         Name hint.
 
     args : Union[Tensor, Sequence[Tensor | rx.ShapeExpr | _tir.Expr]]
-        The arguments to pass to the PrimFunc.
+        The arguments to pass to the Function.
 
     inplace_indices : Union[int, List[int]]
         Specify which arguments should be used for in-place computations.
@@ -2798,7 +2798,7 @@ def sample_top_p_top_k_from_sorted_prob(
     batch = T.dynamic("batch")
     vocab_size = T.dynamic("vocab_size")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _get_renorm_prob(
         cumsum_sorted: T.Tensor((batch, vocab_size), prob_dtype),
         top_p: T.Tensor((batch, 1), prob_dtype),
@@ -2820,7 +2820,7 @@ def sample_top_p_top_k_from_sorted_prob(
     vocab_size = T.dynamic("vocab_size")
     kernel_out_batch = T.dynamic("out_batch")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _get_index_from_sorted(
         cumsum_sorted: T.Tensor((batch, vocab_size), prob_dtype),
         indices: T.Tensor((batch, vocab_size), index_dtype),
@@ -2907,7 +2907,7 @@ def renormalize_top_p_top_k_prob(prob, sorted_prob, top_p, top_k):
     kernel_batch = T.dynamic("batch")
     vocab_size = T.dynamic("vocab_size")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def _get_renorm_cutoff(
         sorted_prob: T.Tensor((kernel_batch, vocab_size), prob_dtype),
         cumsum_sorted: T.Tensor((kernel_batch, vocab_size), prob_dtype),

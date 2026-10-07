@@ -84,7 +84,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { StmtSimplifyConfigNode::RegisterReflection(); }
 
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.StmtSimplify", StmtSimplifyConfig);
 
-PrimFunc StmtSimplifier::Apply(PrimFunc func, const sym::Analyzer& analyzer,
+Function StmtSimplifier::Apply(Function func, const sym::Analyzer& analyzer,
                                ffi::Optional<StmtSimplifyConfig> config_opt) {
   auto config = config_opt.value_or(MakeDefaultStmtSimplifyConfig());
 
@@ -92,7 +92,7 @@ PrimFunc StmtSimplifier::Apply(PrimFunc func, const sym::Analyzer& analyzer,
   return simplifier->Run(std::move(func));
 }
 
-PrimFunc StmtSimplifier::Run(PrimFunc func) {
+Function StmtSimplifier::Run(Function func) {
   analyzer_->rewrite_simplify.SetEnabledExtensions(config_->GetEnabledExtensions());
   MarkBufferParamShapes(func);
   auto* n = func.CopyOnWrite();
@@ -254,20 +254,20 @@ ffi::Optional<bool> StmtSimplifier::ProveCondition(PrimExpr condition) const {
   }
 }
 
-PrimFunc StmtSimplify(PrimFunc func, const sym::Analyzer& analyzer) {
+Function StmtSimplify(Function func, const sym::Analyzer& analyzer) {
   return StmtSimplifier::Apply(std::move(func), analyzer);
 }
 
 namespace transform {
 
 Pass StmtSimplify() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     sym::Analyzer analyzer;
     auto cfg = ctx->GetConfig<StmtSimplifyConfig>("tirx.StmtSimplify");
 
     return StmtSimplifier::Apply(f, analyzer, cfg);
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.StmtSimplify", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.StmtSimplify", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

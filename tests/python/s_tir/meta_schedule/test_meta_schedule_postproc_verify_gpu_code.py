@@ -49,7 +49,7 @@ def _create_context(mod, target) -> ms.TuneContext:
 
 @tvm.script.ir_module
 class Conv2dCuda0:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor([14 * 14 * 256 * 256], dtype='float32'), B: T.Tensor([14 * 14 * 512 * 256], dtype='float32')) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
@@ -84,7 +84,7 @@ class Conv2dCuda0:
 
 @tvm.script.ir_module
 class Conv2dCuda1:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor([14 * 14 * 256 * 256], dtype='float32'), B: T.Tensor([14 * 14 * 512 * 256], dtype='float32')) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
@@ -123,7 +123,7 @@ class Conv2dCuda1:
 
 @tvm.script.ir_module
 class Conv2dCuda2:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor([14 * 14 * 256 * 256], dtype='float32'), B: T.Tensor([14 * 14 * 512 * 256], dtype='float32')) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
@@ -162,7 +162,7 @@ class Conv2dCuda2:
 
 @tvm.script.ir_module
 class Conv2dCuda3:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor([14 * 14 * 256 * 256], dtype='float32'), B: T.Tensor([14 * 14 * 512 * 256], dtype='float32')) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
@@ -195,7 +195,7 @@ class Conv2dCuda3:
         for ff_inner_inner_inner, nn_inner_inner_inner in T.grid(8, 8):
             B[blockIdx_z * 131072 + blockIdx_y * 16384 + threadIdx_y * 2048 + ff_inner_inner_inner * 256 + blockIdx_x * 64 + threadIdx_x * 8 + nn_inner_inner_inner] = B_local[ff_inner_inner_inner * 8 + nn_inner_inner_inner]
 
-@Ts.prim_func
+@Ts.function
 def GmmCuda0(X: T.Tensor((1, 128, 128), "float32"), Y: T.Tensor((1, 128, 128), "float32"), Z: T.Tensor((1, 128, 128), "float32")) -> None:
     Z_local = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="local")
     X_shared = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
@@ -249,7 +249,7 @@ def GmmCuda0(X: T.Tensor((1, 128, 128), "float32"), Y: T.Tensor((1, 128, 128), "
                         Ts.writes(Z[v0, v1, v2])
                         Z[v0, v1, v2] = Z_local[v0, v1, v2]
 
-@Ts.prim_func
+@Ts.function
 def GmmCuda1(X: T.Tensor((1, 128, 128), "float32"), Y: T.Tensor((1, 128, 128), "float32"), Z: T.Tensor((1, 128, 128), "float32")) -> None:
     Z_local = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="local")
     X_shared = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
@@ -307,7 +307,7 @@ def GmmCuda1(X: T.Tensor((1, 128, 128), "float32"), Y: T.Tensor((1, 128, 128), "
                         Ts.writes(Z[v0, v1, v2])
                         Z[v0, v1, v2] = Z_local[v0, v1, v2]
 
-@Ts.prim_func
+@Ts.function
 def GmmCuda2(X: T.Tensor((1, 128, 128), "float32"), Y: T.Tensor((1, 128, 128), "float32"), Z: T.Tensor((1, 128, 128), "float32")) -> None:
     Z_local = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="local")
     X_shared = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
@@ -372,7 +372,7 @@ s1 = T.dynamic("s1", "int32")
 s1_1 = T.dynamic("s1_1", "int32")
 s1_2 = T.dynamic("s1_2", "int32")
 
-@Ts.prim_func
+@Ts.function
 def GMMCUDATensorCore(
     X: T.Tensor((1024, 1024), "float16"),
     Y: T.Tensor((1024, 1024), "float16"),

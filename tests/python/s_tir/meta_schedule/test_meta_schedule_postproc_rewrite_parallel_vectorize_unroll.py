@@ -29,7 +29,7 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class Move_PUV:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor([1024, 1024, 1024], dtype='float32'), B: T.Tensor([1024, 1024, 1024], dtype='float32')) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main"})
@@ -47,7 +47,7 @@ class Move_PUV:
                     Ts.writes([B[vi, vj, vk]])
                     B[vi, vj, vk] = A[vi, vj, vk]
 
-@Ts.prim_func
+@Ts.function
 def Move_PUV0(A: T.Tensor([1024, 1024, 1024], dtype='float32'), B: T.Tensor([1024, 1024, 1024], dtype='float32')) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main"})
@@ -72,7 +72,7 @@ def Move_PUV0(A: T.Tensor([1024, 1024, 1024], dtype='float32'), B: T.Tensor([102
 
 @tvm.script.ir_module
 class Fused_NN_Dense:
-    @Ts.prim_func
+    @Ts.function
     def main(placeholder: T.Tensor((64, 768), "float32"), placeholder_1: T.Tensor((768, 768), "float32"), T_matmul_NT: T.Tensor((64, 768), "float32")) -> None:
         for i0, i1, i2 in T.grid(64, 768, 768):
             with Ts.sblock("T_matmul_NT"):
@@ -83,7 +83,7 @@ class Fused_NN_Dense:
                     T_matmul_NT[i, j] = T.float32(0)
                 T_matmul_NT[i, j] = T_matmul_NT[i, j] + placeholder[i, k] * placeholder_1[j, k]
 
-@Ts.prim_func
+@Ts.function
 def before_matmul_vectorize(
     placeholder: T.Tensor((64, 768), "float32"),
     placeholder_1: T.Tensor((768, 768), "float32"),
@@ -113,7 +113,7 @@ def before_matmul_vectorize(
                     Ts.writes(T_matmul_NT[v0, v1])
                     T_matmul_NT[v0, v1] = T_matmul_NT_global[v0, v1]
 
-@Ts.prim_func
+@Ts.function
 def after_matmul_vectorize(
     placeholder: T.Tensor((64, 768), "float32"),
     placeholder_1: T.Tensor((768, 768), "float32"),
@@ -141,7 +141,7 @@ def after_matmul_vectorize(
                     Ts.writes(T_matmul_NT[v0, v1])
                     T_matmul_NT[v0, v1] = T_matmul_NT_global[v0, v1]
 
-@Ts.prim_func
+@Ts.function
 def before_postproc_add(
     lhs: T.Tensor((1, 8, 56, 56, 32), "uint8"),
     rhs: T.Tensor((1, 8, 56, 56, 32), "uint8"),
@@ -156,7 +156,7 @@ def before_postproc_add(
                 Ts.writes(add_compute[v0, v1, v2, v3, v4])
                 add_compute[v0, v1, v2, v3, v4] = lhs[v0, v1, v2, v3, v4] + rhs[v0, v1, v2, v3, v4]
 
-@Ts.prim_func
+@Ts.function
 def after_postproc_add(
     lhs: T.Tensor((1, 8, 56, 56, 32), "uint8"),
     rhs: T.Tensor((1, 8, 56, 56, 32), "uint8"),
@@ -177,7 +177,7 @@ def after_postproc_add(
 
 n = T.dynamic("n")
 
-@Ts.prim_func
+@Ts.function
 def before_postproc_dynamic_shape_vectorize(
     A: T.Tensor((n,), dtype='float32'),
     B: T.Tensor((n,), dtype='float32'),
@@ -220,7 +220,7 @@ def test_parallel_vectorize_add():
 
 def test_no_unroll_for_spatial_block():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def layer_norm(A: T.Tensor((1, 4, 4, 32), "float32"), B: T.Tensor((4, 4, 32), "float32"), C: T.Tensor((4, 4, 32), "float32"), T_layer_norm: T.Tensor((1, 4, 4, 32), "float32")):
         with Ts.sblock("root"):
             Ts.sblock_attr({"meta_schedule.unroll_explicit": 512})
@@ -245,7 +245,7 @@ def test_no_unroll_for_spatial_block():
                     Ts.writes(T_layer_norm[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_layer_norm[v_ax0, v_ax1, v_ax2, v_ax3] = (A[v_ax0, v_ax1, v_ax2, v_ax3] - A_red_temp_v0[v_ax0] * T.float32(0.001953125)) * T.rsqrt(A_red_temp_v1[v_ax0] * T.float32(0.001953125) - A_red_temp_v0[v_ax0] * T.float32(0.001953125) * (A_red_temp_v0[v_ax0] * T.float32(0.001953125)) + T.float32(1.0000000000000001e-05)) * B[v_ax1, v_ax2, v_ax3] + C[v_ax1, v_ax2, v_ax3]
 
-    @Ts.prim_func
+    @Ts.function
     def expected(A: T.Tensor((1, 4, 4, 32), "float32"), B: T.Tensor((4, 4, 32), "float32"), C: T.Tensor((4, 4, 32), "float32"), T_layer_norm: T.Tensor((1, 4, 4, 32), "float32")):
         with Ts.sblock("root"):
             A_red_temp_v0 = Ts.sblock_alloc_buffer((1,))

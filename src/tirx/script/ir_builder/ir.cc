@@ -86,25 +86,25 @@ TensorVar TensorDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buf
                                   offset_factor, layout, allocated_addr));
 }
 
-PrimFuncFrame PrimFunc(bool is_private, bool persistent) {
-  ffi::ObjectPtr<PrimFuncFrameNode> n = ffi::make_object<PrimFuncFrameNode>();
+FunctionFrame Function(bool is_private, bool persistent) {
+  ffi::ObjectPtr<FunctionFrameNode> n = ffi::make_object<FunctionFrameNode>();
   n->name = std::nullopt;
   n->is_private = is_private;
   n->args.clear();
   n->ret_type = std::nullopt;
   n->attrs = {};
   n->persistent = persistent;
-  return PrimFuncFrame(n);
+  return FunctionFrame(n);
 }
 
-PrimFuncFrame DeclFunction(bool is_private, bool persistent) {
-  PrimFuncFrame frame = PrimFunc(is_private, persistent);
+FunctionFrame DeclFunction(bool is_private, bool persistent) {
+  FunctionFrame frame = Function(is_private, persistent);
   frame->is_declaration = true;
   return frame;
 }
 
 Var Arg(ffi::String name, Var var) {
-  PrimFuncFrame frame = FindPrimFuncFrame("T.Arg");
+  FunctionFrame frame = FindFunctionFrame("T.Arg");
   details::Namer::Name(var, name);
   frame->args.push_back(var);
   return var;
@@ -116,9 +116,9 @@ TensorVar Arg(ffi::String name, TensorVar buffer) {
 }
 
 void FuncName(ffi::String name) {
-  PrimFuncFrame frame = FindPrimFuncFrame("T.func_name");
+  FunctionFrame frame = FindFunctionFrame("T.func_name");
   if (frame->name.has_value()) {
-    TVM_FFI_THROW(InternalError) << "ValueError: Duplicate prim func name, previous one is "
+    TVM_FFI_THROW(InternalError) << "ValueError: Duplicate function name, previous one is "
                                  << frame->name.value();
   }
   frame->name = name;
@@ -126,7 +126,7 @@ void FuncName(ffi::String name) {
 
 void FuncAttrs(ffi::Map<ffi::String, ffi::Any> new_attrs) {
   using namespace tvm::tirx;
-  PrimFuncFrame frame = FindPrimFuncFrame("T.func_attr");
+  FunctionFrame frame = FindFunctionFrame("T.func_attr");
   for (const auto& [key, value] : new_attrs) {
     if (key == tvm::attr::kGlobalSymbol && frame->is_private) {
       TVM_FFI_THROW(InternalError)
@@ -139,7 +139,7 @@ void FuncAttrs(ffi::Map<ffi::String, ffi::Any> new_attrs) {
     if (auto prev = frame->attrs.Get(key)) {
       TVM_FFI_THROW(InternalError)
           << "ValueError: "
-          << "Duplicate prim func annotation for key = \"" << key << "\".  "
+          << "Duplicate function annotation for key = \"" << key << "\".  "
           << "Previous value was " << prev.value() << ", with later definition as " << value;
     } else {
       frame->attrs.Set(key, value);
@@ -148,9 +148,9 @@ void FuncAttrs(ffi::Map<ffi::String, ffi::Any> new_attrs) {
 }
 
 tvm::Type FuncRet(tvm::Type ret_type) {
-  PrimFuncFrame frame = FindPrimFuncFrame("T.ret_type");
+  FunctionFrame frame = FindFunctionFrame("T.ret_type");
   if (frame->ret_type.has_value()) {
-    TVM_FFI_THROW(InternalError) << "ValueError: Duplicate prim func return type, previous one is "
+    TVM_FFI_THROW(InternalError) << "ValueError: Duplicate function return type, previous one is "
                                  << frame->ret_type.value();
   }
   frame->ret_type = ret_type;
@@ -185,7 +185,7 @@ ffi::Array<tvm::tirx::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, 
   }
   // Emit a standalone ScopeIdDefStmt to the current TIRFrame's stmts list.
   // The def is visible to all subsequent stmts within the same enclosing
-  // scope (PrimFunc body, RegionStmt body, ExecScope body, etc.).
+  // scope (Function body, RegionStmt body, ExecScope body, etc.).
   tvm::tirx::ScopeIdDef def(
       scope_ids.Map([](tvm::tirx::Var var) { return var.as_or_throw<tvm::PrimVar>(); }), extents,
       tvm::tirx::StringPairToScopeBinding(parent, cur));
@@ -519,7 +519,7 @@ tvm::tirx::Stmt TensorStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExp
           (rhs_dtype.code() == DLDataTypeCode::kDLFloat ||
            rhs_dtype.code() == DLDataTypeCode::kDLBfloat)) {
         ffi::String kernel_name = "<unknown>";
-        if (ffi::Optional<PrimFuncFrame> frame = IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
+        if (ffi::Optional<FunctionFrame> frame = IRBuilder::Current()->FindFrame<FunctionFrame>()) {
           kernel_name = frame.value()->name.value_or("<anonymous>");
         }
         LOG(WARNING) << "Casting in TensorStore may lose precision"
@@ -638,7 +638,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("script.ir_builder.tirx.TensorType", TensorTypeDecl)
-      .def("script.ir_builder.tirx.PrimFunc", PrimFunc)
+      .def("script.ir_builder.tirx.Function", Function)
       .def("script.ir_builder.tirx.DeclFunction", DeclFunction)
       .def("script.ir_builder.tirx.Arg",
            [](ffi::String name, ffi::ObjectRef obj) -> ffi::ObjectRef {

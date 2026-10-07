@@ -30,7 +30,7 @@ from tvm.ir import Call, DataTypeImm, DictAttrs, StringImm, TensorRegion, Tuple
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
-from tvm.tirx import IntImm, PrimFunc
+from tvm.tirx import Function, IntImm
 from tvm.tirx import op as tirx_op
 from tvm.tirx.layout import (
     ComposeLayout,
@@ -352,7 +352,7 @@ def _layout_matches_datapath_f(tmem_buf) -> bool:
         return False
 
 
-def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     """Schedule an asynchronous GEMM operation using tcgen05.mma (Blackwell Tensor Core).
 
     Computes C = A @ B (with optional transpose on A/B and accumulation).
@@ -381,7 +381,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         sctx: Schedule context (single-thread or warp execution scope)
 
     Returns:
-        A PrimFunc implementing the tcgen05 MMA schedule.
+        A Function implementing the tcgen05 MMA schedule.
 
     Raises:
         ValueError: If buffer scopes are invalid (C must be tmem, A must be shared or tmem,
@@ -1488,18 +1488,18 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
 
     # descI is not None only for block-scaled calls (dense descI raises above).
     if descI is not None and not needs_sf_id:
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             call_main(descI)
     elif descI is not None:
         # Local copy: main_impl rotates descI in-place per ki.
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             descI_local: T.uint32
             descI_local = descI
             call_main(descI_local)
     elif is_block_scaled:
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             descI_local: T.uint32
             T.cuda.tcgen05.encode_instr_descriptor_block_scaled(T.address_of(descI_local), d_dtype=C_type, a_dtype=A_type, b_dtype=B_type, sfa_dtype=SFA_type, sfb_dtype=SFB_type,  # noqa: E501, F821
@@ -1525,7 +1525,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         )
         descI_const = tvm.tirx.const(descI_value, "uint32")
 
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             call_main(descI_const)
     # fmt: on
@@ -1576,5 +1576,5 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         )
     ],
 )
-def gemm_async_dispatch_tcgen05(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def gemm_async_dispatch_tcgen05(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     return gemm_async_tcgen05_impl(op_call, sctx)

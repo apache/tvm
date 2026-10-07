@@ -31,9 +31,9 @@ bool IsRootBlock(const Schedule& sch, const SBlockRV& block_rv) {
   return block_sref->parent == nullptr;
 }
 
-bool CheckSpatialPrimFunc(const Schedule& sch, const SBlockRV& root_block_rv) {
-  return IsSpatialPrimFunc(
-      ffi::GetRef<PrimFunc>(GetRootPrimFunc(sch->mod(), sch->Get(root_block_rv).get(), nullptr)));
+bool CheckSpatialFunction(const Schedule& sch, const SBlockRV& root_block_rv) {
+  return IsSpatialFunction(
+      ffi::GetRef<Function>(GetRootFunction(sch->mod(), sch->Get(root_block_rv).get(), nullptr)));
 }
 
 }  // namespace s_tir
@@ -72,7 +72,7 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
                     IntImm::Int32(max_vectorize_extent));
     }
     // Unroll
-    if (!unroll_max_steps.empty() && !s_tir::CheckSpatialPrimFunc(sch, root_rv)) {
+    if (!unroll_max_steps.empty() && !s_tir::CheckSpatialFunction(sch, root_rv)) {
       int n = unroll_max_steps.size();
       double prob = 1.0 / n;
       ffi::Array<FloatImm> probs(n, FloatImm(PrimType::Float(32), prob));

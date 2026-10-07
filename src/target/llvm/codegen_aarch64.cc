@@ -40,19 +40,19 @@ class CodeGenAArch64 final : public CodeGenCPU {
   CodeGenAArch64() = default;
   virtual ~CodeGenAArch64() = default;
 
-  llvm::Function* DeclareFunction(const GlobalVar& gvar, const PrimFunc& f) override;
-  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) override;
+  llvm::Function* DeclareFunction(const GlobalVar& gvar, const Function& f) override;
+  void AddFunction(const GlobalVar& gvar, const Function& f) override;
   void SetTargetAttributes(llvm::Function* func) override;
 
  private:
   void SetComputeScopeAttributes(llvm::Function* func) override;
-  void SetPStateAttributes(llvm::Function* func, const PrimFunc& f);
+  void SetPStateAttributes(llvm::Function* func, const Function& f);
 
-  ffi::Optional<PrimFunc> current_prim_func_;
+  ffi::Optional<Function> current_function_;
   llvm::Function* packed_function_{nullptr};
 };
 
-llvm::Function* CodeGenAArch64::DeclareFunction(const GlobalVar& gvar, const PrimFunc& f) {
+llvm::Function* CodeGenAArch64::DeclareFunction(const GlobalVar& gvar, const Function& f) {
   llvm::Function* func = CodeGenCPU::DeclareFunction(gvar, f);
   if (f->GetAttr<CallingConv>(tvm::attr::kCallingConv) != CallingConv::kCPackedFunc) {
     SetPStateAttributes(func, f);
@@ -60,28 +60,28 @@ llvm::Function* CodeGenAArch64::DeclareFunction(const GlobalVar& gvar, const Pri
   return func;
 }
 
-void CodeGenAArch64::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
+void CodeGenAArch64::AddFunction(const GlobalVar& gvar, const Function& f) {
   llvm::Function* func = DeclareFunction(gvar, f);
-  current_prim_func_ = f;
+  current_function_ = f;
   packed_function_ = f->GetAttr<CallingConv>(tvm::attr::kCallingConv) == CallingConv::kCPackedFunc
                          ? func
                          : nullptr;
   CodeGenCPU::AddFunction(gvar, f);
-  current_prim_func_ = std::nullopt;
+  current_function_ = std::nullopt;
   packed_function_ = nullptr;
 }
 
 void CodeGenAArch64::SetComputeScopeAttributes(llvm::Function* func) {
   CodeGenCPU::SetComputeScopeAttributes(func);
-  // MakePackedAPI keeps PrimFunc attrs on the packed wrapper, but the SME contract belongs
+  // MakePackedAPI keeps Function attrs on the packed wrapper, but the SME contract belongs
   // to its outlined compute function. Runtime callbacks and nested helpers have separate ABIs.
   if (function_ == packed_function_) {
-    SetPStateAttributes(func, current_prim_func_.value());
+    SetPStateAttributes(func, current_function_.value());
   }
 }
 
-void CodeGenAArch64::SetPStateAttributes(llvm::Function* func, const PrimFunc& f) {
-  // These string PrimFunc attrs are exposed directly through T.func_attr and with_attr.
+void CodeGenAArch64::SetPStateAttributes(llvm::Function* func, const Function& f) {
+  // These string Function attrs are exposed directly through T.func_attr and with_attr.
   if (auto sm = f->GetAttr<ffi::String>("aarch64_pstate_sm")) {
     // A locally streaming body does not change a bodyless declaration's interface.
     if (sm.value() != "body" || f->body.has_value()) {

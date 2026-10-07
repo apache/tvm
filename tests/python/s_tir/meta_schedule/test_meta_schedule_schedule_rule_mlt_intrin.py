@@ -35,7 +35,7 @@ from tvm.target import Target
 def test_x86_conv2d_nchwc(
     intrin=VNNI_INTRIN, target={"kind": "llvm", "mcpu": "cascadelake", "num-cores": 4}
 ):
-    @Ts.prim_func
+    @Ts.function
     def conv2d_nchwc(
         placeholder: T.Tensor((1, 4, 56, 56, 16), "uint8"),
         placeholder_1: T.Tensor((16, 4, 1, 1, 4, 16, 4), "int8"),
@@ -73,7 +73,7 @@ def test_x86_conv2d_nchwc(
                 )
 
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def x86_conv2d_nchwc_0(placeholder: T.Tensor((1, 4, 56, 56, 16), "uint8"), placeholder_1: T.Tensor((16, 4, 1, 1, 4, 16, 4), "int8"), conv2d_NCHWc_int8: T.Tensor((1, 16, 56, 56, 16), "int32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with Ts.sblock("root"):
@@ -119,7 +119,7 @@ def test_x86_conv2d_nchwc(
                     Ts.writes(conv2d_NCHWc_int8[v0, v1, v2, v3, v4])
                     conv2d_NCHWc_int8[v0, v1, v2, v3, v4] = conv2d_NCHWc_int8_global[v0, v1, v2, v3, v4]
 
-    @Ts.prim_func
+    @Ts.function
     def x86_conv2d_nchwc_1(placeholder: T.Tensor((1, 4, 56, 56, 16), "uint8"), placeholder_1: T.Tensor((16, 4, 1, 1, 4, 16, 4), "int8"), conv2d_NCHWc_int8: T.Tensor((1, 16, 56, 56, 16), "int32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with Ts.sblock("root"):
@@ -165,7 +165,7 @@ def test_x86_conv2d_nchwc(
                     Ts.writes(conv2d_NCHWc_int8[v0, v1, v2, v3, v4])
                     conv2d_NCHWc_int8[v0, v1, v2, v3, v4] = conv2d_NCHWc_int8_global[v0, v1, v2, v3, v4]
 
-    @Ts.prim_func
+    @Ts.function
     def x86_conv2d_nchwc_2(placeholder: T.Tensor((1, 4, 56, 56, 16), "uint8"), placeholder_1: T.Tensor((16, 4, 1, 1, 4, 16, 4), "int8"), conv2d_NCHWc_int8: T.Tensor((1, 16, 56, 56, 16), "int32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with Ts.sblock("root"):
@@ -275,7 +275,7 @@ def _check_dp4a_dense(m, n, k, in_dtype, out_dtype, expected_mods, expected_deci
             ),
             name="compute",
         )
-        return te.create_prim_func([X, W, matmul])
+        return te.create_function([X, W, matmul])
 
     mod = _dense(m, n, k, in_dtype, out_dtype)
     actual = generate_design_space(
@@ -304,7 +304,7 @@ def _check_dp4a_dense(m, n, k, in_dtype, out_dtype, expected_mods, expected_deci
 
 
 def test_dp4a_dense():
-    @Ts.prim_func
+    @Ts.function
     def dp4a_dense_0(
         X: T.Tensor((128, 128), "int8"),
         W: T.Tensor((128, 128), "int8"),

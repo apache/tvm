@@ -44,7 +44,7 @@ def _design_space(mod):
 
 def test_cpu_c1d():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def c1d_0(inputs: T.Tensor((1, 256, 64), "float32"), weight: T.Tensor((3, 64, 128), "float32"), conv1d_nlc: T.Tensor((1, 128, 128), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -80,7 +80,7 @@ def test_cpu_c1d():
                         Ts.reads(conv1d_nlc_global[v0, v1, v2])
                         Ts.writes(conv1d_nlc[v0, v1, v2])
                         conv1d_nlc[v0, v1, v2] = conv1d_nlc_global[v0, v1, v2]
-    @Ts.prim_func
+    @Ts.function
     def c1d_1(inputs: T.Tensor((1, 256, 64), "float32"), weight: T.Tensor((3, 64, 128), "float32"), conv1d_nlc: T.Tensor((1, 128, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -120,7 +120,7 @@ def test_cpu_c1d():
                         Ts.writes(conv1d_nlc[v0, v1, v2])
                         conv1d_nlc[v0, v1, v2] = conv1d_nlc_global[v0, v1, v2]
 
-    @Ts.prim_func
+    @Ts.function
     def c1d_2(inputs: T.Tensor((1, 256, 64), "float32"), weight: T.Tensor((3, 64, 128), "float32"), conv1d_nlc: T.Tensor((1, 128, 128), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -183,7 +183,7 @@ def test_cpu_c1d():
 
 def test_cpu_c2d():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def c2d_0(inputs: T.Tensor((1, 224, 224, 3), "float32"), weight: T.Tensor((7, 7, 3, 64), "float32"), conv2d_nhwc: T.Tensor((1, 112, 112, 64), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -227,7 +227,7 @@ def test_cpu_c2d():
                             Ts.reads(conv2d_nhwc_global[v0, v1, v2, v3])
                             Ts.writes(conv2d_nhwc[v0, v1, v2, v3])
                             conv2d_nhwc[v0, v1, v2, v3] = conv2d_nhwc_global[v0, v1, v2, v3]
-    @Ts.prim_func
+    @Ts.function
     def c2d_1(inputs: T.Tensor((1, 224, 224, 3), "float32"), weight: T.Tensor((7, 7, 3, 64), "float32"), conv2d_nhwc: T.Tensor((1, 112, 112, 64), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -267,7 +267,7 @@ def test_cpu_c2d():
                         Ts.reads(conv2d_nhwc_global[v0, v1, v2, v3])
                         Ts.writes(conv2d_nhwc[v0, v1, v2, v3])
                         conv2d_nhwc[v0, v1, v2, v3] = conv2d_nhwc_global[v0, v1, v2, v3]
-    @Ts.prim_func
+    @Ts.function
     def c2d_2(inputs: T.Tensor((1, 224, 224, 3), "float32"), weight: T.Tensor((7, 7, 3, 64), "float32"), conv2d_nhwc: T.Tensor((1, 112, 112, 64), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -348,7 +348,7 @@ def test_cpu_c2d():
 
 def test_cpu_c3d():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def c3d_0(inputs: T.Tensor((1, 16, 224, 224, 3), "float32"), weight: T.Tensor((7, 7, 7, 3, 64), "float32"), conv3d_ndhwc: T.Tensor((1, 8, 112, 112, 64), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -396,7 +396,7 @@ def test_cpu_c3d():
                             Ts.reads(conv3d_ndhwc_global[v0, v1, v2, v3, v4])
                             Ts.writes(conv3d_ndhwc[v0, v1, v2, v3, v4])
                             conv3d_ndhwc[v0, v1, v2, v3, v4] = conv3d_ndhwc_global[v0, v1, v2, v3, v4]
-    @Ts.prim_func
+    @Ts.function
     def c3d_1(inputs: T.Tensor((1, 16, 224, 224, 3), "float32"), weight: T.Tensor((7, 7, 7, 3, 64), "float32"), conv3d_ndhwc: T.Tensor((1, 8, 112, 112, 64), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -444,7 +444,7 @@ def test_cpu_c3d():
                         Ts.reads(conv3d_ndhwc_global[v0, v1, v2, v3, v4])
                         Ts.writes(conv3d_ndhwc[v0, v1, v2, v3, v4])
                         conv3d_ndhwc[v0, v1, v2, v3, v4] = conv3d_ndhwc_global[v0, v1, v2, v3, v4]
-    @Ts.prim_func
+    @Ts.function
     def c3d_2(inputs: T.Tensor((1, 16, 224, 224, 3), "float32"), weight: T.Tensor((7, 7, 7, 3, 64), "float32"), conv3d_ndhwc: T.Tensor((1, 8, 112, 112, 64), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -534,7 +534,7 @@ def test_cpu_c3d():
 
 def test_cpu_cap():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def cap_0(inputs: T.Tensor((1, 16, 16, 4, 4, 32), "float32"), weight: T.Tensor((3, 3, 4, 4, 32, 32), "float32"), conv2d_capsule_nhwijc: T.Tensor((1, 8, 8, 4, 4, 32), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -583,7 +583,7 @@ def test_cpu_cap():
                             Ts.reads(conv2d_capsule_nhwijc_global[v0, v1, v2, v3, v4, v5])
                             Ts.writes(conv2d_capsule_nhwijc[v0, v1, v2, v3, v4, v5])
                             conv2d_capsule_nhwijc[v0, v1, v2, v3, v4, v5] = conv2d_capsule_nhwijc_global[v0, v1, v2, v3, v4, v5]
-    @Ts.prim_func
+    @Ts.function
     def cap_1(inputs: T.Tensor((1, 16, 16, 4, 4, 32), "float32"), weight: T.Tensor((3, 3, 4, 4, 32, 32), "float32"), conv2d_capsule_nhwijc: T.Tensor((1, 8, 8, 4, 4, 32), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -629,7 +629,7 @@ def test_cpu_cap():
                         Ts.reads(conv2d_capsule_nhwijc_global[v0, v1, v2, v3, v4, v5])
                         Ts.writes(conv2d_capsule_nhwijc[v0, v1, v2, v3, v4, v5])
                         conv2d_capsule_nhwijc[v0, v1, v2, v3, v4, v5] = conv2d_capsule_nhwijc_global[v0, v1, v2, v3, v4, v5]
-    @Ts.prim_func
+    @Ts.function
     def cap_2(inputs: T.Tensor((1, 16, 16, 4, 4, 32), "float32"), weight: T.Tensor((3, 3, 4, 4, 32, 32), "float32"), conv2d_capsule_nhwijc: T.Tensor((1, 8, 8, 4, 4, 32), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -716,7 +716,7 @@ def test_cpu_cap():
 
 def test_cpu_dep():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def dep_0(placeholder: T.Tensor((1, 112, 112, 32), "float32"), placeholder_1: T.Tensor((1, 3, 3, 32), "float32"), depth_conv2d_nhwc: T.Tensor((1, 112, 112, 32), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -755,7 +755,7 @@ def test_cpu_dep():
                         Ts.reads(depth_conv2d_nhwc_global[v0, v1, v2, v3])
                         Ts.writes(depth_conv2d_nhwc[v0, v1, v2, v3])
                         depth_conv2d_nhwc[v0, v1, v2, v3] = depth_conv2d_nhwc_global[v0, v1, v2, v3]
-    @Ts.prim_func
+    @Ts.function
     def dep_1(placeholder: T.Tensor((1, 112, 112, 32), "float32"), placeholder_1: T.Tensor((1, 3, 3, 32), "float32"), depth_conv2d_nhwc: T.Tensor((1, 112, 112, 32), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -791,7 +791,7 @@ def test_cpu_dep():
                         Ts.reads(depth_conv2d_nhwc_global[v0, v1, v2, v3])
                         Ts.writes(depth_conv2d_nhwc[v0, v1, v2, v3])
                         depth_conv2d_nhwc[v0, v1, v2, v3] = depth_conv2d_nhwc_global[v0, v1, v2, v3]
-    @Ts.prim_func
+    @Ts.function
     def dep_2(placeholder: T.Tensor((1, 112, 112, 32), "float32"), placeholder_1: T.Tensor((1, 3, 3, 32), "float32"), depth_conv2d_nhwc: T.Tensor((1, 112, 112, 32), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -865,7 +865,7 @@ def test_cpu_dep():
 
 def test_cpu_dil():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def dil_0(inputs: T.Tensor((1, 224, 224, 3), "float32"), weight: T.Tensor((7, 7, 3, 64), "float32"), conv2d_nhwc: T.Tensor((1, 109, 109, 64), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -908,7 +908,7 @@ def test_cpu_dil():
                         Ts.reads(conv2d_nhwc_global[v0, v1, v2, v3])
                         Ts.writes(conv2d_nhwc[v0, v1, v2, v3])
                         conv2d_nhwc[v0, v1, v2, v3] = conv2d_nhwc_global[v0, v1, v2, v3]
-    @Ts.prim_func
+    @Ts.function
     def dil_1(inputs: T.Tensor((1, 224, 224, 3), "float32"), weight: T.Tensor((7, 7, 3, 64), "float32"), conv2d_nhwc: T.Tensor((1, 109, 109, 64), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -952,7 +952,7 @@ def test_cpu_dil():
                         Ts.reads(conv2d_nhwc_global[v0, v1, v2, v3])
                         Ts.writes(conv2d_nhwc[v0, v1, v2, v3])
                         conv2d_nhwc[v0, v1, v2, v3] = conv2d_nhwc_global[v0, v1, v2, v3]
-    @Ts.prim_func
+    @Ts.function
     def dil_2(inputs: T.Tensor((1, 224, 224, 3), "float32"), weight: T.Tensor((7, 7, 3, 64), "float32"), conv2d_nhwc: T.Tensor((1, 109, 109, 64), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1031,7 +1031,7 @@ def test_cpu_dil():
 
 def test_cpu_gmm():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def gmm_0(X: T.Tensor((1, 128, 128), "float32"), Y: T.Tensor((1, 128, 128), "float32"), Z: T.Tensor((1, 128, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1060,7 +1060,7 @@ def test_cpu_gmm():
                         Ts.reads(Z_global[v0, v1, v2])
                         Ts.writes(Z[v0, v1, v2])
                         Z[v0, v1, v2] = Z_global[v0, v1, v2]
-    @Ts.prim_func
+    @Ts.function
     def gmm_1(X: T.Tensor((1, 128, 128), "float32"), Y: T.Tensor((1, 128, 128), "float32"), Z: T.Tensor((1, 128, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1089,7 +1089,7 @@ def test_cpu_gmm():
                         Ts.reads(Z_global[v0, v1, v2])
                         Ts.writes(Z[v0, v1, v2])
                         Z[v0, v1, v2] = Z_global[v0, v1, v2]
-    @Ts.prim_func
+    @Ts.function
     def gmm_2(X: T.Tensor((1, 128, 128), "float32"), Y: T.Tensor((1, 128, 128), "float32"), Z: T.Tensor((1, 128, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1142,7 +1142,7 @@ def test_cpu_gmm():
 
 def test_cpu_grp():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def grp_0(inputs: T.Tensor((1, 56, 56, 64), "float32"), weight: T.Tensor((3, 3, 16, 128), "float32"), conv2d_nhwc: T.Tensor((1, 28, 28, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1186,7 +1186,7 @@ def test_cpu_grp():
                             Ts.reads(conv2d_nhwc_global[v0, v1, v2, v3])
                             Ts.writes(conv2d_nhwc[v0, v1, v2, v3])
                             conv2d_nhwc[v0, v1, v2, v3] = conv2d_nhwc_global[v0, v1, v2, v3]
-    @Ts.prim_func
+    @Ts.function
     def grp_1(inputs: T.Tensor((1, 56, 56, 64), "float32"), weight: T.Tensor((3, 3, 16, 128), "float32"), conv2d_nhwc: T.Tensor((1, 28, 28, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1226,7 +1226,7 @@ def test_cpu_grp():
                         Ts.reads(conv2d_nhwc_global[v0, v1, v2, v3])
                         Ts.writes(conv2d_nhwc[v0, v1, v2, v3])
                         conv2d_nhwc[v0, v1, v2, v3] = conv2d_nhwc_global[v0, v1, v2, v3]
-    @Ts.prim_func
+    @Ts.function
     def grp_2(inputs: T.Tensor((1, 56, 56, 64), "float32"), weight: T.Tensor((3, 3, 16, 128), "float32"), conv2d_nhwc: T.Tensor((1, 28, 28, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1305,7 +1305,7 @@ def test_cpu_grp():
 
 def test_cpu_t2d():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def t2d_0(inputs: T.Tensor((1, 4, 4, 512), "float32"), weight: T.Tensor((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Tensor((1, 8, 8, 256), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1345,7 +1345,7 @@ def test_cpu_t2d():
                         Ts.reads(conv2d_transpose_nhwc_global[v0, v1, v2, v3])
                         Ts.writes(conv2d_transpose_nhwc[v0, v1, v2, v3])
                         conv2d_transpose_nhwc[v0, v1, v2, v3] = conv2d_transpose_nhwc_global[v0, v1, v2, v3]
-    @Ts.prim_func
+    @Ts.function
     def t2d_1(inputs: T.Tensor((1, 4, 4, 512), "float32"), weight: T.Tensor((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Tensor((1, 8, 8, 256), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1386,7 +1386,7 @@ def test_cpu_t2d():
                         Ts.reads(conv2d_transpose_nhwc_global[v0, v1, v2, v3])
                         Ts.writes(conv2d_transpose_nhwc[v0, v1, v2, v3])
                         conv2d_transpose_nhwc[v0, v1, v2, v3] = conv2d_transpose_nhwc_global[v0, v1, v2, v3]
-    @Ts.prim_func
+    @Ts.function
     def t2d_2(inputs: T.Tensor((1, 4, 4, 512), "float32"), weight: T.Tensor((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Tensor((1, 8, 8, 256), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1455,7 +1455,7 @@ def test_cpu_t2d():
 
 def test_cpu_nrm():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def nrm_0(A: T.Tensor((1, 256, 256), "float32"), D: T.Tensor(1, "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1486,7 +1486,7 @@ def test_cpu_nrm():
                     Ts.reads(C[v_b])
                     Ts.writes(D[v_b])
                     D[v_b] = T.sqrt(C[v_b])
-    @Ts.prim_func
+    @Ts.function
     def nrm_1(A: T.Tensor((1, 256, 256), "float32"), D: T.Tensor(1, "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1517,7 +1517,7 @@ def test_cpu_nrm():
                     Ts.reads(C[v_b])
                     Ts.writes(D[v_b])
                     D[v_b] = T.sqrt(C[v_b])
-    @Ts.prim_func
+    @Ts.function
     def nrm_2(A: T.Tensor((1, 256, 256), "float32"), D: T.Tensor(1, "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1568,7 +1568,7 @@ def test_cpu_nrm():
 
 def test_cpu_sfm():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def sfm_0(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1619,7 +1619,7 @@ def test_cpu_sfm():
                     Ts.writes(T_softmax_norm[v_i0, v_i1])
                     Ts.sblock_attr({"axis": 1})
                     T_softmax_norm[v_i0, v_i1] = T.exp(A[v_i0, v_i1] - T_softmax_maxelem[v_i0]) / T_softmax_expsum[v_i0]
-    @Ts.prim_func
+    @Ts.function
     def sfm_1(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1680,7 +1680,7 @@ def test_cpu_sfm():
                     Ts.writes(T_softmax_norm[v_i0, v_i1])
                     Ts.sblock_attr({"axis": 1})
                     T_softmax_norm[v_i0, v_i1] = T_softmax_exp[v_i0, v_i1] / T_softmax_expsum[v_i0]
-    @Ts.prim_func
+    @Ts.function
     def sfm_2(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1721,7 +1721,7 @@ def test_cpu_sfm():
                     Ts.writes(T_softmax_norm[v_i0, v_i1])
                     Ts.sblock_attr({"axis": 1})
                     T_softmax_norm[v_i0, v_i1] = T.exp(A[v_i0, v_i1] - T_softmax_maxelem[v_i0]) / T_softmax_expsum[v_i0]
-    @Ts.prim_func
+    @Ts.function
     def sfm_3(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1786,7 +1786,7 @@ def test_cpu_sfm():
                     Ts.writes(T_softmax_norm[v_i0, v_i1])
                     Ts.sblock_attr({"axis": 1})
                     T_softmax_norm[v_i0, v_i1] = T_softmax_exp[v_i0, v_i1] / T_softmax_expsum[v_i0]
-    @Ts.prim_func
+    @Ts.function
     def sfm_4(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1846,7 +1846,7 @@ def test_cpu_sfm():
                     Ts.writes(T_softmax_norm[v_i0, v_i1])
                     Ts.sblock_attr({"axis": 1})
                     T_softmax_norm[v_i0, v_i1] = T_softmax_exp[v_i0, v_i1] / T_softmax_expsum[v_i0]
-    @Ts.prim_func
+    @Ts.function
     def sfm_5(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1901,7 +1901,7 @@ def test_cpu_sfm():
                         Ts.writes(T_softmax_norm[v_i0, v_i1])
                         Ts.sblock_attr({"axis": 1})
                         T_softmax_norm[v_i0, v_i1] = T_softmax_exp[v_i0, v_i1] / T_softmax_expsum[v_i0]
-    @Ts.prim_func
+    @Ts.function
     def sfm_6(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1945,7 +1945,7 @@ def test_cpu_sfm():
                     Ts.writes(T_softmax_norm[v_i0, v_i1])
                     Ts.sblock_attr({"axis": 1})
                     T_softmax_norm[v_i0, v_i1] = T.exp(A[v_i0, v_i1] - T_softmax_maxelem[v_i0]) / T_softmax_expsum[v_i0]
-    @Ts.prim_func
+    @Ts.function
     def sfm_7(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1987,7 +1987,7 @@ def test_cpu_sfm():
                     Ts.writes(T_softmax_norm[v_i0, v_i1])
                     Ts.sblock_attr({"axis": 1})
                     T_softmax_norm[v_i0, v_i1] = T.exp(A[v_i0, v_i1] - T_softmax_maxelem[v_i0]) / T_softmax_expsum[v_i0]
-    @Ts.prim_func
+    @Ts.function
     def sfm_8(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -2129,7 +2129,7 @@ def test_cpu_sfm():
 
 def test_cpu_cbr():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def cbr_0(data: T.Tensor((1, 224, 224, 3), "float32"), kernel: T.Tensor((7, 7, 3, 64), "float32"), bias: T.Tensor(64, "float32"), bn_offset: T.Tensor(64, "float32"), bn_scale: T.Tensor(64, "float32"), compute: T.Tensor((1, 112, 112, 64), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -2158,7 +2158,7 @@ def test_cpu_cbr():
                     Ts.reads(Conv2dOutput[v_i0, v_i1, v_i2, v_i3], bias[v_i3], bn_scale[v_i3], bn_offset[v_i3])
                     Ts.writes(compute[v_i0, v_i1, v_i2, v_i3])
                     compute[v_i0, v_i1, v_i2, v_i3] = T.max((Conv2dOutput[v_i0, v_i1, v_i2, v_i3] + bias[v_i3]) * bn_scale[v_i3] + bn_offset[v_i3], T.float32(0))
-    @Ts.prim_func
+    @Ts.function
     def cbr_1(data: T.Tensor((1, 224, 224, 3), "float32"), kernel: T.Tensor((7, 7, 3, 64), "float32"), bias: T.Tensor(64, "float32"), bn_offset: T.Tensor(64, "float32"), bn_scale: T.Tensor(64, "float32"), compute: T.Tensor((1, 112, 112, 64), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -2202,7 +2202,7 @@ def test_cpu_cbr():
                             Ts.reads(Conv2dOutput[v_i0, v_i1, v_i2, v_i3], bias[v_i3], bn_scale[v_i3], bn_offset[v_i3])
                             Ts.writes(compute[v_i0, v_i1, v_i2, v_i3])
                             compute[v_i0, v_i1, v_i2, v_i3] = T.max((Conv2dOutput[v_i0, v_i1, v_i2, v_i3] + bias[v_i3]) * bn_scale[v_i3] + bn_offset[v_i3], T.float32(0))
-    @Ts.prim_func
+    @Ts.function
     def cbr_2(data: T.Tensor((1, 224, 224, 3), "float32"), kernel: T.Tensor((7, 7, 3, 64), "float32"), bias: T.Tensor(64, "float32"), bn_offset: T.Tensor(64, "float32"), bn_scale: T.Tensor(64, "float32"), compute: T.Tensor((1, 112, 112, 64), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -2292,7 +2292,7 @@ def test_cpu_cbr():
 
 def test_cpu_tbg():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def tbg_0(query: T.Tensor((1, 128, 12, 64), "float32"), value: T.Tensor((1, 128, 12, 64), "float32"), C: T.Tensor((1, 12, 128, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -2344,7 +2344,7 @@ def test_cpu_tbg():
                             Ts.reads(C_global[v0, v1, v2, v3])
                             Ts.writes(C[v0, v1, v2, v3])
                             C[v0, v1, v2, v3] = C_global[v0, v1, v2, v3]
-    @Ts.prim_func
+    @Ts.function
     def tbg_1(query: T.Tensor((1, 128, 12, 64), "float32"), value: T.Tensor((1, 128, 12, 64), "float32"), C: T.Tensor((1, 12, 128, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -2391,7 +2391,7 @@ def test_cpu_tbg():
                         Ts.reads(C_global[v0, v1, v2, v3])
                         Ts.writes(C[v0, v1, v2, v3])
                         C[v0, v1, v2, v3] = C_global[v0, v1, v2, v3]
-    @Ts.prim_func
+    @Ts.function
     def tbg_2(query: T.Tensor((1, 128, 12, 64), "float32"), value: T.Tensor((1, 128, 12, 64), "float32"), C: T.Tensor((1, 12, 128, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):

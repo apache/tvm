@@ -38,13 +38,13 @@ Stmt DecorateDeviceScopeImpl(Stmt&& stmt) {
 namespace transform {
 
 Pass DecorateDeviceScope() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     n->body = DecorateDeviceScopeImpl(std::move(n->body).value());
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.DecorateDeviceScope", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.DecorateDeviceScope", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

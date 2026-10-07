@@ -380,13 +380,13 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
     bool normalize_thread_bindings_;
     std::vector<const ForNode*> thread_bindings_;
   };
-  auto pass_func = [normalize_thread_bindings](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [normalize_thread_bindings](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
-    PrimFuncNode* n = f.CopyOnWrite();
+    FunctionNode* n = f.CopyOnWrite();
     n->body = Simplifier::Run(std::move(n->body).value(), normalize_thread_bindings);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.SimplifyForFeatureExtraction", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.SimplifyForFeatureExtraction", {});
 }
 
 /*!
@@ -1327,7 +1327,7 @@ class WorkloadEmbeddingExtractor : public StmtExprVisitor {
   static std::vector<double> Extract(const IRModule& mod) {
     auto self = ffi::make_object<WorkloadEmbeddingExtractor>();
     for (const auto& kv : mod->functions) {
-      if (const PrimFuncNode* func = kv.second.as<PrimFuncNode>()) {
+      if (const FunctionNode* func = kv.second.as<FunctionNode>()) {
         self->Visit(func->body);
       }
     }
@@ -1408,7 +1408,7 @@ class PerStoreFeatureCollector : public StmtExprVisitor {
     auto collector = ffi::make_object<PerStoreFeatureCollector>(is_gpu, cache_line_bytes,
                                                                 arith_intensity_curve_num_samples);
     for (const auto& kv : mod->functions) {
-      if (const PrimFuncNode* func = kv.second.as<PrimFuncNode>()) {
+      if (const FunctionNode* func = kv.second.as<FunctionNode>()) {
         collector->Visit(func->body);
         for (const Var& param : func->params) {
           if (auto buffer = param.as<TensorVar>()) {

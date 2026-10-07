@@ -32,8 +32,8 @@ struct DynamicExtentFinder : public StmtExprVisitor {
     auto finder = ffi::make_object<DynamicExtentFinder>();
     for (const auto& kv : mod->functions) {
       const BaseFunc& func = kv.second;
-      if (const auto* prim_func = func.as<PrimFuncNode>()) {
-        finder->Visit(prim_func->body);
+      if (const auto* function = func.as<FunctionNode>()) {
+        finder->Visit(function->body);
         if (finder->found_) {
           return true;
         }

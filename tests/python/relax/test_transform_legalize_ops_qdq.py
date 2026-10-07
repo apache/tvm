@@ -37,7 +37,7 @@ def test_quantize_fp32_to_int8():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def quantize(
             A: T.Tensor((T.int64(2), T.int64(4)), "float32"),
             B: T.Tensor((T.int64(2),), "float32"),
@@ -91,7 +91,7 @@ def test_quantize_fp16_to_uint8():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def quantize(
             A: T.Tensor((T.int64(2), T.int64(4)), "float16"),
             B: T.Tensor((T.int64(2),), "float16"),
@@ -150,7 +150,7 @@ def test_quantize_fp32_to_int8_symbolic():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def quantize(
             A: T.Tensor((T.int64(4), n_quantize)),
             B: T.Tensor((n_quantize,)),
@@ -203,7 +203,7 @@ def test_quantize_fp32_to_int8_scalar_param():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def quantize(
             A: T.Tensor((T.int64(2), T.int64(4)), "float32"),
             quantized: T.Tensor((T.int64(2), T.int64(4)), "int8"),
@@ -251,7 +251,7 @@ def test_quantize_fp32_to_int8_scalar_1d_param():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def quantize(
             A: T.Tensor((T.int64(2), T.int64(4)), "float32"),
             B: T.Tensor((T.int64(2),), "float32"),
@@ -302,7 +302,7 @@ def test_quantize_fp16_to_int8_scalar_param():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def quantize(
             A: T.Tensor((T.int64(2), T.int64(4)), "float16"),
             quantized: T.Tensor((T.int64(2), T.int64(4)), "int8"),
@@ -348,7 +348,7 @@ def test_dequantize_int8_to_fp32():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def dequantize(
             A: T.Tensor((T.int64(2), T.int64(4)), "int8"),
             B: T.Tensor((T.int64(2),), "float32"),
@@ -394,7 +394,7 @@ def test_dequantize_int8_to_fp32_scalar_param():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def dequantize(
             A: T.Tensor((T.int64(2), T.int64(4)), "int8"),
             dequantized: T.Tensor((T.int64(2), T.int64(4)), "float32"),
@@ -439,7 +439,7 @@ def test_dequantize_int8_to_fp32_symbolic():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def dequantize(
             A: T.Tensor((T.int64(2), n_dequantize), "int8"),
             B: T.Tensor((n_dequantize,)),
@@ -490,7 +490,7 @@ def test_dequantize_int8_to_fp16():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def dequantize(
             A: T.Tensor((T.int64(2), T.int64(4)), "int8"),
             B: T.Tensor((T.int64(2),), "float16"),
@@ -546,7 +546,7 @@ def test_dequantize_int8_to_fp16_scalar_param():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def dequantize(
             A: T.Tensor((T.int64(2), T.int64(4)), "int8"),
             dequantized: T.Tensor((T.int64(2), T.int64(4)), "float16"),

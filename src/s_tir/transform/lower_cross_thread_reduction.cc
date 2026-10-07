@@ -995,14 +995,14 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
 namespace transform {
 
 Pass LowerCrossThreadReduction() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    PrimFuncNode* fptr = f.CopyOnWrite();
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
+    FunctionNode* fptr = f.CopyOnWrite();
     fptr->body = ffi::make_object<CrossThreadReductionTransformer>()
                      ->Mutate(fptr->body)
                      .ValueOrUnchanged(fptr->body);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerCrossThreadReduction", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerCrossThreadReduction", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

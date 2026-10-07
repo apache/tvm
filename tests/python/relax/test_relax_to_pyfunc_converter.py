@@ -46,7 +46,7 @@ seq_len = T.dynamic("seq_len")
 class ComprehensiveTestModule:
     """Test module covering all converter features."""
 
-    @Ts.prim_func
+    @Ts.function
     def add_tir(
         x: T.Tensor((5,), "float32"), y: T.Tensor((5,), "float32"), out: T.Tensor((5,), "float32")
     ):
@@ -55,7 +55,7 @@ class ComprehensiveTestModule:
         for i in range(5):
             out[i] = x[i] + y[i]
 
-    @Ts.prim_func
+    @Ts.function
     def mul_tir(
         x: T.Tensor((3, 4), "float32"),
         y: T.Tensor((3, 4), "float32"),
@@ -881,7 +881,7 @@ class TestDLPackAndTupleSupport:
 
         @I.ir_module
         class DLPackTestModule:
-            @Ts.prim_func
+            @Ts.function
             def test_tir(
                 x: T.Tensor((4,), "float32"),
                 y: T.Tensor((4,), "float32"),
@@ -935,7 +935,7 @@ class TestDLPackAndTupleSupport:
 
         @I.ir_module
         class RuntimeAPITestModule:
-            @Ts.prim_func
+            @Ts.function
             def test_tir(
                 x: T.Tensor((3,), "float32"),
                 y: T.Tensor((3,), "float32"),
@@ -994,7 +994,7 @@ class TestDLPackAndTupleSupport:
 
         @I.ir_module
         class MixedOpsTestModule:
-            @Ts.prim_func
+            @Ts.function
             def add_tir(
                 x: T.Tensor((4,), "float32"),
                 y: T.Tensor((4,), "float32"),

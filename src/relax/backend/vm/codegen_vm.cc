@@ -305,7 +305,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
         kind = VMFuncInfo::FuncKind::kVMFunc;
       }
     }
-    // GlobalVar can be reference to a Relax function or a TIR primfunc
+    // GlobalVar can be reference to a Relax function or a TIR function
     // At this point: all global var must corresponds to the right symbol.
     // TODO(relax-team): switch everything to extern before splitting TIR/relax
     // so we do not have idle global var here.

@@ -111,7 +111,7 @@ def test_kernel_replace_point_is_builtin_marker_not_tile_primitive():
     assert hasattr(T, "tvm_kernel_replace_point")
     assert not hasattr(Tx, "tvm_kernel_replace_point")
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def marker():
         T.tvm_kernel_replace_point()
 
@@ -129,7 +129,7 @@ def test_kernel_replace_point_is_builtin_marker_not_tile_primitive():
 
 
 def test_tile_shorthand_and_scoped_aliases_use_tile_ops():
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def tile_aliases(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
         T.tile.copy(A[0:16], B[0:16])
         Tx.cast(A[0:16], B[0:16])
@@ -286,7 +286,7 @@ def test_backend_load_updates_tirx_alias_and_script_facades(monkeypatch):
 
 
 def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
-    @T.prim_func
+    @T.function
     def device_namespaces(dst: T.handle, A: T.Tensor((1,), "float32")):
         T.cuda.cta_sync()
         T.metal.simd_shuffle(A[0], 0)

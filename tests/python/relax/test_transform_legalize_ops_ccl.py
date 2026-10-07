@@ -109,7 +109,7 @@ def test_scatter_from_worker0():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape(A: T.Tensor((T.int64(10), T.int64(10)), "float32"), T_reshape: T.Tensor((T.int64(10), T.int64(2), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -120,7 +120,7 @@ def test_scatter_from_worker0():
                     Ts.writes(T_reshape[v_ax0, v_ax1, v_ax2])
                     T_reshape[v_ax0, v_ax1, v_ax2] = A[((v_ax1 * T.int64(5) + v_ax2) // T.int64(10) + v_ax0) % T.int64(10), (v_ax1 * T.int64(5) + v_ax2) % T.int64(10)]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def transpose(A: T.Tensor((T.int64(10), T.int64(2), T.int64(5)), "float32"), T_transpose: T.Tensor((T.int64(2), T.int64(10), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):

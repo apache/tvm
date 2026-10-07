@@ -24,7 +24,7 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@T.prim_func
+@T.function
 def gemm_mma_m8n8k4_row_col_fp64pf64fp64(
     A: T.Tensor([8, 4], dtype="float64"),
     B: T.Tensor([8, 4], dtype="float64"),
@@ -89,7 +89,7 @@ def test_gemm_mma_m8n8k4_row_col_fp64pf64fp64():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func
+@T.function
 def gemm_mma_m8n8k4_row_row_fp16fp16fp16(
     A: T.Tensor([16, 4], dtype="float16"),
     B: T.Tensor([4, 16], dtype="float16"),
@@ -165,7 +165,7 @@ def test_gemm_mma_m8n8k4_row_row_fp16fp16fp16():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func
+@T.function
 def gemm_mma_m8n8k4_row_row_fp16fp16fp32(
     A: T.Tensor([16, 4], dtype="float16"),
     B: T.Tensor([4, 16], dtype="float16"),
@@ -248,7 +248,7 @@ def test_gemm_mma_m8n8k4_row_row_fp16fp16fp32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func
+@T.function
 def gemm_mma_m8n8k16_row_col_s8s8s32(
     A: T.Tensor([8, 16], dtype="int8"),
     B: T.Tensor([8, 16], dtype="int8"),
@@ -319,7 +319,7 @@ def test_gemm_mma_m8n8k16_row_col_s8s8s32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func
+@T.function
 def gemm_mma_m8n8k16_row_col_s8u8s32(
     A: T.Tensor([8, 16], dtype="int8"),
     B: T.Tensor([8, 16], dtype="uint8"),
@@ -390,7 +390,7 @@ def test_gemm_mma_m8n8k16_row_col_s8u8s32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func
+@T.function
 def gemm_mma_m8n8k32_row_col_s4s4s32(
     A: T.Tensor([8, 32], dtype="int4"),
     B: T.Tensor([8, 32], dtype="int4"),
@@ -455,7 +455,7 @@ def test_gemm_mma_m8n8k32_row_col_s4s4s32():
     # TODO: add correctness checking here.
 
 
-@T.prim_func
+@T.function
 def gemm_mma_m8n8k32_row_col_s4u4s32(
     A: T.Tensor([8, 32], dtype="int4"),
     B: T.Tensor([8, 32], dtype="uint4"),
@@ -520,7 +520,7 @@ def test_gemm_mma_m8n8k32_row_col_s4u4s32():
     # TODO: add correctness checking here.
 
 
-@T.prim_func
+@T.function
 def gemm_mma_m16n8k8_row_col_fp16fp16fp32(
     A: T.Tensor([16, 8], dtype="float16"),
     B: T.Tensor([8, 8], dtype="float16"),
@@ -593,7 +593,7 @@ def test_gemm_mma_m16n8k8_row_col_fp16fp16fp32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func
+@T.function
 def gemm_mma_m16n8k16_row_col_fp16fp16fp16(
     A: T.Tensor([16, 16], dtype="float16"),
     B: T.Tensor([8, 16], dtype="float16"),
@@ -669,7 +669,7 @@ def test_gemm_mma_m16n8k16_row_col_fp16fp16fp16():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func
+@T.function
 def gemm_mma_m16n8k16_row_col_fp16fp16fp32(
     A: T.Tensor([16, 16], dtype="float16"),
     B: T.Tensor([8, 16], dtype="float16"),
@@ -745,7 +745,7 @@ def test_gemm_mma_m16n8k16_row_col_fp16fp16fp32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func
+@T.function
 def gemm_mma_m16n8k16_row_col_s8s8s32(
     A: T.Tensor([16, 16], dtype="int8"),
     B: T.Tensor([8, 16], dtype="int8"),
@@ -821,7 +821,7 @@ def test_gemm_mma_m16n8k16_row_col_s8s8s32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func
+@T.function
 def gemm_mma_m16n8k16_row_col_s8u8s32(
     A: T.Tensor([16, 16], dtype="int8"),
     B: T.Tensor([8, 16], dtype="uint8"),
@@ -897,7 +897,7 @@ def test_gemm_mma_m16n8k16_row_col_s8u8s32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func
+@T.function
 def gemm_mma_m16n8k32_row_col_s8s8s32(
     A: T.Tensor([16, 32], dtype="int8"),
     B: T.Tensor([8, 32], dtype="int8"),
@@ -973,7 +973,7 @@ def test_gemm_mma_m16n8k32_row_col_s8s8s32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func
+@T.function
 def gemm_mma_m16n8k32_row_col_s8u8s32(
     A: T.Tensor([16, 32], dtype="int8"),
     B: T.Tensor([8, 32], dtype="uint8"),
@@ -1049,7 +1049,7 @@ def test_gemm_mma_m16n8k32_row_col_s8u8s32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func
+@T.function
 def gemm_mma_m16n8k64_row_col_s4s4s32(
     A: T.Tensor([16, 64], dtype="int4"),
     B: T.Tensor([8, 64], dtype="int4"),
@@ -1119,7 +1119,7 @@ def test_gemm_mma_m16n8k64_row_col_s4s4s32():
     # TODO: add correctness checking here.
 
 
-@T.prim_func
+@T.function
 def gemm_mma_m16n8k64_row_col_s4u4s32(
     A: T.Tensor([16, 64], dtype="int4"),
     B: T.Tensor([8, 64], dtype="uint4"),
@@ -1189,7 +1189,7 @@ def test_gemm_mma_m16n8k64_row_col_s4u4s32():
     # TODO: add correctness checking here.
 
 
-@T.prim_func
+@T.function
 def gemm_mma_m16n8k256_row_col_b1b1s32(
     A: T.Tensor([16, 256], dtype="int1"),
     B: T.Tensor([8, 256], dtype="int1"),

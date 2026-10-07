@@ -842,7 +842,7 @@ class ThreadExtentCollector : public StmtExprVisitor {
 namespace transform {
 
 Pass LowerAutoCopy() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     auto mutator = ffi::make_object<AutoCopyMutator>(
@@ -852,7 +852,7 @@ Pass LowerAutoCopy() {
     n->body = mutator->RewritePaddingBody(n->body.value());
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerAutoCopy", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerAutoCopy", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

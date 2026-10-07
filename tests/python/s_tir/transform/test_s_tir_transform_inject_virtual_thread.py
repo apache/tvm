@@ -41,7 +41,7 @@ def test_vthread():
 
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.handle("float32"), C: T.handle("float32")):
             A_buf = T.decl_tensor((n * nthread,), "float32", data=A)
             C_buf = T.decl_tensor((n * nthread,), "float32", data=C)
@@ -85,7 +85,7 @@ def test_vthread_extern():
 
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def main():
             T.func_attr({"global_symbol": "main"})
             for i in range(n):
@@ -134,7 +134,7 @@ def test_vthread_if_then_else():
 
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.handle("float32")):
             T.func_attr({"global_symbol": "main"})
             A_buf = T.decl_tensor((100 * nthread,), "float32", data=A)
@@ -172,13 +172,13 @@ def test_vthread_simplified():
     not need to each simplify the indices.
     """
 
-    @Ts.prim_func
+    @Ts.function
     def before_func():
         vthread = T.launch_thread("vthread", 4)
         B = T.alloc_tensor((4,), "int32", scope="shared")
         B[T.ramp(0, 1, 4)] = T.broadcast(vthread, 4)
 
-    @Ts.prim_func
+    @Ts.function
     def expected_func():
         B = T.alloc_tensor((16,), "int32", scope="shared")
         # The indices for B should each be a single Ramp node, and
@@ -198,7 +198,7 @@ def test_vthread_simplified():
 def test_vthread_vectorized():
     """Use of vthread is compatible with vector allocations"""
 
-    @Ts.prim_func
+    @Ts.function
     def before_func():
         vthread = T.launch_thread("vthread", 4)
         B = T.alloc_tensor((4,), "int32", scope="shared")
@@ -224,7 +224,7 @@ def test_vthread_vectorized():
 
 
 def test_vthread_rewrites_masked_accesses():
-    @Ts.prim_func
+    @Ts.function
     def before_func():
         vthread = T.launch_thread("vthread", 2)
         B = T.alloc_tensor((4,), "float32", scope="shared")

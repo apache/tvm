@@ -23,17 +23,17 @@ from typing import Any
 import tvm
 from tvm.ir import IRModule, assert_structural_equal
 from tvm.s_tir.schedule import Schedule, Trace
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 
 
 def assert_structural_equal_ignore_global_symbol(
-    func1: PrimFunc,
-    func2: PrimFunc,
+    func1: Function,
+    func2: Function,
     *args: Any,
     **kwargs: Any,
 ) -> None:
     """
-    Asserts that PrimFuncs func1 and func2 are structurally equal, setting both
+    Asserts that Functions func1 and func2 are structurally equal, setting both
     their global symbol attributes to main so that the global symbol
     will not be a point of comparison.
     """
@@ -47,7 +47,7 @@ def assert_structural_equal_ignore_global_symbol(
 
 def verify_trace_roundtrip(
     sch: Schedule,
-    mod: PrimFunc | IRModule,
+    mod: Function | IRModule,
     *,
     debug_mask: str | int = "all",
     text_format: str | Sequence[str] = ["python", "json"],
@@ -59,8 +59,8 @@ def verify_trace_roundtrip(
     ----------
     sch : s_tir.Schedule
         The traced TensorIR schedule to be verified
-    mod : Union[PrimFunc, IRModule]
-        The IRModule or PrimFunc to construct the fresh new schedule
+    mod : Union[Function, IRModule]
+        The IRModule or Function to construct the fresh new schedule
     debug_mask : Union[str, int]
         Do extra correctness checking after the class creation and each time
         after calling the Replace method.

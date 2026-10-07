@@ -28,7 +28,7 @@
 namespace tvm {
 namespace s_tir {
 using tirx::ForNode;
-using tirx::PrimFunc;
+using tirx::Function;
 
 /*! \brief Verify all Expr inside the block does not contain:
  *    1. loop vars outside the current block.
@@ -36,7 +36,7 @@ using tirx::PrimFunc;
  */
 class BlockVarAccessVerifier : public StmtExprVisitor {
  public:
-  static bool Verify(const PrimFunc& func, bool assert_mode) {
+  static bool Verify(const Function& func, bool assert_mode) {
     auto verifier = ffi::make_object<BlockVarAccessVerifier>(assert_mode);
     verifier->Visit(func->body);
     return !verifier->has_error_;
@@ -136,14 +136,14 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
   bool has_error_{false};
 };
 
-bool VerifyWellFormed(const tirx::PrimFunc& func, bool assert_mode) {
+bool VerifyWellFormed(const tirx::Function& func, bool assert_mode) {
   return BlockVarAccessVerifier::Verify(func, assert_mode) &&
          tirx::VerifyWellFormedCommon<TIRVisitorWithPath>(func, assert_mode);
 }
 
 bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
   for (const auto& [gvar, base_func] : mod->functions) {
-    if (auto func = base_func.as<tirx::PrimFunc>()) {
+    if (auto func = base_func.as<tirx::Function>()) {
       if (!BlockVarAccessVerifier::Verify(func.value(), assert_mode)) return false;
     }
   }
@@ -153,13 +153,13 @@ bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::GlobalDef().def(
       "s_tir.analysis.VerifyWellFormed", [](const ffi::ObjectRef& obj, bool assert_mode) {
-        if (auto func = obj.as<tirx::PrimFunc>()) {
+        if (auto func = obj.as<tirx::Function>()) {
           return s_tir::VerifyWellFormed(func.value(), assert_mode);
         }
         if (auto mod = obj.as<IRModule>()) {
           return s_tir::VerifyWellFormed(mod.value(), assert_mode);
         }
-        TVM_FFI_THROW(TypeError) << "Expected a PrimFunc or IRModule, but received "
+        TVM_FFI_THROW(TypeError) << "Expected a Function or IRModule, but received "
                                  << obj->GetTypeKey();
         TVM_FFI_UNREACHABLE();
       });

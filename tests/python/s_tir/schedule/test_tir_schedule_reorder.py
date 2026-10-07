@@ -33,7 +33,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise(A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))) -> None:
     for i, j, k, l in T.grid(128, 128, 128, 128):
         with Ts.sblock("B"):
@@ -41,7 +41,7 @@ def elementwise(A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 1
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_not_affine(
     A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))
 ) -> None:
@@ -52,7 +52,7 @@ def elementwise_not_affine(
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_dependent_loop(
     A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))
 ) -> None:
@@ -63,7 +63,7 @@ def elementwise_dependent_loop(
                 B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_predicate(
     A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))
 ) -> None:
@@ -74,7 +74,7 @@ def elementwise_predicate(
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_non_single_branch(
     A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))
 ) -> None:
@@ -91,7 +91,7 @@ def elementwise_non_single_branch(
                 B[vi, vj, vk] = C[vi, vj, vk] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_with_loops_not_same_scope(
     A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))
 ) -> None:
@@ -106,7 +106,7 @@ def elementwise_with_loops_not_same_scope(
                     B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_with_wrong_block_var_type(
     A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))
 ) -> None:
@@ -119,7 +119,7 @@ def elementwise_with_wrong_block_var_type(
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_reordered(
     A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))
 ) -> None:
@@ -129,7 +129,7 @@ def elementwise_reordered(
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_reordered2(
     A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))
 ) -> None:
@@ -139,7 +139,7 @@ def elementwise_reordered2(
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_reordered_with_predicate(
     A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))
 ) -> None:
@@ -150,7 +150,7 @@ def elementwise_reordered_with_predicate(
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def opaque_access(A: T.Tensor([16, 16], "float32"), B: T.Tensor([16, 16], "float32")) -> None:
     for i, j in T.grid(16, 16):
         with Ts.sblock("A"):
@@ -166,7 +166,7 @@ def opaque_access(A: T.Tensor([16, 16], "float32"), B: T.Tensor([16, 16], "float
             T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj))
 
 
-@Ts.prim_func
+@Ts.function
 def opaque_access_reorder(
     A: T.Tensor([16, 16], "float32"), B: T.Tensor([16, 16], "float32")
 ) -> None:
@@ -218,7 +218,7 @@ def test_reorder_with_opaque_access():
 
 
 def test_reorder_overlapped_access():
-    @Ts.prim_func
+    @Ts.function
     def overlapped_access(A: T.Tensor((14, 4), "float32"), B: T.Tensor((14, 4), "float32")):
         # example to write first axis multiple times
         for v0, v1, v2 in T.grid(6, 4, 4):
@@ -227,7 +227,7 @@ def test_reorder_overlapped_access():
                 j = Ts.axis.spatial(4, v2)
                 B[i, j] = A[i, j] + 1.0
 
-    @Ts.prim_func
+    @Ts.function
     def overlapped_access_reorder(A: T.Tensor((14, 4), "float32"), B: T.Tensor((14, 4), "float32")):
         # example to write first axis multiple times
         for v0, v2, v1 in T.grid(6, 4, 4):
@@ -244,7 +244,7 @@ def test_reorder_overlapped_access():
 
 
 def test_reorder_with_partial_affineness():
-    @Ts.prim_func
+    @Ts.function
     def non_affine_func(A: T.Tensor((14, 4), "float32"), B: T.Tensor((14, 4), "float32")):
         for v0, v1, v2 in T.grid(6, 4, 4):
             with Ts.sblock("block"):
@@ -252,7 +252,7 @@ def test_reorder_with_partial_affineness():
                 j = Ts.axis.spatial(4, v2)
                 B[i, j] = A[i, j] + 1.0
 
-    @Ts.prim_func
+    @Ts.function
     def non_affine_func_reorder(A: T.Tensor((14, 4), "float32"), B: T.Tensor((14, 4), "float32")):
         for v0, v2, v1 in T.grid(6, 4, 4):
             with Ts.sblock("block"):
@@ -271,7 +271,7 @@ def test_reorder_with_partial_affineness():
 
 
 def test_reorder_with_cascade_tiled_ops():
-    @Ts.prim_func
+    @Ts.function
     def cascade_pool_ops(
         x: T.Tensor((1, 16, 112, 112), "float32"), y2: T.Tensor((1, 16, 108, 108), "float32")
     ) -> None:
@@ -289,7 +289,7 @@ def test_reorder_with_cascade_tiled_ops():
                     y2[ax0, ax1, ax2, ax3] = 0.0
                 y2[ax0, ax1, ax2, ax3] = y2[ax0, ax1, ax2, ax3] + y1[ax0, ax1, ax2 + rv0, ax3 + rv1]
 
-    @Ts.prim_func
+    @Ts.function
     def cascade_pool_ops_tile_reordered(
         x: T.Tensor((1, 16, 112, 112), "float32"), y2: T.Tensor((1, 16, 108, 108), "float32")
     ) -> None:

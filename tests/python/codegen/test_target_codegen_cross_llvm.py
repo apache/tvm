@@ -34,7 +34,7 @@ from tvm.testing import env
 
 @I.ir_module
 class AddModule:
-    @T.prim_func
+    @T.function
     def main(
         A: T.Tensor((1024,), "float32"),
         B: T.Tensor((1024,), "float32"),

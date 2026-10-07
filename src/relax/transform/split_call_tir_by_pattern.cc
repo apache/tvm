@@ -57,7 +57,7 @@ class ForMatcher : public TensorizeComparator {
  public:
   using TensorizeComparator::Dispatch;
   using SymbolMap = std::unordered_map<Var, PrimExpr>;
-  explicit ForMatcher(const tirx::PrimFunc& pattern, const ffi::Array<Var>& pattern_vars)
+  explicit ForMatcher(const tirx::Function& pattern, const ffi::Array<Var>& pattern_vars)
       : TensorizeComparator(IRModule({{GlobalVar(""), pattern}}), false), pattern_(pattern) {
     for (const auto& pattern_var : pattern_vars) {
       this->pattern_vars_.insert(pattern_var);
@@ -391,7 +391,7 @@ class ForMatcher : public TensorizeComparator {
 
   sym::Analyzer analyzer_;
   std::vector<For> loop_stack_lhs_, loop_stack_rhs_;
-  tirx::PrimFunc pattern_;
+  tirx::Function pattern_;
   std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> pattern_vars_;
 };
 
@@ -411,7 +411,7 @@ class TIRPatternMatcher {
   // Find an op that matches this block
   bool BlockPatternMatch(const For& top) {
     for (const TIRPattern& pattern : patterns_) {
-      tirx::PrimFunc pattern_func = pattern;
+      tirx::Function pattern_func = pattern;
       ffi::Array<Var> pattern_symbolic_vars;
       int buffer_count = 0;
       while (buffer_count < static_cast<int>(pattern_func->params.size()) &&
@@ -598,9 +598,9 @@ class BlockRemover : public s_tir::StmtExprMutator {
  * \return A pair of functions, the first one is the library kernel and the second one is the
  * rest.
  */
-std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
-    PrimFunc func, std::vector<std::vector<int>>* arg_partition, ffi::Array<TIRPattern> patterns,
-    FCodegen f_codegen) {
+std::pair<tirx::Function, ffi::Optional<tirx::Function>> SplitFunctions(
+    tirx::Function func, std::vector<std::vector<int>>* arg_partition,
+    ffi::Array<TIRPattern> patterns, FCodegen f_codegen) {
   // Step 1. Find the library kernel and the rest.
   Stmt body = func->body.as<s_tir::SBlockRealizeNode>()->block->body;
   ffi::Array<MatchResult> match_results =
@@ -654,7 +654,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   }
   arg_partition->push_back(arg_partition1);
   new_params1.push_back(partitioner->intermediate_buffer.value().var());
-  PrimFunc func1 = PrimFunc(new_params1, body1, func->ret_type, func->attrs);
+  tirx::Function func1 = tirx::Function(new_params1, body1, func->ret_type, func->attrs);
   func1 = WithAttr(func1, kLibraryKernel, library_code);
   // Step 4. Craft the second function.
   ffi::Array<Var> new_params2;
@@ -671,7 +671,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
     }
   }
   arg_partition->push_back(arg_partition2);
-  PrimFunc func2 = PrimFunc(new_params2, body2, func->ret_type, func->attrs);
+  tirx::Function func2 = tirx::Function(new_params2, body2, func->ret_type, func->attrs);
   return {func1, func2};
 }
 }  // namespace tirx
@@ -684,11 +684,11 @@ void StringReplace(std::string* subject, const std::string& search, const std::s
   }
 }
 
-tvm::BaseFunc CodegenWithLibrary(const tirx::PrimFuncNode* pf, ffi::String global_symbol) {
+tvm::BaseFunc CodegenWithLibrary(const tirx::FunctionNode* pf, ffi::String global_symbol) {
   using namespace tvm::tirx;
   ffi::Optional<ffi::String> library_code = pf->attrs.GetAttr<ffi::String>(kLibraryKernel);
   if (!library_code.has_value()) {
-    return ffi::GetRef<tirx::PrimFunc>(pf);
+    return ffi::GetRef<tirx::Function>(pf);
   }
   std::string source = library_code.value();
   StringReplace(&source, "{global_symbol}", global_symbol);
@@ -738,15 +738,15 @@ class SplitMutator : public ExprMutator {
     if (gv_ptr == nullptr) return call;
     GlobalVar gv = ffi::GetRef<GlobalVar>(gv_ptr);
     // retrieve the function from the module and split it
-    tirx::PrimFunc func = mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>();
+    tirx::Function func = mod_->Lookup(gv).as_or_throw<tirx::Function>();
     std::vector<std::vector<int>> arg_partition;
     // split the function into two functions, one for the library kernel and one for the rest.
-    std::pair<tirx::PrimFunc, ffi::Optional<tirx::PrimFunc>> split_funcs =
+    std::pair<tirx::Function, ffi::Optional<tirx::Function>> split_funcs =
         tirx::SplitFunctions(func, &arg_partition, patterns_, fcodegen_);
     if (!split_funcs.second.has_value()) {
       // no need to split, the function itself a library kernel
       tvm::BaseFunc lib_func = CodegenWithLibrary(split_funcs.first.get(), gv->name_hint);
-      if (lib_func->IsInstance<tirx::PrimFuncNode>()) return ffi::GetRef<Call>(op);
+      if (lib_func->IsInstance<tirx::FunctionNode>()) return ffi::GetRef<Call>(op);
       // Update the function in the module with the library kernel
       TVM_FFI_ICHECK(lib_func->IsInstance<ExternFuncNode>());
       builder_->UpdateFunction(gv, lib_func);
@@ -756,8 +756,8 @@ class SplitMutator : public ExprMutator {
       new_call->args = {lib_func, call->args[1]};
       return Call(new_call);
     }
-    tirx::PrimFunc func1 = s_tir::RenewDefs(split_funcs.first);
-    tirx::PrimFunc func2 = s_tir::RenewDefs(split_funcs.second.value());
+    tirx::Function func1 = s_tir::RenewDefs(split_funcs.first);
+    tirx::Function func2 = s_tir::RenewDefs(split_funcs.second.value());
     TVM_FFI_ICHECK(arg_partition.size() == 2);
     // emit the first call to the library kernel
     ffi::Array<Expr> args1;
@@ -766,7 +766,7 @@ class SplitMutator : public ExprMutator {
     }
     // replace the function in the module with the library kernel
     tvm::BaseFunc lib_func = CodegenWithLibrary(func1.get(), gv->name_hint);
-    if (lib_func->IsInstance<tirx::PrimFuncNode>()) return ffi::GetRef<Call>(op);
+    if (lib_func->IsInstance<tirx::FunctionNode>()) return ffi::GetRef<Call>(op);
     TVM_FFI_ICHECK(lib_func->IsInstance<ExternFuncNode>());
     builder_->UpdateFunction(gv, lib_func);
     tirx::TensorVar intermediate_buffer = func1->params.back().as_or_throw<tirx::TensorVar>();

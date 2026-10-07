@@ -79,7 +79,7 @@ def test_simple_func():
 def test_simple_module():
     @I.ir_module
     class TestModule:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_func(
             x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
             y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
@@ -99,7 +99,7 @@ def test_simple_module():
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,), {"global_symbol": "foo"}):
-        out = bb.emit_te(lambda x: x + 1, x, primfunc_name_hint="tir_func")
+        out = bb.emit_te(lambda x: x + 1, x, function_name_hint="tir_func")
         bb.emit_func_output(out)
 
     _check(TestModule, bb.get())
@@ -118,7 +118,7 @@ def test_module_with_attr_and_global_info():
             }
         )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_func(
             x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
             y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
@@ -138,7 +138,7 @@ def test_module_with_attr_and_global_info():
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,), {"global_symbol": "foo"}):
-        out = bb.emit_te(lambda x: x + 1, x, primfunc_name_hint="tir_func")
+        out = bb.emit_te(lambda x: x + 1, x, function_name_hint="tir_func")
         bb.emit_func_output(out)
     mod = bb.get()
     mod.update_global_info("dummy", [DummyGlobalInfo(), DummyGlobalInfo()])
@@ -168,7 +168,7 @@ def test_global_info_vdevice():
             }
         )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_func(
             x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
             y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
@@ -188,7 +188,7 @@ def test_global_info_vdevice():
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
-        out = bb.emit_te(lambda x: x + 1, x, primfunc_name_hint="tir_func")
+        out = bb.emit_te(lambda x: x + 1, x, function_name_hint="tir_func")
         bb.emit_func_output(out)
     mod = bb.get()
     mod.update_global_info("vdevice", vdevices)
@@ -615,7 +615,7 @@ def test_call_tir_empty_tuple_arg():
 def test_call_tir_with_grad():
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def identity_tir(A: T.Tensor([54, 96]), B: T.Tensor([54, 96])) -> None:
             for i, j in T.grid(54, 96):
                 with Ts.sblock("compute"):
@@ -640,7 +640,7 @@ def test_call_tir_with_grad():
 def test_call_tir_inplace():
     @tvm.script.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def copy(
             A: T.Tensor((2, 3), "int32"),
             B: T.Tensor((2, 3), "int32"),

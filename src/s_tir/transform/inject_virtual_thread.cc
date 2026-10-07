@@ -755,7 +755,7 @@ class VirtualThreadInjector : public s_tir::IRMutatorWithAnalyzer {
 namespace transform {
 
 Pass InjectVirtualThread() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
 
@@ -767,7 +767,7 @@ Pass InjectVirtualThread() {
     n->body = s_tir::ConvertSSA(std::move(n->body).value());
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.InjectVirtualThread", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.InjectVirtualThread", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

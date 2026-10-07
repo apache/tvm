@@ -52,7 +52,7 @@ def prepare_tir_lib(base_path):
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
     mod = tvm.IRModule.from_expr(
-        te.create_prim_func([A, B]).with_attr("global_symbol", "add_one")
+        te.create_function([A, B]).with_attr("global_symbol", "add_one")
     ).with_attr("system_lib_prefix", "")
 
     fadd = tvm.tirx.build(mod, target)

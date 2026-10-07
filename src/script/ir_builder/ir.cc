@@ -48,7 +48,7 @@ IRModuleFrame IRModule() {
 }
 
 // DeclFunction lives at the IR layer because an IRModule may host
-// heterogeneous function kinds (e.g. relax::Function, tirx::PrimFunc).
+// heterogeneous function kinds (e.g. relax::Function, tirx::Function).
 // To derive the GlobalVar's ty without coupling the IR layer to
 // any specific dialect, dispatch is keyed by the function's type-key:
 // each dialect registers its own handler that maps a function of that

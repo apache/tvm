@@ -18,7 +18,7 @@
  */
 /*!
  * \file src/relax/transform/specialize_tir_params.cc
- * \brief Update PrimFunc buffers based on updated scope (or structure) info.
+ * \brief Update tirx::Function buffers based on updated scope (or structure) info.
  */
 
 #include <tvm/relax/attrs/op.h>
@@ -71,15 +71,15 @@ class SpecializeTIRCallArgs : ExprMutator {
     auto call = ExprMutator::VisitExpr_(call_node).as_or_throw<Call>();
     static const Op call_tir_op = Op::Get("relax.call_tir");
     if (call->op.same_as(call_tir_op)) {
-      return SpecializeTirPrimFunc(call);
+      return SpecializeTirFunction(call);
     }
     return call;
   }
 
  private:
-  Expr SpecializeTirPrimFunc(Call call) {
+  Expr SpecializeTirFunction(Call call) {
     auto gv = call->args[0].as_or_throw<GlobalVar>();
-    auto pfunc = mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>();
+    auto pfunc = mod_->Lookup(gv).as_or_throw<tirx::Function>();
     auto args = call->args[1].as_or_throw<Tuple>()->fields;
     ffi::Map<tirx::Var, ffi::Variant<TensorVar, Expr>> param_map;
 
@@ -141,8 +141,8 @@ class SpecializeTIRCallArgs : ExprMutator {
     }
 
     auto new_pfunc = Specialize(pfunc, param_map);
-    auto new_prim_func = WithAttr(new_pfunc, "scoped", static_cast<int64_t>(1));
-    updates_->Add(gv, new_prim_func);
+    auto new_function = WithAttr(new_pfunc, "scoped", static_cast<int64_t>(1));
+    updates_->Add(gv, new_function);
     return call;
   }
   IRModule mod_;
@@ -151,20 +151,20 @@ class SpecializeTIRCallArgs : ExprMutator {
 
 namespace transform {
 
-Pass SpecializePrimFuncBasedOnCallSite() {
+Pass SpecializeFunctionBasedOnCallSite() {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     return relax::SpecializeTIRCallArgs().Run(mod);
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
-                          /*pass_name=*/"SpecializePrimFuncBasedOnCallSite",
+                          /*pass_name=*/"SpecializeFunctionBasedOnCallSite",
                           /*required=*/{});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.transform.SpecializePrimFuncBasedOnCallSite",
-                        SpecializePrimFuncBasedOnCallSite);
+  refl::GlobalDef().def("relax.transform.SpecializeFunctionBasedOnCallSite",
+                        SpecializeFunctionBasedOnCallSite);
 }
 }  // namespace transform
 }  // namespace relax

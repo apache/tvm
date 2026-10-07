@@ -54,7 +54,7 @@ class Module:
         lv5: R.Tensor(dtype="float32") = alloc3
         return lv5
 
-    @Ts.prim_func
+    @Ts.function
     def add(A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")):
         T.func_attr({"global_symbol": "add"})
         with Ts.sblock("root"):

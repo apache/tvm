@@ -231,7 +231,7 @@ def _compile():
     init_dfunc(uid, num_workers, 0)
     sess.sync_worker_0()
 
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor((8, 16), "float32"), B: T.Tensor((16, 8), "float32")):
         for i in T.thread_binding(T.int64(8), thread="threadIdx.y"):
             for j in T.thread_binding(T.int64(16), thread="threadIdx.x"):
@@ -306,7 +306,7 @@ def _kernel_compile(compile_mode):
 
         @I.ir_module
         class NvshmemQueryModule:
-            @Ts.prim_func
+            @Ts.function
             def query_pe(
                 my_pe_out: T.Tensor((1,), "int32"),
                 n_pes_out: T.Tensor((1,), "int32"),

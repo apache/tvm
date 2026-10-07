@@ -41,7 +41,7 @@
 namespace tvm {
 namespace tirx {
 
-bool VerifyWellFormed(const PrimFunc& func, bool assert_mode) {
+bool VerifyWellFormed(const Function& func, bool assert_mode) {
   return VerifyWellFormedCommon<TIRVisitorWithPath>(func, assert_mode);
 }
 
@@ -53,13 +53,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "tirx.analysis.VerifyWellFormed", [](const ffi::ObjectRef& obj, bool assert_mode) {
-        if (auto opt = obj.as<PrimFunc>()) {
+        if (auto opt = obj.as<Function>()) {
           return VerifyWellFormed(opt.value(), assert_mode);
         } else if (auto opt = obj.as<IRModule>()) {
           return VerifyWellFormed(opt.value(), assert_mode);
         } else {
           TVM_FFI_THROW(InternalError)
-              << "Expected VerifyWellFormed argument to be a PrimFunc or IRModule, but found "
+              << "Expected VerifyWellFormed argument to be a Function or IRModule, but found "
               << obj->GetTypeKey();
         }
       });

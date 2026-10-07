@@ -45,7 +45,7 @@ def _check_fail(original):
         tvm.tirx.transform.SplitHostDevice()(mod)
 
 
-@Ts.prim_func
+@Ts.function
 def element_wise_thread_x(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
@@ -60,7 +60,7 @@ def element_wise_thread_x(
                     C[i, j1_0 * 32 + j1_1] = B[i, j1_0 * 32 + j1_1] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def lowered_element_wise_thread_x(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
@@ -75,7 +75,7 @@ def lowered_element_wise_thread_x(
                     C[i, j1_0 * 32 + j1_1] = B[i, j1_0 * 32 + j1_1] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def element_wise_thread_x_different_dtype(
     A: T.Tensor((128, 128), "float32"),
     B: T.Tensor((128, 128), "float32"),
@@ -92,7 +92,7 @@ def element_wise_thread_x_different_dtype(
                     C[i, j1_0 * T.int64(32) + j1_1] = B[i, j1_0 * T.int64(32) + j1_1] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def lowered_element_wise_thread_x_different_dtype(
     A: T.Tensor((128, 128), "float32"),
     B: T.Tensor((128, 128), "float32"),
@@ -109,7 +109,7 @@ def lowered_element_wise_thread_x_different_dtype(
                     C[i, j1_0 * T.int64(32) + j1_1] = B[i, j1_0 * T.int64(32) + j1_1] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def element_wise_launch_thread_x(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
@@ -125,7 +125,7 @@ def element_wise_launch_thread_x(
             C[i, j1_0 * 32 + j1_1] = B[i, j1_0 * 32 + j1_1] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def lowered_element_wise_launch_thread_x(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
@@ -141,7 +141,7 @@ def lowered_element_wise_launch_thread_x(
             C[i, j1_0 * 32 + j1_1] = B[i, j1_0 * 32 + j1_1] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def element_wise_vthread_x(A: T.Tensor([128, 128]), B: T.Tensor([128, 128])) -> None:
     for i_0 in T.thread_binding(0, 2, "vthread.x"):
         for i_1 in T.thread_binding(0, 64, "threadIdx.x"):
@@ -151,7 +151,7 @@ def element_wise_vthread_x(A: T.Tensor([128, 128]), B: T.Tensor([128, 128])) -> 
                         B[i_0 * 64 + i_1, j_0 * 64 + j_1] = A[i_0 * 64 + i_1, j_0 * 64 + j_1] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def lowered_element_wise_vthread_x(A: T.Tensor([128, 128]), B: T.Tensor([128, 128])) -> None:
     with T.launch_thread("vthread.x", 2) as i_0:
         with T.launch_thread("threadIdx.x", 64) as i_1:
@@ -161,7 +161,7 @@ def lowered_element_wise_vthread_x(A: T.Tensor([128, 128]), B: T.Tensor([128, 12
                         B[i_0 * 64 + i_1, j_0 * 64 + j_1] = A[i_0 * 64 + i_1, j_0 * 64 + j_1] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def element_wise_two_thread_x_in_same_kernel_not_equal(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 64])
 ) -> None:
@@ -172,7 +172,7 @@ def element_wise_two_thread_x_in_same_kernel_not_equal(
             C[i, j1] = A[i, j1] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def element_wise_kernels_with_different_size(
     A: T.Tensor([128, 128]),
     B: T.Tensor([128, 128]),
@@ -187,7 +187,7 @@ def element_wise_kernels_with_different_size(
             D[i1, j1] = C[i1, j1] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def lowered_element_wise_kernels_with_different_size(
     A: T.Tensor([128, 128]),
     B: T.Tensor([128, 128]),
@@ -202,7 +202,7 @@ def lowered_element_wise_kernels_with_different_size(
             D[i1, j1] = C[i1, j1] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def element_wise_implicit_block(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
@@ -217,7 +217,7 @@ def element_wise_implicit_block(
                     C[i, j1_0 * 32 + j1_1] = B[i, j1_0 * 32 + j1_1] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def lowered_element_wise_implicit_block(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
@@ -263,7 +263,7 @@ def test_implicit_block():
 
 
 def test_inner_binding_with_annotation():
-    @Ts.prim_func
+    @Ts.function
     def inner_binding_with_annotation(A: T.Tensor((64,), "float32"), B: T.Tensor((64,), "float32")):
         for bx in T.thread_binding(32, "blockIdx.x"):
             for tx in T.thread_binding(2, "threadIdx.x", annotations={"my_annotation": 1}):
@@ -271,7 +271,7 @@ def test_inner_binding_with_annotation():
                     v = Ts.axis.spatial(64, bx * 2 + tx)
                     B[v] = A[v]
 
-    @Ts.prim_func
+    @Ts.function
     def lowered_inner_binding_with_annotation(
         A: T.Tensor((64,), "float32"), B: T.Tensor((64,), "float32")
     ):

@@ -30,7 +30,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise(A: T.Tensor((128, 257, 1470)), B: T.Tensor((128, 257, 1470))) -> None:
     for i, j, k in T.grid(128, 257, 1470):
         with Ts.sblock("B"):
@@ -38,7 +38,7 @@ def elementwise(A: T.Tensor((128, 257, 1470)), B: T.Tensor((128, 257, 1470))) ->
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def tiled_conv2d_with_padding(
     inputs: T.Tensor((1, 224, 224, 3), "float32"),
     weight: T.Tensor((7, 7, 3, 64), "float32"),
@@ -215,7 +215,7 @@ def test_sample_perfect_tile_on_dynamic_loops():
 
     n = T.dynamic("n", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def workload(A: T.Tensor((n, 1024))) -> None:
         for i, j in T.grid(n, 1024):
             with Ts.sblock("B"):

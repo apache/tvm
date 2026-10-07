@@ -28,7 +28,7 @@ from tvm.script import tirx as T
 @pytest.mark.skipif(not tvm.runtime.enabled("llvm"), reason="LLVM is not enabled")
 @pytest.mark.parametrize("pipeline", [None, "default", "tirx"])
 def test_default_pipeline_allocations(pipeline):
-    @T.prim_func
+    @T.function
     def add_one(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
         temp = T.alloc_tensor((16,), "float32")
         for i in range(16):
@@ -45,7 +45,7 @@ def test_default_pipeline_allocations(pipeline):
 
 
 def test_lower_thread_binding():
-    @T.prim_func
+    @T.function
     def before(A: T.Tensor((32,), "int32")):
         for bx in T.thread_binding(1, thread="blockIdx.x"):
             for tx in T.thread_binding(32, thread="threadIdx.x"):
@@ -53,7 +53,7 @@ def test_lower_thread_binding():
             for tx in T.thread_binding(32, thread="threadIdx.x"):
                 A[tx] = A[tx] + 1
 
-    @T.prim_func
+    @T.function
     def expected(A: T.Tensor((32,), "int32")):
         with T.launch_thread("blockIdx.x", 1) as bx:
             with T.launch_thread("threadIdx.x", 32) as tx:

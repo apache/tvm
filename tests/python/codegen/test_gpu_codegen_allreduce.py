@@ -34,7 +34,7 @@ def _reduce_module(d1, d2, d3, is_max=False):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((1, d1, d2, d3), "float32"), B: T.Tensor((1, d1, d2), "float32")):
             for i in T.thread_binding(1, thread="blockIdx.x"):
                 for j in T.thread_binding(d1, thread="threadIdx.z"):

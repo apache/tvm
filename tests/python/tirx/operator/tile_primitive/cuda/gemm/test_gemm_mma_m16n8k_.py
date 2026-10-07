@@ -104,7 +104,7 @@ def _build_tiled(Mt, Nt, Kt, kinst, *, beta=0.0, dtype="float16", store=False):
 
     if not store:
 
-        @T.prim_func
+        @T.function
         def gemm():
             T.device_entry()
             _cta = T.cta_id([1])
@@ -118,7 +118,7 @@ def _build_tiled(Mt, Nt, Kt, kinst, *, beta=0.0, dtype="float16", store=False):
 
         return gemm
 
-    @T.prim_func
+    @T.function
     def gemm(D_g: T.Tensor((M, N), "float32")):
         T.device_entry()
         _cta = T.cta_id([1])
@@ -145,7 +145,7 @@ def _build_tiled(Mt, Nt, Kt, kinst, *, beta=0.0, dtype="float16", store=False):
 def _build_gemm(alpha=1.0, beta=0.0, dtype="bfloat16"):
     """A single-warp kernel issuing one ``T.gemm`` over register fragments."""
 
-    @T.prim_func
+    @T.function
     def gemm_min():
         T.device_entry()
         _cta = T.cta_id([1])
@@ -168,7 +168,7 @@ def _build_transpose(transpose_A, transpose_B, *, store=False):
 
     if not store:
 
-        @T.prim_func
+        @T.function
         def gemm():
             T.device_entry()
             _cta = T.cta_id([1])
@@ -191,7 +191,7 @@ def _build_transpose(transpose_A, transpose_B, *, store=False):
 
         return gemm
 
-    @T.prim_func
+    @T.function
     def gemm(D_g: T.Tensor((16, 8), "float32")):
         T.device_entry()
         _cta = T.cta_id([1])
@@ -221,7 +221,7 @@ def _build_transpose(transpose_A, transpose_B, *, store=False):
 def _build_dtypes(a_dtype, b_dtype, c_dtype, d_dtype):
     """Single tile with explicit per-operand dtypes (for decline checks)."""
 
-    @T.prim_func
+    @T.function
     def gemm_min():
         T.device_entry()
         _cta = T.cta_id([1])
@@ -251,7 +251,7 @@ def _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype):
     KP = 2
     kHi_n = kinst // (4 * KP)
 
-    @T.prim_func
+    @T.function
     def gemm(
         A_g: T.Tensor((M, K), dtype),
         B_g: T.Tensor((K, N), dtype),
@@ -304,7 +304,7 @@ def _build_transpose_numeric(transpose_A, transpose_B, dtype="float16"):
     A_shape = (16, 16)
     B_shape = (8, 16) if transpose_B else (16, 8)
 
-    @T.prim_func
+    @T.function
     def gemm(
         A_g: T.Tensor(A_shape, dtype),
         B_g: T.Tensor(B_shape, dtype),
@@ -439,7 +439,7 @@ def test_cuda_gemm_mma_numerical(dtype):
     else:
         np_dtype = np.float16
 
-    @T.prim_func
+    @T.function
     def gemm(
         A_g: T.Tensor((16, 16), dtype),
         B_g: T.Tensor((16, 8), dtype),

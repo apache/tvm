@@ -71,7 +71,7 @@ A single thread sums a 32-element ``float32`` local vector on ``sm_100a`` (from
 
 .. code-block:: python
 
-    @Tx.prim_func
+    @Tx.function
     def test_func(
         A: Tx.Tensor([32], "float32", layout=TileLayout(S[32,])),
         B: Tx.Tensor([1], "float32", layout=TileLayout(S[1,])),

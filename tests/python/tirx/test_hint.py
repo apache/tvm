@@ -50,7 +50,7 @@ def test_hint_keyword_arg_on_tx_op_roundtrip():
     """Tx.op(..., hint="msg") roundtrips through printer/parser."""
     from tvm.script.tirx import tile as Tx
 
-    @T.prim_func
+    @T.function
     def func(
         A: T.Tensor([10], "float32", scope="global"), B: T.Tensor([10], "float32", scope="global")
     ):

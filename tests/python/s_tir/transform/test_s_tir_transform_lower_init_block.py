@@ -25,7 +25,7 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class WithInit:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor([64, 64, 64]), B: T.Tensor([64])) -> None:
         for i0, j0 in T.grid(64, 64):
             for k0 in T.serial(32, 64):
@@ -38,7 +38,7 @@ class WithInit:
 
 @tvm.script.ir_module
 class WithBranch:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor([64, 64, 64]), B: T.Tensor([64])) -> None:
         for i0, j0 in T.grid(64, 64):
             for k0 in T.serial(32, 64):
@@ -53,7 +53,7 @@ class WithBranch:
 
 @tvm.script.ir_module
 class InitWithMatchBuffer:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor([64, 64, 64]), B: T.Tensor([64])) -> None:
         for i0, j0 in T.grid(64, 64):
             for k0 in T.serial(32, 64):
@@ -68,7 +68,7 @@ class InitWithMatchBuffer:
 
 @tvm.script.ir_module
 class BranchWithMatchBuffer:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor([64, 64, 64]), B: T.Tensor([64])) -> None:
         for i0, j0 in T.grid(64, 64):
             for k0 in T.serial(32, 64):

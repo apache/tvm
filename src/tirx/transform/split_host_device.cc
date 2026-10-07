@@ -87,7 +87,7 @@ class DeviceRegionAnnotater : public StmtExprMutator {
   Target device_target_;
 };
 
-PrimFunc AnnotateDeviceRegionsForSplit(PrimFunc func) {
+Function AnnotateDeviceRegionsForSplit(Function func) {
   auto opt_target = func->GetAttr<Target>(tvm::attr::kTarget);
   TVM_FFI_ICHECK(opt_target) << "SplitHostDevice: Require the target attribute";
   Target target = opt_target.value();
@@ -116,7 +116,7 @@ class HostDeviceSplitter : public StmtExprMutator {
     return StmtExprMutator::Mutate(input, inplace_mode);
   }
   explicit HostDeviceSplitter(IRModule* device_mod, std::function<GlobalVar()> var_supply,
-                              PrimFunc cur_func)
+                              Function cur_func)
       : device_mod_(device_mod), var_supply_(var_supply), cur_func_(cur_func) {}
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
@@ -231,7 +231,7 @@ class HostDeviceSplitter : public StmtExprMutator {
                     {})),
           std::move(body));
     }
-    PrimFunc device_func(kernel_params, body, kernel_ret_type);
+    Function device_func(kernel_params, body, kernel_ret_type);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tirx::attr::kNoAlias, true},
                                                      {tirx::attr::kIsGlobalFunc, true}});
@@ -269,10 +269,10 @@ class HostDeviceSplitter : public StmtExprMutator {
   // Generate new GlobalVar for the kernel
   std::function<GlobalVar()> var_supply_;
   // Current function being split
-  PrimFunc cur_func_;
+  Function cur_func_;
 };
 
-PrimFunc SplitHostDevice(PrimFunc func, IRModule* device_mod,
+Function SplitHostDevice(Function func, IRModule* device_mod,
                          std::function<GlobalVar()> var_supply) {
   auto splitter = ffi::make_object<HostDeviceSplitter>(device_mod, var_supply, func);
 
@@ -290,18 +290,18 @@ PrimFunc SplitHostDevice(PrimFunc func, IRModule* device_mod,
 namespace {
 
 struct KernelInfo {
-  // The device on which the PrimFunc runs.
+  // The device on which the Function runs.
   Target target;
 
-  // The externally visible symbol which may refer to the PrimFunc
+  // The externally visible symbol which may refer to the Function
   // when launching a device kernel.
   ffi::String global_symbol;
 
-  // The parameters accepted by the PrimFunc.  Used to rewrite
+  // The parameters accepted by the Function.  Used to rewrite
   // `launch_args` to be in terms of the calling scope.
   ffi::Array<Var> params;
 
-  // The launch parameters that should annotate the PrimFunc, if the
+  // The launch parameters that should annotate the Function, if the
   // kernel is ever called from the host.
   ffi::Array<ffi::String> launch_params;
 
@@ -321,7 +321,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
     if (value.as<ExprNode>()) return std::nullopt;
     return StmtExprVisitor::Visit(value);
   }
-  static KernelInfo Collect(const GlobalVar& gvar, const PrimFunc& func) {
+  static KernelInfo Collect(const GlobalVar& gvar, const Function& func) {
     auto collector = ffi::make_object<DeviceInfoCollector>();
     collector->info_.target = func->GetAttr<Target>(tvm::attr::kTarget).value().WithoutHost();
     collector->info_.params = func->params;
@@ -357,7 +357,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
     if (!collector->dyn_shmem_size.has_value() && collector->inferred_shmem_size_.has_value()) {
       const auto* inferred = collector->inferred_shmem_size_.value().as<IntImmNode>();
       TVM_FFI_ICHECK(!(inferred && inferred->value == 0))
-          << "PrimFunc " << gvar->name_hint
+          << "Function " << gvar->name_hint
           << " allocates dynamic shared memory with a placeholder extent but does not declare "
              "its size; annotate the kernel with tirx.cuda.dyn_smem_bytes (SMEMPool.commit() emits "
              "it).";
@@ -388,14 +388,14 @@ class DeviceInfoCollector : public StmtExprVisitor {
     if (launch_param == tvm::runtime::launch_param::kUseDynamicSharedMemoryTag) {
       TVM_FFI_ICHECK(dyn_shmem_size.has_value())
           << "Compute kernel requires launch parameter \"" << launch_param
-          << "\", but PrimFunc did not declare tirx.cuda.dyn_smem_bytes.";
+          << "\", but Function did not declare tirx.cuda.dyn_smem_bytes.";
       return dyn_shmem_size.value();
     }
 
     auto extent = thread_extent.Get(launch_param);
     TVM_FFI_ICHECK(extent)
         << "Compute kernel requires launch parameter \"" << launch_param
-        << "\", but PrimFunc does not contain a launch region defining this axis";
+        << "\", but Function does not contain a launch region defining this axis";
     return extent.value();
   }
 
@@ -514,7 +514,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
   // Launch size inferred from the allocation extent (fallback when no
   // tirx.cuda.dyn_smem_bytes declaration is present).
   ffi::Optional<PrimExpr> inferred_shmem_size_{std::nullopt};
-  // Flag-only launch attributes requested by the original PrimFunc.
+  // Flag-only launch attributes requested by the original Function.
   bool use_programmatic_dependent_launch_{false};
   bool use_cooperative_launch_{false};
   bool use_required_block_dimension_{false};
@@ -550,8 +550,8 @@ class GlobalVarCallCollector : public StmtExprVisitor {
   static std::unordered_set<const GlobalVarNode*> Collect(const IRModule& mod) {
     auto collector = ffi::make_object<GlobalVarCallCollector>();
     for (const auto& [gvar, base_func] : mod->functions) {
-      if (auto prim_func = base_func.as<PrimFunc>()) {
-        collector->Visit(prim_func.value()->body);
+      if (auto function = base_func.as<Function>()) {
+        collector->Visit(function.value()->body);
       }
     }
     return collector->called_gvars_;
@@ -581,7 +581,7 @@ class DeviceKernelMutator : public StmtExprMutator {
   explicit DeviceKernelMutator(std::unordered_map<const GlobalVarNode*, KernelInfo> device_info_map)
       : device_info_map_(std::move(device_info_map)) {}
 
-  PrimFunc RewriteKernelLaunchSite(const GlobalVar& gvar, PrimFunc func) {
+  Function RewriteKernelLaunchSite(const GlobalVar& gvar, Function func) {
     TVM_FFI_ICHECK(!current_target_.has_value());
     // Track whether the caller is a host function (i.e. its target
     // still has a host attached) and capture its host target.  The
@@ -612,7 +612,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     return func;
   }
 
-  PrimFunc UpdateKernelAttributes(const GlobalVar& gvar, PrimFunc func) const {
+  Function UpdateKernelAttributes(const GlobalVar& gvar, Function func) const {
     bool is_kernel_launch = device_kernel_launch_.count(gvar.get());
     bool is_call_extern = extern_function_call_.count(gvar.get());
     TVM_FFI_ICHECK(!is_kernel_launch || !is_call_extern)
@@ -813,8 +813,8 @@ IRModule LowerDeviceKernelLaunches(IRModule mod) {
     std::unordered_map<const GlobalVarNode*, KernelInfo> device_info_map;
     for (const auto& [gvar, base_func] : mod->functions) {
       if (called_gvars.count(gvar.get())) {
-        if (auto prim_func = base_func.as<PrimFunc>()) {
-          device_info_map[gvar.get()] = DeviceInfoCollector::Collect(gvar, prim_func.value());
+        if (auto function = base_func.as<Function>()) {
+          device_info_map[gvar.get()] = DeviceInfoCollector::Collect(gvar, function.value());
         }
       }
     }
@@ -824,10 +824,10 @@ IRModule LowerDeviceKernelLaunches(IRModule mod) {
   {
     IRModule updates;
     for (const auto& [gvar, base_func] : mod->functions) {
-      if (auto* ptr = base_func.as<PrimFuncNode>()) {
-        auto prim_func = mutator->RewriteKernelLaunchSite(gvar, ffi::GetRef<PrimFunc>(ptr));
-        if (!prim_func.same_as(base_func)) {
-          updates->Add(gvar, prim_func);
+      if (auto* ptr = base_func.as<FunctionNode>()) {
+        auto function = mutator->RewriteKernelLaunchSite(gvar, ffi::GetRef<Function>(ptr));
+        if (!function.same_as(base_func)) {
+          updates->Add(gvar, function);
         }
       }
     }
@@ -840,10 +840,10 @@ IRModule LowerDeviceKernelLaunches(IRModule mod) {
   {
     IRModule updates;
     for (const auto& [gvar, base_func] : mod->functions) {
-      if (auto* ptr = base_func.as<PrimFuncNode>()) {
-        auto prim_func = mutator->UpdateKernelAttributes(gvar, ffi::GetRef<PrimFunc>(ptr));
-        if (!prim_func.same_as(base_func)) {
-          updates->Add(gvar, prim_func);
+      if (auto* ptr = base_func.as<FunctionNode>()) {
+        auto function = mutator->UpdateKernelAttributes(gvar, ffi::GetRef<Function>(ptr));
+        if (!function.same_as(base_func)) {
+          updates->Add(gvar, function);
         }
       }
     }
@@ -867,8 +867,8 @@ Pass SplitHostDevice() {
     IRModule updates = IRModule(ffi::Map<GlobalVar, BaseFunc>({}));
 
     for (const auto& [gvar, base_func] : mod->functions) {
-      if (auto opt = base_func.as<PrimFunc>()) {
-        PrimFunc func = opt.value();
+      if (auto opt = base_func.as<Function>()) {
+        Function func = opt.value();
         func = AnnotateDeviceRegionsForSplit(std::move(func));
 
         auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);

@@ -56,10 +56,10 @@ def _check(
         tvm.ir.assert_structural_equal(parsed, expect)
 
 
-def test_emit_te_primfunc_attrs():
+def test_emit_te_function_attrs():
     @I.ir_module
     class TestModule:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def plus_one(
             x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
             y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
@@ -82,8 +82,8 @@ def test_emit_te_primfunc_attrs():
         out = bb.emit_te(
             lambda x: x + 1,
             x,
-            primfunc_name_hint="plus_one",
-            primfunc_attrs={"some_attr": "foo", "another_attr": True},
+            function_name_hint="plus_one",
+            function_attrs={"some_attr": "foo", "another_attr": True},
         )
         bb.emit_func_output(out)
     _check(TestModule, bb.get())
@@ -164,14 +164,14 @@ def test_local_function():
     assert isinstance(inner_func, relax.Function)
 
 
-def test_inline_prim_func():
+def test_inline_function():
     with pytest.raises(TypeError, match="unexpected keyword argument.*local"):
 
         @I.ir_module
         class TestModule:
             @R.function
             def f(x: R.Tensor((128, 128), "float32"), y: R.Tensor((128, 128), "float32")):
-                @Ts.prim_func
+                @Ts.function
                 def my_matmul(
                     A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))
                 ) -> None:
@@ -240,7 +240,7 @@ def test_class_normalize():
 def test_context_aware_parsing(monkeypatch):
     @tvm.script.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def add(
             X: T.Tensor([T.int64(2), T.int64(4)], "float32"),
             Y: T.Tensor((), "float32"),

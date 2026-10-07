@@ -78,7 +78,7 @@ class RMSNorm(ScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,missing-docstring
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> "tvm.s_tir.Schedule":

@@ -33,7 +33,7 @@ def test_metal_inf_nan():
     def check_inf_nan(n, value, dtype):
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(
                 A: T.Tensor((1,), dtype),
                 C: T.Tensor((1,), dtype),
@@ -65,7 +65,7 @@ def test_metal_inf_nan():
 def test_unaligned_vectorize():
     @tvm.script.ir_module
     class IRModule:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((2, 3), "float32"), B: T.Tensor((6,), "float32")):
             T.func_attr({"global_symbol": "main"})
             for i0_1 in T.thread_binding(3, thread="threadIdx.x"):
@@ -94,7 +94,7 @@ def test_metal_erf():
     def check_erf(n, dtype):
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(
                 A: T.Tensor((1,), dtype),
                 C: T.Tensor((1,), dtype),
@@ -124,7 +124,7 @@ def test_ramp():
 
     @tvm.script.ir_module
     class IRModule:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((1, 2), "int32")):
             T.func_attr({"global_symbol": "main"})
             for i in T.thread_binding(1, thread="threadIdx.x"):
@@ -147,7 +147,7 @@ def test_ramp():
 def test_select_vectorize():
     @tvm.script.ir_module
     class IRModule:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((6), "float32"), B: T.Tensor((6,), "float32")):
             T.func_attr({"global_symbol": "main"})
             for i0_1 in T.thread_binding(3, thread="threadIdx.x"):
@@ -174,7 +174,7 @@ def test_select_vectorize():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_vectorized_uint8():
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((16), "uint8"), B: T.Tensor((16), "float32")):
         for i in T.thread_binding(4, thread="threadIdx.x"):
             for j in T.vectorized(4):
@@ -198,7 +198,7 @@ def test_vectorized_uint8():
 def test_func_with_trailing_pod_params():
     from tvm.support import xcode  # pylint: disable=import-outside-toplevel
 
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((16), "float32"), B: T.Tensor((16), "float32"), x: T.float32):
         for i in T.thread_binding(16, thread="threadIdx.x"):
             B[i] = A[i] + x
@@ -222,7 +222,7 @@ def test_metal_compile_callback_source_passthrough():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((n,), "float32"), B: T.Tensor((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):
@@ -260,7 +260,7 @@ def test_metal_compile_callback_mixed_formats_rejected():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((n,), "float32"),
             B: T.Tensor((n,), "float32"),
@@ -302,7 +302,7 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((n,), "float32"), B: T.Tensor((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):
@@ -322,7 +322,7 @@ def test_codegen_simdgroup_buffer_data():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def kernel():
             T.func_attr(
                 {
@@ -360,7 +360,7 @@ def _build_metal(mod):
 def test_bounded_symbolic_stack_allocation():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             T.func_attr(
                 {
@@ -384,7 +384,7 @@ def test_bound_symbolic_stack_allocation(bounded):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             T.func_attr(
                 {
@@ -417,7 +417,7 @@ def test_bound_symbolic_stack_allocation(bounded):
 def test_allocation_bound_does_not_substitute_buffer_load(scope, bounded):
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr(
                 {
@@ -458,7 +458,7 @@ def test_allocation_bound_does_not_substitute_buffer_load(scope, bounded):
 def test_bounded_uint64_symbolic_stack_allocation():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(n: T.uint64):
             T.func_attr(
                 {
@@ -479,7 +479,7 @@ def test_bounded_uint64_symbolic_stack_allocation():
 def test_unbounded_symbolic_stack_allocation_rejected():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             T.func_attr(
                 {
@@ -504,7 +504,7 @@ def test_unbounded_symbolic_stack_allocation_rejected():
 def test_unbounded_uint64_symbolic_stack_allocation_rejected():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(n: T.uint64):
             T.func_attr(
                 {
@@ -530,7 +530,7 @@ def test_unbounded_uint64_symbolic_stack_allocation_rejected():
 def test_nonpositive_stack_allocation_rejected(extent):
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr(
                 {
@@ -554,7 +554,7 @@ def test_nonpositive_stack_allocation_rejected(extent):
 def test_stack_allocation_element_count_overflow_rejected():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(n: T.int32, m: T.int32, k: T.int32):
             T.func_attr(
                 {
@@ -583,7 +583,7 @@ def test_codegen_pointer_byte_offsets_preserve_storage_scope():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def kernel():
             T.func_attr(
                 {
@@ -616,7 +616,7 @@ def test_pointer_byte_offsets_execute_in_threadgroup_memory():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
             for bx in T.thread_binding(1, thread="blockIdx.x"):
                 for tx in T.thread_binding(1, thread="threadIdx.x"):

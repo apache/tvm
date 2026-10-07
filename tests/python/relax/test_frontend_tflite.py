@@ -5372,7 +5372,7 @@ def test_rfft2d_static_pair_output():
     expected = np.fft.rfft2(data).astype(np.complex64)
     # atol accommodates the float32 reference kernel: numpy's rfft2 internally uses
     # float64, while the reference TIR kernel accumulates in float32 (see
-    # _build_tflite_rfft2d_primfunc docstring).
+    # _build_tflite_rfft2d_function docstring).
     np.testing.assert_allclose(
         _run_module(mod, data), _complex64_to_pair(expected), rtol=1e-5, atol=1e-5
     )
@@ -5417,7 +5417,7 @@ def test_rfft2d_odd_width_pair_output():
     )
     expected = np.fft.rfft2(data).astype(np.complex64)
     # atol accommodates the float32 reference kernel (see
-    # _build_tflite_rfft2d_primfunc docstring).
+    # _build_tflite_rfft2d_function docstring).
     np.testing.assert_allclose(
         _run_module(mod, data), _complex64_to_pair(expected), rtol=1e-5, atol=1e-5
     )

@@ -46,8 +46,8 @@ class CodeGenCHost : public CodeGenC {
 
   void InitGlobalContext();
 
-  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) override;
-  void AddFunction(const GlobalVar& gvar, const PrimFunc& f, bool emit_fwd_func_decl);
+  void AddFunction(const GlobalVar& gvar, const Function& f) override;
+  void AddFunction(const GlobalVar& gvar, const Function& f, bool emit_fwd_func_decl);
   /*!
    * \brief Add functions from the (unordered) range to the current module in a deterministic
    * order. This helps with debugging.

@@ -24,7 +24,7 @@ from tvm.script import tirx as T
 def test_unroll_loop():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(Ab: T.Tensor((n,), "int64"), n: T.int64):  # noqa: F821
             for i in T.serial(n, n + 2):
                 for j in T.unroll(8):
@@ -52,7 +52,7 @@ def test_unroll_loop():
 
     @I.ir_module
     class ModuleWithPolicy:
-        @T.prim_func
+        @T.function
         def main(Ab: T.Tensor((n,), "int64"), n: T.int64):  # noqa: F821
             for i in T.serial(n, n + 2, annotations={"auto_unroll_max_step": 16}):
                 for j in T.unroll(8):
@@ -74,7 +74,7 @@ def test_unroll_loop():
 def test_unroll_fake_loop():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(Ab: T.Tensor((n,), "int32"), n: T.int64):  # noqa: F821
             for i in T.serial(1):
                 Ab[i * 2] = 3
@@ -93,7 +93,7 @@ def test_unroll_fake_loop():
 def test_unroll_allocations():
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main():
             for i in T.unroll(2):
                 buf = T.alloc_tensor([16], "float32")
@@ -101,7 +101,7 @@ def test_unroll_allocations():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main():
             buf1 = T.alloc_tensor([16], "float32")
             buf1[0] = 0.0
@@ -116,7 +116,7 @@ def test_unroll_allocations():
 def test_unroll_local_access():
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(B: T.Tensor((64,), "float32")):
             for bx in T.thread_binding(4, thread="blockIdx.x"):
                 for tx in T.thread_binding(4, thread="threadIdx.x"):
@@ -126,7 +126,7 @@ def test_unroll_local_access():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(B: T.Tensor((64,), "float32")):
             for bx in T.thread_binding(4, thread="blockIdx.x"):
                 for tx in T.thread_binding(4, thread="threadIdx.x"):

@@ -231,7 +231,7 @@ def test_vm_module(session_kind):
     # pylint: disable=invalid-name
     @I.ir_module
     class TestMod:
-        @Ts.prim_func
+        @Ts.function
         def transpose(A: T.Tensor((8, 16), "float32"), B: T.Tensor((16, 8), "float32")):
             for i, j in T.grid(16, 8):
                 with Ts.sblock("transpose"):
@@ -275,14 +275,14 @@ def test_vm_multi_func(session_kind):
     # pylint: disable=invalid-name
     @I.ir_module
     class TestMod:
-        @Ts.prim_func
+        @Ts.function
         def t1(A: T.Tensor((8, 16), "float32"), B: T.Tensor((16, 8), "float32")):
             for i, j in T.grid(16, 8):
                 with Ts.sblock("t1"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vj, vi]
 
-        @Ts.prim_func
+        @Ts.function
         def t2(A: T.Tensor((16, 8), "float32"), B: T.Tensor((8, 16), "float32")):
             for i, j in T.grid(8, 16):
                 with Ts.sblock("t2"):

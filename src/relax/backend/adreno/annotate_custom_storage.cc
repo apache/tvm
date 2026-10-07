@@ -109,7 +109,7 @@
  *           R.output(gv)
  *       return gv
  *
- * Here, the legalized prim functions does have op_pattern attribute.
+ * Here, the legalized functiontions does have op_pattern attribute.
  * We now have what we wanted to run this pass.
  *
  * This pass in principle does scope annotation based on sonsumer priotiry. i.e.
@@ -231,7 +231,7 @@
  * - Fusion
  * - FoldVDeviceScopeChange: There existed some ToVDevice copies from texture to buffer
  *   This pass removes the copes and updates producer scope to global.
- * - SpecializePrimFuncBasedOnCallSite: Finally we update the buffer parameter annotations
+ * - SpecializeFunctionBasedOnCallSite: Finally we update the buffer parameter annotations
  *   according to VDevice scopes.
  *
  */
@@ -346,9 +346,9 @@ class CollectConsumerScopeInfo : public ExprVisitor {
 
     if (call->op.same_as(call_tir_op)) {
       gv = call->args[0].as_or_throw<GlobalVar>();
-      tirx::PrimFunc pfunc = mod_->Lookup(gv.value()).as_or_throw<tirx::PrimFunc>();
-      op_attrs = ExtractAttrs<tirx::PrimFunc>(pfunc);
-      op_pattern = ExtractPattern<tirx::PrimFunc>(pfunc);
+      tirx::Function pfunc = mod_->Lookup(gv.value()).as_or_throw<tirx::Function>();
+      op_attrs = ExtractAttrs<tirx::Function>(pfunc);
+      op_pattern = ExtractPattern<tirx::Function>(pfunc);
     } else {
       op_attrs = {call->attrs};
       op_pattern = static_cast<int64_t>(OpPatternKind::kOpaque);

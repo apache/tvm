@@ -149,7 +149,7 @@ def test_expr_constructor():
     script = tvm.tirx.Evaluate(x_with_attrs).script()
     assert "attrs" in script
     assert "disable_tma" in script
-    func = tvm.tirx.PrimFunc([attr_arg], tvm.tirx.Evaluate(x_with_attrs))
+    func = tvm.tirx.Function([attr_arg], tvm.tirx.Evaluate(x_with_attrs))
     assert (
         tvm.script.from_source(
             func.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
@@ -210,7 +210,7 @@ def test_expr_constructor():
         ty="int32",
     )
     simplified = tvm.tirx.transform.StmtSimplify()(
-        tvm.IRModule({"main": tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(outer_if))})
+        tvm.IRModule({"main": tvm.tirx.Function([], tvm.tirx.Evaluate(outer_if))})
     )["main"].body.value
     assert simplified.attrs["keep"] is True
 

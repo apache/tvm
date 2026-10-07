@@ -21,7 +21,7 @@ import warnings
 
 import tvm
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc, Var
+from tvm.tirx import Function, Var
 from tvm.tirx.operator.tile_primitive.dispatcher import (
     predicate,
     register_dispatch,
@@ -39,7 +39,7 @@ def _region_st_extent(buffer_region):
     return [r.min for r in region], [r.extent for r in region]
 
 
-def _emit_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def _emit_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     op_call = TilePrimitiveCall.downcast(op_call)
     src: Var = op_call.src.source
     dst: Var = op_call.dst.source
@@ -86,7 +86,7 @@ def _emit_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFun
 
     if scope_kind == "thread":
 
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             _copy_body(dst, src)
 
@@ -100,7 +100,7 @@ def _emit_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFun
     elif scope_kind == "cta":
         first_tid += 32 * int(sctx.intra["warpid"][1])
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         tid = _axis_decl(tid_axis_name, sctx)
         if tid == first_tid:
@@ -116,5 +116,5 @@ def _emit_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFun
     priority=0,
     when=[predicate("validate_copy_op", _is_valid_copy)],
 )
-def copy_schedule_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def copy_schedule_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     return _emit_fallback(op_call, sctx)

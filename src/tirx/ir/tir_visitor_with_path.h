@@ -110,7 +110,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
 
   // Visitors for TIR constructs that are neither PrimExpr nor Stmt
   virtual void Visit(const IRModule& obj, ffi::reflection::AccessPath path);
-  virtual void Visit(const PrimFunc& obj, ffi::reflection::AccessPath path);
+  virtual void Visit(const Function& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const GlobalVar& obj, ffi::reflection::AccessPath path) {}
   virtual void Visit(const Range& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const TensorRegion& obj, ffi::reflection::AccessPath path);

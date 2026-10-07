@@ -31,14 +31,14 @@ def test_one_alloc():
     dst_layout = TileLayout(S[(128, 512) : (1 @ P, 1 @ F)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def copy(A: T.Tensor(src_shape, 'float32', layout=src_layout)) -> None:
 
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.copy(A_sbuf, A)
 
-    @T.prim_func
+    @T.function
     def expected(A: T.Tensor(src_shape, 'float32', layout=src_layout)) -> None:
         T.func_attr({"global_symbol": "copy"})
 
@@ -54,14 +54,14 @@ def test_one_alloc():
 
 def test_two_alloc():
     # fmt: off
-    @T.prim_func
+    @T.function
     def copy(A_ptr: T.handle) -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor([256, 512], "float32", scope="trn.sbuf", layout="PF")
         B_sbuf = T.alloc_tensor([512, 512], "float32", scope="trn.sbuf", layout="PF")
         Tx.copy(B_sbuf[0:256, :], A_sbuf)
 
-    @T.prim_func
+    @T.function
     def expected(A_ptr: T.handle) -> None:
         T.func_attr({"global_symbol": "copy"})
         T.device_entry()
@@ -77,14 +77,14 @@ def test_two_alloc():
 
 def test_existing_alloc():
     # fmt: off
-    @T.prim_func
+    @T.function
     def copy(A_ptr: T.handle) -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor([256, 512], "float32", scope="trn.sbuf", layout="PF")
         B_sbuf = T.alloc_tensor([512, 512], "float32", scope="trn.sbuf", layout="PF", allocated_addr=[1])  # noqa: E501
         Tx.copy(B_sbuf[0:256, :], A_sbuf)
 
-    @T.prim_func
+    @T.function
     def expected(A_ptr: T.handle) -> None:
         T.func_attr({"global_symbol": "copy"})
         T.device_entry()
@@ -100,7 +100,7 @@ def test_existing_alloc():
 
 def test_workspace():
     # fmt: off
-    @T.prim_func
+    @T.function
     def copy(A_ptr: T.handle) -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor([256, 512], "float32", scope="trn.sbuf", layout="PF")
@@ -108,7 +108,7 @@ def test_workspace():
         C_sbuf = T.alloc_tensor([128, 1024], "float32", scope="trn.sbuf")
         Tx.copy(B_sbuf[0:256, :], A_sbuf, workspace={"C": C_sbuf})
 
-    @T.prim_func
+    @T.function
     def expected(A_ptr: T.handle) -> None:
         T.func_attr({"global_symbol": "copy"})
         T.device_entry()
@@ -125,7 +125,7 @@ def test_workspace():
 
 def test_other_scope_alloc():
     # fmt: off
-    @T.prim_func
+    @T.function
     def copy(A_ptr: T.handle) -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor([256, 512], "float32", scope="trn.sbuf", layout="PF")
@@ -133,7 +133,7 @@ def test_other_scope_alloc():
         C_sbuf = T.alloc_tensor([8, 128, 512], "float32", scope="global")
         Tx.copy(B_sbuf[0:256, :], A_sbuf, workspace={"C": C_sbuf})
 
-    @T.prim_func
+    @T.function
     def expected(A_ptr: T.handle) -> None:
         T.func_attr({"global_symbol": "copy"})
         T.device_entry()
@@ -150,7 +150,7 @@ def test_other_scope_alloc():
 
 def test_buffer_views():
     # fmt: off
-    @T.prim_func
+    @T.function
     def copy(A_ptr: T.handle) -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor([256, 512], "float32", scope="trn.sbuf", layout="PF")
@@ -158,7 +158,7 @@ def test_buffer_views():
         B_view = B_sbuf.view(2, 256, 512)
         Tx.copy(B_view[0], A_sbuf)
 
-    @T.prim_func
+    @T.function
     def expected(A_ptr: T.handle) -> None:
         T.func_attr({"global_symbol": "copy"})
         T.device_entry()

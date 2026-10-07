@@ -84,7 +84,7 @@ def test_matmul_relu(shared_scope):
     intrin_suffix = shared_scope.replace(".", "_")
 
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def matmul_relu_0(A: T.Tensor((128, 128), "float16"), B: T.Tensor((128, 128), "float16"), compute: T.Tensor((128, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with Ts.sblock("root"):
@@ -204,7 +204,7 @@ def test_matmul_relu(shared_scope):
         ("SampleCategorical", 0),
     ]
 
-    mod = te.create_prim_func(
+    mod = te.create_function(
         te_workload.matmul_relu(
             n=128,
             m=128,
@@ -235,7 +235,7 @@ def test_matmul_relu(shared_scope):
 
 def test_matmul_relu_with_fallback():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def matmul_relu_fallback_0(A: T.Tensor((128, 128), "float16"), B: T.Tensor((128, 128), "float16"), compute: T.Tensor((128, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with Ts.sblock("root"):
@@ -355,7 +355,7 @@ def test_matmul_relu_with_fallback():
         ("SampleCategorical", 1),
     ]
 
-    mod = te.create_prim_func(
+    mod = te.create_function(
         te_workload.matmul_relu(
             n=128,
             m=128,
@@ -393,7 +393,7 @@ def test_conv2d(shared_scope):
     intrin_suffix = shared_scope.replace(".", "_")
 
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def conv2d_0(inputs: T.Tensor((1, 16, 16, 32), "float16"), weight: T.Tensor((3, 3, 32, 32), "float16"), conv2d_nhwc: T.Tensor((1, 16, 16, 32), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with Ts.sblock("root"):
@@ -514,7 +514,7 @@ def test_conv2d(shared_scope):
         ("SampleCategorical", 1),
         ("SampleCategorical", 3),
     ]
-    mod = te.create_prim_func(
+    mod = te.create_function(
         te_workload.conv2d_nhwc(
             N=1,
             H=16,
@@ -575,7 +575,7 @@ def test_matmul_relu_pipeline(shared_scope):
     intrin_suffix = shared_scope.replace(".", "_")
 
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def matmul_relu_pipeline_0(A: T.Tensor((128, 128), "float16"), B: T.Tensor((128, 128), "float16"), compute: T.Tensor((128, 128), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -704,7 +704,7 @@ def test_matmul_relu_pipeline(shared_scope):
         ("SampleCategorical", 2),
         ("SampleCategorical", 1),
     ]
-    mod = te.create_prim_func(
+    mod = te.create_function(
         te_workload.matmul_relu(
             n=128,
             m=128,
@@ -736,7 +736,7 @@ def test_matmul_relu_pipeline(shared_scope):
 
 def test_matmul_relu_non_tensorizable():
     # expected to do nothing on non-tensorizable workloads
-    mod = te.create_prim_func(
+    mod = te.create_function(
         te_workload.matmul_relu(  # dtype doesn't match tensor intrin
             n=128,
             m=128,
@@ -756,7 +756,7 @@ def test_matmul_relu_non_tensorizable():
 
 def test_padded_matmul_relu():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def padded_matmul_relu_0(A: T.Tensor((127, 127), "float16"), B: T.Tensor((127, 127), "float16"), compute: T.Tensor((127, 127), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         C_reindex_shared = Ts.sblock_alloc_buffer((4, 8, 2, 1, 16, 16), scope="shared")
@@ -877,7 +877,7 @@ def test_padded_matmul_relu():
         ("SampleCategorical", 0),
     ]
 
-    mod = te.create_prim_func(
+    mod = te.create_function(
         te_workload.matmul_relu(
             n=127,
             m=127,
@@ -904,7 +904,7 @@ def test_padded_matmul_relu():
 
 def test_conv_1x1():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def conv2d_1x1_0(inputs: T.Tensor((1, 16, 16, 64), "float16"), weight: T.Tensor((1, 1, 64, 64), "float16"), conv2d_nhwc: T.Tensor((1, 16, 16, 64), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with Ts.sblock("root"):
@@ -1030,7 +1030,7 @@ def test_conv_1x1():
         ("SampleCategorical", 2),
     ]
 
-    mod = te.create_prim_func(
+    mod = te.create_function(
         te_workload.conv2d_nhwc(
             1,
             16,
@@ -1062,7 +1062,7 @@ def test_conv_1x1():
 
 def test_padded_conv():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def padded_conv2d_0(inputs: T.Tensor((1, 224, 224, 3), "float16"), weight: T.Tensor((7, 7, 3, 64), "float16"), conv2d_nhwc: T.Tensor((1, 112, 112, 64), "float32")):
         T.func_attr({"tirx.noalias": True})
         # with Ts.sblock("root"):
@@ -1182,7 +1182,7 @@ def test_padded_conv():
         ("SampleCategorical", 2),
         ("SampleCategorical", 1),
     ]
-    mod = te.create_prim_func(
+    mod = te.create_function(
         te_workload.conv2d_nhwc(
             1,
             224,
@@ -1214,7 +1214,7 @@ def test_padded_conv():
 
 def test_padded_matmul_single_padded_input():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def padded_matmul_single_padded_input_0(A: T.Tensor((1023, 4096), "float16"), B: T.Tensor((4096, 1024), "float16"), C: T.Tensor((1023, 1024), "float32")):
         T.func_attr({"tirx.noalias": True})
         # with Ts.sblock("root"):
@@ -1335,7 +1335,7 @@ def test_padded_matmul_single_padded_input():
         ("SampleCategorical", 1),
         ("SampleCategorical", 0),
     ]
-    mod = te.create_prim_func(
+    mod = te.create_function(
         te_workload.matmul(
             n=1023,
             m=1024,
@@ -1362,7 +1362,7 @@ def test_padded_matmul_single_padded_input():
 
 def test_padded_matmul_no_padded_output():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def padded_matmul_no_padded_output_0(A: T.Tensor((1024, 4095), "float16"), B: T.Tensor((4095, 1024), "float16"), C: T.Tensor((1024, 1024), "float32")):
         T.func_attr({"tirx.noalias": True})
         # with Ts.sblock("root"):
@@ -1482,7 +1482,7 @@ def test_padded_matmul_no_padded_output():
         ("SampleCategorical", 3),
         ("SampleCategorical", 0),
     ]
-    mod = te.create_prim_func(
+    mod = te.create_function(
         te_workload.matmul(
             n=1024,
             m=1024,

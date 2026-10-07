@@ -47,7 +47,7 @@ def test_emit_te_with_symbolic_arg():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def te_func(
             A: T.Tensor((T.int64(10),), "float32"),
             m: T.int64,
@@ -94,7 +94,7 @@ def test_symbolic_shape_in_prim_value():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def te_slice(
             A: T.Tensor([T.int64(16), T.int64(16)], "float32"),
             row_index: T.int64,

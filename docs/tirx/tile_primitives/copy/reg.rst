@@ -89,7 +89,7 @@ contiguous elements). From ``test_reg.py``:
     fs = (slice(0, 32), slice(0, 8))
 
 
-    @Tx.prim_func
+    @Tx.function
     def kernel(B: Tx.Tensor(shape, dtype)):
 
         Tx.device_entry()

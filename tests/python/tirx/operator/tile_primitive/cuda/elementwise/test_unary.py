@@ -73,7 +73,7 @@ def test_unary_op_shared(input, op_type, src_dtype, dst_dtype):
 
     if in_place:
         # fmt: off
-        @T.prim_func
+        @T.function
         def unary_op(A: T.Tensor(g_shape, src_dtype, layout=g_layout)) -> None:
 
             T.device_entry()
@@ -91,7 +91,7 @@ def test_unary_op_shared(input, op_type, src_dtype, dst_dtype):
             # fmt: on
     else:
         # fmt: off
-        @T.prim_func
+        @T.function
         def unary_op(
             A: T.Tensor(g_shape, src_dtype, layout=g_layout),
             B: T.Tensor(g_shape, dst_dtype, layout=g_layout),
@@ -159,7 +159,7 @@ def test_unary_op_shared_subcta_scope(exec_scope):
     n_warps = 4 if exec_scope == "warpgroup" else 1
     g_shape = (n_warps * 32, 8)
 
-    @T.prim_func
+    @T.function
     def unary_op_subcta(A: T.Tensor(g_shape, dtype, layout=TileLayout(S[g_shape]))) -> None:
         T.device_entry()
         warp_id = T.warp_id([(256) // 32])
@@ -248,7 +248,7 @@ def test_unary_op_shared_with_bias_scale(input, op_type, bias_type, src_dtype, d
 
     if in_place:
 
-        @T.prim_func
+        @T.function
         def unary_op_with_bias(
             A: T.Tensor(g_shape, src_dtype, layout=g_layout),
             bias: T.Tensor(g_shape, src_dtype, layout=g_layout),
@@ -295,7 +295,7 @@ def test_unary_op_shared_with_bias_scale(input, op_type, bias_type, src_dtype, d
             Tx.cta.copy(A[tuple(copy_slice)], A_smem[tuple(copy_slice)])
     else:
 
-        @T.prim_func
+        @T.function
         def unary_op_with_bias(
             A: T.Tensor(g_shape, src_dtype, layout=g_layout),
             B: T.Tensor(g_shape, dst_dtype, layout=g_layout),
@@ -463,7 +463,7 @@ def test_unary_op_local(input, op_type, src_dtype, dst_dtype):
     g_layout_a = g_layout_b = TileLayout(S[g_shape_a])
     acc_shape = red_shape = (16, NUM_COL)
 
-    @T.prim_func
+    @T.function
     def test_unary(
         A: T.Tensor(g_shape_a, src_dtype, layout=g_layout_a),
         B: T.Tensor(g_shape_b, dst_dtype, layout=g_layout_b),
@@ -600,7 +600,7 @@ def test_unary_op_local_with_bias_scale(input, op_type, bias_type, src_dtype, ds
     scale = T.float16(1.5) if src_dtype == "float16" else T.float32(1.5)
     const_bias = T.float16(0.88) if src_dtype == "float16" else T.float32(0.88)
 
-    @T.prim_func
+    @T.function
     def test_unary_with_bias(
         A: T.Tensor(g_shape_a, src_dtype, layout=g_layout_a),
         B: T.Tensor(g_shape_b, dst_dtype, layout=g_layout_b),
@@ -727,7 +727,7 @@ def test_unary_op_vectorized(shape, op_type, exec_scope, storage_scope):
     value = T.float16(7.89) if dtype == "float16" else T.float32(7.89)
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_unary_thread(A: T.Tensor(shape, dtype, layout=TileLayout(S[shape]))) -> None:
 
         T.device_entry()
@@ -746,7 +746,7 @@ def test_unary_op_vectorized(shape, op_type, exec_scope, storage_scope):
             Tx.fill(a_local, value)
             Tx.copy(A[tx], a_local)
 
-    @T.prim_func
+    @T.function
     def test_unary_cta(A: T.Tensor(shape, dtype, layout=TileLayout(S[shape]))) -> None:
 
         T.device_entry()
@@ -785,7 +785,7 @@ def test_unary_op_local_thread_wise(op_type, dtype):
     shape = (64, 32)
     local_shape = shape[1:]
 
-    @T.prim_func
+    @T.function
     def kernel(A: T.Tensor(shape, dtype, layout=TileLayout(S[shape]))) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
@@ -846,7 +846,7 @@ def test_cast_thread_local(shape, A_dtype, B_dtype):
     B_ref = A_ref.astype(B_dtype)
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_cast(
         A: T.Tensor(shape, A_dtype, layout=TileLayout(S[shape])),
         B: T.Tensor(shape, B_dtype, layout=TileLayout(S[shape])),
@@ -901,7 +901,7 @@ def test_cast_warpgroup_local_view(A_dtype, B_dtype):
     B_ref = A_ref.astype(B_dtype)
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_cast(
         A: T.Tensor(g_shape, A_dtype, layout=g_layout),
         B: T.Tensor(g_shape, B_dtype, layout=g_layout),
@@ -959,7 +959,7 @@ def test_cast_warpgroup_src_layout_to_flat_uses_vec2_intrinsic(A_dtype, B_dtype)
     B_ref = A_ref.astype(B_dtype)
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_cast(
         A: T.Tensor(g_shape, A_dtype, layout=g_layout),
         B: T.Tensor(g_shape, B_dtype, layout=g_layout),
@@ -1018,7 +1018,7 @@ def test_cast_cta_local_view(A_dtype, B_dtype):
     B_ref = A_ref.astype(B_dtype)
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_cast(
         A: T.Tensor(g_shape, A_dtype, layout=g_layout),
         B: T.Tensor(g_shape, B_dtype, layout=g_layout),
@@ -1070,7 +1070,7 @@ def test_cast_local_view_sliced(A_dtype, B_dtype, slice_start, slice_end):
     B_ref[:, slice_start:slice_end] = A_ref[:, slice_start:slice_end].astype(B_dtype)
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def kernel(
         A: T.Tensor(g_shape, A_dtype, layout=g_layout),
         B: T.Tensor(g_shape, B_dtype, layout=g_layout),
@@ -1182,7 +1182,7 @@ def test_cast_mixed_axes_and_subregion(slice_start, slice_end):
     B_ref = np.zeros(full_shape, dtype="float16")
     B_ref[:, :, :, slice_start:slice_end] = A_ref[:, :, :, slice_start:slice_end].astype("float16")
 
-    @T.prim_func
+    @T.function
     def kernel(
         A: T.Tensor(full_shape, "float32", layout=g_layout),
         B: T.Tensor(full_shape, "float16", layout=g_layout),
@@ -1264,7 +1264,7 @@ def test_cast_validate_extent_mismatch_rejected():
         S[view_shape : (2 @ warpid, 8 @ laneid, 1 @ laneid, 1)]
     )  # dim1 extent 8 != 4
 
-    @T.prim_func
+    @T.function
     def kernel(
         A: T.Tensor(view_shape, "float32", layout=g_layout),
         B: T.Tensor(view_shape, "float16", layout=g_layout),
@@ -1306,7 +1306,7 @@ def test_unary_exp_f16_shared_scalar_fallback_dispatch():
     shape = (64, 32)
     lay = TileLayout(S[shape])
 
-    @T.prim_func
+    @T.function
     def k(
         A: T.Tensor(shape, "float16", layout=lay), B: T.Tensor(shape, "float16", layout=lay)
     ) -> None:
@@ -1339,7 +1339,7 @@ def test_cast_vec2_packed_dispatch(src_dtype, dst_dtype, intrinsic):
     shape = (64, 32)
     lay = TileLayout(S[shape])
 
-    @T.prim_func
+    @T.function
     def k(
         A: T.Tensor(shape, src_dtype, layout=lay), B: T.Tensor(shape, dst_dtype, layout=lay)
     ) -> None:
@@ -1378,7 +1378,7 @@ def _sl_compile(fn):
 def test_cast_wg_rejects_thread_local_view():
     """Tx.wg.cast on a .local() (thread-axis-stripped) view is rejected."""
 
-    @T.prim_func
+    @T.function
     def kernel(
         A: T.Tensor((_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
         B: T.Tensor((_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
@@ -1414,7 +1414,7 @@ def test_cast_wg_rejects_thread_local_view():
 def test_cast_cta_rejects_thread_local_view():
     """Tx.cta.cast on a .local() view is rejected (cta -> tx)."""
 
-    @T.prim_func
+    @T.function
     def kernel(
         A: T.Tensor((_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
         B: T.Tensor((_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
@@ -1450,7 +1450,7 @@ def test_cast_wg_rejects_partial_thread_coverage():
     """A tid_in_wg layout covering only 64 of the 128 wg threads is rejected."""
     half = 64
 
-    @T.prim_func
+    @T.function
     def kernel(
         A: T.Tensor((half, _SL_COLS), "float32", layout=TileLayout(S[half, _SL_COLS])),
         B: T.Tensor((half, _SL_COLS), "float16", layout=TileLayout(S[half, _SL_COLS])),
@@ -1486,7 +1486,7 @@ def test_cast_wg_rejects_partial_thread_coverage():
 def test_cast_wg_accepts_wg_level_layout():
     """Tx.wg.cast on a wg-level (tid_in_wg-distributed) layout compiles."""
 
-    @T.prim_func
+    @T.function
     def kernel(
         A: T.Tensor((_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
         B: T.Tensor((_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
@@ -1521,7 +1521,7 @@ def test_cast_wg_accepts_wg_level_layout():
 def test_cast_thread_accepts_local_view():
     """thread scope is exempt: a thread-axis-free local tile still compiles."""
 
-    @T.prim_func
+    @T.function
     def kernel(
         A: T.Tensor((_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
         B: T.Tensor((_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
@@ -1574,7 +1574,7 @@ def _tcgen05_cast_warpgroup_kernel():
     atom_layout = _tcgen05_cast_atom_layout()
     m, k = _TCGEN05_M, _TCGEN05_K
 
-    @T.prim_func
+    @T.function
     def kernel(A: T.Tensor((m, k), "bfloat16"), B: T.Tensor((m, k), "float32")) -> None:
         T.device_entry()
         T.cta_id([1])

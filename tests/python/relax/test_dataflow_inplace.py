@@ -178,7 +178,7 @@ def test_alias_call_tir():
 
     @I.ir_module
     class AliasCallTir:
-        @Ts.prim_func
+        @Ts.function
         def tir_id(
             A: T.Tensor((m_tir_id, n_tir_id), "int32"), B: T.Tensor((m_tir_id, n_tir_id), "int32")
         ) -> None:
@@ -189,7 +189,7 @@ def test_alias_call_tir():
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj]
 
-        @Ts.prim_func
+        @Ts.function
         def tir_id2(
             A: T.Tensor((m_tir_id2, n_tir_id2), "int32"),
             B: T.Tensor((m_tir_id2, n_tir_id2), "int32"),
@@ -380,7 +380,7 @@ def test_inplace_single_call():
     add_call = TestModule["main"].body.blocks[0].bindings[0].value
     new_add, new_mod = dataflow_single_inplace_call(TestModule, add_call, [0])
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected_add(
         A: T.Tensor((T.int64(2), T.int64(3)), "float32"),
         B: T.Tensor((T.int64(2), T.int64(3)), "float32"),
@@ -400,7 +400,7 @@ def test_inplace_single_call():
         arg == add_call.args[i]
     new_add.attrs.inplace_indices == [0]
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected_silu(A: T.Tensor((T.int64(2), T.int64(3)), "float32")):
         T.func_attr({"tirx.noalias": True})
         compute = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3)))
@@ -448,7 +448,7 @@ def test_insert_inplace_calls():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add_inplace(
             A: T.Tensor((T.int64(2), T.int64(3)), "float32"),
             B: T.Tensor((T.int64(1), T.int64(3)), "float32"),
@@ -461,7 +461,7 @@ def test_insert_inplace_calls():
                     Ts.writes(A[v_ax0, v_ax1])
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[T.int64(0), v_ax1]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def multiply_inplace(
             A: T.Tensor((T.int64(2), T.int64(3)), "float32"),
             B: T.Tensor((T.int64(1), T.int64(3)), "float32"),
@@ -474,7 +474,7 @@ def test_insert_inplace_calls():
                     Ts.writes(A[v_ax0, v_ax1])
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1] * B[T.int64(0), v_ax1]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def subtract_inplace(
             A: T.Tensor((T.int64(1), T.int64(3)), "float32"),
             B: T.Tensor((T.int64(1), T.int64(3)), "float32"),
@@ -576,7 +576,7 @@ def test_dynamic():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add_inplace(
             A: T.Tensor((a_add_inplace, b_add_inplace)), B: T.Tensor((a_add_inplace, b_add_inplace))
         ):
@@ -589,7 +589,7 @@ def test_dynamic():
                     Ts.writes(A[v_ax0, v_ax1])
                     A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def subtract_inplace(
             A: T.Tensor((a_subtract_inplace, b_subtract_inplace)),
             B: T.Tensor((a_subtract_inplace, b_subtract_inplace)),

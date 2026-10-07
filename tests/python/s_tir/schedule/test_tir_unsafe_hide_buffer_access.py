@@ -29,7 +29,7 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-@Ts.prim_func
+@Ts.function
 def indirect_mem_access(
     A: T.Tensor([128], dtype="float32"),
     IA: T.Tensor([10], dtype="int32"),
@@ -44,7 +44,7 @@ def indirect_mem_access(
             B[IB[vi]] = A[IA[vi]]
 
 
-@Ts.prim_func
+@Ts.function
 def indirect_mem_access_hide_ia(
     A: T.Tensor([128], dtype="float32"),
     IA: T.Tensor([10], dtype="int32"),
@@ -59,7 +59,7 @@ def indirect_mem_access_hide_ia(
             B[IB[vi]] = A[IA[vi]]
 
 
-@Ts.prim_func
+@Ts.function
 def indirect_mem_access_hide_ib(
     A: T.Tensor([128], dtype="float32"),
     IA: T.Tensor([10], dtype="int32"),

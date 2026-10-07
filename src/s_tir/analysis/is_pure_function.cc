@@ -19,7 +19,7 @@
 
 /*!
  * \file is_pure_function.cc
- * \brief PrimFunc purity analysis
+ * \brief Function purity analysis
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -38,7 +38,7 @@ using namespace tvm::tirx;
 namespace {
 class PurityChecker : TIRVisitorWithPath {
  public:
-  static bool Check(const PrimFunc& func, bool assert_on_error) {
+  static bool Check(const Function& func, bool assert_on_error) {
     PurityChecker visitor(assert_on_error);
     visitor(func);
     return visitor.is_pure_;
@@ -106,7 +106,7 @@ class PurityChecker : TIRVisitorWithPath {
 };
 }  // namespace
 
-bool IsPureFunction(const PrimFunc& func, bool assert_on_error) {
+bool IsPureFunction(const Function& func, bool assert_on_error) {
   return PurityChecker::Check(func, assert_on_error);
 }
 

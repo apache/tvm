@@ -58,9 +58,9 @@ PMap<GlobalVar, PSet<GlobalVar>> CollectCallMap(const IRModule& mod) {
   auto visitor = ffi::make_object<Visitor>();
 
   for (const auto& [gvar, base_func] : mod->functions) {
-    if (auto prim_func = base_func.as<PrimFuncNode>()) {
+    if (auto function = base_func.as<FunctionNode>()) {
       visitor->current = gvar;
-      visitor->Visit(prim_func->body);
+      visitor->Visit(function->body);
     }
   }
 
@@ -100,12 +100,12 @@ PSet<GlobalVar> CollectRecursiveFunctions(const IRModule& mod) {
   return recursive_funcs;
 }
 
-bool IsInlinablePrimFunc(const GlobalVar& gvar, const PrimFunc& prim_func,
+bool IsInlinableFunction(const GlobalVar& gvar, const Function& function,
                          const PSet<GlobalVar>& recursive_functions) {
   // Only inline private functions.  Externally-exposed functions
   // must be preserved so to avoid breaking callsites outside of
   // the IRModule.
-  bool is_exposed = prim_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
+  bool is_exposed = function->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
   if (is_exposed) return false;
 
   // We do not currently implement any analysis for termination of
@@ -117,7 +117,7 @@ bool IsInlinablePrimFunc(const GlobalVar& gvar, const PrimFunc& prim_func,
 
   // We do not currently support inlining of functions that accept
   // buffer arguments.
-  for (const Var& param : prim_func->params) {
+  for (const Var& param : function->params) {
     if (param->ty.as<TensorTypeNode>()) return false;
   }
 
@@ -133,22 +133,22 @@ bool IsInlinablePrimFunc(const GlobalVar& gvar, const PrimFunc& prim_func,
     }
   };
   static const auto native_stmts = NativeStmtTable::Make();
-  if (!prim_func->body.has_value() || !native_stmts.CanDispatch(prim_func->body.get())) {
+  if (!function->body.has_value() || !native_stmts.CanDispatch(function->body.get())) {
     return false;
   }
 
   return true;
 }
 
-ffi::Map<GlobalVar, PrimFunc> CollectInlinablePrimFuncs(const IRModule& mod) {
+ffi::Map<GlobalVar, Function> CollectInlinableFunctions(const IRModule& mod) {
   auto recursive_functions = CollectRecursiveFunctions(mod);
 
-  ffi::Map<GlobalVar, PrimFunc> output;
+  ffi::Map<GlobalVar, Function> output;
   for (const auto& [gvar, base_func] : mod->functions) {
-    if (auto opt = base_func.as<PrimFunc>()) {
-      auto prim_func = opt.value();
-      if (IsInlinablePrimFunc(gvar, prim_func, recursive_functions)) {
-        output.Set(gvar, prim_func);
+    if (auto opt = base_func.as<Function>()) {
+      auto function = opt.value();
+      if (IsInlinableFunction(gvar, function, recursive_functions)) {
+        output.Set(gvar, function);
       }
     }
   }
@@ -156,18 +156,18 @@ ffi::Map<GlobalVar, PrimFunc> CollectInlinablePrimFuncs(const IRModule& mod) {
   return output;
 }
 
-class PrimFuncInliner : public StmtExprMutator {
+class FunctionInliner : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
-  explicit PrimFuncInliner(ffi::Map<GlobalVar, PrimFunc> inlinable_funcs)
+  explicit FunctionInliner(ffi::Map<GlobalVar, Function> inlinable_funcs)
       : inlinable_funcs_(inlinable_funcs) {
     for (const auto& [gvar, callee] : inlinable_funcs_) {
       removable_funcs_.insert(gvar);
     }
   }
 
-  PrimFunc VisitFunc(PrimFunc func) {
+  Function VisitFunc(Function func) {
     current_target_ = func->GetAttr<Target>(tvm::attr::kTarget);
     auto new_body_result = Mutate(func->body, InplaceMode::kDisallow);
     bool new_body_unchanged = new_body_result.UnchangedOrSameAs(func->body);
@@ -238,7 +238,7 @@ class PrimFuncInliner : public StmtExprMutator {
     return StmtExprMutator::Mutate_(call, inplace_mode);
   }
 
-  Stmt InlineArguments(const GlobalVar& gvar, PrimFunc callee, const ffi::Array<Expr>& args) const {
+  Stmt InlineArguments(const GlobalVar& gvar, Function callee, const ffi::Array<Expr>& args) const {
     TVM_FFI_ICHECK_EQ(callee->params.size(), args.size())
         << "Callee " << gvar << " accepts " << callee->params.size() << " parameters ("
         << callee->params << "), but is called with " << args.size() << " arguments (" << args
@@ -246,7 +246,7 @@ class PrimFuncInliner : public StmtExprMutator {
 
     for (const Var& param : callee->params) {
       TVM_FFI_ICHECK(!param->ty.as<TensorTypeNode>())
-          << "Inlining of PrimFuncs with buffer arguments is not yet supported, "
+          << "Inlining of Functions with buffer arguments is not yet supported, "
           << "but callee " << gvar << " has TensorType-annotated parameter " << param;
     }
 
@@ -260,8 +260,8 @@ class PrimFuncInliner : public StmtExprMutator {
     return callee->body.value();
   }
 
-  // Map from GlobalVar to PrimFuncs which may be inlined.
-  ffi::Map<GlobalVar, PrimFunc> inlinable_funcs_;
+  // Map from GlobalVar to Functions which may be inlined.
+  ffi::Map<GlobalVar, Function> inlinable_funcs_;
 
   /* \brief Set of callees that may be removed
    *
@@ -278,18 +278,18 @@ class PrimFuncInliner : public StmtExprMutator {
 
 Pass InlinePrivateFunctions() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
-    auto inlinable_prim_funcs = CollectInlinablePrimFuncs(mod);
+    auto inlinable_functions = CollectInlinableFunctions(mod);
 
-    if (inlinable_prim_funcs.empty()) {
-      // Early bail-out if the module has no inlinable PrimFuncs.
+    if (inlinable_functions.empty()) {
+      // Early bail-out if the module has no inlinable Functions.
       return mod;
     }
 
-    auto mutator = ffi::make_object<PrimFuncInliner>(std::move(inlinable_prim_funcs));
+    auto mutator = ffi::make_object<FunctionInliner>(std::move(inlinable_functions));
     IRModule updates;
 
     for (const auto& [gvar, base_func] : mod->functions) {
-      if (auto opt = base_func.as<PrimFunc>()) {
+      if (auto opt = base_func.as<Function>()) {
         auto updated = mutator->VisitFunc(opt.value());
         if (!updated.same_as(base_func)) {
           updates->Add(gvar, updated);

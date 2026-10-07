@@ -38,7 +38,7 @@ def _is_buffer_binding(node, *op_names):
 
 @tvm.script.ir_module
 class Transpose:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
@@ -59,7 +59,7 @@ class Transpose:
 
 @tvm.script.ir_module
 class GlobalToShared:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
@@ -81,7 +81,7 @@ class GlobalToShared:
 
 @tvm.script.ir_module
 class SharedToGlobal:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
@@ -103,7 +103,7 @@ class SharedToGlobal:
 
 @tvm.script.ir_module
 class GlobalToSharedWithLocalStage:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
@@ -127,7 +127,7 @@ class GlobalToSharedWithLocalStage:
 
 @tvm.script.ir_module
 class SharedToWmma:
-    @Ts.prim_func
+    @Ts.function
     def main() -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
@@ -149,7 +149,7 @@ class SharedToWmma:
 
 @tvm.script.ir_module
 class WmmaToShared:
-    @Ts.prim_func
+    @Ts.function
     def main() -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
@@ -171,7 +171,7 @@ class WmmaToShared:
 
 @tvm.script.ir_module
 class WmmaToGlobal:
-    @Ts.prim_func
+    @Ts.function
     def main(C: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
@@ -190,7 +190,7 @@ class WmmaToGlobal:
 
 @tvm.script.ir_module
 class WmmaToGlobalWithFusion:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor([1024]), C: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
@@ -211,7 +211,7 @@ class WmmaToGlobalWithFusion:
 
 @tvm.script.ir_module
 class MmaToGlobal:
-    @Ts.prim_func
+    @Ts.function
     def main(C: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
@@ -230,7 +230,7 @@ class MmaToGlobal:
 
 @tvm.script.ir_module
 class TransformedGlobalToShared:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
@@ -269,7 +269,7 @@ class TransformedGlobalToShared:
 
 @tvm.script.ir_module
 class TransformedSharedToGlobal:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor([1024, 1024]), B: T.Tensor([1024, 1024])) -> None:
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
@@ -310,7 +310,7 @@ class TransformedSharedToGlobal:
 
 @tvm.script.ir_module
 class TransformedGlobalToSharedWithLocalStage:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024))):
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
@@ -418,7 +418,7 @@ s1 = T.dynamic("s1", "int32")
 
 @tvm.script.ir_module
 class TransformedSharedToWmma:
-    @Ts.prim_func
+    @Ts.function
     def main() -> None:
         # body
         with Ts.sblock("root"):
@@ -499,7 +499,7 @@ s1 = T.dynamic("s1", "int32")
 
 @tvm.script.ir_module
 class TransformedWmmaToShared:
-    @Ts.prim_func
+    @Ts.function
     def main() -> None:
         # body
         with Ts.sblock("root"):
@@ -580,7 +580,7 @@ s0 = T.dynamic("s0", "int32")
 
 @tvm.script.ir_module
 class TransformedWmmaToGlobal:
-    @Ts.prim_func
+    @Ts.function
     def main(C: T.Tensor((1024, 1024), "float32")):
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})
@@ -781,7 +781,7 @@ s0_1 = T.dynamic("s0_1", "int32")
 
 @tvm.script.ir_module
 class TransformedWmmaToGlobalWithFusion:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor((1024,), "float32"), C: T.Tensor((1024, 1024), "float32")) -> None:
         # body
         with Ts.sblock("root"):
@@ -1006,7 +1006,7 @@ s0 = T.dynamic("s0", "int32")
 
 @tvm.script.ir_module
 class TransformedMmaToGlobal:
-    @Ts.prim_func
+    @Ts.function
     def main(C: T.Tensor((1024, 1024), "float32")):
         with Ts.sblock("root"):
             Ts.sblock_attr({"warp_execution": True})

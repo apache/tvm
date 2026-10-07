@@ -74,7 +74,7 @@ def _initialize():
                 }
             )
         globals().update(
-            prim_func=entry.make_decorator(builder, namespace_path="s_tir.prim_func"),
+            function=entry.make_decorator(builder, namespace_path="s_tir.function"),
             inline=entry.make_macro_decorator(
                 builder, namespace_path="s_tir.inline", preserve_return=True, late_binding=True
             ),

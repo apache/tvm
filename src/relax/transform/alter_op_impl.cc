@@ -19,8 +19,8 @@
 
 /*!
  * \file src/relax/transform/alter_op_impl.cc
- * \brief Change the layout of PrimFunc in the graph. It uses the kOperatorName attribute to
- * identify PrimFuncs to be replaced. Marks the new PrimFuncs with kFrozenLayout attribute set to
+ * \brief Change the layout of tirx::Function in the graph. It uses the kOperatorName attribute to
+ * identify Functions to be replaced. Marks the new Functions with kFrozenLayout attribute set to
  * true.
  */
 #include <tvm/ffi/cast.h>
@@ -36,7 +36,7 @@
 #include <tvm/tirx/transform.h>
 #include <tvm/topi/tags.h>
 
-#include "../../te/operation/create_primfunc.h"
+#include "../../te/operation/create_function.h"
 namespace tvm {
 namespace relax {
 
@@ -75,13 +75,13 @@ bool IsTransformBijective(const Expr& expr, const IndexMap& transform) {
 }
 
 /*!
- * \brief Replace each call_tir to PrimFunc which matches the kOperatorName attribute with the
- * provided replacement PrimFunc and mark it with kFrozenLayout attribute. Insert layout
+ * \brief Replace each call_tir to tirx::Function which matches the kOperatorName attribute with the
+ * provided replacement tirx::Function and mark it with kFrozenLayout attribute. Insert layout
  * transformations on i/o buffers as necessary for correctness.
  */
 class AlterOpImplMutator : public ExprMutator {
  public:
-  AlterOpImplMutator(const IRModule& mod, const ffi::Map<ffi::String, tirx::PrimFunc>& op_impl_map,
+  AlterOpImplMutator(const IRModule& mod, const ffi::Map<ffi::String, tirx::Function>& op_impl_map,
                      const ffi::Map<ffi::String, ffi::Array<IndexMap>>& op_buffer_transforms_)
       : ExprMutator(mod),
         mod_(mod),
@@ -114,8 +114,8 @@ class AlterOpImplMutator : public ExprMutator {
 
     // Get operator name from callee
     TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>());
-    const tirx::PrimFunc& old_func =
-        mod_->Lookup(call->args[0].as_or_throw<GlobalVar>()).as_or_throw<tirx::PrimFunc>();
+    const tirx::Function& old_func =
+        mod_->Lookup(call->args[0].as_or_throw<GlobalVar>()).as_or_throw<tirx::Function>();
     ffi::Optional<ffi::String> maybe_op_kind = old_func->attrs.GetAttr<ffi::String>(kOperatorName);
 
     // If the callee does not have kOperatorName attribute or no replacement is requested for
@@ -133,7 +133,7 @@ class AlterOpImplMutator : public ExprMutator {
         << "Either the i/o buffers do not require any transformations or transformations for each "
            "buffer is provided.";
     TVM_FFI_ICHECK_EQ(old_func->params.size(), replacement_func->params.size())
-        << "Number of parameters of old and replacement PrimFunc must match";
+        << "Number of parameters of old and replacement tirx::Function must match";
 
     GlobalVar replacement_gv = GetOrCreateGlobalVarForFunc(replacement_func, op_kind);
 
@@ -190,7 +190,7 @@ class AlterOpImplMutator : public ExprMutator {
 
   /*!
    * \brief Adds the \p remove_pad op to the module if it has not already been added before.
-   * \returns The global var associated with the remove_pad PrimFunc.
+   * \returns The global var associated with the remove_pad tirx::Function.
    */
   GlobalVar GetOrCreateRemovePadOp(const ffi::Array<PrimExpr>& old_shape, DLDataType dtype) {
     int t_shape = old_shape.size();
@@ -217,12 +217,12 @@ class AlterOpImplMutator : public ExprMutator {
         "output", topi::kElementWise);
 
     ffi::String op_name = "remove_pad";
-    // Create PrimFunc and add op_name to func.attrs
-    PrimFunc remove_pad_with_frozen_layout =
-        WithAttr(CreatePrimFunc({placeholder_tensor, output_tensor}), kOperatorName, op_name);
-    // Add PrimFunc to module
+    // Create tirx::Function and add op_name to func.attrs
+    tirx::Function remove_pad_with_frozen_layout =
+        WithAttr(CreateFunction({placeholder_tensor, output_tensor}), kOperatorName, op_name);
+    // Add tirx::Function to module
     GlobalVar gv_remove_pad = builder_->AddFunction(remove_pad_with_frozen_layout, op_name);
-    // Mark the remove_pad PrimFunc as private by removing it from global scope
+    // Mark the remove_pad tirx::Function as private by removing it from global scope
     builder_->UpdateFunction(gv_remove_pad,
                              WithoutAttr(remove_pad_with_frozen_layout, "global_symbol"));
 
@@ -255,16 +255,17 @@ class AlterOpImplMutator : public ExprMutator {
 
   /*!
    * \brief Adds the \p replacement_func to the module if it has not already been added before.
-   * \returns The global var associated with the PrimFunc.
+   * \returns The global var associated with the tirx::Function.
    */
-  GlobalVar GetOrCreateGlobalVarForFunc(const PrimFunc& replacement_func,
+  GlobalVar GetOrCreateGlobalVarForFunc(const tirx::Function& replacement_func,
                                         const ffi::String& op_kind) {
     if (cache_.count(replacement_func) != 0) {
       return cache_[replacement_func];
     }
-    // Retain the operator name attribute on the replacement PrimFunc. This can help any future
-    // passes that use kOperatorName attribute to identify operator represented by a PrimFunc.
-    PrimFunc replacement_func_with_frozen_layout =
+    // Retain the operator name attribute on the replacement tirx::Function. This can help any
+    // future passes that use kOperatorName attribute to identify operator represented by a
+    // tirx::Function.
+    tirx::Function replacement_func_with_frozen_layout =
         WithAttr(replacement_func, kOperatorName, op_kind);
 
     GlobalVar gv_replacement =
@@ -356,14 +357,14 @@ class AlterOpImplMutator : public ExprMutator {
   }
 
  private:
-  /*! \brief Cache to keep track of the GlobalVar associated with the new PrimFunc added */
-  ffi::Map<PrimFunc, GlobalVar> cache_;
+  /*! \brief Cache to keep track of the GlobalVar associated with the new tirx::Function added */
+  ffi::Map<tirx::Function, GlobalVar> cache_;
   /*! \brief Input IRModule */
   const IRModule& mod_;
   /*! \brief Map from shape_dim.size to the remove_pad GlobalVar */
   std::unordered_map<int, GlobalVar> remove_pad_map_;
-  /*! \brief Map from kOperatorName attribute to the replacement PrimFunc */
-  const ffi::Map<ffi::String, PrimFunc>& op_impl_map_;
+  /*! \brief Map from kOperatorName attribute to the replacement tirx::Function */
+  const ffi::Map<ffi::String, tirx::Function>& op_impl_map_;
   /*! \brief Map from kOperatorName attribute to the layout transforms on i/o buffers */
   const ffi::Map<ffi::String, ffi::Array<IndexMap>>& op_buffer_transforms__;
 
@@ -373,7 +374,7 @@ class AlterOpImplMutator : public ExprMutator {
 
 namespace transform {
 
-Pass AlterOpImpl(const ffi::Map<ffi::String, tirx::PrimFunc>& op_impl_map,
+Pass AlterOpImpl(const ffi::Map<ffi::String, tirx::Function>& op_impl_map,
                  const ffi::Map<ffi::String, ffi::Array<IndexMap>>& op_buffer_transforms_) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     return AlterOpImplMutator(mod, op_impl_map, op_buffer_transforms_).Run();

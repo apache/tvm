@@ -117,7 +117,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
  public:
   using StmtExprVisitor::Visit_;
   static std::unordered_map<TensorVar, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> Collect(
-      const PrimFunc& f, bool collect_inbound) {
+      const Function& f, bool collect_inbound) {
     auto region_collector = ffi::make_object<BufferAccessRegionCollector>(collect_inbound);
     // collect buffer var to aliased buffer mapping
     auto var2buffer_collector = ffi::make_object<Var2BufferCollector>();
@@ -787,7 +787,7 @@ ffi::Array<PrimExpr> CalcStrides(const BufferAllocInfo& alloc_info,
 }
 
 Stmt BufferCompactorCompact(
-    const PrimFunc& f,
+    const Function& f,
     const std::unordered_map<TensorVar, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& regions,
     const std::unordered_map<Var, StorageAlignAnnotation>& storage_align) {
   // collect buffer allocation info for no-alias buffers
@@ -827,15 +827,15 @@ Stmt BufferCompactorCompact(
 namespace transform {
 
 Pass CompactBufferAllocation(bool is_strict) {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
-    PrimFuncNode* fptr = f.CopyOnWrite();
+    FunctionNode* fptr = f.CopyOnWrite();
     auto region = BufferAccessRegionCollector::Collect(f, /*collect_inbound=*/is_strict);
     auto storage_align = CollectStorageAlignAnnotation(f->body.value());
     fptr->body = BufferCompactorCompact(f, region, storage_align);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.CompactBufferAllocation", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.CompactBufferAllocation", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

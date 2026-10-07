@@ -1491,7 +1491,7 @@ def test_mma_shared_layout():
 def test_pool_allocator_alloc_mma():
     def alloc_layout(shape, dtype, swizzle_mode="auto"):
         with IRBuilder():
-            with Tx_builder.prim_func():
+            with Tx_builder.function():
                 pool = T.SMEMPool(Var("smem_ptr", PointerType(PrimType("uint8"))))
                 buf = pool.alloc_tcgen05_mma_AB(shape, dtype, swizzle_mode=swizzle_mode)
         return buf.layout

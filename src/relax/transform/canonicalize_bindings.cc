@@ -91,7 +91,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
 
   /*!
    * \brief Keep each output of out_ty that follows from the implied type. For a tensor that
-   * does not, take the implied shape and keep the dtype and vdevice, since the PrimFunc
+   * does not, take the implied shape and keep the dtype and vdevice, since the tirx::Function
    * signature carries no vdevice and erases the shape of an output with a dimension the
    * arguments do not determine.
    */

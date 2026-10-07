@@ -112,7 +112,7 @@ class OOBCheckerVisitor final : public s_tir::IRVisitorWithAnalyzer {
 };
 
 tvm::transform::Pass OOBChecker() {
-  auto pass_func = [=](tirx::PrimFunc func, IRModule mod, tvm::transform::PassContext ctx) {
+  auto pass_func = [=](tirx::Function func, IRModule mod, tvm::transform::PassContext ctx) {
     auto checker = ffi::make_object<OOBCheckerVisitor>();
     checker->Visit(func->body);
     if (checker->errors.size() > 0) {
@@ -123,7 +123,7 @@ tvm::transform::Pass OOBChecker() {
     }
     return func;
   };
-  return tirx::transform::CreatePrimFuncPass(pass_func, 0, "s_tir.analysis.OOBChecker", {});
+  return tirx::transform::CreateFunctionPass(pass_func, 0, "s_tir.analysis.OOBChecker", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

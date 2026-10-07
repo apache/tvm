@@ -26,9 +26,9 @@ namespace script {
 namespace printer {
 namespace details {
 
-void PrintSTirPrimFunc(DocTranslatorObj* d, const tirx::PrimFuncNode* func) {
+void PrintSTirFunction(DocTranslatorObj* d, const tirx::FunctionNode* func) {
   d->SetExtraState("tirx.buffer_default_layout_none", true);
-  PrintPrimFunc(d, func, NamespaceDoc("s_tir")->Attr("prim_func"), tvm::attr::kSTir);
+  PrintFunction(d, func, NamespaceDoc("s_tir")->Attr("function"), tvm::attr::kSTir);
   d->SetExtraState("tirx.buffer_default_layout_none", std::nullopt);
 }
 

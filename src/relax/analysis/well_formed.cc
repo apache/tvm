@@ -536,9 +536,9 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
       is_lambda = true;
       recur_vars_.insert(binding->var);
     }
-    if (binding->value->IsInstance<tirx::PrimFuncNode>()) {
+    if (binding->value->IsInstance<tirx::FunctionNode>()) {
       TVM_FFI_VISIT_THROW(ValueError, binding->value)
-          << "Inline PrimFunc is disallowed in Relax IR.";
+          << "Inline tirx::Function is disallowed in Relax IR.";
     } else {
       this->VisitExpr(binding->value);
     }

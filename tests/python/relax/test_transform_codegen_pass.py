@@ -375,7 +375,7 @@ def test_dynamic_shape():
 
 
 def test_no_op_for_call_to_tir():
-    """Calls to PrimFunc are ignored
+    """Calls to Function are ignored
 
     RunCodegen should only update calls to Relax functions annotated
     with the `"Codegen"` attribute.  Calls to any other function type
@@ -394,7 +394,7 @@ def test_no_op_for_call_to_tir():
             _ = Before.shape_func(x)
             return x
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def shape_func(H: T.Tensor(T.int64(4), "int64")):
             H[T.int64(0)] = H[T.int64(0)] + T.int64(1)
 

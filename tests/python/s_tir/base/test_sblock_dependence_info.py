@@ -30,12 +30,12 @@ from tvm.s_tir import SBlockDependenceInfo
 from tvm.s_tir.sblock_scope import DepKind
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
     B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
@@ -52,7 +52,7 @@ def elementwise(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "flo
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def war_dependency(
     A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))
 ) -> None:
@@ -65,7 +65,7 @@ def war_dependency(
             B[vi, vj] = A[vi, vj] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):
@@ -80,7 +80,7 @@ def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 1
 # pylint: enable=no-member,invalid-name,unused-variable
 
 
-def get_sblocks(func: PrimFunc):
+def get_sblocks(func: Function):
     blocks = {}
 
     def update_blocks(node):

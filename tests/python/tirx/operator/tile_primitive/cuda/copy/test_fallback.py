@@ -76,7 +76,7 @@ def _build_round_trip_kernel(scope, n_threads, shape, dtype):
     # pair on ``A_smem`` would otherwise race.
     if scope == "warp":
 
-        @T.prim_func
+        @T.function
         def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
             T.device_entry()
             T.cta_id([1])
@@ -89,7 +89,7 @@ def _build_round_trip_kernel(scope, n_threads, shape, dtype):
 
     elif scope == "warpgroup":
 
-        @T.prim_func
+        @T.function
         def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
             T.device_entry()
             T.cta_id([1])
@@ -105,7 +105,7 @@ def _build_round_trip_kernel(scope, n_threads, shape, dtype):
 
     elif scope == "cta":
 
-        @T.prim_func
+        @T.function
         def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
             T.device_entry()
             T.cta_id([1])
@@ -171,7 +171,7 @@ def test_fallback_thread_scope():
     s_layout = TileLayout(S[shape])
     full = tuple(slice(0, d) for d in shape)
 
-    @T.prim_func
+    @T.function
     def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
         T.device_entry()
         T.cta_id([1])
@@ -209,7 +209,7 @@ def test_fallback_emits_gate():
     s_layout = TileLayout(S[shape])
     full = tuple(slice(0, d) for d in shape)
 
-    @T.prim_func
+    @T.function
     def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
         T.device_entry()
         T.cta_id([1])

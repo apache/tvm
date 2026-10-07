@@ -120,7 +120,7 @@ const VarNode* GetTensorVar(const Expr& expr) {
 }
 
 // Hardware axis identity belongs to a lexical definition, not to a reused Var.
-// Each pass instance processes one device PrimFunc after SplitHostDevice.
+// Each pass instance processes one device Function after SplitHostDevice.
 struct WarpThreadBinding {
   ffi::String tag;
   PrimExpr extent;
@@ -720,7 +720,7 @@ class WarpMemoryRewriter : public StmtExprMutator {
 namespace transform {
 
 Pass LowerWarpMemory() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
@@ -733,7 +733,7 @@ Pass LowerWarpMemory() {
                   .ValueOrUnchanged(stmt);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.LowerWarpMemory", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.LowerWarpMemory", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -23,17 +23,17 @@ from collections.abc import Callable
 import tvm_ffi as _ffi
 
 from . import _ffi_api
-from . import function_pass as _fpass
+from .function_pass import function_pass
 
 
 def Apply(ftransform):
     """Apply ftransform to each function in the Module.
 
-    This function is a thin wrapper around tvm.tirx.transform.prim_func_pass
+    This function is a thin wrapper around tvm.tirx.transform.function_pass
 
     Parameters
     ----------
-    ftransform: tvm.tirx.PrimFunc -> tvm.tirx.PrimFunc
+    ftransform: tvm.tirx.Function -> tvm.tirx.Function
        The transformation pass.
 
     Returns
@@ -46,13 +46,13 @@ def Apply(ftransform):
     def _transform(func, mod, ctx):
         return ftransform(func)
 
-    return _fpass.prim_func_pass(_transform, opt_level=0, name="Apply")  # type: ignore
+    return function_pass(_transform, opt_level=0, name="Apply")  # type: ignore
 
 
 def VectorizeLoop(enable_vectorize: bool = True):
     """Lower vectorization loops.
 
-    Target-dependent vectorization uses the PrimFunc's ``target`` attribute,
+    Target-dependent vectorization uses the Function's ``target`` attribute,
     not an ambient target context or nested target attributes. Target-independent
     fixed-width loops do not require a target. Code needing different vectorization
     targets must be separated into functions before this pass.
@@ -222,7 +222,7 @@ class StmtSimplifyConfig(_ffi.Object):
 
 
 def StmtSimplify():
-    """Run statement-level arithmetic simplifications on the TIR PrimFunc.
+    """Run statement-level arithmetic simplifications on the TIR Function.
 
     Returns
     -------
@@ -262,9 +262,9 @@ def ConvertSSA():
 
 
 def MakePackedAPI():
-    """Transform the PrimFuncs in the module to a packed func API.
+    """Transform the Functions in the module to a packed func API.
 
-    Prior to this pass, the PrimFunc may have parameters annotated with
+    Prior to this pass, the Function may have parameters annotated with
     `TensorType`.  This pass consumes those annotations to generate
     arguments that implement the packed based TVM FFI API.
 
@@ -272,13 +272,13 @@ def MakePackedAPI():
     and `TensorType::elem_offset` fields are used to
     generate runtime checks on the corresponding member variables in
     the user-provided `DLTensor*` or `tvm.runtime.tensor` argument.  (e.g. A
-    PrimFunc that accepts a buffer of shape `[16,32]` validates that
+    Function that accepts a buffer of shape `[16,32]` validates that
     the `DLTensor::shape` array is `[16,32]`.)
 
     For dynamic Buffers, in which one or more of these `TensorType` fields
-    use `tirx.Var` that are not defined by other PrimFunc
+    use `tirx.Var` that are not defined by other Function
     parameters, these are instead used to define the variables based on
-    the corresponding `DLTensor` members.  (e.g. A PrimFunc that accepts a
+    the corresponding `DLTensor` members.  (e.g. A Function that accepts a
     buffer of shape `[tirx.Var("n", "int64"), tirx.Var("m", "int64")]`,
     when passed a `DLTensor` of shape `[16, 32]`, will define `n = 16` and
     `m = 32`, based on the argument's shape.
@@ -295,7 +295,7 @@ def SplitHostDevice():
     """Annotate, split, and lower host/device functions.
 
     This pass first annotates device regions within host functions,
-    then splits them into host and device-side PrimFuncs, and finally
+    then splits them into host and device-side Functions, and finally
     lowers host-to-device calls into the device kernel launch ABI.
 
     Returns
@@ -471,7 +471,7 @@ def FlattenBuffer():
 
 
 def BindTarget(target):
-    """Annotate a PrimFunc with a given target.
+    """Annotate a Function with a given target.
     Parameters
     -------
     target : tvm.target.Target
@@ -486,7 +486,7 @@ def BindTarget(target):
 
 
 def AnnotateEntryFunc():
-    """Set a PrimFunc as the entry point if it is only function in IRModule.
+    """Set a Function as the entry point if it is only function in IRModule.
 
     Returns
     -------
@@ -497,8 +497,8 @@ def AnnotateEntryFunc():
 
 
 def Filter(fcond: Callable):
-    """Filter out PrimFuncs that does not satisfy the given condition.
-    `fcond` should be a function that takes a primfunc and returns boolean.
+    """Filter out Functions that does not satisfy the given condition.
+    `fcond` should be a function that takes a function and returns boolean.
 
     Returns
     -------

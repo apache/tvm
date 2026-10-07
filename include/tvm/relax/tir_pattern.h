@@ -31,7 +31,7 @@
 namespace tvm {
 namespace relax {
 
-using TIRPattern = tirx::PrimFunc;
+using TIRPattern = tirx::Function;
 
 /*
  * \brief The match result of a TIR pattern.

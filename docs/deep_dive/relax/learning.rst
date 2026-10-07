@@ -132,7 +132,7 @@ for the end-to-end model execution. The code block below shows a TVMScript imple
     @I.ir_module
     class Module:
         M, N, K = T.int64(), T.int64(), T.int64()
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def linear(X: T.Tensor((M, K), 'float32'), W: T.Tensor((K, N), 'float32'), B: T.Tensor((N,), 'float32'), Z: T.Tensor((M, N), 'float32')):
 
 
@@ -152,7 +152,7 @@ for the end-to-end model execution. The code block below shows a TVMScript imple
                     Z[v_i, v_j] = Y[v_i, v_j] + B[v_j]
 
         M, N = T.int64(), T.int64()
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def relu(X: T.Tensor((M, N), 'float32'), Y: T.Tensor((M, N), 'float32')):
 
 
@@ -179,7 +179,7 @@ for the end-to-end model execution. The code block below shows a TVMScript imple
                 R.output(lv2)
             return lv2
 
-The above code contains kinds of functions: the primitive tensor functions (``T.prim_func``) and a
+The above code contains kinds of functions: the primitive tensor functions (``T.function``) and a
 ``R.function`` (relax function). Relax function is a new type of abstraction representing
 high-level neural network executions.
 
@@ -224,7 +224,7 @@ implementation of the operation, as follows:
     lnumpy_linear(x, w0, b0, lv0)
 
 Specifically, ``call_tir`` allocates an output tensor res, then pass the inputs and the output
-to the prim_func. After executing prim_func the result is populated in res, then we can return
+to the function. After executing function the result is populated in res, then we can return
 the result.
 
 This convention is called **destination passing**, The idea is that input and output are explicitly

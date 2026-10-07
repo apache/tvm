@@ -32,7 +32,7 @@ namespace script {
 namespace printer {
 namespace details {
 
-void PrintPrimFunc(DocTranslatorObj* d, const tirx::PrimFuncNode* func, ExprDoc decorator,
+void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc decorator,
                    const ffi::String& dialect_attr);
 bool CanTranslateExplicitResultCall(const CallNode* call);
 bool IsScalarBuffer(DocTranslatorObj* d, const Expr& source);

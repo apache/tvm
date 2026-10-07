@@ -176,14 +176,14 @@ class ThreadBindingLifter : public StmtExprMutator {
 namespace transform {
 
 Pass LiftThreadBinding() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    PrimFuncNode* fptr = f.CopyOnWrite();
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
+    FunctionNode* fptr = f.CopyOnWrite();
     fptr->body = ffi::make_object<ThreadBindingLifter>()
                      ->Mutate(fptr->body, InplaceMode::kAllow)
                      .ValueOrUnchanged(std::move(fptr->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.LiftThreadBinding", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LiftThreadBinding", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -48,7 +48,7 @@ def test_fp8_conversions(input):
     def _create_mod(dtype):
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(
                 A: T.Tensor((64,), dtype),
                 B: T.Tensor((64,), dtype),
@@ -98,7 +98,7 @@ def test_fp8_packing(dtype):
     def _create_mod(native_dtype, packed_dtype, length):
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(
                 A: T.Tensor((length,), native_dtype),
                 R: T.Tensor((length,), packed_dtype),
@@ -155,7 +155,7 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
     def _create_mod(native_dtype, promoted_dtype):
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(
                 A: T.Tensor((64,), native_dtype),
                 B: T.Tensor((64,), native_dtype),
@@ -214,7 +214,7 @@ def test_half_broadcast(bcast_length):
     def _create_mod(bcast_length, dtype):
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(a: T.Tensor((), dtype), vec: T.Tensor((bcast_length,), dtype)):
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(1, thread="threadIdx.x"):
@@ -248,7 +248,7 @@ def test_half_misaligned_vector_load(vector_length):
     vec_dtype = dtype + "x" + str(vector_length)
     length = 256
 
-    @T.prim_func
+    @T.function
     def vector_load(
         A: T.Tensor((length,), dtype), B: T.Tensor((length // vector_length,), vec_dtype)
     ):
@@ -287,7 +287,7 @@ def test_half4_vector_add():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((64,), "float16x4"),
             B: T.Tensor((64,), "float16x4"),
@@ -339,7 +339,7 @@ class BaseFP8E4M3QuantScaleOnly:
         vec_model_dtype = f"{model_dtype}x4"
         vec_quantized_dtype = f"{quantize_dtype}x4"
 
-        @T.prim_func
+        @T.function
         def quantize(
             A: T.Tensor(weight_shape, model_dtype),
             packed: T.Tensor(quant_weight_shape, storage_dtype),
@@ -366,7 +366,7 @@ class BaseFP8E4M3QuantScaleOnly:
                             ),
                         )
 
-        @T.prim_func
+        @T.function
         def dequantize(
             packed: T.Tensor(quant_weight_shape, storage_dtype),
             scale: T.Tensor(scales_shape, model_dtype),
@@ -496,7 +496,7 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize("dtype", ["float8_e5m2", "float8_e4m3fn", "float8_e8m0fnu"])
 def test_const(dtype):
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((4,), dtype)) -> None:
         A_local = T.alloc_tensor((4,), dtype=dtype, scope="local")
         for tx in T.thread_binding(0, 4, "threadIdx.x"):
@@ -513,7 +513,7 @@ def test_const(dtype):
 @pytest.mark.parametrize("dtype", ["float8_e5m2", "float8_e4m3fn"])
 @pytest.mark.parametrize("vec_len", [2, 4, 8, 16])
 def test_copy(dtype, vec_len):
-    @T.prim_func
+    @T.function
     def func(
         A: T.Tensor(
             (
@@ -551,7 +551,7 @@ def test_moe_gemv_shfl_down_illegal_instr():
     global reduce_size
     global spatial_size
 
-    @T.prim_func
+    @T.function
     def moe_dequantize_gemv(
         x: T.Tensor((1, reduce_size), "float16"),
         indptr: T.Tensor((1, 2), "int32"),
@@ -617,7 +617,7 @@ def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(
                 A: T.Tensor((128,), "float8_e4m3fn"),
                 B: T.Tensor((128,), dtype),

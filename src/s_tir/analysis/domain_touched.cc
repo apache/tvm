@@ -141,7 +141,7 @@ Region DomainTouched(const Stmt& stmt, const TensorVar& buffer, bool consider_lo
   return visitor->FindUnion(buffer, consider_loads, consider_stores);
 }
 
-ffi::Map<TensorVar, ffi::Array<ffi::ObjectRef>> DomainTouchedAccessMap(const PrimFunc& func) {
+ffi::Map<TensorVar, ffi::Array<ffi::ObjectRef>> DomainTouchedAccessMap(const Function& func) {
   auto visitor = ffi::make_object<BufferTouchedDomain>();
   visitor->Visit(func->body);
   auto buffer_access_map = visitor->GetAccessedBufferRegions();

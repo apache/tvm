@@ -39,18 +39,18 @@ namespace s_tir {
  * \brief Renew the definition nodes for a TIR, including Var, Buffer and IterVar.
  *        This pass works as a simple DeepCopy to duplicate a function with different Vars and
  *        Buffers but the same behavior
- * \param func The input PrimFunc.
+ * \param func The input Function.
  * \return The renewed func.
  */
-TVM_DLL tirx::PrimFunc RenewDefs(const tirx::PrimFunc& func);
+TVM_DLL tirx::Function RenewDefs(const tirx::Function& func);
 
 namespace transform {
 
-using tirx::transform::CreatePrimFuncPass;
+using tirx::transform::CreateFunctionPass;
 using tvm::transform::Pass;
 using tvm::transform::PassContext;
 
-/*! \brief De-duplicate definitions, including schedulable block iterators, across PrimFuncs. */
+/*! \brief De-duplicate definitions, including schedulable block iterators, across Functions. */
 TVM_DLL Pass ConvertSSA();
 
 /*! \brief Simplify schedulable TIR using block iteration constraints and shared simplifier options.
@@ -317,7 +317,7 @@ TVM_DLL Pass InjectPTXAsyncCopy();
 TVM_DLL Pass MergeSharedMemoryAllocations();
 
 /*!
- * \brief Set default thread bindings for GPU PrimFuncs.
+ * \brief Set default thread bindings for GPU Functions.
  * \return The pass.
  */
 TVM_DLL Pass DefaultGPUSchedule();

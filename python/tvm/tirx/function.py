@@ -34,8 +34,8 @@ from . import _ffi_api
 from .expr import Expr
 
 
-@tvm_ffi.register_object("tirx.PrimFunc")
-class PrimFunc(BaseFunc, Scriptable):
+@tvm_ffi.register_object("tirx.Function")
+class Function(BaseFunc, Scriptable):
     """A function declaration expression.
 
     Parameters
@@ -70,7 +70,7 @@ class PrimFunc(BaseFunc, Scriptable):
             attrs = tvm.ir.make_node("ir.DictAttrs")
 
         self.__init_handle_by_constructor__(
-            _ffi_api.PrimFunc,
+            _ffi_api.Function,
             param_list,
             body,
             ret_type,
@@ -84,7 +84,7 @@ class PrimFunc(BaseFunc, Scriptable):
         return not bool(self.attrs.get("s_tir", False))
 
     def with_body(self, new_body, span=None):
-        """Create a new PrimFunc with the same set signatures but a new body.
+        """Create a new Function with the same set signatures but a new body.
 
         Parameters
         ----------
@@ -96,10 +96,10 @@ class PrimFunc(BaseFunc, Scriptable):
 
         Returns
         -------
-        new_func : PrimFunc
+        new_func : Function
             The created new function.
         """
-        return PrimFunc(
+        return Function(
             self.params,
             new_body,
             ret_type=self.ret_type,
@@ -108,7 +108,7 @@ class PrimFunc(BaseFunc, Scriptable):
         )
 
     def specialize(self, param_map: Mapping[Var, Expr | Var]):
-        """Specialize parameters of PrimFunc
+        """Specialize parameters of Function
 
         Parameters
         ----------
@@ -124,7 +124,7 @@ class PrimFunc(BaseFunc, Scriptable):
 
             from __future__ import annotations
 
-            @T.prim_func
+            @T.function
             def mem_copy(
                 A: T.Tensor((m, n), "float32"),
                 B: T.Tensor((m, n), "float32"),
@@ -148,7 +148,7 @@ class PrimFunc(BaseFunc, Scriptable):
 
         .. code-block:: python
 
-            @T.prim_func
+            @T.function
             def mem_copy_16_16(
                 A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")
             ) -> None:
@@ -158,7 +158,7 @@ class PrimFunc(BaseFunc, Scriptable):
 
         Returns
         -------
-        func : PrimFunc
+        func : Function
             The new function with parameter specialized
         """
         return _ffi_api.Specialize(self, param_map)  # type: ignore

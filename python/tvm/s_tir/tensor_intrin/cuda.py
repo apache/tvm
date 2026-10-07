@@ -27,7 +27,7 @@ from tvm.s_tir import TensorIntrin
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.tirx import Cast, IntImm
-from tvm.tirx.function import PrimFunc
+from tvm.tirx.function import Function
 
 
 def shared_16x16_to_ldmatrix_32x8_layout(i, j):
@@ -150,7 +150,7 @@ def get_ldmatrix_intrin(
 
     offset_factor = smem_tile_col
 
-    @Ts.prim_func
+    @Ts.function
     def ldmatrix_desc(
         warp: T.Tensor(
             (WARP_SIZE, local_size), dtype, align=64, offset_factor=offset_factor, scope="warp"
@@ -179,7 +179,7 @@ def get_ldmatrix_intrin(
     s0 = T.dynamic("s0", "int32")
     s1 = T.dynamic("s1", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def ldmatrix_impl(
         warp: T.Tensor(
             (WARP_SIZE, local_size), dtype, align=64, offset_factor=offset_factor, scope="warp"
@@ -328,7 +328,7 @@ def get_mma_intrin(
     B_offset_factor = k_dim if b_transposed else N_DIM
     out_offset_factor = N_DIM
 
-    @Ts.prim_func
+    @Ts.function
     def mma_sync_desc(
         A: T.Tensor(
             (WARP_SIZE, local_size), a_dtype, align=64, offset_factor=A_offset_factor, scope="warp"
@@ -373,7 +373,7 @@ def get_mma_intrin(
                         A[a_warp_indices[0], a_warp_indices[1]]
                     ) * cast_to_out_dtype(B[b_warp_indices[0], b_warp_indices[1]])
 
-    @Ts.prim_func
+    @Ts.function
     def mma_sync_impl(
         A: T.Tensor(
             (WARP_SIZE, local_size), a_dtype, align=64, offset_factor=A_offset_factor, scope="warp"
@@ -522,7 +522,7 @@ def get_mma_fill_intrin(dtype, local_size):
     # Assume M = N = 16
     index_map = shared_16x16_to_ldmatrix_32x8_layout
 
-    @Ts.prim_func
+    @Ts.function
     def mma_fill_desc(C_warp: T.Tensor([WARP_SIZE, local_size], dtype=dtype, scope="warp")) -> None:
         with Ts.sblock("root"):
             Ts.reads()
@@ -535,7 +535,7 @@ def get_mma_fill_intrin(dtype, local_size):
                     Ts.writes(C_warp[warp_indices[0], warp_indices[1]])
                     C_warp[warp_indices[0], warp_indices[1]] = zero
 
-    @Ts.prim_func
+    @Ts.function
     def mma_fill_impl(
         C_warp: T.Tensor([WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1),
     ) -> None:
@@ -566,7 +566,7 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
     index_map = shared_16x16_to_ldmatrix_32x8_layout
     index_map_rev = ldmatrix_32x8_to_shared_16x16_layout
 
-    @Ts.prim_func
+    @Ts.function
     def mma_store_desc(
         C_warp: T.Tensor([WARP_SIZE, local_size], dtype=dtype, scope="warp"),
         C: T.Tensor([M_DIM, N_DIM], dtype=dtype, scope=scope),
@@ -586,7 +586,7 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
         s0 = T.dynamic("s0", "int32")
         s1 = T.dynamic("s1", "int32")
 
-        @Ts.prim_func
+        @Ts.function
         def mma_store_impl(
             C_warp: T.Tensor([WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1),
             C: T.Tensor(
@@ -614,7 +614,7 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
         s0 = T.dynamic("s0", "int32")
         s1 = T.dynamic("s1", "int32")
 
-        @Ts.prim_func
+        @Ts.function
         def mma_store_impl(
             C_warp: T.Tensor([WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1),
             C: T.Tensor(
@@ -783,7 +783,7 @@ def get_wmma_load_intrin(
     shared_scope: str,
     is_b: bool,
     is_col_major: bool,
-) -> tuple[PrimFunc, PrimFunc]:
+) -> tuple[Function, Function]:
     """Generator of wmma_load intrins"""
     wmma_fragment_scope = f"wmma.matrix_{'b' if is_b else 'a'}"
     layout = "col_major" if is_col_major else "row_major"
@@ -793,7 +793,7 @@ def get_wmma_load_intrin(
         frag_m, frag_n = frag_n, frag_m
     offset_factor = frag_n
 
-    @Ts.prim_func
+    @Ts.function
     def wmma_load_desc(
         A: T.Tensor(
             (frag_m, frag_n), dtype, align=64, offset_factor=offset_factor, scope=shared_scope
@@ -819,7 +819,7 @@ def get_wmma_load_intrin(
     d1 = T.dynamic("d1", "int32")
     d0 = T.dynamic("d0", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def wmma_load_impl(
         A: T.Tensor(
             (frag_m, frag_n),
@@ -859,12 +859,12 @@ def get_wmma_load_intrin(
 
 def get_wmma_fill_intrin(
     m_dim: int, n_dim: int, k_dim: int, dtype: str
-) -> tuple[PrimFunc, PrimFunc]:
+) -> tuple[Function, Function]:
     """Generator of wmma_fill intrins"""
     zero = IntImm("int32", 0).astype(dtype)
     offset_factor = n_dim
 
-    @Ts.prim_func
+    @Ts.function
     def wmma_fill_desc(
         C: T.Tensor(
             (m_dim, n_dim), dtype, align=64, offset_factor=offset_factor, scope="wmma.accumulator"
@@ -881,7 +881,7 @@ def get_wmma_fill_intrin(
     d1 = T.dynamic("d1", "int32")
     d0 = T.dynamic("d0", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def wmma_fill_impl(
         C: T.Tensor(
             (m_dim, n_dim),
@@ -911,11 +911,11 @@ def get_wmma_fill_intrin(
 
 def get_wmma_store_intrin(
     m_dim: int, n_dim: int, k_dim: int, dtype: str, scope: str
-) -> tuple[PrimFunc, PrimFunc]:
+) -> tuple[Function, Function]:
     """Generator of wmma_store intrins"""
     offset_factor = n_dim
 
-    @Ts.prim_func
+    @Ts.function
     def wmma_store_desc(
         A: T.Tensor(
             (m_dim, n_dim), dtype, align=64, offset_factor=offset_factor, scope="wmma.accumulator"
@@ -935,7 +935,7 @@ def get_wmma_store_intrin(
     d1 = T.dynamic("d1", "int32")
     d0 = T.dynamic("d0", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def wmma_store_impl(
         A: T.Tensor(
             (m_dim, n_dim),
@@ -975,7 +975,7 @@ def get_wmma_store_intrin(
 
 def get_wmma_sync_intrin(
     m_dim: int, n_dim: int, k_dim: int, in_dtype: str, out_dtype: str, b_transposed: bool
-) -> tuple[PrimFunc, PrimFunc]:
+) -> tuple[Function, Function]:
     """Generator of wmma_sync intrins"""
 
     def maybe_cast(v):
@@ -994,7 +994,7 @@ def get_wmma_sync_intrin(
     B_offset_factor = b_shape_1
     out_offset_factor = n_dim
 
-    @Ts.prim_func
+    @Ts.function
     def wmma_sync_desc(
         A: T.Tensor(
             (m_dim, k_dim), in_dtype, align=64, offset_factor=A_offset_factor, scope="wmma.matrix_a"
@@ -1032,7 +1032,7 @@ def get_wmma_sync_intrin(
     c1 = T.dynamic("c1", "int32")
     c0 = T.dynamic("c0", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def wmma_sync_impl(
         A: T.Tensor(
             (m_dim, k_dim),
@@ -1411,7 +1411,7 @@ def get_index_C(elem_offset, stride):
 
 def get_mma_init_intrin(
     m_dim: int, n_dim: int, k_dim: int, dtype: str
-) -> tuple[PrimFunc, PrimFunc]:
+) -> tuple[Function, Function]:
     """Generator of mma init intrins"""
     del k_dim  # unused
     zero = IntImm("int32", 0).astype(dtype)
@@ -1419,7 +1419,7 @@ def get_mma_init_intrin(
     assert dtype in ["float16", "float32"]
     assert n_dim // 4 * int(dtype[-2:]) <= 128, "n_dim vectorize failed"
 
-    @Ts.prim_func
+    @Ts.function
     def mma_init_desc(
         dst: T.Tensor((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"),
     ) -> None:
@@ -1431,7 +1431,7 @@ def get_mma_init_intrin(
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     dst[vi, vj] = zero
 
-    @Ts.prim_func
+    @Ts.function
     def mma_init_impl(
         dst: T.Tensor((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"),
     ) -> None:
@@ -1455,7 +1455,7 @@ def get_mma_load_intrin(
     shared_scope: str,
     is_b: bool,
     is_col_major: bool,
-) -> tuple[PrimFunc, PrimFunc]:
+) -> tuple[Function, Function]:
     """Generator of mma ldmatrix intrins"""
     mma_fragment_scope = f"m16n8k8.matrix{'B' if is_b else 'A'}"
     frag_m, frag_n = (k_dim, n_dim) if is_b else (m_dim, k_dim)
@@ -1467,7 +1467,7 @@ def get_mma_load_intrin(
         (lambda tx, s0: (tx % 8) * s0 + (tx // 8) * 8) if trans else (lambda tx, s0: tx * s0)
     )
 
-    @Ts.prim_func
+    @Ts.function
     def mma_load_desc(
         src: T.Tensor((frag_m, frag_n), dtype, align=64, offset_factor=1, scope=shared_scope),
         dst: T.Tensor((frag_m, frag_n), dtype, align=64, offset_factor=1, scope=mma_fragment_scope),
@@ -1485,7 +1485,7 @@ def get_mma_load_intrin(
     d0 = T.dynamic("d0", "int32")
     d1 = T.dynamic("d1", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def mma_load_impl(
         src: T.Tensor(
             (frag_m, frag_n), dtype, align=64, offset_factor=1, scope=shared_scope, strides=[s0, s1]
@@ -1522,7 +1522,7 @@ def get_mma_load_intrin(
 
 def get_mma_sync_intrin(
     m_dim: int, n_dim: int, k_dim: int, in_dtype: str, out_dtype: str, b_transposed: bool
-) -> tuple[PrimFunc, PrimFunc]:
+) -> tuple[Function, Function]:
     """Generator of mma sync intrins"""
 
     def maybe_cast(v):
@@ -1537,7 +1537,7 @@ def get_mma_sync_intrin(
 
     B_shape_0, B_shape_1 = maybe_swap(k_dim, n_dim)
 
-    @Ts.prim_func
+    @Ts.function
     def mma_sync_desc(
         A: T.Tensor((m_dim, k_dim), in_dtype, align=64, offset_factor=1, scope="m16n8k8.matrixA"),
         B: T.Tensor(
@@ -1563,7 +1563,7 @@ def get_mma_sync_intrin(
     c0 = T.dynamic("c0", "int32")
     c1 = T.dynamic("c1", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def mma_sync_impl(
         A: T.Tensor(
             (m_dim, k_dim),
@@ -1617,11 +1617,11 @@ def get_mma_sync_intrin(
 
 def get_mma_store_dummy_intrin(
     m_dim: int, n_dim: int, k_dim: int, dtype: str
-) -> tuple[PrimFunc, PrimFunc]:
+) -> tuple[Function, Function]:
     """Disable mma store intrin for now."""
     del k_dim  # unused
 
-    @Ts.prim_func
+    @Ts.function
     def mma_store_desc(
         src: T.Tensor((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"),
         dst: T.Tensor((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="shared.dyn"),

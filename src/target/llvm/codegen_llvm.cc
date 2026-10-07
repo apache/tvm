@@ -234,11 +234,11 @@ void CodeGenLLVM::InitTarget() {
   EmitFloat16ConversionBuiltins(use_float16_abi);
 }
 
-llvm::Function* CodeGenLLVM::DeclareFunction(const GlobalVar& gvar, const PrimFunc& f) {
+llvm::Function* CodeGenLLVM::DeclareFunction(const GlobalVar& gvar, const Function& f) {
   return this->DeclareFunctionInternal(gvar, f);
 }
 
-void CodeGenLLVM::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
+void CodeGenLLVM::AddFunction(const GlobalVar& gvar, const Function& f) {
   this->AddFunctionInternal(gvar, f);
 }
 
@@ -253,7 +253,7 @@ void CodeGenLLVM::InitFuncState() {
 }
 
 std::tuple<std::string, llvm::Function::LinkageTypes> CodeGenLLVM::GetLinkage(
-    const GlobalVar& gvar, const PrimFunc& func) {
+    const GlobalVar& gvar, const Function& func) {
   if (auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
     return {global_symbol.value(), llvm::Function::ExternalLinkage};
   }
@@ -268,7 +268,7 @@ std::tuple<std::string, llvm::Function::LinkageTypes> CodeGenLLVM::GetLinkage(
   return {symbol_name, llvm::Function::PrivateLinkage};
 }
 
-llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, const PrimFunc& func) {
+llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, const Function& func) {
   if (auto it = functions_.find(gvar.get()); it != functions_.end()) {
     return it->second;
   }
@@ -297,11 +297,11 @@ llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, cons
     if (user_symbol.rfind(kFFISymbolPrefix, 0) == 0) {
       user_symbol = user_symbol.substr(std::char_traits<char>::length(kFFISymbolPrefix));
     }
-    TVM_FFI_THROW(InternalError) << "Duplicate PrimFunc global_symbol '" << user_symbol
+    TVM_FFI_THROW(InternalError) << "Duplicate Function global_symbol '" << user_symbol
                                  << "' in LLVM codegen: IRModule keys '" << it->second << "' and '"
                                  << gvar->name_hint << "' both lower to the same exported symbol '"
                                  << symbol_name << "'. "
-                                 << "Each exposed PrimFunc in one IRModule must have a unique "
+                                 << "Each exposed Function in one IRModule must have a unique "
                                     "global_symbol.";
   }
   function_symbol_owners_[symbol_name] = gvar->name_hint;
@@ -320,7 +320,7 @@ llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, cons
   return function;
 }
 
-void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f) {
+void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const Function& f) {
   this->InitFuncState();
 
   function_ = DeclareFunctionInternal(gvar, f);

@@ -32,7 +32,7 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class AddBefore:
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def add(
         a: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -129,7 +129,7 @@ class AddBefore:
 
 @tvm.script.ir_module
 class AddExpected:
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def add(
         a: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -231,7 +231,7 @@ class AddExpected:
 
 @tvm.script.ir_module
 class SubBefore:
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def sub(
         a: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -328,7 +328,7 @@ class SubBefore:
 
 @tvm.script.ir_module
 class SubExpected:
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def sub(
         a: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -430,7 +430,7 @@ class SubExpected:
 
 @tvm.script.ir_module
 class MulBefore:
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def mul(
         a: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -527,7 +527,7 @@ class MulBefore:
 
 @tvm.script.ir_module
 class MulExpected:
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def mul(
         a: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -627,17 +627,17 @@ class MulExpected:
         return out
 
 
-def test_add_primfunc_overcompute():
+def test_add_function_overcompute():
     add_after = tvm.s_tir.transform.UseAssumeToReduceBranches()(AddBefore)
     tvm_ffi.structural_equal(add_after["add"], AddExpected["add"], map_free_vars=True)
 
 
-def test_sub_primfunc_overcompute():
+def test_sub_function_overcompute():
     sub_after = tvm.s_tir.transform.UseAssumeToReduceBranches()(SubBefore)
     tvm_ffi.structural_equal(sub_after["sub"], SubExpected["sub"], map_free_vars=True)
 
 
-def test_mul_primfunc_overcompute():
+def test_mul_function_overcompute():
     mul_after = tvm.s_tir.transform.UseAssumeToReduceBranches()(MulBefore)
     tvm_ffi.structural_equal(mul_after["mul"], MulExpected["mul"], map_free_vars=True)
 

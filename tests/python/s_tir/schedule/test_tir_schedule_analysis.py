@@ -39,7 +39,7 @@ from tvm.s_tir.tensor_intrin.cuda import (
 from tvm.s_tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.te import create_prim_func
+from tvm.te import create_function
 from tvm.tirx import (
     Evaluate,
     For,
@@ -158,7 +158,7 @@ def test_suggest_index_map_winograd():
 
 @tvm.script.ir_module
 class DenseTIRModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
         placeholder: T.Tensor((1024, 1024), "uint8"),
         placeholder_1: T.Tensor((64, 256, 16, 4), "int8"),
@@ -182,7 +182,7 @@ class DenseTIRModule:
 
 @tvm.script.ir_module
 class Conv2dNCHWcTIRModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
         placeholder: T.Tensor((1, 4, 56, 56, 16), "uint8"),
         placeholder_1: T.Tensor((16, 4, 1, 1, 4, 16, 4), "int8"),
@@ -221,9 +221,9 @@ class Conv2dNCHWcTIRModule:
                 )
 
 
-def collect_loops(prim_func):
+def collect_loops(function):
     loops = []
-    structural_walk(prim_func.body, (tvm.tirx.For, loops.append), order="pre")
+    structural_walk(function.body, (tvm.tirx.For, loops.append), order="pre")
 
     return loops
 
@@ -266,7 +266,7 @@ def test_get_tensorize_loop_mapping_conv2d_nchwc_16x4():
 
 
 def test_get_tensorize_loop_mapping_matmul_mma():
-    @Ts.prim_func
+    @Ts.function
     def matmul_16x16x16xf16f16f16_desc(
         A: T.Tensor((16, 16), "float16", align=64, offset_factor=1),
         B: T.Tensor((16, 16), "float16", align=64, offset_factor=1),
@@ -280,7 +280,7 @@ def test_get_tensorize_loop_mapping_matmul_mma():
                     vii, vjj, vkk = Ts.axis.remap("SSR", [i, j, k])
                     C[vii, vjj] = C[vii, vjj] + A[vii, vkk] * B[vjj, vkk]
 
-    matmul = create_prim_func(
+    matmul = create_function(
         te_workload.matmul_relu(
             n=512,
             m=512,
@@ -311,7 +311,7 @@ def test_get_tensorize_loop_mapping_matmul_mma():
 
 
 def test_get_tensorize_loop_mapping_padding_matmul():
-    matmul = create_prim_func(
+    matmul = create_function(
         te_workload.matmul_relu(
             n=127,
             m=256,
@@ -347,7 +347,7 @@ def check_index_map(workload, block_name, intrin_name, expected_index_map):
 
 
 def test_get_auto_tensorize_mapping_info_conv2d():
-    conv2d = create_prim_func(
+    conv2d = create_function(
         te_workload.conv2d_nhwc(4, 16, 16, 64, 64, 3, 1, 1, in_dtype="float16", out_dtype="float32")
     )
     check_index_map(
@@ -359,7 +359,7 @@ def test_get_auto_tensorize_mapping_info_conv2d():
 
 
 def test_get_auto_tensorize_mapping_info_conv2d_unit_batch():
-    conv2d = create_prim_func(
+    conv2d = create_function(
         te_workload.conv2d_nhwc(1, 16, 16, 64, 64, 3, 1, 1, in_dtype="float16", out_dtype="float32")
     )
     check_index_map(
@@ -372,7 +372,7 @@ def test_get_auto_tensorize_mapping_info_conv2d_unit_batch():
 
 @pytest.mark.parametrize("b,m,n,k", [(1, 512, 512, 512), (16, 32, 32, 32)])
 def test_get_auto_tensorize_mapping_info_batch_matmul(b, m, n, k):
-    matmul = create_prim_func(
+    matmul = create_function(
         te_workload.batch_matmul_nkkm(b, m, n, k, in_dtype="float16", out_dtype="float32")
     )
     check_index_map(
@@ -397,12 +397,12 @@ def test_get_auto_tensorize_mapping_info_batch_matmul(b, m, n, k):
     ],
 )
 def test_get_auto_tensorize_mapping_info_matmul(n, m, k, expected):
-    matmul = create_prim_func(te_workload.matmul(n, m, k, in_dtype="float16", out_dtype="float32"))
+    matmul = create_function(te_workload.matmul(n, m, k, in_dtype="float16", out_dtype="float32"))
     check_index_map(matmul, "C", WMMA_SYNC_16x16x16_f16f16f32_INTRIN, expected)
 
 
 def test_is_output_block():
-    @Ts.prim_func
+    @Ts.function
     def two_elementwise(
         A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
     ) -> None:
@@ -423,7 +423,7 @@ def test_is_output_block():
 
 
 def test_empty_grid():
-    @Ts.prim_func
+    @Ts.function
     def foo(out: T.Tensor((T.int64(1), T.int64(8), T.int64(8)), "int32")):
         act = Ts.sblock_alloc_buffer((1, 8, 8), "int32")
         for z2, y2, x2 in T.grid(1, 8, 8):

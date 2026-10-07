@@ -26,7 +26,7 @@ from tvm.target import Target
 
 def test_conv3d():
     # fmt: off
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
         A: T.Tensor((14308, 3, 2, 14, 14), "float16"),
         W: T.Tensor((1280, 3, 2, 14, 14), "float16"),
@@ -44,7 +44,7 @@ def test_conv3d():
                     C[v_nn, v_ff, v_yy, v_xx, v_zz] = T.float16(0.0)
                 C[v_nn, v_ff, v_yy, v_xx, v_zz] += pad_A[v_nn, v_rc, v_yy * 2 + v_ry, v_xx * 14 + v_rx, v_zz * 14 + v_rz]* W[v_ff, v_rc, v_ry, v_rx, v_rz]
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(A: T.Tensor((14308, 3, 2, 14, 14), "float16"), W: T.Tensor((1280, 3, 2, 14, 14), "float16"), C: T.Tensor((14308, 1280, 1, 1, 1), "float16")):
         T.func_attr({"tirx.is_scheduled": True})
         # with Ts.sblock("root"):

@@ -30,7 +30,7 @@ from tvm.target import Target
 
 @tvm.script.ir_module
 class Add:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor([2048, 2048, 2048], dtype="float32"),
         B: T.Tensor([2048, 2048, 2048], dtype="float32"),
@@ -60,7 +60,7 @@ class Add:
 
 
 def test_random_compute_location():
-    @Ts.prim_func
+    @Ts.function
     def add_0(
         A: T.Tensor((2048, 2048, 2048), "float32"),
         B: T.Tensor((2048, 2048, 2048), "float32"),

@@ -244,7 +244,7 @@ class Space:
                 inp = ms.runner.RunnerInput(
                     builder_res[i].artifact_path,
                     device_type=self.dev,
-                    args_info=ms.arg_info.TensorInfo.from_prim_func(mods[i]["main"]),
+                    args_info=ms.arg_info.TensorInfo.from_function(mods[i]["main"]),
                 )
                 runner_res = runner.run([inp])[0].result()
                 results[i] = [v.value for v in runner_res.run_secs]  # type: ignore

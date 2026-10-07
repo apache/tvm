@@ -50,7 +50,7 @@ def _rvv_target():
 def _build_softmax(batch, features, fast=False):
     A = te.placeholder((batch, features), dtype="float32", name="A")
     B = topi.nn.fast_softmax(A, axis=1) if fast else topi.nn.softmax(A, axis=1)
-    func = te.create_prim_func([A, B])
+    func = te.create_function([A, B])
     return tvm.IRModule({"main": func})
 
 

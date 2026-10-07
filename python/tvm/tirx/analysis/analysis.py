@@ -23,16 +23,16 @@ from tvm.tirx.expr import Var
 from tvm.tirx.stmt import Expr
 
 from .. import Stmt
-from ..function import PrimFunc
+from ..function import Function
 from . import _ffi_api
 
 
-def verify_ssa(func: PrimFunc) -> bool:
+def verify_ssa(func: Function) -> bool:
     """Verify if the func is in SSA form.
 
     Parameters
     ----------
-    func: tvm.tirx.PrimFunc
+    func: tvm.tirx.Function
         The module to be verified.
 
     Returns
@@ -43,12 +43,12 @@ def verify_ssa(func: PrimFunc) -> bool:
     return _ffi_api.verify_ssa(func)  # type: ignore
 
 
-def verify_memory(func: PrimFunc) -> bool:
+def verify_memory(func: Function) -> bool:
     """Verify if func contains illegal host side direct memory access.
 
     Parameters
     ----------
-    func: tvm.tirx.PrimFunc
+    func: tvm.tirx.Function
         The module to be verified.
 
     Returns
@@ -79,14 +79,14 @@ def undefined_vars(node: Stmt | Expr, defs: list[Var] | None = None) -> list[Var
     return _ffi_api.UndefinedVars(node, defs)  # type: ignore # pylint: disable=no-member
 
 
-def verify_well_formed(obj: PrimFunc | IRModule, assert_mode: bool = True) -> bool:
+def verify_well_formed(obj: Function | IRModule, assert_mode: bool = True) -> bool:
     """Verify definitions and buffer-load types in ordinary TIRX.
 
     Use ``tvm.s_tir.analysis.verify_well_formed`` for schedulable blocks.
 
     Parameters
     ----------
-    obj: Union[tvm.tirx.PrimFunc, tvm.ir.IRModule]
+    obj: Union[tvm.tirx.Function, tvm.ir.IRModule]
         The function or module to be verified.
 
     assert_mode: bool
@@ -101,13 +101,13 @@ def verify_well_formed(obj: PrimFunc | IRModule, assert_mode: bool = True) -> bo
 
 
 def verify_tirx_well_formed(
-    obj: PrimFunc | IRModule, assert_mode: bool = True, device_func: bool = False
+    obj: Function | IRModule, assert_mode: bool = True, device_func: bool = False
 ) -> bool:
     """Verify if the given TIRX is well-formed.
 
     Parameters
     ----------
-    obj: Union[tvm.tirx.PrimFunc, tvm.ir.IRModule]
+    obj: Union[tvm.tirx.Function, tvm.ir.IRModule]
         The function or module to be verified.
 
     assert_mode: bool

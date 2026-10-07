@@ -43,7 +43,7 @@ def test_prim_value_in_assert_condition():
             _ = R.assert_op(condition)
             return A
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def compute_symbolic_expr(N: T.int64) -> T.bool:
             T.func_attr({"tirx.is_host_func": True})
             return N % 16 == 0
@@ -78,7 +78,7 @@ def test_prim_value_in_branch_condition():
                 out = R.call_packed("slow_non_vectorized_impl", A, ty_args=[A.ty])
             return out
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def compute_symbolic_expr(N: T.int64) -> T.bool:
             T.func_attr({"tirx.is_host_func": True})
             return N % 16 == 0

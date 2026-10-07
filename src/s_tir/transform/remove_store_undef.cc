@@ -193,17 +193,17 @@ class ContainsUndefChecker : public StmtExprVisitor {
 
 namespace transform {
 Pass RemoveStoreUndefInternal() {
-  auto pass_func = [](PrimFunc f, IRModule m, tvm::transform::PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, tvm::transform::PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     n->body = StoreUndefRemover::Apply(std::move(n->body).value());
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.RemoveStoreUndefInternal", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.RemoveStoreUndefInternal", {});
 }
 
 Pass ValidateAllUndefRemoved() {
-  auto pass_func = [](PrimFunc f, IRModule m, tvm::transform::PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, tvm::transform::PassContext ctx) {
     if (!f->body.has_value()) return f;
     bool contains_undef = ContainsUndefChecker::Check(f->body.value());
     TVM_FFI_ICHECK(!contains_undef)
@@ -214,7 +214,7 @@ Pass ValidateAllUndefRemoved() {
         << f;
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.ValidateAllUndefRemoved", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.ValidateAllUndefRemoved", {});
 }
 
 Pass RemoveStoreUndef() {

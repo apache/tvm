@@ -173,13 +173,13 @@ std::string GetFP4Type(const PrimType& type_ty) {
 
 CodeGenCUDA::CodeGenCUDA(Target target) : target(target) { restrict_keyword_ = "__restrict__"; }
 
-void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const PrimFunc& func,
+void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const Function& func,
                                          std::ostream& os) {
   PrintFunctionPrefix(func, os);
   CodeGenC::PrintFunctionSignature(function_name, func, os);
 }
 
-void CodeGenCUDA::PrintFunctionPrefix(const PrimFunc& func, std::ostream& os) {
+void CodeGenCUDA::PrintFunctionPrefix(const Function& func, std::ostream& os) {
   CallingConv calling_conv =
       func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value();
   in_kernel_launch_ = (calling_conv == CallingConv::kDeviceKernelLaunch);
@@ -243,7 +243,7 @@ class ThreadIdxExtractor : public tirx::StmtExprVisitor {
   PrimExpr clusterCtaIdx_z_ext = IntImm::Int32(1);
 };
 
-void CodeGenCUDA::InitFuncState(const PrimFunc& func) {
+void CodeGenCUDA::InitFuncState(const Function& func) {
   CodeGenC::InitFuncState(func);
   min_blocks_per_sm_.reset();
   max_blocks_per_cluster_.reset();
@@ -263,7 +263,7 @@ void CodeGenCUDA::InitFuncState(const PrimFunc& func) {
       IsOne(analyzer->Simplify(launch_dimensions_[4] * launch_dimensions_[5]));
 }
 
-void CodeGenCUDA::DeclareFunction(const GlobalVar& gvar, const PrimFunc& func) {
+void CodeGenCUDA::DeclareFunction(const GlobalVar& gvar, const Function& func) {
   if (!RegisterFunctionName(gvar, func)) return;
   // Definitions supply their body-derived qualifiers in AddFunction.
   if (!func->body.has_value()) {
@@ -273,7 +273,7 @@ void CodeGenCUDA::DeclareFunction(const GlobalVar& gvar, const PrimFunc& func) {
   }
 }
 
-void CodeGenCUDA::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
+void CodeGenCUDA::AddFunction(const GlobalVar& gvar, const Function& func) {
   DeclareFunction(gvar, func);
   if (!func->body.has_value()) return;
   InitFuncState(func);
@@ -302,7 +302,7 @@ void CodeGenCUDA::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   stream << signature.str() << body;
 }
 
-void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
+void CodeGenCUDA::PrintExtraAttrs(const Function& f, std::ostream& os) {
   TVM_FFI_ICHECK(!max_blocks_per_cluster_ || min_blocks_per_sm_)
       << "CUDA maximum blocks per cluster requires minimum blocks per SM";
   TVM_FFI_ICHECK(!max_registers_per_thread_ || (!min_blocks_per_sm_ && !max_blocks_per_cluster_))
@@ -2127,24 +2127,24 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
   CodeGenCUDA cg(target);
   cg.Init(output_ssa);
 
-  ffi::Map<GlobalVar, PrimFunc> functions;
+  ffi::Map<GlobalVar, Function> functions;
   for (auto [gvar, base_func] : mod->functions) {
-    TVM_FFI_ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenCUDA: Can only take PrimFunc";
-    auto prim_func = base_func.as_or_throw<PrimFunc>();
+    TVM_FFI_ICHECK(base_func->IsInstance<FunctionNode>()) << "CodeGenCUDA: Can only take Function";
+    auto function = base_func.as_or_throw<Function>();
     CallingConv calling_conv =
-        prim_func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value();
+        function->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value();
     TVM_FFI_ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch ||
                    calling_conv == CallingConv::kDefault)
         << "CodeGenCUDA: expect calling_conv equals CallingConv::kDeviceKernelLaunch or "
            "CallingConv::kDefault";
-    functions.Set(gvar, prim_func);
+    functions.Set(gvar, function);
   }
 
-  for (auto [gvar, prim_func] : functions) {
-    cg.DeclareFunction(gvar, prim_func);
+  for (auto [gvar, function] : functions) {
+    cg.DeclareFunction(gvar, function);
   }
-  for (auto [gvar, prim_func] : functions) {
-    cg.AddFunction(gvar, prim_func);
+  for (auto [gvar, function] : functions) {
+    cg.AddFunction(gvar, function);
   }
 
   std::string code = cg.Finish();

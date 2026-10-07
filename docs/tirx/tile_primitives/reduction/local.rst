@@ -66,7 +66,7 @@ A single thread reduces a 4-element ``float32`` local vector to a scalar
 
 .. code-block:: python
 
-    @Tx.prim_func
+    @Tx.function
     def test_func(
         A: Tx.Tensor([4], "float32", layout=TileLayout(S[4,])),
         B: Tx.Tensor([1], "float32", layout=TileLayout(S[1,])),

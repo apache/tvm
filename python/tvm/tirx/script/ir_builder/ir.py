@@ -75,7 +75,7 @@ def _get_layout(layout: str | Layout | None, shape: list[Expr], scope: str) -> L
     if layout is MISSING:
         if IRBuilder.is_in_scope():
             for function_frame in reversed(list(IRBuilder.current().frames)):
-                if isinstance(function_frame, frame.PrimFuncFrame):
+                if isinstance(function_frame, frame.FunctionFrame):
                     return function_frame.default_buffer_layout(shape, scope)
         if scope in ["trn.sbuf", "trn.psum"]:
             return None
@@ -1535,7 +1535,7 @@ else:
         return cls
 
     def meta_class(cls):
-        """Decorator for utility classes used inside @T.prim_func.
+        """Decorator for utility classes used inside @T.function.
 
         Instances of decorated classes are treated as parser meta values.
         """

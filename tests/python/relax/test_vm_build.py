@@ -224,7 +224,7 @@ def test_vm_compile_e2e_func_param_with_shape():
 
     @tvm.script.ir_module
     class TestVMCompileE2E2:
-        @Ts.prim_func
+        @Ts.function
         def tir_matmul(
             A: T.Tensor((m_tir_matmul, n_tir_matmul)),
             B: T.Tensor((n_tir_matmul, k_tir_matmul)),
@@ -263,7 +263,7 @@ def test_vm_compile_e2e_func_param_with_shape():
 def test_call_tir_inplace_e2e_simple():
     @tvm.script.ir_module
     class TestCallTIRInplaceE2ESimple:
-        @Ts.prim_func
+        @Ts.function
         def copy(
             A: T.Tensor((2, 3), "int32"),
             B: T.Tensor((2, 3), "int32"),
@@ -322,7 +322,7 @@ def test_call_tir_inplace_e2e_rw():
     # read and write from the same tensor
     @tvm.script.ir_module
     class TestCallTIRInplaceE2ERW:
-        @Ts.prim_func
+        @Ts.function
         def inplace_add(A: T.Tensor((2, 3), "int32"), B: T.Tensor((2, 3), "int32")):
             # sums A and B, storing the result in A
             T.func_attr({"tirx.noalias": True})
@@ -592,7 +592,7 @@ def test_vm_relax_symbolic_shape_tuple():
 
 
 def test_vm_relax_dyn_tir_shape():
-    # case where TIR variables are unbound in generated PrimFunc
+    # case where TIR variables are unbound in generated Function
     bb = relax.BlockBuilder()
     n = T.dynamic("n", "int64")
 
@@ -690,7 +690,7 @@ def test_lower_memory_alloc_storage_tensor():
             _ = cls.copy(x, y)
             return y
 
-        @Ts.prim_func
+        @Ts.function
         def copy(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
             for i0, i1 in T.grid(2, 3):
                 with Ts.sblock("block"):
@@ -713,7 +713,7 @@ def test_sub_func_call():
 
     @tvm.script.ir_module
     class TestVMSubFunction:
-        @Ts.prim_func
+        @Ts.function
         def tir_matmul(A: T.Tensor((m, n)), B: T.Tensor((n, k)), C: T.Tensor((m, k))) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
 
@@ -892,7 +892,7 @@ n = T.dynamic("n", "int32")
 
 @tvm.script.ir_module
 class TestVMSetInput:
-    @Ts.prim_func
+    @Ts.function
     def test_vm_mul(A: T.Tensor((m, n)), B: T.Tensor((m, n)), C: T.Tensor((m, n))):
         T.func_attr({"global_symbol": "test_vm_mul"})
 
@@ -941,7 +941,7 @@ def test_multi_systemlib():
     class ModA:
         I.module_attrs({"system_lib_prefix": "libA_"})
 
-        @Ts.prim_func
+        @Ts.function
         def tir_init(x: T.Tensor([N], "float32")):
             for i in range(N):
                 x[i] = T.float32(0)
@@ -958,7 +958,7 @@ def test_multi_systemlib():
     class ModB:
         I.module_attrs({"system_lib_prefix": "libB_"})
 
-        @Ts.prim_func
+        @Ts.function
         def tir_init(x: T.Tensor([N], "float32")):
             for i in range(N):
                 x[i] = T.float32(1)

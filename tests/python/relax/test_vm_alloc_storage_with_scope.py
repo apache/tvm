@@ -29,7 +29,7 @@ from tvm.script import tirx as T
 
 @I.ir_module
 class Module:
-    @Ts.prim_func
+    @Ts.function
     def add(
         arg0: T.Tensor((2, 2), "float32"),
         arg1: T.Tensor((2, 2), "float32"),

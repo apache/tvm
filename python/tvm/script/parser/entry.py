@@ -283,13 +283,13 @@ def make_decorator(builder: object, *, namespace_path: str) -> Callable[..., Any
     builder : object
         Namespace implementing the function construction protocol.
     namespace_path : str
-        Canonical registered syntax key, such as "tirx.prim_func".
+        Canonical registered syntax key, such as "tirx.function".
 
     Returns
     -------
     decorator : callable
         Callable used through a registered namespace at the definition site,
-        such as ``@T.prim_func`` or ``@T.prim_func(**options)``. Bare callable
+        such as ``@T.function`` or ``@T.function(**options)``. Bare callable
         aliases and later application to an existing function are unsupported.
 
     Raises
@@ -321,7 +321,7 @@ def make_decorator(builder: object, *, namespace_path: str) -> Callable[..., Any
         ----------
         function : Callable, optional
             The function to be parsed. May be omitted to use the decorator with
-            keyword options, such as ``@T.prim_func(private=True)``.
+            keyword options, such as ``@T.function(private=True)``.
         private : bool, optional
             Whether the function should be treated as private. A private
             function has no global symbol attribute; a public function has a
@@ -330,9 +330,9 @@ def make_decorator(builder: object, *, namespace_path: str) -> Callable[..., Any
             Whether to check that the constructed function is well formed.
             Defaults to True.
         persistent : bool, optional
-            For ``T.prim_func``, mark the resulting function as a persistent
+            For ``T.function``, mark the resulting function as a persistent
             kernel. Defaults to False. See
-            :func:`tvm.tirx.script.ir_builder.prim_func`.
+            :func:`tvm.tirx.script.ir_builder.function`.
         pure : bool, optional
             For ``R.function``, declare whether the function is pure, meaning
             that it has no observable side effects. Defaults to True. See
@@ -342,11 +342,11 @@ def make_decorator(builder: object, *, namespace_path: str) -> Callable[..., Any
             :func:`~tvm.script.ir_builder.parser_protocol.function_` hook,
             except ``check_well_formed``, which controls parser validation.
             Options supported by only one language variant are not shared
-            between ``T.prim_func`` and ``R.function``.
+            between ``T.function`` and ``R.function``.
 
         Returns
         -------
-        result : PrimFunc or relax.Function or Callable
+        result : Function or relax.Function or Callable
             The parsed function, or a decorator when ``function`` is omitted.
             Class members retain their Python functions until the enclosing
             module is constructed.
@@ -474,7 +474,7 @@ def make_macro_decorator(
             def capture(A, B):
                 B[()] = A[x_value]  # x_value resolved from enclosing scope
 
-            @T.prim_func
+            @T.function
             def use(A: T.Tensor((1024,), "int32"), B: T.Tensor((), "int32")) -> None:
                 capture(A, B)       # Produces B[()] = A[128]
         """

@@ -116,7 +116,7 @@ def test_unexpected_tir_args():
 
         @tvm.script.ir_module
         class TestWellCallTIR:
-            @Ts.prim_func
+            @Ts.function
             def tir_addone(A: T.Tensor((16, 16), "int32"), B: T.Tensor((16, 16), "int32")) -> None:
                 T.func_attr({"global_symbol": "tir_addone"})
                 for i, j in T.grid(16, 16):
@@ -135,7 +135,7 @@ def test_unexpected_tir_args():
 
         @R.function
         def f(x: R.Tensor((m, m), "float32")):
-            # call_tir expected a tirx prim_func
+            # call_tir expected a tirx function
             return relax.call_tir("extern_func", (x,), R.Tensor((T.max(m),), dtype="float32"))
 
 
@@ -330,7 +330,7 @@ def test_call_tir_inplace_with_tuple_var_raises_error():
                 )
                 return res
 
-            @Ts.prim_func
+            @Ts.function
             def copy(
                 A: T.Tensor((2, 3), "int32"),
                 B: T.Tensor((2, 3), "int32"),

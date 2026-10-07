@@ -50,7 +50,7 @@ def test_dispatch_multinomial_from_uniform_generic():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def get_sample_index(prob: T.Tensor((batch, vocab_size)), usample: T.Tensor((out_batch, 1)), sample_indices: T.Tensor((out_batch, 1), 'int64'), output_index: T.Tensor((out_batch, 1), 'int64')):
 
             # with Ts.sblock("root"):
@@ -88,7 +88,7 @@ def test_dispatch_multinomial_from_uniform_gpu():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def parallel_sampling_from_prob(prob: T.Tensor((n, vocab_size)), uniform_samples: T.Tensor((batch_size, 1)), row_indices: T.Tensor((batch_size, 1), 'int64'), token_ids: T.Tensor((batch_size, 1), 'int64')):
             T.func_attr({"tirx.is_scheduled": True})
 

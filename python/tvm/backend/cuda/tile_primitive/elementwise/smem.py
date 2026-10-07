@@ -31,7 +31,7 @@ codegen time. Packed-vec emit requires the innermost dim to have stride 1
 from __future__ import annotations
 
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc, TilePrimitiveCall
+from tvm.tirx import Function, TilePrimitiveCall
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.operator.tile_primitive.dispatcher import fail
 
@@ -129,7 +129,7 @@ def _max_layout_vec(plan, total: int, thread_cnt: int) -> int:
 # -----------------------------------------------------------------------------
 # Main entry
 # -----------------------------------------------------------------------------
-def emit_smem(op_call: TilePrimitiveCall, spec, sctx: DispatchContext) -> PrimFunc:
+def emit_smem(op_call: TilePrimitiveCall, spec, sctx: DispatchContext) -> Function:
     plan, msg = spec.parse(op_call)
     if msg is not None or plan is None:
         fail(msg or "parse failed")
@@ -190,7 +190,7 @@ def _src_lane_indices(src_br, dst_lane_indices, dst_st, dst_ext, vec_chunk, fuse
 # -----------------------------------------------------------------------------
 # Emit — packed
 # -----------------------------------------------------------------------------
-def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> PrimFunc:
+def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> Function:
     extras = plan.extras
     srcs = plan.srcs
     dst_buf = plan.dst.source
@@ -198,7 +198,7 @@ def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> PrimFunc
     sync = emit_scope_sync(sctx.scope_kind)
     n_outer = (total + vec_chunk * thread_cnt - 1) // (vec_chunk * thread_cnt)
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         tid = _tid_expr(sctx)
         for s in T.serial(0, n_outer):
@@ -236,7 +236,7 @@ def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> PrimFunc
 # -----------------------------------------------------------------------------
 # Emit — scalar fallback
 # -----------------------------------------------------------------------------
-def _emit_scalar(plan, spec, vec_chunk, total, thread_cnt, sctx) -> PrimFunc:
+def _emit_scalar(plan, spec, vec_chunk, total, thread_cnt, sctx) -> Function:
     extras = plan.extras
     srcs = plan.srcs
     dst_buf = plan.dst.source
@@ -246,7 +246,7 @@ def _emit_scalar(plan, spec, vec_chunk, total, thread_cnt, sctx) -> PrimFunc:
     sync = emit_scope_sync(sctx.scope_kind)
     n_outer = (total + vec_chunk * thread_cnt - 1) // (vec_chunk * thread_cnt)
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         tid = _tid_expr(sctx)
         for s in T.serial(0, n_outer):

@@ -43,7 +43,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  static ffi::Optional<Stmt> Convert(const PrimFunc& f) {
+  static ffi::Optional<Stmt> Convert(const Function& f) {
     auto substituter = ffi::make_object<OpaqueBlockConverter>();
     return substituter->Mutate(f->body).ValueOrUnchanged(f->body);
   }
@@ -113,12 +113,12 @@ class OpaqueBlockConverter : public StmtExprMutator {
 namespace transform {
 
 Pass ConvertBlocksToOpaque() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    PrimFuncNode* fptr = f.CopyOnWrite();
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
+    FunctionNode* fptr = f.CopyOnWrite();
     fptr->body = OpaqueBlockConverter::Convert(f);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.ConvertBlocksToOpaque", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.ConvertBlocksToOpaque", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

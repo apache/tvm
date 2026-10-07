@@ -387,7 +387,7 @@ def test_dispatch_topk_gpu():
         @R.function
         def foo(x: R.Tensor((2, 3), "float32", "vulkan")):
             with R.dataflow():
-                # Two same calls should have only one PrimFunc
+                # Two same calls should have only one Function
                 lv0 = R.topk(x, k=2, axis=1, largest=True)
                 lv1 = R.topk(x, k=2, axis=1, largest=True)
                 gv = (lv0, lv1)

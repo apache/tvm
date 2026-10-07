@@ -1304,10 +1304,10 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
                                        index_map, opt_inverse, padding_predicate, pad_value);
   SBlock new_scope_block = new_stmt.as_or_throw<SBlock>();
 
-  // Step 4: Rewrite the PrimFunc buffer parameter if necessary.
+  // Step 4: Rewrite the Function buffer parameter if necessary.
   if (!defining_site_sref.has_value()) {
     GlobalVar g_var{ffi::UnsafeInit{}};
-    const auto* old_func = GetRootPrimFunc(self->mod, scope_block, &g_var);
+    const auto* old_func = GetRootFunction(self->mod, scope_block, &g_var);
     IRModuleNode* new_mod = self->mod.CopyOnWrite();
     ffi::MapObj* new_map = new_mod->functions.CopyOnWrite();
 
@@ -1318,7 +1318,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
       return param;
     });
 
-    PrimFunc ref_new_func(new_params, old_func->body, old_func->ret_type, old_func->attrs,
+    Function ref_new_func(new_params, old_func->body, old_func->ret_type, old_func->attrs,
                           old_func->span);
     new_map->at(g_var) = std::move(ref_new_func);
   }

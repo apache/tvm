@@ -30,7 +30,7 @@ from tvm.ir import Call, Type
 from tvm.relax.expr import Binding, DataflowBlock, Expr, Function, GlobalVar
 from tvm.relax.type import FuncType
 from tvm.s_tir import SBlock
-from tvm.tirx import IndexMap, PrimFunc, Var
+from tvm.tirx import IndexMap, Var
 
 from . import _ffi_api
 
@@ -362,8 +362,8 @@ def post_order_visit(expr, fvisit):
     return _ffi_api.post_order_visit(expr, fvisit)  # type: ignore
 
 
-def has_reshape_pattern(func: tirx.PrimFunc) -> bool:
-    """Check if the given PrimFunc is essentially doing a reshape operation.
+def has_reshape_pattern(func: tirx.Function) -> bool:
+    """Check if the given Function is essentially doing a reshape operation.
     The reshape operation also includes expand_dims, squeeze, flatten, etc.
 
     Here the allowed reshape pattern is: for example, assume the operation is
@@ -373,13 +373,13 @@ def has_reshape_pattern(func: tirx.PrimFunc) -> bool:
 
     Parameters
     ----------
-    func : tirx.PrimFunc
+    func : tirx.Function
         The function to be examined.
 
     Returns
     -------
     ret : bool
-        A boolean indicating if the given PrimFunc is doing a reshape.
+        A boolean indicating if the given Function is doing a reshape.
 
     Notes
     -----
@@ -527,7 +527,7 @@ def check_well_formed(obj: IRModule | Function, check_ty: bool = True) -> bool:
     return _ffi_api.check_well_formed(obj, check_ty)  # type: ignore
 
 
-def _get_prim_func_default_dtype(func: PrimFunc):
+def _get_function_default_dtype(func: tirx.Function):
     """Detect default index dtype from TensorType-annotated parameters."""
     for param in func.params:
         if tirx.is_tensor_var(param):
@@ -537,18 +537,18 @@ def _get_prim_func_default_dtype(func: PrimFunc):
 
 
 def suggest_layout_transforms(
-    func: PrimFunc, write_buffer_transforms: list[IndexMap | Callable]
+    func: tirx.Function, write_buffer_transforms: list[IndexMap | Callable]
 ) -> dict[SBlock, dict[SBlock | Var, IndexMap]]:
-    """Suggest Layout transformations of blocks and buffers in a PrimFunc.
+    """Suggest Layout transformations of blocks and buffers in a Function.
 
     Parameters
     ----------
-    func: PrimFunc
-        PrimFunc on which analysis will be performed and transformations suggested.
+    func: Function
+        Function on which analysis will be performed and transformations suggested.
 
     write_buffer_transforms: List[Union[IndexMap, Callable]
         List of layout transformations on the output buffers. The number of layout
-        transformations must match the number of outputs of the PrimFunc.
+        transformations must match the number of outputs of the Function.
 
     Returns
     -------
@@ -557,7 +557,7 @@ def suggest_layout_transforms(
          from the object (block or buffer) to it's index map transformation.
     """
     write_buffer_index_maps = []
-    default_index_dtype = _get_prim_func_default_dtype(func)
+    default_index_dtype = _get_function_default_dtype(func)
     for transform in write_buffer_transforms:
         if callable(transform):
             transform = IndexMap.from_func(transform, index_dtype=default_index_dtype)

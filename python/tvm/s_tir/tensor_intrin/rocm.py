@@ -28,7 +28,7 @@ from .dot_product_common import get_dp4a_intrin
 lift = convert
 
 
-@Ts.prim_func
+@Ts.function
 def sdot4(
     A: T.Tensor((4,), "int8", offset_factor=1, align=4, scope="shared"),
     B: T.Tensor((4,), "int8", offset_factor=1, align=4, scope="shared"),
@@ -122,7 +122,7 @@ def get_mma_fill_intrin(dtype, local_size):
     # Assume M = N = 16
     index_map = shared_16x16_to_local_64x4_layout_C
 
-    @Ts.prim_func
+    @Ts.function
     def mma_fill_desc(C_warp: T.Tensor([WARP_SIZE, local_size], dtype=dtype, scope="warp")) -> None:
         with Ts.sblock("root"):
             Ts.reads()
@@ -135,7 +135,7 @@ def get_mma_fill_intrin(dtype, local_size):
                     Ts.writes(C_warp[warp_indices[0], warp_indices[1]])
                     C_warp[warp_indices[0], warp_indices[1]] = zero
 
-    @Ts.prim_func
+    @Ts.function
     def mma_fill_impl(
         C_warp: T.Tensor([WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1),
     ) -> None:
@@ -195,7 +195,7 @@ def get_mfma_load_intrin(
     else:
         raise ValueError("k_dim must be 4 or 16 currently")
 
-    @Ts.prim_func
+    @Ts.function
     def mfma_load_desc(
         reg: T.Tensor((WARP_SIZE, local_size), dtype, offset_factor=1, scope="warp"),
         memory: T.Tensor(memory_shape, dtype, offset_factor=1, scope=scope),
@@ -216,7 +216,7 @@ def get_mfma_load_intrin(
     s0 = T.dynamic("s0", "int32")
     s1 = T.dynamic("s1", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def mfma_load_impl(
         reg: T.Tensor((WARP_SIZE, local_size), dtype, align=64, offset_factor=1, scope="warp"),
         memory: T.Tensor(
@@ -264,7 +264,7 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
             return j, i
         return i, j
 
-    @Ts.prim_func
+    @Ts.function
     def mfma_sync_desc(
         A: T.Tensor((WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp"),
         B: T.Tensor((WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp"),
@@ -298,7 +298,7 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
                         A[a_warp_indices[0], a_warp_indices[1]]
                     ) * maybe_cast(B[b_warp_indices[0], b_warp_indices[1]])
 
-    @Ts.prim_func
+    @Ts.function
     def mfma_sync_impl_float(
         A: T.Tensor((WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp"),
         B: T.Tensor((WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp"),
@@ -323,7 +323,7 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
                 dtype=f"{out_dtype}x4",
             )
 
-    @Ts.prim_func
+    @Ts.function
     def mfma_sync_impl_integer(
         A: T.Tensor((WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp"),
         B: T.Tensor((WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp"),
@@ -367,7 +367,7 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
 def get_mfma_store_intrin(local_size=4, dtype="float32", scope="global"):
     index_map = shared_16x16_to_local_64x4_layout_C
 
-    @Ts.prim_func
+    @Ts.function
     def mfma_store_desc(
         C_warp: T.Tensor([WARP_SIZE, local_size], dtype=dtype, scope="warp"),
         C: T.Tensor([M_DIM, N_DIM], dtype=dtype, scope=scope),
@@ -386,7 +386,7 @@ def get_mfma_store_intrin(local_size=4, dtype="float32", scope="global"):
     s0 = T.dynamic("s0", "int32")
     s1 = T.dynamic("s1", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def mfma_store_impl(
         C_warp: T.Tensor([WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1),
         C: T.Tensor([M_DIM, N_DIM], dtype=dtype, scope=scope, offset_factor=1, strides=[s0, s1]),

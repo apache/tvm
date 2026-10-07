@@ -32,7 +32,7 @@ from tvm.script import tirx as T
 N_FEATURES = 164
 
 
-@Ts.prim_func
+@Ts.function
 def matmul(
     A: T.Tensor((512, 512), "float32"),
     B: T.Tensor((512, 512), "float32"),
@@ -58,7 +58,7 @@ def matmul(
 # from tvm.script import tirx as T
 @tvm.script.ir_module
 class LayoutTransform:
-    @Ts.prim_func
+    @Ts.function
     def main(placeholder: T.Tensor((1, 16, 7, 7, 32), "float32"), placeholder_1: T.Tensor((25088,), "float32"), T_layout_trans: T.Tensor((1, 1, 7, 7, 512), "float32")) -> None:
         # function attr dict
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
@@ -417,7 +417,7 @@ def test_cpu_matmul():
 
 def test_cpu_fusion():
     # pylint: disable=all
-    @Ts.prim_func
+    @Ts.function
     def func(
         A: T.Tensor([64, 32], dtype="float32"),
         B: T.Tensor([64, 32], dtype="float32"),
@@ -715,7 +715,7 @@ def test_cpu_fusion():
 
 
 def test_empty_feature():
-    @Ts.prim_func
+    @Ts.function
     def full(T_full: T.Tensor((T.int64(2), T.int64(3)), "float32")):
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
             with Ts.sblock("T_full"):
@@ -1626,7 +1626,7 @@ def test_cpu_layout_transform():
     )
 
 
-@Ts.prim_func
+@Ts.function
 def negative_extent(A: T.Tensor((1,), "float32")):
     for j in range(0, -1):
         A[j] = A[j] + 1.0

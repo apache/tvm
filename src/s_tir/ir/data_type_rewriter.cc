@@ -28,7 +28,7 @@ namespace s_tir {
 using namespace tvm::tirx;
 using namespace tvm::prim;
 
-PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
+Function IndexDataTypeNormalizer::Rewrite(Function func) {
   // Keep this short setup local so its collector uses S-TIR block semantics
   // without adding a dialect-specific collector hook to the TIRX normalizer.
   // Collect scalar dtype requirements without changing types.  Buffer definitions
@@ -72,7 +72,7 @@ PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
       return Mutate(param).ValueOrUnchanged(param).as_or_throw<Var>();
     });
   });
-  PrimFuncNode* new_func = func.CopyOnWrite();
+  FunctionNode* new_func = func.CopyOnWrite();
   new_func->params = std::move(params);
   new_func->body = Mutate(new_func->body).ValueOrUnchanged(new_func->body);
   return func;

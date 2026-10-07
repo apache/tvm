@@ -32,7 +32,7 @@ from tvm.tirx.compilation_pipeline import finalize_device_passes
 def test_texture_scope():
     @tvm.script.ir_module
     class PlusOneMultTwo:
-        @Ts.prim_func
+        @Ts.function
         def main(
             A: T.Tensor((128, 128, 4), dtype="float32", scope="global.texture"),
             C: T.Tensor((128, 128, 4), dtype="float32", scope="global.texture"),

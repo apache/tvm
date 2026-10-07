@@ -182,7 +182,7 @@ std::string CodeGenWebGPU::Finish() {
   return header_stream.str() + decl_stream.str() + this->fwd_decl_stream.str() + stream.str();
 }
 
-void CodeGenWebGPU::InitFuncState(const PrimFunc& f) {
+void CodeGenWebGPU::InitFuncState(const Function& f) {
   CodeGenC::InitFuncState(f);
   analyzer_ = sym::Analyzer();
   workgroup_memory_bytes_ = 0;
@@ -198,7 +198,7 @@ CodeGenWebGPU::CodeGenWebGPU(Target target) : target_(target) {
   enable_subgroups_ = target_->GetAttr<bool>("supports_subgroups").value_or(false);
 }
 
-runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_readonly_decl) {
+runtime::FunctionInfo CodeGenWebGPU::AddFunction(const Function& f, bool skip_readonly_decl) {
   TVM_FFI_CHECK(f->body.has_value(), ValueError)
       << "Kernel code generation requires a function body";
   // clear previous generated state.
@@ -226,7 +226,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
   // add to alloc buffer type.
   auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
   TVM_FFI_ICHECK(global_symbol.has_value())
-      << "CodeGenWebGPU: Expect PrimFunc to have the global_symbol attribute";
+      << "CodeGenWebGPU: Expect Function to have the global_symbol attribute";
 
   header_stream << "//----------------------------------------\n"
                 << "// Function: " << global_symbol.value() << "\n"
@@ -903,9 +903,9 @@ ffi::Module BuildWebGPU(IRModule mod, Target target) {
 
   for (auto kv : mod->functions) {
     CodeGenWebGPU cg(target);
-    TVM_FFI_ICHECK(kv.second->IsInstance<PrimFuncNode>())
-        << "CodeGenWebGPU: Can only take PrimFunc";
-    auto f = kv.second.as_or_throw<PrimFunc>();
+    TVM_FFI_ICHECK(kv.second->IsInstance<FunctionNode>())
+        << "CodeGenWebGPU: Can only take Function";
+    auto f = kv.second.as_or_throw<Function>();
     auto calling_conv = f->GetAttr<CallingConv>(tvm::attr::kCallingConv);
     TVM_FFI_ICHECK(calling_conv.has_value())
         << "CodeGenWebGPU: expected kCallingConv attribute to be set.";
@@ -914,7 +914,7 @@ ffi::Module BuildWebGPU(IRModule mod, Target target) {
         << static_cast<int>(calling_conv.value());
     auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     TVM_FFI_ICHECK(global_symbol.has_value())
-        << "CodeGenWebGPU: Expect PrimFunc to have the global_symbol attribute";
+        << "CodeGenWebGPU: Expect Function to have the global_symbol attribute";
     std::string f_name = global_symbol.value();
     cg.Init(output_ssa);
     fmap.Set(f_name, cg.AddFunction(f, skip_readonly_decl));

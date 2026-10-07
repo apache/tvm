@@ -357,8 +357,8 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
 
   void CollectVarMapping(const CallNode* call, const Expr& lhs_var, bool in_place) {
     GlobalVar gv = call->args[0].as_or_throw<GlobalVar>();
-    tirx::PrimFunc prim_func_ = mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>();
-    const auto& tir_args = prim_func_->params;
+    tirx::Function function_ = mod_->Lookup(gv).as_or_throw<tirx::Function>();
+    const auto& tir_args = function_->params;
 
     const auto& relax_args = call->args[1].as_or_throw<Tuple>()->fields;
 
@@ -423,12 +423,12 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
 class FusedTIRConstructor : public ExprVisitor {
  public:
   /*!
-   * \brief Construct a fused TIR PrimFunc from a relax sub-function
+   * \brief Construct a fused TIR tirx::Function from a relax sub-function
    * \param mod The IRModule
-   * \param gv The global var of relax subfunction to be fused into one PrimFunc
-   * \return The fused TIR PrimFunc and the in-place indices (non-empty for an in-place call)
+   * \param gv The global var of relax subfunction to be fused into one tirx::Function
+   * \return The fused TIR tirx::Function and the in-place indices (non-empty for an in-place call)
    */
-  static std::pair<tirx::PrimFunc, ffi::Array<int64_t>> GetFusedTIR(const IRModule& mod,
+  static std::pair<tirx::Function, ffi::Array<int64_t>> GetFusedTIR(const IRModule& mod,
                                                                     const GlobalVar& gv) {
     FusedTIRConstructor visitor(mod, gv->name_hint);
     BaseFunc f = mod->Lookup(gv);
@@ -451,15 +451,15 @@ class FusedTIRConstructor : public ExprVisitor {
   void VisitExpr_(const FunctionNode* func) final {
     auto relax_to_tir_var_map =
         RelaxToTIRVarMapCollector::Collect(mod_, ffi::GetRef<Function>(func));
-    std::vector<ffi::Variant<PrimVar, tirx::TensorVar>> prim_func_params;
+    std::vector<ffi::Variant<PrimVar, tirx::TensorVar>> function_params;
     for (const Var& relax_param : func->params) {
-      size_t size_before = prim_func_params.size();
-      CollectPrimFuncParams(relax_param, &prim_func_params, relax_to_tir_var_map.Get(relax_param));
+      size_t size_before = function_params.size();
+      CollectFunctionParams(relax_param, &function_params, relax_to_tir_var_map.Get(relax_param));
 
       auto param_buffers = [&]() -> ffi::Array<tirx::TensorVar> {
         ffi::Array<tirx::TensorVar> out;
-        for (size_t i = size_before; i < prim_func_params.size(); i++) {
-          if (auto buf = prim_func_params[i].as<tirx::TensorVar>()) {
+        for (size_t i = size_before; i < function_params.size(); i++) {
+          if (auto buf = function_params[i].as<tirx::TensorVar>()) {
             out.push_back(buf.value());
           }
         }
@@ -472,7 +472,7 @@ class FusedTIRConstructor : public ExprVisitor {
     // Preserve the Relax function's parameter order.  Tensor and primitive
     // parameters are both explicit call_tir arguments, while output buffers
     // are appended after the complete explicit argument prefix.
-    for (const auto& param : prim_func_params) {
+    for (const auto& param : function_params) {
       if (auto opt = param.as<tirx::TensorVar>()) {
         auto buffer = opt.value();
         // Differentiate buffer name and param name by adding prefix
@@ -536,7 +536,7 @@ class FusedTIRConstructor : public ExprVisitor {
       func_info_.output_buffers.insert(buffers[i].get());
     }
 
-    // Step 4. Create PrimFunc
+    // Step 4. Create tirx::Function
     fused_tir_ = ConstructFunc();
   }
 
@@ -565,18 +565,18 @@ class FusedTIRConstructor : public ExprVisitor {
         << "Only call_tir and call_tir_inplace are supported in primitive function, but got: "
         << ffi::GetRef<Expr>(call);
 
-    // Step 1. Get Global var and PrimFunc
+    // Step 1. Get Global var and tirx::Function
     GlobalVar gv = call->args[0].as_or_throw<GlobalVar>();
-    tirx::PrimFunc prim_func_ = mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>();
+    tirx::Function function_ = mod_->Lookup(gv).as_or_throw<tirx::Function>();
 
     // Step 2. Renew all vars/buffer definitions and blocks to avoid duplication
-    tirx::PrimFunc prim_func = s_tir::RenewDefs(prim_func_);
+    tirx::Function function = s_tir::RenewDefs(function_);
 
     // Step 3. Check functions are all schedulable funcs. i.e. the body of func is root block
     // TODO(Siyuan): support un-schedulable functions.
-    TVM_FFI_ICHECK(prim_func->body.as<s_tir::SBlockRealizeNode>())
+    TVM_FFI_ICHECK(function->body.as<s_tir::SBlockRealizeNode>())
         << "Only schedulable functions (whose body is the root block) can be fused";
-    const s_tir::SBlockRealize& root_realize = prim_func->body.as_or_throw<s_tir::SBlockRealize>();
+    const s_tir::SBlockRealize& root_realize = function->body.as_or_throw<s_tir::SBlockRealize>();
     const s_tir::SBlock& root_block = root_realize->block;
 
     // Step 4. Add all the original alloc_buffers and body to the fused function.
@@ -586,10 +586,10 @@ class FusedTIRConstructor : public ExprVisitor {
     func_info_.bodies.push_back(root_block->body);
 
     // Step 5. Map input arguments to buffer
-    MapInputBuffer(prim_func, call->args[1]);
+    MapInputBuffer(function, call->args[1]);
     const ffi::Array<ffi::Array<PrimExpr>>& output_buffer_shapes = GetCallTIROutputShapes(call);
 
-    AllocateIntermediateBuffer(call, prim_func, output_buffer_shapes);
+    AllocateIntermediateBuffer(call, function, output_buffer_shapes);
 
     // Update fused func name
     func_info_.global_name += "_" + gv->name_hint;
@@ -691,10 +691,10 @@ class FusedTIRConstructor : public ExprVisitor {
 
   /*!
    * \brief Update buffer mapping `func_info_.buffer_subst_map` for input args
-   * \param func The old TIR PrimFunc
+   * \param func The old TIR tirx::Function
    * \param output_size The number of output params. All output params are at the end of param list.
    */
-  void MapInputBuffer(const tirx::PrimFunc& func, const relax::Expr& args) {
+  void MapInputBuffer(const tirx::Function& func, const relax::Expr& args) {
     ffi::Array<Expr> arg_list;
     ffi::Array<tirx::TensorVar> buffer_list;
     ffi::Array<Expr> call_args = args.as_or_throw<Tuple>()->fields;
@@ -719,8 +719,8 @@ class FusedTIRConstructor : public ExprVisitor {
     MapArgsToBuffer(arg_list, buffer_list);
   }
 
-  static ffi::Array<tirx::TensorVar> GetPrimFuncOutputParams(
-      const tirx::PrimFunc& func, const ffi::Array<int64_t>& output_indices) {
+  static ffi::Array<tirx::TensorVar> GetFunctionOutputParams(
+      const tirx::Function& func, const ffi::Array<int64_t>& output_indices) {
     size_t n = func->params.size();
     size_t output_size = output_indices.size();
     TVM_FFI_ICHECK_GE(n, output_size);
@@ -731,21 +731,21 @@ class FusedTIRConstructor : public ExprVisitor {
       const tirx::Var& param = func->params[static_cast<size_t>(i)];
       auto buffer = param.as<tirx::TensorVar>();
       TVM_FFI_ICHECK(buffer.has_value())
-          << "The output params of a PrimFunc must be buffers, but parameter " << i << " has type "
-          << param->ty;
+          << "The output params of a tirx::Function must be buffers, but parameter " << i
+          << " has type " << param->ty;
       ret.push_back(buffer.value());
     }
     return ret;
   }
 
   /*!
-   * \brief Allocate buffer(s) and update `func_info.expr2buffers` if the PrimFunc output(s) are
-   * intermediate results.
+   * \brief Allocate buffer(s) and update `func_info.expr2buffers` if the tirx::Function output(s)
+   * are intermediate results.
    * \param expr The relax Expr, which can be binding vars or binding values.
-   * \param func The old TIR PrimFunc
+   * \param func The old TIR tirx::Function
    * \param output_shapes The shape of output params.
    */
-  void AllocateIntermediateBuffer(const CallNode* call, const tirx::PrimFunc& func,
+  void AllocateIntermediateBuffer(const CallNode* call, const tirx::Function& func,
                                   const ffi::Array<ffi::Array<PrimExpr>>& output_shapes) {
     bool is_inplace = call->op.same_as(Op::Get("relax.call_tir_inplace"));
 
@@ -765,7 +765,7 @@ class FusedTIRConstructor : public ExprVisitor {
       }
     }
 
-    ffi::Array<tirx::TensorVar> output_params = GetPrimFuncOutputParams(func, output_idxs);
+    ffi::Array<tirx::TensorVar> output_params = GetFunctionOutputParams(func, output_idxs);
     for (size_t i = 0; i < output_size; ++i) {
       const tirx::TensorVar& buffer = output_params[i];
 
@@ -815,7 +815,7 @@ class FusedTIRConstructor : public ExprVisitor {
    * \param name_hint The name hint for params and buffers
    * \param out The vector into which to collect the params/buffers
    */
-  static void CollectPrimFuncParams(const Var& relax_param,
+  static void CollectFunctionParams(const Var& relax_param,
                                     std::vector<ffi::Variant<PrimVar, tirx::TensorVar>>* out,
                                     const ffi::Optional<tirx::TensorVar>& tir_buffer_param) {
     auto ty = GetType(relax_param);
@@ -849,7 +849,7 @@ class FusedTIRConstructor : public ExprVisitor {
         out->push_back(prim_var.value());
       }
     } else {
-      TVM_FFI_THROW(TypeError) << "The param type of PrimFunc is expected to be "
+      TVM_FFI_THROW(TypeError) << "The param type of tirx::Function is expected to be "
                                << "Tensor, PrimExpr, or ShapeExpr, "
                                << "but got " << ty->GetTypeKey();
     }
@@ -859,7 +859,7 @@ class FusedTIRConstructor : public ExprVisitor {
    * \brief Construct fused TIR func with collected FuseFuncInfo
    * \return The fused TIR
    */
-  tirx::PrimFunc ConstructFunc() {
+  tirx::Function ConstructFunc() {
     ffi::Map<ffi::String, Any> attr_map;
     attr_map.Set(tirx::attr::kNoAlias, true);
     attr_map.Set(tvm::attr::kSTir, true);
@@ -885,7 +885,7 @@ class FusedTIRConstructor : public ExprVisitor {
       }
       return param;
     });
-    tirx::PrimFunc func(params, body, VoidType(), DictAttrs(attr_map));
+    tirx::Function func(params, body, VoidType(), DictAttrs(attr_map));
     // Renew function defs to prevent using the same symbolic vars in different functions
     return s_tir::RenewDefs(func);
   }
@@ -910,7 +910,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
   /*! \brief auxiliary information for FuseTIR */
   struct FuseFuncInfo {
-    /*! \brief The arguments for calling prim_func */
+    /*! \brief The arguments for calling function */
     ffi::Array<Expr> arguments;
     /*!
      * \brief The map from each dataflow var (intermediate var) to the corresponding buffers
@@ -960,10 +960,10 @@ class FusedTIRConstructor : public ExprVisitor {
   const IRModule& mod_;
   /*! \brief The name hint for the input func. */
   ffi::String func_name_;
-  /*! \brief The helper info to fuse TIR prim_func */
+  /*! \brief The helper info to fuse TIR function */
   FuseFuncInfo func_info_;
   /*! \brief The tirx function after fusion*/
-  tirx::PrimFunc fused_tir_{ffi::UnsafeInit{}};
+  tirx::Function fused_tir_{ffi::UnsafeInit{}};
   /*! \brief Indices of inputs that are used for in-place computation */
   std::unordered_set<size_t> inplace_indices_;
 };
@@ -1008,17 +1008,17 @@ class TIRFuseMutator : public ExprMutator {
     IRModule updates;
     std::unordered_map<GlobalVar, Replacement> replacements;
 
-    // Since TIRFuseMutator will delete bunch of PrimFunc, we create an empty block builder.
+    // Since TIRFuseMutator will delete bunch of tirx::Function, we create an empty block builder.
 
     // Step 1. Fuse all primitive relax functions, store the result in `fused_tir_funcs_`
     for (const auto& [old_gvar, func] : primitive_relax) {
-      const auto& [prim_func, indices] = FusedTIRConstructor::GetFusedTIR(mod, old_gvar);
+      const auto& [function, indices] = FusedTIRConstructor::GetFusedTIR(mod, old_gvar);
 
       GlobalVar new_gvar(old_gvar->name_hint);
-      UpdateType(new_gvar, GetType(prim_func));
+      UpdateType(new_gvar, GetType(function));
 
       mod->Remove(old_gvar);
-      updates->Add(new_gvar, prim_func);
+      updates->Add(new_gvar, function);
       replacements.insert_or_assign(old_gvar, Replacement{new_gvar, func, indices});
     }
 
@@ -1096,7 +1096,7 @@ class TIRFuseMutator : public ExprMutator {
     // into a call_tir or call_tir_inplace.
 
     // Step a. Collect all relax/symbolic arguments.  Tuple arguments
-    // are not supported by PrimFunc, so this step verifies that
+    // are not supported by tirx::Function, so this step verifies that
     // ExpandTupleArguments has already removed them.
     ffi::Array<Expr> arg_list;
     for (size_t i = 0; i < call->args.size(); ++i) {

@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_TE_OPERATION_CREATE_PRIMFUNC_H_
-#define TVM_TE_OPERATION_CREATE_PRIMFUNC_H_
+#ifndef TVM_TE_OPERATION_CREATE_FUNCTION_H_
+#define TVM_TE_OPERATION_CREATE_FUNCTION_H_
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/te/tensor.h>
@@ -30,14 +30,14 @@ namespace tvm {
 namespace tirx {
 
 /*! \brief Use Tensor Expression to create a schedulable TensorIR func. */
-PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
+Function CreateFunction(const ffi::Array<te::Tensor>& arg_list,
                         std::optional<PrimType> index_dtype_override = std::nullopt);
 
 /*! \brief Use Tensor Expression to create a schedulable TensorIR func. */
-PrimFunc CreatePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_list,
+Function CreateFunction(const ffi::Array<ffi::ObjectRef>& arg_list,
                         std::optional<PrimType> index_dtype_override);
 
 }  // namespace tirx
 }  // namespace tvm
 
-#endif  // TVM_TE_OPERATION_CREATE_PRIMFUNC_H_
+#endif  // TVM_TE_OPERATION_CREATE_FUNCTION_H_

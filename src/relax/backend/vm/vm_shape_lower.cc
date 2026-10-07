@@ -267,7 +267,7 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
  *
  * \code
  *
- * @T.prim_func
+ * @T.function
  * def shape_func(H: T.Tensor([3], "int64")):
  *     H[1] = H[2] + 1
  *
@@ -701,7 +701,7 @@ class VMShapeLowerMutator
    * \brief Check the dependent expressions of ready_vars_,
    *
    * If there are outstanding PrimExpr that can now be computed
-   * we generate a PrimFunc that compute the extra shape values
+   * we generate a tirx::Function that compute the extra shape values
    *
    * We will then clear the ready_vars.
    *
@@ -711,7 +711,7 @@ class VMShapeLowerMutator
     std::vector<PrimExprSlot*> to_compute = GetReadyPrimExprSlots();
     if (to_compute.size() == 0) return 0;
     TVM_FFI_ICHECK_GT(heap_size_->value, 0);
-    // construct a PrimFunc that compute the shape.
+    // construct a tirx::Function that compute the shape.
     ffi::Array<PrimExpr> buffer_shape{heap_size_};
     tirx::TensorVar buffer = tirx::decl_tensor(buffer_shape, PrimType(ShapeDType()), "H", "global");
 
@@ -745,12 +745,12 @@ class VMShapeLowerMutator
     // TODO(relax-team): Consider attach the target attribute to
     // the shape_func to indicate that this is a host function
     // This could require us to attach target to the relax function here.
-    tirx::PrimFunc shape_func(params, body, ret_type);
+    tirx::Function shape_func(params, body, ret_type);
     shape_func = WithAttr(std::move(shape_func), tvm::attr::kSTir, true);
     if (!shape_func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget).has_value()) {
       // kTarget and kIsHostFunc are mutually exclusive
       shape_func =
-          WithAttr<tirx::PrimFunc>(std::move(shape_func), tvm::tirx::attr::kIsHostFunc, true);
+          WithAttr<tirx::Function>(std::move(shape_func), tvm::tirx::attr::kIsHostFunc, true);
     }
     GlobalVar shape_func_var = builder_->AddFunction(shape_func, "shape_func");
     builder_->Emit(Call::Unchecked(Type::Missing(), shape_func_var, {shape_heap_}), "_");

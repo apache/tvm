@@ -41,9 +41,9 @@ def _strip_exec_scope_stmt(stmt):
 
 
 def assert_structural_equal(lhs, rhs, *args, **kwargs):
-    if isinstance(lhs, tvm.tirx.PrimFunc):
+    if isinstance(lhs, tvm.tirx.Function):
         lhs = lhs.with_body(_strip_exec_scope_stmt(lhs.body))
-    if isinstance(rhs, tvm.tirx.PrimFunc):
+    if isinstance(rhs, tvm.tirx.Function):
         rhs = rhs.with_body(_strip_exec_scope_stmt(rhs.body))
     _assert_structural_equal(lhs, rhs, *args, **kwargs)
 
@@ -73,7 +73,7 @@ def test_simple_binary(op_type, operands_type):
     Tx_func = Tx_func_map[op_type]
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def binary() ->None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
@@ -88,7 +88,7 @@ def test_simple_binary(op_type, operands_type):
         elif T.constexpr(operands_type == "region_const"):
             Tx_func(C_sbuf, A_sbuf, const)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
         A_sbuf = T.alloc_tensor(src1_shape, scope="trn.sbuf")
@@ -148,7 +148,7 @@ def test_binary_complex(op_type, operands_type):
         dst_view_shape = [128, 4, 4, 128]
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def binary() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
@@ -172,7 +172,7 @@ def test_binary_complex(op_type, operands_type):
     f_extent = 128 if operands_type == "region_broadcast_lhs" else 512
     b_extent = 4 if operands_type == "region_broadcast_lhs" else 1
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
         A_sbuf = T.alloc_tensor(src1_layout_data_iter, scope="trn.sbuf")
@@ -213,7 +213,7 @@ def test_binary_broadcast1():
     dst_layout = src1_layout
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def binary() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
@@ -221,7 +221,7 @@ def test_binary_broadcast1():
         C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.add(C_sbuf, A_sbuf, B_sbuf)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
         A_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
@@ -249,7 +249,7 @@ def test_binary_broadcast2():
     dst_layout = src1_layout
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def binary() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
@@ -257,7 +257,7 @@ def test_binary_broadcast2():
         C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.add(C_sbuf, A_sbuf, B_sbuf)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
         A_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
@@ -285,7 +285,7 @@ def test_binary_broadcast3():
     dst_layout = src1_layout
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def binary() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
@@ -293,7 +293,7 @@ def test_binary_broadcast3():
         C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.add(C_sbuf, A_sbuf, B_sbuf[0])
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
         A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
@@ -321,7 +321,7 @@ def test_binary_with_guard():
     dst_layout = src1_layout
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def binary() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
@@ -330,7 +330,7 @@ def test_binary_with_guard():
         for j in range(4):
             Tx.add(C_sbuf[:, :, 0:j*128], A_sbuf[:, :, 0:j*128], B_sbuf[:, 0:j*128])
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
         A_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")

@@ -112,7 +112,7 @@ register, from ``test_ld_stmatrix.py`` (register layout = the m8n8 fragment,
     full = (slice(0, 8), slice(0, 4), slice(0, num), slice(0, 2))
 
 
-    @Tx.prim_func
+    @Tx.function
     def kernel(A: Tx.Tensor((M, N), "float16"), B: Tx.Tensor((M, N), "float16")):
 
         Tx.device_entry()

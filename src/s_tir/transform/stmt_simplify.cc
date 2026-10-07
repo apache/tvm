@@ -84,20 +84,20 @@ class StmtSimplifier final : public tirx::StmtSimplifier {
   }
 };
 
-PrimFunc StmtSimplify(PrimFunc func, const sym::Analyzer& analyzer) {
+Function StmtSimplify(Function func, const sym::Analyzer& analyzer) {
   auto config = tvm::transform::PassConfigWithDefaults<tirx::StmtSimplifyConfig>();
   return ffi::make_object<StmtSimplifier>(analyzer, config)->Run(std::move(func));
 }
 
 namespace transform {
 Pass StmtSimplify() {
-  auto pass_func = [](PrimFunc func, IRModule, tvm::transform::PassContext ctx) {
+  auto pass_func = [](Function func, IRModule, tvm::transform::PassContext ctx) {
     sym::Analyzer analyzer;
     auto config = ctx->GetConfig<tirx::StmtSimplifyConfig>("tirx.StmtSimplify")
                       .value_or(tvm::transform::PassConfigWithDefaults<tirx::StmtSimplifyConfig>());
     return ffi::make_object<s_tir::StmtSimplifier>(analyzer, config)->Run(std::move(func));
   };
-  return tirx::transform::CreatePrimFuncPass(pass_func, 0, "s_tir.StmtSimplify", {});
+  return tirx::transform::CreateFunctionPass(pass_func, 0, "s_tir.StmtSimplify", {});
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::GlobalDef().def("s_tir.transform.StmtSimplify", StmtSimplify);

@@ -30,7 +30,7 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-@Ts.prim_func
+@Ts.function
 def transpose_elementwise(
     A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")
 ) -> None:
@@ -40,7 +40,7 @@ def transpose_elementwise(
             B[vi, vj] = A[vj, vi] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def transpose_elementwise_reindex_read(
     A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")
 ) -> None:
@@ -55,7 +55,7 @@ def transpose_elementwise_reindex_read(
             B[vi, vj] = A_reindex[vi, vj] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def conv2d_nhwc(
     Input: T.Tensor((1, 224, 224, 3), "float32"),
     Weight: T.Tensor((7, 7, 3, 64), "float32"),
@@ -81,7 +81,7 @@ def conv2d_nhwc(
             )
 
 
-@Ts.prim_func
+@Ts.function
 def conv2d_nhwc_reindex_data(
     Input: T.Tensor((1, 224, 224, 3), "float32"),
     Weight: T.Tensor((7, 7, 3, 64), "float32"),
@@ -111,7 +111,7 @@ def conv2d_nhwc_reindex_data(
             )
 
 
-@Ts.prim_func
+@Ts.function
 def conv2d_nhwc_reindex_weight(
     inputs: T.Tensor([1, 224, 224, 3], dtype="float32"),
     weight: T.Tensor([7, 7, 3, 64], dtype="float32"),
@@ -152,7 +152,7 @@ def conv2d_nhwc_reindex_weight(
             )
 
 
-@Ts.prim_func
+@Ts.function
 def matmul(
     A: T.Tensor((512, 512), "float32"),
     B: T.Tensor((512, 512), "float32"),
@@ -168,7 +168,7 @@ def matmul(
             C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_reindex_write(
     A: T.Tensor((512, 512), "float32"),
     B: T.Tensor((512, 512), "float32"),
@@ -191,7 +191,7 @@ def matmul_reindex_write(
             C[v0, v1] = C_reindex[v0, v1]
 
 
-@Ts.prim_func
+@Ts.function
 def multiple_read(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
@@ -199,7 +199,7 @@ def multiple_read(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "f
             B[vi, vj] = A[vj, vi] + A[vi, vj]
 
 
-@Ts.prim_func
+@Ts.function
 def mixed_dtype(
     p0: T.Tensor((T.int64(2), 1280), "float16"),
     p1: T.Tensor((1280, 1280), "float16"),
@@ -216,7 +216,7 @@ def mixed_dtype(
             T_matmul_NT[i, j] = T_matmul_NT[i, j] + p0[i, k] * p1[j, k]
 
 
-@Ts.prim_func
+@Ts.function
 def mixed_dtype_reindex_write(
     p0: T.Tensor((T.int64(2), 1280), "float16"),
     p1: T.Tensor((1280, 1280), "float16"),
@@ -241,7 +241,7 @@ def mixed_dtype_reindex_write(
             T_matmul_NT[v0, v1] = T_matmul_NT_reindex[v0, v1]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_unit_dim(
     A: T.Tensor((1, 512), "float32"),
     B: T.Tensor((512, 1), "float32"),
@@ -257,7 +257,7 @@ def matmul_unit_dim(
             C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_unit_dim_reindex_write(
     A: T.Tensor((1, 512), "float32"),
     B: T.Tensor((512, 1), "float32"),

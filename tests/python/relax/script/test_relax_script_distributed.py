@@ -63,7 +63,7 @@ def test_call_tir_dtensor():
             }
         )
 
-        @Ts.prim_func
+        @Ts.function
         def tir_func(
             x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
             y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
@@ -126,7 +126,7 @@ def test_explicit_device_id():
             }
         )
 
-        @Ts.prim_func
+        @Ts.function
         def tir_func(
             x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
             y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
@@ -166,7 +166,7 @@ def test_constant():
             }
         )
 
-        @Ts.prim_func
+        @Ts.function
         def tir_func(
             x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
             y: T.Tensor((T.int64(128), T.int64(128)), "float32"),

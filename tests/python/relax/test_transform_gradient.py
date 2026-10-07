@@ -1209,7 +1209,7 @@ def test_report_error():
                 R.output(gv)
             return gv
 
-        @Ts.prim_func
+        @Ts.function
         def sum(
             rxplaceholder: T.Tensor((T.int64(3), T.int64(3)), "float32"),
             rxplaceholder_red: T.Tensor((), "float32"),
