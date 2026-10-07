@@ -831,19 +831,6 @@ PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm::Int32(value)) {}
 
 PrimExpr::PrimExpr(float value) : PrimExpr(FloatImm(PrimType::Float(32), value)) {}
 
-std::optional<Expr> ffi::TypeTraits<Expr>::TryCastFromAnyView(const TVMFFIAny* src) {
-  if (auto value =
-          ObjectRefWithFallbackTraitsBase<Expr, PrimExpr, ffi::String>::TryCastFromAnyView(src)) {
-    return value;
-  }
-  // Each array element uses this trait again. Keep a call boundary here so the
-  // FFI's always-inline fallback machinery does not recursively inline itself.
-  if (auto fields = ffi::TypeTraits<ffi::Array<Expr>>::TryCastFromAnyView(src)) {
-    return tvm::Tuple(std::move(*fields));
-  }
-  return std::nullopt;
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

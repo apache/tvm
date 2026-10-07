@@ -528,25 +528,6 @@ struct TypeTraits<TypedExpr<ExpectedType>>
   }
 };
 
-// Include expr.h for expression conversion traits, which require complete literals.
-// Keep these declarations here to prevent accidental use of the default traits.
-template <>
-inline constexpr bool use_default_type_traits_v<PrimExpr> = false;
-
-template <>
-struct TypeTraits<PrimExpr>;
-
-template <>
-inline constexpr bool use_default_type_traits_v<IntExpr> = false;
-
-template <>
-struct TypeTraits<IntExpr>;
-
-template <>
-inline constexpr bool use_default_type_traits_v<Expr> = false;
-
-template <>
-struct TypeTraits<Expr>;
 }  // namespace ffi
 
 }  // namespace tvm

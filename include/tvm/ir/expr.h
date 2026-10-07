@@ -286,6 +286,9 @@ struct TypeTraits<tvm::StringImm>
 
 // define automatic conversion from bool, int64_t, double to PrimExpr
 template <>
+inline constexpr bool use_default_type_traits_v<PrimExpr> = false;
+
+template <>
 struct TypeTraits<PrimExpr>
     : public ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t, double> {
   using Base = ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t, double>;
@@ -318,6 +321,9 @@ struct TypeTraits<PrimExpr>
 };
 
 template <>
+inline constexpr bool use_default_type_traits_v<IntExpr> = false;
+
+template <>
 struct TypeTraits<IntExpr> : public ObjectRefWithFallbackTraitsBase<IntExpr, int64_t> {
   using Base = ObjectRefWithFallbackTraitsBase<IntExpr, int64_t>;
 
@@ -343,11 +349,13 @@ struct TypeTraits<IntExpr> : public ObjectRefWithFallbackTraitsBase<IntExpr, int
 
 // Generic Expr arguments accept primitive/string literals and arrays of expressions.
 template <>
+inline constexpr bool use_default_type_traits_v<Expr> = false;
+
+template <>
 struct TypeTraits<Expr> : public ObjectRefWithFallbackTraitsBase<Expr, PrimExpr, ffi::String> {
   TVM_FFI_INLINE static Expr ConvertFallbackValue(PrimExpr value) { return value; }
   TVM_FFI_INLINE static Expr ConvertFallbackValue(ffi::String value) { return StringImm(value); }
-  // Array elements recursively use this trait; preserve an out-of-line call boundary.
-  TVM_DLL static std::optional<Expr> TryCastFromAnyView(const TVMFFIAny* src);
+  static std::optional<Expr> TryCastFromAnyView(const TVMFFIAny* src);
 };
 }  // namespace ffi
 
@@ -380,6 +388,18 @@ class Tuple : public Expr {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Tuple, Expr, TupleNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
 };
+
+// Use ordinary inline: array elements recursively invoke this conversion.
+inline std::optional<Expr> ffi::TypeTraits<Expr>::TryCastFromAnyView(const TVMFFIAny* src) {
+  if (auto value =
+          ObjectRefWithFallbackTraitsBase<Expr, PrimExpr, ffi::String>::TryCastFromAnyView(src)) {
+    return value;
+  }
+  if (auto fields = ffi::TypeTraits<ffi::Array<Expr>>::TryCastFromAnyView(src)) {
+    return tvm::Tuple(std::move(*fields));
+  }
+  return std::nullopt;
+}
 
 /*! \brief Get the index-th field out of a tuple. */
 class TupleGetItemNode : public ExprNode {
