@@ -19,6 +19,8 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 import tvm
 import tvm.testing
 
@@ -46,6 +48,44 @@ def test_check_if_device_exists():
             "CUDA_VISIBLE_DEVICES": "",
         },
     )
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(
+    tvm.get_global_func("device_api.vulkan", allow_missing=True) is None,
+    reason="Vulkan runtime is not built",
+)
+@pytest.mark.parametrize("allocate_tensor", [False, True])
+def test_vulkan_process_exit(allocate_tensor):
+    """Device initialization and allocation must allow a clean process exit."""
+    # Initialize Vulkan only in the child: exit-time failures cannot be caught
+    # by an in-process assertion and must not crash the pytest process itself.
+    script = """
+import sys
+import numpy as np
+import tvm
+
+dev = tvm.vulkan(0)
+if not dev.exist:
+    sys.exit(77)
+if int(sys.argv[1]):
+    expected = np.arange(128, dtype="float32")
+    tensor = tvm.runtime.tensor(expected, dev)
+    np.testing.assert_array_equal(tensor.numpy(), expected)
+print("Vulkan work completed", flush=True)
+"""
+    proc = subprocess.run(
+        [sys.executable, "-c", script, str(int(allocate_tensor))],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    if proc.returncode == 77:
+        pytest.skip("No Vulkan device is available")
+    assert proc.returncode == 0, f"Vulkan subprocess exited with {proc.returncode}:\n{proc.stdout}"
+    assert "Vulkan work completed" in proc.stdout
 
 
 if __name__ == "__main__":
