@@ -1960,11 +1960,13 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "upsample_nearest2d.vec": self._upsample_nearest2d,
             "upsample_bicubic2d.vec": self._upsample_bicubic2d,
             # statistical
+            "any.default": self._any,
             "any.dim": self._any,
             "any.dims": self._any,
             "mean.dim": self._mean,
             "mean.default": self._mean,
             "prod.default": self._prod,
+            "prod.dim_int": self._prod,
             "std.correction": self._std,
             "sum.default": self._sum,
             "sum.dim_IntList": self._sum,
