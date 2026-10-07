@@ -288,7 +288,8 @@ def test_instr_descriptor_preserves_explicit_result(block_scaled):
     )
     func = tvm.tirx.PrimFunc([call.args[0]], tvm.tirx.Evaluate(explicit))
     source = func.script()
-    assert "I.Call" in source
+    assert "T.cuda.tcgen05_encode_instr_descriptor" in source
+    assert 'ty="uint32"' in source
     tvm.ir.assert_structural_equal(
         func, tvm.script.from_source(source, extra_vars={"T": T, "I": tvm.script.ir})
     )
