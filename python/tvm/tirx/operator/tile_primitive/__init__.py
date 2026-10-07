@@ -18,9 +18,9 @@
 # ruff: noqa: I001
 
 # Op class declarations (Add, Sub, Gemm, ...) — must run first so their
-# `op = Op.get("tirx.<name>")` registrations execute before any dispatch
+# `op = Op.get("tirx.tile.<name>")` registrations execute before any dispatch
 # code refers to the same ops.
-from .ops import *
+from ...op.tile import *
 
 # Dispatch infrastructure. Per-backend schedule registrations are loaded via
 # ``tvm.backend.load(<name>)``.

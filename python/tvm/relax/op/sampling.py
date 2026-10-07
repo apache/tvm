@@ -16,8 +16,17 @@
 # under the License.
 """Sampling operators."""
 
+import tvm_ffi
+
+from tvm.ir import Attrs
+
 from ..expr import Expr
 from . import _ffi_api
+
+
+@tvm_ffi.register_object("relax.attrs.MultinomialFromUniformAttrs")
+class MultinomialFromUniformAttrs(Attrs):
+    """Attributes for multinomial_from_uniform operator"""
 
 
 def multinomial_from_uniform(

@@ -17,8 +17,10 @@
 # pylint: disable=redefined-builtin
 """Statistical operators."""
 
+import tvm_ffi
+
 from tvm import DataType
-from tvm.ir import PrimType
+from tvm.ir import Attrs, PrimType
 
 from ..expr import Expr
 from . import _ffi_api
@@ -26,6 +28,11 @@ from . import _ffi_api
 
 def _raw_dtype(dtype):
     return dtype.dtype if isinstance(dtype, PrimType) else dtype
+
+
+@tvm_ffi.register_object("relax.attrs.StatisticalAttrs")
+class StatisticalAttrs(Attrs):
+    """Attributes used in statistical operator"""
 
 
 def max(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -> Expr:
@@ -194,6 +201,11 @@ def sum(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) ->
     if isinstance(axis, int):
         axis = [axis]
     return _ffi_api.sum(x, axis, keepdims)  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.ScanopAttrs")
+class ScanopAttrs(Attrs):
+    """Attributes for scan operators"""
 
 
 def cumprod(

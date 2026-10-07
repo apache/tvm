@@ -42,6 +42,36 @@ tir = tirx
 ########################################################
 
 
+# Script adapters infer the result type; the generated canonical builders below
+# retain their explicit type arguments.
+def _shfl_sync(mask, var, lane, width):
+    if tirx.is_tensor_var(var):
+        var = var[0]
+    return call_intrin(var.ty, "tirx.cuda.__shfl_sync", mask, var, lane, width)
+
+
+def _shfl_up_sync(mask, var, delta, width):
+    if tirx.is_tensor_var(var):
+        var = var[0]
+    return call_intrin(var.ty, "tirx.cuda.__shfl_up_sync", mask, var, delta, width)
+
+
+def _shfl_down_sync(mask, var, delta, width):
+    if tirx.is_tensor_var(var):
+        var = var[0]
+    return call_intrin(var.ty, "tirx.cuda.__shfl_down_sync", mask, var, delta, width)
+
+
+def _shfl_xor_sync(mask, var, lane_mask, width):
+    if tirx.is_tensor_var(var):
+        var = var[0]
+    return call_intrin(var.ty, "tirx.cuda.__shfl_xor_sync", mask, var, lane_mask, width)
+
+
+def _activemask():
+    return call_intrin("uint32", "tirx.cuda.__activemask")
+
+
 def cuda_iket_mark(name, payload=None):
     """Create an NVIDIA IKET marker annotation."""
     if payload is not None:

@@ -20,8 +20,8 @@
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
 from tvm.tirx import PrimFunc, TilePrimitiveCall
+from tvm.tirx.op.tile import BinaryReduce
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.operator.tile_primitive.ops import BinaryReduce
 
 from ..binary.utils import InstType, try_find_inst_nary
 from ..common import init_analyzer, nki_dim

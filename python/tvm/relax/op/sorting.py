@@ -16,10 +16,17 @@
 # under the License.
 """Sortings operators."""
 
-from tvm.ir import GenericConst
+import tvm_ffi
+
+from tvm.ir import Attrs, GenericConst
 
 from ..expr import Expr
 from . import _ffi_api
+
+
+@tvm_ffi.register_object("relax.attrs.SortAttrs")
+class SortAttrs(Attrs):
+    """Attributes for sort operator"""
 
 
 def sort(x: Expr, axis: int = -1, descending: bool = False):
@@ -47,6 +54,11 @@ def sort(x: Expr, axis: int = -1, descending: bool = False):
     return _ffi_api.sort(x, axis, descending)  # type: ignore
 
 
+@tvm_ffi.register_object("relax.attrs.ArgsortAttrs")
+class ArgsortAttrs(Attrs):
+    """Attributes for argsort operator"""
+
+
 def argsort(data: Expr, axis: int = -1, descending: bool = False, dtype: str = "int32"):
     """Performs sorting along the given axis and returns an array of indices
     having same shape as an input array that index data in sorted order.
@@ -71,6 +83,11 @@ def argsort(data: Expr, axis: int = -1, descending: bool = False, dtype: str = "
         Tensor with same shape as data.
     """
     return _ffi_api.argsort(data, axis, descending, dtype)  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.TopKAttrs")
+class TopKAttrs(Attrs):
+    """Attributes for topk operators"""
 
 
 def topk(

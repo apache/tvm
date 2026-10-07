@@ -17,6 +17,10 @@
 # pylint: disable=invalid-name
 """Search operators."""
 
+import tvm_ffi
+
+from tvm.ir import Attrs
+
 from ..expr import Expr
 from . import _ffi_api
 
@@ -49,6 +53,11 @@ def where(condition: Expr, x1: Expr, x2: Expr) -> Expr:
         The result tensor.
     """
     return _ffi_api.where(condition, x1, x2)  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.ArgmaxArgminAttrs")
+class ArgmaxArgminAttrs(Attrs):
+    """Attributes for argmax/argmin operator"""
 
 
 def argmax(x: Expr, axis: int | None = None, keepdims: bool = False) -> Expr:

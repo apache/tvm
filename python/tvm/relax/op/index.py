@@ -16,11 +16,20 @@
 # under the License.
 """Indexing operators."""
 
+import tvm_ffi
+
+from tvm.ir import Attrs
+
 from ..expr import Expr
 from ..utils import convert_to_expr
 from . import _ffi_api
 
 PrimExprLike = int | Expr
+
+
+@tvm_ffi.register_object("relax.attrs.TakeAttrs")
+class TakeAttrs(Attrs):
+    """Attributes used in take operator"""
 
 
 def take(x: Expr, indices: Expr, axis: int | None = None, mode: str = "fast") -> Expr:
@@ -54,6 +63,11 @@ def take(x: Expr, indices: Expr, axis: int | None = None, mode: str = "fast") ->
         The taken result.
     """
     return _ffi_api.take(x, indices, axis, mode)  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.StridedSliceAttrs")
+class StridedSliceAttrs(Attrs):
+    """Attributes used in strided_slice operator"""
 
 
 def strided_slice(

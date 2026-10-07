@@ -17,12 +17,20 @@
 # pylint: disable=invalid-name
 """Relax linear algebra operators"""
 
+import tvm_ffi
+
 from tvm import DataType
+from tvm.ir import Attrs
 
 from ..expr import Expr
 from ..expr import Tuple as RxTuple
 from . import _ffi_api
 from .manipulate import permute_dims
+
+
+@tvm_ffi.register_object("relax.attrs.MatmulAttrs")
+class MatmulAttrs(Attrs):
+    """Attributes for matmul operator"""
 
 
 def matmul(x1: Expr, x2: Expr, out_dtype: str | DataType | None = None) -> Expr:
@@ -88,6 +96,11 @@ def linear(
     # Since weight can be 1D or 2D, we use `axes=None` to support both cases.
     x = matmul(data, permute_dims(weight, axes=None), out_dtype=out_dtype)
     return x + bias if bias is not None else x
+
+
+@tvm_ffi.register_object("relax.attrs.EinsumAttrs")
+class EinsumAttrs(Attrs):
+    """Attributes for einsum operator"""
 
 
 def einsum(operands, subscripts):

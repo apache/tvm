@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+from tvm.tirx import is_tensor_var
 from tvm.tirx.op import call_intrin
 
 
@@ -76,8 +77,32 @@ def simdgroup_multiply_accumulate(d, index_d, a, index_a, b, index_b, c, index_c
     )
 
 
+def simd_shuffle(var, lane):
+    """Shuffle a value from the selected SIMD lane."""
+    if is_tensor_var(var):
+        var = var[0]
+    return call_intrin(var.ty, "tirx.metal.simd_shuffle", var, lane)
+
+
+def simd_shuffle_up(var, delta):
+    """Shuffle a value from a lower SIMD lane."""
+    if is_tensor_var(var):
+        var = var[0]
+    return call_intrin(var.ty, "tirx.metal.simd_shuffle_up", var, delta)
+
+
+def simd_shuffle_down(var, delta):
+    """Shuffle a value from a higher SIMD lane."""
+    if is_tensor_var(var):
+        var = var[0]
+    return call_intrin(var.ty, "tirx.metal.simd_shuffle_down", var, delta)
+
+
 __all__ = [
     "make_filled_simdgroup_matrix",
+    "simd_shuffle",
+    "simd_shuffle_down",
+    "simd_shuffle_up",
     "simdgroup_load",
     "simdgroup_multiply_accumulate",
     "simdgroup_store",

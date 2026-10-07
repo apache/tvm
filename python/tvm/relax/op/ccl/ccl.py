@@ -16,8 +16,17 @@
 # under the License.
 """Relax Collective Communications Library (CCL) operators"""
 
+import tvm_ffi
+
+from tvm.ir import Attrs
+
 from ...expr import Expr
 from . import _ffi_api
+
+
+@tvm_ffi.register_object("relax.attrs.AllReduceAttrs")
+class AllReduceAttrs(Attrs):
+    """Attributes used in allreduce operator"""
 
 
 def allreduce(x, op_type: str = "sum", in_group: bool = True):  # pylint: disable=invalid-name
@@ -46,6 +55,11 @@ def allreduce(x, op_type: str = "sum", in_group: bool = True):  # pylint: disabl
         f"including {supported_op_types}, but got {op_type}."
     )
     return _ffi_api.allreduce(x, op_type, in_group)  # type: ignore # pylint: disable=no-member
+
+
+@tvm_ffi.register_object("relax.attrs.AllGatherAttrs")
+class AllGatherAttrs(Attrs):
+    """Attributes used in allgather operator"""
 
 
 def allgather(x, num_workers: int, in_group: bool = True):  # pylint: disable=invalid-name
@@ -84,6 +98,11 @@ def broadcast_from_worker0(x: Expr) -> Expr:
       The same tensor, which has been broadcast to all other workers.
     """
     return _ffi_api.broadcast_from_worker0(x)
+
+
+@tvm_ffi.register_object("relax.attrs.ScatterCollectiveAttrs")
+class ScatterCollectiveAttrs(Attrs):
+    """Attributes used in scatter collective operators"""
 
 
 def scatter_from_worker0(x: Expr, num_workers: int, axis: int = 0) -> Expr:

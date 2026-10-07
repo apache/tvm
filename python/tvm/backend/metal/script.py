@@ -19,8 +19,6 @@
 from __future__ import annotations
 
 from tvm.backend.metal import op as _metal_op
-from tvm.tirx import is_tensor_var
-from tvm.tirx import op as _tir_op
 from tvm.tirx.script.ir_builder.op import _op_wrapper
 
 
@@ -33,23 +31,9 @@ class MetalNamespace:
         self.simdgroup_store = _op_wrapper(_metal_op.simdgroup_store)
         self.simdgroup_multiply_accumulate = _op_wrapper(_metal_op.simdgroup_multiply_accumulate)
 
-    @staticmethod
-    def simd_shuffle(var, lane):
-        if is_tensor_var(var):
-            var = var[0]
-        return _tir_op.call_intrin(var.ty, "tirx.metal.simd_shuffle", var, lane)
-
-    @staticmethod
-    def simd_shuffle_up(var, delta):
-        if is_tensor_var(var):
-            var = var[0]
-        return _tir_op.call_intrin(var.ty, "tirx.metal.simd_shuffle_up", var, delta)
-
-    @staticmethod
-    def simd_shuffle_down(var, delta):
-        if is_tensor_var(var):
-            var = var[0]
-        return _tir_op.call_intrin(var.ty, "tirx.metal.simd_shuffle_down", var, delta)
+    simd_shuffle = staticmethod(_metal_op.simd_shuffle)
+    simd_shuffle_up = staticmethod(_metal_op.simd_shuffle_up)
+    simd_shuffle_down = staticmethod(_metal_op.simd_shuffle_down)
 
 
 __all__ = ["MetalNamespace"]

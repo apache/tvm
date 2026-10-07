@@ -23,7 +23,7 @@ import tvm_ffi
 
 import tvm
 import tvm.runtime
-from tvm.ir import Call, StringImm
+from tvm.ir import Attrs, Call, StringImm
 from tvm.runtime import Object, ObjectConvertible
 
 from ..expr import Expr, ExternFunc, GlobalVar, Var
@@ -130,6 +130,11 @@ def call_tir(
     return _ffi_api.call_tir(gvar, args, out_ty)  # type: ignore
 
 
+@tvm_ffi.register_object("relax.attrs.CallTIRWithGradAttrs")
+class CallTIRWithGradAttrs(Attrs):
+    """Attributes used in call_tir_with_grad operator"""
+
+
 def call_tir_with_grad(
     gvar: GlobalVar,
     args: Expr,
@@ -180,6 +185,11 @@ def call_tir_with_grad(
     return _ffi_api.call_tir_with_grad(  # type: ignore
         gvar, args, out_ty, te_grad_name, te_grad_kwargs
     )
+
+
+@tvm_ffi.register_object("relax.attrs.CallTIRInplaceAttrs")
+class CallTIRInplaceAttrs(Attrs):
+    """Attributes used in call_tir_inplace operator"""
 
 
 def call_tir_inplace(
@@ -661,6 +671,11 @@ def shape_to_tensor(expr: Expr) -> Expr:
     return _ffi_api.shape_to_tensor(expr)  # type: ignore # pylint: disable=no-member
 
 
+@tvm_ffi.register_object("relax.attrs.CallInplacePackedAttrs")
+class CallInplacePackedAttrs(Attrs):
+    """Attributes used in call_inplace_packed operator"""
+
+
 def call_inplace_packed(
     func: str | ExternFunc | GlobalVar,
     *args: Expr,
@@ -823,6 +838,11 @@ def invoke_pure_closure(
     return _ffi_api.invoke_pure_closure(closure, args, ty_args)  # type: ignore
 
 
+@tvm_ffi.register_object("relax.attrs.ToVDeviceAttrs")
+class ToVDeviceAttrs(Attrs):
+    """Attributes used in to_vdevice operator"""
+
+
 def to_vdevice(data, dst_vdevice) -> Expr:
     """Copy data to the destination device. This
     operator helps data transferring between difference devices for
@@ -842,6 +862,11 @@ def to_vdevice(data, dst_vdevice) -> Expr:
         The copied result.
     """
     return _ffi_api.to_vdevice(data, dst_vdevice)  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.HintOnDeviceAttrs")
+class HintOnDeviceAttrs(Attrs):
+    """Attributes used in hint_on_device operator"""
 
 
 def hint_on_device(data, dst_vdevice, memory_scope="global") -> Expr:

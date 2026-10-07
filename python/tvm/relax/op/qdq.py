@@ -16,8 +16,17 @@
 # under the License.
 """Relax quantize/dequantize operators"""
 
+import tvm_ffi
+
+from tvm.ir import Attrs
+
 from ..expr import Expr
 from . import _ffi_api
+
+
+@tvm_ffi.register_object("relax.attrs.QuantizeAttrs")
+class QuantizeAttrs(Attrs):
+    """Attributes used in quantize/dequantize operators"""
 
 
 def quantize(data: Expr, scale: Expr, zero_point: Expr, axis: int = -1, out_dtype: str = "int8"):

@@ -16,7 +16,16 @@
 # under the License.
 """Non-maximum suppression operators."""
 
+import tvm_ffi
+
+from tvm.ir import Attrs
+
 from . import _ffi_api
+
+
+@tvm_ffi.register_object("relax.attrs.AllClassNonMaximumSuppressionAttrs")
+class AllClassNonMaximumSuppressionAttrs(Attrs):
+    """Attributes for vision.all_class_non_max_suppression"""
 
 
 def all_class_non_max_suppression(
@@ -73,6 +82,11 @@ def all_class_non_max_suppression(
     )
 
 
+@tvm_ffi.register_object("relax.attrs.GetValidCountsAttrs")
+class GetValidCountsAttrs(Attrs):
+    """Attributes for vision.get_valid_counts"""
+
+
 def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     """Get valid count of bounding boxes given a score threshold.
     Also moves valid boxes to the top of input data.
@@ -100,6 +114,11 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
         ``[batch_size, num_anchors]``.
     """
     return _ffi_api.get_valid_counts(data, score_threshold, id_index, score_index)
+
+
+@tvm_ffi.register_object("relax.attrs.NonMaximumSuppressionAttrs")
+class NonMaximumSuppressionAttrs(Attrs):
+    """Attributes for vision.non_max_suppression"""
 
 
 def non_max_suppression(

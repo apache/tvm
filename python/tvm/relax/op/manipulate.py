@@ -18,7 +18,9 @@
 
 from collections.abc import Callable
 
-from tvm.ir import is_prim_expr
+import tvm_ffi
+
+from tvm.ir import Attrs, is_prim_expr
 from tvm.runtime import DataTypeCode
 from tvm.tirx import FloatImm, IndexMap, IntImm
 
@@ -50,6 +52,11 @@ def broadcast_to(x: Expr, shape: tuple[PrimExprLike] | Expr) -> Expr:
     return _ffi_api.broadcast_to(x, shape)  # type: ignore
 
 
+@tvm_ffi.register_object("relax.attrs.ConcatAttrs")
+class ConcatAttrs(Attrs):
+    """Attributes for concat operator"""
+
+
 def concat(tensors: Expr | list[Expr], axis: int | None = 0) -> Expr:
     """Concatenate the input tensors along the given axis.
 
@@ -71,6 +78,11 @@ def concat(tensors: Expr | list[Expr], axis: int | None = 0) -> Expr:
     if isinstance(tensors, list | tuple):
         tensors = RxTuple(tensors)
     return _ffi_api.concat(tensors, axis)  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.ExpandDimsAttrs")
+class ExpandDimsAttrs(Attrs):
+    """Attributes for expand_dims operator"""
 
 
 def expand_dims(x: Expr, axis: int | list[int]) -> Expr:
@@ -110,6 +122,11 @@ def flatten(x: Expr) -> Expr:
         The flattened result.
     """
     return _ffi_api.flatten(x)  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.LayoutTransformAttrs")
+class LayoutTransformAttrs(Attrs):
+    """Attributes used in layout_transform operator"""
 
 
 def layout_transform(
@@ -156,6 +173,11 @@ def layout_transform(
         pad_value = prim_value(pad_value)
 
     return _ffi_api.layout_transform(x, index_map, pad_value)
+
+
+@tvm_ffi.register_object("relax.attrs.PermuteDimsAttrs")
+class PermuteDimsAttrs(Attrs):
+    """Attributes for permute_dims operator"""
 
 
 def permute_dims(x: Expr, axes: list[int] | None = None) -> Expr:
@@ -214,6 +236,11 @@ def reshape(x: Expr, shape: tuple[PrimExprLike] | Expr) -> Expr:
     return _ffi_api.reshape(x, shape)  # type: ignore
 
 
+@tvm_ffi.register_object("relax.attrs.SplitAttrs")
+class SplitAttrs(Attrs):
+    """Attributes used in split operator"""
+
+
 def split(
     x: Expr,
     indices_or_sections: int | list[PrimExprLike],
@@ -249,6 +276,11 @@ def split(
     return _ffi_api.split(x, indices_or_sections, axis)  # type: ignore
 
 
+@tvm_ffi.register_object("relax.attrs.SqueezeAttrs")
+class SqueezeAttrs(Attrs):
+    """Attributes for squeeze operator"""
+
+
 def squeeze(x: Expr, axis: int | list[int] | None = None) -> Expr:
     """Squeeze axes in the array.
 
@@ -270,6 +302,11 @@ def squeeze(x: Expr, axis: int | list[int] | None = None) -> Expr:
     if isinstance(axis, int):
         axis = [axis]
     return _ffi_api.squeeze(x, axis)  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.StackAttrs")
+class StackAttrs(Attrs):
+    """Attributes for concat operator"""
 
 
 def stack(tensors: Expr | list[Expr], axis: int = 0) -> Expr:
@@ -349,6 +386,11 @@ def collapse_sum_to(data: Expr, shape: tuple[PrimExprLike] | Expr) -> Expr:
     return _ffi_api.collapse_sum_to(data, shape)  # type: ignore
 
 
+@tvm_ffi.register_object("relax.attrs.RepeatAttrs")
+class RepeatAttrs(Attrs):
+    """Attributes for repeat operator"""
+
+
 def repeat(data: Expr, repeats: int, axis: int | None = None) -> Expr:
     """Repeats elements of an array.
 
@@ -380,6 +422,11 @@ def repeat(data: Expr, repeats: int, axis: int | None = None) -> Expr:
                                              #         [3., 3., 4., 4.]]
     """
     return _ffi_api.repeat(data, repeats, axis)  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.TileAttrs")
+class TileAttrs(Attrs):
+    """Attributes for tile operator"""
 
 
 def tile(data: Expr, repeats: int | tuple[int] | list[int]) -> Expr:
@@ -424,6 +471,11 @@ def tile(data: Expr, repeats: int | tuple[int] | list[int]) -> Expr:
     return _ffi_api.tile(data, repeats)  # type: ignore
 
 
+@tvm_ffi.register_object("relax.attrs.FlipAttrs")
+class FlipAttrs(Attrs):
+    """Attributes for flip operator"""
+
+
 def flip(data, axis):
     """Reverses the order of elements along given axis while preserving array shape.
 
@@ -452,6 +504,11 @@ def flip(data, axis):
     return _ffi_api.flip(data, axis)  # type: ignore
 
 
+@tvm_ffi.register_object("relax.attrs.ReverseSequenceAttrs")
+class ReverseSequenceAttrs(Attrs):
+    """Attributes for reverse_sequence operator"""
+
+
 def reverse_sequence(data: Expr, seq_lengths: Expr, seq_axis: int = 1, batch_axis: int = 0) -> Expr:
     """Reverses variable length slices.
 
@@ -475,6 +532,11 @@ def reverse_sequence(data: Expr, seq_lengths: Expr, seq_axis: int = 1, batch_axi
         The computed result.
     """
     return _ffi_api.reverse_sequence(data, seq_lengths, seq_axis, batch_axis)  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.GatherElementsAttrs")
+class GatherElementsAttrs(Attrs):
+    """Attributes for gather_elements operator"""
 
 
 def gather_elements(data: Expr, indices: Expr, axis: int = 0) -> Expr:
@@ -511,6 +573,11 @@ def gather_elements(data: Expr, indices: Expr, axis: int = 0) -> Expr:
         output = [[4, 5, 6]]
     """
     return _ffi_api.gather_elements(data, indices, axis)  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.GatherNDAttrs")
+class GatherNDAttrs(Attrs):
+    """Attributes for gather_nd operator"""
 
 
 def gather_nd(data: Expr, indices: Expr, batch_dims: int = 0) -> Expr:
@@ -613,6 +680,11 @@ def index_tensor(data: Expr, indices: Expr | list[Expr]) -> Expr:
     return _ffi_api.index_tensor(data, indices)  # type: ignore
 
 
+@tvm_ffi.register_object("relax.attrs.IndexPutAttrs")
+class IndexPutAttrs(Attrs):
+    """Attributes for index_put operator"""
+
+
 def index_put(
     data: Expr,
     indices: Expr | tuple[Expr],
@@ -665,6 +737,11 @@ def index_put(
     return _ffi_api.index_put(data, indices, values, accumulate)  # type: ignore
 
 
+@tvm_ffi.register_object("relax.attrs.MeshgridAttrs")
+class MeshgridAttrs(Attrs):
+    """Attributes for meshgrid operator"""
+
+
 def meshgrid(tensors: Expr | list[Expr], indexing: str | None = "ij") -> Expr:
     """Generate coordinate grids from input tensors.
 
@@ -686,6 +763,11 @@ def meshgrid(tensors: Expr | list[Expr], indexing: str | None = "ij") -> Expr:
     if isinstance(tensors, list | tuple):
         tensors = RxTuple(tensors)
     return _ffi_api.meshgrid(tensors, indexing)
+
+
+@tvm_ffi.register_object("relax.attrs.ScatterElementsAttrs")
+class ScatterElementsAttrs(Attrs):
+    """Attributes for scatter_elements operator"""
 
 
 def scatter_elements(
@@ -766,6 +848,11 @@ def scatter_elements(
     return _ffi_api.scatter_elements(data, indices, updates, axis, reduction)  # type: ignore
 
 
+@tvm_ffi.register_object("relax.attrs.ScatterNDAttrs")
+class ScatterNDAttrs(Attrs):
+    """Attributes for scatter_nd operator"""
+
+
 def scatter_nd(data: Expr, indices: Expr, updates: Expr, reduction: str = "update") -> Expr:
     """Scatter updates into an array according to indices.
 
@@ -805,6 +892,11 @@ def scatter_nd(data: Expr, indices: Expr, updates: Expr, reduction: str = "updat
     return _ffi_api.scatter_nd(data, indices, updates, reduction)  # type: ignore
 
 
+@tvm_ffi.register_object("relax.attrs.SliceScatterAttrs")
+class SliceScatterAttrs(Attrs):
+    """Attributes for slice_scatter operator"""
+
+
 def slice_scatter(input_tensor: Expr, src: Expr, start, end, step, axis=0):
     """Embeds the values of the src tensor into input at the given dimension.
 
@@ -841,6 +933,11 @@ def slice_scatter(input_tensor: Expr, src: Expr, start, end, step, axis=0):
     if not is_prim_expr(step):
         step = prim_value(step)
     return _ffi_api.slice_scatter(input_tensor, src, axis, start, end, step)
+
+
+@tvm_ffi.register_object("relax.attrs.OneHotAttrs")
+class OneHotAttrs(Attrs):
+    """Attributes for one_hot operator"""
 
 
 def one_hot(

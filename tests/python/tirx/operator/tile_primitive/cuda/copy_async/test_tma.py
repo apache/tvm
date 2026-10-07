@@ -54,7 +54,7 @@ from tvm.tirx.cuda.tile_primitive.tma_utils import (
 )
 from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import S, TileLayout
-from tvm.tirx.operator.tile_primitive.ops import CopyAsync
+from tvm.tirx.op.tile import CopyAsync
 from tvm.tirx.stmt import BufferRegion
 from tvm.tirx.tile_primitive import DispatchContext
 

@@ -21,13 +21,13 @@ from tvm.backend.trn.layout import is_trainium_layout
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
 from tvm.tirx import FloatImm, PrimFunc, TilePrimitiveCall
+from tvm.tirx.op.tile import Select
 from tvm.tirx.operator.tile_primitive import (
     DispatchContext,
     fail,
     predicate,
     register_dispatch,
 )
-from tvm.tirx.operator.tile_primitive.ops import Select
 
 from ..common import init_analyzer, nki_dim
 from ..dim_utils import get_ewise_dim_map

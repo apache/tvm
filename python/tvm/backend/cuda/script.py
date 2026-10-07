@@ -23,8 +23,6 @@ from typing import Any
 
 from tvm import ir as _ir
 from tvm.backend.cuda import op as _cuda_op
-from tvm.tirx import is_tensor_var
-from tvm.tirx import op as _tir_op
 from tvm.tirx.script.ir_builder.op import _dtype_forward, _op_wrapper
 
 # pylint: disable=protected-access
@@ -121,34 +119,6 @@ class IketNamespace:
         self.official_event = _op_wrapper(_cuda_op.cuda_iket_official_event)
 
 
-def _shfl_sync(mask, var, lane, width):
-    if is_tensor_var(var):
-        var = var[0]
-    return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_sync", mask, var, lane, width)
-
-
-def _shfl_up_sync(mask, var, delta, width):
-    if is_tensor_var(var):
-        var = var[0]
-    return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_up_sync", mask, var, delta, width)
-
-
-def _shfl_down_sync(mask, var, delta, width):
-    if is_tensor_var(var):
-        var = var[0]
-    return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_down_sync", mask, var, delta, width)
-
-
-def _shfl_xor_sync(mask, var, lane_mask, width):
-    if is_tensor_var(var):
-        var = var[0]
-    return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_xor_sync", mask, var, lane_mask, width)
-
-
-def _activemask():
-    return _tir_op.call_intrin("uint32", "tirx.cuda.__activemask")
-
-
 iket = IketNamespace()
 wgmma = CudaWgmmaNamespace()
 tcgen05 = CudaTcgen05Namespace()
@@ -183,15 +153,15 @@ cta_reduce.__tvm_op__ = _ir.Op.get("tirx.cuda.cta_reduce")
 atomic_cas.__tvm_op__ = _ir.Op.get("tirx.cuda.atomic_cas")
 func_call.__tvm_op__ = _ir.Op.get("tirx.cuda.func_call")
 ldg.__tvm_op__ = _ir.Op.get("tirx.cuda.ldg")
-__shfl_sync = _shfl_sync
+__shfl_sync = _cuda_op._shfl_sync
 __shfl_sync.__tvm_op__ = _ir.Op.get("tirx.cuda.__shfl_sync")
-__shfl_up_sync = _shfl_up_sync
+__shfl_up_sync = _cuda_op._shfl_up_sync
 __shfl_up_sync.__tvm_op__ = _ir.Op.get("tirx.cuda.__shfl_up_sync")
-__shfl_down_sync = _shfl_down_sync
+__shfl_down_sync = _cuda_op._shfl_down_sync
 __shfl_down_sync.__tvm_op__ = _ir.Op.get("tirx.cuda.__shfl_down_sync")
-__shfl_xor_sync = _shfl_xor_sync
+__shfl_xor_sync = _cuda_op._shfl_xor_sync
 __shfl_xor_sync.__tvm_op__ = _ir.Op.get("tirx.cuda.__shfl_xor_sync")
-__activemask = _activemask
+__activemask = _cuda_op._activemask
 __activemask.__tvm_op__ = _ir.Op.get("tirx.cuda.__activemask")
 
 _ir.op._init_op_api("tirx.cuda", __name__)
