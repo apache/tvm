@@ -312,6 +312,53 @@ def test_target_index():
     assert_structural_equal(After, Expected)
 
 
+def test_target_index_tuple_bound_to_var():
+    # Same as test_target_index, but the returned tuple is bound to a Var first.
+    # fmt: off
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((3, 3), "float32"), y: R.Tensor((3, 3), "float32")):
+            with R.dataflow():
+                lv1 = x
+                lv2 = R.sum(x)
+                lv3 = R.sum(y)
+                res = (lv1, lv2, lv3)
+                R.output(res)
+            return res
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main_adjoint(x: R.Tensor((3, 3), dtype="float32"), y: R.Tensor((3, 3), dtype="float32")) -> R.Tuple(R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")), R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32"))):
+            with R.dataflow():
+                lv1: R.Tensor((3, 3), dtype="float32") = x
+                lv2: R.Tensor((), dtype="float32") = R.sum(x, axis=None, keepdims=False)
+                lv3: R.Tensor((), dtype="float32") = R.sum(y, axis=None, keepdims=False)
+                res: R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")) = (lv1, lv2, lv3)
+                lv3_adjoint: R.Tensor((), dtype="float32") = R.ones(R.shape([]), dtype="float32")
+                y_adjoint: R.Tensor((3, 3), dtype="float32") = R.broadcast_to(lv3_adjoint, R.shape([3, 3]))
+                x_adjoint: R.Tensor((3, 3), dtype="float32") = R.zeros(R.shape([3, 3]), dtype="float32")
+                x_adjoint_out: R.Tensor((3, 3), dtype="float32") = x_adjoint
+                y_adjoint_out: R.Tensor((3, 3), dtype="float32") = y_adjoint
+                R.output(res, x_adjoint_out, y_adjoint_out)
+            return (res, (x_adjoint_out, y_adjoint_out))
+
+        @R.function
+        def main(x: R.Tensor((3, 3), dtype="float32"), y: R.Tensor((3, 3), dtype="float32")) -> R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")):
+            with R.dataflow():
+                lv1: R.Tensor((3, 3), dtype="float32") = x
+                lv2: R.Tensor((), dtype="float32") = R.sum(x, axis=None, keepdims=False)
+                lv3: R.Tensor((), dtype="float32") = R.sum(y, axis=None, keepdims=False)
+                res: R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")) = (lv1, lv2, lv3)
+                R.output(res)
+            return res
+    # fmt: on
+
+    After = relax.transform.Gradient("main", target_index=2)(Before)
+    assert_structural_equal(After, Expected)
+
+
 def test_intermediate_var_require_grads():
     x = relax.Var("x", R.Tensor((3, 3), "float32"))
     y = relax.Var("y", R.Tensor((3, 3), "float32"))
@@ -1107,7 +1154,8 @@ def test_report_error():
         def main(x: R.Tensor((3, 3), "float32")):
             with R.dataflow():
                 lv1 = R.sum(x)
-                gv = R.tuple(lv1, lv1)
+                lv2 = R.tuple(lv1, lv1)
+                gv = R.tuple(lv2, lv1)
                 R.output(gv)
             return gv
 
@@ -1174,6 +1222,18 @@ def test_report_error():
 
     with pytest.raises(RuntimeError):
         relax.transform.Gradient("main", target_index=1)(IndexedTargetNotVar)
+
+    @I.ir_module
+    class ReturnTupleNotBoundToTuple:
+        @R.function
+        def main(x: R.Tensor((4,), "float32")):
+            with R.dataflow():
+                gv = R.split(x, 2)
+                R.output(gv)
+            return gv
+
+    with pytest.raises(RuntimeError, match="not bound to a Tuple expression"):
+        relax.transform.Gradient("main", target_index=1)(ReturnTupleNotBoundToTuple)
 
     @I.ir_module
     class NoDataflow:
