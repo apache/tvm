@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ir/op_attr_types.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/prim/builtin.h>
 
 namespace tvm {

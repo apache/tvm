@@ -19,7 +19,6 @@
 
 #include <gtest/gtest.h>
 #include <tvm/ir/expr.h>
-#include <tvm/ir/op_attr_types.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
