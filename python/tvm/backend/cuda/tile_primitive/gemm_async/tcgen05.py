@@ -1279,23 +1279,6 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         sfa_base = SFA_buffer.allocated_addr[0]
         sfb_base = SFB_buffer.allocated_addr[0]
 
-        # Compute initial SFA/SFB addresses (for ki=0). Both physical axes are
-        # part of a TMEM address: TLane occupies the high half-word and TCol
-        # the low half-word. Dropping TLane silently redirects an explicitly
-        # banded scale view to row zero.
-        sfa_coord_0 = SFA_slice_layout.apply(0)
-        sfb_coord_0 = SFB_slice_layout.apply(0)
-        sfa_tlane_0 = sfa_coord_0.get("TLane", 0)
-        sfb_tlane_0 = sfb_coord_0.get("TLane", 0)
-        sfa_tcol_0 = sfa_coord_0.get("TCol", 0)
-        sfb_tcol_0 = sfb_coord_0.get("TCol", 0)
-        SFA_init_addr = _get_tmem_addr_fast(
-            sfa_base, sfa_tlane_0, tvm.tirx.floordiv(sfa_tcol_0, SFA_elem_per_col)
-        )
-        SFB_init_addr = _get_tmem_addr_fast(
-            sfb_base, sfb_tlane_0, tvm.tirx.floordiv(sfb_tcol_0, SFB_elem_per_col)
-        )
-
         # Rotate sf_id per ki when multiple ki share one SF column.
         needs_sf_id = sfa_sf_mma_k < SFA_elem_per_col and sfa_elems_per_ki > 0
 
@@ -1503,7 +1486,6 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         def impl():
             descI_local: T.uint32
             T.cuda.tcgen05.encode_instr_descriptor_block_scaled(T.address_of(descI_local), d_dtype=C_type, a_dtype=A_type, b_dtype=B_type, sfa_dtype=SFA_type, sfb_dtype=SFB_type,  # noqa: E501, F821
-                                                               sfa_tmem_addr=SFA_init_addr, sfb_tmem_addr=SFB_init_addr,  # noqa: E501
                                                                M=M_mma * cta_group, N=N_mma, K=MMA_K, trans_a=a_mn_major, trans_b=b_mn_major, n_cta_groups=cta_group)  # noqa: E501
             call_main(descI_local)  # noqa: F821
     else:

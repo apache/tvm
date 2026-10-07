@@ -31,6 +31,8 @@
 
 #include <string>
 
+#include "attrs.h"
+
 namespace tvm {
 namespace tirx {
 namespace builtin {
@@ -57,6 +59,9 @@ void RegisterCudaTargetBuiltins() {
   static bool registered = false;
   if (registered) return;
   registered = true;
+
+  TCGen05InstrDescriptorAttrs::RegisterReflection();
+  TCGen05InstrDescriptorBlockScaledAttrs::RegisterReflection();
 
   OpDef("tirx.tvm_load_matrix_sync")
       .signature(
@@ -407,20 +412,12 @@ void RegisterDeviceIntrinsics() {
                           sig::arg("cond"))
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(64));
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.tcgen05_encode_instr_descriptor"), "cuda",
-                          CallEffectKind::kOpaque, sig::arg("desc"), sig::arg("d_dtype"),
-                          sig::arg("a_dtype"), sig::arg("b_dtype"), sig::arg<IntExpr>("M"),
-                          sig::arg<IntExpr>("N"), sig::arg<IntExpr>("K"), sig::arg("trans_a"),
-                          sig::arg("trans_b"), sig::arg<IntExpr>("n_cta_groups"), sig::arg("neg_a"),
-                          sig::arg("neg_b"), sig::arg("sat_d"), sig::arg("is_sparse"))
+                          CallEffectKind::kOpaque, sig::arg("desc"),
+                          sig::call_attrs<TCGen05InstrDescriptorAttrs>())
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.tcgen05_encode_instr_descriptor_block_scaled"), "cuda",
-                          CallEffectKind::kOpaque, sig::arg("desc"), sig::arg("d_dtype"),
-                          sig::arg("a_dtype"), sig::arg("b_dtype"), sig::arg("sfa_dtype"),
-                          sig::arg("sfb_dtype"), sig::arg("sfa_tmem_addr"),
-                          sig::arg("sfb_tmem_addr"), sig::arg<IntExpr>("M"), sig::arg<IntExpr>("N"),
-                          sig::arg<IntExpr>("K"), sig::arg("trans_a"), sig::arg("trans_b"),
-                          sig::arg<IntExpr>("n_cta_groups"), sig::arg("neg_a"), sig::arg("neg_b"),
-                          sig::arg("is_sparse"))
+                          CallEffectKind::kOpaque, sig::arg("desc"),
+                          sig::call_attrs<TCGen05InstrDescriptorBlockScaledAttrs>())
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.tcgen05_encode_matrix_descriptor"), "cuda",
                           CallEffectKind::kOpaque, sig::arg("desc"), sig::arg("addr"),

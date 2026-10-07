@@ -76,6 +76,15 @@ using FLegalize = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 using TScriptPrinterName = ffi::String;
 
 /*!
+ * \brief The published script callable accepts the shared Op construction contract.
+ *
+ * Published by Python construction namespaces, not by Op definitions: a printer
+ * name alone does not establish a legacy wrapper's positional/keyword contract.
+ * Semantic syntax hooks retain precedence over ordinary named construction.
+ */
+using TScriptStandardCall = bool;
+
+/*!
  * \brief Specifies that TVMScript printer prints the dtype as the first/last argument.
           If not specified, dtype will not be printed.
  */
