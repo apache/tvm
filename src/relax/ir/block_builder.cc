@@ -92,11 +92,6 @@ class BlockBuilderImpl : public BlockBuilderNode {
       Type finfo = Type::Missing();
       if (!func->ty.as<MissingType>().has_value()) {
         finfo = GetType(func);
-      } else if (auto* function = func.as<tirx::FunctionNode>()) {
-        // NOTE: use a slightly different type than checked type
-        // in tirx::Function so handle can turn into Tensor.
-        // TODO(relax-team): add fine-grained tirx::Function type signature generation.
-        finfo = FuncType::OpaqueFunc(TypeFromStaticType(function->ret_type));
       } else {
         TVM_FFI_THROW(RuntimeError) << "Expect ty field to be populated";
       }
@@ -120,10 +115,13 @@ class BlockBuilderImpl : public BlockBuilderNode {
 
   void UpdateFunction(const GlobalVar& gv, BaseFunc function) final {
     context_mod_.CopyOnWrite();
+    GlobalVar canonical = context_mod_->ContainGlobalVar(gv->name_hint)
+                              ? context_mod_->GetGlobalVar(gv->name_hint)
+                              : gv;
 
     // Remove function from the de-duplication map.
     if (ctx_func_dedup_map_ != nullptr) {
-      auto it = context_mod_->functions.find(gv);
+      auto it = context_mod_->functions.find(canonical);
       if (it != context_mod_->functions.end()) {
         BaseFunc old_func = (*it).second;
         auto ptr = ctx_func_dedup_map_->find(old_func);
@@ -131,22 +129,27 @@ class BlockBuilderImpl : public BlockBuilderNode {
             << "BlockBuilder::UpdateFunction is updating " << gv
             << ", which appears in the BlockBuilder's context_mod_, "
             << "but does not appear in the de-duplication map";
-        TVM_FFI_ICHECK(ptr->second.count(gv))
+        TVM_FFI_ICHECK(ptr->second.count(canonical))
             << "BlockBuilder::UpdateFunction is updating " << gv
             << ", but the de-duplication map for the previous value of this function "
             << "does not include " << gv;
-        ptr->second.erase(gv);
+        ptr->second.erase(canonical);
         if (ptr->second.empty()) {
           ctx_func_dedup_map_->erase(ptr);
         }
       }
     }
 
-    context_mod_->Update(gv, function);
+    context_mod_->Update(canonical, function);
+    if (!context_mod_->GetGlobalVar(gv->name_hint).same_as(canonical)) {
+      // A changed signature remaps callers as well as the updated function.
+      ctx_func_dedup_map_.reset();
+      return;
+    }
 
     // add new dedup map item.
     if (ctx_func_dedup_map_ != nullptr) {
-      (*ctx_func_dedup_map_)[function].insert(gv);
+      (*ctx_func_dedup_map_)[context_mod_->Lookup(canonical)].insert(canonical);
     }
   }
 
@@ -651,6 +654,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   }
 
   Expr VisitExpr_(const CallNode* op) final {
+    TVM_FFI_CHECK(op->op.as<OpNode>() || !op->op->ty.as<tvm::FuncTypeNode>(), TypeError)
+        << "Ordinary Relax calls cannot invoke a native TIRx function; "
+        << "use R.call_tir for destination passing or R.call_tir_packed for a direct result";
     Expr new_op = this->NormalizeArgument(op->op);
 
     ffi::Array<Expr> new_args =

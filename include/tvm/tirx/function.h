@@ -68,9 +68,7 @@ class FunctionNode : public BaseFuncNode {
 
   bool SEqual(const FunctionNode* other,
               ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
-    // `ty` is derived from the fields below.  Function transformations update
-    // those source fields without maintaining this redundant cache eagerly.
-    // Remove this exception once all Function mutation paths recompute `ty`.
+    // `ty` is derived from the parameter and return types compared below.
     return equal(attrs, other->attrs, false, "attrs") &&
            equal(params, other->params, true, "params") &&
            equal(ret_type, other->ret_type, false, "ret_type") &&
@@ -94,6 +92,9 @@ class FunctionNode : public BaseFuncNode {
    *       directly derived from the Vars without the need of type inference.
    */
   TVM_DLL FuncType func_type_annotation() const;
+
+  /*! \brief Refresh the cached native signature after a parameter or return type changes. */
+  TVM_DLL void RefreshType() const;
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Function", FunctionNode, BaseFuncNode);
 };

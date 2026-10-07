@@ -141,9 +141,12 @@ class FunctionSpecializer : public StmtExprMutator {
         specializer->Mutate(f->body, f.unique() ? InplaceMode::kAllow : InplaceMode::kDisallow);
     bool body_unchanged = body_result.UnchangedOrSameAs(f->body);
     auto body = std::move(body_result).ValueOrUnchanged(f->body);
+    Type ret_type = specializer->Mutate(f->ret_type, InplaceMode::kDisallow)
+                        .as_or_throw<UnchangedOr<Type>>()
+                        .ValueOrUnchanged(f->ret_type);
 
-    if (param_updated || !body_unchanged) {
-      return Function(params, body, f->ret_type, f->attrs, f->span);
+    if (param_updated || !body_unchanged || !ret_type.same_as(f->ret_type)) {
+      return Function(params, body, ret_type, f->attrs, f->span);
     } else {
       return f;
     }

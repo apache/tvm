@@ -130,6 +130,78 @@ def call_tir(
     return _ffi_api.call_tir(gvar, args, out_ty)  # type: ignore
 
 
+def call_tir_packed(gvar: GlobalVar, args: Expr, *, pure: bool = False) -> Call:
+    """Call a TIRx Function through its native packed-call contract.
+
+    Every native parameter is supplied explicitly, in order.  Unlike
+    :py:func:`call_tir`, this operator does not allocate destination tensors or
+    interpret destination parameters as results.  It performs no implicit
+    copies, casts, layout conversions, device transfers, or redistribution.
+
+    The result follows the native declared return type: a supported scalar
+    keeps its exact primitive type, void becomes the empty tuple, and a pointer
+    becomes an ``Any`` carrying an opaque pointer.  A pointer result does not
+    imply tensor ownership or a lifetime guarantee.  Native tensor, nonempty
+    tuple, callable, vector, and other unsupported return types are rejected.
+    There is no ``out_ty`` argument.
+
+    Parameters
+    ----------
+    gvar : GlobalVar
+        The GlobalVar referring to a TIRx Function with its native
+        ``tvm.ir.FuncType`` signature.
+
+    args : Expr
+        The ordered arguments, supplied as an inline Relax tuple, a Python
+        tuple or list, or a single expression.  Tensor parameters accept
+        compatible Relax tensors, with dtype, rank, and known shapes checked
+        against the native signature.  Remaining supported native tensor
+        constraints are checked by the packed ABI at runtime.  Specialized
+        global storage scopes require matching ``VDevice.memory_scope``;
+        non-default layouts, allocated-address contracts, unsupported storage
+        scopes, and unlowered distributed tensors are rejected.
+
+        Scalar parameters require the exact primitive dtype: scalar bool,
+        signed or unsigned integers up to 64 bits, or float16/32/64.  These
+        same scalar types are supported as direct results.  The existing packed
+        integer carrier is signed 64-bit: ``uint64`` values must be in
+        ``[0, 2**63 - 1]`` and larger native results raise an error.
+
+        Pointer parameters accept ``Any`` or a handle-compatible object,
+        including a runtime tensor.  A tensor passed to a pointer parameter
+        supplies its DLTensor header handle, not its data pointer.  This erased
+        carrier does not prove pointee type, address space, ownership, or
+        lifetime compatibility.  Known scalar values cannot serve as pointer
+        arguments.  The runtime carrier must satisfy the existing packed ABI's
+        null, opaque-pointer, DLTensor-pointer, or object-handle check.
+
+    pure : bool, optional
+        Whether the caller promises that the call has no observable effects.
+        The default is ``False``, so the call may mutate arguments and is
+        subject to Relax's effect restrictions in pure functions and dataflow
+        blocks.  ``True`` is an explicit promise; purity is never inferred
+        from the native signature or packed ABI.
+
+    Returns
+    -------
+    ret : Call
+        A call whose result type is derived from the native declared return
+        during Relax type inference.
+
+    Examples
+    --------
+    A native ``(int64, int64) -> int64`` function returns its scalar directly::
+
+        result = relax.call_tir_packed(add_scalar, (a, b), pure=True)
+
+    A native copy function with a void return writes to a caller-owned tensor::
+
+        relax.call_tir_packed(copy, (source, destination))
+    """
+    args = _wrap_inline_arg_tuple(args)
+    return _ffi_api.call_tir_packed(gvar, args, pure)  # type: ignore
+
+
 def call_tir_with_grad(
     gvar: GlobalVar,
     args: Expr,

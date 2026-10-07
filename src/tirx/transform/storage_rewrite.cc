@@ -2161,6 +2161,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       }
     }
     n->params = new_params;
+    n->RefreshType();
   }
 
  private:

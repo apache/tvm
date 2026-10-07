@@ -29,6 +29,7 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/utils.h>
 
 #include <iostream>
 #include <vector>
@@ -371,20 +372,7 @@ class LambdaLifter : public ExprMutator {
       if (IsClosure(var) && bound_value.as<CallNode>()) {
         // if the original op was pure, we should use invoke_pure_closure
         Call orig_call = bound_value.value().as_or_throw<Call>();
-        bool is_pure = [&]() -> bool {
-          if (auto op = orig_call->op.as<Op>()) {
-            static const auto& purity_map = Op::GetAttrMap<bool>("FPurity");
-            return purity_map.get(op.value(), false);
-          } else if (const auto* func_ty = orig_call->op->ty.as<FuncTypeNode>()) {
-            return func_ty->purity;
-          } else {
-            TVM_FFI_THROW(InternalError)
-                << "Could not determine purity of call to " << orig_call->op
-                << ", as it is neither a tvm::Op (type = \"" << orig_call->op->GetTypeKey()
-                << "\"), "
-                << "nor is is annotated with FuncType (ty = " << orig_call->op->ty << ")";
-          }
-        }();
+        bool is_pure = !IsImpureCall(orig_call);
 
         auto prev = call;
         call =

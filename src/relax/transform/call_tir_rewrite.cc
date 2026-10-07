@@ -31,6 +31,7 @@
 
 #include <algorithm>
 
+#include "../op/call_tir.h"
 #include "utils.h"
 
 namespace tvm {
@@ -45,6 +46,38 @@ namespace relax {
 // gv0 = rx.call("relax.builtin.alloc_tensor", [n, m], dtype="float32")
 // rx.call_packed(func, x, gv0)
 
+class DPSLoweringChecker : public ExprVisitor {
+ public:
+  void VisitExpr_(const FunctionNode* func) final {
+    bool previous = permits_effects_;
+    permits_effects_ =
+        !func->is_pure || func->GetAttr<bool>(relax::attr::kForcePure).value_or(false);
+    ExprVisitor::VisitExpr_(func);
+    permits_effects_ = previous;
+  }
+
+  void VisitBindingBlock_(const DataflowBlockNode* block) final {
+    bool previous = in_dataflow_;
+    in_dataflow_ = true;
+    ExprVisitor::VisitBindingBlock_(block);
+    in_dataflow_ = previous;
+  }
+
+  void VisitExpr_(const CallNode* call) final {
+    if (call->op.same_as(Op::Get("relax.call_tir")) ||
+        call->op.same_as(Op::Get("relax.call_tir_inplace"))) {
+      TVM_FFI_CHECK(permits_effects_ && !in_dataflow_, ValueError)
+          << "CallTIRRewrite introduces destination writes; run ToNonDataflow and "
+          << "RemovePurityChecking before lowering checked pure or dataflow functions";
+    }
+    ExprVisitor::VisitExpr_(call);
+  }
+
+ private:
+  bool permits_effects_ = false;
+  bool in_dataflow_ = false;
+};
+
 class CallTIRMutator : public ExprMutator {
  public:
   explicit CallTIRMutator(const IRModule& mod) : ExprMutator(mod), mod_(std::move(mod)) {}
@@ -52,6 +85,7 @@ class CallTIRMutator : public ExprMutator {
   IRModule Run() {
     for (const auto& [gv, func] : mod_->functions) {
       if (func->IsInstance<FunctionNode>()) {
+        DPSLoweringChecker().VisitExpr(func);
         auto updated_func = this->VisitExpr(func).as_or_throw<Function>();
         builder_->UpdateFunction(gv, updated_func);
       }
@@ -137,7 +171,10 @@ class CallTIRMutator : public ExprMutator {
             }
           }
         }
-        builder_->Emit(Call::Unchecked(Type::Missing(), call->args[0], args), "_");
+        Expr invocation = call->op.same_as(call_dps_packed_op)
+                              ? Expr(Call::Unchecked(Type::Missing(), call->args[0], args))
+                              : MakeCallTIRPacked(call->args[0], Tuple(args));
+        builder_->Emit(invocation, "_");
       } else {
         if (!is_inplace) {
           args = outs;
@@ -145,7 +182,10 @@ class CallTIRMutator : public ExprMutator {
         } else {
           args.push_back(call->args[1]);
         }
-        builder_->Emit(Call::Unchecked(Type::Missing(), call->args[0], args), "_");
+        Expr invocation = call->op.same_as(call_dps_packed_op)
+                              ? Expr(Call::Unchecked(Type::Missing(), call->args[0], args))
+                              : MakeCallTIRPacked(call->args[0], Tuple(args));
+        builder_->Emit(invocation, "_");
       }
 
       if (tuple_output_type.has_value()) {

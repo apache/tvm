@@ -412,6 +412,10 @@ def ConvertToDataflow(min_size: int = 2) -> tvm.ir.transform.Pass:
 def CallTIRRewrite() -> tvm.ir.transform.Pass:
     """Perform explicit tensor allocation for call_tir and call_dps_packed.
 
+    Run ToNonDataflow and RemovePurityChecking first when lowering checked
+    pure or dataflow functions. Native destination writes become effectful
+    call_tir_packed calls.
+
     Returns
     -------
     ret: tvm.ir.transform.Pass

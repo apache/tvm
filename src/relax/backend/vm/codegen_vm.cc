@@ -152,6 +152,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
         EmitAllocStorage(call, dst_reg);
       } else if (call_node->op.same_as(alloc_tensor_op_)) {
         EmitAllocTensor(call, dst_reg);
+      } else if (call_node->op.same_as(Op::Get("relax.call_tir_packed"))) {
+        auto arguments = call_node->args[1].as_or_throw<Tuple>();
+        builder_->EmitCall(VisitExpr(call_node->args[0]), VisitArray(arguments->fields), dst_reg);
       } else if (call_node->op.same_as(kill_object_op_)) {
         dst_reg = EmitKillObject(call);
       } else {

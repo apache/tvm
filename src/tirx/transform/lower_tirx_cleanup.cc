@@ -413,6 +413,7 @@ Pass LowerTIRxCleanup() {
     n->body = std::move(body);
     n->params = std::move(params);
     n->body = BufferOffsetRemover::Remove(n->body.value());
+    n->RefreshType();
     return f;
   };
   return CreateFunctionPass(pass_func, 0, "tirx.LowerTIRxCleanup", {});

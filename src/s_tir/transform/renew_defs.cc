@@ -59,10 +59,13 @@ class RenewDefMutator : public StmtExprMutator {
       auto mapped = generator->VarRemapGet(param);
       return mapped != nullptr ? mapped.as_or_throw<Var>() : generator->ReDefineVar(param);
     });
-    // Visit body
+    // Remap result type and body to the renewed parameter identities.
+    Type ret_type = generator->Mutate(func->ret_type, InplaceMode::kDisallow)
+                        .as_or_throw<UnchangedOr<Type>>()
+                        .ValueOrUnchanged(func->ret_type);
     auto body = generator->Mutate(func->body).ValueOrUnchanged(func->body);
     // Recreate function
-    return Function(params, body, func->ret_type, func->attrs, func->span);
+    return Function(params, body, ret_type, func->attrs, func->span);
   }
 
  private:

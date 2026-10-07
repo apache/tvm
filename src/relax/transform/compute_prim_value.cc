@@ -22,10 +22,13 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt_functor.h>
+
+#include "../op/call_tir.h"
 
 namespace tvm {
 namespace relax {
@@ -119,9 +122,11 @@ class PrimExprComputeInjector : public ExprMutator {
 
     auto callee = builder_->AddFunction(func, "compute_symbolic_expr");
 
-    return Call(ret_ty, callee, param_vars.Map([](const tirx::Var& tir_var) -> relax::Expr {
-      return tir_var.as_or_throw<PrimExpr>();
-    }));
+    return MakeCallTIRPacked(callee,
+                             Tuple(param_vars.Map([](const tirx::Var& tir_var) -> relax::Expr {
+                               return tir_var.as_or_throw<PrimExpr>();
+                             })),
+                             s_tir::IsPureFunction(func));
   }
 };
 

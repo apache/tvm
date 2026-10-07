@@ -353,6 +353,7 @@ Pass LowerTrainiumLayout() {
     n->body = std::move(body);
     n->params = std::move(params);
     n->body = TrainiumBufferOffsetRemover::Remove(n->body.value());
+    n->RefreshType();
     return f;
   };
   return CreateFunctionPass(pass_func, 0, "tirx.backend.trn.LowerTrainiumLayout", {});

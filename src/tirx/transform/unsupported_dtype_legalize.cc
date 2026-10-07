@@ -529,6 +529,7 @@ class StorageLegalizer : public StmtExprMutator {
     auto* n = func.CopyOnWrite();
     n->params = n->params.Map([this](Var var) { return this->RemapVarDef(var); });
     n->body = this->Mutate(n->body, InplaceMode::kDisallow).ValueOrUnchanged(n->body);
+    n->RefreshType();
     return func;
   }
 

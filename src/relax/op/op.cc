@@ -19,13 +19,17 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/distributed/type.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/layout.h>
 
 #include "../transform/utils.h"
+#include "call_tir.h"
 #include "op_common.h"
 
 namespace tvm {
@@ -33,6 +37,7 @@ namespace relax {
 using namespace tvm::prim;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  CallTIRPackedAttrs::RegisterReflection();
   CallTIRWithGradAttrs::RegisterReflection();
   CallTIRInplaceAttrs::RegisterReflection();
   CallInplacePackedAttrs::RegisterReflection();
@@ -279,6 +284,237 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.call_inplace_packed", MakeCallInplacePacked);
 }
 
+// Native TIRx signatures are translated only at explicit Relax call boundaries.
+namespace {
+Type TIRxPackedValueType(const Type& type, bool is_result) {
+  if (is_result && IsVoidType(type)) return VoidType();
+  if (const auto* scalar = type.as<PrimTypeNode>()) {
+    DLDataType dtype = scalar->dtype;
+    bool supported =
+        dtype.lanes == 1 &&
+        ((dtype.code == kDLBool && dtype.bits == 8) ||
+         ((dtype.code == kDLInt || dtype.code == kDLUInt) && dtype.bits <= 64) ||
+         (dtype.code == kDLFloat && (dtype.bits == 16 || dtype.bits == 32 || dtype.bits == 64)));
+    TVM_FFI_CHECK(supported, TypeError)
+        << "R.call_tir_packed does not support packed scalar type " << type;
+    return type;
+  }
+  if (type.as<PointerTypeNode>()) return AnyType();
+  if (!is_result) {
+    if (const auto* tensor = type.as<tirx::TensorTypeNode>()) {
+      bool default_layout =
+          !tensor->layout.has_value() ||
+          ffi::StructuralEqual()(tensor->layout.value(),
+                                 tirx::TileLayoutNode::DefaultLayout(tensor->shape));
+      TVM_FFI_CHECK(default_layout && tensor->allocated_addr.empty(), TypeError)
+          << "A Relax-to-TIRx call cannot implicitly convert tensor layout or allocated address: "
+          << type;
+      TVM_FFI_CHECK(tensor->storage_scope.empty() || tensor->storage_scope == "global" ||
+                        std::string(tensor->storage_scope).rfind("global.", 0) == 0,
+                    TypeError)
+          << "A Relax-to-TIRx call cannot implicitly convert tensor storage scope: " << type;
+      ShapeExpr shape(
+          tensor->shape.Map([](PrimExpr dim) { return prim::cast(PrimType::Int(64), dim); }));
+      return TensorType(shape, tensor->dtype);
+    }
+  }
+  TVM_FFI_THROW(TypeError) << "R.call_tir_packed does not support native "
+                           << (is_result ? "return" : "parameter") << " type " << type;
+  TVM_FFI_UNREACHABLE();
+}
+
+const tvm::FuncTypeNode* NativeTIRxSignature(const Expr& callee) {
+  TVM_FFI_CHECK(callee.as<GlobalVarNode>(), TypeError)
+      << "R.call_tir_packed requires a GlobalVar referring to a native TIRx function";
+  const auto* signature = callee->ty.as<tvm::FuncTypeNode>();
+  TVM_FFI_CHECK(signature, TypeError)
+      << "R.call_tir_packed requires a native TIRx function signature, but received " << callee->ty;
+  return signature;
+}
+
+Tuple InlineTIRxArguments(const BlockBuilder& ctx, const Expr& argument) {
+  if (auto tuple = argument.as<Tuple>()) return tuple.value();
+  Expr value = argument;
+  while (auto var = value.as<Var>()) {
+    auto bound = ctx->LookupBinding(var.value());
+    if (!bound) break;
+    value = bound.value();
+    if (auto tuple = value.as<Tuple>()) return tuple.value();
+  }
+  const auto* type = argument->ty.as<TupleTypeNode>();
+  TVM_FFI_CHECK(type, TypeError) << "R.call_tir_packed expects an argument tuple";
+  ffi::Array<Expr> fields;
+  for (size_t i = 0; i < type->fields.size(); ++i) {
+    fields.push_back(TupleGetItem(argument, i));
+  }
+  return Tuple(fields);
+}
+
+// Scalar parameter identities live in the native function, not in FuncType.
+// Use that context when available without changing the callee's native signature.
+tvm::FuncType ContextualTIRxSignature(const BlockBuilder& ctx, const Expr& callee,
+                                      const Tuple& arguments) {
+  tvm::FuncType signature = ffi::GetRef<tvm::FuncType>(NativeTIRxSignature(callee));
+  IRModule mod = ctx->GetContextIRModule();
+  auto it = mod->functions.find(callee.as_or_throw<GlobalVar>());
+  if (it == mod->functions.end()) return signature;
+  const auto* function = (*it).second.as<tirx::FunctionNode>();
+  TVM_FFI_CHECK(function, TypeError) << "A Relax-to-TIRx call must refer to a native TIRx function";
+  TVM_FFI_CHECK(ffi::StructuralEqual()(signature, function->ty), TypeError)
+      << "The TIRx GlobalVar signature does not match its function";
+  auto substitutor = ffi::make_object<tvm::ExprMutator>();
+  for (size_t i = 0; i < arguments->fields.size() && i < function->params.size(); ++i) {
+    if (!function->params[i]->ty.as<PrimTypeNode>()) continue;
+    Expr value = arguments->fields[i];
+    while (auto var = value.as<Var>()) {
+      auto binding = ctx->LookupBinding(var.value());
+      if (!binding) break;
+      value = binding.value();
+    }
+    if (auto prim = value.as<PrimExpr>();
+        prim && prim.value().ty() == function->params[i]->ty.as_or_throw<PrimType>()) {
+      substitutor->VarRemapSet(function->params[i], prim.value());
+    }
+  }
+  return substitutor->Mutate(signature).as_or_throw<UnchangedOr<tvm::FuncType>>().ValueOrUnchanged(
+      signature);
+}
+
+void CheckTIRxCarrier(const Type& native, const Type& actual,
+                      bool allow_storage_specialization = false) {
+  if (native.as<PointerTypeNode>()) {
+    TVM_FFI_CHECK(!actual.as<PrimTypeNode>() && !actual.as<StringTypeNode>(), TypeError)
+        << "A Relax-to-TIRx pointer argument requires a handle-compatible object or Any, received "
+        << actual;
+  }
+  if (const auto* tensor = native.as<tirx::TensorTypeNode>()) {
+    ffi::String native_scope = tensor->storage_scope.empty() ? "global" : tensor->storage_scope;
+    const auto* argument = actual.as<TensorTypeNode>();
+    ffi::Optional<ffi::String> actual_scope;
+    if (argument && argument->vdevice.has_value()) {
+      const auto& scope = argument->vdevice.value()->memory_scope;
+      actual_scope = scope.empty() ? ffi::String("global") : scope;
+    }
+    // High-level DPS calls may precede SpecializePrimFuncBasedOnCallSite.
+    // The packed bridge is after that phase and requires matching carriers.
+    if (native_scope != "global" || (actual_scope && !allow_storage_specialization)) {
+      TVM_FFI_CHECK(actual_scope && actual_scope.value() == native_scope, TypeError)
+          << "A Relax-to-TIRx call requires matching native and VDevice memory scopes; native "
+          << native_scope << ", Relax " << actual;
+    }
+  }
+}
+
+void CheckTIRxArguments(const tvm::FuncType& signature, const ffi::Array<Expr>& arguments,
+                        const BlockBuilder& ctx) {
+  FuncType adapted = TIRxToRelaxFuncType(signature);
+  auto params = adapted->params.value();
+  for (size_t i = 0; i < params.size() && i < arguments.size(); ++i) {
+    CheckTIRxCarrier(signature->arg_types[i], arguments[i]->ty);
+    const auto* expected = params[i].as<TensorTypeNode>();
+    const auto* actual = arguments[i]->ty.as<TensorTypeNode>();
+    if (!expected || !actual) continue;
+    // Unknown Relax metadata defers to the native packed checks.  Keep every
+    // known constraint, so partial information never hides a contradiction.
+    if (actual->IsUnknownNdim()) {
+      params.Set(
+          i, TensorType(actual->IsUnknownDtype() ? std::nullopt : expected->dtype, kUnknownNDim));
+    } else if (actual->IsUnknownDtype()) {
+      params.Set(i, TensorType(expected->shape.value(), std::nullopt));
+    }
+  }
+  adapted = FuncType(params, adapted->ret, false);
+  DeriveCallRetType(adapted, Call::Unchecked(Type::Missing(), Var("callee", adapted), arguments),
+                    ctx);
+}
+
+void CheckFreshTIRxDestination(const tirx::TensorTypeNode* tensor) {
+  sym::Analyzer analyzer;
+  TVM_FFI_CHECK(!analyzer->CanProve(tensor->elem_offset != 0), TypeError)
+      << "R.call_tir allocates fresh destinations with zero element offset";
+  if (!tensor->strides.empty()) {
+    PrimExpr compact_stride =
+        IntImm(tensor->shape.empty() ? PrimType::Int(64)
+                                     : tensor->shape.back()->ty.as_or_throw<PrimType>(),
+               1);
+    for (size_t i = tensor->shape.size(); i > 0; --i) {
+      TVM_FFI_CHECK(!analyzer->CanProve(tensor->strides[i - 1] != compact_stride), TypeError)
+          << "R.call_tir allocates compact destinations; incompatible native stride at dimension "
+          << i - 1;
+      compact_stride = compact_stride * tensor->shape[i - 1];
+    }
+  }
+}
+
+void ValidateCallTIRPacked(const CallNode* call) {
+  TVM_FFI_CHECK(call->args.size() == 2 && call->ty_args.empty(), TypeError)
+      << "R.call_tir_packed expects a callee and an argument tuple, without type arguments";
+  TVM_FFI_CHECK(call->attrs.as<CallTIRPackedAttrs>(), TypeError)
+      << "R.call_tir_packed requires CallTIRPackedAttrs";
+  const auto* native = NativeTIRxSignature(call->args[0]);
+  const auto* arguments = call->args[1]->ty.as<TupleTypeNode>();
+  TVM_FFI_CHECK(arguments, TypeError) << "R.call_tir_packed expects an argument tuple";
+  TVM_FFI_CHECK_EQ(native->arg_types.size(), arguments->fields.size(), TypeError)
+      << "R.call_tir_packed requires one argument for each native parameter";
+  for (size_t i = 0; i < native->arg_types.size(); ++i) {
+    if (native->arg_types[i].as<PointerTypeNode>()) {
+      const Type& argument = arguments->fields[i];
+      TVM_FFI_CHECK(!argument.as<PrimTypeNode>() && !argument.as<StringTypeNode>(), TypeError)
+          << "R.call_tir_packed pointer parameter " << i
+          << " requires a handle-compatible object or Any, but received " << argument;
+    }
+    TVM_FFI_CHECK(!arguments->fields[i].as<distributed::DTensorTypeNode>(), TypeError)
+        << "R.call_tir_packed requires distributed tensors to be explicitly lowered";
+  }
+  ffi::Array<Expr> args =
+      arguments->fields.Map([](const Type& type) -> Expr { return Var("argument", type); });
+  CheckTIRxArguments(ffi::GetRef<tvm::FuncType>(native), args, BlockBuilder::Create(std::nullopt));
+}
+
+Type InferTypeCallTIRPacked(const CallNode* call) {
+  TVM_FFI_CHECK_EQ(call->args.size(), 2, TypeError)
+      << "R.call_tir_packed expects a callee and an argument tuple";
+  return TIRxPackedValueType(NativeTIRxSignature(call->args[0])->ret_type, true);
+}
+
+Expr NormalizeCallTIRPacked(const BlockBuilder& ctx, Call call) {
+  NativeTIRxSignature(call->args[0]);
+  Tuple arguments = InlineTIRxArguments(ctx, call->args[1]);
+  CheckTIRxArguments(ContextualTIRxSignature(ctx, call->args[0], arguments), arguments->fields,
+                     ctx);
+  if (!arguments.same_as(call->args[1])) {
+    call.CopyOnWrite()->args.Set(1, arguments);
+  }
+  return call;
+}
+}  // namespace
+
+FuncType TIRxToRelaxFuncType(const tvm::FuncType& type) {
+  return FuncType(
+      type->arg_types.Map([](const Type& arg) { return TIRxPackedValueType(arg, false); }),
+      TIRxPackedValueType(type->ret_type, true), false);
+}
+
+Expr MakeCallTIRPacked(Expr func, Tuple args, bool is_pure) {
+  auto attrs = ffi::make_object<CallTIRPackedAttrs>();
+  attrs->is_pure = is_pure;
+  return Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir_packed"), {func, args},
+                         Attrs(attrs));
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.call_tir_packed")
+      .set_validator(ffi::reflection::NativeFunctionView<void(
+                         const CallNode*)>::FromNative<&ValidateCallTIRPacked>())
+      .signature(sig::arg("func", "The native TIRx function."),
+                 sig::arg("args", "Every native argument, in parameter order."),
+                 sig::call_attrs<CallTIRPackedAttrs>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCallTIRPacked>())
+      .set_attr<FNormalize>("FNormalize", NormalizeCallTIRPacked)
+      .set_attr<bool>("FPurity", false);
+  ffi::reflection::GlobalDef().def("relax.op.call_tir_packed", MakeCallTIRPacked);
+}
+
 // call_tir
 
 /* If possible, infer a legal value of `arg_ty`
@@ -311,7 +547,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  */
 ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
     Type func_ty, Type arg_ty, ffi::Optional<ffi::Array<int64_t>> opt_inplace_indices) {
-  auto opt_callee_ty = func_ty.as<FuncType>();
+  auto opt_native_ty = func_ty.as<tvm::FuncType>();
+  TVM_FFI_CHECK(opt_native_ty && IsVoidType(opt_native_ty.value()->ret_type), TypeError)
+      << "R.call_tir requires a native TIRx function with a void result; "
+      << "use R.call_tir_packed for a direct result. Received " << func_ty;
+  auto opt_callee_ty = ffi::Optional<FuncType>(TIRxToRelaxFuncType(opt_native_ty.value()));
   TVM_FFI_CHECK(opt_callee_ty, TypeError)
       << "The first argument to `R.call_tir` must be a function, "
       << "but instead received argument of type " << func_ty;
@@ -335,6 +575,18 @@ ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
   // In order to determine the return type of `R.call_tir`, we must
   // identify the tirx::Function arguments that will be in group (2).
   size_t num_input_arguments = args->fields.size();
+  const auto& native_params = opt_native_ty.value()->arg_types;
+  for (size_t i = 0; i < num_input_arguments && i < native_params.size(); ++i) {
+    if (!args->fields[i].as<distributed::DTensorTypeNode>()) {
+      CheckTIRxCarrier(native_params[i], args->fields[i], true);
+    }
+  }
+  for (size_t i = num_input_arguments; i < native_params.size(); ++i) {
+    const auto* destination = native_params[i].as<tirx::TensorTypeNode>();
+    TVM_FFI_CHECK(destination, TypeError)
+        << "R.call_tir destination parameter " << i << " must have a native tensor type";
+    CheckFreshTIRxDestination(destination);
+  }
 
   TVM_FFI_CHECK_LE(args->fields.size(), callee_params.size(), ValueError)
       << "R.call_tir attempted to call a function using " << args->fields.size()
@@ -416,6 +668,34 @@ ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
   return derived_ret_ty;
 }
 
+void CheckTIRxDestinations(const tvm::FuncType& signature, const Type& arguments,
+                           const Type& result,
+                           const ffi::Optional<ffi::Array<int64_t>>& inplace_indices) {
+  ffi::Array<Type> outputs;
+  if (const auto* tuple = result.as<TupleTypeNode>()) {
+    outputs = tuple->fields;
+  } else {
+    outputs.push_back(result);
+  }
+  size_t destination = arguments.as_or_throw<TupleType>()->fields.size();
+  if (inplace_indices) {
+    TVM_FFI_CHECK_EQ(inplace_indices.value().size(), outputs.size(), ValueError)
+        << "There must be an in-place index specified for each output";
+    for (int64_t index : inplace_indices.value()) {
+      TVM_FFI_CHECK(index >= -1 && index < static_cast<int64_t>(destination), ValueError)
+          << "In-place index is out of range";
+    }
+  }
+  for (size_t i = 0; i < outputs.size(); ++i) {
+    if (inplace_indices && inplace_indices.value()[i] >= 0) continue;
+    if (destination < signature->arg_types.size() &&
+        !outputs[i].as<distributed::DTensorTypeNode>()) {
+      CheckTIRxCarrier(signature->arg_types[destination], outputs[i], true);
+    }
+    ++destination;
+  }
+}
+
 Type InferTypeCallTIR(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->ty_args.size() != 1) {
@@ -443,7 +723,7 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
       << "but " << call << " has " << call->args.size() << " arguments.";
 
   auto callee = call->args[0];
-  TVM_FFI_ICHECK(callee->ty.as<FuncTypeNode>())
+  TVM_FFI_ICHECK(callee->ty.as<tvm::FuncTypeNode>())
       << "Operation " << call->op << " expects the first argument to be a TIR callee.  "
       << "However, the first argument " << callee << " has type " << callee->ty;
 
@@ -502,6 +782,19 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
     return Tuple(tuple_elements);
   }();
 
+  tvm::FuncType signature = ContextualTIRxSignature(ctx, callee, new_arg_tuple);
+  ffi::Optional<ffi::Array<int64_t>> inplace_indices;
+  if (const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>()) {
+    inplace_indices = attrs->inplace_indices;
+  }
+  CheckTIRxDestinations(signature, new_arg_tuple->ty, call->ty_args[0], inplace_indices);
+  if (auto inferred =
+          InferCallTIROutputTypeFromArguments(signature, new_arg_tuple->ty, inplace_indices)) {
+    TVM_FFI_CHECK(IsBaseOf(inferred.value(), call->ty_args[0]), TypeError)
+        << "R.call_tir out_ty is incompatible with the native function and scalar arguments: "
+        << inferred.value() << " versus " << call->ty_args[0];
+  }
+
   if (!new_arg_tuple.same_as(arg_tuple)) {
     auto new_args = call->args;
     new_args.Set(1, new_arg_tuple);
@@ -530,6 +823,8 @@ void ValidateCallTIR(const CallNode* call) {
   }();
 
   Type explicit_ty = call->ty_args[0];
+  CheckTIRxDestinations(callee->ty.as_or_throw<tvm::FuncType>(), arg_tuple->ty, explicit_ty,
+                        opt_inplace_indices);
   auto inferred_ty =
       InferCallTIROutputTypeFromArguments(GetType(callee), GetType(arg_tuple), opt_inplace_indices);
   if (inferred_ty.has_value()) {

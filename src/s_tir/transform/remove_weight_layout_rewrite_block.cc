@@ -161,6 +161,7 @@ class WeightLayoutRewriteBlockRemover : public StmtExprMutator {
       }
     }
     n->params = std::move(params);
+    n->RefreshType();
     return f_;
   }
 };

@@ -33,6 +33,8 @@
 
 #include <tuple>
 
+#include "../call_tir.h"
+
 namespace tvm {
 namespace relax {
 using namespace tvm::prim;
@@ -106,9 +108,6 @@ tirx::Function GetDLTensorField(tirx::builtin::TVMStructFieldKind field, PrimTyp
 
   tirx::Function func(ffi::Array<tirx::Var>{dlpack_handle}, body, field_ty, attrs);
 
-  FuncType ty({TensorType(std::nullopt, kUnknownNDim)}, field_ty);
-  func->ty = ty;
-
   return func;
 }
 
@@ -131,7 +130,7 @@ Expr LegalizeTensorDtypeCode(const BlockBuilder& bb, const Call& call) {
       GetDLTensorField(tirx::builtin::TVMStructFieldKind::kDLTensorTypeCode, field_ty);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_dtype_code");
-  return Call::Unchecked(Type::Missing(), gvar_getter, {arg});
+  return MakeCallTIRPacked(gvar_getter, Tuple({arg}));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -161,7 +160,7 @@ Expr LegalizeTensorDtypeBits(const BlockBuilder& bb, const Call& call) {
       GetDLTensorField(tirx::builtin::TVMStructFieldKind::kDLTensorTypeBits, field_ty);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_dtype_bits");
-  return Call::Unchecked(Type::Missing(), gvar_getter, {arg});
+  return MakeCallTIRPacked(gvar_getter, Tuple({arg}));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -191,7 +190,7 @@ Expr LegalizeTensorDtypeLanes(const BlockBuilder& bb, const Call& call) {
       GetDLTensorField(tirx::builtin::TVMStructFieldKind::kDLTensorTypeLanes, field_ty);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_dtype_lanes");
-  return Call::Unchecked(Type::Missing(), gvar_getter, {arg});
+  return MakeCallTIRPacked(gvar_getter, Tuple({arg}));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -221,7 +220,7 @@ Expr LegalizeTensorNDim(const BlockBuilder& bb, const Call& call) {
       GetDLTensorField(tirx::builtin::TVMStructFieldKind::kDLTensorNDim, field_ty);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_ndim");
-  return Call::Unchecked(Type::Missing(), gvar_getter, {arg});
+  return MakeCallTIRPacked(gvar_getter, Tuple({arg}));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -300,14 +299,11 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
 
     tirx::Function func({dlpack_handle, axis}, body, field_ty, attrs);
 
-    FuncType ty({TensorType(std::nullopt, kUnknownNDim), axis->ty.as_or_throw<PrimType>()},
-                field_ty);
-    func->ty = ty;
     return func;
   }();
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_shape_i");
-  return Call::Unchecked(Type::Missing(), gvar_getter, call->args);
+  return MakeCallTIRPacked(gvar_getter, Tuple(call->args));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
