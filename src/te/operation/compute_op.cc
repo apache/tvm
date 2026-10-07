@@ -172,13 +172,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 ffi::Array<Tensor> ComputeOpNode::InputTensors() const {
   ffi::Array<Tensor> ret;
   std::unordered_set<Tensor> visited;
-  auto walk_fn = [&ret, &visited](const PrimExpr& expr) -> ffi::Expected<ffi::WalkResult> {
-    // An axis used as a value denotes its variable, not its metadata domain.
-    // Reduction axis domains are visited explicitly below.
-    if (expr.as<IterVarNode>()) return ffi::WalkResult::Skip();
-    const auto* call_node = expr.as<CallNode>();
-    if (call_node == nullptr) return ffi::WalkResult::Advance();
-    Call call = ffi::GetRef<Call>(call_node);
+  auto visit_call = [&ret, &visited](const Call& call, ffi::StructuralVisitorObj* visitor)
+      -> ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> {
+    // Discover index dependencies before the tensor they index.
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->DefaultVisitExpected(call));
     if (IsTensorLoad(call)) {
       Tensor t = GetTensorFromLoad(call);
       if (!visited.count(t)) {
@@ -186,10 +183,18 @@ ffi::Array<Tensor> ComputeOpNode::InputTensors() const {
         visited.insert(t);
       }
     }
-    return ffi::WalkResult::Advance();
+    return std::nullopt;
   };
-  auto visit = [&walk_fn](const PrimExpr& e) {
-    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(e, walk_fn);
+  auto visit = [&visit_call](const PrimExpr& e) {
+    ffi::StructuralVisit(
+        e,
+        [](const IterVar&,
+           ffi::StructuralVisitorObj*) -> ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> {
+          // An axis used as a value denotes its variable, not its metadata domain.
+          // Reduction axis domains are visited explicitly below.
+          return std::nullopt;
+        },
+        visit_call);
   };
   for (const PrimExpr& e : body) {
     if (const auto* reduce = e.as<te::ReduceNode>()) {
