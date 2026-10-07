@@ -30,6 +30,7 @@ from .expr import Expr
 
 def _make_op_api(op, module_name):
     """Build a callable whose operands and result are governed by its Op."""
+    from .attrs import make_node  # pylint: disable=import-outside-toplevel
     from .expr import Call, reinfer_type  # pylint: disable=import-outside-toplevel
 
     def call(*args, attrs=None, ty_args=None, span=None, ret_ty=None, **kwargs):
@@ -45,7 +46,11 @@ def _make_op_api(op, module_name):
             else:
                 raise TypeError(f"{op.name}: missing operand {info.name!r}")
         if kwargs:
-            raise TypeError(f"{op.name}: unexpected keyword operands {tuple(kwargs)}")
+            if not op.attrs_type_key:
+                raise TypeError(f"{op.name}: unexpected keyword operands {tuple(kwargs)}")
+            if attrs is not None:
+                raise TypeError(f"{op.name}: cannot mix attrs with attribute keywords")
+            attrs = make_node(op.attrs_type_key, **kwargs)
         if ret_ty is None and (
             op.get_attr("TFixedReturnType") is not None or op.get_attr("FInferType") is not None
         ):
@@ -71,7 +76,8 @@ def _init_op_api(namespace, target_module_name=None):
     Generated functions accept registered positional/named operands plus
     ``attrs``, ``ty_args``, ``span`` and ``ret_ty``. Omitting the result invokes
     an available Op inference hook; without one, Call retains a missing type.
-    Explicit results and inference/validation errors are preserved.
+    Explicit results and inference/validation errors are preserved. Attribute
+    keywords construct the registered attrs schema, when one is declared.
 
     Existing generated functions are reused. A deliberate wrapper may declare
     ``__tvm_op__ = Op.get(name)`` to retain ownership of that name. This declares

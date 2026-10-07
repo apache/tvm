@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/te/operation.h>
@@ -31,6 +32,8 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "../../../script/printer/ir/utils.h"
 #include "utils.h"
@@ -258,56 +261,54 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                FDocTranslate::FromNative<&CUDAFuncCallDocTranslate>());
 }
 
-template <bool block_scaled>
-ffi::Optional<ExprDoc> CUDAInstructionDescriptorDocTranslate(DocTranslatorObj* d,
-                                                             ffi::AnyView input,
-                                                             const ffi::Object*) {
-  const auto* call =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (!CanTranslateExplicitResultCall(call) || call->args.size() != (block_scaled ? 17 : 14) ||
-      !ffi::StructuralEqual()(call->ty, PrimType::Void())) {
+// Named fixed-result APIs reconstruct typed attributes from reflected keywords.
+ffi::Optional<ExprDoc> AttrsCallDocTranslate(DocTranslatorObj* d, const CallNode* call) {
+  Op op = call->op.as_or_throw<Op>();
+  static const auto& names = Op::GetAttrMap<tirx::TScriptPrinterName>("TScriptPrinterName");
+  static const auto& fixed_types = Op::GetAttrMap<TFixedReturnType>("TFixedReturnType");
+  if (!call->ty_args.empty() || !call->attrs.defined() ||
+      op->attrs_type_key != call->attrs->GetTypeKey() || !names.count(op) ||
+      !fixed_types.count(op) || !ffi::StructuralEqual()(fixed_types[op], call->ty)) {
     return RawCall(d, call);
   }
-  Op op = call->op.as_or_throw<Op>();
-  if (op->args_info.size() != call->args.size()) return RawCall(d, call);
-  constexpr size_t optional_begin = block_scaled ? 13 : 9;
+  try {
+    op.Validate(call);
+  } catch (const ffi::Error&) {
+    return RawCall(d, call);
+  }
+  ffi::Array<ExprDoc> args;
+  for (const Expr& arg : call->args) {
+    args.push_back(MaterializeCallArgument(d, arg, d->Translate(arg).value()));
+  }
+  std::vector<std::pair<ffi::String, ffi::Any>> fields;
+  ffi::reflection::ForEachFieldInfo(
+      TVMFFIGetTypeInfo(call->attrs->type_index()), [&](const TVMFFIFieldInfo* field) {
+        ffi::Any value = ffi::reflection::FieldGetter(field)(call->attrs);
+        // Factory defaults can have effects or change between constructions.
+        // Only a reflected literal default is safe to omit here.
+        if ((field->flags & kTVMFFIFieldFlagBitMaskHasDefault) &&
+            !(field->flags & kTVMFFIFieldFlagBitMaskDefaultFromFactory) &&
+            ffi::StructuralEqual()(
+                value, ffi::AnyView::CopyFromTVMFFIAny(field->default_value_or_factory))) {
+          return;
+        }
+        fields.emplace_back(ffi::String(field->name), std::move(value));
+      });
+  std::sort(fields.begin(), fields.end(),
+            [](const auto& a, const auto& b) { return a.first < b.first; });
   ffi::Array<ffi::String> keys;
   ffi::Array<ExprDoc> values;
-  ExprDoc descriptor = d->Translate(call->args[0]).value();
-  for (size_t i = 1; i < call->args.size(); ++i) {
-    const Expr& arg = call->args[i];
-    if (i >= optional_begin) {
-      const auto* value = arg.as<IntImmNode>();
-      PrimType default_type = i == optional_begin ? PrimType::Int(32) : PrimType::Bool();
-      int64_t default_value = i == optional_begin ? 1 : 0;
-      if (value && value->value == default_value &&
-          ffi::StructuralEqual()(value->ty, default_type)) {
-        continue;
-      }
+  for (const auto& [key, value] : fields) {
+    if (key == "ty" || key == "ret_ty" || key == "attrs" || key == "ty_args" || key == "span" ||
+        key == "type_key" ||
+        std::any_of(op->args_info.begin(), op->args_info.end(),
+                    [&](const ArgumentInfo& info) { return info->name == key; })) {
+      return RawCall(d, call);
     }
-    const auto* string = arg.as<StringImmNode>();
-    ExprDoc value = string ? LiteralDoc::Str(string->value, std::nullopt)
-                           : MaterializeCallArgument(d, arg, d->Translate(arg).value());
-    d->RecordOrigin(value, arg);
-    keys.push_back(op->args_info[i]->name);
-    values.push_back(value);
+    keys.push_back(key);
+    values.push_back(AnyValue(d, value));
   }
-  return NamespaceDoc("tirx")
-      ->Attr("cuda")
-      ->Attr("tcgen05")
-      ->Attr(block_scaled ? "encode_instr_descriptor_block_scaled" : "encode_instr_descriptor")
-      ->Call({descriptor}, keys, values);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.cuda.tcgen05_encode_instr_descriptor")
-      .set_attr<FDocTranslate>(
-          kOpCallDocTranslate,
-          FDocTranslate::FromNative<&CUDAInstructionDescriptorDocTranslate<false>>());
-  OpDef("tirx.cuda.tcgen05_encode_instr_descriptor_block_scaled")
-      .set_attr<FDocTranslate>(
-          kOpCallDocTranslate,
-          FDocTranslate::FromNative<&CUDAInstructionDescriptorDocTranslate<true>>());
+  return NamedCallCallee(names[op])->Call(args, keys, values);
 }
 
 ffi::Optional<ExprDoc> LLVMIntrinsicDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -482,6 +483,7 @@ ffi::Optional<ExprDoc> TIRCallDocTranslate(DocTranslatorObj* d, const CallNode* 
                                            const Type& result_type,
                                            const ffi::Array<ExprDoc>& args) {
   ffi::Optional<Op> op = call->op.as<Op>();
+  if (op && call->attrs.defined()) return AttrsCallDocTranslate(d, call);
   bool is_ptx = op && op.value()->name.find("tirx.ptx.") == 0;
   static const auto& categories = Op::GetAttrMap<tirx::TIRxOpCategory>("TIRxOpCategory");
   // Canonical TIRx entry points with an eligible inference hook may require
