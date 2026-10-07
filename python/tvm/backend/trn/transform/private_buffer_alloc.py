@@ -43,7 +43,7 @@ def _collect_private_allocations(stmt: Stmt, target: Target):
         if tag.startswith("vthread"):
             return None
         previous_launch_params = dict(launch_params)
-        launch_params[tag] = op.args[1]
+        launch_params[tag] = (op.body_params[0], op.args[1])
         visit(op.body)
         launch_params.clear()
         launch_params.update(previous_launch_params)

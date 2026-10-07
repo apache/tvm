@@ -55,7 +55,6 @@ from tvm.tirx.exec_scope import ExecScope, ScopeIdDef
 from tvm.tirx.expr import (
     FloatImm,
     IntImm,
-    IterVar,
     TensorLoad,
 )
 from tvm.tirx.layout import (
@@ -1459,32 +1458,6 @@ def ptr(dtype: str, storage_scope: str = "global") -> Var:
     return _ffi_api.Ptr(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def iter_var(v: Var | str, dom: ir.Range, iter_type: str, thread_tag: str) -> IterVar:
-    """The iteration variable.
-
-    Parameters
-    ----------
-    v : Union[Var, str]
-        The internal variable that is used for iteration.
-
-    dom : Range
-        The domain of the iteration.
-
-    iter_type : str
-        The iteration type.
-
-    thread_tag : str
-        The thread type tag.
-
-    Returns
-    -------
-    res : IterVar
-        The iteration variable.
-    """
-    iter_type = getattr(IterVar, iter_type)
-    return IterVar(dom, v, iter_type, thread_tag)
-
-
 def index_map(
     mapping: Callable,
     *,
@@ -1612,7 +1585,6 @@ __all__ = [
     "FloatImm",
     "IntImm",
     "Iter",
-    "IterVar",
     "Lambda",
     "Layout",
     "LetAnnotation",
@@ -1778,7 +1750,6 @@ __all__ = [
     "int64x16",
     "int64x32",
     "int64x64",
-    "iter_var",
     "lane_id",
     "let",
     "local_scalar",

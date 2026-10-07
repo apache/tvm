@@ -59,9 +59,7 @@ def test_ir_builder_tir_for():
         extent=8,
         kind=tirx.ForKind.THREAD_BINDING,
         body=tirx.Evaluate(0),
-        thread_binding=tirx.IterVar(
-            None, tirx.Var("", "int32"), tirx.IterVar.ThreadIndex, "threadIdx.x"
-        ),
+        thread_binding="threadIdx.x",
     )
     unroll_expected = tirx.For(
         loop_var=tirx.Var("", "int32"),

@@ -36,12 +36,12 @@ from .buffer import (
 )
 from .type import TensorMapType
 from .expr import convert
-from .expr import Var, Reduce, FloatImm, IntImm, Cast
+from .expr import Var, FloatImm, IntImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
 from .expr import LShift, RShift, BitwiseAnd, BitwiseOr, BitwiseXor, BitwiseNot
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
 from .expr import Select, TensorLoad, Ramp, Broadcast, Shuffle
-from .expr import CallEffectKind, Let, IterVar, CommReducer
+from .expr import CallEffectKind, Let
 
 from .stmt import Stmt, Bind, AssertStmt, ForKind, For, While, Return, Break, Continue
 
@@ -85,7 +85,7 @@ from .op import erf, sigmoid, sqrt, rsqrt, floor, ceil, hypot
 from .op import trunc, abs, round, nextafter, nearbyint, power, pow, popcount, fmod, if_then_else
 from .op import likely, isnan, isnullptr, isfinite, isinf, copysign
 from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod, ceildiv, logaddexp
-from .op import comm_reducer, min, max, sum
+from .op import min, max
 from .op import q_multiply_shift, q_multiply_shift_per_axis, shift_left, shift_right
 from .op import TVMBackendAllocWorkspace, TVMBackendFreeWorkspace
 from .op import vscale, get_active_lane_mask, get_vscale_expr

@@ -39,8 +39,8 @@ def test_expr_constructor():
     assert isinstance(x, tvm.tirx.Var)
     assert x.name == "xx"
 
-    x = tvm.tirx.Reduce(None, [1], [tvm.tirx.IterVar((0, 1), "x", 2)], None, 0)
-    assert isinstance(x, tvm.tirx.Reduce)
+    x = tvm.te.Reduce(None, [1], [tvm.s_tir.IterVar((0, 1), "x", 2)], None, 0)
+    assert isinstance(x, tvm.te.Reduce)
     assert x.combiner is None
     assert x.value_index == 0
 
@@ -252,7 +252,7 @@ def test_buffer_region_type_is_singleton():
 def test_buffer_region_is_not_arithmetic_operand():
     int_region = tvm.tirx.decl_tensor([4], "int32")[0:4]
     with pytest.raises(TypeError, match="construct a TensorLoad explicitly"):
-        tvm.tirx.IterVar((0, 4), "i", tvm.tirx.IterVar.DataPar) + int_region
+        tvm.s_tir.IterVar((0, 4), "i", tvm.s_tir.IterVar.DataPar) + int_region
 
 
 def test_operator_base_categories_have_primitive_type():
@@ -263,10 +263,10 @@ def test_operator_base_categories_have_primitive_type():
         tvm.tirx.Add(var, 1),
         tvm.tirx.LT(var, 1),
         tvm.tirx.And(var < 1, var < 2),
-        tvm.tirx.Reduce(
+        tvm.te.Reduce(
             None,
             [1],
-            [tvm.tirx.IterVar((0, 1), "i", tvm.tirx.IterVar.CommReduce)],
+            [tvm.s_tir.IterVar((0, 1), "i", tvm.s_tir.IterVar.CommReduce)],
             None,
             0,
         ),
