@@ -22,7 +22,6 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
@@ -49,14 +48,6 @@ class PurityRemover : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* call) override {
-    if (call->op.same_as(Op::Get("relax.call_tir_packed"))) {
-      Call result = ExprMutator::VisitExpr_(call).as_or_throw<Call>();
-      const auto* attrs = result->attrs.as<CallTIRPackedAttrs>();
-      if (attrs && attrs->is_pure) {
-        result.CopyOnWrite()->attrs = Attrs(ffi::make_object<CallTIRPackedAttrs>());
-      }
-      return result;
-    }
     if (call->op.same_as(call_pure_packed_op_)) {
       auto ret = Call::Unchecked(Type::Missing(), call->args[0],
                                  ffi::Array<Expr>(call->args.begin() + 1, call->args.end()),

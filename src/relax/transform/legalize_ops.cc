@@ -26,12 +26,10 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
-#include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/transform.h>
@@ -127,7 +125,15 @@ class LegalizeMutator : public ExprMutator {
     }
 
     bool pure_original_op = purity_map.get(op, false);
-    bool pure_legalized_op = !IsImpureCall(ffi::GetRef<Call>(call));
+    bool pure_legalized_op = [&]() -> bool {
+      if (auto legalized_op = call->op.as<Op>()) {
+        return purity_map.get(legalized_op.value(), false);
+      } else if (auto func_ty = call->op->ty.as<FuncTypeNode>()) {
+        return func_ty->purity;
+      } else {
+        return false;
+      }
+    }();
 
     // If the original op was pure, but the legalized op was not,
     // the legalized op may occur in a context that requires pure
@@ -138,11 +144,6 @@ class LegalizeMutator : public ExprMutator {
   }
 
   Call WrapPureCall(const Call& ret) {
-    if (ret->op.same_as(Op::Get("relax.call_tir_packed"))) {
-      auto attrs = ffi::make_object<CallTIRPackedAttrs>();
-      attrs->is_pure = true;
-      return Call::Unchecked(ret->ty, ret->op, ret->args, Attrs(attrs));
-    }
     static const Op call_pure_packed_op = Op::Get("relax.call_pure_packed");
     ffi::Array<Expr> ret_args = {ret->op};
     for (auto arg : ret->args) {

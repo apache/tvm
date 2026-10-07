@@ -234,31 +234,12 @@ ffi::Optional<ExprDoc> CallTIRDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
       ->Call(args, keys, values);
 }
 
-ffi::Optional<ExprDoc> CallTIRPackedDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                                 const ffi::Object* destination) {
-  const auto* call =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  const auto* attrs = call->attrs.as<relax::CallTIRPackedAttrs>();
-  if (!HasRelaxCallResult(call, destination) || call->args.size() != 2 ||
-      !call->args[0].as<GlobalVarNode>() || !call->args[0]->ty.as<tvm::FuncTypeNode>() ||
-      !call->args[1].as<TupleNode>() || !attrs || !call->ty_args.empty()) {
-    return RawCall(d, call);
-  }
-  return NamespaceDoc("relax")
-      ->Attr("call_tir_packed")
-      ->Call({d->Translate(call->args[0]).value(), d->Translate(call->args[1]).value()}, {"pure"},
-             {LiteralDoc::Boolean(attrs->is_pure, std::nullopt)});
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   for (const char* name : {"relax.call_tir", "relax.call_tir_with_grad", "relax.call_tir_inplace",
                            "relax.call_dps_packed"}) {
     OpDef(name).set_attr<FDocTranslate>(kOpCallDocTranslate,
                                         FDocTranslate::FromNative<&CallTIRDocTranslate>());
   }
-  OpDef("relax.call_tir_packed")
-      .set_attr<FDocTranslate>(kOpCallDocTranslate,
-                               FDocTranslate::FromNative<&CallTIRPackedDocTranslate>());
 }
 
 // The name is published only for a callable implementing the shared Op contract.

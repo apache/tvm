@@ -724,7 +724,9 @@ def test_pass_dltensor_arg_to_tir():
     class Module:
         @R.function
         def main(A: R.Tensor) -> T.bool:
-            return R.call_tir_packed(Module.is_bfloat16_dtype, (A,), pure=True)
+            return R.call_pure_packed(
+                tvm.ir.Op.get("relax.call_tir_packed"), Module.is_bfloat16_dtype, (A,)
+            )
 
         @Ts.function(private=True)
         def is_bfloat16_dtype(tensor: T.handle) -> T.bool:

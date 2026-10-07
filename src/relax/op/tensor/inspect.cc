@@ -33,8 +33,6 @@
 
 #include <tuple>
 
-#include "../call_tir.h"
-
 namespace tvm {
 namespace relax {
 using namespace tvm::prim;
@@ -130,7 +128,8 @@ Expr LegalizeTensorDtypeCode(const BlockBuilder& bb, const Call& call) {
       GetDLTensorField(tirx::builtin::TVMStructFieldKind::kDLTensorTypeCode, field_ty);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_dtype_code");
-  return MakeCallTIRPacked(gvar_getter, Tuple({arg}));
+  return Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir_packed"),
+                         {gvar_getter, Tuple({arg})});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -160,7 +159,8 @@ Expr LegalizeTensorDtypeBits(const BlockBuilder& bb, const Call& call) {
       GetDLTensorField(tirx::builtin::TVMStructFieldKind::kDLTensorTypeBits, field_ty);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_dtype_bits");
-  return MakeCallTIRPacked(gvar_getter, Tuple({arg}));
+  return Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir_packed"),
+                         {gvar_getter, Tuple({arg})});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -190,7 +190,8 @@ Expr LegalizeTensorDtypeLanes(const BlockBuilder& bb, const Call& call) {
       GetDLTensorField(tirx::builtin::TVMStructFieldKind::kDLTensorTypeLanes, field_ty);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_dtype_lanes");
-  return MakeCallTIRPacked(gvar_getter, Tuple({arg}));
+  return Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir_packed"),
+                         {gvar_getter, Tuple({arg})});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -220,7 +221,8 @@ Expr LegalizeTensorNDim(const BlockBuilder& bb, const Call& call) {
       GetDLTensorField(tirx::builtin::TVMStructFieldKind::kDLTensorNDim, field_ty);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_ndim");
-  return MakeCallTIRPacked(gvar_getter, Tuple({arg}));
+  return Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir_packed"),
+                         {gvar_getter, Tuple({arg})});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -303,7 +305,8 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
   }();
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_shape_i");
-  return MakeCallTIRPacked(gvar_getter, Tuple(call->args));
+  return Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir_packed"),
+                         {gvar_getter, Tuple(call->args)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

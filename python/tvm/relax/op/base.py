@@ -23,7 +23,7 @@ import tvm_ffi
 
 import tvm
 import tvm.runtime
-from tvm.ir import Call, StringImm
+from tvm.ir import Call, Op, StringImm
 from tvm.runtime import Object, ObjectConvertible
 
 from ..expr import Expr, ExternFunc, GlobalVar, Var
@@ -130,7 +130,7 @@ def call_tir(
     return _ffi_api.call_tir(gvar, args, out_ty)  # type: ignore
 
 
-def call_tir_packed(gvar: GlobalVar, args: Expr, *, pure: bool = False) -> Call:
+def call_tir_packed(gvar: GlobalVar, args: Expr) -> Call:
     """Call a TIRx Function through its native packed-call contract.
 
     Every native parameter is supplied explicitly, in order.  Unlike
@@ -175,12 +175,10 @@ def call_tir_packed(gvar: GlobalVar, args: Expr, *, pure: bool = False) -> Call:
         arguments.  The runtime carrier must satisfy the existing packed ABI's
         null, opaque-pointer, DLTensor-pointer, or object-handle check.
 
-    pure : bool, optional
-        Whether the caller promises that the call has no observable effects.
-        The default is ``False``, so the call may mutate arguments and is
-        subject to Relax's effect restrictions in pure functions and dataflow
-        blocks.  ``True`` is an explicit promise; purity is never inferred
-        from the native signature or packed ABI.
+    The call is effectful and may mutate its arguments. For a call known to
+    have no observable effects, use an explicit ``call_pure_packed`` wrapper
+    around the ``relax.call_tir_packed`` operator. Purity is never inferred
+    from the native signature or packed ABI.
 
     Returns
     -------
@@ -192,14 +190,20 @@ def call_tir_packed(gvar: GlobalVar, args: Expr, *, pure: bool = False) -> Call:
     --------
     A native ``(int64, int64) -> int64`` function returns its scalar directly::
 
-        result = relax.call_tir_packed(add_scalar, (a, b), pure=True)
+        result = relax.call_tir_packed(add_scalar, (a, b))
+
+    A caller that knows the scalar function has no effects may assert purity::
+
+        result = relax.call_pure_packed(
+            tvm.ir.Op.get("relax.call_tir_packed"), add_scalar, (a, b)
+        )
 
     A native copy function with a void return writes to a caller-owned tensor::
 
         relax.call_tir_packed(copy, (source, destination))
     """
     args = _wrap_inline_arg_tuple(args)
-    return _ffi_api.call_tir_packed(gvar, args, pure)  # type: ignore
+    return Call.unchecked("relax.call_tir_packed", [gvar, args])
 
 
 def call_tir_with_grad(
@@ -800,9 +804,9 @@ def call_inplace_packed(
 
 
 def call_pure_packed(
-    func: str | ExternFunc | GlobalVar,
+    func: str | ExternFunc | GlobalVar | Op,
     *args: Expr,
-    ty_args: Type | list[Type],
+    ty_args: Type | list[Type] | None = None,
 ) -> Expr:
     """
     Construct a call to a packed function that should be treated as pure,
@@ -818,14 +822,17 @@ def call_pure_packed(
 
     Parameters
     ----------
-    func : Union[str, ExternFunc]
+    func : Union[str, ExternFunc, Op]
       The name (global symbol) for a PackedFunc or an ExternFunc node.
+      The explicit ``relax.call_tir_packed`` Op is also accepted; its native
+      callee and argument tuple follow as arguments to this wrapper.
 
     args: Expr
       The arguments for the PackedFunc.
 
     ty_args: Union[Type, List[Type]]
         The list of type information arguments (giving the type information for the returned value).
+        Omit this for the native bridge, whose result follows the native signature.
 
     Returns
     -------
@@ -836,11 +843,14 @@ def call_pure_packed(
     if isinstance(func, ExternFunc):
         func = func.global_symbol
 
-    op = ExternFunc(func)
+    op = func if isinstance(func, Op) else ExternFunc(func)
     args = tuple(convert_to_expr(a) for a in args)
 
     if ty_args is None:
-        raise ValueError("R.call_pure_packed is required to have type_args")
+        if isinstance(op, Op) and op.same_as(Op.get("relax.call_tir_packed")):
+            ty_args = []
+        else:
+            raise ValueError("R.call_pure_packed is required to have type_args")
 
     if isinstance(ty_args, tuple):  # type: ignore
         ty_args = list(ty_args)

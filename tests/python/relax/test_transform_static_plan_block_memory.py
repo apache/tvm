@@ -1711,16 +1711,16 @@ def test_view():
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
-        @R.function
+        @R.function(pure=False)
         def main():
             cls = Before
             x = R.builtin.alloc_tensor(R.shape([16, 16]), dtype="float32", runtime_device_index=0)
             x1 = R.memory.view(x, [128], "float32", 0)
             x2 = R.memory.ensure_zero_offset(x1)
             y = R.builtin.alloc_tensor(R.shape([128]), dtype="float32", runtime_device_index=0)
-            R.call_tir_packed(cls.tir_exp, (x2, y), pure=True)
+            R.call_tir_packed(cls.tir_exp, (x2, y))
             z = R.builtin.alloc_tensor(R.shape([128]), dtype="float32", runtime_device_index=0)
-            R.call_tir_packed(cls.tir_exp, (y, z), pure=True)
+            R.call_tir_packed(cls.tir_exp, (y, z))
             return z
 
     @I.ir_module
@@ -1729,7 +1729,7 @@ def test_view():
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
-        @R.function
+        @R.function(pure=False)
         def main() -> R.Tensor((128,), dtype="float32"):
             cls = Expected
             storage: R.Any = R.memory.alloc_storage(
@@ -1748,11 +1748,11 @@ def test_view():
             y: R.Tensor((128,), dtype="float32") = R.memory.alloc_tensor(
                 storage1, R.prim_value(0), R.shape([128]), R.dtype("float32")
             )
-            R.call_tir_packed(cls.tir_exp, (x2, y), pure=True)
+            R.call_tir_packed(cls.tir_exp, (x2, y))
             z: R.Tensor((128,), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([128]), R.dtype("float32"), R.prim_value(0), R.str("global")
             )
-            R.call_tir_packed(cls.tir_exp, (y, z), pure=True)
+            R.call_tir_packed(cls.tir_exp, (y, z))
             return z
 
     after = relax.transform.StaticPlanBlockMemory()(Before)
@@ -1850,7 +1850,9 @@ def test_with_dataflow():
                 alloc: R.Tensor((10,), dtype="float32") = R.builtin.alloc_tensor(
                     R.shape([10]), R.dtype("float32"), runtime_device_index=0
                 )
-                _: R.Tuple() = R.call_tir_packed(cls.exp, (x, alloc), pure=True)
+                _: R.Tuple() = R.call_pure_packed(
+                    tvm.ir.Op.get("relax.call_tir_packed"), cls.exp, (x, alloc)
+                )
                 gv: R.Tensor((10,), dtype="float32") = alloc
                 R.output(gv)
             return gv
@@ -1868,7 +1870,7 @@ def test_with_dataflow():
                 alloc: R.Tensor((10,), dtype="float32") = R.builtin.alloc_tensor(
                     R.shape([10]), R.dtype("float32"), R.prim_value(0), R.str("global")
                 )
-                R.call_tir_packed(cls.exp, (x, alloc), pure=True)
+                R.call_pure_packed(tvm.ir.Op.get("relax.call_tir_packed"), cls.exp, (x, alloc))
                 gv: R.Tensor((10,), dtype="float32") = alloc
                 R.output(gv)
             return gv

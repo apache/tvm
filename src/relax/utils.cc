@@ -25,7 +25,6 @@
 #include <tvm/ir/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/index.h>
-#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/utils.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -240,10 +239,6 @@ bool IsLeafOrTuple(const Expr& expr) {
 bool IsImpureCall(const Call& call) {
   if (auto op_ptr = call->op.as<OpNode>()) {
     auto op = ffi::GetRef<Op>(op_ptr);
-    if (op->name == "relax.call_tir_packed") {
-      const auto* attrs = call->attrs.as<CallTIRPackedAttrs>();
-      return !attrs || !attrs->is_pure;
-    }
     static auto purity_map = Op::GetAttrMap<bool>("FPurity");
     if (purity_map.count(op)) {
       return !(purity_map[op]);

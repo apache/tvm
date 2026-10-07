@@ -29,7 +29,6 @@
 #include <tvm/tirx/layout.h>
 
 #include "../transform/utils.h"
-#include "call_tir.h"
 #include "op_common.h"
 
 namespace tvm {
@@ -37,7 +36,6 @@ namespace relax {
 using namespace tvm::prim;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  CallTIRPackedAttrs::RegisterReflection();
   CallTIRWithGradAttrs::RegisterReflection();
   CallTIRInplaceAttrs::RegisterReflection();
   CallInplacePackedAttrs::RegisterReflection();
@@ -97,8 +95,14 @@ Type InferTypeCallPurePacked(const Call& call, const BlockBuilder& ctx) {
         << "call_pure_packed must be called with at least one argument";
   }
 
-  // the callee must be an opaque function
   auto callee = call->args[0];
+  if (callee.same_as(Op::Get("relax.call_tir_packed"))) {
+    Call inner = Call::Unchecked(Type::Missing(), callee,
+                                 ffi::Array<Expr>(call->args.begin() + 1, call->args.end()),
+                                 call->attrs, call->ty_args);
+    return Call::ReinferType(inner.get());
+  }
+  // Other callees must remain opaque packed functions.
   TVM_FFI_ICHECK(!callee.as<OpNode>()) << "call_pure_packed cannot be used with an op node";
   auto opt = MatchType<FuncType>(callee);
   TVM_FFI_ICHECK(opt) << "Callee must have a function type";
@@ -134,6 +138,28 @@ void ValidateCallPurePacked(const CallNode* call) {
                   TypeError)
         << "call_pure_packed has an invalid type argument";
   }
+  if (auto op = call->args[0].as<Op>()) {
+    TVM_FFI_CHECK(op.value().same_as(Op::Get("relax.call_tir_packed")), TypeError)
+        << "call_pure_packed only supports the explicit native bridge as an Op callee";
+    Call inner = Call::Unchecked(call->ty, op.value(),
+                                 ffi::Array<Expr>(call->args.begin() + 1, call->args.end()),
+                                 call->attrs, call->ty_args);
+    op.value().Validate(inner.get());
+  }
+}
+
+Expr NormalizeCallPurePacked(const BlockBuilder& ctx, Call call) {
+  if (call->args.empty() || !call->args[0].same_as(Op::Get("relax.call_tir_packed"))) return call;
+  Call inner(call->ty, call->args[0], ffi::Array<Expr>(call->args.begin() + 1, call->args.end()),
+             call->attrs, call->ty_args, call->span);
+  static const auto& normalizers = Op::GetAttrMap<FNormalize>("FNormalize");
+  inner = normalizers[inner->op.as_or_throw<Op>()](ctx, inner).as_or_throw<Call>();
+  for (size_t i = 0; i < inner->args.size(); ++i) {
+    if (!call->args[i + 1].same_as(inner->args[i])) {
+      call.CopyOnWrite()->args.Set(i + 1, inner->args[i]);
+    }
+  }
+  return call;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -146,6 +172,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::var_args("args"),
                  sig::var_ty_args("type_args", "Optional type arguments forwarded to the callee."))
       .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeCallPurePacked)
+      .set_attr<FNormalize>("FNormalize", NormalizeCallPurePacked)
+      .set_attr<bool>("RequiresArgumentShapes", false)
       .set_attr<bool>("FPurity", true);
 }
 
@@ -332,6 +360,12 @@ const tvm::FuncTypeNode* NativeTIRxSignature(const Expr& callee) {
   return signature;
 }
 
+FuncType TIRxToRelaxFuncType(const tvm::FuncType& type) {
+  return FuncType(
+      type->arg_types.Map([](const Type& arg) { return TIRxPackedValueType(arg, false); }),
+      TIRxPackedValueType(type->ret_type, true), false);
+}
+
 Tuple InlineTIRxArguments(const BlockBuilder& ctx, const Expr& argument) {
   if (auto tuple = argument.as<Tuple>()) return tuple.value();
   Expr value = argument;
@@ -452,8 +486,8 @@ void CheckFreshTIRxDestination(const tirx::TensorTypeNode* tensor) {
 void ValidateCallTIRPacked(const CallNode* call) {
   TVM_FFI_CHECK(call->args.size() == 2 && call->ty_args.empty(), TypeError)
       << "R.call_tir_packed expects a callee and an argument tuple, without type arguments";
-  TVM_FFI_CHECK(call->attrs.as<CallTIRPackedAttrs>(), TypeError)
-      << "R.call_tir_packed requires CallTIRPackedAttrs";
+  TVM_FFI_CHECK(!call->attrs.defined(), TypeError)
+      << "R.call_tir_packed does not accept attributes";
   const auto* native = NativeTIRxSignature(call->args[0]);
   const auto* arguments = call->args[1]->ty.as<TupleTypeNode>();
   TVM_FFI_CHECK(arguments, TypeError) << "R.call_tir_packed expects an argument tuple";
@@ -498,30 +532,15 @@ Expr NormalizeCallTIRPacked(const BlockBuilder& ctx, Call call) {
 }
 }  // namespace
 
-FuncType TIRxToRelaxFuncType(const tvm::FuncType& type) {
-  return FuncType(
-      type->arg_types.Map([](const Type& arg) { return TIRxPackedValueType(arg, false); }),
-      TIRxPackedValueType(type->ret_type, true), false);
-}
-
-Expr MakeCallTIRPacked(Expr func, Tuple args, bool is_pure) {
-  auto attrs = ffi::make_object<CallTIRPackedAttrs>();
-  attrs->is_pure = is_pure;
-  return Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir_packed"), {func, args},
-                         Attrs(attrs));
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.call_tir_packed")
       .set_validator(ffi::reflection::NativeFunctionView<void(
                          const CallNode*)>::FromNative<&ValidateCallTIRPacked>())
       .signature(sig::arg("func", "The native TIRx function."),
-                 sig::arg("args", "Every native argument, in parameter order."),
-                 sig::call_attrs<CallTIRPackedAttrs>())
+                 sig::arg("args", "Every native argument, in parameter order."))
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCallTIRPacked>())
       .set_attr<FNormalize>("FNormalize", NormalizeCallTIRPacked)
       .set_attr<bool>("FPurity", false);
-  ffi::reflection::GlobalDef().def("relax.op.call_tir_packed", MakeCallTIRPacked);
 }
 
 // call_tir

@@ -30,18 +30,6 @@
 namespace tvm {
 namespace relax {
 
-/*! \brief An explicit Relax-side purity promise for a native packed call. */
-struct CallTIRPackedAttrs : public AttrsNode {
-  bool is_pure = false;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<CallTIRPackedAttrs>().def_ro("is_pure", &CallTIRPackedAttrs::is_pure);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.CallTIRPackedAttrs", CallTIRPackedAttrs,
-                                    AttrsNode);
-};
-
 /*! \brief Attributes used in call_tir_with_grad */
 struct CallTIRWithGradAttrs : public AttrsNode {
   ffi::String te_grad_name;

@@ -38,8 +38,6 @@
 
 #include <unordered_set>
 
-#include "../../op/call_tir.h"
-
 namespace tvm {
 namespace relax {
 using namespace tvm::prim;
@@ -755,7 +753,9 @@ class VMShapeLowerMutator
           WithAttr<tirx::Function>(std::move(shape_func), tvm::tirx::attr::kIsHostFunc, true);
     }
     GlobalVar shape_func_var = builder_->AddFunction(shape_func, "shape_func");
-    builder_->Emit(MakeCallTIRPacked(shape_func_var, Tuple({shape_heap_})), "_");
+    builder_->Emit(Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir_packed"),
+                                   {shape_func_var, Tuple({shape_heap_})}),
+                   "_");
     return to_compute.size();
   }
   //-------------------------------------------------------
