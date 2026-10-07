@@ -21,7 +21,6 @@ import functools
 import inspect
 import threading
 from collections.abc import Callable
-from functools import partial
 from numbers import Integral
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -731,7 +730,7 @@ def decl_tensor(
     if strides is None:
         strides = []
     dtype = _normalize_prim_type(dtype)
-    decl_frame = _ffi_api.DeclTensor(  # type: ignore[attr-defined] # pylint: disable=no-member
+    buf = _ffi_api.DeclTensor(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
         "",
@@ -744,11 +743,6 @@ def decl_tensor(
         _get_layout(layout, shape, scope),
         allocated_addr,
     )
-    if isinstance(decl_frame, frame.DeclTensorFrame):
-        decl_frame.add_callback(partial(decl_frame.__exit__, None, None, None))
-        buf = decl_frame.__enter__()
-    else:
-        buf = decl_frame
     _record_meta_resource(buf, skip_frames=2)
     return buf
 

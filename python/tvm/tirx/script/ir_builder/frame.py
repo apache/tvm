@@ -84,13 +84,6 @@ class ThenFrame(TIRFrame): ...
 class ElseFrame(TIRFrame): ...
 
 
-@_register_object("script.ir_builder.tirx.DeclTensorFrame")
-class DeclTensorFrame(TIRFrame):
-    def __enter__(self) -> Var:
-        super().__enter__()
-        return self.buffer
-
-
 @_register_object("script.ir_builder.tirx.RegionFrame")
 class RegionFrame(TIRFrame):
     """A result-free region whose body parameters are lexical bindings."""
