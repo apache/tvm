@@ -310,7 +310,7 @@ class _TensorMethods:
 
         Returns
         -------
-        view : DeclTensorFrame
+        view : Var
             The corresponding view buffer.
         """
 
@@ -347,7 +347,7 @@ class _TensorMethods:
 
         Returns
         -------
-        local : DeclTensorFrame
+        local : Var
             The corresponding local buffer.
         """
         return _buffer_view.local(self, *shape, layout=layout)
@@ -362,7 +362,7 @@ class _TensorMethods:
 
         Returns
         -------
-        permuted : DeclTensorFrame
+        permuted : Var
             The buffer with permuted dimensions.
         """
         return _buffer_view.permute(self, *dims)
