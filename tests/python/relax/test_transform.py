@@ -181,7 +181,7 @@ def test_call_tir_rewrite():
     s2 = block.bindings[1].value
     assert s2.op.name == "relax.call_tir_packed"
     assert s2.args[0].name_hint == "exp"
-    assert not s2.attrs.is_pure
+    assert not s2.op.get_attr("FPurity")
 
 
 def test_call_tir_rewrite_with_interspersed_primitive_argument():
@@ -215,7 +215,7 @@ def test_call_tir_rewrite_with_interspersed_primitive_argument():
 
     assert call.op.name == "relax.call_tir_packed"
     assert call.args[0].name_hint == "scale_add"
-    assert not call.attrs.is_pure
+    assert not call.op.get_attr("FPurity")
     tvm.ir.assert_structural_equal(
         call.args[1].fields,
         [func.params[0], func.params[1], func.params[2], output_buffer],
