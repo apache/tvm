@@ -31,7 +31,6 @@ from tvm.target import Target
 
 from . import _ffi_api
 from .exec_scope import ExecScope
-from .expr import IterVar
 from .stmt import Stmt
 
 
@@ -47,7 +46,7 @@ class DispatchContext(Object, Scriptable):
     exec_scope : ExecScope
         The execution scope of the dispatch context.
 
-    launch_params : Dict[str, Expr]
+    launch_params : Dict[str, Tuple[Var, Expr]]
         The launch parameters of the dispatch context.
 
     var_range_map : Dict[Var, Range]
@@ -62,7 +61,7 @@ class DispatchContext(Object, Scriptable):
 
     target: Target
     exec_scope: ExecScope
-    launch_params: dict[str, IterVar]
+    launch_params: dict[str, tuple[Var, Expr]]
     var_range_map: dict[Var, Range]
     alloc_only: bool
     callbacks: dict[str, Object]
@@ -80,7 +79,7 @@ class DispatchContext(Object, Scriptable):
         self,
         target: Target,
         exec_scope: ExecScope,
-        launch_params: dict[str, IterVar],
+        launch_params: dict[str, tuple[Var, Expr]],
         var_range_map: dict[Var, Range],
         alloc_only: bool = False,
         callbacks: dict[str, Object] = {},

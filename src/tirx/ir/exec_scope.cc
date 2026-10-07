@@ -354,7 +354,7 @@ std::pair<PrimExpr, PrimExpr> GetThread(const std::string& tag, const LaunchPara
     TVM_FFI_ICHECK(allow_missing) << "Cannot find thread var: " << tag;
     return {0, 1};
   }
-  return {(*it).second->var, (*it).second->dom->extent};
+  return {(*it).second.get<0>(), (*it).second.get<1>()};
 }
 
 PrimExpr GetLinearThreadIndex(const LaunchParams& params) {

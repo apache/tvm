@@ -349,13 +349,13 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     // returned Vars are named or used. Downstream codegen consumes these launch regions.
     for (const auto& [tag, iv] : launch_params_) {
       if (tag == "warp_id_in_cta") continue;
-      PrimVar launch_var(iv->var->name, iv->dom->extent.ty());
+      PrimVar launch_var(iv.get<0>()->name, iv.get<1>().ty());
       res = SubstituteWithDataTypeLegalization(res, [&](const Var& var) -> ffi::Optional<PrimExpr> {
-        if (var.same_as(iv->var)) return launch_var;
+        if (var.same_as(iv.get<0>())) return launch_var;
         return std::nullopt;
       });
-      res = RegionStmt(tirx::builtin::launch_thread(), {StringImm(tag), iv->dom->extent},
-                       {launch_var}, DictAttrs(), res);
+      res = RegionStmt(tirx::builtin::launch_thread(), {StringImm(tag), iv.get<1>()}, {launch_var},
+                       DictAttrs(), res);
     }
 
     // Insert host init stmts outside the outermost thread binding or block.
@@ -641,8 +641,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       PrimExpr shuffled = ScopeIdResolve::ComputeWarpIdInCta(launch_params_);
       Var warp_id_in_cta_var("warp_id_in_cta", shuffled.ty());
       scope_binds->push_back({warp_id_in_cta_var, shuffled});
-      IterVar warp_iv(Range::FromMinExtent(0, 1), warp_id_in_cta_var.as_or_throw<PrimVar>(),
-                      kThreadIndex, "warp_id_in_cta");
+      ffi::Tuple<PrimVar, PrimExpr> warp_iv(warp_id_in_cta_var.as_or_throw<PrimVar>(),
+                                            IntImm(shuffled.ty(), 1));
       launch_params_.insert({"warp_id_in_cta", warp_iv});
     }
   }
@@ -693,7 +693,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     }
   }
 
-  // Translate the canonical ScopeBinding -> launch param IterVars
+  // Translate the canonical ScopeBinding -> launch parameter variable/extent pairs
   // (blockIdx.{x,y,z}, clusterCtaIdx.*, threadIdx.{x,y,z}, etc.).
   void ExtractKernelLaunchParams(const ScopeIdDefVerifier::ScopeIdSet& id_set) {
     auto add_launch_param = [&](ScopeBinding binding, const std::string& prefix) {
@@ -705,8 +705,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       TVM_FFI_ICHECK_LE(extents.size(), 3) << "ValueError: Only up to 3 extents are supported";
       for (size_t i = 0; i < extents.size(); i++) {
         std::string thread_tag = prefix + static_cast<char>('x' + i);
-        IterVar iv(Range::FromMinExtent(0, extents[i]), PrimVar(thread_tag),
-                   IterVarType::kThreadIndex, thread_tag);
+        ffi::Tuple<PrimVar, PrimExpr> iv(PrimVar(thread_tag, extents[i].ty()), extents[i]);
         launch_params_.insert({ffi::String(thread_tag), iv});
       }
     };
@@ -727,8 +726,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         const auto& pref = cta_def->preferred_extents.value();
         for (size_t i = 0; i < pref.size(); i++) {
           std::string tag = "preferredClusterCtaIdx." + std::string(1, 'x' + i);
-          IterVar iv(Range::FromMinExtent(0, pref[i]), PrimVar(tag), IterVarType::kThreadIndex,
-                     tag);
+          ffi::Tuple<PrimVar, PrimExpr> iv(PrimVar(tag, pref[i].ty()), pref[i]);
           launch_params_.insert({ffi::String(tag), iv});
         }
       }
@@ -750,7 +748,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       for (const char* k : keys) {
         auto it = launch_params_.find(ffi::String(k));
         if (it == launch_params_.end()) continue;
-        const auto* imm = it->second->dom->extent.as<IntImmNode>();
+        const auto* imm = it->second.get<1>().as<IntImmNode>();
         if (imm == nullptr) return 0;  // symbolic
         auto product = (n * imm->value).as<int64_t>();
         if (!product.has_value()) return 0;
@@ -763,7 +761,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       for (const auto& [thread_key, axis_name] : keys) {
         auto it = launch_params_.find(ffi::String(thread_key));
         if (it == launch_params_.end()) continue;
-        const auto* imm = it->second->dom->extent.as<IntImmNode>();
+        const auto* imm = it->second.get<1>().as<IntImmNode>();
         if (imm == nullptr) return std::vector<std::pair<std::string, int64_t>>();
         auto value = imm->value.as<int64_t>();
         if (!value.has_value()) return std::vector<std::pair<std::string, int64_t>>();
@@ -1479,7 +1477,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   // Grows as ScopeIdDefStmt nodes are visited.
   std::vector<std::vector<ScopeIdDef>> scope_id_defs_at_level_;
   std::vector<ExecContext> ctx_stack_;
-  std::unordered_map<ffi::String, IterVar> launch_params_;
+  std::unordered_map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>> launch_params_;
   std::vector<TensorVar> alloc_buffers_;
   std::vector<Stmt> device_init_stmts_;
   std::vector<Stmt> host_init_stmts_;

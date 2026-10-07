@@ -66,8 +66,8 @@ class DispatchContextNode : public ffi::Object {
   Target target;
   /*! \brief The exec scope of the operator */
   ExecScope exec_scope;
-  /*! \brief The kernel launch parameters. */
-  ffi::Map<ffi::String, IterVar> launch_params;
+  /*! \brief Hardware tag to (index variable, extent) launch parameters. */
+  ffi::Map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>> launch_params;
   /*! \brief A map from loop variables to their ranges. */
   ffi::Map<Var, Range> var_range_map;
   /*! \brief Whether the dispatch context is only used for buffer allocation. */
@@ -130,7 +130,7 @@ class DispatchContextNode : public ffi::Object {
 class DispatchContext : public ffi::ObjectRef {
  public:
   TVM_DLL DispatchContext(Target target, ExecScope exec_scope,
-                          ffi::Map<ffi::String, IterVar> launch_params = {},
+                          ffi::Map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>> launch_params = {},
                           ffi::Map<Var, Range> var_range_map = {}, bool alloc_only = false,
                           ffi::Map<ffi::String, ffi::ObjectRef> callbacks = {},
                           ffi::Map<ffi::String, ffi::ObjectRef> shared_state = {},

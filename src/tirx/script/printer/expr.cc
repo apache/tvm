@@ -20,7 +20,6 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
-#include <tvm/te/operation.h>
 #include <tvm/tirx/attrs.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/index_map.h>
@@ -96,51 +95,6 @@ bool CanTranslateExplicitResultCall(const CallNode* call) {
 }
 
 namespace {
-
-ffi::Optional<ExprDoc> IterVarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                           const ffi::Object*) {
-  const auto* iter =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::IterVarNode>(input);
-  CallDoc domain = d->Translate(iter->dom).value().as_or_throw<CallDoc>();
-  domain->callee = NamespaceDoc("tirx")->Attr("Range");
-  return NamespaceDoc("tirx")
-      ->Attr("iter_var")
-      ->Call({d->Translate(iter->var).value(), domain,
-              LiteralDoc::Str(tirx::IterVarType2String(iter->iter_type), std::nullopt),
-              LiteralDoc::Str(iter->thread_tag, std::nullopt)});
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::IterVarNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&IterVarDocTranslate>());
-}
-
-ffi::Optional<ExprDoc> CommReducerDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                               const ffi::Object*) {
-  const auto* reducer =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const te::CommReducerNode>(input);
-  TVM_FFI_CHECK(reducer->lhs.size() == reducer->rhs.size(), TypeError)
-      << "printer comm reducer arguments must be paired";
-  ffi::Array<IdDoc> args;
-  ffi::Array<ExprDoc> result;
-  {
-    for (const PrimVar& var : reducer->lhs) args.push_back(VarDoc(d, var));
-    for (const PrimVar& var : reducer->rhs) args.push_back(VarDoc(d, var));
-    for (const PrimExpr& value : reducer->result) result.push_back(d->Translate(value).value());
-  }
-  ffi::Array<ExprDoc> identity;
-  for (const PrimExpr& value : reducer->identity_element)
-    identity.push_back(d->Translate(value).value());
-  ExprDoc result_doc = result.size() == 1 ? result[0] : ExprDoc(TupleDoc(result));
-  return NamespaceDoc("tirx")
-      ->Attr("comm_reducer")
-      ->Call({LambdaDoc(args, result_doc), ListDoc(identity)});
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<te::CommReducerNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&CommReducerDocTranslate>());
-}
 
 ffi::Optional<ExprDoc> IndexMapDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                             const ffi::Object*) {
@@ -610,43 +564,7 @@ ffi::Optional<ExprDoc> TIRCallDocTranslate(DocTranslatorObj* d, const CallNode* 
   return std::nullopt;
 }
 
-namespace {
-
-ffi::Optional<ExprDoc> ReduceDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                          const ffi::Object*) {
-  const auto* node =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const te::ReduceNode>(input);
-  // Reduction axes bind the source and predicate. Their declarations must use
-  // the same identifiers as the IterVars, without becoming external captures.
-  for (const tirx::IterVar& axis : node->axis) {
-    d->VarGetOrAllocId(axis->var, false);
-    if (d->GetImplicitDefs().count(axis->var)) {
-      IdDoc id = VarDoc(d, axis->var);
-      ExprDoc value = NamespaceDoc("ir")->Attr("dynamic")->Call(
-          {LiteralDoc::Str(axis->var->name, std::nullopt)}, {"dtype"},
-          {LiteralDoc::DataType(axis->var.ty()->dtype, std::nullopt)});
-      d->Emit(AssignDoc(id, value, std::nullopt), axis->var);
-    }
-  }
-  ExprDoc combiner = AnyValue(d, node->combiner);
-  ExprDoc source = AnyValue(d, node->source);
-  ExprDoc axis = AnyValue(d, node->axis);
-  ExprDoc condition = d->Translate(node->condition).value();
-  ExprDoc value_index = LiteralDoc::Int(node->value_index, std::nullopt);
-  ExprDoc init = AnyValue(d, node->init);
-  d->RecordOrigin(source, node->source);
-  d->RecordOrigin(axis, node->axis);
-  d->RecordOrigin(init, node->init);
-  return NamespaceDoc("tirx")->Attr("Reduce")->Call(
-      {combiner, source, axis, condition, value_index, init});
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<te::ReduceNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&ReduceDocTranslate>());
-}
-
-}  // namespace
+namespace {}  // namespace
 
 }  // namespace details
 }  // namespace printer
