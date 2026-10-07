@@ -235,12 +235,12 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
                 op->span);
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     // The buffer and its indices must be flattened together by VisitBufferAccess.
     auto value = Mutate(op->value, inplace_mode);
     auto indices =
         Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
-    BufferStore store = ffi::GetRef<BufferStore>(op);
+    TensorStore store = ffi::GetRef<TensorStore>(op);
     if (!value.UnchangedOrSameAs(op->value) || !indices.UnchangedOrSameAs(op->indices)) {
       auto* n = store.CopyOnWrite();
       n->value = std::move(value).ValueOrUnchanged(op->value);

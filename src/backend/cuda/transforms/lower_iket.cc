@@ -386,7 +386,7 @@ class TokenBufferCollector : public StmtExprVisitor {
   bool changed{false};
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* store) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* store) final {
     bool is_token_value = false;
     if (const auto* call = store->value.as<CallNode>()) {
       is_token_value = IsTokenProducer(call);
@@ -421,7 +421,7 @@ class TokenDeclarationCollector : public StmtExprVisitor {
   bool changed{false};
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* store) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* store) final {
     std::set<DeclarationKey> possible;
     if (const auto* call = store->value.as<CallNode>(); call && IsTokenProducer(call)) {
       possible.insert(DeclarationKey{DeclarationKind::kRange, GetName(call)});
@@ -514,7 +514,7 @@ class TokenVerifier : public StmtExprVisitor {
   explicit TokenVerifier(const TokenBufferSet& token_buffers) : token_buffers_(token_buffers) {}
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* store) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* store) final {
     if (!token_buffers_.count(store->buffer.get())) {
       return StmtExprVisitor::Visit_(store);
     }
@@ -604,7 +604,7 @@ class StripIket : public StmtExprMutator {
     return StmtExprMutator::Mutate_(alloc, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* store, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* store, InplaceMode inplace_mode) final {
     if (token_buffers_.count(store->buffer.get())) return Evaluate(0);
     return StmtExprMutator::Mutate_(store, inplace_mode);
   }

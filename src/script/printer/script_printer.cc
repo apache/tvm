@@ -126,7 +126,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterScriptRepr<tirx::RegionStmtNode>();
   RegisterScriptRepr<tirx::BindNode>();
   RegisterScriptRepr<tirx::BreakNode>();
-  RegisterScriptRepr<tirx::BufferStoreNode>();
+  RegisterScriptRepr<tirx::TensorStoreNode>();
   RegisterScriptRepr<tirx::TensorTypeNode>();
   RegisterScriptRepr<tirx::ComposeLayoutNode>();
   RegisterScriptRepr<tirx::ContinueNode>();

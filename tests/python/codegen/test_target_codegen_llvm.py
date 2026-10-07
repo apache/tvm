@@ -1129,7 +1129,7 @@ def test_invalid_volatile_masked_decl_buffer_load():
             tvm.compile(Module)
 
 
-def test_invalid_volatile_masked_buffer_store():
+def test_invalid_volatile_masked_tensor_store():
     @I.ir_module
     class Module:
         @T.prim_func

@@ -237,7 +237,7 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   llvm::Value* Dispatch_(const prim::ShuffleNode* op) override;
   llvm::Value* Dispatch_(const prim::BroadcastNode* op) override;
   // stmt
-  void Dispatch_(const BufferStoreNode* op) override;
+  void Dispatch_(const TensorStoreNode* op) override;
   void Dispatch_(const ForNode* op) override;
   void Dispatch_(const WhileNode* op) override;
   void Dispatch_(const ReturnNode* op) override;
@@ -350,7 +350,7 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
    * number of lanes being accessed.
    *
    * \param value_dtype The datatype to be read from (TensorLoad) or
-   * written to (BufferStore) the buffer.
+   * written to (TensorStore) the buffer.
    *
    * \param make_instruction A callback function that generates that
    * actual call.

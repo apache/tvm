@@ -712,7 +712,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const prim::ShuffleNode* op) {
   return element;
 }
 
-void CodeGenSPIRV::Dispatch_(const BufferStoreNode* op) {
+void CodeGenSPIRV::Dispatch_(const TensorStoreNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
   Var buffer_var = op->buffer.var();
   PrimExpr prim_index = op->indices[0];

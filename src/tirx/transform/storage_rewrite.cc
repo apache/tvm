@@ -149,7 +149,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
@@ -352,8 +352,8 @@ class InplaceOpVerifier : public StmtExprVisitor {
       Visit_(static_cast<const IfThenElseNode*>(stmt));
     } else if (stmt->IsInstance<WhileNode>()) {
       Visit_(static_cast<const WhileNode*>(stmt));
-    } else if (stmt->IsInstance<BufferStoreNode>()) {
-      Visit_(static_cast<const BufferStoreNode*>(stmt));
+    } else if (stmt->IsInstance<TensorStoreNode>()) {
+      Visit_(static_cast<const TensorStoreNode*>(stmt));
     } else {
       return false;
     }
@@ -377,7 +377,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     ++mem_nest_;
     for (const auto& index : op->indices) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(index));
@@ -456,7 +456,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
   // it is not safe to inplace when there is nested load like A[B[i]]
   int mem_nest_{0};
   // The current store to be inspected
-  const BufferStoreNode* store_{nullptr};
+  const TensorStoreNode* store_{nullptr};
 };
 
 /* \brief Rewrite and merge memory allocation.
@@ -554,15 +554,15 @@ class StoragePlanRewriter : public StmtExprMutator {
     return remapped;
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     // Access remapping needs the original buffer to preserve its view and element offset.
     auto value = Mutate(op->value, inplace_mode);
     auto indices =
         Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
-    BufferStore node =
+    TensorStore node =
         value.UnchangedOrSameAs(op->value) && indices.UnchangedOrSameAs(op->indices)
-            ? ffi::GetRef<BufferStore>(op)
-            : BufferStore(op->buffer, std::move(value).ValueOrUnchanged(op->value),
+            ? ffi::GetRef<TensorStore>(op)
+            : TensorStore(op->buffer, std::move(value).ValueOrUnchanged(op->value),
                           std::move(indices).ValueOrUnchanged(op->indices), op->span);
     return VisitBufferAccess(std::move(node));
   }
@@ -623,7 +623,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                            .as_or_throw<Expr>());
         return Call(access->ty, op->op, args, op->attrs, op->ty_args, op->span);
       } else {
-        BufferStore access(buffer, value.value(), indices, op->span);
+        TensorStore access(buffer, value.value(), indices, op->span);
         access = VisitBufferAccess(std::move(access));
         ffi::Array<Expr> args{access->buffer.var(), access->value};
         for (const PrimExpr& index : access->indices) args.push_back(index);
@@ -1465,7 +1465,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     OnArrayAccess(op->value.ty(), op->buffer.get(), op->indices, /*is_buffer_load=*/false);
     return StmtExprVisitor::Visit_(op);
   }
@@ -1809,7 +1809,7 @@ class VectorTypeRewriter : public StmtExprMutator {
   }
 
   /*!
-   * \brief Mutator for TensorLoad or BufferStore.
+   * \brief Mutator for TensorLoad or TensorStore.
    * \return The rewritten node and the shuffle index. (Only for TensorLoad) When the shuffle index
    * is non-negative, the caller should generate Shuffle to extract the element from the vector.
    */
@@ -1912,7 +1912,7 @@ class VectorTypeRewriter : public StmtExprMutator {
                                            std::move(indices).ValueUnchecked(), op->span);
     auto [modified, shuffle_index] = VisitBufferAccess(node);
 
-    // Not needed for BufferStoreNode, so we can't just call
+    // Not needed for TensorStoreNode, so we can't just call
     // LegalizeDtype() in VisitBufferAccess.
     if (node.same_as(modified)) {
       return node;
@@ -1925,14 +1925,14 @@ class VectorTypeRewriter : public StmtExprMutator {
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     auto value = Mutate(op->value, inplace_mode);
     auto indices =
         Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
-    BufferStore node =
+    TensorStore node =
         value.UnchangedOrSameAs(op->value) && indices.UnchangedOrSameAs(op->indices)
-            ? ffi::GetRef<BufferStore>(op)
-            : BufferStore(op->buffer, std::move(value).ValueOrUnchanged(op->value),
+            ? ffi::GetRef<TensorStore>(op)
+            : TensorStore(op->buffer, std::move(value).ValueOrUnchanged(op->value),
                           std::move(indices).ValueOrUnchanged(op->indices), op->span);
     auto [modified, shuffle_index] = VisitBufferAccess(std::move(node));
     TVM_FFI_ICHECK(shuffle_index < 0);
@@ -1965,7 +1965,7 @@ class VectorTypeRewriter : public StmtExprMutator {
         indices.push_back(this->Mutate(op->args[i].as_or_throw<PrimExpr>())
                               .ValueOrUnchanged(op->args[i].as_or_throw<PrimExpr>()));
       }
-      BufferStore access(buffer, value, indices, op->span);
+      TensorStore access(buffer, value, indices, op->span);
       auto [modified, shuffle_index] = VisitBufferAccess(std::move(access));
       TVM_FFI_ICHECK_LT(shuffle_index, 0)
           << "A masked vector store cannot be rewritten into a scalar shuffle.";

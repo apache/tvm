@@ -351,7 +351,7 @@ std::string CodeGenTrainium::PrintIndices(const Array<PrimExpr>& indices) {
   return os.str();
 }
 
-void CodeGenTrainium::Dispatch_(const BufferStoreNode* op) {
+void CodeGenTrainium::Dispatch_(const TensorStoreNode* op) {
   LOG(FATAL) << "Trainium codegen does not support buffer store";
 }
 

@@ -210,7 +210,7 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
   void Dispatch_(const StringImmNode* op, std::ostream& os) override;         // NOLINT(*)
   // statment
   void Dispatch_(const BindNode* op) override;
-  void Dispatch_(const BufferStoreNode* op) override;
+  void Dispatch_(const TensorStoreNode* op) override;
   void Dispatch_(const ForNode* op) override;
   void Dispatch_(const WhileNode* op) override;
   void Dispatch_(const ReturnNode* op) override;

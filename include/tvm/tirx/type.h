@@ -74,7 +74,7 @@ class TensorTypeNode : public TypeNode {
   /*! \brief The type of the buffer prior to flattening
    *
    * This contains the shape as it is accessed by
-   * TensorLoad/BufferStore nodes, and used by the low-level code
+   * TensorLoad/TensorStore nodes, and used by the low-level code
    * generators.
    */
   ffi::Array<PrimExpr> shape;
