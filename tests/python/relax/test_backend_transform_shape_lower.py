@@ -16,6 +16,8 @@
 # under the License.
 # ruff: noqa: F841
 
+from __future__ import annotations
+
 import tvm.script
 import tvm.testing
 from tvm import relax
@@ -787,8 +789,8 @@ def test_lower_bundled_symbolic_shape():
         @R.function
         def main(
             x: R.Tensor((32,), "float32"),
-            extent: R.Prim("int64"),
-            weight: R.Tensor(("extent",), "float32"),
+            extent: T.int64,
+            weight: R.Tensor([extent], "float32"),  # noqa: F821
         ):
             R.func_attr({"num_input": 1, "relax.force_pure": True})
             return R.add(x, weight)
