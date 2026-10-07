@@ -44,7 +44,7 @@ def test_default_pipeline_allocations(pipeline):
     np.testing.assert_equal(b.numpy(), source + 1)
 
 
-def test_unify_thread_binding():
+def test_lower_thread_binding():
     @T.prim_func
     def before(A: T.Tensor((32,), "int32")):
         for bx in T.thread_binding(1, thread="blockIdx.x"):

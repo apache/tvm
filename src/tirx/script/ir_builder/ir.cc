@@ -112,9 +112,7 @@ Var Arg(ffi::String name, Var var) {
 }
 
 TensorVar Arg(ffi::String name, TensorVar buffer) {
-  PrimFuncFrame frame = FindPrimFuncFrame("T.Arg");
-  details::Namer::Name(buffer, name);
-  frame->args.push_back(buffer.var());
+  Arg(std::move(name), buffer.var());
   return buffer;
 }
 
@@ -650,9 +648,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.Arg",
            [](ffi::String name, ffi::ObjectRef obj) -> ffi::ObjectRef {
              using namespace tvm::tirx;
-             if (auto buffer = obj.as<TensorVar>()) {
-               return Arg(name, buffer.value());
-             }
              if (auto var = obj.as<Var>()) {
                return Arg(name, var.value());
              }

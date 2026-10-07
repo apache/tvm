@@ -25,8 +25,8 @@ from tvm.tirx.layout import Iter, TileLayout
 
 class BufferReplacer:
     """
-    Replace buffer with another buffer.
-    Var values are ordinary Vars, so the same mapping also rewrites
+    Replace tensor variables with other tensor variables.
+    Tensor variables are ordinary Vars, so the same mapping also rewrites
     ``buffer_data`` projections.
     """
 
