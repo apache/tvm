@@ -137,7 +137,7 @@ def _to_region(buffer: TensorRegion | Var):
 
 
 def _wrap_elem_in_tuple(e):
-    if isinstance(e, tuple | list):
+    if isinstance(e, tuple | list | tvm.ir.Array | tvm.ir.Tuple):
         return e
     return (e,)
 
@@ -184,57 +184,57 @@ def zero(
 def sqrt(
     dst: TensorRegion | Var,
     src: TensorRegion | Var | None = None,
-    bias: TensorRegion | Var | FloatImm | None = None,
-    scale: FloatImm | None = None,
     workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
 ):
-    """Sqrt all elements in src and store to dst.
-
-    dst = sqrt(src * scale + bias)  (if scale or bias are provided)
-
-    Parameters
-    ----------
-    dst : Union[TensorRegion, Var]
-        The destination buffer region for sqrt result.
-        When src is omitted, also used as the source (in-place).
-
-    src : Union[TensorRegion, Var], optional
-        The source buffer region. If omitted, dst is used (in-place).
-
-    bias : Optional[Union[TensorRegion, Var, FloatImm]]
-        The bias of the sqrt src. Only supported on Trn.
-
-    scale : Optional[FloatImm]
-        The scale of the sqrt src. Only supported on Trn.
-
-    workspace : Optional[Dict[str, Var]]
-        The workspace of the operator.
-    """
-    # Expression-form overload: ``sqrt(value)`` returns the underlying expression.
+    """Compute sqrt(src), using dst as the source when omitted."""
     from tvm import tirx as _tirx
 
+    if "scale" in kwargs or "bias" in kwargs:
+        raise TypeError("Use sqrt_with_scale_bias for scale and bias operands")
     if not _is_buffer_or_region(dst):
         return _tirx.sqrt(dst)
     if src is None:
         src = dst
-    if workspace is None:
-        workspace = {}
-    config = kwargs or {}
-    dst = _to_region(dst)
-    src = _to_region(src)
-    if bias is not None and is_tensor_var(bias):
-        bias = _to_region(bias)
     return f_insert(
         tirx_op.Sqrt(
-            dst,
-            src,
-            bias,
-            scale,
+            _to_region(dst),
+            _to_region(src),
             workspace=workspace,
-            config=config,
+            config=kwargs,
+            dispatch=dispatch,
+            scope=scope,
+        )
+    )
+
+
+@ScopedOp
+def sqrt_with_scale_bias(
+    dst: TensorRegion | Var,
+    src: TensorRegion | Var | None = None,
+    *,
+    scale: FloatImm,
+    bias: TensorRegion | Var | FloatImm,
+    workspace: dict[str, Var] | None = None,
+    dispatch: str | None = None,
+    scope: ExecScope | None = None,
+    **kwargs,
+):
+    """Compute sqrt(src * scale + bias), with both operands required."""
+    if src is None:
+        src = dst
+    if is_tensor_var(bias):
+        bias = _to_region(bias)
+    return f_insert(
+        tirx_op.SqrtWithScaleBias(
+            _to_region(dst),
+            _to_region(src),
+            scale,
+            bias,
+            workspace=workspace,
+            config=kwargs,
             dispatch=dispatch,
             scope=scope,
         )
@@ -531,10 +531,13 @@ def _check_copy_regions_match(dst, src, config, name, dispatch=None):
         dst_bits = _payload_bits(dst)
         src_bits = _payload_bits(src)
         gather4 = config.get("gather4")
-        if gather4 is not None:
+        if "gather4" in config:
             if dispatch != "tma_explicit":
                 raise ValueError("copy_async: gather4 is only supported by dispatch='tma_explicit'")
-            if not isinstance(gather4, list | tuple | tvm.ir.Array) or len(gather4) != 4:
+            if (
+                not isinstance(gather4, list | tuple | tvm.ir.Array | tvm.ir.Tuple)
+                or len(gather4) != 4
+            ):
                 raise ValueError("copy_async: gather4 must contain exactly four row coordinates")
             if len(src.region) != 2:
                 raise ValueError("copy_async: gather4 requires a rank-2 global source")
@@ -1163,55 +1166,57 @@ def minimum(
 def exp(
     dst: TensorRegion | Var,
     src: TensorRegion | Var | None = None,
-    bias: TensorRegion | Var | FloatImm | None = None,
-    scale: FloatImm | None = None,
     workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
 ):
-    """Exponentiate all elements in src and store to dst.
-
-    Parameters
-    ----------
-    dst : Union[TensorRegion, Var]
-        The destination buffer region for exp result.
-        When src is omitted, also used as the source (in-place).
-
-    src : Union[TensorRegion, Var], optional
-        The source buffer region. If omitted, dst is used (in-place).
-
-    bias : Optional[Union[TensorRegion, Var, FloatImm]]
-        The bias of the exp src. Only supported on Trn.
-
-    scale : Optional[FloatImm]
-        The scale of the exp src. Only supported on Trn.
-
-    workspace : Dict[str, Var]
-        The workspace of the operator.
-    """
-    # Expression-form overload: ``exp(value)`` returns the underlying expression.
+    """Compute exp(src), using dst as the source when omitted."""
     from tvm import tirx as _tirx
 
+    if "scale" in kwargs or "bias" in kwargs:
+        raise TypeError("Use exp_with_scale_bias for scale and bias operands")
     if not _is_buffer_or_region(dst):
         return _tirx.exp(dst)
     if src is None:
         src = dst
-    if workspace is None:
-        workspace = {}
-    config = kwargs or {}
-    dst = _to_region(dst)
-    src = _to_region(src)
-    if bias is not None and is_tensor_var(bias):
-        bias = _to_region(bias)
     return f_insert(
         tirx_op.Exp(
-            dst,
-            src,
-            bias,
-            scale,
+            _to_region(dst),
+            _to_region(src),
             workspace=workspace,
-            config=config,
+            config=kwargs,
+            dispatch=dispatch,
+            scope=scope,
+        )
+    )
+
+
+@ScopedOp
+def exp_with_scale_bias(
+    dst: TensorRegion | Var,
+    src: TensorRegion | Var | None = None,
+    *,
+    scale: FloatImm,
+    bias: TensorRegion | Var | FloatImm,
+    workspace: dict[str, Var] | None = None,
+    dispatch: str | None = None,
+    scope: ExecScope | None = None,
+    **kwargs,
+):
+    """Compute exp(src * scale + bias), with both operands required."""
+    if src is None:
+        src = dst
+    if is_tensor_var(bias):
+        bias = _to_region(bias)
+    return f_insert(
+        tirx_op.ExpWithScaleBias(
+            _to_region(dst),
+            _to_region(src),
+            scale,
+            bias,
+            workspace=workspace,
+            config=kwargs,
             dispatch=dispatch,
             scope=scope,
         )
@@ -1222,55 +1227,57 @@ def exp(
 def exp2(
     dst: TensorRegion | Var,
     src: TensorRegion | Var | None = None,
-    bias: TensorRegion | Var | FloatImm | None = None,
-    scale: FloatImm | None = None,
     workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
 ):
-    """Compute base-2 exponential (2^x) of all elements in src and store to dst.
-
-    Parameters
-    ----------
-    dst : Union[TensorRegion, Var]
-        The destination buffer region for exp2 result.
-        When src is omitted, also used as the source (in-place).
-
-    src : Union[TensorRegion, Var], optional
-        The source buffer region. If omitted, dst is used (in-place).
-
-    bias : Optional[Union[TensorRegion, Var, FloatImm]]
-        The bias of the exp2 src.
-
-    scale : Optional[FloatImm]
-        The scale of the exp2 src.
-
-    workspace : Dict[str, Var]
-        The workspace of the operator.
-    """
-    # Expression-form overload: ``exp2(value)`` returns the underlying expression.
+    """Compute exp2(src), using dst as the source when omitted."""
     from tvm import tirx as _tirx
 
+    if "scale" in kwargs or "bias" in kwargs:
+        raise TypeError("Use exp2_with_scale_bias for scale and bias operands")
     if not _is_buffer_or_region(dst):
         return _tirx.exp2(dst)
     if src is None:
         src = dst
-    if workspace is None:
-        workspace = {}
-    config = kwargs or {}
-    dst = _to_region(dst)
-    src = _to_region(src)
-    if bias is not None and is_tensor_var(bias):
-        bias = _to_region(bias)
     return f_insert(
         tirx_op.Exp2(
-            dst,
-            src,
-            bias,
-            scale,
+            _to_region(dst),
+            _to_region(src),
             workspace=workspace,
-            config=config,
+            config=kwargs,
+            dispatch=dispatch,
+            scope=scope,
+        )
+    )
+
+
+@ScopedOp
+def exp2_with_scale_bias(
+    dst: TensorRegion | Var,
+    src: TensorRegion | Var | None = None,
+    *,
+    scale: FloatImm,
+    bias: TensorRegion | Var | FloatImm,
+    workspace: dict[str, Var] | None = None,
+    dispatch: str | None = None,
+    scope: ExecScope | None = None,
+    **kwargs,
+):
+    """Compute exp2(src * scale + bias), with both operands required."""
+    if src is None:
+        src = dst
+    if is_tensor_var(bias):
+        bias = _to_region(bias)
+    return f_insert(
+        tirx_op.Exp2WithScaleBias(
+            _to_region(dst),
+            _to_region(src),
+            scale,
+            bias,
+            workspace=workspace,
+            config=kwargs,
             dispatch=dispatch,
             scope=scope,
         )
@@ -1281,36 +1288,57 @@ def exp2(
 def log2(
     dst: TensorRegion | Var,
     src: TensorRegion | Var | None = None,
-    bias: TensorRegion | Var | FloatImm | None = None,
-    scale: FloatImm | None = None,
     workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
 ):
-    """Compute base-2 logarithm of all elements in src and store to dst."""
-    # Expression-form overload: ``log2(value)`` returns the underlying expression.
+    """Compute log2(src), using dst as the source when omitted."""
     from tvm import tirx as _tirx
 
+    if "scale" in kwargs or "bias" in kwargs:
+        raise TypeError("Use log2_with_scale_bias for scale and bias operands")
     if not _is_buffer_or_region(dst):
         return _tirx.log2(dst)
     if src is None:
         src = dst
-    if workspace is None:
-        workspace = {}
-    config = kwargs or {}
-    dst = _to_region(dst)
-    src = _to_region(src)
-    if bias is not None and is_tensor_var(bias):
-        bias = _to_region(bias)
     return f_insert(
         tirx_op.Log2(
-            dst,
-            src,
-            bias,
-            scale,
+            _to_region(dst),
+            _to_region(src),
             workspace=workspace,
-            config=config,
+            config=kwargs,
+            dispatch=dispatch,
+            scope=scope,
+        )
+    )
+
+
+@ScopedOp
+def log2_with_scale_bias(
+    dst: TensorRegion | Var,
+    src: TensorRegion | Var | None = None,
+    *,
+    scale: FloatImm,
+    bias: TensorRegion | Var | FloatImm,
+    workspace: dict[str, Var] | None = None,
+    dispatch: str | None = None,
+    scope: ExecScope | None = None,
+    **kwargs,
+):
+    """Compute log2(src * scale + bias), with both operands required."""
+    if src is None:
+        src = dst
+    if is_tensor_var(bias):
+        bias = _to_region(bias)
+    return f_insert(
+        tirx_op.Log2WithScaleBias(
+            _to_region(dst),
+            _to_region(src),
+            scale,
+            bias,
+            workspace=workspace,
+            config=kwargs,
             dispatch=dispatch,
             scope=scope,
         )
@@ -1408,83 +1436,69 @@ def unary_reduce(
     unary_input: TensorRegion | Var,
     unary_op: str | Op,
     reduce_op: str | Op,
-    bias: TensorRegion | Var | FloatImm | None = None,
-    scale: FloatImm | None = None,
     reduce_axes: int | tuple[int] = -1,
     workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
 ):
-    """Combine a unary operation with a reduction operation.
-
-    Parameters
-    ----------
-    unary_output : Union[TensorRegion, Var]
-        The destination buffer region for unary operation result.
-
-    reduce_output : Union[TensorRegion, Var]
-        The destination buffer region for reduction result.
-
-    unary_input : Union[TensorRegion, Var]
-        The source input for unary operation.
-
-    unary_op : Union[str, Op]
-        The unary operation to perform.
-
-    reduce_op : Union[str, Op]
-        The reduction operation to perform.
-
-    bias : Optional[Union[TensorRegion, Var, FloatImm]]
-        The bias to apply before unary operation.
-
-    scale : Optional[FloatImm]
-        The scale to apply before unary operation.
-
-    reduce_axes : Union[int, Tuple[int]]
-        The axes to reduce over.
-
-    workspace : Dict[str, Var]
-        The workspace of the operator.
-
-    dispatch : str, optional
-        The dispatch implementation requested for this operator.
-
-    scope : ExecScope, optional
-        The execution scope for this operator.
-
-    **kwargs
-        Scheduler configuration passed as keyword arguments.
-    """
-    if workspace is None:
-        workspace = {}
-    unary_output = _to_region(unary_output)
-    reduce_output = _to_region(reduce_output)
-    unary_input = _to_region(unary_input)
-
-    if bias is not None and is_tensor_var(bias):
-        bias = _to_region(bias)
-
-    reduce_axes = _wrap_elem_in_tuple(reduce_axes)
-
+    """Write the unary output, then its reduction."""
+    if "scale" in kwargs or "bias" in kwargs:
+        raise TypeError("Use unary_reduce_with_scale_bias for scale and bias operands")
     if isinstance(unary_op, str):
         unary_op = tirx_op.get_tirx_op(unary_op)
     if isinstance(reduce_op, str):
         reduce_op = tirx_op.get_tirx_op(reduce_op)
-
-    config = kwargs or {}
     return f_insert(
         tirx_op.UnaryReduce(
-            unary_output,
-            reduce_output,
-            unary_input,
+            _to_region(unary_output),
+            _to_region(reduce_output),
+            _to_region(unary_input),
             unary_op,
             reduce_op,
-            bias,
-            scale,
-            reduce_axes,
+            _wrap_elem_in_tuple(reduce_axes),
             workspace=workspace,
-            config=config,
+            config=kwargs,
+            dispatch=dispatch,
+            scope=scope,
+        )
+    )
+
+
+@ScopedOp
+def unary_reduce_with_scale_bias(
+    unary_output: TensorRegion | Var,
+    reduce_output: TensorRegion | Var,
+    unary_input: TensorRegion | Var,
+    unary_op: str | Op,
+    reduce_op: str | Op,
+    scale: FloatImm,
+    bias: TensorRegion | Var | FloatImm,
+    reduce_axes: int | tuple[int] = -1,
+    workspace: dict[str, Var] | None = None,
+    dispatch: str | None = None,
+    scope: ExecScope | None = None,
+    **kwargs,
+):
+    """Write the unary output, then its reduction. Scale and bias apply before unary."""
+    if is_tensor_var(bias):
+        bias = _to_region(bias)
+    if isinstance(unary_op, str):
+        unary_op = tirx_op.get_tirx_op(unary_op)
+    if isinstance(reduce_op, str):
+        reduce_op = tirx_op.get_tirx_op(reduce_op)
+    return f_insert(
+        tirx_op.UnaryReduceWithScaleBias(
+            _to_region(unary_output),
+            _to_region(reduce_output),
+            _to_region(unary_input),
+            unary_op,
+            reduce_op,
+            scale,
+            bias,
+            _wrap_elem_in_tuple(reduce_axes),
+            workspace=workspace,
+            config=kwargs,
             dispatch=dispatch,
             scope=scope,
         )
@@ -1783,12 +1797,15 @@ __all__ = [
     "cta",
     "exp",
     "exp2",
+    "exp2_with_scale_bias",
+    "exp_with_scale_bias",
     "fdiv",
     "fill",
     "fma",
     "gemm",
     "gemm_async",
     "log2",
+    "log2_with_scale_bias",
     "max",
     "maximum",
     "memset",
@@ -1802,10 +1819,12 @@ __all__ = [
     "select",
     "silu",
     "sqrt",
+    "sqrt_with_scale_bias",
     "sub",
     "sum",
     "thread",
     "unary_reduce",
+    "unary_reduce_with_scale_bias",
     "warp",
     "warpgroup",
     "wg",

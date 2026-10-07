@@ -30,7 +30,7 @@ from tvm.ir import Call, DataTypeImm, DictAttrs, StringImm, TensorRegion, Tuple
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
-from tvm.tirx import PrimFunc
+from tvm.tirx import IntImm, PrimFunc
 from tvm.tirx import op as tirx_op
 from tvm.tirx.layout import (
     ComposeLayout,
@@ -279,12 +279,12 @@ def _get_explicit_mma_tile(config):
     values = []
     for name in ("mma_m", "mma_n"):
         value = config[name]
-        if isinstance(value, bool):
+        if isinstance(value, bool) or (isinstance(value, IntImm) and str(value.ty.dtype) == "bool"):
             raise ValueError(
                 f"gemm_async[tcgen05]: {name} must be a positive integer, got {value!r}"
             )
         try:
-            value = operator.index(value)
+            value = int(value) if isinstance(value, IntImm) else operator.index(value)
         except TypeError as err:
             raise ValueError(
                 f"gemm_async[tcgen05]: {name} must be a positive integer, got {value!r}"
@@ -466,6 +466,8 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     if is_block_scaled:
         SFA_buffer_region, SFB_buffer_region = op_call.sfa, op_call.sfb
         transA, transB, accum = op_call.transA, op_call.transB, op_call.accum
+        transA = bool(transA) if isinstance(transA, IntImm) else transA
+        transB = bool(transB) if isinstance(transB, IntImm) else transB
         SFA_buffer: tvm.ir.Var = SFA_buffer_region.source
         SFB_buffer: tvm.ir.Var = SFB_buffer_region.source
         SFA_scope, SFB_scope = SFA_buffer.scope(), SFB_buffer.scope()
@@ -499,8 +501,12 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         _validate_sf_tmem_layout(SFB_slice_layout, SFB_rows, SFB_K_total, sfb_sf_mma_k, "SFB")
     else:
         transA, transB, accum = op_call.transA, op_call.transB, op_call.accum
+        transA = bool(transA) if isinstance(transA, IntImm) else transA
+        transB = bool(transB) if isinstance(transB, IntImm) else transB
 
     cta_group = op_call.config.get("cta_group", 1)
+    if isinstance(cta_group, IntImm):
+        cta_group = cta_group.value
     assert cta_group in [1, 2], f"tcgen05 schedule expected cta_group=1 or 2, got {cta_group}"
     # descI (pre-encoded uint32 instruction descriptor): rejected on the dense
     # path (dispatcher encodes it); block-scaled callers may still pass it in.
@@ -950,7 +956,12 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     # Packed Layout-E C (M, 2, N//2) is uniquely the cta_group::1 M=64 .ws datapath
     # (PTX §9.7.16.10.5), so .ws is inferred; weight_stationary=False on it is rejected.
     if packed_n2 and not is_2x2:
-        if op_call.config.get("weight_stationary") is False:
+        explicit_ws = op_call.config.get("weight_stationary")
+        if (
+            isinstance(explicit_ws, IntImm)
+            and str(explicit_ws.ty.dtype) == "bool"
+            and not int(explicit_ws)
+        ):
             raise ValueError(
                 "gemm_async[tcgen05]: C uses the packed (M, 2, N//2):(1@TLane, "
                 "64@TLane, 1@TCol) Layout-E TMEM layout, which is the M=64 "
@@ -1208,6 +1219,8 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     # smem_desc modes: "hoist" (default, encode once after alloc), "local_hoist"
     # (encode at call site, reuse via add_16B_offset), "encode"/"recompute" (per MMA).
     smem_desc_mode = op_call.config.get("smem_desc", "hoist")
+    if isinstance(smem_desc_mode, tvm.ir.StringImm):
+        smem_desc_mode = smem_desc_mode.value
     local_hoist = smem_desc_mode == "local_hoist"
     encode_per_mma = smem_desc_mode == "encode"
     use_add = smem_desc_mode not in ("recompute", "encode")

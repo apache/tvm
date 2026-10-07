@@ -45,7 +45,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* Initialization operators */
 
 /* relax.full */
-Expr full(ffi::Variant<Expr, ffi::Array<PrimExpr>> shape, Expr fill_value,
+// Prefer shape arrays to the generic Expr conversion of sequences to tuples.
+Expr full(ffi::Variant<ffi::Array<PrimExpr>, Expr> shape, Expr fill_value,
           ffi::Optional<DLDataType> dtype) {
   Expr shape_in_expr = [&]() -> Expr {
     if (const auto* expr = shape.as<ExprNode>()) {

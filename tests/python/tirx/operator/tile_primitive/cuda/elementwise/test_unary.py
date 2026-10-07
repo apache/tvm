@@ -263,33 +263,33 @@ def test_unary_op_shared_with_bias_scale(input, op_type, bias_type, src_dtype, d
             T.cuda.cta_sync()
             if bias_type == "const":
                 if op_type == "sqrt":
-                    Tx.cta.sqrt(
+                    Tx.cta.sqrt_with_scale_bias(
                         A_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
-                        const_bias,
-                        scale,
+                        scale=scale,
+                        bias=const_bias,
                     )
                 elif op_type == "exp":
-                    Tx.cta.exp(
+                    Tx.cta.exp_with_scale_bias(
                         A_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
-                        const_bias,
-                        scale,
+                        scale=scale,
+                        bias=const_bias,
                     )
             elif bias_type == "region":
                 if op_type == "sqrt":
-                    Tx.cta.sqrt(
+                    Tx.cta.sqrt_with_scale_bias(
                         A_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
-                        bias_smem[tuple(map_slice_a)],
-                        scale,
+                        scale=scale,
+                        bias=bias_smem[tuple(map_slice_a)],
                     )
                 elif op_type == "exp":
-                    Tx.cta.exp(
+                    Tx.cta.exp_with_scale_bias(
                         A_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
-                        bias_smem[tuple(map_slice_a)],
-                        scale,
+                        scale=scale,
+                        bias=bias_smem[tuple(map_slice_a)],
                     )
             T.cuda.cta_sync()
             Tx.cta.copy(A[tuple(copy_slice)], A_smem[tuple(copy_slice)])
@@ -312,33 +312,33 @@ def test_unary_op_shared_with_bias_scale(input, op_type, bias_type, src_dtype, d
             T.cuda.cta_sync()
             if bias_type == "const":
                 if op_type == "sqrt":
-                    Tx.cta.sqrt(
+                    Tx.cta.sqrt_with_scale_bias(
                         B_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
-                        const_bias,
-                        scale,
+                        scale=scale,
+                        bias=const_bias,
                     )
                 elif op_type == "exp":
-                    Tx.cta.exp(
+                    Tx.cta.exp_with_scale_bias(
                         B_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
-                        const_bias,
-                        scale,
+                        scale=scale,
+                        bias=const_bias,
                     )
             elif bias_type == "region":
                 if op_type == "sqrt":
-                    Tx.cta.sqrt(
+                    Tx.cta.sqrt_with_scale_bias(
                         B_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
-                        bias_smem[tuple(map_slice_a)],
-                        scale,
+                        scale=scale,
+                        bias=bias_smem[tuple(map_slice_a)],
                     )
                 elif op_type == "exp":
-                    Tx.cta.exp(
+                    Tx.cta.exp_with_scale_bias(
                         B_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
-                        bias_smem[tuple(map_slice_a)],
-                        scale,
+                        scale=scale,
+                        bias=bias_smem[tuple(map_slice_a)],
                     )
             T.cuda.cta_sync()
             Tx.cta.copy(B[tuple(map_slice_res)], B_smem[tuple(map_slice_res)])
@@ -657,14 +657,14 @@ def test_unary_op_local_with_bias_scale(input, op_type, bias_type, src_dtype, ds
         bias_view = bias_local.view(*bias_shape, layout=acc_layout)
         if bias_type == "const":
             if op_type == "sqrt":
-                Tx.warp.sqrt(res_view, acc_view, const_bias, scale)
+                Tx.warp.sqrt_with_scale_bias(res_view, acc_view, scale=scale, bias=const_bias)
             elif op_type == "exp":
-                Tx.warp.exp(res_view, acc_view, const_bias, scale)
+                Tx.warp.exp_with_scale_bias(res_view, acc_view, scale=scale, bias=const_bias)
         elif bias_type == "region":
             if op_type == "sqrt":
-                Tx.warp.sqrt(res_view, acc_view, bias_view, scale)
+                Tx.warp.sqrt_with_scale_bias(res_view, acc_view, scale=scale, bias=bias_view)
             elif op_type == "exp":
-                Tx.warp.exp(res_view, acc_view, bias_view, scale)
+                Tx.warp.exp_with_scale_bias(res_view, acc_view, scale=scale, bias=bias_view)
 
             # write res into B
         for i in T.serial(NUM_COL // 8):

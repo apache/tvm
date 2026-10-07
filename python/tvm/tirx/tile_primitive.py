@@ -31,7 +31,7 @@ from tvm.target import Target
 
 from . import _ffi_api
 from .exec_scope import ExecScope
-from .expr import FloatImm, IterVar
+from .expr import IterVar
 from .stmt import Stmt
 
 
@@ -219,12 +219,6 @@ class DispatchContext(Object, Scriptable):
         return self.scope_kind == "cluster"
 
 
-def normalize_const_arg(arg) -> Expr:
-    if isinstance(arg, float):
-        return FloatImm("float32", arg)
-    return arg
-
-
 @tvm_ffi.register_object("tirx.TilePrimitiveCall")
 class TilePrimitiveCall(Stmt):
     """TilePrimitiveCall node.
@@ -240,8 +234,10 @@ class TilePrimitiveCall(Stmt):
     workspace : Map[str, Var]
         The workspace.
 
-    config : Map[str, ObjectRef]
-        The scheduler/config dictionary.
+    config : Map[str, Expr]
+        The scheduler/config dictionary. Omit unused keys; explicit None values
+        are invalid. max_inst_size=-1 means unbounded, while omission retains
+        the backend default. A present gather4 contains exactly four coordinates.
 
     dispatch : Optional[str]
         The explicit variant name to dispatch to.
@@ -252,7 +248,7 @@ class TilePrimitiveCall(Stmt):
 
     args: list[Expr]
     workspace: dict[str, Var]
-    config: dict[str, Any]
+    config: dict[str, Expr]
     dispatch: str | None
     scope: ExecScope
     _registry: ClassVar[dict[Op, type["TilePrimitiveCall"]]] = {}
@@ -277,7 +273,6 @@ class TilePrimitiveCall(Stmt):
                 "Directly instantiating TilePrimitiveCall needs to specify the op"
             )
             op = self.__class__.op
-        args = list(map(normalize_const_arg, args))
         self.__init_handle_by_constructor__(
             _ffi_api.TilePrimitiveCall,
             op,

@@ -21,13 +21,15 @@ from tvm.backend.trn.tile_primitive.common import init_analyzer, nki_dim
 from tvm.backend.trn.tile_primitive.dim_utils import get_ewise_dim_map
 from tvm.backend.trn.tile_primitive.instruction_generator import InstructionGenerator
 from tvm.script import tirx as T
-from tvm.tirx import FloatImm, Stmt, Var
+from tvm.tirx import FloatImm, IntImm, Stmt, Var
 from tvm.tirx.operator.tile_primitive.ops import (
     BinaryReduce,
     Copy,
+    Exp,
     Gemm,
     ReduceOp,
-    UnaryOpWithBiasScale,
+    Sqrt,
+    UnaryOpWithScaleBias,
     UnaryReduce,
 )
 from tvm.tirx.operator.tile_primitive.registry import f_op_dispatcher
@@ -48,19 +50,22 @@ def _scalar_dtype(scalar) -> str:
 def alloc_const_bias_trn(
     op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Any]:
-    bias = op.bias if op.bias is not None else FloatImm(op.dsts[0].source.ty.dtype, 0.0)
+    bias = getattr(op, "bias", FloatImm(op.dsts[0].source.ty.dtype, 0.0))
     if "const_bias" in op.workspace:
         return {}
     if not isinstance(bias, (FloatImm)):
         return {}
+    bias_key = ("const_bias", _scalar_dtype(bias), float(bias.value).hex())
     par_size = op.dsts[0].source.ty.layout.size("P")
     max_inst_size = op.config.get("max_inst_size", 512)
-    if ("const_bias", bias.value) in buffer_dict:
-        bias_buffer, bias_init_stmt = buffer_dict[("const_bias", bias.value)]
+    if isinstance(max_inst_size, int | IntImm) and int(max_inst_size) == -1:
+        raise ValueError("Constant bias workspace allocation requires a finite max_inst_size")
+    if bias_key in buffer_dict:
+        bias_buffer, bias_init_stmt = buffer_dict[bias_key]
         old_shape = bias_buffer.ty.shape
         new_shape = [max(par_size, old_shape[0]), max(max_inst_size, old_shape[1])]
         if new_shape[0] == old_shape[0] and new_shape[1] == old_shape[1]:
-            return {"const_bias": ("const_bias", bias.value)}
+            return {"const_bias": bias_key}
     else:
         new_shape = (par_size, max_inst_size)
     new_buffer = T.Var(
@@ -76,8 +81,8 @@ def alloc_const_bias_trn(
                     T.evaluate(T.nki.memset(new_buffer[p_loop, f_loop], bias))
         T.tvm_kernel_replace_point()
 
-    buffer_dict[("const_bias", bias.value)] = (new_buffer, const_bias_init.body)
-    return {"const_bias": ("const_bias", bias.value)}
+    buffer_dict[bias_key] = (new_buffer, const_bias_init.body)
+    return {"const_bias": bias_key}
 
 
 def alloc_partial_reduce_trn(
@@ -197,7 +202,9 @@ def alloc_unary_reduce_trn(
         return workspace_dict
 
 
-UnaryOpWithBiasScale.get_private_buffers_trn = alloc_const_bias_trn
+UnaryOpWithScaleBias.get_private_buffers_trn = alloc_const_bias_trn
+Sqrt.get_private_buffers_trn = alloc_const_bias_trn
+Exp.get_private_buffers_trn = alloc_const_bias_trn
 ReduceOp.get_private_buffers_trn = alloc_partial_reduce_trn
 Copy.get_private_buffers_trn = alloc_copy_trn
 Gemm.get_private_buffers_trn = alloc_acc_psum_trn

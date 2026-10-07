@@ -87,7 +87,7 @@ Expr permute_dims(Expr x, ffi::Optional<ffi::Array<int64_t>> axes);
  * It is required to be either an Array of PrimExpr, or a Shape in Relax
  * \return The reshaped result.
  */
-Expr reshape(Expr x, ffi::Variant<Expr, ffi::Array<PrimExpr>> shape);
+Expr reshape(Expr x, ffi::Variant<ffi::Array<PrimExpr>, Expr> shape);
 
 /*!
  * \brief Split input tensor along axis by sections or indices.
