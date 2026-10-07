@@ -62,7 +62,7 @@ class CodeGenTrainium final : public CodeGenC {
   void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const RegionStmtNode* op) final;                        // NOLINT(*)
   void Dispatch_(const ForNode* op) final;                               // NOLINT(*)
-  void Dispatch_(const BufferStoreNode* op) final;                       // NOLINT(*)=
+  void Dispatch_(const TensorStoreNode* op) final;                       // NOLINT(*)=
   void Dispatch_(const EvaluateNode* op) final;                          // NOLINT(*)
   std::string PrintIndices(const ffi::Array<PrimExpr>& indices);         // NOLINT(*)
   void Dispatch_(const TensorLoadNode* op, std::ostream& os) final;      // NOLINT(*)

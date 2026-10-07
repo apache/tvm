@@ -239,11 +239,11 @@ class AssertStmt : public Stmt {
  * \endcode
  * \sa MakeTensorLoad
  */
-class BufferStoreNode : public StmtNode {
+class TensorStoreNode : public StmtNode {
  public:
-  explicit BufferStoreNode(ffi::UnsafeInit tag) : buffer(tag), value(tag) {}
+  explicit TensorStoreNode(ffi::UnsafeInit tag) : buffer(tag), value(tag) {}
 
-  BufferStoreNode(TensorVar buffer, PrimExpr value)
+  TensorStoreNode(TensorVar buffer, PrimExpr value)
       : buffer(std::move(buffer)), value(std::move(value)) {}
 
   /*! \brief The buffer variable. */
@@ -255,27 +255,27 @@ class BufferStoreNode : public StmtNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BufferStoreNode>()
-        .def_ro("buffer", &BufferStoreNode::buffer)
-        .def_ro("value", &BufferStoreNode::value)
-        .def_ro("indices", &BufferStoreNode::indices);
+    refl::ObjectDef<TensorStoreNode>()
+        .def_ro("buffer", &TensorStoreNode::buffer)
+        .def_ro("value", &TensorStoreNode::value)
+        .def_ro("indices", &TensorStoreNode::indices);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferStore", BufferStoreNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.TensorStore", TensorStoreNode, StmtNode);
 };
 
 /*!
- * \brief Managed reference to BufferStoreNode.
- * \sa BufferStoreNode
+ * \brief Managed reference to TensorStoreNode.
+ * \sa TensorStoreNode
  */
-class BufferStore : public Stmt {
+class TensorStore : public Stmt {
  public:
-  TVM_DLL explicit BufferStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
+  TVM_DLL explicit TensorStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
                                Span span = Span());
 
-  explicit BufferStore(ffi::ObjectPtr<BufferStoreNode> node) : Stmt(std::move(node)) {}
+  explicit TensorStore(ffi::ObjectPtr<TensorStoreNode> node) : Stmt(std::move(node)) {}
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BufferStore, Stmt, BufferStoreNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferStoreNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorStore, Stmt, TensorStoreNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(TensorStoreNode);
 };
 
 /*!

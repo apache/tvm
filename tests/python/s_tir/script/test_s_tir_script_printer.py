@@ -2092,7 +2092,7 @@ def test_disable_concise_scoping_when_scope_annotated():
         y: T.int32 = x + 1
         T.evaluate(y - 1)
 
-    # Explicit scalar declarations lower to AllocTensor + BufferStore (local_scalar).
+    # Explicit scalar declarations lower to AllocTensor + TensorStore (local_scalar).
     # The printer fuses each pair into one line; annotate the allocation for y.
     result = _func.with_attr("global_symbol", "main").script(
         obj_to_annotate={

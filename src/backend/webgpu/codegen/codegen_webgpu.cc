@@ -116,7 +116,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     info_.write_access_set.insert(ResolveBuffer(op->buffer.var()));
 
@@ -705,7 +705,7 @@ void CodeGenWebGPU::Dispatch_(const BindNode* op) {
   }
 }
 
-void CodeGenWebGPU::Dispatch_(const BufferStoreNode* op) {
+void CodeGenWebGPU::Dispatch_(const TensorStoreNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Store to non-flat memory not supported.";
 
   PrimType value_ty = op->value.ty();

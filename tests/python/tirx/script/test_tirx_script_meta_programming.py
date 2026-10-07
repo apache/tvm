@@ -214,7 +214,7 @@ def test_scalar_assign_in_macro():
 
     The parser narrowed ``except Exception: pass`` around the scalar-detection
     path. This test verifies that Expr assignment to a scalar attribute in
-    a macro still goes through buffer_store correctly.
+    a macro still goes through tensor_store correctly.
 
     The full integration regression for the TypeError fallthrough path
     (meta_var assigned to a scalar variable) is covered by
@@ -227,7 +227,7 @@ def test_scalar_assign_in_macro():
 
         @T.inline
         def add_one(self):
-            # Expr assigned to scalar via self.attr → buffer_store succeeds
+            # Expr assigned to scalar via self.attr → tensor_store succeeds
             self.counter = self.counter + T.int32(1)
 
     @T.prim_func(private=True)

@@ -492,7 +492,7 @@ class BuiltinLower : public StmtExprMutator {
     // no need to perform any store for a scalar shape
     for (size_t i = 0; i < op->args.size(); ++i) {
       prep_seq.emplace_back(
-          BufferStore(scope.stack_shape.value(),
+          TensorStore(scope.stack_shape.value(),
                       prim::cast(PrimType::Int(64), op->args[i].as_or_throw<PrimExpr>()),
                       {ConstInt32(stack_begin + i)}));
     }

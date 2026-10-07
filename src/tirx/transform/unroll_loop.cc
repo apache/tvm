@@ -210,7 +210,7 @@ class LoopUnroller : public StmtExprMutator {
     return ffi::Unchanged();
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     ++step_count_;
     if (unroll_local_access_) {
       auto storage_scope = runtime::StorageScope::Create(op->buffer.scope());

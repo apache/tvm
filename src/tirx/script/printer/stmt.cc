@@ -348,7 +348,7 @@ ffi::Optional<ExprDoc> SeqStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
     if (i + 1 == stmt->seq.size()) continue;
     const auto* alloc = stmt->seq[i].as<tirx::BindNode>();
     const auto* allocation = alloc ? alloc->value.as<CallNode>() : nullptr;
-    const auto* store = stmt->seq[i + 1].as<tirx::BufferStoreNode>();
+    const auto* store = stmt->seq[i + 1].as<tirx::TensorStoreNode>();
     auto docs = d->CurrentScopeDocs();
     if (!allocation || !allocation->op.same_as(tirx::builtin::alloc_tensor()) || !store ||
         !alloc->var.same_as(store->buffer) || docs.empty())
@@ -373,7 +373,7 @@ ffi::Optional<ExprDoc> SeqStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
         // Preserve both statement origins using ordinary annotation/assignment
         // occurrences while retaining the value's more precise child origin.
         d->RecordOrigin(scalar.value()->annotation.value(), ffi::GetRef<tirx::Bind>(alloc));
-        d->RecordOrigin(scalar.value(), ffi::GetRef<tirx::BufferStore>(store));
+        d->RecordOrigin(scalar.value(), ffi::GetRef<tirx::TensorStore>(store));
         docs.pop_back();
       }
     }

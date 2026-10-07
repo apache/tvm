@@ -310,8 +310,8 @@ def test_stmt_constructor():
 
     buffer_var = tvm.tirx.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("bool")))
     buffer = tvm.tirx.decl_tensor([16], "bool", data=buffer_var)
-    x = tvm.tirx.BufferStore(buffer, tvm.tirx.IntImm("bool", 1), [10])
-    assert isinstance(x, tvm.tirx.BufferStore)
+    x = tvm.tirx.TensorStore(buffer, tvm.tirx.IntImm("bool", 1), [10])
+    assert isinstance(x, tvm.tirx.TensorStore)
     assert x.buffer == buffer
     assert x.buffer.data.args[0].same_as(buffer)
     assert x.buffer.data.ty == tvm.tirx.buffer_data_pointer_type(buffer)

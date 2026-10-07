@@ -214,12 +214,12 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     return flattened;
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     // Index conversion needs the original logical layout after the parent remaps the buffer.
     TensorVar logical_buffer = op->buffer;
-    BufferStore store = StmtExprMutator::Mutate_(op, inplace_mode)
+    TensorStore store = StmtExprMutator::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                            .as_or_throw<BufferStore>();
+                            .as_or_throw<TensorStore>();
     PrimType store_value_ty = op->value.ty();
     bool store_returns_bool = store_value_ty.MatchesCode(DLDataTypeCode::kDLBool);
     store = VisitBufferAccess(store, logical_buffer);
@@ -289,7 +289,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
         return res;
       }
       if (tile_layout && tile_layout->HasThreadAxis()) {
-        LOG(FATAL) << "Cannot lower direct TensorLoad/BufferStore on a buffer with thread-axis "
+        LOG(FATAL) << "Cannot lower direct TensorLoad/TensorStore on a buffer with thread-axis "
                    << "layout: unable to verify that the coordinate matches the current thread. "
                    << "Use .view() + .local() to decompose thread and memory axes.";
       }
@@ -302,7 +302,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     return {analyzer_->Simplify(flattened_indices[0])};
   }
 
-  BufferStore VisitBufferAccess(BufferStore node, const TensorVar& logical_buffer) {
+  TensorStore VisitBufferAccess(TensorStore node, const TensorVar& logical_buffer) {
     TVM_FFI_ICHECK(logical_buffer.defined());
     if (!logical_buffer->layout.has_value()) {
       return node;

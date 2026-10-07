@@ -151,11 +151,11 @@ def test_undefined_buffer():
     # AllocTensor is now a flat statement in SeqStmt
     assert f1.body.seq[0].var.data != f2.body.seq[0].var.data
 
-    def _get_buffer_store_buffer(f):
-        # SeqStmt: [AllocTensor, Evaluate, For]; For body has the BufferStore
+    def _get_tensor_store_buffer(f):
+        # SeqStmt: [AllocTensor, Evaluate, For]; For body has the TensorStore
         return f.body.seq[2].body.buffer
 
-    _check_buffer_decl(_get_buffer_store_buffer(f1), _get_buffer_store_buffer(f2))
+    _check_buffer_decl(_get_tensor_store_buffer(f1), _get_tensor_store_buffer(f2))
 
 
 def test_symbolic_func():

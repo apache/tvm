@@ -464,7 +464,7 @@ ElseFrame Else() {
   return ElseFrame(n);
 }
 
-tvm::tirx::Stmt BufferStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices) {
+tvm::tirx::Stmt TensorStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices) {
   PrimType buffer_dtype = buffer->dtype;
   PrimType index_ty = indices.empty() ? PrimType::Int(32) : indices.back().ty();
   bool is_index_scalable = !indices.empty() && index_ty.IsScalableVector();
@@ -506,13 +506,13 @@ tvm::tirx::Stmt BufferStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExp
     }
 
     if (!lanes_match) {
-      TVM_FFI_THROW(InternalError) << "TypeError: Incompatible types in BufferStore"
+      TVM_FFI_THROW(InternalError) << "TypeError: Incompatible types in TensorStore"
                                    << ": LHS is `" << lhs_dtype << "`, RHS is `" << rhs_dtype
                                    << "`, indexing lanes: " << index_lanes;
     }
     value = tvm::prim::cast(lhs_dtype, value);
   }
-  tvm::tirx::Stmt store = tvm::tirx::BufferStore(buffer, value, indices);
+  tvm::tirx::Stmt store = tvm::tirx::TensorStore(buffer, value, indices);
   if (lhs_dtype != rhs_dtype) {
     if (lhs_dtype.code() != rhs_dtype.code()) {
       if ((lhs_dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) &&
@@ -522,10 +522,10 @@ tvm::tirx::Stmt BufferStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExp
         if (ffi::Optional<PrimFuncFrame> frame = IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
           kernel_name = frame.value()->name.value_or("<anonymous>");
         }
-        LOG(WARNING) << "Casting in BufferStore may lose precision"
+        LOG(WARNING) << "Casting in TensorStore may lose precision"
                      << ": LHS is `" << lhs_dtype << "`, RHS is `" << rhs_dtype
                      << "`, indexing lanes: " << index_lanes << ", kernel: `" << kernel_name << "`"
-                     << "\nBufferStore:\n"
+                     << "\nTensorStore:\n"
                      << store;
       }
     }
@@ -697,7 +697,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.Else", Else)
       .def("script.ir_builder.tirx.DeclTensor", DeclTensor)
       .def("script.ir_builder.tirx.Region", Region)
-      .def("script.ir_builder.tirx.BufferStore", BufferStore)
+      .def("script.ir_builder.tirx.TensorStore", TensorStore)
       .def("script.ir_builder.tirx.Evaluate", Evaluate)
       .def("script.ir_builder.tirx.Ptr", Ptr);
 }

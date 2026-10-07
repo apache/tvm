@@ -372,7 +372,7 @@ class ComputeLegalizer : public StmtExprMutator {
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     auto value_result = this->Mutate(op->value, inplace_mode);
     bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
     PrimExpr value = std::move(value_result).ValueOrUnchanged(op->value);
@@ -394,7 +394,7 @@ class ComputeLegalizer : public StmtExprMutator {
         TVM_FFI_ICHECK(MatchType(value.ty()));
         value = DTypeConversion(value, storage_dtype);
       }
-      return BufferStore(new_buf, value, indices);
+      return TensorStore(new_buf, value, indices);
     }
   }
 
@@ -565,7 +565,7 @@ class StorageLegalizer : public StmtExprMutator {
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     PrimExpr value =
         this->ChangeToUInt(Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value));
     TensorVar new_buf = GetRemappedBuffer(op->buffer);
@@ -578,7 +578,7 @@ class StorageLegalizer : public StmtExprMutator {
       if (MatchType(op->value.ty())) {
         TVM_FFI_ICHECK(new_buf->dtype.MatchesCode(DLDataTypeCode::kDLUInt));
       }
-      return BufferStore(new_buf, value, indices);
+      return TensorStore(new_buf, value, indices);
     }
   }
 

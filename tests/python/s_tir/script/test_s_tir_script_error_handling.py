@@ -239,7 +239,7 @@ def test_buffer_rebinding_preserves_distinct_allocations():
     first, second = block.alloc_buffers
     assert not first.same_as(second)
     store = block.body
-    assert isinstance(store, tirx.BufferStore)
+    assert isinstance(store, tirx.TensorStore)
     assert store.buffer.same_as(second)
     assert store.value.a.source.same_as(second)
 

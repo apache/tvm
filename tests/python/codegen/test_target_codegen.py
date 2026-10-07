@@ -23,7 +23,7 @@ import tvm.testing
 from tvm.script import tirx as T
 
 
-def test_buffer_store_predicate_not_supported():
+def test_tensor_store_predicate_not_supported():
     target = "c"
 
     @T.prim_func
@@ -55,7 +55,7 @@ def test_buffer_store_predicate_not_supported():
         pytest.param({"kind": "vulkan", "from_device": 0}, marks=pytest.mark.gpu),
     ],
 )
-def test_buffer_store_predicate_not_supported_gpu(target):
+def test_tensor_store_predicate_not_supported_gpu(target):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 

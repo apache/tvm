@@ -247,7 +247,7 @@ def test_vulkan_constant_passing(vulkan_parameter_impl, vulkan_parameter_dtype):
                         v_i = i_0 * 64 + i_1
                         with T_builder.if_(v_i < n_var):
                             with T_builder.then_():
-                                T_builder.buffer_store(B, scalar_sum + A[v_i], [v_i])
+                                T_builder.tensor_store(B, scalar_sum + A[v_i], [v_i])
     mod = ib.get()
     f_add = tvm.compile(mod, target=target)
 
