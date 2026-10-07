@@ -50,12 +50,12 @@ class CodeGenCUDA final : public CodeGenC {
     });
   }
   // override behavior
-  void DeclareFunction(const GlobalVar& gvar, const PrimFunc& func) final;
-  void AddFunction(const GlobalVar& gvar, const PrimFunc& func) final;
-  void InitFuncState(const PrimFunc& func) final;
-  void PrintFunctionSignature(const ffi::String& function_name, const PrimFunc& func,
+  void DeclareFunction(const GlobalVar& gvar, const Function& func) final;
+  void AddFunction(const GlobalVar& gvar, const Function& func) final;
+  void InitFuncState(const Function& func) final;
+  void PrintFunctionSignature(const ffi::String& function_name, const Function& func,
                               std::ostream& os) final;
-  void PrintExtraAttrs(const PrimFunc& f, std::ostream& os) final;  // NOLINT(*)
+  void PrintExtraAttrs(const Function& f, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const ForNode* op) final;
   void Dispatch_(const WhileNode* op) final;
   void PrintStorageSync(const CallNode* op) final;
@@ -94,7 +94,7 @@ class CodeGenCUDA final : public CodeGenC {
                        bool skip_first_arg, std::ostream& os) final;  // NOLINT(*)
 
  private:
-  void PrintFunctionPrefix(const PrimFunc& func, std::ostream& os);
+  void PrintFunctionPrefix(const Function& func, std::ostream& os);
   std::array<PrimExpr, 6> launch_dimensions_{IntImm::Int32(1), IntImm::Int32(1), IntImm::Int32(1),
                                              IntImm::Int32(1), IntImm::Int32(1), IntImm::Int32(1)};
   std::optional<int64_t> min_blocks_per_sm_;

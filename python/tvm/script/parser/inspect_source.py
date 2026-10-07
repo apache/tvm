@@ -328,7 +328,7 @@ def require_definition_site(
         for target in [item.func if isinstance(item, ast.Call) else item]
     ):
         raise SyntaxError(
-            "Use a qualified construction decorator such as @T.prim_func; "
+            "Use a qualified construction decorator such as @T.function; "
             "bare and preconfigured decorator aliases are unsupported"
         )
 

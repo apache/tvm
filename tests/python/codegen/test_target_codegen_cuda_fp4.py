@@ -43,7 +43,7 @@ def test_e2m1_vector_conversions(promoted_dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((vector_length,), native_dtype),
             B: T.Tensor((vector_length,), native_dtype),
@@ -112,7 +112,7 @@ def test_e2m1_vector_conversions(promoted_dtype):
 def _shuffle_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storage):
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((n // num_elem_per_storage,), "uint32"),
             B: T.Tensor((n,), "float16"),
@@ -160,7 +160,7 @@ def _shuffle_reinterpret_module(n, num_blocks, vector_length, num_elem_per_stora
 def _scalar_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storage):
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((n // num_elem_per_storage,), "uint32"),
             B: T.Tensor((n,), "float16"),
@@ -231,7 +231,7 @@ def test_e2m1_scalar_buffer_offset():
     """
     n = 128
 
-    @T.prim_func
+    @T.function
     def func(A_raw: T.Tensor((n // 2,), "uint8"), B: T.Tensor((n,), "float16")):
         T.func_attr({"tir.noalias": True})
         A = T.decl_tensor((n,), "float4_e2m1fn", data=A_raw.data)

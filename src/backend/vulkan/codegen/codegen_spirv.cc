@@ -74,7 +74,7 @@ const VarNode* AsBufferVarNode(const Expr& expr) {
 
 CodeGenSPIRV::CodeGenSPIRV(Target target) : spirv_support_(target) {}
 
-runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::string& name) {
+runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const Function& f, const std::string& name) {
   TVM_FFI_CHECK(f->body.has_value(), ValueError)
       << "Kernel code generation requires a function body";
   this->InitFuncState();

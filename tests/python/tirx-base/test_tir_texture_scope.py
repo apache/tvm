@@ -20,7 +20,7 @@ from tvm.script import tirx as T
 
 
 def test_texture_scope():
-    @T.prim_func
+    @T.function
     def texture_kernel(
         a: T.handle("float32", "global.texture"),
         c: T.handle("float32", "global.texture"),

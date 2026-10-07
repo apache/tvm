@@ -18,7 +18,7 @@
 """Implementation of unary with bias and scale operator dispatches."""
 
 from tvm.ir import TensorRegion
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import MapOpType
 from tvm.tirx.tile_primitive import TilePrimitiveCall
@@ -31,7 +31,7 @@ from .utils import activation_map_ops, generate_unary_func, try_find_inst_unary
 
 def unary_with_bias_scale_trn(
     op: TilePrimitiveCall, unary_op: MapOpType = MapOpType.SQRT, sctx: DispatchContext = None
-) -> PrimFunc | None:
+) -> Function | None:
     """Schedule unary operation with bias and scale on Trainium."""
     # Check execution environment
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):

@@ -68,7 +68,7 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
 
         if scope == "warpgroup":
 
-            @T.prim_func
+            @T.function
             def kernel(B: T.Tensor(shape, dtype)) -> None:
                 T.device_entry()
                 T.cta_id([1])
@@ -93,7 +93,7 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
 
         elif scope == "warp":
 
-            @T.prim_func
+            @T.function
             def kernel(B: T.Tensor(shape, dtype)) -> None:
                 T.device_entry()
                 T.cta_id([1])
@@ -115,7 +115,7 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
 
         elif scope == "cta":
 
-            @T.prim_func
+            @T.function
             def kernel(B: T.Tensor(shape, dtype)) -> None:
                 T.device_entry()
                 T.cta_id([1])
@@ -141,7 +141,7 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
     if non_r_scope == "global":
         if scope == "warpgroup":
 
-            @T.prim_func
+            @T.function
             def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
                 T.device_entry()
                 T.cta_id([1])
@@ -165,7 +165,7 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
 
         elif scope == "warp":
 
-            @T.prim_func
+            @T.function
             def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
                 T.device_entry()
                 T.cta_id([1])
@@ -186,7 +186,7 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
 
         elif scope == "cta":
 
-            @T.prim_func
+            @T.function
             def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
                 T.device_entry()
                 T.cta_id([1])
@@ -276,7 +276,7 @@ def test_reg_roundtrip_gapped_permuted_storage():
     assert [int(storage.apply(i, shape=[4])["m"]) for i in range(4)] == [0, 4, 2, 6]
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def kernel(A: T.Tensor(shape, 'float32'), B: T.Tensor(shape, 'float32')) -> None:
 
         T.device_entry()
@@ -343,7 +343,7 @@ def test_copy_g2l_l2g_vec_load(task, dtype):
     r_lmem = tuple(slice(None) for _ in range(len(l_shape)))
     r_gmem = tuple(slice(g_region[i][0], g_region[i][1]) for i in range(len(g_shape)))
 
-    @T.prim_func
+    @T.function
     def copy_sync(
         A: T.Tensor(g_shape, dtype, layout=layoutA), B: T.Tensor(g_shape, dtype, layout=layoutB)
     ) -> None:
@@ -380,7 +380,7 @@ def test_copy_g2l_l2g_vec_load(task, dtype):
 # copy vectorizes to 4x 128b either way, but cache="nc" must emit ld.global.nc.
 
 
-@T.prim_func
+@T.function
 def _nc_strided_reg_copy(src: T.Tensor((1024,), "int32")) -> None:
     T.device_entry()
     T.thread_id([128])
@@ -395,7 +395,7 @@ def _nc_strided_reg_copy(src: T.Tensor((1024,), "int32")) -> None:
                 T.evaluate(dst[i, j])
 
 
-@T.prim_func
+@T.function
 def _plain_strided_reg_copy(src: T.Tensor((1024,), "int32")) -> None:
     T.device_entry()
     T.thread_id([128])
@@ -442,7 +442,7 @@ def test_reg_copy_linear_shared_hoists_thread_base():
     shape = (n_threads, width)
     linear_layout = TileLayout(S[shape])
 
-    @T.prim_func
+    @T.function
     def kernel(A: T.Tensor(shape, "float16", layout=linear_layout)) -> None:
         T.device_entry()
         T.cta_id([1])
@@ -497,7 +497,7 @@ def test_reg_copy_wg_local_to_swizzled_shared_uses_structured_compose_apply():
     # 128b swizzle on the SMEM side (per_element=3 ⇒ 8 fp16 atom width).
     smem_layout = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
 
-    @T.prim_func
+    @T.function
     def kernel(
         A: T.Tensor(g_shape, "float16", layout=g_layout),
         B: T.Tensor(g_shape, "float16", layout=g_layout),
@@ -553,7 +553,7 @@ def test_reg_copy_wg_local_to_swizzled_shared_uses_structured_compose_apply():
 def test_ptx_st_from_src_f32_vector_preserves_values():
     """A vector store of f32 registers must preserve the values."""
 
-    @T.prim_func
+    @T.function
     def kernel(B: T.Tensor((4,), "float32")) -> None:
         T.device_entry()
         T.cta_id([1])
@@ -585,7 +585,7 @@ def test_ptx_st_from_src_f32_vector_preserves_values():
 
 
 def test_copy_fallback_handles_scalar_regions():
-    @T.prim_func
+    @T.function
     def kernel(B: T.Tensor((1,), "float32")) -> None:
         T.device_entry()
         T.cta_id([1])
@@ -617,7 +617,7 @@ def test_copy_fallback_handles_scalar_regions():
     ],
 )
 def test_copy_forced_vec_width_codegen(variant, dtype, n_elements, expected_st, expected_ld):
-    @T.prim_func
+    @T.function
     def kernel(B: T.Tensor((n_elements,), dtype)) -> None:
         T.device_entry()
         T.cta_id([1])
@@ -656,7 +656,7 @@ def test_copy_forced_vec_dynamic_swizzled_shared_uses_vector_ptx():
 
     smem_layout = ComposeLayout(2, 3, 3, TileLayout(S[(64, 8, 32) : (32, 2048, 1)]))
 
-    @T.prim_func
+    @T.function
     def kernel(B: T.Tensor((128, 4), "float32")) -> None:
         T.device_entry()
         T.cta_id([1])
@@ -694,7 +694,7 @@ def test_copy_forced_vec_dynamic_swizzled_shared_uses_vector_ptx():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_copy_explicit_vec_auto_uses_auto_family():
-    @T.prim_func
+    @T.function
     def kernel(B: T.Tensor((4,), "float32")) -> None:
         T.device_entry()
         T.cta_id([1])
@@ -725,7 +725,7 @@ def test_copy_explicit_vec_auto_uses_auto_family():
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize("dispatch", ["reg", "gmem_smem"])
 def test_copy_old_dispatch_names_are_not_registered(dispatch):
-    @T.prim_func
+    @T.function
     def kernel(B: T.Tensor((4,), "float32")) -> None:
         T.device_entry()
         T.cta_id([1])
@@ -745,7 +745,7 @@ def test_copy_old_dispatch_names_are_not_registered(dispatch):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_copy_forced_vec_rejects_size_mismatch():
-    @T.prim_func
+    @T.function
     def kernel(B: T.Tensor((4,), "float32")) -> None:
         T.device_entry()
         T.cta_id([1])
@@ -765,7 +765,7 @@ def test_copy_forced_vec_rejects_size_mismatch():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_copy_forced_vec_rejects_non_thread_scope():
-    @T.prim_func
+    @T.function
     def kernel(B: T.Tensor((4,), "float32")) -> None:
         T.device_entry()
         T.cta_id([1])
@@ -961,7 +961,7 @@ def _build_tcgen05_d_epilogue_deposit():
     reg_layout = tcgen05_atom_layout(_TCGEN05_D_ATOM, (m, n), _TCGEN05_D_DTYPE)
     sl_m, sl_n = _TCGEN05_D_SLICE
 
-    @T.prim_func
+    @T.function
     def deposit(
         d_reg: T.Tensor((m, n), _TCGEN05_D_DTYPE, scope="local", layout=reg_layout),
     ) -> None:
@@ -1072,7 +1072,7 @@ def _build_tcgen05_d_epilogue_deposit_roundtrip():
     reg_layout = tcgen05_atom_layout(_TCGEN05_D_ATOM, (m, n), _TCGEN05_D_DTYPE)
     sl_m, sl_n = _TCGEN05_D_SLICE
 
-    @T.prim_func
+    @T.function
     def kernel(
         A: T.Tensor((m, n), _TCGEN05_D_DTYPE), B: T.Tensor((m, n), _TCGEN05_D_DTYPE)
     ) -> None:

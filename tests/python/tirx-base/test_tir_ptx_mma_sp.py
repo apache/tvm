@@ -42,7 +42,7 @@ def get_dense_mat_by_mask(val, mask):
     return ret.reshape(m, n_chunks * 4)
 
 
-@T.prim_func
+@T.function
 def mma_sp_m16n8k16_f16f16f16(
     A: T.Tensor([16, 8], dtype="float16"),
     B: T.Tensor([16, 8], dtype="float16"),
@@ -89,7 +89,7 @@ def mma_sp_m16n8k16_f16f16f16(
         C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
-@T.prim_func
+@T.function
 def mma_sp_m16n8k16_f16f16f32(
     A: T.Tensor([16, 8], dtype="float16"),
     B: T.Tensor([16, 8], dtype="float16"),
@@ -139,7 +139,7 @@ def mma_sp_m16n8k16_f16f16f32(
         C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
-@T.prim_func
+@T.function
 def mma_sp_m16n8k32_f16f16f16(
     A: T.Tensor([16, 16], dtype="float16"),
     B: T.Tensor([32, 8], dtype="float16"),
@@ -190,7 +190,7 @@ def mma_sp_m16n8k32_f16f16f16(
         C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
-@T.prim_func
+@T.function
 def mma_sp_m16n8k32_f16f16f32(
     A: T.Tensor([16, 16], dtype="float16"),
     B: T.Tensor([32, 8], dtype="float16"),

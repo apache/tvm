@@ -52,7 +52,7 @@ def test_scalar_add():
         rhs = tirx.Cast(rhs_type, rhs_input)
         output = lhs + rhs
         output = tirx.Return(output)
-        func = tirx.PrimFunc([lhs_input, rhs_input], output)
+        func = tirx.Function([lhs_input, rhs_input], output)
         func = build_tir_func(func)
         out = func(1.0, 2.0)
         assert out == 3.0
@@ -95,7 +95,7 @@ def test_cast_between_types():
 def test_return_const():
     a = tirx.const(0)
     b = tirx.Return(a)
-    func = tirx.PrimFunc([], b)
+    func = tirx.Function([], b)
     func = build_tir_func(func)
     out = func()
     assert out == 0
@@ -149,7 +149,7 @@ def test_return_stmt_functor_traversal_and_mutation():
 
 
 def test_control_flow_jump():
-    @T.prim_func
+    @T.function
     def func(a: T.float32, b: T.float32):
         if True:
             return a
@@ -161,7 +161,7 @@ def test_control_flow_jump():
 
 
 def test_break_statement():
-    @T.prim_func
+    @T.function
     def func(In: T.Tensor((2,), "int32"), Out: T.Tensor((2,), "int32")):
         Out[0] = 0
         Out[1] = 1
@@ -188,7 +188,7 @@ def test_break_statement():
 
 
 def test_continue_statement():
-    @T.prim_func
+    @T.function
     def func(Out: T.Tensor((2,), "int32")):
         T.func_attr({"global_symbol": "main"})
         Out[0] = 0

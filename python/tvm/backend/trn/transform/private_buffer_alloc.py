@@ -27,7 +27,7 @@ from tvm.tirx.stmt import (
 )
 from tvm.tirx.tile_primitive import DispatchContext, TilePrimitiveCall
 from tvm.tirx.transform.common import seek_kernel_replace_point
-from tvm.tirx.transform.function_pass import prim_func_pass
+from tvm.tirx.transform.function_pass import function_pass
 
 
 def _collect_private_allocations(stmt: Stmt, target: Target):
@@ -144,7 +144,7 @@ def private_alloc(stmt: Stmt, target: Target) -> Stmt:
     return _inject_private_allocations(stmt, alloc_buffers, init_stmts, added_workspace)
 
 
-@prim_func_pass(opt_level=0, name="TrnPrivateBufferAlloc")
+@function_pass(opt_level=0, name="TrnPrivateBufferAlloc")
 class TrnPrivateBufferAlloc:
     """Generate private buffer allocations for each TilePrimitiveCall"""
 

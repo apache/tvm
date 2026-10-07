@@ -41,9 +41,9 @@ def _strip_exec_scope_stmt(stmt):
 
 
 def assert_structural_equal(lhs, rhs, *args, **kwargs):
-    if isinstance(lhs, tvm.tirx.PrimFunc):
+    if isinstance(lhs, tvm.tirx.Function):
         lhs = lhs.with_body(_strip_exec_scope_stmt(lhs.body))
-    if isinstance(rhs, tvm.tirx.PrimFunc):
+    if isinstance(rhs, tvm.tirx.Function):
         rhs = rhs.with_body(_strip_exec_scope_stmt(rhs.body))
     _assert_structural_equal(lhs, rhs, *args, **kwargs)
 
@@ -64,14 +64,14 @@ def test_simple_reduction(op_type):
     tx_func = Tx_func_map[op_type]
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def reduction() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         tx_func(B_sbuf, A_sbuf, axes=-1)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "reduction"})
         A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
@@ -96,14 +96,14 @@ def test_reduction_with_multiple_axes():
     dst_layout = TileLayout(S[128 : 1 @ P])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def reduction():
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.sum(B_sbuf, A_sbuf, axes=(1, 2), max_inst_size=2048)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "reduction"})
         A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
@@ -128,7 +128,7 @@ def test_reduction_in_loop():
     dst_layout = TileLayout(S[(128, 4) : (1 @ P, 1 @ F)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def reduction():
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
@@ -136,7 +136,7 @@ def test_reduction_in_loop():
         for i in range(4):
             Tx.sum(B_sbuf[:, i], A_sbuf[:, :, i], axes=-2)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "reduction"})
         A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
@@ -160,14 +160,14 @@ def test_reduction_two_stage():
     dst_layout = TileLayout(S[(128, 4) : (1 @ P, 1 @ F)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def reduction():
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.sum(B_sbuf, A_sbuf, axes=(1, 3))
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "reduction"})
         intermediate_buffer = T.alloc_tensor((128, 32), scope="trn.sbuf")
@@ -199,7 +199,7 @@ def test_reduction_with_guard():
     dst_layout = TileLayout(S[(4, 128) : (1 @ F, 1 @ P)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def reduction() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
@@ -208,7 +208,7 @@ def test_reduction_with_guard():
             for j in range(4):
                 Tx.sum(B_sbuf[0: (i+1) * 128, 0], A_sbuf[0: (i+1) * 128, 0: (j+1) * 256], max_inst_size=512)  # noqa: E501
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "reduction"})
         intermediate_buffer = T.alloc_tensor((128, 2), scope="trn.sbuf")
@@ -246,7 +246,7 @@ def test_reduction_two_stage_workspace():
     dst_layout = TileLayout(S[(128, 4) : (1 @ P, 1 @ F)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def reduction():
         T.device_entry()
         intermediate_buffer = T.alloc_tensor((128, 64), scope="trn.sbuf")
@@ -254,7 +254,7 @@ def test_reduction_two_stage_workspace():
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.sum(B_sbuf, A_sbuf, axes=(1, 3), workspace={"partial_reduce": intermediate_buffer})
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "reduction"})
         intermediate_buffer = T.alloc_tensor((128, 64), scope="trn.sbuf")

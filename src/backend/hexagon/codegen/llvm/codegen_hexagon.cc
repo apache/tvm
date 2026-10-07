@@ -464,12 +464,12 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
   std::string entry_func;
 
   for (auto kv : mod->functions) {
-    if (!kv.second->IsInstance<PrimFuncNode>()) {
+    if (!kv.second->IsInstance<FunctionNode>()) {
       // (@jroesch): we relax constraints here, relax functions will just be ignored.
-      DLOG(INFO) << "Can only lower IR Module with PrimFuncs, but got " << kv.second->GetTypeKey();
+      DLOG(INFO) << "Can only lower IR Module with Functions, but got " << kv.second->GetTypeKey();
       continue;
     }
-    auto f = kv.second.as_or_throw<PrimFunc>();
+    auto f = kv.second.as_or_throw<Function>();
     if (f->HasNonzeroAttr(tirx::attr::kIsEntryFunc)) {
       auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
       TVM_FFI_ICHECK(global_symbol.has_value());

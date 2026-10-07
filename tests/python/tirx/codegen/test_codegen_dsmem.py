@@ -34,7 +34,7 @@ def _is_buffer_binding(node, *op_names):
     )
 
 
-def _get_source(func: tvm.tirx.PrimFunc) -> str:
+def _get_source(func: tvm.tirx.Function) -> str:
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
     mod = tvm.IRModule({"main": func})
     with target:
@@ -47,7 +47,7 @@ def test_ptx_cp_async_bulk_s2c_codegen():
     """Test that the ptx cp.async.bulk s2c chain emits the correct PTX instruction."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def main(A: T.Tensor((128,), "float16")):
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -78,7 +78,7 @@ def test_ptx_cp_async_bulk_s2c_codegen_address_conversion():
     """Test that the codegen correctly converts addresses to shared space."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def main(A: T.Tensor((64,), "float32")):
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -109,7 +109,7 @@ def test_mapa_pointer_bind_codegen():
     ptr_ty = PointerType(PrimType("uint64"), "shared")
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def main(A: T.Tensor((1,), "uint64")):
         T.device_entry()
         cta_id = T.cta_id([1])

@@ -24,7 +24,7 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@T.prim_func
+@T.function
 def ptx_scalar_f32_math(
     A: T.Tensor((32,), "float32"),
     B: T.Tensor((32,), "float32"),

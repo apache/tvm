@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file primfunc_utils.cc
+ * \file function_utils.cc
  * \brief Passes that serve as helper functions.
  */
 
@@ -36,8 +36,8 @@ transform::Pass AnnotateEntryFunc() {
     if (mod->functions.size() == 1) {
       auto [gvar, base_func] = *mod->functions.begin();
       if (!base_func->HasNonzeroAttr(tirx::attr::kIsEntryFunc)) {
-        if (auto ptr = base_func.as<PrimFuncNode>()) {
-          mod->Update(gvar, WithAttr(ffi::GetRef<PrimFunc>(ptr), tirx::attr::kIsEntryFunc, true));
+        if (auto ptr = base_func.as<FunctionNode>()) {
+          mod->Update(gvar, WithAttr(ffi::GetRef<Function>(ptr), tirx::attr::kIsEntryFunc, true));
         }
       }
       return mod;
@@ -45,20 +45,20 @@ transform::Pass AnnotateEntryFunc() {
 
     // If the module has multiple functions, but only one is exposed
     // externally, that function must be the entry.
-    bool has_external_non_primfuncs = false;
+    bool has_external_non_functions = false;
     IRModule with_annotations;
     for (const auto& [gvar, base_func] : mod->functions) {
       bool is_external = base_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
       if (is_external) {
-        if (auto ptr = base_func.as<PrimFuncNode>()) {
+        if (auto ptr = base_func.as<FunctionNode>()) {
           with_annotations->Add(
-              gvar, WithAttr(ffi::GetRef<PrimFunc>(ptr), tirx::attr::kIsEntryFunc, true));
+              gvar, WithAttr(ffi::GetRef<Function>(ptr), tirx::attr::kIsEntryFunc, true));
         } else {
-          has_external_non_primfuncs = true;
+          has_external_non_functions = true;
         }
       }
     }
-    if (with_annotations->functions.size() == 1 && !has_external_non_primfuncs) {
+    if (with_annotations->functions.size() == 1 && !has_external_non_functions) {
       mod->Update(with_annotations);
       return mod;
     }
@@ -69,16 +69,16 @@ transform::Pass AnnotateEntryFunc() {
   return tvm::transform::CreateModulePass(fpass, 0, "tirx.AnnotateEntryFunc", {});
 }
 
-transform::Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond) {
-  auto fpass = [fcond](tirx::PrimFunc f, IRModule m,
-                       transform::PassContext ctx) -> ffi::Optional<PrimFunc> {
+transform::Pass Filter(ffi::TypedFunction<bool(Function)> fcond) {
+  auto fpass = [fcond](tirx::Function f, IRModule m,
+                       transform::PassContext ctx) -> ffi::Optional<Function> {
     if (fcond(f)) {
       return f;
     } else {
       return std::nullopt;
     }
   };
-  return tirx::transform::CreatePrimFuncPass(fpass, 0, "tirx.Filter", {});
+  return tirx::transform::CreateFunctionPass(fpass, 0, "tirx.Filter", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

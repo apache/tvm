@@ -513,7 +513,7 @@ Stmt LowerIntrinStmt(Stmt stmt, const std::string& target) {
 namespace transform {
 
 Pass LowerIntrin() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     TVM_FFI_ICHECK(target.has_value()) << "LowerIntrin: Require the target attribute";
@@ -524,7 +524,7 @@ Pass LowerIntrin() {
                   .ValueOrUnchanged(n->body);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.LowerIntrin", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.LowerIntrin", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

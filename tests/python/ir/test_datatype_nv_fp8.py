@@ -42,7 +42,7 @@ except ImportError:
 
 
 def fp8_unary(dtype: str):
-    @Ts.prim_func
+    @Ts.function
     def func(
         A: T.Tensor([128], dtype=dtype),
         B: T.Tensor([128], dtype=dtype),

@@ -33,7 +33,7 @@ def test_cmp_load_store(target):
 
     @I.ir_module
     class GPUModule:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((32,), "float32"),
             B: T.Tensor((32,), "float32"),
@@ -48,7 +48,7 @@ def test_cmp_load_store(target):
 
     @I.ir_module
     class CPUModule:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((32,), "float32"),
             B: T.Tensor((32,), "float32"),
@@ -88,7 +88,7 @@ def test_cmp_load_store(target):
 
 
 def test_bitwise_not_c(tmp_path):
-    @T.prim_func
+    @T.function
     def complement(values: T.Tensor((5,), "int32"), output: T.Tensor((5,), "bool")):
         for i in range(5):
             output[i] = T.bitwise_not(values[i] != 0)

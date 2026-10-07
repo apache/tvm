@@ -166,7 +166,7 @@ struct SPIRVSupport {
    *
    * If support is present, will declare StorageBuffer8BitAccess as
    * needed.  If support is not present, will throw error if a
-   * PrimFunc calls for this functionality.  Unlike
+   * Function calls for this functionality.  Unlike
    * StorageUniform16BitAccess, no fallback to
    * "StorageUniformBufferBlock8" is needed, as VK_KHR_8bit_storage
    * requires VK_KHR_storage_buffer_storage_class to also be present.
@@ -190,7 +190,7 @@ struct SPIRVSupport {
    * StorageBuffer16BitAccess or StorageUniformBufferBlock16 as
    * needed, selecting based on the value of
    * supports_StorageBufferStorageClass.  If support is not present,
-   * will throw error if a PrimFunc calls for this functionality.
+   * will throw error if a Function calls for this functionality.
    */
   bool supports_storage_buffer_16bit_access{false};
 

@@ -61,7 +61,7 @@ namespace sym {
  *
  *  An IterMapExpr is a special expression to store
  *  the result of IterMapDetection.
- *  It should not appear in a legal TIR PrimFunc.
+ *  It should not appear in a legal TIR Function.
  */
 class IterMapExprNode : public ExprNode {
  public:

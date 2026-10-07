@@ -125,7 +125,7 @@ CodeGenOpenCL::CodeGenOpenCL() {
   restrict_keyword_ = "restrict";
 }
 
-void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
+void CodeGenOpenCL::InitFuncState(const Function& f) {
   CodeGenC::InitFuncState(f);
   if (f->body.has_value()) {
     this->SetTextureScope(ffi::make_object<InferTextureAccess>()->Infer(f->body.value()));
@@ -145,7 +145,7 @@ void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
 
 void CodeGenOpenCL::PrintFuncPrefix(std::ostream& os) { os << "__kernel "; }
 
-void CodeGenOpenCL::PreFunctionBody(const PrimFunc& f) {
+void CodeGenOpenCL::PreFunctionBody(const Function& f) {
   for (Var arg : f->params) {
     auto ptr_type = arg->ty.as<PointerTypeNode>();
     if (ptr_type && runtime::IsTextureStorage(std::string(ptr_type->storage_scope))) {
@@ -756,30 +756,30 @@ void CodeGenOpenCL::SetTextureScope(
 ffi::Module BuildOpenCL(IRModule mod, Target target) {
   bool output_ssa = false;
 
-  ffi::Map<GlobalVar, PrimFunc> functions;
+  ffi::Map<GlobalVar, Function> functions;
   for (auto [gvar, base_func] : mod->functions) {
-    TVM_FFI_ICHECK(base_func->IsInstance<PrimFuncNode>())
-        << "CodeGenOpenCL: Can only take PrimFunc";
-    auto prim_func = base_func.as_or_throw<PrimFunc>();
-    auto calling_conv = prim_func->GetAttr<CallingConv>(tvm::attr::kCallingConv);
+    TVM_FFI_ICHECK(base_func->IsInstance<FunctionNode>())
+        << "CodeGenOpenCL: Can only take Function";
+    auto function = base_func.as_or_throw<Function>();
+    auto calling_conv = function->GetAttr<CallingConv>(tvm::attr::kCallingConv);
     TVM_FFI_ICHECK(calling_conv.has_value())
         << "CodeGenOpenCL: expected kCallingConv attribute to be set.";
     TVM_FFI_ICHECK(calling_conv.value() == CallingConv::kDeviceKernelLaunch)
         << "CodeGenOpenCL: expect calling_conv equals CallingConv::kDeviceKernelLaunch, but got "
         << static_cast<int>(calling_conv.value());
-    functions.Set(gvar, prim_func);
+    functions.Set(gvar, function);
   }
 
   std::stringstream code;
   const auto fpostproc = tvm::ffi::Function::GetGlobal("tvm_callback_opencl_postproc");
-  for (auto [gvar, prim_func] : functions) {
+  for (auto [gvar, function] : functions) {
     code << "// Function: " << gvar->name_hint << std::endl;
     CodeGenOpenCL cg;
     cg.Init(output_ssa);
-    for (auto [other_gvar, other_prim_func] : functions) {
-      cg.DeclareFunction(other_gvar, other_prim_func);
+    for (auto [other_gvar, other_function] : functions) {
+      cg.DeclareFunction(other_gvar, other_function);
     }
-    cg.AddFunction(gvar, prim_func);
+    cg.AddFunction(gvar, function);
     std::string fsource = cg.Finish();
     if (fpostproc) {
       fsource = (*fpostproc)(fsource, target).cast<std::string>();

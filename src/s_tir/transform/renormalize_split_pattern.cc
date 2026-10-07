@@ -216,7 +216,7 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
 namespace transform {
 
 Pass RenormalizeSplitPattern() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     sym::Analyzer analyzer;
     n->body = ffi::make_object<SplitPatternReNormalizer>(analyzer)
@@ -224,7 +224,7 @@ Pass RenormalizeSplitPattern() {
                   .ValueOrUnchanged(std::move(n->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.RenormalizeSplitPattern", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.RenormalizeSplitPattern", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

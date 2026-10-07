@@ -289,7 +289,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
 namespace transform {
 
 Pass LowerTIRxDedupCuTensorMaps() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     // Analyze usage to find duplicates
     auto analyzer = ffi::make_object<CuTensorMapDedupAnalyzer>();
     analyzer->Visit(f->body);
@@ -302,7 +302,7 @@ Pass LowerTIRxDedupCuTensorMaps() {
                   .ValueOrUnchanged(n->body);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.LowerTIRxDedupCuTensorMaps", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.LowerTIRxDedupCuTensorMaps", {});
 }
 
 }  // namespace transform

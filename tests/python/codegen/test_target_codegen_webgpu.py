@@ -30,7 +30,7 @@ def test_codegen_buffer_access_modes():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((8,), "float32"), B: T.Tensor((8,), "float32")):
             for tx in T.thread_binding(8, thread="threadIdx.x"):
                 B[tx] = A[tx]
@@ -50,7 +50,7 @@ def _build_webgpu(mod, target="webgpu"):
 def test_bounded_symbolic_stack_allocation():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             T.func_attr(
                 {
@@ -74,7 +74,7 @@ def test_bound_symbolic_allocation(scope, bounded):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             T.func_attr(
                 {
@@ -109,7 +109,7 @@ def test_bound_symbolic_allocation(scope, bounded):
 def test_allocation_bound_does_not_substitute_buffer_load(scope, bounded):
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr(
                 {
@@ -150,7 +150,7 @@ def test_allocation_bound_does_not_substitute_buffer_load(scope, bounded):
 def test_bound_symbolic_workgroup_allocation_respects_target_limit(target_limit):
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             T.func_attr(
                 {
@@ -180,7 +180,7 @@ def test_bound_symbolic_workgroup_allocation_respects_target_limit(target_limit)
 def test_unbounded_symbolic_stack_allocation_rejected():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(n: T.int32):
             T.func_attr(
                 {
@@ -205,7 +205,7 @@ def test_unbounded_symbolic_stack_allocation_rejected():
 def test_nonpositive_stack_allocation_rejected(extent):
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr(
                 {
@@ -228,7 +228,7 @@ def test_nonpositive_stack_allocation_rejected(extent):
 def test_stack_allocation_element_count_overflow_rejected():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(n: T.int32, m: T.int32, k: T.int32):
             T.func_attr(
                 {
@@ -254,7 +254,7 @@ def test_stack_allocation_element_count_overflow_rejected():
 def test_stack_allocation_byte_size_overflow_rejected():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(n: T.int32, m: T.int32):
             T.func_attr(
                 {
@@ -278,7 +278,7 @@ def test_stack_allocation_byte_size_overflow_rejected():
 def test_workgroup_allocation_at_target_limit():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr(
                 {
@@ -298,7 +298,7 @@ def test_workgroup_allocation_at_target_limit():
 def test_total_workgroup_allocation_above_target_limit_rejected():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr(
                 {
@@ -323,7 +323,7 @@ def test_total_workgroup_allocation_above_target_limit_rejected():
 def test_workgroup_allocation_accounts_for_declaration_alignment():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr(
                 {
@@ -348,7 +348,7 @@ def test_workgroup_allocation_accounts_for_declaration_alignment():
 def test_workgroup_allocation_uses_target_limit():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr(
                 {
@@ -369,7 +369,7 @@ def test_grid_pack_guard_rejects_id_equal_to_workgroup_count():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(B: T.Tensor((8,), "int32")):
             for i in T.thread_binding(8, thread="blockIdx.x"):
                 for j in T.thread_binding(1, thread="threadIdx.x"):

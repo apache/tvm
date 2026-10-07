@@ -41,12 +41,12 @@ namespace tirx {
 /*!
  * \brief Primitive functions that contains TIR statements.
  *
- * The PrimFunc provides low-level code representation does not
+ * The Function provides low-level code representation does not
  * automatically manage
  *
- * \sa PrimFunc
+ * \sa Function
  */
-class PrimFuncNode : public BaseFuncNode {
+class FunctionNode : public BaseFuncNode {
  public:
   /*! \brief Function parameters */
   ffi::Array<tirx::Var> params;
@@ -57,20 +57,20 @@ class PrimFuncNode : public BaseFuncNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PrimFuncNode>()
-        .def_ro("params", &PrimFuncNode::params, refl::AttachFieldFlag::SEqHashDefPattern())
-        .def_ro("ret_type", &PrimFuncNode::ret_type)
-        .def_ro("body", &PrimFuncNode::body);
-    refl::TypeAttrDef<PrimFuncNode>()
-        .def("__s_equal__", &PrimFuncNode::SEqual)
-        .def("__s_hash__", &PrimFuncNode::SHash);
+    refl::ObjectDef<FunctionNode>()
+        .def_ro("params", &FunctionNode::params, refl::AttachFieldFlag::SEqHashDefPattern())
+        .def_ro("ret_type", &FunctionNode::ret_type)
+        .def_ro("body", &FunctionNode::body);
+    refl::TypeAttrDef<FunctionNode>()
+        .def("__s_equal__", &FunctionNode::SEqual)
+        .def("__s_hash__", &FunctionNode::SHash);
   }
 
-  bool SEqual(const PrimFuncNode* other,
+  bool SEqual(const FunctionNode* other,
               ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
-    // `ty` is derived from the fields below.  PrimFunc transformations update
+    // `ty` is derived from the fields below.  Function transformations update
     // those source fields without maintaining this redundant cache eagerly.
-    // Remove this exception once all PrimFunc mutation paths recompute `ty`.
+    // Remove this exception once all Function mutation paths recompute `ty`.
     return equal(attrs, other->attrs, false, "attrs") &&
            equal(params, other->params, true, "params") &&
            equal(ret_type, other->ret_type, false, "ret_type") &&
@@ -95,14 +95,14 @@ class PrimFuncNode : public BaseFuncNode {
    */
   TVM_DLL FuncType func_type_annotation() const;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.PrimFunc", PrimFuncNode, BaseFuncNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Function", FunctionNode, BaseFuncNode);
 };
 
 /*!
- * \brief Managed reference to PrimFuncNode.
- * \sa PrimFuncNode
+ * \brief Managed reference to FunctionNode.
+ * \sa FunctionNode
  */
-class PrimFunc : public BaseFunc {
+class Function : public BaseFunc {
  public:
   /*!
    * \brief Constructor
@@ -117,18 +117,18 @@ class PrimFunc : public BaseFunc {
    *
    * \param span The location of this object in the source code.
    */
-  TVM_DLL PrimFunc(ffi::Array<tirx::Var> params, ffi::Optional<Stmt> body,
+  TVM_DLL Function(ffi::Array<tirx::Var> params, ffi::Optional<Stmt> body,
                    Type ret_type = VoidType(), DictAttrs attrs = DictAttrs(), Span span = Span());
 
-  explicit PrimFunc(ffi::ObjectPtr<PrimFuncNode> node) : BaseFunc(std::move(node)) {}
+  explicit Function(ffi::ObjectPtr<FunctionNode> node) : BaseFunc(std::move(node)) {}
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimFunc, BaseFunc, PrimFuncNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimFuncNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Function, BaseFunc, FunctionNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);
 };
 
 /*!
- * \brief Specialize parameters of PrimFunc.
- * \param func The PrimFunc to be specialized.
+ * \brief Specialize parameters of Function.
+ * \param func The Function to be specialized.
  * \param param_map The mapping from function params to the instance.
  * \return The new function with parameter specialized.
  * \note We can define a Meta TIR function with symbolic shape:
@@ -136,7 +136,7 @@ class PrimFunc : public BaseFunc {
  * \code{.py}
  *  from __future__ import annotations
  *
- *  @Ts.prim_func
+ *  @Ts.function
  *  def mem_copy(A: T.Tensor((m, n), "float32"), B: T.Tensor((m, n), "float32"),
  *               m: T.int32, n: T.int32) -> None:
  *      for i, j in T.grid(m, n):
@@ -155,7 +155,7 @@ class PrimFunc : public BaseFunc {
  * \endcode
  *
  * \code{.py}
- *  @Ts.prim_func
+ *  @Ts.function
  *  def mem_copy_16_16(A: T.Tensor((16, 16), "float32"),
  *                     B: T.Tensor((16, 16), "float32")) -> None:
  *      for i, j in T.grid(16, 16):
@@ -164,10 +164,10 @@ class PrimFunc : public BaseFunc {
  *              B[vi, vj] = A[vi, vj]
  * \endcode
  */
-PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<TensorVar, Expr>>& param_map);
+Function Specialize(Function func, const ffi::Map<Var, ffi::Variant<TensorVar, Expr>>& param_map);
 
 /*!
- * \brief PrimFunc specific attribute names.
+ * \brief Function specific attribute names.
  *
  * \sa tvm::attr
  */

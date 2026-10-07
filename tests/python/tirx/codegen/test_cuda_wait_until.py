@@ -44,7 +44,7 @@ def build(func):
 def rendezvous(backoff_ns=None, ptx_type=None):
     """An N-way barrier on a monotone counter, as radix_topk_multi_cta writes it."""
 
-    @T.prim_func
+    @T.function
     def kernel(state: T.Tensor((1,), "int32"), participants: T.int32):
         T.device_entry()
         T.cta_id([2])
@@ -70,7 +70,7 @@ def rendezvous(backoff_ns=None, ptx_type=None):
 def packed_contribution():
     """Counter in the high half, payload in the low half: DeepEP's notify slot."""
 
-    @T.prim_func
+    @T.function
     def kernel(slot: T.Tensor((1,), "uint64"), out: T.Tensor((1,), "uint64"), n: T.int32):
         T.device_entry()
         T.cta_id([2])
@@ -298,7 +298,7 @@ def test_a_wide_word_cannot_be_waited_on():
 
     with pytest.raises(Exception, match="does not take a 128-bit word"):
 
-        @T.prim_func
+        @T.function
         def kernel(response: T.Tensor((2,), "uint64")):
             T.device_entry()
             T.cta_id([1])

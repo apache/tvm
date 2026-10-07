@@ -78,7 +78,7 @@ def test_copy_g2s_s2g_cta_vec_load(task, dtype):
     r_gmem = list(slice(g_st[i], g_st[i] + g_extent[i]) for i in range(len(g_shape)))
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def copy_async(
         A: T.Tensor(g_shape, dtype, layout=layoutA), B: T.Tensor(g_shape, dtype, layout=layoutB)
     ) -> None:
@@ -122,7 +122,7 @@ def test_copy_g2s_s2g_cta_vec_load(task, dtype):
 def test_copy_ldgsts_predicate_zero_fill_codegen():
     """ldgsts direct mode forwards predicate/zero-fill/prefetch without partition temps."""
 
-    @T.prim_func
+    @T.function
     def copy_async(A: T.Tensor((32, 16), "uint8", layout=TileLayout(S[32, 16]))) -> None:
         T.device_entry()
         tid = T.thread_id([32])

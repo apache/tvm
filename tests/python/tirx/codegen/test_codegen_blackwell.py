@@ -36,7 +36,7 @@ def _is_buffer_binding(node, *op_names):
     )
 
 
-def _get_source(func: tvm.tirx.PrimFunc) -> str:
+def _get_source(func: tvm.tirx.Function) -> str:
     target = tvm.target.Target("cuda")
     mod = tvm.IRModule({"main": func})
     mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
@@ -93,7 +93,7 @@ def test_tmem_alloc_dealloc_relinquish():
     cta_group = 1
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_tmem(A: T.Tensor((16, 16), "float16")):
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -130,7 +130,7 @@ def test_tmem_alloc_dealloc_relinquish():
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_mbarrier_try_wait_once_codegen():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_try_wait_once(A: T.Tensor((16, 16), "float16")):
         T.device_entry()
         T.cta_id([1])
@@ -160,7 +160,7 @@ def test_mbarrier_remote_view_codegen():
     from tvm.tirx.lang.pipeline import MBarrier
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_remote_view():
         T.device_entry()
         T.cluster_id([1])
@@ -195,7 +195,7 @@ def test_mbarrier_local_arrive_forwards_predicate_and_count():
     from tvm.tirx.lang.pipeline import MBarrier
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_local_arrive():
         T.device_entry()
         thread = T.thread_id([32])
@@ -228,7 +228,7 @@ def test_tma_mbarrier_remote_view_codegen():
     from tvm.tirx.lang.pipeline import TMABar
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_remote_view():
         T.device_entry()
         T.cluster_id([1])
@@ -256,7 +256,7 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
 
     with pytest.raises(ValueError, match=r"remote_view\(\) cannot be initialized"):
         # fmt: off
-        @T.prim_func
+        @T.function
         def invalid_init():
             T.device_entry()
             T.cta_id([2])
@@ -268,7 +268,7 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
 
     with pytest.raises(ValueError, match=r"remote_view\(\) cannot be waited on"):
         # fmt: off
-        @T.prim_func
+        @T.function
         def invalid_wait():
             T.device_entry()
             T.cta_id([2])
@@ -280,7 +280,7 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
 
     with pytest.raises(ValueError, match="cannot also specify remote"):
         # fmt: off
-        @T.prim_func
+        @T.function
         def ambiguous_mbarrier_arrive():
             T.device_entry()
             T.cta_id([2])
@@ -292,7 +292,7 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
 
     with pytest.raises(ValueError, match="cannot also specify remote"):
         # fmt: off
-        @T.prim_func
+        @T.function
         def ambiguous_tma_arrive():
             T.device_entry()
             T.cta_id([2])
@@ -307,7 +307,7 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
         match=r"remote_view\(\) cannot be applied to a remote view",
     ):
         # fmt: off
-        @T.prim_func
+        @T.function
         def nested_remote_view():
             T.device_entry()
             T.cta_id([2])
@@ -322,7 +322,7 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_fence_before_after_thread_sync():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_fence(A: T.Tensor((16, 16), "float16")):
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -351,7 +351,7 @@ def test_tcgen05_ld_st_roundtrip():
     cta_group = 1
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_ld_st(A: T.Tensor((HEIGHT, WIDTH), "float32"), B: T.Tensor((HEIGHT, WIDTH), "float32")):  # noqa: E501
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -430,7 +430,7 @@ def test_tcgen05_cp_ld_roundtrip():
     cta_group = 1
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_cp_ld(A: T.Tensor((HEIGHT, WIDTH), dtype, layout=T.TileLayout(T.S[(HEIGHT, WIDTH // 4, 4) : (4, HEIGHT * 4, 1)])),  # noqa: E501
                    B: T.Tensor((HEIGHT, WIDTH), dtype, layout=T.TileLayout(T.S[(HEIGHT, WIDTH // 4, 4) : (4, HEIGHT * 4, 1)]))):  # noqa: E501
         T.device_entry()
@@ -542,7 +542,7 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
     mma_masks = [0] * (4 if cta_group == 1 else 8)
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_mma_ss_no_tma(A: T.Tensor((M, K), a_type, layout=T.TileLayout(T.S[M, K])),
                            B: T.Tensor((N, K), b_type, layout=T.TileLayout(T.S[N, K])),
                            C: T.Tensor((M, N), d_type)):
@@ -640,7 +640,7 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_tcgen05_mma_pred_codegen():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_mma_pred():
         T.device_entry()
         T.thread_id([1])

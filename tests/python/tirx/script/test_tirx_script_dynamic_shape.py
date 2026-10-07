@@ -30,7 +30,7 @@ from tvm.script import tirx as T
 
 
 def test_tir_bound_prim_param_reused_in_dependent_annotations():
-    @T.prim_func
+    @T.function
     def func(
         n: T.int32,
         direct: T.Tensor((n,), "float32"),
@@ -49,7 +49,7 @@ def test_tir_bound_prim_param_reused_in_dependent_annotations():
 def test_tir_bound_prim_param_reused_in_declared_function_signature():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(n: T.int32, A: T.Tensor((n + 1,), "float32")):
             T.evaluate(n)
 
@@ -61,13 +61,13 @@ def test_tir_bound_prim_param_reused_in_declared_function_signature():
 def test_tir_external_symbol_adopted_by_later_prim_param(dtype):
     n = T.dynamic("n", dtype)
 
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((n,), "float32"), n: n):
         T.evaluate(n)
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((n,), "float32"), n: n):
             T.evaluate(n)
 
@@ -80,7 +80,7 @@ def test_tir_external_symbol_adopted_by_later_prim_param(dtype):
 def test_tir_external_dynamic_symbol_preserves_dtype():
     n = T.dynamic("n", "int64")
 
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((n,), "float32")):
         T.evaluate(n)
 
@@ -92,19 +92,19 @@ def test_tir_external_dynamic_symbol_preserves_dtype():
 def test_tir_undeclared_shape_symbol_is_undefined():
     with pytest.raises(NameError):
 
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((n, n), "float32")):  # noqa: F821
             T.evaluate(0)
 
 
 def test_tir_direct_later_prim_param_reuses_shape_symbol():
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((n,), "float32"), n: T.int32):
         T.evaluate(n)
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((n,), "float32"), n: T.int32):
             T.evaluate(n)
 
@@ -118,7 +118,7 @@ def test_tir_direct_later_prim_param_reuses_shape_symbol():
 def test_tir_return_annotation_does_not_define_symbolic_var():
     with pytest.raises(NameError):
 
-        @T.prim_func
+        @T.function
         def main() -> T.Tensor((n,), "float32"):  # noqa: F821
             A = T.alloc_tensor((n,), "float32")  # noqa: F821
             return A
@@ -129,7 +129,7 @@ def test_type_vars_roundtrip():
     M = I.dynamic("M")
     UNUSED = I.dynamic("UNUSED")
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def func(A: T.Tensor((M, M * 2), "float32")):
         A[0, 0] = T.float32(1)
 
@@ -140,7 +140,7 @@ def test_type_vars_roundtrip():
     assert "M = T.int64()" not in script
     typed = tvm.script.from_source(
         """
-@T.prim_func(private=True)
+@T.function(private=True)
 def func[M: int](A: T.Tensor((M, M * 2), "float32")):
     A[0, 0] = T.float32(1)
 """,
@@ -171,7 +171,7 @@ def func[M: int](A: T.Tensor((M, M * 2), "float32")):
 def test_dynamic_int32_roundtrip():
     n = I.dynamic("n", "int32")
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def func(A: T.Tensor((n,), "float32")):
         A[0] = T.float32(1)
 
@@ -195,11 +195,11 @@ def test_dynamic_module_body_identity():
 
     @I.ir_module(check_well_formed=False)
     class mod:
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def first():
             T.evaluate(n)
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def second():
             T.evaluate(n + m)
 
@@ -218,7 +218,7 @@ def test_dynamic_module_body_identity():
 def test_captured_shape_requires_concrete_symbols():
     # Native shape construction preserves concrete symbols and rejects strings.
     def build(shape):
-        @T.prim_func
+        @T.function
         def main(x: T.Tensor(shape, "float32")):
             T.evaluate(0)
 
@@ -242,7 +242,7 @@ def test_dynamic_symbols_are_fresh_and_scope_independent():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def first(x: T.Tensor((n,), "float32")):
             T.evaluate(n)
 

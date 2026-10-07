@@ -78,7 +78,7 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
    * \param func The function to be compiled.
    * \param whether to append return 0 in the end.
    */
-  virtual void DeclareFunction(const GlobalVar& gvar, const PrimFunc& func);
+  virtual void DeclareFunction(const GlobalVar& gvar, const Function& func);
 
   /*!
    * \brief Add the function to the generated module, including its
@@ -87,7 +87,7 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
    * \param gvar The GlobalVar representing the function.
    * \param func The function to be compiled.
    */
-  virtual void AddFunction(const GlobalVar& gvar, const PrimFunc& func);
+  virtual void AddFunction(const GlobalVar& gvar, const Function& func);
 
   /*!
    * \brief Get the name of a declared function
@@ -141,7 +141,7 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
    *
    * \param os The output stream
    */
-  virtual void PrintFunctionSignature(const ffi::String& function_name, const PrimFunc& func,
+  virtual void PrintFunctionSignature(const ffi::String& function_name, const Function& func,
                                       std::ostream& os);
 
   /*!
@@ -156,22 +156,22 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
    *
    *  Example: __launch_bounds__(256) for CUDA functions
    */
-  virtual void PrintExtraAttrs(const PrimFunc& f, std::ostream& os);  // NOLINT(*)
+  virtual void PrintExtraAttrs(const Function& f, std::ostream& os);  // NOLINT(*)
   /*!
    * \brief Insert statement before function body.
    * \param f The function to be compiled.
    */
-  virtual void PreFunctionBody(const PrimFunc& f) {}
+  virtual void PreFunctionBody(const Function& f) {}
   /*!
    * \brief Initialize codegen state for generating f.
    * \param f The function to be compiled.
    */
-  virtual void InitFuncState(const PrimFunc& f);
+  virtual void InitFuncState(const Function& f);
 
   // Register names independently of emitting declarations for body-derived qualifiers.
-  bool RegisterFunctionName(const GlobalVar& gvar, const PrimFunc& func);
+  bool RegisterFunctionName(const GlobalVar& gvar, const Function& func);
   // Prints parameters and initializes their variable IDs and handle types once.
-  void PrintFunctionParameters(const PrimFunc& func, std::ostream& os);
+  void PrintFunctionParameters(const Function& func, std::ostream& os);
 
   // expression
   void Dispatch_(const VarNode* op, std::ostream& os) override;               // NOLINT(*)
@@ -379,7 +379,7 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
   /* \brief Map of GlobalVar to their symbol.
    *
    * For externally-exposed functions, this is given by the
-   * tvm::attr::kTarget attribute of the PrimFunc.  For internal
+   * tvm::attr::kTarget attribute of the Function.  For internal
    * functions, this is the name of the function's GlobalVar, possibly
    * altered to prevent duplicate names.
    */

@@ -311,10 +311,10 @@ class IketProfiler:
 
     def compile(self, mod, target=None, *, tir_pipeline="tirx"):
         """Compile official IKET metadata and NativeDump placeholders."""
-        if isinstance(mod, tvm.tirx.PrimFunc):
+        if isinstance(mod, tvm.tirx.Function):
             mod = tvm.IRModule.from_expr(mod)
         if not isinstance(mod, tvm.IRModule):
-            raise TypeError("IketProfiler.compile expects a TIRx PrimFunc or IRModule")
+            raise TypeError("IketProfiler.compile expects a TIRx Function or IRModule")
         enabled_mod = mod.with_attr("tirx.iket.enabled", True)
         executable = tvm.compile(enabled_mod, target=target, tir_pipeline=tir_pipeline)
         return _OfficialIketExecutable(executable)

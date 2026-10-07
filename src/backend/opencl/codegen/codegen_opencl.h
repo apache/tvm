@@ -40,9 +40,9 @@ class CodeGenOpenCL final : public CodeGenC {
   std::string Finish();
 
   // override print thread tag.
-  void InitFuncState(const PrimFunc& f) final;
+  void InitFuncState(const Function& f) final;
   void PrintFuncPrefix(std::ostream& os) final;                                   // NOLINT(*)
-  void PreFunctionBody(const PrimFunc& f) final;                                  // NOLINT(*)
+  void PreFunctionBody(const Function& f) final;                                  // NOLINT(*)
   void BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) final;  // NOLINT(*)
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;       // NOLINT(*)
   void PrintStorageSync(const CallNode* op) final;                                // NOLINT(*)

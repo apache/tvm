@@ -30,7 +30,7 @@ from tvm.script.tirx import tile as Tx
 
 def test_roundtrip_scopeid1():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((64,), 'float32', scope='global')) -> None:
 
         T.device_entry()
@@ -53,7 +53,7 @@ def from_source(code):
 
 def test_roundtrip_scopeid2():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(_: T.Tensor((64,), 'float32', scope='global')) -> None:
 
         T.device_entry()
@@ -78,7 +78,7 @@ def test_roundtrip_scopeid_deferred():
     as a no-arg ``T.cta_id()``/``T.thread_id()`` etc. call."""
 
     # fmt: off
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def test(_: T.Tensor((64,), 'float32', scope='global')) -> None:
 
         T.device_entry()
@@ -99,7 +99,7 @@ def test_roundtrip_scopeid_deferred():
 
 
 def test_exec_scope_filter_guard_roundtrip():
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def test(A: T.Tensor((1,), "float32", scope="global")) -> None:
         T.device_entry()
         T.cta_id([1])
@@ -114,7 +114,7 @@ def test_exec_scope_filter_guard_roundtrip():
 
 def test_roundtrip_op1():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((64,), 'float32', scope='global')) -> None:
 
         T.device_entry()
@@ -137,7 +137,7 @@ def test_roundtrip_op1():
 
 def test_roundtrip_op2():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(
         A: T.Tensor((128, 128), "float16", scope="global"),
         B: T.Tensor((128, 64), "float16", scope="global"),
@@ -169,7 +169,7 @@ def test_roundtrip_op3():
     NUM_STAGES = 3
     K = 4096
 
-    @T.prim_func
+    @T.function
     def test(
         A: T.Tensor((128, K), "float16", scope="global"),
         B: T.Tensor((K, 64), "float16", scope="global"),
@@ -206,7 +206,7 @@ def test_roundtrip_op3():
 
 def test_roundtrip_tensormap():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func1(A: T.Tensor([128], "float32")):
         T.func_attr({"global_symbol": "func"})
 
@@ -222,7 +222,7 @@ def test_roundtrip_tensormap():
 
 def test_roundtrip_tensormap_kernel_param():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func1(A_map: T.TensorMap()):
         T.func_attr({"global_symbol": "func"})
         T.evaluate(T.address_of(A_map))
@@ -235,7 +235,7 @@ def test_roundtrip_tensormap_kernel_param():
 
 def test_roundtrip_op_call_workspace():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(
         A: T.Tensor([10], "float32", scope="global"), B: T.Tensor([10], "float32", scope="global")
     ):
@@ -251,7 +251,7 @@ def test_roundtrip_op_call_workspace():
 
 def test_roundtrip_op_call_config():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(
         A: T.Tensor([10], "float32", scope="global"), B: T.Tensor([10], "float32", scope="global")
     ):
@@ -266,7 +266,7 @@ def test_roundtrip_op_call_config():
 
 def test_predicate():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test():
         T.device_entry()
         A = T.alloc_tensor([10, 10], "float32")
@@ -280,7 +280,7 @@ def test_predicate():
 
 def test_kwargs_op_call():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def test(A: T.Tensor((10, 10), "float32"), B: T.Tensor((10, 10), "float32")):
         T.device_entry()
         kwargs = T.meta_var({"dispatch": "tma_auto", "cta_group": 2})
@@ -329,10 +329,10 @@ def test_workspace_default_none():
 
 
 def test_roundtrip_persistent_decorator():
-    """@T.prim_func(persistent=True) should round-trip."""
+    """@T.function(persistent=True) should round-trip."""
 
     # fmt: off
-    @T.prim_func(persistent=True)
+    @T.function(persistent=True)
     def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
         T.device_entry()
@@ -353,7 +353,7 @@ def test_roundtrip_persistent_not_present():
     """Without persistent=True, the keyword should not appear."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
         T.device_entry()
@@ -372,7 +372,7 @@ def test_warp_role():
     from tvm.tirx.lang.warp_role import WarpRole
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
         T.device_entry()
@@ -407,7 +407,7 @@ def test_warpgroup_role():
     from tvm.tirx.lang.warp_role import WarpgroupRole
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
         T.device_entry()
@@ -436,7 +436,7 @@ def test_roundtrip_cuda_func_call_source_code():
     inline string literal, not as a metadata reference."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func():
         T.device_entry()
         desc = T.alloc_local((1,), "uint64")
@@ -452,7 +452,7 @@ def test_roundtrip_cp_async_bulk_tensor_g2s_cluster():
     """The TMA load composite [tensorMap, coords] operand must round-trip."""
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def func(_: T.Tensor((16, 16), 'float32')):
 
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
@@ -473,7 +473,7 @@ def test_roundtrip_cp_async_bulk_tensor_s2g():
     """The TMA store composite [tensorMap, coords] operand must round-trip."""
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def func(_: T.Tensor((16, 16), 'float32')):
 
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
@@ -494,7 +494,7 @@ def test_roundtrip_cp_async_bulk_tensor_prefetch():
     """The tensor prefetch composite [tensorMap, coords] operand must round-trip."""
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def func(_: T.Tensor((16, 16), 'float32')):
 
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
@@ -514,7 +514,7 @@ def test_roundtrip_cp_async_bulk_tensor_s2g_reduce():
     """The tensor reduction composite [tensorMap, coords] operand must round-trip."""
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def func(_: T.Tensor((16, 16), 'float32')):
 
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
@@ -533,7 +533,7 @@ def test_roundtrip_cp_async_bulk_tensor_s2g_reduce():
 
 def test_scope_id_dtype_uint32():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((128,), 'float32')):
 
         T.device_entry()
@@ -569,7 +569,7 @@ def _assert_roundtrip(func):
 
 def test_scope_id_dtype_uint32_lane_and_warp():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((32,), 'float32')):
 
         T.device_entry()
@@ -587,7 +587,7 @@ def test_scope_id_dtype_uint32_lane_and_warp():
 
 def test_scope_id_dtype_uint32_with_preferred():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((4,), 'float32')):
 
         T.device_entry()
@@ -607,7 +607,7 @@ def test_scope_id_dtype_uint32_deferred_extent():
     """The deferred (extent=None) form carries the dtype too."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((32,), 'float32')):
 
         T.device_entry()
@@ -635,7 +635,7 @@ def test_scope_id_dtype_rejects_unsupported(dtype):
     # fmt: off
     with pytest.raises(Exception, match='must be "int32" or "uint32"'):
 
-        @T.prim_func
+        @T.function
         def func(A: T.Tensor((128,), 'float32')):
 
             T.device_entry()

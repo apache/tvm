@@ -41,9 +41,9 @@ def _strip_exec_scope_stmt(stmt):
 
 
 def assert_structural_equal(lhs, rhs, *args, **kwargs):
-    if isinstance(lhs, tvm.tirx.PrimFunc):
+    if isinstance(lhs, tvm.tirx.Function):
         lhs = lhs.with_body(_strip_exec_scope_stmt(lhs.body))
-    if isinstance(rhs, tvm.tirx.PrimFunc):
+    if isinstance(rhs, tvm.tirx.Function):
         rhs = rhs.with_body(_strip_exec_scope_stmt(rhs.body))
     _assert_structural_equal(lhs, rhs, *args, **kwargs)
 
@@ -57,7 +57,7 @@ def test_simple_activation_reduce():
     C_layout = TileLayout(S[(128, 1) : (1 @ P, 1 @ F)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def activation_reduce():
         T.device_entry()
         A = T.alloc_tensor(A_shape, dtype="float32", scope="trn.sbuf", layout=A_layout)
@@ -66,7 +66,7 @@ def test_simple_activation_reduce():
         Tx.unary_reduce(B, C, A, "sqrt", "sum", reduce_axes=1)
 
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "activation_reduce"})
         const_bias = T.alloc_tensor((128, 512), scope="trn.sbuf")
@@ -99,7 +99,7 @@ def test_activation_reduce_in_loop():
     C_layout = TileLayout(S[(2, 4, 2, 128) : (2 @ F, 4 @ F, 1 @ F, 1 @ P)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def activation_reduce():
         T.device_entry()
         A = T.alloc_tensor(A_shape, dtype="float32", scope="trn.sbuf", layout=A_layout)
@@ -108,7 +108,7 @@ def test_activation_reduce_in_loop():
         for i in range(2):
             Tx.unary_reduce(B, C, A[i*16:i*16+16], "sqrt", "sum", reduce_axes=1)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "activation_reduce"})
         const_bias = T.alloc_tensor((128, 512), scope="trn.sbuf")
@@ -141,7 +141,7 @@ def test_activation_reduce_in_loop2():
     C_layout = TileLayout(S[(2, 4, 2, 128) : (2 @ F, 4 @ F, 1 @ F, 1 @ P)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def activation_reduce():
         T.device_entry()
         A = T.alloc_tensor(A_shape, dtype="float32", scope="trn.sbuf", layout=A_layout)
@@ -150,7 +150,7 @@ def test_activation_reduce_in_loop2():
         for i in range(2):
             Tx.unary_reduce(B, C, A[i*16:i*16+16], "sqrt", "sum", reduce_axes=1)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "activation_reduce"})
         const_bias = T.alloc_tensor((128, 512), scope="trn.sbuf")
@@ -183,7 +183,7 @@ def test_activation_reduce_two_stage():
     C_layout = TileLayout(S[(1, 128) : (1 @ F, 1 @ P)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def activation_reduce():
         T.device_entry()
         A = T.alloc_tensor(A_shape, dtype="float32", scope="trn.sbuf", layout=A_layout)
@@ -192,7 +192,7 @@ def test_activation_reduce_two_stage():
         for i in range(2):
             Tx.unary_reduce(B, C, A[i*16:i*16+16], "sqrt", "sum", reduce_axes=(0,1))
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "activation_reduce"})
         partial_reduce = T.alloc_tensor((128, 8), scope="trn.sbuf")
@@ -233,7 +233,7 @@ def test_activation_reduce_with_bias_scale():
     bias_layout = TileLayout(S[(128, 1) : (1 @ P, 1 @ F)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def activation_reduce():
         T.device_entry()
         A = T.alloc_tensor(A_shape, dtype="float32", scope="trn.sbuf", layout=A_layout)
@@ -243,7 +243,7 @@ def test_activation_reduce_with_bias_scale():
         for i in range(2):
             Tx.unary_reduce_with_scale_bias(B, C, A[i*16:i*16+16], "sqrt", "sum", reduce_axes=1, bias=bias, scale=2.0)  # noqa: E501
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "activation_reduce"})
         A = T.alloc_tensor((128, 16384), scope="trn.sbuf")
@@ -271,7 +271,7 @@ def test_simple_tensor_scalar_reduce():
     C_layout = TileLayout(S[(128, 1) : (1 @ P, 1 @ F)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def tensor_scalar_reduce():
         T.device_entry()
         A = T.alloc_tensor(A_shape, dtype="float32", scope="trn.sbuf", layout=A_layout)
@@ -279,7 +279,7 @@ def test_simple_tensor_scalar_reduce():
         C = T.alloc_tensor(C_shape, dtype="float32", scope="trn.sbuf", layout=C_layout)
         Tx.binary_reduce(B, C, A, 1.0, "add", "sum", reduce_axes=1)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "tensor_scalar_reduce"})
         A = T.alloc_tensor((128, 512), scope="trn.sbuf")
@@ -308,7 +308,7 @@ def test_tensor_tensor_reduce_fail():
     C_layout = TileLayout(S[(128, 1) : (1 @ P, 1 @ F)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def tensor_scalar_reduce():
         T.device_entry()
         A = T.alloc_tensor(A_shape, dtype="float32", scope="trn.sbuf", layout=A_layout)
@@ -335,7 +335,7 @@ def test_tensor_scalar_reduce_complex():
     reduce_dst_layout = TileLayout(S[(128, 4, 128) : (1 @ F, 128 @ F, 1 @ P)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def tensor_scalar_reduce() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
@@ -344,7 +344,7 @@ def test_tensor_scalar_reduce_complex():
         D_sbuf = T.alloc_tensor(reduce_dst_shape, "float32", scope="trn.sbuf", layout=reduce_dst_layout)  # noqa: E501
         Tx.binary_reduce(C_sbuf, D_sbuf, B_sbuf, A_sbuf, "add", "sum", reduce_axes=0)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "tensor_scalar_reduce"})
         A_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
@@ -372,7 +372,7 @@ def test_tensor_scalar_reduce_two_stage():
     reduce_dst_layout = TileLayout(S[(128, 4) : (1 @ P, 1 @ F)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def tensor_scalar_reduce() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
@@ -380,7 +380,7 @@ def test_tensor_scalar_reduce_two_stage():
         C_sbuf = T.alloc_tensor(reduce_dst_shape, "float32", scope="trn.sbuf", layout=reduce_dst_layout)  # noqa: E501
         Tx.binary_reduce(B_sbuf, C_sbuf, A_sbuf, 1.0, "add", "sum", reduce_axes=(1, 2))
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "tensor_scalar_reduce"})
         partial_reduce = T.alloc_tensor((128, 4), scope="trn.sbuf")
@@ -416,7 +416,7 @@ def test_vector_chain():
     dst_layout = src1_layout
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def binary() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
@@ -426,7 +426,7 @@ def test_vector_chain():
         E_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.binary_chain(E_sbuf, A_sbuf, B_sbuf, D_sbuf, "add", "add", reverse1=True)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
         A_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
@@ -458,7 +458,7 @@ def test_vector_chain_2():
     dst_layout = src1_layout
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def binary() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
@@ -468,7 +468,7 @@ def test_vector_chain_2():
         E_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.binary_chain(E_sbuf, A_sbuf, B_sbuf, D_sbuf, "add", "add", reverse1=True)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
         A_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
@@ -496,7 +496,7 @@ def test_reduce_negate():
     dst_layout = TileLayout(S[(128, 4) : (1 @ P, 1 @ F)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def reduction():
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
@@ -504,7 +504,7 @@ def test_reduce_negate():
         for i in range(4):
             Tx.reduce_negate(B_sbuf[:, i], A_sbuf[:, :, i], reduce_op="sum", reduce_axes=-2)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "reduction"})
         A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
@@ -530,7 +530,7 @@ def test_binary_reduce_guard():
     reduce_dst_layout = TileLayout(S[(4, 128) : (1 @ F, 1 @ P)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def binary_reduce() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
@@ -540,7 +540,7 @@ def test_binary_reduce_guard():
             for i in range(4):
                 Tx.binary_reduce(B_sbuf[0:128*(j+1), 0:128*(i+1)], C_sbuf[0:128*(j+1)], A_sbuf[0:128*(j+1), 0:128*(i+1)], 0.0, "add", "sum", [-1])  # noqa: E501
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "binary_reduce"})
         A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
@@ -569,7 +569,7 @@ def test_unary_reduce_guard():
     reduce_dst_layout = TileLayout(S[(4, 128) : (1 @ F, 1 @ P)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def unary_reduce() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
@@ -579,7 +579,7 @@ def test_unary_reduce_guard():
             for i in range(4):
                 Tx.unary_reduce(B_sbuf[0:128*(j+1), 0:128*(i+1)], C_sbuf[0:128*(j+1)], A_sbuf[0:128*(j+1), 0:128*(i+1)], "sqrt", "sum", reduce_axes=[-1])  # noqa: E501
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "unary_reduce"})
         const_bias = T.alloc_tensor((128, 512), scope="trn.sbuf")
@@ -615,7 +615,7 @@ def test_binary_chain_guard():
     src2_layout = TileLayout(S[(4, 128) : (1 @ F, 1 @ P)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def binary_chain() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
@@ -624,7 +624,7 @@ def test_binary_chain_guard():
         for j in range(4):
             for i in range(4):
                 Tx.binary_chain(C_sbuf[0:128*(j+1), 0:128*(i+1)], A_sbuf[0:128*(j+1), 0:128*(i+1)], B_sbuf[0:128*(j+1), 0], 1.0, "add", "sub", reverse1=True)  # noqa: E501
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "binary_chain"})
         A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
@@ -653,7 +653,7 @@ def test_activation_reduce_two_stage_workspace():
     C_layout = TileLayout(S[(1, 128) : (1 @ F, 1 @ P)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def activation_reduce():
         T.device_entry()
         intermediate_buffer = T.alloc_tensor((128, 16), scope="trn.sbuf")
@@ -663,7 +663,7 @@ def test_activation_reduce_two_stage_workspace():
         for i in range(2):
             Tx.unary_reduce(B, C, A[i*16:i*16+16], "sqrt", "sum", reduce_axes=(0,1), workspace={"partial_reduce": intermediate_buffer})  # noqa: E501
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "activation_reduce"})
         const_bias = T.alloc_tensor((128, 1024), scope="trn.sbuf")
@@ -703,7 +703,7 @@ def test_tensor_scalar_reduce_two_stage_workspace():
     reduce_dst_layout = TileLayout(S[(128, 4) : (1 @ P, 1 @ F)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def tensor_scalar_reduce() -> None:
         T.device_entry()
         intermediate_buffer = T.alloc_tensor((128, 8), scope="trn.sbuf")
@@ -712,7 +712,7 @@ def test_tensor_scalar_reduce_two_stage_workspace():
         C_sbuf = T.alloc_tensor(reduce_dst_shape, "float32", scope="trn.sbuf", layout=reduce_dst_layout)  # noqa: E501
         Tx.binary_reduce(B_sbuf, C_sbuf, A_sbuf, 1.0, "add", "sum", reduce_axes=(1, 2), workspace={"partial_reduce": intermediate_buffer})  # noqa: E501
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "tensor_scalar_reduce"})
         intermediate_buffer = T.alloc_tensor((128, 8), scope="trn.sbuf")
@@ -738,7 +738,7 @@ def test_tensor_scalar_reduce_two_stage_workspace():
 
 def test_unary_reduce_complex():
     # fmt: off
-    @T.prim_func
+    @T.function
     def unary_reduce():
         T.device_entry()
         p = T.alloc_tensor((128, 8192), "float16", scope="trn.sbuf", layout="PF")
@@ -748,7 +748,7 @@ def test_unary_reduce_complex():
         for i in range(4):
             Tx.unary_reduce_with_scale_bias(p[0:128, 0:8192], rowsum_p[i % 2, 0:128, 0], qk[i % 2, 0:128, 0:8192], "exp", "sum", bias=running_max[i * 128:i * 128 + 128, 0], scale=1.0)  # noqa: E501
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "unary_reduce"})
         p = T.alloc_tensor((128, 8192), "float16", scope="trn.sbuf")

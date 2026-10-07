@@ -48,7 +48,7 @@ def test_cta_sum_4_warps():
     N = NUM_WARPS * 32
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(out: T.Tensor((N,), 'float32')):
 
         T.device_entry()
@@ -76,7 +76,7 @@ def test_cta_sum_8_warps():
     N = NUM_WARPS * 32
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(out: T.Tensor((N,), 'float32')):
 
         T.device_entry()
@@ -103,7 +103,7 @@ def test_cta_max_4_warps():
     N = NUM_WARPS * 32
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(out: T.Tensor((N,), 'float32')):
 
         T.device_entry()
@@ -129,7 +129,7 @@ def test_cta_min_4_warps():
     N = NUM_WARPS * 32
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(out: T.Tensor((N,), 'float32')):
 
         T.device_entry()
@@ -155,7 +155,7 @@ def test_cta_sum_1_warp():
     N = 32
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(out: T.Tensor((N,), 'float32')):
 
         T.device_entry()
@@ -182,7 +182,7 @@ def test_cta_sum_all_warp_counts(num_warps):
     N = num_warps * 32
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(out: T.Tensor((N,), 'float32')):
 
         T.device_entry()

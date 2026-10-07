@@ -324,7 +324,7 @@ class Layout(Object):
     def _get_default_strides(data: list[int | Expr], stride: int = 1) -> tuple:
         assert isinstance(data, list | tuple), "data must be a tuple"
         # Promote ``stride`` to the dtype of the shape extents so the resulting
-        # strides match what te-create_prim_func / C++ ``GetDefaultStrides``
+        # strides match what te-create_function / C++ ``GetDefaultStrides``
         # produce for int64-shaped buffers (otherwise the last stride stays a
         # Python ``int`` -> int32 IntImm and breaks structural-equal).
         for t in data:

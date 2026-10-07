@@ -1411,7 +1411,7 @@ namespace transform {
 
 // TODO(tvm-team): Make it as a target property.
 Pass VectorizeLoop(bool enable_vectorize) {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     if (enable_vectorize) {
       n->body = ffi::make_object<LoopVectorizer>(n->attrs)
@@ -1424,7 +1424,7 @@ Pass VectorizeLoop(bool enable_vectorize) {
     }
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.VectorizeLoop", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.VectorizeLoop", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

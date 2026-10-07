@@ -19,7 +19,7 @@
 
 from tvm.backend.trn.layout import is_trainium_layout
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 from tvm.tirx.operator.tile_primitive import (
     DispatchContext,
     fail,
@@ -36,7 +36,7 @@ from ..workspace_utils import check_workspace_buffer, largest_psum_per_bank, max
 
 def transpose_schedule(
     op: TilePrimitiveCall, inst_gen: InstructionGenerator, sctx: DispatchContext
-) -> PrimFunc | None:
+) -> Function | None:
     dst_region, src_region = op.args
     assert src_region.source.scope() != "trn.psum", "Transpose on psum buffer is not supported"
 
@@ -95,7 +95,7 @@ def transpose_schedule(
         sctx.add_alloc_buffer(identity_tensor)
 
         # This fragment captures buffers and indices from its insertion scope.
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def identity_init():
             with T.nki.tensorized_instruction():
                 for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
@@ -112,7 +112,7 @@ def transpose_schedule(
     src_buffer = src_region.source
     if dst_buffer.scope() == "trn.psum":
         # This fragment captures buffers and indices from its insertion scope.
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def transpose_psum_output():
             for b_loop in T.serial(0, b_extent):
                 with T.nki.tensorized_instruction():
@@ -165,7 +165,7 @@ def transpose_schedule(
 
     # fmt: off
     # This fragment captures buffers and indices from its insertion scope.
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def transpose_sbuf_output():
         for b_loop in T.serial(0, b_extent):
             for extend_b_loop in T.serial(0, extend_len):
@@ -188,7 +188,7 @@ def transpose_schedule(
     return transpose_sbuf_output
 
 
-def copy_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
+def copy_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
     """Schedule copy operation between global and shared memory on CUDA."""
     # Basic validation checks
     if sctx.scope_kind != "thread":
@@ -271,7 +271,7 @@ def copy_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
 
     # fmt: off
     # This fragment captures buffers and indices from its insertion scope.
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         # the additional b loop is to satisfy hardware instuction size limit
         for b_loop in T.serial(0, b_extent):
@@ -303,5 +303,5 @@ def copy_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
         )
     ],
 )
-def copy_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def copy_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     return copy_trn(op, sctx)
