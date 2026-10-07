@@ -461,41 +461,6 @@ class ElseFrame : public TIRFrame {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ElseFrame, TIRFrame, ElseFrameNode);
 };
 
-class DeclTensorFrameNode : public TIRFrameNode {
- public:
-  explicit DeclTensorFrameNode(ffi::UnsafeInit tag) : buffer(tag) {}
-
-  explicit DeclTensorFrameNode(tvm::tirx::TensorVar buffer) : buffer(std::move(buffer)) {}
-
-  /*! \brief The declared buffer. */
-  tvm::tirx::TensorVar buffer;
-  /*! \brief Physical pointer expression backing the declaration. */
-  ffi::Optional<Expr> data;
-  /*! \brief The buffer allocated or not. */
-  bool allocated;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DeclTensorFrameNode>()
-        .def_ro("buffer", &DeclTensorFrameNode::buffer)
-        .def_ro("data", &DeclTensorFrameNode::data)
-        .def_ro("allocated", &DeclTensorFrameNode::allocated);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.DeclTensorFrame", DeclTensorFrameNode,
-                                    TIRFrameNode);
-
- public:
-  void ExitWithScope() final;
-};
-
-class DeclTensorFrame : public TIRFrame {
- public:
-  explicit DeclTensorFrame(ffi::ObjectPtr<DeclTensorFrameNode> data) : TIRFrame(data) {
-    TVM_FFI_ICHECK(data != nullptr);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DeclTensorFrame, TIRFrame, DeclTensorFrameNode);
-};
-
 }  // namespace tirx
 }  // namespace ir_builder
 }  // namespace script

@@ -40,6 +40,91 @@ def _is_buffer_binding(node, *op_names):
     )
 
 
+@pytest.mark.parametrize("backing", ["allocate", "pointer", "tmem"])
+def test_decl_tensor_binding_order_and_source_span(backing):
+    location = tvm.ir.Span(tvm.ir.SourceName("declaration.py"), 4, 4, 1, 30)
+    scope = "tmem" if backing == "tmem" else "shared"
+    kwargs = {"scope": scope, "layout": None}
+    if backing == "pointer":
+        kwargs["data"] = T.ptr("float32", scope)
+    elif backing == "tmem":
+        kwargs["allocated_addr"] = 16
+
+    with IRBuilder() as ib:
+        T.evaluate(1)
+        with ib.with_source_span(location):
+            buffer = T.decl_tensor((8,), "float32", **kwargs)
+        T.evaluate(2)
+        with T.serial(3):
+            T.evaluate(3)
+            with ib.with_source_span(location):
+                nested = T.decl_tensor((8,), "float32", **kwargs)
+            T.evaluate(4)
+        T.evaluate(5)
+
+    before, binding, after, loop, last = ib.get().seq
+    inner_before, inner_binding, inner_after = loop.body.seq
+    assert [int(x.value) for x in (before, after, inner_before, inner_after, last)] == [
+        1,
+        2,
+        3,
+        4,
+        5,
+    ]
+    op = "tirx.alloc_tensor" if backing == "allocate" else "tirx.decl_tensor"
+    for stmt, tensor in ((binding, buffer), (inner_binding, nested)):
+        assert _is_buffer_binding(stmt, op)
+        assert stmt.var.same_as(tensor)
+        assert stmt.span.same_as(location)
+        assert stmt.value.span.same_as(location)
+        if backing == "pointer":
+            assert stmt.value.args[0].same_as(kwargs["data"])
+        elif backing == "tmem":
+            pointer = stmt.value.args[0]
+            assert pointer.op.name == "tirx.reinterpret"
+            assert int(pointer.args[0]) == 16
+            assert int(tensor.allocated_addr[0]) == 16
+
+
+@pytest.mark.parametrize(
+    "kwargs,message",
+    [
+        ({"scope": "tmem"}, "requires `allocated_addr`"),
+        ({"scope": "global", "allocated_addr": 0}, "does not accept `allocated_addr`"),
+        ({"scope": "shared", "allocated_addr": 0}, "does not accept `allocated_addr`"),
+        ({"scope": "local", "allocated_addr": 0}, "does not accept `allocated_addr`"),
+    ],
+)
+def test_decl_tensor_rejects_invalid_address_scope(kwargs, message):
+    with IRBuilder():
+        with pytest.raises(tvm.error.InternalError, match=message):
+            T.decl_tensor((8,), "float32", layout=None, **kwargs)
+
+
+def test_decl_tensor_preserves_enclosing_branch():
+    with IRBuilder() as ib:
+        with T.prim_func():
+            T.evaluate(1)
+            with T.if_(True):
+                with T.then_():
+                    first = T.decl_tensor((8,), "float32")
+                    second = T.decl_tensor((8,), "float32", data=first.data)
+                    T.evaluate(second[0])
+                with T.else_():
+                    other = T.decl_tensor((8,), "float32")
+                    T.evaluate(other[0])
+            T.evaluate(2)
+    before, branch, after = ib.get().body.seq
+    assert int(before.value) == 1 and int(after.value) == 2
+    first_binding, second_binding, use = branch.then_case.seq
+    assert first_binding.var.same_as(first)
+    assert second_binding.var.same_as(second)
+    assert use.value.source.same_as(second)
+    other_binding, other_use = branch.else_case.seq
+    assert other_binding.var.same_as(other)
+    assert other_use.value.source.same_as(other)
+
+
 def test_ir_builder_tir_for():
     with IRBuilder() as ib:
         with T.serial(128) as a:

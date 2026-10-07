@@ -64,6 +64,26 @@ def test_parser_attaches_span_to_direct_call():
     assert _span_range(call.span) == _span_range(source.to_span(call_ast))
 
 
+def test_tensor_declarations_keep_call_spans_and_names():
+    sources = []
+
+    @T.prim_func
+    @_capture_source(sources)
+    def declarations():
+        allocated = T.decl_tensor((8,), "float32")
+        declared = T.decl_tensor((8,), "float32", data=allocated.data)
+        T.evaluate(declared[0])
+
+    source = sources[0]
+    assignments = source.as_ast().body[0].body[:2]
+    bindings = declarations.body.seq[:2]
+    for assignment, binding, name in zip(assignments, bindings, ("allocated", "declared")):
+        expected = _span_range(source.to_span(assignment.value))
+        assert _span_range(binding.span) == expected
+        assert _span_range(binding.value.span) == expected
+        assert binding.var.name == name
+
+
 def _capture_source(sources):
     """Keep original source coordinates before a definition-site construction."""
 

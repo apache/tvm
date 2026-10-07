@@ -29,11 +29,12 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
-def test_meta_class_constructor_rejects_unowned_resource():
+@pytest.mark.parametrize("allocate", [T.alloc_tensor, T.decl_tensor])
+def test_meta_class_constructor_rejects_unowned_resource(allocate):
     @T.meta_class
     class Bad:
         def __init__(self):
-            tmp = T.alloc_tensor((1,), "int32", scope="local")
+            tmp = allocate((1,), "int32", scope="local")
 
     with pytest.raises(ValueError):
 
@@ -43,14 +44,15 @@ def test_meta_class_constructor_rejects_unowned_resource():
             bad = Bad()
 
 
-def test_meta_class_multiple_instances_preserve_owned_resources():
+@pytest.mark.parametrize("allocate", [T.alloc_tensor, T.decl_tensor])
+def test_meta_class_multiple_instances_preserve_owned_resources(allocate):
     instances = []
 
     @T.meta_class
     class Holder:
         def __init__(self, external):
             self.external = external
-            self.buf = T.alloc_tensor((2,), "int32", scope="local")
+            self.buf = allocate((2,), "int32", scope="local")
             self.scalar = T.local_scalar("int32")
             instances.append(self)
 

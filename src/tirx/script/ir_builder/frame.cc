@@ -47,7 +47,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IfFrameNode::RegisterReflection();
   ThenFrameNode::RegisterReflection();
   ElseFrameNode::RegisterReflection();
-  DeclTensorFrameNode::RegisterReflection();
 }
 
 namespace {
@@ -270,35 +269,6 @@ void ElseFrameNode::EnterWithScope() {
 void ElseFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   FindIfFrame("T.else_")->else_stmts = stmts;
-}
-
-void DeclTensorFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  if (allocated) {
-    TVM_FFI_ICHECK(data.has_value());
-    AddToParent(tvm::tirx::SeqStmt::Flatten(
-                    tvm::tirx::Bind(buffer,
-                                    tvm::Call(buffer.type(), tvm::tirx::builtin::decl_tensor(),
-                                              {data.value(), tvm::Tuple(buffer->shape),
-                                               tvm::DataTypeImm(buffer->dtype->dtype),
-                                               tvm::StringImm(buffer.scope())},
-                                              {}, {}, source_span),
-                                    source_span),
-                    AsStmt(stmts)),
-                source_span);
-  } else {
-    // data is undefined in `decl_tensor(...)`, lower to `alloc_tensor(...)`.
-    AddToParent(
-        tvm::tirx::SeqStmt::Flatten(
-            tvm::tirx::Bind(buffer.var(),
-                            Call(buffer.type(), tvm::tirx::builtin::alloc_tensor(),
-                                 {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                                  StringImm(buffer.scope())},
-                                 DictAttrs(), {}, source_span),
-                            source_span),
-            AsStmt(stmts)),
-        source_span);
-  }
 }
 
 }  // namespace tirx

@@ -537,11 +537,11 @@ tvm::tirx::Stmt BufferStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExp
   return store;
 }
 
-DeclTensorFrame DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
-                           ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                           ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
-                           int align, int offset_factor, ffi::Optional<Layout> layout,
-                           ffi::Optional<PrimExpr> allocated_addr) {
+TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
+                     ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
+                     ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
+                     int offset_factor, ffi::Optional<Layout> layout,
+                     ffi::Optional<PrimExpr> allocated_addr) {
   std::string scope = static_cast<std::string>(storage_scope);
   if (scope.empty()) {
     scope = "global";
@@ -569,21 +569,31 @@ DeclTensorFrame DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Stri
     }
   }
 
-  ffi::ObjectPtr<DeclTensorFrameNode> n = ffi::make_object<DeclTensorFrameNode>(
-      TensorDecl(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope, align,
-                 offset_factor, layout, allocated_addr_arr));
-  if (data.has_value()) {
-    n->data = data.value();
-  } else if (scope == "tmem") {
-    // Tensor memory is an externally allocated address space.  Make that
-    // address-to-pointer relationship explicit so every DeclTensor has a
-    // physical data binding.
-    n->data = Call(n->buffer.DataPointerType(), tvm::tirx::builtin::reinterpret(),
-                   {allocated_addr.value()});
+  TensorVar buffer = TensorDecl(shape, dtype, buffer_name, data, strides, elem_offset,
+                                storage_scope, align, offset_factor, layout, allocated_addr_arr);
+  if (scope == "tmem") {
+    // Tensor memory is externally allocated; make its address-to-pointer binding explicit.
+    data =
+        Call(buffer.DataPointerType(), tvm::tirx::builtin::reinterpret(), {allocated_addr.value()});
   }
-  // For tmem, even without `data`, we should not emit an Allocate node.
-  n->allocated = (scope == "tmem") || data.has_value();
-  return DeclTensorFrame(n);
+  Span span = IRBuilder::Current()->GetCurrentSourceSpan();
+  if (data.has_value()) {
+    AddToParent(tvm::tirx::Bind(buffer.var(),
+                                Call(buffer.type(), tvm::tirx::builtin::decl_tensor(),
+                                     {data.value(), tvm::Tuple(buffer->shape),
+                                      DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
+                                     {}, {}, span),
+                                span));
+  } else {
+    // Without a backing pointer, declare and allocate the tensor together.
+    AddToParent(tvm::tirx::Bind(buffer.var(),
+                                Call(buffer.type(), tvm::tirx::builtin::alloc_tensor(),
+                                     {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                                      StringImm(buffer.scope())},
+                                     DictAttrs(), {}, span),
+                                span));
+  }
+  return buffer;
 }
 
 TensorVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String storage_scope,
