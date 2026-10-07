@@ -253,7 +253,7 @@ def test_context_aware_parsing(monkeypatch):
             R.func_attr({"relax.force_pure": True})
             cls = Module
             alloc = R.builtin.alloc_tensor(R.shape([2, 4]), dtype="float32", runtime_device_index=0)
-            _: R.Tuple() = cls.add(x, R.const(1, "float32"), alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.add, (x, R.const(1, "float32"), alloc))
             return alloc
 
     _check(Module)
