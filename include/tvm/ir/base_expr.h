@@ -621,6 +621,7 @@ template <>
 struct TypeTraits<Expr> : public ObjectRefWithFallbackTraitsBase<Expr, PrimExpr, ffi::String> {
   TVM_FFI_INLINE static Expr ConvertFallbackValue(PrimExpr value) { return value; }
   TVM_DLL static Expr ConvertFallbackValue(ffi::String value);
+  TVM_DLL static std::optional<Expr> TryCastFromAnyView(const TVMFFIAny* src);
 };
 }  // namespace ffi
 

@@ -138,9 +138,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_DEFINE_CACHED_OP_GETTER(zero, "tirx.tile.zero")
 TVM_DEFINE_CACHED_OP_GETTER(sqrt, "tirx.tile.sqrt")
+TVM_DEFINE_CACHED_OP_GETTER(sqrt_with_scale_bias, "tirx.tile.sqrt_with_scale_bias")
 TVM_DEFINE_CACHED_OP_GETTER(exp, "tirx.tile.exp")
+TVM_DEFINE_CACHED_OP_GETTER(exp_with_scale_bias, "tirx.tile.exp_with_scale_bias")
 TVM_DEFINE_CACHED_OP_GETTER(exp2, "tirx.tile.exp2")
+TVM_DEFINE_CACHED_OP_GETTER(exp2_with_scale_bias, "tirx.tile.exp2_with_scale_bias")
 TVM_DEFINE_CACHED_OP_GETTER(log2, "tirx.tile.log2")
+TVM_DEFINE_CACHED_OP_GETTER(log2_with_scale_bias, "tirx.tile.log2_with_scale_bias")
 TVM_DEFINE_CACHED_OP_GETTER(add, "tirx.tile.add")
 TVM_DEFINE_CACHED_OP_GETTER(sub, "tirx.tile.sub")
 TVM_DEFINE_CACHED_OP_GETTER(mul, "tirx.tile.mul")
@@ -158,6 +162,7 @@ TVM_DEFINE_CACHED_OP_GETTER(memset, "tirx.tile.memset")
 TVM_DEFINE_CACHED_OP_GETTER(reduce_negate, "tirx.tile.reduce_negate")
 TVM_DEFINE_CACHED_OP_GETTER(binary_reduce, "tirx.tile.binary_reduce")
 TVM_DEFINE_CACHED_OP_GETTER(unary_reduce, "tirx.tile.unary_reduce")
+TVM_DEFINE_CACHED_OP_GETTER(unary_reduce_with_scale_bias, "tirx.tile.unary_reduce_with_scale_bias")
 TVM_DEFINE_CACHED_OP_GETTER(binary_chain, "tirx.tile.binary_chain")
 TVM_DEFINE_CACHED_OP_GETTER(select, "tirx.tile.select")
 TVM_DEFINE_CACHED_OP_GETTER(cast, "tirx.tile.cast")
@@ -176,27 +181,51 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.sqrt")
-      .signature(sig::arg("dst", "The destination."), sig::arg("src", "The source."),
-                 sig::var_args("args"))
+      .signature(sig::arg("dst", "The destination."), sig::arg("src", "The source."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tile.sqrt"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
-  OpDef("tirx.tile.exp")
+  OpDef("tirx.tile.sqrt_with_scale_bias")
       .signature(sig::arg("dst", "The destination."), sig::arg("src", "The source."),
-                 sig::var_args("args"))
+                 sig::arg("scale", "The scale factor."), sig::arg("bias", "The bias."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
+                                    ffi::String("tirx.tile.sqrt_with_scale_bias"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
+
+  OpDef("tirx.tile.exp")
+      .signature(sig::arg("dst", "The destination."), sig::arg("src", "The source."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tile.exp"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
-  OpDef("tirx.tile.exp2")
+  OpDef("tirx.tile.exp_with_scale_bias")
       .signature(sig::arg("dst", "The destination."), sig::arg("src", "The source."),
-                 sig::var_args("args"))
+                 sig::arg("scale", "The scale factor."), sig::arg("bias", "The bias."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
+                                    ffi::String("tirx.tile.exp_with_scale_bias"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
+
+  OpDef("tirx.tile.exp2")
+      .signature(sig::arg("dst", "The destination."), sig::arg("src", "The source."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tile.exp2"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
-  OpDef("tirx.tile.log2")
+  OpDef("tirx.tile.exp2_with_scale_bias")
       .signature(sig::arg("dst", "The destination."), sig::arg("src", "The source."),
-                 sig::var_args("args"))
+                 sig::arg("scale", "The scale factor."), sig::arg("bias", "The bias."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
+                                    ffi::String("tirx.tile.exp2_with_scale_bias"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
+
+  OpDef("tirx.tile.log2")
+      .signature(sig::arg("dst", "The destination."), sig::arg("src", "The source."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tile.log2"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
+
+  OpDef("tirx.tile.log2_with_scale_bias")
+      .signature(sig::arg("dst", "The destination."), sig::arg("src", "The source."),
+                 sig::arg("scale", "The scale factor."), sig::arg("bias", "The bias."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
+                                    ffi::String("tirx.tile.log2_with_scale_bias"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.add")
@@ -306,10 +335,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("reduce_output", "The reduction output."),
                  sig::arg("unary_input", "The unary operation input."),
                  sig::arg("unary_op", "The unary operation."),
-                 sig::arg("reduce_op", "The reduction operation."), sig::arg("bias", "The bias."),
-                 sig::arg("scale", "The scale factor."),
+                 sig::arg("reduce_op", "The reduction operation."),
                  sig::arg("reduce_axes", "The reduction axes."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tile.unary_reduce"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
+
+  OpDef("tirx.tile.unary_reduce_with_scale_bias")
+      .signature(sig::arg("unary_output", "The unary operation output."),
+                 sig::arg("reduce_output", "The reduction output."),
+                 sig::arg("unary_input", "The unary operation input."),
+                 sig::arg("unary_op", "The unary operation."),
+                 sig::arg("reduce_op", "The reduction operation."),
+                 sig::arg("scale", "The scale factor."), sig::arg("bias", "The bias."),
+                 sig::arg("reduce_axes", "The reduction axes."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
+                                    ffi::String("tirx.tile.unary_reduce_with_scale_bias"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.binary_chain")

@@ -83,7 +83,7 @@ def reduction_trn(
     # Extract buffers
     dst = dst_buffer_region.source
     src = src_buffer_region.source
-    axes = [i if i >= 0 else len(src.ty.shape) + i for i in axes]
+    axes = [int(i) if int(i) >= 0 else len(src.ty.shape) + int(i) for i in axes]
     dim_map = get_reduction_dim_map(src_buffer_region, dst_buffer_region, axes, analyzer)
 
     # Layout validation
