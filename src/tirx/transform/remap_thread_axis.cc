@@ -44,7 +44,7 @@ class ThreadAxisRewriter : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+    if (op->op.same_as(tirx::launch_thread_op()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
       auto it = tmap_.find(op->args[0].as_or_throw<StringImm>()->value);
       if (it != tmap_.end()) {
@@ -56,8 +56,8 @@ class ThreadAxisRewriter : public StmtExprMutator {
         VarRemapSet(old_var, new_var);
         Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
         VarRemapSet(old_var, previous_remap);
-        return RegionStmt(tirx::builtin::launch_thread(), {StringImm(it->second), extent},
-                          {new_var}, DictAttrs(), body, {}, op->span);
+        return RegionStmt(tirx::launch_thread_op(), {StringImm(it->second), extent}, {new_var},
+                          DictAttrs(), body, {}, op->span);
       }
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);

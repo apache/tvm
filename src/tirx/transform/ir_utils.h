@@ -24,8 +24,8 @@
 #ifndef TVM_TIR_TRANSFORM_IR_UTILS_H_
 #define TVM_TIR_TRANSFORM_IR_UTILS_H_
 
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/ir/with_context.h>
 #include <tvm/runtime/device_api.h>
@@ -97,13 +97,12 @@ inline ffi::Array<T> UpdateArray(ffi::Array<T> arr, F fupdate) {
  * \param kind The data kind.
  * \return the get expression.
  */
-inline Expr TVMStructGet(Type type, Var handle, int index, builtin::TVMStructFieldKind kind) {
+inline Expr TVMStructGet(Type type, Var handle, int index, tirx::TVMStructFieldKind kind) {
   ffi::Array<Expr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind))};
-  return Call(std::move(type), builtin::tvm_struct_get(), args);
+  return Call(std::move(type), tirx::tvm_struct_get_op(), args);
 }
 
-inline PrimExpr TVMStructGet(PrimType type, Var handle, int index,
-                             builtin::TVMStructFieldKind kind) {
+inline PrimExpr TVMStructGet(PrimType type, Var handle, int index, tirx::TVMStructFieldKind kind) {
   return TVMStructGet(Type(type), std::move(handle), index, kind).as_or_throw<PrimExpr>();
 }
 
@@ -121,7 +120,7 @@ inline Call AddressOffset(Var handle, PrimType dtype, int offset) {
                       TensorType(pointer_type->storage_scope, dtype, shape, {}, 0, 0, 0));
   TensorLoad buf_load = MakeTensorLoad(dummy_buf, {offset_expr});
 
-  return Call(handle->ty, builtin::address_of(), {buf_load});
+  return Call(handle->ty, tirx::address_of_op(), {buf_load});
 }
 
 /*!
@@ -143,7 +142,7 @@ inline Call AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
                                                shape, {}, 0, 0, 0));
   TensorLoad buf_load = MakeTensorLoad(dummy_buf, {offset});
 
-  return Call(handle->ty, builtin::address_of(), {buf_load});
+  return Call(handle->ty, tirx::address_of_op(), {buf_load});
 }
 
 /*!
@@ -154,10 +153,10 @@ inline Call AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
  * \param value The value to be set.
  * \return the set stmt.
  */
-inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind, Expr value) {
+inline Stmt TVMStructSet(Var handle, int index, tirx::TVMStructFieldKind kind, Expr value) {
   ffi::Array<Expr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind)),
                            value};
-  return Evaluate(Call(PrimType::Int(32), builtin::tvm_struct_set(), args).as_or_throw<PrimExpr>());
+  return Evaluate(Call(PrimType::Int(32), tirx::tvm_struct_set_op(), args).as_or_throw<PrimExpr>());
 }
 
 /*!
@@ -216,7 +215,7 @@ inline PrimExpr ConstInt32(size_t index) {
  */
 inline Call StackAlloca(Type ret_type, std::string type, size_t num) {
   ffi::Array<Expr> args = {StringImm(type), ConstInt32(num)};
-  return Call(std::move(ret_type), builtin::tvm_stack_alloca(), args);
+  return Call(std::move(ret_type), tirx::tvm_stack_alloca_op(), args);
 }
 
 /*!

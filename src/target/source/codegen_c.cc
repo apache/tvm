@@ -317,12 +317,12 @@ std::string CodeGenC::GetBufferRef(const PrimType& t, const VarNode* buffer, Pri
 // Print a reference expression to a buffer.
 std::string CodeGenC::GetStructRef(const Type& t, const Expr& buffer, const PrimExpr& index,
                                    int kind) {
-  if (kind < tirx::builtin::kDLTensorKindBound_) {
+  if (kind < tirx::kDLTensorKindBound_) {
     std::ostringstream os;
     os << "(((DLTensor*)";
     this->PrintExpr(buffer, os);
     os << ")";
-    if (kind == tirx::builtin::kDLTensorAddr) {
+    if (kind == tirx::kDLTensorAddr) {
       os << " + ";
       this->PrintExpr(index, os);
       os << ")";
@@ -333,34 +333,34 @@ std::string CodeGenC::GetStructRef(const Type& t, const Expr& buffer, const Prim
     os << "].";
     // other case: get fields.
     switch (kind) {
-      case tirx::builtin::kDLTensorData:
+      case tirx::kDLTensorData:
         os << "data";
         break;
-      case tirx::builtin::kDLTensorShape:
+      case tirx::kDLTensorShape:
         os << "shape";
         break;
-      case tirx::builtin::kDLTensorStrides:
+      case tirx::kDLTensorStrides:
         os << "strides";
         break;
-      case tirx::builtin::kDLTensorNDim:
+      case tirx::kDLTensorNDim:
         os << "ndim";
         break;
-      case tirx::builtin::kDLTensorTypeCode:
+      case tirx::kDLTensorTypeCode:
         os << "dtype.code";
         break;
-      case tirx::builtin::kDLTensorTypeBits:
+      case tirx::kDLTensorTypeBits:
         os << "dtype.bits";
         break;
-      case tirx::builtin::kDLTensorByteOffset:
+      case tirx::kDLTensorByteOffset:
         os << "byte_offset";
         break;
-      case tirx::builtin::kDLTensorTypeLanes:
+      case tirx::kDLTensorTypeLanes:
         os << "dtype.lanes";
         break;
-      case tirx::builtin::kDLTensorDeviceId:
+      case tirx::kDLTensorDeviceId:
         os << "device.device_id";
         break;
-      case tirx::builtin::kDLTensorDeviceType:
+      case tirx::kDLTensorDeviceType:
         os << "device.device_type";
         break;
       default:
@@ -368,19 +368,19 @@ std::string CodeGenC::GetStructRef(const Type& t, const Expr& buffer, const Prim
     }
     os << ')';
     return os.str();
-  } else if (kind == tirx::builtin::kTVMFFIAnyTypeIndex) {
+  } else if (kind == tirx::kTVMFFIAnyTypeIndex) {
     std::ostringstream os;
     os << "(((TVMFFIAny*)";
     this->PrintExpr(buffer, os);
     os << ")[" << index << "].type_index)";
     return os.str();
-  } else if (kind == tirx::builtin::kTVMFFIAnyZeroPadding) {
+  } else if (kind == tirx::kTVMFFIAnyZeroPadding) {
     std::ostringstream os;
     os << "(((TVMFFIAny*)";
     this->PrintExpr(buffer, os);
     os << ")[" << index << "].zero_padding)";
     return os.str();
-  } else if (kind == tirx::builtin::kTVMFFIAnyUnionValue) {
+  } else if (kind == tirx::kTVMFFIAnyUnionValue) {
     std::ostringstream os;
     os << "(((TVMFFIAny*)";
     this->PrintExpr(buffer, os);
@@ -397,7 +397,7 @@ std::string CodeGenC::GetStructRef(const Type& t, const Expr& buffer, const Prim
     }
     os << ")";
     return os.str();
-  } else if (kind == tirx::builtin::kInt64ArrayElem) {
+  } else if (kind == tirx::kInt64ArrayElem) {
     std::ostringstream os;
     os << "(((int64_t*)";
     this->PrintExpr(buffer, os);
@@ -436,7 +436,7 @@ void CodeGenC::RegisterHandleTypeFromPointer(const tirx::Var& var, const Expr* v
   }();
   if (!value_dtype.has_value()) return;
   auto* call = value->as<CallNode>();
-  if (call != nullptr && call->op.same_as(tirx::builtin::ptr_byte_offset())) {
+  if (call != nullptr && call->op.same_as(tirx::ptr_byte_offset_op())) {
     pointer_offset_vars_.insert(var.get());
   }
   RegisterHandleType(var.get(), value_dtype.value());
@@ -711,14 +711,14 @@ void CodeGenC::PrintCallExtern(Type ret_type, ffi::String global_symbol,
 }
 
 void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
-  TVM_FFI_ICHECK(!op->op.same_as(tirx::builtin::masked_load()))
+  TVM_FFI_ICHECK(!op->op.same_as(tirx::masked_load_op()))
       << "Predicated buffer load is not supported.";
-  TVM_FFI_ICHECK(!op->op.same_as(tirx::builtin::masked_store()))
+  TVM_FFI_ICHECK(!op->op.same_as(tirx::masked_store_op()))
       << "Predicated buffer store is not supported.";
   if (auto opt_call_op = op->op.as<Op>()) {
     auto call_op = opt_call_op.value();
 
-    if (op->op.same_as(tirx::builtin::buffer_data())) {
+    if (op->op.same_as(tirx::buffer_data_op())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
       const auto* buffer = op->args[0].as<VarNode>();
       TVM_FFI_ICHECK(buffer && buffer->ty.as<TensorTypeNode>())
@@ -750,7 +750,7 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       // call extern if the op itself have a global symbol.
       ffi::Array<Expr> args = op->args;
       this->PrintCallExtern(op->ty, op_attr_global_symbol_[call_op], args, false, os);
-    } else if (op->op.same_as(prim::builtin::if_then_else())) {
+    } else if (op->op.same_as(prim::if_then_else_op())) {
       // conditional that skips eval if cond evals to false
       std::string result = name_supply_->FreshName("condval");
       std::string cond = PrintExpr(op->args[0]);
@@ -782,7 +782,7 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
         this->stream << "}\n";
       }
       os << result;
-    } else if (op->op.same_as(tirx::builtin::address_of())) {
+    } else if (op->op.same_as(tirx::address_of_op())) {
       const TensorLoadNode* load = op->args[0].as<TensorLoadNode>();
       TVM_FFI_ICHECK(op->args.size() == 1);
       if (load) {
@@ -828,16 +828,16 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
           os << "))";
         }
       }
-    } else if (op->op.same_as(tirx::builtin::tvm_struct_get())) {
+    } else if (op->op.same_as(tirx::tvm_struct_get_op())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
       os << GetStructRef(op->ty, op->args[0], op->args[1].as_or_throw<PrimExpr>(),
                          op->args[2].as<IntImmNode>()->value.as<int>().value());
-    } else if (op->op.same_as(tirx::builtin::isnullptr())) {
+    } else if (op->op.same_as(tirx::isnullptr_op())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
       os << "(";
       this->PrintExpr(op->args[0], os);
       os << " == NULL)";
-    } else if (op->op.same_as(tirx::builtin::ptr_byte_offset())) {
+    } else if (op->op.same_as(tirx::ptr_byte_offset_op())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
       os << "((";
       PrintType(op->args[2].as_or_throw<PrimExpr>().ty(), os);
@@ -846,14 +846,14 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << ") + ";
       this->PrintExpr(op->args[1], os);
       os << "))";
-    } else if (op->op.same_as(tirx::builtin::handle_add_byte_offset())) {
+    } else if (op->op.same_as(tirx::handle_add_byte_offset_op())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
       os << "((void*)((char*)";
       this->PrintExpr(op->args[0], os);
       os << " + ";
       this->PrintExpr(op->args[1], os);
       os << "))";
-    } else if (op->op.same_as(tirx::builtin::reinterpret())) {
+    } else if (op->op.same_as(tirx::reinterpret_op())) {
       if (const auto* pointer_type = op->ty.as<PointerTypeNode>()) {
         os << "((";
         if (IsScopePartOfType()) {
@@ -892,13 +892,13 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       this->PrintType(target_dtype, os);
       os << " *)(&(" << rhs << ")))";
       EndScope(ssa_scope);
-    } else if (op->op.same_as(tirx::builtin::isnan())) {
+    } else if (op->op.same_as(tirx::isnan_op())) {
       os << "(";
       this->PrintExpr(op->args[0], os);
       os << " != ";
       this->PrintExpr(op->args[0], os);
       os << ")";
-    } else if (op->op.same_as(tirx::builtin::tvm_thread_invariant())) {
+    } else if (op->op.same_as(tirx::tvm_thread_invariant_op())) {
       os << "(";
       this->PrintExpr(op->args[0], os);
       os << ")";
@@ -941,7 +941,7 @@ void CodeGenC::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_cal
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   const VarNode* source = data.as<VarNode>();
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
     source = call->args[0].as<VarNode>();
   }
   if (source && var_idmap_.count(source)) {
@@ -967,8 +967,7 @@ void CodeGenC::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_cal
   }
   PrintType(PointerType(PrimType(dtype), scope), stream);
   stream << ' ' << AllocVarID(buffer.get()) << " = ";
-  PrintExpr(Call(PointerType(PrimType(dtype), scope), tirx::builtin::reinterpret(), {data}),
-            stream);
+  PrintExpr(Call(PointerType(PrimType(dtype), scope), tirx::reinterpret_op(), {data}), stream);
   stream << ";\n";
   RegisterHandleType(buffer.get(), PrimType(dtype));
 }
@@ -1241,8 +1240,8 @@ void CodeGenC::Dispatch_(const prim::SelectNode* op, std::ostream& os) {  // NOL
 
 void CodeGenC::Dispatch_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>(); call) {
-    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
-    if (call->op.same_as(tirx::builtin::decl_tensor())) return DispatchDeclTensor(op, call);
+    if (call->op.same_as(tirx::alloc_tensor_op())) return DispatchAllocTensor(op, call);
+    if (call->op.same_as(tirx::decl_tensor_op())) return DispatchDeclTensor(op, call);
   }
   RegisterHandleTypeFromPointer(op->var, &op->value);
   std::string value = PrintExpr(op->value);
@@ -1295,7 +1294,7 @@ void CodeGenC::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_ca
 }
 
 void CodeGenC::Dispatch_(const RegionStmtNode* op) {
-  if (op->op.same_as(tirx::builtin::launch_thread())) {
+  if (op->op.same_as(tirx::launch_thread_op())) {
     TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
                   ValueError)
         << "Virtual thread launches must be lowered before code generation";
@@ -1310,9 +1309,9 @@ void CodeGenC::Dispatch_(const RegionStmtNode* op) {
     BindThreadIndex(var, tag);
     this->PrintStmt(op->body);
     var_idmap_.erase(var.get());
-  } else if (op->op.same_as(tirx::builtin::device_context()) ||
-             op->op.same_as(tirx::builtin::compute_scope()) ||
-             op->op.same_as(tirx::builtin::parallel_launch())) {
+  } else if (op->op.same_as(tirx::device_context_op()) ||
+             op->op.same_as(tirx::compute_scope_op()) ||
+             op->op.same_as(tirx::parallel_launch_op())) {
     this->PrintStmt(op->body);
   } else {
     TVM_FFI_THROW(ValueError) << "Unsupported region op " << op->op;
@@ -1483,14 +1482,14 @@ void CodeGenC::Dispatch_(const EvaluateNode* op) {
   if (auto value = op->value.as<PrimExpr>(); value && IsConstInt(value.value())) return;
   const CallNode* call = op->value.as<CallNode>();
   if (call) {
-    if (call->op.same_as(tirx::builtin::assume_aligned())) {
+    if (call->op.same_as(tirx::assume_aligned_op())) {
       // Alignment facts do not require a runtime statement on C-family targets.
       return;
     }
-    if (call->op.same_as(tirx::builtin::tvm_storage_sync())) {
+    if (call->op.same_as(tirx::tvm_storage_sync_op())) {
       this->PrintStorageSync(call);
       return;
-    } else if (call->op.same_as(tirx::builtin::tvm_struct_set())) {
+    } else if (call->op.same_as(tirx::tvm_struct_set_op())) {
       TVM_FFI_ICHECK_EQ(call->args.size(), 4);
       int kind = call->args[2].as<IntImmNode>()->value.as<int>().value();
       Type store_ty = call->args[3]->ty;
@@ -1502,7 +1501,7 @@ void CodeGenC::Dispatch_(const EvaluateNode* op) {
       auto store_prim_type = store_ty.as<PrimType>();
       bool clears_union = store_ty.as<PointerTypeNode>() ||
                           (store_prim_type && store_prim_type.value().bits() < 64);
-      if (kind == tirx::builtin::kTVMFFIAnyUnionValue && clears_union) {
+      if (kind == tirx::kTVMFFIAnyUnionValue && clears_union) {
         this->PrintIndent();
         // when we set any union value, we need to be careful to
         // clear off the union value to zero if the set size is less than 64 bits
@@ -1511,10 +1510,10 @@ void CodeGenC::Dispatch_(const EvaluateNode* op) {
                      << " = 0;\n";
       }
 
-      if (kind == tirx::builtin::kDLTensorStrides) {
+      if (kind == tirx::kDLTensorStrides) {
         // cast void* to int64_t*
         cast = store_ty.as<PointerTypeNode>() ? "(int64_t*)" : "";
-      } else if (kind == tirx::builtin::kDLTensorDeviceType) {
+      } else if (kind == tirx::kDLTensorDeviceType) {
         // cast int to enum
         cast = "(DLDeviceType)";
       }

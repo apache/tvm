@@ -600,7 +600,7 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
     // the same as block->alloc_buffers entries for the "write-without-signature"
     // check below.
     if (const auto* call = alloc->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
       buffer_allocated.insert(alloc->var.get());
     }
     return ffi::WalkResult::Advance();

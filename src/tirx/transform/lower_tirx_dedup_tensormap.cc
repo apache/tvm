@@ -42,7 +42,7 @@ inline bool IsBuiltin(const CallNode* call, const Op& op) { return call && call-
 // Is a stack allocation for a tensormap handle?
 inline bool IsTensorMapAlloca(const BindNode* bind) {
   if (const auto* call = bind->value.as<CallNode>()) {
-    if (IsBuiltin(call, builtin::tvm_stack_alloca())) {
+    if (IsBuiltin(call, tirx::tvm_stack_alloca_op())) {
       if (call->args.size() == 2) {
         if (const auto* type_str = call->args[0].as<StringImmNode>()) {
           return type_str->value == "tensormap";
@@ -57,8 +57,8 @@ inline bool IsTensorMapAlloca(const BindNode* bind) {
 inline const CallNode* AsCuTensorMapEncode(const EvaluateNode* eval) {
   const CallNode* call = eval->value.as<CallNode>();
   if (!call) return nullptr;
-  if (call->op.same_as(builtin::tensormap_encode_tiled())) return call;
-  if (!call->op.same_as(builtin::tvm_call_packed())) return nullptr;
+  if (call->op.same_as(tirx::tensormap_encode_tiled_op())) return call;
+  if (!call->op.same_as(tirx::tvm_call_packed_op())) return nullptr;
   if (call->args.empty()) return nullptr;
   if (const auto* s = call->args[0].as<StringImmNode>()) {
     if (s->value == "runtime.cuTensorMapEncodeTiled") return call;
@@ -69,7 +69,7 @@ inline const CallNode* AsCuTensorMapEncode(const EvaluateNode* eval) {
 // Exclude only the output pointer; retain op, attributes and all input operands
 // so descriptor dtype, forced dtype and encoding modes participate in equality.
 inline std::pair<ffi::Optional<Var>, Call> ExtractEncodeKey(const CallNode* call) {
-  size_t output_index = call->op.same_as(builtin::tensormap_encode_tiled()) ? 0 : 1;
+  size_t output_index = call->op.same_as(tirx::tensormap_encode_tiled_op()) ? 0 : 1;
   TVM_FFI_ICHECK_GT(call->args.size(), output_index);
   ffi::Optional<Var> tensormap = call->args[output_index].as<Var>();
   ffi::Array<Expr> args;

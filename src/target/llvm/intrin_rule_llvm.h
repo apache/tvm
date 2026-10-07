@@ -28,8 +28,8 @@
 
 #include <llvm/IR/Intrinsics.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/op.h>
 
@@ -52,7 +52,7 @@ inline PrimExpr DispatchLLVMPureIntrin(const PrimExpr& e) {
   for (PrimExpr arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
     cargs.push_back(arg);
   }
-  return Call(call->ty.as_or_throw<PrimType>(), tirx::builtin::call_llvm_pure_intrin(), cargs)
+  return Call(call->ty.as_or_throw<PrimType>(), tirx::call_llvm_pure_intrin_op(), cargs)
       .as_or_throw<PrimExpr>();
 }
 
@@ -69,7 +69,7 @@ inline PrimExpr DispatchLLVMIntrin(const PrimExpr& e) {
   for (Expr arg : call->args) {
     cargs.push_back(arg);
   }
-  return Call(call->ty.as_or_throw<PrimType>(), tirx::builtin::call_llvm_intrin(), cargs)
+  return Call(call->ty.as_or_throw<PrimType>(), tirx::call_llvm_intrin_op(), cargs)
       .as_or_throw<PrimExpr>();
 }
 

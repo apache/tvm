@@ -37,7 +37,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -71,7 +71,7 @@ class AssumeChecker : public StmtExprVisitor {
     return StmtExprVisitor::Visit(stmt);
   }
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) override {
-    if (op->op.same_as(tirx::builtin::assume())) {
+    if (op->op.same_as(tirx::assume_op())) {
       has_assume = true;
     }
     return std::nullopt;
@@ -227,7 +227,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
     // Eliminate the builtin if_then_else statement
     if (auto* call = op->value.as<CallNode>()) {
-      if (call->op.same_as(prim::builtin::if_then_else())) {
+      if (call->op.same_as(prim::if_then_else_op())) {
         PrimExpr cond = call->args[0].as_or_throw<PrimExpr>();
         PrimExpr then_clause = call->args[1].as_or_throw<PrimExpr>();
         PrimExpr else_clause = call->args[2].as_or_throw<PrimExpr>();
@@ -291,7 +291,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
-    if (op->op.same_as(tirx::builtin::assume())) {
+    if (op->op.same_as(tirx::assume_op())) {
       Assume(op->args[0].as_or_throw<PrimExpr>());
     }
     return Parent::Mutate_(op, inplace_mode);

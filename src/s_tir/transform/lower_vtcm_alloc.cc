@@ -18,7 +18,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/op.h>
@@ -41,7 +41,7 @@ class VtcmAllocator : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
       return Mutate_AllocTensor(op, call, inplace_mode);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -55,17 +55,16 @@ class VtcmAllocator : public StmtExprMutator {
       ffi::Array<Expr> args;
       args.push_back(StringImm(scope));
       args.push_back(IntImm::Int64(shape->fields.size()));
-      args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
-                          shape->fields));
+      args.push_back(
+          Call(PointerType(PrimType::Int(64)), tirx::tvm_stack_make_shape_op(), shape->fields));
       TensorVar buffer = op->var.as_or_throw<TensorVar>();
-      return Bind(
-          buffer,
-          Call(buffer.type(), tirx::builtin::decl_tensor(),
-               {Call(buffer.DataPointerType(), tirx::builtin::nd_mem_alloc_with_scope(), args),
-                tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                StringImm(buffer.scope())},
-               {}, call->ty_args, call->span),
-          op->span);
+      return Bind(buffer,
+                  Call(buffer.type(), tirx::decl_tensor_op(),
+                       {Call(buffer.DataPointerType(), tirx::nd_mem_alloc_with_scope_op(), args),
+                        tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                        StringImm(buffer.scope())},
+                       {}, call->ty_args, call->span),
+                  op->span);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }

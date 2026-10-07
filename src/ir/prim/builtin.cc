@@ -17,11 +17,10 @@
  * under the License.
  */
 #include <tvm/ir/expr.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 
 namespace tvm {
 namespace prim {
-namespace builtin {
 
 #define TVM_DEFINE_CACHED_OP_GETTER(Name, RegisteredName) \
   const Op& Name() {                                      \
@@ -29,12 +28,12 @@ namespace builtin {
     return op;                                            \
   }
 
-TVM_DEFINE_CACHED_OP_GETTER(likely, "prim.likely")
-TVM_DEFINE_CACHED_OP_GETTER(if_then_else, "prim.if_then_else")
-TVM_DEFINE_CACHED_OP_GETTER(vscale, "prim.vscale")
-TVM_DEFINE_CACHED_OP_GETTER(ceil, "prim.ceil")
-TVM_DEFINE_CACHED_OP_GETTER(log2, "prim.log2")
-TVM_DEFINE_CACHED_OP_GETTER(clz, "prim.clz")
+TVM_DEFINE_CACHED_OP_GETTER(likely_op, "prim.likely")
+TVM_DEFINE_CACHED_OP_GETTER(if_then_else_op, "prim.if_then_else")
+TVM_DEFINE_CACHED_OP_GETTER(vscale_op, "prim.vscale")
+TVM_DEFINE_CACHED_OP_GETTER(ceil_op, "prim.ceil")
+TVM_DEFINE_CACHED_OP_GETTER(log2_op, "prim.log2")
+TVM_DEFINE_CACHED_OP_GETTER(clz_op, "prim.clz")
 
 #undef TVM_DEFINE_CACHED_OP_GETTER
 
@@ -70,6 +69,5 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 }
 
-}  // namespace builtin
 }  // namespace prim
 }  // namespace tvm

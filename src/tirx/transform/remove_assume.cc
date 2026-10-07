@@ -19,11 +19,11 @@
 
 /*!
  * \file remove_store_undef.cc
- * \brief Remove stores of tirx::builtin::undef
+ * \brief Remove stores of tirx::undef_op
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
@@ -33,7 +33,7 @@
 namespace tvm {
 namespace tirx {
 
-// Remove any builtin::assume calls
+// Remove any tirx::assume_op calls
 class AssumeRemover : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
@@ -42,7 +42,7 @@ class AssumeRemover : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     if (auto* call = op->value.as<CallNode>()) {
-      if (call->op.same_as(builtin::assume())) {
+      if (call->op.same_as(tirx::assume_op())) {
         return Evaluate(0);
       }
     }

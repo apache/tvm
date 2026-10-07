@@ -24,7 +24,7 @@
 #ifndef TVM_TOPI_DETAIL_EXTERN_H_
 #define TVM_TOPI_DETAIL_EXTERN_H_
 
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/op.h>
 
@@ -103,11 +103,11 @@ inline Expr pack_buffer(TensorVar buf) {
   using namespace tvm::prim;
   TVM_FFI_ICHECK_GT(buf->shape.size(), 0) << "buf shape must have at least one element";
   Expr shape =
-      Call(PointerType(PrimType::Int(64)), tvm::tirx::builtin::tvm_stack_make_shape(), buf->shape);
+      Call(PointerType(PrimType::Int(64)), tvm::tirx::tvm_stack_make_shape_op(), buf->shape);
   Expr strides;
   if (buf->strides.size() > 0) {
-    strides = Call(PointerType(PrimType::Int(64)), tvm::tirx::builtin::tvm_stack_make_shape(),
-                   buf->strides);
+    strides =
+        Call(PointerType(PrimType::Int(64)), tvm::tirx::tvm_stack_make_shape_op(), buf->strides);
   } else {
     strides = PrimExpr(0);
   }
@@ -117,7 +117,7 @@ inline Expr pack_buffer(TensorVar buf) {
                              IntImm::Int32(static_cast<int64_t>(buf->shape.size())),
                              MakeConst(PrimType(buf->dtype), 0),
                              buf->elem_offset};
-  return Call(PointerType::VoidPointerTy(), tvm::tirx::builtin::tvm_stack_make_array(), pack_args);
+  return Call(PointerType::VoidPointerTy(), tvm::tirx::tvm_stack_make_array_op(), pack_args);
 }
 
 /*!
@@ -130,8 +130,7 @@ inline Expr pack_buffer(TensorVar buf) {
  * \return An expression representing the invocation
  */
 inline PrimExpr call_packed(ffi::Array<Expr> args) {
-  return Call(PrimType::Int(32), tvm::tirx::builtin::tvm_call_packed(), args)
-      .as_or_throw<PrimExpr>();
+  return Call(PrimType::Int(32), tvm::tirx::tvm_call_packed_op(), args).as_or_throw<PrimExpr>();
 }
 
 }  // namespace detail

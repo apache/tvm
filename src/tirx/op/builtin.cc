@@ -24,13 +24,28 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ir/expr.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
 namespace tvm {
 namespace tirx {
-namespace builtin {
+
+void CallFFIKernelAttr::RegisterReflection() {
+  ffi::reflection::ObjectDef<CallFFIKernelAttr>().def_ro("launch_params",
+                                                         &CallFFIKernelAttr::launch_params);
+}
+
+void TensorMapEncodeTiledAttr::RegisterReflection() {
+  ffi::reflection::ObjectDef<TensorMapEncodeTiledAttr>()
+      .def_ro("descriptor_dtype", &TensorMapEncodeTiledAttr::descriptor_dtype)
+      .def_ro("rank", &TensorMapEncodeTiledAttr::rank)
+      .def_ro("interleave", &TensorMapEncodeTiledAttr::interleave)
+      .def_ro("swizzle", &TensorMapEncodeTiledAttr::swizzle)
+      .def_ro("l2_promotion", &TensorMapEncodeTiledAttr::l2_promotion)
+      .def_ro("oob_fill", &TensorMapEncodeTiledAttr::oob_fill)
+      .def_ro("force_cu_dtype", &TensorMapEncodeTiledAttr::force_cu_dtype);
+}
 
 ffi::Array<Var> LaunchThreadBodyParams(const CallNode* call) {
   auto tag = call->args[0].as_or_throw<StringImm>();
@@ -196,79 +211,79 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     return op;                                            \
   }
 
-TVM_DEFINE_CACHED_OP_GETTER(reinterpret, "tirx.reinterpret")
-TVM_DEFINE_CACHED_OP_GETTER(launch_thread, "tirx.launch_thread")
-TVM_DEFINE_CACHED_OP_GETTER(device_entry, "tirx.device_entry")
-TVM_DEFINE_CACHED_OP_GETTER(device_context, "tirx.device_context")
-TVM_DEFINE_CACHED_OP_GETTER(compute_scope, "tirx.compute_scope")
-TVM_DEFINE_CACHED_OP_GETTER(parallel_launch, "tirx.parallel_launch")
-TVM_DEFINE_CACHED_OP_GETTER(thread_return, "tirx.thread_return")
-TVM_DEFINE_CACHED_OP_GETTER(filter, "tirx.filter")
-TVM_DEFINE_CACHED_OP_GETTER(selector, "tirx.selector")
-TVM_DEFINE_CACHED_OP_GETTER(address_of, "tirx.address_of")
-TVM_DEFINE_CACHED_OP_GETTER(q_multiply_shift, "tirx.q_multiply_shift")
-TVM_DEFINE_CACHED_OP_GETTER(q_multiply_shift_per_axis, "tirx.q_multiply_shift_per_axis")
-TVM_DEFINE_CACHED_OP_GETTER(isnullptr, "tirx.isnullptr")
-TVM_DEFINE_CACHED_OP_GETTER(isnan, "tirx.isnan")
-TVM_DEFINE_CACHED_OP_GETTER(popcount, "tirx.popcount")
-TVM_DEFINE_CACHED_OP_GETTER(fma, "tirx.fma")
-TVM_DEFINE_CACHED_OP_GETTER(call_extern, "tirx.call_extern")
-TVM_DEFINE_CACHED_OP_GETTER(call_pure_extern, "tirx.call_pure_extern")
-TVM_DEFINE_CACHED_OP_GETTER(call_llvm_intrin, "tirx.call_llvm_intrin")
-TVM_DEFINE_CACHED_OP_GETTER(call_llvm_pure_intrin, "tirx.call_llvm_pure_intrin")
-TVM_DEFINE_CACHED_OP_GETTER(call_spirv_pure_glsl450, "tirx.call_spirv_pure_glsl450")
-TVM_DEFINE_CACHED_OP_GETTER(prefetch, "tirx.prefetch")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_access_ptr, "tirx.tvm_access_ptr")
-TVM_DEFINE_CACHED_OP_GETTER(ptr_byte_offset, "tirx.ptr_byte_offset")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_static_handle, "tirx.tvm_static_handle")
-TVM_DEFINE_CACHED_OP_GETTER(handle_add_byte_offset, "tirx.handle_add_byte_offset")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_struct_get, "tirx.tvm_struct_get")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_struct_set, "tirx.tvm_struct_set")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_throw_last_error, "tirx.tvm_throw_last_error")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_stack_alloca, "tirx.tvm_stack_alloca")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_stack_make_shape, "tirx.tvm_stack_make_shape")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_stack_make_array, "tirx.tvm_stack_make_array")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_call_packed, "tirx.tvm_call_packed")
-TVM_DEFINE_CACHED_OP_GETTER(tensormap_encode_tiled, "tirx.tensormap_encode_tiled")
-TVM_DEFINE_CACHED_OP_GETTER(call_ffi_kernel, "tirx.call_ffi_kernel")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_call_cpacked, "tirx.tvm_call_cpacked")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_thread_invariant, "tirx.tvm_thread_invariant")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_call_packed_lowered, "tirx.tvm_call_packed_lowered")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_call_cpacked_lowered, "tirx.tvm_call_cpacked_lowered")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_storage_sync, "tirx.tvm_storage_sync")
-TVM_DEFINE_CACHED_OP_GETTER(cpu_parallel_barrier, "tirx.cpu_parallel_barrier")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_kernel_replace_point, "tirx.tvm_kernel_replace_point")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_warp_shuffle, "tirx.tvm_warp_shuffle")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_warp_shuffle_up, "tirx.tvm_warp_shuffle_up")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_warp_shuffle_down, "tirx.tvm_warp_shuffle_down")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_warp_shuffle_xor, "tirx.tvm_warp_shuffle_xor")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_warp_activemask, "tirx.tvm_warp_activemask")
-TVM_DEFINE_CACHED_OP_GETTER(tvm_thread_allreduce, "tirx.tvm_thread_allreduce")
-TVM_DEFINE_CACHED_OP_GETTER(cooperative_tensor_fill, "tirx.cooperative_tensor_fill")
-TVM_DEFINE_CACHED_OP_GETTER(cooperative_tensor_load, "tirx.cooperative_tensor_load")
-TVM_DEFINE_CACHED_OP_GETTER(cooperative_tensor_store, "tirx.cooperative_tensor_store")
-TVM_DEFINE_CACHED_OP_GETTER(cooperative_tensor_multiply_accumulate,
+TVM_DEFINE_CACHED_OP_GETTER(reinterpret_op, "tirx.reinterpret")
+TVM_DEFINE_CACHED_OP_GETTER(launch_thread_op, "tirx.launch_thread")
+TVM_DEFINE_CACHED_OP_GETTER(device_entry_op, "tirx.device_entry")
+TVM_DEFINE_CACHED_OP_GETTER(device_context_op, "tirx.device_context")
+TVM_DEFINE_CACHED_OP_GETTER(compute_scope_op, "tirx.compute_scope")
+TVM_DEFINE_CACHED_OP_GETTER(parallel_launch_op, "tirx.parallel_launch")
+TVM_DEFINE_CACHED_OP_GETTER(thread_return_op, "tirx.thread_return")
+TVM_DEFINE_CACHED_OP_GETTER(filter_op, "tirx.filter")
+TVM_DEFINE_CACHED_OP_GETTER(selector_op, "tirx.selector")
+TVM_DEFINE_CACHED_OP_GETTER(address_of_op, "tirx.address_of")
+TVM_DEFINE_CACHED_OP_GETTER(q_multiply_shift_op, "tirx.q_multiply_shift")
+TVM_DEFINE_CACHED_OP_GETTER(q_multiply_shift_per_axis_op, "tirx.q_multiply_shift_per_axis")
+TVM_DEFINE_CACHED_OP_GETTER(isnullptr_op, "tirx.isnullptr")
+TVM_DEFINE_CACHED_OP_GETTER(isnan_op, "tirx.isnan")
+TVM_DEFINE_CACHED_OP_GETTER(popcount_op, "tirx.popcount")
+TVM_DEFINE_CACHED_OP_GETTER(fma_op, "tirx.fma")
+TVM_DEFINE_CACHED_OP_GETTER(call_extern_op, "tirx.call_extern")
+TVM_DEFINE_CACHED_OP_GETTER(call_pure_extern_op, "tirx.call_pure_extern")
+TVM_DEFINE_CACHED_OP_GETTER(call_llvm_intrin_op, "tirx.call_llvm_intrin")
+TVM_DEFINE_CACHED_OP_GETTER(call_llvm_pure_intrin_op, "tirx.call_llvm_pure_intrin")
+TVM_DEFINE_CACHED_OP_GETTER(call_spirv_pure_glsl450_op, "tirx.call_spirv_pure_glsl450")
+TVM_DEFINE_CACHED_OP_GETTER(prefetch_op, "tirx.prefetch")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_access_ptr_op, "tirx.tvm_access_ptr")
+TVM_DEFINE_CACHED_OP_GETTER(ptr_byte_offset_op, "tirx.ptr_byte_offset")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_static_handle_op, "tirx.tvm_static_handle")
+TVM_DEFINE_CACHED_OP_GETTER(handle_add_byte_offset_op, "tirx.handle_add_byte_offset")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_struct_get_op, "tirx.tvm_struct_get")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_struct_set_op, "tirx.tvm_struct_set")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_throw_last_error_op, "tirx.tvm_throw_last_error")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_stack_alloca_op, "tirx.tvm_stack_alloca")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_stack_make_shape_op, "tirx.tvm_stack_make_shape")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_stack_make_array_op, "tirx.tvm_stack_make_array")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_call_packed_op, "tirx.tvm_call_packed")
+TVM_DEFINE_CACHED_OP_GETTER(tensormap_encode_tiled_op, "tirx.tensormap_encode_tiled")
+TVM_DEFINE_CACHED_OP_GETTER(call_ffi_kernel_op, "tirx.call_ffi_kernel")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_call_cpacked_op, "tirx.tvm_call_cpacked")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_thread_invariant_op, "tirx.tvm_thread_invariant")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_call_packed_lowered_op, "tirx.tvm_call_packed_lowered")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_call_cpacked_lowered_op, "tirx.tvm_call_cpacked_lowered")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_storage_sync_op, "tirx.tvm_storage_sync")
+TVM_DEFINE_CACHED_OP_GETTER(cpu_parallel_barrier_op, "tirx.cpu_parallel_barrier")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_kernel_replace_point_op, "tirx.tvm_kernel_replace_point")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_warp_shuffle_op, "tirx.tvm_warp_shuffle")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_warp_shuffle_up_op, "tirx.tvm_warp_shuffle_up")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_warp_shuffle_down_op, "tirx.tvm_warp_shuffle_down")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_warp_shuffle_xor_op, "tirx.tvm_warp_shuffle_xor")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_warp_activemask_op, "tirx.tvm_warp_activemask")
+TVM_DEFINE_CACHED_OP_GETTER(tvm_thread_allreduce_op, "tirx.tvm_thread_allreduce")
+TVM_DEFINE_CACHED_OP_GETTER(cooperative_tensor_fill_op, "tirx.cooperative_tensor_fill")
+TVM_DEFINE_CACHED_OP_GETTER(cooperative_tensor_load_op, "tirx.cooperative_tensor_load")
+TVM_DEFINE_CACHED_OP_GETTER(cooperative_tensor_store_op, "tirx.cooperative_tensor_store")
+TVM_DEFINE_CACHED_OP_GETTER(cooperative_tensor_multiply_accumulate_op,
                             "tirx.cooperative_tensor_multiply_accumulate")
-TVM_DEFINE_CACHED_OP_GETTER(vectorhigh, "tirx.vectorhigh")
-TVM_DEFINE_CACHED_OP_GETTER(vectorlow, "tirx.vectorlow")
-TVM_DEFINE_CACHED_OP_GETTER(vectorcombine, "tirx.vectorcombine")
-TVM_DEFINE_CACHED_OP_GETTER(dp4a, "tirx.dp4a")
-TVM_DEFINE_CACHED_OP_GETTER(atomic_add, "tirx.atomic_add")
-TVM_DEFINE_CACHED_OP_GETTER(nd_mem_alloc_with_scope, "tirx.nd_mem_alloc_with_scope")
-TVM_DEFINE_CACHED_OP_GETTER(texture2d_store, "tirx.texture2d_store")
-TVM_DEFINE_CACHED_OP_GETTER(texture2d_load, "tirx.texture2d_load")
-TVM_DEFINE_CACHED_OP_GETTER(assume, "tirx.assume")
-TVM_DEFINE_CACHED_OP_GETTER(assume_aligned, "tirx.assume_aligned")
-TVM_DEFINE_CACHED_OP_GETTER(undef, "tirx.undef")
-TVM_DEFINE_CACHED_OP_GETTER(get_active_lane_mask, "tirx.get_active_lane_mask")
-TVM_DEFINE_CACHED_OP_GETTER(masked_load, "tirx.masked_load")
-TVM_DEFINE_CACHED_OP_GETTER(masked_store, "tirx.masked_store")
-TVM_DEFINE_CACHED_OP_GETTER(ignore_loop_partition, "tirx.ignore_loop_partition")
-TVM_DEFINE_CACHED_OP_GETTER(alloc_tensor, "tirx.alloc_tensor")
-TVM_DEFINE_CACHED_OP_GETTER(decl_tensor, "tirx.decl_tensor")
-TVM_DEFINE_CACHED_OP_GETTER(buffer_offset, "tirx.buffer_offset")
-TVM_DEFINE_CACHED_OP_GETTER(buffer_data, "tirx.buffer_data")
-TVM_DEFINE_CACHED_OP_GETTER(print_buffer, "tirx.print_buffer")
+TVM_DEFINE_CACHED_OP_GETTER(vectorhigh_op, "tirx.vectorhigh")
+TVM_DEFINE_CACHED_OP_GETTER(vectorlow_op, "tirx.vectorlow")
+TVM_DEFINE_CACHED_OP_GETTER(vectorcombine_op, "tirx.vectorcombine")
+TVM_DEFINE_CACHED_OP_GETTER(dp4a_op, "tirx.dp4a")
+TVM_DEFINE_CACHED_OP_GETTER(atomic_add_op, "tirx.atomic_add")
+TVM_DEFINE_CACHED_OP_GETTER(nd_mem_alloc_with_scope_op, "tirx.nd_mem_alloc_with_scope")
+TVM_DEFINE_CACHED_OP_GETTER(texture2d_store_op, "tirx.texture2d_store")
+TVM_DEFINE_CACHED_OP_GETTER(texture2d_load_op, "tirx.texture2d_load")
+TVM_DEFINE_CACHED_OP_GETTER(assume_op, "tirx.assume")
+TVM_DEFINE_CACHED_OP_GETTER(assume_aligned_op, "tirx.assume_aligned")
+TVM_DEFINE_CACHED_OP_GETTER(undef_op, "tirx.undef")
+TVM_DEFINE_CACHED_OP_GETTER(get_active_lane_mask_op, "tirx.get_active_lane_mask")
+TVM_DEFINE_CACHED_OP_GETTER(masked_load_op, "tirx.masked_load")
+TVM_DEFINE_CACHED_OP_GETTER(masked_store_op, "tirx.masked_store")
+TVM_DEFINE_CACHED_OP_GETTER(ignore_loop_partition_op, "tirx.ignore_loop_partition")
+TVM_DEFINE_CACHED_OP_GETTER(alloc_tensor_op, "tirx.alloc_tensor")
+TVM_DEFINE_CACHED_OP_GETTER(decl_tensor_op, "tirx.decl_tensor")
+TVM_DEFINE_CACHED_OP_GETTER(buffer_offset_op, "tirx.buffer_offset")
+TVM_DEFINE_CACHED_OP_GETTER(buffer_data_op, "tirx.buffer_data")
+TVM_DEFINE_CACHED_OP_GETTER(print_buffer_op, "tirx.print_buffer")
 
 #undef TVM_DEFINE_CACHED_OP_GETTER
 
@@ -863,6 +878,5 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 }
 
-}  // namespace builtin
 }  // namespace tirx
 }  // namespace tvm

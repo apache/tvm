@@ -160,7 +160,7 @@ class StorageAlignCollector : public StmtExprVisitor {
   /*! \brief AllocTensor: check for buffer_dim_align annotations. */
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
       return DispatchAllocTensor(op, call);
     }
     return StmtExprVisitor::Visit_(op);

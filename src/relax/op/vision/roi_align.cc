@@ -32,6 +32,20 @@
 namespace tvm {
 namespace relax {
 
+void ROIAlignAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<ROIAlignAttrs>()
+      .def_ro("pooled_size", &ROIAlignAttrs::pooled_size, "Output size of roi align.")
+      .def_ro("spatial_scale", &ROIAlignAttrs::spatial_scale,
+              "Ratio of input feature map height (or width) to raw image height (or width).")
+      .def_ro("sample_ratio", &ROIAlignAttrs::sample_ratio,
+              "Optional sampling ratio of ROI align, using adaptive size by default.")
+      .def_ro("aligned", &ROIAlignAttrs::aligned,
+              "Whether to use the aligned ROIAlign semantics without the legacy 1-pixel clamp.")
+      .def_ro("layout", &ROIAlignAttrs::layout, "Dimension ordering of the input data.")
+      .def_ro("mode", &ROIAlignAttrs::mode, "Mode for ROI Align. Can be 'avg' or 'max'.");
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() { ROIAlignAttrs::RegisterReflection(); }
 
 Expr roi_align(Expr data, Expr rois, ffi::Array<int64_t> pooled_size, double spatial_scale,

@@ -67,7 +67,7 @@ class ScopeIdVerifier : public Verifier<ScopeIdVerifier> {
   using Verifier::Visit;
 
   void Dispatch_(const RegionStmtNode* op, ffi::reflection::AccessPath path) override {
-    if (op->op.same_as(tirx::builtin::device_entry())) {
+    if (op->op.same_as(tirx::device_entry_op())) {
       // Device-region marker: defs gathered from the body are verified when
       // the region exits, with launch-param sanity enforced as ``is_root``.
       size_t baseline = scope_id_def_.size();

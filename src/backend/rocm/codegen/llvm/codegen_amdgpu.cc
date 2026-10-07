@@ -98,7 +98,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
 
   void Dispatch_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
       return DispatchAllocTensor(op, call);
     }
     CodeGenLLVM::Dispatch_(op);
@@ -233,7 +233,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   unsigned GetGlobalAddressSpace() const final { return 1; }
 
   llvm::Value* CreateIntrinsic(const CallNode* op) final {
-    if (op->op.same_as(builtin::atomic_add())) {
+    if (op->op.same_as(tirx::atomic_add_op())) {
       const ffi::Array<Expr>& args = op->args;
       PrimExpr value = args[1].as_or_throw<PrimExpr>();
       PrimType value_ty = value.ty();

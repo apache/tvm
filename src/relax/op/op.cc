@@ -20,9 +20,9 @@
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/distributed/type.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/op.h>
 #include <tvm/relax/utils.h>
 
 #include "../transform/utils.h"
@@ -31,6 +31,42 @@
 namespace tvm {
 namespace relax {
 using namespace tvm::prim;
+
+void CallTIRWithGradAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<CallTIRWithGradAttrs>()
+      .def_ro("te_grad_name", &CallTIRWithGradAttrs::te_grad_name,
+              "The name of the te gradient function associated with this call_tir_with_grad node.")
+      .def_ro("te_grad_kwargs", &CallTIRWithGradAttrs::te_grad_kwargs,
+              "The keyword arguments passed to the te gradient function.");
+}
+
+void CallTIRInplaceAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<CallTIRInplaceAttrs>().def_ro("inplace_indices",
+                                                &CallTIRInplaceAttrs::inplace_indices);
+}
+
+void CallInplacePackedAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<CallInplacePackedAttrs>().def_ro("inplace_indices",
+                                                   &CallInplacePackedAttrs::inplace_indices);
+}
+
+void ToVDeviceAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<ToVDeviceAttrs>().def_ro("dst_vdevice", &ToVDeviceAttrs::dst_vdevice,
+                                           "The destination device where the data is copied to.");
+}
+
+void HintOnDeviceAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<HintOnDeviceAttrs>()
+      .def_ro("device_type", &HintOnDeviceAttrs::device_type,
+              "The device type where the data is supposed to be executed.")
+      .def_ro("index", &HintOnDeviceAttrs::index, "The device id.")
+      .def_ro("memory_scope", &HintOnDeviceAttrs::memory_scope, "The device memory scope.");
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   CallTIRWithGradAttrs::RegisterReflection();

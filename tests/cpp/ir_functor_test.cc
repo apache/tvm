@@ -23,8 +23,8 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/object_functor.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -219,7 +219,7 @@ TEST(IRF, StmtVisitor) {
     PrimType dtype = PrimType::Float(32);
     TensorVar buf("b", TensorType("global", dtype, {z, z}, {}, std::nullopt, 0, 0));
     // AllocTensor is flat (no body). Return as SeqStmt with eval.
-    return SeqStmt({Bind(buf.var(), Call(buf.type(), tirx::builtin::alloc_tensor(),
+    return SeqStmt({Bind(buf.var(), Call(buf.type(), tirx::alloc_tensor_op(),
                                          {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype),
                                           StringImm(buf.scope())},
                                          DictAttrs())),
@@ -237,7 +237,7 @@ TEST(IRF, StmtVisitor) {
     tirx::Var buf_var("b", PointerType(dtype));
     TensorVar buffer = decl_tensor({16});
     body =
-        SeqStmt({Bind(buffer, Call(buffer.type(), tvm::tirx::builtin::decl_tensor(),
+        SeqStmt({Bind(buffer, Call(buffer.type(), tvm::tirx::decl_tensor_op(),
                                    {buf_var, tvm::Tuple(buffer->shape),
                                     DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())})),
                  std::move(body)});
@@ -273,7 +273,7 @@ TEST(IRF, StmtExprMutator) {
     auto z = x + 1;
     PrimType dtype = PrimType::Float(32);
     TensorVar buf("b", TensorType("global", dtype, {1, z}, {}, std::nullopt, 0, 0));
-    return Bind(buf.var(), Call(buf.type(), tirx::builtin::alloc_tensor(),
+    return Bind(buf.var(), Call(buf.type(), tirx::alloc_tensor_op(),
                                 {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype),
                                  StringImm(buf.scope())},
                                 DictAttrs()));
@@ -323,8 +323,8 @@ TEST(IRF, StmtExprMutator) {
   }
 
   {
-    auto body = Evaluate(
-        Call(PrimType::Int(32), tirx::builtin::call_extern(), {::tvm::StringImm("xyz"), x + 1}));
+    auto body =
+        Evaluate(Call(PrimType::Int(32), tirx::call_extern_op(), {::tvm::StringImm("xyz"), x + 1}));
     auto res = v->Mutate(body).ValueOrUnchanged(std::move(body));
     TVM_FFI_ICHECK(res.as<EvaluateNode>()->value.as<CallNode>()->args[1].same_as(x));
   }
@@ -359,7 +359,7 @@ TEST(IRF, StmtExprMutator) {
     auto* alloc_node = body.as<SeqStmtNode>()->seq[0].as<BindNode>();
     TVM_FFI_ICHECK(alloc_node != nullptr);
     auto* alloc_call = alloc_node->value.as<CallNode>();
-    TVM_FFI_ICHECK(alloc_call && alloc_call->op.same_as(tirx::builtin::alloc_tensor()));
+    TVM_FFI_ICHECK(alloc_call && alloc_call->op.same_as(tirx::alloc_tensor_op()));
     // bref still holds the old SeqStmt (not shared with new one due to copy)
     TVM_FFI_ICHECK(!bref.same_as(body));
   }
@@ -370,7 +370,7 @@ TEST(IRF, StmtExprMutator) {
     Stmt eval_body = Evaluate(x + 1);
     TensorVar buffer = decl_tensor({16});
     tirx::Var buffer_data("buffer_data", buffer.DataPointerType());
-    Stmt decl = Bind(buffer, Call(buffer.type(), tvm::tirx::builtin::decl_tensor(),
+    Stmt decl = Bind(buffer, Call(buffer.type(), tvm::tirx::decl_tensor_op(),
                                   {buffer_data, tvm::Tuple(buffer->shape),
                                    DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())}));
     Stmt alloc = fmakealloc();
@@ -702,7 +702,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
     TensorVar buffer = fmakebuffer();
     Stmt store = BufferStore(buffer, FloatImm(dtype, 0), {IntImm::Int32(0)});
     Stmt decl =
-        SeqStmt({Bind(buffer, Call(buffer.type(), tvm::tirx::builtin::decl_tensor(),
+        SeqStmt({Bind(buffer, Call(buffer.type(), tvm::tirx::decl_tensor_op(),
                                    {x, tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                                     StringImm(buffer.scope())})),
                  store});
@@ -718,7 +718,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
     auto* decl_node = seq_node->seq[0].as<BindNode>();
     TVM_FFI_ICHECK(decl_node != nullptr);
     auto* decl_call = decl_node->value.as<CallNode>();
-    TVM_FFI_ICHECK(decl_call && decl_call->op.same_as(tirx::builtin::decl_tensor()));
+    TVM_FFI_ICHECK(decl_call && decl_call->op.same_as(tirx::decl_tensor_op()));
     TVM_FFI_ICHECK(decl_call->args[0].same_as(y));
     TVM_FFI_ICHECK(decl_node->var.as_or_throw<TensorVar>()->shape[0].same_as(m));
     TVM_FFI_ICHECK(!decl_node->var.same_as(buffer));

@@ -31,6 +31,52 @@
 namespace tvm {
 namespace relax {
 
+void SortAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<SortAttrs>()
+      .def_ro("axis", &SortAttrs::axis,
+              "Axis along which the sort is computed."
+              "The default the last axis is used.",
+              refl::DefaultValue(-1))
+      .def_ro("descending", &SortAttrs::descending,
+              "Whether to sort in descending order."
+              "If it is not specified, it defaults to the ascending order.",
+              refl::DefaultValue(false));
+}
+
+void ArgsortAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<ArgsortAttrs>()
+      .def_ro("axis", &ArgsortAttrs::axis,
+              "Axis along which the argsort is computed."
+              "The default the last axis is used.",
+              refl::DefaultValue(-1))
+      .def_ro("descending", &ArgsortAttrs::descending,
+              "Whether to argsort in descending order."
+              "If it is not specified, it defaults to the ascending order.",
+              refl::DefaultValue(false))
+      .def_ro("dtype", &ArgsortAttrs::dtype, "DType of the output indices.");
+}
+
+void TopKAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<TopKAttrs>()
+      .def_ro("k", &TopKAttrs::k, "Number of top elements to select")
+      .def_ro("axis", &TopKAttrs::axis, "Axis along which to sort the input tensor.",
+              refl::DefaultValue(-1))
+      .def_ro("ret_type", &TopKAttrs::ret_type,
+              "The return type [both, values, indices]."
+              "both - return both top k data and indices."
+              "values - return top k data only."
+              "indices - return top k indices only.",
+              refl::DefaultValue("both"))
+      .def_ro("largest", &TopKAttrs::largest,
+              "Whether to return largest or smallest elements."
+              "By default, return the largest k elements.",
+              refl::DefaultValue(true))
+      .def_ro("dtype", &TopKAttrs::dtype, "Data type of the output indices.");
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   SortAttrs::RegisterReflection();
   ArgsortAttrs::RegisterReflection();

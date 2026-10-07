@@ -22,8 +22,8 @@
  */
 #include <GLSL.std.450.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
@@ -44,7 +44,7 @@ PrimExpr CallGLSLIntrin(PrimExpr e, const ffi::Array<PrimExpr>& args) {
   for (PrimExpr arg : args) {
     cargs.push_back(arg);
   }
-  return Call(call->ty.as_or_throw<PrimType>(), tirx::builtin::call_spirv_pure_glsl450(), cargs)
+  return Call(call->ty.as_or_throw<PrimType>(), tirx::call_spirv_pure_glsl450_op(), cargs)
       .as_or_throw<PrimExpr>();
 }
 

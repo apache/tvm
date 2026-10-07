@@ -18,7 +18,7 @@
  */
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/script/ir_builder/ir.h>
 #include <tvm/tirx/exec_scope.h>
@@ -277,7 +277,7 @@ void DeclTensorFrameNode::ExitWithScope() {
     TVM_FFI_ICHECK(data.has_value());
     AddToParent(tvm::tirx::SeqStmt::Flatten(
                     tvm::tirx::Bind(buffer,
-                                    tvm::Call(buffer.type(), tvm::tirx::builtin::decl_tensor(),
+                                    tvm::Call(buffer.type(), tvm::tirx::decl_tensor_op(),
                                               {data.value(), tvm::Tuple(buffer->shape),
                                                tvm::DataTypeImm(buffer->dtype->dtype),
                                                tvm::StringImm(buffer.scope())},
@@ -290,7 +290,7 @@ void DeclTensorFrameNode::ExitWithScope() {
     AddToParent(
         tvm::tirx::SeqStmt::Flatten(
             tvm::tirx::Bind(buffer.var(),
-                            Call(buffer.type(), tvm::tirx::builtin::alloc_tensor(),
+                            Call(buffer.type(), tvm::tirx::alloc_tensor_op(),
                                  {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                                   StringImm(buffer.scope())},
                                  DictAttrs(), {}, source_span),

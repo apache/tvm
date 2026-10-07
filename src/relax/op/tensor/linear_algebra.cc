@@ -35,6 +35,18 @@
 namespace tvm {
 namespace relax {
 
+void MatmulAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<MatmulAttrs>().def_ro("out_dtype", &MatmulAttrs::out_dtype,
+                                        "The data type of the output tensor");
+}
+
+void EinsumAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<EinsumAttrs>().def_ro("subscripts", &EinsumAttrs::subscripts,
+                                        "The einsum expression string");
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   MatmulAttrs::RegisterReflection();
   EinsumAttrs::RegisterReflection();

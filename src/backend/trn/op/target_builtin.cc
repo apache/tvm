@@ -24,7 +24,7 @@
  *  builtin intrinsic operators specific to Trainium target.
  */
 #include <tvm/ffi/function.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/base.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>

@@ -17,7 +17,7 @@
  * under the License.
  */
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/exec_scope.h>
@@ -443,7 +443,7 @@ ffi::Array<PrimExpr> ScopeIdResolve::Resolve(ScopeBinding binding,
 PrimExpr ScopeIdResolve::ComputeWarpIdInCta(const LaunchParams& params) {
   PrimExpr warp_id = prim::FloorDiv(GetLinearThreadIndex(params), 32);
   PrimExpr mask = IntImm(PrimType::UInt(32), 0xffffffff);
-  return Call(warp_id.ty(), builtin::tvm_warp_shuffle(),
+  return Call(warp_id.ty(), tirx::tvm_warp_shuffle_op(),
               {mask, warp_id, IntImm::Int32(0), IntImm::Int32(32), IntImm::Int32(32)})
       .as_or_throw<PrimExpr>();
 }

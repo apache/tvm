@@ -22,8 +22,8 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr.h>
@@ -646,13 +646,13 @@ Expr TensorVar::access_ptr(int access_mask, PointerType ptr_type, int content_la
     extent = input_extent.value();
   }
   ffi::Array<Expr> acc_args{e_dtype, data(), elem_offset, extent, IntImm::Int32(access_mask)};
-  return Call(ptr_type, tirx::builtin::tvm_access_ptr(), acc_args);
+  return Call(ptr_type, tirx::tvm_access_ptr_op(), acc_args);
 }
 
 TensorVar::TensorVar(ffi::String name, TensorType type, Span span)
     : Var(Var(std::move(name), std::move(type), std::move(span))) {}
 
-Expr TensorVar::data() const { return Call(DataPointerType(), builtin::buffer_data(), {var()}); }
+Expr TensorVar::data() const { return Call(DataPointerType(), tirx::buffer_data_op(), {var()}); }
 
 tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
                                           std::string name, int data_alignment, int offset_factor,
@@ -683,7 +683,7 @@ TensorVar TensorVar::with_dtype(PrimType dtype) const {
 }
 
 PrimExpr TensorVar::OffsetOf_p(const Array<PrimExpr>& indices) const {
-  return Call(PrimType::Int(32), tirx::builtin::buffer_offset(), {MakeTensorLoad(*this, indices)})
+  return Call(PrimType::Int(32), tirx::buffer_offset_op(), {MakeTensorLoad(*this, indices)})
       .as_or_throw<PrimExpr>();
 }
 

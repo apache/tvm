@@ -80,7 +80,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
 
   void Dispatch_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
       return DispatchAllocTensor(op, call);
     }
     CodeGenLLVM::Dispatch_(op);
@@ -260,11 +260,11 @@ static bool GetWarpShuffleIntrinsic(const CallNode* op, llvm::Intrinsic::ID* id)
       llvm::Intrinsic::nvvm_shfl_down_i32, llvm::Intrinsic::nvvm_shfl_down_f32};
 
   int offset = 0;
-  if (op->op.same_as(builtin::tvm_warp_shuffle())) {
+  if (op->op.same_as(tirx::tvm_warp_shuffle_op())) {
     offset = 0;
-  } else if (op->op.same_as(builtin::tvm_warp_shuffle_up())) {
+  } else if (op->op.same_as(tirx::tvm_warp_shuffle_up_op())) {
     offset = 2;
-  } else if (op->op.same_as(builtin::tvm_warp_shuffle_down())) {
+  } else if (op->op.same_as(tirx::tvm_warp_shuffle_down_op())) {
     offset = 4;
   } else {
     return false;
@@ -291,13 +291,13 @@ llvm::Value* CodeGenNVPTX::CreateIntrinsic(const CallNode* op) {
     llvm::Type* return_type = arg_type[0];
     llvm::Function* func = GetIntrinsicDecl(id, return_type, arg_type);
     return builder_->CreateCall(func, arg_value);
-  } else if (op->op.same_as(builtin::tvm_warp_activemask())) {
+  } else if (op->op.same_as(tirx::tvm_warp_activemask_op())) {
     // Only nvptx target may keep this intrinsic at this point.
     // PTX assembly: asm "activemask.b32 r1;"
     auto fty = llvm::FunctionType::get(t_int32_, false);
     auto val = llvm::InlineAsm::get(fty, "activemask.b32 %0", "=r", true);
     return builder_->CreateCall(val);
-  } else if (op->op.same_as(builtin::atomic_add())) {
+  } else if (op->op.same_as(tirx::atomic_add_op())) {
     PrimExpr value = args[1].as_or_throw<PrimExpr>();
     PrimType value_ty = value.ty();
     TVM_FFI_ICHECK(value_ty.bits() == 32) << "Only supports 32 bit atomic for now";

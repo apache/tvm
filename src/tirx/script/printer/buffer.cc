@@ -58,7 +58,7 @@ ffi::Optional<ExprDoc> BufferOperationDocTranslate(DocTranslatorObj* d, ffi::Any
       << "Buffer operation destination must be a variable";
   auto var = ffi::GetRef<Var>(static_cast<const VarNode*>(destination));
   if (!ffi::StructuralEqual()(var->ty, call->ty)) return RawCall(d, call);
-  bool is_alloc = call->op.same_as(tirx::builtin::alloc_tensor());
+  bool is_alloc = call->op.same_as(tirx::alloc_tensor_op());
   size_t shape_index = is_alloc ? 0 : 1;
   auto buffer = call->ty.as<tirx::TensorType>();
   if (!buffer || call->args.size() != shape_index + 3 || !call->ty_args.empty() ||
@@ -94,7 +94,7 @@ ffi::Optional<ExprDoc> BufferOperationDocTranslate(DocTranslatorObj* d, ffi::Any
   if (!is_alloc && scope->value == "tmem") {
     const auto* pointer = data.value().as<CallNode>();
     if (buffer.value()->allocated_addr.size() != 1 || !pointer ||
-        !pointer->op.same_as(tirx::builtin::reinterpret()) || pointer->args.size() != 1 ||
+        !pointer->op.same_as(tirx::reinterpret_op()) || pointer->args.size() != 1 ||
         pointer->attrs.defined() || !pointer->ty_args.empty() ||
         !ffi::StructuralEqual()(pointer->ty, buffer.value()->DataPointerType()) ||
         !ffi::StructuralEqual()(pointer->args[0], buffer.value()->allocated_addr[0])) {

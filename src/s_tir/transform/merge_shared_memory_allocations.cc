@@ -58,7 +58,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -114,7 +114,7 @@ class AllocateCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
       return DispatchAllocTensor(op, call);
     }
     return StmtExprVisitor::Visit_(op);
@@ -136,7 +136,7 @@ class AllocateCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (!op->op.same_as(tirx::builtin::launch_thread())) has_opaque_region_ = true;
+    if (!op->op.same_as(tirx::launch_thread_op())) has_opaque_region_ = true;
     return StmtExprVisitor::Visit_(op);
   }
 
@@ -232,11 +232,11 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
       return DispatchAllocTensor(op);
     }
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::decl_tensor())) {
+        call && call->op.same_as(tirx::decl_tensor_op())) {
       return DispatchDeclTensor(op, call);
     }
     return StmtExprVisitor::Visit_(op);
@@ -271,7 +271,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    if (op->op.same_as(tirx::builtin::address_of())) {
+    if (op->op.same_as(tirx::address_of_op())) {
       if (const auto* load = op->args[0].as<TensorLoadNode>()) {
         for (const auto& index : load->indices) {
           TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(index));
@@ -323,13 +323,13 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     // Only record the outer most thread extent.
-    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+    if (op->op.same_as(tirx::launch_thread_op()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0 &&
         !in_thread_env_) {
       in_thread_env_ = true;
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
       in_thread_env_ = false;
-    } else if (!op->op.same_as(tirx::builtin::launch_thread()) ||
+    } else if (!op->op.same_as(tirx::launch_thread_op()) ||
                std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) == 0) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
     } else {
@@ -450,7 +450,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+    if (op->op.same_as(tirx::launch_thread_op()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0 &&
         !in_thread_env_) {
       in_thread_env_ = true;
@@ -492,7 +492,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
         // The uint8 merged allocation intentionally supplies storage for
         // typed views; target codegen emits the required pointer cast.
         visited_body = SeqStmt::Flatten(
-            Bind(remapped, Call(remapped.type(), tirx::builtin::decl_tensor(),
+            Bind(remapped, Call(remapped.type(), tirx::decl_tensor_op(),
                                 {scope.merged_buffer.value().data(), tvm::Tuple(remapped->shape),
                                  DataTypeImm(remapped->dtype->dtype), StringImm(remapped.scope())},
                                 {})),
@@ -513,7 +513,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
         annotations.Set(tirx::attr::kVolatile, true);
       }
       Stmt alloc_stmt = Bind(scope.merged_buffer.value().var(),
-                             Call(scope.merged_buffer.value().type(), tirx::builtin::alloc_tensor(),
+                             Call(scope.merged_buffer.value().type(), tirx::alloc_tensor_op(),
                                   {tvm::Tuple(scope.merged_buffer.value()->shape),
                                    DataTypeImm(scope.merged_buffer.value()->dtype->dtype),
                                    StringImm(scope.merged_buffer.value().scope())},
@@ -552,11 +552,11 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
       return Mutate_AllocTensor(op, call, inplace_mode);
     }
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::decl_tensor())) {
+        call && call->op.same_as(tirx::decl_tensor_op())) {
       return Mutate_DeclTensor(op, call, inplace_mode);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -581,7 +581,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
         !new_buf.same_as(node->var)) {
       const auto* new_call = node->value.as<CallNode>();
       return Bind(new_buf,
-                  Call(new_buf.type(), tirx::builtin::decl_tensor(),
+                  Call(new_buf.type(), tirx::decl_tensor_op(),
                        {new_call->args[0], tvm::Tuple(new_buf->shape),
                         DataTypeImm(new_buf->dtype->dtype), StringImm(new_buf.scope())},
                        new_call->attrs, new_call->ty_args, new_call->span),
@@ -664,7 +664,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     static const Op ptx_cp_async_op = Op::Get("tirx.s_tir.cp_async_raw");
-    if (op->op.same_as(tirx::builtin::tvm_access_ptr())) {
+    if (op->op.same_as(tirx::tvm_access_ptr_op())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       DLDataType dtype = op->args[0].as_or_throw<PrimExpr>().ty()->dtype;
       auto buffer_opt = GetBufferDataVar(op->args[1]);

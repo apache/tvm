@@ -271,7 +271,7 @@ class HoistInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (op->op.same_as(tirx::builtin::launch_thread())) {
+    if (op->op.same_as(tirx::launch_thread_op())) {
       Var var = op->body_params[0].as_or_throw<PrimVar>();
       active_block_vars.insert(var.get());
       active_loop_vars.insert(var.get());
@@ -354,8 +354,8 @@ class HoistInfoCollector : public StmtExprVisitor {
         if (!bind) {
           non_bind_count++;
         } else if (const auto* call = bind->value.as<CallNode>();
-                   call && (call->op.same_as(tirx::builtin::alloc_tensor()) ||
-                            call->op.same_as(tirx::builtin::decl_tensor()))) {
+                   call && (call->op.same_as(tirx::alloc_tensor_op()) ||
+                            call->op.same_as(tirx::decl_tensor_op()))) {
           non_bind_count++;
         }
       }
@@ -394,7 +394,7 @@ class HoistInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    if (op->op.same_as(prim::builtin::if_then_else())) {
+    if (op->op.same_as(prim::if_then_else_op())) {
       PrimExpr cond = op->args[0].as_or_throw<PrimExpr>();
       AttemptHoistConditional(cond, HoistedConditionals::kIfElseExpr);
     }

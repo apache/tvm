@@ -330,7 +330,7 @@ TVM_DLL Pass DefaultGPUSchedule();
 TVM_DLL Pass RemoveWeightLayoutRewriteBlock(bool skip_tensor_rewrite = false);
 
 /*!
- * \brief Remove stores of tirx::builtin::undef.
+ * \brief Remove stores of tirx::undef_op.
  * \return The pass.
  */
 TVM_DLL Pass RemoveStoreUndef();

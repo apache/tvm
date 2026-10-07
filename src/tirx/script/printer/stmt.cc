@@ -188,8 +188,7 @@ ffi::Optional<ExprDoc> EvaluateDocTranslate(DocTranslatorObj* d, ffi::AnyView in
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
   ExprDoc value = d->Translate(stmt->value).value();
-  if (auto call = stmt->value.as<CallNode>();
-      call && !call->op.same_as(tirx::builtin::buffer_data())) {
+  if (auto call = stmt->value.as<CallNode>(); call && !call->op.same_as(tirx::buffer_data_op())) {
     d->Emit(ExprStmtDoc(value), ffi::GetRef<ffi::ObjectRef>(stmt));
   } else {
     d->Emit(ExprStmtDoc(NamespaceDoc("tirx")->Attr("evaluate")->Call({value})),
@@ -349,7 +348,7 @@ ffi::Optional<ExprDoc> SeqStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
     const auto* allocation = alloc ? alloc->value.as<CallNode>() : nullptr;
     const auto* store = stmt->seq[i + 1].as<tirx::BufferStoreNode>();
     auto docs = d->CurrentScopeDocs();
-    if (!allocation || !allocation->op.same_as(tirx::builtin::alloc_tensor()) || !store ||
+    if (!allocation || !allocation->op.same_as(tirx::alloc_tensor_op()) || !store ||
         !alloc->var.same_as(store->buffer) || docs.empty())
       continue;
     auto scalar = docs.back().as<AssignDoc>();
@@ -397,23 +396,23 @@ ffi::Optional<ExprDoc> RegionStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView 
   // Inputs, attributes, and parameter types are evaluated before the body
   // parameters enter scope. Explicit Var constructors preserve their exact types.
   ExprDoc rhs(ffi::UnsafeInit{});
-  if (stmt->op.same_as(tirx::builtin::device_entry())) {
+  if (stmt->op.same_as(tirx::device_entry_op())) {
     rhs = NamespaceDoc("tirx")->Attr("device_entry")->Call({});
-  } else if (stmt->op.same_as(tirx::builtin::launch_thread())) {
+  } else if (stmt->op.same_as(tirx::launch_thread_op())) {
     rhs = NamespaceDoc("tirx")
               ->Attr("launch_thread")
               ->Call({LiteralDoc::Str(stmt->args[0].as_or_throw<StringImm>()->value, std::nullopt),
                       d->Translate(stmt->args[1].as_or_throw<PrimExpr>()).value()});
-  } else if (stmt->op.same_as(tirx::builtin::device_context())) {
+  } else if (stmt->op.same_as(tirx::device_context_op())) {
     rhs = NamespaceDoc("tirx")
               ->Attr("device_context")
               ->Call({d->Translate(stmt->args[0]).value(), d->Translate(stmt->args[1]).value()});
-  } else if (stmt->op.same_as(tirx::builtin::compute_scope())) {
+  } else if (stmt->op.same_as(tirx::compute_scope_op())) {
     rhs =
         NamespaceDoc("tirx")
             ->Attr("compute_scope")
             ->Call({LiteralDoc::Str(stmt->args[0].as_or_throw<StringImm>()->value, std::nullopt)});
-  } else if (stmt->op.same_as(tirx::builtin::parallel_launch())) {
+  } else if (stmt->op.same_as(tirx::parallel_launch_op())) {
     rhs = NamespaceDoc("tirx")->Attr("parallel_launch")->Call({});
   } else {
     ffi::Array<ExprDoc> args;

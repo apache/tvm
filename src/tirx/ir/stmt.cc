@@ -759,8 +759,8 @@ RegionStmt::RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params
     TVM_FFI_CHECK(ffi::StructuralEqual()(body_params[i]->ty, expected_params[i]->ty), ValueError)
         << op->name << " body parameter " << i << " has a type inconsistent with its contract";
   }
-  if (op.same_as(tirx::builtin::device_context()) || op.same_as(tirx::builtin::compute_scope()) ||
-      op.same_as(tirx::builtin::parallel_launch())) {
+  if (op.same_as(tirx::device_context_op()) || op.same_as(tirx::compute_scope_op()) ||
+      op.same_as(tirx::parallel_launch_op())) {
     TVM_FFI_CHECK(result_vars.empty() && attrs->dict.empty(), ValueError)
         << op->name << " expects no results or attributes";
   }
@@ -772,13 +772,13 @@ RegionStmt::RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params
     }
   }
   static const Op device_scope = Op::Get("tirx.device_scope");
-  if (op.same_as(tirx::builtin::device_entry()) || op.same_as(device_scope)) {
+  if (op.same_as(tirx::device_entry_op()) || op.same_as(device_scope)) {
     TVM_FFI_CHECK(result_vars.empty(), ValueError) << op->name << " expects no results";
-    if (op.same_as(tirx::builtin::device_entry())) {
+    if (op.same_as(tirx::device_entry_op())) {
       TVM_FFI_CHECK(attrs->dict.empty(), ValueError) << "device_entry expects no attrs";
     }
   }
-  if (op.same_as(tirx::builtin::launch_thread())) {
+  if (op.same_as(tirx::launch_thread_op())) {
     TVM_FFI_CHECK(result_vars.empty() && attrs->dict.empty(), ValueError)
         << "launch_thread expects no results or attrs";
   }

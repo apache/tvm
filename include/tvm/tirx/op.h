@@ -32,7 +32,6 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/type.h>
@@ -47,50 +46,6 @@
 namespace tvm {
 namespace tirx {
 
-/*! \brief Launch metadata for call_ffi_kernel. */
-struct CallFFIKernelAttr : public AttrsNode {
-  /*!
-   * \brief Ordered launch tags describing the suffix of the call arguments.
-   *
-   * The first call argument is the kernel symbol, followed by kernel operands
-   * and launch values. Flag-only tags consume no value; dynamic shared-memory
-   * bytes, when present, are last. Runtime expressions remain in Call.args.
-   */
-  ffi::Array<ffi::String> launch_params;
-
-  static void RegisterReflection() {
-    ffi::reflection::ObjectDef<CallFFIKernelAttr>().def_ro("launch_params",
-                                                           &CallFFIKernelAttr::launch_params);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.CallFFIKernelAttr", CallFFIKernelAttr, AttrsNode);
-};
-
-/*! \brief Fixed encoding options for tensormap_encode_tiled. */
-struct TensorMapEncodeTiledAttr : public AttrsNode {
-  DLDataType descriptor_dtype;
-  int64_t rank;
-  int64_t interleave;
-  int64_t swizzle;
-  int64_t l2_promotion;
-  int64_t oob_fill;
-  int64_t force_cu_dtype;
-
-  static void RegisterReflection() {
-    ffi::reflection::ObjectDef<TensorMapEncodeTiledAttr>()
-        .def_ro("descriptor_dtype", &TensorMapEncodeTiledAttr::descriptor_dtype)
-        .def_ro("rank", &TensorMapEncodeTiledAttr::rank)
-        .def_ro("interleave", &TensorMapEncodeTiledAttr::interleave)
-        .def_ro("swizzle", &TensorMapEncodeTiledAttr::swizzle)
-        .def_ro("l2_promotion", &TensorMapEncodeTiledAttr::l2_promotion)
-        .def_ro("oob_fill", &TensorMapEncodeTiledAttr::oob_fill)
-        .def_ro("force_cu_dtype", &TensorMapEncodeTiledAttr::force_cu_dtype);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.TensorMapEncodeTiledAttr", TensorMapEncodeTiledAttr,
-                                    AttrsNode);
-};
-
-/*! \brief Collection of builtin region and call operations as Ops. */
-namespace builtin {
 /*!
  * \name Region operations
  * \brief Operations used by RegionStmt to enclose a lexical body.
@@ -107,29 +62,29 @@ namespace builtin {
  * The sole body parameter is a fresh thread-index PrimVar matching the extent type.
  * Tags starting with vthread denote virtual threads. There are no attrs or results.
  */
-TVM_DLL const Op& launch_thread();
+TVM_DLL const Op& launch_thread_op();
 
 /*!
  * \brief Mark a user-facing device entry containing device scope definitions.
  * Takes no operands, body parameters, attributes or results.
  */
-TVM_DLL const Op& device_entry();
+TVM_DLL const Op& device_entry_op();
 /*!
  * \brief Supply lexical device context for allocation and packed-call lowering.
  * Operands are integer device type and device ID; there are no body parameters,
  * attributes or results. The region does not change the active runtime device.
  */
-TVM_DLL const Op& device_context();
+TVM_DLL const Op& device_context_op();
 /*!
  * \brief Outline the body as a CPU compute helper named by a StringImm operand.
  * There are no body parameters, attributes or results.
  */
-TVM_DLL const Op& compute_scope();
+TVM_DLL const Op& compute_scope_op();
 /*!
  * \brief Launch a CPU worker team around parallel loops and team barriers.
  * Takes no operands, body parameters, attributes or results.
  */
-TVM_DLL const Op& parallel_launch();
+TVM_DLL const Op& parallel_launch_op();
 /*! \} */
 
 /*!
@@ -151,7 +106,7 @@ TVM_DLL const Op& parallel_launch();
  * \code
  * // Example pattern match code for a given Binding:
  * if (const auto* call = binding->value.as<CallNode>();
- *     call && call->op.same_as(builtin::alloc_tensor())) {
+ *     call && call->op.same_as(tirx::alloc_tensor_op())) {
  *   tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
  *   DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
  *   ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
@@ -159,7 +114,7 @@ TVM_DLL const Op& parallel_launch();
  * }
  * \endcode
  */
-TVM_DLL const Op& alloc_tensor();
+TVM_DLL const Op& alloc_tensor_op();
 /*!
  * \brief Declare a buffer view: decl_tensor(data, shape, dtype, scope) -> TensorType.
  *
@@ -175,7 +130,7 @@ TVM_DLL const Op& alloc_tensor();
  * \code
  * // Example pattern match code for a given Binding:
  * if (const auto* call = binding->value.as<CallNode>();
- *     call && call->op.same_as(builtin::decl_tensor())) {
+ *     call && call->op.same_as(tirx::decl_tensor_op())) {
  *   Expr data = call->args[0];
  *   tvm::Tuple shape = call->args[1].as_or_throw<tvm::Tuple>();
  *   DLDataType dtype = call->args[2].as_or_throw<DataTypeImm>()->value;
@@ -183,15 +138,15 @@ TVM_DLL const Op& alloc_tensor();
  * }
  * \endcode
  */
-TVM_DLL const Op& decl_tensor();
+TVM_DLL const Op& decl_tensor_op();
 /*!
  * \brief Return from a GPU thread without returning a function value.
  */
-TVM_DLL const Op& thread_return();
+TVM_DLL const Op& thread_return_op();
 /*!
  * \brief Reinterpret the value using the target type.
  */
-TVM_DLL const Op& reinterpret();
+TVM_DLL const Op& reinterpret_op();
 
 /*!
  * \brief Thread-set filter predicate. Used as the condition of an IfThenElse
@@ -200,7 +155,7 @@ TVM_DLL const Op& reinterpret();
  *   filter(var, cond)     -- predicate form (e.g. var == k); true iff cond
  * `var` must be a ScopeIdDef-declared Var at parse time (Verifier Rule 2).
  */
-TVM_DLL const Op& filter();
+TVM_DLL const Op& filter_op();
 
 /*!
  * \brief Analysis-only active-thread selector.
@@ -210,7 +165,7 @@ TVM_DLL const Op& filter();
  * ExecContext/DispatchContext metadata, for predicates such as
  * ``ptx.elect_sync()`` whose selected lane cannot be inferred structurally.
  */
-TVM_DLL const Op& selector();
+TVM_DLL const Op& selector_op();
 
 /*!
  * \brief Execute a multiplication between two Q-numbers x and y
@@ -218,8 +173,8 @@ TVM_DLL const Op& selector();
  * The default rounding rule is to the nearest value, rounding half up
  * (i.e., round(x.1) = x and round (x.5) = x+1)
  */
-TVM_DLL const Op& q_multiply_shift();
-TVM_DLL const Op& q_multiply_shift_per_axis();
+TVM_DLL const Op& q_multiply_shift_op();
+TVM_DLL const Op& q_multiply_shift_per_axis_op();
 
 /*!
  * \brief Returns the address of an element in the buffer (see pseudocode below).
@@ -233,7 +188,7 @@ TVM_DLL const Op& q_multiply_shift_per_axis();
  *     return &op->buffer_var[op->indices[0], op->indices[1], ..., op->indices[N-1]];
  *  }
  */
-TVM_DLL const Op& address_of();
+TVM_DLL const Op& address_of_op();
 
 /*!
  * \brief See pesudo code
@@ -242,17 +197,17 @@ TVM_DLL const Op& address_of();
  *     return handle == nullptr
  *  }
  */
-TVM_DLL const Op& isnullptr();
+TVM_DLL const Op& isnullptr_op();
 
 /*!
  * \brief Check if value is nan
  */
-TVM_DLL const Op& isnan();
+TVM_DLL const Op& isnan_op();
 
 /*!
  * \brief Popcount
  */
-TVM_DLL const Op& popcount();
+TVM_DLL const Op& popcount_op();
 
 /*!
  * \brief Fused multiply add
@@ -261,7 +216,7 @@ TVM_DLL const Op& popcount();
  *    return a * b + c;
  *  }
  */
-TVM_DLL const Op& fma();
+TVM_DLL const Op& fma_op();
 
 /*!
  * \brief Call an extern C function with given name
@@ -275,7 +230,7 @@ TVM_DLL const Op& fma();
  *       and is main used for backward compatibility reasons.
  *       Always consider use pre-registered and typed tvm::Op first.
  */
-TVM_DLL const Op& call_extern();
+TVM_DLL const Op& call_extern_op();
 
 /*!
  * \brief Call an pure extern C function with given name
@@ -289,7 +244,7 @@ TVM_DLL const Op& call_extern();
  *       and is main used for backward compatibility reasons.
  *       Always consider use pre-registered and typed tvm::Op first.
  */
-TVM_DLL const Op& call_pure_extern();
+TVM_DLL const Op& call_pure_extern_op();
 
 /*!
  * \brief Call an LLVM intrinsic with a given intrinsic id
@@ -301,7 +256,7 @@ TVM_DLL const Op& call_pure_extern();
  *
  * \note This op does not provide any type checking.
  */
-TVM_DLL const Op& call_llvm_intrin();
+TVM_DLL const Op& call_llvm_intrin_op();
 
 /*!
  * \brief Call an LLVM pure intrinsic with a given intrinsic id
@@ -313,7 +268,7 @@ TVM_DLL const Op& call_llvm_intrin();
  *
  * \note This op does not provide any type checking.
  */
-TVM_DLL const Op& call_llvm_pure_intrin();
+TVM_DLL const Op& call_llvm_pure_intrin_op();
 
 /*!
  * \brief Call an SPIRV pure GLSL450 intrinsic.
@@ -324,14 +279,14 @@ TVM_DLL const Op& call_llvm_pure_intrin();
  *
  * \note This op does not provide any type checking.
  */
-TVM_DLL const Op& call_spirv_pure_glsl450();
+TVM_DLL const Op& call_spirv_pure_glsl450_op();
 
 // TODO(tvm-team) revisit the builtins below
 // some of them can simply become ops with special codegen attr.
 /*!
  * \brief same signature as llvm.prefetch
  */
-TVM_DLL const Op& prefetch();
+TVM_DLL const Op& prefetch_op();
 
 /*!
  * \brief Get head access address with memory access pattern info.
@@ -348,7 +303,7 @@ TVM_DLL const Op& prefetch();
  *    return &data[offset];
  *  }
  */
-TVM_DLL const Op& tvm_access_ptr();
+TVM_DLL const Op& tvm_access_ptr_op();
 
 /*!
  * \brief Cast a handle to a typed pointer after adding a byte offset.
@@ -357,13 +312,13 @@ TVM_DLL const Op& tvm_access_ptr();
  *    return reinterpret_cast<DType*>(reinterpret_cast<char*>(data) + byte_offset);
  *  }
  */
-TVM_DLL const Op& ptr_byte_offset();
+TVM_DLL const Op& ptr_byte_offset_op();
 
 /*!
  * \brief Create a function local static handle that iniitalizes to nullptr.
  *  can be used to cache function local static resources.
  */
-TVM_DLL const Op& tvm_static_handle();
+TVM_DLL const Op& tvm_static_handle_op();
 
 /*!
  * \brief See pesudo code
@@ -372,7 +327,7 @@ TVM_DLL const Op& tvm_static_handle();
  *     return reinterpret_cast<v*>(reinterpret_cast<char*>(handle) + offset);
  *  }
  */
-TVM_DLL const Op& handle_add_byte_offset();
+TVM_DLL const Op& handle_add_byte_offset_op();
 
 /*!
  * \brief See pesudo code
@@ -382,7 +337,7 @@ TVM_DLL const Op& handle_add_byte_offset();
  *  }
  * \sa TVMStructFieldKind
  */
-TVM_DLL const Op& tvm_struct_get();
+TVM_DLL const Op& tvm_struct_get_op();
 
 /*!
  * \brief See pesudo code
@@ -392,7 +347,7 @@ TVM_DLL const Op& tvm_struct_get();
  *  }
  * \sa TVMStructFieldKind
  */
-TVM_DLL const Op& tvm_struct_set();
+TVM_DLL const Op& tvm_struct_set_op();
 
 /*!
  * \brief See pesudo code
@@ -401,7 +356,7 @@ TVM_DLL const Op& tvm_struct_set();
  *    throw TVMGetLastError();
  *  }
  */
-TVM_DLL const Op& tvm_throw_last_error();
+TVM_DLL const Op& tvm_throw_last_error_op();
 
 /*!
  * \brief See pesudo code
@@ -412,7 +367,7 @@ TVM_DLL const Op& tvm_throw_last_error();
  *     return new on stack dtype[num];
  *  }
  */
-TVM_DLL const Op& tvm_stack_alloca();
+TVM_DLL const Op& tvm_stack_alloca_op();
 
 /*!
  * \brief Allocate a shape tuple on stack, return the handle.
@@ -424,7 +379,7 @@ TVM_DLL const Op& tvm_stack_alloca();
  *     return &ret[0];
  *  }
  */
-TVM_DLL const Op& tvm_stack_make_shape();
+TVM_DLL const Op& tvm_stack_make_shape_op();
 
 /*!
  * \brief Allocate a Tensor(DLTensor) on stack, return the handle.
@@ -445,7 +400,7 @@ TVM_DLL const Op& tvm_stack_make_shape();
  *     return ret;
  *  }
  */
-TVM_DLL const Op& tvm_stack_make_array();
+TVM_DLL const Op& tvm_stack_make_array_op();
 
 /*!
  * \brief See pesudo code
@@ -459,7 +414,22 @@ TVM_DLL const Op& tvm_stack_make_array();
  *     return cast(return_type, result);
  *  }
  */
-TVM_DLL const Op& tvm_call_packed();
+TVM_DLL const Op& tvm_call_packed_op();
+
+/*! \brief Launch metadata for call_ffi_kernel. */
+struct CallFFIKernelAttr : public AttrsNode {
+  /*!
+   * \brief Ordered launch tags describing the suffix of the call arguments.
+   *
+   * The first call argument is the kernel symbol, followed by kernel operands
+   * and launch values. Flag-only tags consume no value; dynamic shared-memory
+   * bytes, when present, are last. Runtime expressions remain in Call.args.
+   */
+  ffi::Array<ffi::String> launch_params;
+
+  static void RegisterReflection();
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.CallFFIKernelAttr", CallFFIKernelAttr, AttrsNode);
+};
 
 /*!
  * \brief Launch a kernel using the packed-function argument convention.
@@ -468,7 +438,22 @@ TVM_DLL const Op& tvm_call_packed();
  * CallFFIKernelAttr::launch_params describes the launch-value suffix.
  * Host backends may consume this call directly or lower it to tvm_call_packed.
  */
-TVM_DLL const Op& call_ffi_kernel();
+TVM_DLL const Op& call_ffi_kernel_op();
+
+/*! \brief Fixed encoding options for tensormap_encode_tiled. */
+struct TensorMapEncodeTiledAttr : public AttrsNode {
+  DLDataType descriptor_dtype;
+  int64_t rank;
+  int64_t interleave;
+  int64_t swizzle;
+  int64_t l2_promotion;
+  int64_t oob_fill;
+  int64_t force_cu_dtype;
+
+  static void RegisterReflection();
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.TensorMapEncodeTiledAttr", TensorMapEncodeTiledAttr,
+                                    AttrsNode);
+};
 
 /*!
  * \brief Encode a tiled tensor map at invocation time.
@@ -477,7 +462,7 @@ TVM_DLL const Op& call_ffi_kernel();
  * Arguments are descriptor and data pointers, global dimensions (rank), byte
  * strides (rank - 1), box dimensions (rank), then element strides (rank).
  */
-TVM_DLL const Op& tensormap_encode_tiled();
+TVM_DLL const Op& tensormap_encode_tiled_op();
 
 /*!
  * \brief See pesudo code
@@ -488,13 +473,13 @@ TVM_DLL const Op& tensormap_encode_tiled();
  *     return cast(return_type, result);
  *  }
  */
-TVM_DLL const Op& tvm_call_cpacked();
+TVM_DLL const Op& tvm_call_cpacked_op();
 
 /*!
  * \brief Mark a condition to be thread invariant.
  *  This means the condition must be the same for all threads.
  */
-TVM_DLL const Op& tvm_thread_invariant();
+TVM_DLL const Op& tvm_thread_invariant_op();
 
 /*!
  * \brief Lowered version of call packed, the space of value and
@@ -512,7 +497,7 @@ TVM_DLL const Op& tvm_thread_invariant();
  *     return cast(return_type, load_return_from(args_stack + end))
  *  }
  */
-TVM_DLL const Op& tvm_call_packed_lowered();
+TVM_DLL const Op& tvm_call_packed_lowered_op();
 
 /*!
  * \brief Lowered version of call c-packed, the space of value and
@@ -527,7 +512,7 @@ TVM_DLL const Op& tvm_call_packed_lowered();
  *                   ffi::Any(value_stack + end, tcode_stack + end));
  *  }
  */
-TVM_DLL const Op& tvm_call_cpacked_lowered();
+TVM_DLL const Op& tvm_call_cpacked_lowered_op();
 
 /*!
  * \brief See pseudo code
@@ -537,7 +522,7 @@ TVM_DLL const Op& tvm_call_cpacked_lowered();
  *     return 0;
  *  }
  */
-TVM_DLL const Op& tvm_storage_sync();
+TVM_DLL const Op& tvm_storage_sync_op();
 
 /*!
  * \brief Synchronize all workers in the current CPU parallel launch.
@@ -545,12 +530,12 @@ TVM_DLL const Op& tvm_storage_sync();
  * Every worker must reach this operation. It must be outside partitioned
  * parallel loops, whose iteration counts can differ between workers.
  */
-TVM_DLL const Op& cpu_parallel_barrier();
+TVM_DLL const Op& cpu_parallel_barrier_op();
 
 /*!
  * \brief Marker where a transform should replace generated kernel initialization.
  */
-TVM_DLL const Op& tvm_kernel_replace_point();
+TVM_DLL const Op& tvm_kernel_replace_point_op();
 
 /*!
  * \brief See pseudo code
@@ -583,11 +568,11 @@ TVM_DLL const Op& tvm_kernel_replace_point();
  *  to determine whether the width parameter is legal.
  *
  */
-TVM_DLL const Op& tvm_warp_shuffle();
-TVM_DLL const Op& tvm_warp_shuffle_up();
-TVM_DLL const Op& tvm_warp_shuffle_down();
-TVM_DLL const Op& tvm_warp_shuffle_xor();
-TVM_DLL const Op& tvm_warp_activemask();
+TVM_DLL const Op& tvm_warp_shuffle_op();
+TVM_DLL const Op& tvm_warp_shuffle_up_op();
+TVM_DLL const Op& tvm_warp_shuffle_down_op();
+TVM_DLL const Op& tvm_warp_shuffle_xor_op();
+TVM_DLL const Op& tvm_warp_activemask_op();
 
 /*!
  * \brief Cross-thread reduction with an explicit typed combiner and identities.
@@ -607,7 +592,7 @@ TVM_DLL const Op& tvm_warp_activemask();
  * Other thread indices remain fixed. The operation writes the reduced values
  * to the destination tensors and returns void.
  */
-TVM_DLL const Op& tvm_thread_allreduce();
+TVM_DLL const Op& tvm_thread_allreduce_op();
 
 /*!
  * \brief View a scalar all-reduce operand/result as one field, or expose its Tuple fields.
@@ -627,7 +612,7 @@ inline ffi::Array<Expr> GetAllreduceFields(const Expr& value) {
  * void cooperative_tensor_fill(Var d, PrimExpr index, PrimExpr value,
  *                              int rows, int cols);
  */
-TVM_DLL const Op& cooperative_tensor_fill();
+TVM_DLL const Op& cooperative_tensor_fill_op();
 
 /*!
  * \brief Load data from device or threadgroup memory into a cooperative_tensor.
@@ -639,7 +624,7 @@ TVM_DLL const Op& cooperative_tensor_fill();
  *                              int operand_role);
  * operand_role: 0=left(A), 1=right(B), 2=destination(C)
  */
-TVM_DLL const Op& cooperative_tensor_load();
+TVM_DLL const Op& cooperative_tensor_load_op();
 
 /*!
  * \brief Store data from a cooperative_tensor to device or threadgroup memory.
@@ -651,7 +636,7 @@ TVM_DLL const Op& cooperative_tensor_load();
  *                               int operand_role);
  * operand_role: 0=left(A), 1=right(B), 2=destination(C)
  */
-TVM_DLL const Op& cooperative_tensor_store();
+TVM_DLL const Op& cooperative_tensor_store_op();
 
 /*!
  * \brief Multiply and accumulate two matrices using cooperative_tensor
@@ -662,47 +647,47 @@ TVM_DLL const Op& cooperative_tensor_store();
  *     Var b, PrimExpr index_b, Var c, PrimExpr index_c,
  *     int M, int N, int K, bool transpose_a, bool transpose_b);
  */
-TVM_DLL const Op& cooperative_tensor_multiply_accumulate();
+TVM_DLL const Op& cooperative_tensor_multiply_accumulate_op();
 
 // TODO(tvm-team) replace the usage of the vector operations by Shuffle.
 /*!
  * \brief Get the high level half of the vector
  */
-TVM_DLL const Op& vectorhigh();
+TVM_DLL const Op& vectorhigh_op();
 
 /*!
  * \brief Get the low-level half of the vector
  */
-TVM_DLL const Op& vectorlow();
+TVM_DLL const Op& vectorlow_op();
 
 /*!
  * \brief Concat two vectors.
  */
-TVM_DLL const Op& vectorcombine();
+TVM_DLL const Op& vectorcombine_op();
 
 /*!
  * \brief Dot product of two int8x4 vectors and add an optional accumulator
  */
-TVM_DLL const Op& dp4a();
+TVM_DLL const Op& dp4a_op();
 
 /*!
  * \brief atomic add instruction, corresponding e.g. to atomicAdd in CUDA
  */
-TVM_DLL const Op& atomic_add();
+TVM_DLL const Op& atomic_add_op();
 /*!
  * \brief Create an Nd memory allocation with storage scope
  */
-TVM_DLL const Op& nd_mem_alloc_with_scope();
+TVM_DLL const Op& nd_mem_alloc_with_scope_op();
 
 /*!
  * \brief Store to texture 2d memory
  */
-TVM_DLL const Op& texture2d_store();
+TVM_DLL const Op& texture2d_store_op();
 
 /*!
  * \brief Load from texture 2d memory
  */
-TVM_DLL const Op& texture2d_load();
+TVM_DLL const Op& texture2d_load_op();
 
 /*!
  * \brief Provide a true statement that can be used for simplifications
@@ -711,7 +696,7 @@ TVM_DLL const Op& texture2d_load();
  * inputs.  This assumption is removed when lowering, and does not
  * occur in codegen.
  */
-TVM_DLL const Op& assume();
+TVM_DLL const Op& assume_op();
 
 /*!
  * \brief Assume a tensor's base address has the given constant byte alignment.
@@ -719,7 +704,7 @@ TVM_DLL const Op& assume();
  * This leaf operation carries a compiler fact, without checking or changing
  * the address. Alignment must be a power of two between 1 and 2^27 bytes.
  */
-TVM_DLL const Op& assume_aligned();
+TVM_DLL const Op& assume_aligned_op();
 
 /*!
  * \brief Returns an initialized but arbitrary value
@@ -727,7 +712,7 @@ TVM_DLL const Op& assume_aligned();
  * Compile-time representation of memory locations whose values may be
  * altered as a result of optimizations.
  */
-TVM_DLL const Op& undef();
+TVM_DLL const Op& undef_op();
 
 /*!
  * \brief Calculate a predicate mask given an upper bound (limit) and a current value (base).
@@ -735,7 +720,7 @@ TVM_DLL const Op& undef();
  * It will be lowered to the llvm.get.active.lane.mask intrinsic.
  * (https://llvm.org/docs/LangRef.html#llvm-get-active-lane-mask-intrinsics)
  */
-TVM_DLL const Op& get_active_lane_mask();
+TVM_DLL const Op& get_active_lane_mask_op();
 
 /*!
  * \brief Masked buffer load.
@@ -743,7 +728,7 @@ TVM_DLL const Op& get_active_lane_mask();
  * Arguments are the buffer variable, one or more indices, and a trailing boolean lane mask.
  * The result type is the vector type loaded from the selected lanes.
  */
-TVM_DLL const Op& masked_load();
+TVM_DLL const Op& masked_load_op();
 
 /*!
  * \brief Masked buffer store.
@@ -751,16 +736,16 @@ TVM_DLL const Op& masked_load();
  * Arguments are the buffer variable, value, one or more indices, and a trailing boolean lane
  * mask. The result type is void.
  */
-TVM_DLL const Op& masked_store();
+TVM_DLL const Op& masked_store_op();
 
 /*! \brief Annotate a predicate not be considered as target condition of loop partition. */
-TVM_DLL const Op& ignore_loop_partition();
+TVM_DLL const Op& ignore_loop_partition_op();
 /*!
  * \brief Get the element offset of a buffer given logical indices.
 
   The offset is determined by the layout of the buffer.
  */
-TVM_DLL const Op& buffer_offset();
+TVM_DLL const Op& buffer_offset_op();
 
 /*!
  * \brief Project the physical pointer associated with a TensorVar definition.
@@ -769,7 +754,7 @@ TVM_DLL const Op& buffer_offset();
  * scope of the sole TensorVar argument.  This operation is consumed by TIRx
  * lowering and code generation.
  */
-TVM_DLL const Op& buffer_data();
+TVM_DLL const Op& buffer_data_op();
 
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {
@@ -799,9 +784,109 @@ enum TVMStructFieldKind : int {
 /*!
  * \brief Print the content of a buffer during runtime.
  */
-TVM_DLL const Op& print_buffer();
+TVM_DLL const Op& print_buffer_op();
 /*! \} */
-}  // namespace builtin
+
+/*! \brief Tile primitive operator handles. */
+namespace tile {
+
+/*!
+ * \brief See pesudo code below:
+ *
+ * Tx.cast(TensorRegion dst, TensorRegion src)
+ */
+TVM_DLL const Op& cast_op();
+
+/*!
+ * \brief See pesudo code below:
+ *
+ * Tx.copy(TensorRegion dst, TensorRegion src)
+ */
+TVM_DLL const Op& copy_op();
+
+/*!
+ * \brief See pesudo code below:
+ *
+ * Tx.Async.copy(TensorRegion dst, TensorRegion src)
+ */
+TVM_DLL const Op& copy_async_op();
+
+/*!
+ * \brief See pesudo code below:
+ *
+ *  Tx.fill(TensorRegion dst, PrimExpr value)
+ */
+TVM_DLL const Op& fill_op();
+
+/*!
+ * \brief See pesudo code below:
+ *
+ * Tx.gemm(TensorVar A, TensorVar B, TensorVar C, TensorVar D, PrimExpr alpha, PrimExpr beta)
+ */
+TVM_DLL const Op& gemm_op();
+
+/*!
+ * \brief See pesudo code below:
+ *
+ * Tx.gemm_async(TensorRegion C, TensorRegion A, TensorRegion B, bool transA, bool transB,
+ * bool accum)
+ */
+TVM_DLL const Op& gemm_async_op();
+
+TVM_DLL const Op& zero_op();
+
+TVM_DLL const Op& sqrt_op();
+TVM_DLL const Op& sqrt_with_scale_bias_op();
+
+TVM_DLL const Op& exp_op();
+TVM_DLL const Op& exp_with_scale_bias_op();
+
+TVM_DLL const Op& exp2_op();
+TVM_DLL const Op& exp2_with_scale_bias_op();
+
+TVM_DLL const Op& log2_op();
+TVM_DLL const Op& log2_with_scale_bias_op();
+
+TVM_DLL const Op& add_op();
+
+TVM_DLL const Op& sub_op();
+
+TVM_DLL const Op& mul_op();
+
+TVM_DLL const Op& fdiv_op();
+
+TVM_DLL const Op& minimum_op();
+
+TVM_DLL const Op& maximum_op();
+
+TVM_DLL const Op& reciprocal_op();
+
+TVM_DLL const Op& sum_op();
+
+TVM_DLL const Op& max_op();
+
+TVM_DLL const Op& min_op();
+
+TVM_DLL const Op& memset_op();
+
+TVM_DLL const Op& reduce_negate_op();
+
+TVM_DLL const Op& binary_reduce_op();
+
+TVM_DLL const Op& unary_reduce_op();
+TVM_DLL const Op& unary_reduce_with_scale_bias_op();
+
+TVM_DLL const Op& binary_chain_op();
+
+TVM_DLL const Op& select_op();
+
+TVM_DLL const Op& fma_op();
+
+TVM_DLL const Op& silu_op();
+
+TVM_DLL const Op& permute_layout_op();
+
+}  // namespace tile
 }  // namespace tirx
 }  // namespace tvm
 

@@ -155,7 +155,7 @@ ffi::Optional<ExprDoc> CallExternDocTranslate(DocTranslatorObj* d, ffi::AnyView 
                                               const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (!call->op.same_as(tirx::builtin::call_extern()) || !CanTranslateExplicitResultCall(call) ||
+  if (!call->op.same_as(tirx::call_extern_op()) || !CanTranslateExplicitResultCall(call) ||
       call->args.empty()) {
     return RawCall(d, call);
   }
@@ -294,8 +294,8 @@ ffi::Optional<ExprDoc> LLVMIntrinsicDocTranslate(DocTranslatorObj* d, ffi::AnyVi
     args.push_back(MaterializeCallArgument(d, call->args[i], d->Translate(call->args[i]).value()));
   }
   return NamespaceDoc("tirx")
-      ->Attr(call->op.same_as(tirx::builtin::call_llvm_intrin()) ? "call_llvm_intrin"
-                                                                 : "call_llvm_pure_intrin")
+      ->Attr(call->op.same_as(tirx::call_llvm_intrin_op()) ? "call_llvm_intrin"
+                                                           : "call_llvm_pure_intrin")
       ->Call(args);
 }
 
@@ -310,7 +310,7 @@ ffi::Optional<ExprDoc> GetActiveLaneMaskDocTranslate(DocTranslatorObj* d, ffi::A
                                                      const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (!call->op.same_as(tirx::builtin::get_active_lane_mask()) || call->attrs.defined() ||
+  if (!call->op.same_as(tirx::get_active_lane_mask_op()) || call->attrs.defined() ||
       !call->ty_args.empty() || call->args.size() != 2) {
     return RawCall(d, call);
   }
@@ -405,8 +405,7 @@ ffi::Optional<ExprDoc> TIRCallPrefixDocTranslate(DocTranslatorObj* d, const Call
       return RawCall(d, call);
     }
   }
-  if (call->op.same_as(tirx::builtin::buffer_data()) && !call->attrs.defined() &&
-      call->ty_args.empty()) {
+  if (call->op.same_as(tirx::buffer_data_op()) && !call->attrs.defined() && call->ty_args.empty()) {
     TVM_FFI_CHECK(call->args.size() == 1, ValueError) << "buffer_data expects one buffer";
     return d->Translate(call->args[0]).value()->Attr("data");
   }
@@ -416,7 +415,7 @@ ffi::Optional<ExprDoc> TIRCallPrefixDocTranslate(DocTranslatorObj* d, const Call
 ffi::Optional<ExprDoc> FFIKernelDocTranslate(DocTranslatorObj* d, const CallNode* call,
                                              const Type& result_type,
                                              const ffi::Array<ExprDoc>& args) {
-  if (call->op.same_as(tirx::builtin::call_ffi_kernel())) {
+  if (call->op.same_as(tirx::call_ffi_kernel_op())) {
     const auto* attrs = call->attrs.as<tirx::CallFFIKernelAttr>();
     if (!attrs || !call->ty_args.empty()) return RawCall(d, call, args);
     ffi::Array<ExprDoc> launch_params;

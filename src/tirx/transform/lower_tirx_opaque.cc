@@ -117,9 +117,8 @@ class TIRxOpaqueLower : public StmtExprMutator {
                  std::nullopt, FilterAnnotations(annotations), step);
     }
     if (op->kind == ForKind::kThreadBinding) {
-      return RegionStmt(tirx::builtin::launch_thread(),
-                        {StringImm(op->thread_binding.value()), extent}, {launch_var}, DictAttrs(),
-                        body, {}, op->span);
+      return RegionStmt(tirx::launch_thread_op(), {StringImm(op->thread_binding.value()), extent},
+                        {launch_var}, DictAttrs(), body, {}, op->span);
     }
     return body;
   }

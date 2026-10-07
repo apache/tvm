@@ -21,8 +21,8 @@
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
@@ -575,8 +575,8 @@ DeclTensorFrame DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Stri
     // Tensor memory is an externally allocated address space.  Make that
     // address-to-pointer relationship explicit so every DeclTensor has a
     // physical data binding.
-    n->data = Call(n->buffer.DataPointerType(), tvm::tirx::builtin::reinterpret(),
-                   {allocated_addr.value()});
+    n->data =
+        Call(n->buffer.DataPointerType(), tvm::tirx::reinterpret_op(), {allocated_addr.value()});
   }
   // For tmem, even without `data`, we should not emit an Allocate node.
   n->allocated = (scope == "tmem") || data.has_value();
@@ -588,7 +588,7 @@ TensorVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String st
   TensorVar buffer = TensorDecl(shape, dtype, "", std::nullopt, std::nullopt, std::nullopt,
                                 storage_scope, 0, 0, std::nullopt, {});
   AddToParent(tvm::tirx::Bind(
-      buffer.var(), Call(buffer.type(), tvm::tirx::builtin::alloc_tensor(),
+      buffer.var(), Call(buffer.type(), tvm::tirx::alloc_tensor_op(),
                          {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                           StringImm(buffer.scope())},
                          DictAttrs(annotations.value_or(ffi::Map<ffi::String, ffi::Any>())))));

@@ -22,7 +22,6 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 
@@ -38,7 +37,7 @@ namespace {
 std::optional<int> ExtractVscaleFactor(const PrimExpr& lanes) {
   auto is_vscale = [](const PrimExpr& e) -> bool {
     if (const auto* call = e.as<CallNode>()) {
-      return call->op.same_as(prim::builtin::vscale());
+      return call->op.same_as(prim::vscale_op());
     }
     return false;
   };
@@ -234,7 +233,7 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span)
 
     node->ExprNode::ty =
         PrimType::ScalableVector(base_ty.code(), base_ty.bits(), vscale_factor.value());
-    lanes = Mul(Call(PrimType::Int(32), prim::builtin::vscale(), {}).as_or_throw<PrimExpr>(),
+    lanes = Mul(Call(PrimType::Int(32), prim::vscale_op(), {}).as_or_throw<PrimExpr>(),
                 vscale_factor.value());
     node->lanes = lanes;
   }
@@ -276,7 +275,7 @@ Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) : PrimExpr(ffi::
 
     node->ExprNode::ty =
         PrimType::ScalableVector(value_ty.code(), value_ty.bits(), vscale_factor.value());
-    lanes = Mul(Call(PrimType::Int(32), prim::builtin::vscale(), {}).as_or_throw<PrimExpr>(),
+    lanes = Mul(Call(PrimType::Int(32), prim::vscale_op(), {}).as_or_throw<PrimExpr>(),
                 vscale_factor.value());
     node->lanes = lanes;
   }

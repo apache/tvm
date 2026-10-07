@@ -23,7 +23,7 @@
 #include "ir_visitor_with_analyzer.h"
 
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op.h>
 
@@ -80,7 +80,7 @@ ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const IfThenElseNode
 
 ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const RegionStmtNode* op) {
   return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
-    if (op->op.same_as(tirx::builtin::launch_thread())) {
+    if (op->op.same_as(tirx::launch_thread_op())) {
       PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
       analyzer_->Bind(op->body_params[0].as_or_throw<PrimVar>(),
                       Range::FromMinExtent(IntImm(extent.ty(), 0), extent));
@@ -126,7 +126,7 @@ ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const prim::LetNode*
 
 PrimExpr IRVisitorWithAnalyzer::ExtractRealCondition(PrimExpr condition) const {
   if (auto call = condition.as<CallNode>()) {
-    if (call->op.same_as(prim::builtin::likely())) {
+    if (call->op.same_as(prim::likely_op())) {
       return call->args[0].as_or_throw<PrimExpr>();
     }
   }

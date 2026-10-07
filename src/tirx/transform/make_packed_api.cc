@@ -25,8 +25,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
@@ -108,21 +108,20 @@ class ReturnRewriter : public StmtExprMutator {
 
   Stmt WriteToOut(Expr val) {
     auto info = ConvertForFFI(val);
-    Stmt store_tindex = tirx::Evaluate(
-        Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
-             {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::builtin::kTVMFFIAnyTypeIndex),
-              IntImm::Int32(info.type_index)})
-            .as_or_throw<PrimExpr>());
+    Stmt store_tindex =
+        tirx::Evaluate(Call(PrimType::Int(32), tirx::tvm_struct_set_op(),
+                            {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::kTVMFFIAnyTypeIndex),
+                             IntImm::Int32(info.type_index)})
+                           .as_or_throw<PrimExpr>());
     Stmt store_zero_padding =
-        tirx::Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
-                            {ret_var_, IntImm::Int32(0),
-                             IntImm::Int32(tirx::builtin::kTVMFFIAnyZeroPadding), IntImm::Int32(0)})
+        tirx::Evaluate(Call(PrimType::Int(32), tirx::tvm_struct_set_op(),
+                            {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::kTVMFFIAnyZeroPadding),
+                             IntImm::Int32(0)})
                            .as_or_throw<PrimExpr>());
-    Stmt store_val =
-        tirx::Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
-                            {ret_var_, IntImm::Int32(0),
-                             IntImm::Int32(tirx::builtin::kTVMFFIAnyUnionValue), info.expr})
-                           .as_or_throw<PrimExpr>());
+    Stmt store_val = tirx::Evaluate(
+        Call(PrimType::Int(32), tirx::tvm_struct_set_op(),
+             {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::kTVMFFIAnyUnionValue), info.expr})
+            .as_or_throw<PrimExpr>());
     Stmt ret_zero = Return(IntImm::Int32(0));
     return SeqStmt({store_tindex, store_zero_padding, store_val, ret_zero});
   }
@@ -168,7 +167,7 @@ class SubroutineCallRewriter : public StmtExprMutator {
         // push an empty handle to be compatible with current cpacked convention
         cpacked_args.push_back(tvm::prim::ConstHandle(0));
         made_change_ = true;
-        return Call(node->ty, tirx::builtin::tvm_call_cpacked(), cpacked_args);
+        return Call(node->ty, tirx::tvm_call_cpacked_op(), cpacked_args);
       }
     }
 
@@ -262,12 +261,12 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   Stmt body = ffi::make_object<ReturnRewriter>(v_result)
                   ->Mutate(func_ptr->body.value(), InplaceMode::kAllow)
                   .ValueOrUnchanged(func_ptr->body.value());
-  body = RegionStmt(builtin::compute_scope(), {StringImm(name_hint + "_compute_")}, {}, DictAttrs(),
+  body = RegionStmt(tirx::compute_scope_op(), {StringImm(name_hint + "_compute_")}, {}, DictAttrs(),
                     body);
   // Set device context
   if (need_set_device) {
     if (runtime::DeviceAPI::NeedSetDevice(target_device_type)) {
-      Stmt set_device = Evaluate(Call(PrimType::Int(32), builtin::tvm_call_packed(),
+      Stmt set_device = Evaluate(Call(PrimType::Int(32), tirx::tvm_call_packed_op(),
                                       {StringImm(runtime::symbol::tvm_set_device), device_type,
                                        device_id.as_or_throw<PrimExpr>()})
                                      .as_or_throw<PrimExpr>());
@@ -283,7 +282,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   body = SeqStmt::Flatten(result.decl_buffers, body);
   body = MergeNest(std::move(result.asserts), body);
   if (need_set_device) {
-    body = RegionStmt(builtin::device_context(), {device_type, device_id}, {}, DictAttrs(), body);
+    body = RegionStmt(tirx::device_context_op(), {device_type, device_id}, {}, DictAttrs(), body);
   }
   body = MergeNest(std::move(result.init_nest), body);
   func_ptr->body = body;

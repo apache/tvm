@@ -40,6 +40,23 @@ namespace tvm {
 namespace relax {
 using namespace tvm::prim;
 
+void TakeAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<TakeAttrs>()
+      .def_ro("axis", &TakeAttrs::axis, "The axis over which to select values.")
+      .def_ro("mode", &TakeAttrs::mode, "The mode for handling out-of-bounds indices.",
+              refl::DefaultValue("fast"));
+}
+
+void StridedSliceAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<StridedSliceAttrs>().def_ro(
+      "assume_inbound", &StridedSliceAttrs::assume_inbound,
+      "Whether to assume the indices are in bound. If it is set to false, "
+      "out of bound indices will be clipped to the bound.",
+      refl::DefaultValue(true));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   TakeAttrs::RegisterReflection();
   StridedSliceAttrs::RegisterReflection();

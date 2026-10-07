@@ -26,7 +26,7 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/relax/attrs/ccl.h>
+#include <tvm/relax/op.h>
 #include <tvm/topi/einsum.h>
 
 #include <algorithm>
@@ -38,6 +38,15 @@
 namespace tvm {
 namespace relax {
 using namespace tvm::prim;
+
+void DistributionAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<DistributionAttrs>()
+      .def_ro("device_mesh", &DistributionAttrs::device_mesh,
+              "The device mesh of a tensor's distribution plan")
+      .def_ro("placement", &DistributionAttrs::placement,
+              "The placement of a tensor's distribution plan");
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() { DistributionAttrs::RegisterReflection(); }
 

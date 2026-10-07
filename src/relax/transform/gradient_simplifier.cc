@@ -51,9 +51,9 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/manipulate.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op.h>
 
 #include "../op/tensor/linear_algebra.h"
 #include "../op/tensor/manipulate.h"

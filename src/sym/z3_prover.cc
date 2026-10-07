@@ -31,7 +31,6 @@
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/expr_functor.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
@@ -895,7 +894,7 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
   }
 
   z3::expr Dispatch_(const CallNode* op) override {
-    if (op->op.same_as(prim::builtin::if_then_else()) && op->args.size() == 3 &&
+    if (op->op.same_as(prim::if_then_else_op()) && op->args.size() == 3 &&
         IsZ3SupportedExpr(op->args[1].get()) && IsZ3SupportedExpr(op->args[2].get())) {
       // tir.if_then_else(cond, a, b) is a select-like ternary.
       return z3::ite(VisitBool(op->args[0].as_or_throw<PrimExpr>()),
@@ -1004,7 +1003,6 @@ TVM_DLL Z3Prover::~Z3Prover() = default;
 #else  // TVM_USE_Z3
 
 #include <tvm/ir/prim/expr.h>
-#include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 
 #include "tvm/ffi/string.h"

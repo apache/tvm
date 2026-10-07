@@ -184,7 +184,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                   /*5:*/
                   Call(
                       /*dtype=*/new_src_buffer.data()->ty,
-                      /*op=*/tirx::builtin::tvm_access_ptr(),
+                      /*op=*/tirx::tvm_access_ptr_op(),
                       /*args=*/
                       ffi::Array<Expr>{
                           /*0:*/ TypeAnnotation(new_src_buffer->dtype),
@@ -283,7 +283,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
                                   /*5:*/
                                   Call(
                                       /*data=*/new_tgt_buffer.data()->ty,
-                                      /*op=*/tirx::builtin::tvm_access_ptr(),
+                                      /*op=*/tirx::tvm_access_ptr_op(),
                                       ffi::Array<Expr>{
                                           /*0:*/ TypeAnnotation(new_tgt_buffer->dtype),
                                           /*1:*/ new_tgt_buffer.data(),
@@ -502,8 +502,8 @@ Stmt RewriteMmaStore(Stmt stmt) {
              /*reads=*/{BufferRegion(src_buffer, read_region)},
              /*writes=*/{BufferRegion(tgt_buffer, write_region)},
              /*name_hint=*/"mma_store",
-             RegionStmt(tirx::builtin::launch_thread(),
-                        {StringImm("threadIdx.x"), IntImm::Int32(32)}, {tx}, DictAttrs(), /*body=*/
+             RegionStmt(tirx::launch_thread_op(), {StringImm("threadIdx.x"), IntImm::Int32(32)},
+                        {tx}, DictAttrs(), /*body=*/
                         For(vec.as_or_throw<PrimVar>(), 0, 2, ForKind::kVectorized,
                             /*body=*/
                             BufferStore(new_tgt_buffer,

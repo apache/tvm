@@ -29,6 +29,139 @@
 namespace tvm {
 namespace relax {
 
+void SoftmaxAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<SoftmaxAttrs>().def_ro("axis", &SoftmaxAttrs::axis,
+                                         "The axis to sum over when computing softmax.");
+}
+
+void LeakyReluAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<LeakyReluAttrs>().def_ro("alpha", &LeakyReluAttrs::alpha,
+                                           "The slope of the negative part.");
+}
+
+void SoftplusAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<SoftplusAttrs>()
+      .def_ro("beta", &SoftplusAttrs::beta,
+              "Scaling factor controlling the sharpness of the Softplus transition.")
+      .def_ro("threshold", &SoftplusAttrs::threshold,
+              "Value determining when to use linear approximation for numerical stability.");
+}
+
+void PReluAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<PReluAttrs>().def_ro("axis", &PReluAttrs::axis,
+                                       "The axis along which the alpha values are applied.");
+}
+
+void BatchNormAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<BatchNormAttrs>()
+      .def_ro("axis", &BatchNormAttrs::axis, "The axis along which the normalization is applied.")
+      .def_ro("epsilon", &BatchNormAttrs::epsilon,
+              "Small float added to variance to avoid dividing by zero")
+      .def_ro("center", &BatchNormAttrs::center,
+              "Indicating if the beta offset will be added to the normalized tensor.")
+      .def_ro("scale", &BatchNormAttrs::scale, "Indicating if the gamma scale will be multiplied.")
+      .def_ro("momentum", &BatchNormAttrs::momentum,
+              "The value used for the moving_mean and moving_var update.")
+      .def_ro("training", &BatchNormAttrs::training,
+              "Whether we are training (i.e., not in eval mode).");
+}
+
+void LayerNormAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<LayerNormAttrs>()
+      .def_ro("axes", &LayerNormAttrs::axes,
+              "The axes that along which the normalization is applied.")
+      .def_ro("epsilon", &LayerNormAttrs::epsilon,
+              "Small float added to variance to avoid dividing by zero")
+      .def_ro("center", &LayerNormAttrs::center,
+              "Indicating if the beta offset will be added to the normalized tensor.")
+      .def_ro("scale", &LayerNormAttrs::scale, "Indicating if the gamma scale will be multiplied.");
+}
+
+void GroupNormAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<GroupNormAttrs>()
+      .def_ro("num_groups", &GroupNormAttrs::num_groups,
+              "The number of groups to separate the channels into.")
+      .def_ro("channel_axis", &GroupNormAttrs::channel_axis,
+              "The axis that represents the channel.")
+      .def_ro(
+          "axes", &GroupNormAttrs::axes,
+          "The axes that along which the normalization is applied (excluding the channel axis).")
+      .def_ro("epsilon", &GroupNormAttrs::epsilon,
+              "Small float added to variance to avoid dividing by zero")
+      .def_ro("center", &GroupNormAttrs::center,
+              "Indicating if the beta offset will be added to the normalized tensor.")
+      .def_ro("scale", &GroupNormAttrs::scale, "Indicating if the gamma scale will be multiplied.");
+}
+
+void InstanceNormAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<InstanceNormAttrs>()
+      .def_ro("channel_axis", &InstanceNormAttrs::channel_axis,
+              "The axis that represents the channel.")
+      .def_ro("axes", &InstanceNormAttrs::axes,
+              "The axes that along which the normalization is applied.")
+      .def_ro("epsilon", &InstanceNormAttrs::epsilon,
+              "Small float added to variance to avoid dividing by zero")
+      .def_ro("center", &InstanceNormAttrs::center,
+              "Indicating if the beta offset will be added to the normalized tensor.")
+      .def_ro("scale", &InstanceNormAttrs::scale,
+              "Indicating if the gamma scale will be multiplied.");
+}
+
+void RMSNormAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<RMSNormAttrs>()
+      .def_ro("axes", &RMSNormAttrs::axes,
+              "The axes that along which the normalization is applied.")
+      .def_ro("epsilon", &RMSNormAttrs::epsilon,
+              "Small float added to variance to avoid dividing by zero");
+}
+
+void NLLLossAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<NLLLossAttrs>()
+      .def_ro("reduction", &NLLLossAttrs::reduction,
+              "The reduction method to apply to the output. Can be"
+              "'none', 'mean' or 'sum'.",
+              refl::DefaultValue("mean"))
+      .def_ro("ignore_index", &NLLLossAttrs::ignore_index, "The target value to ignore.");
+}
+
+void DropoutAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<DropoutAttrs>().def_ro(
+      "rate", &DropoutAttrs::rate,
+      "Fraction of the input that gets dropped out during training time");
+}
+
+void PadAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<PadAttrs>()
+      .def_ro("pad_width", &PadAttrs::pad_width,
+              "Number of values padded to the edges of each axis, "
+              "in the format of (before_1, after_1, ..., before_N, after_N)")
+      .def_ro("pad_value", &PadAttrs::pad_value, "The value to fill in padded area with",
+              refl::DefaultValue(0.0))
+      .def_ro("pad_mode", &PadAttrs::pad_mode,
+              "Padding type to use. \"constant\" pads with constant_value, "
+              "\"edge\" pads using the edge values of the input array, "
+              "\"reflect\" pads by reflecting values with respect to the edges.",
+              refl::DefaultValue("constant"));
+}
+
+void PixelShuffleAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<PixelShuffleAttrs>().def_ro("upscale_factor", &PixelShuffleAttrs::upscale_factor,
+                                              "Scale factor for spatial upsampling.");
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   SoftmaxAttrs::RegisterReflection();
   LeakyReluAttrs::RegisterReflection();

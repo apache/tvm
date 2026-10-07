@@ -86,7 +86,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
           auto new_buf = pass->Lookup(old_buf.value()).flattened;
           if (!old_buf.value().same_as(new_buf)) {
             body = SeqStmt::Flatten(
-                Bind(new_buf, Call(new_buf.type(), builtin::decl_tensor(),
+                Bind(new_buf, Call(new_buf.type(), tirx::decl_tensor_op(),
                                    {old_buf.value().data(), tvm::Tuple(new_buf->shape),
                                     DataTypeImm(new_buf->dtype->dtype), StringImm(new_buf.scope())},
                                    {})),
@@ -186,9 +186,9 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>(); call) {
-      if (call->op.same_as(builtin::alloc_tensor()))
+      if (call->op.same_as(tirx::alloc_tensor_op()))
         return MutateAllocTensor(op, call, inplace_mode);
-      if (call->op.same_as(builtin::decl_tensor())) return MutateDeclTensor(op, call, inplace_mode);
+      if (call->op.same_as(tirx::decl_tensor_op())) return MutateDeclTensor(op, call, inplace_mode);
     }
     return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
@@ -200,7 +200,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
       return ffi::Unchanged();
     }
     return Bind(info.flattened.var(),
-                Call(info.flattened.type(), tirx::builtin::alloc_tensor(),
+                Call(info.flattened.type(), tirx::alloc_tensor_op(),
                      {tvm::Tuple(info.flattened->shape, buffer_call->args[0]->span),
                       DataTypeImm(info.flattened->dtype->dtype, buffer_call->args[1]->span),
                       StringImm(info.flattened.scope(), buffer_call->args[2]->span)},
@@ -213,7 +213,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     Expr data = buffer_call->args[0];
     bool is_extern_buffer_source = false;
     if (const auto* call = buffer_call->args[0].as<CallNode>();
-        call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+        call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
       if (const auto* var = call->args[0].as<VarNode>(); var && var->ty.as<TensorTypeNode>()) {
         is_extern_buffer_source =
             extern_buffers_.count(ffi::GetRef<Var>(var).as_or_throw<TensorVar>());
@@ -228,7 +228,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
       return ffi::Unchanged();
     }
     return Bind(info.flattened,
-                Call(info.flattened.type(), builtin::decl_tensor(),
+                Call(info.flattened.type(), tirx::decl_tensor_op(),
                      {std::move(data), tvm::Tuple(info.flattened->shape),
                       DataTypeImm(info.flattened->dtype->dtype), StringImm(info.flattened.scope())},
                      buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
@@ -260,8 +260,8 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
-      bool is_load = op->op.same_as(builtin::masked_load());
+    if (op->op.same_as(tirx::masked_load_op()) || op->op.same_as(tirx::masked_store_op())) {
+      bool is_load = op->op.same_as(tirx::masked_load_op());
       TensorVar original = op->args[0].as_or_throw<TensorVar>();
       ffi::Array<PrimExpr> indices;
       for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
@@ -279,7 +279,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
                          .as_or_throw<Expr>());
       return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
     }
-    if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
+    if (op->op.same_as(tirx::buffer_data_op()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>()) {
         if (var.value()->ty.as<TensorTypeNode>()) {
           TensorVar original = var.value().as_or_throw<TensorVar>();

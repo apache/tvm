@@ -49,7 +49,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -254,7 +254,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     TVM_FFI_ICHECK(access_ptr->IsInstance<CallNode>())
         << "Invalid access ptr for permuted layout: " << access_ptr;
     auto access_ptr_call = access_ptr.as_or_throw<Call>();
-    TVM_FFI_ICHECK(access_ptr_call->op.same_as(tirx::builtin::tvm_access_ptr()))
+    TVM_FFI_ICHECK(access_ptr_call->op.same_as(tirx::tvm_access_ptr_op()))
         << "Invalid access ptr for permuted layout: " << access_ptr;
 
     auto data_var = GetBufferDataVar(access_ptr_call->args[1]);

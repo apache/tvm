@@ -32,6 +32,30 @@
 namespace tvm {
 namespace relax {
 
+void StatisticalAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<StatisticalAttrs>()
+      .def_ro("axis", &StatisticalAttrs::axis,
+              "The axis or axes along which to perform the reduction.")
+      .def_ro("keepdims", &StatisticalAttrs::keepdims,
+              "If this is set to `True`, the reduced axes are left in the result as dimension "
+              "with size "
+              "one.");
+}
+
+void ScanopAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<ScanopAttrs>()
+      .def_ro("axis", &ScanopAttrs::axis,
+              "The axis along which to perform the scan computation."
+              "The default (None) is to compute over the flattened array.")
+      .def_ro("dtype", &ScanopAttrs::dtype,
+              "The output data type."
+              "If dtype is not specified, it defaults to the dtype of input data.")
+      .def_ro("exclusive", &ScanopAttrs::exclusive, "The first element is not included",
+              refl::DefaultValue(false));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   StatisticalAttrs::RegisterReflection();
   ScanopAttrs::RegisterReflection();

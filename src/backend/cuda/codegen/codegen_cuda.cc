@@ -202,7 +202,7 @@ class ThreadIdxExtractor : public tirx::StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (op->op.same_as(tirx::builtin::launch_thread())) {
+    if (op->op.same_as(tirx::launch_thread_op())) {
       TVM_FFI_CHECK(
           std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
           ValueError)
@@ -1313,7 +1313,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     os << "for (int i = 0; i < " << num_elem << "; ++i) {\n";
     os << dst << "[" << dst_offset << " + i] = 0.0;";
     os << "}\n";
-  } else if (op->op.same_as(tirx::builtin::reinterpret())) {
+  } else if (op->op.same_as(tirx::reinterpret_op())) {
     // Compile-time pointer reinterpret of a literal (e.g. a tcgen05 descriptor
     // template encoded at address 0): emit C++-style reinterpret_cast<T*>(...)
     // to match the encoded template. Runtime pointer reinterprets fall through
@@ -1379,8 +1379,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
       if (IsFloat4(tgt_ty)) {
         // We view the source as an uint16, and then extract bits of two fp4 numbers,
         // and finally reinterpret the result as fp4x2.
-        value =
-            Call(PrimType::UInt(16), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>();
+        value = Call(PrimType::UInt(16), tirx::reinterpret_op(), {value}).as_or_throw<PrimExpr>();
         PrimVar temp_var("temp_var", PrimType::UInt(16));
         value = prim::Let(temp_var, value,
                           prim::Cast(PrimType::UInt(8),
@@ -1389,19 +1388,18 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
       } else {
         value = prim::Cast(
             PrimType::UInt(16),
-            Call(PrimType::UInt(8), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>());
+            Call(PrimType::UInt(8), tirx::reinterpret_op(), {value}).as_or_throw<PrimExpr>());
         PrimVar temp_var("temp_var", PrimType::UInt(16));
         value = prim::Let(temp_var, value,
                           (temp_var & IntImm(PrimType::UInt(16), 0xF)) |
                               ((temp_var & IntImm(PrimType::UInt(16), 0xF0)) << 4));
       }
-      os << PrintExpr(Call(tgt_ty, tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>());
+      os << PrintExpr(Call(tgt_ty, tirx::reinterpret_op(), {value}).as_or_throw<PrimExpr>());
     } else if (lanes == 4) {
       if (IsFloat4(tgt_ty)) {
         // We view the source as an uint32, and then extract bits of four fp4 numbers,
         // and finally reinterpret the result as fp4x4.
-        value =
-            Call(PrimType::UInt(32), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>();
+        value = Call(PrimType::UInt(32), tirx::reinterpret_op(), {value}).as_or_throw<PrimExpr>();
         PrimVar temp_var("temp_var", PrimType::UInt(32));
         value = prim::Let(temp_var, value,
                           prim::Cast(PrimType::UInt(16),
@@ -1410,9 +1408,9 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
                                          ((temp_var >> 8) & IntImm(PrimType::UInt(32), 0xF00)) |
                                          ((temp_var >> 12) & IntImm(PrimType::UInt(32), 0xF000))));
       } else {
-        value = prim::Cast(PrimType::UInt(32),
-                           Call(PrimType::UInt(16), tirx::builtin::reinterpret(), {value})
-                               .as_or_throw<PrimExpr>());
+        value = prim::Cast(
+            PrimType::UInt(32),
+            Call(PrimType::UInt(16), tirx::reinterpret_op(), {value}).as_or_throw<PrimExpr>());
         PrimVar temp_var("temp_var", PrimType::UInt(32));
         value = prim::Let(temp_var, value,
                           (temp_var & IntImm(PrimType::UInt(32), 0xF)) |
@@ -1420,19 +1418,19 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
                               ((temp_var & IntImm(PrimType::UInt(32), 0xF00)) << 8) |
                               ((temp_var & IntImm(PrimType::UInt(32), 0xF000)) << 12));
       }
-      os << PrintExpr(Call(tgt_ty, tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>());
+      os << PrintExpr(Call(tgt_ty, tirx::reinterpret_op(), {value}).as_or_throw<PrimExpr>());
     } else {
       TVM_FFI_THROW(InternalError)
           << "Invalid number of lanes for float4_e2m1fn reinterpret: " << lanes;
     }
     EndScope(ssa_scope);
-  } else if (op->op.same_as(tirx::builtin::print_buffer())) {
+  } else if (op->op.same_as(tirx::print_buffer_op())) {
     TVM_FFI_ICHECK_GE(op->args.size(), 5U) << "Print operation expects at least 5 arguments";
 
     Expr arg = op->args[0];
     const auto* var_node = arg.as<VarNode>();
     if (const auto* call = arg.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+        call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
       var_node = call->args[0].as<VarNode>();
       TVM_FFI_ICHECK(var_node && var_node->ty.as<tirx::TensorTypeNode>())
           << "print_buffer expects buffer_data to project a TensorVar";
@@ -1576,7 +1574,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
   } else if (op->op.same_as(cuda_func_call_op) ||
              (op->op.as<Op>() && op->op.as<Op>().value()->name == "tirx.cuda.func_call")) {
     print_cuda_func_call(op, os);
-  } else if (op->op.same_as(tirx::builtin::thread_return())) {
+  } else if (op->op.same_as(tirx::thread_return_op())) {
     os << "return";
   } else {
     CodeGenC::Dispatch_(op, os);
@@ -1585,7 +1583,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
 
 void CodeGenCUDA::Dispatch_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>(); call) {
-    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
+    if (call->op.same_as(tirx::alloc_tensor_op())) return DispatchAllocTensor(op, call);
   }
   CodeGenC::Dispatch_(op);
 }

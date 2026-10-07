@@ -19,11 +19,11 @@
 
 /*!
  * \file remove_store_undef.cc
- * \brief Remove stores of tirx::builtin::undef
+ * \brief Remove stores of tirx::undef_op
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
@@ -115,7 +115,7 @@ class StoreUndefLocator : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    if (op->op.same_as(tirx::builtin::undef())) {
+    if (op->op.same_as(tirx::undef_op())) {
       has_undef_ = true;
     }
     return StmtExprVisitor::Visit_(op);
@@ -169,7 +169,7 @@ class StoreUndefRemover : public StmtExprMutator {
   const std::unordered_set<const VarNode*>& bind_vars_to_remove_;
 };
 
-// Check that no tirx::builtin::undef() remains in the IR.
+// Check that no tirx::undef_op() remains in the IR.
 class ContainsUndefChecker : public StmtExprVisitor {
  public:
   using StmtExprVisitor::Visit_;
@@ -181,7 +181,7 @@ class ContainsUndefChecker : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    if (op->op.same_as(tirx::builtin::undef())) {
+    if (op->op.same_as(tirx::undef_op())) {
       contains_undef = true;
     }
     return StmtExprVisitor::Visit_(op);
@@ -206,8 +206,8 @@ Pass ValidateAllUndefRemoved() {
     if (!f->body.has_value()) return f;
     bool contains_undef = ContainsUndefChecker::Check(f->body.value());
     TVM_FFI_ICHECK(!contains_undef)
-        << "Expected removal of BufferStore containing tirx::builtin::undef() "
-        << "to remove all instances of tirx::builtin::undef().  "
+        << "Expected removal of BufferStore containing tirx::undef_op() "
+        << "to remove all instances of tirx::undef_op().  "
         << "Instead, result was"
         << "\n"
         << f;

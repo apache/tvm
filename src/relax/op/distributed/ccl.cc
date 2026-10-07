@@ -16,10 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "tvm/relax/attrs/ccl.h"
-
 #include <tvm/relax/block_builder.h>
 
+#include "tvm/relax/op.h"
 #include "utils.h"
 
 namespace tvm {

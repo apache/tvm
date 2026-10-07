@@ -42,7 +42,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -115,7 +115,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const EvaluateNode* o
 
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::decl_tensor())) {
+      call && call->op.same_as(tirx::decl_tensor_op())) {
     if (auto source = GetBufferDataVar(call->args[0])) {
       buffer_aliases_.insert_or_assign(op->var.as_or_throw<TensorVar>().get(),
                                        ResolveBuffer(source.value()));
@@ -123,7 +123,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BindNode* op) {
     return StmtExprVisitor::Visit_(op);
   }
   if (const auto* call = op->value.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::alloc_tensor()))
+      call && call->op.same_as(tirx::alloc_tensor_op()))
     return StmtExprVisitor::Visit_(op);
   allow_append_ = true;
   TVM_FFI_ICHECK_EQ(curr_stmt_.access.size(), 0U);
@@ -142,7 +142,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const RegionStmtNode*
     // Trust the region's explicit barriers instead of planning access-based synchronization.
     return std::nullopt;
   }
-  if (op->op.same_as(tirx::builtin::launch_thread()) &&
+  if (op->op.same_as(tirx::launch_thread_op()) &&
       std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
     PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
     // IterVars are private access-analysis metadata, not launch definitions.
@@ -208,7 +208,7 @@ bool IsThreadInvariant(const PrimExpr& cond) {
   if (auto call = cond.as<CallNode>()) {
     if (auto opt_call_op = call->op.as<Op>()) {
       auto call_op = opt_call_op.value();
-      if (call_op.same_as(tirx::builtin::tvm_thread_invariant())) {
+      if (call_op.same_as(tirx::tvm_thread_invariant_op())) {
         return true;
       }
     }
@@ -263,9 +263,8 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const WhileNode* op) 
 
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
   Call call = ffi::GetRef<Call>(op);
-  if (op->op.same_as(tirx::builtin::masked_load()) ||
-      op->op.same_as(tirx::builtin::masked_store())) {
-    bool is_load = op->op.same_as(tirx::builtin::masked_load());
+  if (op->op.same_as(tirx::masked_load_op()) || op->op.same_as(tirx::masked_store_op())) {
+    bool is_load = op->op.same_as(tirx::masked_load_op());
     TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
     PrimType value_dtype =
         is_load ? op->ty.as_or_throw<PrimType>() : op->args[1].as_or_throw<PrimExpr>().ty();
@@ -285,7 +284,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
       curr_stmt_.access.emplace_back(std::move(e));
     }
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-  } else if (op->op.same_as(tirx::builtin::address_of())) {
+  } else if (op->op.same_as(tirx::address_of_op())) {
     if (const auto* load = op->args[0].as<TensorLoadNode>()) {
       // Taking an address does not read the buffer value.  Visit only the
       // load's children so index expressions still contribute accesses.
@@ -295,7 +294,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
       // Recurse without assuming the argument is a TensorLoad.
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
-  } else if (op->op.same_as(tirx::builtin::tvm_access_ptr())) {
+  } else if (op->op.same_as(tirx::tvm_access_ptr_op())) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
     PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
     auto buffer_var = GetBufferDataVar(op->args[1]);
@@ -330,7 +329,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
       }
     }
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-  } else if (op->op.same_as(tirx::builtin::tvm_storage_sync())) {
+  } else if (op->op.same_as(tirx::tvm_storage_sync_op())) {
     TVM_FFI_ICHECK(allow_append_);
     const std::string& s = op->args[0].as<StringImmNode>()->value;
     if (s != "warp") {

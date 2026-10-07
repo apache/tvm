@@ -59,6 +59,18 @@ Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr s
                          Attrs(attrs), {});
 }
 
+void AttentionAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<AttentionAttrs>()
+      .def_ro(
+          "scale", &AttentionAttrs::scale,
+          "The custom scale applied before the softmax. The default value is 1 / sqrt(head_dim).")
+      .def_ro("causal_mask", &AttentionAttrs::causal_mask,
+              "The type of the causal mask, i.e. 'TopLeft' and 'BottomRight'.")
+      .def_ro("window_size", &AttentionAttrs::window_size,
+              "The size of the window for sliding-window attention.");
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

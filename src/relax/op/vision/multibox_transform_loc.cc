@@ -33,6 +33,22 @@
 namespace tvm {
 namespace relax {
 
+void MultiboxTransformLocAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<MultiboxTransformLocAttrs>()
+      .def_ro("clip", &MultiboxTransformLocAttrs::clip,
+              "Clip decoded ymin,xmin,ymax,xmax to [0,1].")
+      .def_ro("threshold", &MultiboxTransformLocAttrs::threshold,
+              "After softmax, zero scores strictly below this value.")
+      .def_ro("variances", &MultiboxTransformLocAttrs::variances,
+              "(x,y,w,h) scales = TFLite 1/x_scale,1/y_scale,1/w_scale,1/h_scale on "
+              "encodings. Very large w/h scales can overflow exp in decode.")
+      .def_ro("keep_background", &MultiboxTransformLocAttrs::keep_background,
+              "If false, force output scores[:,0,:] to 0 (background class).")
+      .def_ro("apply_softmax", &MultiboxTransformLocAttrs::apply_softmax,
+              "Whether to apply softmax to class predictions before thresholding.");
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() { MultiboxTransformLocAttrs::RegisterReflection(); }
 
 Expr multibox_transform_loc(Expr cls_pred, Expr loc_pred, Expr anchor, bool clip, double threshold,

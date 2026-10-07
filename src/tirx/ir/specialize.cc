@@ -171,10 +171,10 @@ class PrimFuncSpecializer : public StmtExprMutator {
     ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
       if (const auto* call = op->value.as<CallNode>();
           call &&
-          (call->op.same_as(builtin::alloc_tensor()) || call->op.same_as(builtin::decl_tensor()))) {
+          (call->op.same_as(tirx::alloc_tensor_op()) || call->op.same_as(tirx::decl_tensor_op()))) {
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
             kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->var); }));
-        if (call->op.same_as(builtin::decl_tensor())) return Visit(call->args[0]);
+        if (call->op.same_as(tirx::decl_tensor_op())) return Visit(call->args[0]);
         return std::nullopt;
       }
       return StmtExprVisitor::Visit_(op);
@@ -189,7 +189,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
       op = ffi::AnyView(result).as<CallNode>();
       if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
     }
-    if (!op->op.same_as(builtin::buffer_data()) || op->args.size() != 1) return result;
+    if (!op->op.same_as(tirx::buffer_data_op()) || op->args.size() != 1) return result;
     PointerType type = op->args[0].as_or_throw<TensorVar>().DataPointerType();
     if (ffi::StructuralEqual()(op->ty, type)) return result;
     if (inplace_mode == InplaceMode::kAllow) {
