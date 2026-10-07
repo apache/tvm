@@ -98,7 +98,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
     Dispatch(obj, path);
   }
 
-  // Visit a buffer at a use site (TensorLoad, BufferStore, reads/writes).
+  // Visit a buffer at a use site (TensorLoad, TensorStore, reads/writes).
   // By default, does not re-visit buffer fields (shape, strides, elem_offset),
   // as those are visited at the definition site via EnterDef.
   virtual void VisitBufferUse(const TensorVar& obj, ffi::reflection::AccessPath path);
@@ -148,7 +148,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   void Dispatch_(const ReturnNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const BreakNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const ContinueNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const BufferStoreNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const TensorStoreNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const AssertStmtNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const SeqStmtNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const EvaluateNode* op, ffi::reflection::AccessPath path) override;

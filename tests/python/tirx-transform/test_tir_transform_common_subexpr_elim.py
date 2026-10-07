@@ -591,7 +591,7 @@ def test_let_body_no_extraction():
     let_expr = tvm.tirx.Let(x, tvm.tirx.IntImm("int32", 1), (x + y) + (x + y))
     buf = tvm.tirx.decl_tensor((10,), "int32", name="B")
     i = tvm.tirx.Var("i", "int32")
-    store = tvm.tirx.BufferStore(buf, let_expr, [i])
+    store = tvm.tirx.TensorStore(buf, let_expr, [i])
     loop = tvm.tirx.For(
         i,
         tvm.tirx.const(0, "int32"),
@@ -621,7 +621,7 @@ def test_let_value_cse():
     let_expr = tvm.tirx.Let(x, y + z, x + 1)
     buf = tvm.tirx.decl_tensor((10,), "int32", name="B")
     i = tvm.tirx.Var("i", "int32")
-    store = tvm.tirx.BufferStore(buf, (y + z) + let_expr, [i])
+    store = tvm.tirx.TensorStore(buf, (y + z) + let_expr, [i])
     loop = tvm.tirx.For(
         i,
         tvm.tirx.const(0, "int32"),
@@ -654,7 +654,7 @@ def test_nested_let_no_extraction():
     )
     buf = tvm.tirx.decl_tensor((10,), "int32", name="B")
     i = tvm.tirx.Var("i", "int32")
-    store = tvm.tirx.BufferStore(buf, nested_let, [i])
+    store = tvm.tirx.TensorStore(buf, nested_let, [i])
     loop = tvm.tirx.For(
         i,
         tvm.tirx.const(0, "int32"),
@@ -697,7 +697,7 @@ def test_let_floordiv_pattern():
         tvm.tirx.TensorLoad(buf_a, [i]),
         tvm.tirx.Let(y, tvm.tirx.TensorLoad(buf_b, [i]), outer_let),
     )
-    store = tvm.tirx.BufferStore(buf_c, full_expr, [i])
+    store = tvm.tirx.TensorStore(buf_c, full_expr, [i])
     loop = tvm.tirx.For(
         i,
         tvm.tirx.const(0, "int32"),

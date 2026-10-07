@@ -72,7 +72,7 @@ def check_value(expr, variables, data, fref):
         result = expr
         for j in range(num_vars - 1, -1, -1):
             result = tvm.tirx.Let(variables[j], tvm.tirx.TensorLoad(input_bufs[j], [i_var]), result)
-        return tvm.tirx.BufferStore(out_buf, result, [i_var])
+        return tvm.tirx.TensorStore(out_buf, result, [i_var])
 
     loop = tvm.tirx.For(
         loop_var,

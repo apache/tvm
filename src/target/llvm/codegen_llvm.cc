@@ -2054,7 +2054,7 @@ llvm::Value* CodeGenLLVM::Dispatch_(const prim::BroadcastNode* op) {
   return builder_->CreateShuffleVector(value, undef, mask);
 }
 
-void CodeGenLLVM::Dispatch_(const BufferStoreNode* op) {
+void CodeGenLLVM::Dispatch_(const TensorStoreNode* op) {
   EmitDebugLocation(op);
   PrimType value_dtype = PrimType(op->value.ty()->dtype);
   Var buffer_var = op->buffer.var();

@@ -151,7 +151,7 @@ class IndexInfoCollector : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* store) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* store) final {
     // Only analyze the cache candidate for stores in target block
     if (visiting_target_sblock) {
       auto IsEligibleComputation = [](const PrimExpr& expr) {
@@ -344,7 +344,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
         /*writes=*/{BufferRegion(info->cache_buffer[expr_index], access_region)},
         /*name_hint=*/"index_" + std::to_string(expr_index),
         /*body=*/
-        BufferStore(info->cache_buffer[expr_index], new_expr, access_indices),
+        TensorStore(info->cache_buffer[expr_index], new_expr, access_indices),
         /*init=*/std::nullopt,
         /*alloc_buffers=*/{},
         /*match_buffers=*/{},
@@ -442,7 +442,7 @@ class CacheIndexRewriter : public StmtExprMutator {
     return stmt;
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* store, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* store, InplaceMode inplace_mode) final {
     Stmt ret_stmt =
         StmtExprMutator::Mutate_(store, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(store));
     // Replace common sub expr for target block, with cached buffer load

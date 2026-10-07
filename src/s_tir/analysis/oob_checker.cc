@@ -73,7 +73,7 @@ class OOBCheckerVisitor final : public s_tir::IRVisitorWithAnalyzer {
  public:
   using s_tir::IRVisitorWithAnalyzer::Visit_;
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* node) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* node) final {
     for (size_t i = 0; i < node->buffer->shape.size(); i++) {
       CheckBounds(node, node->buffer, i);
     }

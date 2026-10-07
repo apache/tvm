@@ -203,7 +203,7 @@ void TIRVisitorWithPath::Dispatch_(const BreakNode* op, AccessPath path) {}
 
 void TIRVisitorWithPath::Dispatch_(const ContinueNode* op, AccessPath path) {}
 
-void TIRVisitorWithPath::Dispatch_(const BufferStoreNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const TensorStoreNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
   VisitBufferUse(op->buffer, path->Attr("buffer"));
   Visit(op->indices, path->Attr("indices"));

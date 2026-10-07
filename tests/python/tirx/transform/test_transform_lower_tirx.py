@@ -1479,7 +1479,7 @@ def test_lower_alloc_decl_buffer_outside_of_parser():
     def int_var1(val):
         buf = T.local_scalar("int32")
         if val is not None:
-            T.buffer_store(buf.source, val, 0)
+            T.tensor_store(buf.source, val, 0)
         return buf
 
     TestMutableCells = SimpleNamespace(int_var1=int_var1)
@@ -1488,7 +1488,7 @@ def test_lower_alloc_decl_buffer_outside_of_parser():
     def int_var2(val):
         buf = T.alloc_local([1], "int32")
         if val is not None:
-            T.buffer_store(buf, val, 0)
+            T.tensor_store(buf, val, 0)
         return buf
 
     @T.prim_func(private=True)

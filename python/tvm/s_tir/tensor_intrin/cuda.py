@@ -699,12 +699,12 @@ def get_mma_intrin_group(
         Whether the input matrix B is transposed.
 
     not_use_mma_store_intrinic : bool
-        Whether to not use the mma_store intrinsic. If True, use BufferStore stmts to store the
+        Whether to not use the mma_store intrinsic. If True, use TensorStore stmts to store the
         result of mma. Otherwise, use mma_store intrinsic.
 
         This is because if we use mma_store intrinsic, during swizzling shared memory visits, our
         rearrangement scheme will involve areas accessed by different mma_store calls. This makes
-        swizzling quite complex. But BufferStore will not face this problem.
+        swizzling quite complex. But TensorStore will not face this problem.
 
     store_to_smem_dtype : Optional[Literal["float16", "float32", "int32"]]
         The dtype that we use to store from register to shared memory. By default it is out_dtype.

@@ -78,7 +78,7 @@ class Var2BufferCollector : public StmtExprVisitor {
       var2buffer_;
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     var2buffer_[op->buffer.var()].insert(op->buffer);
     return StmtExprVisitor::Visit_(op);
   }
@@ -158,7 +158,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     VisitBufferAccess(BufferRegionFromPoint(op->buffer, op->indices));
     return Visit(op->value);
   }
@@ -617,12 +617,12 @@ class BufferCompactor : public StmtExprMutator {
   explicit BufferCompactor(std::unordered_map<Var, BufferAllocInfo> buffer_info)
       : buffer_info_(std::move(buffer_info)) {}
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* _op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* _op, InplaceMode inplace_mode) final {
     TensorVar original_buffer = _op->buffer;
-    BufferStore store = StmtExprMutator::Mutate_(_op, inplace_mode)
+    TensorStore store = StmtExprMutator::Mutate_(_op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(_op))
-                            .as_or_throw<BufferStore>();
-    BufferStoreNode* op = store.CopyOnWrite();
+                            .as_or_throw<TensorStore>();
+    TensorStoreNode* op = store.CopyOnWrite();
     RewriteBufferAccess(original_buffer, &op->buffer, &op->indices);
     return store;
   }

@@ -313,7 +313,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
     TVM_FFI_ICHECK(target_buffer_load);
   }
 
-  const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
+  const TensorStoreNode* buf_store = TVM_TYPE_AS(body, TensorStoreNode);
   ffi::Array<PrimExpr> cache_indices;
   ffi::Array<PrimExpr> new_shape;
   bool use_rank_promotion = false;
@@ -401,7 +401,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
         ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(generate_body, map_var).as_or_throw<Stmt>();
   } else {
     generate_body =
-        BufferStore(new_buffer,
+        TensorStore(new_buffer,
                     ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(buf_store->value, map_var)
                         .as_or_throw<PrimExpr>(),
                     subst_cache_indices);
@@ -438,9 +438,9 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   if (is_write_cache) {
     TensorLoad new_buffer_load = MakeTensorLoad(new_buffer, cache_indices);
     rewrite_body =
-        BufferStore(new_buffer, ffi::GetRef<TensorLoad>(target_buffer_load), cache_indices);
+        TensorStore(new_buffer, ffi::GetRef<TensorLoad>(target_buffer_load), cache_indices);
   } else {
-    rewrite_body = BufferStore(buf_store->buffer, MakeTensorLoad(new_buffer, cache_indices),
+    rewrite_body = TensorStore(buf_store->buffer, MakeTensorLoad(new_buffer, cache_indices),
                                buf_store->indices);
   }
   if (predicate.has_value()) {

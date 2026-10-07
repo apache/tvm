@@ -60,7 +60,7 @@ def test_remove_no_op():
     ret = tvm.tirx.transform.RemoveNoOp()(mod)["main"].body
 
     assert isinstance(ret, tvm.tirx.Evaluate)
-    store = tvm.tirx.BufferStore(Ab, tvm.tirx.TensorLoad(Ab, [i]) + 1, [i + 1])
+    store = tvm.tirx.TensorStore(Ab, tvm.tirx.TensorLoad(Ab, [i]) + 1, [i + 1])
     stmt2 = tvm.tirx.SeqStmt([nop(), tvm.tirx.SeqStmt([store, nop()])])
 
     mod = tvm.IRModule.from_expr(tvm.tirx.PrimFunc([Ab], stmt2))

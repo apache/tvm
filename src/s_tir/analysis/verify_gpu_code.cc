@@ -273,7 +273,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) {
     PrimType value_ty = op->value.ty();
     if (value_ty.IsFixedLengthVector()) {
       if (ElementBytes(value_ty) > max_vector_bytes_) {

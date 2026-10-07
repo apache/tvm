@@ -69,7 +69,7 @@ def test_1d_compute():
         for i in T.serial(1024):
             B[i] = A[i] + 1.0
 
-    expected = "Expected BufferStore's value to be TensorLoad"
+    expected = "Expected TensorStore's value to be TensorLoad"
     _check_memcpy_results(func, expected)
 
 
@@ -82,7 +82,7 @@ def test_1d_conditional():
             if i < 1024:
                 B[i] = A[i]
 
-    expected = "Expected innermost loop to have BufferStore body"
+    expected = "Expected innermost loop to have TensorStore body"
     _check_memcpy_results(func, expected)
 
 

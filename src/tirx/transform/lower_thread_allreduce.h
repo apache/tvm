@@ -180,11 +180,11 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     return load;
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     const VarNode* allocation = GetAllocationKey(op->buffer.get());
-    BufferStore store = DialectMutator::Mutate_(op, inplace_mode)
+    TensorStore store = DialectMutator::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                            .template as_or_throw<BufferStore>();
+                            .template as_or_throw<TensorStore>();
 
     if (auto it = load_remap_.find(allocation); it != load_remap_.end()) {
       const auto* replacement = it->second.template as<TensorLoadNode>();
@@ -391,7 +391,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
           TVM_FFI_ICHECK_EQ(val.ty(), dtypes[i]);
           PrimExpr splat = WarpShuffle(tirx::builtin::tvm_warp_shuffle(), new_alloc_bufs.back(),
                                        val, reduce_extent * group_index);
-          seq.push_back(BufferStore(buf, splat, {zero_index}));
+          seq.push_back(TensorStore(buf, splat, {zero_index}));
         }
       } else {
         int n_warps = reduce_extent / warp_size_;
@@ -421,7 +421,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
           new_alloc_bufs.push_back(reduce_results[i]
                                        .as_or_throw<TensorLoad>()
                                        ->source.as_or_throw<tvm::tirx::TensorVar>());
-          write_staging_buf.push_back(BufferStore(
+          write_staging_buf.push_back(TensorStore(
               /*buffer=*/staging_shared_bufs[i],
               /*value=*/reduce_results[i],
               /*indices=*/{group_index * n_warps + floordiv(reduce_index, warp_size_)}));
@@ -453,7 +453,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
               /*shape=*/{IntImm(reduce_index.ty(), group_extent)},
               /*dtype=*/buffers[i]->dtype, /*name=*/"red_result", /*storage_scope=*/"shared");
           write_result.push_back(
-              BufferStore(broadcast_shared_buf, reduce_results[i], {group_index}));
+              TensorStore(broadcast_shared_buf, reduce_results[i], {group_index}));
           // Update `reduce_results`, pointing to the value loaded from the shared memory buffer.
           reduce_results[i] = MakeTensorLoad(broadcast_shared_buf, {group_index});
         }
@@ -483,7 +483,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         // special case, no reduction is needed.
         std::vector<Stmt> stores;
         for (size_t i = 0; i < size; ++i) {
-          stores.push_back(BufferStore(buffers[i], values[i], {0}));
+          stores.push_back(TensorStore(buffers[i], values[i], {0}));
         }
         return SeqStmt::Flatten(stores);
       }
@@ -493,7 +493,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       for (size_t idx = 0; idx < size; ++idx) {
         shared_bufs.push_back(decl_tensor({IntImm(group_index.ty(), group_extent * reduce_extent)},
                                           dtypes[idx], "red_buf" + std::to_string(idx), "shared"));
-        seq.emplace_back(BufferStore(shared_bufs[idx], values[idx],
+        seq.emplace_back(TensorStore(shared_bufs[idx], values[idx],
                                      {BufIndex(reduce_index, group_index, reduce_extent)}));
       }
       seq.emplace_back(SyncThread("shared"));
@@ -557,7 +557,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     for (int idx = 0; idx < n_buffers; ++idx) {
       shared_bufs.push_back(
           decl_tensor(shape, dtypes[idx], "red_buf" + std::to_string(idx), "local"));
-      load_values.push_back(BufferStore(shared_bufs[idx], src_values[idx], zero_indices));
+      load_values.push_back(TensorStore(shared_bufs[idx], src_values[idx], zero_indices));
 
       // Uses a local variable to store the shuffled data.  Later
       // on, an allocation will be built for this local variable.
@@ -576,7 +576,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     ffi::Optional<TensorVar> mask_buffer;
     if (need_warp_shuffle_mask_) {
       mask_buffer = decl_tensor(shape, mask.ty(), "mask", "local");
-      seq->emplace_back(BufferStore(mask_buffer.value(), mask, zero_indices));
+      seq->emplace_back(TensorStore(mask_buffer.value(), mask, zero_indices));
       // Push the buffer description.  Later this will have an
       // allocation built for it.
       local_bufs.push_back(mask_buffer.value());
@@ -611,7 +611,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         PrimExpr other =
             WarpShuffle(tirx::builtin::tvm_warp_shuffle_down(), mask_buffer, val, offset);
         TensorVar local_buf = local_bufs[i];
-        Stmt s = BufferStore(local_buf, other, zero_indices);
+        Stmt s = TensorStore(local_buf, other, zero_indices);
         seq->push_back(s);
 
         TensorLoad load = MakeTensorLoad(local_buf, zero_indices);
@@ -627,7 +627,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       stores.reserve(n_buffers);
       for (int i = 0; i < n_buffers; ++i) {
         TensorVar buf = shared_bufs[i];
-        stores.push_back(BufferStore(buf, ret[i], zero_indices));
+        stores.push_back(TensorStore(buf, ret[i], zero_indices));
       }
 
       // During the sub-warp reduction, values from inactive threads could be read,
@@ -688,7 +688,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       std::vector<Stmt> stores;
       stores.reserve(size);
       for (size_t i = 0; i < size; ++i) {
-        stores.push_back(BufferStore(shared_bufs[i], ret[i], {buf_index}));
+        stores.push_back(TensorStore(shared_bufs[i], ret[i], {buf_index}));
       }
       return SeqStmt::Flatten(stores);
     };

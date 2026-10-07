@@ -108,10 +108,10 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier<PathVisitor>, 
  *   - DeclTensor statement
  *   - Dialect-specific definitions exposed by PathVisitor
  *
- * it must not appear in a TensorLoad, BufferStore, or BufferRegion outside that declaration's
+ * it must not appear in a TensorLoad, TensorStore, or BufferRegion outside that declaration's
  * scope.
  *
- * All buffers that appear in TensorLoad or BufferStore must have a prior declaration.
+ * All buffers that appear in TensorLoad or TensorStore must have a prior declaration.
  */
 template <typename PathVisitor>
 class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier<PathVisitor>, PathVisitor> {

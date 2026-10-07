@@ -42,7 +42,7 @@ def test_stmt_simplify():
     # Find the For loop in the sequence
     for_stmt = [s for s in stmts if isinstance(s, tvm.tirx.For)]
     assert len(for_stmt) == 1, f"Expected one For loop, got {len(for_stmt)}"
-    assert isinstance(for_stmt[0].body, tvm.tirx.BufferStore)
+    assert isinstance(for_stmt[0].body, tvm.tirx.TensorStore)
 
 
 def test_thread_extent_simplify():
@@ -67,7 +67,7 @@ def test_thread_extent_simplify():
     tx_loop = for_stmts[0]
     assert isinstance(tx_loop, tvm.tirx.For)  # tx loop
     assert isinstance(tx_loop.body, tvm.tirx.For)  # ty loop
-    assert isinstance(tx_loop.body.body, tvm.tirx.BufferStore)  # The if was eliminated
+    assert isinstance(tx_loop.body.body, tvm.tirx.TensorStore)  # The if was eliminated
 
 
 def test_if_likely():
@@ -1232,7 +1232,7 @@ def test_simplify_buffer_identity_well_formed():
 
     The simplifier's Dispatch calls analyzer_->Simplify() directly, bypassing
     normal ExprMutator dispatch.  If VisitBufferDef remaps a buffer at a DeclTensor
-    site (e.g. inlining n_val -> n in the shape), TensorLoad inside a BufferStore
+    site (e.g. inlining n_val -> n in the shape), TensorLoad inside a TensorStore
     value would NOT pick up the remap because VisitBufferUse is never called.
     This causes DeclTensor/TensorLoad buffer identity divergence.
     """
@@ -1318,9 +1318,9 @@ def test_mutable_branch_predicate_preserves_while_bound(else_branch, write_befor
     count = tirx.decl_tensor((1,), "int32", name="count")
     loop = tirx.While(
         T.And(x[0] < 8, count[0] == 0),
-        tirx.BufferStore(x, x[0] + 1, [0]),
+        tirx.TensorStore(x, x[0] + 1, [0]),
     )
-    body = tirx.SeqStmt([tirx.BufferStore(x, x[0] + 1, [0]), loop]) if write_before_loop else loop
+    body = tirx.SeqStmt([tirx.TensorStore(x, x[0] + 1, [0]), loop]) if write_before_loop else loop
     branch = (
         tirx.IfThenElse(T.int32(8) <= x[0], tirx.Evaluate(0), body)
         if else_branch

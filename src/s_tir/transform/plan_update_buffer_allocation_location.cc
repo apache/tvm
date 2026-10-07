@@ -98,7 +98,7 @@ class BufferAllocateOrderCollector : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     if (!find(op->buffer)) {
       buffer_alloc_recorder_.push_back(op->buffer);
     }

@@ -31,7 +31,7 @@ def test_explicit_matrix_ab_access_is_rejected(scope, shape, access_kind):
     if access_kind == "load":
         body = tirx.Evaluate(tirx.TensorLoad(buffer, [0, 0]))
     else:
-        body = tirx.BufferStore(buffer, 0.0, [0, 0])
+        body = tirx.TensorStore(buffer, 0.0, [0, 0])
     block = s_tir.SBlock([], [], [], "root", body, alloc_buffers=[buffer])
     func = tirx.PrimFunc([], s_tir.SBlockRealize([], True, block))
 

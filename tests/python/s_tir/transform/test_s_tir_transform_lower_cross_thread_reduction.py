@@ -950,7 +950,7 @@ def lowered_zero_rank_buffer(
 
 
 @Ts.prim_func
-def multiple_bufferstore(
+def multiple_tensorstore(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
     C = Ts.sblock_alloc_buffer([], dtype="float32")
@@ -1803,8 +1803,8 @@ def test_zero_rank_buffer():
     _check(zero_rank_buffer, lowered_zero_rank_buffer)
 
 
-def test_multiple_bufferstore():
-    _check_fail(multiple_bufferstore)
+def test_multiple_tensorstore():
+    _check_fail(multiple_tensorstore)
 
 
 def test_reduction_block_not_deepest():

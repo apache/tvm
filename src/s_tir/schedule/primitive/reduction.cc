@@ -729,17 +729,17 @@ std::unordered_map<const VarNode*, For> GetLoopVar2LoopMap(const ffi::Array<For>
 /*!
  * \brief Create the intermediate rfactor buffers, which the rfactor block writes to and the
  * write-back block reads from
- * \param buf_stores The BufferStores of the original block, where the rfactor buffers will be
+ * \param buf_stores The TensorStores of the original block, where the rfactor buffers will be
  * created from
  * \param factor_axis The `factor_axis` parameter of rfactor
  * \param rf_loop The rfactor loop
  * \return The new created intermediate rfactor buffer
  */
-ffi::Array<TensorVar> CreateRFactorBuffers(const ffi::Array<BufferStore>& buf_stores,
+ffi::Array<TensorVar> CreateRFactorBuffers(const ffi::Array<TensorStore>& buf_stores,
                                            int factor_axis, const ForNode* rf_loop) {
   ffi::Array<TensorVar> rf_buffers;
   rf_buffers.reserve(buf_stores.size());
-  for (const BufferStore& buf_store : buf_stores) {
+  for (const TensorStore& buf_store : buf_stores) {
     TensorVar buffer = buf_store->buffer;
     ffi::Array<PrimExpr> rf_shape = buffer->shape;
     rf_shape.insert(rf_shape.begin() + factor_axis, rf_loop->extent);
@@ -762,7 +762,7 @@ ffi::Array<TensorVar> CreateRFactorBuffers(const ffi::Array<BufferStore>& buf_st
 class BaseBlockCreator {
  public:
   explicit BaseBlockCreator(SBlockRealize old_block_realize, For rf_loop,
-                            ffi::Array<BufferStore> old_reduction_updates, te::CommReducer reducer,
+                            ffi::Array<TensorStore> old_reduction_updates, te::CommReducer reducer,
                             ffi::Array<TensorVar> rf_buffers, bool is_rf_block)
       : old_block_realize_(std::move(old_block_realize)),
         rf_loop_(std::move(rf_loop)),
@@ -841,15 +841,15 @@ class BaseBlockCreator {
     // buffers.
     if (!has_reduce_iter) {
       for (int i = 0; i < n_buffers_; ++i) {
-        buf_stores.push_back(BufferStore(update_buffers_[i], update_rhs_[i], update_indices_[i]));
+        buf_stores.push_back(TensorStore(update_buffers_[i], update_rhs_[i], update_indices_[i]));
       }
       return n_buffers_ > 1 ? SeqStmt(buf_stores) : buf_stores[0];
     }
 
-    // Case 2. If the reduction is for single buffer, the block body is a single BufferStore.
+    // Case 2. If the reduction is for single buffer, the block body is a single TensorStore.
     ffi::Array<PrimExpr> stored_values = (*reducer_.get())(update_lhs_, update_rhs_);
     if (n_buffers_ == 1) {
-      return BufferStore(update_buffers_[0], stored_values[0], update_indices_[0]);
+      return TensorStore(update_buffers_[0], stored_values[0], update_indices_[0]);
     }
 
     // Case 3. In case the reduction is for multiple buffers, we should create the reduction with
@@ -860,7 +860,7 @@ class BaseBlockCreator {
       Var var("v_" + update_buffers_[i].name(), stored_values[i].ty());
       let_vars.push_back(var);
       buf_stores.push_back(
-          BufferStore(update_buffers_[i], var.as_or_throw<PrimExpr>(), update_indices_[i]));
+          TensorStore(update_buffers_[i], var.as_or_throw<PrimExpr>(), update_indices_[i]));
     }
     ffi::Array<Stmt> stmts;
     for (int i = 0; i < n_buffers_; ++i) {
@@ -881,7 +881,7 @@ class BaseBlockCreator {
     inits.reserve(n_buffers_);
     for (int i = 0; i < n_buffers_; ++i) {
       inits.push_back(
-          BufferStore(update_buffers_[i], reducer_->identity_element[i], update_indices_[i]));
+          TensorStore(update_buffers_[i], reducer_->identity_element[i], update_indices_[i]));
     }
     return n_buffers_ > 1 ? SeqStmt(inits) : inits[0];
   }
@@ -901,8 +901,8 @@ class BaseBlockCreator {
   int n_block_iters_;
   /*! \brief The rfactor loop */
   For rf_loop_;
-  /*! \brief The update BufferStores of the old block */
-  ffi::Array<BufferStore> old_reduction_updates_;
+  /*! \brief The update TensorStores of the old block */
+  ffi::Array<TensorStore> old_reduction_updates_;
   /*! \brief The matched commutative reducer */
   te::CommReducer reducer_;
   /*! \brief The intermediate rfactor buffers */
@@ -960,7 +960,7 @@ class BaseBlockCreator {
 class RFactorBlockCreator : public BaseBlockCreator {
  public:
   explicit RFactorBlockCreator(SBlockRealize old_block_realize, For rf_loop,
-                               ffi::Array<BufferStore> old_reduction_updates,
+                               ffi::Array<TensorStore> old_reduction_updates,
                                te::CommReducer reducer, ffi::Array<TensorVar> rf_buffers,
                                std::unordered_map<const VarNode*, For> loop_vars2loop,
                                int factor_axis, ffi::Array<PrimExpr> combiner_rhs)
@@ -1117,7 +1117,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
 class WriteBackBlockCreator : public BaseBlockCreator {
  public:
   explicit WriteBackBlockCreator(SBlockRealize old_block_realize, For rf_loop,
-                                 ffi::Array<BufferStore> old_reduction_updates,
+                                 ffi::Array<TensorStore> old_reduction_updates,
                                  te::CommReducer reducer, ffi::Array<TensorVar> rf_buffers,
                                  IterVar rf_additional_iter, ffi::Array<PrimExpr> combiner_lhs,
                                  ffi::Array<PrimExpr> rf_buf_access_indices)
@@ -1407,7 +1407,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   // reduction combiner. The lhs will be used when constructing the write-back block, and the rhs
   // will be used when constructing the rfactor block.
   ffi::Array<PrimExpr> init_values{nullptr};
-  ffi::Array<BufferStore> updates{nullptr};
+  ffi::Array<TensorStore> updates{nullptr};
   te::CommReducer reducer{nullptr};
   ffi::Array<PrimExpr> combiner_lhs{nullptr};
   ffi::Array<PrimExpr> combiner_rhs{nullptr};

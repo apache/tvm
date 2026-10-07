@@ -98,7 +98,7 @@ class StmtFunctor<R(const Stmt&, Args...)> {
   virtual R Dispatch_(const ContinueNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  virtual R Dispatch_(const BufferStoreNode* node, Args... args) {
+  virtual R Dispatch_(const TensorStoreNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
   virtual R Dispatch_(const AssertStmtNode* node, Args... args) {
@@ -141,7 +141,7 @@ class StmtFunctor<R(const Stmt&, Args...)> {
     SetDispatch<TSelf, ReturnNode>(vtable);
     SetDispatch<TSelf, BreakNode>(vtable);
     SetDispatch<TSelf, ContinueNode>(vtable);
-    SetDispatch<TSelf, BufferStoreNode>(vtable);
+    SetDispatch<TSelf, TensorStoreNode>(vtable);
     SetDispatch<TSelf, AssertStmtNode>(vtable);
     SetDispatch<TSelf, SeqStmtNode>(vtable);
     SetDispatch<TSelf, EvaluateNode>(vtable);
@@ -198,7 +198,7 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
   virtual ffi::Optional<VisitInterrupt> Visit_(const ReturnNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const BreakNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const ContinueNode* op);
-  virtual ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const AssertStmtNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const EvaluateNode* op);
@@ -228,7 +228,7 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
  * Base hooks preserve stored types and derived fields. They rewrite structural
  * children without re-inferring types or repeating constructor validation,
  * including on in-place writes. Passes that change dtypes or index lanes must
- * provide the corresponding TensorLoad, BufferStore, or TensorRegion inference.
+ * provide the corresponding TensorLoad, TensorStore, or TensorRegion inference.
  */
 class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
  public:
@@ -266,7 +266,7 @@ class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
   virtual UnchangedOr<Stmt> Mutate_(const ReturnNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const BreakNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const ContinueNode* op, InplaceMode inplace_mode);
-  virtual UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const AssertStmtNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode);

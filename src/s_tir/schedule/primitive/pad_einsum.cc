@@ -30,7 +30,7 @@ using namespace tvm::tirx;
 
 /*!
  * \brief Check if buffer indices are all Vars and expr
- * \param buffer_access The TensorLoad or BufferStore
+ * \param buffer_access The TensorLoad or TensorStore
  * \return The indices if the indices are all Vars, otherwise std::nullopt
  */
 ffi::Optional<ffi::Array<Var>> CheckTrivialBufferIndices(
@@ -184,10 +184,10 @@ struct BufferPadding {
           }
         }
         PrimExpr rhs = MakeTensorLoad(buffer, indices);
-        return BufferStore(padded_buffer,
+        return TensorStore(padded_buffer,
                            if_then_else(predicate, rhs, prim::MakeConst(rhs.ty(), 0)), indices);
       } else {
-        return BufferStore(buffer, MakeTensorLoad(padded_buffer, indices), indices);
+        return TensorStore(buffer, MakeTensorLoad(padded_buffer, indices), indices);
       }
     }();
     TensorRegion read_region = BufferRegion(buffer, instance_dom);
@@ -282,7 +282,7 @@ class InvalidProducerError : public ScheduleErrorContextObj {
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "The producer block {0} cannot be padded. It should write to a single buffer and the "
-          "body should be a BufferStore.";
+          "body should be a TensorStore.";
     return os.str();
   }
 
@@ -355,12 +355,12 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     return new_for;
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* old_store_ptr, InplaceMode inplace_mode) final {
-    BufferStore store = StmtExprMutator::Mutate_(old_store_ptr, inplace_mode)
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* old_store_ptr, InplaceMode inplace_mode) final {
+    TensorStore store = StmtExprMutator::Mutate_(old_store_ptr, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(old_store_ptr))
-                            .as_or_throw<BufferStore>();
+                            .as_or_throw<TensorStore>();
     if (ffi::Optional<TensorVar> buffer = VarRemapGet(store->buffer).as<TensorVar>()) {
-      return BufferStore(buffer.value(), store->value, store->indices);
+      return TensorStore(buffer.value(), store->value, store->indices);
     } else {
       return store;
     }

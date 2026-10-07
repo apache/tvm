@@ -46,9 +46,9 @@ def _calc_adjacent_diff_ir(data, output, binop=tirx.Sub):
         with T.parallel(0, data.shape[0]) as i:
             with T.if_(i == 0):
                 with T.then_():
-                    T.buffer_store(output_ptr, 0, T.tensor_indices(output_ptr, 0))
+                    T.tensor_store(output_ptr, 0, T.tensor_indices(output_ptr, 0))
                 with T.else_():
-                    T.buffer_store(
+                    T.tensor_store(
                         output_ptr,
                         tirx.Cast(
                             output.dtype,

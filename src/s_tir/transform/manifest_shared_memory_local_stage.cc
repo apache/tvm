@@ -55,11 +55,11 @@ class IntermediateStageRewriter {
       : ancestor_loop_or_blocks_(ancestor_loop_or_blocks) {}
 
   std::tuple<TensorVar, TensorVar, SBlock, Stmt> Rewrite(const SBlockNode* block) {
-    const BufferStoreNode* store = block->body.as<BufferStoreNode>();
+    const TensorStoreNode* store = block->body.as<TensorStoreNode>();
     TVM_FFI_CHECK(store != nullptr && runtime::StorageScope::Create(store->buffer.scope()).rank ==
                                           runtime::StorageRank::kShared,
                   ValueError)
-        << "Expect the body of the block to be BufferStore to shared memory.";
+        << "Expect the body of the block to be TensorStore to shared memory.";
 
     const TensorVar& target_buffer = store->buffer;
 
@@ -74,10 +74,10 @@ class IntermediateStageRewriter {
 
     // Step 3: Create TensorLoad from the intermediate buffer
     TensorLoad new_buffer_load = MakeTensorLoad(new_buffer, buffer_indices);
-    BufferStore new_buffer_store = block->body.as_or_throw<BufferStore>();
-    new_buffer_store.CopyOnWrite()->value = new_buffer_load;
+    TensorStore new_tensor_store = block->body.as_or_throw<TensorStore>();
+    new_tensor_store.CopyOnWrite()->value = new_buffer_load;
     SBlock new_block = ffi::GetRef<SBlock>(block);
-    new_block.CopyOnWrite()->body = std::move(new_buffer_store);
+    new_block.CopyOnWrite()->body = std::move(new_tensor_store);
 
     return {target_buffer, new_buffer, new_block, local_stage};
   }
@@ -123,9 +123,9 @@ class IntermediateStageRewriter {
   /*! \brief Create the intermediate stage. */
   Stmt MakeLocalStage(const SBlockNode* block, const TensorVar& new_buffer,
                       ffi::Array<PrimExpr> local_stage_indices,
-                      std::vector<const ForNode*> relaxed_loops, const BufferStoreNode* store) {
-    // Step 0: Create the body of the local stage, which is BufferStore to the intermediate buffer.
-    Stmt local_stage = BufferStore(new_buffer, store->value, local_stage_indices);
+                      std::vector<const ForNode*> relaxed_loops, const TensorStoreNode* store) {
+    // Step 0: Create the body of the local stage, which is TensorStore to the intermediate buffer.
+    Stmt local_stage = TensorStore(new_buffer, store->value, local_stage_indices);
 
     // Step 1: Make block and block realize
     TensorRegion write_buffer_region = BufferRegionFromPoint(new_buffer, local_stage_indices);

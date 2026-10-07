@@ -90,8 +90,8 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
 class FeatureExtractor : public ffi::ObjectRef {
  public:
   /*!
-   * \brief Create a feature extractor that extracts features from each BufferStore
-   * \param buffers_per_store The number of buffers in each BufferStore; Pad or truncate if
+   * \brief Create a feature extractor that extracts features from each TensorStore
+   * \param buffers_per_store The number of buffers in each TensorStore; Pad or truncate if
    * necessary.
    * \param arith_intensity_curve_num_samples The number of samples used in the arithmetic intensity
    * curve.

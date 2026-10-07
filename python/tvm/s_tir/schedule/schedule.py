@@ -2240,7 +2240,7 @@ class Schedule(Object):
 
         2) The block must not be the only leaf in the scope.
 
-        3) The body of the block must be a BufferStore statement in
+        3) The body of the block must be a TensorStore statement in
            the form of, ``A[i, j, k, ...] = ...`` where the indices of
            the LHS are all distinct atomic variables, and no variables
            other than those indexing variables are allowed in the
@@ -2309,7 +2309,7 @@ class Schedule(Object):
         3) The only producer of the block is a read-after-write producer and a
            complete non-root block
 
-        4) The body of the block must be a BufferStore statement in the form of,
+        4) The body of the block must be a TensorStore statement in the form of,
            ``B[f(i, j, k, ...)] = g(i, j, k, A[i, j, k, ...] ...)`` where the
            indices of each `TensorLoad` on the RHS are all distinct atomic
            variables, and no variables other than those indexing variables are
@@ -2641,7 +2641,7 @@ class Schedule(Object):
         7) An unary extent loop that is not bound to any reduction or data parallel variables in
         the block binding should not appear under some reduction loop;
         8) The reduction block should write to only one buffer, and its init and body are both
-        simple `BufferStore`s, and the pattern is registered as an associative reducer.
+        simple `TensorStore`s, and the pattern is registered as an associative reducer.
         The pre-defined patterns include: plus, multiplication, min and max;
         9) Each of the loops on top of the block cannot be bound to a data parallel and a
         reduction block binding at the same time;

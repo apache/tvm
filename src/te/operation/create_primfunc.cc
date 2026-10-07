@@ -452,7 +452,7 @@ Stmt GenerateInitStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Tens
   for (int i = 0; i < n_buffers; ++i) {
     const TensorVar& buffer = buffers[i];
     PrimExpr identity = f_transform_and_remap(reduce->combiner->identity_element[i]);
-    init_stmts.push_back(BufferStore(buffer, identity, indices));
+    init_stmts.push_back(TensorStore(buffer, identity, indices));
   }
   return SeqStmt::Flatten(init_stmts);
 }
@@ -505,7 +505,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Tens
     temp_vars.reserve(n_buffers);
     body_stmts.reserve(n_buffers);
 
-    // - When there is only one buffer, we directly create a BufferStore which stores "combiner(lhs,
+    // - When there is only one buffer, we directly create a TensorStore which stores "combiner(lhs,
     //   rhs)" into the target buffer position.
     // - In case there are multiple buffers, to avoid incorrect results, we create some intermediate
     //   variables and use Bind nodes to bind the variables with "combiner(lhs, rhs)". After that,
@@ -520,7 +520,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Tens
         PrimExpr combined = reduce->combiner.get()->operator()(lhs, rhs)[i];
         return f_transform_and_remap(combined);
       }();
-      body_stmts.push_back(BufferStore(buffer, value, indices));
+      body_stmts.push_back(TensorStore(buffer, value, indices));
     }
     Stmt body = SeqStmt::Flatten(body_stmts);
     if (n_buffers > 1) {
@@ -538,7 +538,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Tens
     // Case 2. Data parallel compute
     TVM_FFI_ICHECK_EQ(buffers.size(), 1);
     const PrimExpr& compute_body = f_transform_and_remap(expr_body);
-    return BufferStore(buffers[0], analyzer->Simplify(compute_body), indices);
+    return TensorStore(buffers[0], analyzer->Simplify(compute_body), indices);
   }
 }
 

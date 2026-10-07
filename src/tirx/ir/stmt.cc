@@ -604,20 +604,20 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> EvaluateMaybeInplaceMut
   return ffi::Unchanged();
 }
 
-TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> BufferStoreVisit(
+TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TensorStoreVisit(
     ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
-  const BufferStoreNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BufferStoreNode>(value);
+  const TensorStoreNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorStoreNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->buffer));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->value));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->indices));
   return std::nullopt;
 }
 
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BufferStoreMutate(
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorStoreMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  const BufferStoreNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BufferStoreNode>(value);
+  const TensorStoreNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorStoreNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<TensorVar>, mapped_buffer,
                                     mutator->MutateExpected(self->buffer));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_value,
@@ -629,17 +629,17 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BufferStoreMutate(
       mapped_indices.UnchangedOrSameAs(self->indices)) {
     return ffi::Unchanged();
   }
-  ffi::ObjectPtr<BufferStoreNode> copy = ffi::make_object<BufferStoreNode>(*self);
+  ffi::ObjectPtr<TensorStoreNode> copy = ffi::make_object<TensorStoreNode>(*self);
   copy->buffer = std::move(mapped_buffer).ValueOrUnchanged(std::move(copy->buffer));
   copy->value = std::move(mapped_value).ValueOrUnchanged(std::move(copy->value));
   copy->indices = std::move(mapped_indices).ValueOrUnchanged(std::move(copy->indices));
   return ffi::Any(std::move(copy));
 }
 
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BufferStoreMaybeInplaceMutate(
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorStoreMaybeInplaceMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  BufferStoreNode* self = const_cast<BufferStoreNode*>(
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BufferStoreNode>(value));
+  TensorStoreNode* self = const_cast<TensorStoreNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorStoreNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<TensorVar>, mapped_buffer,
       mutator->MutateExpected(self->buffer, ffi::InplaceMode::kAllow));
@@ -1132,12 +1132,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         [](Expr value, Span span) { return Evaluate(value, span); });
 }
 
-// BufferStore
+// TensorStore
 TVM_FFI_INLINE int GetLanesOrVScaleFactor(const PrimType& ty) {
   return ty.IsScalableVector() ? ty.VScaleFactor() : ty.lanes();
 }
 
-BufferStore::BufferStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices, Span span)
+TensorStore::TensorStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices, Span span)
     : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), indices.size())
       << "TensorVar " << buffer.name() << " is " << buffer->shape.size()
@@ -1179,15 +1179,15 @@ BufferStore::BufferStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> 
     buffer_dtype = buffer->dtype.WithLanes(buffer_lanes * index_lanes);
   }
   if (buffer_dtype != value_ty) {
-    TVM_FFI_THROW(TypeError) << "dtype mismatch on BufferStore: "                 //
+    TVM_FFI_THROW(TypeError) << "dtype mismatch on TensorStore: "                 //
                              << "buffer's dtype is `" << buffer->dtype            //
                              << "`, the lanes of indexing are: `" << index_lanes  //
                              << "`, the scalability is: `" << buffer_dtype.IsScalableVector()
                              << "`, but RHS's dtype is `" << value_ty << "`";
   }
 
-  ffi::ObjectPtr<BufferStoreNode> node =
-      ffi::make_object<BufferStoreNode>(std::move(buffer), std::move(value));
+  ffi::ObjectPtr<TensorStoreNode> node =
+      ffi::make_object<TensorStoreNode>(std::move(buffer), std::move(value));
   node->indices = std::move(indices);
   node->span = std::move(span);
   data_ = std::move(node);
@@ -1195,18 +1195,18 @@ BufferStore::BufferStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  BufferStoreNode::RegisterReflection();
-  refl::TypeAttrDef<BufferStoreNode>()
+  TensorStoreNode::RegisterReflection();
+  refl::TypeAttrDef<TensorStoreNode>()
       .attr(refl::type_attr::kStructuralVisit,
-            ffi::FStructuralVisit::FromNative<&BufferStoreVisit>())
+            ffi::FStructuralVisit::FromNative<&TensorStoreVisit>())
       .attr(refl::type_attr::kStructuralMutate,
-            ffi::FStructuralMutate::FromNative<&BufferStoreMutate>())
+            ffi::FStructuralMutate::FromNative<&TensorStoreMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            ffi::FStructuralMutate::FromNative<&BufferStoreMaybeInplaceMutate>());
+            ffi::FStructuralMutate::FromNative<&TensorStoreMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("tirx.BufferStore",
+  refl::GlobalDef().def("tirx.TensorStore",
                         [](TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
-                           Span span) { return BufferStore(buffer, value, indices, span); });
+                           Span span) { return TensorStore(buffer, value, indices, span); });
 }
 
 // ScopeIdDefStmt

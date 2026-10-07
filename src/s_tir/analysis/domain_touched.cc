@@ -110,7 +110,7 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
     return Parent::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     // Record store-exclusive buffer access
     Touch(&std::get<StoreAccess>(buffer_access_map_[op->buffer.get()]).set, op->indices);
     // Record load-store inclusive buffer access

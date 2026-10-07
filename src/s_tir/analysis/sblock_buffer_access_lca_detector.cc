@@ -293,7 +293,7 @@ class LCADetector : public s_tir::StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     UpdateBufferLCA(op->buffer.get(), ancestor_scopes_.back());
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
     for (const auto& index : op->indices) {

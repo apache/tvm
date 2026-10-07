@@ -87,7 +87,7 @@ def test_unroll_fake_loop():
         }
     ):
         ret = tvm.tirx.transform.UnrollLoop()(Module)["main"].body
-        assert isinstance(ret[0], tvm.tirx.BufferStore)
+        assert isinstance(ret[0], tvm.tirx.TensorStore)
 
 
 def test_unroll_allocations():

@@ -333,7 +333,7 @@ RegionFrame Region(Op op, ffi::Array<Expr> args,
  * \param indices The indices location to be stored.
  * \return The same statement that was added to the parent frame.
  */
-tvm::tirx::Stmt BufferStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices);
+tvm::tirx::Stmt TensorStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices);
 
 /*!
  * \brief Evaluate the input expression.

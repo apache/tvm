@@ -481,13 +481,13 @@ std::pair<ffi::Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& b
 /******** Reduction SBlock Related ********/
 
 /*!
- * \brief Get the init values and the BufferStore updates from the input reduction block
+ * \brief Get the init values and the TensorStore updates from the input reduction block
  * \param self The schedule state, used for error reporting
- * \param block The block from which the init values and BufferStore updates are extracted from
- * \return The extracted init values and BufferStore updates
+ * \param block The block from which the init values and TensorStore updates are extracted from
+ * \return The extracted init values and TensorStore updates
  * \throw ScheduleError If rfactor or cross-thread reduction cannot be applied to the block
  */
-std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdatesFromReductionBlock(
+std::pair<ffi::Array<PrimExpr>, ffi::Array<TensorStore>> GetInitValuesAndUpdatesFromReductionBlock(
     const ffi::Optional<ScheduleState>& self, SBlock block);
 
 /*!
@@ -519,7 +519,7 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block);
  */
 std::tuple<te::CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAndCombinerLhsRhs(
     const ffi::Optional<ScheduleState>& self, const ffi::Array<PrimExpr>& identities,
-    const ffi::Array<BufferStore>& combiners);
+    const ffi::Array<TensorStore>& combiners);
 
 /******** Commutative Reducer ********/
 
@@ -532,7 +532,7 @@ std::vector<ffi::TypedFunction<ffi::Optional<te::CommReducer>(ffi::Array<PrimExp
 GetReducerGetters();
 
 /*!
- * \brief Given the input identities and the combiner BufferStores of a reduction, extract the
+ * \brief Given the input identities and the combiner TensorStores of a reduction, extract the
  * corresponding commutative reducer, LHS values and RHS values, if possible.
  * \param identities The identities of the reduction
  * \param combiners The combiners of the reduction
@@ -542,7 +542,7 @@ GetReducerGetters();
  * \return A boolean indicating whether a corresponding commutative reducer is found
  */
 bool FromIdentityCombiner(const ffi::Array<PrimExpr>& identities,
-                          const ffi::Array<BufferStore>& combiners, te::CommReducer* result_reducer,
+                          const ffi::Array<TensorStore>& combiners, te::CommReducer* result_reducer,
                           ffi::Array<PrimExpr>* lhs, ffi::Array<PrimExpr>* rhs);
 
 /******** Misc ********/

@@ -317,7 +317,7 @@ class BaseInliner : public StmtExprMutator {
   explicit BaseInliner(const TensorVar& inlined_buffer, const SBlock& inlined_block,
                        const StmtSRef& scope_root_sref)
       : inlined_buffer_(inlined_buffer),
-        inlined_store_(inlined_block->body.as<BufferStoreNode>()),
+        inlined_store_(inlined_block->body.as<TensorStoreNode>()),
         scope_root_sref_(scope_root_sref) {
     AddBuffersInBlockSignature(inlined_block.get());
   }
@@ -343,10 +343,10 @@ class BaseInliner : public StmtExprMutator {
     return node;
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) override {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) override {
     auto value = Mutate(op->value);
     auto indices = Mutate(op->indices).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
-    BufferStore node = ffi::GetRef<BufferStore>(op);
+    TensorStore node = ffi::GetRef<TensorStore>(op);
     if (!value.UnchangedOrSameAs(op->value) || !indices.UnchangedOrSameAs(op->indices)) {
       auto* n = node.CopyOnWrite();
       n->value = std::move(value).ValueOrUnchanged(op->value);
@@ -482,7 +482,7 @@ class BaseInliner : public StmtExprMutator {
   /*! \brief The buffer to be inlined */
   TensorVar inlined_buffer_;
   /*! \brief The body of the block to be inlined */
-  const BufferStoreNode* inlined_store_{nullptr};
+  const TensorStoreNode* inlined_store_{nullptr};
   /*! \brief The scope root */
   StmtSRef scope_root_sref_{nullptr};
   /*! \brief Maps a buffer's data field to itself */
@@ -566,7 +566,7 @@ class ComputeInliner : public BaseInliner {
         /*analyzer=*/analyzer_,
         /*simplify_trivial_iterators=*/false);
     if (!res->errors.empty()) {
-      // Failure: indices of BufferStore are not bijective affine
+      // Failure: indices of TensorStore are not bijective affine
       return false;
     }
     idx_vars_.clear();
@@ -626,7 +626,7 @@ class ComputeInliner : public BaseInliner {
  * \brief Helper to inline the consumer block into its producer
  * The derived class implements the following functionalities:
  * 1) Analyze the consumer block to determine the remapping of index variables
- * 2) Substitute `BufferStore` of the buffer to be inlined,
+ * 2) Substitute `TensorStore` of the buffer to be inlined,
  * replacing it with direct writing to the buffer that consumer writes
  */
 class ReverseComputeInliner : public BaseInliner {
@@ -710,7 +710,7 @@ class ReverseComputeInliner : public BaseInliner {
       return false;
     }
     if (inlined_store_ == nullptr) {
-      // Failure: block body is not BufferStore
+      // Failure: block body is not TensorStore
       return false;
     }
     std::vector<const TensorLoadNode*> loads = ExtractTensorLoad(inlined_buffer_, inlined_store_);
@@ -748,24 +748,24 @@ class ReverseComputeInliner : public BaseInliner {
       return false;
     }
 
-    const BufferStoreNode* producer_store = nullptr;
+    const TensorStoreNode* producer_store = nullptr;
     if (const auto* producer_if = producer_block_->body.as<tirx::IfThenElseNode>()) {
       if (producer_if->else_case.has_value()) {
         return false;
       }
-      producer_store = producer_if->then_case.as<BufferStoreNode>();
+      producer_store = producer_if->then_case.as<TensorStoreNode>();
     } else {
-      producer_store = producer_block_->body.as<BufferStoreNode>();
+      producer_store = producer_block_->body.as<TensorStoreNode>();
       if (producer_block_->annotations.count(s_tir::attr::auto_copy) != 0) {
         const ForNode* producer_inner_loop = producer_block_->body.as<ForNode>();
         while (producer_inner_loop->body.as<ForNode>()) {
           producer_inner_loop = producer_inner_loop->body.as<ForNode>();
         }
-        producer_store = producer_inner_loop->body.as<BufferStoreNode>();
+        producer_store = producer_inner_loop->body.as<TensorStoreNode>();
       }
     }
     if (producer_store == nullptr) {
-      // Failure: producer block body is not BufferStore
+      // Failure: producer block body is not TensorStore
       return false;
     }
     CreateInverseMapping(producer_store->indices);
@@ -844,10 +844,10 @@ class ReverseComputeInliner : public BaseInliner {
     return tgt_block_realize;
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* _store, InplaceMode inplace_mode) final {
-    BufferStore store = BaseInliner::Mutate_(_store, inplace_mode)
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* _store, InplaceMode inplace_mode) final {
+    TensorStore store = BaseInliner::Mutate_(_store, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(_store))
-                            .as_or_throw<BufferStore>();
+                            .as_or_throw<TensorStore>();
     if (!store->buffer.same_as(inlined_buffer_)) {
       return store;
     }
@@ -881,9 +881,9 @@ class ReverseComputeInliner : public BaseInliner {
 
   /*!
    * \brief Apply the inverse of `buffer_load_iter_map_` to producer indices. Seed the inherited
-   * remapping environment with the result. It will be later used to transform the BufferStore
+   * remapping environment with the result. It will be later used to transform the TensorStore
    * indices of the producer.
-   * \param producer_indices The BufferStore indices of the producer.
+   * \param producer_indices The TensorStore indices of the producer.
    */
   void CreateInverseMapping(const ffi::Array<PrimExpr> producer_indices) {
     auto inverse_iter_map = sym::InverseAffineIterMap(buffer_load_iter_map_, producer_indices);
@@ -892,25 +892,25 @@ class ReverseComputeInliner : public BaseInliner {
     }
   }
 
-  Stmt ReplaceInlinedBuffer(BufferStore producer) {
+  Stmt ReplaceInlinedBuffer(TensorStore producer) {
     // "producer->value" may contain the buffer that is inlined in cases of reduction,
     // so we need to resolve the recursion first
     producer_rhs_ = ffi::make_object<RecursionResolver>(this)
                         ->Mutate(producer->value)
                         .ValueOrUnchanged(producer->value);
     return ffi::make_object<Substituter>(this)
-        ->Mutate(ffi::GetRef<BufferStore>(inlined_store_))
-        .ValueOrUnchanged(ffi::GetRef<BufferStore>(inlined_store_));
+        ->Mutate(ffi::GetRef<TensorStore>(inlined_store_))
+        .ValueOrUnchanged(ffi::GetRef<TensorStore>(inlined_store_));
   }
 
   /*!
    * \brief Extracts expressions that loads a specific buffer
    * \param buffer The buffer to be loaded from
-   * \param from The BufferStore statement to be extracted from
+   * \param from The TensorStore statement to be extracted from
    * \return A list of `TensorLoad` expressions
    */
   static std::vector<const TensorLoadNode*> ExtractTensorLoad(const TensorVar& buffer,
-                                                              const BufferStoreNode* from) {
+                                                              const TensorStoreNode* from) {
     struct Extractor : public StmtExprVisitor {
       using StmtExprVisitor::Visit_;
 
@@ -950,7 +950,7 @@ class ReverseComputeInliner : public BaseInliner {
     return true;
   }
 
-  /*! \brief The RHS value of the producer's BufferStore statement */
+  /*! \brief The RHS value of the producer's TensorStore statement */
   PrimExpr producer_rhs_{ffi::UnsafeInit{}};
   /*! \brief The indices of the consumer's TensorLoad */
   ffi::Array<PrimExpr> buffer_load_indices_;
@@ -1113,9 +1113,9 @@ class ReductionEpilogueFuser : public BaseInliner {
  private:
   bool IsReductionBlock(const SBlockNode* block);
   void ExtractEpilogueInfo();
-  // Helper function to extract TensorLoad nodes from BufferStore
+  // Helper function to extract TensorLoad nodes from TensorStore
   static std::vector<const TensorLoadNode*> ExtractTensorLoad(const TensorVar& buffer,
-                                                              const BufferStoreNode* from) {
+                                                              const TensorStoreNode* from) {
     struct Extractor : public StmtExprVisitor {
       using StmtExprVisitor::Visit_;
 
@@ -1161,9 +1161,9 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogu
     return false;
   }
 
-  // 2. Check if epilogue body is BufferStore
+  // 2. Check if epilogue body is TensorStore
   if (inlined_store_ == nullptr) {
-    // Failure: epilogue block body is not BufferStore
+    // Failure: epilogue block body is not TensorStore
     return false;
   }
 
@@ -1419,7 +1419,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
         return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index, f_substitute)
             .as_or_throw<PrimExpr>();
       });
-  BufferStore new_init_store = BufferStore(epilogue_output_buffer_, init_epilogue, init_indices);
+  TensorStore new_init_store = TensorStore(epilogue_output_buffer_, init_epilogue, init_indices);
   new_block->init = new_init_store;
 
   // 3. Generalized update transformation: apply epilogue expression with reduction buffer replaced
@@ -1439,10 +1439,10 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
           epilogue_expression_(epilogue_expr),
           var_map_(var_map) {}
 
-    UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-      BufferStore store = StmtExprMutator::Mutate_(op, inplace_mode)
+    UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
+      TensorStore store = StmtExprMutator::Mutate_(op, inplace_mode)
                               .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                              .as_or_throw<BufferStore>();
+                              .as_or_throw<TensorStore>();
       if (store->buffer.same_as(old_buffer_)) {
         // Replace old_buffer_ in store->value with new_buffer_ to get the reduction update
         // expression This ensures store->value references new_buffer_ instead of old_buffer_
@@ -1571,7 +1571,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
         new_value = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(new_value, f_substitute)
                         .as_or_throw<PrimExpr>();
 
-        return BufferStore(new_buffer_, new_value, store->indices);
+        return TensorStore(new_buffer_, new_value, store->indices);
       }
       return store;
     }

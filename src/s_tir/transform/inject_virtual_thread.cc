@@ -164,7 +164,7 @@ class VarTouchedAnalysis : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     expr_touched_->Reset(false);
     expr_touched_->Visit(op->value);
     for (const auto& index : op->indices) {
@@ -327,7 +327,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
         args.push_back(predicate);
         return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
       }
-      BufferStore access = VisitBufferAccess(BufferStore(buffer, value.value(), indices, op->span));
+      TensorStore access = VisitBufferAccess(TensorStore(buffer, value.value(), indices, op->span));
       ffi::Array<Expr> args{access->buffer.var(), access->value};
       for (const PrimExpr& index : access->indices) args.push_back(index);
       args.push_back(predicate);
@@ -377,11 +377,11 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
     }
     return VisitBufferAccess(std::move(node));
   }
-  // BufferStore
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  // TensorStore
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     auto value = Mutate(op->value);
     auto indices = Mutate(op->indices).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
-    BufferStore node = ffi::GetRef<BufferStore>(op);
+    TensorStore node = ffi::GetRef<TensorStore>(op);
     if (!value.UnchangedOrSameAs(op->value) || !indices.UnchangedOrSameAs(op->indices)) {
       auto* n = node.CopyOnWrite();
       n->value = std::move(value).ValueOrUnchanged(op->value);
@@ -706,7 +706,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
    *
    * Maps from the buffer_var of an allocate node to the original
    * extent of the allocation.  Used when rewriting the indices of
-   * TensorLoad/BufferStore.
+   * TensorLoad/TensorStore.
    */
   std::unordered_map<const VarNode*, PrimExpr> alloc_remap_;
   /*! \brief Map of buffers that are modified.

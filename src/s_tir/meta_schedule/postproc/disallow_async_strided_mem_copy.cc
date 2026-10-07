@@ -61,7 +61,7 @@ struct AsyncStridedMemCopyFinder : public StmtExprVisitor {
     return result;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     if (!found_ && in_async_copy_) {
       if (const auto* load = op->value.as<TensorLoadNode>()) {
         // Inspect each copy, including copies grouped under one commit or predicate.

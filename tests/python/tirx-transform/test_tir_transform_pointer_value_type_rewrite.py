@@ -171,21 +171,21 @@ def test_decl_buffer_alias_chain_uses_flat_root_map():
     assert func.params[0].ty.dtype == tvm.ir.PrimType("float32x4")
 
     decl_buffers = []
-    buffer_stores = []
+    tensor_stores = []
     tvm_ffi.structural_walk(
         func.body,
         lambda node: (
             decl_buffers.append(node)
             if _is_buffer_binding(node, "tirx.decl_tensor")
-            else buffer_stores.append(node)
-            if isinstance(node, tvm.tirx.BufferStore)
+            else tensor_stores.append(node)
+            if isinstance(node, tvm.tirx.TensorStore)
             else None
         ),
     )
     assert len(decl_buffers) == 2
     assert all(decl.var.ty.dtype == tvm.ir.PrimType("float32x4") for decl in decl_buffers)
-    assert len(buffer_stores) == 1
-    assert buffer_stores[0].buffer.ty.dtype == tvm.ir.PrimType("float32x4")
+    assert len(tensor_stores) == 1
+    assert tensor_stores[0].buffer.ty.dtype == tvm.ir.PrimType("float32x4")
 
 
 if __name__ == "__main__":

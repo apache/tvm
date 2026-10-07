@@ -122,13 +122,13 @@ class MatchBufferLower : public StmtExprMutator {
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     // Save the original buffer before base class mutation may remap it
     TensorVar orig_buffer = op->buffer;
-    BufferStore stmt = StmtExprMutator::Mutate_(op, inplace_mode)
+    TensorStore stmt = StmtExprMutator::Mutate_(op, inplace_mode)
                            .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                           .as_or_throw<BufferStore>();
-    op = stmt.as<BufferStoreNode>();
+                           .as_or_throw<TensorStore>();
+    op = stmt.as<TensorStoreNode>();
     TVM_FFI_ICHECK(op != nullptr);
 
     // Look up using original buffer (before the inherited Var environment may have remapped it)

@@ -218,11 +218,11 @@ class AutoPadder {
         return load;
       }
 
-      UnchangedOr<Stmt> Mutate_(const BufferStoreNode* _op, InplaceMode inplace_mode) final {
-        BufferStore store = StmtExprMutator::Mutate_(_op, inplace_mode)
+      UnchangedOr<Stmt> Mutate_(const TensorStoreNode* _op, InplaceMode inplace_mode) final {
+        TensorStore store = StmtExprMutator::Mutate_(_op, inplace_mode)
                                 .ValueOrUnchanged(ffi::GetRef<Stmt>(_op))
-                                .as_or_throw<BufferStore>();
-        BufferStoreNode* op = store.CopyOnWrite();
+                                .as_or_throw<TensorStore>();
+        TensorStoreNode* op = store.CopyOnWrite();
         if (auto replacement = VarRemapGet(op->buffer).as<TensorVar>()) {
           op->buffer = replacement.value();
         }
@@ -542,7 +542,7 @@ class AutoPadder {
      * The iteration space would be {{0, 1}, {0, 4, ..., 60}}.
      * \param op the buffer store
      */
-    ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+    ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
       runtime::StorageScope scope = runtime::StorageScope::Create(op->buffer.scope());
       if (scope.rank == runtime::StorageRank::kShared) {
         ffi::Array<PrimExpr> substitued_indices;

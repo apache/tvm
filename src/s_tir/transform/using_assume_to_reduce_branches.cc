@@ -220,10 +220,10 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     return ffi::Unchanged();
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-    BufferStore store = Parent::Mutate_(op, inplace_mode)
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
+    TensorStore store = Parent::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                            .as_or_throw<BufferStore>();
+                            .as_or_throw<TensorStore>();
     if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
 
     // Eliminate the builtin if_then_else statement
@@ -265,23 +265,23 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
         if (ffi::StructuralEqual()(then_clause_in_then_context, else_clause_in_then_context)) {
           PrimExpr value = analyzer_->Simplify(else_clause);
           if (inplace_mode == InplaceMode::kAllow) {
-            const_cast<BufferStoreNode*>(op)->value = std::move(value);
+            const_cast<TensorStoreNode*>(op)->value = std::move(value);
             return ffi::Unchanged();
           } else {
-            auto copy = ffi::make_object<BufferStoreNode>(*op);
+            auto copy = ffi::make_object<TensorStoreNode>(*op);
             copy->value = std::move(value);
-            return BufferStore(std::move(copy));
+            return TensorStore(std::move(copy));
           }
         } else if (ffi::StructuralEqual()(then_clause_in_else_context,
                                           else_clause_in_else_context)) {
           PrimExpr value = analyzer_->Simplify(then_clause);
           if (inplace_mode == InplaceMode::kAllow) {
-            const_cast<BufferStoreNode*>(op)->value = std::move(value);
+            const_cast<TensorStoreNode*>(op)->value = std::move(value);
             return ffi::Unchanged();
           } else {
-            auto copy = ffi::make_object<BufferStoreNode>(*op);
+            auto copy = ffi::make_object<TensorStoreNode>(*op);
             copy->value = std::move(value);
-            return BufferStore(std::move(copy));
+            return TensorStore(std::move(copy));
           }
         } else {
           return Parent::Mutate_(op, inplace_mode);

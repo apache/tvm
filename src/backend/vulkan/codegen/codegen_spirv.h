@@ -114,7 +114,7 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
   spirv::Value Dispatch_(const TensorLoadNode* op) override;
   spirv::Value Dispatch_(const prim::ShuffleNode* op) override;
   // stmt
-  void Dispatch_(const BufferStoreNode* op) override;
+  void Dispatch_(const TensorStoreNode* op) override;
   void Dispatch_(const ForNode* op) override;
   void Dispatch_(const WhileNode* op) override;
   void Dispatch_(const IfThenElseNode* op) override;

@@ -416,11 +416,11 @@ def test_sum_sqsum():
     assert new_mod["sum_sqsum"].attrs["op_pattern"] == OpPatternKind.kCommReduce
 
 
-def test_no_buffer_stores():
+def test_no_tensor_stores():
     @tvm.script.ir_module
     class Module:
         @Ts.prim_func
-        def no_buffer_stores(A: T.Tensor((32, 64), "float32"), vsum: T.Tensor((32,), "float32")):
+        def no_tensor_stores(A: T.Tensor((32, 64), "float32"), vsum: T.Tensor((32,), "float32")):
             for ax0, k0 in T.grid(32, 64):
                 with Ts.sblock("block"):
                     v_ax0, v_k0 = Ts.axis.remap("SR", [ax0, k0])
@@ -432,7 +432,7 @@ def test_no_buffer_stores():
 
     mod = Module
     new_mod = relax.transform.AnnotateTIROpPattern()(mod)
-    assert new_mod["no_buffer_stores"].attrs["op_pattern"] == OpPatternKind.kOpaque
+    assert new_mod["no_tensor_stores"].attrs["op_pattern"] == OpPatternKind.kOpaque
 
 
 if __name__ == "__main__":
