@@ -79,7 +79,7 @@ tvm.relax.op.vision
 .. automodule:: tvm.relax.op.vision
    :members:
    :imported-members:
-   :exclude-members: Expr
+   :exclude-members: Expr, Attrs
 
 tvm.relax.op.vm
 ***************

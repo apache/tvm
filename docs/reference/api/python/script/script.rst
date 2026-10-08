@@ -27,9 +27,20 @@ tvm.script
 
 tvm.script.relax
 ****************
+
+Operator attributes re-exported by this namespace are documented in :mod:`tvm.relax.op`.
+
 .. automodule:: tvm.script.relax
    :members:
-   :exclude-members: ExternFunc, ShapeExpr, TupleGetItem, Range, function, macro
+   :exclude-members: ExternFunc, ShapeExpr, TupleGetItem, Range, function, macro,
+      ArgmaxArgminAttrs, ArgsortAttrs, AstypeAttrs, CallInplacePackedAttrs, CallTIRInplaceAttrs,
+      CallTIRWithGradAttrs, ConcatAttrs, EinsumAttrs, ExpandDimsAttrs, FlipAttrs,
+      GatherElementsAttrs, GatherNDAttrs, HintOnDeviceAttrs, IndexPutAttrs, InitAttrs,
+      LayoutTransformAttrs, MatmulAttrs, MeshgridAttrs, MultinomialFromUniformAttrs,
+      OneHotAttrs, PermuteDimsAttrs, QuantizeAttrs, RepeatAttrs, ReverseSequenceAttrs,
+      ScanopAttrs, ScatterElementsAttrs, ScatterNDAttrs, SliceScatterAttrs, SortAttrs,
+      SplitAttrs, SqueezeAttrs, StackAttrs, StatisticalAttrs, StridedSliceAttrs, TakeAttrs,
+      TileAttrs, TopKAttrs, ToVDeviceAttrs, TriluAttrs, WrapParamAttrs
 
 .. autofunction:: tvm.script.relax.function
 
@@ -37,9 +48,12 @@ tvm.script.relax
 
 tvm.script.tirx
 ***************
+
+Operator attributes re-exported by this namespace are documented in :mod:`tvm.tirx`.
+
 .. automodule:: tvm.script.tirx
    :members:
-   :exclude-members: Range, meta_var, Var, Call, CommReducer, Reduce, SMEMPool, TMEMPool, FloatImm, IntImm, Cast, Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod, LShift, RShift, BitwiseAnd, BitwiseOr, BitwiseXor, BitwiseNot, Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not, Select, Ramp, Broadcast, Shuffle, CallEffectKind, IterVar, ComposeLayout, DtypeConstructor, ExecScope, Iter, Layout, LetAnnotation, LocalVectorAnnotation, ScopeIdDef, TileLayout, function, jit, inline, macro
+   :exclude-members: Range, meta_var, Var, Call, CommReducer, Reduce, SMEMPool, TMEMPool, FloatImm, IntImm, Cast, Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod, LShift, RShift, BitwiseAnd, BitwiseOr, BitwiseXor, BitwiseNot, Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not, Select, Ramp, Broadcast, Shuffle, CallEffectKind, IterVar, ComposeLayout, DtypeConstructor, ExecScope, Iter, Layout, LetAnnotation, LocalVectorAnnotation, ScopeIdDef, TileLayout, CallFFIKernelAttr, TensorMapEncodeTiledAttr, function, jit, inline, macro
 
 .. autofunction:: tvm.script.tirx.function
 
