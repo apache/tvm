@@ -391,8 +391,6 @@ TVM_DEFINE_CACHED_OP_GETTER(vectorcombine_op, "tirx.vectorcombine")
 TVM_DEFINE_CACHED_OP_GETTER(gpu_dp4a_op, "tirx.gpu_dp4a")
 TVM_DEFINE_CACHED_OP_GETTER(atomic_add_op, "tirx.atomic_add")
 TVM_DEFINE_CACHED_OP_GETTER(nd_mem_alloc_with_scope_op, "tirx.nd_mem_alloc_with_scope")
-TVM_DEFINE_CACHED_OP_GETTER(texture2d_store_op, "tirx.texture2d_store")
-TVM_DEFINE_CACHED_OP_GETTER(texture2d_load_op, "tirx.texture2d_load")
 TVM_DEFINE_CACHED_OP_GETTER(assume_aligned_op, "tirx.assume_aligned")
 TVM_DEFINE_CACHED_OP_GETTER(undef_op, "tirx.undef")
 TVM_DEFINE_CACHED_OP_GETTER(get_active_lane_mask_op, "tirx.get_active_lane_mask")
@@ -803,26 +801,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("ndim", "The number of dimensions."),
                  sig::arg("shape", "The shape."), sig::var_args("args"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-  OpDef("tirx.texture2d_store")
-      .signature(sig::arg("texture", "The texture."), sig::arg<IntExpr>("x", "The input value."),
-                 sig::arg<IntExpr>("y", "The second input value."),
-                 sig::arg<IntExpr>("z", "The third input value."),
-                 sig::arg<IntExpr>("channel_size", "The number of channels."),
-                 sig::arg<PrimExpr>("value", "The value to use."))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TVectorizable>("TVectorizable", true)
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-  OpDef("tirx.texture2d_load")
-      .signature(sig::arg("texture", "The texture."), sig::arg<IntExpr>("x", "The input value."),
-                 sig::arg<IntExpr>("y", "The second input value."),
-                 sig::arg<IntExpr>("z", "The third input value."),
-                 sig::arg<IntExpr>("channel_size", "The number of channels."),
-                 sig::arg<PrimExpr>("element_index", "The element index within a texture channel."))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TVectorizable>("TVectorizable", true)
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.assume_aligned")

@@ -169,32 +169,6 @@ TVM_DLL const Op& atomic_add_op();
 TVM_DLL const Op& nd_mem_alloc_with_scope_op();
 
 /*!
- * \brief Store to texture 2d memory.
- *
- * Arguments, in order:
- * - args[0]: texture, The texture.
- * - args[1]: x, The input value.
- * - args[2]: y, The second input value.
- * - args[3]: z, The third input value.
- * - args[4]: channel_size, The number of channels.
- * - args[5]: value, The value to use.
- */
-TVM_DLL const Op& texture2d_store_op();
-
-/*!
- * \brief Load from texture 2d memory.
- *
- * Arguments, in order:
- * - args[0]: texture, The texture.
- * - args[1]: x, The input value.
- * - args[2]: y, The second input value.
- * - args[3]: z, The third input value.
- * - args[4]: channel_size, The number of channels.
- * - args[5]: element_index, The element index within a texture channel.
- */
-TVM_DLL const Op& texture2d_load_op();
-
-/*!
  * \brief Assume a tensor's base address has the given constant byte alignment.
  *
  * This leaf operation carries a compiler fact, without checking or changing

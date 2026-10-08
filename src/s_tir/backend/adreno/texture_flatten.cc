@@ -23,6 +23,7 @@
  * to 2D (width, height, depth) array access
  */
 
+#include <tvm/backend/opencl/op.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
@@ -101,7 +102,7 @@ class TextureFlattener : public TextureLoweringBase {
     if (IsTextureStorage(storage_scope)) {
       ffi::Array<Expr> args = GetTextureAccessArgs(op, op->buffer);
       args.push_back(op->value);
-      stmt = Evaluate(Call(args[0]->ty, tirx::texture2d_store_op(), args));
+      stmt = Evaluate(Call(args[0]->ty, tvm::backend::opencl::texture2d_store_op(), args));
     }
 
     return stmt;
@@ -117,8 +118,8 @@ class TextureFlattener : public TextureLoweringBase {
       ffi::Array<Expr> args =
           GetTextureAccessArgs(op, op->source.as_or_throw<tvm::tirx::TensorVar>());
       args.push_back(op->indices.back());
-      expr = Call(op->source.as_or_throw<tvm::tirx::TensorVar>()->dtype, tirx::texture2d_load_op(),
-                  args)
+      expr = Call(op->source.as_or_throw<tvm::tirx::TensorVar>()->dtype,
+                  tvm::backend::opencl::texture2d_load_op(), args)
                  .as_or_throw<PrimExpr>();
     }
 

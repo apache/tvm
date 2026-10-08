@@ -22,6 +22,7 @@
  */
 #include "codegen_opencl.h"
 
+#include <tvm/backend/opencl/op.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/op/memory.h>
@@ -104,11 +105,11 @@ class InferTextureAccess : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    if (op->op.same_as(tirx::texture2d_load_op())) {
+    if (op->op.same_as(backend::opencl::texture2d_load_op())) {
       const VarNode* texture = UnwrapTextureArgument(op->args[0]).var;
       auto it = buffer_data_map_.find(texture);
       var_access_map_[it == buffer_data_map_.end() ? texture : it->second] |= kReadAccess;
-    } else if (op->op.same_as(tirx::texture2d_store_op())) {
+    } else if (op->op.same_as(backend::opencl::texture2d_store_op())) {
       const VarNode* texture = UnwrapTextureArgument(op->args[0]).var;
       auto it = buffer_data_map_.find(texture);
       var_access_map_[it == buffer_data_map_.end() ? texture : it->second] |= kWriteAccess;
@@ -492,7 +493,7 @@ void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
     os << " *)" << this->GetVarID(load->source.as_or_throw<tvm::tirx::TensorVar>().get()) << " + ";
     this->PrintExpr(load->indices[0], os);
     os << ')';
-  } else if (op->op.same_as(tirx::texture2d_store_op())) {
+  } else if (op->op.same_as(backend::opencl::texture2d_store_op())) {
     TextureArgument texture = UnwrapTextureArgument(op->args[0]);
     const int channel_size = op->args[4].as_or_throw<IntImm>()->value.as<int>().value();
     TVM_FFI_ICHECK(channel_size == 64 || channel_size == 128)
@@ -526,7 +527,7 @@ void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
     this->PrintType(channel_type, os);
     os << "(" << value << ")";
     os << ")";
-  } else if (op->op.same_as(tirx::texture2d_load_op())) {
+  } else if (op->op.same_as(backend::opencl::texture2d_load_op())) {
     TextureArgument texture = UnwrapTextureArgument(op->args[0]);
     enable_compliant_texture_reads_ = true;
     std::stringstream ss;

@@ -21,6 +21,7 @@
  * \file vectorize_loop.cc
  */
 // Loop vectorizer as in Halide pipeline.
+#include <tvm/backend/opencl/op.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_mutate.h>
@@ -805,7 +806,7 @@ class Vectorizer : public StmtExprMutator {
     PrimType ret_ty = optional_ret_ty.value();
     if (op->op.same_as(prim::if_then_else_op())) {
       return MutateIfThenElseExpr_(op, inplace_mode);
-    } else if (op->op.same_as(tirx::texture2d_load_op())) {
+    } else if (op->op.same_as(backend::opencl::texture2d_load_op())) {
       int lane = 0;
       ffi::Array<PrimExpr> fcd =
           MutateArray({op->args.back().as_or_throw<PrimExpr>()}, &lane, inplace_mode);
@@ -817,7 +818,7 @@ class Vectorizer : public StmtExprMutator {
       new_args.pop_back();
       new_args.push_back(fcd[0]);
       return Call(ret_ty.WithLanes(lane), op->op, new_args, op->attrs, {}, op->span);
-    } else if (op->op.same_as(tirx::texture2d_store_op())) {
+    } else if (op->op.same_as(backend::opencl::texture2d_store_op())) {
       int lane = 0;
       // Vectorize the value to store
       ffi::Array<PrimExpr> value{op->args.back().as_or_throw<PrimExpr>()};
