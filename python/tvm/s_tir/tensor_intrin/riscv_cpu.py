@@ -105,6 +105,17 @@ def rvv_vec_dot_product_kernels(
         wide_dtype = "".join(c for c in data_dtype if not c.isdigit())
         wide_dtype += str(DataType(data_dtype).bits * 2)
 
+    if out_dtype[0] == "f":
+        mul_intrin = "llvm.riscv.vfmul"
+        sum_intrin = "llvm.riscv.vfredusum"
+        extract_intrin = "llvm.riscv.vfmv.f.s"
+    else:
+        mul_intrin = (
+            "llvm.riscv.vwmulsu" if data_dtype[0] != weight_dtype[0] else "llvm.riscv.vwmul"
+        )
+        sum_intrin = "llvm.riscv.vwredsum"
+        extract_intrin = "llvm.riscv.vmv.x.s"
+
     # fmt: off
     @Ts.function
     def rvv_vec_dot_prod_impl(
@@ -137,9 +148,7 @@ def rvv_vec_dot_product_kernels(
 
                     product = T.call_llvm_intrin(
                         f"{wide_dtype}xvscalex{w_dtype_lanes}",
-                        "llvm.riscv.vfmul" if out_dtype[0] == "f" else \
-                        "llvm.riscv.vwmulsu" if (data_dtype[0] != weight_dtype[0]) else \
-                        "llvm.riscv.vwmul",
+                        mul_intrin,
                         T.broadcast(T.Cast(wide_dtype, 0), T.vscale() * w_dtype_lanes),
                         vec_B_row,
                         vec_A,
@@ -155,8 +164,7 @@ def rvv_vec_dot_product_kernels(
 
                     red_sum = T.call_llvm_intrin(
                         f"{out_dtype}xvscalex{o_dtype_lanes}",
-                        "llvm.riscv.vfredusum" if out_dtype[0] == "f" else \
-                        "llvm.riscv.vwredsum",
+                        sum_intrin,
                         T.broadcast(T.Cast(out_dtype, 0), T.vscale() * o_dtype_lanes),
                         product,
                         ini_acc,
@@ -165,8 +173,7 @@ def rvv_vec_dot_product_kernels(
 
                     C[i] = T.call_llvm_intrin(
                         out_dtype,
-                        "llvm.riscv.vfmv.f.s" if out_dtype[0] == "f" else \
-                        "llvm.riscv.vmv.x.s",
+                        extract_intrin,
                         red_sum)
     # fmt: on
     return rvv_vec_dot_prod_desc, rvv_vec_dot_prod_impl
