@@ -742,7 +742,7 @@ def test_datapath_B_codegen(direction):
             layout=tmem_datapath_layout("B", 64, n_cols),
         )
         frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, n_cols), "float32")
-        if direction == "ld":
+        if T.constexpr(direction == "ld"):
             Tx.wg.copy_async(frag[:, :], tmem[:, :])
         else:
             Tx.wg.copy_async(tmem[:, :], frag[:, :])

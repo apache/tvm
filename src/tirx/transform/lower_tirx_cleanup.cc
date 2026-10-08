@@ -235,6 +235,14 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
                  .ValueOrUnchanged(type->strides[i])
                  .as_or_throw<PrimExpr>());
     }
+    // TMEM addresses may load from an allocation whose variable was rebuilt
+    // above. Keep the type metadata in sync with the declaration's pointer.
+    for (size_t i = 0; i < type->allocated_addr.size(); ++i) {
+      type->allocated_addr.Set(
+          i, StmtExprMutator::Mutate(ffi::AnyView(type->allocated_addr[i]), InplaceMode::kDisallow)
+                 .ValueOrUnchanged(type->allocated_addr[i])
+                 .as_or_throw<PrimExpr>());
+    }
     type->layout = std::nullopt;
     type->elem_offset =
         StmtExprMutator::Mutate(ffi::AnyView(buf->elem_offset), InplaceMode::kDisallow)

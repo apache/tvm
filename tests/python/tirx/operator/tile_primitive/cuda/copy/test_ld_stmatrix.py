@@ -428,7 +428,9 @@ def test_ldstmatrix_swizzle_multi_iter_pow2():
     assert "ldmatrix.sync.aligned.m8n8.x4.shared.b16" in src
 
     address_lines = [
-        line for line in src.splitlines() if "smem_off_ptr" in line and "[0] =" in line
+        line
+        for line in src.splitlines()
+        if line.strip().startswith("int smem_off") and " = " in line
     ]
     assert len(address_lines) == 8
     assert all("& 7) << 3" in line for line in address_lines)
@@ -499,7 +501,9 @@ def test_ldstmatrix_swizzle_multi_iter_linear():
     assert "ldmatrix.sync.aligned.m8n8.x4.shared.b16" in src
 
     address_lines = [
-        line for line in src.splitlines() if "smem_off_ptr" in line and "[0] =" in line
+        line
+        for line in src.splitlines()
+        if line.strip().startswith("int smem_off") and " = " in line
     ]
     assert len(address_lines) == 10
     assert all("& 7) << 3" in line for line in address_lines)
