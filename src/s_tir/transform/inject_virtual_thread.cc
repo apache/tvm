@@ -97,14 +97,14 @@ class ExprTouched final : public StmtExprVisitor {
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->args[i]));
       }
     } else if (op->op.same_as(tirx::tvm_access_ptr_op())) {
-      const auto* rw_mask = op->args[4].as<IntImmNode>();
-      auto buffer = GetBufferDataVar(op->args[1]);
+      const auto* rw_mask = op->args[3].as<IntImmNode>();
+      auto buffer = GetBufferDataVar(op->args[0]);
       if (!buffer.has_value()) {
         // Nested access pointers are valid pointer expressions.  Visit the
         // inner pointer and this access's offset instead of assuming a raw
         // buffer Var at every level.
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->args[1]));
-        return this->Visit(op->args[2].as_or_throw<PrimExpr>());
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->args[0]));
+        return this->Visit(op->args[1].as_or_throw<PrimExpr>());
       }
       const VarNode* buffer_var = buffer.value().get();
       TVM_FFI_ICHECK(rw_mask);
@@ -115,7 +115,7 @@ class ExprTouched final : public StmtExprVisitor {
       if (rw_mask->value & 2) {
         HandleWriteVar(buffer_var);
       }
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->args[2].as_or_throw<PrimExpr>()));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->args[1].as_or_throw<PrimExpr>()));
     } else {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
@@ -339,25 +339,26 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
       visit_touched_var_ = true;
       return GetRemappedBuffer(buffer.as_or_throw<TensorVar>(), it->second).data();
     } else if (op->op.same_as(tirx::tvm_access_ptr_op())) {
-      TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
-      PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
-      auto buffer = GetBufferDataVar(op->args[1]);
+      TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
+      PrimType dtype = op->ty_args[0].as_or_throw<PrimType>();
+      auto buffer = GetBufferDataVar(op->args[0]);
       if (!buffer.has_value()) {
         return StmtExprMutator::Mutate_(op, inplace_mode);
       }
       auto it = alloc_remap_.find(buffer.value().get());
       if (it == alloc_remap_.end()) return StmtExprMutator::Mutate_(op, inplace_mode);
       visit_touched_var_ = true;
-      PrimExpr offset = Mutate(op->args[2]).ValueOrUnchanged(op->args[2]).as_or_throw<PrimExpr>();
-      PrimExpr extent = Mutate(op->args[3]).ValueOrUnchanged(op->args[3]).as_or_throw<PrimExpr>();
+      PrimExpr offset = Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
+      PrimExpr extent = Mutate(op->args[2]).ValueOrUnchanged(op->args[2]).as_or_throw<PrimExpr>();
       PrimExpr stride = it->second / prim::MakeConst(offset.ty(), dtype.lanes());
       offset = RewriteIndex(offset, stride);
       Expr data =
           buffer.value()->ty.as<TensorTypeNode>()
               ? GetRemappedBuffer(buffer.value().as_or_throw<TensorVar>(), it->second).data()
-              : op->args[1];
+              : op->args[0];
 
-      return Call(op->ty, op->op, {op->args[0], data, offset, extent, op->args[4]});
+      return Call(op->ty, op->op, {data, offset, extent, op->args[3]}, op->attrs, op->ty_args,
+                  op->span);
     } else {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }

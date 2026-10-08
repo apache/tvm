@@ -96,6 +96,13 @@ Type InferTypePointerOffset(const CallNode* call) {
   return PointerType(element_type, pointer ? pointer.value()->storage_scope : "global");
 }
 
+Type InferTypeAccessPointer(const CallNode* call) {
+  TVM_FFI_CHECK_EQ(call->ty_args.size(), 1U, ValueError);
+  TVM_FFI_CHECK_EQ(call->args.size(), 4U, ValueError);
+  auto pointer = call->args[0]->ty.as<PointerType>();
+  return PointerType(call->ty_args[0], pointer ? pointer.value()->storage_scope : "global");
+}
+
 Type InferTypePrintBuffer(const CallNode* call) {
   TVM_FFI_CHECK_GE(call->args.size(), 2U, ValueError);
   return PrimType(ffi::StringToDLDataType(call->args[1].as_or_throw<StringImm>()->value));
@@ -470,22 +477,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.tvm_access_ptr")
-      .signature(sig::arg("ptype", "The pointer type."), sig::arg("data", "The input data."),
-                 sig::arg<IntExpr>("offset", "The offset."),
+      .signature(sig::ty_arg<PrimType>("access_dtype", "The accessed element type."),
+                 sig::arg("data", "The input data."), sig::arg<IntExpr>("offset", "The offset."),
                  sig::arg<IntExpr>("extent", "The extent."),
                  sig::arg<IntExpr>("rw_mask", "The read/write mask."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_access_ptr"))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypePointerOffset<1, 0>>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAccessPointer>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind",
                                  static_cast<int64_t>(CallEffectKind::kSpecialCallArg));
 
   OpDef("tirx.ptr_byte_offset")
       .signature(sig::arg("data", "Base pointer."),
-                 sig::arg<IntExpr>("byte_offset", "Offset in bytes."),
-                 sig::arg("dtype", "Type annotation for pointed-to elements."))
+                 sig::arg<IntExpr>("byte_offset", "Offset in bytes."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.ptr_byte_offset"))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypePointerOffset<0, 2>>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 

@@ -141,7 +141,7 @@ class PipelineOpaqueAccessRewriter {
         new_args.Set(0, new_buffer.data());
         new_args.Set(
             4, RewriteWmmaFragmentIndex(buffer, new_buffer, call->args[4].as_or_throw<PrimExpr>()));
-        return Call(call->ty, call->op, new_args, call->attrs, {}, call->span);
+        return Call(call->ty, call->op, new_args, call->attrs, call->ty_args, call->span);
       }
     } else if (call->op.same_as(mma_sync)) {
       ffi::Array<Expr> new_args = call->args;
@@ -157,9 +157,9 @@ class PipelineOpaqueAccessRewriter {
           new_args.Set(i * 2 + 1, new_index);
         }
       }
-      return Call(call->ty, call->op, new_args, call->attrs, {}, call->span);
+      return Call(call->ty, call->op, new_args, call->attrs, call->ty_args, call->span);
     } else if (call->op.same_as(access_ptr)) {
-      return RewriteBufferAccess(call, {1});
+      return RewriteBufferAccess(call, {0});
     } else if (call->op.same_as(ptx_mma_legacy)) {
       return RewriteBufferAccess(call, {6, 8, 10});
     } else if (call->op.same_as(ptx_ldmatrix_legacy)) {
@@ -217,7 +217,7 @@ class PipelineOpaqueAccessRewriter {
         new_args.Set(i + 1, new_index);
       }
     }
-    return Call(call->ty, call->op, new_args, call->attrs, {}, call->span);
+    return Call(call->ty, call->op, new_args, call->attrs, call->ty_args, call->span);
   }
 
   const ffi::Map<Var, TensorVar>& buffer_data_to_buffer_;

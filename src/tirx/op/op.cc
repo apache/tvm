@@ -68,27 +68,6 @@ Type GetType(const PrimExpr& expr) {
     }
   }
 
-  static const Op type_annotation_op = Op::Get("tirx.type_annotation");
-  if (auto* access = expr.as<CallNode>()) {
-    if (access->op.same_as(tirx::tvm_access_ptr_op())) {
-      TVM_FFI_ICHECK(access->args.size())
-          << "Builtin tvm_access_ptr() may not have empty arguments";
-      auto type_annotation = access->args[0].as_or_throw<Call>();
-      TVM_FFI_ICHECK(type_annotation->op.same_as(type_annotation_op))
-          << "Expected the first argument of builtin tvm_access_ptr() "
-          << "to be a type annotation, but found " << type_annotation->op;
-      return PointerType(type_annotation->ty.as_or_throw<PrimType>());
-    }
-    if (access->op.same_as(tirx::ptr_byte_offset_op())) {
-      TVM_FFI_ICHECK_EQ(access->args.size(), 3U);
-      auto type_annotation = access->args[2].as_or_throw<Call>();
-      TVM_FFI_ICHECK(type_annotation->op.same_as(type_annotation_op))
-          << "Expected the third argument of builtin ptr_byte_offset() "
-          << "to be a type annotation, but found " << type_annotation->op;
-      return PointerType(type_annotation->ty.as_or_throw<PrimType>());
-    }
-  }
-
   if (auto* address_of = expr.as<CallNode>()) {
     if (address_of->op.same_as(tirx::address_of_op())) {
       TVM_FFI_ICHECK_EQ(address_of->args.size(), 1)

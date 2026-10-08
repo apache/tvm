@@ -665,9 +665,9 @@ class SharedMemoryRewriter : public StmtExprMutator {
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     static const Op ptx_cp_async_op = Op::Get("tirx.s_tir.cp_async_raw");
     if (op->op.same_as(tirx::tvm_access_ptr_op())) {
-      TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
-      DLDataType dtype = op->args[0].as_or_throw<PrimExpr>().ty()->dtype;
-      auto buffer_opt = GetBufferDataVar(op->args[1]);
+      TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
+      DLDataType dtype = op->ty_args[0].as_or_throw<PrimType>()->dtype;
+      auto buffer_opt = GetBufferDataVar(op->args[0]);
       if (!buffer_opt.has_value()) {
         return StmtExprMutator::Mutate_(op, inplace_mode);
       }
@@ -684,10 +684,10 @@ class SharedMemoryRewriter : public StmtExprMutator {
                              ? GetUpdatedBuffer(buffer.as_or_throw<TensorVar>()).data()
                              : scope_stack_.back().merged_buffer.value().data();
 
-      PrimExpr offset = Mutate(op->args[2]).ValueOrUnchanged(op->args[2]).as_or_throw<PrimExpr>();
-      PrimExpr extent = Mutate(op->args[3]).ValueOrUnchanged(op->args[3]).as_or_throw<PrimExpr>();
-      return Call(op->ty, op->op,
-                  {op->args[0], merged_data, extra_offset + offset, extent, op->args[4]});
+      PrimExpr offset = Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
+      PrimExpr extent = Mutate(op->args[2]).ValueOrUnchanged(op->args[2]).as_or_throw<PrimExpr>();
+      return Call(op->ty, op->op, {merged_data, extra_offset + offset, extent, op->args[3]},
+                  op->attrs, op->ty_args, op->span);
     } else if (op->op.same_as(ptx_cp_async_op)) {
       TVM_FFI_ICHECK((op->args.size() == 5U) || (op->args.size() == 6U));
       auto buffer_opt = GetBufferDataVar(op->args[0]);

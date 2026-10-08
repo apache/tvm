@@ -1266,17 +1266,5 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         [](ScopeIdDef def, Span span) { return ScopeIdDefStmt(def, span); });
 }
 
-PrimExpr TypeAnnotation(PrimType dtype, Span span) {
-  static const Op type_annotation_op = Op::Get("tirx.type_annotation");
-  return Call(dtype, type_annotation_op, {}, {}, {}, span).as_or_throw<PrimExpr>();
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.type_annotation")
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.type_annotation"))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
-}
-
 }  // namespace tirx
 }  // namespace tvm

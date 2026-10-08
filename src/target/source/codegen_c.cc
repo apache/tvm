@@ -838,9 +838,9 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       this->PrintExpr(op->args[0], os);
       os << " == NULL)";
     } else if (op->op.same_as(tirx::ptr_byte_offset_op())) {
-      TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
+      TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
       os << "((";
-      PrintType(op->args[2].as_or_throw<PrimExpr>().ty(), os);
+      PrintType(op->ty.as_or_throw<PointerType>()->element_type, os);
       os << "*)(((char*)";
       this->PrintExpr(op->args[0], os);
       os << ") + ";

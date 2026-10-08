@@ -275,7 +275,7 @@ def opaque_access(
                     16,
                     vi * 8 + vj,
                     T.tvm_access_ptr(
-                        T.type_annotation(ty="float16"),
+                        "float16",
                         A.data,
                         vi * 2048 + vj * 16,
                         128,
@@ -318,7 +318,7 @@ def opaque_access(
                     16,
                     vi * 8 + vj,
                     T.tvm_access_ptr(
-                        T.type_annotation(ty="float16"),
+                        "float16",
                         A0.data,
                         A0.elem_offset,
                         A0.strides[0],
@@ -592,7 +592,7 @@ def cache_read_opaque_access(
                     16,
                     vi * 8 + vj,
                     T.tvm_access_ptr(
-                        T.type_annotation(ty="float16"),
+                        "float16",
                         A_global.data,
                         vi * 2048 + vj * 16,
                         128,
@@ -635,7 +635,7 @@ def cache_read_opaque_access(
                     16,
                     vi * 8 + vj,
                     T.tvm_access_ptr(
-                        T.type_annotation(ty="float16"),
+                        "float16",
                         A0.data,
                         A0.elem_offset,
                         A0.strides[0],
@@ -953,7 +953,7 @@ def cache_write_opaque_access(
                     16,
                     vi * 8 + vj,
                     T.tvm_access_ptr(
-                        T.type_annotation(ty="float16"),
+                        "float16",
                         A.data,
                         vi * 2048 + vj * 16,
                         128,
@@ -996,7 +996,7 @@ def cache_write_opaque_access(
                     16,
                     vi * 8 + vj,
                     T.tvm_access_ptr(
-                        T.type_annotation(ty="float16"),
+                        "float16",
                         A0.data,
                         A0.elem_offset,
                         A0.strides[0],

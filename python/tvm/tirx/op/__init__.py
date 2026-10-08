@@ -1107,32 +1107,13 @@ def tvm_warp_activemask(*, ty=None, span=None):
     return call_intrin(ty, "tirx.tvm_warp_activemask", span=span)
 
 
-def type_annotation(dtype):
-    """Create a type annotation expression
-
-    Parameters
-    ----------
-    dtype : Expr
-        The data type.
-
-    Returns
-    -------
-    call : Expr
-        The call expression.
-    """
-    return call_intrin(dtype, "tirx.type_annotation")
-
-
 def tvm_access_ptr(ptype, data, offset, extent, rw_mask, *, ty=None, span=None):
     """Get head access address with memory access pattern info
 
     Parameters
     ----------
-    ptype : Expr, PrimType, or str
-        The data type of pointer. If a ``PrimType`` or ``str``, it is wrapped
-        via :func:`type_annotation` so that the lowering rule (which reads
-        ``args[0].dtype()`` for the cast type) sees the intended dtype instead
-        of StringType from a string literal.
+    ptype : PrimType or str
+        The accessed element type. Offsets and extents are in units of this type.
 
     data : DType*
         The data of pointer.
@@ -1151,16 +1132,12 @@ def tvm_access_ptr(ptype, data, offset, extent, rw_mask, *, ty=None, span=None):
     call : Expr
         The call expression.
     """
-    if isinstance(ptype, str | PrimType):
-        ptype = type_annotation(ptype)
-    return call_intrin(
-        ty,
+    ptype = PrimType(ptype) if isinstance(ptype, str) else ptype
+    return Call(
         "tirx.tvm_access_ptr",
-        ptype,
-        data,
-        offset,
-        extent,
-        rw_mask,
+        [data, offset, extent, rw_mask],
+        ty=ty,
+        ty_args=[ptype],
         span=span,
     )
 
@@ -1171,14 +1148,14 @@ def ptr_byte_offset(data, byte_offset, dtype, *, ty=None, span=None):
     ``byte_offset`` is always in bytes.  Use this when the source CUDA shape
     needs an explicitly typed local pointer derived from a byte-addressed base.
     """
-    if isinstance(dtype, str | PrimType):
-        dtype = type_annotation(dtype)
+    dtype = PrimType(dtype) if isinstance(dtype, str) else dtype
+    data_type = getattr(data, "ty", None)
+    storage_scope = data_type.storage_scope if isinstance(data_type, PointerType) else "global"
     return call_intrin(
-        ty,
+        PointerType(dtype, storage_scope) if ty is None else ty,
         "tirx.ptr_byte_offset",
         data,
         byte_offset,
-        dtype,
         span=span,
     )
 

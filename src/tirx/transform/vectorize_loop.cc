@@ -798,7 +798,7 @@ class Vectorizer : public StmtExprMutator {
       if (op->args.same_as(new_args)) {
         return ffi::Unchanged();
       }
-      return Call(op->ty, op->op, new_args, op->attrs, {}, op->span);
+      return Call(op->ty, op->op, new_args, op->attrs, op->ty_args, op->span);
     }
     PrimType ret_ty = optional_ret_ty.value();
     if (op->op.same_as(prim::if_then_else_op())) {

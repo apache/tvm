@@ -50,27 +50,27 @@ struct AccessPtrBufferAlias {
 
 static Expr LowerAccessPtr(const CallNode* call,
                            std::vector<AccessPtrBufferAlias>* buffer_aliases) {
-  TVM_FFI_ICHECK_EQ(call->args.size(), 5U);
-  PrimType dtype = call->args[0].as_or_throw<PrimExpr>().ty();
-  PrimExpr offset = call->args[2].as_or_throw<PrimExpr>();
+  TVM_FFI_ICHECK_EQ(call->args.size(), 4U);
+  PrimType dtype = call->ty_args[0].as_or_throw<PrimType>();
+  PrimExpr offset = call->args[1].as_or_throw<PrimExpr>();
   TVM_FFI_ICHECK(call->ty.as<PointerTypeNode>());
 
   // An access pointer may itself be used as the base of another access
   // pointer.  Fold those offsets before constructing the synthetic
-  // TensorLoad so lowering never assumes that args[1] is immediately a Var.
-  Expr buffer = call->args[1];
+  // TensorLoad so lowering never assumes that args[0] is immediately a Var.
+  Expr buffer = call->args[0];
   while (const auto* inner = buffer.as<CallNode>()) {
     if (!inner->op.same_as(tvm_access_ptr_op())) break;
-    TVM_FFI_ICHECK_EQ(inner->args.size(), 5U);
-    PrimType inner_dtype = inner->args[0].as_or_throw<PrimExpr>().ty();
+    TVM_FFI_ICHECK_EQ(inner->args.size(), 4U);
+    PrimType inner_dtype = inner->ty_args[0].as_or_throw<PrimType>();
     TVM_FFI_ICHECK_EQ(inner_dtype, dtype)
         << "Nested tvm_access_ptr calls must use the same element type";
-    PrimExpr inner_offset = inner->args[2].as_or_throw<PrimExpr>();
+    PrimExpr inner_offset = inner->args[1].as_or_throw<PrimExpr>();
     if (inner_offset.ty() != offset.ty()) {
       inner_offset = prim::Cast(offset.ty(), inner_offset);
     }
     offset = inner_offset + offset;
-    buffer = inner->args[1];
+    buffer = inner->args[0];
   }
 
   const auto* buffer_data = buffer.as<CallNode>();
@@ -81,7 +81,7 @@ static Expr LowerAccessPtr(const CallNode* call,
 
   const auto* buffer_node = buffer.as<VarNode>();
   TVM_FFI_ICHECK(buffer_node)
-      << "tvm_access_ptr expects a buffer Var or nested tvm_access_ptr as args[1], but got "
+      << "tvm_access_ptr expects a buffer Var or nested tvm_access_ptr as args[0], but got "
       << buffer;
   Var buffer_var = ffi::GetRef<Var>(buffer_node);
   PrimExpr scalar_extent = offset + IntImm(offset.ty(), 1);

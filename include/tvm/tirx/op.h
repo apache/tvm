@@ -255,10 +255,10 @@ TVM_DLL const Op& prefetch_op();
  *  rw_mask is a bit_mask setting whether the access is a read(1) or write(2).
  *  The access is assume to happen in the current expression.
  *
- *  PtrType tvm_access_ptr(Expr dtype, DType* data,
+ *  PtrType tvm_access_ptr<DType>(DType* data,
  *                         int offset, int extent,
  *                         int rw_mask) {
- *    // DType == dtype.type();
+ *    // DType is the independent access type in ty_args[0].
  *    return &data[offset];
  *  }
  */
@@ -267,7 +267,7 @@ TVM_DLL const Op& tvm_access_ptr_op();
 /*!
  * \brief Cast a handle to a typed pointer after adding a byte offset.
  *
- *  DType* ptr_byte_offset(void* data, int byte_offset, Expr dtype) {
+ *  DType* ptr_byte_offset(void* data, int byte_offset) {
  *    return reinterpret_cast<DType*>(reinterpret_cast<char*>(data) + byte_offset);
  *  }
  */

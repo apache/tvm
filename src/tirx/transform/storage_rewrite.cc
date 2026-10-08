@@ -632,11 +632,10 @@ class StoragePlanRewriter : public StmtExprMutator {
                            .as_or_throw<Expr>());
         return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);
       }
-    } else if (op->op.same_as(tirx::tvm_access_ptr_op())) {
-      TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
-      PrimExpr dtype_marker = op->args[0].as_or_throw<PrimExpr>();
-      PrimType dtype = dtype_marker.ty();
-      auto buffer_var = GetBufferDataVar(op->args[1]);
+    } else if (op->op.same_as(tvm_access_ptr_op())) {
+      TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
+      PrimType dtype = op->ty_args[0].as_or_throw<PrimType>();
+      auto buffer_var = GetBufferDataVar(op->args[0]);
       if (!buffer_var.has_value()) {
         return StmtExprMutator::Mutate_(op, inplace_mode);
       }
@@ -651,18 +650,17 @@ class StoragePlanRewriter : public StmtExprMutator {
       }
       const StorageEntry* se = it->second;
       PrimExpr offset =
-          this->Mutate(op->args[2]).ValueOrUnchanged(op->args[2]).as_or_throw<PrimExpr>();
+          this->Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
       PrimExpr extent =
-          this->Mutate(op->args[3]).ValueOrUnchanged(op->args[3]).as_or_throw<PrimExpr>();
+          this->Mutate(op->args[2]).ValueOrUnchanged(op->args[2]).as_or_throw<PrimExpr>();
       uint64_t elem_bits = dtype.bits() * dtype.lanes();
       TVM_FFI_ICHECK_EQ(se->bits_offset % elem_bits, 0U);
       if (se->bits_offset != 0) {
         offset = MakeConst(offset.ty(), se->bits_offset / elem_bits) + offset;
       }
-      return Call(
-          op->ty, op->op,
-          {dtype_marker, se->alloc_var, offset, extent, op->args[4].as_or_throw<PrimExpr>()},
-          op->attrs, {}, op->span);
+      return Call(op->ty, op->op,
+                  {se->alloc_var, offset, extent, op->args[3].as_or_throw<PrimExpr>()}, op->attrs,
+                  op->ty_args, op->span);
     } else {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
@@ -1481,11 +1479,11 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
         indices.push_back(op->args[i].as_or_throw<PrimExpr>());
       }
       OnArrayAccess(dtype, buffer.get(), indices, is_load);
-    } else if (op->op.same_as(tirx::tvm_access_ptr_op())) {
-      PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
-      auto buffer_var = GetBufferDataVar(op->args[1]);
-      PrimExpr index = op->args[2].as_or_throw<PrimExpr>();
-      // args[1] may be a nested Call (e.g. another tvm_access_ptr) rather
+    } else if (op->op.same_as(tvm_access_ptr_op())) {
+      PrimType dtype = op->ty_args[0].as_or_throw<PrimType>();
+      auto buffer_var = GetBufferDataVar(op->args[0]);
+      PrimExpr index = op->args[1].as_or_throw<PrimExpr>();
+      // args[0] may be a nested Call (e.g. another tvm_access_ptr) rather
       // than a raw Var; OnArrayAccess derefs `buffer` so skip the record
       // here and let the recursive visit handle any inner buffer var.
       if (buffer_var.has_value()) {
@@ -2066,8 +2064,8 @@ class VectorTypeRewriter : public StmtExprMutator {
         return RemapBuffer(var.value().as_or_throw<TensorVar>()).data();
       }
     }
-    if (op->op.same_as(tirx::tvm_access_ptr_op())) {
-      auto buffer = GetBufferDataVar(op->args[1]);
+    if (op->op.same_as(tvm_access_ptr_op())) {
+      auto buffer = GetBufferDataVar(op->args[0]);
       Expr expr =
           StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Expr>(op));
       op = expr.as<CallNode>();
@@ -2087,21 +2085,19 @@ class VectorTypeRewriter : public StmtExprMutator {
       }
       const auto& info = it->second;
 
-      PrimExpr index = op->args[2].as_or_throw<PrimExpr>();
-      PrimExpr extent = op->args[3].as_or_throw<PrimExpr>();
-      PrimExpr flag = op->args[4].as_or_throw<PrimExpr>();
+      PrimExpr index = op->args[1].as_or_throw<PrimExpr>();
+      PrimExpr extent = op->args[2].as_or_throw<PrimExpr>();
+      PrimExpr flag = op->args[3].as_or_throw<PrimExpr>();
 
-      PrimExpr e_dtype = tirx::TypeAnnotation(info.new_element_dtype);
       int factor = info.factor();
       extent = extent / MakeConst(extent.ty(), factor);
       index = index / MakeConst(index.ty(), factor);
       Expr data = info.new_buffer_var->ty.as<TensorTypeNode>()
                       ? info.new_buffer_var.as_or_throw<TensorVar>().data()
                       : Expr(info.new_buffer_var);
-      ffi::Array<Expr> acc_args{e_dtype, data, index, extent, flag};
-      auto old_pointer_type = op->ty.as_or_throw<PointerType>();
-      Type new_pointer_type = PointerType(info.new_element_dtype, old_pointer_type->storage_scope);
-      return Call(new_pointer_type, tirx::tvm_access_ptr_op(), acc_args);
+      ffi::Array<Expr> acc_args{data, index, extent, flag};
+      return Call(op->ty, tvm_access_ptr_op(), acc_args, op->attrs, {info.new_element_dtype},
+                  op->span);
 
     } else {
       return StmtExprMutator::Mutate_(op, inplace_mode);
