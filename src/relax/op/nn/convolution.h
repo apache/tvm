@@ -25,7 +25,7 @@
 #ifndef TVM_RELAX_OP_NN_CONVOLUTION_H_
 #define TVM_RELAX_OP_NN_CONVOLUTION_H_
 
-#include <tvm/relax/op.h>
+#include <tvm/relax/op/nn.h>
 
 #include <string>
 #include <utility>

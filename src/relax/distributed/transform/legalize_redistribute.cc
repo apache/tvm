@@ -26,7 +26,8 @@
 #include <tvm/relax/distributed/axis_group_graph.h>
 #include <tvm/relax/distributed/transform.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/op.h>
+#include <tvm/relax/op/ccl.h>
+#include <tvm/relax/op/distributed.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include "../../../s_tir/schedule/transform.h"

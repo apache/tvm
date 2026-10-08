@@ -47,47 +47,6 @@ namespace tvm {
 namespace tirx {
 
 /*!
- * \name Region operations
- * \brief Operations used by RegionStmt to enclose a lexical body.
- *
- * Every region operation registers FRegionGetBodyParams, returning fresh typed
- * body parameters or an empty array for no parameters. Attribute presence alone
- * identifies region support; classification does not invoke the hook. Operands
- * and attributes are evaluated outside the body-parameter scope.
- * \{
- */
-/*!
- * \brief Thread launch region: operands are a nonempty StringImm tag and a
- * scalar signed or unsigned integer extent wider than one bit.
- * The sole body parameter is a fresh thread-index PrimVar matching the extent type.
- * Tags starting with vthread denote virtual threads. There are no attrs or results.
- */
-TVM_DLL const Op& launch_thread_op();
-
-/*!
- * \brief Mark a user-facing device entry containing device scope definitions.
- * Takes no operands, body parameters, attributes or results.
- */
-TVM_DLL const Op& device_entry_op();
-/*!
- * \brief Supply lexical device context for allocation and packed-call lowering.
- * Operands are integer device type and device ID; there are no body parameters,
- * attributes or results. The region does not change the active runtime device.
- */
-TVM_DLL const Op& device_context_op();
-/*!
- * \brief Outline the body as a CPU compute helper named by a StringImm operand.
- * There are no body parameters, attributes or results.
- */
-TVM_DLL const Op& compute_scope_op();
-/*!
- * \brief Launch a CPU worker team around parallel loops and team barriers.
- * Takes no operands, body parameters, attributes or results.
- */
-TVM_DLL const Op& parallel_launch_op();
-/*! \} */
-
-/*!
  * \name Call operations
  * \brief Operations invoked through Call with explicit operands and result types.
  * \{
@@ -787,106 +746,47 @@ enum TVMStructFieldKind : int {
 TVM_DLL const Op& print_buffer_op();
 /*! \} */
 
-/*! \brief Tile primitive operator handles. */
-namespace tile {
+/*!
+ * \name Region operations
+ * \brief Operations used by RegionStmt to enclose a lexical body.
+ *
+ * Every region operation registers FRegionGetBodyParams, returning fresh typed
+ * body parameters or an empty array for no parameters. Attribute presence alone
+ * identifies region support; classification does not invoke the hook. Operands
+ * and attributes are evaluated outside the body-parameter scope.
+ * \{
+ */
+/*!
+ * \brief Thread launch region: operands are a nonempty StringImm tag and a
+ * scalar signed or unsigned integer extent wider than one bit.
+ * The sole body parameter is a fresh thread-index PrimVar matching the extent type.
+ * Tags starting with vthread denote virtual threads. There are no attrs or results.
+ */
+TVM_DLL const Op& launch_thread_op();
 
 /*!
- * \brief See pesudo code below:
- *
- * Tx.cast(TensorRegion dst, TensorRegion src)
+ * \brief Mark a user-facing device entry containing device scope definitions.
+ * Takes no operands, body parameters, attributes or results.
  */
-TVM_DLL const Op& cast_op();
-
+TVM_DLL const Op& device_entry_op();
 /*!
- * \brief See pesudo code below:
- *
- * Tx.copy(TensorRegion dst, TensorRegion src)
+ * \brief Supply lexical device context for allocation and packed-call lowering.
+ * Operands are integer device type and device ID; there are no body parameters,
+ * attributes or results. The region does not change the active runtime device.
  */
-TVM_DLL const Op& copy_op();
-
+TVM_DLL const Op& device_context_op();
 /*!
- * \brief See pesudo code below:
- *
- * Tx.Async.copy(TensorRegion dst, TensorRegion src)
+ * \brief Outline the body as a CPU compute helper named by a StringImm operand.
+ * There are no body parameters, attributes or results.
  */
-TVM_DLL const Op& copy_async_op();
-
+TVM_DLL const Op& compute_scope_op();
 /*!
- * \brief See pesudo code below:
- *
- *  Tx.fill(TensorRegion dst, PrimExpr value)
+ * \brief Launch a CPU worker team around parallel loops and team barriers.
+ * Takes no operands, body parameters, attributes or results.
  */
-TVM_DLL const Op& fill_op();
+TVM_DLL const Op& parallel_launch_op();
+/*! \} */
 
-/*!
- * \brief See pesudo code below:
- *
- * Tx.gemm(TensorVar A, TensorVar B, TensorVar C, TensorVar D, PrimExpr alpha, PrimExpr beta)
- */
-TVM_DLL const Op& gemm_op();
-
-/*!
- * \brief See pesudo code below:
- *
- * Tx.gemm_async(TensorRegion C, TensorRegion A, TensorRegion B, bool transA, bool transB,
- * bool accum)
- */
-TVM_DLL const Op& gemm_async_op();
-
-TVM_DLL const Op& zero_op();
-
-TVM_DLL const Op& sqrt_op();
-TVM_DLL const Op& sqrt_with_scale_bias_op();
-
-TVM_DLL const Op& exp_op();
-TVM_DLL const Op& exp_with_scale_bias_op();
-
-TVM_DLL const Op& exp2_op();
-TVM_DLL const Op& exp2_with_scale_bias_op();
-
-TVM_DLL const Op& log2_op();
-TVM_DLL const Op& log2_with_scale_bias_op();
-
-TVM_DLL const Op& add_op();
-
-TVM_DLL const Op& sub_op();
-
-TVM_DLL const Op& mul_op();
-
-TVM_DLL const Op& fdiv_op();
-
-TVM_DLL const Op& minimum_op();
-
-TVM_DLL const Op& maximum_op();
-
-TVM_DLL const Op& reciprocal_op();
-
-TVM_DLL const Op& sum_op();
-
-TVM_DLL const Op& max_op();
-
-TVM_DLL const Op& min_op();
-
-TVM_DLL const Op& memset_op();
-
-TVM_DLL const Op& reduce_negate_op();
-
-TVM_DLL const Op& binary_reduce_op();
-
-TVM_DLL const Op& unary_reduce_op();
-TVM_DLL const Op& unary_reduce_with_scale_bias_op();
-
-TVM_DLL const Op& binary_chain_op();
-
-TVM_DLL const Op& select_op();
-
-TVM_DLL const Op& fma_op();
-
-TVM_DLL const Op& silu_op();
-
-TVM_DLL const Op& permute_layout_op();
-
-}  // namespace tile
 }  // namespace tirx
 }  // namespace tvm
 

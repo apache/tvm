@@ -23,7 +23,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/distributed/type.h>
 #include <tvm/relax/expr.h>
-#include <tvm/relax/op.h>
+#include <tvm/relax/op/op.h>
 #include <tvm/relax/utils.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>

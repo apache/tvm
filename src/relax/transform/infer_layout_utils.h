@@ -30,7 +30,13 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/nested_msg.h>
-#include <tvm/relax/op.h>
+#include <tvm/relax/op/create.h>
+#include <tvm/relax/op/datatype.h>
+#include <tvm/relax/op/image.h>
+#include <tvm/relax/op/linear_algebra.h>
+#include <tvm/relax/op/manipulate.h>
+#include <tvm/relax/op/nn.h>
+#include <tvm/relax/op/statistical.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/s_tir/data_layout.h>
 

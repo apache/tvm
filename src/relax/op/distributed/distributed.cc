@@ -26,7 +26,7 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/relax/op.h>
+#include <tvm/relax/op/ccl.h>
 #include <tvm/topi/einsum.h>
 
 #include <algorithm>

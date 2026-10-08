@@ -25,7 +25,7 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
-#include <tvm/relax/op.h>
+#include <tvm/relax/op/vision.h>
 #include <tvm/relax/type.h>
 #include <tvm/sym/analyzer.h>
 

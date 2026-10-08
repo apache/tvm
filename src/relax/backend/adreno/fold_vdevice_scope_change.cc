@@ -28,7 +28,7 @@
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
-#include <tvm/relax/op.h>
+#include <tvm/relax/op/op.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/tirx/index_map.h>
 

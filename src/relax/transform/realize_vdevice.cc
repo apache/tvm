@@ -25,7 +25,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/op.h>
+#include <tvm/relax/op/op.h>
 #include <tvm/relax/transform.h>
 
 namespace tvm {

@@ -16,7 +16,7 @@
 # under the License.
 """TIRx tile primitive IR nodes: DispatchContext, TilePrimitiveCall.
 
-Mirrors the C++ header ``include/tvm/tirx/tile_primitive.h``.
+Mirrors the C++ header ``include/tvm/tirx/tile_op.h``.
 """
 # pylint: disable=no-member
 

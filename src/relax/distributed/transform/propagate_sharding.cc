@@ -27,7 +27,10 @@
 #include <tvm/relax/distributed/axis_group_graph.h>
 #include <tvm/relax/distributed/transform.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/op.h>
+#include <tvm/relax/op/distributed.h>
+#include <tvm/relax/op/linear_algebra.h>
+#include <tvm/relax/op/manipulate.h>
+#include <tvm/relax/op/statistical.h>
 
 #include <numeric>
 

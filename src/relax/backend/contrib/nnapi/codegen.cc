@@ -31,7 +31,7 @@
 
 #include "../../../transform/utils.h"
 #include "../codegen_json/codegen_json.h"
-#include "tvm/relax/op.h"
+#include "tvm/relax/op/manipulate.h"
 
 namespace tvm {
 namespace relax {

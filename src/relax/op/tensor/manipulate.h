@@ -25,7 +25,7 @@
 #define TVM_RELAX_OP_TENSOR_MANIPULATE_H_
 
 #include <tvm/ffi/container/variant.h>
-#include <tvm/relax/op.h>
+#include <tvm/relax/op/manipulate.h>
 
 #include "../op_common.h"
 #include "tvm/relax/expr.h"

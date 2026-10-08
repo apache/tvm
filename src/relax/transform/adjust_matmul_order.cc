@@ -27,7 +27,8 @@
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/op.h>
+#include <tvm/relax/op/linear_algebra.h>
+#include <tvm/relax/op/manipulate.h>
 #include <tvm/relax/transform.h>
 #include <tvm/tirx/op.h>
 

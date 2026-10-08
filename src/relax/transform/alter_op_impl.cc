@@ -29,7 +29,7 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/op.h>
+#include <tvm/relax/op/manipulate.h>
 #include <tvm/relax/transform.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
