@@ -26,7 +26,7 @@ from triton.runtime.jit import type_canonicalisation_dict
 from tvm import tirx
 from tvm.ir import PointerType, PrimType, is_prim_expr
 from tvm.runtime import Module
-from tvm.topi.utils import get_const_int
+from tvm.sym.utils import get_const_int
 
 from .external_kernel import BaseKernel
 

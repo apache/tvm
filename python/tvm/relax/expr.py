@@ -30,10 +30,10 @@ import tvm.ir
 import tvm.relax
 import tvm.runtime
 from tvm import DataType
+from tvm.ir import Scriptable
 
 from ..ir import BaseFunc, Node, Span
 from ..ir.expr import _CallableExprWithOp
-from ..runtime import Scriptable
 from . import _ffi_api
 
 # It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370

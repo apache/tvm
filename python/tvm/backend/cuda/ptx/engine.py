@@ -42,10 +42,9 @@ from tvm_ffi import get_global_func, register_global_func, structural_equal
 from tvm.backend.cuda.codegen.registry import register_codegen
 from tvm.backend.cuda.codegen.utils import parse_str
 from tvm.backend.cuda.op import cuda_cvta_generic_to_shared, cuda_func_call
-from tvm.ir import Call, Op, StringImm, TensorLoad
+from tvm.ir import Call, Op, StringImm, TensorLoad, const
 from tvm.ir.op import register_op_attr
 from tvm.ir.type import PointerType, PrimType
-from tvm.runtime import const
 from tvm.tirx.expr import CallEffectKind, IntImm
 from tvm.tirx.op import call_intrin, reinterpret
 

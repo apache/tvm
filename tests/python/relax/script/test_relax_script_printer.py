@@ -28,11 +28,11 @@ from tvm import IRModule, relax, tirx
 from tvm.ir import Range
 from tvm.relax import TensorType
 from tvm.relax.distributed import DeviceMesh, DTensorType, Placement
-from tvm.runtime.script_printer import PrinterConfig, _script
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
+from tvm.script.printer.scriptable import PrinterConfig, _script
 
 
 def _assert_print(obj, expected):

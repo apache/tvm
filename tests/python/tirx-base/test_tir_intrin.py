@@ -30,7 +30,8 @@ import tvm.testing
 from tvm import tirx
 from tvm.script import ir as I
 from tvm.script import tirx as T
-from tvm.support import clang, utils
+from tvm.support import utils
+from tvm.target import clang
 
 
 def _unary_kernel(op, dtype="float32", out_dtype=None, gpu=False):

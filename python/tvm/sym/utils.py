@@ -14,8 +14,33 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401
-"""Common implementation of object generic related logic"""
+"""Utilities for extracting values from symbolic expressions."""
 
-# pylint: disable=unused-import, invalid-name
-from tvm_ffi import ObjectConvertible
+from numbers import Integral
+
+from tvm.ir.prim import IntImm
+
+from .analyzer import Analyzer
+
+
+def get_const_int(expr):
+    """Verifies expr is integer and get the constant value.
+
+    Parameters
+    ----------
+    expr : tvm.Expr or int
+        The input expression.
+
+    Returns
+    -------
+    out_value : int
+        The output.
+    """
+    if isinstance(expr, Integral):
+        return expr
+    if not isinstance(expr, IntImm):
+        ana = Analyzer()
+        expr = ana.simplify(expr)
+    if not isinstance(expr, IntImm):
+        raise ValueError("Expect value to be constant int")
+    return int(expr.value)

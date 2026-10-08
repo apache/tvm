@@ -20,8 +20,7 @@ import pytest
 import tvm_ffi
 
 import tvm
-from tvm.ir import Call, Op
-from tvm.runtime import const
+from tvm.ir import Call, Op, const
 from tvm.script import tirx as T
 from tvm.tirx.expr import Broadcast, CallEffectKind
 

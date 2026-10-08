@@ -302,7 +302,7 @@ def has_cuda_arch(*arches: str, device_id: int = 0) -> bool:
 def _cuda_compute_version() -> tuple:
     """Return the (major, minor) CUDA compute version, or (0, 0) if unknown."""
     try:
-        from tvm.support import nvcc  # pylint: disable=import-outside-toplevel
+        from tvm.backend.cuda import nvcc  # pylint: disable=import-outside-toplevel
 
         arch = nvcc.get_target_compute_version()
         return nvcc.parse_compute_version(arch)
@@ -330,7 +330,7 @@ def has_cuda_compute(major: int, minor: int = 0, exact: bool = False) -> bool:
 def _nvcc_version() -> tuple:
     """Return the (major, minor, release) nvcc version, or (0, 0, 0)."""
     try:
-        from tvm.support import nvcc  # pylint: disable=import-outside-toplevel
+        from tvm.backend.cuda import nvcc  # pylint: disable=import-outside-toplevel
 
         return nvcc.get_cuda_version()
     except Exception:  # pylint: disable=broad-except
@@ -365,7 +365,7 @@ def has_llvm_min_version(major: int) -> bool:
 def has_matrixcore() -> bool:
     """True if a ROCm device with Matrix Core support (compute >= 8) exists."""
     try:
-        from tvm.support import rocm  # pylint: disable=import-outside-toplevel
+        from tvm.backend.rocm import utils as rocm  # pylint: disable=import-outside-toplevel
 
         return has_rocm() and bool(rocm.have_matrixcore(tvm.rocm().compute_version))
     except Exception:  # pylint: disable=broad-except
@@ -382,7 +382,7 @@ def has_cudagraph() -> bool:
     (add ``@pytest.mark.gpu`` for CI selection).
     """
     try:
-        from tvm.support import nvcc  # pylint: disable=import-outside-toplevel
+        from tvm.backend.cuda import nvcc  # pylint: disable=import-outside-toplevel
 
         return has_cuda() and bool(nvcc.have_cudagraph())
     except Exception:  # pylint: disable=broad-except

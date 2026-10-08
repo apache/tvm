@@ -321,8 +321,8 @@ extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__
 
 @pytest.fixture
 def postproc_if_missing_async_support():
-    arch = tvm.support.nvcc.get_target_compute_version()
-    major, _ = tvm.support.nvcc.parse_compute_version(arch)
+    arch = tvm.backend.cuda.nvcc.get_target_compute_version()
+    major, _ = tvm.backend.cuda.nvcc.parse_compute_version(arch)
     support_async = major >= 8
 
     func_name = "tvm_callback_cuda_postproc"

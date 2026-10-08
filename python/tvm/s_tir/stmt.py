@@ -20,8 +20,8 @@ from collections.abc import Mapping, Sequence
 
 import tvm_ffi
 
-from tvm.ir import Expr, Span, TensorRegion, Var
-from tvm.runtime import Object, Scriptable, const
+from tvm.ir import Expr, Scriptable, Span, TensorRegion, Var, const
+from tvm.runtime import Object
 from tvm.s_tir import IterVar
 from tvm.tirx.stmt import SeqStmt, Stmt
 

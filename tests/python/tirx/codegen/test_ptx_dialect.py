@@ -49,7 +49,7 @@ PTX_ARCH = os.environ.get("PTX_ARCH", "sm_90")
 
 def _assert_ptxas_ok(src: str, rdc: bool = False, arch: str = PTX_ARCH) -> None:
     """Assemble through ptxas (cubin) — `-ptx` alone never validates inline asm."""
-    from tvm.support import nvcc
+    from tvm.backend.cuda import nvcc
 
     options = ["-rdc=true"] if rdc else None
     nvcc.compile_cuda(src, target_format="cubin", arch=arch, options=options, compiler="nvcc")

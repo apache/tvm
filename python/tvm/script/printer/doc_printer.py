@@ -18,7 +18,7 @@
 
 from tvm_ffi.access_path import AccessPath
 
-from tvm.runtime.script_printer import PrinterConfig
+from tvm.script.printer.scriptable import PrinterConfig
 
 from . import _ffi_api
 from .doc import Doc

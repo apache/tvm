@@ -27,9 +27,8 @@ import warnings
 import tvm_ffi
 
 import tvm
+from tvm.support import utils
 from tvm.target import Target
-
-from . import utils
 
 
 def _ptxas_option_flags():

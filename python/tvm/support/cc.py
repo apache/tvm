@@ -22,6 +22,11 @@ import subprocess
 
 # pylint: disable=invalid-name
 import sys
+from pathlib import Path
+
+import tvm_ffi
+
+from tvm import libinfo
 
 from . import tar as _tar
 from . import utils as _utils
@@ -416,3 +421,118 @@ def _windows_compile(output, objects, options, cwd=None, ccache_env=None):
         msg += out.decode("utf-8", errors="replace")
 
         raise RuntimeError(msg)
+
+
+def tvm_home() -> Path:
+    """Find TVM's home directory. If `TVM_HOME` environment variable is set, use it.
+    Otherwise, use the directory where the `tvm` Python package is installed.
+    As a sanity check, it is required to have `include` and `3rdparty` as direct subdirectories.
+
+    Returns
+    -------
+    tvm_home : pathlib.Path
+        The TVM home directory, and it is guaranteed to have `include` and `3rdparty` as
+        direct subdirectories.
+    """
+    if os.environ.get("TVM_HOME", None):
+        tvm_path = Path(os.environ["TVM_HOME"])
+        assert tvm_path.exists(), (
+            f"Using environment variable `TVM_HOME`, but directory not found: {tvm_path!s}"
+        )
+        assert tvm_path.is_dir(), (
+            f"Using environment variable `TVM_HOME`, but it is not a directory: {tvm_path!s}"
+        )
+    else:
+        tvm_path = Path(libinfo.__file__).parent
+        assert tvm_path.is_dir()
+    tvm_path = tvm_path.resolve()
+    while True:
+        exists_include = (tvm_path / "include").is_dir()
+        exists_3rdparty = (tvm_path / "3rdparty").is_dir()
+        if exists_include and exists_3rdparty:
+            return tvm_path.resolve()
+        parent = tvm_path.parent
+        if parent == tvm_path:
+            raise ValueError(
+                "Cannot detect TVM directory. "
+                "Please explicitly specify it by setting `TVM_HOME` environment variable, "
+                "and make sure it contains `include` and `3rdparty` as direct sub-directories."
+            )
+        tvm_path = parent
+    return tvm_path.resolve()
+
+
+def get_includes(tvm_pkg: list[str] | None = None) -> list[Path]:
+    """Returns the default include paths according to `tvm_home()`.
+    By default, it includes TVM, DLPack. With `tvm_pkg` provided, it also
+    includes the specified package under `tvm_home/3rdparty`.
+
+    Parameters
+    ----------
+    tvm_pkg : Optional[List[str]]
+        The list of packages to be included under `tvm_home/3rdparty`. Each element should be
+        a relative path to `tvm_home/3rdparty`.
+
+    Returns
+    -------
+    includes : List[pathlib.Path]
+        The list of include paths.
+    """
+    results = [
+        Path(libinfo.find_include_path()),
+        Path(tvm_ffi.libinfo.find_include_path()),
+        Path(tvm_ffi.libinfo.find_dlpack_include_path()),
+    ]
+    if tvm_pkg:
+        home_path = tvm_home()
+        for relative in tvm_pkg:
+            results.append(home_path / "3rdparty" / relative)
+    results = list(dict.fromkeys(results))
+    for path in results:
+        assert path.exists(), f"Not found: {path!s}"
+        assert path.is_dir(), f"Not a directory: {path!s}"
+    return results
+
+
+def get_compile_options(
+    source_format: str,
+    tvm_pkg: list[str] | None = None,
+) -> list[str]:
+    """Returns the default compile options depending on `source_format`, including the default
+    inlcude paths w.r.t. `tvm_home()`, and by default,
+    it uses "-O3" and "-std=c++17".
+
+    Parameters
+    ----------
+    source_format : str
+        The source code format. It can be either "cpp" or "cu".
+
+    tvm_pkg : Optional[List[str]]
+        The list of packages to be included under `tvm_home/3rdparty`. Each element should be
+        a relative path to `tvm_home/3rdparty`.
+
+    Returns
+    -------
+    compile_options : List[str]
+        The list of compilation flags.
+    """
+    include_flags = []
+    for include_path in get_includes(tvm_pkg=tvm_pkg):
+        include_flags += ["-I", str(include_path)]
+    if source_format == "cpp":
+        host_flags = [
+            "-c",  # generate object file
+            "-O3",
+            "-std=c++17",
+        ]
+    elif source_format == "cu":
+        host_flags = [
+            "-c",  # generate object file
+            "-O3",
+            "-std=c++17",
+            # Enable `-fPIC` for the host compiler
+            "-Xcompiler=-fPIC",
+        ]
+    else:
+        raise ValueError(f"Invalid source format: {source_format}")
+    return include_flags + host_flags

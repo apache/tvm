@@ -28,9 +28,10 @@ import tvm_ffi
 
 from tvm import __version__ as tvm_version
 from tvm import tirx
-from tvm.ir import Expr, PointerType, is_prim_expr
-from tvm.runtime import Module, const
-from tvm.support import nvcc
+from tvm.backend.cuda import nvcc
+from tvm.ir import Expr, PointerType, const, is_prim_expr
+from tvm.runtime import Module
+from tvm.support import cc
 
 
 class BaseKernel:  # pylint: disable=too-few-public-methods
@@ -121,10 +122,6 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
         **kwargs: dict[str, Any],
     ) -> tuple[str, Module, list[Any]]:
         """Compile the kernel to a device module."""
-        from tvm.relax.frontend.nn import (  # pylint: disable=import-outside-toplevel
-            SourceModule,
-        )
-
         kernel_name = kwargs["kernel_name"]
         assert len(grid) == 2, (
             "grid should be two list of integers, representing the dimension of "
@@ -147,8 +144,8 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
                 kernel_arg_types.append(str(arg.ty.dtype))
         runtime_args = runtime_args + list(grid[0]) + list(grid[1])
 
-        # Reuse compilation path from SourceModule
-        compile_options = SourceModule.get_compile_options("cu")
+        # Use shared source compilation options.
+        compile_options = cc.get_compile_options("cu")
         source_code = self.source_code
         try:
             source_path = Path(source_code)

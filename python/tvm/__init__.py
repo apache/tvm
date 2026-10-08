@@ -31,7 +31,7 @@ from .base import _RUNTIME_ONLY
 
 # tvm.runtime
 from .runtime import Object
-from .runtime._tensor import device, device_from_target, cpu, cuda, opencl, vulkan, metal
+from .runtime._tensor import device, cpu, cuda, opencl, vulkan, metal
 from .runtime._tensor import vpi, rocm, ext_dev, hexagon
 from .runtime import DataType, DataTypeCode
 
@@ -57,6 +57,7 @@ from . import backend
 
 # tvm.target
 from . import target
+from .target import device_from_target
 
 # tvm.te
 from . import te
@@ -71,7 +72,8 @@ from . import sym
 from . import support
 
 # Side-effect imports: register CUDA/ROCm FFI callbacks at TVM startup
-from .support import rocm as _rocm, nvcc as _nvcc
+from .backend.rocm import utils as _rocm
+from .backend.cuda import nvcc as _nvcc
 
 # Relax contain modules that are only available in compiler package
 # Do not import them if TVM is built with runtime only
