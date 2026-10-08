@@ -22,6 +22,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/op.h>
@@ -760,16 +761,24 @@ class SplitMutator : public ExprMutator {
       new_call->args = {lib_func, call->args[1]};
       return Call(new_call);
     }
+    // Preserve identities already created by structural hooks.
+    ffi::Map<tvm::Var, tvm::Var> definition_remap1;
+    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+        split_funcs.first, [&](const tvm::Var& var, TVMFFIDefRegionKind kind) {
+          if (kind != kTVMFFIDefRegionKindNone) definition_remap1.Set(var, var);
+          return ffi::WalkResult::Advance();
+        });
     tirx::Function func1 =
         ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
             split_funcs.first,
-            [remap = ffi::Map<tvm::Var, tvm::Var>{}](const tvm::Var& var,
-                                                     TVMFFIDefRegionKind kind) mutable {
-              if (auto mapped = remap.Get(var)) return mapped.value();
+            [remap = std::move(definition_remap1)](const tvm::Var& var,
+                                                   TVMFFIDefRegionKind kind) mutable {
+              auto mapped = remap.Get(var);
+              if (!mapped.has_value()) return var;
+              if (!mapped.value().same_as(var)) return mapped.value();
               if (kind == kTVMFFIDefRegionKindNone) return var;
               tvm::Var fresh(var->name, var->ty, var->span);
               remap.Set(var, fresh);
-              remap.Set(fresh, fresh);
               return fresh;
             },
             [](const tirx::Function& mapped) {
@@ -777,16 +786,24 @@ class SplitMutator : public ExprMutator {
                                     mapped->span);
             })
             .as_or_throw<tirx::Function>();
+    // Preserve identities already created by structural hooks.
+    ffi::Map<tvm::Var, tvm::Var> definition_remap2;
+    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+        split_funcs.second.value(), [&](const tvm::Var& var, TVMFFIDefRegionKind kind) {
+          if (kind != kTVMFFIDefRegionKindNone) definition_remap2.Set(var, var);
+          return ffi::WalkResult::Advance();
+        });
     tirx::Function func2 =
         ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
             split_funcs.second.value(),
-            [remap = ffi::Map<tvm::Var, tvm::Var>{}](const tvm::Var& var,
-                                                     TVMFFIDefRegionKind kind) mutable {
-              if (auto mapped = remap.Get(var)) return mapped.value();
+            [remap = std::move(definition_remap2)](const tvm::Var& var,
+                                                   TVMFFIDefRegionKind kind) mutable {
+              auto mapped = remap.Get(var);
+              if (!mapped.has_value()) return var;
+              if (!mapped.value().same_as(var)) return mapped.value();
               if (kind == kTVMFFIDefRegionKindNone) return var;
               tvm::Var fresh(var->name, var->ty, var->span);
               remap.Set(var, fresh);
-              remap.Set(fresh, fresh);
               return fresh;
             },
             [](const tirx::Function& mapped) {

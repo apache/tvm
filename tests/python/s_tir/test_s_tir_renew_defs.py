@@ -32,14 +32,22 @@ from tvm.tirx.function import Function
 def _renew_defs(func):
     remap = {}
 
+    def collect_definition(var, kind):
+        if kind != DefRegionKind.NONE:
+            remap[var] = var
+
+    tvm_ffi.structural_walk(func, with_def_region_kind=(Var, collect_definition))
+
     def renew_var(var, kind):
-        if var in remap:
-            return remap[var]
+        if var not in remap:
+            return var
+        mapped = remap[var]
+        if not mapped.same_as(var):
+            return mapped
         if kind == DefRegionKind.NONE:
             return var
         fresh = Var(var.name, var.ty, var.span)
         remap[var] = fresh
-        remap[fresh] = fresh
         return fresh
 
     def rebuild_function(mapped):

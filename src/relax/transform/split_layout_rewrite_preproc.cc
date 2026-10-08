@@ -22,6 +22,7 @@
  * \brief Use for rewriting the TIRs after meta_schedule layout rewrite post process.
  */
 #include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/expr_functor.h>
@@ -101,15 +102,23 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
     DictAttrs attrs(dict);
     tirx::Function func = tirx::Function(params, SeqStmt(body), VoidType(), attrs);
 
+    // Preserve identities already created by structural hooks.
+    ffi::Map<tvm::Var, tvm::Var> definition_remap;
+    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+        func, [&](const tvm::Var& var, TVMFFIDefRegionKind kind) {
+          if (kind != kTVMFFIDefRegionKindNone) definition_remap.Set(var, var);
+          return ffi::WalkResult::Advance();
+        });
     return ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
                func,
-               [remap = ffi::Map<tvm::Var, tvm::Var>{}](const tvm::Var& var,
-                                                        TVMFFIDefRegionKind kind) mutable {
-                 if (auto mapped = remap.Get(var)) return mapped.value();
+               [remap = std::move(definition_remap)](const tvm::Var& var,
+                                                     TVMFFIDefRegionKind kind) mutable {
+                 auto mapped = remap.Get(var);
+                 if (!mapped.has_value()) return var;
+                 if (!mapped.value().same_as(var)) return mapped.value();
                  if (kind == kTVMFFIDefRegionKindNone) return var;
                  tvm::Var fresh(var->name, var->ty, var->span);
                  remap.Set(var, fresh);
-                 remap.Set(fresh, fresh);
                  return fresh;
                },
                [](const tirx::Function& mapped) {
@@ -162,15 +171,23 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
     DictAttrs attrs(dict);
     tirx::Function func = tirx::Function(params, SeqStmt(body), VoidType(), attrs);
 
+    // Preserve identities already created by structural hooks.
+    ffi::Map<tvm::Var, tvm::Var> definition_remap;
+    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+        func, [&](const tvm::Var& var, TVMFFIDefRegionKind kind) {
+          if (kind != kTVMFFIDefRegionKindNone) definition_remap.Set(var, var);
+          return ffi::WalkResult::Advance();
+        });
     return ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
                func,
-               [remap = ffi::Map<tvm::Var, tvm::Var>{}](const tvm::Var& var,
-                                                        TVMFFIDefRegionKind kind) mutable {
-                 if (auto mapped = remap.Get(var)) return mapped.value();
+               [remap = std::move(definition_remap)](const tvm::Var& var,
+                                                     TVMFFIDefRegionKind kind) mutable {
+                 auto mapped = remap.Get(var);
+                 if (!mapped.has_value()) return var;
+                 if (!mapped.value().same_as(var)) return mapped.value();
                  if (kind == kTVMFFIDefRegionKindNone) return var;
                  tvm::Var fresh(var->name, var->ty, var->span);
                  remap.Set(var, fresh);
-                 remap.Set(fresh, fresh);
                  return fresh;
                },
                [](const tirx::Function& mapped) {

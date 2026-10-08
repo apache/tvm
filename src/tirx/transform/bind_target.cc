@@ -36,6 +36,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/tirx/op.h>
@@ -307,16 +308,24 @@ IRModule BindTarget(IRModule mod, const Target& target) {
       if (called_by_host && called_by_device) {
         // Rule 4.1: Called by both host and device
         // Bind device target to current function
+        // Preserve identities already created by structural hooks.
+        ffi::Map<tvm::Var, tvm::Var> definition_remap;
+        ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+            function, [&](const tvm::Var& var, TVMFFIDefRegionKind kind) {
+              if (kind != kTVMFFIDefRegionKindNone) definition_remap.Set(var, var);
+              return ffi::WalkResult::Advance();
+            });
         Function host_func =
             ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
                 function,
-                [remap = ffi::Map<tvm::Var, tvm::Var>{}](const tvm::Var& var,
-                                                         TVMFFIDefRegionKind kind) mutable {
-                  if (auto mapped = remap.Get(var)) return mapped.value();
+                [remap = std::move(definition_remap)](const tvm::Var& var,
+                                                      TVMFFIDefRegionKind kind) mutable {
+                  auto mapped = remap.Get(var);
+                  if (!mapped.has_value()) return var;
+                  if (!mapped.value().same_as(var)) return mapped.value();
                   if (kind == kTVMFFIDefRegionKindNone) return var;
                   tvm::Var fresh(var->name, var->ty, var->span);
                   remap.Set(var, fresh);
-                  remap.Set(fresh, fresh);
                   return fresh;
                 },
                 [](const tirx::Function& mapped) {
