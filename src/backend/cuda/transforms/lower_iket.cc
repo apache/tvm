@@ -626,12 +626,6 @@ class StripIket : public StmtExprMutator {
   TokenBufferSet token_buffers_;
 };
 
-bool IsEvaluateZero(const Stmt& stmt) {
-  const auto* evaluate = stmt.as<EvaluateNode>();
-  const auto* value = evaluate ? evaluate->value.as<IntImmNode>() : nullptr;
-  return value && value->value == 0;
-}
-
 class RemoveStrippedIketNoOps : public StmtExprMutator {
  private:
   Stmt PreserveConditionEffects(const PrimExpr& condition) {
@@ -641,14 +635,14 @@ class RemoveStrippedIketNoOps : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     auto result = StmtExprMutator::Mutate_(loop, inplace_mode);
     if (!result.IsUnchanged()) loop = ffi::AnyView(result).as<ForNode>();
-    if (IsEvaluateZero(loop->body)) return loop->body;
+    if (loop->body->seq.empty()) return loop->body;
     return result;
   }
 
   UnchangedOr<Stmt> Mutate_(const WhileNode* loop, InplaceMode inplace_mode) final {
     auto result = StmtExprMutator::Mutate_(loop, inplace_mode);
     if (!result.IsUnchanged()) loop = ffi::AnyView(result).as<WhileNode>();
-    if (IsEvaluateZero(loop->body)) return loop->body;
+    if (loop->body->seq.empty()) return loop->body;
     return result;
   }
 
@@ -656,11 +650,11 @@ class RemoveStrippedIketNoOps : public StmtExprMutator {
     auto result = StmtExprMutator::Mutate_(branch, inplace_mode);
     if (!result.IsUnchanged()) branch = ffi::AnyView(result).as<IfThenElseNode>();
     if (!branch->else_case.has_value()) {
-      if (IsEvaluateZero(branch->then_case)) return PreserveConditionEffects(branch->condition);
+      if (branch->then_case->seq.empty()) return PreserveConditionEffects(branch->condition);
       return result;
     }
-    bool empty_then = IsEvaluateZero(branch->then_case);
-    bool empty_else = IsEvaluateZero(branch->else_case.value());
+    bool empty_then = branch->then_case->seq.empty();
+    bool empty_else = branch->else_case.value()->seq.empty();
     if (empty_then && empty_else) return PreserveConditionEffects(branch->condition);
     if (empty_else) {
       return IfThenElse(branch->condition, branch->then_case, std::nullopt, branch->span);
