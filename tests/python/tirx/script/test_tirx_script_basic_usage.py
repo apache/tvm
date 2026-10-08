@@ -929,7 +929,7 @@ def test_thread_binding_has_no_dtype_parameter():
 def test_hand_built_for_promotes_int_literal_bounds_to_uint32():
     """The For constructor retypes literal bounds to the loop var's dtype."""
     loop_var = tvm.tirx.Var("i", "uint32")
-    loop = tvm.tirx.For(loop_var, 0, 128, tvm.tirx.ForKind.SERIAL, tvm.tirx.Evaluate(0))
+    loop = tvm.tirx.For(loop_var, 0, 128, tvm.tirx.ForKind.DEFAULT, tvm.tirx.Evaluate(0))
     assert loop.min.ty == PrimType("uint32")
     assert loop.extent.ty == PrimType("uint32")
 
@@ -937,4 +937,4 @@ def test_hand_built_for_promotes_int_literal_bounds_to_uint32():
 def test_hand_built_for_rejects_negative_literal_for_uint32():
     loop_var = tvm.tirx.Var("i", "uint32")
     with pytest.raises(Exception, match="not representable"):
-        tvm.tirx.For(loop_var, -1, 128, tvm.tirx.ForKind.SERIAL, tvm.tirx.Evaluate(0))
+        tvm.tirx.For(loop_var, -1, 128, tvm.tirx.ForKind.DEFAULT, tvm.tirx.Evaluate(0))

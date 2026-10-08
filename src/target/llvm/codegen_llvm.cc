@@ -2100,7 +2100,7 @@ void CodeGenLLVM::Dispatch_(const ForNode* op) {
     LOG(WARNING) << "Unroll hint get ignore at CodeGenLLVM backend, "
                  << " consider set unroll_explicit=True";
   } else {
-    TVM_FFI_ICHECK(op->kind == ForKind::kSerial);
+    TVM_FFI_ICHECK(op->kind == ForKind::kDefault);
   }
   PrimExpr step = op->step.value_or(IntImm(op->extent.ty(), 1));
   PrimExpr end = IsZero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
