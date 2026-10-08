@@ -38,6 +38,8 @@ namespace tvm::tirx {
  */
 TVM_DLL PrimExpr logaddexp(PrimExpr a, PrimExpr b, Span span = Span());
 
+TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(logaddexp);
+
 /*!
  * \brief Fast_erf_float expression from Eigen
  *
