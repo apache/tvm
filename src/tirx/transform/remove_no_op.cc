@@ -235,13 +235,7 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
       }
     }
 
-    if (stmts.size() == 0) {
-      return Evaluate(0);
-    } else if (stmts.size() == 1) {
-      return stmts[0];
-    } else {
-      return SeqStmt(stmts);
-    }
+    return SeqStmt(stmts);
   }
 
   std::unordered_map<const VarNode*, sym::IntSet> var_range_map_;

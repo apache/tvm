@@ -211,7 +211,7 @@ class HostDeviceSplitter : public StmtExprMutator {
     Type kernel_ret_type = Type::Missing();
     if (can_propagate_errors) {
       kernel_ret_type = PrimType::Int(32);
-      body = SeqStmt::Flatten(body, Return(success));
+      body = SeqStmt({body, Return(success)});
     } else {
       kernel_ret_type = VoidType();
     }
@@ -222,16 +222,16 @@ class HostDeviceSplitter : public StmtExprMutator {
       TVM_FFI_ICHECK(data_param.has_value())
           << "Undefined buffer " << buf.name() << " was not captured as a kernel parameter";
       TVM_FFI_ICHECK(kernel_buffer != nullptr);
-      body = SeqStmt::Flatten(
-          Bind(kernel_buffer.as_or_throw<TensorVar>(),
-               Call(kernel_buffer.as_or_throw<TensorVar>().type(), builtin::decl_tensor(),
-                    {data_param.value(), tvm::Tuple(kernel_buffer.as_or_throw<TensorVar>()->shape),
-                     DataTypeImm(kernel_buffer.as_or_throw<TensorVar>()->dtype->dtype),
-                     StringImm(kernel_buffer.as_or_throw<TensorVar>().scope())},
-                    {})),
-          std::move(body));
+      body = SeqStmt(
+          {Bind(kernel_buffer.as_or_throw<TensorVar>(),
+                Call(kernel_buffer.as_or_throw<TensorVar>().type(), builtin::decl_tensor(),
+                     {data_param.value(), tvm::Tuple(kernel_buffer.as_or_throw<TensorVar>()->shape),
+                      DataTypeImm(kernel_buffer.as_or_throw<TensorVar>()->dtype->dtype),
+                      StringImm(kernel_buffer.as_or_throw<TensorVar>().scope())},
+                     {})),
+           std::move(body)});
     }
-    Function device_func(kernel_params, body, kernel_ret_type);
+    Function device_func(kernel_params, SeqStmt(body), kernel_ret_type);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tirx::attr::kNoAlias, true},
                                                      {tirx::attr::kIsGlobalFunc, true}});

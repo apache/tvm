@@ -21,7 +21,7 @@ def test_decorate_device():
     x = tvm.tirx.Var("x", "int32")
     mod = tvm.IRModule.from_expr(tvm.tirx.Function([x], tvm.tirx.Evaluate(x)))
 
-    stmt = tvm.s_tir.transform.DecorateDeviceScope()(mod)["main"].body
+    stmt = tvm.s_tir.transform.DecorateDeviceScope()(mod)["main"].body[0]
     assert stmt.op.same_as(tvm.ir.Op.get("tirx.device_scope"))
 
 

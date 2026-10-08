@@ -227,7 +227,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
     emitted_keys_.pop_back();
     bool then_case_unchanged = then_case_result.UnchangedOrSameAs(op->then_case);
     Stmt then_case = std::move(then_case_result).ValueOrUnchanged(op->then_case);
-    ffi::Optional<Stmt> else_case = std::nullopt;
+    ffi::Optional<SeqStmt> else_case = std::nullopt;
     if (op->else_case) {
       emitted_keys_.emplace_back();
       else_case =

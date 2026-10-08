@@ -154,7 +154,7 @@ class ForFrameNode : public TIRFrameNode {
    */
   using FMakeForLoop = ffi::TypedFunction<tvm::tirx::Stmt(
       ffi::Array<tvm::tirx::Var> loop_vars, ffi::Array<Range> loop_extents,
-      ffi::Array<ffi::Optional<PrimExpr>> loop_steps, tvm::tirx::Stmt loop_body, Span span)>;
+      ffi::Array<ffi::Optional<PrimExpr>> loop_steps, tvm::tirx::SeqStmt loop_body, Span span)>;
   /*! \brief The loop variable. */
   ffi::Array<tvm::tirx::Var> vars;
   /*! \brief The domains of iteration. */

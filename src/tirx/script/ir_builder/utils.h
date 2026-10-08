@@ -44,7 +44,7 @@ inline void AddToParent(tvm::tirx::Stmt stmt, Span span) {
   if (builder->frames.empty()) {
     if (!builder->result.has_value()) {
       if (stmt.as<tvm::tirx::SeqStmtNode>()) {
-        auto normalized = tvm::tirx::SeqStmt::Flatten(stmt);
+        auto normalized = tvm::tirx::SeqStmt(stmt);
         if (!normalized->span.defined()) normalized->span = stmt->span;
         builder->result = std::move(normalized);
       } else {
@@ -54,8 +54,7 @@ inline void AddToParent(tvm::tirx::Stmt stmt, Span span) {
     }
     TVM_FFI_CHECK(builder->result.as<tvm::tirx::StmtNode>(), ValueError)
         << "Builder.result has already been set";
-    ffi::Array<tvm::tirx::Stmt> incoming;
-    tvm::tirx::SeqStmt::Flattener{&incoming}(0, stmt);
+    ffi::Array<tvm::tirx::Stmt> incoming = tvm::tirx::SeqStmt(stmt)->seq;
     if (incoming.empty()) return;
     if (builder->result.as<tvm::tirx::SeqStmtNode>()) {
       // Move the builder's ownership so unobserved results can grow in place.
@@ -65,8 +64,8 @@ inline void AddToParent(tvm::tirx::Stmt stmt, Span span) {
       for (const auto& child : incoming) node->seq.push_back(child);
       builder->result = std::move(sequence);
     } else {
-      builder->result = tvm::tirx::SeqStmt::Flatten(
-          builder->result.value().as_or_throw<tvm::tirx::Stmt>(), incoming);
+      builder->result = tvm::tirx::SeqStmt(
+          {builder->result.value().as_or_throw<tvm::tirx::Stmt>(), tvm::tirx::SeqStmt(incoming)});
     }
   } else if (const auto* tir_frame = builder->frames.back().as<TIRFrameNode>()) {
     ffi::GetRef<TIRFrame>(tir_frame)->stmts.push_back(stmt);
@@ -87,8 +86,8 @@ inline void AddToParent(tvm::tirx::Stmt stmt) {
  * \param stmt The array of Stmt.
  * \return The SeqStmt.
  */
-inline tvm::tirx::Stmt AsStmt(const ffi::Array<tvm::tirx::Stmt>& stmt) {
-  return tvm::tirx::SeqStmt::Flatten(stmt);
+inline tvm::tirx::SeqStmt AsStmt(const ffi::Array<tvm::tirx::Stmt>& stmt) {
+  return tvm::tirx::SeqStmt(stmt);
 }
 
 /*!
