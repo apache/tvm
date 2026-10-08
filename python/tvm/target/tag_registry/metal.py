@@ -16,7 +16,7 @@
 # under the License.
 """Apple Metal GPU target tags."""
 
-from tvm.target import register_tag
+from .registry import register_tag
 
 _METAL_HOST_TRIPLE = "arm64-apple-macos"
 

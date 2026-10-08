@@ -33,7 +33,6 @@ _LAZY_SUBMODULES = {
     "op",
     "ptx",
     "script",
-    "target_tags",
     "tile_primitive",
     "transforms",
 }
@@ -80,7 +79,6 @@ def register_backend():
     # trigger that registers their codegens for codegen_cuda.cc to find.
     import_module(f"{__name__}.cpp")
     import_module(f"{__name__}.tile_primitive")
-    import_module(f"{__name__}.target_tags")
 
 
 def script_namespaces(**_):
@@ -125,7 +123,6 @@ __all__ = [
     "script",
     "script_namespace",
     "script_namespaces",
-    "target_tags",
     "tile_primitive",
     "transforms",
 ]

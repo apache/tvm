@@ -23,7 +23,6 @@ _LAZY_SUBMODULES = {
     "op",
     "pipeline",
     "script",
-    "target_tags",
     "tile_primitive",
     "transform",
 }
@@ -41,7 +40,6 @@ def register_backend():
 
     import_module(f"{__name__}.tile_primitive")
     trn_pipeline = import_module(f"{__name__}.pipeline")
-    import_module(f"{__name__}.target_tags")
     import_module(f"{__name__}.transform")
     compilation_pipeline.register_tir_pipeline("trn", trn_pipeline.trn_pipeline)
 
@@ -72,7 +70,6 @@ __all__ = [
     "script",
     "script_namespace",
     "script_namespaces",
-    "target_tags",
     "tile_primitive",
     "transform",
 ]

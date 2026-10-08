@@ -59,8 +59,6 @@ CUDA ownership
      - Register source-generation callbacks and CUDA C++ helpers.
    * - ``transforms``
      - Provide CUDA-specific compiler passes.
-   * - ``target_tags``
-     - Register named NVIDIA targets.
    * - ``lang`` and ``iket``
      - Provide reusable kernel utilities and profiling orchestration.
 
@@ -75,7 +73,7 @@ Trainium ownership
 ``tvm.backend.trn`` follows the same boundary.  ``script`` and ``op`` construct
 the ``Tx.nki`` surface, ``tile_primitive`` registers target dispatches,
 ``layout`` and ``transform`` lower Trainium-specific memory mappings, and
-``pipeline`` assembles the Trainium pass sequence.  ``target_tags`` registers
+``pipeline`` assembles the Trainium pass sequence.  ``tvm.target.tag_registry.trn`` registers
 the named AWS Trainium targets.
 
 Public integration hooks are listed in :doc:`../api/backend`; target-facing

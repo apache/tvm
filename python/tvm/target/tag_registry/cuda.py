@@ -16,7 +16,7 @@
 # under the License.
 """NVIDIA CUDA target tags."""
 
-from tvm.target import register_tag
+from .registry import register_tag
 
 
 def _register_cuda_tag(name, arch, shared_mem=49152, regs=65536, **extra):
