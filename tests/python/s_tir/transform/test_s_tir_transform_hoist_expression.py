@@ -15,12 +15,62 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: F401
+import enum
+
 import tvm
 import tvm.testing
 from tvm import s_tir
-from tvm.s_tir.transform import HoistedConditionals, HoistedLetBindings
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
+
+
+class HoistedConditionals(enum.Flag):
+    """Test flags for the native hoisted_conditionals pass option
+
+    Each bitflag represents a type of expression that should be
+    hoisted to the outermost loop possible.
+    """
+
+    Never = 0
+    """ No hoisting of conditionals """
+
+    IfElseStmt = 1
+    """ If set, look for hoist candidates in IfElseStmt """
+
+    IfElseExpr = 2
+    """ If set, look for hoist candidates in tirx.if_then_else """
+
+    BooleanExpression = 4
+    """ If set, look for hoist candidates in all boolean expressions """
+
+    UsingBlockVar = 8
+    """ If set, allow hoisting of conditionals that use a block variable (e.g. threadIdx.x)  """
+
+    All = IfElseStmt | IfElseExpr | BooleanExpression | UsingBlockVar
+    """ Enable all hoisting of conditionals"""
+
+
+class HoistedLetBindings(enum.Flag):
+    """Test flags for the native hoisted_let_bindings pass option
+
+    Each bitflag represents a type of let binding expression that should be
+    hoisted to the outermost loop possible.
+    """
+
+    Never = 0
+    """ No hoisting of let bindings """
+
+    RequiredByConditional = 1
+    """ Bindings that are used by a hoisted conditional """
+
+    Bind = 2
+    """ Bindings occurring in Bind nodes """
+
+    LetExpr = 4
+    """ Bindings occurring in Let expressions """
+
+    All = RequiredByConditional | Bind | LetExpr
+    """ Enable all hoisting of let bindings """
 
 
 def _run_transform(before, hoisted_conditionals, hoisted_let_bindings):
