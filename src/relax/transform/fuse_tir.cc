@@ -18,7 +18,6 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
-#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
@@ -27,6 +26,7 @@
 #include <tvm/relax/type.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
 
 #include <unordered_map>
@@ -570,31 +570,7 @@ class FusedTIRConstructor : public ExprVisitor {
     tirx::Function function_ = mod_->Lookup(gv).as_or_throw<tirx::Function>();
 
     // Step 2. Renew all vars/buffer definitions and blocks to avoid duplication
-    // Preserve identities already created by structural hooks.
-    ffi::Map<tvm::Var, tvm::Var> definition_remap;
-    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-        function_, [&](const tvm::Var& var, TVMFFIDefRegionKind kind) {
-          if (kind != kTVMFFIDefRegionKindNone) definition_remap.Set(var, var);
-          return ffi::WalkResult::Advance();
-        });
-    tirx::Function function =
-        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
-            function_,
-            [remap = std::move(definition_remap)](const tvm::Var& var,
-                                                  TVMFFIDefRegionKind kind) mutable {
-              auto mapped = remap.Get(var);
-              if (!mapped.has_value()) return var;
-              if (!mapped.value().same_as(var)) return mapped.value();
-              if (kind == kTVMFFIDefRegionKindNone) return var;
-              tvm::Var fresh(var->name, var->ty, var->span);
-              remap.Set(var, fresh);
-              return fresh;
-            },
-            [](const tirx::Function& mapped) {
-              return tirx::Function(mapped->params, mapped->body, mapped->ret_type, mapped->attrs,
-                                    mapped->span);
-            })
-            .as_or_throw<tirx::Function>();
+    tirx::Function function = tirx::RenewDef(function_);
 
     // Step 3. Check functions are all schedulable funcs. i.e. the body of func is root block
     // TODO(Siyuan): support un-schedulable functions.
@@ -913,30 +889,7 @@ class FusedTIRConstructor : public ExprVisitor {
     });
     tirx::Function func(params, tirx::SeqStmt(body), VoidType(), DictAttrs(attr_map));
     // Renew function defs to prevent using the same symbolic vars in different functions
-    // Preserve identities already created by structural hooks.
-    ffi::Map<tvm::Var, tvm::Var> definition_remap;
-    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-        func, [&](const tvm::Var& var, TVMFFIDefRegionKind kind) {
-          if (kind != kTVMFFIDefRegionKindNone) definition_remap.Set(var, var);
-          return ffi::WalkResult::Advance();
-        });
-    return ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
-               func,
-               [remap = std::move(definition_remap)](const tvm::Var& var,
-                                                     TVMFFIDefRegionKind kind) mutable {
-                 auto mapped = remap.Get(var);
-                 if (!mapped.has_value()) return var;
-                 if (!mapped.value().same_as(var)) return mapped.value();
-                 if (kind == kTVMFFIDefRegionKindNone) return var;
-                 tvm::Var fresh(var->name, var->ty, var->span);
-                 remap.Set(var, fresh);
-                 return fresh;
-               },
-               [](const tirx::Function& mapped) {
-                 return tirx::Function(mapped->params, mapped->body, mapped->ret_type,
-                                       mapped->attrs, mapped->span);
-               })
-        .as_or_throw<tirx::Function>();
+    return tirx::RenewDef(func);
   }
 
   /*! \brief Get DynTensor numbers from recursive Tuples. */

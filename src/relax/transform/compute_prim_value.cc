@@ -17,8 +17,6 @@
  * under the License.
  */
 
-#include <tvm/ffi/extra/structural_mutate.h>
-#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/relax/expr_functor.h>
@@ -26,6 +24,7 @@
 #include <tvm/relax/transform.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -117,30 +116,7 @@ class PrimExprComputeInjector : public ExprMutator {
 
     tirx::Function func(param_vars, tirx::SeqStmt(body), ret_ty,
                         DictAttrs({{tirx::attr::kIsHostFunc, true}, {tvm::attr::kSTir, true}}));
-    // Preserve identities already created by structural hooks.
-    ffi::Map<tvm::Var, tvm::Var> definition_remap;
-    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-        func, [&](const tvm::Var& var, TVMFFIDefRegionKind kind) {
-          if (kind != kTVMFFIDefRegionKindNone) definition_remap.Set(var, var);
-          return ffi::WalkResult::Advance();
-        });
-    func = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
-               func,
-               [remap = std::move(definition_remap)](const tvm::Var& var,
-                                                     TVMFFIDefRegionKind kind) mutable {
-                 auto mapped = remap.Get(var);
-                 if (!mapped.has_value()) return var;
-                 if (!mapped.value().same_as(var)) return mapped.value();
-                 if (kind == kTVMFFIDefRegionKindNone) return var;
-                 tvm::Var fresh(var->name, var->ty, var->span);
-                 remap.Set(var, fresh);
-                 return fresh;
-               },
-               [](const tirx::Function& mapped) {
-                 return tirx::Function(mapped->params, mapped->body, mapped->ret_type,
-                                       mapped->attrs, mapped->span);
-               })
-               .as_or_throw<tirx::Function>();
+    func = tirx::RenewDef(func);
 
     auto callee = builder_->AddFunction(func, "compute_symbolic_expr");
 

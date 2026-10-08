@@ -22,8 +22,6 @@
  * \brief Pass for lowering global view TensorIR into local view
  */
 #include <tvm/ffi/cast.h>
-#include <tvm/ffi/extra/structural_mutate.h>
-#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/distributed/axis_group_graph.h>
 #include <tvm/relax/distributed/transform.h>
@@ -31,6 +29,7 @@
 #include <tvm/relax/op/ccl.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
+#include <tvm/tirx/function.h>
 
 #include "../../../s_tir/schedule/transform.h"
 #include "utils.h"
@@ -130,30 +129,7 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
  public:
   static std::tuple<tirx::Function, std::string> DistBufferCompact(
       const std::vector<ShardingSpec>& sharding_specs, tirx::Function function) {
-    // Preserve identities already created by structural hooks.
-    ffi::Map<tvm::Var, tvm::Var> definition_remap;
-    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
-        function, [&](const tvm::Var& var, TVMFFIDefRegionKind kind) {
-          if (kind != kTVMFFIDefRegionKindNone) definition_remap.Set(var, var);
-          return ffi::WalkResult::Advance();
-        });
-    function = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
-                   function,
-                   [remap = std::move(definition_remap)](const tvm::Var& var,
-                                                         TVMFFIDefRegionKind kind) mutable {
-                     auto mapped = remap.Get(var);
-                     if (!mapped.has_value()) return var;
-                     if (!mapped.value().same_as(var)) return mapped.value();
-                     if (kind == kTVMFFIDefRegionKindNone) return var;
-                     tvm::Var fresh(var->name, var->ty, var->span);
-                     remap.Set(var, fresh);
-                     return fresh;
-                   },
-                   [](const tirx::Function& mapped) {
-                     return tirx::Function(mapped->params, mapped->body, mapped->ret_type,
-                                           mapped->attrs, mapped->span);
-                   })
-                   .as_or_throw<tirx::Function>();
+    function = tirx::RenewDef(function);
     auto compactor = ffi::make_object<DistributedBufferCompactor>(sharding_specs, function);
     ffi::Array<Var> new_params;
     ffi::Map<TensorVar, TensorVar> replace_buffer_map;

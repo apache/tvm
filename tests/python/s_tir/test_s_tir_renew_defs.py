@@ -17,9 +17,6 @@
 
 from __future__ import annotations
 
-import tvm_ffi
-from tvm_ffi.structural import DefRegionKind
-
 import tvm
 import tvm.testing
 from tvm.ir import Var
@@ -27,38 +24,6 @@ from tvm.s_tir import SBlock
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.tirx.function import Function
-
-
-def _renew_defs(func):
-    remap = {}
-
-    def collect_definition(var, kind):
-        if kind != DefRegionKind.NONE:
-            remap[var] = var
-
-    tvm_ffi.structural_walk(func, with_def_region_kind=(Var, collect_definition))
-
-    def renew_var(var, kind):
-        if var not in remap:
-            return var
-        mapped = remap[var]
-        if not mapped.same_as(var):
-            return mapped
-        if kind == DefRegionKind.NONE:
-            return var
-        fresh = Var(var.name, var.ty, var.span)
-        remap[var] = fresh
-        return fresh
-
-    def rebuild_function(mapped):
-        return Function(mapped.params, mapped.body, mapped.ret_type, mapped.attrs, mapped.span)
-
-    return tvm_ffi.structural_map(
-        func,
-        (Function, rebuild_function),
-        with_def_region_kind=(Var, renew_var),
-        order="post",
-    )
 
 
 def _check_func_signature_remap(lhs: Function, rhs: Function):
@@ -101,7 +66,7 @@ def test_simple():
                 B[vi, vj] = A[vi, vj] * 2.0
 
     f1 = elementwise
-    f2 = _renew_defs(f1)
+    f2 = tvm.tirx.renew_def(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
     _check_func_signature_remap(f1, f2)
@@ -144,7 +109,7 @@ def test_match_buffer():
                     B[vi, vj] = A0[vi, vj] * 2.0
 
     f1 = func_match_buffer
-    f2 = _renew_defs(f1)
+    f2 = tvm.tirx.renew_def(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
     _check_func_signature_remap(f1, f2)
@@ -180,7 +145,7 @@ def test_undefined_buffer():
             A[i] = A[i] + T.float16(1.0)
 
     f1 = access_alloc
-    f2 = _renew_defs(f1)
+    f2 = tvm.tirx.renew_def(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
     # AllocTensor is now a flat statement in SeqStmt
@@ -203,7 +168,7 @@ def test_symbolic_func():
             B[i, j * 2 + 1] = A[i, j]
 
     f1 = symbolic_func
-    f2 = _renew_defs(f1)
+    f2 = tvm.tirx.renew_def(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
 
@@ -218,7 +183,7 @@ def test_buffer_params():
                 B[vi, vj] = A[vi * 2 + vj]
 
     f1 = main
-    f2 = _renew_defs(main)
+    f2 = tvm.tirx.renew_def(main)
     tvm.ir.assert_structural_equal(f1, f2)
     assert f1.params[1].shape[0] != f2.params[1].shape[0]
 
@@ -227,7 +192,7 @@ def test_compound_buffer_param_shape_var():
     n = tvm.tirx.Var("n", "int32")
     A = tvm.tirx.decl_tensor((tvm.tirx.max(n, 1),), layout=None)
     f1 = tvm.tirx.Function([A], tvm.tirx.Evaluate(n))
-    f2 = _renew_defs(f1)
+    f2 = tvm.tirx.renew_def(f1)
 
     tvm.ir.assert_structural_equal(f1, f2)
     assert not f1.body[0].value.same_as(f2.body[0].value)
@@ -249,7 +214,7 @@ def test_gather():
                 T_take[v_ax0, v_ax1] = A[B[v_ax0], v_ax1]
 
     f1 = take
-    f2 = _renew_defs(take)
+    f2 = tvm.tirx.renew_def(take)
     tvm.ir.assert_structural_equal(f1, f2)
 
 

@@ -169,6 +169,25 @@ class Function(BaseFunc, Scriptable):
         return _ffi_api.Specialize(self, param_map)  # type: ignore
 
 
+def renew_def(func: Function) -> Function:
+    """Renew variable definitions and remap their uses in a function.
+
+    Definition regions follow the registered structural hooks. Free variables
+    and function attributes are preserved, and the function signature is rebuilt.
+
+    Parameters
+    ----------
+    func : Function
+        The function to renew.
+
+    Returns
+    -------
+    Function
+        The function with fresh variable definitions.
+    """
+    return _ffi_api.RenewDef(func)
+
+
 @tvm_ffi.register_object("tirx.IndexMap")
 class IndexMap(Object):
     """A mapping from multi-dimensional indices to another set of multi-dimensional indices
