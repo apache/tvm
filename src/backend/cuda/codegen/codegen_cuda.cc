@@ -1437,7 +1437,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
         call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
       var_node = call->args[0].as<VarNode>();
       TVM_FFI_ICHECK(var_node && var_node->ty.as<tirx::TensorTypeNode>())
-          << "print_buffer expects buffer_data to project a TensorVar";
+          << "print_buffer expects tensor_data_ptr to project a TensorVar";
     }
     PrimType dtype_ty = op->ty.as_or_throw<PrimType>();
     bool is_string = op->args[2].as<IntImmNode>()->value != 0;
