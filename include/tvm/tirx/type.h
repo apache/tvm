@@ -169,25 +169,6 @@ class TensorType : public Type {
   }
 };
 
-/*! \brief The type of a multi-dimensional buffer region expression. */
-class BufferRegionTypeNode : public TypeNode {
- public:
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BufferRegionTypeNode>();
-  }
-
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferRegionType", BufferRegionTypeNode, TypeNode);
-};
-
-/*! \brief Managed reference to BufferRegionTypeNode. */
-class BufferRegionType : public Type {
- public:
-  TVM_DLL BufferRegionType();
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BufferRegionType, Type, BufferRegionTypeNode);
-};
-
 /*!
  * \brief The type of tensor map.
  * \sa TensorMapType

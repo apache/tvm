@@ -169,7 +169,7 @@ using IndexDiv = prim::FloorDivNode;
 TensorRegion BufferRegion(TensorVar buffer, ffi::Array<Range> region, Span span) {
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), region.size())
       << "Buffer rank and region dimension mismatch";
-  return TensorRegion(std::move(buffer), std::move(region), BufferRegionType(), std::move(span));
+  return TensorRegion(std::move(buffer), std::move(region), TensorRegionType(), std::move(span));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -203,8 +203,8 @@ TensorRegion BufferRegionFromPoint(TensorVar buffer, ffi::Array<PrimExpr> indice
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::TypeAttrDef<TensorTypeNode>().def("__subscript_expr_realize__", RealizeBufferSubscript);
-  refl::TypeAttrDef<BufferRegionTypeNode>().def("__subscript_expr_realize__",
-                                                RealizeBufferRegionSubscript);
+  refl::TypeAttrDef<TensorRegionTypeNode>().def("__subscript_expr_realize__",
+                                             RealizeBufferRegionSubscript);
 }
 
 ffi::Array<PrimExpr> SimplifyArray(sym::AnalyzerObj* ana, ffi::Array<PrimExpr> array) {

@@ -33,7 +33,7 @@ from typing import Any
 
 import tvm_ffi
 
-from tvm.ir import DictAttrs, Expr, Op, Range, Span, StringImm, TensorRegion, Type, Var, make_node
+from tvm.ir import DictAttrs, Expr, Op, Range, Span, StringImm, TensorRegion, Var, make_node
 from tvm.runtime import Object, Scriptable
 
 from . import _ffi_api
@@ -407,14 +407,6 @@ class Evaluate(Stmt):
 
     def __init__(self, value: Expr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Evaluate, value, span)  # type: ignore
-
-
-@tvm_ffi.register_object("tirx.BufferRegionType")
-class BufferRegionType(Type):
-    """The TIRX subscript type of a buffer-backed :class:`tvm.ir.TensorRegion`."""
-
-    def __init__(self) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.BufferRegionType)  # type: ignore
 
 
 def BufferRegion(buffer: Var, region: list[Range]) -> TensorRegion:
