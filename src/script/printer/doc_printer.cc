@@ -1403,10 +1403,10 @@ void PythonDocPrinter::PrintTypedDoc(const IfDoc& doc) {
 
   PrintIndentedBlock(doc->then_branch);
 
-  if (!doc->else_branch.empty()) {
+  if (doc->else_branch.has_value()) {
     NewLine();
     output_ << "else:";
-    PrintIndentedBlock(doc->else_branch);
+    PrintIndentedBlock(doc->else_branch.value());
   }
 }
 

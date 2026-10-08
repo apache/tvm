@@ -191,15 +191,15 @@ class BuiltinLower : public StmtExprMutator {
       if (scope.max_sizes.shape_stack != -1) {
         scope.stack_shape = decl_tensor({IntImm::Int64(scope.max_sizes.shape_stack)},
                                         PrimType::Int(64), "stack_shape");
-        stmt = SeqStmt::Flatten(Bind(scope.stack_shape.value(),
-                                     Call(scope.stack_shape.value().type(), builtin::decl_tensor(),
-                                          {StackAlloca(scope.stack_shape.value().DataPointerType(),
-                                                       "shape", scope.max_sizes.shape_stack),
-                                           tvm::Tuple(scope.stack_shape.value()->shape),
-                                           DataTypeImm(scope.stack_shape.value()->dtype->dtype),
-                                           StringImm(scope.stack_shape.value().scope())},
-                                          {})),
-                                stmt);
+        stmt = SeqStmt({Bind(scope.stack_shape.value(),
+                             Call(scope.stack_shape.value().type(), builtin::decl_tensor(),
+                                  {StackAlloca(scope.stack_shape.value().DataPointerType(), "shape",
+                                               scope.max_sizes.shape_stack),
+                                   tvm::Tuple(scope.stack_shape.value()->shape),
+                                   DataTypeImm(scope.stack_shape.value()->dtype->dtype),
+                                   StringImm(scope.stack_shape.value().scope())},
+                                  {})),
+                        stmt});
       }
 
       if (!alloca_stmts.empty()) {
@@ -246,8 +246,8 @@ class BuiltinLower : public StmtExprMutator {
     prep_seq_stack_.pop_back();
 
     if (prep_seq.size() != 0) {
-      Stmt ret = SeqStmt::Flatten(prep_seq, stmt);
-      return ret;
+      prep_seq.push_back(stmt);
+      return SeqStmt(prep_seq);
     } else {
       return stmt;
     }
@@ -412,9 +412,9 @@ class BuiltinLower : public StmtExprMutator {
       Stmt visited = this->Mutate(op->then_case, inplace_mode).ValueOrUnchanged(op->then_case);
       return AppendPendingFrees(visited);
     });
-    ffi::Optional<Stmt> else_case;
+    ffi::Optional<SeqStmt> else_case;
     if (op->else_case) {
-      else_case = scope_.WithNewScope([&]() -> Stmt {
+      else_case = scope_.WithNewScope([&]() -> SeqStmt {
         Stmt visited = this->Mutate(op->else_case.value(), inplace_mode)
                            .ValueOrUnchanged(op->else_case.value());
         return AppendPendingFrees(visited);
@@ -584,8 +584,8 @@ class BuiltinLower : public StmtExprMutator {
           IfThenElse(Call(PrimType::Bool(), builtin::isnullptr(), {arg}).as_or_throw<PrimExpr>(),
                      TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyTypeIndex,
                                   ConstInt32(ffi::TypeIndex::kTVMFFINone)),
-                     TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyTypeIndex,
-                                  ConstInt32(ffi::TypeIndex::kTVMFFIOpaquePtr))));
+                     SeqStmt(TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyTypeIndex,
+                                          ConstInt32(ffi::TypeIndex::kTVMFFIOpaquePtr)))));
     } else {
       prep_seq->emplace_back(TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyTypeIndex,
                                           ConstInt32(arg_type_index)));
@@ -739,7 +739,7 @@ class BuiltinLower : public StmtExprMutator {
       stmts.push_back(*it);
     }
     frees.clear();
-    return SeqStmt::Flatten(stmts);
+    return SeqStmt(stmts);
   }
 
   // The prepration sequence to be emitted before the current statement.

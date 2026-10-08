@@ -47,7 +47,7 @@ def test_multi_loop():
     mod = tvm.s_tir.transform.LoopPartition()(mod)
     stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert not any(collect_visit(stmt.body[0], lambda x: isinstance(x, tvm.tirx.IfThenElse)))
+    assert not any(collect_visit(stmt[0].body[0], lambda x: isinstance(x, tvm.tirx.IfThenElse)))
 
 
 def test_multi_if():
@@ -69,7 +69,7 @@ def test_multi_if():
     mod = tvm.s_tir.transform.LoopPartition()(mod)
     stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert not any(collect_visit(stmt.body[0], lambda x: isinstance(x, tvm.tirx.IfThenElse)))
+    assert not any(collect_visit(stmt[0].body[0], lambda x: isinstance(x, tvm.tirx.IfThenElse)))
 
 
 def test_condition():
@@ -113,7 +113,7 @@ def test_everything_during_deduction():
     mod = tvm.s_tir.transform.LoopPartition()(mod)
     stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert isinstance(stmt.body.body, tvm.tirx.IfThenElse)
+    assert isinstance(stmt[0].body[0].body[0], tvm.tirx.IfThenElse)
 
 
 def test_oneD_pool():

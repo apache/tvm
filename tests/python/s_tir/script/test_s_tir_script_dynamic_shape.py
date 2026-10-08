@@ -77,7 +77,7 @@ def test_tir_buffer_region_extent_correct_dtype():
                 Ts.reads(A[vi, T.int64(0) : T.int64(1)])
                 T.evaluate(0)
 
-    assert func.body.block.body.body.block.reads[0].region[0].extent.ty.dtype == "int64"
+    assert func.body[0].block.body[0].body[0].block.reads[0].region[0].extent.ty.dtype == "int64"
 
 
 N = T.dynamic("N", "int32")

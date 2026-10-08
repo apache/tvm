@@ -16,14 +16,14 @@
 # under the License.
 """Schedulable TensorIR statement nodes."""
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 
 import tvm_ffi
 
 from tvm.ir import Expr, Span, TensorRegion, Var
 from tvm.runtime import Object, Scriptable, const
 from tvm.s_tir import IterVar
-from tvm.tirx.stmt import Stmt
+from tvm.tirx.stmt import SeqStmt, Stmt
 
 from . import _ffi_api
 
@@ -70,10 +70,10 @@ class SBlock(Stmt):
     name_hint: str
         the name_hint of the block.
 
-    body: Stmt
+    body: Stmt | Sequence[Stmt]
         The body of the block.
 
-    init: Optional[Stmt]
+    init: Stmt | Sequence[Stmt] | None
         The init block of the reduction block
 
     alloc_buffers: Optional[list[Var]]
@@ -93,8 +93,8 @@ class SBlock(Stmt):
     reads: list[TensorRegion]
     writes: list[TensorRegion]
     name_hint: str
-    body: Stmt
-    init: Stmt | None
+    body: SeqStmt
+    init: SeqStmt | None
     alloc_buffers: list[Var]
     match_buffers: list[MatchBufferRegion]
     annotations: Mapping[str, Object]
@@ -106,8 +106,8 @@ class SBlock(Stmt):
         reads: list[TensorRegion],
         writes: list[TensorRegion],
         name_hint: str,
-        body: Stmt,
-        init: Stmt | None = None,
+        body: Stmt | Sequence[Stmt],
+        init: Stmt | Sequence[Stmt] | None = None,
         alloc_buffers: list[Var] | None = None,
         match_buffers: list[MatchBufferRegion] | None = None,
         annotations: Mapping[str, Object] | None = None,

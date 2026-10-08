@@ -79,9 +79,8 @@ def test_invalid_assign_doc(lhs, rhs, annotation):
         AssignDoc(lhs, rhs, annotation)
 
 
-def test_if_doc_requires_a_branch():
-    with pytest.raises(ValueError):
-        IfDoc(IdDoc("x"), [], [])
+def test_if_doc_empty_branches():
+    assert to_python_script(IfDoc(IdDoc("x"), [], [])) == "if x:\n    pass\nelse:\n    pass"
 
 
 def test_expr_doc_get_item_wraps_non_tuple():
@@ -356,7 +355,7 @@ STMT_CASES = {
     "assign-no-rhs": (AssignDoc(x, None, IdDoc("int")), "x: int"),
     "assign-tuple": (AssignDoc(TupleDoc([x, TupleDoc([y, z])]), z, None), "x, (y, z) = z"),
     "if-no-else": (
-        IfDoc(IdDoc("pred"), expr_stmts("x"), []),
+        IfDoc(IdDoc("pred"), expr_stmts("x"), None),
         """
         if pred:
             x

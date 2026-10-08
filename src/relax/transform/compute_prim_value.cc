@@ -114,7 +114,7 @@ class PrimExprComputeInjector : public ExprMutator {
     auto param_vars = tirx::UndefinedVars(node);
     tirx::Stmt body = tirx::Return(node);
 
-    tirx::Function func(param_vars, body, ret_ty,
+    tirx::Function func(param_vars, tirx::SeqStmt(body), ret_ty,
                         DictAttrs({{tirx::attr::kIsHostFunc, true}, {tvm::attr::kSTir, true}}));
     func = s_tir::RenewDefs(func);
 

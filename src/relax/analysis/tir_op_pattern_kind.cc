@@ -292,8 +292,9 @@ class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
   }
 
   /*! \brief Checking if the stmt is multiply add. E.g. C[i, j] += A[i, k] * B[j, k] */
-  static bool IsFMA(const Stmt& body) {
-    if (const auto* store = body.as<TensorStoreNode>()) {
+  static bool IsFMA(const SeqStmt& body) {
+    if (body->size() != 1) return false;
+    if (const auto* store = body->seq[0].as<TensorStoreNode>()) {
       if (const auto* add = RemoveCast(store->value).as<prim::AddNode>()) {
         if (const auto* mul = RemoveCast(add->b).as<prim::MulNode>()) {
           const auto* store_lhs = RemoveCast(add->a).as<TensorLoadNode>();
@@ -393,8 +394,9 @@ bool HasReshapePattern(const tirx::Function& func) {
       ana_->Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
       // To detect the reshape pattern, we require each For to have
       // either another For or a BlockRealize as body.
-      if (!(loop->body->IsInstance<ForNode>() ||
-            loop->body->IsInstance<s_tir::SBlockRealizeNode>())) {
+      if (loop->body->size() != 1 ||
+          !(loop->body->seq[0]->IsInstance<ForNode>() ||
+            loop->body->seq[0]->IsInstance<s_tir::SBlockRealizeNode>())) {
         return std::nullopt;
       }
       return this->Visit(loop->body);
@@ -421,8 +423,9 @@ bool HasReshapePattern(const tirx::Function& func) {
     }
 
     ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* block) final {
+      if (block->body->size() != 1) return std::nullopt;
       // Step 0. If the block body is a ForNode, recurse into it.
-      if (block->body->IsInstance<ForNode>()) {
+      if (block->body->seq[0]->IsInstance<ForNode>()) {
         return this->Visit(block->body);
       }
 
@@ -435,7 +438,7 @@ bool HasReshapePattern(const tirx::Function& func) {
       // Step 1. Get the load/store pattern of the block body.
       // To detect the reshape pattern, we require the block body to be a
       // TensorStore, which has a TensorLoad as value.
-      const auto* tensor_store = block->body.as<TensorStoreNode>();
+      const auto* tensor_store = block->body->seq[0].as<TensorStoreNode>();
       if (tensor_store == nullptr) {
         return std::nullopt;
       }
@@ -576,7 +579,8 @@ bool HasReshapePattern(const tirx::Function& func) {
 
   // To detect the reshape pattern, we require each For to have
   // either another For or a BlockRealize as body.
-  TVM_FFI_ICHECK(func->body.as<s_tir::SBlockRealizeNode>());
+  TVM_FFI_ICHECK(func->body.value()->size() == 1 &&
+                 func->body.value()->seq[0].as<s_tir::SBlockRealizeNode>());
   return ReshapeDetector::Detect(src_buffer, dst_buffer, func->body.value());
 }
 

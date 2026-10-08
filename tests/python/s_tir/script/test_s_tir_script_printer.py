@@ -140,7 +140,7 @@ from __future__ import annotations
 
 @Ts.function
 def main(A: T.Tensor((128, 128), "float32", layout="default"), B: T.Tensor((256, 256), "float32", layout="default")):
-    T.evaluate(0)""",
+    pass""",
     )
 
 
@@ -194,7 +194,7 @@ from __future__ import annotations
 
 @Ts.function
 def main(A: T.Tensor((128, 128), "float32", layout="default"), B: T.Tensor((256, 256), "float32", layout="default")):
-    T.evaluate(0)
+    pass
 """,
     )
 
@@ -224,7 +224,7 @@ with Ts.sblock("block"):
     vk = Ts.axis.reduce(32, k)
     Ts.reads()
     Ts.writes()
-    T.evaluate(0)""",
+""",
     )
 
 
@@ -250,7 +250,7 @@ with Ts.sblock("block", no_realize=True):
     vk = Ts.axis.reduce(32)
     Ts.reads()
     Ts.writes()
-    T.evaluate(0)""",
+""",
     )
 
 
@@ -322,7 +322,6 @@ def test_remap():
 
     expected_output = """
 # from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
 
 @Ts.function
 def main():
@@ -344,7 +343,7 @@ def main():
                                     v_5 = Ts.axis.spatial(128, i5)
                                     Ts.reads()
                                     Ts.writes()
-                                    T.evaluate(0)"""
+"""
     _assert_print(block_with_remap_explicitly.with_attr("global_symbol", "main"), expected_output)
     _assert_print(block_with_remap_implicitly.with_attr("global_symbol", "main"), expected_output)
 
@@ -369,7 +368,6 @@ def test_root_block():
 
     expected_output = """
 # from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
 
 @Ts.function
 def main():
@@ -382,7 +380,7 @@ def main():
                 with Ts.sblock(""):
                     Ts.reads()
                     Ts.writes()
-                    T.evaluate(0)"""
+"""
     _assert_print(root_block_implicitly.with_attr("global_symbol", "main"), expected_output)
     _assert_print(root_block_explicitly.with_attr("global_symbol", "main"), expected_output)
 
@@ -405,7 +403,7 @@ from __future__ import annotations
 
 @Ts.function(private=True)
 def main(A: T.Tensor((128, 128), "float32", layout="default"), B: T.Tensor((256, 256), "float32", layout="default")):
-    T.evaluate(0)""",
+    pass""",
     )
 
 
@@ -425,7 +423,7 @@ from __future__ import annotations
 
 @Ts.function
 def func(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
-    T.evaluate(0)"""
+    pass"""
     _assert_print(main, expected_output)
 
 
@@ -2130,13 +2128,12 @@ def test_ir_module():
         """
 # from tvm.script import ir as I
 # from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
 
 @I.ir_module
 class Module:
     @Ts.function
     def foo():
-        T.evaluate(0)""",
+        pass""",
     )
 
 

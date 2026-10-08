@@ -248,7 +248,7 @@ class LoopUnroller : public StmtExprMutator {
       unroll_depth_ = std::max(unroll_depth_, unroll_depth);
     }
     if (!changed) return ffi::Unchanged();
-    return SeqStmt::Flatten(seq);
+    return SeqStmt(seq, op->span);
   }
 
   Stmt Unroll(const ForNode* op) {
@@ -272,7 +272,7 @@ class LoopUnroller : public StmtExprMutator {
           ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(body, f_substitute).as_or_throw<Stmt>();
       unrolled.push_back(step);
     }
-    return SeqStmt::Flatten(unrolled);
+    return SeqStmt(unrolled);
   }
 
  private:

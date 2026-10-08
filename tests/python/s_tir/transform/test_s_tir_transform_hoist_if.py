@@ -57,7 +57,10 @@ def verify_structure(stmt, expected_struct):
     tvm_ffi.structural_walk(stmt, _visit)
     for key, val in node_dict.items():
         struct[val[1]] = tuple(
-            node_dict[child][1] if child in node_dict else None for child in val[0]
+            node_dict[child[0]][1]
+            if child is not None and len(child) == 1 and child[0] in node_dict
+            else None
+            for child in val[0]
         )
 
     assert struct == expected_struct, (

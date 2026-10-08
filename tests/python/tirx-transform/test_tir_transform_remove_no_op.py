@@ -59,19 +59,19 @@ def test_remove_no_op():
     mod = tvm.IRModule.from_expr(tvm.tirx.Function([Ab], stmt))
     ret = tvm.tirx.transform.RemoveNoOp()(mod)["main"].body
 
-    assert isinstance(ret, tvm.tirx.Evaluate)
+    assert isinstance(ret, tvm.tirx.SeqStmt) and len(ret) == 0
     store = tvm.tirx.TensorStore(Ab, tvm.tirx.TensorLoad(Ab, [i]) + 1, [i + 1])
     stmt2 = tvm.tirx.SeqStmt([nop(), tvm.tirx.SeqStmt([store, nop()])])
 
     mod = tvm.IRModule.from_expr(tvm.tirx.Function([Ab], stmt2))
     ret = tvm.tirx.transform.RemoveNoOp()(mod)["main"].body
-    assert ret == store
+    assert len(ret) == 1 and ret[0] == store
 
     # remove zero extent loop
     stmt3 = tvm.tirx.For(i, 0, 0, tvm.tirx.ForKind.SERIAL, store)
     mod = tvm.IRModule.from_expr(tvm.tirx.Function([Ab], stmt3))
     ret = tvm.tirx.transform.RemoveNoOp()(mod)["main"].body
-    assert isinstance(ret, tvm.tirx.Evaluate)
+    assert isinstance(ret, tvm.tirx.SeqStmt) and len(ret) == 0
 
 
 def test_remove_no_op_with_invalid_extent():
@@ -83,7 +83,7 @@ def test_remove_no_op_with_invalid_extent():
 
     mod = tvm.ir.module.IRModule.from_expr(main)
     ret = tvm.tirx.transform.RemoveNoOp()(mod)["main"].body
-    assert isinstance(ret, tvm.tirx.Evaluate)
+    assert isinstance(ret, tvm.tirx.SeqStmt) and len(ret) == 0
 
 
 def _apply_remove_no_op(mod, max_simplification_steps=0):

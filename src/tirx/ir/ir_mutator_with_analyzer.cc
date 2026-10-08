@@ -166,8 +166,8 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const IfThenElseNode* op,
     // may change after stores, opaque calls, or another iteration of a nested
     // loop, so they cannot be facts for the entire branch scope.
     bool condition_is_pure = SideEffect(real_condition) <= CallEffectKind::kPure;
-    Stmt then_case = op->then_case;
-    ffi::Optional<Stmt> else_case;
+    SeqStmt then_case = op->then_case;
+    ffi::Optional<SeqStmt> else_case;
     constraint_scope_.WithNewScope([&]() {
       if (condition_is_pure) {
         EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, real_condition);

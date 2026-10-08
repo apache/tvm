@@ -209,9 +209,13 @@ def test_expr_constructor():
         attrs={"keep": True},
         ty="int32",
     )
-    simplified = tvm.tirx.transform.StmtSimplify()(
-        tvm.IRModule({"main": tvm.tirx.Function([], tvm.tirx.Evaluate(outer_if))})
-    )["main"].body.value
+    simplified = (
+        tvm.tirx.transform.StmtSimplify()(
+            tvm.IRModule({"main": tvm.tirx.Function([], tvm.tirx.Evaluate(outer_if))})
+        )["main"]
+        .body[0]
+        .value
+    )
     assert simplified.attrs["keep"] is True
 
     v = tvm.tirx.Var("aa", "int32")
@@ -306,7 +310,7 @@ def test_stmt_constructor():
     assert isinstance(x, tvm.tirx.For)
     assert x.min.value == 0
     assert x.extent.value == 10
-    assert x.body == nop
+    assert len(x.body) == 1 and x.body[0] == nop
 
     buffer_var = tvm.tirx.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("bool")))
     buffer = tvm.tirx.decl_tensor([16], "bool", data=buffer_var)
@@ -337,8 +341,8 @@ def test_stmt_constructor():
 
     x = tvm.tirx.IfThenElse(tvm.tirx.const(1, "bool"), tvm.tirx.Evaluate(11), nop)
     assert isinstance(x, tvm.tirx.IfThenElse)
-    assert x.then_case.value.value == 11
-    assert x.else_case == nop
+    assert x.then_case[0].value.value == 11
+    assert x.else_case is not None and len(x.else_case) == 1 and x.else_case[0] == nop
 
 
 def test_float_constructor_requires_float_dtype():

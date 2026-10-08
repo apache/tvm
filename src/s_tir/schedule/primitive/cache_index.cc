@@ -378,15 +378,15 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
  */
 Stmt InsertIndexStage(const Stmt& stmt, int pos, const Stmt& stage) {
   if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
-    ffi::ObjectPtr<SeqStmtNode> result = ffi::make_object<SeqStmtNode>(*seq_stmt);
-    result->seq.insert(result->seq.begin() + pos, stage);
-    return SeqStmt(result);
+    ffi::Array<Stmt> result = seq_stmt->seq;
+    result.insert(result.begin() + pos, stage);
+    return SeqStmt(result, seq_stmt->span);
   }
   if (pos == 0) {
-    return SeqStmt::Flatten<ffi::Array<Stmt>>({stage, stmt});
+    return SeqStmt({stage, stmt});
   }
   TVM_FFI_ICHECK_EQ(pos, 1);
-  return SeqStmt::Flatten<ffi::Array<Stmt>>({stmt, stage});
+  return SeqStmt({stmt, stage});
 }
 
 /*! \brief Mutator for CacheIndex. */

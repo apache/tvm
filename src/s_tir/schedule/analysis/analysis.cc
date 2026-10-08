@@ -43,7 +43,9 @@ const FunctionNode* GetRootFunction(const IRModule& mod, const StmtNode* root_bl
     const GlobalVar& g_var = kv.first;
     const BaseFunc& base_func = kv.second;
     if (const auto* func = base_func.as<FunctionNode>()) {
-      if (const auto* realize = func->body.as<SBlockRealizeNode>()) {
+      if (const auto* realize = func->body.has_value() && func->body.value()->size() == 1
+                                    ? func->body.value()->seq[0].as<SBlockRealizeNode>()
+                                    : nullptr) {
         if (realize->block.get() == root_block) {
           if (result_g_var != nullptr) {
             *result_g_var = g_var;
@@ -907,7 +909,7 @@ SBlockRealize GetSBlockRealize(const ScheduleState& self, const StmtSRef& block_
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   if (block_sref->parent == nullptr) {
     const FunctionNode* func = GetRootFunction(self->mod, block, nullptr);
-    return func->body.as_or_throw<SBlockRealize>();
+    return func->body.value()->seq[0].as_or_throw<SBlockRealize>();
   } else {
     auto finder = ffi::make_object<BlockRealizeFinder>(block);
     finder->Visit(ffi::GetRef<Stmt>(block_sref->parent->stmt));
@@ -1703,11 +1705,12 @@ bool NeedsRFactorOrCrossThreadReduction(const s_tir::ScheduleState& self,  //
     const ForNode* loop_i = TVM_SREF_TO_FOR(loops[i]);
     if (i < loops.size() - 1) {
       const ForNode* loop_i1 = TVM_SREF_TO_FOR(loops[i + 1]);
-      if (loop_i->body.get() != loop_i1) {
+      if (loop_i->body->size() != 1 || loop_i->body->seq[0].get() != loop_i1) {
         return false;
       }
     } else {
-      const auto* block_realize = loop_i->body.as<s_tir::SBlockRealizeNode>();
+      const auto* block_realize =
+          loop_i->body->size() == 1 ? loop_i->body->seq[0].as<s_tir::SBlockRealizeNode>() : nullptr;
       if (!block_realize || block_realize->block.get() != block) {
         return false;
       }
@@ -1763,7 +1766,10 @@ struct TensorIntrinDescInfo {
 TensorIntrinDescInfo ExtractTensorIntrinDescInfo(sym::AnalyzerObj* analyzer,
                                                  const Function& desc_func) {
   TensorIntrinDescInfo info;
-  const auto* desc_scope_realize = desc_func->body.as<SBlockRealizeNode>();
+  const auto* desc_scope_realize =
+      desc_func->body.has_value() && desc_func->body.value()->size() == 1
+          ? desc_func->body.value()->seq[0].as<SBlockRealizeNode>()
+          : nullptr;
   TVM_FFI_ICHECK(desc_scope_realize);
   {
     auto visit_block = [&](const SBlockRealize& block) -> ffi::Expected<ffi::WalkResult> {
@@ -1802,7 +1808,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
   {
     for (const tirx::StmtSRefNode* loop_sref = block_sref->parent;; loop_sref = loop_sref->parent) {
       const auto* loop = loop_sref->StmtAs<tirx::ForNode>();
-      if (loop == nullptr || loop->body->IsInstance<tirx::SeqStmtNode>()) {
+      if (loop == nullptr || loop->body->size() != 1) {
         break;
       }
       block_loops.push_back(loop);

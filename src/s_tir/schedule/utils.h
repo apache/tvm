@@ -115,8 +115,7 @@ inline bool CanRelaxStorageUnderThread(const runtime::StorageScope& storage_scop
  * \param to_remove The Stmt to be removed
  * \return The removal result
  */
-inline Stmt RemoveFromSeqStmt(const SeqStmt& seq, const Stmt& to_remove) {
-  TVM_FFI_ICHECK_GT(seq->size(), 1);
+inline SeqStmt RemoveFromSeqStmt(const SeqStmt& seq, const Stmt& to_remove) {
   ffi::Array<Stmt> new_stmts;
   new_stmts.reserve(seq->size());
   for (const Stmt& stmt : seq->seq) {
@@ -130,33 +129,22 @@ inline Stmt RemoveFromSeqStmt(const SeqStmt& seq, const Stmt& to_remove) {
     }
     new_stmts.push_back(stmt);
   }
-  return SeqStmt::Flatten(new_stmts);
+  return SeqStmt(new_stmts, seq->span);
 }
 
 /*!
- * \brief Convert a Stmt to an Array.
- * \param stmt The Stmt to be converted to
- * \return If the Stmt is SeqStmt, then returns the sequence;
- * Otherwise, returns a single-element Array with the Stmt inside.
+ * \brief Get the statements of a scope body.
+ * \param stmt The scope body.
+ * \return The statements in the body.
  */
-inline ffi::Array<Stmt> AsArray(const Stmt& stmt) {
-  if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
-    return seq_stmt->seq;
-  }
-  return {stmt};
-}
+inline ffi::Array<Stmt> AsArray(const SeqStmt& stmt) { return stmt->seq; }
 
 /*!
- * \brief Checks of a statement is a SeqStmt that contains multiple statements
+ * \brief Check whether a scope body contains exactly one statement.
  * \param stmt The statement to be checked
  * \return A boolean indicating the result
  */
-inline bool IsSingleStmt(const Stmt& stmt) {
-  if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
-    return seq_stmt->seq.size() == 1;
-  }
-  return true;
-}
+inline bool IsSingleStmt(const SeqStmt& stmt) { return stmt->size() == 1; }
 
 /******** IterVar ********/
 

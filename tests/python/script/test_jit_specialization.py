@@ -277,7 +277,7 @@ def kernel(output: Script.Tensor((1,), "int32"), *, value: Script.constexpr,
     assert kernel.optional_names == {"optional"}
     result = kernel.specialize(value=3, optional=None)
     assert len(result.params) == 1
-    assert int(result.body.value) == 3
+    assert int(result.body[0].value) == 3
 
 
 def test_postponed_jit_uses_registered_constexpr_syntax(jit_language, monkeypatch):

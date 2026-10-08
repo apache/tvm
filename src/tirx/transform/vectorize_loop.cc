@@ -1097,7 +1097,7 @@ class Vectorizer : public StmtExprMutator {
     auto then_case_update = this->Mutate(op->then_case, inplace_mode);
     bool then_case_unchanged = then_case_update.UnchangedOrSameAs(op->then_case);
     Stmt then_case = std::move(then_case_update).ValueOrUnchanged(op->then_case);
-    ffi::Optional<Stmt> else_case = std::nullopt;
+    ffi::Optional<SeqStmt> else_case = std::nullopt;
     if (op->else_case) {
       else_case =
           this->Mutate(op->else_case.value(), inplace_mode).ValueOrUnchanged(op->else_case.value());

@@ -141,8 +141,8 @@ def test_underline_func():
         ^^^^^^^^^^^
         def main():
         ^^^^^^^^^^^
-            T.evaluate(0)
-            ^^^^^^^^^^^^^
+            pass
+            ^^^^
     """
     )
 
@@ -171,8 +171,8 @@ def test_underline_func_in_irmodule():
             ^^^^^^^^^^^
             def func():
             ^^^^^^^^^^^
-                T.evaluate(0)
-                ^^^^^^^^^^^^^
+                pass
+                ^^^^
     """
     )
 
@@ -203,7 +203,7 @@ def test_underline_irmodule():
             ^^^^^^^^^^^
             def func():
             ^^^^^^^^^^^
-                T.evaluate(0)
-                ^^^^^^^^^^^^^
+                pass
+                ^^^^
     """
     )

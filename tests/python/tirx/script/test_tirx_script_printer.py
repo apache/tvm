@@ -199,7 +199,7 @@ def test_for():
 for i in range(128):
     for j in range(128):
         for k in range(128):
-            T.evaluate(0)
+            pass
 """,
     )
 
@@ -230,7 +230,7 @@ def test_while():
         """
 v = I.dynamic("v", dtype="int32")
 while v < 10:
-    T.evaluate(0)
+    pass
 """,
     )
 
@@ -354,7 +354,7 @@ def test_if_then_else():
         """
 v = I.dynamic("v", dtype="int32")
 if v == 1:
-    T.evaluate(0)
+    pass
 """,
     )
 
@@ -659,16 +659,7 @@ def test_nested_seqstmt_roundtrip():
 
 
 def nested_seqstmt():
-    """Nested SeqStmt should be normalized to flat SeqStmt
-
-    Nested SeqStmt are representable in the TIR structures, but are
-    flattened when converted to TVMScript.  Previously, this could
-    cause failures to round-trip through TVMScript, including
-    erroneous use of TVMScript's concise-scoping rules.  This was
-    resolved by normalizing nested SeqStmt in TIR, such that the use
-    of `tirx.SeqStmt` below results in a single flat `tirx.SeqStmt`
-    containing the three `tirx.Evaluate` calls.
-    """
+    """Sequence construction flattens nested input and removes no-op statements."""
     func = tvm.tirx.Function(
         params=[],
         body=tvm.tirx.SeqStmt(

@@ -121,7 +121,7 @@ def test_internal_subroutine_call():
     tvm.ir.assert_structural_equal(before["subroutine"], after["subroutine"])
 
     compute_scope = _find_compute_scope(after["main"])
-    subroutine_call_op = compute_scope.body.value.op
+    subroutine_call_op = compute_scope.body[0].value.op
     assert isinstance(subroutine_call_op, tvm.ir.GlobalVar), (
         f"The main function's CallNode should use the subroutine's GlobalVar as the operation, "
         f"but instead has an operation of type {subroutine_call_op}"
@@ -156,7 +156,7 @@ def test_subroutine_call_to_externally_visible_subroutine():
     subroutine_compute_scope = _find_compute_scope(after["subroutine"])
     assert subroutine_compute_scope is not None
 
-    subroutine_call_op = main_compute_scope.body.value.op
+    subroutine_call_op = main_compute_scope.body[0].value.op
     assert (
         isinstance(subroutine_call_op, tvm.ir.Op)
         and subroutine_call_op.name == "tirx.tvm_call_cpacked"

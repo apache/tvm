@@ -738,7 +738,7 @@ class VMShapeLowerMutator
           tirx::TensorStore(buffer, value, {IntImm(tvm::PrimType(ShapeDType()), slot->index)}));
     }
 
-    tirx::Stmt body = tirx::SeqStmt::Flatten(seq);
+    tirx::SeqStmt body(seq);
     ffi::Array<tirx::Var> params{buffer.var()};
     Type ret_type = VoidType();
 

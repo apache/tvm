@@ -315,7 +315,7 @@ class InThreadReducerMaker : public StmtExprMutator {
     if (removed_) {
       return ffi::Unchanged();
     }
-    return SeqStmt::Flatten(stmts);
+    return SeqStmt(stmts);
   }
 
   bool removed_ = false;
@@ -577,7 +577,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
                /*body=*/n_buffers > 1 ? SeqStmt(wb_updates) : wb_updates[0])));
   }
   // Final step: Wrap all the above four statements with the reduction loops bound to threadIdx
-  Stmt new_stmt = SeqStmt::Flatten(std::move(stmts));
+  Stmt new_stmt = SeqStmt(std::move(stmts));
   for (auto rit = reduction_loops.rbegin(); rit != reduction_loops.rend(); ++rit) {
     const ForNode* loop = *rit;
     if (loop->thread_binding.has_value()) {

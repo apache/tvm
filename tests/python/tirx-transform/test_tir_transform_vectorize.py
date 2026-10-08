@@ -66,13 +66,13 @@ def test_vectorize_vector():
                     A[j] = T.Broadcast(T.float32(1), 4)
 
     mod = tvm.tirx.transform.VectorizeLoop()(Module)
-    stmt = mod["main"].body
+    stmt = mod["main"].body[0]
 
     assert isinstance(stmt, tvm.tirx.For)
-    assert not isinstance(stmt.body, tvm.tirx.For)
-    assert len(stmt.body.indices) == 1
-    assert isinstance(stmt.body.indices[0], tvm.tirx.Ramp)
-    assert isinstance(stmt.body.value, tvm.tirx.Broadcast)
+    assert not isinstance(stmt.body[0], tvm.tirx.For)
+    assert len(stmt.body[0].indices) == 1
+    assert isinstance(stmt.body[0].indices[0], tvm.tirx.Ramp)
+    assert isinstance(stmt.body[0].value, tvm.tirx.Broadcast)
 
 
 def test_vectorize_vector_scalable_error():
@@ -243,7 +243,7 @@ def test_vectorize_with_le_cond(extent, target):
                 if i <= n:
                     A[i] = A[i] + T.float32(1)
 
-    stmt = tvm.tirx.transform.VectorizeLoop()(Module)["main"].body
+    stmt = tvm.tirx.transform.VectorizeLoop()(Module)["main"].body[0]
 
     # Check that the loop wasn't vectorised
     assert isinstance(stmt, tvm.tirx.For)
@@ -260,7 +260,7 @@ def test_vectorize_with_ge_cond(extent, target):
                 if i >= n:
                     A[i] = A[i] + T.float32(1)
 
-    stmt = tvm.tirx.transform.VectorizeLoop()(Module)["main"].body
+    stmt = tvm.tirx.transform.VectorizeLoop()(Module)["main"].body[0]
 
     # Check that the loop wasn't vectorised
     assert isinstance(stmt, tvm.tirx.For)

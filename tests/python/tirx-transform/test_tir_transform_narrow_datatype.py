@@ -23,7 +23,7 @@ from tvm.tirx import const
 def lower_stmt(params, stmt, target_bits):
     func = tvm.tirx.Function(params, stmt)
     func = tvm.tirx.transform.NarrowDataType(target_bits)(tvm.IRModule.from_expr(func))["main"]
-    stmt = func.body
+    stmt = func.body[0]
     return stmt
 
 
@@ -39,7 +39,7 @@ def lower_func_body(func, target_bits):
             if isinstance(stmt, tvm.tirx.For):
                 return stmt
     while hasattr(body, "body") and not isinstance(body, tvm.tirx.For):
-        body = body.body
+        body = body.body[0]
     return body
 
 
@@ -55,7 +55,7 @@ def test_basic():
 
         stmt = lower_func_body(func, target_bits)
         assert stmt.loop_var.ty.dtype == target_dtype
-        assert stmt.body.loop_var.ty.dtype == target_dtype
+        assert stmt.body[0].loop_var.ty.dtype == target_dtype
 
     def check_symbolic(m_dtype, n_dtype, target_bits, target_dtype):
         """Check with symbolic shapes as function parameters."""
@@ -81,7 +81,7 @@ def test_basic():
 
         stmt = lower_func_body(func, target_bits)
         assert stmt.loop_var.ty.dtype == target_dtype
-        assert stmt.body.loop_var.ty.dtype == target_dtype
+        assert stmt.body[0].loop_var.ty.dtype == target_dtype
 
     # const shape
     # i32 -> i32
@@ -111,9 +111,9 @@ def test_thread_axis():
         mod = tvm.IRModule.from_expr(func)
         gvar = next(iter(mod.functions.keys()))
         func_narrowed = tvm.tirx.transform.NarrowDataType(target_bits)(mod)[gvar]
-        stmt = func_narrowed.body
+        stmt = func_narrowed.body[0]
         assert stmt.body_params[0].ty.dtype == target_dtype
-        assert stmt.body.body_params[0].ty.dtype == target_dtype
+        assert stmt.body[0].body_params[0].ty.dtype == target_dtype
 
     # i32 -> i32
     check_const(2, 32, target_bits=32, target_dtype="int32")
@@ -177,7 +177,7 @@ def test_slice():
 
         stmt = lower_func_body(func, target_bits)
         assert stmt.loop_var.ty.dtype == target_dtype
-        assert stmt.body.loop_var.ty.dtype == target_dtype
+        assert stmt.body[0].loop_var.ty.dtype == target_dtype
 
     # The maximum index is (2**15 * 2**15 - 1) * 2 <= 2**31 - 1
     check(const(2**15, "int64"), const(2**15, "int64"), target_bits=32, target_dtype="int32")

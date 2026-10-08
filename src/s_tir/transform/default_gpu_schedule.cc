@@ -120,7 +120,9 @@ IRModule MarkScheduled(const IRModule& mod) {
  * iter_values/iter_vars counts consistent for downstream checks.
  */
 tirx::Function WrapBareSBlockBody(const tirx::Function& func) {
-  const auto* realize = func->body.as<s_tir::SBlockRealizeNode>();
+  const auto* realize = func->body.has_value() && func->body.value()->size() == 1
+                            ? func->body.value()->seq[0].as<s_tir::SBlockRealizeNode>()
+                            : nullptr;
   if (realize == nullptr || !realize->block->iter_vars.empty()) {
     return func;
   }
@@ -128,8 +130,9 @@ tirx::Function WrapBareSBlockBody(const tirx::Function& func) {
   // produced by the rest of the pipeline has an implicit root SBlockRealize
   // whose block body is a For loop (or a nested SBlockRealize) — that case
   // already has somewhere to put thread bindings, so leave it alone.
-  const tirx::Stmt& inner = realize->block->body;
-  if (inner->IsInstance<tirx::ForNode>() || inner->IsInstance<s_tir::SBlockRealizeNode>()) {
+  const tirx::SeqStmt& inner = realize->block->body;
+  if (inner->size() == 1 && (inner->seq[0]->IsInstance<tirx::ForNode>() ||
+                             inner->seq[0]->IsInstance<s_tir::SBlockRealizeNode>())) {
     return func;
   }
   tvm::IntImm zero(tvm::PrimType::Int(32), 0);

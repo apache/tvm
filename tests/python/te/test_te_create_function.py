@@ -651,7 +651,7 @@ def test_int64_indices():
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1, name="B")
     function = te.create_function([A, B])
-    loop = function.body.block.body
+    loop = function.body[0].block.body[0]
     assert loop.loop_var.ty.dtype == "int64"
     assert loop.min.ty.dtype == "int64"
     assert loop.extent.ty.dtype == "int64"

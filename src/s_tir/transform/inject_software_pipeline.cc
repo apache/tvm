@@ -72,8 +72,9 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
  * \param buffer_data_to_buffer The map from buffer data to buffer.
  * \return The result block.
  */
-SBlock MakeSBlock(const Stmt& body, const ffi::Map<Var, TensorVar>& buffer_data_to_buffer) {
-  if (const SBlockRealizeNode* block_realize = body.as<SBlockRealizeNode>()) {
+SBlock MakeSBlock(const SeqStmt& body, const ffi::Map<Var, TensorVar>& buffer_data_to_buffer) {
+  if (const SBlockRealizeNode* block_realize =
+          body->size() == 1 ? body->seq[0].as<SBlockRealizeNode>() : nullptr) {
     if (IsOne(block_realize->predicate)) {
       // no need to create a new block
       return block_realize->block;
@@ -1002,9 +1003,9 @@ class PipelineRewriter : public StmtExprMutator {
         CompletePipelineLoopStatements(new_blocks, async_states_local, ana_normalized.get());
 
     if (stmts.empty()) {
-      return make_nop();
+      return SeqStmt({});
     }
-    Stmt new_loop = stmts.size() == 1 ? stmts[0] : SeqStmt(stmts);
+    Stmt new_loop = SeqStmt(stmts);
 
     if (!is_unit_loop) {
       new_loop = For(new_loop_var.as_or_throw<PrimVar>(), pipeline_loop_->min, extent,
@@ -1159,9 +1160,11 @@ class PipelineInjector : public StmtExprMutator {
     // Step 2: Find the body and buffer allocations of the pipeline. The body can be direct child of
     // the for-loop. If the for-loop has BlockRealize as its child, the pipeline body will be the
     // child of the block.
-    Stmt pipeline_body = for_node->body;
+    SeqStmt pipeline_body = for_node->body;
     ffi::Array<TensorVar> pipeline_allocs;
-    if (const auto* realize = for_node->body.as<SBlockRealizeNode>()) {
+    if (const auto* realize = for_node->body->size() == 1
+                                  ? for_node->body->seq[0].as<SBlockRealizeNode>()
+                                  : nullptr) {
       const auto& block = realize->block;
       for (const auto& buffer : block->alloc_buffers) {
         TVM_FFI_ICHECK(buffer->IsInstance<TensorTypeNode>());
@@ -1171,10 +1174,9 @@ class PipelineInjector : public StmtExprMutator {
       pipeline_allocs = block->alloc_buffers;
     }
 
-    const SeqStmtNode* pipeline_body_seq = pipeline_body.as<SeqStmtNode>();
-    TVM_FFI_CHECK(pipeline_body_seq, ValueError)
-        << "The body of the software pipeline should be SeqStmt, got "
-        << pipeline_body->GetTypeKey();
+    const SeqStmtNode* pipeline_body_seq = pipeline_body.get();
+    TVM_FFI_CHECK_GT(pipeline_body_seq->size(), 1, ValueError)
+        << "The body of the software pipeline should contain multiple statements";
 
     // Step 3: Blockize the components of the pipeline. Each child of the pipelined loop will be
     // converted into a block.
@@ -1187,7 +1189,7 @@ class PipelineInjector : public StmtExprMutator {
     for (size_t i = 0; i < pipeline_body_seq->seq.size(); i++) {
       const auto* nested_block_realize = pipeline_body_seq->seq[i].as<SBlockRealizeNode>();
       if (nested_block_realize && IsOne(nested_block_realize->predicate) &&
-          nested_block_realize->block->body->IsInstance<SeqStmtNode>()) {
+          nested_block_realize->block->body->size() > 1) {
         const SBlock& nested_pipeline_block = nested_block_realize->block;
         TVM_FFI_ICHECK(
             nested_pipeline_block->match_buffers.empty());  // match_buffer should have been lowered
@@ -1195,7 +1197,7 @@ class PipelineInjector : public StmtExprMutator {
           pipeline_allocs.push_back(buffer);
           buffer_data_to_buffer_.Set(buffer.var(), buffer);
         }
-        const auto* nested_seq = nested_pipeline_block->body.as<SeqStmtNode>();
+        const auto* nested_seq = nested_pipeline_block->body.get();
         for (size_t j = 0; j < nested_seq->seq.size(); j++) {
           f_add_child(nested_seq->seq[j]);
         }
@@ -1249,7 +1251,8 @@ class PipelineInjector : public StmtExprMutator {
                                               pipeline_allocs, ffi::GetRef<For>(op), pipeline_info,
                                               fragment_info_, preserved_annotations);
 
-    if (const auto* realize = op->body.as<SBlockRealizeNode>()) {
+    if (const auto* realize =
+            op->body->size() == 1 ? op->body->seq[0].as<SBlockRealizeNode>() : nullptr) {
       const auto& block = realize->block;
       for (const auto& buffer : block->alloc_buffers) {
         buffer_data_to_buffer_.erase(buffer.var());

@@ -182,11 +182,11 @@ def test_duplicate_block_axes():
 
     # Python spelling does not rename or merge independently created native axes.
     for parsed in (duplicate_block_axes, duplicate_block_axes_remap):
-        block = parsed.body.block.body.body.body.block
+        block = parsed.body[0].block.body[0].body[0].body[0].block
         assert len(block.iter_vars) == 2
         first, second = (axis.var for axis in block.iter_vars)
         assert not first.same_as(second)
-        assert block.body.value.same_as(second)
+        assert block.body[0].value.same_as(second)
 
 
 def test_miss_block_bind():
@@ -234,11 +234,11 @@ def test_buffer_rebinding_preserves_distinct_allocations():
         A[0, 0] = A[0, 1] + T.float32(1)
 
     # Python rebinding selects the second buffer and retains both native allocations.
-    block = rebound_buffer.body.block
+    block = rebound_buffer.body[0].block
     assert len(block.alloc_buffers) == 2
     first, second = block.alloc_buffers
     assert not first.same_as(second)
-    store = block.body
+    store = block.body[0]
     assert isinstance(store, tirx.TensorStore)
     assert store.buffer.same_as(second)
     assert store.value.a.source.same_as(second)
@@ -300,7 +300,7 @@ def test_duplicate_block_signature():
     check_error(duplicate_predicate, 6, tvm.error.InternalError)
     check_error(duplicate_init, 7, ValueError)
     parsed = duplicate_axes
-    axes = parsed.body.block.body.body.body.block.iter_vars
+    axes = parsed.body[0].block.body[0].body[0].body[0].block.iter_vars
     assert len(axes) == 3
     assert not axes[0].var.same_as(axes[2].var)
     check_error(duplicate_sblock_attrs_with_same_key_diff_value, 6, tvm.error.InternalError)
