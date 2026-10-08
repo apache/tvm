@@ -300,11 +300,6 @@ TVM_DEFINE_CACHED_OP_GETTER(tvm_warp_shuffle_down_op, "tirx.tvm_warp_shuffle_dow
 TVM_DEFINE_CACHED_OP_GETTER(tvm_warp_shuffle_xor_op, "tirx.tvm_warp_shuffle_xor")
 TVM_DEFINE_CACHED_OP_GETTER(tvm_warp_activemask_op, "tirx.tvm_warp_activemask")
 TVM_DEFINE_CACHED_OP_GETTER(tvm_thread_allreduce_op, "tirx.tvm_thread_allreduce")
-TVM_DEFINE_CACHED_OP_GETTER(cooperative_tensor_fill_op, "tirx.cooperative_tensor_fill")
-TVM_DEFINE_CACHED_OP_GETTER(cooperative_tensor_load_op, "tirx.cooperative_tensor_load")
-TVM_DEFINE_CACHED_OP_GETTER(cooperative_tensor_store_op, "tirx.cooperative_tensor_store")
-TVM_DEFINE_CACHED_OP_GETTER(cooperative_tensor_multiply_accumulate_op,
-                            "tirx.cooperative_tensor_multiply_accumulate")
 TVM_DEFINE_CACHED_OP_GETTER(vectorhigh_op, "tirx.vectorhigh")
 TVM_DEFINE_CACHED_OP_GETTER(vectorlow_op, "tirx.vectorlow")
 TVM_DEFINE_CACHED_OP_GETTER(vectorcombine_op, "tirx.vectorcombine")
@@ -688,65 +683,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<Expr>("thread_axes", "The reduction thread axes."))
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_thread_allreduce"))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-  OpDef("tirx.cooperative_tensor_fill")
-      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
-      .signature(sig::arg("d", "The D operand."), sig::arg<IntExpr>("index", "The index."),
-                 sig::arg("value", "The value to use."),
-                 sig::arg<IntExpr>("rows", "The number of rows."),
-                 sig::arg<IntExpr>("cols", "The number of columns."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName",
-                                    ffi::String("tirx.cooperative_tensor_fill"))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-  OpDef("tirx.cooperative_tensor_load")
-      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
-      .signature(sig::arg("d", "The D operand."), sig::arg<IntExpr>("index", "The index."),
-                 sig::arg("ptr", "The pointer."), sig::arg<IntExpr>("stride", "The stride."),
-                 sig::arg<IntExpr>("rows", "The number of rows."),
-                 sig::arg<IntExpr>("cols", "The number of columns."),
-                 sig::arg("transpose_matrix", "Whether to transpose the matrix."),
-                 sig::arg<IntExpr>("mma_M", "The M dimension of the matrix operation."),
-                 sig::arg<IntExpr>("mma_N", "The N dimension of the matrix operation."),
-                 sig::arg<IntExpr>("mma_K", "The K dimension of the matrix operation."),
-                 sig::arg<IntExpr>("operand_role", "The matrix operand role."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName",
-                                    ffi::String("tirx.cooperative_tensor_load"))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-  OpDef("tirx.cooperative_tensor_store")
-      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
-      .signature(sig::arg("d", "The D operand."), sig::arg<IntExpr>("index", "The index."),
-                 sig::arg("ptr", "The pointer."), sig::arg<IntExpr>("stride", "The stride."),
-                 sig::arg<IntExpr>("rows", "The number of rows."),
-                 sig::arg<IntExpr>("cols", "The number of columns."),
-                 sig::arg("transpose_matrix", "Whether to transpose the matrix."),
-                 sig::arg<IntExpr>("mma_M", "The M dimension of the matrix operation."),
-                 sig::arg<IntExpr>("mma_N", "The N dimension of the matrix operation."),
-                 sig::arg<IntExpr>("mma_K", "The K dimension of the matrix operation."),
-                 sig::arg<IntExpr>("operand_role", "The matrix operand role."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName",
-                                    ffi::String("tirx.cooperative_tensor_store"))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-  OpDef("tirx.cooperative_tensor_multiply_accumulate")
-      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
-      .signature(
-          sig::arg("d", "The D operand."), sig::arg<IntExpr>("index_d", "The D fragment index."),
-          sig::arg("a", "The A operand."), sig::arg<IntExpr>("index_a", "The A fragment index."),
-          sig::arg("b", "The B operand."), sig::arg<IntExpr>("index_b", "The B fragment index."),
-          sig::arg("c", "The C operand."), sig::arg<IntExpr>("index_c", "The C fragment index."),
-          sig::arg<IntExpr>("M", "The M dimension."), sig::arg<IntExpr>("N", "The N dimension."),
-          sig::arg<IntExpr>("K", "The K dimension."),
-          sig::arg("transpose_a", "Whether to transpose A."),
-          sig::arg("transpose_b", "Whether to transpose B."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName",
-                                    ffi::String("tirx.cooperative_tensor_multiply_accumulate"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
