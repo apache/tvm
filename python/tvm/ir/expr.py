@@ -23,9 +23,10 @@ import tvm_ffi
 
 import tvm
 
-from ..runtime import Object, Scriptable, const
+from ..runtime import Object
 from . import _ffi_api, _tensor_expr_overload
-from .base import Node, Span
+from ._constant import const
+from .base import Node, Scriptable, Span
 
 
 def _convert_subscript_index(index):

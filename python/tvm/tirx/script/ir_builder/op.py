@@ -19,8 +19,6 @@
 from __future__ import annotations
 
 import functools
-import inspect
-from collections.abc import Callable
 from typing import Any
 
 import tvm_ffi as _ffi
@@ -40,7 +38,6 @@ from tvm.script.ir_builder.frame import IRModuleFrame
 
 # pylint: disable=unused-import
 from tvm.target.codegen import llvm_lookup_intrinsic_id
-from tvm.te import CommReducer, Reduce
 from tvm.tirx import Expr, is_tensor_var
 from tvm.tirx import op as _tir_op
 from tvm.tirx.exec_scope import Var
@@ -152,37 +149,6 @@ def max(a: Expr, b: Expr) -> Expr:  # pylint: disable=redefined-builtin
         The result expression.
     """
     return _ffi_api.max(a, b)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def comm_reducer(combiner: Callable, identity: list[Expr]) -> CommReducer:
-    """
-    Create a CommReducer from lambda inputs/outputs and the identities
-
-    Parameters
-    ----------
-    combiner : Callable
-        A binary function which takes two Expr as input to return a Expr.
-
-    identity : List[Expr]
-        A list of types of output Expr.
-
-    Returns
-    -------
-    res : CommReducer
-        The CommReducer.
-    """
-    params = inspect.signature(combiner).parameters
-    num_args = len(params)
-    args = []
-    for name, i in zip(params.keys(), identity + identity):
-        if isinstance(i, int):
-            args.append(Var(name, "int32"))
-        else:
-            args.append(Var(name, i.ty))
-    res = combiner(*args)
-    if not isinstance(res, tuple):
-        res = (res,)
-    return CommReducer(args[: num_args // 2], args[num_args // 2 :], res, identity)
 
 
 def _llvm_result_type(func):
@@ -806,7 +772,6 @@ __all__ = [
     "CallEffectKind",
     "CallFFIKernelAttr",
     "Cast",
-    "CommReducer",
     "Div",
     "FloorDiv",
     "FloorMod",
@@ -820,7 +785,6 @@ __all__ = [
     "Or",
     "RShift",
     "Ramp",
-    "Reduce",
     "Select",
     "Shuffle",
     "Sub",
@@ -858,7 +822,6 @@ __all__ = [
     "ceil",
     "ceildiv",
     "clz",
-    "comm_reducer",
     "cooperative_tensor_fill",
     "cooperative_tensor_load",
     "cooperative_tensor_multiply_accumulate",

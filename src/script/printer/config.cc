@@ -182,9 +182,12 @@ ffi::Array<ffi::String> PrinterConfigNode::GetBuiltinKeywords() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   PrinterConfigNode::RegisterReflection();
-  ffi::reflection::GlobalDef().def(
-      "node.PrinterConfig",
-      [](ffi::Map<ffi::String, Any> config_dict) { return PrinterConfig(config_dict); });
+  auto make_config = [](ffi::Map<ffi::String, Any> config_dict) {
+    return PrinterConfig(config_dict);
+  };
+  ffi::reflection::GlobalDef()
+      .def("script.printer.PrinterConfig", make_config)
+      .def("node.PrinterConfig", make_config);
 }
 
 }  // namespace tvm

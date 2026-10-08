@@ -21,8 +21,7 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm.ir import assert_structural_equal
-from tvm.runtime import const
+from tvm.ir import assert_structural_equal, const
 from tvm.script import tirx as T
 from tvm.tirx import IndexMap, IntImm, Var, floordiv, floormod
 

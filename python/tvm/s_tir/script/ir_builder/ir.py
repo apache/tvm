@@ -25,8 +25,10 @@ from tvm import ir
 from tvm import tirx as tir
 from tvm.ir import TensorLoad, TensorRegion, is_prim_expr
 from tvm.s_tir.iter_var import IterVar
+from tvm.s_tir.op import comm_reducer
 from tvm.script.ir_builder.base import MISSING
 from tvm.script.parser.protocol_registry import register_mutable_decl as _register_mutable_decl
+from tvm.te import CommReducer, Reduce
 from tvm.tirx import Expr, IntImm, Var
 from tvm.tirx.layout import Layout
 from tvm.tirx.script.ir_builder.ir import _get_layout, _record_meta_resource
@@ -476,12 +478,15 @@ class axis:  # pylint: disable=invalid-name
 
 
 __all__ = [
+    "CommReducer",
     "IterVar",
+    "Reduce",
     "async_commit",
     "async_copy_scope",
     "async_wait",
     "axis",
     "block_name_suffix_context",
+    "comm_reducer",
     "iter_var",
     "manual_sync",
     "match_buffer",

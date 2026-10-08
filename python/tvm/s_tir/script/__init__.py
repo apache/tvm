@@ -41,6 +41,9 @@ def _initialize():
             if name not in ("builder", "ir_builder", "jit")
         )
         for name in (
+            "CommReducer",
+            "Reduce",
+            "comm_reducer",
             "async_copy_scope",
             "async_commit",
             "async_wait",

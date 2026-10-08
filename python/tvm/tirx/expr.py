@@ -30,6 +30,7 @@ For example, you can use addexp.a to get the left operand of an Add node.
 
 from tvm import ir
 from tvm.ir import Expr
+from tvm.ir import const as const
 from tvm.ir._overload_prim_expr import (  # noqa: F401
     EqualOp,
     ExprOp,
@@ -78,7 +79,6 @@ from tvm.ir.prim.expr import (  # noqa: F401
     Sub,
 )
 from tvm.runtime import ObjectConvertible
-from tvm.runtime import const as const
 
 from . import _ffi_api
 

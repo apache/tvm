@@ -16,7 +16,8 @@
 # under the License.
 """Primitive-expression overloads for shared IR expressions."""
 
-from ..runtime import DataTypeCode, ObjectConvertible, const
+from ..runtime import DataTypeCode, ObjectConvertible
+from ._constant import const
 from .base import Span
 from .expr import Expr, TensorRegion, is_prim_expr
 from .prim import _ffi_api as _prim_ffi_api
