@@ -139,9 +139,7 @@ def test_tuple_constructor_materializes_raw_call_arguments():
     ir.assert_structural_equal(nested, ir.Tuple([ir.Tuple([]), ir.Tuple([value])]))
     call = ir.Call("relax.add", [nested], attrs={"tag": 1}, ty=ir.Type.missing())
     assert call.args[0].same_as(nested)
-    from_python = ir.Call(
-        "relax.add", [((), (value,))], attrs={"tag": 1}, ty=ir.Type.missing()
-    )
+    from_python = ir.Call("relax.add", [((), (value,))], attrs={"tag": 1}, ty=ir.Type.missing())
     ir.assert_structural_equal(call, from_python)
     source = call.script()
     ir.assert_structural_equal(call, eval(source, {"I": I, "R": R, "T": T}))
