@@ -27,7 +27,7 @@
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/script/ir_builder/frame.h>
-#include <tvm/tirx/tile_primitive.h>
+#include <tvm/tirx/tile_op.h>
 #include <tvm/tirx/type.h>
 
 namespace tvm {

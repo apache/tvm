@@ -26,15 +26,15 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/layout.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -62,7 +62,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -239,7 +239,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     // Hardware axes share their outer device allocation scope.  Virtual and
     // generic regions retain a lexical allocation boundary of their own.
-    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+    if (op->op.same_as(tirx::launch_thread_op()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
       if (in_thread_env_) return StmtExprVisitor::Visit_(op);
       in_thread_env_ = true;
@@ -260,8 +260,8 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>(); call) {
-      if (call->op.same_as(builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
-      if (call->op.same_as(builtin::decl_tensor())) return DispatchDeclTensor(op, call);
+      if (call->op.same_as(tirx::alloc_tensor_op())) return DispatchAllocTensor(op, call);
+      if (call->op.same_as(tirx::decl_tensor_op())) return DispatchDeclTensor(op, call);
     }
     scope_.push_back(StmtEntry());
     // visit subexpr (the value may contain TensorLoad)
@@ -395,7 +395,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(builtin::alloc_tensor()))
+        call && call->op.same_as(tirx::alloc_tensor_op()))
       return DispatchAllocTensor(op, call);
     return StmtExprVisitor::Visit_(op);
   }
@@ -592,7 +592,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
+    if (op->op.same_as(tirx::buffer_data_op()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>()) {
         Var root = buffer_aliases_.Get(var.value()).value_or(var.value());
         if (auto it = alloc_map_.find(root.get()); it != alloc_map_.end()) {
@@ -602,8 +602,8 @@ class StoragePlanRewriter : public StmtExprMutator {
         }
       }
     }
-    if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
-      bool is_load = op->op.same_as(builtin::masked_load());
+    if (op->op.same_as(tirx::masked_load_op()) || op->op.same_as(tirx::masked_store_op())) {
+      bool is_load = op->op.same_as(tirx::masked_load_op());
       TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
       ffi::Optional<PrimExpr> value;
       if (!is_load)
@@ -632,7 +632,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                            .as_or_throw<Expr>());
         return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);
       }
-    } else if (op->op.same_as(builtin::tvm_access_ptr())) {
+    } else if (op->op.same_as(tirx::tvm_access_ptr_op())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       PrimExpr dtype_marker = op->args[0].as_or_throw<PrimExpr>();
       PrimType dtype = dtype_marker.ty();
@@ -696,9 +696,9 @@ class StoragePlanRewriter : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>(); call) {
-      if (call->op.same_as(builtin::alloc_tensor()))
+      if (call->op.same_as(tirx::alloc_tensor_op()))
         return MutateAllocTensor(op, call, inplace_mode);
-      if (call->op.same_as(builtin::decl_tensor())) return MutateDeclTensor(op, call, inplace_mode);
+      if (call->op.same_as(tirx::decl_tensor_op())) return MutateDeclTensor(op, call, inplace_mode);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
@@ -718,7 +718,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       TensorVar buf = RemapBuffer(op->var.as_or_throw<TensorVar>(), it->second->alloc_var);
       return Bind(
           buf,
-          Call(buf.type(), builtin::decl_tensor(),
+          Call(buf.type(), tirx::decl_tensor_op(),
                {it->second->alloc_var.as_or_throw<TensorVar>().data(), tvm::Tuple(buf->shape),
                 DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
                {}, buffer_call->ty_args, buffer_call->span),
@@ -736,7 +736,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       TensorVar buffer = RemapBuffer(op->var.as_or_throw<TensorVar>(), it->second->alloc_var);
       return Bind(
           buffer,
-          Call(buffer.type(), builtin::decl_tensor(),
+          Call(buffer.type(), tirx::decl_tensor_op(),
                {it->second->alloc_var.as_or_throw<TensorVar>().data(), tvm::Tuple(buffer->shape),
                 DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
                buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
@@ -875,7 +875,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           }
           e->alloc_nest.push_back(Bind(
               buf.var(),
-              Call(buf.type(), tirx::builtin::alloc_tensor(),
+              Call(buf.type(), tirx::alloc_tensor_op(),
                    {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
                    DictAttrs(annotations))));
           continue;
@@ -923,7 +923,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           }
           e->alloc_nest.push_back(Bind(
               buf.var(),
-              Call(buf.type(), tirx::builtin::alloc_tensor(),
+              Call(buf.type(), tirx::alloc_tensor_op(),
                    {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
                    DictAttrs(annotations))));
         } else {
@@ -978,7 +978,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           }
           e->alloc_nest.push_back(Bind(
               buf.var(),
-              Call(buf.type(), tirx::builtin::alloc_tensor(),
+              Call(buf.type(), tirx::alloc_tensor_op(),
                    {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
                    DictAttrs(annotations))));
         }
@@ -1030,7 +1030,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
     e->alloc_nest.push_back(
         Bind(buf.var(),
-             Call(buf.type(), tirx::builtin::alloc_tensor(),
+             Call(buf.type(), tirx::alloc_tensor_op(),
                   {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
                   DictAttrs(annotations))));
   }
@@ -1471,8 +1471,8 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
-      bool is_load = op->op.same_as(builtin::masked_load());
+    if (op->op.same_as(tirx::masked_load_op()) || op->op.same_as(tirx::masked_store_op())) {
+      bool is_load = op->op.same_as(tirx::masked_load_op());
       TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
       PrimType dtype =
           is_load ? op->ty.as_or_throw<PrimType>() : op->args[1].as_or_throw<PrimExpr>().ty();
@@ -1481,7 +1481,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
         indices.push_back(op->args[i].as_or_throw<PrimExpr>());
       }
       OnArrayAccess(dtype, buffer.get(), indices, is_load);
-    } else if (op->op.same_as(builtin::tvm_access_ptr())) {
+    } else if (op->op.same_as(tirx::tvm_access_ptr_op())) {
       PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
       auto buffer_var = GetBufferDataVar(op->args[1]);
       PrimExpr index = op->args[2].as_or_throw<PrimExpr>();
@@ -1491,7 +1491,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
       if (buffer_var.has_value()) {
         OnArrayAccess(dtype, buffer_var.value().get(), {index}, false);
       }
-    } else if (op->op.same_as(builtin::address_of())) {
+    } else if (op->op.same_as(tirx::address_of_op())) {
       if (const auto* load = op->args[0].as<TensorLoadNode>()) {
         OnArrayAccess(load->ty.as_or_throw<PrimType>(),
                       load->source.as_or_throw<tvm::tirx::TensorVar>().get(), load->indices,
@@ -1532,8 +1532,8 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>(); call) {
-      if (call->op.same_as(builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
-      if (call->op.same_as(builtin::decl_tensor())) return DispatchDeclTensor(op, call);
+      if (call->op.same_as(tirx::alloc_tensor_op())) return DispatchAllocTensor(op, call);
+      if (call->op.same_as(tirx::decl_tensor_op())) return DispatchDeclTensor(op, call);
     }
     HandleLetNode(op->var);
     return StmtExprVisitor::Visit_(op);
@@ -1940,7 +1940,7 @@ class VectorTypeRewriter : public StmtExprMutator {
   }
 
   ffi::Optional<Expr> RewriteMaskedCall(const CallNode* op) {
-    if (op->op.same_as(builtin::masked_load())) {
+    if (op->op.same_as(tirx::masked_load_op())) {
       TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
       ffi::Array<PrimExpr> indices;
       for (size_t i = 1; i + 1 < op->args.size(); ++i) {
@@ -1956,7 +1956,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       args.push_back(this->Mutate(op->args.back()).ValueOrUnchanged(op->args.back()));
       return Call(modified->ty, op->op, args, op->attrs, op->ty_args, op->span);
     }
-    if (op->op.same_as(builtin::masked_store())) {
+    if (op->op.same_as(tirx::masked_store_op())) {
       TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
       PrimExpr value = this->Mutate(op->args[1].as_or_throw<PrimExpr>())
                            .ValueOrUnchanged(op->args[1].as_or_throw<PrimExpr>());
@@ -1979,9 +1979,9 @@ class VectorTypeRewriter : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>(); call) {
-      if (call->op.same_as(builtin::alloc_tensor()))
+      if (call->op.same_as(tirx::alloc_tensor_op()))
         return MutateAllocTensor(op, call, inplace_mode);
-      if (call->op.same_as(builtin::decl_tensor())) return MutateDeclTensor(op, call, inplace_mode);
+      if (call->op.same_as(tirx::decl_tensor_op())) return MutateDeclTensor(op, call, inplace_mode);
     }
     auto it = rewrite_map_.find(op->var.get());
     auto value_result = this->Mutate(op->value, inplace_mode);
@@ -2006,7 +2006,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       return ffi::Unchanged();
     }
     return Bind(new_buf.var(),
-                Call(new_buf.type(), tirx::builtin::alloc_tensor(),
+                Call(new_buf.type(), tirx::alloc_tensor_op(),
                      {tvm::Tuple(new_buf->shape, buffer_call->args[0]->span),
                       DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span),
                       StringImm(new_buf.scope(), buffer_call->args[2]->span)},
@@ -2021,7 +2021,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     if (buffer.same_as(op->var.as_or_throw<TensorVar>()) && data.same_as(buffer_call->args[0]))
       return ffi::Unchanged();
     return Bind(buffer,
-                Call(buffer.type(), builtin::decl_tensor(),
+                Call(buffer.type(), tirx::decl_tensor_op(),
                      {data, tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                       StringImm(buffer.scope())},
                      buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
@@ -2060,13 +2060,13 @@ class VectorTypeRewriter : public StmtExprMutator {
     if (auto rewritten = RewriteMaskedCall(op)) {
       return rewritten.value();
     }
-    if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
+    if (op->op.same_as(tirx::buffer_data_op()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
           var.has_value() && var.value()->ty.as<TensorTypeNode>()) {
         return RemapBuffer(var.value().as_or_throw<TensorVar>()).data();
       }
     }
-    if (op->op.same_as(builtin::tvm_access_ptr())) {
+    if (op->op.same_as(tirx::tvm_access_ptr_op())) {
       auto buffer = GetBufferDataVar(op->args[1]);
       Expr expr =
           StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Expr>(op));
@@ -2101,7 +2101,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       ffi::Array<Expr> acc_args{e_dtype, data, index, extent, flag};
       auto old_pointer_type = op->ty.as_or_throw<PointerType>();
       Type new_pointer_type = PointerType(info.new_element_dtype, old_pointer_type->storage_scope);
-      return Call(new_pointer_type, builtin::tvm_access_ptr(), acc_args);
+      return Call(new_pointer_type, tirx::tvm_access_ptr_op(), acc_args);
 
     } else {
       return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -2131,7 +2131,7 @@ class VectorTypeRewriter : public StmtExprMutator {
           op = ffi::AnyView(result).as<CallNode>();
           if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
         }
-        if (!op->op.same_as(builtin::buffer_data()) || op->args.size() != 1) return result;
+        if (!op->op.same_as(tirx::buffer_data_op()) || op->args.size() != 1) return result;
         PointerType type = op->args[0].as_or_throw<TensorVar>().DataPointerType();
         if (ffi::StructuralEqual()(op->ty, type)) return result;
         if (inplace_mode == InplaceMode::kAllow) {

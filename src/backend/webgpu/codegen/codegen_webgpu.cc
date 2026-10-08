@@ -25,10 +25,10 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/support/io.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -95,7 +95,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
       return var;
     }
     if (const auto* call = data.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+        call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
       return call->args[0].as<Var>();
     }
     return std::nullopt;
@@ -125,7 +125,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::decl_tensor())) {
+        call && call->op.same_as(tirx::decl_tensor_op())) {
       if (auto source = GetBufferDataVar(call->args[0])) {
         buffer_aliases_.insert_or_assign(op->var.get(), ResolveBuffer(source.value()));
         return std::nullopt;
@@ -135,7 +135,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (op->op.same_as(tirx::builtin::launch_thread())) {
+    if (op->op.same_as(tirx::launch_thread_op())) {
       TVM_FFI_CHECK(
           std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
           ValueError)
@@ -361,7 +361,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const Function& f, bool skip_re
 }
 
 void CodeGenWebGPU::Dispatch_(const RegionStmtNode* op) {
-  if (op->op.same_as(tirx::builtin::launch_thread())) {
+  if (op->op.same_as(tirx::launch_thread_op())) {
     TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
                   ValueError)
         << "Virtual thread launches must be lowered before code generation";
@@ -505,18 +505,18 @@ void CodeGenWebGPU::Dispatch_(const prim::RShiftNode* op, std::ostream& os) {  /
 }
 
 void CodeGenWebGPU::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
-  TVM_FFI_ICHECK(!op->op.same_as(tirx::builtin::masked_load()))
+  TVM_FFI_ICHECK(!op->op.same_as(tirx::masked_load_op()))
       << "Predicated buffer load is not supported.";
-  TVM_FFI_ICHECK(!op->op.same_as(tirx::builtin::masked_store()))
+  TVM_FFI_ICHECK(!op->op.same_as(tirx::masked_store_op()))
       << "Predicated buffer store is not supported.";
-  if (op->op.same_as(tirx::builtin::reinterpret())) {
+  if (op->op.same_as(tirx::reinterpret_op())) {
     // generate bitcast<TYPE>(ARG)
     os << "bitcast<";
     this->PrintType(op->ty.as_or_throw<PrimType>(), os);
     os << ">(";
     this->PrintExpr(op->args[0], os);
     os << ")";
-  } else if (op->op.same_as(prim::builtin::if_then_else())) {
+  } else if (op->op.same_as(prim::if_then_else_op())) {
     // conditional that skips eval if cond evals to false
     std::string result = name_supply_->FreshName("condval");
     std::string cond = PrintExpr(op->args[0]);
@@ -541,7 +541,7 @@ void CodeGenWebGPU::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT
       this->EndScope(else_scope);
     }
     os << result;
-  } else if (op->op.same_as(tirx::builtin::dp4a())) {
+  } else if (op->op.same_as(tirx::dp4a_op())) {
     // generate `dot4I8Packed(vec1, vec2) + acc` for the builtin `dp4a`
     os << "dot4I8Packed(";
     this->PrintExpr(op->args[0], os);
@@ -683,8 +683,8 @@ void CodeGenWebGPU::Dispatch_(const TensorLoadNode* op, std::ostream& os) {  // 
 
 void CodeGenWebGPU::Dispatch_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>(); call) {
-    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
-    if (call->op.same_as(tirx::builtin::decl_tensor())) return DispatchDeclTensor(op, call);
+    if (call->op.same_as(tirx::alloc_tensor_op())) return DispatchAllocTensor(op, call);
+    if (call->op.same_as(tirx::decl_tensor_op())) return DispatchDeclTensor(op, call);
   }
   // Stateful reads cannot be substituted after the underlying state changes.
   if (auto prim_value = op->value.as<PrimExpr>();

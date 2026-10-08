@@ -148,16 +148,6 @@ def func_attr(attrs: dict[str, Any]) -> None:
     _ffi_api.FuncAttrs(attrs)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def device_entry() -> frame.RegionFrame:
-    """Mark a device-entry region containing scope definitions.
-
-    Use a flat ``T.device_entry()`` to scope the remaining statements in the
-    enclosing body, or ``with T.device_entry():`` for an explicit boundary.
-    Statements before the region remain host code.
-    """
-    return region("tirx.device_entry", [])
-
-
 def check_well_formed_(function: _tir.Function) -> None:
     """Validate a completed TIRx function."""
     try:
@@ -934,6 +924,16 @@ def region(
     if attrs is None or isinstance(attrs, dict):
         attrs = _ir.make_node("ir.DictAttrs", **(attrs or {}))
     return _ffi_api.Region(op, args, body_params, attrs)
+
+
+def device_entry() -> frame.RegionFrame:
+    """Mark a device-entry region containing scope definitions.
+
+    Use a flat ``T.device_entry()`` to scope the remaining statements in the
+    enclosing body, or ``with T.device_entry():`` for an explicit boundary.
+    Statements before the region remain host code.
+    """
+    return region("tirx.device_entry", [])
 
 
 def device_context(device_type: Expr, device_id: Expr) -> frame.RegionFrame:

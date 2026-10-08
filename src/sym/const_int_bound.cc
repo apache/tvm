@@ -25,8 +25,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr_functor.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 
 #include <algorithm>
@@ -835,8 +835,8 @@ class ConstIntBoundAnalyzer::Impl
    * topi.math.ceil_log2, and can appear in iteration bounds.
    */
   static ffi::Optional<PrimExpr> FindCeilLog2Arg(const prim::CastNode* op) {
-    static const Op& ceil_op = prim::builtin::ceil();
-    static const Op& log2_op = prim::builtin::log2();
+    static const Op& ceil_op = prim::ceil_op();
+    static const Op& log2_op = prim::log2_op();
     if (op->ty.as_or_throw<PrimType>().code() == DLDataTypeCode::kDLInt) {
       if (auto as_call = op->value.as<CallNode>()) {
         if (as_call->op.same_as(ceil_op)) {

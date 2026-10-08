@@ -21,8 +21,10 @@ from __future__ import annotations
 
 from enum import Enum
 
+import tvm_ffi
+
 from tvm import tirx
-from tvm.ir import Call, Op, StringImm
+from tvm.ir import Attrs, Call, Op, StringImm
 from tvm.ir.op import _init_op_api, _make_op_api
 from tvm.ir.type import PointerType, PrimType
 from tvm.runtime import const
@@ -589,6 +591,16 @@ def ptx_legacy_ldmatrix(
         ty=ty,
         span=span,
     )
+
+
+@tvm_ffi.register_object("tirx.cuda.TCGen05InstrDescriptorAttrs")
+class TCGen05InstrDescriptorAttrs(Attrs):
+    """Static options for the dense tcgen05 instruction descriptor."""
+
+
+@tvm_ffi.register_object("tirx.cuda.TCGen05InstrDescriptorBlockScaledAttrs")
+class TCGen05InstrDescriptorBlockScaledAttrs(Attrs):
+    """Static options for the block-scaled tcgen05 instruction descriptor."""
 
 
 _encode_instr_descriptor = _make_op_api(

@@ -21,7 +21,7 @@
 #define TVM_TIRX_ANALYSIS_VERIFY_WELL_FORMED_H_
 
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 #include "../ir/tir_visitor_with_path.h"
 namespace tvm {

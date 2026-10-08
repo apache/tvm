@@ -39,7 +39,7 @@
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -116,8 +116,7 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (!op->op.same_as(tirx::builtin::launch_thread()) &&
-        !op->op.same_as(tirx::builtin::device_entry()))
+    if (!op->op.same_as(tirx::launch_thread_op()) && !op->op.same_as(tirx::device_entry_op()))
       return StmtExprVisitor::Visit_(op);
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->args));
     bool previous_scope = is_under_gpu_scope_;
@@ -203,8 +202,7 @@ class CallSubstitutor : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (!op->op.same_as(tirx::builtin::launch_thread()) &&
-        !op->op.same_as(tirx::builtin::device_entry()))
+    if (!op->op.same_as(tirx::launch_thread_op()) && !op->op.same_as(tirx::device_entry_op()))
       return StmtExprMutator::Mutate_(op, inplace_mode);
     auto args =
         Mutate(op->args, inplace_mode).ValueOrUnchanged(op->args).as_or_throw<ffi::Array<Expr>>();
