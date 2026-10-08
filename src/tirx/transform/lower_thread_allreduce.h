@@ -219,18 +219,25 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     ffi::Array<Expr> arguments;
     for (const PrimExpr& value : lhs) arguments.push_back(value);
     for (const PrimExpr& value : rhs) arguments.push_back(value);
-    return tirx::GetAllreduceFields(combiner->Apply(arguments)).Map([](const Expr& value) {
-      return value.as_or_throw<PrimExpr>();
-    });
+    Expr result = combiner->Apply(arguments);
+    const auto* tuple = result.as<tvm::TupleNode>();
+    ffi::Array<Expr> fields = tuple ? tuple->fields : ffi::Array<Expr>{result};
+    return fields.Map([](const Expr& value) { return value.as_or_throw<PrimExpr>(); });
   }
 
   // make allreduce.
   Stmt MakeAllreduce(const CallNode* call) {
     LambdaExpr combiner = call->args[0].as_or_throw<LambdaExpr>();
-    ffi::Array<Expr> inits = tirx::GetAllreduceFields(call->args[1]);
-    ffi::Array<Expr> inputs = tirx::GetAllreduceFields(call->args[2]);
-    ffi::Array<Expr> destinations = tirx::GetAllreduceFields(call->args[4]);
-    ffi::Array<Expr> thread_axes = tirx::GetAllreduceFields(call->args[5]);
+    const auto* inits_tuple = call->args[1].as<tvm::TupleNode>();
+    ffi::Array<Expr> inits = inits_tuple ? inits_tuple->fields : ffi::Array<Expr>{call->args[1]};
+    const auto* inputs_tuple = call->args[2].as<tvm::TupleNode>();
+    ffi::Array<Expr> inputs = inputs_tuple ? inputs_tuple->fields : ffi::Array<Expr>{call->args[2]};
+    const auto* destinations_tuple = call->args[4].as<tvm::TupleNode>();
+    ffi::Array<Expr> destinations =
+        destinations_tuple ? destinations_tuple->fields : ffi::Array<Expr>{call->args[4]};
+    const auto* thread_axes_tuple = call->args[5].as<tvm::TupleNode>();
+    ffi::Array<Expr> thread_axes =
+        thread_axes_tuple ? thread_axes_tuple->fields : ffi::Array<Expr>{call->args[5]};
     size_t size = inputs.size();
     std::vector<PrimExpr> values;
     values.reserve(size);

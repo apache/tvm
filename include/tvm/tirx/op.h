@@ -553,16 +553,6 @@ TVM_DLL const Op& tvm_warp_activemask_op();
  */
 TVM_DLL const Op& tvm_thread_allreduce_op();
 
-/*!
- * \brief View a scalar all-reduce operand/result as one field, or expose its Tuple fields.
- * \param value The scalar expression or explicit Tuple.
- * \return The fields without changing the expression's representation in IR.
- */
-inline ffi::Array<Expr> GetAllreduceFields(const Expr& value) {
-  if (const auto* tuple = value.as<tvm::TupleNode>()) return tuple->fields;
-  return {value};
-}
-
 // Metal cooperative_tensor intrinsics (MetalPerformancePrimitives / Metal 4)
 
 /*!
