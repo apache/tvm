@@ -389,7 +389,7 @@ def _emit_induced_packed(
             src_args = T.meta_var(
                 [
                     src.scalar
-                    if src.is_scalar
+                    if T.constexpr(src.is_scalar)
                     else (
                         views[src.buf_region],
                         [[f * vec_len + k] for k in range(vec_len)],
@@ -423,7 +423,10 @@ def _emit_induced_scalar(
             # Logical 1D coord = f (vec_len = 1 in scalar path); each
             # buffer's layout maps to physical at access time.
             src_vals = T.meta_var(
-                [src.scalar if src.is_scalar else views[src.buf_region][f] for src in srcs]
+                [
+                    src.scalar if T.constexpr(src.is_scalar) else views[src.buf_region][f]
+                    for src in srcs
+                ]
             )
             views[dst_br][f] = T.cast(compute(src_vals, extras, dst_dtype), dst_dtype)
 

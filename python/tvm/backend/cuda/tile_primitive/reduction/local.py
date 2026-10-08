@@ -141,7 +141,7 @@ def _gen_warp_shuffle_reduce(src, dst, reduce_width, local_elems, accum, op_type
         src_local = src.local(local_elems, layout=src.layout.storage())
         dst_local = dst.local(local_elems, layout=dst.layout.storage())
         for k in T.serial(local_elems):
-            if not is_same_buffer:
+            if T.constexpr(not is_same_buffer):
                 dst_local[k] = src_local[k]
             dst_local[k] = T.cuda.warp_reduce(dst_local[k], op_str, reduce_width)
     # fmt: on
@@ -273,7 +273,7 @@ def _emit_reduction_local_thread_wise(
     def impl():
         for spa in T.serial(spatial_len):
             dst_idx = T.meta_var(get_indices(spa, dst_st, dst_extent))
-            if not accum:
+            if T.constexpr(not accum):
                 dst[tuple(dst_idx)] = init_value
             for red in T.serial(reduction_len):
                 src_idx = T.meta_var(get_src_indices(spa, red))
@@ -367,12 +367,12 @@ def _emit_reduction_local_view(
             for spa in T.serial(dst_local_total):
                 dst_idx = T.meta_var(get_indices(spa, dst_local_st, dst_local_ext))
                 old_val[0] = dst_local[tuple(dst_idx)]
-                if not in_place:
+                if T.constexpr(not in_place):
                     dst_local[tuple(dst_idx)] = init_value
                     for red in T.serial(reduction_local_total):
                         src_idx = T.meta_var(_get_src_local_index(spa, red))
                         dst_local[tuple(dst_idx)] = op_func(dst_local[tuple(dst_idx)], src_local[tuple(src_idx)])  # noqa: E501
-                if shuffle:
+                if T.constexpr(shuffle):
                     mask = T.tvm_warp_activemask()
                     shuffle_data(mask, dst_local, dst_idx)
                 dst_local[tuple(dst_idx)] = op_func(dst_local[tuple(dst_idx)], old_val[0])
@@ -386,13 +386,13 @@ def _emit_reduction_local_view(
 
             for spa in T.serial(dst_local_total):
                 dst_idx = T.meta_var(get_indices(spa, dst_local_st, dst_local_ext))
-                if not in_place:
-                    if not accum:
+                if T.constexpr(not in_place):
+                    if T.constexpr(not accum):
                         dst_local[tuple(dst_idx)] = init_value
                     for red in T.serial(reduction_local_total):
                         src_idx = T.meta_var(_get_src_local_index(spa, red))
                         dst_local[tuple(dst_idx)] = op_func(dst_local[tuple(dst_idx)], src_local[tuple(src_idx)])  # noqa: E501
-                if shuffle:
+                if T.constexpr(shuffle):
                     mask = T.tvm_warp_activemask()
                     shuffle_data(mask, dst_local, dst_idx)
     # fmt: on

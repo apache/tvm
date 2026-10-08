@@ -39,7 +39,9 @@ def query_cancel_first_ctaid_x(first_ctaid_x, handle, *, use_ld_acquire=True):
     response = T.local_scalar("uint128")
     canceled = T.local_scalar("uint32")
 
-    T.ptx[f"ld{'.acquire.cta' if use_ld_acquire else ''}.shared.b128"](response, handle)
+    T.ptx[f"ld{'.acquire.cta' if T.constexpr(use_ld_acquire) else ''}.shared.b128"](
+        response, handle
+    )
     T.ptx.clusterlaunchcontrol.query_cancel.is_canceled.pred.b128(canceled, response)
     T.tensor_store(first_ctaid_x.source, T.uint32(0xFFFFFFFF), first_ctaid_x.indices)
     T.ptx.clusterlaunchcontrol.query_cancel.get_first_ctaid__x.b32.b128(

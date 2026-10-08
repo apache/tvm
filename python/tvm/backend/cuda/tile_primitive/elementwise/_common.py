@@ -379,11 +379,11 @@ def emit_scope_sync(scope_kind: str):
 
     @T.inline
     def sync():
-        if scope_kind == "cta":
+        if T.constexpr(scope_kind == "cta"):
             T.cuda.cta_sync()
-        elif scope_kind == "warpgroup":
+        elif T.constexpr(scope_kind == "warpgroup"):
             T.cuda.warpgroup_sync(8)
-        elif scope_kind == "warp":
+        elif T.constexpr(scope_kind == "warp"):
             T.cuda.warp_sync()
 
     return sync

@@ -105,13 +105,13 @@ def test_ptx_mma_m16n8k16(a_type, no_c_ptr):
 
         @T.inline
         def G2L(buf_local, buf_global, block_8x8, mode="row"):
-            if mode == "row":
+            if T.constexpr(mode == "row"):
                 for i in range(block_8x8):
                     row = T.meta_var(i % 2 * 8 + tx // 4)
                     col = T.meta_var(i // 2 * 8 + (tx % 4) * 2)
                     for j in range(2):
                         buf_local[i * 2 + j] = buf_global[row, col + j]
-            elif mode == "col":
+            elif T.constexpr(mode == "col"):
                 for i in range(block_8x8):
                     row = T.meta_var(i % 2 * 8 + (tx % 4) * 2)
                     col = T.meta_var(i // 2 * 8 + tx // 4)
@@ -129,7 +129,7 @@ def test_ptx_mma_m16n8k16(a_type, no_c_ptr):
         B_words = B_local.view("uint32")
         # ptx takes the accumulator as an operand; the legacy "omit c" form
         # fed literal zeros, which is now spelled at the call site.
-        if no_c_ptr:
+        if T.constexpr(no_c_ptr):
             for i in range(4):
                 C_local[i] = T.float32(0)
         T.ptx[f"mma.sync.aligned.m16n8k16.row.col.f32.{_elem}.{_elem}.f32"](
@@ -182,13 +182,13 @@ def test_ptx_mma_m16n8k8(a_type, no_c_ptr):
 
         @T.inline
         def G2L(buf_local, buf_global, block_8x8, mode="row"):
-            if mode == "row":
+            if T.constexpr(mode == "row"):
                 for i in range(block_8x8):
                     row = T.meta_var(i % 2 * 8 + tx // 4)
                     col = T.meta_var(i // 2 * 8 + (tx % 4) * 2)
                     for j in range(2):
                         buf_local[i * 2 + j] = buf_global[row, col + j]
-            elif mode == "col":
+            elif T.constexpr(mode == "col"):
                 for i in range(block_8x8):
                     row = T.meta_var(i % 2 * 8 + (tx % 4) * 2)
                     col = T.meta_var(i // 2 * 8 + tx // 4)
@@ -205,7 +205,7 @@ def test_ptx_mma_m16n8k8(a_type, no_c_ptr):
         B_words = B_local.view("uint32")
         # ptx takes the accumulator as an operand; the legacy "omit c" form
         # fed literal zeros, which is now spelled at the call site.
-        if no_c_ptr:
+        if T.constexpr(no_c_ptr):
             for i in range(4):
                 C_local[i] = T.float32(0)
         T.ptx[f"mma.sync.aligned.m16n8k8.row.col.f32.{_elem}.{_elem}.f32"](

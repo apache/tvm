@@ -82,9 +82,9 @@ def test_unary_op_shared(input, op_type, src_dtype, dst_dtype):
             A_smem = T.alloc_tensor(s_shape, src_dtype, scope="shared", layout=s_layout)
             Tx.cta.copy(A_smem[tuple(copy_slice)], A[tuple(copy_slice)])
             T.cuda.cta_sync()
-            if op_type == "zero":
+            if T.constexpr(op_type == "zero"):
                 Tx.cta.zero(A_smem[tuple(map_slice_res)], A_smem[tuple(map_slice_a)])
-            elif op_type == "sqrt":
+            elif T.constexpr(op_type == "sqrt"):
                 Tx.cta.sqrt(A_smem[tuple(map_slice_res)], A_smem[tuple(map_slice_a)])
             T.cuda.cta_sync()
             Tx.cta.copy(A[tuple(copy_slice)], A_smem[tuple(copy_slice)])
@@ -104,9 +104,9 @@ def test_unary_op_shared(input, op_type, src_dtype, dst_dtype):
             B_smem = T.alloc_tensor(s_shape, dst_dtype, scope="shared", layout=s_layout)
             Tx.cta.copy(A_smem[tuple(copy_slice)], A[tuple(copy_slice)])
             T.cuda.cta_sync()
-            if op_type == "zero":
+            if T.constexpr(op_type == "zero"):
                 Tx.cta.zero(B_smem[tuple(map_slice_res)], A_smem[tuple(map_slice_a)])
-            elif op_type == "sqrt":
+            elif T.constexpr(op_type == "sqrt"):
                 Tx.cta.sqrt(B_smem[tuple(map_slice_res)], A_smem[tuple(map_slice_a)])
             T.cuda.cta_sync()
             Tx.cta.copy(B[tuple(map_slice_res)], B_smem[tuple(map_slice_res)])
@@ -169,10 +169,10 @@ def test_unary_op_shared_subcta_scope(exec_scope):
         A_smem = T.alloc_tensor(g_shape, dtype, scope="shared", layout=TileLayout(S[g_shape]))
         Tx.cta.copy(A_smem, A)
         T.cuda.cta_sync()
-        if exec_scope == "warp":
+        if T.constexpr(exec_scope == "warp"):
             if warp_id == 5:
                 Tx.warp.zero(A_smem, A_smem)
-        elif exec_scope == "warpgroup":
+        elif T.constexpr(exec_scope == "warpgroup"):
             if wg_id == 1:
                 Tx.wg.zero(A_smem, A_smem)
         T.cuda.cta_sync()
@@ -261,30 +261,30 @@ def test_unary_op_shared_with_bias_scale(input, op_type, bias_type, src_dtype, d
             Tx.cta.copy(A_smem[tuple(copy_slice)], A[tuple(copy_slice)])
             Tx.cta.copy(bias_smem[tuple(copy_slice)], bias[tuple(copy_slice)])
             T.cuda.cta_sync()
-            if bias_type == "const":
-                if op_type == "sqrt":
+            if T.constexpr(bias_type == "const"):
+                if T.constexpr(op_type == "sqrt"):
                     Tx.cta.sqrt_with_scale_bias(
                         A_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
                         scale=scale,
                         bias=const_bias,
                     )
-                elif op_type == "exp":
+                elif T.constexpr(op_type == "exp"):
                     Tx.cta.exp_with_scale_bias(
                         A_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
                         scale=scale,
                         bias=const_bias,
                     )
-            elif bias_type == "region":
-                if op_type == "sqrt":
+            elif T.constexpr(bias_type == "region"):
+                if T.constexpr(op_type == "sqrt"):
                     Tx.cta.sqrt_with_scale_bias(
                         A_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
                         scale=scale,
                         bias=bias_smem[tuple(map_slice_a)],
                     )
-                elif op_type == "exp":
+                elif T.constexpr(op_type == "exp"):
                     Tx.cta.exp_with_scale_bias(
                         A_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
@@ -310,30 +310,30 @@ def test_unary_op_shared_with_bias_scale(input, op_type, bias_type, src_dtype, d
             Tx.cta.copy(A_smem[tuple(copy_slice)], A[tuple(copy_slice)])
             Tx.cta.copy(bias_smem[tuple(copy_slice)], bias[tuple(copy_slice)])
             T.cuda.cta_sync()
-            if bias_type == "const":
-                if op_type == "sqrt":
+            if T.constexpr(bias_type == "const"):
+                if T.constexpr(op_type == "sqrt"):
                     Tx.cta.sqrt_with_scale_bias(
                         B_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
                         scale=scale,
                         bias=const_bias,
                     )
-                elif op_type == "exp":
+                elif T.constexpr(op_type == "exp"):
                     Tx.cta.exp_with_scale_bias(
                         B_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
                         scale=scale,
                         bias=const_bias,
                     )
-            elif bias_type == "region":
-                if op_type == "sqrt":
+            elif T.constexpr(bias_type == "region"):
+                if T.constexpr(op_type == "sqrt"):
                     Tx.cta.sqrt_with_scale_bias(
                         B_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
                         scale=scale,
                         bias=bias_smem[tuple(map_slice_a)],
                     )
-                elif op_type == "exp":
+                elif T.constexpr(op_type == "exp"):
                     Tx.cta.exp_with_scale_bias(
                         B_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
@@ -502,13 +502,13 @@ def test_unary_op_local(input, op_type, src_dtype, dst_dtype):
             # unary op
         acc_view = acc.view(*acc_shape, layout=acc_layout)
         res_view = res.view(*red_shape, layout=acc_layout)
-        if op_type == "reciprocal":
+        if T.constexpr(op_type == "reciprocal"):
             Tx.warp.reciprocal(res_view, acc_view)
-        elif op_type == "exp":
+        elif T.constexpr(op_type == "exp"):
             Tx.warp.exp(res_view, acc_view)
-        elif op_type == "exp2":
+        elif T.constexpr(op_type == "exp2"):
             Tx.warp.exp2(res_view, acc_view)
-        elif op_type == "log2":
+        elif T.constexpr(op_type == "log2"):
             Tx.warp.log2(res_view, acc_view)
 
             # write res into B
@@ -655,15 +655,15 @@ def test_unary_op_local_with_bias_scale(input, op_type, bias_type, src_dtype, ds
         acc_view = acc.view(*acc_shape, layout=acc_layout)
         res_view = res.view(*red_shape, layout=acc_layout)
         bias_view = bias_local.view(*bias_shape, layout=acc_layout)
-        if bias_type == "const":
-            if op_type == "sqrt":
+        if T.constexpr(bias_type == "const"):
+            if T.constexpr(op_type == "sqrt"):
                 Tx.warp.sqrt_with_scale_bias(res_view, acc_view, scale=scale, bias=const_bias)
-            elif op_type == "exp":
+            elif T.constexpr(op_type == "exp"):
                 Tx.warp.exp_with_scale_bias(res_view, acc_view, scale=scale, bias=const_bias)
-        elif bias_type == "region":
-            if op_type == "sqrt":
+        elif T.constexpr(bias_type == "region"):
+            if T.constexpr(op_type == "sqrt"):
                 Tx.warp.sqrt_with_scale_bias(res_view, acc_view, scale=scale, bias=bias_view)
-            elif op_type == "exp":
+            elif T.constexpr(op_type == "exp"):
                 Tx.warp.exp_with_scale_bias(res_view, acc_view, scale=scale, bias=bias_view)
 
             # write res into B
@@ -733,13 +733,13 @@ def test_unary_op_vectorized(shape, op_type, exec_scope, storage_scope):
         T.device_entry()
         _bx = T.cta_id([1])
         tx = T.thread_id([128])
-        if storage_scope == "shared":
+        if T.constexpr(storage_scope == "shared"):
             a_smem = T.alloc_tensor(
                 shape, dtype=dtype, layout=TileLayout(S[shape]), scope="shared"
             )
             Tx.fill(a_smem[tx], value)
             Tx.copy(A[tx], a_smem[tx])
-        elif storage_scope == "local":
+        elif T.constexpr(storage_scope == "local"):
             a_local = T.alloc_tensor(
                 shape[1:], dtype=dtype, layout=TileLayout(S[shape[1:]]), scope="local"
             )
@@ -752,7 +752,7 @@ def test_unary_op_vectorized(shape, op_type, exec_scope, storage_scope):
         T.device_entry()
         _bx = T.cta_id([1])
         _tid = T.thread_id([128])
-        if storage_scope == "shared":
+        if T.constexpr(storage_scope == "shared"):
             a_smem = T.alloc_tensor(
                 shape, dtype=dtype, layout=TileLayout(S[shape]), scope="shared"
             )
@@ -794,15 +794,15 @@ def test_unary_op_local_thread_wise(op_type, dtype):
             local_shape, dtype, scope="local", layout=TileLayout(S[local_shape])
         )
         Tx.copy(a_local, A[tid])
-        if op_type == "zero":
+        if T.constexpr(op_type == "zero"):
             Tx.zero(a_local, a_local)
-        elif op_type == "sqrt":
+        elif T.constexpr(op_type == "sqrt"):
             Tx.sqrt(a_local, a_local)
-        elif op_type == "reciprocal":
+        elif T.constexpr(op_type == "reciprocal"):
             Tx.reciprocal(a_local, a_local)
-        elif op_type == "exp":
+        elif T.constexpr(op_type == "exp"):
             Tx.exp(a_local, a_local)
-        elif op_type == "silu":
+        elif T.constexpr(op_type == "silu"):
             Tx.silu(a_local, a_local)
         Tx.copy(A[tid], a_local)
 

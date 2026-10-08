@@ -22,6 +22,7 @@ import warnings
 import tvm
 from tvm.script import tirx as T
 from tvm.tirx import Function, Var
+from tvm.tirx.layout import ComposeLayout, TileLayout
 from tvm.tirx.operator.tile_primitive.dispatcher import (
     predicate,
     register_dispatch,
@@ -37,6 +38,22 @@ from .vec_auto_reg import _axis_decl
 def _region_st_extent(buffer_region):
     region = buffer_region.region
     return [r.min for r in region], [r.extent for r in region]
+
+
+def _is_scalar_copy(op_call: TilePrimitiveCall, sctx: DispatchContext):
+    ok, reason = _is_valid_copy(op_call, sctx)
+    if not ok:
+        return ok, reason
+    op_call = TilePrimitiveCall.downcast(op_call)
+    for region in (op_call.src, op_call.dst):
+        layout = region.source.layout
+        if isinstance(layout, ComposeLayout):
+            layout = layout.tile_layout
+        if isinstance(layout, TileLayout) and any(
+            it.axis.is_thread() for it in (*layout.shard, *layout.replica)
+        ):
+            return False, "single-thread fallback cannot access a tensor with thread axes"
+    return True, None
 
 
 def _emit_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
@@ -114,7 +131,7 @@ def _emit_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Functio
     "cuda",
     variant="fallback",
     priority=0,
-    when=[predicate("validate_copy_op", _is_valid_copy)],
+    when=[predicate("scalar_copy_applicable", _is_scalar_copy)],
 )
 def copy_schedule_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     return _emit_fallback(op_call, sctx)

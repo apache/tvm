@@ -103,19 +103,19 @@ def test_binary_op_shared(input, op_type, operands_type, dtype):
         Tx.cta.copy(A_smem[tuple(copy_slice)], A[tuple(copy_slice)])
         Tx.cta.copy(B_smem[tuple(copy_slice)], B[tuple(copy_slice)])
         T.cuda.cta_sync()
-        if op_type == "add":
+        if T.constexpr(op_type == "add"):
             Tx.cta.add(
                 A_smem[tuple(map_slice_res)], A_smem[tuple(map_slice_a)], B_smem[tuple(map_slice_b)]
             )
-        elif op_type == "sub":
+        elif T.constexpr(op_type == "sub"):
             Tx.cta.sub(
                 A_smem[tuple(map_slice_res)], A_smem[tuple(map_slice_a)], B_smem[tuple(map_slice_b)]
             )
-        elif op_type == "mul":
+        elif T.constexpr(op_type == "mul"):
             Tx.cta.mul(
                 A_smem[tuple(map_slice_res)], A_smem[tuple(map_slice_a)], B_smem[tuple(map_slice_b)]
             )
-        elif op_type == "fdiv":
+        elif T.constexpr(op_type == "fdiv"):
             Tx.cta.fdiv(
                 A_smem[tuple(map_slice_res)], A_smem[tuple(map_slice_a)], B_smem[tuple(map_slice_b)]
             )
@@ -134,25 +134,25 @@ def test_binary_op_shared(input, op_type, operands_type, dtype):
 
         Tx.cta.copy(A_smem[tuple(copy_slice)], A[tuple(copy_slice)])
         T.cuda.cta_sync()
-        if op_type == "add":
-            if operands_type == "const_region":
+        if T.constexpr(op_type == "add"):
+            if T.constexpr(operands_type == "const_region"):
                 Tx.cta.add(A_smem[tuple(map_slice_res)], const, A_smem[tuple(map_slice_a)])
-            elif operands_type == "region_const":
+            elif T.constexpr(operands_type == "region_const"):
                 Tx.cta.add(A_smem[tuple(map_slice_res)], A_smem[tuple(map_slice_a)], const)
-        elif op_type == "sub":
-            if operands_type == "const_region":
+        elif T.constexpr(op_type == "sub"):
+            if T.constexpr(operands_type == "const_region"):
                 Tx.cta.sub(A_smem[tuple(map_slice_res)], const, A_smem[tuple(map_slice_a)])
-            elif operands_type == "region_const":
+            elif T.constexpr(operands_type == "region_const"):
                 Tx.cta.sub(A_smem[tuple(map_slice_res)], A_smem[tuple(map_slice_a)], const)
-        elif op_type == "mul":
-            if operands_type == "const_region":
+        elif T.constexpr(op_type == "mul"):
+            if T.constexpr(operands_type == "const_region"):
                 Tx.cta.mul(A_smem[tuple(map_slice_res)], const, A_smem[tuple(map_slice_a)])
-            elif operands_type == "region_const":
+            elif T.constexpr(operands_type == "region_const"):
                 Tx.cta.mul(A_smem[tuple(map_slice_res)], A_smem[tuple(map_slice_a)], const)
-        elif op_type == "fdiv":
-            if operands_type == "const_region":
+        elif T.constexpr(op_type == "fdiv"):
+            if T.constexpr(operands_type == "const_region"):
                 Tx.cta.fdiv(A_smem[tuple(map_slice_res)], const, A_smem[tuple(map_slice_a)])
-            elif operands_type == "region_const":
+            elif T.constexpr(operands_type == "region_const"):
                 Tx.cta.fdiv(A_smem[tuple(map_slice_res)], A_smem[tuple(map_slice_a)], const)
         T.cuda.cta_sync()
         Tx.cta.copy(A[tuple(copy_slice)], A_smem[tuple(copy_slice)])
@@ -226,9 +226,9 @@ def test_binary_non_commutative_const_lhs_rejected(op_type):
             _bx = T.cta_id([1])
             _tid = T.thread_id([64])
             A_smem = T.alloc_tensor(shape, dtype, scope="shared", layout=layout)
-            if op_type == "sub":
+            if T.constexpr(op_type == "sub"):
                 Tx.cta.sub(A_smem, const, A_smem)
-            elif op_type == "fdiv":
+            elif T.constexpr(op_type == "fdiv"):
                 Tx.cta.fdiv(A_smem, const, A_smem)
 
         target = tvm.target.Target("cuda")
@@ -268,10 +268,10 @@ def test_binary_op_shared_subcta_scope(exec_scope, op_type):
         Tx.cta.copy(A_smem, A)
         Tx.cta.copy(B_smem, B)
         T.cuda.cta_sync()
-        if exec_scope == "warp":
+        if T.constexpr(exec_scope == "warp"):
             if warp_id == 5:
                 tx_op(A_smem, A_smem, B_smem)
-        elif exec_scope == "warpgroup":
+        elif T.constexpr(exec_scope == "warpgroup"):
             if wg_id == 1:
                 tx_op(A_smem, A_smem, B_smem)
         T.cuda.cta_sync()
@@ -309,7 +309,8 @@ def test_binary_op_local_subcta_trivial(exec_scope, rhs_kind, op_type):
     # in this test, use warp3/warpgroup1 to test
     thr_str = 0 if exec_scope == "cta" else (128 if exec_scope == "warpgroup" else 32 * 3)
     a_shape = (n_threads, m, n)
-    b_shape = (n_threads, m, n if rhs_kind == "region" else 1)
+    b_n = n if rhs_kind == "region" else 1
+    b_shape = (n_threads, m, b_n)
     c_shape = a_shape
     const = T.float16(1.25)
     tx_op = {"add": Tx.add, "sub": Tx.sub, "mul": Tx.mul, "fdiv": Tx.fdiv}[op_type]
@@ -329,7 +330,6 @@ def test_binary_op_local_subcta_trivial(exec_scope, rhs_kind, op_type):
         _bx = T.cta_id([1])
         _tid = T.thread_id([256])
         tid_in_scope = tid_in_scope_fn([n_threads])
-        b_n = T.meta_var(n if rhs_kind == "region" else 1)
         A_local = T.alloc_tensor((m, n), dtype, scope="local", layout=TileLayout(S[(m, n)]))
         C_local = T.alloc_tensor((m, n), dtype, scope="local", layout=TileLayout(S[(m, n)]))
         B_local = T.alloc_tensor((m, b_n), dtype, scope="local", layout=TileLayout(S[(m, b_n)]))
@@ -338,25 +338,25 @@ def test_binary_op_local_subcta_trivial(exec_scope, rhs_kind, op_type):
             for i in T.serial(m):
                 for j in T.serial(n):
                     A_local[i, j] = A[tid_in_scope, i, j]
-            if rhs_kind != "const":
+            if T.constexpr(rhs_kind != "const"):
                 for i in T.serial(m):
                     for j in T.serial(b_n):
                         B_local[i, j] = B[tid_in_scope, i, j]
 
-        if exec_scope == "cta":
-            if rhs_kind == "const":
+        if T.constexpr(exec_scope == "cta"):
+            if T.constexpr(rhs_kind == "const"):
                 tx_op(C_local, A_local, const)
             else:
                 tx_op(C_local, A_local, B_local)
-        elif exec_scope == "warpgroup":
+        elif T.constexpr(exec_scope == "warpgroup"):
             if wg_id == 1:
-                if rhs_kind == "const":
+                if T.constexpr(rhs_kind == "const"):
                     tx_op(C_local, A_local, const)
                 else:
                     tx_op(C_local, A_local, B_local)
         else:
             if warp_id == 3:
-                if rhs_kind == "const":
+                if T.constexpr(rhs_kind == "const"):
                     tx_op(C_local, A_local, const)
                 else:
                     tx_op(C_local, A_local, B_local)
@@ -437,7 +437,7 @@ def test_binary_op_vectorized(input, storage_scope, exec_scope, op_type, dtype):
         T.device_entry()
         _bx = T.cta_id([1])
         tx = T.thread_id([thread_cnt])
-        if storage_scope == "shared":
+        if T.constexpr(storage_scope == "shared"):
             A_smem = T.alloc_tensor(a_shape, dtype, scope="shared", layout=TileLayout(S[a_shape]))
             B_smem = T.alloc_tensor(b_shape, dtype, scope="shared", layout=TileLayout(S[b_shape]))
             Tx.cta.copy(A_smem, A)
@@ -446,7 +446,7 @@ def test_binary_op_vectorized(input, storage_scope, exec_scope, op_type, dtype):
             tx_op(A_smem, A_smem, B_smem)
             T.cuda.cta_sync()
             Tx.cta.copy(A, A_smem)
-        if storage_scope == "local":
+        if T.constexpr(storage_scope == "local"):
             A_local = T.alloc_tensor(
                 a_shape[1:], dtype, scope="local", layout=TileLayout(S[a_shape[1:]])
             )
@@ -467,7 +467,7 @@ def test_binary_op_vectorized(input, storage_scope, exec_scope, op_type, dtype):
         T.device_entry()
         _bx = T.cta_id([1])
         tx = T.thread_id([thread_cnt])
-        if storage_scope == "shared":
+        if T.constexpr(storage_scope == "shared"):
             A_smem = T.alloc_tensor(a_shape, dtype, scope="shared", layout=TileLayout(S[a_shape]))
             B_smem = T.alloc_tensor(b_shape, dtype, scope="shared", layout=TileLayout(S[b_shape]))
             Tx.copy(A_smem, A)
@@ -476,7 +476,7 @@ def test_binary_op_vectorized(input, storage_scope, exec_scope, op_type, dtype):
             tx_op(A_smem, A_smem, B_smem)
             T.cuda.cta_sync()
             Tx.copy(A, A_smem)
-        elif storage_scope == "local":
+        elif T.constexpr(storage_scope == "local"):
             A_local = T.alloc_tensor(
                 a_shape[1:], dtype, scope="local", layout=TileLayout(S[a_shape[1:]])
             )
@@ -553,11 +553,11 @@ def test_binary_op_packed_f32x2_auto_dispatch(op_type):
         )
         Tx.copy(A_local, A[tx])
         Tx.copy(B_local, B[tx])
-        if op_type == "add":
+        if T.constexpr(op_type == "add"):
             Tx.add(A_local, A_local, B_local)
-        elif op_type == "sub":
+        elif T.constexpr(op_type == "sub"):
             Tx.sub(A_local, A_local, B_local)
-        elif op_type == "mul":
+        elif T.constexpr(op_type == "mul"):
             Tx.mul(A_local, A_local, B_local)
         Tx.copy(A[tx], A_local)
 
@@ -620,11 +620,11 @@ def test_binary_op_warpgroup_wg_local_layout(op_name):
             lhs_row[i] = A[tid, i]
             rhs_row[i] = B[tid, i]
             out_row[i] = T.float32(0)
-        if op_name == "add":
+        if T.constexpr(op_name == "add"):
             Tx.wg.add(out, lhs, rhs)
-        elif op_name == "sub":
+        elif T.constexpr(op_name == "sub"):
             Tx.wg.sub(out, lhs, rhs)
-        elif op_name == "mul":
+        elif T.constexpr(op_name == "mul"):
             Tx.wg.mul(out, lhs, rhs)
         out_row_1 = out.local(cols)
         for i in T.serial(cols):
@@ -697,9 +697,9 @@ def test_binary_op_warpgroup_wg_local_emits_packed_f32x2(op_name, ptx_op):
             lhs_row[i] = A[tid, i]
             rhs_row[i] = B[tid, i]
             out_row[i] = T.float32(0)
-        if op_name == "add":
+        if T.constexpr(op_name == "add"):
             Tx.wg.add(out, lhs, rhs)
-        elif op_name == "sub":
+        elif T.constexpr(op_name == "sub"):
             Tx.wg.sub(out, lhs, rhs)
         else:
             Tx.wg.mul(out, lhs, rhs)

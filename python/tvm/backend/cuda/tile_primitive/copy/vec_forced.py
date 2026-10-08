@@ -191,9 +191,9 @@ def _emit_forced_vec_copy(op_call: TilePrimitiveCall, _sctx: DispatchContext, nu
     # fmt: off
     @T.function(check_well_formed=False)
     def impl():
-        if src_is_local:
+        if T.constexpr(src_is_local):
             T.ptx[st_chain](dst_ptr, *_words(src, op_call.src))
-        elif dst_is_local:
+        elif T.constexpr(dst_is_local):
             T.ptx[ld_chain](*_words(dst, op_call.dst), src_ptr)
         else:
             tmp = T.alloc_local((lanes,), reg_dtype)

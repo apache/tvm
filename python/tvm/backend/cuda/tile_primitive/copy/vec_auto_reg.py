@@ -599,7 +599,7 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
 
     @T.function(check_well_formed=False)
     def impl():
-        if not has_swizzle:
+        if T.constexpr(not has_swizzle):
             s_base = _apply_s_layout(
                 s_apply_layout, thread_coords, 0, s_apply_shape, placeholders, sctx
             )
@@ -612,7 +612,7 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
         # replicates per-iter scratch arrays and pressures registers.
         for f in range(total_outer):
             ds, dr = _outer_const_offsets(outer, f)
-            if has_swizzle:
+            if T.constexpr(has_swizzle):
                 s_off = _apply_s_layout(
                     s_apply_layout, thread_coords, f, s_apply_shape, placeholders, sctx
                 )
@@ -623,7 +623,7 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
             # element pointer: the container index is the element offset scaled
             # between element and word granularity.
             r_w = (r_off_base + dr) * words_per_elem // elems_per_word
-            if r_is_src:
+            if T.constexpr(r_is_src):
                 T.ptx[st_chain](s_ptr, *[r_words[r_w + i] for i in range(lanes)])
             else:
                 T.ptx[ld_chain](*[r_words[r_w + i] for i in range(lanes)], s_ptr)

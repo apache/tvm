@@ -69,7 +69,7 @@ def test_ptx_setmaxnreg(inc):
         T.device_entry()
         cta_id = T.cta_id([1])
         tid = T.thread_id([128])
-        T.ptx[f"setmaxnreg.{'inc' if inc else 'dec'}.sync.aligned.u32"](32)
+        T.ptx[f"setmaxnreg.{'inc' if T.constexpr(inc) else 'dec'}.sync.aligned.u32"](32)
         # fmt: on
 
     src, mod = _get_source(func)
@@ -97,7 +97,7 @@ def test_stmatrix_sync_aligned(trans):
         # stmatrix stores 4 b32 registers; reg is fp16, so they ride a uint32
         # view, two elements per word.
         reg_words = reg.view("uint32")
-        T.ptx[f"stmatrix.sync.aligned.m8n8.x4{'.trans' if trans else ''}.shared.b16"](
+        T.ptx[f"stmatrix.sync.aligned.m8n8.x4{'.trans' if T.constexpr(trans) else ''}.shared.b16"](
             A_smem.ptr_to([tx % 16, tx // 16 * 8]),
             reg_words[0], reg_words[1], reg_words[2], reg_words[3],
         )
@@ -166,7 +166,10 @@ def test_ptx_stmatrix(trans, num):
         for i in range(8):
             A_local[i] = (i // 2) * 64 + tx * 2 + i % 2
         A_words = A_local.view("uint32")
-        T.ptx[f"stmatrix.sync.aligned.m8n8.x{num}{'.trans' if trans else ''}.shared.b16"](
+        T.ptx[
+            f"stmatrix.sync.aligned.m8n8.x{num}"
+            f"{'.trans' if T.constexpr(trans) else ''}.shared.b16"
+        ](
             A_shared.ptr_to([tx % 16, tx // 16 * 8]),
             *[A_words[i] for i in range(num)],
         )
@@ -239,7 +242,10 @@ def test_ptx_stmatrix_noncontiguous(trans, num):
             A_local[i * STRIDE + 0] = T.float16(i * 64 + tx * 2 + 0)
             A_local[i * STRIDE + 1] = T.float16(i * 64 + tx * 2 + 1)
         A_words = A_local.view("uint32")
-        T.ptx[f"stmatrix.sync.aligned.m8n8.x{num}{'.trans' if trans else ''}.shared.b16"](
+        T.ptx[
+            f"stmatrix.sync.aligned.m8n8.x{num}"
+            f"{'.trans' if T.constexpr(trans) else ''}.shared.b16"
+        ](
             A_shared.ptr_to([tx % 16, tx // 16 * 8]),
             *[A_words[i * STRIDE // 2] for i in range(num)],
         )

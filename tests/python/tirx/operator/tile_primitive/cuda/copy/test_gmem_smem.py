@@ -275,10 +275,6 @@ def _align(
         )
 
 
-@pytest.mark.xfail(
-    reason="align_layouts_gs ignores swizzle chunk size; "
-    "_extract_tile strips the swizzle wrap before vec_len pick."
-)
 @pytest.mark.parametrize("per_element,expected_max_vec", [(2, 4), (1, 2), (0, 1)])
 def test_swizzled_smem_vec_len_must_fit_chunk(per_element, expected_max_vec):
     """A swizzled ``ComposeLayout`` keeps the bottom ``per_element``
@@ -538,9 +534,7 @@ def test_gmem_smem_swizzle_uses_structured_compose_apply():
         src = ex.mod.imports[0].inspect_source()
 
     s_off_lines = [
-        line
-        for line in src.splitlines()
-        if line.strip().startswith("s_off_ptr") and "[0] =" in line
+        line for line in src.splitlines() if line.strip().startswith("int s_off") and " = " in line
     ]
     assert len(s_off_lines) == 2, "expected one structured S offset in each copy direction"
     assert all("^" in line for line in s_off_lines)
