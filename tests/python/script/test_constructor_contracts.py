@@ -137,9 +137,9 @@ def test_tuple_constructor_materializes_raw_call_arguments():
     value = tirx.IntImm("int64", 1)
     nested = R.tuple(R.tuple(), R.tuple(value))
     ir.assert_structural_equal(nested, ir.Tuple([ir.Tuple([]), ir.Tuple([value])]))
-    call = ir.Call.unchecked("relax.add", [nested], attrs={"tag": 1}, ty=ir.Type.missing())
+    call = ir.Call("relax.add", [nested], attrs={"tag": 1}, ty=ir.Type.missing())
     assert call.args[0].same_as(nested)
-    from_python = ir.Call.unchecked(
+    from_python = ir.Call(
         "relax.add", [((), (value,))], attrs={"tag": 1}, ty=ir.Type.missing()
     )
     ir.assert_structural_equal(call, from_python)
