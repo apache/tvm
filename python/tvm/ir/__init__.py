@@ -41,6 +41,7 @@ from .type import (
     PointerType,
     PrimType,
     StringType,
+    TensorRegionType,
     TupleType,
     Type,
 )

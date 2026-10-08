@@ -242,7 +242,7 @@ TVM_DLL tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, Pr
 TVM_DLL TensorLoad MakeTensorLoad(TensorVar buffer, ffi::Array<PrimExpr> indices,
                                   Span span = Span());
 
-/*! \brief Construct a region with buffer rank validation and BufferRegionType. */
+/*! \brief Construct a region with buffer rank validation and TensorRegionType. */
 TVM_DLL TensorRegion BufferRegion(TensorVar buffer, ffi::Array<Range> region, Span span = Span());
 /*! \brief Select the entire buffer. */
 TVM_DLL TensorRegion FullBufferRegion(TensorVar buffer);

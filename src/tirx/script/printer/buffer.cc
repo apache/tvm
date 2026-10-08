@@ -233,18 +233,9 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
       {TupleDoc(shape), LiteralDoc::DataType(buffer->dtype->dtype, std::nullopt)}, keys, values);
 }
 
-ffi::Optional<ExprDoc> BufferRegionTypeDocTranslate(DocTranslatorObj*, ffi::AnyView,
-                                                    const ffi::Object*) {
-  return NamespaceDoc("ir")
-      ->Attr("make_node")
-      ->Call({LiteralDoc::Str("tirx.BufferRegionType", std::nullopt)});
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::TensorTypeNode>().attr(
       kDocTranslate, FDocTranslate::FromNative<&TensorTypeDocTranslate>());
-  ffi::reflection::TypeAttrDef<tirx::BufferRegionTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&BufferRegionTypeDocTranslate>());
 }
 
 }  // namespace

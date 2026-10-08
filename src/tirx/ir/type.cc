@@ -193,21 +193,6 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorTypeMaybeInplaceM
   return ffi::Unchanged();
 }
 
-TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> BufferRegionTypeVisit(
-    ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  return std::nullopt;
-}
-
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BufferRegionTypeMutate(
-    ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged();
-}
-
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BufferRegionTypeMaybeInplaceMutate(
-    ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged();
-}
-
 }  // namespace
 
 TensorType::TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
@@ -251,26 +236,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                           std::move(strides), std::move(elem_offset), data_alignment, offset_factor,
                           std::move(layout), std::move(allocated_addr), std::move(span));
       });
-}
-
-// TensorRegion
-BufferRegionType::BufferRegionType() : Type(ffi::UnsafeInit{}) {
-  static ffi::ObjectPtr<BufferRegionTypeNode> singleton = ffi::make_object<BufferRegionTypeNode>();
-  data_ = singleton;
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  BufferRegionTypeNode::RegisterReflection();
-  refl::TypeAttrDef<BufferRegionTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit,
-            ffi::FStructuralVisit::FromNative<&BufferRegionTypeVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
-            ffi::FStructuralMutate::FromNative<&BufferRegionTypeMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            ffi::FStructuralMutate::FromNative<&BufferRegionTypeMaybeInplaceMutate>());
-
-  refl::GlobalDef().def("tirx.BufferRegionType", []() { return BufferRegionType(); });
 }
 
 TensorMapType::TensorMapType(Span span) : Type(ffi::UnsafeInit{}) {
