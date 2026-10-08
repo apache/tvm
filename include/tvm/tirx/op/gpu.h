@@ -151,11 +151,6 @@ TVM_DLL const Op& gpu_warp_activemask_op();
  */
 TVM_DLL const Op& gpu_thread_allreduce_op();
 
-inline ffi::Array<Expr> GetAllreduceFields(const Expr& value) {
-  if (const auto* tuple = value.as<tvm::TupleNode>()) return tuple->fields;
-  return {value};
-}
-
 /*!
  * \brief Dot product of two int8x4 vectors and add an optional accumulator.
  *

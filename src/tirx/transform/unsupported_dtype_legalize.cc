@@ -424,7 +424,8 @@ class ComputeLegalizer : public StmtExprMutator {
     };
     Expr identity = map_operand(op->args[1], promote);
     Expr values = map_operand(op->args[2], promote);
-    ffi::Array<Expr> value_fields = tirx::GetAllreduceFields(values);
+    const auto* tuple = values.as<tvm::TupleNode>();
+    ffi::Array<Expr> value_fields = tuple ? tuple->fields : ffi::Array<Expr>{values};
     ffi::Array<Var> vars;
     ffi::Array<Expr> arguments;
     for (size_t i = 0; i < combine->vars.size(); ++i) {
