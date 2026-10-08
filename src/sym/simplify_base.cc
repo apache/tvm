@@ -20,7 +20,6 @@
 #include "simplify_base.h"
 
 #include <tvm/ir/expr.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/op.h>
 
 #include "constraint_helpers.h"
@@ -74,7 +73,7 @@ UnchangedOr<PrimExpr> SimplifierBase::Mutate_(const TensorLoadNode* op, InplaceM
 }
 
 UnchangedOr<Expr> SimplifierBase::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
-  if (op->op.same_as(prim::builtin::if_then_else())) {
+  if (op->op.same_as(prim::if_then_else_op())) {
     InplaceMode inplace_mode_args = inplace_mode;
     // Ensure uniqueness along op -> args -> args[i].
     // op was already checked; check args here, and Mutate checks args[i].

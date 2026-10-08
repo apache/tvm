@@ -45,7 +45,7 @@ inline PrimExpr TVMExternCall(const CallNode* call, const std::string& fname) {
   for (PrimExpr arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
     new_args.push_back(arg);
   }
-  return Call(call->ty.as_or_throw<PrimType>(), tirx::builtin::call_pure_extern(), new_args)
+  return Call(call->ty.as_or_throw<PrimType>(), tirx::call_pure_extern_op(), new_args)
       .as_or_throw<PrimExpr>();
 }
 
@@ -78,7 +78,7 @@ inline PrimExpr DispatchTVMQHLWrapperFp16(const PrimExpr& e) {
   new_args.push_back(IntImm(PrimType::UInt(32), num_sign));
   ffi::Array<PrimExpr> call_args = call->args.as_or_throw<ffi::Array<PrimExpr>>();
   new_args.insert(new_args.end(), call_args.begin(), call_args.end());
-  return Call(call->ty.as_or_throw<PrimType>(), tirx::builtin::call_llvm_pure_intrin(), new_args)
+  return Call(call->ty.as_or_throw<PrimType>(), tirx::call_llvm_pure_intrin_op(), new_args)
       .as_or_throw<PrimExpr>();
 }
 

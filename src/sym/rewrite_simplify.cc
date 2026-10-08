@@ -27,8 +27,8 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/expected.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 
 #include <algorithm>
@@ -2447,13 +2447,12 @@ UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMo
   op = ret.as<CallNode>();
   if (op == nullptr) return ret;
 
-  if (op->op.same_as(prim::builtin::likely()) &&
-      prim::IsConstInt(op->args[0].as_or_throw<PrimExpr>())) {
+  if (op->op.same_as(prim::likely_op()) && prim::IsConstInt(op->args[0].as_or_throw<PrimExpr>())) {
     return op->args[0].as_or_throw<PrimExpr>();
   }
-  static const Op& ceil_op = prim::builtin::ceil();
-  static const Op& log2_op = prim::builtin::log2();
-  static const Op& clz_op = prim::builtin::clz();
+  static const Op& ceil_op = prim::ceil_op();
+  static const Op& log2_op = prim::log2_op();
+  static const Op& clz_op = prim::clz_op();
   PrimType ret_ty = op->ty.as_or_throw<PrimType>();
   if (op->op.same_as(ceil_op)) {
     PrimExpr ceil_arg = op->args[0].as_or_throw<PrimExpr>();
@@ -2488,14 +2487,14 @@ UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMo
     }
   }
 
-  if (op->op.same_as(prim::builtin::likely())) {
+  if (op->op.same_as(prim::likely_op())) {
     // Cases such as for (i, 0, bound) {if (likely(iter_var < bound)) { .. } }
     if (auto match = TryMatchLiteralConstraint(op->args[0].as_or_throw<PrimExpr>())) {
       return match.value();
     }
   }
 
-  if (op->op.same_as(prim::builtin::if_then_else())) {
+  if (op->op.same_as(prim::if_then_else_op())) {
     // Simplify nested if_then_else
     // if (cond) { if (inner_cond) { inner_then_expr } else { inner_else_expr } } else { else_expr }
     // => if (cond && inner_cond) { inner_then_expr } else { else_expr }
@@ -2503,7 +2502,7 @@ UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMo
     PrimExpr then_expr = op->args[1].as_or_throw<PrimExpr>();
     PrimExpr else_expr = op->args[2].as_or_throw<PrimExpr>();
     const CallNode* inner_call = then_expr.as<CallNode>();
-    if (inner_call != nullptr && inner_call->op.same_as(prim::builtin::if_then_else())) {
+    if (inner_call != nullptr && inner_call->op.same_as(prim::if_then_else_op())) {
       PrimExpr inner_cond = inner_call->args[0].as_or_throw<PrimExpr>();
       PrimExpr inner_then_expr = inner_call->args[1].as_or_throw<PrimExpr>();
       PrimExpr inner_else_expr = inner_call->args[2].as_or_throw<PrimExpr>();

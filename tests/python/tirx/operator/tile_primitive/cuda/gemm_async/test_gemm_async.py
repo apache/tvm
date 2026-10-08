@@ -3696,7 +3696,7 @@ def _make_gemm_tcgen05_call(
         gemm_async_tcgen05_impl,
     )
     from tvm.tirx.exec_scope import ExecScope
-    from tvm.tirx.operator.tile_primitive.ops import GemmAsync
+    from tvm.tirx.op.tile import GemmAsync
     from tvm.tirx.stmt import BufferRegion
     from tvm.tirx.tile_primitive import DispatchContext
 
@@ -3775,7 +3775,7 @@ def test_gemm_tcgen05_preserves_block_scale_tmem_lane_bases():
         gemm_async_tcgen05_impl,
     )
     from tvm.tirx.exec_scope import ExecScope
-    from tvm.tirx.operator.tile_primitive.ops import GemmAsync
+    from tvm.tirx.op.tile import GemmAsync
     from tvm.tirx.stmt import BufferRegion
     from tvm.tirx.tile_primitive import DispatchContext
 

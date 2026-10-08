@@ -25,11 +25,10 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/transform.h>
@@ -61,7 +60,7 @@ static Expr LowerAccessPtr(const CallNode* call,
   // TensorLoad so lowering never assumes that args[1] is immediately a Var.
   Expr buffer = call->args[1];
   while (const auto* inner = buffer.as<CallNode>()) {
-    if (!inner->op.same_as(builtin::tvm_access_ptr())) break;
+    if (!inner->op.same_as(tvm_access_ptr_op())) break;
     TVM_FFI_ICHECK_EQ(inner->args.size(), 5U);
     PrimType inner_dtype = inner->args[0].as_or_throw<PrimExpr>().ty();
     TVM_FFI_ICHECK_EQ(inner_dtype, dtype)
@@ -75,7 +74,7 @@ static Expr LowerAccessPtr(const CallNode* call,
   }
 
   const auto* buffer_data = buffer.as<CallNode>();
-  if (buffer_data && buffer_data->op.same_as(builtin::buffer_data())) {
+  if (buffer_data && buffer_data->op.same_as(buffer_data_op())) {
     TVM_FFI_ICHECK_EQ(buffer_data->args.size(), 1U);
     buffer = buffer_data->args[0];
   }
@@ -122,7 +121,7 @@ static Expr LowerAccessPtr(const CallNode* call,
     buffer_aliases->push_back({access_buffer.value(), access_data.value()});
   }
   TensorLoad buf_load = MakeTensorLoad(access_buffer.value(), {offset});
-  return Call(call->ty, builtin::address_of(), {buf_load});
+  return Call(call->ty, address_of_op(), {buf_load});
 }
 
 class IntrinInjecter : public IRMutatorWithAnalyzer {
@@ -173,7 +172,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     Stmt result = std::move(mutated).ValueOrUnchanged(input).as_or_throw<Stmt>();
     for (size_t i = access_ptr_buffer_aliases_.size(); i > alias_begin; --i) {
       const auto& alias = access_ptr_buffer_aliases_[i - 1];
-      result = SeqStmt({Bind(alias.buffer, Call(alias.buffer.type(), builtin::decl_tensor(),
+      result = SeqStmt({Bind(alias.buffer, Call(alias.buffer.type(), decl_tensor_op(),
                                                 {alias.data, tvm::Tuple(alias.buffer->shape),
                                                  DataTypeImm(alias.buffer->dtype->dtype),
                                                  StringImm(alias.buffer.scope())},
@@ -186,7 +185,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(builtin::tvm_access_ptr())) {
+    if (op->op.same_as(tvm_access_ptr_op())) {
       Expr lowered = LowerAccessPtr(op, &access_ptr_buffer_aliases_);
       return this->Mutate(lowered, inplace_mode).ValueOrUnchanged(std::move(lowered));
     }
@@ -432,8 +431,8 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     PrimExpr rhs = SwapBroadcastCast(b);
 
     if (fma_ != nullptr && op->ty.as_or_throw<PrimType>().code() == DLDataTypeCode::kDLFloat) {
-      PrimExpr r = fma_(Call(op->ty.as_or_throw<PrimType>(), builtin::fma(), {lhs, rhs, c})
-                            .as_or_throw<PrimExpr>());
+      PrimExpr r = fma_(
+          Call(op->ty.as_or_throw<PrimType>(), fma_op(), {lhs, rhs, c}).as_or_throw<PrimExpr>());
       if (r.defined()) return this->Mutate(r, InplaceMode::kDisallow).ValueOrUnchanged(r);
     } else {
       if (!lhs.same_as(a) || !rhs.same_as(b)) {

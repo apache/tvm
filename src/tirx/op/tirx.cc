@@ -24,7 +24,7 @@
 
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
-#include <tvm/tirx/tile_primitive.h>
+#include <tvm/tirx/tile_op.h>
 
 namespace tvm {
 namespace tirx {
@@ -137,49 +137,53 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 /********************* Tile Ops **********************/
+namespace tile {
 #define TVM_DEFINE_CACHED_OP_GETTER(Name, RegisteredName) \
   const Op& Name() {                                      \
     static const Op op = Op::Get(RegisteredName);         \
     return op;                                            \
   }
 
-TVM_DEFINE_CACHED_OP_GETTER(zero, "tirx.tile.zero")
-TVM_DEFINE_CACHED_OP_GETTER(sqrt, "tirx.tile.sqrt")
-TVM_DEFINE_CACHED_OP_GETTER(sqrt_with_scale_bias, "tirx.tile.sqrt_with_scale_bias")
-TVM_DEFINE_CACHED_OP_GETTER(exp, "tirx.tile.exp")
-TVM_DEFINE_CACHED_OP_GETTER(exp_with_scale_bias, "tirx.tile.exp_with_scale_bias")
-TVM_DEFINE_CACHED_OP_GETTER(exp2, "tirx.tile.exp2")
-TVM_DEFINE_CACHED_OP_GETTER(exp2_with_scale_bias, "tirx.tile.exp2_with_scale_bias")
-TVM_DEFINE_CACHED_OP_GETTER(log2, "tirx.tile.log2")
-TVM_DEFINE_CACHED_OP_GETTER(log2_with_scale_bias, "tirx.tile.log2_with_scale_bias")
-TVM_DEFINE_CACHED_OP_GETTER(add, "tirx.tile.add")
-TVM_DEFINE_CACHED_OP_GETTER(sub, "tirx.tile.sub")
-TVM_DEFINE_CACHED_OP_GETTER(mul, "tirx.tile.mul")
-TVM_DEFINE_CACHED_OP_GETTER(fdiv, "tirx.tile.fdiv")
-TVM_DEFINE_CACHED_OP_GETTER(minimum, "tirx.tile.minimum")
-TVM_DEFINE_CACHED_OP_GETTER(maximum, "tirx.tile.maximum")
-TVM_DEFINE_CACHED_OP_GETTER(copy, "tirx.tile.copy")
-TVM_DEFINE_CACHED_OP_GETTER(fill, "tirx.tile.fill")
-TVM_DEFINE_CACHED_OP_GETTER(gemm, "tirx.tile.gemm")
-TVM_DEFINE_CACHED_OP_GETTER(reciprocal, "tirx.tile.reciprocal")
-TVM_DEFINE_CACHED_OP_GETTER(sum, "tirx.tile.sum")
-TVM_DEFINE_CACHED_OP_GETTER(max, "tirx.tile.max")
-TVM_DEFINE_CACHED_OP_GETTER(min, "tirx.tile.min")
-TVM_DEFINE_CACHED_OP_GETTER(memset, "tirx.tile.memset")
-TVM_DEFINE_CACHED_OP_GETTER(reduce_negate, "tirx.tile.reduce_negate")
-TVM_DEFINE_CACHED_OP_GETTER(binary_reduce, "tirx.tile.binary_reduce")
-TVM_DEFINE_CACHED_OP_GETTER(unary_reduce, "tirx.tile.unary_reduce")
-TVM_DEFINE_CACHED_OP_GETTER(unary_reduce_with_scale_bias, "tirx.tile.unary_reduce_with_scale_bias")
-TVM_DEFINE_CACHED_OP_GETTER(binary_chain, "tirx.tile.binary_chain")
-TVM_DEFINE_CACHED_OP_GETTER(select, "tirx.tile.select")
-TVM_DEFINE_CACHED_OP_GETTER(cast, "tirx.tile.cast")
-TVM_DEFINE_CACHED_OP_GETTER(fma, "tirx.tile.fma")
-TVM_DEFINE_CACHED_OP_GETTER(silu, "tirx.tile.silu")
-TVM_DEFINE_CACHED_OP_GETTER(permute_layout, "tirx.tile.permute_layout")
-TVM_DEFINE_CACHED_OP_GETTER(copy_async, "tirx.tile.copy_async")
-TVM_DEFINE_CACHED_OP_GETTER(gemm_async, "tirx.tile.gemm_async")
+TVM_DEFINE_CACHED_OP_GETTER(zero_op, "tirx.tile.zero")
+TVM_DEFINE_CACHED_OP_GETTER(sqrt_op, "tirx.tile.sqrt")
+TVM_DEFINE_CACHED_OP_GETTER(sqrt_with_scale_bias_op, "tirx.tile.sqrt_with_scale_bias")
+TVM_DEFINE_CACHED_OP_GETTER(exp_op, "tirx.tile.exp")
+TVM_DEFINE_CACHED_OP_GETTER(exp_with_scale_bias_op, "tirx.tile.exp_with_scale_bias")
+TVM_DEFINE_CACHED_OP_GETTER(exp2_op, "tirx.tile.exp2")
+TVM_DEFINE_CACHED_OP_GETTER(exp2_with_scale_bias_op, "tirx.tile.exp2_with_scale_bias")
+TVM_DEFINE_CACHED_OP_GETTER(log2_op, "tirx.tile.log2")
+TVM_DEFINE_CACHED_OP_GETTER(log2_with_scale_bias_op, "tirx.tile.log2_with_scale_bias")
+TVM_DEFINE_CACHED_OP_GETTER(add_op, "tirx.tile.add")
+TVM_DEFINE_CACHED_OP_GETTER(sub_op, "tirx.tile.sub")
+TVM_DEFINE_CACHED_OP_GETTER(mul_op, "tirx.tile.mul")
+TVM_DEFINE_CACHED_OP_GETTER(fdiv_op, "tirx.tile.fdiv")
+TVM_DEFINE_CACHED_OP_GETTER(minimum_op, "tirx.tile.minimum")
+TVM_DEFINE_CACHED_OP_GETTER(maximum_op, "tirx.tile.maximum")
+TVM_DEFINE_CACHED_OP_GETTER(copy_op, "tirx.tile.copy")
+TVM_DEFINE_CACHED_OP_GETTER(fill_op, "tirx.tile.fill")
+TVM_DEFINE_CACHED_OP_GETTER(gemm_op, "tirx.tile.gemm")
+TVM_DEFINE_CACHED_OP_GETTER(reciprocal_op, "tirx.tile.reciprocal")
+TVM_DEFINE_CACHED_OP_GETTER(sum_op, "tirx.tile.sum")
+TVM_DEFINE_CACHED_OP_GETTER(max_op, "tirx.tile.max")
+TVM_DEFINE_CACHED_OP_GETTER(min_op, "tirx.tile.min")
+TVM_DEFINE_CACHED_OP_GETTER(memset_op, "tirx.tile.memset")
+TVM_DEFINE_CACHED_OP_GETTER(reduce_negate_op, "tirx.tile.reduce_negate")
+TVM_DEFINE_CACHED_OP_GETTER(binary_reduce_op, "tirx.tile.binary_reduce")
+TVM_DEFINE_CACHED_OP_GETTER(unary_reduce_op, "tirx.tile.unary_reduce")
+TVM_DEFINE_CACHED_OP_GETTER(unary_reduce_with_scale_bias_op,
+                            "tirx.tile.unary_reduce_with_scale_bias")
+TVM_DEFINE_CACHED_OP_GETTER(binary_chain_op, "tirx.tile.binary_chain")
+TVM_DEFINE_CACHED_OP_GETTER(select_op, "tirx.tile.select")
+TVM_DEFINE_CACHED_OP_GETTER(cast_op, "tirx.tile.cast")
+TVM_DEFINE_CACHED_OP_GETTER(fma_op, "tirx.tile.fma")
+TVM_DEFINE_CACHED_OP_GETTER(silu_op, "tirx.tile.silu")
+TVM_DEFINE_CACHED_OP_GETTER(permute_layout_op, "tirx.tile.permute_layout")
+TVM_DEFINE_CACHED_OP_GETTER(copy_async_op, "tirx.tile.copy_async")
+TVM_DEFINE_CACHED_OP_GETTER(gemm_async_op, "tirx.tile.gemm_async")
 
 #undef TVM_DEFINE_CACHED_OP_GETTER
+
+}  // namespace tile
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.tile.zero")

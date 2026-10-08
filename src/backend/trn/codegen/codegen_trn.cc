@@ -218,8 +218,8 @@ std::string CodeGenTrainium::GetStorageScopeStr(const std::string& scope) {  // 
 
 void CodeGenTrainium::Dispatch_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>(); call) {
-    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
-    if (call->op.same_as(tirx::builtin::decl_tensor())) return DispatchDeclTensor(op, call);
+    if (call->op.same_as(tirx::alloc_tensor_op())) return DispatchAllocTensor(op, call);
+    if (call->op.same_as(tirx::decl_tensor_op())) return DispatchDeclTensor(op, call);
   }
   CodeGenC::Dispatch_(op);
 }
@@ -641,7 +641,7 @@ void CodeGenTrainium::DispatchDeclTensor(const BindNode* op, const CallNode* buf
   }
   const VarNode* data_var = data.as<VarNode>();
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
     data_var = call->args[0].as<VarNode>();
   }
   TVM_FFI_ICHECK(data_var) << "Trainium codegen expects DeclTensor data to be a buffer variable";

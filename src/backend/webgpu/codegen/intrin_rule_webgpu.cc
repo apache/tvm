@@ -42,14 +42,14 @@ static Type InferTypeReturnArgType(const CallNode* call) {
 // warp-level primitives. Follows implementation in intrin_rule_metal.cc
 struct WebGPUWarpIntrinsic {
   const Op operator()(PrimType t, const Op& orig_op) const {
-    if (orig_op.same_as(builtin::tvm_warp_shuffle())) {
+    if (orig_op.same_as(tirx::tvm_warp_shuffle_op())) {
       static const Op webgpu_subgroup_shuffle_op = Op::Get("tirx.webgpu.subgroup_shuffle");
       return webgpu_subgroup_shuffle_op;
-    } else if (orig_op.same_as(builtin::tvm_warp_shuffle_up())) {
+    } else if (orig_op.same_as(tirx::tvm_warp_shuffle_up_op())) {
       static const Op webgpu_subgroup_shuffle_up_op = Op::Get("tirx.webgpu.subgroup_shuffle_up");
       return webgpu_subgroup_shuffle_up_op;
     } else {
-      TVM_FFI_ICHECK(orig_op.same_as(builtin::tvm_warp_shuffle_down()));
+      TVM_FFI_ICHECK(orig_op.same_as(tirx::tvm_warp_shuffle_down_op()));
       static const Op webgpu_subgroup_shuffle_down_op =
           Op::Get("tirx.webgpu.subgroup_shuffle_down");
       return webgpu_subgroup_shuffle_down_op;

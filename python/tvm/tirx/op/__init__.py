@@ -27,7 +27,6 @@ import tvm_ffi
 from tvm_ffi import Array
 
 import tvm
-import tvm.ir.prim._ffi_api as _prim_ffi_api
 from tvm import tirx
 from tvm.ir import (
     Call,
@@ -43,13 +42,36 @@ from tvm.ir.base import Span
 from tvm.ir.prim import clz as clz
 from tvm.ir.prim import max_value as max_value
 from tvm.ir.prim import min_value as min_value
+from tvm.ir.prim.op import all as all
+from tvm.ir.prim.op import any as any
+from tvm.ir.prim.op import bitwise_and as bitwise_and
+from tvm.ir.prim.op import bitwise_not as bitwise_not
+from tvm.ir.prim.op import bitwise_or as bitwise_or
+from tvm.ir.prim.op import bitwise_xor as bitwise_xor
+from tvm.ir.prim.op import ceil as ceil
+from tvm.ir.prim.op import ceildiv as ceildiv
+from tvm.ir.prim.op import div as div
+from tvm.ir.prim.op import floordiv as floordiv
+from tvm.ir.prim.op import floormod as floormod
+from tvm.ir.prim.op import if_then_else as if_then_else
+from tvm.ir.prim.op import indexdiv as indexdiv
+from tvm.ir.prim.op import indexmod as indexmod
+from tvm.ir.prim.op import likely as likely
+from tvm.ir.prim.op import log2 as log2
+from tvm.ir.prim.op import max as max
+from tvm.ir.prim.op import min as min
+from tvm.ir.prim.op import shift_left as shift_left
+from tvm.ir.prim.op import shift_right as shift_right
+from tvm.ir.prim.op import truncdiv as truncdiv
+from tvm.ir.prim.op import truncmod as truncmod
+from tvm.ir.prim.op import vscale as vscale
 from tvm.runtime import const
 
-from . import _ffi_api
-from .buffer import buffer_data, is_tensor_var
-from .expr import ExprOp, IntImm
-from .expr import TensorLoad as _make_tensor_load
-from .type import TensorMapType
+from .. import _ffi_api
+from ..buffer import buffer_data, is_tensor_var
+from ..expr import ExprOp, IntImm
+from ..expr import TensorLoad as _make_tensor_load
+from ..type import TensorMapType
 
 tir = tirx  # alias for backward compat with upstream tir.convert() calls
 
@@ -1419,59 +1441,6 @@ def dp4a(vec1, vec2, acc=0, **kwargs):
     return Call("tirx.dp4a", [vec1, vec2, acc], **kwargs)
 
 
-def any(*args, span=None):
-    """Create a new experssion of the union of all conditions in the arguments
-
-    Parameters
-    ----------
-    args : list
-        List of symbolic boolean expressions
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    expr: Expr
-        Expression
-    """
-    if not args:
-        raise ValueError("Any must take at least 1 argument")
-    if len(args) == 1:
-        return args[0]
-    val = _prim_ffi_api._OpOr(args[0], args[1], span)  # type: ignore
-    for i in range(2, len(args)):
-        val = _prim_ffi_api._OpOr(val, args[i], span)  # type: ignore
-    return val
-
-
-def all(*args, span=None):
-    """Create a new expression of the intersection of all conditions in the
-      arguments
-
-    Parameters
-    ----------
-    args : list
-        List of symbolic boolean expressions
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    expr: Expr
-        Expression
-    """
-    if not args:
-        raise ValueError("Any must take at least 1 argument")
-    if len(args) == 1:
-        return args[0]
-    val = _prim_ffi_api._OpAnd(args[0], args[1], span)  # type: ignore
-    for i in range(2, len(args)):
-        val = _prim_ffi_api._OpAnd(val, args[i], span)  # type: ignore
-    return val
-
-
 def infinity(dtype: str, span: Span | None = None) -> Any:
     """infinity value of dtype
 
@@ -1659,23 +1628,6 @@ def log(x, *, ty=None, span=None):
     """
     x = tir.convert(x)
     return call_intrin(ty, "tirx.log", x, span=span)
-
-
-def log2(x, *, ty=None, span=None):
-    """Take log2 of input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "prim.log2", x, span=span)
 
 
 def log10(x, *, ty=None, span=None):
@@ -1973,25 +1925,6 @@ def floor(x: ExprWithOp, span=None):
     return _ffi_api.floor(x, span)  # type: ignore
 
 
-def ceil(x, span=None):
-    """Take ceil of float input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    return _prim_ffi_api.ceil(x, span)  # type: ignore
-
-
 def trunc(x, span=None):
     """Get truncated value of the input.
 
@@ -2031,91 +1964,6 @@ def abs(x, span=None):
         The result.
     """
     return _ffi_api.abs(x, span)  # type: ignore
-
-
-def bitwise_and(x, y, span=None):
-    """Take bitwise and of two values
-
-    Parameters
-    ----------
-    x : Expr
-        Left operand
-
-    y : Expr
-        Right operand
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    res : Expr
-        The result.
-    """
-    return _prim_ffi_api.bitwise_and(x, y, span)
-
-
-def bitwise_not(x, span=None):
-    """Take bitwise not of input value
-
-    Parameters
-    ----------
-    x : Expr
-        Input operand
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    res : Expr
-        The result.
-    """
-    return _prim_ffi_api.bitwise_not(x, span)
-
-
-def bitwise_or(x, y, span=None):
-    """Take bitwise or of two values
-
-    Parameters
-    ----------
-    x : Expr
-        Left operand
-
-    y : Expr
-        Right operand
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    res : Expr
-        The result.
-    """
-    return _prim_ffi_api.bitwise_or(x, y, span)
-
-
-def bitwise_xor(x, y, span=None):
-    """Take bitwise xor of two values
-
-    Parameters
-    ----------
-    x : Expr
-        Left operand
-
-    y : Expr
-        Right operand
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    res : Expr
-        The result.
-    """
-    return _prim_ffi_api.bitwise_xor(x, y, span)
 
 
 def round(x, span=None):
@@ -2245,26 +2093,6 @@ def ldexp(x1, x2, *, ty=None, span=None):
     x1 = tir.convert(x1)
     x2 = tir.convert(x2)
     return call_intrin(ty, "tirx.ldexp", x1, x2, span=span)  # type: ignore
-
-
-def likely(cond, span=None):
-    """Mark condition as likely.
-
-    Parameters
-    ----------
-
-    cond : Expr
-        Input argument.
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    y : Expr
-        The marked expression.
-    """
-    return _prim_ffi_api.likely(cond, span)  # type: ignore
 
 
 def filter(var, pred, *, span=None, ty=None):  # pylint: disable=redefined-builtin
@@ -2515,44 +2343,6 @@ def q_multiply_shift_per_axis(
     )
 
 
-def shift_left(x, y, span=None):
-    """Return the result of x left shifted by y bits.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    y : Expr
-        Input argument.
-
-    Returns
-    -------
-    z : Expr
-        The result.
-    """
-    return _prim_ffi_api.left_shift(x, y, span)
-
-
-def shift_right(x, y, span=None):
-    """Return the result of x right shifted by y bits.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    y : Expr
-        Input argument.
-
-    Returns
-    -------
-    z : Expr
-        The result.
-    """
-    return _prim_ffi_api.right_shift(x, y, span)
-
-
 def fmod(x, y, *, ty=None, span=None):
     """Return the remainder of x divided by y with the same sign as x.
 
@@ -2571,194 +2361,6 @@ def fmod(x, y, *, ty=None, span=None):
     x = tir.convert(x)
     y = tir.convert(y)
     return call_intrin(ty, "tirx.fmod", x, y, span=span)
-
-
-def if_then_else(cond, t, f, span=None):
-    """Conditional selection expression.
-
-    Parameters
-    ----------
-    cond : Expr
-        The condition
-
-    t : Expr
-        The result expression if cond is true.
-
-    f : Expr
-        The result expression if cond is false.
-
-    span : Optional[Span]
-        The location of this operator in the source.
-
-    Returns
-    -------
-    result : Node
-        The result of conditional expression.
-
-    Note
-    ----
-    Unlike Select, if_then_else will not execute
-    the branch that does not satisfy the condition.
-    You can use it to guard against out of bound access.
-    Unlike Select, if_then_else cannot be vectorized
-    if some lanes in the vector have different conditions.
-    """
-    return _prim_ffi_api._OpIfThenElse(cond, t, f, span)  # type: ignore
-
-
-def div(a, b, span=None):
-    """Compute a / b as in C/C++ semantics.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand, known to be non-negative.
-
-    b : Expr
-        The right hand operand, known to be non-negative.
-
-    span : Optional[Span]
-        The location of this operator in the source.
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-    Note
-    ----
-    When operands are integers, returns truncdiv(a, b, span).
-    """
-    return _prim_ffi_api._OpDiv(a, b, span)  # type: ignore
-
-
-def indexdiv(a, b, span=None):
-    """Compute floor(a / b) where a and b are non-negative.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand, known to be non-negative.
-
-    b : Expr
-        The right hand operand, known to be non-negative.
-
-    span : Optional[Span]
-        The location of this operator in the source.
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-
-    Note
-    ----
-    Use this function to split non-negative indices.
-    This function may take advantage of operands'
-    non-negativeness.
-    """
-    return _prim_ffi_api._OpIndexDiv(a, b, span)  # type: ignore
-
-
-def indexmod(a, b, span=None):
-    """Compute the remainder of indexdiv. a and b are non-negative.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand, known to be non-negative.
-
-    b : Expr
-        The right hand operand, known to be non-negative.
-
-    span : Optional[Span]
-        The location of this operator in the source.
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-
-    Note
-    ----
-    Use this function to split non-negative indices.
-    This function may take advantage of operands'
-    non-negativeness.
-    """
-    return _prim_ffi_api._OpIndexMod(a, b, span)  # type: ignore
-
-
-def truncdiv(a, b, span=None):
-    """Compute the truncdiv of two expressions.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand
-
-    b : Expr
-        The right hand operand
-
-    span : Optional[Span]
-        The location of this operator in the source.
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-
-    Note
-    ----
-    This is the default integer division behavior in C.
-    """
-    return _prim_ffi_api._OpTruncDiv(a, b, span)  # type: ignore
-
-
-def truncmod(a, b, span=None):
-    """Compute the truncmod of two expressions.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand
-
-    b : Expr
-        The right hand operand
-
-    span : Optional[Span]
-        The location of this operator in the source.
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-
-    Note
-    ----
-    This is the default integer division behavior in C.
-    """
-    return _prim_ffi_api._OpTruncMod(a, b, span)  # type: ignore
-
-
-def floordiv(a, b, span=None):
-    """Compute the floordiv of two expressions.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand
-
-    b : Expr
-        The right hand operand
-
-    span : Optional[Span]
-        The location of this operator in the source.
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-    """
-    return _prim_ffi_api._OpFloorDiv(a, b, span)  # type: ignore
 
 
 def logaddexp(a, b, span=None):
@@ -2781,48 +2383,6 @@ def logaddexp(a, b, span=None):
         The result expression.
     """
     return _ffi_api._OpLogAddExp(a, b, span)  # type: ignore
-
-
-def floormod(a, b, span=None):
-    """Compute the floormod of two expressions.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand
-
-    b : Expr
-        The right hand operand
-
-    span : Optional[Span]
-        The location of this operator in the source.
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-    """
-    return _prim_ffi_api._OpFloorMod(a, b, span)  # type: ignore
-
-
-def ceildiv(lhs, rhs, span=None):
-    """Generic ceildiv operator.
-
-    Parameters
-    ----------
-    lhs : object
-        The left operand.
-    rhs : object
-        The right operand.
-    span : Optional[Span]
-        The location of this operator in the source.
-
-    Returns
-    -------
-    op : tvm.Expr
-        The result Expr of ceildiv operaton.
-    """
-    return _prim_ffi_api._OpCeilDiv(lhs, rhs, span)  # type: ignore
 
 
 def TVMBackendAllocWorkspace(
@@ -2898,17 +2458,6 @@ def TVMBackendFreeWorkspace(device_type, device_id, ptr, *, ty=None, span=None):
         ptr,
         span=span,
     )
-
-
-def vscale(*, ty=None, span=None):
-    """Get the target's vscale value. It will be lowered to llvm.vscale intrinsic
-    (https://llvm.org/docs/LangRef.html#llvm-vscale-intrinsic)
-    Returns
-    -------
-    call : Expr
-        Call to the vscale intrinsic
-    """
-    return call_intrin(ty, "prim.vscale", span=span)
 
 
 def get_active_lane_mask(dtype, base, limit):
@@ -3011,17 +2560,6 @@ def ignore_loop_partition(predicate, *, ty=None, span=None) -> Expr:
         The annotated predicate expression.
     """
     return call_intrin(ty, "tirx.ignore_loop_partition", predicate, span=span)
-
-
-# pylint: disable=unnecessary-lambda
-def min(a, b, span=None):
-    """Elementwise minimum of two primitive expressions."""
-    return _prim_ffi_api._OpMin(a, b, span)
-
-
-def max(a, b, span=None):
-    """Elementwise maximum of two primitive expressions."""
-    return _prim_ffi_api._OpMax(a, b, span)
 
 
 def tvm_load_matrix_sync(
@@ -3312,3 +2850,13 @@ def tvm_store_matrix_sync(
 def thread_return(*, ty=None, span=None):
     """Return from the current GPU thread without a function value."""
     return call_intrin(ty, "tirx.thread_return", span=span)
+
+
+def __getattr__(name):
+    # Tile classes resolve registered Ops at import time. Load the family only
+    # when requested, after the core TIRx types are available.
+    if name == "tile":
+        from importlib import import_module  # pylint: disable=import-outside-toplevel
+
+        return import_module(".tile", __name__)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

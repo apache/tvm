@@ -43,8 +43,7 @@ const VarNode* TryUnwrapTextureVar(const Expr& texture) {
   if (const auto* var = texture.as<VarNode>()) {
     return var;
   }
-  if (const auto* call = texture.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::buffer_data())) {
+  if (const auto* call = texture.as<CallNode>(); call && call->op.same_as(tirx::buffer_data_op())) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 1U);
     const auto* buffer = call->args[0].as<VarNode>();
     TVM_FFI_ICHECK(buffer && buffer->ty.as<TensorTypeNode>())
@@ -94,7 +93,7 @@ class InferTextureAccess : public StmtExprVisitor {
   }
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::decl_tensor())) {
+        call && call->op.same_as(tirx::decl_tensor_op())) {
       if (const VarNode* source = TryUnwrapTextureVar(call->args[0])) {
         auto it = buffer_data_map_.find(source);
         buffer_data_map_[op->var.get()] = it == buffer_data_map_.end() ? source : it->second;
@@ -103,11 +102,11 @@ class InferTextureAccess : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    if (op->op.same_as(tirx::builtin::texture2d_load())) {
+    if (op->op.same_as(tirx::texture2d_load_op())) {
       const VarNode* texture = UnwrapTextureArgument(op->args[0]).var;
       auto it = buffer_data_map_.find(texture);
       var_access_map_[it == buffer_data_map_.end() ? texture : it->second] |= kReadAccess;
-    } else if (op->op.same_as(tirx::builtin::texture2d_store())) {
+    } else if (op->op.same_as(tirx::texture2d_store_op())) {
       const VarNode* texture = UnwrapTextureArgument(op->args[0]).var;
       auto it = buffer_data_map_.find(texture);
       var_access_map_[it == buffer_data_map_.end() ? texture : it->second] |= kWriteAccess;
@@ -455,7 +454,7 @@ std::string CodeGenOpenCL::CastTo(std::string value, const PrimType& target) {
 
 void CodeGenOpenCL::Dispatch_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>(); call) {
-    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
+    if (call->op.same_as(tirx::alloc_tensor_op())) return DispatchAllocTensor(op, call);
   }
   CodeGenC::Dispatch_(op);
 }
@@ -476,7 +475,7 @@ void CodeGenOpenCL::DispatchAllocTensor(const BindNode* op, const CallNode* buff
 }
 
 void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
-  if (op->op.same_as(tirx::builtin::address_of())) {
+  if (op->op.same_as(tirx::address_of_op())) {
     // Overload tvm_address_of to add storage scope (e.g. __global).
     const TensorLoadNode* load = op->args[0].as<TensorLoadNode>();
     TVM_FFI_ICHECK(op->args.size() == 1 && load);
@@ -491,7 +490,7 @@ void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
     os << " *)" << this->GetVarID(load->source.as_or_throw<tvm::tirx::TensorVar>().get()) << " + ";
     this->PrintExpr(load->indices[0], os);
     os << ')';
-  } else if (op->op.same_as(tirx::builtin::texture2d_store())) {
+  } else if (op->op.same_as(tirx::texture2d_store_op())) {
     TextureArgument texture = UnwrapTextureArgument(op->args[0]);
     const int channel_size = op->args[4].as_or_throw<IntImm>()->value.as<int>().value();
     TVM_FFI_ICHECK(channel_size == 64 || channel_size == 128)
@@ -525,7 +524,7 @@ void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
     this->PrintType(channel_type, os);
     os << "(" << value << ")";
     os << ")";
-  } else if (op->op.same_as(tirx::builtin::texture2d_load())) {
+  } else if (op->op.same_as(tirx::texture2d_load_op())) {
     TextureArgument texture = UnwrapTextureArgument(op->args[0]);
     enable_compliant_texture_reads_ = true;
     std::stringstream ss;

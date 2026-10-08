@@ -184,7 +184,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     cargs.push_back(IntImm(PrimType::Int(1), 1));  // is_zero_undef
     // LLVM requires that the return type must match the first argument type
     auto clz =
-        Call(call->args[0]->ty.as_or_throw<PrimType>(), tirx::builtin::call_llvm_intrin(), cargs)
+        Call(call->args[0]->ty.as_or_throw<PrimType>(), tirx::call_llvm_intrin_op(), cargs)
             .as_or_throw<PrimExpr>();
     return cast(call->ty.as_or_throw<PrimType>(), clz);
   });

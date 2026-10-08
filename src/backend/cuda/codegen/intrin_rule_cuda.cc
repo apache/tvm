@@ -22,8 +22,8 @@
  * \brief CUDA intrinsic rules.
  */
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
 #include "../../../target/intrin_rule.h"
@@ -135,17 +135,17 @@ struct CUDAPopcount {
 
 struct CUDAWarpIntrinsic {
   const Op operator()(const PrimType& ty, const Op& orig_op) const {
-    if (orig_op.same_as(builtin::tvm_warp_shuffle())) {
+    if (orig_op.same_as(tirx::tvm_warp_shuffle_op())) {
       static const Op cuda_shfl_sync_op = Op::Get("tirx.cuda.__shfl_sync");
       return cuda_shfl_sync_op;
-    } else if (orig_op.same_as(builtin::tvm_warp_shuffle_up())) {
+    } else if (orig_op.same_as(tirx::tvm_warp_shuffle_up_op())) {
       static const Op cuda_shfl_up_sync_op = Op::Get("tirx.cuda.__shfl_up_sync");
       return cuda_shfl_up_sync_op;
-    } else if (orig_op.same_as(builtin::tvm_warp_shuffle_down())) {
+    } else if (orig_op.same_as(tirx::tvm_warp_shuffle_down_op())) {
       static const Op cuda_shfl_down_sync_op = Op::Get("tirx.cuda.__shfl_down_sync");
       return cuda_shfl_down_sync_op;
     } else {
-      TVM_FFI_ICHECK(orig_op.same_as(builtin::tvm_warp_shuffle_xor()));
+      TVM_FFI_ICHECK(orig_op.same_as(tirx::tvm_warp_shuffle_xor_op()));
       static const Op cuda_shfl_xor_sync_op = Op::Get("tirx.cuda.__shfl_xor_sync");
       return cuda_shfl_xor_sync_op;
     }

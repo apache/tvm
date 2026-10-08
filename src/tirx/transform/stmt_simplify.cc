@@ -28,11 +28,10 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/transform.h>
 
@@ -144,8 +143,8 @@ UnchangedOr<Stmt> StmtSimplifier::Mutate_(const ForNode* op, InplaceMode inplace
 UnchangedOr<Stmt> StmtSimplifier::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
   if (const auto* call = op->value.as<CallNode>()) {
     // Preserve buffer metadata and shape operands; only declaration data is simplified.
-    if (call->op.same_as(builtin::alloc_tensor())) return ffi::Unchanged();
-    if (call->op.same_as(builtin::decl_tensor())) {
+    if (call->op.same_as(tirx::alloc_tensor_op())) return ffi::Unchanged();
+    if (call->op.same_as(tirx::decl_tensor_op())) {
       // The Call and its arguments may be shared even when the Bind is writable.
       auto data = this->Mutate(call->args[0], InplaceMode::kDisallow);
       if (data.UnchangedOrSameAs(call->args[0])) return ffi::Unchanged();

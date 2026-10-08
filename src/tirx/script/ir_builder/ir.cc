@@ -21,17 +21,17 @@
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/layout.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/script/ir_builder/ir.h>
-#include <tvm/tirx/tile_primitive.h>
+#include <tvm/tirx/tile_op.h>
 
 #include "./utils.h"
 
@@ -572,13 +572,12 @@ TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buf
                                 storage_scope, align, offset_factor, layout, allocated_addr_arr);
   if (scope == "tmem") {
     // Tensor memory is externally allocated; make its address-to-pointer binding explicit.
-    data =
-        Call(buffer.DataPointerType(), tvm::tirx::builtin::reinterpret(), {allocated_addr.value()});
+    data = Call(buffer.DataPointerType(), tvm::tirx::reinterpret_op(), {allocated_addr.value()});
   }
   Span span = IRBuilder::Current()->GetCurrentSourceSpan();
   if (data.has_value()) {
     AddToParent(tvm::tirx::Bind(buffer.var(),
-                                Call(buffer.type(), tvm::tirx::builtin::decl_tensor(),
+                                Call(buffer.type(), tvm::tirx::decl_tensor_op(),
                                      {data.value(), tvm::Tuple(buffer->shape),
                                       DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
                                      {}, {}, span),
@@ -586,7 +585,7 @@ TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buf
   } else {
     // Without a backing pointer, declare and allocate the tensor together.
     AddToParent(tvm::tirx::Bind(buffer.var(),
-                                Call(buffer.type(), tvm::tirx::builtin::alloc_tensor(),
+                                Call(buffer.type(), tvm::tirx::alloc_tensor_op(),
                                      {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                                       StringImm(buffer.scope())},
                                      DictAttrs(), {}, span),
@@ -600,7 +599,7 @@ TensorVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String st
   TensorVar buffer = TensorDecl(shape, dtype, "", std::nullopt, std::nullopt, std::nullopt,
                                 storage_scope, 0, 0, std::nullopt, {});
   AddToParent(tvm::tirx::Bind(
-      buffer.var(), Call(buffer.type(), tvm::tirx::builtin::alloc_tensor(),
+      buffer.var(), Call(buffer.type(), tvm::tirx::alloc_tensor_op(),
                          {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                           StringImm(buffer.scope())},
                          DictAttrs(annotations.value_or(ffi::Map<ffi::String, ffi::Any>())))));

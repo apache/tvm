@@ -22,7 +22,7 @@
  */
 #ifndef TVM_IR_PRIM_OP_H_
 #define TVM_IR_PRIM_OP_H_
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 
 #include <algorithm>
@@ -30,6 +30,37 @@
 #include <type_traits>
 #include <utility>
 namespace tvm {
+namespace prim {
+
+/*!
+ * \brief Get the target's vscale value. It will be lowered to llvm.vscale intrinsic
+ * (https://llvm.org/docs/LangRef.html#llvm-vscale-intrinsic)
+ */
+TVM_DLL const Op& vscale_op();
+
+/*! \brief Round up to the nearest integral value. */
+TVM_DLL const Op& ceil_op();
+
+/*! \brief Base-two logarithm. */
+TVM_DLL const Op& log2_op();
+
+/*! \brief Count leading zero bits. */
+TVM_DLL const Op& clz_op();
+
+/*!
+ * \brief Same as select, used for unsafe memory access.
+ *
+ *  Type tvm_if_then_else(cond, a, b) {
+ *    return cond ? a : b;
+ *  }
+ */
+TVM_DLL const Op& if_then_else_op();
+
+/*! \brief Marks a condition is likely going to happen. */
+TVM_DLL const Op& likely_op();
+
+}  // namespace prim
+
 /*!
  * \brief add operator
  *
@@ -527,9 +558,8 @@ inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span) {
   if (dtype.IsFixedLengthVector()) {
     return prim::Broadcast(MakeConstScalar(elem_ty, value, span), dtype.lanes(), span);
   }
-  PrimExpr lanes =
-      prim::Mul(Call(PrimType::Int(32), prim::builtin::vscale(), {}).as_or_throw<PrimExpr>(),
-                dtype.VScaleFactor());
+  PrimExpr lanes = prim::Mul(Call(PrimType::Int(32), prim::vscale_op(), {}).as_or_throw<PrimExpr>(),
+                             dtype.VScaleFactor());
   return prim::Broadcast(MakeConstScalar(elem_ty, value, span), lanes, span);
 }
 

@@ -19,13 +19,6 @@
 from __future__ import annotations
 
 from tvm.backend.metal import op as _metal_op
-from tvm.ir import Op
-from tvm.ir.op import _make_op_api
-from tvm.tirx import is_tensor_var
-
-_simd_shuffle = _make_op_api(Op.get("tirx.metal.simd_shuffle"), __name__)
-_simd_shuffle_up = _make_op_api(Op.get("tirx.metal.simd_shuffle_up"), __name__)
-_simd_shuffle_down = _make_op_api(Op.get("tirx.metal.simd_shuffle_down"), __name__)
 
 
 class MetalNamespace:
@@ -37,23 +30,9 @@ class MetalNamespace:
         self.simdgroup_store = _metal_op.simdgroup_store
         self.simdgroup_multiply_accumulate = _metal_op.simdgroup_multiply_accumulate
 
-    @staticmethod
-    def simd_shuffle(var, lane, *, ty=None, span=None):
-        if is_tensor_var(var):
-            var = var[0]
-        return _simd_shuffle(var, lane, ty=ty, span=span)
-
-    @staticmethod
-    def simd_shuffle_up(var, delta, *, ty=None, span=None):
-        if is_tensor_var(var):
-            var = var[0]
-        return _simd_shuffle_up(var, delta, ty=ty, span=span)
-
-    @staticmethod
-    def simd_shuffle_down(var, delta, *, ty=None, span=None):
-        if is_tensor_var(var):
-            var = var[0]
-        return _simd_shuffle_down(var, delta, ty=ty, span=span)
+    simd_shuffle = staticmethod(_metal_op.simd_shuffle)
+    simd_shuffle_up = staticmethod(_metal_op.simd_shuffle_up)
+    simd_shuffle_down = staticmethod(_metal_op.simd_shuffle_down)
 
 
 __all__ = ["MetalNamespace"]
