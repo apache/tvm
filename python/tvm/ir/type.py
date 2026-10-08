@@ -70,6 +70,14 @@ class AnyType(Type):
         self.__init_handle_by_constructor__(_ffi_api.AnyType, span)
 
 
+@tvm_ffi.register_object("ir.TensorRegionType")
+class TensorRegionType(Type):
+    """The type of a multi-dimensional :class:`tvm.ir.TensorRegion`."""
+
+    def __init__(self):
+        self.__init_handle_by_constructor__(_ffi_api.TensorRegionType)
+
+
 @tvm_ffi.register_object("ir.OpaqueType")
 class OpaqueType(Type):
     """Type marker for opaque values that must be removed from finished IR."""
