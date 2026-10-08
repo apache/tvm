@@ -34,7 +34,7 @@ namespace relax {
 
 /*! \brief Decode SSD box encodings and prepare class scores (TFLite-compatible). */
 Expr multibox_transform_loc(Expr cls_pred, Expr loc_pred, Expr anchor, bool clip, double threshold,
-                            ffi::Array<double> variances, bool keep_background);
+                            ffi::Array<double> variances, bool keep_background, bool apply_softmax);
 
 }  // namespace relax
 }  // namespace tvm

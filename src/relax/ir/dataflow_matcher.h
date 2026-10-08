@@ -24,10 +24,10 @@
 #ifndef TVM_RELAX_IR_DATAFLOW_MATCHER_H_
 #define TVM_RELAX_IR_DATAFLOW_MATCHER_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/dataflow_pattern_functor.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op.h>
 
 #include <unordered_map>
@@ -95,7 +95,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   var2val_t var2val_;
   std::vector<DFPattern> matched_nodes_;
   PrimExpr symbolic_expr_condition_{IntImm::Bool(true)};
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   bool memoize_ = true;
 };
 

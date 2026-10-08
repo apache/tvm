@@ -19,7 +19,6 @@
 #ifndef TVM_S_TIR_META_SCHEDULE_UTILS_H_
 #define TVM_S_TIR_META_SCHEDULE_UTILS_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/serialization.h>
@@ -41,8 +40,10 @@
 #include <tvm/s_tir/meta_schedule/task_scheduler.h>
 #include <tvm/s_tir/meta_schedule/tune_context.h>
 #include <tvm/s_tir/schedule/schedule.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -70,7 +71,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 /*!
@@ -302,7 +302,7 @@ inline std::string Concat(const ffi::Array<ffi::String>& strs, const std::string
  */
 inline s_tir::SBlockRV GetRVFromSRef(const s_tir::Schedule& sch, const tirx::StmtSRef& block_sref,
                                      const ffi::String& global_var_name) {
-  const tirx::SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+  const s_tir::SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   return sch->GetSBlock(block->name_hint, global_var_name);
 }
 
@@ -341,7 +341,10 @@ struct ThreadedTraceApply {
                                     s_tir::ScheduleErrorRenderLevel::kNone);
       trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
       sch->EnterPostproc();
-    } catch (const s_tir::ScheduleError& e) {
+    } catch (const ffi::Error& e) {
+      if (s_tir::GetScheduleErrorContext(e) == nullptr) {
+        throw;
+      }
       TVM_PY_LOG(WARNING, nullptr) << "Trace replay failed with ScheduleError: " << e.what();
       this->trace_fail_counter_++;
       return std::nullopt;
@@ -358,7 +361,10 @@ struct ThreadedTraceApply {
         if (!item.postproc->Apply(sch)) {
           success = false;
         }
-      } catch (const s_tir::ScheduleError& e) {
+      } catch (const ffi::Error& e) {
+        if (s_tir::GetScheduleErrorContext(e) == nullptr) {
+          throw;
+        }
         DLOG(WARNING) << "Postproc #" << i << " failed with ScheduleError: " << e.what();
         success = false;
       } catch (const std::exception& e) {
@@ -465,7 +471,7 @@ inline ffi::Array<FloatImm> AsFloatArray(const ffi::ObjectRef& obj) {
   for (Any val : *arr) {
     auto float_value = [&]() -> FloatImm {
       if (auto opt_int_imm = val.try_cast<IntImm>()) {
-        return FloatImm(PrimType::Float(32), (*opt_int_imm)->value);
+        return FloatImm(PrimType::Float(32), static_cast<double>((*opt_int_imm)->value));
       } else if (auto opt_float_imm = val.try_cast<FloatImm>()) {
         return *std::move(opt_float_imm);
       } else {
@@ -493,7 +499,7 @@ inline ffi::Array<int64_t> AsIntArray(const ffi::ObjectRef& obj) {
   for (Any val : *arr) {
     auto int_value = [&]() -> int64_t {
       if (auto opt_int_imm = val.try_cast<IntImm>()) {
-        return (*opt_int_imm)->value;
+        return static_cast<int64_t>((*opt_int_imm)->value);
       } else {
         TVM_FFI_THROW(TypeError) << "Expect an array of integers, but gets: " << val.GetTypeKey();
         TVM_FFI_UNREACHABLE();
@@ -607,22 +613,29 @@ inline double Sum(const ffi::Array<FloatImm>& arr) {
 }
 
 /*! \brief Collecting all the blocks */
-class SBlockCollector : public tirx::StmtVisitor {
+class SBlockCollector : public s_tir::StmtExprVisitor {
  public:
+  using s_tir::StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return s_tir::StmtExprVisitor::Visit(value);
+  }
+
   static ffi::Array<s_tir::SBlockRV> Collect(const s_tir::Schedule& sch,
                                              const ffi::Function f_block_filter = nullptr) {  //
-    return SBlockCollector(sch, f_block_filter).Run();
+    return ffi::make_object<SBlockCollector>(sch, f_block_filter)->Run();
   }
 
  private:
   /*! \brief Entry point */
   ffi::Array<s_tir::SBlockRV> Run() {
     std::vector<s_tir::SBlockRV> results;
-    auto f_collect = [this, &results](tirx::PrimFunc func, ffi::String func_name) {
+    auto f_collect = [this, &results](tirx::Function func, ffi::String func_name) {
       func_name_ = func_name;
       block_names_.clear();
       blocks_to_collect_.clear();
-      VisitStmt(func->body);
+      Visit(func->body);
       for (const ffi::String& name : blocks_to_collect_) {
         results.push_back(sch_->GetSBlock(name, func_name_));
       }
@@ -630,25 +643,28 @@ class SBlockCollector : public tirx::StmtVisitor {
 
     if (sch_->func_working_on().has_value()) {
       GlobalVar gv = sch_->func_working_on().value();
-      tirx::PrimFunc func = sch_->mod()->functions[gv].as_or_throw<tirx::PrimFunc>();
+      tirx::Function func = sch_->mod()->functions[gv].as_or_throw<tirx::Function>();
       f_collect(func, gv->name_hint);
     } else {
       for (const auto& [gv, base_func] : sch_->mod()->functions) {
         // `gv->name_hint` is the name of the function
-        // `base_func` can be PrimFunc or relax::Function
-        if (const auto* func = base_func.as<tirx::PrimFuncNode>()) {
-          f_collect(ffi::GetRef<tirx::PrimFunc>(func), gv->name_hint);
+        // `base_func` can be Function or relax::Function
+        if (const auto* func = base_func.as<tirx::FunctionNode>()) {
+          f_collect(ffi::GetRef<tirx::Function>(func), gv->name_hint);
         }
       }
     }
     return results;
   }
   /*! \brief Constructor */
+ public:
   explicit SBlockCollector(const s_tir::Schedule& sch, const ffi::Function f_block_filter = nullptr)
       : sch_(sch), f_block_filter_(f_block_filter) {}
+
+ private:
   /*! \brief Override the Stmt visiting behaviour */
-  void VisitStmt_(const tirx::SBlockNode* block) override {
-    tirx::StmtVisitor::VisitStmt_(block);
+  ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* block) override {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(block));
     TVM_FFI_ICHECK(block_names_.count(block->name_hint) == 0)
         << "Duplicated block name " << block->name_hint << " in function " << func_name_
         << " not supported!";
@@ -658,11 +674,12 @@ class SBlockCollector : public tirx::StmtVisitor {
     // Otherwise collect all blocks.
     bool collect_block = true;
     if (f_block_filter_ != nullptr) {
-      collect_block = f_block_filter_(ffi::GetRef<tirx::SBlock>(block)).cast<IntImm>()->value != 0;
+      collect_block = f_block_filter_(ffi::GetRef<s_tir::SBlock>(block)).cast<IntImm>()->value != 0;
     }
     if (collect_block) {
       blocks_to_collect_.push_back(block->name_hint);
     }
+    return std::nullopt;
   }
 
   /*! \brief The schedule to be collected */
@@ -673,7 +690,7 @@ class SBlockCollector : public tirx::StmtVisitor {
   std::unordered_set<ffi::String> block_names_;
   /* \brief The list of blocks to collect in order */
   ffi::Array<ffi::String> blocks_to_collect_;
-  /*! \brief Name of the current PrimFunc */
+  /*! \brief Name of the current Function */
   ffi::String func_name_;
 };
 

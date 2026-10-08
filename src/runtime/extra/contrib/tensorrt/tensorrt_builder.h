@@ -76,6 +76,10 @@ class TensorRTBuilder {
                   size_t max_workspace_size, bool use_fp16,
                   nvinfer1::IInt8Calibrator* calibrator = nullptr);
 
+  ~TensorRTBuilder();
+  TensorRTBuilder(const TensorRTBuilder&) = delete;
+  TensorRTBuilder& operator=(const TensorRTBuilder&) = delete;
+
   /*!
    * \brief Add TensorRT input(s) for input node in network definition.
    * \param nid The input node id.

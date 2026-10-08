@@ -18,10 +18,7 @@
 
 import tvm_ffi
 
-import tvm
-from tvm.runtime import Device, Object
-
-from . import _ffi_api
+from tvm.runtime import Object
 
 
 @tvm_ffi.register_object("ir.GlobalInfo")
@@ -38,30 +35,3 @@ class GlobalInfo(Object):
     def same_as(self, other):
         """Overload with structural equality."""
         return super().__eq__(other)
-
-
-@tvm_ffi.register_object("ir.DummyGlobalInfo")
-class DummyGlobalInfo(GlobalInfo):
-    """DummyGlobalInfo"""
-
-    def __init__(self) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.DummyGlobalInfo,
-        )
-
-
-@tvm_ffi.register_object("ir.VDevice")
-class VDevice(GlobalInfo):
-    """VDevice"""
-
-    def __init__(
-        self,
-        target=None,
-        vdevice_id: int = 0,
-        memory_scope: str = "global",
-    ) -> None:
-        if isinstance(target, dict | str):
-            target = tvm.target.Target(tvm.runtime.convert(target))
-        if isinstance(target, Device):
-            target = tvm.target.Target.from_device(target)
-        self.__init_handle_by_constructor__(_ffi_api.VDevice, target, vdevice_id, memory_scope)

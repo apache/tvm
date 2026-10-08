@@ -18,7 +18,7 @@
 """Implementation of binary operator dispatches."""
 
 from tvm.script import tirx as T
-from tvm.tirx import FloatImm, PrimFunc
+from tvm.tirx import FloatImm, Function
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import MapOpType
 from tvm.tirx.tile_primitive import TilePrimitiveCall
@@ -30,7 +30,7 @@ from .utils import InstType, binary_map_ops, try_find_inst_nary
 
 def binary_trn(
     op: TilePrimitiveCall, binary_op: MapOpType, sctx: DispatchContext
-) -> PrimFunc | None:
+) -> Function | None:
     """Generate a binary operation schedule for Trainium."""
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
         fail("requires Trainium target and thread exec_scope")
@@ -50,8 +50,8 @@ def binary_trn(
 
     # Extract buffers and constants
     CONST = _src2 if isinstance(_src2, FloatImm) else None
-    dst, src1 = _dst.buffer, _src1.buffer
-    src2 = None if CONST is not None else _src2.buffer
+    dst, src1 = _dst.source, _src1.source
+    src2 = None if CONST is not None else _src2.source
 
     p_var = T.Var("P", "int32")
     b_var = T.Var("B", "int32")
@@ -72,10 +72,11 @@ def binary_trn(
         return _func(*args, reverse[0]) if inst_types[0] == InstType.TENSOR_SCALAR else _func(*args)
 
     # Define the implementation function
-    @T.prim_func
+    # This fragment captures buffers and indices from its insertion scope.
+    @T.function(check_well_formed=False)
     def impl():
         for b_loop in T.serial(0, b_extent):
-            with T.attr(0, "tensorized_nki_instruction", 1):
+            with T.nki.tensorized_instruction():
                 for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                     for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                         inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, b_var: b_loop})
@@ -83,7 +84,7 @@ def binary_trn(
                         if inst_gen.make_guard(_dst):
                             dst_indices = T.meta_var(inst_gen.generate_indices(_dst))
                             src1_indices = T.meta_var(inst_gen.generate_indices(_src1))
-                            if CONST is None:
+                            if T.constexpr(CONST is None):
                                 src2_indices = T.meta_var(inst_gen.generate_indices(_src2))
                                 T.evaluate(
                                     func(

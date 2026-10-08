@@ -23,53 +23,16 @@ from tvm.tirx.expr import Var
 from tvm.tirx.stmt import Expr
 
 from .. import Stmt
-from ..function import PrimFunc
+from ..function import Function
 from . import _ffi_api
 
 
-def expr_deep_equal(lhs: Expr, rhs: Expr) -> bool:
-    """Deeply compare two nested expressions.
-
-    Parameters
-    ----------
-    lhs : Expr
-        The left operand.
-
-    rhs : Expr
-        The right operand.
-
-    Returns
-    -------
-    result : bool
-        The comparison result
-
-    Note
-    ----
-
-    This function does not remap variable bindings, it will not
-    return true for (let x = 1 in x + 1) vs (let y = 1 in y + 1), unless x.same_as(y).
-    Use py:func:`tvm_ffi.structural_equal` to handle structural variable remapping.
-
-    Due to the restriction of not remapping variables, this function can run
-    faster than StructuralEqual and can be used as a utility function during arithmetic
-    simplifications.
-
-    Always consider py:func:`tvm_ffi.structural_equal` first, which handles
-    the structural remapping.
-
-    See Also
-    --------
-    tvm_ffi.structural_equal
-    """
-    return _ffi_api.expr_deep_equal(lhs, rhs)  # type: ignore
-
-
-def verify_ssa(func: PrimFunc) -> bool:
+def verify_ssa(func: Function) -> bool:
     """Verify if the func is in SSA form.
 
     Parameters
     ----------
-    func: tvm.tirx.PrimFunc
+    func: tvm.tirx.Function
         The module to be verified.
 
     Returns
@@ -80,12 +43,12 @@ def verify_ssa(func: PrimFunc) -> bool:
     return _ffi_api.verify_ssa(func)  # type: ignore
 
 
-def verify_memory(func: PrimFunc) -> bool:
+def verify_memory(func: Function) -> bool:
     """Verify if func contains illegal host side direct memory access.
 
     Parameters
     ----------
-    func: tvm.tirx.PrimFunc
+    func: tvm.tirx.Function
         The module to be verified.
 
     Returns
@@ -116,13 +79,14 @@ def undefined_vars(node: Stmt | Expr, defs: list[Var] | None = None) -> list[Var
     return _ffi_api.UndefinedVars(node, defs)  # type: ignore # pylint: disable=no-member
 
 
-def verify_well_formed(obj: PrimFunc | IRModule, assert_mode: bool = True) -> bool:
-    """Verify if the given TIR is well-formed. The verification includes:
-        - Check if expressions not contain vars that is defined outside the block.
+def verify_well_formed(obj: Function | IRModule, assert_mode: bool = True) -> bool:
+    """Verify definitions and buffer-load types in ordinary TIRX.
+
+    Use ``tvm.s_tir.analysis.verify_well_formed`` for schedulable blocks.
 
     Parameters
     ----------
-    obj: Union[tvm.tirx.PrimFunc, tvm.ir.IRModule]
+    obj: Union[tvm.tirx.Function, tvm.ir.IRModule]
         The function or module to be verified.
 
     assert_mode: bool
@@ -137,13 +101,13 @@ def verify_well_formed(obj: PrimFunc | IRModule, assert_mode: bool = True) -> bo
 
 
 def verify_tirx_well_formed(
-    obj: PrimFunc | IRModule, assert_mode: bool = True, device_func: bool = False
+    obj: Function | IRModule, assert_mode: bool = True, device_func: bool = False
 ) -> bool:
     """Verify if the given TIRX is well-formed.
 
     Parameters
     ----------
-    obj: Union[tvm.tirx.PrimFunc, tvm.ir.IRModule]
+    obj: Union[tvm.tirx.Function, tvm.ir.IRModule]
         The function or module to be verified.
 
     assert_mode: bool

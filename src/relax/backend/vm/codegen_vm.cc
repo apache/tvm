@@ -137,6 +137,17 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg VisitExpr_(const CallNode* call_node) final {
     Call call = ffi::GetRef<Call>(call_node);
 
+    // ComputePrimValue may introduce pure native calls after purity removal.
+    // Their runtime behavior is the explicit bridge underneath the wrapper.
+    if (call_node->op.same_as(Op::Get("relax.call_pure_packed")) &&
+        call_node->args[0].same_as(Op::Get("relax.call_tir_packed"))) {
+      Call inner =
+          Call::Unchecked(call_node->ty, call_node->args[0],
+                          ffi::Array<Expr>(call_node->args.begin() + 1, call_node->args.end()),
+                          call_node->attrs, call_node->ty_args, call_node->span);
+      return VisitExpr(inner);
+    }
+
     if (call_node->op.same_as(null_value_op_)) {
       return Instruction::Arg::Register(Instruction::kVoidRegister);
     }
@@ -152,6 +163,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
         EmitAllocStorage(call, dst_reg);
       } else if (call_node->op.same_as(alloc_tensor_op_)) {
         EmitAllocTensor(call, dst_reg);
+      } else if (call_node->op.same_as(Op::Get("relax.call_tir_packed"))) {
+        auto arguments = call_node->args[1].as_or_throw<Tuple>();
+        builder_->EmitCall(VisitExpr(call_node->args[0]), VisitArray(arguments->fields), dst_reg);
       } else if (call_node->op.same_as(kill_object_op_)) {
         dst_reg = EmitKillObject(call);
       } else {
@@ -224,8 +238,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     return VisitExpr_(static_cast<const VarNode*>(op));
   }
 
-  Instruction::Arg VisitExpr_(const ConstantNode* op) final {
-    auto arg = builder_->ConvertConstant(op->data);
+  Instruction::Arg VisitExpr_(const GenericConstNode* op) final {
+    auto arg = builder_->ConvertConstant(op->value);
 
     if (auto tensor_ty = op->ty.as<TensorTypeNode>()) {
       if (tensor_ty->vdevice.has_value()) {
@@ -240,7 +254,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     std::vector<int64_t> shape;
     for (PrimExpr e : op->values) {
       if (auto* int_value = e.as<IntImmNode>()) {
-        shape.push_back(int_value->value);
+        shape.push_back(static_cast<int64_t>(int_value->value));
       } else {
         TVM_FFI_THROW(InternalError)
             << "Should only use constant shape after shape lowering: " << op->values;
@@ -260,7 +274,6 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg VisitExpr_(const StringImmNode* op) final {
     return builder_->ConvertConstant(op->value);
   }
-
   Instruction::Arg VisitExpr_(const DataTypeImmNode* op) final {
     return builder_->ConvertConstant(op->value);
   }
@@ -306,7 +319,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
         kind = VMFuncInfo::FuncKind::kVMFunc;
       }
     }
-    // GlobalVar can be reference to a Relax function or a TIR primfunc
+    // GlobalVar can be reference to a Relax function or a TIR function
     // At this point: all global var must corresponds to the right symbol.
     // TODO(relax-team): switch everything to extern before splitting TIR/relax
     // so we do not have idle global var here.
@@ -356,7 +369,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     }
     int64_t vdevice_index = -1;
     if (const auto* int_imm = call_node->args[4].as<IntImmNode>()) {
-      vdevice_index = int_imm->value;
+      vdevice_index = int_imm->value.as<int>().value();
     }
     auto vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
@@ -432,11 +445,11 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   /*! \brief the context module. */
   IRModule ctx_mod_;
   /*! \brief Cache ops that need to be frequently used later to reduce lookup overhead. */
-  const Op& alloc_storage_op_ = Op::Get("relax.vm.alloc_storage");
-  const Op& alloc_tensor_op_ = Op::Get("relax.vm.alloc_tensor");
-  const Op& kill_object_op_ = Op::Get("relax.vm.kill_object");
-  const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
-  const Op& null_value_op_ = Op::Get("relax.null_value");
+  const Op alloc_storage_op_ = Op::Get("relax.vm.alloc_storage");
+  const Op alloc_tensor_op_ = Op::Get("relax.vm.alloc_tensor");
+  const Op kill_object_op_ = Op::Get("relax.vm.kill_object");
+  const Op call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
+  const Op null_value_op_ = Op::Get("relax.null_value");
 };
 
 /*!

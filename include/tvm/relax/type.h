@@ -28,9 +28,9 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
-#include <tvm/ir/global_info.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/type.h>
+#include <tvm/relax/global_info.h>
 
 #include <string>
 #include <utility>
@@ -46,8 +46,14 @@ class BlockBuilder;
 /*! \brief Indicates the number of dimensions of a tensor is unknown at compile time. */
 static constexpr int kUnknownNDim = -1;
 
+using tvm::AnyType;
+using tvm::AnyTypeNode;
 using tvm::TupleType;
 using tvm::TupleTypeNode;
+
+// Compatibility aliases for existing C++ callers.  New code should use AnyType.
+using ObjectTypeNode = AnyTypeNode;
+using ObjectType = AnyType;
 
 class PackedFuncTypeNode : public TypeNode {
  public:
@@ -89,32 +95,6 @@ class PackedFuncType : public Type {
  * normalized through NormalizeArg.  This invariant is checked in constructors
  * and simplifies assumptions during type deduction.
  */
-/*!
- * \brief Any Relax value.
- */
-class AnyTypeNode : public TypeNode {
- public:
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AnyTypeNode>();
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.AnyType", AnyTypeNode, TypeNode);
-};
-
-/*!
- * \brief Managed reference to AnyTypeNode.
- * \sa AnyTypeNode
- */
-class AnyType : public Type {
- public:
-  TVM_DLL AnyType(Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AnyType, Type, AnyTypeNode);
-};
-
-// Compatibility aliases for existing C++ callers.  New code should use AnyType.
-using ObjectTypeNode = AnyTypeNode;
-using ObjectType = AnyType;
 
 /*!
  * \brief Type of shape value.
@@ -195,7 +175,7 @@ class TensorTypeNode : public TypeNode {
   ffi::Optional<ffi::Array<PrimExpr>> GetShape() const {
     if (!shape.has_value()) return {};
     const Expr& shape_expr = this->shape.value();
-    if (shape_expr->ty.IsMissing()) return {};
+    if (shape_expr->ty.as<MissingType>().has_value()) return {};
     if (const auto* shape_ty = shape_expr->ty.as<ShapeTypeNode>()) {
       return shape_ty->values;
     }
@@ -386,7 +366,7 @@ inline ffi::Optional<T> MatchType(const Expr& expr) {
  */
 template <typename T>
 inline const T* GetTypeAs(const Expr& expr) {
-  TVM_FFI_ICHECK(!expr->ty.IsMissing())
+  TVM_FFI_ICHECK(!expr->ty.as<MissingType>().has_value())
       << "The type is not populated, check if you have normalized the expr";
   return expr->ty.as<T>();
 }
@@ -398,7 +378,7 @@ inline const T* GetTypeAs(const Expr& expr) {
  * \return underlying Relax type.
  */
 inline Type GetType(const Expr& expr) {
-  TVM_FFI_ICHECK(!expr->ty.IsMissing())
+  TVM_FFI_ICHECK(!expr->ty.as<MissingType>().has_value())
       << "The type is not populated, check if you have normalized the expr";
   return expr->ty;
 }

@@ -31,6 +31,7 @@ from .base import (
     call_py_func,
     call_tir,
     call_tir_inplace,
+    call_tir_packed,
     call_tir_with_grad,
     hint_on_device,
     invoke_closure,
@@ -193,9 +194,8 @@ def _register_op_make():
         return op(lhs)
 
     def _call(func, *args, attrs=None):
-        if not (
-            isinstance(func.ty, expr.tvm.ir.FuncType | expr.tvm.relax.FuncType)
-            or func.ty.is_missing()
+        if not isinstance(
+            func.ty, expr.tvm.ir.FuncType | expr.tvm.relax.FuncType | expr.tvm.ir.MissingType
         ):
             return NotImplemented
         return expr.tvm.ir.Call(func, args, attrs=attrs)

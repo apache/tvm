@@ -23,109 +23,77 @@
  */
 
 #include <tvm/ffi/cast.h>
-#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/stmt_functor.h>
-
-#include "../../tirx/ir/functor_common.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
-#define STMT_REGENERATE_VAR_DEF(NODE, FIELD)                                       \
-  Stmt VisitStmt_(const NODE* op) final {                                          \
-    Var new_var = this->ReDefineVar(op->FIELD);                                    \
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);                                   \
-    op = stmt.as<NODE>();                                                          \
-    TVM_FFI_ICHECK(op != nullptr);                                                 \
-    auto n = ffi::make_object<NODE>(*op);                                          \
-    n->FIELD = std::move(new_var).as_or_throw<std::decay_t<decltype(n->FIELD)>>(); \
-    return Stmt(n);                                                                \
+#define STMT_REGENERATE_VAR_DEF(NODE, FIELD)                                                \
+  UnchangedOr<Stmt> Mutate_(const NODE* op, InplaceMode inplace_mode) final {               \
+    Var new_var = this->ReDefineVar(op->FIELD);                                             \
+    Stmt stmt =                                                                             \
+        StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op)); \
+    op = stmt.as<NODE>();                                                                   \
+    TVM_FFI_ICHECK(op != nullptr);                                                          \
+    auto n = ffi::make_object<NODE>(*op);                                                   \
+    n->FIELD = std::move(new_var).as_or_throw<std::decay_t<decltype(n->FIELD)>>();          \
+    return Stmt(n);                                                                         \
   }
 
 class RenewDefMutator : public StmtExprMutator {
  public:
-  static PrimFunc Transform(const PrimFunc& func) {
-    RenewDefMutator generator;
-    // Redefine scalar parameters first, because they may occur in a buffer
-    // parameter's type annotation.
-    for (const auto& param : func->params) {
-      if (!param.as<BufferVar>()) {
-        generator.ReDefineVar(param);
-      }
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
+  static Function Transform(const Function& func) {
+    auto generator = ffi::make_object<RenewDefMutator>();
+    // Establish explicit parameters and symbols in their types before visiting uses.
+    for (const Var& param : func->params) {
+      if (param->ty.as<PrimTypeNode>()) generator->ReDefineVar(param);
     }
-    for (const auto& param : func->params) {
-      if (auto opt_buffer = param.as<BufferVar>()) {
-        const BufferVar& buffer = opt_buffer.value();
-        auto walk_fn = [&generator](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-          if (generator.remap_.count(var) == 0) {
-            generator.ReDefineVar(var);
-          }
-          return ffi::WalkResult::Advance();
-        };
-        for (const PrimExpr& e : buffer->shape) {
-          ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(e, walk_fn);
-        }
-      }
-    }
-    // Redefine buffer parameters in order, preserving the original signature.
-    // TODO(Siyuan Feng): checking var is used after define
-    ffi::Array<Var> params;
-    for (const auto& param : func->params) {
-      if (auto opt_buffer = param.as<BufferVar>()) {
-        params.push_back(generator.DefineBuffer(opt_buffer.value()));
-      } else {
-        params.push_back(generator.VisitExpr(param).as_or_throw<Var>());
-      }
-    }
+    ffi::Array<Var> params = func->params.Map([&](const Var& param) {
+      auto mapped = generator->VarRemapGet(param);
+      return mapped != nullptr ? mapped.as_or_throw<Var>() : generator->ReDefineVar(param);
+    });
     // Visit body
-    Stmt body = generator(func->body);
+    auto body = generator->Mutate(func->body).ValueOrUnchanged(func->body);
     // Recreate function
-    return PrimFunc(params, body, func->ret_type, func->attrs, func->span);
+    return Function(params, body, func->ret_type, func->attrs, func->span);
   }
 
  private:
-  Stmt operator()(Stmt stmt) {
-    // override StmtMutator::operator() to disable copy_on_write
-    // Since this pass tries to explicit create a new function rather than update the existing one
-    allow_copy_on_write_ = false;
-    return VisitStmt(stmt);
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    // Result-type patterns may introduce metadata symbols. Renew those before
+    // rewriting the RHS; the Bind's own definition is published only afterwards.
+    WithDefRegionKind(kTVMFFIDefRegionKindPattern,
+                      [&] { return Mutate(op->value->ty, InplaceMode::kDisallow); });
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  Expr VisitExpr(const Expr& expr) final {
-    auto it = remap_.find(expr);
-    if (it != remap_.end()) {
-      return (*it).second.as_or_throw<Expr>();
-    } else {
-      return ExprMutator::VisitExpr(expr);
-    }
-  }
-
- private:
-  STMT_REGENERATE_VAR_DEF(BindNode, var);
   STMT_REGENERATE_VAR_DEF(ForNode, loop_var);
 
-  // Override VisitBufferDef to create fresh buffer copies at definition sites
-  // (AllocBuffer, DeclBuffer, SBlock alloc_buffers, match_buffers)
-  BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data) final {
-    return DefineBuffer(buffer);
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
+    Var var = ffi::GetRef<Var>(op);
+    if (auto mapped = VarRemapGet(var); mapped != nullptr) {
+      return mapped.as_or_throw<Expr>();
+    }
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return ReDefineVar(var);
+    return ffi::Unchanged();
   }
 
-  // Override VisitBufferUse to remap buffers at use sites
-  // (BufferStore, BufferLoad, SBlock reads/writes)
-  BufferVar VisitBufferUse(const BufferVar& buffer) final { return UseOrRemapBuffer(buffer); }
-
-  Stmt VisitStmt_(const SBlockNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     // Step 0. Re-define Itervars
     ffi::Array<IterVar> iter_vars =
         op->iter_vars.Map(std::bind(&RenewDefMutator::VisitIterVar, this, std::placeholders::_1));
 
     // Step 1. Re-define buffers allocated under the block
-    ffi::Array<BufferVar> alloc_buffers =
-        op->alloc_buffers.Map([this](const BufferVar& buf) { return this->DefineBuffer(buf); });
+    ffi::Array<TensorVar> alloc_buffers = op->alloc_buffers.Map([this](const TensorVar& buf) {
+      return this->ReDefineVar(buf.var()).as_or_throw<TensorVar>();
+    });
 
     // Step 2. Re-define match_buffers
     ffi::Array<MatchBufferRegion> match_buffers = op->match_buffers.Map(
@@ -134,14 +102,14 @@ class RenewDefMutator : public StmtExprMutator {
     // Step 3. Visit body
     ffi::Optional<Stmt> init = std::nullopt;
     if (op->init.has_value()) {
-      init = this->VisitStmt(op->init.value());
+      init = this->Mutate(op->init.value(), inplace_mode).ValueOrUnchanged(op->init.value());
     }
-    Stmt body = this->VisitStmt(op->body);
+    Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
 
     // Step 4. Revisit access region
-    ffi::Array<BufferRegion> reads =
+    ffi::Array<TensorRegion> reads =
         op->reads.Map(std::bind(&RenewDefMutator::VisitBufferRegion, this, std::placeholders::_1));
-    ffi::Array<BufferRegion> writes =
+    ffi::Array<TensorRegion> writes =
         op->writes.Map(std::bind(&RenewDefMutator::VisitBufferRegion, this, std::placeholders::_1));
 
     // Step 5. Regenerate block. Since the defs are changed, we need to create a new block
@@ -157,120 +125,46 @@ class RenewDefMutator : public StmtExprMutator {
     return Stmt(n);
   }
 
- private:
   Var ReDefineVar(const Var& var) {
-    Var new_var(var->name, var->ty, var->span);
-    this->AddDefRemap(var, new_var);
+    if (auto mapped = VarRemapGet(var); mapped != nullptr) return mapped.as_or_throw<Var>();
+    Type type = WithDefRegionKind(kTVMFFIDefRegionKindPattern, [&] {
+      return Mutate(var->ty, InplaceMode::kDisallow)
+          .as_or_throw<UnchangedOr<Type>>()
+          .ValueOrUnchanged(var->ty);
+    });
+    Var new_var(var->name, type, var->span);
+    VarRemapSet(var, new_var);
     return new_var;
   }
 
-  template <typename T>
-  void AddDefRemap(const T& source, const T& target) {
-    TVM_FFI_ICHECK(remap_.count(source) == 0);
-    remap_.Set(source, target);
-  }
-
-  BufferVar DefineBuffer(const BufferVar& buffer) {
-    auto it = remap_.find(buffer);
-    if (it != remap_.end()) {
-      return (*it).second.as_or_throw<tvm::tirx::BufferVar>();
-    }
-
-    auto redefine_if_is_var = [this](const Expr& expr) -> Expr {
-      auto it = remap_.find(expr);
-      if (it != remap_.end()) {
-        return (*it).second.as_or_throw<Expr>();
-      } else if (auto var = expr.as<Var>()) {
-        return this->ReDefineVar(var.value());
-      } else {
-        return ExprMutator::VisitExpr(expr);
-      }
-    };
-
-    // shape is USED (references existing definitions like buffer-parameter shape vars),
-    // remap via VisitExpr to avoid creating spurious new var definitions
-    auto visit_expr = [this](const PrimExpr& e) -> PrimExpr { return this->VisitPrimExpr(e); };
-    ffi::Array<PrimExpr> shape = buffer->shape.Map(visit_expr);
-    // strides/elem_offset may define NEW vars (e.g. in match_buffer),
-    // so use redefine_if_is_var to create fresh copies for unknown vars
-    ffi::Array<PrimExpr> strides = buffer->strides.Map(
-        [&](const PrimExpr& expr) { return redefine_if_is_var(expr).as_or_throw<PrimExpr>(); });
-    PrimExpr elem_offset = redefine_if_is_var(buffer->elem_offset).as_or_throw<PrimExpr>();
-
-    auto n = CopyBufferType(buffer);
-    n->shape = std::move(shape);
-    n->strides = std::move(strides);
-    n->elem_offset = std::move(elem_offset);
-    BufferVar new_buffer = RebuildBufferVar(buffer, std::move(n));
-    this->AddDefRemap(buffer, new_buffer);
-    return new_buffer;
-  }
-
-  BufferVar UseOrRemapBuffer(const BufferVar& buffer) {
-    // If the buffer has been remapped, return the remapped buffer, otherwise,
-    // remap it without creating new var definitions.
-    auto it = remap_.find(buffer);
-    if (it != remap_.end()) {
-      return (*it).second.as_or_throw<tvm::tirx::BufferVar>();
-    }
-    auto visit_expr = [this](const PrimExpr& e) -> PrimExpr { return this->VisitPrimExpr(e); };
-    ffi::Array<PrimExpr> shape = buffer->shape.Map(visit_expr);
-    ffi::Array<PrimExpr> strides = buffer->strides.Map(visit_expr);
-    PrimExpr elem_offset = VisitPrimExpr(buffer->elem_offset);
-
-    auto n = CopyBufferType(buffer);
-    n->shape = std::move(shape);
-    n->strides = std::move(strides);
-    n->elem_offset = std::move(elem_offset);
-    BufferVar new_buffer = RebuildBufferVar(buffer, std::move(n));
-    this->AddDefRemap(buffer, new_buffer);
-    return new_buffer;
-  }
-
   IterVar VisitIterVar(const IterVar& iter_var) {
-    auto it = remap_.find(iter_var);
-    if (it != remap_.end()) {
-      return (*it).second.as_or_throw<IterVar>();
-    }
-    PrimExpr min = VisitPrimExpr(iter_var->dom->min);
-    PrimExpr extent = VisitPrimExpr(iter_var->dom->extent);
-    IterVar new_iter_var(Range(min, extent), ReDefineVar(iter_var->var).as_or_throw<PrimVar>(),
-                         iter_var->iter_type, iter_var->thread_tag);
-    this->AddDefRemap(iter_var, new_iter_var);
+    auto mapped = VarRemapGet(iter_var);
+    if (mapped != nullptr) return mapped.as_or_throw<IterVar>();
+    PrimExpr min =
+        Mutate(iter_var->dom->min, InplaceMode::kDisallow).ValueOrUnchanged(iter_var->dom->min);
+    PrimExpr extent = Mutate(iter_var->dom->extent, InplaceMode::kDisallow)
+                          .ValueOrUnchanged(iter_var->dom->extent);
+    IterVar new_iter_var(Range::FromMinExtent(min, extent),
+                         ReDefineVar(iter_var->var).as_or_throw<PrimVar>(), iter_var->iter_type,
+                         iter_var->thread_tag);
+    VarRemapSet(iter_var, new_iter_var);
     return new_iter_var;
   }
 
   MatchBufferRegion VisitMatchBuffer(const MatchBufferRegion& match_buffer) {
-    BufferVar buffer = DefineBuffer(match_buffer->buffer);
-    BufferRegion region = VisitBufferRegion(match_buffer->source);
+    TensorVar buffer = ReDefineVar(match_buffer->buffer.var()).as_or_throw<TensorVar>();
+    TensorRegion region = VisitBufferRegion(match_buffer->source);
     return MatchBufferRegion(std::move(buffer), std::move(region));
   }
 
-  Range VisitRange(const Range& range) {
-    PrimExpr min = VisitPrimExpr(range->min);
-    PrimExpr extent = VisitPrimExpr(range->extent);
-    if (min.same_as(range->min) && extent.same_as(range->extent)) {
-      return range;
-    } else {
-      return Range::FromMinExtent(std::move(min), std::move(extent));
-    }
+  TensorRegion VisitBufferRegion(const TensorRegion& buffer_region) {
+    return Mutate(buffer_region, InplaceMode::kDisallow)
+        .ValueOrUnchanged(buffer_region)
+        .as_or_throw<TensorRegion>();
   }
-
-  BufferRegion VisitBufferRegion(const BufferRegion& buffer_region) {
-    BufferVar buffer = UseOrRemapBuffer(buffer_region->buffer);
-    ffi::Array<Range> region = buffer_region->region.Map(
-        std::bind(&RenewDefMutator::VisitRange, this, std::placeholders::_1));
-    if (buffer.same_as(buffer_region->buffer) && region.same_as(buffer_region->region)) {
-      return buffer_region;
-    } else {
-      return BufferRegion(std::move(buffer), std::move(region));
-    }
-  }
-
-  ffi::Map<ffi::ObjectRef, ffi::ObjectRef> remap_;
 };
 
-PrimFunc RenewDefs(const PrimFunc& func) { return RenewDefMutator::Transform(func); }
+Function RenewDefs(const Function& func) { return RenewDefMutator::Transform(func); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

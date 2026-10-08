@@ -78,14 +78,12 @@ class Tanh2TakeReplace(tvm.relax.PyExprMutator):
                     inp_scale, inp_zp, out_scale, out_zp, call_node.args[0].name_hint
                 )
                 # Take operation node creation
-                take_func = hexagon_unary_ops.generate_take_primfunc(inp, call_node.ty)
+                take_func = hexagon_unary_ops.generate_take_function(inp, call_node.ty)
                 take_func = take_func.without_attr("global_symbol")
                 take_func_gv = self.builder_.add_func(take_func, "take")
                 take_node = relax.call_tir(
                     take_func_gv,
-                    relax.expr.Tuple(
-                        [call_node.args[1][0], relax.expr.Constant(tvm.runtime.tensor(LUT))]
-                    ),
+                    relax.expr.Tuple([call_node.args[1][0], relax.const(tvm.runtime.tensor(LUT))]),
                     call_node.ty,
                 )
                 return take_node
@@ -93,6 +91,6 @@ class Tanh2TakeReplace(tvm.relax.PyExprMutator):
 
 
 @tvm.ir.transform.module_pass(opt_level=2, name="replace_tanh_take")
-class PassReplaceWithTakeOpPrimFuncs:
+class PassReplaceWithTakeOpFunctions:
     def transform_module(self, mod, ctx):
         return Tanh2TakeReplace(mod).transform()

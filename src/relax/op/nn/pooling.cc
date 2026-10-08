@@ -27,6 +27,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   Pool1DAttrs::RegisterReflection();
@@ -63,8 +64,8 @@ Expr MakePool1d(ffi::String op_name, Expr data, ffi::Array<int64_t> pool_size,
   attrs->count_include_pad = count_include_pad;
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
-  const Op& op = Op::Get(op_name);
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  const Op op = Op::Get(op_name);
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 Expr max_pool1d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> strides,
@@ -102,11 +103,11 @@ Type InferTypePool1D(const Call& call, const BlockBuilder& ctx) {
   PrimExpr kernel_w = IntImm::Int32(attrs->pool_size[0]);
   PrimExpr padding_w = IntImm::Int32(attrs->padding[0]) + IntImm::Int32(attrs->padding[1]);
 
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   std::vector<PrimExpr> out_NCW_shape;
-  out_NCW_shape.resize(3);
-  out_NCW_shape[0] = data_NCW_shape[0];
-  out_NCW_shape[1] = data_NCW_shape[1];
+  out_NCW_shape.reserve(3);
+  out_NCW_shape.push_back(data_NCW_shape[0]);
+  out_NCW_shape.push_back(data_NCW_shape[1]);
 
   PrimExpr numerator_w =
       input_w + padding_w - IntImm::Int32(attrs->dilation[0]) * (kernel_w - 1) - 1;
@@ -117,9 +118,10 @@ Type InferTypePool1D(const Call& call, const BlockBuilder& ctx) {
   if (attrs->ceil_mode) {
     PrimExpr invalid_last_w = (raw_out_w - 1) * IntImm::Int32(attrs->strides[0]) >=
                               input_w + IntImm::Int32(attrs->padding[0]);
-    out_NCW_shape[2] = analyzer->Simplify(if_then_else(invalid_last_w, raw_out_w - 1, raw_out_w));
+    out_NCW_shape.push_back(
+        analyzer->Simplify(if_then_else(invalid_last_w, raw_out_w - 1, raw_out_w)));
   } else {
-    out_NCW_shape[2] = analyzer->Simplify(raw_out_w);
+    out_NCW_shape.push_back(analyzer->Simplify(raw_out_w));
   }
 
   ffi::Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
@@ -143,14 +145,14 @@ InferLayoutOutput InferLayoutPool1d(
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 
-TVM_REGISTER_OP("relax.nn.max_pool1d")
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor")
-    .set_attrs_type<Pool1DAttrs>()
-    .set_attr<FInferType>("FInferType", InferTypePool1D)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool1d)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.nn.max_pool1d")
+      .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool1DAttrs>())
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypePool1D)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool1d)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.nn.max_pool2d */
 
@@ -187,8 +189,8 @@ Expr MakePool2d(ffi::String op_name, Expr data, ffi::Array<int64_t> pool_size,
   attrs->count_include_pad = count_include_pad;
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
-  const Op& op = Op::Get(op_name);
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  const Op op = Op::Get(op_name);
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 Expr max_pool2d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> strides,
@@ -229,11 +231,11 @@ Type InferTypePool2D(const Call& call, const BlockBuilder& ctx) {
   PrimExpr padding_h = IntImm::Int32(attrs->padding[0]) + IntImm::Int32(attrs->padding[2]);
   PrimExpr padding_w = IntImm::Int32(attrs->padding[1]) + IntImm::Int32(attrs->padding[3]);
 
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   std::vector<PrimExpr> out_NCHW_shape;
-  out_NCHW_shape.resize(4);
-  out_NCHW_shape[0] = data_NCHW_shape[0];
-  out_NCHW_shape[1] = data_NCHW_shape[1];
+  out_NCHW_shape.reserve(4);
+  out_NCHW_shape.push_back(data_NCHW_shape[0]);
+  out_NCHW_shape.push_back(data_NCHW_shape[1]);
 
   PrimExpr numerator_h =
       input_h + padding_h - IntImm::Int32(attrs->dilation[0]) * (kernel_h - 1) - 1;
@@ -250,11 +252,13 @@ Type InferTypePool2D(const Call& call, const BlockBuilder& ctx) {
                               input_h + IntImm::Int32(attrs->padding[0]);
     PrimExpr invalid_last_w = (raw_out_w - 1) * IntImm::Int32(attrs->strides[1]) >=
                               input_w + IntImm::Int32(attrs->padding[1]);
-    out_NCHW_shape[2] = analyzer->Simplify(if_then_else(invalid_last_h, raw_out_h - 1, raw_out_h));
-    out_NCHW_shape[3] = analyzer->Simplify(if_then_else(invalid_last_w, raw_out_w - 1, raw_out_w));
+    out_NCHW_shape.push_back(
+        analyzer->Simplify(if_then_else(invalid_last_h, raw_out_h - 1, raw_out_h)));
+    out_NCHW_shape.push_back(
+        analyzer->Simplify(if_then_else(invalid_last_w, raw_out_w - 1, raw_out_w)));
   } else {
-    out_NCHW_shape[2] = analyzer->Simplify(raw_out_h);
-    out_NCHW_shape[3] = analyzer->Simplify(raw_out_w);
+    out_NCHW_shape.push_back(analyzer->Simplify(raw_out_h));
+    out_NCHW_shape.push_back(analyzer->Simplify(raw_out_w));
   }
 
   ffi::Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
@@ -297,14 +301,16 @@ InferLayoutOutput InferLayoutPool2d(
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 
-TVM_REGISTER_OP("relax.nn.max_pool2d")
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor")
-    .set_attrs_type<Pool2DAttrs>()
-    .set_attr<FInferType>("FInferType", InferTypePool2D)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.nn.max_pool2d")
+      .signature(
+          sig::arg("data", "The input tensor"), sig::call_attrs<Pool2DAttrs>(),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypePool2D)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.nn.max_pool3d */
 
@@ -344,8 +350,8 @@ Expr MakePool3d(ffi::String op_name, Expr data, ffi::Array<int64_t> pool_size,
   attrs->count_include_pad = count_include_pad;
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
-  const Op& op = Op::Get(op_name);
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  const Op op = Op::Get(op_name);
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 Expr max_pool3d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> strides,
@@ -389,11 +395,11 @@ Type InferTypePool3D(const Call& call, const BlockBuilder& ctx) {
   PrimExpr padding_h = IntImm::Int32(attrs->padding[1]) + IntImm::Int32(attrs->padding[4]);
   PrimExpr padding_w = IntImm::Int32(attrs->padding[2]) + IntImm::Int32(attrs->padding[5]);
 
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   std::vector<PrimExpr> out_NCDHW_shape;
-  out_NCDHW_shape.resize(5);
-  out_NCDHW_shape[0] = data_NCDHW_shape[0];
-  out_NCDHW_shape[1] = data_NCDHW_shape[1];
+  out_NCDHW_shape.reserve(5);
+  out_NCDHW_shape.push_back(data_NCDHW_shape[0]);
+  out_NCDHW_shape.push_back(data_NCDHW_shape[1]);
 
   PrimExpr numerator_d =
       input_d + padding_d - IntImm::Int32(attrs->dilation[0]) * (kernel_d - 1) - 1;
@@ -416,13 +422,16 @@ Type InferTypePool3D(const Call& call, const BlockBuilder& ctx) {
                               input_h + IntImm::Int32(attrs->padding[1]);
     PrimExpr invalid_last_w = (raw_out_w - 1) * IntImm::Int32(attrs->strides[2]) >=
                               input_w + IntImm::Int32(attrs->padding[2]);
-    out_NCDHW_shape[2] = analyzer->Simplify(if_then_else(invalid_last_d, raw_out_d - 1, raw_out_d));
-    out_NCDHW_shape[3] = analyzer->Simplify(if_then_else(invalid_last_h, raw_out_h - 1, raw_out_h));
-    out_NCDHW_shape[4] = analyzer->Simplify(if_then_else(invalid_last_w, raw_out_w - 1, raw_out_w));
+    out_NCDHW_shape.push_back(
+        analyzer->Simplify(if_then_else(invalid_last_d, raw_out_d - 1, raw_out_d)));
+    out_NCDHW_shape.push_back(
+        analyzer->Simplify(if_then_else(invalid_last_h, raw_out_h - 1, raw_out_h)));
+    out_NCDHW_shape.push_back(
+        analyzer->Simplify(if_then_else(invalid_last_w, raw_out_w - 1, raw_out_w)));
   } else {
-    out_NCDHW_shape[2] = analyzer->Simplify(raw_out_d);
-    out_NCDHW_shape[3] = analyzer->Simplify(raw_out_h);
-    out_NCDHW_shape[4] = analyzer->Simplify(raw_out_w);
+    out_NCDHW_shape.push_back(analyzer->Simplify(raw_out_d));
+    out_NCDHW_shape.push_back(analyzer->Simplify(raw_out_h));
+    out_NCDHW_shape.push_back(analyzer->Simplify(raw_out_w));
   }
 
   ffi::Array<PrimExpr> out_shape = out2NCDHW.BackwardShape(out_NCDHW_shape);
@@ -446,14 +455,14 @@ InferLayoutOutput InferLayoutPool3d(
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 
-TVM_REGISTER_OP("relax.nn.max_pool3d")
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor")
-    .set_attrs_type<Pool3DAttrs>()
-    .set_attr<FInferType>("FInferType", InferTypePool3D)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool3d)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.nn.max_pool3d")
+      .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool3DAttrs>())
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypePool3D)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool3d)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.nn.avg_pool1d */
 Expr avg_pool1d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> strides,
@@ -466,16 +475,14 @@ Expr avg_pool1d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> st
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.avg_pool1d", avg_pool1d);
-}
 
-TVM_REGISTER_OP("relax.nn.avg_pool1d")
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor")
-    .set_attrs_type<Pool1DAttrs>()
-    .set_attr<FInferType>("FInferType", InferTypePool1D)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool1d)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+  OpDef("relax.nn.avg_pool1d")
+      .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool1DAttrs>())
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypePool1D)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool1d)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.nn.avg_pool2d */
 Expr avg_pool2d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> strides,
@@ -488,16 +495,14 @@ Expr avg_pool2d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> st
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.avg_pool2d", avg_pool2d);
-}
 
-TVM_REGISTER_OP("relax.nn.avg_pool2d")
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor")
-    .set_attrs_type<Pool2DAttrs>()
-    .set_attr<FInferType>("FInferType", InferTypePool2D)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+  OpDef("relax.nn.avg_pool2d")
+      .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool2DAttrs>())
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypePool2D)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.nn.avg_pool3d */
 Expr avg_pool3d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> strides,
@@ -510,16 +515,14 @@ Expr avg_pool3d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> st
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.nn.avg_pool3d", avg_pool3d);
-}
 
-TVM_REGISTER_OP("relax.nn.avg_pool3d")
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor")
-    .set_attrs_type<Pool3DAttrs>()
-    .set_attr<FInferType>("FInferType", InferTypePool3D)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool3d)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+  OpDef("relax.nn.avg_pool3d")
+      .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool3DAttrs>())
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypePool3D)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool3d)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.nn.adaptive_avg_pool1d */
 
@@ -536,8 +539,8 @@ Expr adaptive_avg_pool1d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_si
     attrs->output_size = std::move(_output_size);
   }
 
-  static const Op& op = Op::Get("relax.nn.adaptive_avg_pool1d");
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  static const Op op = Op::Get("relax.nn.adaptive_avg_pool1d");
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -545,19 +548,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.adaptive_avg_pool1d", adaptive_avg_pool1d);
 }
 
-Type InferTypeAdaptiveAvgPool1D(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeAdaptiveAvgPool1D(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetUnaryInputTensorType(call);
 
   const auto* attrs = call->attrs.as<AdaptivePool1DAttrs>();
-  auto [data_layout, data2NCW] = CheckTensorLayout(call, ctx, attrs->layout,
+  auto [data_layout, data2NCW] = CheckTensorLayout(call, attrs->layout,
                                                    /*tgt_layout=*/"NCW",
                                                    /*tensor_name=*/"data");
-  auto [out_layout, out2NCW] = CheckTensorLayout(call, ctx, attrs->out_layout,
+  auto [out_layout, out2NCW] = CheckTensorLayout(call, attrs->out_layout,
                                                  /*tgt_layout=*/"NCW",
                                                  /*tensor_name=*/"output");
 
-  ffi::Optional<ShapeExpr> data_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, data_ty, data_layout);
+  ffi::Optional<ShapeExpr> data_shape = CheckNdimPerLayoutAndGetShape(call, data_ty, data_layout);
   if (!data_shape.has_value()) {
     if (data_ty->shape.has_value() && attrs->out_layout == attrs->layout &&
         !attrs->output_size.has_value()) {
@@ -594,14 +597,14 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool1D(
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 
-TVM_REGISTER_OP("relax.nn.adaptive_avg_pool1d")
-    .set_attrs_type<AdaptivePool1DAttrs>()
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor")
-    .set_attr<FInferType>("FInferType", InferTypeAdaptiveAvgPool1D)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool1D)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.nn.adaptive_avg_pool1d")
+      .signature(sig::arg("data", "The input tensor"), sig::call_attrs<AdaptivePool1DAttrs>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAdaptiveAvgPool1D>())
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool1D)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.nn.adaptive_avg_pool2d */
 
@@ -621,8 +624,8 @@ Expr adaptive_avg_pool2d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_si
     attrs->output_size = std::move(_output_size);
   }
 
-  static const Op& op = Op::Get("relax.nn.adaptive_avg_pool2d");
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  static const Op op = Op::Get("relax.nn.adaptive_avg_pool2d");
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -630,19 +633,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.adaptive_avg_pool2d", adaptive_avg_pool2d);
 }
 
-Type InferTypeAdaptiveAvgPool2D(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeAdaptiveAvgPool2D(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetUnaryInputTensorType(call);
 
   const auto* attrs = call->attrs.as<AdaptivePool2DAttrs>();
-  auto [data_layout, data2NCHW] = CheckTensorLayout(call, ctx, attrs->layout,
+  auto [data_layout, data2NCHW] = CheckTensorLayout(call, attrs->layout,
                                                     /*tgt_layout=*/"NCHW",
                                                     /*tensor_name=*/"data");
-  auto [out_layout, out2NCHW] = CheckTensorLayout(call, ctx, attrs->out_layout,
+  auto [out_layout, out2NCHW] = CheckTensorLayout(call, attrs->out_layout,
                                                   /*tgt_layout=*/"NCHW",
                                                   /*tensor_name=*/"output");
 
-  ffi::Optional<ShapeExpr> data_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, data_ty, data_layout);
+  ffi::Optional<ShapeExpr> data_shape = CheckNdimPerLayoutAndGetShape(call, data_ty, data_layout);
   if (!data_shape.has_value()) {
     if (data_ty->shape.has_value() && attrs->out_layout == attrs->layout &&
         !attrs->output_size.has_value()) {
@@ -697,14 +700,16 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool2D(
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 
-TVM_REGISTER_OP("relax.nn.adaptive_avg_pool2d")
-    .set_attrs_type<AdaptivePool2DAttrs>()
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor")
-    .set_attr<FInferType>("FInferType", InferTypeAdaptiveAvgPool2D)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool2D)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.nn.adaptive_avg_pool2d")
+      .signature(
+          sig::arg("data", "The input tensor"), sig::call_attrs<AdaptivePool2DAttrs>(),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAdaptiveAvgPool2D>())
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool2D)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.nn.adaptive_avg_pool3d */
 
@@ -724,8 +729,8 @@ Expr adaptive_avg_pool3d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_si
     attrs->output_size = std::move(_output_size);
   }
 
-  static const Op& op = Op::Get("relax.nn.adaptive_avg_pool3d");
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  static const Op op = Op::Get("relax.nn.adaptive_avg_pool3d");
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -733,19 +738,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.adaptive_avg_pool3d", adaptive_avg_pool3d);
 }
 
-Type InferTypeAdaptiveAvgPool3D(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeAdaptiveAvgPool3D(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetUnaryInputTensorType(call);
 
   const auto* attrs = call->attrs.as<AdaptivePool3DAttrs>();
-  auto [data_layout, data2NCDHW] = CheckTensorLayout(call, ctx, attrs->layout,
+  auto [data_layout, data2NCDHW] = CheckTensorLayout(call, attrs->layout,
                                                      /*tgt_layout=*/"NCDHW",
                                                      /*tensor_name=*/"data");
-  auto [out_layout, out2NCDHW] = CheckTensorLayout(call, ctx, attrs->out_layout,
+  auto [out_layout, out2NCDHW] = CheckTensorLayout(call, attrs->out_layout,
                                                    /*tgt_layout=*/"NCDHW",
                                                    /*tensor_name=*/"output");
 
-  ffi::Optional<ShapeExpr> data_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, data_ty, data_layout);
+  ffi::Optional<ShapeExpr> data_shape = CheckNdimPerLayoutAndGetShape(call, data_ty, data_layout);
   if (!data_shape.has_value()) {
     if (data_ty->shape.has_value() && attrs->out_layout == attrs->layout &&
         !attrs->output_size.has_value()) {
@@ -784,14 +789,14 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool3D(
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 
-TVM_REGISTER_OP("relax.nn.adaptive_avg_pool3d")
-    .set_attrs_type<AdaptivePool3DAttrs>()
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor")
-    .set_attr<FInferType>("FInferType", InferTypeAdaptiveAvgPool3D)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool3D)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.nn.adaptive_avg_pool3d")
+      .signature(sig::arg("data", "The input tensor"), sig::call_attrs<AdaptivePool3DAttrs>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAdaptiveAvgPool3D>())
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool3D)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 }  // namespace relax
 }  // namespace tvm

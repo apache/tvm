@@ -30,6 +30,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt_functor.h>
+#include <tvm/tirx/tile_primitive.h>
 
 #include <exception>
 #include <optional>
@@ -45,56 +46,74 @@ namespace tirx {
 class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflection::AccessPath)>,
                            protected StmtFunctor<void(const Stmt&, ffi::reflection::AccessPath)> {
  public:
+  TIRVisitorWithPath() = default;
   template <typename TObjectRef>
   void operator()(TObjectRef&& obj) {
     Visit(std::forward<TObjectRef>(obj), ffi::reflection::AccessPath::Root());
   }
 
  protected:
-  // Delegate to ExprFunctor::VisitExpr for PrimExpr, and any subclasses
+  using StmtVisitor = StmtFunctor<void(const Stmt&, ffi::reflection::AccessPath)>;
+  using VTable = StmtVisitor::VTable;
+  explicit TIRVisitorWithPath(const VTable* vtable) : StmtVisitor(vtable) {}
+  static void InitVTable(VTable* vtable) { StmtVisitor::InitVTable(vtable); }
+  // Delegate to ExprFunctor::Dispatch for PrimExpr, and any subclasses
   virtual inline void Visit(const PrimExpr& obj, ffi::reflection::AccessPath path) {
-    VisitExpr(obj, path);
+    Dispatch(obj, path);
   }
   // Core Call stores arguments as Expr, including pointer-typed Vars.
   virtual inline void Visit(const Expr& obj, ffi::reflection::AccessPath path) {
     if (auto prim = obj.as<PrimExpr>()) {
       Visit(prim.value(), path);
+    } else if (auto* constant = obj.as<GenericConstNode>()) {
+      Dispatch_(constant, path);
+    } else if (auto* str = obj.as<StringImmNode>()) {
+      Dispatch_(str, path);
+    } else if (auto* str = obj.as<DataTypeImmNode>()) {
+      Dispatch_(str, path);
+    } else if (obj.as<OpNode>()) {
+      // Registered operations are atomic expression inputs.
+    } else if (auto global_var = obj.as<GlobalVar>()) {
+      Visit(global_var.value(), path);
     } else if (auto* var = obj.as<VarNode>()) {
-      VisitExpr_(var, path);
+      Dispatch_(var, path);
     } else if (auto* call = obj.as<CallNode>()) {
-      VisitExpr_(call, path);
+      Dispatch_(call, path);
     } else if (auto* tuple = obj.as<TupleNode>()) {
-      VisitExpr_(tuple, path);
+      Dispatch_(tuple, path);
     } else if (auto* tuple_get_item = obj.as<TupleGetItemNode>()) {
-      VisitExpr_(tuple_get_item, path);
-    } else if (auto* buffer_region = obj.as<BufferRegionNode>()) {
-      VisitExpr_(buffer_region, path);
+      Dispatch_(tuple_get_item, path);
+    } else if (auto* buffer_region = obj.as<TensorRegionNode>()) {
+      Dispatch_(buffer_region, path);
+    } else if (auto* lambda = obj.as<LambdaExprNode>()) {
+      VisitLambda(lambda, path);
     } else if (obj.as<OpaqueExprNode>()) {
-      VisitExpr(obj, path);
+      Dispatch(obj, path);
     } else {
       TVM_FFI_THROW(TypeError) << "Unsupported non-primitive TIR expression " << obj.GetTypeKey();
     }
   }
-  // Delegate to ExprFunctor::VisitStmt for Stmt, and any subclasses
+  // Delegate to StmtFunctor::Dispatch for Stmt, and any subclasses
   virtual inline void Visit(const Stmt& obj, ffi::reflection::AccessPath path) {
-    VisitStmt(obj, path);
+    Dispatch(obj, path);
   }
 
-  // Visit a buffer at a use site (BufferLoad, BufferStore, reads/writes).
+  // Visit a buffer at a use site (TensorLoad, TensorStore, reads/writes).
   // By default, does not re-visit buffer fields (shape, strides, elem_offset),
   // as those are visited at the definition site via EnterDef.
-  virtual void VisitBufferUse(const BufferVar& obj, ffi::reflection::AccessPath path);
-  // Visit a buffer at a definition site. By default visits buffer fields.
-  virtual void VisitBufferDef(const BufferVar& obj, ffi::reflection::AccessPath path);
+  virtual void VisitBufferUse(const TensorVar& obj, ffi::reflection::AccessPath path);
+
+  // Visit type metadata through its reflected fields, preserving source access paths.
+  virtual void Visit(const Type& obj, ffi::reflection::AccessPath path);
+  virtual void Visit(ffi::AnyView obj, ffi::reflection::AccessPath path);
+  void VisitLambda(const LambdaExprNode* op, ffi::reflection::AccessPath path);
 
   // Visitors for TIR constructs that are neither PrimExpr nor Stmt
   virtual void Visit(const IRModule& obj, ffi::reflection::AccessPath path);
-  virtual void Visit(const PrimFunc& obj, ffi::reflection::AccessPath path);
+  virtual void Visit(const Function& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const GlobalVar& obj, ffi::reflection::AccessPath path) {}
   virtual void Visit(const Range& obj, ffi::reflection::AccessPath path);
-  virtual void Visit(const BufferRegion& obj, ffi::reflection::AccessPath path);
-  virtual void Visit(const MatchBufferRegion& obj, ffi::reflection::AccessPath path);
-  virtual void Visit(const IterVar& obj, ffi::reflection::AccessPath path);
+  virtual void Visit(const TensorRegion& obj, ffi::reflection::AccessPath path);
 
   // Called when entering/exiting the scope of a GlobalVar definition.
   virtual void EnterDef(const GlobalVar& var, ffi::reflection::AccessPath path) {}
@@ -103,18 +122,6 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   // Called when entering/exiting the scope of a tirx::Var definition.
   virtual void EnterDef(const Var& var, ffi::reflection::AccessPath path) {}
   virtual void ExitDef(const Var& var, ffi::reflection::AccessPath path) {}
-
-  // Called when entering/exiting the scope of an IterVar definition.
-  // By default, visits the `Range IterVarNode::dom`, then enters the
-  // scope of the internal `tirx::Var`.
-  virtual void EnterDef(const IterVar& var, ffi::reflection::AccessPath path);
-  virtual void ExitDef(const IterVar& var, ffi::reflection::AccessPath path);
-
-  // Called when entering/exiting the scope of a BufferVar definition.
-  // By default, visits the buffer's data pointer, shape, strides, and
-  // elem_offset, which must be defined prior to defining the BufferVar.
-  virtual void EnterDef(const BufferVar& buffer, ffi::reflection::AccessPath path);
-  virtual void ExitDef(const BufferVar& buffer, ffi::reflection::AccessPath path);
 
   // Utility to visit an array of nodes
   template <typename T>
@@ -132,68 +139,72 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
     }
   }
 
-  using StmtFunctor::VisitStmt;
-  void VisitStmt_(const BindNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const AttrStmtNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const IfThenElseNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const ForNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const WhileNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const ReturnNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const BreakNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const ContinueNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const AllocBufferNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const DeclBufferNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const BufferStoreNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const AssertStmtNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const SeqStmtNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const EvaluateNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const SBlockNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const tirx::TilePrimitiveCallNode* op, ffi::reflection::AccessPath path) override;
-  void VisitStmt_(const ScopeIdDefStmtNode* op, ffi::reflection::AccessPath path) override;
+  using StmtFunctor::Dispatch;
+  void Dispatch_(const BindNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const RegionStmtNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const IfThenElseNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const ForNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const WhileNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const ReturnNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const BreakNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const ContinueNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const TensorStoreNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const AssertStmtNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const SeqStmtNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const EvaluateNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const tirx::TilePrimitiveCallNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const ScopeIdDefStmtNode* op, ffi::reflection::AccessPath path) override;
 
-  using ExprFunctor::VisitExpr;
-  void VisitExpr_(const VarNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const TensorLoadNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const BufferRegionNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const OpaqueExprNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const TupleNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const TupleGetItemNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::LetNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const CallNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::AddNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::SubNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::MulNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::DivNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::ModNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::FloorDivNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::FloorModNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::MinNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::MaxNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::EQNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::NENode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::LTNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::LENode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::GTNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::GENode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::AndNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::OrNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::CastNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::NotNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::SelectNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::RampNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::BroadcastNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::ShuffleNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const IntImmNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const FloatImmNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const prim::StringImmNode* op, ffi::reflection::AccessPath path) override;
+  using ExprFunctor::Dispatch;
+  void Dispatch_(const VarNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const TensorLoadNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const TensorRegionNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const OpaqueExprNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const TupleNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const TupleGetItemNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const CallNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const IntImmNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const FloatImmNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const StringImmNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const DataTypeImmNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const GenericConstNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::LetNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::AddNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::SubNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::MulNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::DivNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::ModNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::FloorDivNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::FloorModNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::MinNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::MaxNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::EQNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::NENode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::LTNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::LENode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::GTNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::GENode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::AndNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::OrNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::CastNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::LShiftNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::RShiftNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::BitwiseAndNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::BitwiseOrNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::BitwiseXorNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::BitwiseNotNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::NotNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::SelectNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::RampNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::BroadcastNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const prim::ShuffleNode* op, ffi::reflection::AccessPath path) override;
 
   // Utility to call EnterDef/ExitDef.  Used in the implementation of
   // WithDef.
   template <typename T>
   class DefContext {
    public:
-    DefContext(DefContext&& other) { swap(std::move(other)); }
+    DefContext(DefContext&& other) : obj_(other.obj_) { swap(std::move(other)); }
     DefContext& operator=(DefContext&& other) {
       swap(std::move(other));
       return *this;
@@ -218,8 +229,11 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
    private:
     friend class TIRVisitorWithPath;
 
-    DefContext(TIRVisitorWithPath* self, T obj, ffi::reflection::AccessPath path)
+    DefContext(TIRVisitorWithPath* self, T obj, ffi::reflection::AccessPath path, bool visit_type)
         : self_(self), obj_(obj), path_(path), uncaught_exceptions_(std::uncaught_exceptions()) {
+      if (auto var = obj_.template as<Var>(); var && visit_type) {
+        self_->Visit(var.value()->ty, path_->Attr("ty"));
+      }
       self_->in_scope_definitions_.insert(obj_);
       self_->EnterDef(obj_, path_);
     }
@@ -239,8 +253,8 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
 
   // Utility to track the scope of a node's definition.
   template <typename T>
-  DefContext<T> WithDef(T obj, ffi::reflection::AccessPath path) {
-    return DefContext(this, obj, path);
+  DefContext<T> WithDef(T obj, ffi::reflection::AccessPath path, bool visit_type = true) {
+    return DefContext(this, obj, path, visit_type);
   }
 
   /* \brief Utility to track the scope of a node's definition. */
@@ -253,7 +267,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
     }
   }
 
-  std::vector<DefContext<Var>> WithMatchBufferDefs(BufferVar buf,
+  std::vector<DefContext<Var>> WithMatchBufferDefs(TensorVar buf,
                                                    ffi::reflection::AccessPath path) {
     std::vector<DefContext<Var>> context;
 
@@ -300,14 +314,13 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
    * BindNode pushes its WithDef into the current scope.  When the
    * scope exits, all Bind defs are cleaned up automatically.
    */
-  using BindScopeEntry = std::variant<DefContext<Var>, DefContext<BufferVar>>;
-  ScopeStack<std::vector<BindScopeEntry>> bind_scope_;
+  ScopeStack<std::vector<DefContext<Var>>> bind_scope_;
 };
 
 namespace {
 
-template <typename DerivedVerifier>
-class Verifier : protected TIRVisitorWithPath {
+template <typename DerivedVerifier, typename PathVisitor = TIRVisitorWithPath>
+class Verifier : protected PathVisitor {
  public:
   template <typename TirNodeRef>
   static bool Verify(const TirNodeRef& node, bool assert_on_error) {
@@ -318,6 +331,10 @@ class Verifier : protected TIRVisitorWithPath {
 
  protected:
   explicit Verifier(bool assert_on_error) : assert_on_error_(assert_on_error) {}
+  void DispatchDefault_(const ffi::Object* op, ffi::reflection::AccessPath path) override {
+    Verify(false) << "TIR verifier does not support statement " << op->GetTypeKey() << " at "
+                  << path;
+  }
 
   /* \brief Helper class to handle the bool-or-assert handles
    *

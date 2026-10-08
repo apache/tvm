@@ -24,12 +24,13 @@
 #ifndef TVM_TE_OPERATION_H_
 #define TVM_TE_OPERATION_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/te/reduction.h>
 #include <tvm/te/tensor.h>
-#include <tvm/tirx/buffer.h>
+#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 
 #include <string>
@@ -49,9 +50,9 @@ namespace te {
 class CommReducerNode : public ffi::Object {
  public:
   /*! \brief The left argument of reducer */
-  ffi::Array<tirx::PrimVar> lhs;
+  ffi::Array<PrimVar> lhs;
   /*! \brief The right argument of reducer */
-  ffi::Array<tirx::PrimVar> rhs;
+  ffi::Array<PrimVar> rhs;
   /*! \brief The result of reducer */
   ffi::Array<PrimExpr> result;
   /*!
@@ -88,15 +89,17 @@ class CommReducerNode : public ffi::Object {
  */
 class CommReducer : public ffi::ObjectRef {
  public:
-  TVM_DLL CommReducer(ffi::Array<tirx::PrimVar> lhs, ffi::Array<tirx::PrimVar> rhs,
-                      ffi::Array<PrimExpr> result, ffi::Array<PrimExpr> identity_element,
-                      Span span = Span());
+  TVM_DLL CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs, ffi::Array<PrimExpr> result,
+                      ffi::Array<PrimExpr> identity_element, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CommReducer, ffi::ObjectRef, CommReducerNode);
 };
 
 /*! \brief Reduction operator */
 class ReduceNode : public OpaqueExprNode {
  public:
+  explicit ReduceNode(PrimExpr condition) : condition(std::move(condition)) {}
+  explicit ReduceNode(ffi::UnsafeInit) : condition(ffi::UnsafeInit{}) {}
+
   /*! \brief The commutative combiner */
   CommReducer combiner;
   /*! \brief The source operand */
@@ -104,7 +107,7 @@ class ReduceNode : public OpaqueExprNode {
   /*! \brief The init operand */
   ffi::Array<PrimExpr> init;
   /*! \brief The reduction axis */
-  ffi::Array<tirx::IterVar> axis;
+  ffi::Array<s_tir::IterVar> axis;
   /*!
    * \brief Predicate on the reduction
    *  Only add the body to reduction if condition is true.
@@ -132,10 +135,12 @@ class ReduceNode : public OpaqueExprNode {
  */
 class Reduce : public PrimExpr {
  public:
-  TVM_DLL Reduce(CommReducer combiner, ffi::Array<PrimExpr> src, ffi::Array<tirx::IterVar> rdom,
-                 PrimExpr condition, int value_index, ffi::Array<PrimExpr> init,
+  TVM_DLL Reduce(CommReducer combiner, ffi::Array<PrimExpr> src, ffi::Array<s_tir::IterVar> rdom,
+                 ffi::Optional<PrimExpr> condition, int value_index, ffi::Array<PrimExpr> init,
                  Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Reduce, PrimExpr, ReduceNode);
+  explicit Reduce(ffi::ObjectPtr<ReduceNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Reduce, PrimExpr, ReduceNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ReduceNode);
 };
@@ -291,7 +296,7 @@ class ComputeOp : public Operation {
 class ScanOpNode : public OperationNode {
  public:
   /*! \brief IterVar to scan over */
-  IterVar scan_axis;
+  IterVar scan_axis{ffi::UnsafeInit{}};
   /*! \brief the initialization tensors */
   ffi::Array<Tensor> init;
   /*! \brief the update function represented by tensor */
@@ -353,17 +358,18 @@ class ScanOp : public Operation {
  */
 class ExternOpNode : public OperationNode {
  public:
+  explicit ExternOpNode(Stmt body) : body(std::move(body)) {}
+  explicit ExternOpNode(ffi::UnsafeInit) : body(ffi::UnsafeInit{}) {}
+
   /*! \brief The input tensors */
   ffi::Array<Tensor> inputs;
   /*! \brief Symbolic placeholder representation of inputs */
-  ffi::Array<BufferVar> input_placeholders;
+  ffi::Array<TensorVar> input_placeholders;
   /*! \brief Symbolic placeholder representation of outputs */
-  ffi::Array<BufferVar> output_placeholders;
+  ffi::Array<TensorVar> output_placeholders;
   /*! \brief the statement that generates the computation. */
   Stmt body;
 
-  /*! \brief constructor */
-  ExternOpNode() {}
   // override functions
   int num_outputs() const final;
   PrimType output_dtype(size_t i) const final;
@@ -388,8 +394,8 @@ class ExternOpNode : public OperationNode {
 class ExternOp : public Operation {
  public:
   TVM_DLL ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi::Any> attrs,
-                   ffi::Array<Tensor> inputs, ffi::Array<BufferVar> input_placeholders,
-                   ffi::Array<BufferVar> output_placeholders, Stmt body);
+                   ffi::Array<Tensor> inputs, ffi::Array<TensorVar> input_placeholders,
+                   ffi::Array<TensorVar> output_placeholders, Stmt body);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExternOp, Operation, ExternOpNode);
 };

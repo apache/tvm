@@ -22,6 +22,7 @@ import tvm_ffi
 import tvm
 from tvm import s_tir
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import enabled_targets
 
@@ -46,8 +47,9 @@ def verify_structure(stmt, expected_struct):
             var_list.clear()
         elif isinstance(op, tvm.tirx.For):
             val = [(op.body,), ("tirx.For", op.loop_var.name)]
-        elif isinstance(op, tvm.tirx.AttrStmt):
-            val = [(op.body,), ("tirx.AttrStmt", op.attr_key, int(op.value))]
+        elif isinstance(op, tvm.tirx.RegionStmt):
+            assert op.op.name == "tirx.launch_thread"
+            val = [(op.body,), ("tirx.RegionStmt", op.op.name, int(op.args[1]))]
         else:
             return
         node_dict[key] = val
@@ -69,7 +71,7 @@ def _opaque_eval(var):
 
 
 def test_hoist_top_for():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.function(private=True)
     def func(l: T.int32, m: T.int32, n: T.int32):
         for i in T.serial(l):
             for j in T.serial(m):
@@ -91,7 +93,7 @@ def test_hoist_top_for():
 
 
 def test_hoist_multi_var_if():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.function(private=True)
     def func(l: T.int32, m: T.int32, n: T.int32):
         for i in T.serial(l):
             for j in T.serial(m):
@@ -114,9 +116,9 @@ def test_hoist_multi_var_if():
 
 
 def test_hoist_no_match_for():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.function(private=True)
     def func(data: T.handle("float32"), l: T.int32, m: T.int32, n: T.int32):
-        data_ptr = T.decl_buffer(1, "float32", data=data)
+        data_ptr = T.decl_tensor(1, "float32", data=data)
         for i in T.serial(l):
             for j in T.serial(m):
                 data_ptr[i * 3 + j] = data_ptr[i * 3 + j] + T.float32(0.5)
@@ -138,7 +140,7 @@ def test_hoist_no_match_for():
 
 
 def test_no_else():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.function(private=True)
     def func(l: T.int32, m: T.int32, n: T.int32):
         for i in T.serial(l):
             for j in T.serial(m):
@@ -157,12 +159,12 @@ def test_no_else():
     verify_structure(new_stmt, expected_struct)
 
 
-def test_attr_stmt():
+def test_thread_launch():
     dshape = (32, 64)
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.function(private=True)
     def func(data: T.handle("float32"), l: T.int32, m: T.int32, n: T.int32):
-        data_ptr = T.decl_buffer(1, "float32", data=data)
+        data_ptr = T.decl_tensor(1, "float32", data=data)
         tx = T.launch_thread("threadIdx.x", dshape[0])
         bx = T.launch_thread("blockIdx.x", dshape[1])
         for i in T.serial(l):
@@ -184,16 +186,18 @@ def test_attr_stmt():
         ("tirx.IfThenElse", ("i", "j")): (("tirx.For", "k"), ("tirx.For", "k")),
         ("tirx.For", "j"): (("tirx.IfThenElse", ("i", "j")),),
         ("tirx.For", "i"): (("tirx.For", "j"),),
-        ("tirx.AttrStmt", "thread_extent", 64): (("tirx.For", "i"),),
-        ("tirx.AttrStmt", "thread_extent", 32): (("tirx.AttrStmt", "thread_extent", 64),),
+        ("tirx.RegionStmt", "tirx.launch_thread", 64): (("tirx.For", "i"),),
+        ("tirx.RegionStmt", "tirx.launch_thread", 32): (
+            ("tirx.RegionStmt", "tirx.launch_thread", 64),
+        ),
     }
     verify_structure(new_stmt, expected_struct)
 
 
 def test_nested_for():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.function(private=True)
     def func(data: T.handle("float32")):
-        data_ptr = T.decl_buffer(1, "float32", data=data)
+        data_ptr = T.decl_tensor(1, "float32", data=data)
         for i in range(5):
             for j in range(10):
                 if i >= 3:
@@ -226,8 +230,8 @@ def test_if_block():
     # Use different variable names for second loop nest to avoid dict key collision
     @I.ir_module
     class Module:
-        @T.prim_func(private=True, s_tir=True)
-        def main(data: T.Buffer((1,), "float32"), n: T.int32):
+        @Ts.function(private=True)
+        def main(data: T.Tensor((1,), "float32"), n: T.int32):
             # First loop nest: i, j, k, l
             for i in T.serial(5):
                 for j in T.serial(10):
@@ -270,9 +274,9 @@ def test_if_block():
 
 
 def test_multi_if():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.function(private=True)
     def func(data: T.handle("float32")):
-        data_ptr = T.decl_buffer(1, "float32", data=data)
+        data_ptr = T.decl_tensor(1, "float32", data=data)
         for i in range(10):
             for j in range(10):
                 for k in range(10):
@@ -296,9 +300,9 @@ def test_multi_if():
 
 
 def test_no_hoisting_1():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.function(private=True)
     def func(data: T.handle("float32")):
-        data_ptr = T.decl_buffer(1, "float32", data=data)
+        data_ptr = T.decl_tensor(1, "float32", data=data)
         for i in range(10):
             for j in range(10):
                 for k in range(10):
@@ -320,9 +324,9 @@ def test_no_hoisting_1():
 
 
 def test_no_hoisting_2():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.function(private=True)
     def func(data: T.handle("float32")):
-        data_ptr = T.decl_buffer(1, "float32", data=data)
+        data_ptr = T.decl_tensor(1, "float32", data=data)
         for i in range(10):
             for j in range(10):
                 for k in range(10):
@@ -348,21 +352,15 @@ def test_no_hoisting_4():
     dshape = (32, 64)
     dshape_inner = (33, 63)
 
-    # Create iter_var for tx (used inside loop with T.attr)
-    tx_var = tvm.tirx.Var("threadIdx.x", "int32")
-    tx_iter = tvm.tirx.IterVar(
-        tvm.ir.Range(0, dshape_inner[0]), tx_var, tvm.tirx.IterVar.ThreadIndex, "threadIdx.x"
-    )
-
     @I.ir_module
     class Module:
-        @T.prim_func(private=True, s_tir=True)
-        def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
+        @Ts.function(private=True)
+        def main(data: T.Tensor((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
             bx = T.launch_thread("blockIdx.x", dshape[1])
             for i in T.serial(l):
                 for j in T.serial(m):
                     for k in T.serial(n):
-                        T.attr(tx_iter, "thread_extent", dshape_inner[0])
+                        tx_var = T.launch_thread("threadIdx.x", dshape_inner[0])
                         if tx_var < 3:
                             data[bx * j + tx_var * j * k] = data[
                                 bx * j + tx_var * j * k
@@ -388,8 +386,8 @@ def test_no_hoisting_6():
 
     @I.ir_module
     class Module:
-        @T.prim_func(private=True, s_tir=True)
-        def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
+        @Ts.function(private=True)
+        def main(data: T.Tensor((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
             tx = T.launch_thread("threadIdx.x", dshape[0])
             bx = T.launch_thread("blockIdx.x", dshape[1])
             for i in T.serial(l):
@@ -416,8 +414,8 @@ def test_no_hoisting_7():
 
     @I.ir_module
     class Module:
-        @T.prim_func(private=True, s_tir=True)
-        def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
+        @Ts.function(private=True)
+        def main(data: T.Tensor((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
             tx = T.launch_thread("threadIdx.x", dshape[0])
             bx = T.launch_thread("blockIdx.x", dshape[1])
             for i in T.serial(l):
@@ -443,21 +441,15 @@ def test_no_hoisting_7():
 def test_hoisting_block_scope_2():
     dshape = (32, 64)
 
-    # Create iter_var for bx (used inside loop with T.attr)
-    bx_var = tvm.tirx.Var("blockIdx.x", "int32")
-    bx_iter = tvm.tirx.IterVar(
-        tvm.ir.Range(0, dshape[1]), bx_var, tvm.tirx.IterVar.ThreadIndex, "blockIdx.x"
-    )
-
     @I.ir_module
     class Module:
-        @T.prim_func(private=True, s_tir=True)
-        def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
+        @Ts.function(private=True)
+        def main(data: T.Tensor((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
             tx = T.launch_thread("threadIdx.x", dshape[0])
             for i in T.serial(l):
                 for j in T.serial(m):
                     for k in T.serial(n):
-                        T.attr(bx_iter, "thread_extent", dshape[1])
+                        bx_var = T.launch_thread("blockIdx.x", dshape[1])
                         if tx < 3:
                             data[bx_var * j + tx * j * k] = data[
                                 bx_var * j + tx * j * k
@@ -485,8 +477,8 @@ def test_hoisting_block_scope_2():
 def test_hoisting_block_scope_5():
     @I.ir_module
     class Module:
-        @T.prim_func(private=True, s_tir=True)
-        def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32, g: T.int32):
+        @Ts.function(private=True)
+        def main(data: T.Tensor((1,), "float32"), l: T.int32, m: T.int32, n: T.int32, g: T.int32):
             for i in T.serial(l):
                 for j in T.serial(m):
                     for k in T.serial(n):
@@ -499,7 +491,7 @@ def test_hoisting_block_scope_5():
     new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
     assert not tvm_ffi.structural_equal(new_stmt, stmt)
 
-    mod = tvm.IRModule.from_expr(tvm.tirx.PrimFunc([], new_stmt))
+    mod = tvm.IRModule.from_expr(tvm.tirx.Function([], new_stmt))
     stmt = new_stmt
 
     with tvm.transform.PassContext(
@@ -514,8 +506,8 @@ def test_hoisting_block_scope_6():
 
     @I.ir_module
     class Module:
-        @T.prim_func(private=True, s_tir=True)
-        def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
+        @Ts.function(private=True)
+        def main(data: T.Tensor((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
             tx = T.launch_thread("threadIdx.x", dshape[0])
             bx = T.launch_thread("blockIdx.x", dshape[1])
             for i in T.serial(l):
@@ -542,8 +534,8 @@ def test_hoisting_block_scope_7():
 
     @I.ir_module
     class Module:
-        @T.prim_func(private=True, s_tir=True)
-        def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
+        @Ts.function(private=True)
+        def main(data: T.Tensor((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
             tx = T.launch_thread("threadIdx.x", dshape[0])
             bx = T.launch_thread("blockIdx.x", dshape[1])
             for i in T.serial(l):

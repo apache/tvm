@@ -31,7 +31,7 @@ codegen time. Packed-vec emit requires the innermost dim to have stride 1
 from __future__ import annotations
 
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc, TilePrimitiveCall
+from tvm.tirx import Function, TilePrimitiveCall
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.operator.tile_primitive.dispatcher import fail
 
@@ -72,9 +72,9 @@ def is_smem_ewise(spec):
         if msg is not None or plan is None:
             return False, msg
         for br in buffer_regions(plan):
-            if not br.buffer.scope().startswith("shared"):
-                return False, f"operand scope {br.buffer.scope()} != shared*"
-            if br.buffer.layout is None:
+            if not br.source.scope().startswith("shared"):
+                return False, f"operand scope {br.source.scope()} != shared*"
+            if br.source.layout is None:
                 return False, "shared operand has no layout"
         if spec.check_extras is not None:
             ok2, reason2 = spec.check_extras(plan.extras, compute_dtype_of(plan))
@@ -101,10 +101,10 @@ def is_smem_ewise(spec):
 def _max_layout_vec(plan, total: int, thread_cnt: int) -> int:
     """Widest vec_chunk dividing all operands' innermost extents AND
     ``total / thread_cnt``, within dtype-bit candidates ``{128,64,32,16,8}``."""
-    max_bits = dtype_bits(plan.dst.buffer.dtype)
+    max_bits = dtype_bits(plan.dst.source.dtype)
     for s in plan.srcs:
         if s.buf_region is not None:
-            max_bits = max(max_bits, dtype_bits(s.buf_region.buffer.dtype))
+            max_bits = max(max_bits, dtype_bits(s.buf_region.source.dtype))
     per_thread = total // thread_cnt if thread_cnt > 0 else total
     if total % thread_cnt != 0:
         return 1
@@ -129,7 +129,7 @@ def _max_layout_vec(plan, total: int, thread_cnt: int) -> int:
 # -----------------------------------------------------------------------------
 # Main entry
 # -----------------------------------------------------------------------------
-def emit_smem(op_call: TilePrimitiveCall, spec, sctx: DispatchContext) -> PrimFunc:
+def emit_smem(op_call: TilePrimitiveCall, spec, sctx: DispatchContext) -> Function:
     plan, msg = spec.parse(op_call)
     if msg is not None or plan is None:
         fail(msg or "parse failed")
@@ -137,7 +137,7 @@ def emit_smem(op_call: TilePrimitiveCall, spec, sctx: DispatchContext) -> PrimFu
     # Use cuda/common.py:get_thread_cnt rather than copy/_common.py:_thread_cnt
     # — the latter computes ``∏ sctx.intra`` which silently returns 0 for
     # sub-warp counts at cta scope (warpid extent rounds down to 0). The
-    # former reads launch_params["threadIdx.x"].dom.extent and is correct
+    # former reads launch_params["threadIdx.x"][1] and is correct
     # for all scopes.
     thread_cnt = get_thread_cnt(sctx)
     if thread_cnt is None:
@@ -190,15 +190,15 @@ def _src_lane_indices(src_br, dst_lane_indices, dst_st, dst_ext, vec_chunk, fuse
 # -----------------------------------------------------------------------------
 # Emit — packed
 # -----------------------------------------------------------------------------
-def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> PrimFunc:
+def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> Function:
     extras = plan.extras
     srcs = plan.srcs
-    dst_buf = plan.dst.buffer
+    dst_buf = plan.dst.source
     dst_st, dst_ext = get_st_extent(plan.dst)
     sync = emit_scope_sync(sctx.scope_kind)
     n_outer = (total + vec_chunk * thread_cnt - 1) // (vec_chunk * thread_cnt)
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         tid = _tid_expr(sctx)
         for s in T.serial(0, n_outer):
@@ -214,7 +214,7 @@ def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> PrimFunc
                         srcs[i].scalar
                         if srcs[i].is_scalar
                         else (
-                            srcs[i].buf_region.buffer,
+                            srcs[i].buf_region.source,
                             _src_lane_indices(
                                 srcs[i].buf_region,
                                 dst_lane_indices,
@@ -236,17 +236,17 @@ def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> PrimFunc
 # -----------------------------------------------------------------------------
 # Emit — scalar fallback
 # -----------------------------------------------------------------------------
-def _emit_scalar(plan, spec, vec_chunk, total, thread_cnt, sctx) -> PrimFunc:
+def _emit_scalar(plan, spec, vec_chunk, total, thread_cnt, sctx) -> Function:
     extras = plan.extras
     srcs = plan.srcs
-    dst_buf = plan.dst.buffer
+    dst_buf = plan.dst.source
     dst_st, dst_ext = get_st_extent(plan.dst)
     dst_dtype = dst_buf.dtype
     compute = spec.compute_scalar
     sync = emit_scope_sync(sctx.scope_kind)
     n_outer = (total + vec_chunk * thread_cnt - 1) // (vec_chunk * thread_cnt)
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         tid = _tid_expr(sctx)
         for s in T.serial(0, n_outer):

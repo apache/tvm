@@ -158,6 +158,7 @@ struct MultiboxTransformLocAttrs : public AttrsNode {
   double threshold;
   ffi::Array<double> variances;
   bool keep_background;
+  bool apply_softmax;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -170,7 +171,9 @@ struct MultiboxTransformLocAttrs : public AttrsNode {
                 "(x,y,w,h) scales = TFLite 1/x_scale,1/y_scale,1/w_scale,1/h_scale on "
                 "encodings. Very large w/h scales can overflow exp in decode.")
         .def_ro("keep_background", &MultiboxTransformLocAttrs::keep_background,
-                "If false, force output scores[:,0,:] to 0 (background class).");
+                "If false, force output scores[:,0,:] to 0 (background class).")
+        .def_ro("apply_softmax", &MultiboxTransformLocAttrs::apply_softmax,
+                "Whether to apply softmax to class predictions before thresholding.");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.MultiboxTransformLocAttrs",
                                     MultiboxTransformLocAttrs, AttrsNode);

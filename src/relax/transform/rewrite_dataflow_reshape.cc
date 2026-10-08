@@ -20,13 +20,13 @@
  * \file src/relax/transform/rewrite_dataflow_reshape.cc
  * \brief Transform all reshape within dataflow block to a relax.reshape operator
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
 
@@ -37,10 +37,10 @@
 namespace tvm {
 namespace relax {
 
-std::vector<size_t> GetUsedTensorArgIndices(const tirx::PrimFunc& fn, size_t num_args) {
+std::vector<size_t> GetUsedTensorArgIndices(const tirx::Function& fn, size_t num_args) {
   std::vector<size_t> indices;
   for (size_t i = 0; i < num_args; ++i) {
-    if (auto buffer = fn->params[i].as<tirx::BufferVar>()) {
+    if (auto buffer = fn->params[i].as<tirx::TensorVar>()) {
       auto buffer_var = buffer.value().var();
       auto walkfn = [=](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
         return var.get() == buffer_var.get() ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
@@ -81,17 +81,17 @@ class DataflowReshapeRewriter : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* call) final {
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
     if (!call->op.same_as(call_tir_op)) {
       return ffi::GetRef<Call>(call);
     }
 
-    // We bring the calls of reshape PrimFunc back to calls of high-level
+    // We bring the calls of reshape tirx::Function back to calls of high-level
     // relax.reshape op, which will be lowered to calls of the ExternFunc
-    // vm.builtin.reshape in the VMBuiltinLower pass.
+    // vm.builtin.reshape in the LowerRuntimeBuiltin pass.
 
     auto prim_fn =
-        mod_->Lookup(call->args[0].as_or_throw<GlobalVar>()).as_or_throw<tirx::PrimFunc>();
+        mod_->Lookup(call->args[0].as_or_throw<GlobalVar>()).as_or_throw<tirx::Function>();
     auto arg_tuple = call->args[1].as_or_throw<Tuple>()->fields;
     auto used_tensor_arg_indices = GetUsedTensorArgIndices(prim_fn, arg_tuple.size());
 
@@ -115,9 +115,9 @@ class DataflowReshapeRewriter : public ExprMutator {
 
   bool IsCallingTIRReshape(const CallNode* call, Expr inp) {
     const GlobalVar& global_var = call->args[0].as_or_throw<GlobalVar>();
-    const auto* func = mod_->functions.Get(global_var).value().as<tirx::PrimFuncNode>();
+    const auto* func = mod_->functions.Get(global_var).value().as<tirx::FunctionNode>();
     TVM_FFI_ICHECK_NOTNULL(func);
-    if (!HasReshapePattern(ffi::GetRef<tirx::PrimFunc>(func))) {
+    if (!HasReshapePattern(ffi::GetRef<tirx::Function>(func))) {
       return false;
     }
 
@@ -125,7 +125,8 @@ class DataflowReshapeRewriter : public ExprMutator {
     // as the number of elements in the result. There are operators that could have a reshape
     // pattern that don't meet this requirement (e.g. strided_slice), and they should not be
     // converted to reshape.
-    TVM_FFI_ICHECK(!inp->ty.IsMissing() && !call->ty.IsMissing());
+    TVM_FFI_ICHECK(!inp->ty.as<MissingType>().has_value() &&
+                   !call->ty.as<MissingType>().has_value());
     TensorType inp_ty = inp->ty.as_or_throw<TensorType>();
     TensorType res_ty = call->ty.as_or_throw<TensorType>();
 
@@ -137,19 +138,14 @@ class DataflowReshapeRewriter : public ExprMutator {
       return false;
     }
     auto product = [](ffi::Array<PrimExpr> args) -> PrimExpr {
-      PrimExpr p;
-      if (args.empty()) {
-        // Scalar tensors may be empty indicating a single element.
-        p = 1;
-      } else {
-        p = args[0];
-      }
+      // Scalar tensors may be empty indicating a single element.
+      PrimExpr p = args.empty() ? PrimExpr(1) : args[0];
       for (int i = 1, e = args.size(); i < e; ++i) p *= args[i];
       return p;
     };
     auto inp_count = product(inp_ty->GetShape().value());
     auto res_count = product(res_ty->GetShape().value());
-    if (!arith::Analyzer()->CanProveEqual(inp_count, res_count)) {
+    if (!sym::Analyzer()->CanProveEqual(inp_count, res_count)) {
       return false;
     }
 

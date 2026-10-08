@@ -19,16 +19,18 @@
 
 /*!
  * \file tirx/analysis/calculate_allocated_memory.cc
- * \brief Calculate allocated memory per memory scope required by PrimFuncs.
+ * \brief Calculate allocated memory per memory scope required by Functions.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/s_tir/analysis.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -37,7 +39,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 std::string GetStorageScope(const Var& var) {
@@ -47,12 +48,14 @@ std::string GetStorageScope(const Var& var) {
 }
 
 /*!
- * \brief Allocation calculator for AllocBufferNode.
+ * \brief Allocation calculator for buffer allocation bindings.
  */
-class AllocBufferCalculator : public StmtExprVisitor {
+class AllocTensorCalculator : public StmtExprVisitor {
  public:
-  tvm::ffi::Map<ffi::String, int64_t> operator()(const PrimFunc& func) {
-    this->VisitStmt(func->body);
+  using StmtExprVisitor::Visit_;
+
+  tvm::ffi::Map<ffi::String, int64_t> operator()(const Function& func) {
+    this->Visit(func->body);
     tvm::ffi::Map<ffi::String, int64_t> res;
     for (auto [k, v] : _max_size) {
       res.Set(ffi::String(k), v);
@@ -61,50 +64,63 @@ class AllocBufferCalculator : public StmtExprVisitor {
   }
 
  private:
-  void VisitStmt_(const AllocBufferNode* op) override {
-    std::string storage_scope = op->buffer.scope();
-    auto search = _current_size.find(storage_scope);
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      return DispatchAllocTensor(op, call);
+    }
+    return StmtExprVisitor::Visit_(op);
+  }
+
+  ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
+    tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
+    DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    auto search = _current_size.find(scope);
     if (search == _current_size.end()) {
-      _current_size[storage_scope] = 0;
-      _max_size[storage_scope] = 0;
+      _current_size[scope] = 0;
+      _max_size[scope] = 0;
     }
     int64_t size = 1;
-    for (const PrimExpr& e : op->buffer->shape) {
+    for (const Expr& e : shape->fields) {
       if (auto* imm = e.as<IntImmNode>()) {
-        size *= imm->value;
+        size = static_cast<int64_t>(size * imm->value);
       } else {
         size = 0;
         break;
       }
     }
-    size *= static_cast<int64_t>(op->buffer->dtype.StorageBytes());
-    _current_size[storage_scope] += size;
-    _max_size[storage_scope] = std::max(_current_size[storage_scope], _max_size[storage_scope]);
-    StmtExprVisitor::VisitStmt_(op);
+    size *= static_cast<int64_t>(PrimType(dtype).StorageBytes());
+    _current_size[scope] += size;
+    _max_size[scope] = std::max(_current_size[scope], _max_size[scope]);
+    return StmtExprVisitor::Visit_(op);
   }
-  void VisitStmt_(const ForNode* op) override {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override {
     auto snapshot = _current_size;
-    StmtExprVisitor::VisitStmt_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     _current_size = snapshot;
+    return std::nullopt;
   }
-  void VisitStmt_(const IfThenElseNode* op) override {
+  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) override {
     auto snapshot = _current_size;
-    StmtExprVisitor::VisitStmt_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     _current_size = snapshot;
+    return std::nullopt;
   }
-  void VisitStmt_(const AttrStmtNode* op) override {
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) override {
     auto snapshot = _current_size;
-    StmtExprVisitor::VisitStmt_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     _current_size = snapshot;
+    return std::nullopt;
   }
   std::unordered_map<std::string, int64_t> _max_size;
   std::unordered_map<std::string, int64_t> _current_size;
 };
 
 tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAllocatedBytes(
-    const PrimFunc& func) {
+    const Function& func) {
   tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > results;
-  auto alloc_buffer_result = AllocBufferCalculator()(func);
+  auto alloc_buffer_result = ffi::make_object<AllocTensorCalculator>()->operator()(func);
   results.Set("main", alloc_buffer_result);
   return results;
 }
@@ -113,9 +129,10 @@ tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAlloca
     const IRModule& mod) {
   tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > results;
   for (const auto& kv : mod->functions) {
-    if (auto prim_func = kv.second.as<tirx::PrimFunc>()) {
+    if (auto function = kv.second.as<tirx::Function>()) {
       ffi::String func_name = kv.first->name_hint;
-      auto alloc_buffer_result = AllocBufferCalculator()(prim_func.value());
+      auto alloc_buffer_result =
+          ffi::make_object<AllocTensorCalculator>()->operator()(function.value());
       results.Set(func_name, alloc_buffer_result);
     }
   }
@@ -127,13 +144,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "s_tir.analysis.calculate_allocated_bytes",
       [](ffi::ObjectRef obj) -> tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > {
-        if (auto func = obj.as<PrimFunc>()) {
+        if (auto func = obj.as<Function>()) {
           return CalculateAllocatedBytes(func.value());
         } else if (auto mod = obj.as<IRModule>()) {
           return CalculateAllocatedBytes(mod.value());
         } else {
           TVM_FFI_THROW(TypeError)
-              << "Expect the input to be either PrimFunc or IRModule, but gets: "
+              << "Expect the input to be either Function or IRModule, but gets: "
               << obj->GetTypeKey();
           throw;
         }
@@ -152,7 +169,7 @@ bool VerifyVTCMLimit(const IRModule& mod, int64_t limit) {
   return true;
 }
 
-bool VerifyVTCMLimit(const PrimFunc& func, int64_t limit) {
+bool VerifyVTCMLimit(const Function& func, int64_t limit) {
   auto sizes = CalculateAllocatedBytes(func)["main"];
   const auto vtcm_allocated = sizes.Get("global.vtcm").value_or(0);
   if (limit > 0 && vtcm_allocated > limit) {
@@ -179,6 +196,7 @@ ffi::Array<tvm::transform::Pass> GetVTCMCompactionPasses() {
   pass_list.push_back(s_tir::transform::LowerMatchBuffer());
   pass_list.push_back(s_tir::transform::InjectSoftwarePipeline());
   pass_list.push_back(s_tir::transform::LowerOpaqueBlock());
+  pass_list.push_back(s_tir::transform::LowerThreadBinding());
   pass_list.push_back(tirx::transform::FlattenBuffer());
   pass_list.push_back(tirx::transform::StmtSimplify());
   pass_list.push_back(tirx::transform::VectorizeLoop(true));
@@ -197,7 +215,7 @@ namespace transform {
 Pass VerifyVTCMLimit(ffi::Optional<Target> default_target) {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
-      if (auto opt = kv.second.as<PrimFunc>()) {
+      if (auto opt = kv.second.as<Function>()) {
         auto func = opt.value();
 
         std::optional<int64_t> limit = std::nullopt;

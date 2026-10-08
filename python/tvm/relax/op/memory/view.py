@@ -28,7 +28,8 @@ while keeping the same underlying data.
 
 from collections.abc import Sequence
 
-from tvm.relax import DataTypeImm, Expr, ShapeExpr
+from tvm.ir import DataTypeImm, GenericConst
+from tvm.relax import Expr, ShapeExpr
 from tvm.relax.expr import prim_value
 
 from ..base import null_value
@@ -89,6 +90,8 @@ def view(
             return relax_cls(expr)
 
     shape = _normalize(shape, ShapeExpr)
+    if isinstance(dtype, GenericConst):
+        dtype = DataTypeImm(dtype.value)
     dtype = null_value() if dtype is None else _normalize(dtype, DataTypeImm)
     relative_byte_offset = (
         relative_byte_offset

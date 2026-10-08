@@ -47,7 +47,7 @@ void CollectAxisGraphBinary(const VarBindingNode* binding, const CallNode* call,
       "add",     "subtract",      "multiply", "divide",     "power",     "floor_divide", "equal",
       "greater", "greater_equal", "less",     "less_equal", "not_equal", "minimum",      "maximum"};
   for (const auto& op_name : binary_op_names) {
-    const Op& binary_op = Op::Get("relax." + op_name);
+    const Op binary_op = Op::Get("relax." + op_name);
     if (call->op.same_as(binary_op)) {
       BuildAxisGraphBinary(binding->var, ffi::GetRef<Call>(call), axis_group_graph);
       break;
@@ -70,7 +70,7 @@ void CollectAxisGraphUnary(const VarBindingNode* binding, const CallNode* call,
       "isinf",  "isnan",    "dist.annotate_sharding",
       "erf",    "nn.gelu",  "builtin.stop_lift_params"};
   for (const auto& op_name : unary_op_names) {
-    const Op& unary_op = Op::Get("relax." + op_name);
+    const Op unary_op = Op::Get("relax." + op_name);
     if (call->op.same_as(unary_op)) {
       BuildAxisGraphUnary(binding->var, ffi::GetRef<Call>(call), axis_group_graph);
     }
@@ -82,7 +82,7 @@ void CollectAxisGraphReduce(const VarBindingNode* binding, const CallNode* call,
   const std::vector<std::string> reduction_op_names = {"sum",  "max", "min",      "prod",
                                                        "mean", "std", "variance", "nn.softmax"};
   for (const auto& op_name : reduction_op_names) {
-    const Op& reduction_op = Op::Get("relax." + op_name);
+    const Op reduction_op = Op::Get("relax." + op_name);
     if (call->op.same_as(reduction_op)) {
       BuildAxisGraphReduce(binding->var, ffi::GetRef<Call>(call), axis_group_graph);
       break;
@@ -92,7 +92,7 @@ void CollectAxisGraphReduce(const VarBindingNode* binding, const CallNode* call,
 
 void CollectAxisGraphMatmul(const VarBindingNode* binding, const CallNode* call,
                             AxisGroupGraph* axis_group_graph) {
-  static const Op& matmul_op = Op::Get("relax.matmul");
+  static const Op matmul_op = Op::Get("relax.matmul");
   if (call->op.same_as(matmul_op)) {
     BuildAxisGraphMatmul(binding->var, ffi::GetRef<Call>(call), axis_group_graph);
   }
@@ -100,7 +100,7 @@ void CollectAxisGraphMatmul(const VarBindingNode* binding, const CallNode* call,
 
 void CollectAxisGraphPermuteDims(const VarBindingNode* binding, const CallNode* call,
                                  AxisGroupGraph* axis_group_graph) {
-  static const Op& permute_dims_op = Op::Get("relax.permute_dims");
+  static const Op permute_dims_op = Op::Get("relax.permute_dims");
   if (call->op.same_as(permute_dims_op)) {
     BuildAxisGraphPermuteDims(binding->var, ffi::GetRef<Call>(call), axis_group_graph);
   }
@@ -108,7 +108,7 @@ void CollectAxisGraphPermuteDims(const VarBindingNode* binding, const CallNode* 
 
 void CollectAxisGraphReshape(const VarBindingNode* binding, const CallNode* call,
                              AxisGroupGraph* axis_group_graph) {
-  static const Op& reshape_op = Op::Get("relax.reshape");
+  static const Op reshape_op = Op::Get("relax.reshape");
   if (call->op.same_as(reshape_op)) {
     BuildAxisGraphReshape(binding->var, ffi::GetRef<Call>(call), axis_group_graph);
   }
@@ -117,7 +117,7 @@ void CollectAxisGraphReshape(const VarBindingNode* binding, const CallNode* call
 void CollectAxisGraphForDeviceMesh(const VarBindingNode* binding, const CallNode* call,
                                    AxisGroupGraph* axis_group_graph) {
   ffi::Array<Expr> tensor_list;
-  static const Op& call_tir_op = Op::Get("relax.call_tir");
+  static const Op call_tir_op = Op::Get("relax.call_tir");
   ffi::Array<Expr> args;
   if (call->op.same_as(call_tir_op)) {
     args = call->args[1].as_or_throw<Tuple>()->fields;
@@ -157,9 +157,9 @@ class AxisGroupGraphBuilder : public ExprVisitor {
     CollectAxisGraphMatmul(binding, val, axis_group_graph_);
     CollectAxisGraphPermuteDims(binding, val, axis_group_graph_);
     CollectAxisGraphReshape(binding, val, axis_group_graph_);
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
     if (val->op.same_as(call_tir_op)) {
-      if (ffi::Optional<tirx::PrimFunc> func = MatchPrimFunc(mod_, val->args[0])) {
+      if (ffi::Optional<tirx::Function> func = MatchFunction(mod_, val->args[0])) {
         BuildAxisGraphCallTIR(binding->var, ffi::GetRef<Call>(val), func.value(),
                               axis_group_graph_);
       }
@@ -225,7 +225,7 @@ class ShardingAnnotationCollector : public ExprVisitor {
   explicit ShardingAnnotationCollector(AxisGroupGraph* axis_group_graph)
       : axis_group_graph_(axis_group_graph) {}
   void VisitBinding_(const VarBindingNode* binding, const CallNode* val) {
-    static const Op& annotate_sharding_op = Op::Get("relax.dist.annotate_sharding");
+    static const Op annotate_sharding_op = Op::Get("relax.dist.annotate_sharding");
     if (val->op.same_as(annotate_sharding_op)) {
       const auto* attrs = val->attrs.as<DistributionAttrs>();
       TVM_FFI_ICHECK(attrs);
@@ -306,7 +306,7 @@ class ShardingConflictHandler : public ExprVisitor {
     }
   }
 
-  void CheckConstantNoSharding(Constant constant) {
+  void CheckConstantNoSharding(GenericConst constant) {
     const auto* tensor_ty = GetTypeAs<TensorTypeNode>(constant);
     for (int i = 0; i < tensor_ty->ndim; i++) {
       AxisShardingSpec sharding_spec;
@@ -314,15 +314,15 @@ class ShardingConflictHandler : public ExprVisitor {
       std::tie(sharding_spec, has_sharding_spec) =
           axis_group_graph_->GetAxisShardingSpec({constant.get(), i});
       TVM_FFI_ICHECK(!has_sharding_spec)
-          << "Constant is not allowed to be sharded. Please convert it into an input param.";
+          << "GenericConst is not allowed to be sharded. Please convert it into an input param.";
     }
   }
 
   void VisitExpr_(const CallNode* op) final {
     ffi::Array<Expr> args = GetCallArgs(ffi::GetRef<Call>(op));
     for (const auto& arg : args) {
-      if (arg.as<ConstantNode>()) {
-        CheckConstantNoSharding(arg.as_or_throw<Constant>());
+      if (arg.as<GenericConstNode>() && arg->ty.as<TensorTypeNode>()) {
+        CheckConstantNoSharding(arg.as_or_throw<GenericConst>());
       }
     }
     ExprVisitor::VisitExpr_(op);
@@ -402,11 +402,11 @@ class DistributedIRBuilder : public ExprMutator {
     if (const auto* var = tensor.as<VarNode>()) {
       Var new_param(var->name, new_ty);
       return new_param;
-    } else if (const auto* constant = tensor.as<ConstantNode>()) {
-      Constant new_constant(constant->data, new_ty);
+    } else if (const auto* constant = tensor.as<GenericConstNode>()) {
+      GenericConst new_constant(constant->value.cast<runtime::Tensor>(), new_ty);
       return new_constant;
     } else {
-      TVM_FFI_THROW(InternalError) << "Cannot rewrite tensor which is not a Var or Constant";
+      TVM_FFI_THROW(InternalError) << "Cannot rewrite tensor which is not a Var or GenericConst";
       throw;
     }
   }
@@ -435,17 +435,17 @@ class DistributedIRBuilder : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* call) final {
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
     FBuildAxisGraph f = [&](const Var& var, const Call& call, AxisGroupGraph* axis_group_graph) {
-      ffi::Optional<tirx::PrimFunc> prim_func =
-          MatchPrimFunc(this->builder_->GetContextIRModule(), call->args[0]);
-      TVM_FFI_ICHECK(prim_func);
-      return BuildAxisGraphCallTIR(var, call, prim_func.value(), axis_group_graph);
+      ffi::Optional<tirx::Function> function =
+          MatchFunction(this->builder_->GetContextIRModule(), call->args[0]);
+      TVM_FFI_ICHECK(function);
+      return BuildAxisGraphCallTIR(var, call, function.value(), axis_group_graph);
     };
     Call new_call = ExprMutator::VisitExpr_(call).as_or_throw<Call>();
     ffi::Array<Expr> args = GetCallArgs(new_call);
     for (int i = 0; i < static_cast<int>(args.size()); i++) {
-      if (args[i].as<ConstantNode>()) {
+      if (args[i].as<GenericConstNode>() && args[i]->ty.as<TensorTypeNode>()) {
         args.Set(i, RewriteInputTensorAndConstant(args[i]));
       }
     }
@@ -472,7 +472,7 @@ class DistributedIRBuilder : public ExprMutator {
   }
 
   Expr RemoveAnnotateSharding(Call call) {
-    static const Op& annotate_sharding_op = Op::Get("relax.dist.annotate_sharding");
+    static const Op annotate_sharding_op = Op::Get("relax.dist.annotate_sharding");
     if (call->op.same_as(annotate_sharding_op)) {
       return call->args[0];
     } else {
@@ -565,7 +565,7 @@ class DistributedIRBuilder : public ExprMutator {
         new_value = InsertRedistribute(new_value, device_mesh, placements[0]);
       }
       if (const auto* var = new_value.as<VarNode>()) {
-        var_remap_[binding->var] = ffi::GetRef<Var>(var);
+        var_remap_.insert_or_assign(binding->var, ffi::GetRef<Var>(var));
       } else {
         ReEmitBinding(binding, builder_->Normalize(new_value));
       }
@@ -573,7 +573,7 @@ class DistributedIRBuilder : public ExprMutator {
       const auto* inferred_tuple_ty = new_call->ty.as<TupleTypeNode>();
       TVM_FFI_ICHECK(inferred_tuple_ty) << new_call;
       Var new_var = builder_->Emit(new_call);
-      var_remap_[binding->var] = new_var;
+      var_remap_.insert_or_assign(binding->var, new_var);
       for (int i = 0; i < static_cast<int>(inferred_tuple_ty->fields.size()); i++) {
         if (!ffi::StructuralEqual()(
                 DTensorType(inferred_tuple_ty->fields[i].as_or_throw<DTensorType>()->tensor_ty,
@@ -581,7 +581,7 @@ class DistributedIRBuilder : public ExprMutator {
                 inferred_tuple_ty->fields[i])) {
           Var redistribute_var = builder_->Emit(
               InsertRedistribute(TupleGetItem(new_var, i), device_mesh, placements[i]));
-          tuple_getitem_remap_[TupleGetItem(binding->var, i)] = redistribute_var;
+          tuple_getitem_remap_.insert_or_assign(TupleGetItem(binding->var, i), redistribute_var);
         }
       }
     }
@@ -589,7 +589,8 @@ class DistributedIRBuilder : public ExprMutator {
 
   void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val) {
     if (tuple_getitem_remap_.count(ffi::GetRef<TupleGetItem>(val))) {
-      var_remap_[binding->var] = tuple_getitem_remap_[ffi::GetRef<TupleGetItem>(val)];
+      var_remap_.insert_or_assign(binding->var,
+                                  tuple_getitem_remap_.at(ffi::GetRef<TupleGetItem>(val)));
     } else {
       ExprMutator::VisitBinding_(binding, val);
     }
@@ -599,7 +600,7 @@ class DistributedIRBuilder : public ExprMutator {
     Var var_ref = ffi::GetRef<Var>(var);
     auto it = input_tensor_remap_.find(var_ref);
     if (it != input_tensor_remap_.end()) {
-      var_remap_[var_ref] = (*it).second;
+      var_remap_.insert_or_assign(var_ref, (*it).second);
     }
     return ExprMutator::VisitExpr_(var);
   }

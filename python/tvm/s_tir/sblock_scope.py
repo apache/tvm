@@ -22,7 +22,8 @@ from typing import Optional
 from tvm_ffi import register_object
 
 from tvm.runtime import Object
-from tvm.tirx import For, SBlock
+from tvm.s_tir import SBlock
+from tvm.tirx import For
 
 from . import _ffi_api
 

@@ -38,7 +38,7 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-def _get_source(func: tvm.tirx.PrimFunc):
+def _get_source(func: tvm.tirx.Function):
     target = tvm.target.Target("cuda")
     mod = tvm.IRModule({"main": func})
     mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
@@ -88,12 +88,12 @@ def test_ptx_mma_m16n8k16(a_type, no_c_ptr):
     _elem = "f16" if a_type == "float16" else "bf16"
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def main(
-        D: T.Buffer((16, 8), "float32"),
-        A: T.Buffer((16, 16), a_type),
-        B: T.Buffer((16, 8), b_type),
-        C: T.Buffer((16, 8), "float32"),
+        D: T.Tensor((16, 8), "float32"),
+        A: T.Tensor((16, 16), a_type),
+        B: T.Tensor((16, 8), b_type),
+        C: T.Tensor((16, 8), "float32"),
     ):
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -165,12 +165,12 @@ def test_ptx_mma_m16n8k8(a_type, no_c_ptr):
     _elem = "f16" if a_type == "float16" else "bf16"
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def main(
-        D: T.Buffer((16, 8), "float32"),
-        A: T.Buffer((16, 8), a_type),
-        B: T.Buffer((8, 8), b_type),
-        C: T.Buffer((16, 8), "float32"),
+        D: T.Tensor((16, 8), "float32"),
+        A: T.Tensor((16, 8), a_type),
+        B: T.Tensor((8, 8), b_type),
+        C: T.Tensor((16, 8), "float32"),
     ):
         T.device_entry()
         cta_id = T.cta_id([1])

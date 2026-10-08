@@ -22,7 +22,8 @@ from tvm_ffi import structural_walk
 
 import tvm
 import tvm.testing
-from tvm.s_tir import Schedule
+from tvm.ir.prim import expr_deep_equal
+from tvm.s_tir import Schedule, TensorIntrin
 from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.s_tir.schedule.analysis import (
     TensorizeInfo,
@@ -36,20 +37,19 @@ from tvm.s_tir.tensor_intrin.cuda import (
     WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
 )
 from tvm.s_tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.te import create_prim_func
+from tvm.te import create_function
 from tvm.tirx import (
     Evaluate,
     For,
     ForKind,
     IndexMap,
     Var,
-    decl_buffer,
+    decl_tensor,
     floordiv,
     floormod,
 )
-from tvm.tirx.analysis import expr_deep_equal
-from tvm.tirx.function import TensorIntrin
 
 
 def _make_vars(*args: str) -> list[Var]:
@@ -73,7 +73,7 @@ def _make_loops(loop_vars: list[Var], extents: list[int]) -> list[For]:
 def test_suggest_index_map_simple():
     i, j = _make_vars("i", "j")
     index_map = suggest_index_map(
-        buffer=decl_buffer(shape=[8, 256]),
+        buffer=decl_tensor(shape=[8, 256]),
         indices=[
             floordiv(i, 16) * 4 + floordiv(j, 16),
             floormod(i, 16) * 16 + floormod(j, 16),
@@ -98,7 +98,7 @@ def test_suggest_index_map_simple():
 def test_suggest_index_map_bijective():
     i, j = _make_vars("i", "j")
     index_map = suggest_index_map(
-        buffer=decl_buffer(shape=[8]),
+        buffer=decl_tensor(shape=[8]),
         indices=[floormod(j, 4) * 2 + i],
         loops=_make_loops(
             loop_vars=[i, j],
@@ -122,7 +122,7 @@ def test_suggest_index_map_winograd():
     nu = floordiv(floormod(fused_outer, 336), 112) * 2 + floordiv(floormod(fused_outer, 8), 4)
     co = floormod(fused_outer, 4) * 32 + i3_3_fused
     ci = (i4_0 * 32) + i4_1
-    buffer = decl_buffer(shape=[6, 6, 128, 128])
+    buffer = decl_tensor(shape=[6, 6, 128, 128])
     index_map = suggest_index_map(
         buffer=buffer,
         indices=[eps, nu, co, ci],
@@ -158,22 +158,22 @@ def test_suggest_index_map_winograd():
 
 @tvm.script.ir_module
 class DenseTIRModule:
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def main(
-        placeholder: T.Buffer((1024, 1024), "uint8"),
-        placeholder_1: T.Buffer((64, 256, 16, 4), "int8"),
-        compute: T.Buffer((1024, 1024), "int32"),
+        placeholder: T.Tensor((1024, 1024), "uint8"),
+        placeholder_1: T.Tensor((64, 256, 16, 4), "int8"),
+        compute: T.Tensor((1024, 1024), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        with T.sblock("root"):
-            T.reads()
-            T.writes()
+        with Ts.sblock("root"):
+            Ts.reads()
+            Ts.writes()
             for i0, i1, i2 in T.grid(1024, 1024, 1024):
-                with T.sblock("compute"):
-                    i, j, k = T.axis.remap("SSR", [i0, i1, i2])
-                    T.reads(placeholder[i, k], placeholder_1[j // 16, k // 4, j % 16, k % 4])
-                    T.writes(compute[i, j])
-                    with T.init():
+                with Ts.sblock("compute"):
+                    i, j, k = Ts.axis.remap("SSR", [i0, i1, i2])
+                    Ts.reads(placeholder[i, k], placeholder_1[j // 16, k // 4, j % 16, k % 4])
+                    Ts.writes(compute[i, j])
+                    with Ts.init():
                         compute[i, j] = 0
                     compute[i, j] = compute[i, j] + T.cast(placeholder[i, k], "int32") * T.cast(
                         placeholder_1[j // 16, k // 4, j % 16, k % 4], "int32"
@@ -182,15 +182,15 @@ class DenseTIRModule:
 
 @tvm.script.ir_module
 class Conv2dNCHWcTIRModule:
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def main(
-        placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"),
-        placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
-        conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32"),
+        placeholder: T.Tensor((1, 4, 56, 56, 16), "uint8"),
+        placeholder_1: T.Tensor((16, 4, 1, 1, 4, 16, 4), "int8"),
+        conv2d_NCHWc_int8: T.Tensor((1, 16, 56, 56, 16), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i0, i1, i2, i3, i4, i5, i6, i7, i8, i9 in T.grid(1, 16, 56, 56, 16, 1, 1, 4, 4, 4):
-            with T.sblock("conv2d_NCHWc_int8"):
+            with Ts.sblock("conv2d_NCHWc_int8"):
                 (
                     n,
                     oc_chunk,
@@ -202,13 +202,13 @@ class Conv2dNCHWcTIRModule:
                     ic_outer,
                     ic_f_inner,
                     ic_s_inner,
-                ) = T.axis.remap("SSSSSRRRRR", [i0, i1, i2, i3, i4, i5, i6, i7, i8, i9])
-                T.reads(
+                ) = Ts.axis.remap("SSSSSRRRRR", [i0, i1, i2, i3, i4, i5, i6, i7, i8, i9])
+                Ts.reads(
                     placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner],
                     placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner],
                 )
-                T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block])
-                with T.init():
+                Ts.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block])
+                with Ts.init():
                     conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = 0
                 conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc_int8[
                     n, oc_chunk, oh, ow, oc_block
@@ -221,9 +221,9 @@ class Conv2dNCHWcTIRModule:
                 )
 
 
-def collect_loops(prim_func):
+def collect_loops(function):
     loops = []
-    structural_walk(prim_func.body, (tvm.tirx.For, loops.append), order="pre")
+    structural_walk(function.body, (tvm.tirx.For, loops.append), order="pre")
 
     return loops
 
@@ -266,21 +266,21 @@ def test_get_tensorize_loop_mapping_conv2d_nchwc_16x4():
 
 
 def test_get_tensorize_loop_mapping_matmul_mma():
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def matmul_16x16x16xf16f16f16_desc(
-        A: T.Buffer((16, 16), "float16", align=64, offset_factor=1),
-        B: T.Buffer((16, 16), "float16", align=64, offset_factor=1),
-        C: T.Buffer((16, 16), "float16", align=64, offset_factor=1),
+        A: T.Tensor((16, 16), "float16", align=64, offset_factor=1),
+        B: T.Tensor((16, 16), "float16", align=64, offset_factor=1),
+        C: T.Tensor((16, 16), "float16", align=64, offset_factor=1),
     ) -> None:
-        with T.sblock("root"):
-            T.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
-            T.writes(C[0:16, 0:16])
+        with Ts.sblock("root"):
+            Ts.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
+            Ts.writes(C[0:16, 0:16])
             for i, j, k in T.grid(16, 16, 16):
-                with T.sblock("update"):
-                    vii, vjj, vkk = T.axis.remap("SSR", [i, j, k])
+                with Ts.sblock("update"):
+                    vii, vjj, vkk = Ts.axis.remap("SSR", [i, j, k])
                     C[vii, vjj] = C[vii, vjj] + A[vii, vkk] * B[vjj, vkk]
 
-    matmul = create_prim_func(
+    matmul = create_function(
         te_workload.matmul_relu(
             n=512,
             m=512,
@@ -311,7 +311,7 @@ def test_get_tensorize_loop_mapping_matmul_mma():
 
 
 def test_get_tensorize_loop_mapping_padding_matmul():
-    matmul = create_prim_func(
+    matmul = create_function(
         te_workload.matmul_relu(
             n=127,
             m=256,
@@ -347,7 +347,7 @@ def check_index_map(workload, block_name, intrin_name, expected_index_map):
 
 
 def test_get_auto_tensorize_mapping_info_conv2d():
-    conv2d = create_prim_func(
+    conv2d = create_function(
         te_workload.conv2d_nhwc(4, 16, 16, 64, 64, 3, 1, 1, in_dtype="float16", out_dtype="float32")
     )
     check_index_map(
@@ -359,7 +359,7 @@ def test_get_auto_tensorize_mapping_info_conv2d():
 
 
 def test_get_auto_tensorize_mapping_info_conv2d_unit_batch():
-    conv2d = create_prim_func(
+    conv2d = create_function(
         te_workload.conv2d_nhwc(1, 16, 16, 64, 64, 3, 1, 1, in_dtype="float16", out_dtype="float32")
     )
     check_index_map(
@@ -372,7 +372,7 @@ def test_get_auto_tensorize_mapping_info_conv2d_unit_batch():
 
 @pytest.mark.parametrize("b,m,n,k", [(1, 512, 512, 512), (16, 32, 32, 32)])
 def test_get_auto_tensorize_mapping_info_batch_matmul(b, m, n, k):
-    matmul = create_prim_func(
+    matmul = create_function(
         te_workload.batch_matmul_nkkm(b, m, n, k, in_dtype="float16", out_dtype="float32")
     )
     check_index_map(
@@ -397,23 +397,24 @@ def test_get_auto_tensorize_mapping_info_batch_matmul(b, m, n, k):
     ],
 )
 def test_get_auto_tensorize_mapping_info_matmul(n, m, k, expected):
-    matmul = create_prim_func(te_workload.matmul(n, m, k, in_dtype="float16", out_dtype="float32"))
+    matmul = create_function(te_workload.matmul(n, m, k, in_dtype="float16", out_dtype="float32"))
     check_index_map(matmul, "C", WMMA_SYNC_16x16x16_f16f16f32_INTRIN, expected)
 
 
 def test_is_output_block():
-    @T.prim_func(s_tir=True)
-    def two_elementwise(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (128, 128), "float32")
-        B = T.sblock_alloc_buffer((128, 128), "float32")
-        C = T.match_buffer(c, (128, 128), "float32")
+    @Ts.function
+    def two_elementwise(
+        A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
+    ) -> None:
+        B = Ts.sblock_alloc_buffer((128, 128), "float32")
+
         for i, j in T.grid(128, 128):
-            with T.sblock("B"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("B"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * 2.0
         for i, j in T.grid(128, 128):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("C"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 C[vi, vj] = B[vi, vj] + 1.0
 
     sch = tvm.s_tir.Schedule(two_elementwise)
@@ -422,27 +423,27 @@ def test_is_output_block():
 
 
 def test_empty_grid():
-    @T.prim_func(s_tir=True)
-    def foo(out: T.Buffer((T.int64(1), T.int64(8), T.int64(8)), "int32")):
-        act = T.sblock_alloc_buffer((1, 8, 8), "int32")
+    @Ts.function
+    def foo(out: T.Tensor((T.int64(1), T.int64(8), T.int64(8)), "int32")):
+        act = Ts.sblock_alloc_buffer((1, 8, 8), "int32")
         for z2, y2, x2 in T.grid(1, 8, 8):
-            with T.sblock("b0"):
-                az, ay, ax = T.axis.remap("SSS", [z2, y2, x2])
-                T.writes(act[az, ay, ax])
+            with Ts.sblock("b0"):
+                az, ay, ax = Ts.axis.remap("SSS", [z2, y2, x2])
+                Ts.writes(act[az, ay, ax])
                 act[az, ay, az] = T.int32(0)
         # Empty grid:
         for z1, y1, x1 in T.grid(0, 8, 8):
-            with T.sblock("b1"):
-                az, ay, ax = T.axis.remap("SSS", [z1, y1, x1])
-                T.reads(act[az + 1, ay, ax])
-                T.writes(out[az, ay, ax])
+            with Ts.sblock("b1"):
+                az, ay, ax = Ts.axis.remap("SSS", [z1, y1, x1])
+                Ts.reads(act[az + 1, ay, ax])
+                Ts.writes(out[az, ay, ax])
                 out[az, ay, ax] = act[az + 1, ay, ax]
         # The block below is not needed to show the bug, but the 'out'
         # buffer would be undefined without it.
         for z2, y2, x2 in T.grid(1, 8, 8):
-            with T.sblock("b2"):
-                az, ay, ax = T.axis.remap("SSS", [z2, y2, x2])
-                T.writes(out[az, ay, ax])
+            with Ts.sblock("b2"):
+                az, ay, ax = Ts.axis.remap("SSS", [z2, y2, x2])
+                Ts.writes(out[az, ay, ax])
                 out[az, ay, az] = T.int32(0)
 
     # This caused a crash before.

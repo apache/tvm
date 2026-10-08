@@ -19,11 +19,12 @@
 #ifndef TVM_S_TIR_SCHEDULE_ANALYSIS_H_
 #define TVM_S_TIR_SCHEDULE_ANALYSIS_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/s_tir/schedule/state.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/index_map.h>
 
@@ -37,7 +38,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /******** Verification ********/
@@ -59,32 +59,32 @@ void VerifyCachedFlags(const ScheduleState& self);
 
 /******** IR Module ********/
 /*!
- * \brief Get PrimFunc and GlobalVar that the root block belongs to
+ * \brief Get Function and GlobalVar that the root block belongs to
  * \param mod The IRModule
- * \param root_block The root block of the PrimFunc
+ * \param root_block The root block of the Function
  * \param result_g_var The result GlobalVar
- * \return The result PrimFunc where the root block belongs to
+ * \return The result Function where the root block belongs to
  * \note This function returns the pointer instead of ffi::ObjectRef to avoid later copy-on-write
  */
-const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_block,
+const FunctionNode* GetRootFunction(const IRModule& mod, const StmtNode* root_block,
                                     GlobalVar* result_g_var);
 
 /*!
- * \brief Get the root node of the sref tree, which is the root block of the PrimFunc.
+ * \brief Get the root node of the sref tree, which is the root block of the Function.
  * \param sref The given sref.
  * \return The root node of the sref tree which contains the given node.
  */
 StmtSRef GetSRefTreeRoot(const StmtSRef& sref);
 
 /*!
- * \brief Given an arbitrary sref, bind the shape var info of the PrimFunc it belongs to the
+ * \brief Given an arbitrary sref, bind the shape var info of the Function it belongs to the
  * given analyzer
  * \param state The schedule state
  * \param sref The given sref
  * \param analyzer The analyzer to be bound
  */
 void AddShapeVarBounds(const ScheduleState& state, const StmtSRefNode* sref,
-                       arith::AnalyzerObj* analyzer);
+                       sym::AnalyzerObj* analyzer);
 
 /******** Scope ********/
 /*!
@@ -235,7 +235,7 @@ bool IsWriteCache(const StmtSRef& block_sref);
  * \return A boolean flag indicating if the binding is affine
  */
 bool IsAffineBinding(const SBlockRealize& realize, const ffi::Map<Var, Range>& loop_var_ranges,
-                     arith::AnalyzerObj* analyzer);
+                     sym::AnalyzerObj* analyzer);
 
 /*!
  * \brief Check whether a block has an affine binding using the cached flag, and throw an exception
@@ -301,7 +301,7 @@ bool GetVarsTouchedByBlockIters(const SBlockRealize& block_realize,
  * \throw ScheduleError If the loop doesn't starts with zero.
  */
 void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sref,
-                             arith::AnalyzerObj* analyzer);
+                             sym::AnalyzerObj* analyzer);
 
 /*!
  * \brief Check whether a block has a trivial binding, i.e. each block var is bound to a outer loop,
@@ -403,7 +403,7 @@ ffi::Array<StmtSRef> GetConsumers(const StmtSRef& block_sref, const SBlockScope&
 /*!
  * \brief Get the list of output blocks within the given scope
  * An output block is a block which has atleast one buffer being written
- * to, but is not allocated within the PrimFunc
+ * to, but is not allocated within the Function
  * \param scope_block_rv The scope block from which output blocks are collected
  * \return A list of all blocks that write to some output buffer
  * block
@@ -453,7 +453,7 @@ struct ProducerConsumerSplit {
  * \return The buffer of the n-th read/write region of the block.
  * \throw ScheduleError If the buffer index is out of bound.
  */
-BufferVar GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int n,
+TensorVar GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int n,
                              BufferIndexType index_type);
 
 /*!
@@ -465,7 +465,7 @@ BufferVar GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int
  * \return The n-th read/write region of the block.
  * \throw ScheduleError If the buffer index is out of bound.
  */
-BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& block, int n,
+TensorRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& block, int n,
                                       BufferIndexType index_type);
 
 /*!
@@ -476,18 +476,18 @@ BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& b
  *         buffer is from match_buffer).
  */
 std::pair<ffi::Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref,
-                                                               const BufferVar& buffer);
+                                                               const TensorVar& buffer);
 
 /******** Reduction SBlock Related ********/
 
 /*!
- * \brief Get the init values and the BufferStore updates from the input reduction block
+ * \brief Get the init values and the TensorStore updates from the input reduction block
  * \param self The schedule state, used for error reporting
- * \param block The block from which the init values and BufferStore updates are extracted from
- * \return The extracted init values and BufferStore updates
+ * \param block The block from which the init values and TensorStore updates are extracted from
+ * \return The extracted init values and TensorStore updates
  * \throw ScheduleError If rfactor or cross-thread reduction cannot be applied to the block
  */
-std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdatesFromReductionBlock(
+std::pair<ffi::Array<PrimExpr>, ffi::Array<TensorStore>> GetInitValuesAndUpdatesFromReductionBlock(
     const ffi::Optional<ScheduleState>& self, SBlock block);
 
 /*!
@@ -519,7 +519,7 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block);
  */
 std::tuple<te::CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAndCombinerLhsRhs(
     const ffi::Optional<ScheduleState>& self, const ffi::Array<PrimExpr>& identities,
-    const ffi::Array<BufferStore>& combiners);
+    const ffi::Array<TensorStore>& combiners);
 
 /******** Commutative Reducer ********/
 
@@ -532,7 +532,7 @@ std::vector<ffi::TypedFunction<ffi::Optional<te::CommReducer>(ffi::Array<PrimExp
 GetReducerGetters();
 
 /*!
- * \brief Given the input identities and the combiner BufferStores of a reduction, extract the
+ * \brief Given the input identities and the combiner TensorStores of a reduction, extract the
  * corresponding commutative reducer, LHS values and RHS values, if possible.
  * \param identities The identities of the reduction
  * \param combiners The combiners of the reduction
@@ -542,7 +542,7 @@ GetReducerGetters();
  * \return A boolean indicating whether a corresponding commutative reducer is found
  */
 bool FromIdentityCombiner(const ffi::Array<PrimExpr>& identities,
-                          const ffi::Array<BufferStore>& combiners, te::CommReducer* result_reducer,
+                          const ffi::Array<TensorStore>& combiners, te::CommReducer* result_reducer,
                           ffi::Array<PrimExpr>* lhs, ffi::Array<PrimExpr>* rhs);
 
 /******** Misc ********/
@@ -603,10 +603,10 @@ bool CanReverseComputeAt(const ScheduleState& self, const StmtSRef& block_sref,
  * \param predicate The predicate of the access
  * \param analyzer Arithmetic analyzer
  */
-ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer,
+ffi::Optional<IndexMap> SuggestIndexMap(const TensorVar& buffer,
                                         const ffi::Array<PrimExpr>& indices,
                                         const ffi::Array<For>& loops, const PrimExpr& predicate,
-                                        arith::AnalyzerObj* analyzer);
+                                        sym::AnalyzerObj* analyzer);
 
 /*!
  * \brief Checks if the given AST contains the specific operators
@@ -650,7 +650,7 @@ std::tuple</*exists=*/bool,
            /*ordered=*/bool,
            /*no_const_read=*/bool,
            /*no_shift_read=*/bool>
-AnalyzeReadWritePattern(const BufferRegion& read_region, const BufferRegion& write_region);
+AnalyzeReadWritePattern(const TensorRegion& read_region, const TensorRegion& write_region);
 
 /*!
  * \brief Check if the block is a data parallel block, i.e. all the block vars are data parallel
@@ -678,11 +678,11 @@ bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref);
 bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref);
 
 /*!
- * \brief Checks if all the blocks in the PrimFunc is spatial
- * \param func The PrimFunc to be checked
- * \return A boolean indicating whether all the blocks in the PrimFunc is spatial
+ * \brief Checks if all the blocks in the Function is spatial
+ * \param func The Function to be checked
+ * \return A boolean indicating whether all the blocks in the Function is spatial
  */
-bool IsSpatialPrimFunc(const PrimFunc& func);
+bool IsSpatialFunction(const Function& func);
 
 /*!
  * \brief Checks if the rfactor or cross thread reduction is beneficial to the given block.
@@ -706,11 +706,11 @@ bool NeedsRFactorOrCrossThreadReduction(const s_tir::ScheduleState& self,  //
  * \param dom_high_exclusive The highest node in the sref tree path
  * \return An n-dimensional integer set
  */
-ffi::Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,
-                                                  const PrimExpr& predicate,
-                                                  const StmtSRef& dom_low_inclusive,
-                                                  const StmtSRef& dom_high_exclusive,
-                                                  arith::AnalyzerObj* analyzer);
+ffi::Array<sym::IntSet> AnalyzeRegionUpperBound(const TensorRegion& region,
+                                                const PrimExpr& predicate,
+                                                const StmtSRef& dom_low_inclusive,
+                                                const StmtSRef& dom_high_exclusive,
+                                                sym::AnalyzerObj* analyzer);
 
 /*!
  * \brief Analyze the buffer region under the sref tree path [dom_low_inclusive, dom_high_exclusive)
@@ -722,11 +722,11 @@ ffi::Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,
  * \param analyzer The analyzer
  * \return An n-dimensional integer set
  */
-ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region,
-                                                  const PrimExpr& predicate,
-                                                  const StmtSRef& dom_low_inclusive,
-                                                  const StmtSRef& dom_high_exclusive,
-                                                  arith::AnalyzerObj* analyzer);
+ffi::Array<sym::IntSet> AnalyzeRegionLowerBound(const TensorRegion& region,
+                                                const PrimExpr& predicate,
+                                                const StmtSRef& dom_low_inclusive,
+                                                const StmtSRef& dom_high_exclusive,
+                                                sym::AnalyzerObj* analyzer);
 
 /*!
  * \brief Simplify non-trivial expressions
@@ -738,7 +738,7 @@ ffi::Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region,
  * simplified to constant values for further scheduling and analysis because simplifing away the
  * block iters may result in loss of information for further analysis.
  */
-PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, arith::AnalyzerObj* analyzer);
+PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, sym::AnalyzerObj* analyzer);
 
 /*! \brief Necessary information used for tensorization */
 class TensorizeInfoNode : public ffi::Object {
@@ -774,13 +774,13 @@ class TensorizeInfo : public ffi::ObjectRef {
  * \brief Establish a mapping between loops in a target block and an intrinsic description
  * \param self The schedule state to be tensorized
  * \param block_sref The target block to match against
- * \param desc_func The prim func describing the computation to be tensorized
+ * \param desc_func The function describing the computation to be tensorized
  * \param allow_padding Whether to allow padding the block iters to match the intrinsic description
  * \return TensorizeInfo structure if a valid mapping is found, std::nullopt otherwise
  */
 ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState& self,
                                                      const tirx::StmtSRef& block_sref,
-                                                     const tirx::PrimFunc& desc_func,
+                                                     const tirx::Function& desc_func,
                                                      bool allow_padding);
 
 /*！\brief Necessary information used to perform transformations for tensorization */
@@ -792,9 +792,9 @@ class AutoTensorizeMappingInfoNode : public ffi::Object {
   /* Additional information from AutoTensorizeComparator */
 
   /*! \brief Mapping from LHS buffer to RHS buffer */
-  ffi::Map<BufferVar, BufferVar> lhs_buffer_map;
-  /*! \brief BufferVar indices on RHS */
-  ffi::Map<BufferVar, ffi::Array<PrimExpr>> rhs_buffer_indices;
+  ffi::Map<TensorVar, TensorVar> lhs_buffer_map;
+  /*! \brief TensorVar indices on RHS */
+  ffi::Map<TensorVar, ffi::Array<PrimExpr>> rhs_buffer_indices;
   /*! \brief SBlock iters on LHS */
   ffi::Array<IterVar> lhs_iters;
   /*! \brief SBlock iters on RHS */
@@ -828,7 +828,7 @@ class AutoTensorizeMappingInfo : public ffi::ObjectRef {
  * transformations to apply.
  * \param self The schedule state
  * \param block_sref The compute block for auto tensorization
- * \param desc_func The prim func describing the computation to be tensorized
+ * \param desc_func The function describing the computation to be tensorized
  * \return AutoTensorizeMappingInfo structure if a potential mapping is found, std::nullopt
  * otherwise. \note Returning a valid AutoTensorizeMappingInfo doesn't guarantee the block can be
  * tensorized. We will need to apply the suggested layout transformations and then match against the
@@ -836,18 +836,18 @@ class AutoTensorizeMappingInfo : public ffi::ObjectRef {
  */
 ffi::Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const ScheduleState& self,
                                                                     const StmtSRef& block_sref,
-                                                                    const PrimFunc& desc_func);
+                                                                    const Function& desc_func);
 
 /*!
  * \brief Perform basic checks for auto tensorization applicability, such as the structure of
  * arithmetic operations and data types.
  * \param sch The schedule to be tensorized
  * \param block_rv The compute block for auto tensorization
- * \param desc_func The prim func describing the computation to be tensorized
+ * \param desc_func The function describing the computation to be tensorized
  * \return true if basic conditions are met.
  */
 bool CheckAutoTensorizeApplicable(const s_tir::Schedule& sch, const s_tir::SBlockRV& block_rv,
-                                  const tirx::PrimFunc& desc_func);
+                                  const tirx::Function& desc_func);
 }  // namespace s_tir
 }  // namespace tvm
 

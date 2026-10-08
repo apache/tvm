@@ -107,9 +107,9 @@ class LayoutConvertMutator : public ExprMutator {
       initial_indices_expr.push_back(var.as_or_throw<PrimExpr>());
     }
     ffi::Array<PrimExpr> desired_shape = todesired.ForwardIndex(initial_indices_expr);
-    return IndexMap(initial_indices.Map(
-                        [](tvm::tirx::Var var) { return var.as_or_throw<tvm::tirx::PrimVar>(); }),
-                    desired_shape, std::move(inverse_index_map));
+    return IndexMap(
+        initial_indices.Map([](tvm::tirx::Var var) { return var.as_or_throw<tvm::PrimVar>(); }),
+        desired_shape, std::move(inverse_index_map));
   }
 
   Expr RewriteExpr(const Expr& expr, const NLayout& to) {
@@ -132,9 +132,9 @@ class LayoutConvertMutator : public ExprMutator {
                                         to.LeafValue()->layout);
         ffi::ObjectPtr<LayoutTransformAttrs> attrs = ffi::make_object<LayoutTransformAttrs>();
         attrs->index_map = ffi::FromJSONGraph(ffi::ToJSONGraph(index_map)).as_or_throw<IndexMap>();
-        const Op& layout_transform_op_ = Op::Get("relax.layout_transform");
-        auto ret_expr =
-            Call(Type::Missing(), layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});
+        const Op layout_transform_op_ = Op::Get("relax.layout_transform");
+        auto ret_expr = Call::Unchecked(Type::Missing(), layout_transform_op_, {expr},
+                                        Attrs{std::move(attrs)}, {});
         return ret_expr;
       }
     };
@@ -245,7 +245,7 @@ class LayoutConvertMutator : public ExprMutator {
       // Convert the layout according to the inferred layout output.
       ffi::Array<Expr> new_args = RewriteArgs(call_node->args, res.value()->input_layouts);
       for (const auto& [i, arg] : res.value()->new_args) {
-        new_args.Set(i->value, arg);
+        new_args.Set(i->value.as<size_t>().value(), arg);
       }
       new_call->args = std::move(new_args);
 
@@ -335,7 +335,7 @@ class LayoutConvertMutator : public ExprMutator {
     } else {
       Var new_var = builder_->EmitMatchCast(RewriteExpr(binding->value, input_layout), new_ty);
       var_layout_map_[binding->var] = input_layout;
-      this->var_remap_[binding->var] = new_var;
+      this->var_remap_.insert_or_assign(binding->var, new_var);
     }
   }
 

@@ -23,6 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -32,56 +33,52 @@ namespace tvm {
 namespace tirx {
 
 // Mutator to change the read pattern
-class ThreadAxisRewriter : private StmtExprMutator {
+class ThreadAxisRewriter : public StmtExprMutator {
  public:
-  explicit ThreadAxisRewriter(const std::unordered_map<std::string, IterVar>& tmap) : tmap_(tmap) {}
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  explicit ThreadAxisRewriter(const std::unordered_map<std::string, ffi::String>& tmap)
+      : tmap_(tmap) {}
 
-  Stmt Rewrite(Stmt stmt) { return operator()(std::move(stmt)); }
+  Stmt Rewrite(Stmt stmt) { return Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt); }
 
  private:
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::thread_extent) {
-      IterVar iv = op->node.as_or_throw<IterVar>();
-      TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
-      auto it = tmap_.find(iv->thread_tag);
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
+      auto it = tmap_.find(op->args[0].as_or_throw<StringImm>()->value);
       if (it != tmap_.end()) {
-        const IterVar& new_iv = it->second;
-        const VarNode* v = iv->var.get();
-        if (!vmap_.count(v)) {
-          vmap_[v] = new_iv->var;
-        } else {
-          TVM_FFI_ICHECK(vmap_[v].same_as(new_iv->var));
-        }
-        Stmt body = this->VisitStmt(op->body);
-        return AttrStmt(new_iv, op->attr_key, op->value, body);
+        PrimExpr old_extent = op->args[1].as_or_throw<PrimExpr>();
+        PrimExpr extent = Mutate(old_extent, inplace_mode).ValueOrUnchanged(old_extent);
+        PrimVar old_var = op->body_params[0].as_or_throw<PrimVar>();
+        PrimVar new_var(it->second, extent.ty());
+        ffi::Any previous_remap = VarRemapGet(old_var);
+        VarRemapSet(old_var, new_var);
+        Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+        VarRemapSet(old_var, previous_remap);
+        return RegionStmt(tirx::builtin::launch_thread(), {StringImm(it->second), extent},
+                          {new_var}, DictAttrs(), body, {}, op->span);
       }
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
-    auto it = vmap_.find(op);
-    if (it != vmap_.end()) return it->second;
-    return StmtExprMutator::VisitExpr_(op);
-  }
   // The thread map
-  const std::unordered_map<std::string, IterVar>& tmap_;
-  // variable map
-  std::unordered_map<const VarNode*, Var> vmap_;
+  const std::unordered_map<std::string, ffi::String>& tmap_;
 };
 
-PrimFunc RemapThreadAxis(PrimFunc func, ffi::Map<ffi::String, IterVar> thread_map) {
-  std::unordered_map<std::string, IterVar> tmap;
+Function RemapThreadAxis(Function func, ffi::Map<ffi::String, ffi::String> thread_map) {
+  std::unordered_map<std::string, ffi::String> tmap;
   for (const auto& kv : thread_map) {
     tmap[kv.first] = kv.second;
   }
 
-  if (auto opt = func->GetAttr<ffi::Array<IterVar>>(tirx::attr::kKernelLaunchParams)) {
+  if (auto opt = func->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kKernelLaunchParams)) {
     TVM_FFI_ICHECK(opt != nullptr) << "Require attribute " << tirx::attr::kKernelLaunchParams;
     auto launch_params = opt.value();
     // replace the thread axis attribute
     for (size_t i = 0; i < launch_params.size(); ++i) {
-      auto it = tmap.find(launch_params[i]->thread_tag);
+      auto it = tmap.find(launch_params[i]);
       if (it != tmap.end()) {
         launch_params.Set(i, it->second);
       }
@@ -90,18 +87,19 @@ PrimFunc RemapThreadAxis(PrimFunc func, ffi::Map<ffi::String, IterVar> thread_ma
     func = WithAttr(std::move(func), tirx::attr::kKernelLaunchParams, launch_params);
   }
 
+  if (!func->body.has_value()) return func;
   auto* n = func.CopyOnWrite();
-  n->body = ThreadAxisRewriter(tmap).Rewrite(std::move(n->body));
+  n->body = ffi::make_object<ThreadAxisRewriter>(tmap)->Rewrite(std::move(n->body).value());
   return func;
 }
 
 namespace transform {
 
-Pass RemapThreadAxis(ffi::Map<ffi::String, IterVar> thread_map) {
-  auto pass_func = [thread_map](PrimFunc f, IRModule m, PassContext ctx) {
+Pass RemapThreadAxis(ffi::Map<ffi::String, ffi::String> thread_map) {
+  auto pass_func = [thread_map](Function f, IRModule m, PassContext ctx) {
     return RemapThreadAxis(std::move(f), thread_map);
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.RemapThreadAxis", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.RemapThreadAxis", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

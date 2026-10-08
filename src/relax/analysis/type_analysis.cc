@@ -24,6 +24,7 @@
  * \note Update this file when you added a new Type.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
@@ -35,6 +36,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 //--------------------------
 // GetStaticType
@@ -44,6 +46,8 @@ class StaticTypeDeriver : public TypeFunctor<Type(const Type&)> {
   Type VisitType_(const AnyTypeNode* op) final { return AnyType(op->span); }
 
   Type VisitType_(const PrimTypeNode* op) final { return tvm::PrimType(op->dtype); }
+
+  Type VisitType_(const StringTypeNode* op) final { return StringType(); }
 
   Type VisitType_(const ShapeTypeNode* op) final { return ShapeType(op->ndim, op->span); }
 
@@ -85,6 +89,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type TypeFromStaticType(const Type& type) {
   if (type.as<AnyTypeNode>()) {
     return AnyType(type->span);
+  } else if (type.as<StringTypeNode>()) {
+    return StringType();
   } else if (const PrimTypeNode* prim_type = type.as<PrimTypeNode>()) {
     return tvm::PrimType(prim_type->dtype);
   } else if (const tvm::PrimTypeNode* prim_type = type.as<tvm::PrimTypeNode>()) {
@@ -123,7 +129,7 @@ Type TypeFromStaticType(const Type& type) {
 class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
  public:
   WellDefinedEraser(std::function<ffi::Optional<Expr>(const Var& var)> f_var_map,
-                    arith::AnalyzerObj* ana)
+                    sym::AnalyzerObj* ana)
       : f_var_map_(f_var_map), ana_(ana) {}
 
   Type VisitType_(const PrimTypeNode* op) final { return ffi::GetRef<Type>(op); }
@@ -188,23 +194,27 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
   using relax::ExprMutatorBase::VisitExpr_;
 
   PrimExpr VisitPrimitiveExpr(const PrimExpr& expr) {
-    PrimExpr val = tirx::Substitute(expr, [this](const Var& var) -> ffi::Optional<Expr> {
+    auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       if (var.as<DataflowVarNode>()) {
         has_undefined_ = true;
-        return std::nullopt;
+        return ffi::Unchanged();
       }
       ffi::Optional<Expr> ret = f_var_map_ == nullptr ? std::nullopt : f_var_map_(var);
       has_undefined_ = has_undefined_ || !ret.has_value();
-      if (!ret.has_value()) return std::nullopt;
+      if (!ret.has_value()) return ffi::Unchanged();
 
       PrimExpr value = ret.value().as_or_throw<PrimExpr>();
       if (value->IsInstance<IntImmNode>()) {
-        return tvm::cast(PrimType::Int(64), value);
+        return ffi::Any(tvm::prim::cast(PrimType::Int(64), value));
       }
       TVM_FFI_ICHECK(value.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64))
           << "Can only provide i64 expressions in shape";
-      return value;
-    });
+      return ffi::Any(value);
+    };
+    // A well-definedness map may intentionally be self-referential (for example m -> m + 1).
+    // Post-order preserves the old substitution behavior by not re-entering that replacement.
+    PrimExpr val =
+        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(expr, f_substitute).as_or_throw<PrimExpr>();
     if (!val.same_as(expr)) {
       return ana_->Simplify(val);
     } else {
@@ -241,27 +251,27 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
  private:
   bool has_undefined_ = false;
   std::function<ffi::Optional<Expr>(const Var& var)> f_var_map_;
-  arith::AnalyzerObj* ana_;
+  sym::AnalyzerObj* ana_;
 };
 
 Type EraseToWellDefined(const Type& info,
                         std::function<ffi::Optional<Expr>(const Var& var)> f_var_map) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   return EraseToWellDefined(info, f_var_map, analyzer);
 }
 
 Type EraseToWellDefined(const Type& info,
                         std::function<ffi::Optional<Expr>(const Var& var)> f_var_map,
-                        const arith::Analyzer& ana) {
+                        const sym::Analyzer& ana) {
   return WellDefinedEraser(f_var_map, ana.get()).VisitType(info);
 }
 
 Type EraseToWellDefined(const Type& info, ffi::Map<Var, Expr> var_map) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   return EraseToWellDefined(info, var_map, analyzer);
 }
 
-Type EraseToWellDefined(const Type& info, ffi::Map<Var, Expr> var_map, const arith::Analyzer& ana) {
+Type EraseToWellDefined(const Type& info, ffi::Map<Var, Expr> var_map, const sym::Analyzer& ana) {
   std::function<ffi::Optional<Expr>(const Var& var)> f_var_map = nullptr;
 
   if (!var_map.empty()) {
@@ -281,7 +291,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         [](const Type& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
                            ffi::Map<Var, Expr> var_map) {
                           for (const auto& [var, value] : shape_var_map) {
-                            TVM_FFI_CHECK(var.as<tirx::PrimVar>(), TypeError)
+                            TVM_FFI_CHECK(var.as<PrimVar>(), TypeError)
                                 << "Expected an exact primitive Var, but received " << var;
                             var_map.Set(var, value);
                           }
@@ -294,9 +304,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 //--------------------------
 class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Type&)> {
  public:
-  explicit TypeBaseChecker(arith::AnalyzerObj* ana) : analyzer_(ana) {}
+  explicit TypeBaseChecker(sym::AnalyzerObj* ana) : analyzer_(ana) {}
 
   BaseCheckResult VisitType(const Type& lhs, const Type& other) override {
+    TVM_FFI_ICHECK(!lhs.as<MissingType>().has_value() && !other.as<MissingType>().has_value())
+        << "Type analysis requires populated types";
     // quick path
     // Note: subclass may disable this quick path if we need to go over all type.
     if (lhs.same_as(other)) return BaseCheckResult::kPass;
@@ -306,6 +318,11 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
   // AnyType is base of every Relax type
   BaseCheckResult VisitType_(const AnyTypeNode* lhs, const Type& other) final {
     return BaseCheckResult::kPass;
+  }
+
+  BaseCheckResult VisitType_(const StringTypeNode* lhs, const Type& other) final {
+    if (other.as<StringTypeNode>()) return BaseCheckResult::kPass;
+    return other.as<AnyTypeNode>() ? BaseCheckResult::kFailL1 : BaseCheckResult::kFailL0;
   }
 
   BaseCheckResult VisitType_(const PrimTypeNode* lhs, const Type& other) final {
@@ -468,7 +485,7 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
 
  protected:
   // analyzer
-  arith::AnalyzerObj* analyzer_;
+  sym::AnalyzerObj* analyzer_;
   // struct equal checker
   ffi::StructuralEqual struct_equal_;
 
@@ -580,11 +597,11 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
 };
 
 BaseCheckResult TypeBaseCheck(const Type& base, const Type& derived) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   return TypeBaseCheck(base, derived, analyzer);
 }
 
-BaseCheckResult TypeBaseCheck(const Type& base, const Type& derived, const arith::Analyzer& ana) {
+BaseCheckResult TypeBaseCheck(const Type& base, const Type& derived, const sym::Analyzer& ana) {
   return TypeBaseChecker(ana.get())(base, derived);
 }
 
@@ -597,11 +614,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 bool IsBaseOf(const Type& base, const Type& derived) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   return IsBaseOf(base, derived, analyzer);
 }
 
-bool IsBaseOf(const Type& base, const Type& derived, const arith::Analyzer& ana) {
+bool IsBaseOf(const Type& base, const Type& derived, const sym::Analyzer& ana) {
   return TypeBaseCheck(base, derived, ana) == BaseCheckResult::kPass;
 }
 
@@ -617,6 +634,8 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
   explicit TypeBasePreconditionCollector() {}
 
   PrimExpr VisitType(const Type& lhs, const Type& other) override {
+    TVM_FFI_ICHECK(!lhs.as<MissingType>().has_value() && !other.as<MissingType>().has_value())
+        << "Type analysis requires populated types";
     if (lhs.same_as(other)) {
       // Early bail-out if the Type has reference equality.
       return IntImm::Bool(true);
@@ -627,6 +646,10 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
 
   PrimExpr VisitType_(const AnyTypeNode* lhs, const Type& other) final {
     return IntImm::Bool(true);
+  }
+
+  PrimExpr VisitType_(const StringTypeNode* lhs, const Type& other) final {
+    return IntImm::Bool(other.as<StringTypeNode>() != nullptr);
   }
 
   PrimExpr VisitType_(const PrimTypeNode* lhs, const Type& other) final {
@@ -764,12 +787,9 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
 
     PrimExpr all_match = VisitType(lhs->ret, rhs->ret);
 
-    PrimExpr param_check;
-    if (lhs->params.has_value()) {
-      param_check = ArrayCheck(lhs->params.value(), rhs->params.value());
-    } else {
-      param_check = IntImm::Bool(true);
-    }
+    PrimExpr param_check = lhs->params.has_value()
+                               ? ArrayCheck(lhs->params.value(), rhs->params.value())
+                               : IntImm::Bool(true);
 
     PrimExpr ret_check = VisitType(lhs->ret, rhs->ret);
 
@@ -816,7 +836,7 @@ PrimExpr TypeBaseCheckPrecondition(const Type& base, const Type& derived) {
 // from the expressions in arg(rhs) to var in param.
 class CallRetTypeDeriver : public TypeBaseChecker {
  public:
-  explicit CallRetTypeDeriver(arith::AnalyzerObj* ana) : TypeBaseChecker(ana) {}
+  explicit CallRetTypeDeriver(sym::AnalyzerObj* ana) : TypeBaseChecker(ana) {}
 
   // No short cut, so we can recursively populate all pairs.
   BaseCheckResult VisitType(const Type& lhs, const Type& other) final {
@@ -877,7 +897,7 @@ class CallRetTypeDeriver : public TypeBaseChecker {
       return TypeBaseChecker::PrimExprMatchCheck(param, arg);
     }
 
-    if (auto var = param.as<tirx::PrimVar>()) {
+    if (auto var = param.as<PrimVar>()) {
       auto it = var_map_.find(var.value());
       // not populated
       if (it == var_map_.end()) {
@@ -903,8 +923,7 @@ class CallRetTypeDeriver : public TypeBaseChecker {
       return TypeBaseChecker::ShapeMatchCheck(lhs, rhs);
     }
 
-    if (auto* ptr = lhs.as<VarNode>();
-        ptr && !lhs.as<DataflowVarNode>() && !lhs.as<tirx::PrimVar>()) {
+    if (auto* ptr = lhs.as<VarNode>(); ptr && !lhs.as<DataflowVarNode>() && !lhs.as<PrimVar>()) {
       auto var = ffi::GetRef<Var>(ptr);
       auto it = var_map_.find(var);
       // not populated
@@ -914,7 +933,7 @@ class CallRetTypeDeriver : public TypeBaseChecker {
       } else {
         // Best effort prove.
         Expr mapped_value = (*it).second;
-        if (CanProveShapeEqual(mapped_value, rhs, ffi::GetRef<arith::Analyzer>(analyzer_))) {
+        if (CanProveShapeEqual(mapped_value, rhs, ffi::GetRef<sym::Analyzer>(analyzer_))) {
           return BaseCheckResult::kPass;
         }
         return BaseCheckResult::kFailL2;
@@ -947,12 +966,12 @@ class CallRetTypeDeriver : public TypeBaseChecker {
 };
 
 Type DeriveCallRetType(const FuncType& finfo, const Call& call, const BlockBuilder& ctx) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   return DeriveCallRetType(finfo, call, ctx, analyzer);
 }
 
 Type DeriveCallRetType(const FuncType& finfo, const Call& call, const BlockBuilder& ctx,
-                       const arith::Analyzer& ana) {
+                       const sym::Analyzer& ana) {
   // The deriver's TVM_FFI_VISIT_THROW seeds a VisitErrorContext on the error;
   // the outer pass wrapper catches it and enriches the message with the access
   // path. Nothing to do here but propagate.
@@ -972,9 +991,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 //--------------------------
 class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
  public:
-  explicit TypeLCAFinder(arith::AnalyzerObj* ana) : analyzer_(ana) {}
+  explicit TypeLCAFinder(sym::AnalyzerObj* ana) : analyzer_(ana) {}
 
   Type VisitType(const Type& lhs, const Type& other) final {
+    TVM_FFI_ICHECK(!lhs.as<MissingType>().has_value() && !other.as<MissingType>().has_value())
+        << "Type analysis requires populated types";
     // quick path
     if (lhs.same_as(other)) return lhs;
     return TypeFunctor::VisitType(lhs, other);
@@ -983,6 +1004,10 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
   // AnyType is base of every Relax type, unify to Any.
   Type VisitType_(const AnyTypeNode* lhs, const Type& other) final {
     return ffi::GetRef<Type>(lhs);
+  }
+
+  Type VisitType_(const StringTypeNode* lhs, const Type& other) final {
+    return other.as<StringTypeNode>() ? ffi::GetRef<Type>(lhs) : AnyType(lhs->span);
   }
 
   Type VisitType_(const PrimTypeNode* lhs, const Type& other) final {
@@ -1003,7 +1028,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
     int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownNDim;
     if (lhs->ndim != rhs->ndim || !lhs->values.has_value() || !rhs->values.has_value() ||
         !CanProveShapeEqual(lhs->values.value(), rhs->values.value(),
-                            ffi::GetRef<arith::Analyzer>(analyzer_))) {
+                            ffi::GetRef<sym::Analyzer>(analyzer_))) {
       // prefers return same when possible
       if (!lhs->values.has_value() && lhs->ndim == ndim) {
         return ffi::GetRef<Type>(lhs);
@@ -1034,7 +1059,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
     // then we cannot keep in symbolic shape
     if (lhs->ndim != rhs->ndim || !lhs->shape.has_value() || !rhs->shape.has_value() ||
         !CanProveShapeEqual(lhs->shape.value(), rhs->shape.value(),
-                            ffi::GetRef<arith::Analyzer>(analyzer_))) {
+                            ffi::GetRef<sym::Analyzer>(analyzer_))) {
       // reuse lhs when possible
       if (!lhs->shape.has_value() && lhs->dtype == dtype && lhs->ndim == ndim &&
           (!lhs->vdevice.has_value() || vdev.defined())) {
@@ -1133,7 +1158,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
 
  private:
   // analyzer
-  arith::AnalyzerObj* analyzer_;
+  sym::AnalyzerObj* analyzer_;
   // struct equal checker
   ffi::StructuralEqual struct_equal_;
 
@@ -1148,11 +1173,11 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
 };
 
 Type TypeLCA(const Type& lhs, const Type& rhs) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   return TypeLCA(lhs, rhs, analyzer);
 }
 
-Type TypeLCA(const Type& lhs, const Type& rhs, const arith::Analyzer& ana) {
+Type TypeLCA(const Type& lhs, const Type& rhs, const sym::Analyzer& ana) {
   return TypeLCAFinder(ana.get())(lhs, rhs);
 }
 
@@ -1179,12 +1204,12 @@ class TIRVarsDetector : public TypeVisitor {
  private:
   void VisitTypePrimExprField(PrimExpr expr) {
     if (collection_type == VarType::Definition) {
-      if (auto opt = expr.as<tirx::PrimVar>()) {
+      if (auto opt = expr.as<PrimVar>()) {
         RecordTIRVar(opt.value());
       }
     } else if (collection_type == VarType::Usage) {
       for (const tirx::Var& tir_var : tirx::UndefinedVars(expr)) {
-        if (auto prim_var = tir_var.as<tirx::PrimVar>()) {
+        if (auto prim_var = tir_var.as<PrimVar>()) {
           RecordTIRVar(prim_var.value());
         }
       }
@@ -1397,7 +1422,7 @@ class SymbolicVarCollector : public relax::ExprVisitor, public relax::TypeVisito
 
   void VisitTypeExprField(const PrimExpr& expr) final {
     if (mode_ & VisitMode::kProvideDefinition) {
-      if (auto var = expr.as<tirx::PrimVar>()) {
+      if (auto var = expr.as<PrimVar>()) {
         defined_symbolic_var_.insert(var.value());
       }
     }
@@ -1410,7 +1435,7 @@ class SymbolicVarCollector : public relax::ExprVisitor, public relax::TypeVisito
     if (!op->ty.as<PrimTypeNode>()) {
       return;
     }
-    tirx::PrimVar var = ffi::GetRef<Var>(op).as_or_throw<tirx::PrimVar>();
+    PrimVar var = ffi::GetRef<Var>(op).as_or_throw<PrimVar>();
     // default mode, check defined.
     if (defined_symbolic_var_.count(var) == 0) {
       free_symbolic_var_.insert(var);
@@ -1421,7 +1446,7 @@ class SymbolicVarCollector : public relax::ExprVisitor, public relax::TypeVisito
 
   void VisitVarDef_(const VarNode* op) final {
     if (op->ty.as<PrimTypeNode>()) {
-      defined_symbolic_var_.insert(ffi::GetRef<Var>(op).as_or_throw<tirx::PrimVar>());
+      defined_symbolic_var_.insert(ffi::GetRef<Var>(op).as_or_throw<PrimVar>());
     }
     relax::ExprVisitor::VisitVarDef_(op);
   }

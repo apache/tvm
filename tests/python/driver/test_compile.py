@@ -23,6 +23,7 @@ from tvm import relax, te
 from tvm.runtime import Executable
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -32,13 +33,13 @@ def test_compile_tir():
     A = te.placeholder((n,), name="A")
     B = te.placeholder((n,), name="B")
     C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
-    func = te.create_prim_func([A, B, C])
+    func = te.create_function([A, B, C])
 
-    # Test compile with PrimFunc
+    # Test compile with Function
     exec_prim = tvm.compile(func)
     assert isinstance(exec_prim, Executable)
 
-    # Test compile with IRModule containing PrimFunc
+    # Test compile with IRModule containing Function
     mod = tvm.IRModule.from_expr(func)
     exec_mod = tvm.compile(mod)
     assert isinstance(exec_mod, Executable)
@@ -89,8 +90,8 @@ def test_compile_relax():
 def test_compile_mixed_module():
     @tvm.script.ir_module
     class MyModule:
-        @T.prim_func(s_tir=True)
-        def add_one(X: T.Buffer((4,), "float32"), Y: T.Buffer((4,), "float32")):
+        @Ts.function
+        def add_one(X: T.Tensor((4,), "float32"), Y: T.Tensor((4,), "float32")):
             for i in range(4):
                 Y[i] = X[i] + 1
 

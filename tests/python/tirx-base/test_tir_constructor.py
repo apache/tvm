@@ -20,8 +20,18 @@ import tvm_ffi
 
 import tvm
 from tvm import te, topi
+from tvm.ir import TensorRegion
+from tvm.ir.prim import expr_deep_equal
 from tvm.script import tirx as T
-from tvm.tirx.analysis import expr_deep_equal
+
+
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
 
 
 def test_expr_constructor():
@@ -29,8 +39,8 @@ def test_expr_constructor():
     assert isinstance(x, tvm.tirx.Var)
     assert x.name == "xx"
 
-    x = tvm.tirx.Reduce(None, [1], [tvm.tirx.IterVar((0, 1), "x", 2)], None, 0)
-    assert isinstance(x, tvm.tirx.Reduce)
+    x = tvm.te.Reduce(None, [1], [tvm.s_tir.IterVar((0, 1), "x", 2)], None, 0)
+    assert isinstance(x, tvm.te.Reduce)
     assert x.combiner is None
     assert x.value_index == 0
 
@@ -44,8 +54,8 @@ def test_expr_constructor():
     assert x.value == 2
     assert x.ty == tvm.ir.PrimType("int64")
 
-    x = tvm.tirx.StringImm("xyza")
-    assert isinstance(x, tvm.tirx.StringImm)
+    x = tvm.ir.StringImm("xyza")
+    assert isinstance(x, tvm.ir.StringImm)
     assert x.value == "xyza"
 
     x = tvm.tirx.Cast("float32", tvm.tirx.IntImm("uint32", 1))
@@ -94,8 +104,8 @@ def test_expr_constructor():
     assert x.condition == a
 
     buffer_var = tvm.tirx.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
-    buffer = tvm.tirx.decl_buffer([16], "float32", data=buffer_var)
-    x = tvm.tirx.BufferLoad(buffer, [1])
+    buffer = tvm.tirx.decl_tensor([16], "float32", data=buffer_var)
+    x = tvm.tirx.TensorLoad(buffer, [1])
     assert isinstance(x, tvm.ir.TensorLoad)
     assert x.ty == tvm.ir.PrimType("float32")
     assert x.source == buffer
@@ -119,7 +129,7 @@ def test_expr_constructor():
     assert x.vectors[0] == a
     assert x.indices[0].value == 0
 
-    x = tvm.ir.Call("tirx.call_extern", [tvm.tirx.StringImm("xyz"), a], ret_ty="float32")
+    x = tvm.ir.Call("tirx.call_extern", [tvm.ir.StringImm("xyz"), a], ty="float32")
     assert isinstance(x, tvm.ir.Call)
     assert tvm.ir.is_prim_expr(x)
     assert x.ty == tvm.ir.PrimType("float32")
@@ -130,17 +140,22 @@ def test_expr_constructor():
     attr_arg = tvm.tirx.Var("attr_arg", "float32")
     x_with_attrs = tvm.ir.Call(
         "tirx.call_extern",
-        [tvm.tirx.StringImm("xyz"), attr_arg],
+        [tvm.ir.StringImm("xyz"), attr_arg],
         attrs={"disable_tma": True},
-        ret_ty="float32",
+        ty="float32",
     )
     assert x_with_attrs.attrs["disable_tma"] is True
     assert not tvm_ffi.structural_equal(x, x_with_attrs)
     script = tvm.tirx.Evaluate(x_with_attrs).script()
     assert "attrs" in script
     assert "disable_tma" in script
-    func = tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(x_with_attrs))
-    assert tvm.script.from_source(func.script()).script() == func.script()
+    func = tvm.tirx.Function([attr_arg], tvm.tirx.Evaluate(x_with_attrs))
+    assert (
+        tvm.script.from_source(
+            func.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+        ).script()
+        == func.script()
+    )
 
     y = tvm.tirx.Var("y", "float32")
     mutated = tvm_ffi.structural_map(
@@ -152,14 +167,14 @@ def test_expr_constructor():
     assert mutated.args[1].same_as(y)
 
     x_from_intrin = tvm.tirx.call_intrin(
-        "float32", "tirx.call_extern", tvm.tirx.StringImm("xyz"), attrs={"disable_tma": True}
+        "float32", "tirx.call_extern", tvm.ir.StringImm("xyz"), attrs={"disable_tma": True}
     )
     assert x_from_intrin.attrs["disable_tma"] is True
     x_with_other_attrs = tvm.ir.Call(
         "tirx.call_extern",
-        [tvm.tirx.StringImm("xyz"), attr_arg],
+        [tvm.ir.StringImm("xyz"), attr_arg],
         attrs={"disable_tma": False},
-        ret_ty="float32",
+        ty="float32",
     )
     assert not expr_deep_equal(x_with_attrs, x_with_other_attrs)
 
@@ -170,8 +185,8 @@ def test_expr_constructor():
     def call_with(arg):
         return tvm.ir.Call(
             "tirx.call_extern",
-            [tvm.tirx.StringImm("tuple_arg"), arg],
-            ret_ty="int32",
+            [tvm.ir.StringImm("tuple_arg"), arg],
+            ty="int32",
         )
 
     assert expr_deep_equal(call_with(tuple_arg), call_with(same_tuple_arg))
@@ -184,18 +199,18 @@ def test_expr_constructor():
     cond0 = tvm.tirx.Var("cond0", "bool")
     cond1 = tvm.tirx.Var("cond1", "bool")
     inner_if = tvm.ir.Call(
-        "ir.prim.if_then_else",
+        "prim.if_then_else",
         [cond1, tvm.tirx.IntImm("int32", 1), tvm.tirx.IntImm("int32", 0)],
-        ret_ty="int32",
+        ty="int32",
     )
     outer_if = tvm.ir.Call(
-        "ir.prim.if_then_else",
+        "prim.if_then_else",
         [cond0, inner_if, tvm.tirx.IntImm("int32", 0)],
         attrs={"keep": True},
-        ret_ty="int32",
+        ty="int32",
     )
     simplified = tvm.tirx.transform.StmtSimplify()(
-        tvm.IRModule({"main": tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(outer_if))})
+        tvm.IRModule({"main": tvm.tirx.Function([], tvm.tirx.Evaluate(outer_if))})
     )["main"].body.value
     assert simplified.attrs["keep"] is True
 
@@ -207,7 +222,7 @@ def test_expr_constructor():
 
 
 def test_buffer_region_call_wrappers_reject():
-    buffer = tvm.tirx.decl_buffer([4], "int32")
+    buffer = tvm.tirx.decl_tensor([4], "int32")
     region = buffer[0:4]
     calls = [
         lambda: tvm.tirx.call_intrin("int32", "tirx.reinterpret", region),
@@ -217,49 +232,47 @@ def test_buffer_region_call_wrappers_reject():
         lambda: tvm.tirx.call_cpacked("consume", region, 0),
         lambda: tvm.tirx.call_packed_lowered("consume", region),
         lambda: tvm.tirx.call_cpacked_lowered("consume", region, 0),
-        lambda: tvm.tirx.call_tir(tvm.ir.GlobalVar("callee"), region),
-        lambda: tvm.tirx.trace([region]),
         lambda: T.evaluate(region),
     ]
     for call in calls:
-        with pytest.raises(TypeError, match="construct a BufferLoad with explicit indices"):
+        with pytest.raises(TypeError, match="construct a TensorLoad with explicit indices"):
             call()
 
     assert not hasattr(region, "to_buffer_load")
 
 
 def test_buffer_region_type_is_singleton():
-    lhs = tvm.tirx.decl_buffer([1], "int32")[0:1]
-    rhs = tvm.tirx.decl_buffer([2], "float32")[0:2]
-    assert isinstance(lhs, tvm.tirx.BufferRegion)
-    assert isinstance(rhs, tvm.tirx.BufferRegion)
+    lhs = tvm.tirx.decl_tensor([1], "int32")[0:1]
+    rhs = tvm.tirx.decl_tensor([2], "float32")[0:2]
+    assert isinstance(lhs, TensorRegion)
+    assert isinstance(rhs, TensorRegion)
     assert lhs.ty.same_as(rhs.ty)
 
 
 def test_buffer_region_is_not_arithmetic_operand():
-    int_region = tvm.tirx.decl_buffer([4], "int32")[0:4]
-    with pytest.raises(TypeError, match="construct a BufferLoad explicitly"):
-        tvm.tirx.IterVar((0, 4), "i", tvm.tirx.IterVar.DataPar) + int_region
+    int_region = tvm.tirx.decl_tensor([4], "int32")[0:4]
+    with pytest.raises(TypeError, match="construct a TensorLoad explicitly"):
+        tvm.s_tir.IterVar((0, 4), "i", tvm.s_tir.IterVar.DataPar) + int_region
 
 
 def test_operator_base_categories_have_primitive_type():
     var = tvm.tirx.Var("x", "int32")
-    buffer = tvm.tirx.decl_buffer([4], "float32")
+    buffer = tvm.tirx.decl_tensor([4], "float32")
     expressions = [
         tvm.tirx.IntImm("int32", 1),
         tvm.tirx.Add(var, 1),
         tvm.tirx.LT(var, 1),
         tvm.tirx.And(var < 1, var < 2),
-        tvm.tirx.Reduce(
+        tvm.te.Reduce(
             None,
             [1],
-            [tvm.tirx.IterVar((0, 1), "i", tvm.tirx.IterVar.CommReduce)],
+            [tvm.s_tir.IterVar((0, 1), "i", tvm.s_tir.IterVar.CommReduce)],
             None,
             0,
         ),
         tvm.tirx.Cast("float32", var),
         tvm.tirx.Select(var < 1, var, 1),
-        tvm.tirx.BufferLoad(buffer, [0]),
+        tvm.tirx.TensorLoad(buffer, [0]),
         tvm.tirx.Ramp(0, 1, 4),
         tvm.tirx.Broadcast(var, 4),
         tvm.tirx.Shuffle([tvm.tirx.Broadcast(var, 2)], [0]),
@@ -279,14 +292,10 @@ def test_stmt_constructor():
     assert x.var == v
     assert x.value.value == 1
 
-    x = tvm.tirx.AttrStmt(v == 1, "xx", 1, tvm.tirx.Evaluate(1))
-    assert isinstance(x, tvm.tirx.AttrStmt)
-    assert x.value.value == 1
-
     x = tvm.tirx.AssertStmt(
         tvm.tirx.const(1, "bool"),
-        tvm.tirx.StringImm("RuntimeError"),
-        [tvm.tirx.StringImm("hellow")],
+        tvm.ir.StringImm("RuntimeError"),
+        [tvm.ir.StringImm("hellow")],
     )
     assert isinstance(x, tvm.tirx.AssertStmt)
     assert x.error_kind.value == "RuntimeError"
@@ -300,25 +309,31 @@ def test_stmt_constructor():
     assert x.body == nop
 
     buffer_var = tvm.tirx.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("bool")))
-    buffer = tvm.tirx.decl_buffer([16], "bool", data=buffer_var)
-    x = tvm.tirx.BufferStore(buffer, tvm.tirx.IntImm("bool", 1), [10])
-    assert isinstance(x, tvm.tirx.BufferStore)
+    buffer = tvm.tirx.decl_tensor([16], "bool", data=buffer_var)
+    x = tvm.tirx.TensorStore(buffer, tvm.tirx.IntImm("bool", 1), [10])
+    assert isinstance(x, tvm.tirx.TensorStore)
     assert x.buffer == buffer
     assert x.buffer.data.args[0].same_as(buffer)
     assert x.buffer.data.ty == tvm.tirx.buffer_data_pointer_type(buffer)
     assert list(x.indices) == [10]
     assert x.value.value == 1
 
-    buf = tvm.tirx.decl_buffer([10], "float32")
-    x = tvm.tirx.AllocBuffer(buf)
-    assert isinstance(x, tvm.tirx.AllocBuffer)
-    assert x.buffer == buf
-
-    x = tvm.tirx.AttrStmt(buffer_var, "xyz", 1, nop)
-    assert isinstance(x, tvm.tirx.AttrStmt)
-    assert x.node == buffer_var
-    assert x.attr_key == "xyz"
-    assert x.body == nop
+    buf = tvm.tirx.decl_tensor([10], "float32")
+    x = tvm.tirx.Bind(
+        buf,
+        tvm.ir.Call(
+            "tirx.alloc_tensor",
+            [
+                tvm.ir.Tuple(buf.shape),
+                tvm.ir.DataTypeImm(tvm.DataType(buf.dtype)),
+                tvm.ir.StringImm(buf.scope()),
+            ],
+            attrs=tvm.ir.DictAttrs({}),
+            ty=buf.ty,
+        ),
+    )
+    assert _is_buffer_binding(x, "tirx.alloc_tensor")
+    assert x.var == buf
 
     x = tvm.tirx.IfThenElse(tvm.tirx.const(1, "bool"), tvm.tirx.Evaluate(11), nop)
     assert isinstance(x, tvm.tirx.IfThenElse)

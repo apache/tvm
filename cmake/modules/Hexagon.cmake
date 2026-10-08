@@ -54,7 +54,7 @@ set(TVMRT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/backend/hexagon/runtime")
 set(TVM_CORE_RUNTIME_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime")
 
 if(DEFINED USE_HEXAGON_DEVICE)
-  message(WARNING "USE_HEXAGON_DEVICE is deprecated, use USE_HEXAGON instead")
+  message(FATAL_ERROR "USE_HEXAGON_DEVICE has been removed. Use USE_HEXAGON instead.")
 endif()
 
 # This .cmake file is included when building any part of TVM for any
@@ -298,14 +298,10 @@ if(USE_HEXAGON_RPC)
       # TODO(masahi): Remove rpc_local_session.cc after verifying that things work without it
       "${TVM_CORE_RUNTIME_SOURCE_DIR}/rpc/rpc_local_session.cc"
     )
-    set(HEXAGON_PROFILER_DIR "${TVMRT_SOURCE_DIR}/profiler")
     # Add the hardware-specific RPC code into the skel library.
-    set_property(SOURCE ${HEXAGON_PROFILER_DIR}/lwp_handler.S PROPERTY LANGUAGE C)
     add_library(hexagon_rpc_skel SHARED
       "${TVMRT_SOURCE_DIR}/rpc/hexagon/rpc_server.cc"
       "${TVMRT_SOURCE_DIR}/rpc/hexagon_rpc_skel.c"
-      "${HEXAGON_PROFILER_DIR}/prof_utils.cc"
-      "${HEXAGON_PROFILER_DIR}/lwp_handler.S"
     )
     target_include_directories(hexagon_rpc_skel
       SYSTEM PRIVATE "${TVMRT_SOURCE_DIR}/rpc"
@@ -314,8 +310,6 @@ if(USE_HEXAGON_RPC)
     # executed via run_main_on_sim.
     add_library(hexagon_rpc_sim SHARED
       "${TVMRT_SOURCE_DIR}/rpc/simulator/rpc_server.cc"
-      "${HEXAGON_PROFILER_DIR}/prof_utils.cc"
-      "${HEXAGON_PROFILER_DIR}/lwp_handler.S"
     )
     target_link_libraries(hexagon_rpc_sim
       -Wl,--whole-archive tvm_runtime -Wl,--no-whole-archive

@@ -27,8 +27,9 @@ def multibox_transform_loc(
     threshold=0.0,
     variances=(1.0, 1.0, 1.0, 1.0),
     keep_background=True,
+    apply_softmax=True,
 ):
-    """SSD / TFLite-style decode: priors + offsets → boxes; logits → softmax scores.
+    """SSD / TFLite-style decode: priors + offsets → boxes; prepare class scores.
 
     Box decode follows TFLite ``DecodeCenterSizeBoxes``; expected tensor layout matches
     ``tflite_frontend.convert_detection_postprocess`` (loc reorder yxhw→xywh, anchor ltrb).
@@ -36,7 +37,7 @@ def multibox_transform_loc(
     Parameters
     ----------
     cls_pred : relax.Expr
-        ``[B, C, N]`` class logits (pre-softmax).
+        ``[B, C, N]`` class logits or scores.
     loc_pred : relax.Expr
         ``[B, 4*N]`` per-anchor encodings as ``(x,y,w,h)`` after reorder (see above).
     anchor : relax.Expr
@@ -51,6 +52,8 @@ def multibox_transform_loc(
         encoded height/width terms inside ``exp(...)`` and can overflow in float32/float16.
     keep_background : bool
         If False, set output scores at class index 0 to zero.
+    apply_softmax : bool
+        If True, apply softmax over the class axis before thresholding.
 
     Returns
     -------
@@ -82,4 +85,5 @@ def multibox_transform_loc(
         threshold,
         variances,
         keep_background,
+        apply_softmax,
     )

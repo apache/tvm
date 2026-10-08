@@ -22,10 +22,11 @@ import operator
 import re
 from enum import Enum
 
-from tvm.arith.analyzer import Analyzer
+from tvm.ir import TensorRegion
 from tvm.runtime import DataType
 from tvm.script import tirx as T
-from tvm.tirx import Buffer, BufferRegion, PrimFunc
+from tvm.sym.analyzer import Analyzer
+from tvm.tirx import Function, Var
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.tile_primitive import TilePrimitiveCall
 
@@ -37,7 +38,7 @@ def next_power_of_2(x: int) -> int:
     return 1 << (x - 1).bit_length()
 
 
-def get_st_extent(buffer_region: BufferRegion):
+def get_st_extent(buffer_region: TensorRegion):
     """Get the start and extent of a buffer region."""
     region = buffer_region.region
     return [r.min for r in region], [r.extent for r in region]
@@ -86,8 +87,8 @@ def validate_copy_op(
 ) -> bool:
     """Sanity check for copy op"""
     dst_buffer_region, src_buffer_region = op_call.args[:2]
-    src: Buffer = src_buffer_region.buffer
-    dst: Buffer = dst_buffer_region.buffer
+    src: Var = src_buffer_region.source
+    dst: Var = dst_buffer_region.source
     if not (src.layout and dst.layout and src.dtype == dst.dtype):
         return False
     # Extract regions and validate dimensions
@@ -104,15 +105,15 @@ def validate_copy_op(
 
 
 def get_vec_len(
-    dst_buffer_region: BufferRegion,
-    src_buffer_region: BufferRegion,
+    dst_buffer_region: TensorRegion,
+    src_buffer_region: TensorRegion,
     vec_candidates: list[int],
     thread_cnt=1,
 ) -> int | None:
     """Get the vector length for the copy operation."""
 
-    dst: Buffer = dst_buffer_region.buffer
-    src: Buffer = src_buffer_region.buffer
+    dst: Var = dst_buffer_region.source
+    src: Var = src_buffer_region.source
     # layout=None (flat local buffer) is treated as trivial for vectorization purposes
     if not (
         (dst.layout is None or dst.layout.is_trivial())
@@ -152,14 +153,14 @@ def get_vec_len(
 
 def copy_vec_load_impl(
     op_call: TilePrimitiveCall, sctx: DispatchContext, inst_type: CopyInstType
-) -> PrimFunc | None:
+) -> Function | None:
     """Schedule copy operation between global and local/shared memory on CUDA across a CTA/thread.
     The implementation tries to vectorize the copy operation and parallelize over
     threads in a CTA/using a single thread.
     """
     dst_buffer_region, src_buffer_region = op_call.args[:2]
-    src: Buffer = src_buffer_region.buffer
-    dst: Buffer = dst_buffer_region.buffer
+    src: Var = src_buffer_region.source
+    dst: Var = dst_buffer_region.source
     if not (
         (src.scope() == "global" and dst.scope().startswith("shared"))
         or (src.scope().startswith("shared") and dst.scope() == "global")
@@ -172,7 +173,7 @@ def copy_vec_load_impl(
 
     # Thread and vectorization setup
     if sctx.is_cta:
-        tx = sctx.launch_params["threadIdx.x"].dom.extent
+        tx = sctx.launch_params["threadIdx.x"][1]
         assert "threadIdx.y" not in sctx.launch_params and "threadIdx.z" not in sctx.launch_params
     elif sctx.is_thread:
         tx = 1
@@ -203,7 +204,7 @@ def copy_vec_load_impl(
 
     if sctx.is_cta:
         # fmt: off
-        @T.prim_func
+        @T.function
         def impl():
             """Implement copy operation with vectorized loads/stores."""
             for s in T.serial(0, n_elements // (tx * vec_len)):
@@ -224,7 +225,7 @@ def copy_vec_load_impl(
         # fmt: on
     elif sctx.is_thread:
         # fmt: off
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             for s in T.serial(0, n_elements // (vec_len)):
                 if inst_type == CopyInstType.NORMAL:
@@ -260,7 +261,7 @@ def get_thread_cnt(sctx: DispatchContext) -> int | None:
     """Get thread count for the current execution scope."""
     scope_name = sctx.scope_kind
     if scope_name == "cta":
-        return sctx.launch_params["threadIdx.x"].dom.extent
+        return sctx.launch_params["threadIdx.x"][1]
     if scope_name == "warpgroup":
         return 128
     if scope_name == "warp":

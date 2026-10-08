@@ -24,6 +24,7 @@ import tvm
 import tvm.testing
 from tvm import s_tir
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -33,13 +34,15 @@ def test_cp_async_raw_dtype_round_trips():
     # dtype in Call.dtype and must survive a TVMScript print -> parse round-trip
     # (it prints dtype-first via tirx.ptx.cp_async_raw). Guards the regression
     # where the element dtype was dropped after the flat op was phased out.
-    @T.prim_func
-    def f(A: T.Buffer((128,), "float16"), B: T.Buffer((128,), "float16")):
+    @T.function
+    def f(A: T.Tensor((128,), "float16"), B: T.Tensor((128,), "float16")):
         T.func_attr({"global_symbol": "f"})
         for i in T.serial(8):
             T.s_tir.cp_async_raw("float16", B.data, i * 16, A.data, i * 16, 16)
 
-    reparsed = tvm.script.from_source(f.script())
+    reparsed = tvm.script.from_source(
+        f.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
+    )
     tvm.ir.assert_structural_equal(f, reparsed)
 
 
@@ -58,24 +61,47 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
     num_iters = 128 // vector_size
     vector_size_expr = tvm.runtime.convert(vector_size)
 
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def ptx_global_to_shared_copy(
-        A: T.Buffer((32, 128), dtype), B: T.Buffer((32, 128), dtype)
+        A: T.Tensor((32, 128), dtype), B: T.Tensor((32, 128), dtype)
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        bx = T.env_thread("blockIdx.x")
-        tx = T.env_thread("threadIdx.x")
-        T.launch_thread(bx, 1)
-        T.launch_thread(tx, 32)
-        with T.sblock():
-            A_shared = T.sblock_alloc_buffer([32, 128], dtype, scope="shared")
-            T.reads(A[0:32, 0:128])
-            T.writes(B[0:32, 0:128])
+        T.launch_thread("blockIdx.x", 1)
+        tx = T.launch_thread("threadIdx.x", 32)
+        with Ts.sblock():
+            A_shared = Ts.sblock_alloc_buffer([32, 128], dtype, scope="shared")
+            Ts.reads(A[0:32, 0:128])
+            Ts.writes(B[0:32, 0:128])
 
-            T.attr("default", "async_scope", 1)
-            for i in T.serial(num_iters):
-                for j in T.vectorized(vector_size):
-                    A_shared[tx, i * vector_size_expr + j] = A[tx, i * vector_size_expr + j]
+            with Ts.async_copy_scope():
+                for i in T.serial(num_iters):
+                    for j in T.vectorized(vector_size):
+                        A_shared[tx, i * vector_size_expr + j] = A[tx, i * vector_size_expr + j]
+
+                T.evaluate(T.ptx.cp.async_.commit_group())
+                T.evaluate(T.ptx.cp.async_.wait_group(0))
+
+                for i in range(128):
+                    B[tx, i] = A_shared[tx, i]
+
+    return ptx_global_to_shared_copy
+
+
+@Ts.function
+def ptx_global_to_shared_copy_fp32x1(
+    A: T.Tensor((32, 128), "float32"), B: T.Tensor((32, 128), "float32")
+) -> None:
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
+    with Ts.sblock():
+        A_shared = Ts.sblock_alloc_buffer([32, 128], "float32", scope="shared")
+        Ts.reads(A[0:32, 0:128])
+        Ts.writes(B[0:32, 0:128])
+
+        with Ts.async_copy_scope():
+            for i in T.serial(128):
+                A_shared[tx, i] = A[tx, i]
 
             T.evaluate(T.ptx.cp.async_.commit_group())
             T.evaluate(T.ptx.cp.async_.wait_group(0))
@@ -83,62 +109,33 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
             for i in range(128):
                 B[tx, i] = A_shared[tx, i]
 
-    return ptx_global_to_shared_copy
 
-
-@T.prim_func(s_tir=True)
-def ptx_global_to_shared_copy_fp32x1(
-    A: T.Buffer((32, 128), "float32"), B: T.Buffer((32, 128), "float32")
-) -> None:
-    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-    bx = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(bx, 1)
-    T.launch_thread(tx, 32)
-    with T.sblock():
-        A_shared = T.sblock_alloc_buffer([32, 128], "float32", scope="shared")
-        T.reads(A[0:32, 0:128])
-        T.writes(B[0:32, 0:128])
-
-        T.attr("default", "async_scope", 1)
-        for i in T.serial(128):
-            A_shared[tx, i] = A[tx, i]
-
-        T.evaluate(T.ptx.cp.async_.commit_group())
-        T.evaluate(T.ptx.cp.async_.wait_group(0))
-
-        for i in range(128):
-            B[tx, i] = A_shared[tx, i]
-
-
-@T.prim_func(s_tir=True)
+@Ts.function
 def ptx_global_to_shared_dyn_copy_fp16x8(
-    A: T.Buffer((32, 128), "float16"),
-    B: T.Buffer((32, 128), "float16"),
-    C: T.Buffer((32, 128), "float16"),
+    A: T.Tensor((32, 128), "float16"),
+    B: T.Tensor((32, 128), "float16"),
+    C: T.Tensor((32, 128), "float16"),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-    bx = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(bx, 1)
-    T.launch_thread(tx, 32)
-    with T.sblock():
-        A_shared = T.sblock_alloc_buffer([32, 128], "float16", scope="shared.dyn")
-        B_shared = T.sblock_alloc_buffer([32, 128], "float16", scope="shared.dyn")
-        T.reads(A[0:32, 0:128], B[0:32, 0:128])
-        T.writes(C[0:32, 0:128])
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
+    with Ts.sblock():
+        A_shared = Ts.sblock_alloc_buffer([32, 128], "float16", scope="shared.dyn")
+        B_shared = Ts.sblock_alloc_buffer([32, 128], "float16", scope="shared.dyn")
+        Ts.reads(A[0:32, 0:128], B[0:32, 0:128])
+        Ts.writes(C[0:32, 0:128])
 
-        T.attr("default", "async_scope", 1)
-        for i in T.serial(16):
-            for j in T.vectorized(8):
-                A_shared[tx, i * 8 + j] = A[tx, i * 8 + j]
-                B_shared[tx, i * 8 + j] = B[tx, i * 8 + j]
+        with Ts.async_copy_scope():
+            for i in T.serial(16):
+                for j in T.vectorized(8):
+                    A_shared[tx, i * 8 + j] = A[tx, i * 8 + j]
+                    B_shared[tx, i * 8 + j] = B[tx, i * 8 + j]
 
-        T.evaluate(T.ptx.cp.async_.commit_group())
-        T.evaluate(T.ptx.cp.async_.wait_group(0))
+            T.evaluate(T.ptx.cp.async_.commit_group())
+            T.evaluate(T.ptx.cp.async_.wait_group(0))
 
-        for i in range(128):
-            C[tx, i] = A_shared[tx, i] + B_shared[tx, i]
+            for i in range(128):
+                C[tx, i] = A_shared[tx, i] + B_shared[tx, i]
 
 
 @pytest.mark.gpu
@@ -152,6 +149,7 @@ def test_inject_async_copy():
 
         mod = tvm.IRModule.from_expr(f)
         mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
+        mod = tvm.s_tir.transform.LowerThreadBinding()(mod)
         mod = tvm.tirx.transform.FlattenBuffer()(mod)
         if vec_size > 1:
             mod = tvm.tirx.transform.VectorizeLoop()(mod)
@@ -185,6 +183,7 @@ def test_inject_async_copy_shared_dyn():
 
     mod = tvm.IRModule.from_expr(f)
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
+    mod = tvm.s_tir.transform.LowerThreadBinding()(mod)
     mod = tvm.tirx.transform.FlattenBuffer()(mod)
     mod = tvm.tirx.transform.VectorizeLoop()(mod)
     mod = tvm.s_tir.transform.MergeSharedMemoryAllocations()(mod)
@@ -213,12 +212,11 @@ def test_inject_async_copy_shared_dyn():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-# Note: the test_inject_async_copy_barrier case (and its prim_func helper)
+# Note: the test_inject_async_copy_barrier case (and its function helper)
 # was removed — it relied on the indexed barrier API
 # (`create_barriers`, `init_barrier_thread_count`, `arrive_barrier`,
 # `wait_barrier`) which fork does not provide; fork uses the
 # `ptx_mbarrier_*` family instead.
-
 
 expected_cuda_script = r"""#include <cuda.h>
 #endif
@@ -281,45 +279,41 @@ __forceinline__ __device__ void tvm_builtin_ptx_cp_async_commit_group_async_comm
 }
 extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A_ptr, float* __restrict__ B_ptr, float* __restrict__ C_ptr);
 extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A_ptr, float* __restrict__ B_ptr, float* __restrict__ C_ptr) {
-  __shared__ alignas(64) float A_shared_ptr[64];
-  __shared__ alignas(64) float B_shared_ptr[64];
-  A_shared_ptr[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
-  B_shared_ptr[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
+  __shared__ alignas(64) float _ptr[64];
+  __shared__ alignas(64) float _ptr_1[64];
+  _ptr[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
+  _ptr_1[((int)threadIdx.x)] = 0x0p+0f/*0.000000e+00*/;
   tvm_builtin_ptx_cp_async_commit_group_async_commit_group();
-  int cse_v1 = (((int)threadIdx.x) * 14);
-  int cse_v2 = (((int)threadIdx.x) + 16);
-  ptx_cp_async_legacy_ca_4_4_4(A_shared_ptr, (((int)threadIdx.x) + 16), A_ptr, (((int)threadIdx.x) * 14));
-  ptx_cp_async_legacy_ca_4_4_4(B_shared_ptr, (((int)threadIdx.x) + 16), B_ptr, (((int)threadIdx.x) * 14));
+  ptx_cp_async_legacy_ca_4_4_4(_ptr, (((int)threadIdx.x) + 16), A_ptr, (((int)threadIdx.x) * 14));
+  ptx_cp_async_legacy_ca_4_4_4(_ptr_1, (((int)threadIdx.x) + 16), B_ptr, (((int)threadIdx.x) * 14));
   tvm_builtin_ptx_cp_async_commit_group_async_commit_group();
-  int cse_v3 = (((int)threadIdx.x) + 32);
-  int cse_v6 = ((((int)threadIdx.x) * 14) + 1);
-  ptx_cp_async_legacy_ca_4_4_4(A_shared_ptr, (((int)threadIdx.x) + 32), A_ptr, ((((int)threadIdx.x) * 14) + 1));
-  ptx_cp_async_legacy_ca_4_4_4(B_shared_ptr, (((int)threadIdx.x) + 32), B_ptr, ((((int)threadIdx.x) * 14) + 1));
+  ptx_cp_async_legacy_ca_4_4_4(_ptr, (((int)threadIdx.x) + 32), A_ptr, ((((int)threadIdx.x) * 14) + 1));
+  ptx_cp_async_legacy_ca_4_4_4(_ptr_1, (((int)threadIdx.x) + 32), B_ptr, ((((int)threadIdx.x) * 14) + 1));
   tvm_builtin_ptx_cp_async_commit_group_async_commit_group();
-  int cse_v4 = (((int)threadIdx.x) * 16);
+  int cse_v1 = (((int)threadIdx.x) * 16);
   for (int i = 0; i < 13; ++i) {
-    int cse_v7 = (((((int)threadIdx.x) * 14) + i) + 2);
-    int cse_v9 = ((((i + 3) & 3) * 16) + ((int)threadIdx.x));
-    ptx_cp_async_legacy_pred_ca_4_4_4(A_shared_ptr, ((((i + 3) & 3) * 16) + ((int)threadIdx.x)), A_ptr, (((((int)threadIdx.x) * 14) + i) + 2), (i < 12));
+    ptx_cp_async_legacy_pred_ca_4_4_4(_ptr, ((((i + 3) & 3) * 16) + ((int)threadIdx.x)), A_ptr, (((((int)threadIdx.x) * 14) + i) + 2), (i < 12));
     tvm_builtin_ptx_cp_async_commit_group_async_commit_group();
     tvm_builtin_ptx_cp_async_wait_group_async_wait_group_5();
     __syncthreads();
-    int cse_v8 = (((i & 3) * 16) + ((int)threadIdx.x));
-    C_ptr[((((int)threadIdx.x) * 16) + i)] = (A_shared_ptr[(((i & 3) * 16) + ((int)threadIdx.x))] + B_shared_ptr[(((i & 3) * 16) + ((int)threadIdx.x))]);
+    int cse_v5 = (((i & 3) * 16) + ((int)threadIdx.x));
+    C_ptr[((((int)threadIdx.x) * 16) + i)] = (_ptr[(((i & 3) * 16) + ((int)threadIdx.x))] + _ptr_1[(((i & 3) * 16) + ((int)threadIdx.x))]);
     __syncthreads();
-    ptx_cp_async_legacy_pred_ca_4_4_4(B_shared_ptr, ((((i + 3) & 3) * 16) + ((int)threadIdx.x)), B_ptr, (((((int)threadIdx.x) * 14) + i) + 2), (i < 12));
+    ptx_cp_async_legacy_pred_ca_4_4_4(_ptr_1, ((((i + 3) & 3) * 16) + ((int)threadIdx.x)), B_ptr, (((((int)threadIdx.x) * 14) + i) + 2), (i < 12));
     tvm_builtin_ptx_cp_async_commit_group_async_commit_group();
   }
   tvm_builtin_ptx_cp_async_wait_group_async_wait_group_2();
   __syncthreads();
-  C_ptr[((((int)threadIdx.x) * 16) + 13)] = (A_shared_ptr[(((int)threadIdx.x) + 16)] + B_shared_ptr[(((int)threadIdx.x) + 16)]);
+  int cse_v2 = (((int)threadIdx.x) + 16);
+  C_ptr[((((int)threadIdx.x) * 16) + 13)] = (_ptr[(((int)threadIdx.x) + 16)] + _ptr_1[(((int)threadIdx.x) + 16)]);
   tvm_builtin_ptx_cp_async_wait_group_async_wait_group_1();
   __syncthreads();
-  C_ptr[((((int)threadIdx.x) * 16) + 14)] = (A_shared_ptr[(((int)threadIdx.x) + 32)] + B_shared_ptr[(((int)threadIdx.x) + 32)]);
+  int cse_v3 = (((int)threadIdx.x) + 32);
+  C_ptr[((((int)threadIdx.x) * 16) + 14)] = (_ptr[(((int)threadIdx.x) + 32)] + _ptr_1[(((int)threadIdx.x) + 32)]);
   tvm_builtin_ptx_cp_async_wait_group_async_wait_group_0();
   __syncthreads();
-  int cse_v5 = (((int)threadIdx.x) + 48);
-  C_ptr[((((int)threadIdx.x) * 16) + 15)] = (A_shared_ptr[(((int)threadIdx.x) + 48)] + B_shared_ptr[(((int)threadIdx.x) + 48)]);
+  int cse_v4 = (((int)threadIdx.x) + 48);
+  C_ptr[((((int)threadIdx.x) * 16) + 15)] = (_ptr[(((int)threadIdx.x) + 48)] + _ptr_1[(((int)threadIdx.x) + 48)]);
 }
 
 """
@@ -374,11 +368,11 @@ def postproc_if_missing_async_support():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def simple_compute(
-        A: T.Buffer((16, 14), "float32"),
-        B: T.Buffer((16, 14), "float32"),
-        C: T.Buffer((16, 16), "float32"),
+        A: T.Tensor((16, 14), "float32"),
+        B: T.Tensor((16, 14), "float32"),
+        C: T.Tensor((16, 16), "float32"),
     ):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
@@ -390,26 +384,26 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
                     "software_pipeline_async_stages": [0],
                 },
             ):
-                with T.sblock("compute"):
-                    T.reads(A[tx, i])
-                    T.writes(C[tx, i])
-                    A_shared = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
-                    B_shared = T.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
-                    with T.sblock():
-                        T.reads(A[tx, i])
-                        T.writes(A_shared[tx, 0])
+                with Ts.sblock("compute"):
+                    Ts.reads(A[tx, i])
+                    Ts.writes(C[tx, i])
+                    A_shared = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                    B_shared = Ts.sblock_alloc_buffer((16, 1), dtype="float32", scope="shared")
+                    with Ts.sblock():
+                        Ts.reads(A[tx, i])
+                        Ts.writes(A_shared[tx, 0])
                         A_shared[tx, 0] = T.if_then_else(
-                            1 <= i and i < 15, A[tx, i - 1], T.float32(0), dtype="float32"
+                            1 <= i and i < 15, A[tx, i - 1], T.float32(0)
                         )
-                    with T.sblock():
-                        T.reads(B[tx, i])
-                        T.writes(B_shared[tx, 0])
+                    with Ts.sblock():
+                        Ts.reads(B[tx, i])
+                        Ts.writes(B_shared[tx, 0])
                         B_shared[tx, 0] = T.if_then_else(
-                            1 <= i and i < 15, B[tx, i - 1], T.float32(0), dtype="float32"
+                            1 <= i and i < 15, B[tx, i - 1], T.float32(0)
                         )
-                    with T.sblock():
-                        T.reads(A_shared[tx, 0], B_shared[tx, 0])
-                        T.writes(C[tx, i])
+                    with Ts.sblock():
+                        Ts.reads(A_shared[tx, 0], B_shared[tx, 0])
+                        Ts.writes(C[tx, i])
                         C[tx, i] = A_shared[tx, 0] + B_shared[tx, 0]
 
     mod = tvm.IRModule.from_expr(simple_compute)
@@ -436,27 +430,48 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
-    @T.prim_func(s_tir=True)
+    C_s0_0 = T.dynamic("C_s0_0", "int32")
+    C_s1_0 = T.dynamic("C_s1_0", "int32")
+    A_s0_3 = T.dynamic("A_s0_3", "int32")
+    A_s1_3 = T.dynamic("A_s1_3", "int32")
+    C_s0_4 = T.dynamic("C_s0_4", "int32")
+    C_s1_4 = T.dynamic("C_s1_4", "int32")
+    A_s0_0 = T.dynamic("A_s0_0", "int32")
+    A_s1_0 = T.dynamic("A_s1_0", "int32")
+    C_s0_1 = T.dynamic("C_s0_1", "int32")
+    C_s1_1 = T.dynamic("C_s1_1", "int32")
+    A_s0_1 = T.dynamic("A_s0_1", "int32")
+    A_s1_1 = T.dynamic("A_s1_1", "int32")
+    C_s0_2 = T.dynamic("C_s0_2", "int32")
+    C_s1_2 = T.dynamic("C_s1_2", "int32")
+    A_s0_2 = T.dynamic("A_s0_2", "int32")
+    A_s1_2 = T.dynamic("A_s1_2", "int32")
+    B_s0 = T.dynamic("B_s0", "int32")
+    B_s1 = T.dynamic("B_s1", "int32")
+    C_s0_3 = T.dynamic("C_s0_3", "int32")
+    C_s1_3 = T.dynamic("C_s1_3", "int32")
+
+    @Ts.function
     def complex_compute(
-        A: T.Buffer((2, 16, 16, 1280), "float16"),
-        W: T.Buffer((1280, 3, 3, 1280), "float16"),
-        Conv: T.Buffer((512, 1280), "float16"),
+        A: T.Tensor((2, 16, 16, 1280), "float16"),
+        W: T.Tensor((1280, 3, 3, 1280), "float16"),
+        Conv: T.Tensor((512, 1280), "float16"),
     ):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        # with T.sblock("root"):
-        data_im2col_reindex_shared_dyn = T.sblock_alloc_buffer(
+        # with Ts.sblock("root"):
+        data_im2col_reindex_shared_dyn = Ts.sblock_alloc_buffer(
             (512, 11520), "float16", scope="shared.dyn"
         )
-        data_im2col_reindex_shared_dyn_wmma_matrix_a = T.sblock_alloc_buffer(
+        data_im2col_reindex_shared_dyn_wmma_matrix_a = Ts.sblock_alloc_buffer(
             (512, 11520), "float16", scope="wmma.matrix_a"
         )
-        weight_flatten_reindex_shared_dyn = T.sblock_alloc_buffer(
+        weight_flatten_reindex_shared_dyn = Ts.sblock_alloc_buffer(
             (1280, 11520), "float16", scope="shared.dyn"
         )
-        weight_flatten_reindex_shared_dyn_wmma_matrix_b = T.sblock_alloc_buffer(
+        weight_flatten_reindex_shared_dyn_wmma_matrix_b = Ts.sblock_alloc_buffer(
             (1280, 11520), "float16", scope="wmma.matrix_b"
         )
-        Conv_reindex_wmma_accumulator = T.sblock_alloc_buffer(
+        Conv_reindex_wmma_accumulator = Ts.sblock_alloc_buffer(
             (512, 1280), "float16", scope="wmma.accumulator"
         )
         for x_0_0 in T.thread_binding(8, thread="blockIdx.y"):
@@ -464,24 +479,22 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                 for x_0_1 in T.thread_binding(2, thread="threadIdx.y"):
                     for y_0_1 in T.thread_binding(2, thread="threadIdx.z"):
                         for x_0_2_init, y_0_2_init in T.grid(2, 2):
-                            with T.sblock("Conv_init_o"):
-                                v_x_o = T.axis.spatial(32, x_0_0 * 4 + x_0_1 * 2 + x_0_2_init)
-                                v_y_o = T.axis.spatial(80, y_0_0 * 4 + y_0_1 * 2 + y_0_2_init)
-                                T.reads()
-                                T.writes(
+                            with Ts.sblock("Conv_init_o"):
+                                v_x_o = Ts.axis.spatial(32, x_0_0 * 4 + x_0_1 * 2 + x_0_2_init)
+                                v_y_o = Ts.axis.spatial(80, y_0_0 * 4 + y_0_1 * 2 + y_0_2_init)
+                                Ts.reads()
+                                Ts.writes(
                                     Conv_reindex_wmma_accumulator[
                                         v_x_o * 16 : v_x_o * 16 + 16, v_y_o * 16 : v_y_o * 16 + 16
                                     ]
                                 )
-                                C_s0 = T.int32()
-                                C_s1 = T.int32()
-                                C = T.match_buffer(
+                                C = Ts.match_buffer(
                                     Conv_reindex_wmma_accumulator[
                                         v_x_o * 16 : v_x_o * 16 + 16, v_y_o * 16 : v_y_o * 16 + 16
                                     ],
                                     (16, 16),
                                     "float16",
-                                    strides=(C_s0, C_s1),
+                                    strides=(C_s0_0, C_s1_0),
                                     scope="wmma.accumulator",
                                     offset_factor=16,
                                 )
@@ -490,8 +503,8 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                     16,
                                     16,
                                     16,
-                                    C.ty.elem_offset // C_s0 // 16 * (C_s0 // 16)
-                                    + C.ty.elem_offset % C_s0 // 16,
+                                    C.ty.elem_offset // C_s0_0 // 16 * (C_s0_0 // 16)
+                                    + C.ty.elem_offset % C_s0_0 // 16,
                                     T.float32(0),
                                 )
                         for k_0_0 in T.serial(
@@ -510,8 +523,8 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                         for ax0_ax1_0_fused_3 in T.thread_binding(
                                             32, thread="threadIdx.x"
                                         ):
-                                            with T.sblock("data_im2col_reindex_shared.dyn_o"):
-                                                v0 = T.axis.spatial(
+                                            with Ts.sblock("data_im2col_reindex_shared.dyn_o"):
+                                                v0 = Ts.axis.spatial(
                                                     512,
                                                     x_0_0 * 64
                                                     + (
@@ -522,7 +535,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                     )
                                                     // 8,
                                                 )
-                                                v1_o = T.axis.spatial(
+                                                v1_o = Ts.axis.spatial(
                                                     1440,
                                                     k_0_0 * 8
                                                     + (
@@ -533,7 +546,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                     )
                                                     % 8,
                                                 )
-                                                T.reads(
+                                                Ts.reads(
                                                     A[
                                                         v0 // 256,
                                                         v1_o // 480 + v0 % 256 // 16 - 1,
@@ -541,15 +554,17 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                         v1_o % 160 * 8 : v1_o % 160 * 8 + 8,
                                                     ]
                                                 )
-                                                T.writes(
+                                                Ts.writes(
                                                     data_im2col_reindex_shared_dyn[
                                                         v0, v1_o * 8 : v1_o * 8 + 8
                                                     ]
                                                 )
                                                 for ax1_1 in T.vectorized(8):
-                                                    with T.sblock("data_im2col_reindex_shared.dyn"):
-                                                        v1_i = T.axis.spatial(8, ax1_1)
-                                                        T.reads(
+                                                    with Ts.sblock(
+                                                        "data_im2col_reindex_shared.dyn"
+                                                    ):
+                                                        v1_i = Ts.axis.spatial(8, ax1_1)
+                                                        Ts.reads(
                                                             A[
                                                                 v0 // 256,
                                                                 v1_o // 480 + v0 % 256 // 16 - 1,
@@ -557,12 +572,12 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                                 v1_o % 160 * 8 + v1_i,
                                                             ]
                                                         )
-                                                        T.writes(
+                                                        Ts.writes(
                                                             data_im2col_reindex_shared_dyn[
                                                                 v0, v1_o * 8 + v1_i
                                                             ]
                                                         )
-                                                        T.sblock_attr(
+                                                        Ts.sblock_attr(
                                                             {"buffer_dim_align": [[0, 0, 32, 8]]}
                                                         )
                                                         data_im2col_reindex_shared_dyn[
@@ -589,8 +604,8 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             32, thread="threadIdx.x"
                                         ):
                                             for ax1_1 in T.vectorized(8):
-                                                with T.sblock("weight_flatten_reindex_shared.dyn"):
-                                                    v0 = T.axis.spatial(
+                                                with Ts.sblock("weight_flatten_reindex_shared.dyn"):
+                                                    v0 = Ts.axis.spatial(
                                                         1280,
                                                         y_0_0 * 64
                                                         + (
@@ -601,7 +616,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                         )
                                                         // 8,
                                                     )
-                                                    v1 = T.axis.spatial(
+                                                    v1 = Ts.axis.spatial(
                                                         11520,
                                                         k_0_0 * 64
                                                         + (
@@ -614,7 +629,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                         * 8
                                                         + ax1_1,
                                                     )
-                                                    T.reads(
+                                                    Ts.reads(
                                                         W[
                                                             v0,
                                                             v1 // 3840,
@@ -622,10 +637,10 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                             v1 % 1280,
                                                         ]
                                                     )
-                                                    T.writes(
+                                                    Ts.writes(
                                                         weight_flatten_reindex_shared_dyn[v0, v1]
                                                     )
-                                                    T.sblock_attr(
+                                                    Ts.sblock_attr(
                                                         {"buffer_dim_align": [[0, 0, 32, 8]]}
                                                     )
                                                     weight_flatten_reindex_shared_dyn[v0, v1] = W[
@@ -636,44 +651,42 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                     ]
                             for k_0_1 in range(4):
                                 for ax0_0, ax1_0 in T.grid(2, 1):
-                                    with T.sblock("data_im2col_reindex_shared.dyn_wmma.matrix_a_o"):
-                                        v0_o = T.axis.spatial(32, x_0_0 * 4 + x_0_1 * 2 + ax0_0)
-                                        v1_o = T.axis.spatial(720, k_0_0 * 4 + k_0_1 + ax1_0)
-                                        T.reads(
+                                    with Ts.sblock(
+                                        "data_im2col_reindex_shared.dyn_wmma.matrix_a_o"
+                                    ):
+                                        v0_o = Ts.axis.spatial(32, x_0_0 * 4 + x_0_1 * 2 + ax0_0)
+                                        v1_o = Ts.axis.spatial(720, k_0_0 * 4 + k_0_1 + ax1_0)
+                                        Ts.reads(
                                             data_im2col_reindex_shared_dyn[
                                                 v0_o * 16 : v0_o * 16 + 16,
                                                 v1_o * 16 : v1_o * 16 + 16,
                                             ]
                                         )
-                                        T.writes(
+                                        Ts.writes(
                                             data_im2col_reindex_shared_dyn_wmma_matrix_a[
                                                 v0_o * 16 : v0_o * 16 + 16,
                                                 v1_o * 16 : v1_o * 16 + 16,
                                             ]
                                         )
-                                        A_s0 = T.int32()
-                                        A_s1 = T.int32()
-                                        A_1 = T.match_buffer(
+                                        A_1 = Ts.match_buffer(
                                             data_im2col_reindex_shared_dyn[
                                                 v0_o * 16 : v0_o * 16 + 16,
                                                 v1_o * 16 : v1_o * 16 + 16,
                                             ],
                                             (16, 16),
                                             "float16",
-                                            strides=(A_s0, A_s1),
+                                            strides=(A_s0_0, A_s1_0),
                                             scope="shared.dyn",
                                             offset_factor=16,
                                         )
-                                        C_s0 = T.int32()
-                                        C_s1 = T.int32()
-                                        C = T.match_buffer(
+                                        C = Ts.match_buffer(
                                             data_im2col_reindex_shared_dyn_wmma_matrix_a[
                                                 v0_o * 16 : v0_o * 16 + 16,
                                                 v1_o * 16 : v1_o * 16 + 16,
                                             ],
                                             (16, 16),
                                             "float16",
-                                            strides=(C_s0, C_s1),
+                                            strides=(C_s0_1, C_s1_1),
                                             scope="wmma.matrix_a",
                                             offset_factor=16,
                                         )
@@ -682,59 +695,55 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             16,
                                             16,
                                             16,
-                                            C.ty.elem_offset // C_s0 // 16 * (C_s0 // 16)
-                                            + C.ty.elem_offset % C_s0 // 16,
+                                            C.ty.elem_offset // C_s0_1 // 16 * (C_s0_1 // 16)
+                                            + C.ty.elem_offset % C_s0_1 // 16,
                                             T.tvm_access_ptr(
                                                 T.type_annotation("float16"),
                                                 A_1.data,
                                                 A_1.ty.elem_offset,
-                                                A_s0 * 16,
+                                                A_s0_0 * 16,
                                                 1,
                                             ),
-                                            A_s0,
+                                            A_s0_0,
                                             "row_major",
                                         )
                                 for ax0_0, ax1_0 in T.grid(2, 1):
-                                    with T.sblock(
+                                    with Ts.sblock(
                                         "weight_flatten_reindex_shared.dyn_wmma.matrix_b_o"
                                     ):
-                                        v0_o = T.axis.spatial(80, y_0_0 * 4 + y_0_1 * 2 + ax0_0)
-                                        v1_o = T.axis.spatial(720, k_0_0 * 4 + k_0_1 + ax1_0)
-                                        T.reads(
+                                        v0_o = Ts.axis.spatial(80, y_0_0 * 4 + y_0_1 * 2 + ax0_0)
+                                        v1_o = Ts.axis.spatial(720, k_0_0 * 4 + k_0_1 + ax1_0)
+                                        Ts.reads(
                                             weight_flatten_reindex_shared_dyn[
                                                 v0_o * 16 : v0_o * 16 + 16,
                                                 v1_o * 16 : v1_o * 16 + 16,
                                             ]
                                         )
-                                        T.writes(
+                                        Ts.writes(
                                             weight_flatten_reindex_shared_dyn_wmma_matrix_b[
                                                 v0_o * 16 : v0_o * 16 + 16,
                                                 v1_o * 16 : v1_o * 16 + 16,
                                             ]
                                         )
-                                        A_s0 = T.int32()
-                                        A_s1 = T.int32()
-                                        A_1 = T.match_buffer(
+                                        A_1 = Ts.match_buffer(
                                             weight_flatten_reindex_shared_dyn[
                                                 v0_o * 16 : v0_o * 16 + 16,
                                                 v1_o * 16 : v1_o * 16 + 16,
                                             ],
                                             (16, 16),
                                             "float16",
-                                            strides=(A_s0, A_s1),
+                                            strides=(A_s0_1, A_s1_1),
                                             scope="shared.dyn",
                                             offset_factor=16,
                                         )
-                                        C_s0 = T.int32()
-                                        C_s1 = T.int32()
-                                        C = T.match_buffer(
+                                        C = Ts.match_buffer(
                                             weight_flatten_reindex_shared_dyn_wmma_matrix_b[
                                                 v0_o * 16 : v0_o * 16 + 16,
                                                 v1_o * 16 : v1_o * 16 + 16,
                                             ],
                                             (16, 16),
                                             "float16",
-                                            strides=(C_s0, C_s1),
+                                            strides=(C_s0_2, C_s1_2),
                                             scope="wmma.matrix_b",
                                             offset_factor=16,
                                         )
@@ -743,24 +752,24 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             16,
                                             16,
                                             16,
-                                            C.ty.elem_offset // C_s0 // 16 * (C_s0 // 16)
-                                            + C.ty.elem_offset % C_s0 // 16,
+                                            C.ty.elem_offset // C_s0_2 // 16 * (C_s0_2 // 16)
+                                            + C.ty.elem_offset % C_s0_2 // 16,
                                             T.tvm_access_ptr(
                                                 T.type_annotation("float16"),
                                                 A_1.data,
                                                 A_1.ty.elem_offset,
-                                                A_s0 * 16,
+                                                A_s0_1 * 16,
                                                 1,
                                             ),
-                                            A_s0,
+                                            A_s0_1,
                                             "col_major",
                                         )
                                 for x_0_2, y_0_2 in T.grid(2, 2):
-                                    with T.sblock("Conv_update_o"):
-                                        v_x_o = T.axis.spatial(32, x_0_0 * 4 + x_0_1 * 2 + x_0_2)
-                                        v_y_o = T.axis.spatial(80, y_0_0 * 4 + y_0_1 * 2 + y_0_2)
-                                        v_k_o = T.axis.reduce(720, k_0_0 * 4 + k_0_1)
-                                        T.reads(
+                                    with Ts.sblock("Conv_update_o"):
+                                        v_x_o = Ts.axis.spatial(32, x_0_0 * 4 + x_0_1 * 2 + x_0_2)
+                                        v_y_o = Ts.axis.spatial(80, y_0_0 * 4 + y_0_1 * 2 + y_0_2)
+                                        v_k_o = Ts.axis.reduce(720, k_0_0 * 4 + k_0_1)
+                                        Ts.reads(
                                             Conv_reindex_wmma_accumulator[
                                                 v_x_o * 16 : v_x_o * 16 + 16,
                                                 v_y_o * 16 : v_y_o * 16 + 16,
@@ -774,28 +783,24 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                                 v_k_o * 16 : v_k_o * 16 + 16,
                                             ],
                                         )
-                                        T.writes(
+                                        Ts.writes(
                                             Conv_reindex_wmma_accumulator[
                                                 v_x_o * 16 : v_x_o * 16 + 16,
                                                 v_y_o * 16 : v_y_o * 16 + 16,
                                             ]
                                         )
-                                        A_s0 = T.int32()
-                                        A_s1 = T.int32()
-                                        A_1 = T.match_buffer(
+                                        A_1 = Ts.match_buffer(
                                             data_im2col_reindex_shared_dyn_wmma_matrix_a[
                                                 v_x_o * 16 : v_x_o * 16 + 16,
                                                 v_k_o * 16 : v_k_o * 16 + 16,
                                             ],
                                             (16, 16),
                                             "float16",
-                                            strides=(A_s0, A_s1),
+                                            strides=(A_s0_2, A_s1_2),
                                             scope="wmma.matrix_a",
                                             offset_factor=16,
                                         )
-                                        B_s0 = T.int32()
-                                        B_s1 = T.int32()
-                                        B = T.match_buffer(
+                                        B = Ts.match_buffer(
                                             weight_flatten_reindex_shared_dyn_wmma_matrix_b[
                                                 v_y_o * 16 : v_y_o * 16 + 16,
                                                 v_k_o * 16 : v_k_o * 16 + 16,
@@ -806,64 +811,58 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             scope="wmma.matrix_b",
                                             offset_factor=16,
                                         )
-                                        C_s0 = T.int32()
-                                        C_s1 = T.int32()
-                                        C = T.match_buffer(
+                                        C = Ts.match_buffer(
                                             Conv_reindex_wmma_accumulator[
                                                 v_x_o * 16 : v_x_o * 16 + 16,
                                                 v_y_o * 16 : v_y_o * 16 + 16,
                                             ],
                                             (16, 16),
                                             "float16",
-                                            strides=(C_s0, C_s1),
+                                            strides=(C_s0_3, C_s1_3),
                                             scope="wmma.accumulator",
                                             offset_factor=16,
                                         )
                                         T.tvm_mma_sync(
                                             C.data,
-                                            C.ty.elem_offset // C_s0 // 16 * (C_s0 // 16)
-                                            + C.ty.elem_offset % C_s0 // 16,
+                                            C.ty.elem_offset // C_s0_3 // 16 * (C_s0_3 // 16)
+                                            + C.ty.elem_offset % C_s0_3 // 16,
                                             A_1.data,
-                                            A_1.ty.elem_offset // A_s0 // 16 * (A_s0 // 16)
-                                            + A_1.ty.elem_offset % A_s0 // 16,
+                                            A_1.ty.elem_offset // A_s0_2 // 16 * (A_s0_2 // 16)
+                                            + A_1.ty.elem_offset % A_s0_2 // 16,
                                             B.data,
                                             B.ty.elem_offset // B_s0 // 16 * (B_s0 // 16)
                                             + B.ty.elem_offset % B_s0 // 16,
                                             C.data,
-                                            C.ty.elem_offset // C_s0 // 16 * (C_s0 // 16)
-                                            + C.ty.elem_offset % C_s0 // 16,
+                                            C.ty.elem_offset // C_s0_3 // 16 * (C_s0_3 // 16)
+                                            + C.ty.elem_offset % C_s0_3 // 16,
                                         )
                         for ax0_0, ax1_0 in T.grid(2, 2):
-                            with T.sblock("Conv_reindex_wmma.accumulator_o"):
-                                v0_o = T.axis.spatial(32, x_0_0 * 4 + x_0_1 * 2 + ax0_0)
-                                v1_o = T.axis.spatial(80, y_0_0 * 4 + y_0_1 * 2 + ax1_0)
-                                T.reads(
+                            with Ts.sblock("Conv_reindex_wmma.accumulator_o"):
+                                v0_o = Ts.axis.spatial(32, x_0_0 * 4 + x_0_1 * 2 + ax0_0)
+                                v1_o = Ts.axis.spatial(80, y_0_0 * 4 + y_0_1 * 2 + ax1_0)
+                                Ts.reads(
                                     Conv_reindex_wmma_accumulator[
                                         v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                                     ]
                                 )
-                                T.writes(
+                                Ts.writes(
                                     Conv[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16]
                                 )
-                                A_s0 = T.int32()
-                                A_s1 = T.int32()
-                                A_1 = T.match_buffer(
+                                A_1 = Ts.match_buffer(
                                     Conv_reindex_wmma_accumulator[
                                         v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                                     ],
                                     (16, 16),
                                     "float16",
-                                    strides=(A_s0, A_s1),
+                                    strides=(A_s0_3, A_s1_3),
                                     scope="wmma.accumulator",
                                     offset_factor=16,
                                 )
-                                C_s0 = T.int32()
-                                C_s1 = T.int32()
-                                C = T.match_buffer(
+                                C = Ts.match_buffer(
                                     Conv[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16],
                                     (16, 16),
                                     "float16",
-                                    strides=(C_s0, C_s1),
+                                    strides=(C_s0_4, C_s1_4),
                                     offset_factor=16,
                                 )
                                 T.tvm_store_matrix_sync(
@@ -871,16 +870,16 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                     16,
                                     16,
                                     16,
-                                    A_1.ty.elem_offset // A_s0 // 16 * (A_s0 // 16)
-                                    + A_1.ty.elem_offset % A_s0 // 16,
+                                    A_1.ty.elem_offset // A_s0_3 // 16 * (A_s0_3 // 16)
+                                    + A_1.ty.elem_offset % A_s0_3 // 16,
                                     T.tvm_access_ptr(
                                         T.type_annotation("float16"),
                                         C.data,
                                         C.ty.elem_offset,
-                                        C_s0 * 16,
+                                        C_s0_4 * 16,
                                         2,
                                     ),
-                                    C_s0,
+                                    C_s0_4,
                                     "row_major",
                                 )
 
@@ -893,30 +892,30 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
 
 
 def test_multiplication_nodes_are_inlined():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer((32, 128), "float16")):
+        @Ts.function
+        def main(A: T.Tensor((32, 128), "float16")):
             tx = T.launch_thread("threadIdx.x", T.int64(32))
-            A_flattened = T.decl_buffer((4096,), "float16", data=A.data)
-            A_shared = T.decl_buffer([4096], "float16", scope="shared")
+            A_flattened = T.decl_tensor((4096,), "float16", data=A.data)
+            A_shared = T.decl_tensor([4096], "float16", scope="shared")
 
-            T.attr("default", "async_scope", 1)
-            for i in range(16):
-                cse_v1: T.int64 = T.Cast("int64", i)
-                A_shared[T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)] = (
-                    A_flattened[T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)]
-                )
-            T.ptx.cp.async_.commit_group()
-            T.ptx.cp.async_.wait_group(0)
+            with Ts.async_copy_scope():
+                for i in range(16):
+                    cse_v1: T.int64 = T.Cast("int64", i)
+                    A_shared[T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)] = (
+                        A_flattened[T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)]
+                    )
+                T.ptx.cp.async_.commit_group()
+                T.ptx.cp.async_.wait_group(0)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer((32, 128), "float16")):
+        @Ts.function
+        def main(A: T.Tensor((32, 128), "float16")):
             tx = T.launch_thread("threadIdx.x", T.int64(32))
-            A_flattened = T.decl_buffer((4096,), "float16", data=A.data)
-            A_shared = T.decl_buffer((4096,), "float16", scope="shared")
+            A_flattened = T.decl_tensor((4096,), "float16", data=A.data)
+            A_shared = T.decl_tensor((4096,), "float16", scope="shared")
             for i in range(16):
                 cse_v1: T.int64 = T.Cast("int64", i)
                 T.s_tir.cp_async_raw(

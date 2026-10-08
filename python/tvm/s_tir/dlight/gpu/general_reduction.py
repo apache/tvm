@@ -19,10 +19,10 @@
 
 import tvm_ffi
 
-from tvm import arith, s_tir, tirx
+from tvm import s_tir, sym, tirx
 from tvm.target import Target
 
-from ..analysis import get_root_block, normalize_prim_func
+from ..analysis import get_root_block, normalize_function
 from ..base import try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
@@ -32,11 +32,11 @@ class GeneralReduction(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
 
         if target.kind.name == "cuda":
@@ -50,7 +50,7 @@ class GeneralReduction(GPUScheduleRule):
             unroll_depth = 64
 
         sch = s_tir.Schedule(func)
-        block_infos = normalize_prim_func(sch)
+        block_infos = normalize_function(sch)
         block_infos = try_inline_contiguous_spatial(sch, block_infos)
         if block_infos is None or len(block_infos) == 0:
             return None
@@ -73,20 +73,20 @@ class GeneralReduction(GPUScheduleRule):
                 # preserving global scope for buffers accessed by another block.
                 blocks = [sch.get(info.block_rv) for info in block_infos]
                 alloc_buffers = list(sch.get(get_root_block(sch)).alloc_buffers)
-                analyzer = arith.Analyzer()
+                analyzer = sym.Analyzer()
                 for block_index, (info, block) in enumerate(zip(block_infos[:-1], blocks[:-1])):
                     loops = sch.get_loops(info.block_rv)
                     if not all(analyzer.can_prove_equal(sch.get(loop).extent, 1) for loop in loops):
                         continue
 
                     other_block_buffers = [
-                        region.buffer
+                        region.source
                         for other_index, other_block in enumerate(blocks)
                         if other_index != block_index
                         for region in (*other_block.reads, *other_block.writes)
                     ]
                     for buffer_index, write in enumerate(block.writes):
-                        buffer = write.buffer
+                        buffer = write.source
                         is_allocated = any(buffer.same_as(other) for other in alloc_buffers)
                         is_cross_block = any(buffer.same_as(other) for other in other_block_buffers)
                         if buffer.scope() == "global" and is_allocated and not is_cross_block:
@@ -106,7 +106,7 @@ class GeneralReduction(GPUScheduleRule):
                 return sch
 
             def f_layout_mapping(*iters):
-                analyzer = arith.Analyzer()
+                analyzer = sym.Analyzer()
                 # Try to match the iters of last block to the iters of the first block.
                 # For matched positions, use the iter from the input `iters`.
                 # For unmatched positions, use a new iter which is constant 0.
@@ -152,7 +152,7 @@ class GeneralReduction(GPUScheduleRule):
             reduced_buffers = []
             for block_info in block_infos[:-1]:
                 for buffer_write in sch.get(block_info.block_rv).writes:
-                    reduced_buffers.append(buffer_write.buffer)
+                    reduced_buffers.append(buffer_write.source)
 
             spatial_block = sch.get(block_infos[-1].block_rv)
             spatial_loops = set()
@@ -166,7 +166,7 @@ class GeneralReduction(GPUScheduleRule):
                     spatial_loops.add(block_var_to_loop_var[e])
 
             for buffer_read in spatial_block.reads:
-                buffer = buffer_read.buffer
+                buffer = buffer_read.source
                 if buffer in reduced_buffers:
                     for read_range in buffer_read.region:
                         tvm_ffi.structural_walk(
@@ -192,8 +192,8 @@ class GeneralReduction(GPUScheduleRule):
         sch.reorder(tx, r_loop)
         sch.bind(bx, "blockIdx.x")
         sch.bind(tx, "threadIdx.x")
-        sch.annotate(r_loop, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth)
-        sch.annotate(r_loop, ann_key="pragma_unroll_explicit", ann_val=1)
+        sch.annotate(r_loop, ann_key="auto_unroll_max_step", ann_val=unroll_depth)
+        sch.annotate(r_loop, ann_key="unroll_explicit", ann_val=1)
 
         for block in reversed(block_infos[:-1]):
             block = block.block_rv
@@ -204,11 +204,11 @@ class GeneralReduction(GPUScheduleRule):
             r_loop, tx = sch.split(r_loop, [None, len_tx])
             sch.reorder(tx, r_loop)
             sch.bind(tx, "threadIdx.x")
-            sch.annotate(r_loop, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth)
-            sch.annotate(r_loop, ann_key="pragma_unroll_explicit", ann_val=1)
+            sch.annotate(r_loop, ann_key="auto_unroll_max_step", ann_val=unroll_depth)
+            sch.annotate(r_loop, ann_key="unroll_explicit", ann_val=1)
 
         # TODO: It's just a workaround to avoid unroll spatial loops, because of the bug of
         # the pass lower-thread-allreduce. We should fix it in the future.
-        # sch.annotate(bx, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth)
-        # sch.annotate(bx, ann_key="pragma_unroll_explicit", ann_val=1)
+        # sch.annotate(bx, ann_key="auto_unroll_max_step", ann_val=unroll_depth)
+        # sch.annotate(bx, ann_key="unroll_explicit", ann_val=1)
         return sch

@@ -23,11 +23,14 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/scope_stack.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/stmt_functor.h>
 
-#include "../../tirx/transform/ir_utils.h"
+#include <optional>
+
+#include "ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
@@ -39,29 +42,44 @@ using namespace tvm::tirx;
  */
 class OpaqueBlockLower : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   static Stmt Rewrite(Stmt body) {
-    OpaqueBlockLower lower;
-    lower.storage_align_ = CollectStorageAlignAnnotation(body);
-    return lower(std::move(body));
+    auto lower = ffi::make_object<OpaqueBlockLower>();
+    lower->storage_align_ = CollectStorageAlignAnnotation(body);
+    return lower->Mutate(body, InplaceMode::kAllow).ValueOrUnchanged(std::move(body));
   }
 
  private:
-  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
+  struct UnrollPolicy {
+    std::optional<ffi::Any> auto_unroll_max_step;
+    std::optional<ffi::Any> unroll_explicit;
+  };
+
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     // We have convert blocks into opaque blocks in previous passes.
     TVM_FFI_ICHECK(op->iter_values.empty())
         << "Non-opaque blocks are not allowed in FlattenBuffer. Please "
            "call pass ConvertBlocksToOpaque before.";
-    // Step 1. Visit the body
-    SBlock new_block = this->VisitStmt(op->block).as_or_throw<SBlock>();
-    PrimExpr predicate = this->VisitPrimExpr(op->predicate);
+    // Block policy belongs to the loops inside the block after opaque lowering.
+    auto parent_policy = unroll_policy_.Current();
+    SBlock new_block = unroll_policy_.WithNewScope([&]() {
+      unroll_policy_.Current() = parent_policy;
+      UpdateUnrollPolicy(op->block->annotations);
+      return this->Mutate(op->block, inplace_mode)
+          .ValueOrUnchanged(op->block)
+          .as_or_throw<SBlock>();
+    });
+    PrimExpr predicate = this->Mutate(op->predicate, inplace_mode).ValueOrUnchanged(op->predicate);
     // Step 2. Transform the `predicate` to if-then-else
     Stmt body = new_block->body;
-    if (!is_one(predicate)) {
+    if (!IsOne(predicate)) {
       body = IfThenElse(predicate, std::move(body));
     }
     // Step 3. Handle allocations in reverse order
     for (size_t i = new_block->alloc_buffers.size(); i > 0; --i) {
-      const BufferVar& buffer = new_block->alloc_buffers[i - 1];
+      const TensorVar& buffer = new_block->alloc_buffers[i - 1];
       ffi::Map<ffi::String, ffi::Any> allocate_annotations;
       auto it = storage_align_.find(buffer.var());
       if (it != storage_align_.end()) {
@@ -75,136 +93,88 @@ class OpaqueBlockLower : public StmtExprMutator {
       allocate_annotations.Set(tirx::attr::buffer_data_alignment,
                                IntImm::Int32(buffer->data_alignment));
       allocate_annotations.Set(tirx::attr::buffer_allocated_addr, buffer->allocated_addr);
-      body = SeqStmt::Flatten(AllocBuffer(buffer, allocate_annotations), std::move(body));
-    }
-    // Step 4. Handle annotations, block annotations are not preserved by default.
-    std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
-    HandleAnnotations(new_block->annotations, &pragma_attrs, /*is_block=*/true);
-    for (auto it = pragma_attrs.rbegin(); it != pragma_attrs.rend(); ++it) {
-      body = AttrStmt(0, it->first, it->second, std::move(body));
+      body = SeqStmt::Flatten(
+          Bind(buffer.var(), Call(buffer.type(), tirx::builtin::alloc_tensor(),
+                                  {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                                   StringImm(buffer.scope())},
+                                  DictAttrs(allocate_annotations))),
+          std::move(body));
     }
     return body;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     // Step 1. Update unit loop info.
-    PrimExpr min = this->VisitPrimExpr(op->min);
-    PrimExpr extent = this->VisitPrimExpr(op->extent);
-    if (is_one(extent) && op->annotations.empty()) {
+    PrimExpr min = this->Mutate(op->min, inplace_mode).ValueOrUnchanged(op->min);
+    PrimExpr extent = this->Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
+    auto step = this->Mutate(op->step, inplace_mode)
+                    .as_or_throw<UnchangedOr<ffi::Optional<PrimExpr>>>()
+                    .ValueOrUnchanged(op->step);
+    auto previous_remap = VarRemapGet(op->loop_var);
+    if (op->kind != ForKind::kThreadBinding && IsOne(extent) && op->annotations.empty()) {
       // handling unit loop
-      unit_loop_vars_[op->loop_var] = min;
+      VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), min));
     }
 
-    // Step 2. Visit recursively
-    Stmt body = this->VisitStmt(op->body);
+    // Keep policy on surviving descendants when this owner is lowered away.
+    auto parent_policy = unroll_policy_.Current();
+    ffi::Map<ffi::String, ffi::Any> new_annotations;
+    auto annotations = op->annotations;
+    Stmt body = unroll_policy_.WithNewScope([&]() {
+      unroll_policy_.Current() = parent_policy;
+      UpdateUnrollPolicy(op->annotations);
+      const auto& policy = unroll_policy_.Current();
+      if (policy.auto_unroll_max_step.has_value()) {
+        annotations.Set(tirx::attr::auto_unroll_max_step, policy.auto_unroll_max_step.value());
+      }
+      if (policy.unroll_explicit.has_value()) {
+        annotations.Set(tirx::attr::unroll_explicit, policy.unroll_explicit.value());
+      }
+      // Rewrite annotations before visiting body-local definitions.
+      new_annotations = HandleAnnotations(annotations);
+      return this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+    });
+    VarRemapSet(op->loop_var, previous_remap);
 
-    // Step 3. Handle annotations
-    std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
-    ffi::Map<ffi::String, ffi::Any> new_annotations =
-        HandleAnnotations(op->annotations, &pragma_attrs, /*is_block=*/false);
-    // Step 4. Create new For loop accordingly
-    if (op->kind == ForKind::kThreadBinding) {
-      // Case 1. Thread binding
-      TVM_FFI_ICHECK(op->thread_binding.has_value());
-      ffi::String thread_tag = op->thread_binding.value()->thread_tag;
-      body = MakeLaunchThread(min, extent, op->loop_var, thread_tag, body);
-    } else if (is_one(extent) && op->annotations.empty() &&
-               !op->annotations.count(s_tir::attr::irregular_loop_mark)) {
-      // Case 2. Unit loop
+    // Step 2. Keep thread-binding loops until LowerThreadBinding.
+    if (op->kind != ForKind::kThreadBinding && IsOne(extent) && op->annotations.empty() &&
+        !op->annotations.count(s_tir::attr::irregular_loop_mark)) {
       return body;
-    } else {
-      // Case 3. An ordinary loop
-      body = For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body),
-                 std::nullopt, new_annotations, op->step);
     }
-    // Step 5. Insert nested attrs
-    for (auto it = pragma_attrs.rbegin(); it != pragma_attrs.rend(); ++it) {
-      body = AttrStmt(op->loop_var, it->first, it->second, std::move(body));
-    }
-    return body;
+    return For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body),
+               op->thread_binding, std::move(new_annotations), std::move(step), op->span);
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
-    Var var = ffi::GetRef<Var>(op);
-    auto it = unit_loop_vars_.find(var);
-    if (it == unit_loop_vars_.end()) {
-      return var;
-
-    } else {
-      PrimExpr expr = it->second;
-      PrimType var_ty = var->ty.as_or_throw<PrimType>();
-      if (expr.ty() != var_ty) {
-        expr = tvm::cast(var_ty, std::move(expr));
-      }
-      return expr;
+  void UpdateUnrollPolicy(const ffi::Map<ffi::String, ffi::Any>& annotations) {
+    auto& policy = unroll_policy_.Current();
+    if (auto value = annotations.Get(tirx::attr::auto_unroll_max_step);
+        value.has_value() && value.value() != nullptr) {
+      policy.auto_unroll_max_step = value.value();
+    }
+    if (auto value = annotations.Get(tirx::attr::unroll_explicit);
+        value.has_value() && value.value() != nullptr) {
+      policy.unroll_explicit = value.value();
     }
   }
 
-  static Stmt MakeLaunchThread(PrimExpr min, PrimExpr extent, Var var, ffi::String thread_tag,
-                               Stmt body) {
-    IterVar iter_var(/*dom=*/Range::FromMinExtent(min, extent),
-                     /*var=*/std::move(var).as_or_throw<PrimVar>(),
-                     /*iter_type=*/IterVarType::kThreadIndex,
-                     /*thread_tag=*/thread_tag);
-    ffi::String attr_key = (thread_tag == "vthread" || thread_tag == "vthread.x" ||
-                            thread_tag == "vthread.y" || thread_tag == "vthread.z")
-                               ? s_tir::attr::virtual_thread
-                               : tirx::attr::thread_extent;
-    return AttrStmt(/*node=*/std::move(iter_var),
-                    /*attr_key=*/std::move(attr_key),
-                    /*value=*/std::move(extent),
-                    /*body=*/std::move(body));
-  }
+  // Effective policy is materialized on each surviving loop, preserving nested overrides.
+  ScopeStack<UnrollPolicy> unroll_policy_;
 
-  /*! \brief Convert attr value from annotation map into PrimExpr. */
-  PrimExpr ConvertAttrValue(const ffi::String& key, const Any& obj) {
-    if (auto expr = obj.try_cast<PrimExpr>()) {
-      return expr.value();
-    } else if (auto str = obj.try_cast<ffi::String>()) {
-      return std::move(StringImm(str.value()));
-    } else {
-      TVM_FFI_THROW(InternalError) << "Illegal attribute of key " << key << ", value type "
-                                   << obj.GetTypeKey() << " not supported";
-      return PrimExpr();
-    }
-  }
-
-  /*!
-   * \brief Helper to handle annotation dict.
-   * (1) if the attr key is prefixed by `pragma_`, move to ordered kv list. They
-   * are lowered to `AttrStmt` by legacy TE schedule convention.
-   * (2) the non-pragma loop annotations are preserved
-   * (3) the non-pragma block annotations are dropped
-   * \return New annotation dict with preserved keys. Also update pragma attr pairs ordered by key.
-   */
+  // Preserve loop annotations while remapping enclosing bindings. Null optional
+  // policies do not override inherited values or reach code generation.
   ffi::Map<ffi::String, ffi::Any> HandleAnnotations(
-      const ffi::Map<ffi::String, ffi::Any>& annotations,
-      std::vector<std::pair<std::string, PrimExpr>>* pragma_attrs, bool is_block) {
-    ffi::Map<ffi::String, ffi::Any> preserved_annotations;
-    pragma_attrs->clear();
-    for (const auto& kv : annotations) {
-      const ffi::String& key = kv.first;
-      if (tirx::attr::IsPragmaKey(key)) {
-        if (kv.second == nullptr) {
-          continue;
-        }
-
-        pragma_attrs->emplace_back(key, ConvertAttrValue(key, kv.second));
-      } else if (!is_block) {
-        // the loop annotation is preserved
-        preserved_annotations.Set(key, kv.second);
+      const ffi::Map<ffi::String, ffi::Any>& annotations) {
+    ffi::Map<ffi::String, ffi::Any> preserved;
+    for (const auto& [key, value] : annotations) {
+      if ((key == tirx::attr::auto_unroll_max_step || key == tirx::attr::unroll_explicit ||
+           key == "pragma_unroll") &&
+          value == nullptr) {
+        continue;
       }
+      preserved.Set(key, this->Mutate(value, InplaceMode::kDisallow).ValueOrUnchanged(value));
     }
-    std::sort(pragma_attrs->begin(), pragma_attrs->end(),
-              [](const auto& p1, const auto& p2) { return p1.first < p2.first; });
-    return preserved_annotations;
+    return preserved;
   }
-
-  /*! \brief Record the loop_var and loop start value of unit loops, whose extent is one. */
-  std::unordered_map<Var, PrimExpr> unit_loop_vars_;
-
-  /*! \brief Attr keys to preserve into loop annotations. */
-  std::unordered_set<std::string> preserved_annotations_;
 
   /*! \brief The map from buffer var to its storage alignment information. */
   std::unordered_map<Var, StorageAlignAnnotation> storage_align_;
@@ -213,12 +183,13 @@ class OpaqueBlockLower : public StmtExprMutator {
 namespace transform {
 
 Pass LowerOpaqueBlock() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto fptr = f.CopyOnWrite();
-    fptr->body = OpaqueBlockLower::Rewrite(std::move(fptr->body));
+    fptr->body = OpaqueBlockLower::Rewrite(std::move(fptr->body).value());
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerOpaqueBlock", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerOpaqueBlock", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

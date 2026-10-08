@@ -19,9 +19,9 @@
 
 from dataclasses import dataclass
 
-from tvm.arith.analyzer import Analyzer
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc
+from tvm.sym.analyzer import Analyzer
+from tvm.tirx import Function
 from tvm.tirx.layout import TileLayout
 from tvm.tirx.operator.tile_primitive import (
     DispatchContext,
@@ -235,9 +235,9 @@ def _full_active_lanes(op: TilePrimitiveCall, sctx: DispatchContext):
         if tx is None:
             return False, "cta scope needs threadIdx.x in launch_params"
         try:
-            full["warpid"] = int(tx.dom.extent) // 32
+            full["warpid"] = int(tx[1]) // 32
         except (TypeError, ValueError):
-            return False, f"non-static threadIdx.x extent {tx.dom.extent}"
+            return False, f"non-static threadIdx.x extent {tx[1]}"
     for axis, rng in sctx.intra.items():
         if axis not in full:
             return False, f"unsupported active-set axis {axis!r}"
@@ -252,8 +252,8 @@ def _full_active_lanes(op: TilePrimitiveCall, sctx: DispatchContext):
 def _no_replica(op: TilePrimitiveCall, sctx: DispatchContext):
     """All operand layouts must have no replica (no broadcast/duplicated axes)."""
     for region, name in zip(op.args[:4], ("D", "A", "B", "C")):
-        if region.buffer.layout.replica:
-            return False, f"{name} layout has replica {region.buffer.layout.replica}"
+        if region.source.layout.replica:
+            return False, f"{name} layout has replica {region.source.layout.replica}"
     return True
 
 
@@ -267,7 +267,7 @@ def _no_replica(op: TilePrimitiveCall, sctx: DispatchContext):
         predicate("no_replica", _no_replica),
     ],
 )
-def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     """``gemm`` -> warp-level ``mma.sync`` of the m16n8k* family.
 
     This is the ``"mma.m16n8k*"`` variant. It targets the m16n8k* tensor-core
@@ -279,7 +279,7 @@ def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Prim
     # gemm op args: D = alpha * A @ B + beta * C
     # D (args[0]) is the output; C (args[3]) is the beta-accumulator input.
     D_region, A_region, B_region, C_region, transpose_A, transpose_B, alpha, beta = op.args
-    D, A, B, C = D_region.buffer, A_region.buffer, B_region.buffer, C_region.buffer
+    D, A, B, C = D_region.source, A_region.source, B_region.source, C_region.source
 
     # Pure-register mma path: A/B fragments and C/D accumulators all live in
     # registers ("local"). The caller is responsible for staging A/B into
@@ -556,7 +556,7 @@ def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Prim
     n_rN = inst.n // 4
     n_kHi = inst.k // (4 * inst.k_pack)
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         d_local = D.local(*d_shape, layout=D_reg)
         c_local = C.local(*c_shape, layout=C_reg)

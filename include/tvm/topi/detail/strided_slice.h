@@ -55,7 +55,7 @@ inline std::tuple<std::vector<int64_t>, std::vector<int64_t>, std::vector<int64_
   std::vector<int64_t> stride_vec(strides.size(), 1);
   if (slice_mode == "end") {
     for (size_t i = 0; i < strides.size(); ++i) {
-      stride_vec[i] = strides[i]->value;
+      stride_vec[i] = static_cast<int64_t>(strides[i]->value);
     }
   }
   const int64_t max_range = std::numeric_limits<int64_t>::max();
@@ -65,7 +65,7 @@ inline std::tuple<std::vector<int64_t>, std::vector<int64_t>, std::vector<int64_
       // value=None
       begin_vec.push_back(stride_vec[i] > 0 ? 0 : max_range);
     } else {
-      begin_vec.push_back(begin[i].value()->value);
+      begin_vec.push_back(static_cast<int64_t>(begin[i].value()->value));
     }
   }
   std::vector<int64_t> end_vec;
@@ -74,14 +74,14 @@ inline std::tuple<std::vector<int64_t>, std::vector<int64_t>, std::vector<int64_
     if (!end[i].has_value()) {
       end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
     } else if (slice_mode == "size") {
-      int64_t end_val = end[i].value()->value;
+      int64_t end_val = static_cast<int64_t>(end[i].value()->value);
       if (end_val < 0) {
         end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
       } else {
         end_vec.push_back(begin_vec[i] + end_val);
       }
     } else {
-      end_vec.push_back(end[i].value()->value);
+      end_vec.push_back(static_cast<int64_t>(end[i].value()->value));
     }
   }
   return std::make_tuple(begin_vec, end_vec, stride_vec);
@@ -93,6 +93,7 @@ inline ffi::Array<PrimExpr> StridedSliceCanonicalizeBegin(const ffi::Array<PrimE
                                                           const ffi::Array<int64_t>& axes,
                                                           PrimType dtype,
                                                           std::string slice_mode = "end") {
+  using namespace tvm::prim;
   ffi::Array<PrimExpr> begin_expr;
   for (size_t i = 0; i < axes.size(); ++i) {
     int64_t ax = axes[i];
@@ -140,9 +141,9 @@ inline ffi::Array<PrimExpr> StridedSliceOutputShape(
           static_cast<int>((interval + std::abs(strides[i]) - 1) / std::abs(strides[i]));
       TVM_FFI_ICHECK(strides[i] < 0 ? (end_i <= begin_i) : (begin_i <= end_i))
           << ": Input [Begin=" << begin[i] << ", End=" << end[i] << "] is invalid for axis=" << i;
-      out_shape.Set(ax, cast(out_shape[i].ty(), PrimExpr(slice_size)));
+      out_shape.Set(ax, prim::cast(out_shape[i].ty(), PrimExpr(slice_size)));
     } else {
-      out_shape.Set(ax, tvm::tirx::PrimVar("dim", out_shape[i].ty()));
+      out_shape.Set(ax, tvm::PrimVar("dim", out_shape[i].ty()));
     }
   }
 

@@ -23,7 +23,7 @@ from numbers import Integral as _Integral
 
 from tvm_ffi import Array
 
-import tvm.arith._ffi_api
+import tvm.sym._ffi_api
 import tvm.tirx
 import tvm.tirx._ffi_api
 from tvm.ir import is_prim_expr
@@ -32,6 +32,7 @@ from tvm.runtime import convert
 from . import _ffi_api
 from . import tag as _tag
 from . import tensor as _tensor
+from .reduction import _iter_var_type
 
 
 def placeholder(shape, dtype=None, name="placeholder"):
@@ -127,7 +128,7 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None, varargs_names=N
             f"args={len(arg_names)}, dimension={out_ndim}"
         )
 
-    dim_var = [tvm.tirx.IterVar((0, s), x, 0) for x, s in zip(arg_names, shape[:out_ndim])]
+    dim_var = [_iter_var_type()((0, s), x, 0) for x, s in zip(arg_names, shape[:out_ndim])]
     body = fcompute(*[v.var for v in dim_var])
 
     if not isinstance(body, list | tuple):
@@ -201,7 +202,7 @@ def scan(init, update, state_placeholder, inputs=None, name="scan", tag="", attr
         inputs = []
     if len(init) != len(update) or len(init) != len(state_placeholder):
         raise ValueError("init, update, state_placeholder must have same length")
-    axis = tvm.tirx.IterVar((init[0].shape[0], update[0].shape[0]), f"{name}.idx", 3)
+    axis = _iter_var_type()((init[0].shape[0], update[0].shape[0]), f"{name}.idx", 3)
     op = _ffi_api.ScanOp(name, tag, attrs, axis, init, update, state_placeholder, inputs)
     res = [op.output(i) for i in range(len(update))]
     return res[0] if len(res) == 1 else res
@@ -235,8 +236,8 @@ def extern(
         .. note::
              **Parameters**
 
-             - **ins** (list of :any:`tvm.tirx.Buffer`) - Placeholder for each inputs
-             - **outs** (list of :any:`tvm.tirx.Buffer`) - Placeholder for each outputs
+             - **ins** (list of :any:`tvm.ir.Var`) - Placeholder for each inputs
+             - **outs** (list of :any:`tvm.ir.Var`) - Placeholder for each outputs
 
              **Returns**
 
@@ -249,10 +250,10 @@ def extern(
         The data types of outputs,
         by default dtype will be same as inputs.
 
-    in_buffers: tvm.tirx.Buffer or list of tvm.tirx.Buffer, optional
+    in_buffers: tvm.ir.Var or list of tvm.ir.Var, optional
         Input buffers.
 
-    out_buffers: tvm.tirx.Buffer or list of tvm.tirx.Buffer, optional
+    out_buffers: tvm.ir.Var or list of tvm.ir.Var, optional
         Output buffers.
 
 
@@ -308,7 +309,7 @@ def extern(
             raise ValueError("expect inputs to be tensor")
         if in_buffers is None:
             input_placeholders.append(
-                tvm.tirx.decl_buffer(
+                tvm.tirx.decl_tensor(
                     t.shape,
                     t.dtype,
                     t.op.name,
@@ -329,7 +330,7 @@ def extern(
 
         for shp, dt in zip(shape, dtype):
             output_placeholders.append(
-                tvm.tirx.decl_buffer(
+                tvm.tirx.decl_tensor(
                     shp,
                     dt,
                     name,
@@ -351,16 +352,16 @@ def extern(
     return res[0] if len(res) == 1 else res
 
 
-def extern_primfunc(input_tensors: list[_tensor.Tensor], primfunc: tvm.tirx.PrimFunc, **kwargs):
-    """Compute tensors via a schedulable TIR PrimFunc
+def extern_function(input_tensors: list[_tensor.Tensor], function: tvm.tirx.Function, **kwargs):
+    """Compute tensors via a schedulable TIR Function
 
     Parameters
     ----------
     input_tensors: list of Tensor
-        Input tensors that map to the corresponding primfunc input params.
+        Input tensors that map to the corresponding function input params.
 
-    primfunc: PrimFunc
-        The TIR PrimFunc
+    function: Function
+        The TIR Function
 
     Returns
     -------
@@ -369,33 +370,33 @@ def extern_primfunc(input_tensors: list[_tensor.Tensor], primfunc: tvm.tirx.Prim
 
     Example
     -------
-    In the code below, a TVMScript defined TIR PrimFunc is inlined into
-    a TE ExternOp. Applying te.create_prim_func on this
+    In the code below, a TVMScript defined TIR Function is inlined into
+    a TE ExternOp. Applying te.create_function on this
 
     .. code-block:: python
 
         A = te.placeholder((128, 128), name="A")
         B = te.placeholder((128, 128), name="B")
 
-        @T.prim_func(s_tir=True)
-        def before_split(a: T.handle, b: T.handle) -> None:
-            A = T.match_buffer(a, (128, 128))
-            B = T.match_buffer(b, (128, 128))
+        @Ts.function
+        def before_split(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
+
+
             for i, j in T.grid(128, 128):
-                with T.sblock("B"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("B"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj] * 2.0
 
-        C = te.extern_primfunc([A, B], func)
+        C = te.extern_function([A, B], func)
     """
 
-    # Preserve the function parameter order while selecting BufferType annotations.
-    dt_access_map = tvm.s_tir._ffi_api.DomainTouchedAccessMap(primfunc)
-    ordered_buffers = [param for param in primfunc.params if tvm.tirx.is_buffer_var(param)]
+    # Preserve the function parameter order while selecting TensorType annotations.
+    dt_access_map = tvm.s_tir._ffi_api.DomainTouchedAccessMap(function)
+    ordered_buffers = [param for param in function.params if tvm.tirx.is_tensor_var(param)]
     in_buffers = [buf for buf in ordered_buffers if len(dt_access_map[buf][0])]
     out_buffers = [buf for buf in ordered_buffers if len(dt_access_map[buf][1])]
-    assert in_buffers, "PrimFunc has no input buffers"
-    assert out_buffers, "PrimFunc has no output buffers"
+    assert in_buffers, "Function has no input buffers"
+    assert out_buffers, "Function has no output buffers"
 
     outputs = []
     inplace = []
@@ -413,7 +414,7 @@ def extern_primfunc(input_tensors: list[_tensor.Tensor], primfunc: tvm.tirx.Prim
 
     assert len(input_buffers) == len(input_tensors), (
         "The number of provided input input_tensors does not match the number of ",
-        "input buffers in the primfunc",
+        "input buffers in the function",
     )
     for tensor, buffer in zip(input_tensors, input_buffers):
         # TODO(csullivan): Can a stronger comparison between Tensor<>Buffer be made?
@@ -421,13 +422,13 @@ def extern_primfunc(input_tensors: list[_tensor.Tensor], primfunc: tvm.tirx.Prim
         for d1, d2 in zip(tensor.shape, buffer.shape):
             assert d1 == d2, (
                 "The input input_tensors provided do not match the input buffers in the ",
-                "primfunc. Please check that the order of input te.Input_Tensors and the ",
-                "order of the primfunc variables in the params list agree.",
+                "function. Please check that the order of input te.Input_Tensors and the ",
+                "order of the function variables in the params list agree.",
             )
     output = extern(
         [buf.shape for buf in outputs],
         input_tensors,
-        lambda ins, outs: primfunc.body,
+        lambda ins, outs: function.body,
         in_buffers=input_buffers,
         out_buffers=outputs,
         **kwargs,
@@ -507,7 +508,7 @@ def thread_axis(dom=None, tag="", name="", span=None):
     if not tag:
         raise ValueError("tag must be given as Positional or keyword argument")
     name = name if name else tag
-    return tvm.tirx.IterVar(dom, name, 1, tag, span)
+    return _iter_var_type()(dom, name, 1, tag, span)
 
 
 def reduce_axis(dom, name="rv", thread_tag="", span=None):
@@ -532,13 +533,13 @@ def reduce_axis(dom, name="rv", thread_tag="", span=None):
     axis : IterVar
         An iteration variable representing the value.
     """
-    return tvm.tirx.IterVar(dom, name, 2, thread_tag, span)
+    return _iter_var_type()(dom, name, 2, thread_tag, span)
 
 
-def create_prim_func(
+def create_function(
     ops: list[_tensor.Tensor | tvm.tirx.Var], index_dtype_override: str | None = None
-) -> tvm.tirx.PrimFunc:
-    """Create a TensorIR PrimFunc from tensor expression
+) -> tvm.tirx.Function:
+    """Create a TensorIR Function from tensor expression
 
     Parameters
     ----------
@@ -553,40 +554,39 @@ def create_prim_func(
 
         import tvm
         from tvm import te
-        from tvm.te import create_prim_func
+        from tvm.te import create_function
         import tvm.script
 
         A = te.placeholder((128, 128), name="A")
         B = te.placeholder((128, 128), name="B")
         k = te.reduce_axis((0, 128), "k")
         C = te.compute((128, 128), lambda x, y: te.sum(A[x, k] * B[y, k], axis=k), name="C")
-        func = create_prim_func([A, B, C])
+        func = create_function([A, B, C])
         print(func.script())
 
     If we want to use TensorIR schedule to do transformations on such kernel,
-    we need to use `create_prim_func([A, B, C])` to create a schedulable PrimFunc.
+    we need to use `create_function([A, B, C])` to create a schedulable Function.
     The generated function looks like:
 
     .. code-block:: python
 
-        @T.prim_func(s_tir=True)
-        def tir_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-            A = T.match_buffer(a, (128, 128))
-            B = T.match_buffer(b, (128, 128))
-            C = T.match_buffer(c, (128, 128))
+        @Ts.function
+        def tir_matmul(
+            A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))
+        ) -> None:
 
             for i, j, k in T.grid(128, 128, 128):
-                with T.sblock():
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+                with Ts.sblock():
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    with Ts.init():
                         C[vi, vj] = 0.0
                     C[vi, vj] += A[vi, vk] * B[vj, vk]
 
     Returns
     -------
-    func : tirx.PrimFunc
+    func : tirx.Function
         The created function.
     """
     if not isinstance(ops, list | tuple | Array):
         ops = [ops]
-    return _ffi_api.CreatePrimFunc(ops, index_dtype_override)
+    return _ffi_api.CreateFunction(ops, index_dtype_override)

@@ -114,7 +114,7 @@ def link_shared(so_name, objs, extra_args=None):
     ----------
     so_name : str
         Name of the shared library file.
-    objs : list[str, tvm.tirx.StringImm]
+    objs : list[str, tvm.ir.StringImm]
     extra_args : dict (str->str) or Map<String,String>
         Additional arguments:
             'hex_arch' - Hexagon architecture, e.g. v68
@@ -127,9 +127,9 @@ def link_shared(so_name, objs, extra_args=None):
     """
 
     # The list of object files can be passed as built-in Python strings,
-    # or as tvm.tirx.StringImm's.
+    # or as tvm.ir.StringImm's.
     def to_str(s):
-        if isinstance(s, tvm.tirx.StringImm):
+        if isinstance(s, tvm.ir.StringImm):
             return s.value
         assert isinstance(s, str), 'argument "' + str(s) + '" should be a string or StrImm'
         return s
@@ -186,7 +186,7 @@ def link_shared_macos(so_name, objs, extra_args=None):
     ----------
     so_name : str
         Name of the shared library file.
-    objs : list[str, tvm.tirx.StringImm]
+    objs : list[str, tvm.ir.StringImm]
     extra_args : dict (str->str) or Map<String,String>
         Additional arguments:
             'hex_arch' - Hexagon architecture, e.g. v68
@@ -198,9 +198,9 @@ def link_shared_macos(so_name, objs, extra_args=None):
     """
 
     # The list of object files can be passed as built-in Python strings,
-    # or as tvm.tirx.StringImm's.
+    # or as tvm.ir.StringImm's.
     def to_str(s):
-        if isinstance(s, tvm.tirx.StringImm):
+        if isinstance(s, tvm.ir.StringImm):
             return s.value
         assert isinstance(s, str), 'argument "' + str(s) + '" should be a string or StrImm'
         return s

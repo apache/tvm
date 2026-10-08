@@ -80,7 +80,7 @@ ffi::Map<Var, Expr> NormalizeBindings(const Function& func,
     if (auto opt = obj.as<relax::Expr>()) {
       return opt.value();
     } else if (auto opt = obj.as<runtime::Tensor>()) {
-      return Constant(opt.value());
+      return MakeTensorConst(opt.value());
     } else {
       TVM_FFI_THROW(InternalError)
           << "Cannot coerce object of type " << obj.GetTypeKey() << " into relax expression";
@@ -91,7 +91,7 @@ ffi::Map<Var, Expr> NormalizeBindings(const Function& func,
     relax_var_remap.Set(normalize_key(key), normalize_value(value));
   }
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   return InferSymbolicVarMap(relax_var_remap, analyzer);
 }
 

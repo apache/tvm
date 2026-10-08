@@ -148,11 +148,12 @@ def test_take_dynamic_prim_value_as_index(axis):
     target = "llvm"
     dev = tvm.cpu()
 
+    n = T.dynamic("n")
+
     @I.ir_module
     class Module:
         @R.function
-        def main(A: R.Tensor(["n", "n"], "float16")):
-            n = T.int64()
+        def main(A: R.Tensor([n, n], "float16")):
             output = R.take(A, R.prim_value(n - 1), axis=axis)
             return output
 

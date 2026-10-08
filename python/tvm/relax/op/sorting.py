@@ -16,7 +16,9 @@
 # under the License.
 """Sortings operators."""
 
-from ..expr import Constant, Expr
+from tvm.ir import GenericConst
+
+from ..expr import Expr
 from . import _ffi_api
 
 
@@ -112,6 +114,6 @@ def topk(
     out : relax.Expr or List[relax.Expr]
         The computed result.
     """
-    if isinstance(k, Constant):
-        k = k.data.numpy().item()
+    if isinstance(k, GenericConst):
+        k = k.value.numpy().item()
     return _ffi_api.topk(data, k, axis, ret_type, largest, dtype)  # type: ignore

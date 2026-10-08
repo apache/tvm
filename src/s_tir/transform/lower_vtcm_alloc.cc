@@ -19,15 +19,13 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt.h>
 
-#include "../../arith/ir_visitor_with_analyzer.h"
-
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 inline bool IsVtcmStorage(std::string scope) {
@@ -36,21 +34,40 @@ inline bool IsVtcmStorage(std::string scope) {
 
 class VtcmAllocator : public StmtExprMutator {
  public:
-  using StmtExprMutator::VisitStmt_;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   VtcmAllocator() {}
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
-    std::string storage_scope = op->buffer.scope();
-    if (IsVtcmStorage(storage_scope)) {
-      ffi::Array<Expr> args;
-      args.push_back(StringImm(storage_scope));
-      args.push_back(IntImm::Int64(op->buffer->shape.size()));
-      args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
-                          op->buffer->shape));
-      return DeclBuffer(op->buffer, Call(op->buffer.DataPointerType(),
-                                         tirx::builtin::nd_mem_alloc_with_scope(), args));
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      return Mutate_AllocTensor(op, call, inplace_mode);
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
+                                       InplaceMode inplace_mode) {
+    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    if (IsVtcmStorage(scope)) {
+      tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
+      ffi::Array<Expr> args;
+      args.push_back(StringImm(scope));
+      args.push_back(IntImm::Int64(shape->fields.size()));
+      args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
+                          shape->fields));
+      TensorVar buffer = op->var.as_or_throw<TensorVar>();
+      return Bind(
+          buffer,
+          Call(buffer.type(), tirx::builtin::decl_tensor(),
+               {Call(buffer.DataPointerType(), tirx::builtin::nd_mem_alloc_with_scope(), args),
+                tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                StringImm(buffer.scope())},
+               {}, call->ty_args, call->span),
+          op->span);
+    }
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  protected:
@@ -61,19 +78,21 @@ class VtcmAllocator : public StmtExprMutator {
   }
 };
 
-PrimFunc LowerVtcmAlloc(PrimFunc func) {
+Function LowerVtcmAlloc(Function func) {
   auto fptr = func.CopyOnWrite();
-  fptr->body = VtcmAllocator()(std::move(fptr->body));
+  fptr->body = ffi::make_object<VtcmAllocator>()
+                   ->Mutate(fptr->body, InplaceMode::kAllow)
+                   .ValueOrUnchanged(std::move(fptr->body));
   return func;
 }
 
 namespace transform {
 
 Pass LowerVtcmAlloc() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     return s_tir::LowerVtcmAlloc(std::move(f));
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerVtcmAlloc", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerVtcmAlloc", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

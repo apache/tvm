@@ -50,6 +50,7 @@ using namespace tvm::te;
 inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const ffi::Array<int64_t>& axis,
                        double epsilon, std::string name = "T_rms_norm",
                        std::string tag = kInjective) {
+  using namespace tvm::prim;
   const auto& data_type = data->dtype;
   const auto& weight_type = weight.defined() ? weight->dtype : data_type;
   TVM_FFI_ICHECK(data_type == weight_type) << "rms_norm: data and weight must have the same type";
@@ -74,8 +75,8 @@ inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const ffi::Arra
         non_reduce_indices.push_back(indices[i]);
       }
     }
-    auto output = tvm::rsqrt(square_sum(non_reduce_indices) / reduce_extent +
-                             MakeConst(PrimType(data_type), epsilon));
+    auto output = tvm::prim::rsqrt(square_sum(non_reduce_indices) / reduce_extent +
+                                   MakeConst(PrimType(data_type), epsilon));
     return output;
   };
   auto rsqrt_shape = ffi::Array<PrimExpr>();

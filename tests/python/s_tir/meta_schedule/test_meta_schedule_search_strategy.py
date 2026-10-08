@@ -27,6 +27,7 @@ from tvm.ir.utils import derived_object
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing.dummy_object import DummyMutator
 from tvm.s_tir.schedule import Schedule, Trace
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 MATMUL_M = 32
@@ -36,32 +37,27 @@ MATMUL_M = 32
 
 @tvm.script.ir_module
 class Matmul:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None: # type: ignore
+    @Ts.function
+    def main(A: T.Tensor((32, 32), 'float32'), B: T.Tensor((32, 32), 'float32'), C: T.Tensor((32, 32), 'float32')) -> None: # type: ignore
         T.func_attr({"global_symbol": "main"})
-        A = T.match_buffer(a, (32, 32), "float32")
-        B = T.match_buffer(b, (32, 32), "float32")
-        C = T.match_buffer(c, (32, 32), "float32")
+
         for i, j, k in T.grid(32, 32, 32):
-            with T.sblock("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0 # type: ignore
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
-
 @tvm.script.ir_module
 class OtherBlock:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None: # type: ignore
+    @Ts.function
+    def main(A: T.Tensor((32, 32), 'float32'), B: T.Tensor((32, 32), 'float32'), C: T.Tensor((32, 32), 'float32')) -> None: # type: ignore
         T.func_attr({"global_symbol": "main"})
-        A = T.match_buffer(a, (32, 32), "float32")
-        B = T.match_buffer(b, (32, 32), "float32")
-        C = T.match_buffer(c, (32, 32), "float32")
+
         for i, j, k in T.grid(32, 32, 32):
-            with T.sblock("other"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("other"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0 # type: ignore
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -340,7 +336,7 @@ def test_meta_schedule_evolutionary_search_skip_invalid_measured_trace():  # pyl
             workload=workload,
             run_secs=[0.1],
             target=tvm.target.Target("llvm"),
-            args_info=ms.arg_info.ArgInfo.from_prim_func(func=Matmul["main"]),
+            args_info=ms.arg_info.ArgInfo.from_function(func=Matmul["main"]),
         )
     )
 

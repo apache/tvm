@@ -25,12 +25,242 @@ the PTX text, or the offset-scaling ``cp.async`` form the legacy
 ``InjectPTXAsyncCopy`` pass emits.
 """
 
+import re
+
+from tvm import ir
 from tvm.backend.cuda.op import cuda_func_call
 
 from ..codegen.registry import CODEGEN_REGISTRY, register_codegen
 from ..codegen.schema import device_intrinsic
 from ..codegen.types import PTXDataType
 from ..codegen.utils import parse_str
+
+# =============================================================================
+# Declared synchronization words. The four direct forms emit exactly what their
+# raw PTX spellings do; only the operation's identity differs, which is what
+# lets a checker tell a protocol's own accesses from a stray one. The wait is
+# the one that generates something new: a loop, which is why it lives here and
+# not in the instruction table.
+# =============================================================================
+_WAIT_UNTIL_SCALARS = {
+    "int32": "s32",
+    "uint32": "u32",
+    "int64": "s64",
+    "uint64": "u64",
+    "uint128": "b128",
+    "int128": "b128",
+}
+
+
+_WAIT_UNTIL_PTX_WIDTH = {
+    "b32": 32,
+    "s32": 32,
+    "u32": 32,
+    "b64": 64,
+    "s64": 64,
+    "u64": 64,
+    "b128": 128,
+}
+
+
+def _wait_until_scalar_suffix(ty, requested=""):
+    """The PTX type this access is spelled with.
+
+    Defaults to the word's own signedness. A caller may ask for another
+    spelling of the same width -- `b32` for a load or a store that only moves
+    the value, which is how kernels ordinarily write one -- but not for another
+    width, which would access a different number of bytes. Whether the
+    instruction has the requested form at all is settled by the instruction
+    table: `add` has no bit-typed form and rejects one there.
+    """
+    suffix = _WAIT_UNTIL_SCALARS.get(str(ty))
+    if suffix is None:
+        raise TypeError(f"sync word must be a 32/64/128-bit integer scalar, got {ty}")
+    if not requested:
+        return suffix
+    width = _WAIT_UNTIL_PTX_WIDTH.get(requested)
+    if width is None:
+        raise TypeError(f"invalid ptx_type {requested!r}")
+    if width != _WAIT_UNTIL_PTX_WIDTH[suffix]:
+        raise TypeError(
+            f"ptx_type {requested!r} is {width} bits but the sync word is "
+            f"{_WAIT_UNTIL_PTX_WIDTH[suffix]} bits"
+        )
+    return requested
+
+
+def _wait_until_pointee(ptr, what):
+    if not isinstance(ptr.ty, ir.PointerType):
+        raise TypeError(f"{what} ptr must be a pointer to the synchronization word")
+    return ptr.ty.element_type
+
+
+def _wait_until_word_suffix(ptr, requested, what):
+    """The PTX type the word is accessed as.
+
+    Normally the word's own type decides it and `ptx_type` may respell it at
+    the same width. A kernel that addresses its workspace by byte offset has
+    no pointee type to read -- the address is an untyped handle -- and there
+    `ptx_type` is not a respelling but the statement of how wide the word is,
+    so it is required.
+    """
+    pointee = str(_wait_until_pointee(ptr, what))
+    # A 128-bit word spans two 64-bit elements, so a pointer into the pair is
+    # how a kernel names it; asking for `.b128` there is not a respelling of
+    # the pointee but the statement that the word is the wider one.
+    if requested == "b128" and _WAIT_UNTIL_PTX_WIDTH.get(_WAIT_UNTIL_SCALARS.get(pointee, "")) in (
+        32,
+        64,
+    ):
+        return requested
+    if pointee in _WAIT_UNTIL_SCALARS:
+        return _wait_until_scalar_suffix(pointee, requested)
+    if not requested:
+        raise TypeError(
+            f"{what} ptr is an untyped address; pass ptx_type to say how wide the word is"
+        )
+    if requested not in _WAIT_UNTIL_PTX_WIDTH:
+        raise TypeError(f"invalid ptx_type {requested!r}")
+    return requested
+
+
+def _wait_until_same_width(dst_ty, suffix, what):
+    """The destination register must be as wide as the word.
+
+    Not the same type: a bit-typed access moves 32 or 64 bits into whatever
+    register of that width the caller named, which is how kernels ordinarily
+    read a counter they treat as signed out of an unsigned word.
+    """
+    dst = _wait_until_scalar_suffix(dst_ty)
+    if _WAIT_UNTIL_PTX_WIDTH[dst] != _WAIT_UNTIL_PTX_WIDTH[suffix]:
+        raise TypeError(
+            f"{what} destination is {_WAIT_UNTIL_PTX_WIDTH[dst]} bits but the "
+            f"sync word is {_WAIT_UNTIL_PTX_WIDTH[suffix]} bits"
+        )
+
+
+def _wait_until_thread_local_scalar(dst, what):
+    if not isinstance(dst, ir.TensorLoad) or dst.source.scope() not in {
+        "local",
+        "local_scalar",
+        "register",
+        "reg",
+    }:
+        raise TypeError(f"{what} dst must be a writable thread-local scalar")
+    return dst.ty
+
+
+def _wait_until_forward(spelling, *args):
+    """Emit one instruction-table PTX operation and return its codegen result."""
+    from ..ptx import PTXNamespace  # pylint: disable=import-outside-toplevel
+
+    call = PTXNamespace()[spelling](*args)
+    return CODEGEN_REGISTRY[call.op.name](call.args)
+
+
+@register_codegen("cuda_wait_until")
+def cuda_wait_until(dst, ptr, condition, scope, space, ptx_type, backoff_ns):
+    """Lower a declared wait to a pre-tested loop around one scoped load."""
+    scope, space, ptx_type = (parse_str(x) for x in (scope, space, ptx_type))
+    dtype = _wait_until_thread_local_scalar(dst, "wait_until")
+    suffix = _wait_until_word_suffix(ptr, ptx_type, "wait_until")
+    _wait_until_same_width(dtype, suffix, "wait_until")
+
+    # The wait polls relaxed and closes with a single `ld.acquire`, rather than
+    # paying acquire semantics on every poll. Measured against the acquiring
+    # poll over every benchmarkable kernel that owns a spin wait, interleaved,
+    # round 1 dropped:
+    #
+    #     sm100_fp8_fp4_mega_moe                 8 sites   -1.04%
+    #     radix_topk_multi_cta                   1 site    -0.50%
+    #     agent_evolved_moe_fp8_blockscale_dsv3  3 sites   +0.03%
+    #     agent_evolved_kda_backward_packed      4 sites   -0.08%
+    #     cudnn_sm100_flex_attention_backward    1 site    -0.25%
+    #
+    # The closing read is what takes the edge, and it may observe a value later
+    # than the one that satisfied the predicate. That is still the edge the
+    # protocol means: these words are published by `red`/`atom` release RMWs,
+    # so every contribution sits in one release sequence and an acquire reading
+    # any of them synchronizes with all the earlier ones. It reads into a
+    # discarded temporary precisely so the later value cannot reach `dst` --
+    # the wait's exit value stays the value the predicate accepted, which
+    # matters because predicates here are not all monotone (`mega_moe`'s grid
+    # barrier tests a sign-bit flip, and the ring waits test equality).
+    #
+    # This is the wait's only lowering. `ld.volatile` polls the same way -- PTX
+    # ISA 8.4.2 puts it and `.relaxed` in one class, and measured they are
+    # within 0.1% everywhere -- but `.relaxed.<scope>` says the scope out loud
+    # instead of resting on `volatile` meaning `.sys`.
+    load_call, tags = _wait_until_forward(f"ld.relaxed.{scope}.{space}.{suffix}", dst, ptr)
+    # The helper is named after the poll, which is the load that repeats; the
+    # closing acquire hangs off that name with an `_acquire` suffix.
+    load_name = parse_str(load_call.args[0])
+    name = load_name.replace("ptx_ld_", "cuda_wait_until_")
+    source = load_call.args[-1].value.replace(load_name, name + "_load")
+    acquire_call, _ = _wait_until_forward(f"ld.acquire.{scope}.{space}.{suffix}", dst, ptr)
+    acquire_name = parse_str(acquire_call.args[0])
+    acquire_source = acquire_call.args[-1].value.replace(acquire_name, name + "_acquire")
+    source += "\n" + acquire_source
+    # NVRTC has no `__typeof__`, and `decltype` on the destination yields a
+    # reference that cannot be declared uninitialized, so the scratch takes
+    # the C type the generated helper already spells in its signature.
+    scratch_type = re.search(rf"void\s+{re.escape(name)}_acquire\(\s*([\w:]+)\s*&", acquire_source)
+    if scratch_type is None:  # pragma: no cover - the helper shape is fixed
+        raise RuntimeError(f"cannot read the destination type of {name}_acquire")
+    closing = (
+        f" {{ {scratch_type.group(1)} __tirx_wait_edge; "
+        f"{name}_acquire(__tirx_wait_edge, (ptr)); (void)__tirx_wait_edge; }}"
+    )
+    # The predicate stays at the call site: an ordinary bool argument would be
+    # evaluated once, before the load ever updates the destination.
+    # Load first, test after, which is how every spin loop in this repository
+    # is written: `ld; while (!done) { ld; }` reads once before it can decide
+    # anything, so a pre-tested loop would need the caller to seed the
+    # destination -- and the only way to seed it honestly is another load of
+    # the same word, which is one more unguaranteed read for a checker to
+    # judge. A `do`/`while` needs no seed.
+    #
+    # `unroll 1` is what a hand-written spin carries, and what the loop this
+    # replaces emitted. Without it nothing stops ptxas from duplicating the
+    # load into an unrolled body, which changes how often a waiter polls even
+    # though the instruction sequence is the same one.
+    #
+    # The first load and test are peeled out of the loop. The executed sequence
+    # is the same either way, but a single `do`/`while` gives ptxas one body to
+    # schedule and it stops emitting the early-exit branch a hand-written
+    # `ld; while (!done) { ld; }` gets -- so a waiter whose predicate already
+    # holds pays a second load and a poll it did not pay before. Measured on
+    # `sm100_fp8_fp4_mega_moe`'s grid barrier at +2.2% and on
+    # `radix_topk_multi_cta` at +1.25%, reproduced on two idle B200s with the
+    # states interleaved. Peeling costs nothing when the wait does spin.
+    #
+    # A backoff of zero is no backoff: the macro, and so the emitted code, is
+    # the one a wait without one produces, down to the argument list.
+    backoff = 0 if not hasattr(backoff_ns, "value") else int(backoff_ns.value)
+    if backoff == 0:
+        source += (
+            f"\n#define {name}(dst, ptr, predicate) "
+            f"do {{ {name}_load((dst), (ptr)); if (!(predicate)) {{ "
+            f'_Pragma("unroll 1") '
+            f"do {{ {name}_load((dst), (ptr)); }} while (!(predicate)); }}"
+            f"{closing} }} while (0)\n"
+        )
+        operands = (condition,)
+    else:
+        # Between polls, never before the first one and never after the last:
+        # the shape `allgather_gemm` and `gemm_reduce_scatter` write by hand.
+        name = f"{name}_backoff"
+        source = source.replace(f"{name[: -len('_backoff')]}_load", f"{name}_load")
+        source += (
+            f"\n#define {name}(dst, ptr, predicate, backoff_ns) "
+            f"do {{ {name}_load((dst), (ptr)); if (!(predicate)) {{ "
+            f'_Pragma("unroll 1") '
+            f"while (1) {{ __nanosleep(backoff_ns); {name}_load((dst), (ptr)); "
+            f"if (predicate) break; }} }}"
+            f"{closing} }} while (0)\n"
+        )
+        operands = (condition, backoff_ns)
+    return cuda_func_call(name, *load_call.args[1:-1], *operands, source_code=source), tags
 
 
 # =============================================================================

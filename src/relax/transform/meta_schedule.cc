@@ -59,7 +59,7 @@ class MetaScheduleTuner {
     return mod;
   }
 
-  tirx::PrimFunc TuneTIR(tirx::PrimFunc f, transform::PassContext ctx) {
+  tirx::Function TuneTIR(tirx::Function f, transform::PassContext ctx) {
     static ffi::Function tune_tir_func =
         tvm::ffi::Function::GetGlobalRequired("tvm.s_tir.meta_schedule.tune_tir");
     tune_tir_func(normalize_mod_func_(f), target_, work_dir_, max_trials_global_);
@@ -103,10 +103,10 @@ Pass MetaScheduleApplyDatabase(ffi::Optional<ffi::String> work_dir, bool enable_
     for (const auto& iter : mod->functions) {
       GlobalVar gv = iter.first;
       BaseFunc base_func = iter.second;
-      if (const auto* prim_func_node = base_func.as<tirx::PrimFuncNode>()) {
-        tirx::PrimFunc prim_func = ffi::GetRef<tirx::PrimFunc>(prim_func_node);
+      if (const auto* function_node = base_func.as<tirx::FunctionNode>()) {
+        tirx::Function function = ffi::GetRef<tirx::Function>(function_node);
 
-        IRModule tir_mod = (*normalize_mod_func_)(prim_func).cast<IRModule>();
+        IRModule tir_mod = (*normalize_mod_func_)(function).cast<IRModule>();
         if (ffi::Optional<s_tir::meta_schedule::TuningRecord> opt_record =
                 database->QueryTuningRecord(tir_mod, target, gv->name_hint)) {
           s_tir::meta_schedule::TuningRecord record = opt_record.value();
@@ -128,18 +128,18 @@ Pass MetaScheduleApplyDatabase(ffi::Optional<ffi::String> work_dir, bool enable_
           IRModule new_mod = sch->mod();
           TVM_FFI_ICHECK_EQ(new_mod->functions.size(), 1);
           BaseFunc new_base_func = (*new_mod->functions.begin()).second;
-          TVM_FFI_ICHECK(new_base_func->IsInstance<tirx::PrimFuncNode>());
-          tirx::PrimFunc tuned_prim_func = new_base_func.as_or_throw<tirx::PrimFunc>();
+          TVM_FFI_ICHECK(new_base_func->IsInstance<tirx::FunctionNode>());
+          tirx::Function tuned_function = new_base_func.as_or_throw<tirx::Function>();
           // maintain the original attributes
-          tirx::PrimFunc new_prim_func = tirx::PrimFunc(/*params=*/tuned_prim_func->params,
-                                                        /*body=*/tuned_prim_func->body,
-                                                        /*ret_type=*/tuned_prim_func->ret_type,
-                                                        /*attrs=*/prim_func->attrs);
-          new_prim_func = WithAttr(std::move(new_prim_func), tirx::attr::kIsScheduled, true);
-          result.Set(gv, new_prim_func);
+          tirx::Function new_function = tirx::Function(/*params=*/tuned_function->params,
+                                                       /*body=*/tuned_function->body,
+                                                       /*ret_type=*/tuned_function->ret_type,
+                                                       /*attrs=*/function->attrs);
+          new_function = WithAttr(std::move(new_function), tirx::attr::kIsScheduled, true);
+          result.Set(gv, new_function);
           continue;
         } else if (enable_warning) {
-          LOG(WARNING) << "Tuning record is not found for primfunc: " << gv->name_hint;
+          LOG(WARNING) << "Tuning record is not found for function: " << gv->name_hint;
         }
       }
       result.Set(gv, base_func);
@@ -169,13 +169,13 @@ Pass MetaScheduleTuneIRMod(ffi::Map<ffi::String, runtime::Tensor> params, ffi::S
 
 Pass MetaScheduleTuneTIR(ffi::String work_dir, int64_t max_trials_global) {
   Target target = Target::Current(false);
-  ffi::TypedFunction<tirx::PrimFunc(tirx::PrimFunc, IRModule, PassContext)> pass_func =
-      [=](tirx::PrimFunc f, IRModule mod, PassContext ctx) {
+  ffi::TypedFunction<tirx::Function(tirx::Function, IRModule, PassContext)> pass_func =
+      [=](tirx::Function f, IRModule mod, PassContext ctx) {
         return MetaScheduleTuner(target, work_dir, max_trials_global, max_trials_global,
                                  std::nullopt)
             .TuneTIR(f, ctx);
       };
-  return tirx::transform::CreatePrimFuncPass(/*pass function*/ pass_func, /*opt level*/ 0,
+  return tirx::transform::CreateFunctionPass(/*pass function*/ pass_func, /*opt level*/ 0,
                                              /*pass name*/ "MetaScheduleTuneTIR",
                                              /*required*/ {},
                                              /*traceable*/ true);

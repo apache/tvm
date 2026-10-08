@@ -427,7 +427,7 @@ def is_shape_valid_for_cutlass_matmul(
         # This could be regular matmul or batch matmul with shape ND x 2D or 2D x ND
         return True
 
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
     # If one side has less dimensions, use 1 to fill the gap
     batch_dim_pairs = list(
         itertools.zip_longest(

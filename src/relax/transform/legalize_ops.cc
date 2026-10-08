@@ -20,7 +20,7 @@
 /*!
  * \file tvm/relax/transform/legalize_ops.cc
  * \brief Legalize high-level operator calls in Relax functions to call_tir
- * with corresponding low-level TIR PrimFuncs.
+ * with corresponding low-level TIR Functions.
  */
 
 #include <tvm/ffi/cast.h>
@@ -31,6 +31,7 @@
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tirx/transform.h>
 
 #include <set>
@@ -93,16 +94,16 @@ class LegalizeMutator : public ExprMutator {
 
     IRModule output = builder_->GetContextIRModule();
     if (generated_tir_with_target_attr_) {
-      // It is possible that every call to a legalized PrimFunc
-      // contains VDevice annotations.  In that case, the PrimFunc
+      // It is possible that every call to a legalized tirx::Function
+      // contains VDevice annotations.  In that case, the tirx::Function
       // without a target annotation no longer has any callers, and
       // should be removed.
       output = relax::transform::DeadCodeElimination()(output);
 
       // Avoid accidental sharing of TIR variables in the legalized
-      // PrimFuncs, when kernels for multiple devices are generated
-      // from the same PrimFunc.
-      output = tirx::transform::ConvertSSA()(output);
+      // Functions, when kernels for multiple devices are generated
+      // from the same tirx::Function.
+      output = s_tir::transform::ConvertSSA()(output);
     }
 
     return output;
@@ -143,12 +144,13 @@ class LegalizeMutator : public ExprMutator {
   }
 
   Call WrapPureCall(const Call& ret) {
-    static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
+    static const Op call_pure_packed_op = Op::Get("relax.call_pure_packed");
     ffi::Array<Expr> ret_args = {ret->op};
     for (auto arg : ret->args) {
       ret_args.push_back(arg);
     }
-    return Call(Type::Missing(), call_pure_packed_op, ret_args, ret->attrs, ret->ty_args);
+    return Call::Unchecked(Type::Missing(), call_pure_packed_op, ret_args, ret->attrs,
+                           ret->ty_args);
   }
 
   ffi::Optional<Target> GetTarget(const ffi::Array<Type>& types) {
@@ -199,29 +201,29 @@ class LegalizeMutator : public ExprMutator {
     }
 
     auto base_func = builder_->GetContextIRModule()->Lookup(gvar.value());
-    auto opt_prim_func = base_func.as<tirx::PrimFunc>();
-    if (!opt_prim_func) {
-      // The call is to something other than a PrimFunc.  It may be
+    auto opt_function = base_func.as<tirx::Function>();
+    if (!opt_function) {
+      // The call is to something other than a tirx::Function.  It may be
       // another Relax function, in which case the legalization of its
       // body will handle any additional target annotations.
       return expr;
     }
-    auto prim_func = opt_prim_func.value();
+    auto function = opt_function.value();
 
-    auto func_target = prim_func->GetAttr<Target>(tvm::attr::kTarget);
+    auto func_target = function->GetAttr<Target>(tvm::attr::kTarget);
     if (func_target && func_target.value()->kind == vdevice_target.value()->kind) {
       // The function already has compatible annotations for the
       // target, so no modifications are required.
       return expr;
     }
 
-    // The FLegalize function generated a PrimFunc, but that PrimFunc
+    // The FLegalize function generated a tirx::Function, but that tirx::Function
     // doesn't have annotations compatible with the vdevice required
     // by the Relax Type.  Update the call to instead call a
-    // `PrimFunc` with the appropriate target annotation.  In the
+    // `tirx::Function` with the appropriate target annotation.  In the
     // future, this may be treated as a bug in the FLegalize
     // implementation, rather than expected output from it.
-    auto new_prim_func = WithAttr(prim_func, tvm::attr::kTarget, vdevice_target.value());
+    auto new_function = WithAttr(function, tvm::attr::kTarget, vdevice_target.value());
     auto new_gvar_name = [&]() -> std::string {
       std::stringstream ss;
       ss << gvar.value()->name_hint;
@@ -229,7 +231,7 @@ class LegalizeMutator : public ExprMutator {
       ss << vdevice_target.value()->kind->name;
       return ss.str();
     }();
-    auto new_gvar = builder_->AddFunction(new_prim_func, new_gvar_name);
+    auto new_gvar = builder_->AddFunction(new_function, new_gvar_name);
     generated_tir_with_target_attr_ = true;
 
     call.CopyOnWrite()->args.Set(0, new_gvar);
@@ -241,9 +243,9 @@ class LegalizeMutator : public ExprMutator {
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
     static const auto& call_packed_map = Op::GetAttrMap<FCallPacked>("FCallPacked");
     static const auto& requires_arg_shapes_map = Op::GetAttrMap<bool>("RequiresArgumentShapes");
-    static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
-    static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
+    static const Op call_pure_packed_op = Op::Get("relax.call_pure_packed");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_dps_packed_op = Op::Get("relax.call_dps_packed");
     auto* op_node = visited_call->op.as<OpNode>();
 
     // Not an OpNode
@@ -281,7 +283,7 @@ class LegalizeMutator : public ExprMutator {
         //     be done by having `R.Tensor(ndim=2)` be syntactic sugar
         //     for `R.Tensor(shape=[m, n])`, where `m` and `n` are new
         //     shape variables.  This would allow legalization into
-        //     dynamic TIR PrimFuncs.
+        //     dynamic TIR Functions.
         //
         //     This fallback would only be applicable for cases where
         //     both the dtype and the dimensionality are known.  While
@@ -335,13 +337,13 @@ class LegalizeMutator : public ExprMutator {
       // Third choice, use an explicit ffi::String replacement.  This does not require the shape
       ffi::String packed_func_name = call_packed_map[op];
       legalization_func = [packed_func_name](const BlockBuilder& bb, const Call& call) -> Expr {
-        return Call(Type::Missing(), ExternFunc(packed_func_name), call->args, Attrs(),
-                    {GetType(call)});
+        return Call::Unchecked(Type::Missing(), ExternFunc(packed_func_name), call->args, Attrs(),
+                               {GetType(call)});
       };
     } else {
       // No legalization.
       if (enable_warning_ && !op.same_as(call_tir_op) && !op.same_as(call_dps_packed_op) &&
-          !op.same_as(call_pure_packed_op)) {
+          !op.same_as(call_pure_packed_op) && !op.same_as(Op::Get("relax.call_tir_packed"))) {
         if (shapes_are_known_if_required) {
           LOG(WARNING) << "No legalization func for " << op->name << " is found.";
         } else {
@@ -365,7 +367,7 @@ class LegalizeMutator : public ExprMutator {
     }
     Expr legalized = legalization_func(builder_, visited_call);
 
-    // Append the target attribute to any PrimFunc generated in
+    // Append the target attribute to any tirx::Function generated in
     // legalization.
     legalized = BindTarget(legalized);
 
@@ -401,7 +403,7 @@ class LegalizeMutator : public ExprMutator {
   IRModule mod_;
   /*! \brief The customized legalization function map. */
   ffi::Map<ffi::String, ffi::Function> cmap_;
-  /*! \brief If VDevice annotations produced at least one PrimFunc with a Target attr*/
+  /*! \brief If VDevice annotations produced at least one tirx::Function with a Target attr*/
   bool generated_tir_with_target_attr_{false};
   /*!
    * \brief A boolean value indicating if to print warnings for CallNode whose op's

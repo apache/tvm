@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401, F841
+# ruff: noqa: F401
 
 import pytest
 
@@ -24,61 +24,71 @@ from tvm import relax, tirx
 from tvm.ir import assert_structural_equal
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 def test_basic():
+    m_tir_matmul = T.dynamic("m")
+    n_tir_matmul = T.dynamic("n")
+    k_tir_matmul = T.dynamic("k")
+    m_main = T.dynamic("m")
+    n_main = T.dynamic("n")
+    k_main = T.dynamic("k")
+
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
-            m = T.int64()
-            n = T.int64()
-            k = T.int64()
-            A = T.match_buffer(x, (m, n))
-            B = T.match_buffer(y, (n, k))
-            C = T.match_buffer(z, (m, k))
-
-            for i, j, k in T.grid(m, k, n):
-                with T.sblock("matmul"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+        @Ts.function
+        def tir_matmul(
+            A: T.Tensor((m_tir_matmul, n_tir_matmul)),
+            B: T.Tensor((n_tir_matmul, k_tir_matmul)),
+            C: T.Tensor((m_tir_matmul, k_tir_matmul)),
+        ) -> None:
+            for i, j, k_tir_matmul_index in T.grid(m_tir_matmul, k_tir_matmul, n_tir_matmul):
+                with Ts.sblock("matmul"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k_tir_matmul_index])
+                    with Ts.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
         @R.function(private=True)
         def main(
-            x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")
+            x: R.Tensor((m_main, n_main), "float32"), w: R.Tensor((n_main, k_main), "float32")
         ) -> R.Tensor:
-            m, n, k = T.int64(), T.int64(), T.int64()
-            gv0 = R.call_tir(Before.tir_matmul, (x, w), R.Tensor((m, k), dtype="float32"))
+            gv0 = R.call_tir(Before.tir_matmul, (x, w), R.Tensor((m_main, k_main), dtype="float32"))
             return gv0
+
+    m_tir_matmul = T.dynamic("m")
+    n_tir_matmul = T.dynamic("n")
+    k_tir_matmul = T.dynamic("k")
+    m_main = T.dynamic("m")
+    n_main = T.dynamic("n")
+    k_main = T.dynamic("k")
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
-        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+        @Ts.function
+        def tir_matmul(
+            A: T.Tensor((m_tir_matmul, n_tir_matmul)),
+            B: T.Tensor((n_tir_matmul, k_tir_matmul)),
+            C: T.Tensor((m_tir_matmul, k_tir_matmul)),
+        ) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
-            m = T.int64()
-            n = T.int64()
-            k = T.int64()
-            A = T.match_buffer(x, (m, n))
-            B = T.match_buffer(y, (n, k))
-            C = T.match_buffer(z, (m, k))
 
-            for i, j, k in T.grid(m, k, n):
-                with T.sblock("matmul"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+            for i, j, k_tir_matmul_index in T.grid(m_tir_matmul, k_tir_matmul, n_tir_matmul):
+                with Ts.sblock("matmul"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k_tir_matmul_index])
+                    with Ts.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
         @R.function
         def main(
-            x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")
+            x: R.Tensor((m_main, n_main), "float32"), w: R.Tensor((n_main, k_main), "float32")
         ) -> R.Tensor:
-            m, n, k = T.int64(), T.int64(), T.int64()
-            gv0 = R.call_tir(Expected.tir_matmul, (x, w), R.Tensor((m, k), dtype="float32"))
+            gv0 = R.call_tir(
+                Expected.tir_matmul, (x, w), R.Tensor((m_main, k_main), dtype="float32")
+            )
             return gv0
 
     before = Before
@@ -92,8 +102,8 @@ def test_system_lib_prefix():
     class Before:
         I.module_attrs({"system_lib_prefix": "hello_"})
 
-        @T.prim_func(private=True, s_tir=True)
-        def tir_zeros(x: T.Buffer((2), "float32")) -> None:
+        @Ts.function(private=True)
+        def tir_zeros(x: T.Tensor((2), "float32")) -> None:
             x[0] = T.float32(0)
 
         @R.function(private=True)
@@ -105,8 +115,8 @@ def test_system_lib_prefix():
     class Expected:
         I.module_attrs({"system_lib_prefix": "hello_"})
 
-        @T.prim_func(s_tir=True)
-        def hello_tir_zeros(x: T.Buffer((2), "float32")) -> None:
+        @Ts.function
+        def hello_tir_zeros(x: T.Tensor((2), "float32")) -> None:
             T.func_attr({"global_symbol": "hello_tir_zeros"})
             x[0] = T.float32(0)
 

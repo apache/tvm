@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# src/arith/z3_prover.cc is always part of COMPILER_SRCS (picked up by the
-# src/arith/*.cc glob). It compiles a conservative stub by default and switches
+# src/sym/z3_prover.cc is always part of COMPILER_SRCS (picked up by the
+# src/sym/*.cc glob). It compiles a conservative stub by default and switches
 # to the real Z3 implementation only when the TVM_USE_Z3 macro is defined below.
 if(${USE_Z3} MATCHES ${IS_FALSE_PATTERN})
   return()
@@ -92,6 +92,6 @@ else()
   return()
 endif()
 
-# Enable the real Z3 implementation inside the single src/arith/z3_prover.cc file.
+# Enable the real Z3 implementation inside the single src/sym/z3_prover.cc file.
 add_compile_definitions(TVM_USE_Z3)
 message(STATUS "Build with Z3 SMT solver support")

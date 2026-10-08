@@ -19,7 +19,7 @@
 from tvm import s_tir, tirx
 from tvm.target import Target
 
-from ..analysis import SBlockInfo, normalize_prim_func
+from ..analysis import SBlockInfo, normalize_function
 from ..analysis.gemv import is_gemv, normalize
 from ..base import get_extent, try_inline_contiguous_spatial
 from .base import CPUScheduleRule
@@ -30,14 +30,14 @@ class GEMV(CPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements, no-else-return
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
-        block_infos = normalize_prim_func(sch)
+        block_infos = normalize_function(sch)
         block_infos = try_inline_contiguous_spatial(sch, block_infos)
         if block_infos is None:
             return None
@@ -77,7 +77,7 @@ class GEMV(CPUScheduleRule):
         sch: s_tir.Schedule,
         target: Target,
         block: s_tir.schedule.SBlockRV,
-        vector_input_buffers: list[tirx.Buffer],
+        vector_input_buffers: list[tirx.Var],
         epilogue_info: SBlockInfo | None,
     ):
         """Schedule the inner reduction block."""
@@ -121,8 +121,8 @@ class GEMV(CPUScheduleRule):
             sch.parallel(s_outer)  # Parallelize along the s-axis (major computation loop)
 
             # Apply loop unrolling for better CPU performance
-            sch.annotate(r_outer, "pragma_auto_unroll_max_step", unroll_factor)
-            sch.annotate(r_outer, "pragma_unroll_explicit", 1)
+            sch.annotate(r_outer, "auto_unroll_max_step", unroll_factor)
+            sch.annotate(r_outer, "unroll_explicit", 1)
             return sch
 
         return apply(

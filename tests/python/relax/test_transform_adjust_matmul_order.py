@@ -173,6 +173,10 @@ class TestPreserveCompileTimeMatmulOnRHS(Base):
     Expected = Before
 
 
+lora_r_before = T.dynamic("lora_r")
+lora_r_expected = T.dynamic("lora_r")
+
+
 class TestLHSDynamic(Base):
     """Prefer (x*A)*B instead of x*(A*B)
 
@@ -192,8 +196,8 @@ class TestLHSDynamic(Base):
         @R.function
         def main(
             x: R.Tensor([16]),
-            A: R.Tensor([16, "lora_r"]),
-            B: R.Tensor(["lora_r", 32]),
+            A: R.Tensor([16, lora_r_before]),
+            B: R.Tensor([lora_r_before, 32]),
         ) -> R.Tensor([32]):
             weight: R.Tensor([16, 32]) = R.matmul(A, B)
             out: R.Tensor([32]) = R.matmul(x, weight)
@@ -204,13 +208,16 @@ class TestLHSDynamic(Base):
         @R.function
         def main(
             x: R.Tensor([16]),
-            A: R.Tensor([16, "lora_r"]),
-            B: R.Tensor(["lora_r", 32]),
+            A: R.Tensor([16, lora_r_expected]),
+            B: R.Tensor([lora_r_expected, 32]),
         ) -> R.Tensor([32]):
-            lora_r = T.int64()
-            x: R.Tensor([lora_r]) = R.matmul(x, A)
+            x: R.Tensor([lora_r_expected]) = R.matmul(x, A)
             x: R.Tensor([32]) = R.matmul(x, B)
             return x
+
+
+lora_r_before = T.dynamic("lora_r")
+lora_r_expected = T.dynamic("lora_r")
 
 
 class TestRHSDynamic(Base):
@@ -229,8 +236,8 @@ class TestRHSDynamic(Base):
         @R.function
         def main(
             x: R.Tensor([16]),
-            A: R.Tensor([32, "lora_r"]),
-            B: R.Tensor(["lora_r", 16]),
+            A: R.Tensor([32, lora_r_before]),
+            B: R.Tensor([lora_r_before, 16]),
         ) -> R.Tensor([32]):
             weight: R.Tensor([32, 16]) = R.matmul(A, B)
             out: R.Tensor([32]) = R.matmul(weight, x)
@@ -241,11 +248,10 @@ class TestRHSDynamic(Base):
         @R.function
         def main(
             x: R.Tensor([16]),
-            A: R.Tensor([32, "lora_r"]),
-            B: R.Tensor(["lora_r", 16]),
+            A: R.Tensor([32, lora_r_expected]),
+            B: R.Tensor([lora_r_expected, 16]),
         ) -> R.Tensor([32]):
-            lora_r = T.int64()
-            x: R.Tensor([lora_r]) = R.matmul(B, x)
+            x: R.Tensor([lora_r_expected]) = R.matmul(B, x)
             x: R.Tensor([32]) = R.matmul(A, x)
             return x
 
@@ -262,6 +268,10 @@ class TestIdempotentRHSDynamic(Base):
 
     Before = TestRHSDynamic.Expected
     Expected = TestRHSDynamic.Expected
+
+
+batch_size_before = T.dynamic("batch_size")
+lora_r_before = T.dynamic("lora_r")
 
 
 class TestDynamicWithBatchSymbolic1(Base):
@@ -290,13 +300,12 @@ class TestDynamicWithBatchSymbolic1(Base):
     class Before:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 1, 16]),
-            A: R.Tensor([16, "lora_r"]),
-            B: R.Tensor(["lora_r", 32]),
-        ) -> R.Tensor(["batch_size", 1, 32]):
-            batch_size = T.int64()
+            x: R.Tensor([batch_size_before, 1, 16]),
+            A: R.Tensor([16, lora_r_before]),
+            B: R.Tensor([lora_r_before, 32]),
+        ) -> R.Tensor([batch_size_before, 1, 32]):
             weight: R.Tensor([16, 32]) = R.matmul(A, B)
-            out: R.Tensor([batch_size, 1, 32]) = R.matmul(x, weight)
+            out: R.Tensor([batch_size_before, 1, 32]) = R.matmul(x, weight)
             return out
 
     Expected = Before
@@ -368,6 +377,10 @@ class TestDynamicWithBatchConcrete1RHSFirst(Base):
             return out
 
 
+batch_size_before = T.dynamic("batch_size")
+lora_r_before = T.dynamic("lora_r")
+
+
 class TestDynamicWithBatchSymbolic2(Base):
     """When both batch_size and lora_r are symbolic and it cannot be proven which
     is cheaper, LHS or RHS, maintain the existing order.
@@ -394,13 +407,12 @@ class TestDynamicWithBatchSymbolic2(Base):
     class Before:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 16, 1]),
-            A: R.Tensor([32, "lora_r"]),
-            B: R.Tensor(["lora_r", 16]),
-        ) -> R.Tensor(["batch_size", 32, 1]):
-            batch_size = T.int64()
+            x: R.Tensor([batch_size_before, 16, 1]),
+            A: R.Tensor([32, lora_r_before]),
+            B: R.Tensor([lora_r_before, 16]),
+        ) -> R.Tensor([batch_size_before, 32, 1]):
             weight: R.Tensor([32, 16]) = R.matmul(A, B)
-            out: R.Tensor([batch_size, 32, 1]) = R.matmul(weight, x)
+            out: R.Tensor([batch_size_before, 32, 1]) = R.matmul(weight, x)
             return out
 
     Expected = Before
@@ -472,6 +484,12 @@ class TestDynamicWithBatchConcrete2LHSFirst(Base):
             return out
 
 
+M_before = T.dynamic("M")
+N_before = T.dynamic("N")
+P_before = T.dynamic("P")
+Q_before = T.dynamic("Q")
+
+
 class TestNoOpForFullyDynamicOnLHS(Base):
     """Keep existing order if no benefit can be proven
 
@@ -494,14 +512,20 @@ class TestNoOpForFullyDynamicOnLHS(Base):
     class Before:
         @R.function
         def main(
-            A: R.Tensor(["M", "N"]),
-            B: R.Tensor(["N", "P"]),
-            C: R.Tensor(["P", "Q"]),
+            A: R.Tensor([M_before, N_before]),
+            B: R.Tensor([N_before, P_before]),
+            C: R.Tensor([P_before, Q_before]),
         ):
             out = R.matmul(R.matmul(A, B), C)
             return out
 
     Expected = Before
+
+
+M_before = T.dynamic("M")
+N_before = T.dynamic("N")
+P_before = T.dynamic("P")
+Q_before = T.dynamic("Q")
 
 
 class TestNoOpForFullyDynamicOnRHS(Base):
@@ -515,9 +539,9 @@ class TestNoOpForFullyDynamicOnRHS(Base):
     class Before:
         @R.function
         def main(
-            A: R.Tensor(["M", "N"]),
-            B: R.Tensor(["N", "P"]),
-            C: R.Tensor(["P", "Q"]),
+            A: R.Tensor([M_before, N_before]),
+            B: R.Tensor([N_before, P_before]),
+            C: R.Tensor([P_before, Q_before]),
         ):
             out = R.matmul(A, R.matmul(B, C))
             return out
@@ -626,6 +650,10 @@ class TestLHSPermuteDimsNonMatrixAxes(Base):
     Expected = Before
 
 
+lora_r_before = T.dynamic("lora_r")
+lora_r_expected = T.dynamic("lora_r")
+
+
 class TestRHSPermuteDimsDynamic(Base):
     """Prefer (x*A)*B instead of x*(A*B)
 
@@ -645,8 +673,8 @@ class TestRHSPermuteDimsDynamic(Base):
         @R.function
         def main(
             x: R.Tensor([16]),
-            A: R.Tensor([32, "lora_r"]),
-            B: R.Tensor(["lora_r", 16]),
+            A: R.Tensor([32, lora_r_before]),
+            B: R.Tensor([lora_r_before, 16]),
         ) -> R.Tensor([32]):
             linear_weight: R.Tensor([32, 16]) = R.matmul(A, B)
             matmul_weight: R.Tensor([16, 32]) = R.permute_dims(linear_weight)
@@ -658,15 +686,20 @@ class TestRHSPermuteDimsDynamic(Base):
         @R.function
         def main(
             x: R.Tensor([16]),
-            A: R.Tensor([32, "lora_r"]),
-            B: R.Tensor(["lora_r", 16]),
+            A: R.Tensor([32, lora_r_expected]),
+            B: R.Tensor([lora_r_expected, 16]),
         ) -> R.Tensor([32]):
-            lora_r = T.int64()
             B_transpose = R.permute_dims(B)
-            x: R.Tensor([lora_r]) = R.matmul(x, B_transpose)
+            x: R.Tensor([lora_r_expected]) = R.matmul(x, B_transpose)
             A_transpose = R.permute_dims(A)
             x: R.Tensor([32]) = R.matmul(x, A_transpose)
             return x
+
+
+lora_r_before = T.dynamic("lora_r")
+batch_size_before = T.dynamic("batch_size")
+lora_r_expected = T.dynamic("lora_r")
+batch_size_expected = T.dynamic("batch_size")
 
 
 class TestRHSPermuteDimsWithDynamicBatch(Base):
@@ -698,42 +731,42 @@ class TestRHSPermuteDimsWithDynamicBatch(Base):
     class Before:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 4096]),
-            A: R.Tensor([4096, "lora_r"]),
-            B: R.Tensor(["lora_r", 4096]),
-        ) -> R.Tensor(["batch_size", 4096]):
+            x: R.Tensor([batch_size_before, 4096]),
+            A: R.Tensor([4096, lora_r_before]),
+            B: R.Tensor([lora_r_before, 4096]),
+        ) -> R.Tensor([batch_size_before, 4096]):
             R.func_attr(
                 {
                     "tir_var_upper_bound": {"lora_r": 2048, "batch_size": 2048},
                 }
             )
-            lora_r = T.int64()  # noqa: F841
-            batch_size = T.int64()
             linear_weight: R.Tensor([4096, 4096]) = R.matmul(A, B)
             matmul_weight: R.Tensor([4096, 4096]) = R.permute_dims(linear_weight)
-            out: R.Tensor([batch_size, 4096]) = R.matmul(x, matmul_weight)
+            out: R.Tensor([batch_size_before, 4096]) = R.matmul(x, matmul_weight)
             return out
 
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 4096]),
-            A: R.Tensor([4096, "lora_r"]),
-            B: R.Tensor(["lora_r", 4096]),
-        ) -> R.Tensor(["batch_size", 4096]):
+            x: R.Tensor([batch_size_expected, 4096]),
+            A: R.Tensor([4096, lora_r_expected]),
+            B: R.Tensor([lora_r_expected, 4096]),
+        ) -> R.Tensor([batch_size_expected, 4096]):
             R.func_attr(
                 {
                     "tir_var_upper_bound": {"lora_r": 2048, "batch_size": 2048},
                 }
             )
-            lora_r = T.int64()
-            batch_size = T.int64()
             B_transpose = R.permute_dims(B)
-            x: R.Tensor([batch_size, lora_r]) = R.matmul(x, B_transpose)
+            x: R.Tensor([batch_size_expected, lora_r_expected]) = R.matmul(x, B_transpose)
             A_transpose = R.permute_dims(A)
-            x: R.Tensor([batch_size, 4096]) = R.matmul(x, A_transpose)
+            x: R.Tensor([batch_size_expected, 4096]) = R.matmul(x, A_transpose)
             return x
+
+
+lora_r_before = T.dynamic("lora_r")
+lora_r_expected = T.dynamic("lora_r")
 
 
 class TestRHSPermuteDimsDynamicWithSquareMatrix(Base):
@@ -753,8 +786,8 @@ class TestRHSPermuteDimsDynamicWithSquareMatrix(Base):
         @R.function
         def main(
             x: R.Tensor([32]),
-            A: R.Tensor([32, "lora_r"]),
-            B: R.Tensor(["lora_r", 32]),
+            A: R.Tensor([32, lora_r_before]),
+            B: R.Tensor([lora_r_before, 32]),
         ) -> R.Tensor([32]):
             linear_weight: R.Tensor([32, 32]) = R.matmul(A, B)
             matmul_weight: R.Tensor([32, 32]) = R.permute_dims(linear_weight)
@@ -766,12 +799,11 @@ class TestRHSPermuteDimsDynamicWithSquareMatrix(Base):
         @R.function
         def main(
             x: R.Tensor([32]),
-            A: R.Tensor([32, "lora_r"]),
-            B: R.Tensor(["lora_r", 32]),
+            A: R.Tensor([32, lora_r_expected]),
+            B: R.Tensor([lora_r_expected, 32]),
         ) -> R.Tensor([32]):
-            lora_r = T.int64()
             B_transpose = R.permute_dims(B)
-            x: R.Tensor([lora_r]) = R.matmul(x, B_transpose)
+            x: R.Tensor([lora_r_expected]) = R.matmul(x, B_transpose)
             A_transpose = R.permute_dims(A)
             x: R.Tensor([32]) = R.matmul(x, A_transpose)
             return x

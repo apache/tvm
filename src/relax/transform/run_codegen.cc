@@ -94,7 +94,7 @@ class CodeGenRunner : ExprMutator {
       ffi::Map<ffi::String, runtime::Tensor> constants;
       for (const auto& [constant, name] : constant_names) {
         TVM_FFI_ICHECK(!constants.count(name)) << "More than one constant with the name " << name;
-        constants.Set(name, constant->data);
+        constants.Set(name, constant->value.cast<runtime::Tensor>());
       }
       out_mod = WithAttr(out_mod, tvm::attr::kConstNameToConstant, std::move(constants));
     }
@@ -114,9 +114,9 @@ class CodeGenRunner : ExprMutator {
         ffi::Array<Expr> new_args({extern_func});
         new_args.push_back(Tuple(call_node->args.Map([this](Expr arg) { return VisitExpr(arg); })));
 
-        static const Op& call_op = Op::Get("relax.call_dps_packed");
+        static const Op call_op = Op::Get("relax.call_dps_packed");
 
-        return Call(Type::Missing(), call_op, new_args, tvm::Attrs(), {ret_ty});
+        return Call::Unchecked(Type::Missing(), call_op, new_args, tvm::Attrs(), {ret_ty});
       };
 
       auto ret_ty = GetType(call);
@@ -128,13 +128,11 @@ class CodeGenRunner : ExprMutator {
         Expr new_func = VisitExpr(func);
 
         if (new_func->IsInstance<ExternFuncNode>()) {
-          extern_funcs_[gvar_node] = new_func;
+          extern_funcs_.insert_or_assign(gvar_node, new_func);
           // Remove the global symbol and codegen attributes from the function so that it can be
           // removed the module.
-          const auto RemoveFuncAttrFunc = tvm::ffi::Function::GetGlobal("ir.BaseFuncWithoutAttr");
-          TVM_FFI_ICHECK(RemoveFuncAttrFunc.has_value());
-          func = (*RemoveFuncAttrFunc)(func, tvm::attr::kGlobalSymbol).cast<Function>();
-          func = (*RemoveFuncAttrFunc)(func, attr::kCodegen).cast<Function>();
+          func = WithoutAttr(std::move(func), tvm::attr::kGlobalSymbol);
+          func = WithoutAttr(std::move(func), attr::kCodegen);
           builder_->UpdateFunction(gvar, func);
           return create_call_dps_packed(new_func, ret_ty);
         }
@@ -149,7 +147,9 @@ class CodeGenRunner : ExprMutator {
     if (call_node->ty.as<PrimTypeNode>()) {
       if (auto op = call_node->op.as<Op>()) {
         static auto infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
-        if (!infer_type_map.count(op.value())) {
+        static auto infer_type_with_builder_map =
+            Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
+        if (!infer_type_map.count(op.value()) && !infer_type_with_builder_map.count(op.value())) {
           ret_ty = call_node->ty.as_or_throw<Type>();
         }
       }
@@ -165,11 +165,11 @@ class CodeGenRunner : ExprMutator {
       auto ext_symbol = GetExtSymbol(func);
       size_t count = 0;
       PostOrderVisit(func->body, [=, this, &count](Expr e) {
-        if (e->IsInstance<ConstantNode>()) {
+        if (auto constant = e.as<GenericConst>();
+            constant && constant.value()->value.as<runtime::Tensor>()) {
           // Make sure to pick a unique name
           auto name = ext_symbol + "_" + opt_codegen.value() + "_const_" + std::to_string(count++);
-          auto constant = e.as_or_throw<Constant>();
-          constant_names.Set(constant, name);
+          constant_names.Set(constant.value(), name);
         }
       });
       return ExternFunc(GetExtSymbol(func));
@@ -184,7 +184,7 @@ class CodeGenRunner : ExprMutator {
     std::unordered_map<std::string, ffi::Array<Function>> target_functions;
 
     for (const auto& entry : mod->functions) {
-      if (entry.second->IsInstance<tirx::PrimFuncNode>()) {
+      if (entry.second->IsInstance<tirx::FunctionNode>()) {
         continue;
       }
       PostOrderVisit(entry.second, [&target_functions](Expr e) {
@@ -217,7 +217,7 @@ class CodeGenRunner : ExprMutator {
   }
 
   /*! \brief The names of all constants in the original module. */
-  ffi::Map<Constant, ffi::String> constant_names;
+  ffi::Map<GenericConst, ffi::String> constant_names;
   /*! \brief Extern funcs for each global variable.  */
   std::unordered_map<const GlobalVarNode*, Expr> extern_funcs_;
 };

@@ -75,7 +75,7 @@ Type InferDistTypeMatmul(const Call& call, const BlockBuilder& ctx) {
   ffi::Optional<ffi::Array<PrimExpr>> output_shape_prefix =
       InferBinaryBroadcastShape(call, ctx, x1_shape_prefix, x2_shape_prefix);
   TVM_FFI_ICHECK(output_shape_prefix.has_value()) << "Failed to infer output shape of Matmul";
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   PrimExpr x1_reduction_length = x1_shape->values[x1_ty->ndim - 1];
   PrimExpr x2_reduction_length = x2_shape->values[x2_ndim - 2];
   if (analyzer->CanProve(x1_reduction_length != x2_reduction_length)) {
@@ -96,7 +96,12 @@ Type InferDistTypeMatmul(const Call& call, const BlockBuilder& ctx) {
   TensorType output_tensor_ty(ShapeExpr(output_shape), out_dtype);
   return InferShardingSpec(call, ctx, output_tensor_ty, distributed::BuildAxisGraphMatmul);
 }
-TVM_REGISTER_OP("relax.matmul").set_attr<FInferType>("dist.FInferType", InferDistTypeMatmul);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
+  OpDef("relax.matmul")
+      .set_attr<FInferTypeWithBuilder>("relax.dist.FInferTypeWithBuilder", InferDistTypeMatmul);
+  // clang-format on
+}
 
 }  // namespace distributed
 }  // namespace relax

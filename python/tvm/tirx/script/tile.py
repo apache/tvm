@@ -18,9 +18,9 @@
 
 import functools
 
-from tvm.tirx import BufferRegion, is_buffer_var
-
-from .builder import tirx as _builder
+from tvm.ir import TensorRegion
+from tvm.tirx import is_tensor_var
+from tvm.tirx.script.ir_builder import tirx as _builder
 
 
 def _get_arg(args, kwargs, index, name):
@@ -30,18 +30,28 @@ def _get_arg(args, kwargs, index, name):
 
 
 def _require_buffer_arg(op_name, arg_name, value):
-    if not (is_buffer_var(value) or isinstance(value, BufferRegion)):
+    if not (
+        is_tensor_var(value) or (isinstance(value, TensorRegion) and is_tensor_var(value.source))
+    ):
         raise TypeError(
-            f"Tx.{op_name} is tile-only and expects `{arg_name}` to be a Buffer "
-            f"or BufferRegion; use T.{op_name} for expression/builtin calls"
+            f"Tx.{op_name} is tile-only and expects `{arg_name}` to be a tensor variable "
+            f"or TensorRegion with a TensorVar source; use T.{op_name} for expression/builtin calls"
         )
 
 
 def _validate_tile_call(op_name, args, kwargs):
+    if op_name in {"unary_reduce", "unary_reduce_with_scale_bias"}:
+        for index, name in enumerate(("unary_output", "reduce_output", "unary_input")):
+            _require_buffer_arg(op_name, name, _get_arg(args, kwargs, index, name))
+        return
     dst = _get_arg(args, kwargs, 0, "dst")
     _require_buffer_arg(op_name, "dst", dst)
 
-    if op_name in {"cast", "max", "min", "permute_layout", "silu"}:
+    if op_name.endswith("_with_scale_bias"):
+        src = _get_arg(args, kwargs, 1, "src")
+        if src is not None:
+            _require_buffer_arg(op_name, "src", src)
+    elif op_name in {"cast", "max", "min", "permute_layout", "silu"}:
         src = _get_arg(args, kwargs, 1, "src")
         _require_buffer_arg(op_name, "src", src)
     elif op_name in {"sqrt", "exp", "exp2", "log2", "reciprocal"}:
@@ -69,8 +79,11 @@ _SCOPED_TILE_OP_NAMES = [
     "copy",
     "copy_async",
     "exp",
+    "exp_with_scale_bias",
     "exp2",
+    "exp2_with_scale_bias",
     "log2",
+    "log2_with_scale_bias",
     "fdiv",
     "fill",
     "fma",
@@ -88,9 +101,11 @@ _SCOPED_TILE_OP_NAMES = [
     "select",
     "silu",
     "sqrt",
+    "sqrt_with_scale_bias",
     "sub",
     "sum",
     "unary_reduce",
+    "unary_reduce_with_scale_bias",
     "zero",
 ]
 
@@ -105,13 +120,9 @@ warpgroup = _builder.ScopeNamespace("warpgroup", "warpgroup")
 warp = _builder.ScopeNamespace("warp", "warp")
 thread = _builder.ScopeNamespace("thread", "thread")
 
-compose_op = _builder.compose_op
-
-
 __all__ = [
     *_SCOPED_TILE_OP_NAMES,
     "cluster",
-    "compose_op",
     "cta",
     "thread",
     "warp",

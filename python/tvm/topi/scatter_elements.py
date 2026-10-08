@@ -18,7 +18,7 @@
 
 from tvm import te, tirx
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tirx as T
+from tvm.tirx.script import ir_builder as T
 
 from . import utils
 from .math import cast
@@ -98,51 +98,70 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
 
     def gen_ir(data_ptr, indices_ptr, updates_ptr, out_ptr, reduce_func):
         # pylint: disable=invalid-name
-        data = T.buffer_proxy(data_ptr)
-        indices = T.buffer_proxy(indices_ptr)
-        updates = T.buffer_proxy(updates_ptr)
-        out = T.buffer_proxy(out_ptr)
+        data = data_ptr
+        indices = indices_ptr
+        updates = updates_ptr
+        out = out_ptr
 
         # Copy initial input data to output
         with IRBuilder() as ib:
-            with T.seq_scope():
-                with T.parallel(0, full_range) as i:
-                    out[i] = data[i]
+            with T.parallel(0, full_range) as i:
+                T.tensor_store(out, data[T.tensor_indices(data, i)], T.tensor_indices(out, i))
 
-                with T.parallel(0, ind_before_axis_range * ind_after_axis_range) as fused:
-                    i = fused // ind_after_axis_range
-                    j = fused % ind_after_axis_range
-                    pre_index1 = i * ind_before_axis_stride + j
-                    pre_index2 = i * before_axis_stride + j
-                    with T.serial(0, ind_axis_range) as k:
-                        # Offset along indices or updates
-                        index1 = pre_index1 + k * ind_after_axis_range
-                        # Get index and shift to positive side if need
-                        k_new = indices[index1]
-                        shifted_index = k_new + (k_new < 0) * axis_range
-                        # Offset along data
-                        index2 = pre_index2 + shifted_index * after_axis_range
-                        reduce_func(out, index2, updates[index1])
+            with T.parallel(0, ind_before_axis_range * ind_after_axis_range) as fused:
+                i = fused // ind_after_axis_range
+                j = fused % ind_after_axis_range
+                pre_index1 = i * ind_before_axis_stride + j
+                pre_index2 = i * before_axis_stride + j
+                with T.serial(0, ind_axis_range) as k:
+                    # Offset along indices or updates
+                    index1 = pre_index1 + k * ind_after_axis_range
+                    # Get index and shift to positive side if need
+                    k_new = indices[T.tensor_indices(indices, index1)]
+                    shifted_index = k_new + (k_new < 0) * axis_range
+                    # Offset along data
+                    index2 = pre_index2 + shifted_index * after_axis_range
+                    reduce_func(out, index2, updates[T.tensor_indices(updates, index1)])
 
             return ib.get()
 
     def update_func(dst_ptr, dst_index, update):
-        dst_ptr[dst_index] = update
+        T.tensor_store(dst_ptr, update, T.tensor_indices(dst_ptr, dst_index))
 
     def add_func(dst_ptr, dst_index, update):
-        dst_ptr[dst_index] += update
+        T.tensor_store(
+            dst_ptr,
+            dst_ptr[T.tensor_indices(dst_ptr, dst_index)] + (update),
+            T.tensor_indices(dst_ptr, dst_index),
+        )
 
     def mul_func(dst_ptr, dst_index, update):
-        dst_ptr[dst_index] *= update
+        T.tensor_store(
+            dst_ptr,
+            dst_ptr[T.tensor_indices(dst_ptr, dst_index)] * (update),
+            T.tensor_indices(dst_ptr, dst_index),
+        )
 
     def mean_func(dst_ptr, dst_index, update):
-        dst_ptr[dst_index] = (dst_ptr[dst_index] + update) / 2
+        T.tensor_store(
+            dst_ptr,
+            (dst_ptr[T.tensor_indices(dst_ptr, dst_index)] + update) / 2,
+            T.tensor_indices(dst_ptr, dst_index),
+        )
 
     def min_func(dst_ptr, dst_index, update):
-        dst_ptr[dst_index] = tirx.min(dst_ptr[dst_index], update)
+        T.tensor_store(
+            dst_ptr,
+            tirx.min(dst_ptr[T.tensor_indices(dst_ptr, dst_index)], update),
+            T.tensor_indices(dst_ptr, dst_index),
+        )
 
     def max_func(dst_ptr, dst_index, update):
-        dst_ptr[dst_index] = tirx.max(dst_ptr[dst_index], update)
+        T.tensor_store(
+            dst_ptr,
+            tirx.max(dst_ptr[T.tensor_indices(dst_ptr, dst_index)], update),
+            T.tensor_indices(dst_ptr, dst_index),
+        )
 
     reduce_func = None
     if reduction == "update":
@@ -162,7 +181,7 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
             "scatter_elements reduction not in [update, add, mul, mean, min, max]:", reduction
         )
 
-    out_buf = tirx.decl_buffer(data.shape, data.dtype, "out_buf", layout=None)
+    out_buf = tirx.decl_tensor(data.shape, data.dtype, "out_buf", layout=None)
     return te.extern(
         [data.shape],
         [data, indices, updates],

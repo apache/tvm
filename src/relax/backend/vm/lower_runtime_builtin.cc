@@ -34,6 +34,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 // This pass lowers most ops to VM specific builtins.
 // TODO(relax-team): revisit after PrimExpr.
@@ -63,8 +64,8 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     } else if (call->op.same_as(invoke_closure_op_)) {
       return InvokeClosure(call);
     } else if (call->op.same_as(alloc_tensor_op_)) {
-      TVM_FFI_THROW(InternalError) << "VMBuiltinLower encountered " << call->op << " in expression "
-                                   << ffi::GetRef<Call>(call_node) << ".  "
+      TVM_FFI_THROW(InternalError) << "LowerRuntimeBuiltin encountered " << call->op
+                                   << " in expression " << ffi::GetRef<Call>(call_node) << ".  "
                                    << "This operation should have been lowered earlier "
                                    << "using the 'relax.transform.LowerAllocTensor' pass.";
     } else if (call->op.same_as(mem_alloc_storage_op_)) {
@@ -86,8 +87,9 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     PrimExpr runtime_device_index = call->args[1].as_or_throw<PrimExpr>();
     StringImm storage_scope = call->args[2].as_or_throw<StringImm>();
     DataTypeImm output_dtype = DataTypeImm((DLDataType{kDLUInt, 8, 1}));
-    return Call(Type::Missing(), vm_alloc_storage_op_,
-                {call->args[0], runtime_device_index, output_dtype, storage_scope}, Attrs());
+    return Call::Unchecked(Type::Missing(), vm_alloc_storage_op_,
+                           {call->args[0], runtime_device_index, output_dtype, storage_scope},
+                           Attrs());
   }
 
   Expr MakeMemAllocTensor(const Call& call) {
@@ -99,12 +101,12 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
       call_args.push_back(call->args[4]);
     }
 
-    return Call(Type::Missing(), vm_alloc_tensor_op_, call_args, Attrs());
+    return Call::Unchecked(Type::Missing(), vm_alloc_tensor_op_, call_args, Attrs());
   }
 
   Expr MakeMemKillObject(const Call& call) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 1);
-    return Call(Type::Missing(), vm_kill_object_op_, {call->args[0]}, Attrs());
+    return Call::Unchecked(Type::Missing(), vm_kill_object_op_, {call->args[0]}, Attrs());
   }
 
   Expr CallTIRDyn(const Call& call_node) {
@@ -118,40 +120,42 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     for (Expr arg : tir_args->fields) {
       args.push_back(arg);
     }
-    return Call(Type::Missing(), builtin_call_tir_dyn_, args, Attrs(), {void_ty_});
+    return Call::Unchecked(Type::Missing(), builtin_call_tir_dyn_, args, Attrs(), {void_ty_});
   }
 
   Expr Reshape(const Call& call_node) {
     TVM_FFI_ICHECK(call_node->args.size() == 2);
-    TVM_FFI_ICHECK(!call_node->ty.IsMissing());
+    TVM_FFI_ICHECK(!call_node->ty.as<MissingType>().has_value());
     auto arg = call_node->args[1];
 
     TVM_FFI_CHECK(arg->ty->IsInstance<ShapeTypeNode>(), TypeError)
-        << "VMBuiltinLower expects the shape arg of R.reshape "
+        << "LowerRuntimeBuiltin expects the shape arg of R.reshape "
         << "to be a ShapeExpr or VarNode bound to a ShapeExpr.  "
         << "However, in expression " << call_node << ", the shape argument " << arg << " has type "
         << arg->ty;
 
-    return Call(Type::Missing(), builtin_reshape_, call_node->args, Attrs(), {GetType(call_node)});
+    return Call::Unchecked(Type::Missing(), builtin_reshape_, call_node->args, Attrs(),
+                           {GetType(call_node)});
   }
 
   Expr ShapeOf(const Call& call_node) {
     TVM_FFI_ICHECK(call_node->args.size() == 1);
-    TVM_FFI_ICHECK(!call_node->ty.IsMissing());
-    return Call(Type::Missing(), builtin_shape_of_, call_node->args, Attrs(), {GetType(call_node)});
+    TVM_FFI_ICHECK(!call_node->ty.as<MissingType>().has_value());
+    return Call::Unchecked(Type::Missing(), builtin_shape_of_, call_node->args, Attrs(),
+                           {GetType(call_node)});
   }
 
   Expr TensorToShape(const Call& call_node) {
     TVM_FFI_ICHECK(call_node->args.size() == 1);
-    TVM_FFI_ICHECK(!call_node->ty.IsMissing());
+    TVM_FFI_ICHECK(!call_node->ty.as<MissingType>().has_value());
 
-    return Call(Type::Missing(), builtin_tensor_to_shape_, call_node->args, Attrs(),
-                {GetType(call_node)});
+    return Call::Unchecked(Type::Missing(), builtin_tensor_to_shape_, call_node->args, Attrs(),
+                           {GetType(call_node)});
   }
 
   Expr CallPyFunc(const Call& call_node) {
     TVM_FFI_ICHECK(call_node->args.size() == 2);
-    TVM_FFI_ICHECK(!call_node->ty.IsMissing());
+    TVM_FFI_ICHECK(!call_node->ty.as<MissingType>().has_value());
 
     // Create tuple with function name and arguments tuple
     ffi::Array<Expr> tuple_fields;
@@ -160,14 +164,14 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     auto combined_tuple = Tuple(tuple_fields);
 
     // Direct call to vm.builtin.call_py_func
-    return Call(Type::Missing(), builtin_call_py_func_, {combined_tuple}, call_node->attrs,
-                call_node->ty_args, call_node->span);
+    return Call::Unchecked(Type::Missing(), builtin_call_py_func_, {combined_tuple},
+                           call_node->attrs, call_node->ty_args, call_node->span);
   }
 
   Expr ToDevice(const Call& call_node) {
     // TODO(yongwww): replace ToVDeviceAttrs with related Expr
     TVM_FFI_ICHECK(call_node->args.size() == 1);
-    TVM_FFI_ICHECK(!call_node->ty.IsMissing());
+    TVM_FFI_ICHECK(!call_node->ty.as<MissingType>().has_value());
     auto attrs = call_node->attrs.as<ToVDeviceAttrs>();
     ffi::Array<Expr> args;
     args.push_back(call_node->args[0]);
@@ -179,7 +183,8 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     args.push_back(IntImm::Int64(dev_type));
     args.push_back(IntImm::Int64(dev_id));
     args.push_back(storage_scope);
-    return Call(Type::Missing(), builtin_to_device_, args, call_node->attrs, {GetType(call_node)});
+    return Call::Unchecked(Type::Missing(), builtin_to_device_, args, call_node->attrs,
+                           {GetType(call_node)});
   }
 
   Expr MakeClosure(const Call& call_node) {
@@ -196,7 +201,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
       args.push_back(arg);
     }
 
-    return Call(Type::Missing(), builtin_make_closure_, args, Attrs(), {object_ty_});
+    return Call::Unchecked(Type::Missing(), builtin_make_closure_, args, Attrs(), {object_ty_});
   }
 
   Expr InvokeClosure(const Call& call_node) {
@@ -213,31 +218,31 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     for (Expr arg : invoke_closure_args->fields) {
       args.push_back(arg);
     }
-    return Call(Type::Missing(), call_builtin_with_ctx_op_, {builtin_invoke_closure_, Tuple(args)},
-                Attrs(), {object_ty_});
+    return Call::Unchecked(Type::Missing(), call_builtin_with_ctx_op_,
+                           {builtin_invoke_closure_, Tuple(args)}, Attrs(), {object_ty_});
   }
 
-  const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
+  const Op call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
   const Type object_ty_ = AnyType();
   const Type void_ty_ = TupleType(ffi::Array<Type>({}));
   // object to pattern match.
-  const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
-  const Op& reshape_op_ = Op::Get("relax.reshape");
-  const Op& shape_of_op_ = Op::Get("relax.shape_of");
-  const Op& tensor_to_shape_op_ = Op::Get("relax.tensor_to_shape");
-  const Op& call_py_func_op_ = Op::Get("relax.call_py_func");
-  const Op& to_vdevice_op_ = Op::Get("relax.to_vdevice");
-  const Op& make_closure_op_ = Op::Get("relax.make_closure");
-  const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
-  const Op& alloc_tensor_op_ = Op::Get("relax.builtin.alloc_tensor");
-  const Op& mem_alloc_storage_op_ = Op::Get("relax.memory.alloc_storage");
-  const Op& mem_alloc_tensor_op_ = Op::Get("relax.memory.alloc_tensor");
-  const Op& mem_kill_storage_op_ = Op::Get("relax.memory.kill_storage");
-  const Op& mem_kill_tensor_op_ = Op::Get("relax.memory.kill_tensor");
+  const Op call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
+  const Op reshape_op_ = Op::Get("relax.reshape");
+  const Op shape_of_op_ = Op::Get("relax.shape_of");
+  const Op tensor_to_shape_op_ = Op::Get("relax.tensor_to_shape");
+  const Op call_py_func_op_ = Op::Get("relax.call_py_func");
+  const Op to_vdevice_op_ = Op::Get("relax.to_vdevice");
+  const Op make_closure_op_ = Op::Get("relax.make_closure");
+  const Op invoke_closure_op_ = Op::Get("relax.invoke_closure");
+  const Op alloc_tensor_op_ = Op::Get("relax.builtin.alloc_tensor");
+  const Op mem_alloc_storage_op_ = Op::Get("relax.memory.alloc_storage");
+  const Op mem_alloc_tensor_op_ = Op::Get("relax.memory.alloc_tensor");
+  const Op mem_kill_storage_op_ = Op::Get("relax.memory.kill_storage");
+  const Op mem_kill_tensor_op_ = Op::Get("relax.memory.kill_tensor");
   // functions to lower to
-  const Op& vm_alloc_storage_op_ = Op::Get("relax.vm.alloc_storage");
-  const Op& vm_alloc_tensor_op_ = Op::Get("relax.vm.alloc_tensor");
-  const Op& vm_kill_object_op_ = Op::Get("relax.vm.kill_object");
+  const Op vm_alloc_storage_op_ = Op::Get("relax.vm.alloc_storage");
+  const Op vm_alloc_tensor_op_ = Op::Get("relax.vm.alloc_tensor");
+  const Op vm_kill_object_op_ = Op::Get("relax.vm.kill_object");
   // Function to compute allocated shape.
   const ExternFunc builtin_compute_alloc_shape_{"vm.builtin.compute_alloc_shape"};
   const ExternFunc builtin_call_tir_dyn_{"vm.builtin.call_tir_dyn"};

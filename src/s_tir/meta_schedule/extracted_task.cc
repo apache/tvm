@@ -22,12 +22,11 @@
 #include <tvm/te/tensor.h>
 #include <tvm/tirx/function.h>
 
-#include "../../te/operation/create_primfunc.h"
+#include "../../te/operation/create_function.h"
 #include "./utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 ExtractedTask::ExtractedTask(ffi::String task_name, IRModule mod, Target target,

@@ -28,22 +28,22 @@ target = tvm.target.Target("aws/trn1/trn1.2xlarge")
 
 
 def _strip_exec_scope_stmt(stmt):
-    def _strip_attr(node: tvm.tirx.AttrStmt):
-        if node.attr_key == "tirx.device_entry":
+    def _strip_region(node: tvm.tirx.RegionStmt):
+        if node.op.same_as(tvm.ir.Op.get("tirx.device_entry")):
             return node.body
         return node
 
     return tvm_ffi.structural_map(
         stmt,
-        (tvm.tirx.AttrStmt, _strip_attr),
+        (tvm.tirx.RegionStmt, _strip_region),
         order="post",
     )
 
 
 def assert_structural_equal(lhs, rhs, *args, **kwargs):
-    if isinstance(lhs, tvm.tirx.PrimFunc):
+    if isinstance(lhs, tvm.tirx.Function):
         lhs = lhs.with_body(_strip_exec_scope_stmt(lhs.body))
-    if isinstance(rhs, tvm.tirx.PrimFunc):
+    if isinstance(rhs, tvm.tirx.Function):
         rhs = rhs.with_body(_strip_exec_scope_stmt(rhs.body))
     _assert_structural_equal(lhs, rhs, *args, **kwargs)
 
@@ -73,38 +73,40 @@ def test_simple_binary(op_type, operands_type):
     Tx_func = Tx_func_map[op_type]
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def binary() ->None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
-        B_sbuf = T.alloc_buffer(src2_shape, "float32", scope="trn.sbuf", layout=src2_layout)
-        C_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        if operands_type == "region_region" or operands_type.startswith("region_broadcast"):
+        A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
+        B_sbuf = T.alloc_tensor(src2_shape, "float32", scope="trn.sbuf", layout=src2_layout)
+        C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        if T.constexpr(
+            operands_type == "region_region" or operands_type.startswith("region_broadcast")
+        ):
             Tx_func(C_sbuf, A_sbuf, B_sbuf)
-        elif operands_type == "const_region":
+        elif T.constexpr(operands_type == "const_region"):
             Tx_func(C_sbuf, const, A_sbuf)
-        elif operands_type == "region_const":
+        elif T.constexpr(operands_type == "region_const"):
             Tx_func(C_sbuf, A_sbuf, const)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
-        A_sbuf = T.alloc_buffer(src1_shape, scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer(src2_shape, scope="trn.sbuf")
-        C_sbuf = T.alloc_buffer(dst_shape, scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor(src1_shape, scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor(src2_shape, scope="trn.sbuf")
+        C_sbuf = T.alloc_tensor(dst_shape, scope="trn.sbuf")
         for b_loop in T.serial(0, 1):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
-                    if operands_type == "region_region":
+                    if T.constexpr(operands_type == "region_region"):
                         T.nki.tensortensor(C_sbuf[p_loop, f_loop], A_sbuf[p_loop, f_loop], B_sbuf[p_loop, f_loop], op_type)  # noqa: E501
-                    elif operands_type == "region_const":
+                    elif T.constexpr(operands_type == "region_const"):
                         T.nki.tensorscalar(C_sbuf[p_loop, f_loop], A_sbuf[p_loop, f_loop], T.float32(3.0), op_type, T.bool(False))  # noqa: E501
-                    elif operands_type == "const_region":
+                    elif T.constexpr(operands_type == "const_region"):
                         T.nki.tensorscalar(C_sbuf[p_loop, f_loop], A_sbuf[p_loop, f_loop], T.float32(3.0), op_type, T.bool(True))  # noqa: E501
-                    elif operands_type == "region_broadcast_rhs":
+                    elif T.constexpr(operands_type == "region_broadcast_rhs"):
                         T.nki.tensorscalar(C_sbuf[p_loop, f_loop], A_sbuf[p_loop, f_loop], B_sbuf[p_loop, 0], op_type, T.bool(False))  # noqa: E501
-                    elif operands_type == "region_broadcast_lhs":
+                    elif T.constexpr(operands_type == "region_broadcast_lhs"):
                         T.nki.tensorscalar(C_sbuf[p_loop, f_loop], B_sbuf[p_loop, f_loop], A_sbuf[p_loop, 0], op_type, T.bool(True))  # noqa: E501
             # fmt: on
     with target:
@@ -146,52 +148,52 @@ def test_binary_complex(op_type, operands_type):
         dst_view_shape = [128, 4, 4, 128]
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def binary() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
-        B_sbuf = T.alloc_buffer(src2_shape, "float32", scope="trn.sbuf", layout=src2_layout)
-        C_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
+        B_sbuf = T.alloc_tensor(src2_shape, "float32", scope="trn.sbuf", layout=src2_layout)
+        C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         A_sbuf_view = A_sbuf.view(*src1_view_shape)
         B_sbuf_view = B_sbuf.view(*src2_view_shape)
         C_sbuf_view = C_sbuf.view(*dst_view_shape)
         for i in range(4):
-            if operands_type == "region_region":
+            if T.constexpr(operands_type == "region_region"):
                 Tx_func(C_sbuf_view[:, i, :], A_sbuf_view[:, i * 2, :], B_sbuf_view[:, i, :])
-            elif operands_type == "region_const":
+            elif T.constexpr(operands_type == "region_const"):
                 Tx_func(C_sbuf_view[:, i, :], A_sbuf_view[:, i * 2, :], const)
-            elif operands_type == "const_region":
+            elif T.constexpr(operands_type == "const_region"):
                 Tx_func(C_sbuf_view[:, i, :], const, A_sbuf_view[:, i * 2, :])
-            elif operands_type == "region_broadcast_rhs":
+            elif T.constexpr(operands_type == "region_broadcast_rhs"):
                 Tx_func(C_sbuf_view[:, i, :], A_sbuf_view[:, i * 2, :], B_sbuf_view[:, 0, :])
-            elif operands_type == "region_broadcast_lhs":
+            elif T.constexpr(operands_type == "region_broadcast_lhs"):
                 Tx_func(C_sbuf_view[:, i, :, :], A_sbuf_view[:, i*2,:, :], B_sbuf_view[:, i, :, :])
 
     f_extent = 128 if operands_type == "region_broadcast_lhs" else 512
     b_extent = 4 if operands_type == "region_broadcast_lhs" else 1
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
-        A_sbuf = T.alloc_buffer(src1_layout_data_iter, scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer(src2_layout_data_iter, scope="trn.sbuf")
-        C_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
-        A_sbuf_view = T.decl_buffer(src1_layout_data_iter, data=A_sbuf.data, scope="trn.sbuf", layout=None)  # noqa: E501
-        B_sbuf_view = T.decl_buffer(src2_layout_data_iter, data=B_sbuf.data, scope="trn.sbuf", layout=None)  # noqa: E501
-        C_sbuf_view = T.decl_buffer((128, 2048), data=C_sbuf.data, scope="trn.sbuf", layout=None)
+        A_sbuf = T.alloc_tensor(src1_layout_data_iter, scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor(src2_layout_data_iter, scope="trn.sbuf")
+        C_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        A_sbuf_view = T.decl_tensor(src1_layout_data_iter, data=A_sbuf.data, scope="trn.sbuf", layout=None)  # noqa: E501
+        B_sbuf_view = T.decl_tensor(src2_layout_data_iter, data=B_sbuf.data, scope="trn.sbuf", layout=None)  # noqa: E501
+        C_sbuf_view = T.decl_tensor((128, 2048), data=C_sbuf.data, scope="trn.sbuf", layout=None)
         for i, b_loop in T.grid(4, b_extent):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, f_extent, annotations={"nki_dim":"F"}):
-                    if operands_type == "region_region":
+                    if T.constexpr(operands_type == "region_region"):
                         T.nki.tensortensor(C_sbuf_view[p_loop, i * 512 + f_loop], A_sbuf_view[p_loop, i * 1024 + f_loop], B_sbuf_view[p_loop, i * 512 + f_loop], op_type)  # noqa: E501
-                    elif operands_type == "const_region":
+                    elif T.constexpr(operands_type == "const_region"):
                         T.nki.tensorscalar(C_sbuf_view[p_loop, i * 512 + f_loop], A_sbuf_view[p_loop, i * 1024 + f_loop], T.float32(3.0), op_type, T.bool(True))  # noqa: E501
-                    elif operands_type == "region_const":
+                    elif T.constexpr(operands_type == "region_const"):
                         T.nki.tensorscalar(C_sbuf_view[p_loop, i * 512 + f_loop], A_sbuf_view[p_loop, i * 1024 + f_loop], T.float32(3.0), op_type, T.bool(False))  # noqa: E501
-                    elif operands_type == "region_broadcast_lhs":
+                    elif T.constexpr(operands_type == "region_broadcast_lhs"):
                         T.nki.tensorscalar(C_sbuf_view[p_loop, i * 512 + b_loop * 128 + f_loop], B_sbuf_view[p_loop, i * 512 + b_loop * 128 + f_loop], A_sbuf_view[p_loop, i * 8 + b_loop], op_type, T.bool(True))  # noqa: E501
-                    elif operands_type == "region_broadcast_rhs":
+                    elif T.constexpr(operands_type == "region_broadcast_rhs"):
                         T.nki.tensortensor(C_sbuf_view[p_loop, i * 512 + f_loop], A_sbuf_view[p_loop, i * 1024 + f_loop], B_sbuf_view[p_loop, f_loop], op_type)  # noqa: E501
 
             # fmt: on
@@ -211,22 +213,22 @@ def test_binary_broadcast1():
     dst_layout = src1_layout
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def binary() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
-        B_sbuf = T.alloc_buffer(src2_shape, "float32", scope="trn.sbuf", layout=src2_layout)
-        C_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
+        B_sbuf = T.alloc_tensor(src2_shape, "float32", scope="trn.sbuf", layout=src2_layout)
+        C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.add(C_sbuf, A_sbuf, B_sbuf)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
-        A_sbuf = T.alloc_buffer((128, 16384), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf")
-        C_sbuf = T.alloc_buffer((128, 16384), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
+        C_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
         for b_loop in T.serial(0, 512):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 32, annotations={"nki_dim":"F"}):
                     T.nki.tensorscalar(C_sbuf[p_loop, b_loop % 4 * 4096 + b_loop // 4 * 32 + f_loop], A_sbuf[p_loop, b_loop % 4 * 4096 + b_loop // 4 * 32 + f_loop], B_sbuf[p_loop, b_loop], "add", T.bool(False))  # noqa: E501
@@ -247,22 +249,22 @@ def test_binary_broadcast2():
     dst_layout = src1_layout
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def binary() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
-        B_sbuf = T.alloc_buffer(src2_shape, "float32", scope="trn.sbuf", layout=src2_layout)
-        C_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
+        B_sbuf = T.alloc_tensor(src2_shape, "float32", scope="trn.sbuf", layout=src2_layout)
+        C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.add(C_sbuf, A_sbuf, B_sbuf)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
-        A_sbuf = T.alloc_buffer((128, 16384), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf")
-        C_sbuf = T.alloc_buffer((128, 16384), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
+        C_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
         for b_loop in T.serial(0, 128):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 128, annotations={"nki_dim":"F"}):
                     T.nki.tensortensor(C_sbuf[p_loop, b_loop % 4 * 4096 + b_loop // 4 * 128 + f_loop], A_sbuf[p_loop, b_loop % 4 * 4096 + b_loop // 4 * 128 + f_loop], B_sbuf[p_loop, b_loop % 4 * 128 + f_loop], "add")  # noqa: E501
@@ -283,22 +285,22 @@ def test_binary_broadcast3():
     dst_layout = src1_layout
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def binary() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
-        B_sbuf = T.alloc_buffer(src2_shape, "float32", scope="trn.sbuf", layout=src2_layout)
-        C_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
+        B_sbuf = T.alloc_tensor(src2_shape, "float32", scope="trn.sbuf", layout=src2_layout)
+        C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.add(C_sbuf, A_sbuf, B_sbuf[0])
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
-        A_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 16384), scope="trn.sbuf")
-        C_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
+        C_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         for b_loop in T.serial(0, 4):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 128, annotations={"nki_dim":"F"}):
                     T.nki.tensortensor(C_sbuf[p_loop, b_loop * 128 + f_loop], A_sbuf[p_loop, b_loop * 128 + f_loop], B_sbuf[p_loop, b_loop * 4096 + f_loop], "add")  # noqa: E501
@@ -319,23 +321,23 @@ def test_binary_with_guard():
     dst_layout = src1_layout
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def binary() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
-        B_sbuf = T.alloc_buffer(src2_shape, "float32", scope="trn.sbuf", layout=src2_layout)
-        C_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
+        B_sbuf = T.alloc_tensor(src2_shape, "float32", scope="trn.sbuf", layout=src2_layout)
+        C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for j in range(4):
             Tx.add(C_sbuf[:, :, 0:j*128], A_sbuf[:, :, 0:j*128], B_sbuf[:, 0:j*128])
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "binary"})
-        A_sbuf = T.alloc_buffer((128, 16384), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf")
-        C_sbuf = T.alloc_buffer((128, 16384), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
+        C_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
         for j, b_loop in T.grid(4, 96):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 128, annotations={"nki_dim":"F"}):
                     if b_loop % 3 - j < 0:

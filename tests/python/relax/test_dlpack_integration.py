@@ -31,6 +31,7 @@ import tvm
 import tvm.testing
 from tvm.relax import BasePyModule
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -201,13 +202,13 @@ class TestDLPackIntegration:
         """Test DLPack conversion within BasePyModule context."""
 
         # Create a simple IRModule
-        @T.prim_func(s_tir=True)
-        def identity_func(A: T.Buffer((3,), "float32"), B: T.Buffer((3,), "float32")):
+        @Ts.function
+        def identity_func(A: T.Tensor((3,), "float32"), B: T.Tensor((3,), "float32")):
             for i in T.grid(3):
                 B[i] = A[i]
 
-        @T.prim_func(s_tir=True)
-        def constant_func(B: T.Buffer((2,), "float32")):
+        @Ts.function
+        def constant_func(B: T.Tensor((2,), "float32")):
             for i in T.grid(2):
                 B[i] = T.float32(5.0)
 

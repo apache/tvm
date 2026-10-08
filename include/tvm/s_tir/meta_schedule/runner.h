@@ -30,7 +30,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 /*! \brief Runner's input containing path of artifact, type of device and argument info. */

@@ -25,7 +25,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
@@ -47,7 +46,8 @@ ffi::Optional<int64_t> ParseThreadBinding(const Schedule& sch, const Instruction
   if (thread_axis != axis) {
     return std::nullopt;
   }
-  return sch->Get(inst->inputs[0].as_or_throw<LoopRV>())->extent.as_or_throw<IntImm>()->value;
+  return static_cast<int64_t>(
+      sch->Get(inst->inputs[0].as_or_throw<LoopRV>())->extent.as_or_throw<IntImm>()->value);
 }
 
 /*!
@@ -69,7 +69,8 @@ ffi::Optional<SBlockRV> ParseAnnotate(const Schedule& sch, const Instruction& in
   if (ann_key != s_tir::attr::meta_schedule_cooperative_fetch) {
     return std::nullopt;
   }
-  *vector_lane = sch->Get(inst->inputs[1].as_or_throw<ExprRV>()).as_or_throw<IntImm>()->value;
+  *vector_lane = static_cast<int64_t>(
+      sch->Get(inst->inputs[1].as_or_throw<ExprRV>()).as_or_throw<IntImm>()->value);
   return inst->inputs[0].as_or_throw<SBlockRV>();
 }
 
@@ -92,7 +93,7 @@ bool ParseWarpExecutionAnn(const Schedule& sch, const Instruction& inst) {
 
 size_t GetMaxUsedDtypeBytes(SBlock block) {
   size_t max_bytes = 1;
-  auto visit_store = [&](const tirx::BufferStore& store) -> ffi::Expected<ffi::WalkResult> {
+  auto visit_store = [&](const tirx::TensorStore& store) -> ffi::Expected<ffi::WalkResult> {
     max_bytes = std::max(max_bytes, store->value.ty().StorageBytes());
     return ffi::WalkResult::Advance();
   };
@@ -101,8 +102,8 @@ size_t GetMaxUsedDtypeBytes(SBlock block) {
     return ffi::WalkResult::Advance();
   };
   auto visit_call = [&](const Call& call) -> ffi::Expected<ffi::WalkResult> {
-    static const Op& q_multiply_shift_per_axis_op = Op::Get("tirx.q_multiply_shift_per_axis");
-    static const Op& q_multiply_shift_op = Op::Get("tirx.q_multiply_shift");
+    static const Op q_multiply_shift_per_axis_op = Op::Get("tirx.q_multiply_shift_per_axis");
+    static const Op q_multiply_shift_op = Op::Get("tirx.q_multiply_shift");
     if (call->op.same_as(q_multiply_shift_per_axis_op) || call->op.same_as(q_multiply_shift_op)) {
       // q_multiply_shift uses 64 bit multiply
       max_bytes = std::max<size_t>(max_bytes, 8);
@@ -122,7 +123,6 @@ size_t GetMaxUsedDtypeBytes(SBlock block) {
 }  // namespace s_tir
 
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 /*!
@@ -191,7 +191,9 @@ bool RewriteCooperativeFetchNode::Apply(const s_tir::Schedule& sch) {
       sch->Unannotate(block, s_tir::attr::meta_schedule_cooperative_fetch);
       s_tir::LoopRV fused = sch->GetLoops(block).back();
       int64_t fused_extent = -1;
-      if (const int64_t* extent = s_tir::GetLoopIntExtent(sch->Get(fused).get())) {
+      const auto* extent_imm = sch->Get(fused)->extent.as<IntImmNode>();
+      if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+          extent.has_value()) {
         fused_extent = *extent;
       } else {
         return;

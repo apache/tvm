@@ -28,22 +28,22 @@ target = tvm.target.Target("aws/trn1/trn1.2xlarge")
 
 
 def _strip_exec_scope_stmt(stmt):
-    def _strip_attr(node: tvm.tirx.AttrStmt):
-        if node.attr_key == "tirx.device_entry":
+    def _strip_region(node: tvm.tirx.RegionStmt):
+        if node.op.same_as(tvm.ir.Op.get("tirx.device_entry")):
             return node.body
         return node
 
     return tvm_ffi.structural_map(
         stmt,
-        (tvm.tirx.AttrStmt, _strip_attr),
+        (tvm.tirx.RegionStmt, _strip_region),
         order="post",
     )
 
 
 def assert_structural_equal(lhs, rhs, *args, **kwargs):
-    if isinstance(lhs, tvm.tirx.PrimFunc):
+    if isinstance(lhs, tvm.tirx.Function):
         lhs = lhs.with_body(_strip_exec_scope_stmt(lhs.body))
-    if isinstance(rhs, tvm.tirx.PrimFunc):
+    if isinstance(rhs, tvm.tirx.Function):
         rhs = rhs.with_body(_strip_exec_scope_stmt(rhs.body))
     _assert_structural_equal(lhs, rhs, *args, **kwargs)
 
@@ -55,20 +55,20 @@ def test_select():
     dst_layout = TileLayout(S[(128, 512) : (1 @ P, 1 @ F)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def select() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.select(B_sbuf, A_sbuf, 0.0, lambda i, j: i < j)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "select"})
-        A_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         for b_loop in T.serial(0, 1):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
                     T.nki.affine_select(B_sbuf[p_loop, f_loop], p_loop < f_loop, A_sbuf[p_loop, f_loop], T.float32(0.0))  # noqa: E501
@@ -88,21 +88,21 @@ def test_select_in_loop():
     dst_layout = TileLayout(S[(128, 512) : (1 @ P, 1 @ F)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def select() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(2):
             Tx.select(B_sbuf, A_sbuf[i*16, :, :], 0.0, lambda a, b: (i+1)* a < b)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "select"})
-        A_sbuf = T.alloc_buffer((128, 16384), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         for i, b_loop in T.grid(2, 1):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
                     T.nki.affine_select(B_sbuf[p_loop, f_loop], (i + 1) * p_loop < f_loop, A_sbuf[p_loop, i * 8192 + f_loop], T.float32(0.0))  # noqa: E501
@@ -122,20 +122,20 @@ def test_select_expr_affine():
     dst_layout = src_layout
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def select() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.select(B_sbuf, A_sbuf, 0.0, lambda i, j: i < j)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "select"})
-        A_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         for b_loop in T.serial(0, 4):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
                     T.nki.affine_select(B_sbuf[p_loop, b_loop * 512 + f_loop], b_loop * 128 + p_loop < f_loop, A_sbuf[p_loop, b_loop * 512 + f_loop], T.float32(0.0))  # noqa: E501
@@ -154,22 +154,22 @@ def test_select_with_guard():
     dst_layout = src_layout
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def select() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
             for j in range(4):
                 Tx.select(B_sbuf[0: (i+1) * 128, 0: (j+1) * 128], A_sbuf[0: (i+1) * 128, 0: (j+1) * 128], 0.0, lambda a, b: a < b)  # noqa: E501
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "select"})
-        A_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         for i, j, b_loop in T.grid(4, 4, 4):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
                     if b_loop - i < 1 and f_loop < j * 128 + 128:

@@ -43,8 +43,8 @@ def test_cuda_multi_lib():
     class ModA:
         I.module_attrs({"system_lib_prefix": "modA_"})
 
-        @T.prim_func(s_tir=True)
-        def my_inplace_update(x: T.Buffer((12), "float32")) -> None:
+        @T.function
+        def my_inplace_update(x: T.Tensor((12), "float32")) -> None:
             T.func_attr({"global_symbol": "modA_my_inplace_update"})
             for bx in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for tx in T.thread_binding(T.int64(12), thread="threadIdx.x"):
@@ -54,8 +54,8 @@ def test_cuda_multi_lib():
     class ModB:
         I.module_attrs({"system_lib_prefix": "modB_"})
 
-        @T.prim_func(s_tir=True)
-        def my_inplace_update(x: T.Buffer((12), "float32")) -> None:
+        @T.function
+        def my_inplace_update(x: T.Tensor((12), "float32")) -> None:
             T.func_attr({"global_symbol": "modB_my_inplace_update"})
             for bx in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for tx in T.thread_binding(T.int64(12), thread="threadIdx.x"):

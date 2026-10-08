@@ -28,51 +28,6 @@
 #include <tvm/target/target_kind.h>
 
 namespace tvm {
-namespace backend {
-namespace vulkan {
-
-void RegisterTargetKind() {
-  namespace refl = tvm::ffi::reflection;
-
-  TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
-      .add_attr_option<ffi::Array<ffi::String>>("mattr")
-      .add_attr_option<bool>("supports_float16")
-      .add_attr_option<bool>("supports_float32", refl::DefaultValue(true))
-      .add_attr_option<bool>("supports_float64")
-      .add_attr_option<bool>("supports_int8")
-      .add_attr_option<bool>("supports_int16")
-      .add_attr_option<bool>("supports_int32", refl::DefaultValue(true))
-      .add_attr_option<bool>("supports_int64")
-      .add_attr_option<bool>("supports_8bit_buffer")
-      .add_attr_option<bool>("supports_16bit_buffer")
-      .add_attr_option<bool>("supports_storage_buffer_storage_class")
-      .add_attr_option<bool>("supports_push_descriptor")
-      .add_attr_option<bool>("supports_dedicated_allocation")
-      .add_attr_option<bool>("supports_integer_dot_product")
-      .add_attr_option<bool>("supports_cooperative_matrix")
-      .add_attr_option<int64_t>("supported_subgroup_operations")
-      .add_attr_option<int64_t>("max_num_threads", refl::DefaultValue(256))
-      .add_attr_option<int64_t>("max_threads_per_block", refl::DefaultValue(256))
-      .add_attr_option<int64_t>("thread_warp_size", refl::DefaultValue(1))
-      .add_attr_option<int64_t>("max_block_size_x")
-      .add_attr_option<int64_t>("max_block_size_y")
-      .add_attr_option<int64_t>("max_block_size_z")
-      .add_attr_option<int64_t>("max_push_constants_size")
-      .add_attr_option<int64_t>("max_uniform_buffer_range")
-      .add_attr_option<int64_t>("max_storage_buffer_range")
-      .add_attr_option<int64_t>("max_per_stage_descriptor_storage_buffer")
-      .add_attr_option<int64_t>("max_shared_memory_per_block")
-      .add_attr_option<ffi::String>("device_type")
-      .add_attr_option<ffi::String>("device_name")
-      .add_attr_option<ffi::String>("driver_name")
-      .add_attr_option<int64_t>("driver_version")
-      .add_attr_option<int64_t>("vulkan_api_version")
-      .add_attr_option<int64_t>("max_spirv_version")
-      .set_default_keys({"vulkan", "gpu"});
-}
-
-}  // namespace vulkan
-}  // namespace backend
 
 #ifdef TVM_ENABLE_SPIRV
 namespace codegen {
@@ -85,7 +40,45 @@ void RegisterVulkanIntrinRules();
 }  // namespace tvm
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  tvm::backend::vulkan::RegisterTargetKind();
+  using namespace tvm;
+  namespace refl = tvm::ffi::reflection;
+
+  TargetKindDef("vulkan")
+      .set_default_device_type(kDLVulkan)
+      .def_option<ffi::Array<ffi::String>>("mattr")
+      .def_option<bool>("supports_float16")
+      .def_option<bool>("supports_float32", refl::DefaultValue(true))
+      .def_option<bool>("supports_float64")
+      .def_option<bool>("supports_int8")
+      .def_option<bool>("supports_int16")
+      .def_option<bool>("supports_int32", refl::DefaultValue(true))
+      .def_option<bool>("supports_int64")
+      .def_option<bool>("supports_8bit_buffer")
+      .def_option<bool>("supports_16bit_buffer")
+      .def_option<bool>("supports_storage_buffer_storage_class")
+      .def_option<bool>("supports_push_descriptor")
+      .def_option<bool>("supports_dedicated_allocation")
+      .def_option<bool>("supports_integer_dot_product")
+      .def_option<bool>("supports_cooperative_matrix")
+      .def_option<int64_t>("supported_subgroup_operations")
+      .def_option<int64_t>("max_num_threads", refl::DefaultValue(256))
+      .def_option<int64_t>("max_threads_per_block", refl::DefaultValue(256))
+      .def_option<int64_t>("thread_warp_size", refl::DefaultValue(1))
+      .def_option<int64_t>("max_block_size_x")
+      .def_option<int64_t>("max_block_size_y")
+      .def_option<int64_t>("max_block_size_z")
+      .def_option<int64_t>("max_push_constants_size")
+      .def_option<int64_t>("max_uniform_buffer_range")
+      .def_option<int64_t>("max_storage_buffer_range")
+      .def_option<int64_t>("max_per_stage_descriptor_storage_buffer")
+      .def_option<int64_t>("max_shared_memory_per_block")
+      .def_option<ffi::String>("device_type")
+      .def_option<ffi::String>("device_name")
+      .def_option<ffi::String>("driver_name")
+      .def_option<int64_t>("driver_version")
+      .def_option<int64_t>("vulkan_api_version")
+      .def_option<int64_t>("max_spirv_version")
+      .set_default_keys({"vulkan", "gpu"});
 #ifdef TVM_ENABLE_SPIRV
   tvm::codegen::spirv::RegisterVulkanIntrinRules();
   tvm::codegen::RegisterVulkanCodegen();

@@ -17,55 +17,18 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/container/dict.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include "./utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  InstructionKindNode::RegisterReflection();
-  InstructionNode::RegisterReflection();
-}
-
-bool InstructionKindNode::IsPostproc() const {
-  static InstructionKind inst_enter_postproc = InstructionKind::Get("EnterPostproc");
-  return this == inst_enter_postproc.get();
-}
-
-Instruction::Instruction(InstructionKind kind, ffi::Array<Any> inputs, ffi::Array<Any> attrs,
-                         ffi::Array<Any> outputs) {
-  ffi::ObjectPtr<InstructionNode> n = ffi::make_object<InstructionNode>();
-  n->kind = std::move(kind);
-  n->inputs = std::move(inputs);
-  n->attrs = std::move(attrs);
-  n->outputs = std::move(outputs);
-  this->data_ = std::move(n);
-}
-
-using InstructionKindRegistry = AttrRegistry<InstructionKindRegEntry, InstructionKind>;
-
-InstructionKind InstructionKind::Get(const ffi::String& name) {
-  const InstructionKindRegEntry* reg = InstructionKindRegistry::Global()->Get(name);
-  TVM_FFI_CHECK(reg != nullptr, AttributeError)
-      << "Instruction kind " << name << " is not registered";
-  return reg->inst_kind_;
-}
-
-InstructionKindRegEntry::InstructionKindRegEntry(uint32_t reg_index) {
-  this->inst_kind_ = InstructionKind(ffi::make_object<InstructionKindNode>());
-}
-
-InstructionKindRegEntry& InstructionKindRegEntry::RegisterOrGet(const ffi::String& name) {
-  return InstructionKindRegistry::Global()->RegisterOrGet(name);
-}
-
-/**************** Repr ****************/
-
 namespace {
+
 ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
   ffi::Array<Any> inputs;
   inputs.reserve(self->inputs.size());
@@ -81,9 +44,11 @@ ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
     } else if (obj.as<IntImmNode>() || obj.as<FloatImmNode>()) {
       inputs.push_back(obj);
     } else if (auto expr = obj.as<PrimExpr>()) {
-      PrimExpr new_expr = Substitute(expr.value(), [](const Var& var) -> ffi::Optional<Expr> {
-        return Var("_", var->ty, var->span).as_or_throw<PrimExpr>();
-      });
+      auto f_substitute = [](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        return ffi::Any(Var("_", var->ty, var->span).as_or_throw<PrimExpr>());
+      };
+      PrimExpr new_expr = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(expr.value(), f_substitute)
+                              .as_or_throw<PrimExpr>();
       std::ostringstream os;
       os << new_expr;
       inputs.push_back(ffi::String(os.str()));
@@ -100,7 +65,80 @@ ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
       /*decision=*/Any(nullptr),
       /*outputs=*/ffi::Array<ffi::String>(self->outputs.size(), ffi::String("_")));
 }
+
 }  // namespace
+
+TVM_FFI_STATIC_INIT_BLOCK() { InstructionKindNode::RegisterReflection(); }
+
+bool InstructionKindNode::IsPostproc() const {
+  static InstructionKind inst_enter_postproc = InstructionKind::Get("EnterPostproc");
+  return this == inst_enter_postproc.get();
+}
+
+Instruction::Instruction(InstructionKind kind, ffi::Array<Any> inputs, ffi::Array<Any> attrs,
+                         ffi::Array<Any> outputs) {
+  ffi::ObjectPtr<InstructionNode> n = ffi::make_object<InstructionNode>();
+  n->kind = std::move(kind);
+  n->inputs = std::move(inputs);
+  n->attrs = std::move(attrs);
+  n->outputs = std::move(outputs);
+  this->data_ = std::move(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  InstructionNode::RegisterReflection();
+  refl::TypeAttrDef<InstructionNode>().def(refl::type_attr::kRepr,
+                                           [](Instruction inst, ffi::Function) -> ffi::String {
+                                             return InstructionAsPythonRepr(inst.get());
+                                           });
+
+  refl::GlobalDef().def("s_tir.schedule.Instruction",
+                        [](InstructionKind kind, ffi::Array<Any> inputs, ffi::Array<Any> attrs,
+                           ffi::Array<Any> outputs) -> Instruction {
+                          return Instruction(kind, inputs, attrs, outputs);
+                        });
+}
+
+namespace {
+class InstructionKindRegistry {
+ public:
+  static InstructionKindRegistry* Global() {
+    static InstructionKindRegistry registry;
+    return &registry;
+  }
+
+  InstructionKind Get(const ffi::String& name) const {
+    auto kind = kinds_.Get(name);
+    TVM_FFI_CHECK(kind.has_value(), AttributeError)
+        << "Instruction kind " << name << " is not registered";
+    return *kind;
+  }
+
+  InstructionKind RegisterOrGet(const ffi::String& name) {
+    if (auto kind = kinds_.Get(name)) {
+      return *kind;
+    }
+    InstructionKind kind(ffi::make_object<InstructionKindNode>());
+    kinds_.Set(name, kind);
+    return kind;
+  }
+
+ private:
+  ffi::Dict<ffi::String, InstructionKind> kinds_;
+};
+}  // namespace
+
+InstructionKind InstructionKind::Get(const ffi::String& name) {
+  return InstructionKindRegistry::Global()->Get(name);
+}
+
+InstructionKindDef::InstructionKindDef(const ffi::String& name)
+    : inst_kind_(InstructionKindRegistry::Global()->RegisterOrGet(name)) {
+  get_mutable()->name = name;
+}
+
+/**************** Repr ****************/
 
 // AC: kRepr already registered below in TVM_FFI_STATIC_INIT_BLOCK.
 
@@ -108,17 +146,7 @@ ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("s_tir.schedule.InstructionKindGet", InstructionKind::Get)
-      .def("s_tir.schedule.Instruction",
-           [](InstructionKind kind, ffi::Array<Any> inputs, ffi::Array<Any> attrs,
-              ffi::Array<Any> outputs) -> Instruction {
-             return Instruction(kind, inputs, attrs, outputs);
-           });
-  refl::TypeAttrDef<InstructionNode>().def(refl::type_attr::kRepr,
-                                           [](Instruction inst, ffi::Function) -> ffi::String {
-                                             return InstructionAsPythonRepr(inst.get());
-                                           });
+  refl::GlobalDef().def("s_tir.schedule.InstructionKindGet", InstructionKind::Get);
 }
 
 }  // namespace s_tir

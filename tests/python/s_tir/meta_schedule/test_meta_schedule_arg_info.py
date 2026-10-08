@@ -17,21 +17,24 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 
 from tvm.s_tir.meta_schedule.arg_info import ArgInfo, TensorInfo
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off
 
-@T.prim_func(s_tir=True)
-def Matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+@Ts.function
+def Matmul(
+    A: T.Tensor((128, 256), "float32"),
+    B: T.Tensor((256, 512), "float32"),
+    C: T.Tensor((128, 512), "float32"),
+) -> None:
     T.func_attr({"global_symbol": "main"})
-    A = T.match_buffer(a, (128, 256), "float32")
-    B = T.match_buffer(b, (256, 512), "float32")
-    C = T.match_buffer(c, (128, 512), "float32")
+
     for i, j, k in T.grid(128, 256, 512):
-        with T.sblock("matmul"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("matmul"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 C[vi, vj] = 0.0
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -57,8 +60,8 @@ def test_meta_schedule_tensor_info_from_json():
     assert str(info) == 'TensorInfo("float32", [1, 224, 224, 3])'
 
 
-def test_meta_schedule_arg_info_from_prim_func():
-    a_info, b_info, c_info = ArgInfo.from_prim_func(Matmul)
+def test_meta_schedule_arg_info_from_function():
+    a_info, b_info, c_info = ArgInfo.from_function(Matmul)
     assert str(a_info) == 'TensorInfo("float32", [128, 256])'
     assert str(b_info) == 'TensorInfo("float32", [256, 512])'
     assert str(c_info) == 'TensorInfo("float32", [128, 512])'
@@ -68,4 +71,4 @@ if __name__ == "__main__":
     test_meta_schedule_tensor_info_creation()
     test_meta_schedule_tensor_info_as_json()
     test_meta_schedule_tensor_info_from_json()
-    test_meta_schedule_arg_info_from_prim_func()
+    test_meta_schedule_arg_info_from_function()

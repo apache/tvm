@@ -20,16 +20,18 @@
 #include "transform/utils.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/index.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/utils.h>
-#include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 /*! \brief Helper to implement bind params.*/
 class ExprBinder : public ExprMutator {
@@ -55,7 +57,7 @@ class ExprBinder : public ExprMutator {
         Var new_param = this->VisitVarDef(param);
         params.push_back(new_param);
         if (!param.same_as(new_param)) {
-          this->var_remap_[param] = new_param;
+          this->var_remap_.insert_or_assign(param, new_param);
           all_params_unchanged = false;
         }
       }
@@ -85,19 +87,21 @@ class ExprBinder : public ExprMutator {
   PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final { return BindShapeValue(expr); }
 
   PrimExpr BindShapeValue(const PrimExpr& expr) {
-    PrimExpr output = tirx::Substitute(expr, [this](const Var& var) -> ffi::Optional<Expr> {
+    auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       auto it = bindings_.find(var);
-      if (it == bindings_.end()) return std::nullopt;
+      if (it == bindings_.end()) return ffi::Unchanged();
       if (auto value = (*it).second.as<PrimExpr>()) {
-        return ffi::Optional<Expr>(*value);
+        return ffi::Any(*value);
       }
-      return std::nullopt;
-    });
+      return ffi::Unchanged();
+    };
+    PrimExpr output =
+        ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(expr, f_substitute).as_or_throw<PrimExpr>();
     return output.same_as(expr) ? expr : analyzer_->Simplify(output);
   }
 
   const tvm::ffi::Map<Var, Expr>& bindings_;
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 /*!
@@ -115,11 +119,11 @@ Type Bind(const Type& ty, const tvm::ffi::Map<Var, Expr>& binds) {
 }
 
 tvm::ffi::Map<Var, Expr> InferSymbolicVarMap(
-    const tvm::ffi::Map<tvm::Var, relax::Expr>& relax_var_remap, const arith::Analyzer& analyzer) {
+    const tvm::ffi::Map<tvm::Var, relax::Expr>& relax_var_remap, const sym::Analyzer& analyzer) {
   tvm::ffi::Map<Var, Expr> var_remap = relax_var_remap;
 
   for (const auto& [var, value] : relax_var_remap) {
-    if (!var.as<tirx::PrimVar>()) continue;
+    if (!var.as<PrimVar>()) continue;
     TVM_FFI_CHECK(value.as<PrimExpr>().has_value(), ValueError)
         << "Explicit binding for symbolic variable " << var
         << " must be a primitive expression, but received " << value;
@@ -127,7 +131,7 @@ tvm::ffi::Map<Var, Expr> InferSymbolicVarMap(
 
   auto bind_from_prim_expr = [&relax_var_remap, &var_remap, &analyzer](const PrimExpr& var_shape,
                                                                        const PrimExpr& expr_shape) {
-    if (auto var = var_shape.as<tirx::PrimVar>()) {
+    if (auto var = var_shape.as<PrimVar>()) {
       if (auto it = relax_var_remap.find(var.value()); it != relax_var_remap.end()) {
         auto explicit_value = (*it).second.as<PrimExpr>();
         TVM_FFI_CHECK(explicit_value.has_value(), ValueError)
@@ -239,12 +243,15 @@ bool IsImpureCall(const Call& call) {
     if (purity_map.count(op)) {
       return !(purity_map[op]);
     }
-    static auto effect_map = Op::GetAttrMap<tirx::TCallEffectKind>("TCallEffectKind");
+    static auto effect_map = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
     TVM_FFI_ICHECK(effect_map.count(op))
         << "Cannot find the registered purity or call effect of this op: " << op->name;
-    auto effect = static_cast<tirx::CallEffectKind>(effect_map[op]);
-    return effect > tirx::CallEffectKind::kPure;
+    auto effect = static_cast<CallEffectKind>(effect_map[op]);
+    return effect > CallEffectKind::kPure;
   }
+  TVM_FFI_CHECK(!call->op->ty.as<tvm::FuncTypeNode>(), TypeError)
+      << "Ordinary Relax calls cannot invoke a native TIRx function; "
+      << "use R.call_tir or R.call_tir_packed";
   // the Type must be FuncType
   auto func_ty = GetTypeAs<FuncTypeNode>(call->op);
   return !func_ty->purity;

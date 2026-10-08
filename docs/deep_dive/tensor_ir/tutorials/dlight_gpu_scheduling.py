@@ -79,7 +79,7 @@ with target:
 # At this point every TIR function in ``mod`` is **unscheduled** — it has no thread bindings
 # and would not run efficiently on a GPU. Let's see what functions we have:
 for gv, func in mod.functions_items():
-    if isinstance(func, tirx.PrimFunc):
+    if isinstance(func, tirx.Function):
         print(f"  {gv.name_hint}")
 
 ######################################################################
@@ -187,7 +187,7 @@ for rule_name, rule in rules.items():
     with target:
         test_mod = dl.ApplyDefaultSchedule(rule)(mod)
     for gv, func in test_mod.functions_items():
-        if isinstance(func, tirx.PrimFunc) and gv.name_hint not in rule_assignment:
+        if isinstance(func, tirx.Function) and gv.name_hint not in rule_assignment:
             if "tirx.is_scheduled" in func.attrs and func.attrs["tirx.is_scheduled"] == 1:
                 rule_assignment[gv.name_hint] = rule_name
 
@@ -195,7 +195,7 @@ for rule_name, rule in rules.items():
 # **Step 2**: Functions not claimed by any specialized rule will fall through to ``Fallback``.
 
 all_tir_funcs = [
-    gv.name_hint for gv, func in mod.functions_items() if isinstance(func, tirx.PrimFunc)
+    gv.name_hint for gv, func in mod.functions_items() if isinstance(func, tirx.Function)
 ]
 fallback_funcs = [name for name in all_tir_funcs if name not in rule_assignment]
 
@@ -246,7 +246,7 @@ if fallback_funcs:
 # 3. Use ``MetaScheduleTuneTIR`` to auto-tune only those kernels.
 #
 # Note that ``MetaScheduleTuneTIR`` does **not** automatically skip functions already
-# scheduled by DLight — it processes every ``PrimFunc`` in the module. In practice this
+# scheduled by DLight — it processes every ``Function`` in the module. In practice this
 # is harmless (tuning an already-scheduled function simply re-explores its space), but if
 # you want to avoid the extra search cost, filter the module or use ``MetaScheduleTuneIRMod``
 # with ``op_names`` to target specific functions.
@@ -258,19 +258,19 @@ if fallback_funcs:
 # ``ScheduleRule.from_callable``, which wraps a plain function into a rule **instance**.
 
 from tvm import s_tir
-from tvm.s_tir.dlight.analysis import normalize_prim_func
+from tvm.s_tir.dlight.analysis import normalize_function
 from tvm.s_tir.dlight.base.schedule_rule import ScheduleRule
 
 
 @ScheduleRule.from_callable("MyTileAndBind")
-def my_tile_and_bind(func: tirx.PrimFunc, target: tvm.target.Target, tunable: bool):
+def my_tile_and_bind(func: tirx.Function, target: tvm.target.Target, tunable: bool):
     """A minimal rule: for single-block injective functions, tile and bind to GPU threads."""
-    if not isinstance(func, tirx.PrimFunc):
+    if not isinstance(func, tirx.Function):
         return None
     sch = s_tir.Schedule(func)
-    # Use normalize_prim_func to get block info with correct spatial/reduction classification.
+    # Use normalize_function to get block info with correct spatial/reduction classification.
     # This is the same analysis used by built-in DLight rules.
-    block_infos = normalize_prim_func(sch)
+    block_infos = normalize_function(sch)
     if block_infos is None or len(block_infos) != 1:
         return None  # only handle single-block functions
     info = block_infos[0]

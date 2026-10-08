@@ -128,7 +128,7 @@ constexpr const char* kGlobalSymbol = "global_symbol";
 /*!
  * \brief The function uses s_tir (apache-derived TIR) semantics:
  *        parser fills layout=None, ScriptComplete wraps body in a root SBlock,
- *        and printer emits `s_tir=True` on the decorator.
+ *        and the printer emits the S-TIR `Ts.function` entry point.
  *        Default (attr absent or False) is tirx semantics.
  *
  * Type: IntImm (bool dtype)
@@ -136,7 +136,7 @@ constexpr const char* kGlobalSymbol = "global_symbol";
 constexpr const char* kSTir = "s_tir";
 
 /*!
- * \brief Number of inputs of the Primfunc
+ * \brief Number of inputs of the Function
  *
  * Type: Int
  */
@@ -249,7 +249,9 @@ class BaseFuncNode : public ExprNode {
  */
 class BaseFunc : public Expr {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BaseFunc, Expr, BaseFuncNode);
+  explicit BaseFunc(ffi::ObjectPtr<BaseFuncNode> node) : Expr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BaseFunc, Expr, BaseFuncNode);
 };
 
 }  // namespace tvm

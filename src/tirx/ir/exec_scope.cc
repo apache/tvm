@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/op.h>
@@ -28,6 +28,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 std::string ScopeKindToString(ScopeKind kind) {
   switch (kind) {
@@ -190,7 +191,7 @@ static ScopeIdDef FillExtents(const ScopeIdDef& existing, const ScopeIdDef& fill
 
 bool ScopeIdDefVerifier::Verify(const ffi::Array<ScopeIdDef>& defs, Mode mode) {
   id_set.clear();
-  arith::Analyzer ana;
+  sym::Analyzer ana;
   std::queue<ScopeIdDef> queue;
 
   // Insert or upgrade a binding in id_set.
@@ -314,8 +315,8 @@ static ffi::Optional<ScopeIdDef> Compliment(const ScopeIdDef& lhs, const ScopeId
   if (lhs->scope == ScopeBinding::kClusterCtaPair || rhs->scope == ScopeBinding::kClusterCtaPair) {
     return std::nullopt;
   }
-  if (is_zero(rhs.fused_extent())) return std::nullopt;
-  arith::Analyzer ana;
+  if (IsZero(rhs.fused_extent())) return std::nullopt;
+  sym::Analyzer ana;
   auto try_compliment = [&](PrimExpr lhs_ext, PrimExpr rhs_ext,
                             ScopeBinding scope) -> ffi::Optional<ScopeIdDef> {
     if (ana->CanProve(floormod(lhs_ext, rhs_ext) == 0)) {
@@ -353,14 +354,13 @@ std::pair<PrimExpr, PrimExpr> GetThread(const std::string& tag, const LaunchPara
     TVM_FFI_ICHECK(allow_missing) << "Cannot find thread var: " << tag;
     return {0, 1};
   }
-  return {(*it).second->var, (*it).second->dom->extent};
+  return {(*it).second.get<0>(), (*it).second.get<1>()};
 }
 
 PrimExpr GetLinearThreadIndex(const LaunchParams& params) {
-  PrimExpr tx, ty, tz, ex, ey, ez;
-  std::tie(tx, ex) = GetThread("threadIdx.x", params, true);
-  std::tie(ty, ey) = GetThread("threadIdx.y", params, true);
-  std::tie(tz, ez) = GetThread("threadIdx.z", params, true);
+  auto [tx, ex] = GetThread("threadIdx.x", params, true);
+  auto [ty, ey] = GetThread("threadIdx.y", params, true);
+  auto [tz, ez] = GetThread("threadIdx.z", params, true);
   return tx + ty * ex + tz * ex * ey;
 }
 
@@ -377,7 +377,7 @@ ffi::Array<PrimExpr> Trivial3DResolve(const LaunchParams& params, const char* pr
 ffi::Array<PrimExpr> ResolveCuda(ScopeBinding binding,
                                  const ffi::Optional<ffi::Array<PrimExpr>>& extents, int out_dim,
                                  const LaunchParams& params) {
-  arith::Analyzer ana;
+  sym::Analyzer ana;
   switch (binding) {
     case ScopeBinding::kKernelCta:
       return Trivial3DResolve(params, "blockIdx.", out_dim);
@@ -391,13 +391,12 @@ ffi::Array<PrimExpr> ResolveCuda(ScopeBinding binding,
     case ScopeBinding::kKernelCluster: {
       TVM_FFI_ICHECK_LE(out_dim, 3)
           << "ValueError: kernel->cluster can only have 3 dimensions for now";
-      static const Op& cuda_mov_sreg_op = Op::Get("tirx.cuda.mov_sreg");
+      static const Op cuda_mov_sreg_op = Op::Get("tirx.cuda.mov_sreg");
       ffi::Array<PrimExpr> ret;
       for (int i = 0; i < out_dim; ++i) {
-        ret.push_back(
-            Call(PrimType::Int(32), cuda_mov_sreg_op,
-                 {IntImm::Int32(32), prim::StringImm("clusterid." + std::string(1, 'x' + i))})
-                .as_or_throw<PrimExpr>());
+        ret.push_back(Call(PrimType::Int(32), cuda_mov_sreg_op,
+                           {IntImm::Int32(32), StringImm("clusterid." + std::string(1, 'x' + i))})
+                          .as_or_throw<PrimExpr>());
       }
       return ret;
     }
@@ -423,10 +422,9 @@ ffi::Array<PrimExpr> ResolveCuda(ScopeBinding binding,
     }
     case ScopeBinding::kClusterCtaPair: {
       TVM_FFI_ICHECK_EQ(out_dim, 1) << "ValueError: cluster->cta_pair must be 1D";
-      PrimExpr cbx, cby, cbz, ex, ey, ez;
-      std::tie(cbx, ex) = GetThread("clusterCtaIdx.x", params, true);
-      std::tie(cby, ey) = GetThread("clusterCtaIdx.y", params, true);
-      std::tie(cbz, ez) = GetThread("clusterCtaIdx.z", params, true);
+      auto [cbx, ex] = GetThread("clusterCtaIdx.x", params, true);
+      auto [cby, ey] = GetThread("clusterCtaIdx.y", params, true);
+      auto [cbz, ez] = GetThread("clusterCtaIdx.z", params, true);
       return {ana->Simplify(prim::FloorMod(cbx + cby * ex + cbz * ex * ey, 2))};
     }
   }

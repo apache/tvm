@@ -24,39 +24,33 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@T.prim_func(s_tir=True)
+@T.function
 def ptx_ldmatrix(
-    A: T.Buffer((16, 16), "float16"), B: T.Buffer((16, 16), "float16"), num: T.int32, trans: T.uint8
+    A: T.Tensor((16, 16), "float16"), B: T.Tensor((16, 16), "float16"), num: T.int32, trans: T.uint8
 ) -> None:
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    bx = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(bx, 1)
-    T.launch_thread(tx, 32)
-    with T.sblock():
-        A_shared = T.sblock_alloc_buffer([16, 16], "float16", scope="shared")
-        A_local = T.sblock_alloc_buffer([8], "float16", scope="local")
-
-        for i in range(8):
-            A_shared[i * 2 + tx // 16, tx % 16] = A[i * 2 + tx // 16, tx % 16]
-
-        T.evaluate(
-            T.ptx_legacy.ldmatrix(
-                trans,
-                num,
-                ".b16",
-                A_local.data,
-                0,
-                A_shared.data,
-                16 * (tx % 16) + 8 * (tx // 16),
-                dtype="float16",
-            )
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
+    A_shared = T.alloc_tensor([16, 16], "float16", scope="shared")
+    A_local = T.alloc_tensor([8], "float16", scope="local")
+    for i in range(8):
+        A_shared[i * 2 + tx // 16, tx % 16] = A[i * 2 + tx // 16, tx % 16]
+    T.evaluate(
+        T.ptx_legacy.ldmatrix(
+            trans,
+            num,
+            ".b16",
+            A_local.data,
+            0,
+            A_shared.data,
+            16 * (tx % 16) + 8 * (tx // 16),
+            dtype="float16",
         )
-
-        for k in range(2):
-            for j in range(2):
-                for i in range(2):
-                    B[8 * j + tx // 4, 8 * k + (tx % 4) * 2 + i] = A_local[4 * k + 2 * j + i]
+    )
+    for k in range(2):
+        for j in range(2):
+            for i in range(2):
+                B[8 * j + tx // 4, 8 * k + tx % 4 * 2 + i] = A_local[4 * k + 2 * j + i]
 
 
 @pytest.mark.gpu

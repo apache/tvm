@@ -24,7 +24,7 @@ import tvm
 from tvm import te
 from tvm.contrib.thrust import can_use_rocthrust, can_use_thrust
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tirx as T
+from tvm.tirx.script import ir_builder as T
 
 from ..math import cast, ceil_log2
 from ..transform import expand_dims, reshape, squeeze, transpose
@@ -83,44 +83,45 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
     scan_axis_size = cast(data.shape[-1], "int32")
 
     with IRBuilder() as ib:
-        data = T.buffer_proxy(data)
-        output = T.buffer_proxy(output)
         out_dtype = output.dtype
-
-        if reduction is not None:
-            reduction = T.buffer_proxy(reduction)
 
         max_threads = int(tvm.target.Target.current(allow_none=False).attrs["max_num_threads"])
 
-        with T.If(scan_axis_size == 0):
-            with T.Then():
-                bx = te.thread_axis("blockIdx.x")
-                with T.attr(bx, "thread_extent", batch_size):
-                    with T.If(bx < batch_size):
-                        with T.Then():
+        with T.if_(scan_axis_size == 0):
+            with T.then_():
+                with T.launch_thread("blockIdx.x", batch_size) as bx:
+                    with T.if_(bx < batch_size):
+                        with T.then_():
                             if reduction is not None:
-                                reduction[bx] = cast(identity_value, out_dtype)
-            with T.Else():
+                                T.tensor_store(
+                                    reduction,
+                                    cast(identity_value, out_dtype),
+                                    T.tensor_indices(reduction, bx),
+                                )
+            with T.else_():
                 nthread_tx = max_threads
                 blocks_per_batch = ceil_div(scan_axis_size, max_threads)
 
                 # Flatten the batch and scan-block axes into blockIdx.x.  On CUDA,
                 # blockIdx.y is limited to 65535 even when blockIdx.x can be much larger.
                 # Copy data to output
-                tx = te.thread_axis("threadIdx.x")
-                bx = te.thread_axis("blockIdx.x")
                 with T.frame_scope(
                     [
-                        T.attr(tx, "thread_extent", nthread_tx),
-                        T.attr(bx, "thread_extent", blocks_per_batch * batch_size),
+                        T.launch_thread("threadIdx.x", nthread_tx),
+                        T.launch_thread("blockIdx.x", blocks_per_batch * batch_size),
                     ]
-                ):
+                ) as (tx, bx):
                     batch = tvm.tirx.indexdiv(bx, blocks_per_batch)
                     tid = tvm.tirx.indexmod(bx, blocks_per_batch) * nthread_tx + tx
-                    with T.If(tid < scan_axis_size):
-                        with T.Then():
-                            output[batch * scan_axis_size + tid] = cast(
-                                data[batch * scan_axis_size + tid], out_dtype
+                    with T.if_(tid < scan_axis_size):
+                        with T.then_():
+                            T.tensor_store(
+                                output,
+                                cast(
+                                    data[T.tensor_indices(data, batch * scan_axis_size + tid)],
+                                    out_dtype,
+                                ),
+                                T.tensor_indices(output, batch * scan_axis_size + tid),
                             )
 
                 # The following algorithm performs parallel exclusive scan
@@ -130,87 +131,187 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                 with T.serial(0, cast(lim, "int32")) as l2_width:
                     width = 2 << l2_width
 
-                    tx = te.thread_axis("threadIdx.x")
-                    bx = te.thread_axis("blockIdx.x")
                     blocks_per_batch = cast(ceil_div(scan_axis_size, max_threads * width), "int32")
-                    start_buf = T.decl_buffer([1], "int32", scope="local")
-                    middle_buf = T.decl_buffer([1], "int32", scope="local")
-                    end_buf = T.decl_buffer([1], "int32", scope="local")
+                    start_buf = T.decl_tensor([1], "int32", scope="local")
+                    middle_buf = T.decl_tensor([1], "int32", scope="local")
+                    end_buf = T.decl_tensor([1], "int32", scope="local")
                     with T.frame_scope(
                         [
-                            T.attr(tx, "thread_extent", nthread_tx),
-                            T.attr(
-                                bx,
-                                "thread_extent",
-                                blocks_per_batch * batch_size,
-                            ),
+                            T.launch_thread("threadIdx.x", nthread_tx),
+                            T.launch_thread("blockIdx.x", blocks_per_batch * batch_size),
                         ]
-                    ):
+                    ) as (tx, bx):
                         batch = tvm.tirx.indexdiv(bx, blocks_per_batch)
                         tid = tvm.tirx.indexmod(bx, blocks_per_batch) * nthread_tx + tx
-                        start = T.buffer_proxy(start_buf)
-                        middle = T.buffer_proxy(middle_buf)
-                        end = T.buffer_proxy(end_buf)
-                        start[0] = width * tid
-                        with T.If(start[0] < scan_axis_size):
-                            with T.Then():
-                                middle[0] = start[0] + tvm.tirx.indexdiv(width, 2)
-                                end[0] = tvm.te.min(start[0] + width, scan_axis_size)
-                                with T.If(middle[0] < scan_axis_size):
-                                    with T.Then():
-                                        output[batch * scan_axis_size + end[0] - 1] = binop(
-                                            output[batch * scan_axis_size + end[0] - 1],
-                                            output[batch * scan_axis_size + middle[0] - 1],
+                        start = start_buf
+                        middle = middle_buf
+                        end = end_buf
+                        T.tensor_store(start, width * tid, T.tensor_indices(start, 0))
+                        with T.if_(start[T.tensor_indices(start, 0)] < scan_axis_size):
+                            with T.then_():
+                                T.tensor_store(
+                                    middle,
+                                    start[T.tensor_indices(start, 0)] + tvm.tirx.indexdiv(width, 2),
+                                    T.tensor_indices(middle, 0),
+                                )
+                                T.tensor_store(
+                                    end,
+                                    tvm.te.min(
+                                        start[T.tensor_indices(start, 0)] + width, scan_axis_size
+                                    ),
+                                    T.tensor_indices(end, 0),
+                                )
+                                with T.if_(middle[T.tensor_indices(middle, 0)] < scan_axis_size):
+                                    with T.then_():
+                                        T.tensor_store(
+                                            output,
+                                            binop(
+                                                output[
+                                                    T.tensor_indices(
+                                                        output,
+                                                        (
+                                                            batch * scan_axis_size
+                                                            + end[T.tensor_indices(end, 0)]
+                                                            - 1
+                                                        ),
+                                                    )
+                                                ],
+                                                output[
+                                                    T.tensor_indices(
+                                                        output,
+                                                        (
+                                                            batch * scan_axis_size
+                                                            + middle[T.tensor_indices(middle, 0)]
+                                                            - 1
+                                                        ),
+                                                    )
+                                                ],
+                                            ),
+                                            T.tensor_indices(
+                                                output,
+                                                (
+                                                    batch * scan_axis_size
+                                                    + end[T.tensor_indices(end, 0)]
+                                                    - 1
+                                                ),
+                                            ),
                                         )
 
                 # Down Sweep of exclusive scan
-                bx = te.thread_axis("blockIdx.x")
-                with T.attr(bx, "thread_extent", batch_size):
-                    with T.If(bx < batch_size):
-                        with T.Then():
+                with T.launch_thread("blockIdx.x", batch_size) as bx:
+                    with T.if_(bx < batch_size):
+                        with T.then_():
                             if reduction is not None:
-                                reduction[bx] = output[(bx + 1) * scan_axis_size - 1]
-                            output[(bx + 1) * scan_axis_size - 1] = cast(identity_value, out_dtype)
+                                T.tensor_store(
+                                    reduction,
+                                    output[
+                                        T.tensor_indices(output, ((bx + 1) * scan_axis_size - 1))
+                                    ],
+                                    T.tensor_indices(reduction, bx),
+                                )
+                            T.tensor_store(
+                                output,
+                                cast(identity_value, out_dtype),
+                                T.tensor_indices(output, ((bx + 1) * scan_axis_size - 1)),
+                            )
 
                 with T.serial(0, cast(lim, "int32")) as l2_width:
                     width = 2 << (lim - l2_width - 1)
 
-                    tx = te.thread_axis("threadIdx.x")
-                    bx = te.thread_axis("blockIdx.x")
                     blocks_per_batch = cast(ceil_div(scan_axis_size, max_threads * width), "int32")
-                    start_buf = T.decl_buffer([1], "int32", scope="local")
-                    middle_buf = T.decl_buffer([1], "int32", scope="local")
-                    end_buf = T.decl_buffer([1], "int32", scope="local")
-                    tmp_buf = T.decl_buffer([1], out_dtype, scope="local")
+                    start_buf = T.decl_tensor([1], "int32", scope="local")
+                    middle_buf = T.decl_tensor([1], "int32", scope="local")
+                    end_buf = T.decl_tensor([1], "int32", scope="local")
+                    tmp_buf = T.decl_tensor([1], out_dtype, scope="local")
                     with T.frame_scope(
                         [
-                            T.attr(tx, "thread_extent", nthread_tx),
-                            T.attr(
-                                bx,
-                                "thread_extent",
-                                blocks_per_batch * batch_size,
-                            ),
+                            T.launch_thread("threadIdx.x", nthread_tx),
+                            T.launch_thread("blockIdx.x", blocks_per_batch * batch_size),
                         ]
-                    ):
+                    ) as (tx, bx):
                         batch = tvm.tirx.indexdiv(bx, blocks_per_batch)
                         tid = tvm.tirx.indexmod(bx, blocks_per_batch) * nthread_tx + tx
-                        start = T.buffer_proxy(start_buf)
-                        middle = T.buffer_proxy(middle_buf)
-                        end = T.buffer_proxy(end_buf)
-                        tmp = T.buffer_proxy(tmp_buf)
-                        start[0] = width * tid
-                        with T.If(tvm.tirx.all(start[0] < scan_axis_size)):
-                            with T.Then():
-                                middle[0] = start[0] + tvm.tirx.indexdiv(width, 2)
-                                end[0] = tvm.tirx.min(start[0] + width, scan_axis_size)
-                                with T.If(middle[0] < scan_axis_size):
-                                    with T.Then():
-                                        tmp[0] = output[batch * scan_axis_size + middle[0] - 1]
-                                        output[batch * scan_axis_size + middle[0] - 1] = output[
-                                            batch * scan_axis_size + end[0] - 1
-                                        ]
-                                        output[batch * scan_axis_size + end[0] - 1] = binop(
-                                            output[batch * scan_axis_size + end[0] - 1], tmp[0]
+                        start = start_buf
+                        middle = middle_buf
+                        end = end_buf
+                        tmp = tmp_buf
+                        T.tensor_store(start, width * tid, T.tensor_indices(start, 0))
+                        with T.if_(
+                            tvm.tirx.all(start[T.tensor_indices(start, 0)] < scan_axis_size)
+                        ):
+                            with T.then_():
+                                T.tensor_store(
+                                    middle,
+                                    start[T.tensor_indices(start, 0)] + tvm.tirx.indexdiv(width, 2),
+                                    T.tensor_indices(middle, 0),
+                                )
+                                T.tensor_store(
+                                    end,
+                                    tvm.tirx.min(
+                                        start[T.tensor_indices(start, 0)] + width, scan_axis_size
+                                    ),
+                                    T.tensor_indices(end, 0),
+                                )
+                                with T.if_(middle[T.tensor_indices(middle, 0)] < scan_axis_size):
+                                    with T.then_():
+                                        T.tensor_store(
+                                            tmp,
+                                            output[
+                                                T.tensor_indices(
+                                                    output,
+                                                    (
+                                                        batch * scan_axis_size
+                                                        + middle[T.tensor_indices(middle, 0)]
+                                                        - 1
+                                                    ),
+                                                )
+                                            ],
+                                            T.tensor_indices(tmp, 0),
+                                        )
+                                        T.tensor_store(
+                                            output,
+                                            output[
+                                                T.tensor_indices(
+                                                    output,
+                                                    (
+                                                        batch * scan_axis_size
+                                                        + end[T.tensor_indices(end, 0)]
+                                                        - 1
+                                                    ),
+                                                )
+                                            ],
+                                            T.tensor_indices(
+                                                output,
+                                                (
+                                                    batch * scan_axis_size
+                                                    + middle[T.tensor_indices(middle, 0)]
+                                                    - 1
+                                                ),
+                                            ),
+                                        )
+                                        T.tensor_store(
+                                            output,
+                                            binop(
+                                                output[
+                                                    T.tensor_indices(
+                                                        output,
+                                                        (
+                                                            batch * scan_axis_size
+                                                            + end[T.tensor_indices(end, 0)]
+                                                            - 1
+                                                        ),
+                                                    )
+                                                ],
+                                                tmp[T.tensor_indices(tmp, 0)],
+                                            ),
+                                            T.tensor_indices(
+                                                output,
+                                                (
+                                                    batch * scan_axis_size
+                                                    + end[T.tensor_indices(end, 0)]
+                                                    - 1
+                                                ),
+                                            ),
                                         )
 
         return ib.get()
@@ -250,38 +351,53 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=operator.add):
         max_threads = int(tvm.target.Target.current(allow_none=False).attrs["max_num_threads"])
 
         with IRBuilder() as ib:
-            data = T.buffer_proxy(data_buf)
-            data_ex_scan = T.buffer_proxy(data_ex_scan_buf)
-            reduction = T.buffer_proxy(reduction_buf)
+            data = data_buf
+            data_ex_scan = data_ex_scan_buf
+            reduction = reduction_buf
 
             nthread_tx = max_threads
             nthread_bx = ceil_div(batch_size, max_threads)
-            tx = te.thread_axis("threadIdx.x")
-            bx = te.thread_axis("blockIdx.x")
             with T.frame_scope(
                 [
-                    T.attr(tx, "thread_extent", nthread_tx),
-                    T.attr(bx, "thread_extent", nthread_bx),
+                    T.launch_thread("threadIdx.x", nthread_tx),
+                    T.launch_thread("blockIdx.x", nthread_bx),
                 ]
-            ):
+            ) as (tx, bx):
                 tid = bx * max_threads + tx
-                with T.If(tid < batch_size):
-                    with T.Then():
-                        with T.If(scan_axis_size > 0):
-                            with T.Then():
-                                reduction[tid] = binop(
-                                    data_ex_scan[tid * scan_axis_size + scan_axis_size - 1],
-                                    data[tid * scan_axis_size + scan_axis_size - 1],
+                with T.if_(tid < batch_size):
+                    with T.then_():
+                        with T.if_(scan_axis_size > 0):
+                            with T.then_():
+                                T.tensor_store(
+                                    reduction,
+                                    binop(
+                                        data_ex_scan[
+                                            T.tensor_indices(
+                                                data_ex_scan,
+                                                (tid * scan_axis_size + scan_axis_size - 1),
+                                            )
+                                        ],
+                                        data[
+                                            T.tensor_indices(
+                                                data, (tid * scan_axis_size + scan_axis_size - 1)
+                                            )
+                                        ],
+                                    ),
+                                    T.tensor_indices(reduction, tid),
                                 )
-                            with T.Else():
-                                reduction[tid] = cast(0, reduction_buf.dtype)
+                            with T.else_():
+                                T.tensor_store(
+                                    reduction,
+                                    cast(0, reduction_buf.dtype),
+                                    T.tensor_indices(reduction, tid),
+                                )
 
             return ib.get()
 
-    data_buf = tvm.tirx.decl_buffer(
+    data_buf = tvm.tirx.decl_tensor(
         data.shape, data.dtype, "valid_indices_buf", data_alignment=8, layout=None
     )
-    ex_scan_output_buf = tvm.tirx.decl_buffer(
+    ex_scan_output_buf = tvm.tirx.decl_tensor(
         ex_scan_output.shape,
         ex_scan_output.dtype,
         "ex_scan_output_buf",
@@ -350,15 +466,15 @@ def scan_thrust(
         (N-1)-D tensor storing the reduction of each scan axis.
         Returned if return_reduction is True.
     """
-    data_buf = tvm.tirx.decl_buffer(
+    data_buf = tvm.tirx.decl_tensor(
         data.shape, data.dtype, "data_buf", data_alignment=8, layout=None
     )
-    output_buf = tvm.tirx.decl_buffer(
+    output_buf = tvm.tirx.decl_tensor(
         data.shape, output_dtype, "output_buf", data_alignment=8, layout=None
     )
 
     workspace_buf = (
-        tvm.tirx.decl_buffer(
+        tvm.tirx.decl_tensor(
             workspace.shape, workspace.dtype, "workspace_buf", data_alignment=8, layout=None
         )
         if workspace is not None
@@ -459,10 +575,10 @@ def exclusive_scan(
             # TIR exclusive scan accepts only 2D or higher-rank inputs.
             data = expand_dims(data, axis=0)
 
-        data_buf = tvm.tirx.decl_buffer(
+        data_buf = tvm.tirx.decl_tensor(
             data.shape, data.dtype, "data_buf", data_alignment=8, layout=None
         )
-        output_buf = tvm.tirx.decl_buffer(
+        output_buf = tvm.tirx.decl_tensor(
             data.shape, output_dtype, "output_buf", data_alignment=8, layout=None
         )
 

@@ -41,7 +41,7 @@ namespace relax {
  * If dtype is not given, it will by default use the dtype of fill_value.
  * \return The result tensor.
  */
-Expr full(ffi::Variant<Expr, ffi::Array<PrimExpr>> shape, Expr fill_value,
+Expr full(ffi::Variant<ffi::Array<PrimExpr>, Expr> shape, Expr fill_value,
           ffi::Optional<DLDataType> dtype);
 
 /*!
@@ -136,20 +136,8 @@ Expr hamming_window(PrimExpr window_size, PrimExpr periodic, PrimExpr alpha, Pri
 /*! \brief Return the lower triangular part of a matrix or a batch of matrices. */
 Expr tril(Expr x, Expr k);
 
-/*! \brief Return the lower triangular part of a matrix or a batch of matrices.
- *
- * Overload provided for backwards compatibility.
- */
-Expr tril(Expr x, int k);
-
 /*! \brief Return the upper triangular part of a matrix or a batch of matrices. */
 Expr triu(Expr x, Expr k);
-
-/*! \brief Return the upper triangular part of a matrix or a batch of matrices.
- *
- * Overload provided for backwards compatibility.
- */
-Expr triu(Expr x, int k);
 
 }  // namespace relax
 }  // namespace tvm

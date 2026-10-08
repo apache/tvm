@@ -25,6 +25,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 PrimExpr ReinterpretAsUInt(PrimExpr value) {
   return reinterpret(GetStorageUIntDType(value.ty()), value);

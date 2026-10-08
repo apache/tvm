@@ -24,7 +24,8 @@ pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 
 import tvm.topi.testing
 from tvm import relax, tirx
-from tvm.ir import Op, VDevice
+from tvm.ir import Op
+from tvm.relax import VDevice
 from tvm.script import relax as R
 
 
@@ -464,7 +465,7 @@ def test_affine_grid_e2e(batch, target_h, target_w):
     @tvm.script.ir_module
     class AffineGridModule:
         @R.function
-        def main(theta: R.Tensor(("batch", 2, 3), "float32")) -> R.Tensor("float32", ndim=4):
+        def main(theta: R.Tensor((batch, 2, 3), "float32")) -> R.Tensor("float32", ndim=4):
             gv = R.image.affine_grid(theta, size=(target_h, target_w))
             return gv
 

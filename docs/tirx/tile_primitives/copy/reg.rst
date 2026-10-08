@@ -84,21 +84,26 @@ contiguous elements). From ``test_reg.py``:
     from tvm.tirx.layout import S, TileLayout, laneid
 
     shape, dtype = (32, 8), "float32"
-    r_layout = TileLayout(S[shape : (1 @ laneid, 1)])   # lane i -> row i, 8 regs
+    r_layout = TileLayout(S[shape : (1 @ laneid, 1)])  # lane i -> row i, 8 regs
     s_layout = TileLayout(S[shape])
     fs = (slice(0, 32), slice(0, 8))
 
-    @Tx.prim_func
-    def kernel(B_ptr: Tx.handle):
-        B = Tx.match_buffer(B_ptr, shape, dtype)
-        Tx.device_entry(); Tx.cta_id([1]); Tx.lane_id([32]); tid = Tx.thread_id([32])
-        A_smem = Tx.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
-        for kk in range(8): A_smem[tid, kk] = Tx.cast(tid * 100 + kk + 1, dtype)
+
+    @Tx.function
+    def kernel(B: Tx.Tensor(shape, dtype)):
+
+        Tx.device_entry()
+        Tx.cta_id([1])
+        Tx.lane_id([32])
+        tid = Tx.thread_id([32])
+        A_smem = Tx.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
+        for kk in range(8):
+            A_smem[tid, kk] = Tx.cast(tid * 100 + kk + 1, dtype)
         Tx.cuda.cta_sync()
-        R = Tx.alloc_buffer(shape, dtype, scope="local", layout=r_layout)
-        Tx.tile.warp.copy(R[fs], A_smem[fs])    # shared -> register  (this dispatch)
+        R = Tx.alloc_tensor(shape, dtype, scope="local", layout=r_layout)
+        Tx.tile.warp.copy(R[fs], A_smem[fs])  # shared -> register  (this dispatch)
         # ... clear A_smem, cta_sync ...
-        Tx.tile.warp.copy(A_smem[fs], R[fs])    # register -> shared  (this dispatch)
+        Tx.tile.warp.copy(A_smem[fs], R[fs])  # register -> shared  (this dispatch)
         # ... cta_sync; B[tid, kk] = A_smem[tid, kk] ...
 
 Algorithm
@@ -148,7 +153,7 @@ Generated TIRx IR
 
 .. code-block:: python
 
-    r_local = Tx.decl_buffer((8,), data=R.data, scope="local")   # 8 fp32 elements / lane
+    r_local = Tx.decl_tensor((8,), data=R.data, scope="local")   # 8 fp32 elements / lane
     r_words = r_local.view("uint32")
     for f in range(2):                                           # outer = 8 / vec 4
         s_ptr = pointer_offset(A_smem, ...)                      # this lane's row

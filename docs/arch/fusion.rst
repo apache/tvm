@@ -49,7 +49,7 @@ Fusion involves three passes:
         ▼  FuseOps                     ← group ops into fused Relax functions
    IRModule (with fused functions marked Primitive=True)
         │
-        ▼  FuseTIR                     ← merge TIR PrimFuncs inside each group
+        ▼  FuseTIR                     ← merge TIR Functions inside each group
    IRModule (fused TIR kernels)
 
 In the compilation pipeline, these passes appear in the backend-specific ``legalize_passes``
@@ -228,7 +228,7 @@ FuseTIR: Merging TIR Functions
 ------------------------------
 
 ``FuseTIR`` (``src/relax/transform/fuse_tir.cc``) takes the grouped Relax functions produced by
-``FuseOps`` and merges their internal TIR ``PrimFunc``\ s into a single TIR function.
+``FuseOps`` and merges their internal TIR ``Function``\ s into a single TIR function.
 
 Before ``FuseTIR``, a fused group still contains multiple ``R.call_tir`` calls to separate
 TIR functions. ``FuseTIR`` inlines and merges them:
@@ -237,12 +237,12 @@ TIR functions. ``FuseTIR`` inlines and merges them:
 
    Before FuseTIR:
      fused_add_exp_squeeze:
-       call_tir(add, ...)        → separate TIR PrimFunc
-       call_tir(exp, ...)        → separate TIR PrimFunc
-       call_tir(squeeze, ...)    → separate TIR PrimFunc
+       call_tir(add, ...)        → separate TIR Function
+       call_tir(exp, ...)        → separate TIR Function
+       call_tir(squeeze, ...)    → separate TIR Function
 
    After FuseTIR:
-     fused_add_exp_squeeze:      → single merged TIR PrimFunc
+     fused_add_exp_squeeze:      → single merged TIR Function
 
 The merged function eliminates intermediate buffers — the output of ``add`` is directly consumed
 by ``exp`` without writing to and reading from global memory. This is the core performance benefit

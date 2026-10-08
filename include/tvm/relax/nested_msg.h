@@ -324,12 +324,12 @@ NestedMsg<T> MapToNestedMsgByType(Expr expr, FType fmapleaf) {
     ffi::Array<NestedMsg<T>> res;
     res.reserve(tuple->fields.size());
     for (size_t i = 0; i < tuple->fields.size(); ++i) {
-      Expr field;
-      if (const auto* expr_tuple = expr.as<TupleNode>()) {
-        field = expr_tuple->fields[i];
-      } else {
-        field = TupleGetItem(expr, i);
-      }
+      Expr field = [&]() -> Expr {
+        if (const auto* expr_tuple = expr.as<TupleNode>()) {
+          return expr_tuple->fields[i];
+        }
+        return TupleGetItem(expr, i);
+      }();
       res.push_back(MapToNestedMsgByType<T, FType>(field, fmapleaf));
     }
     return res;
@@ -531,12 +531,12 @@ Expr TransformTupleLeaf(Expr expr, std::array<NestedMsg<T>, N> msgs, FType ftran
     ffi::Array<Expr> fields;
     fields.reserve(tuple->fields.size());
     for (size_t i = 0; i < tuple->fields.size(); ++i) {
-      Expr field;
-      if (const auto* expr_tuple = expr.as<TupleNode>()) {
-        field = expr_tuple->fields[i];
-      } else {
-        field = TupleGetItem(expr, i);
-      }
+      Expr field = [&]() -> Expr {
+        if (const auto* expr_tuple = expr.as<TupleNode>()) {
+          return expr_tuple->fields[i];
+        }
+        return TupleGetItem(expr, i);
+      }();
       std::array<NestedMsg<T>, N> sub_msgs;
       for (size_t j = 0; j < N; ++j) {
         sub_msgs[j] = msg_arrays[j][i];

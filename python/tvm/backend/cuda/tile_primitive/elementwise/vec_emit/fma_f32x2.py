@@ -33,7 +33,7 @@ from .binary_f32x2 import _lane
 def _fma_f32x2_applies(op_call, sctx, plan):
     from ...common import sm_version_ok
 
-    if dtype_name(plan.dst.buffer.dtype) != "float32":
+    if dtype_name(plan.dst.source.dtype) != "float32":
         return False, "dst dtype not f32"
     if not sm_version_ok(op_call, sctx, min_version=100)[0]:
         return False, "sm version < 100"
@@ -42,7 +42,7 @@ def _fma_f32x2_applies(op_call, sctx, plan):
     a, b, c = plan.srcs
     if a.is_scalar:
         return False, "fma 'a' must be a buffer (no scalar-a packed FMA)"
-    if dtype_name(a.buf_region.buffer.dtype) != "float32":
+    if dtype_name(a.buf_region.source.dtype) != "float32":
         return False, "src a dtype not f32"
     if a.index_fn is not None:
         return False, "broadcasting src a not supported"
@@ -51,7 +51,7 @@ def _fma_f32x2_applies(op_call, sctx, plan):
             if scalar_dtype(s.scalar) != "float32":
                 return False, "scalar b/c dtype not f32"
         else:
-            if dtype_name(s.buf_region.buffer.dtype) != "float32":
+            if dtype_name(s.buf_region.source.dtype) != "float32":
                 return False, "buffer b/c dtype not f32"
             if s.index_fn is not None:
                 return False, "broadcasting src b/c not supported"

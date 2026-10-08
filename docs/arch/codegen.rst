@@ -21,7 +21,7 @@ Code Generation
 ===============
 
 Code generation is the final stage of the TVM compilation pipeline — it translates TIR
-``PrimFunc``\ s into executable code for a target device. This document explains how TIR
+``Function``\ s into executable code for a target device. This document explains how TIR
 functions become native CPU instructions, GPU kernels, or source code strings, covering the
 target dispatch mechanism, the two codegen families (LLVM and Source), and the runtime module
 system that wraps the generated code.
@@ -34,17 +34,17 @@ When a user calls ``tvm.compile()``, the compilation proceeds in two phases:
 
 1. **Relax phase**: the Relax pipeline optimizes and fuses the computational graph, then
    ``VMCodeGen`` translates Relax functions into VM bytecode (see :ref:`relax-vm-arch`).
-2. **TIR phase**: TIR ``PrimFunc``\ s (the actual compute kernels) are compiled to native code.
+2. **TIR phase**: TIR ``Function``\ s (the actual compute kernels) are compiled to native code.
 
 The TIR phase is handled internally by ``tirx.build()`` (called from ``relax.build()``).
 It performs these steps:
 
 .. code-block:: text
 
-   TIR PrimFuncs (in IRModule)
+   TIR Functions (in IRModule)
         │
         ▼  TIR pipeline                   ← lowering passes (flatten buffers, lower intrinsics, etc.)
-   TIR PrimFuncs (lowered)
+   TIR Functions (lowered)
         │
         ▼  split_host_device_mods()        ← separate host and device functions
    Host IRModule + Device IRModule(s)
@@ -147,19 +147,19 @@ backend (x86, ARM, NVPTX, AMDGPU, etc.).
 ``CodeGenLLVM`` inherits from both ``ExprFunctor<llvm::Value*(const Expr&)>`` and
 ``StmtFunctor<void(const Stmt&)>``. Each TIR node type has a corresponding visitor:
 
-- **Expressions** (``VisitExpr_``) convert TIR expressions to LLVM ``Value``\ s:
-  arithmetic ops → LLVM binary instructions, ``BufferLoad`` → load with pointer arithmetic,
+- **Expressions** (``Dispatch_``) convert TIR expressions to LLVM ``Value``\ s:
+  arithmetic ops → LLVM binary instructions, ``TensorLoad`` → load with pointer arithmetic,
   ``Cast`` → LLVM type conversions, ``Call`` → intrinsic or extern function calls.
 - **Statements** (``VisitStmt_``) emit LLVM IR side effects:
-  ``BufferStore`` → store instructions, ``For`` → loop basic blocks with branches,
-  ``IfThenElse`` → conditional branches, ``AllocBuffer`` → stack or heap allocation.
+  ``TensorStore`` → store instructions, ``For`` → loop basic blocks with branches,
+  ``IfThenElse`` → conditional branches, ``tirx.alloc_tensor`` calls → stack or heap allocation.
 
 The key methods on ``CodeGenLLVM`` are:
 
 - ``Create(LLVMTarget*)`` — factory that returns a target-specific subclass.
 - ``Init(...)`` — set up the LLVM context, module, and builder.
 - ``DeclareFunction(gvar, f)`` / ``AddFunction(gvar, f)`` — forward-declare then compile a
-  ``PrimFunc`` to LLVM IR.
+  ``Function`` to LLVM IR.
 - ``Finish()`` — return the completed ``llvm::Module``.
 
 Source family
@@ -245,7 +245,12 @@ exposes it as callable ``PackedFunc``\ s.
      - How Code Is Executed
    * - ``LLVMModule``
      - LLVM IR (in-memory ``llvm::Module``)
-     - JIT-compiled on first call (MCJIT or ORC). Function pointers cached for subsequent calls.
+     - JIT-compiled on first call by the separately installed ``apache-tvm-ffi-orcjit`` package.
+       TVM emits an object in memory and transfers it to the package-backed JITDylib through FFI;
+       it has no local execution engine or fallback. Install it with
+       ``pip install apache-tvm-ffi-orcjit==0.1.2``. Because this boundary transfers an object
+       file, TVM and the package do not need to use the same LLVM version. MCJIT is no longer
+       supported.
    * - ``CUDAModule``
      - PTX or cubin binary
      - Loaded via CUDA driver API (``cuModuleLoad``). Kernels launched via ``cuLaunchKernel``.

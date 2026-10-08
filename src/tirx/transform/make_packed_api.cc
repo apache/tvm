@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file make_packed_api.cc Lower PrimFunc to use the packed function API.
+ * \file make_packed_api.cc Lower Function to use the packed function API.
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/module.h>
@@ -30,8 +30,8 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/buffer.h>
 #include <tvm/tirx/builtin.h>
+#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -46,20 +46,27 @@ namespace tvm {
 namespace tirx {
 
 namespace {
-class ReturnRewriter : public StmtMutator {
+class ReturnRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) override {
+    if (input.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(input, inplace_mode);
+  }
   explicit ReturnRewriter(Var ret_var) : ret_var_(ret_var) {}
 
-  Stmt VisitStmt_(const ForNode* node) override {
+  UnchangedOr<Stmt> Mutate_(const ForNode* node, InplaceMode inplace_mode) override {
     if (node->kind == ForKind::kParallel) in_parallel_ += 1;
-    Stmt ret = StmtMutator::VisitStmt_(node);
+    Stmt ret =
+        StmtExprMutator::Mutate_(node, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(node));
     if (node->kind == ForKind::kParallel) in_parallel_ -= 1;
     return ret;
   }
 
-  Stmt VisitStmt_(const ReturnNode* node) override {
+  UnchangedOr<Stmt> Mutate_(const ReturnNode* node, InplaceMode inplace_mode) override {
     TVM_FFI_ICHECK_EQ(in_parallel_, 0) << "Return cannot be used in parallel scope.";
-    return WriteToOut(this->VisitExpr(node->value));
+    return WriteToOut(this->Mutate(node->value, inplace_mode).ValueOrUnchanged(node->value));
   }
 
  private:
@@ -69,7 +76,7 @@ class ReturnRewriter : public StmtMutator {
   };
 
   ConvertedInfo ConvertForFFI(Expr val) {
-    ConvertedInfo info;
+    ConvertedInfo info{-1, val};
 
     // convert val's data type to FFI data type, return type code
     if (val->ty.as<PointerTypeNode>()) {
@@ -126,35 +133,40 @@ class ReturnRewriter : public StmtMutator {
 
 class SubroutineCallRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   static ffi::Optional<Stmt> Apply(const ffi::Map<GlobalVar, ffi::String>& packed_func_methods,
                                    Stmt stmt) {
-    SubroutineCallRewriter rewriter(packed_func_methods);
-    stmt = rewriter.VisitStmt(std::move(stmt));
-    if (rewriter.made_change_) {
+    auto rewriter = ffi::make_object<SubroutineCallRewriter>(packed_func_methods);
+    stmt = rewriter->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
+    if (rewriter->made_change_) {
       return stmt;
     } else {
       return std::nullopt;
     }
   }
 
- private:
+ public:
   explicit SubroutineCallRewriter(const ffi::Map<GlobalVar, ffi::String>& packed_func_methods)
       : packed_func_methods(packed_func_methods) {}
 
-  Expr VisitExpr_(const CallNode* op) override {
-    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<Call>();
+ private:
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
+    auto node = StmtExprMutator::Mutate_(op, inplace_mode)
+                    .ValueOrUnchanged(ffi::GetRef<Expr>(op))
+                    .as_or_throw<Call>();
 
     if (auto* gvar_ptr = node->op.as<GlobalVarNode>()) {
       auto gvar = ffi::GetRef<GlobalVar>(gvar_ptr);
       if (auto symbol = packed_func_methods.Get(gvar)) {
         ffi::Array<Expr> cpacked_args;
-        cpacked_args.push_back(prim::StringImm(symbol.value()));
+        cpacked_args.push_back(StringImm(symbol.value()));
         for (const Expr& arg : node->args) {
           cpacked_args.push_back(arg);
         }
 
         // push an empty handle to be compatible with current cpacked convention
-        cpacked_args.push_back(tirx::ConstHandle(0));
+        cpacked_args.push_back(tvm::prim::ConstHandle(0));
         made_change_ = true;
         return Call(node->ty, tirx::builtin::tvm_call_cpacked(), cpacked_args);
       }
@@ -175,7 +187,7 @@ class SubroutineCallRewriter : public StmtExprMutator {
  * \returns The global_symbol to be used for the function at call
  * sites, or std::nullopt if the function is to remain unchanged.
  */
-ffi::Optional<ffi::String> RequiresPackedAPI(const PrimFunc& func) {
+ffi::Optional<ffi::String> RequiresPackedAPI(const Function& func) {
   // A function with an explicit calling convention has already been
   // lowered, and should not be modified.
   if (auto opt = func->GetAttr<CallingConv>(tvm::attr::kCallingConv)) {
@@ -193,7 +205,8 @@ ffi::Optional<ffi::String> RequiresPackedAPI(const PrimFunc& func) {
   return global_symbol.value();
 }
 
-PrimFunc MakePackedAPI(PrimFunc func) {
+Function MakePackedAPI(Function func) {
+  if (!func->body.has_value()) return func;
   auto global_symbol = RequiresPackedAPI(func);
   if (!global_symbol.has_value()) {
     return func;
@@ -218,7 +231,6 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   }
 
   auto* func_ptr = func.CopyOnWrite();
-  const Stmt nop = Evaluate(0);
 
   // Data field definitions
   Var v_self_handle("self_handle", PointerType::VoidPointerTy());
@@ -238,8 +250,6 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   auto result = binder.Finalize();
   bool need_set_device = result.var_defs.count(device_id.get());
 
-  std::vector<Stmt> seq_check;
-
   // signature: (void* handle, TVMFFIAny* packed_args, int num_args, TVMFFIAny* v_result)
   ffi::Array<Var> args{v_self_handle, v_packed_args, v_num_packed_args, v_result};
 
@@ -249,18 +259,17 @@ PrimFunc MakePackedAPI(PrimFunc func) {
                                      {tvm::attr::kGlobalSymbol,
                                       ffi::symbol::tvm_ffi_symbol_prefix + global_symbol.value()}});
 
-  Stmt body = ReturnRewriter(v_result)(func_ptr->body);
-  body = AttrStmt(0, attr::compute_scope, prim::StringImm(name_hint + "_compute_"), body);
+  Stmt body = ffi::make_object<ReturnRewriter>(v_result)
+                  ->Mutate(func_ptr->body.value(), InplaceMode::kAllow)
+                  .ValueOrUnchanged(func_ptr->body.value());
+  body = RegionStmt(builtin::compute_scope(), {StringImm(name_hint + "_compute_")}, {}, DictAttrs(),
+                    body);
   // Set device context
   if (need_set_device) {
-    ffi::Any node = ffi::String("default");
-    seq_check.push_back(AttrStmt(node, attr::device_id, device_id.as_or_throw<PrimExpr>(), nop));
-    seq_check.push_back(AttrStmt(node, attr::device_type, device_type, nop));
-
     if (runtime::DeviceAPI::NeedSetDevice(target_device_type)) {
       Stmt set_device = Evaluate(Call(PrimType::Int(32), builtin::tvm_call_packed(),
-                                      {prim::StringImm(runtime::symbol::tvm_set_device),
-                                       device_type, device_id.as_or_throw<PrimExpr>()})
+                                      {StringImm(runtime::symbol::tvm_set_device), device_type,
+                                       device_id.as_or_throw<PrimExpr>()})
                                      .as_or_throw<PrimExpr>());
       body = SeqStmt({set_device, body});
     }
@@ -269,15 +278,20 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   // Return error code of zero on success
   body = SeqStmt({body, Return(IntImm::Int32(0))});
 
-  body = MergeNest({std::move(result.init_nest), seq_check, std::move(result.asserts),
-                    std::move(result.decl_buffers)},
-                   body);
+  // Tensor declarations and alignment assumptions are ordinary statements,
+  // not scopes with a body hole for MergeNest to fill.
+  body = SeqStmt::Flatten(result.decl_buffers, body);
+  body = MergeNest(std::move(result.asserts), body);
+  if (need_set_device) {
+    body = RegionStmt(builtin::device_context(), {device_type, device_id}, {}, DictAttrs(), body);
+  }
+  body = MergeNest(std::move(result.init_nest), body);
   func_ptr->body = body;
   func_ptr->params = args;
 
-  ffi::Array<Var> undefined = UndefinedVars(func_ptr->body, func_ptr->params);
+  ffi::Array<Var> undefined = UndefinedVars(func_ptr->body.value(), func_ptr->params);
   TVM_FFI_ICHECK_EQ(undefined.size(), 0)
-      << "In PrimFunc " << name_hint << " variables " << undefined
+      << "In Function " << name_hint << " variables " << undefined
       << " are used, but are not passed in as API arguments";
 
   func_ptr->ret_type = PrimType::Int(32);
@@ -292,9 +306,9 @@ Pass MakePackedAPI() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
     ffi::Map<GlobalVar, ffi::String> packed_func_methods;
     for (const auto& [gvar, base_func] : mod->functions) {
-      if (auto opt = base_func.as<PrimFunc>()) {
-        auto prim_func = opt.value();
-        if (auto global_symbol = RequiresPackedAPI(prim_func)) {
+      if (auto opt = base_func.as<Function>()) {
+        auto function = opt.value();
+        if (auto global_symbol = RequiresPackedAPI(function)) {
           packed_func_methods.Set(gvar, global_symbol.value());
         }
       }
@@ -304,11 +318,12 @@ Pass MakePackedAPI() {
     IRModule updates;
 
     for (const auto& [gvar, base_func] : mptr->functions) {
-      if (auto opt = base_func.as<PrimFunc>()) {
+      if (auto opt = base_func.as<Function>()) {
         auto func = opt.value();
+        if (!func->body.has_value()) continue;
         auto orig_func = func;
 
-        if (auto body = SubroutineCallRewriter::Apply(packed_func_methods, func->body)) {
+        if (auto body = SubroutineCallRewriter::Apply(packed_func_methods, func->body.value())) {
           func.CopyOnWrite()->body = body.value();
         }
 

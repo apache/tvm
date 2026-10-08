@@ -27,7 +27,7 @@ When: dst and src are both local-scope buffers with matching dtype, on CUDA.
 Before:
     Tx.sum(B_local[0:2, 0:3], A_local[0:2, 0:3, 0:4], [-1], False)
 
-After (scheduled PrimFunc, spatial_len=6, reduction_len=4):
+After (scheduled Function, spatial_len=6, reduction_len=4):
     for spa in range(6):
         B_local[spa] = T.float32(0.0)                      # init (skipped if accum)
         for red in range(4):
@@ -46,7 +46,7 @@ Before:
     Tx.warp.sum(red_view[0:16, 0:4], acc_view[0:16, 0:128], [-1], False,
                    thread_reduce=True)
 
-After (scheduled PrimFunc, local_total=2, local_red=32, 2 shuffle steps):
+After (scheduled Function, local_total=2, local_red=32, 2 shuffle steps):
     src_local = acc_view.view(64)
     dst_local = red_view.view(2)
     for spa in range(2):
@@ -61,9 +61,10 @@ import functools
 import operator
 from typing import Any
 
-from tvm.arith.analyzer import Analyzer
+from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import BufferRegion, PrimFunc
+from tvm.sym.analyzer import Analyzer
+from tvm.tirx import Function
 from tvm.tirx.layout import TileLayout, laneid
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import ReduceOpType
@@ -135,7 +136,7 @@ def _gen_warp_shuffle_reduce(src, dst, reduce_width, local_elems, accum, op_type
     op_str = _REDUCE_OP_TO_STR[op_type]
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         src_local = src.local(local_elems, layout=src.layout.storage())
         dst_local = dst.local(local_elems, layout=dst.layout.storage())
@@ -154,7 +155,7 @@ def validate_reduction_local(
     """Validate reduction in local memory."""
     op = TilePrimitiveCall.downcast(op)
     dst_br, src_br = op.output, op.input
-    dst, src = dst_br.buffer, src_br.buffer
+    dst, src = dst_br.source, src_br.source
 
     if not (src.scope() == "local" and dst.scope() == "local" and sctx.is_target("cuda")):
         return False, "expected local scope and CUDA target"
@@ -224,14 +225,14 @@ def validate_reduction_local(
 
 
 def _emit_reduction_local_thread_wise(
-    dst_br: BufferRegion,
-    src_br: BufferRegion,
+    dst_br: TensorRegion,
+    src_br: TensorRegion,
     accum: bool,
     reduce_op: ReduceOpType,
     reduce_dims: list[int],
     spatial_dims: list[int],
-) -> PrimFunc:
-    dst, src = dst_br.buffer, src_br.buffer
+) -> Function:
+    dst, src = dst_br.source, src_br.source
     dtype = src.dtype
     src_st, src_extent = get_st_extent(src_br)
     dst_st, dst_extent = get_st_extent(dst_br)
@@ -268,7 +269,7 @@ def _emit_reduction_local_thread_wise(
         return full
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         for spa in T.serial(spatial_len):
             dst_idx = T.meta_var(get_indices(spa, dst_st, dst_extent))
@@ -283,8 +284,8 @@ def _emit_reduction_local_thread_wise(
 
 
 def _emit_reduction_local_view(
-    dst_br: BufferRegion,
-    src_br: BufferRegion,
+    dst_br: TensorRegion,
+    src_br: TensorRegion,
     accum: bool,
     reduce_op: ReduceOpType,
     config: dict[str, Any],
@@ -293,8 +294,8 @@ def _emit_reduction_local_view(
     src_local_info,
     dst_local_info,
     shuffle_masks: list[int],
-) -> PrimFunc:
-    dst, src = dst_br.buffer, src_br.buffer
+) -> Function:
+    dst, src = dst_br.source, src_br.source
     dtype = src.dtype
 
     op_func = reduce_op_table.get(reduce_op)
@@ -355,13 +356,13 @@ def _emit_reduction_local_view(
 
     # fmt: off
     if need_save_accum:
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             # These dimensions are storage-iterator coordinates, so request
             # the mediated layout explicitly.  Bare local() is physical-order.
             src_local = src.local(*src_local_shape, layout=src.layout.storage())
             dst_local = dst.local(*dst_local_shape, layout=dst.layout.storage())
-            old_val = T.alloc_buffer([1], dtype, scope="local")
+            old_val = T.alloc_tensor([1], dtype, scope="local")
 
             for spa in T.serial(dst_local_total):
                 dst_idx = T.meta_var(get_indices(spa, dst_local_st, dst_local_ext))
@@ -376,7 +377,7 @@ def _emit_reduction_local_view(
                     shuffle_data(mask, dst_local, dst_idx)
                 dst_local[tuple(dst_idx)] = op_func(dst_local[tuple(dst_idx)], old_val[0])
     else:
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             # These dimensions are storage-iterator coordinates, so request
             # the mediated layout explicitly.  Bare local() is physical-order.
@@ -401,7 +402,7 @@ def _emit_reduction_local_view(
 
 def reduction_local_impl(
     op: TilePrimitiveCall, op_type: ReduceOpType, sctx: DispatchContext
-) -> PrimFunc | None:
+) -> Function | None:
     dst_br, src_br, reduce_axes, accum, config = _reduction_args(op)
     src_ndim = len(src_br.region)
     reduce_dims, spatial_dims = _analyze_axes(src_ndim, reduce_axes)
@@ -411,8 +412,8 @@ def reduction_local_impl(
             dst_br, src_br, accum, op_type, reduce_dims, spatial_dims
         )
     elif sctx.scope_kind in ["warp", "warpgroup"]:
-        src = src_br.buffer
-        dst = dst_br.buffer
+        src = src_br.source
+        dst = dst_br.source
 
         if sctx.is_warp:
             # --- Try laneid shard->replica shuffle reduce ---
@@ -483,6 +484,6 @@ for op_name, op_type in [
             predicate("local_valid", validate_reduction_local),
         ],
     )
-    def _local_dispatch(op: TilePrimitiveCall, sctx: DispatchContext, _op_type=op_type) -> PrimFunc:
+    def _local_dispatch(op: TilePrimitiveCall, sctx: DispatchContext, _op_type=op_type) -> Function:
         op = TilePrimitiveCall.downcast(op)
         return reduction_local_impl(op, _op_type, sctx)

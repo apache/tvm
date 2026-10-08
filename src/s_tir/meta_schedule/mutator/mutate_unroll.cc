@@ -24,7 +24,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
@@ -49,7 +48,6 @@ bool IsAnnotateWithUnroll(const Instruction& inst) {
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 using s_tir::Instruction;

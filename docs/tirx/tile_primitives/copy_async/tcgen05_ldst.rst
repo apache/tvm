@@ -83,26 +83,40 @@ fp16):
 
     local_view = TileLayout(S[(128, WIDTH) : (1 @ axis_tid_in_wg, 1)])
 
-    @Tx.prim_func
-    def copy_async_test(A_ptr: Tx.handle, B_ptr: Tx.handle):
-        A = Tx.match_buffer(A_ptr, (128, WIDTH), "float16"); B = Tx.match_buffer(B_ptr, (128, WIDTH), "float16")
+
+    @Tx.function
+    def copy_async_test(
+        A: Tx.Tensor((128, WIDTH), "float16"), B: Tx.Tensor((128, WIDTH), "float16")
+    ):
+
         Tx.device_entry()
-        warp_id = Tx.warp_id([4]); wg_id = Tx.warpgroup_id([1]); tid = Tx.thread_id([128])
+        warp_id = Tx.warp_id([4])
+        wg_id = Tx.warpgroup_id([1])
+        tid = Tx.thread_id([128])
         tmem_addr = Tx.alloc_shared([1], "uint32")
         if wg_id == 0:
             if warp_id == 0:
                 Tx.ptx["tcgen05.alloc.cta_group::1.sync.aligned.shared::cta.b32"](
-                    Tx.address_of(tmem_addr), Tx.uint32(32))
+                    Tx.address_of(tmem_addr), Tx.uint32(32)
+                )
             Tx.tvm_storage_sync("shared")
-            tmem = Tx.decl_buffer((128, WIDTH), "float16", scope="tmem", allocated_addr=tmem_addr[0],
-                                 layout=TileLayout(S[(128, WIDTH) : (1 @ TLane, 1 @ TCol)]))
-            A_reg = Tx.alloc_local((WIDTH,), "float16"); B_reg = Tx.alloc_local((WIDTH,), "float16")
+            tmem = Tx.decl_tensor(
+                (128, WIDTH),
+                "float16",
+                scope="tmem",
+                allocated_addr=tmem_addr[0],
+                layout=TileLayout(S[(128, WIDTH) : (1 @ TLane, 1 @ TCol)]),
+            )
+            A_reg = Tx.alloc_local((WIDTH,), "float16")
+            B_reg = Tx.alloc_local((WIDTH,), "float16")
             A_local = A_reg.view(128, WIDTH, layout=local_view)
             B_local = B_reg.view(128, WIDTH, layout=local_view)
             # ... load A into A_reg, zero B_reg, cta_sync ...
-            Tx.tile.wg.copy_async(tmem[:, :], A_local[:, :]); Tx.ptx.tcgen05.wait__st.sync.aligned()   # store (local -> tmem)
+            Tx.tile.wg.copy_async(tmem[:, :], A_local[:, :])
+            Tx.ptx.tcgen05.wait__st.sync.aligned()  # store (local -> tmem)
             Tx.cuda.cta_sync()
-            Tx.tile.wg.copy_async(B_local[:, :], tmem[:, :]); Tx.ptx.tcgen05.wait__ld.sync.aligned()   # load  (tmem -> local)
+            Tx.tile.wg.copy_async(B_local[:, :], tmem[:, :])
+            Tx.ptx.tcgen05.wait__ld.sync.aligned()  # load  (tmem -> local)
             # ... write B_reg out; tcgen05.dealloc ...
 
 Algorithm
@@ -155,14 +169,14 @@ Selecting the upper F sub-slab
 
     from tvm.tirx.layout import tmem_datapath_layout
 
-    lower = Tx.decl_buffer(
+    lower = Tx.decl_tensor(
         (64, cols),
         "float32",
         scope="tmem",
         allocated_addr=tmem_addr[0],
         layout=tmem_datapath_layout("F", 64, cols, sub_slab=0),
     )
-    upper = Tx.decl_buffer(
+    upper = Tx.decl_tensor(
         (64, cols),
         "float32",
         scope="tmem",

@@ -19,8 +19,8 @@
 #ifndef TVM_S_TIR_SUPPORT_ND_INT_SET_H_
 #define TVM_S_TIR_SUPPORT_ND_INT_SET_H_
 
-#include <tvm/arith/int_set.h>
 #include <tvm/ir/expr.h>
+#include <tvm/sym/int_set.h>
 
 #include <unordered_map>
 #include <vector>
@@ -29,7 +29,7 @@ namespace tvm {
 namespace support {
 
 /*! \brief An N-dimensional integer set representing a rectangle region */
-using NDIntSet = std::vector<arith::IntSet>;
+using NDIntSet = std::vector<sym::IntSet>;
 
 /*!
  * \brief Construct an N-dimensional integer set representing a region.
@@ -40,7 +40,7 @@ inline NDIntSet NDIntSetFromRegion(const tirx::Region& region) {
   NDIntSet result;
   result.reserve(region.size());
   for (const Range& range : region) {
-    result.push_back(arith::IntSet::FromRange(range));
+    result.push_back(sym::IntSet::FromRange(range));
   }
   return result;
 }
@@ -55,7 +55,7 @@ inline NDIntSet NDIntSetFromShape(const ffi::Array<PrimExpr>& shape) {
   NDIntSet result;
   result.reserve(shape.size());
   for (const PrimExpr& extent : shape) {
-    result.push_back(arith::IntSet::FromMinExtent(zero, extent));
+    result.push_back(sym::IntSet::FromMinExtent(zero, extent));
   }
   return result;
 }
@@ -69,7 +69,7 @@ inline NDIntSet NDIntSetFromPoint(const ffi::Array<PrimExpr>& indices) {
   NDIntSet result;
   result.reserve(indices.size());
   for (const PrimExpr& index : indices) {
-    result.push_back(arith::IntSet::SinglePoint(index));
+    result.push_back(sym::IntSet::SinglePoint(index));
   }
   return result;
 }
@@ -84,8 +84,8 @@ inline void NDIntSetUnionWith(NDIntSet* lhs, const NDIntSet& rhs) {
   TVM_FFI_ICHECK_EQ(lhs->size(), rhs.size());
   int ndim = rhs.size();
   for (int i = 0; i < ndim; ++i) {
-    arith::IntSet& int_set = lhs->at(i);
-    int_set = arith::Union({int_set, rhs.at(i)});
+    sym::IntSet& int_set = lhs->at(i);
+    int_set = sym::Union({int_set, rhs.at(i)});
   }
 }
 
@@ -106,12 +106,12 @@ inline NDIntSet NDIntSetUnion(const std::vector<NDIntSet>& nd_int_sets) {
   }
   NDIntSet result;
   result.reserve(ndim);
-  ffi::Array<arith::IntSet> int_sets(n, arith::IntSet{nullptr});
+  ffi::Array<sym::IntSet> int_sets(n, sym::IntSet{nullptr});
   for (int dim = 0; dim < ndim; ++dim) {
     for (int i = 0; i < n; ++i) {
       int_sets.Set(i, nd_int_sets[i][dim]);
     }
-    result.push_back(arith::Union(int_sets));
+    result.push_back(sym::Union(int_sets));
   }
   return result;
 }
@@ -122,7 +122,7 @@ inline NDIntSet NDIntSetUnion(const std::vector<NDIntSet>& nd_int_sets) {
  * \return The constructed set.
  */
 inline NDIntSet NDIntSetEmpty(int ndim) {
-  return std::vector<arith::IntSet>(ndim, arith::IntSet::Nothing());
+  return std::vector<sym::IntSet>(ndim, sym::IntSet::Nothing());
 }
 
 /*!
@@ -133,12 +133,11 @@ inline NDIntSet NDIntSetEmpty(int ndim) {
  *         integer set.
  * \sa EvalSet
  */
-inline NDIntSet NDIntSetEval(
-    const NDIntSet& nd_int_set,
-    const std::unordered_map<const tirx::VarNode*, arith::IntSet>& dom_map) {
+inline NDIntSet NDIntSetEval(const NDIntSet& nd_int_set,
+                             const std::unordered_map<const tirx::VarNode*, sym::IntSet>& dom_map) {
   NDIntSet ret;
   ret.reserve(nd_int_set.size());
-  for (const arith::IntSet& s : nd_int_set) {
+  for (const sym::IntSet& s : nd_int_set) {
     ret.push_back(EvalSet(s, dom_map));
   }
   return ret;

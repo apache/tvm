@@ -23,6 +23,7 @@ import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -30,28 +31,28 @@ def test_basic():
     # fmt: off
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def add(rxplaceholder: T.Buffer(T.int64(8), "float32"), rxplaceholder_1: T.Buffer((), "float32"), T_add: T.Buffer(T.int64(8), "float32")):
+        @Ts.function
+        def add(rxplaceholder: T.Tensor(T.int64(8), "float32"), rxplaceholder_1: T.Tensor((), "float32"), T_add: T.Tensor(T.int64(8), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
-        def reshape(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), T_reshape: T.Buffer(T.int64(8), "float32")):
+        @Ts.function
+        def reshape(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), T_reshape: T.Tensor(T.int64(8), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
-        def relu(rxplaceholder: T.Buffer(T.int64(8), "float32"), compute: T.Buffer(T.int64(8), "float32")):
+        @Ts.function
+        def relu(rxplaceholder: T.Tensor(T.int64(8), "float32"), compute: T.Tensor(T.int64(8), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
-        def log(rxplaceholder: T.Buffer(T.int64(10), "float32"), compute: T.Buffer(T.int64(10), "float32")):
+        @Ts.function
+        def log(rxplaceholder: T.Tensor(T.int64(10), "float32"), compute: T.Tensor(T.int64(10), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
-        def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
+        @Ts.function
+        def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
-        def pad(rxplaceholder: T.Buffer(T.int64(8), "float32"), PadInput: T.Buffer(T.int64(10), "float32")):
+        @Ts.function
+        def pad(rxplaceholder: T.Tensor(T.int64(8), "float32"), PadInput: T.Tensor(T.int64(10), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -60,47 +61,47 @@ def test_basic():
             R.func_attr({"relax.force_pure": True})
             cls = Module
             alloc: R.Tensor((2, 4), dtype="float32") = R.builtin.alloc_tensor(R.shape([2, 4]), dtype="float32", runtime_device_index=0)
-            _: R.Tuple() = cls.exp(x, alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.exp, (x, alloc))
             lv: R.Tensor((2, 4), dtype="float32") = alloc
             lv1: R.Tensor((8,), dtype="float32") = R.reshape(lv, (8,))
             alloc1: R.Tensor((8,), dtype="float32") = R.builtin.alloc_tensor(R.shape([8]), dtype="float32", runtime_device_index=0)
-            _1: R.Tuple() = cls.relu(lv1, alloc1)
+            _1: R.Tuple() = R.call_tir_packed(cls.relu, (lv1, alloc1))
             lv2: R.Tensor((8,), dtype="float32") = alloc1
             alloc2: R.Tensor((8,), dtype="float32") = R.builtin.alloc_tensor(R.shape([8]), dtype="float32", runtime_device_index=0)
-            _2: R.Tuple() = cls.add(lv2, R.const(1, "float32"), alloc2)
+            _2: R.Tuple() = R.call_tir_packed(cls.add, (lv2, R.const(1, "float32"), alloc2))
             lv3: R.Tensor((8,), dtype="float32") = alloc2
             alloc3: R.Tensor((10,), dtype="float32") = R.builtin.alloc_tensor(R.shape([10]), dtype="float32", runtime_device_index=0)
-            _3: R.Tuple() = cls.pad(lv3, alloc3)
+            _3: R.Tuple() = R.call_tir_packed(cls.pad, (lv3, alloc3))
             lv4: R.Tensor((10,), dtype="float32") = alloc3
             alloc4: R.Tensor((10,), dtype="float32") = R.builtin.alloc_tensor(R.shape([10]), dtype="float32", runtime_device_index=0)
-            _4: R.Tuple() = cls.log(lv4, alloc4)
+            _4: R.Tuple() = R.call_tir_packed(cls.log, (lv4, alloc4))
             gv: R.Tensor((10,), dtype="float32") = alloc4
             return gv
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
-        def add(rxplaceholder: T.Buffer(T.int64(8), "float32"), rxplaceholder_1: T.Buffer((), "float32"), T_add: T.Buffer(T.int64(8), "float32")):
+        @Ts.function
+        def add(rxplaceholder: T.Tensor(T.int64(8), "float32"), rxplaceholder_1: T.Tensor((), "float32"), T_add: T.Tensor(T.int64(8), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
-        def reshape(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), T_reshape: T.Buffer(T.int64(8), "float32")):
+        @Ts.function
+        def reshape(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), T_reshape: T.Tensor(T.int64(8), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
-        def relu(rxplaceholder: T.Buffer(T.int64(8), "float32"), compute: T.Buffer(T.int64(8), "float32")):
+        @Ts.function
+        def relu(rxplaceholder: T.Tensor(T.int64(8), "float32"), compute: T.Tensor(T.int64(8), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
-        def log(rxplaceholder: T.Buffer(T.int64(10), "float32"), compute: T.Buffer(T.int64(10), "float32")):
+        @Ts.function
+        def log(rxplaceholder: T.Tensor(T.int64(10), "float32"), compute: T.Tensor(T.int64(10), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
-        def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
+        @Ts.function
+        def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
-        def pad(rxplaceholder: T.Buffer(T.int64(8), "float32"), PadInput: T.Buffer(T.int64(10), "float32")):
+        @Ts.function
+        def pad(rxplaceholder: T.Tensor(T.int64(8), "float32"), PadInput: T.Tensor(T.int64(10), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -109,48 +110,48 @@ def test_basic():
             cls = Expected
             storage: R.Any = R.memory.alloc_storage(R.shape([32]), virtual_device_index=0, storage_scope="global", dtype="float32")
             alloc: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, 0, R.shape([2, 4]), dtype="float32")
-            _ = cls.exp(x, alloc)
+            _ = R.call_tir_packed(cls.exp, (x, alloc))
             lv: R.Tensor((2, 4), dtype="float32") = alloc
             lv1: R.Tensor((8,), dtype="float32") = R.reshape(lv, (8,))
             storage1: R.Any = R.memory.alloc_storage(R.shape([40]), virtual_device_index=0, storage_scope="global", dtype="float32")
             alloc1: R.Tensor((8,), dtype="float32") = R.memory.alloc_tensor(storage1, 0, R.shape([8]), dtype="float32")
-            _ = cls.relu(lv1, alloc1)
+            _ = R.call_tir_packed(cls.relu, (lv1, alloc1))
             lv2: R.Tensor((8,), dtype="float32") = alloc1
             alloc2: R.Tensor((8,), dtype="float32") = R.memory.alloc_tensor(storage, 0, R.shape([8]), dtype="float32")
-            _ = cls.add(lv2, R.const(1, "float32"), alloc2)
+            _ = R.call_tir_packed(cls.add, (lv2, R.const(1, "float32"), alloc2))
             lv3: R.Tensor((8,), dtype="float32") = alloc2
             alloc3: R.Tensor((10,), dtype="float32") = R.memory.alloc_tensor(storage1, 0, R.shape([10]), dtype="float32")
-            _ = cls.pad(lv3, alloc3)
+            _ = R.call_tir_packed(cls.pad, (lv3, alloc3))
             lv4: R.Tensor((10,), dtype="float32") = alloc3
             alloc4: R.Tensor((10,), dtype="float32") = R.builtin.alloc_tensor(R.shape([10]), dtype="float32", runtime_device_index=0)
-            _ = cls.log(lv4, alloc4)
+            _ = R.call_tir_packed(cls.log, (lv4, alloc4))
             gv5: R.Tensor((10,), dtype="float32") = alloc4
             return gv5
 
     @I.ir_module
     class ExpectedLowered:
-        @T.prim_func(s_tir=True)
-        def add(rxplaceholder: T.Buffer((T.int64(8),), "float32"), rxplaceholder_1: T.Buffer((), "float32"), T_add: T.Buffer((T.int64(8),), "float32")):
+        @Ts.function
+        def add(rxplaceholder: T.Tensor((T.int64(8),), "float32"), rxplaceholder_1: T.Tensor((), "float32"), T_add: T.Tensor((T.int64(8),), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
-        def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
+        @Ts.function
+        def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
-        def log(rxplaceholder: T.Buffer((T.int64(10),), "float32"), compute: T.Buffer((T.int64(10),), "float32")):
+        @Ts.function
+        def log(rxplaceholder: T.Tensor((T.int64(10),), "float32"), compute: T.Tensor((T.int64(10),), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
-        def pad(rxplaceholder: T.Buffer((T.int64(8),), "float32"), PadInput: T.Buffer((T.int64(10),), "float32")):
+        @Ts.function
+        def pad(rxplaceholder: T.Tensor((T.int64(8),), "float32"), PadInput: T.Tensor((T.int64(10),), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
-        def relu(rxplaceholder: T.Buffer((T.int64(8),), "float32"), compute: T.Buffer((T.int64(8),), "float32")):
+        @Ts.function
+        def relu(rxplaceholder: T.Tensor((T.int64(8),), "float32"), compute: T.Tensor((T.int64(8),), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
-        def reshape(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), T_reshape: T.Buffer((T.int64(8),), "float32")):
+        @Ts.function
+        def reshape(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), T_reshape: T.Tensor((T.int64(8),), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -159,25 +160,25 @@ def test_basic():
             cls = ExpectedLowered
             storage: R.Any = R.vm.alloc_storage(R.shape([32]), R.prim_value(0), R.dtype("uint8"))
             alloc: R.Tensor((2, 4), dtype="float32") = R.vm.alloc_tensor(storage, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
-            _: R.Tuple = cls.exp(x, alloc)
+            _: R.Tuple = R.call_tir_packed(cls.exp, (x, alloc))
             lv1: R.Tensor((8,), dtype="float32") = R.call_packed("vm.builtin.reshape", alloc, R.shape([8]), ty_args=(R.Tensor((8,), dtype="float32"),))
             _ = R.vm.kill_object(alloc)
             storage1: R.Any = R.vm.alloc_storage(R.shape([40]), R.prim_value(0), R.dtype("uint8"))
             alloc1: R.Tensor((8,), dtype="float32") = R.vm.alloc_tensor(storage1, R.prim_value(0), R.shape([8]), R.dtype("float32"))
-            _ = cls.relu(lv1, alloc1)
+            _ = R.call_tir_packed(cls.relu, (lv1, alloc1))
             _ = R.vm.kill_object(lv1)
             alloc2: R.Tensor((8,), dtype="float32") = R.vm.alloc_tensor(storage, R.prim_value(0), R.shape([8]), R.dtype("float32"))
             _ = R.vm.kill_object(storage)
-            _ = cls.add(alloc1, R.const(1, "float32"), alloc2)
+            _ = R.call_tir_packed(cls.add, (alloc1, R.const(1, "float32"), alloc2))
             _ = R.vm.kill_object(alloc1)
             alloc3: R.Tensor((10,), dtype="float32") = R.vm.alloc_tensor(storage1, R.prim_value(0), R.shape([10]), R.dtype("float32"))
             _ = R.vm.kill_object(storage1)
-            _ = cls.pad(alloc2, alloc3)
+            _ = R.call_tir_packed(cls.pad, (alloc2, alloc3))
             _ = R.vm.kill_object(alloc2)
             storage2: R.Any = R.vm.alloc_storage(R.shape([40]), R.prim_value(0), R.dtype("uint8"))
             alloc4: R.Tensor((10,), dtype="float32") = R.vm.alloc_tensor(storage2, R.prim_value(0), R.shape([10]), R.dtype("float32"))
             _ = R.vm.kill_object(storage2)
-            _ = cls.log(alloc3, alloc4)
+            _ = R.call_tir_packed(cls.log, (alloc3, alloc4))
             _ = R.vm.kill_object(alloc3)
             return alloc4
     # fmt: on
@@ -193,19 +194,19 @@ def test_basic():
 def test_different_dtype():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add(
-            A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "float32"),
         ):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add1(
-            A: T.Buffer((T.int64(2), T.int64(3)), "int32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "int32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "int32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "int32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "int32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "int32"),
         ):
             T.evaluate(0)
 
@@ -218,30 +219,30 @@ def test_different_dtype():
             alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
-            _: R.Tuple() = cls.add(x, x, alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.add, (x, x, alloc))
             gv: R.Tensor((2, 3), dtype="float32") = alloc
             alloc1: R.Tensor((2, 3), dtype="int32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="int32", runtime_device_index=0
             )
-            _1: R.Tuple() = cls.add1(y, y, alloc1)
+            _1: R.Tuple() = R.call_tir_packed(cls.add1, (y, y, alloc1))
             gv1: R.Tensor((2, 3), dtype="int32") = alloc1
             return x
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add(
-            A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "float32"),
         ):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add1(
-            A: T.Buffer((T.int64(2), T.int64(3)), "int32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "int32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "int32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "int32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "int32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "int32"),
         ):
             T.evaluate(0)
 
@@ -257,7 +258,7 @@ def test_different_dtype():
             alloc: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
                 storage, 0, R.shape([2, 3]), dtype="float32"
             )
-            _: R.Tuple() = cls.add(x, x, alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.add, (x, x, alloc))
             gv1: R.Tensor((2, 3), dtype="float32") = alloc
             storage1: R.Any = R.memory.alloc_storage(
                 R.shape([24]), virtual_device_index=0, storage_scope="global", dtype="int32"
@@ -265,7 +266,7 @@ def test_different_dtype():
             alloc1: R.Tensor((2, 3), dtype="int32") = R.memory.alloc_tensor(
                 storage1, 0, R.shape([2, 3]), dtype="int32"
             )
-            _2: R.Tuple() = cls.add1(y, y, alloc1)
+            _2: R.Tuple() = R.call_tir_packed(cls.add1, (y, y, alloc1))
             gv12: R.Tensor((2, 3), dtype="int32") = alloc1
             return x
 
@@ -276,11 +277,11 @@ def test_different_dtype():
 def test_dtype_bool():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add1(
-            A: T.Buffer((T.int64(2), T.int64(3)), "bool"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "bool"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "bool"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "bool"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "bool"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "bool"),
         ):
             T.evaluate(0)
 
@@ -291,17 +292,17 @@ def test_dtype_bool():
             alloc: R.Tensor((2, 3), dtype="bool") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="bool", runtime_device_index=0
             )
-            _1: R.Tuple() = cls.add1(y, y, alloc)
+            _1: R.Tuple() = R.call_tir_packed(cls.add1, (y, y, alloc))
             gv1: R.Tensor((2, 3), dtype="bool") = alloc
             return y
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add1(
-            A: T.Buffer((T.int64(2), T.int64(3)), "bool"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "bool"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "bool"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "bool"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "bool"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "bool"),
         ):
             T.evaluate(0)
 
@@ -315,7 +316,7 @@ def test_dtype_bool():
             alloc: R.Tensor((2, 3), dtype="bool") = R.memory.alloc_tensor(
                 storage, 0, R.shape([2, 3]), dtype="bool"
             )
-            _2: R.Tuple() = cls.add1(y, y, alloc)
+            _2: R.Tuple() = R.call_tir_packed(cls.add1, (y, y, alloc))
             gv12: R.Tensor((2, 3), dtype="bool") = alloc
             return y
 
@@ -326,11 +327,11 @@ def test_dtype_bool():
 def test_same_dtype():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add(
-            A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "float32"),
         ):
             T.evaluate(0)
 
@@ -343,22 +344,22 @@ def test_same_dtype():
             alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
-            _: R.Tuple() = cls.add(x, x, alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.add, (x, x, alloc))
             gv: R.Tensor((2, 3), dtype="float32") = alloc
             alloc1: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
-            _1: R.Tuple() = cls.add(y, y, alloc1)
+            _1: R.Tuple() = R.call_tir_packed(cls.add, (y, y, alloc1))
             gv1: R.Tensor((2, 3), dtype="float32") = alloc1
             return x
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add(
-            A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "float32"),
         ):
             T.evaluate(0)
 
@@ -374,12 +375,12 @@ def test_same_dtype():
             alloc: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
                 storage, 0, R.shape([2, 3]), dtype="float32"
             )
-            _: R.Tuple() = cls.add(x, x, alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.add, (x, x, alloc))
             gv1: R.Tensor((2, 3), dtype="float32") = alloc
             alloc1: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
                 storage, 0, R.shape([2, 3]), dtype="float32"
             )
-            _2: R.Tuple() = cls.add(y, y, alloc1)
+            _2: R.Tuple() = R.call_tir_packed(cls.add, (y, y, alloc1))
             gv12: R.Tensor((2, 3), dtype="float32") = alloc1
             return x
 
@@ -390,12 +391,12 @@ def test_same_dtype():
 def test_if_cond():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def all_less_than_zero(A: T.Buffer((2, 3), "float32"), B: T.Buffer((), "bool")):
+        @Ts.function
+        def all_less_than_zero(A: T.Tensor((2, 3), "float32"), B: T.Tensor((), "bool")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
-        def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+        @Ts.function
+        def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -405,7 +406,7 @@ def test_if_cond():
             alloc: R.Tensor((), dtype="bool") = R.builtin.alloc_tensor(
                 R.shape([]), dtype="bool", runtime_device_index=0
             )
-            _: R.Tuple() = cls.all_less_than_zero(x, alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.all_less_than_zero, (x, alloc))
             x1: R.Tensor((), dtype="bool") = alloc
             if x1:
                 y: R.Tensor((2, 3), dtype="float32") = x
@@ -413,7 +414,7 @@ def test_if_cond():
                 alloc1: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                     R.shape([2, 3]), dtype="float32", runtime_device_index=0
                 )
-                _1: R.Tuple() = cls.exp(x, alloc1)
+                _1: R.Tuple() = R.call_tir_packed(cls.exp, (x, alloc1))
                 gv3: R.Tensor((2, 3), dtype="float32") = alloc1
                 y: R.Tensor((2, 3), dtype="float32") = gv3
             return x
@@ -426,8 +427,8 @@ def test_if_cond():
 def test_if_then_else():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+        @Ts.function
+        def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -439,7 +440,7 @@ def test_if_then_else():
             alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
-            _: R.Tuple() = cls.exp(x, alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.exp, (x, alloc))
             y: R.Tensor((2, 3), dtype="float32") = alloc
             if cond:
                 z: R.Tensor((2, 3), dtype="float32") = y
@@ -455,8 +456,8 @@ def test_if_then_else():
 def test_cross_block_use():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+        @Ts.function
+        def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -468,20 +469,20 @@ def test_cross_block_use():
             alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
-            _: R.Tuple() = cls.exp(x, alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.exp, (x, alloc))
             y: R.Tensor((2, 3), dtype="float32") = alloc
             if cond:
                 alloc1: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                     R.shape([2, 3]), dtype="float32", runtime_device_index=0
                 )
-                _1: R.Tuple() = cls.exp(y, alloc1)
+                _1: R.Tuple() = R.call_tir_packed(cls.exp, (y, alloc1))
                 y2: R.Tensor((2, 3), dtype="float32") = alloc1
                 z: R.Tensor((2, 3), dtype="float32") = y2
             else:
                 alloc2: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                     R.shape([2, 3]), dtype="float32", runtime_device_index=0
                 )
-                _2: R.Tuple() = cls.exp(y, alloc2)
+                _2: R.Tuple() = R.call_tir_packed(cls.exp, (y, alloc2))
                 y2: R.Tensor((2, 3), dtype="float32") = alloc2
                 z: R.Tensor((2, 3), dtype="float32") = y2
             return x
@@ -494,8 +495,8 @@ def test_cross_block_use():
 def test_nested_tuple():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+        @Ts.function
+        def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -505,17 +506,17 @@ def test_nested_tuple():
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
             cls = Module
-            _: R.Tuple() = cls.exp(x, alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.exp, (x, alloc))
             y1: R.Tensor((2, 3), dtype="float32") = alloc
             alloc1: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
-            _1: R.Tuple() = cls.exp(x, alloc1)
+            _1: R.Tuple() = R.call_tir_packed(cls.exp, (x, alloc1))
             y2: R.Tensor((2, 3), dtype="float32") = alloc1
             alloc2: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
-            _2: R.Tuple() = cls.exp(x, alloc2)
+            _2: R.Tuple() = R.call_tir_packed(cls.exp, (x, alloc2))
             y3: R.Tensor((2, 3), dtype="float32") = alloc2
             t: R.Tuple(R.Tensor((2, 3), dtype="float32"), R.Tensor((2, 3), dtype="float32")) = (
                 y1,
@@ -534,24 +535,24 @@ def test_nested_tuple():
             alloc3: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
-            _3: R.Tuple() = cls.exp(y1_, alloc3)
+            _3: R.Tuple() = R.call_tir_packed(cls.exp, (y1_, alloc3))
             z1: R.Tensor((2, 3), dtype="float32") = alloc3
             alloc4: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
-            _4: R.Tuple() = cls.exp(y2_, alloc4)
+            _4: R.Tuple() = R.call_tir_packed(cls.exp, (y2_, alloc4))
             z2: R.Tensor((2, 3), dtype="float32") = alloc4
             alloc5: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
-            _5: R.Tuple() = cls.exp(y3_, alloc5)
+            _5: R.Tuple() = R.call_tir_packed(cls.exp, (y3_, alloc5))
             z3: R.Tensor((2, 3), dtype="float32") = alloc5
             return x
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
-        def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+        @Ts.function
+        def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -564,7 +565,7 @@ def test_nested_tuple():
             alloc: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
                 storage, 0, R.shape([2, 3]), dtype="float32"
             )
-            _: R.Tuple() = cls.exp(x, alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.exp, (x, alloc))
             y1: R.Tensor((2, 3), dtype="float32") = alloc
             storage1: R.Any = R.memory.alloc_storage(
                 R.shape([24]), virtual_device_index=0, storage_scope="global", dtype="float32"
@@ -572,7 +573,7 @@ def test_nested_tuple():
             alloc1: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
                 storage1, 0, R.shape([2, 3]), dtype="float32"
             )
-            _1: R.Tuple() = cls.exp(x, alloc1)
+            _1: R.Tuple() = R.call_tir_packed(cls.exp, (x, alloc1))
             y2: R.Tensor((2, 3), dtype="float32") = alloc1
             storage2: R.Any = R.memory.alloc_storage(
                 R.shape([24]), virtual_device_index=0, storage_scope="global", dtype="float32"
@@ -580,7 +581,7 @@ def test_nested_tuple():
             alloc2: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
                 storage2, 0, R.shape([2, 3]), dtype="float32"
             )
-            _2: R.Tuple() = cls.exp(x, alloc2)
+            _2: R.Tuple() = R.call_tir_packed(cls.exp, (x, alloc2))
             y3: R.Tensor((2, 3), dtype="float32") = alloc2
             t: R.Tuple(R.Tensor((2, 3), dtype="float32"), R.Tensor((2, 3), dtype="float32")) = (
                 y1,
@@ -602,17 +603,17 @@ def test_nested_tuple():
             alloc3: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
                 storage3, 0, R.shape([2, 3]), dtype="float32"
             )
-            _3: R.Tuple() = cls.exp(y1_, alloc3)
+            _3: R.Tuple() = R.call_tir_packed(cls.exp, (y1_, alloc3))
             z1: R.Tensor((2, 3), dtype="float32") = alloc3
             alloc4: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
                 storage, 0, R.shape([2, 3]), dtype="float32"
             )
-            _41: R.Tuple() = cls.exp(y2_, alloc4)
+            _41: R.Tuple() = R.call_tir_packed(cls.exp, (y2_, alloc4))
             z2: R.Tensor((2, 3), dtype="float32") = alloc4
             alloc5: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
                 storage3, 0, R.shape([2, 3]), dtype="float32"
             )
-            _5: R.Tuple() = cls.exp(y3_, alloc5)
+            _5: R.Tuple() = R.call_tir_packed(cls.exp, (y3_, alloc5))
             z3: R.Tensor((2, 3), dtype="float32") = alloc5
             return x
 
@@ -620,7 +621,7 @@ def test_nested_tuple():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-def test_call_func_other_than_primfunc():
+def test_call_func_other_than_function():
     @tvm.script.ir_module
     class Module:
         @R.function
@@ -680,52 +681,55 @@ def test_call_packed_external_func():
 
 
 def test_symbolic_shape():
+    m_exp = T.dynamic("m")
+    n_exp = T.dynamic("n")
+    m_main = T.dynamic("m")
+    n_main = T.dynamic("n")
+
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def exp(var_A: T.handle, var_B: T.handle):
-            m = T.int64()
-            n = T.int64()
-            A = T.match_buffer(var_A, (m, n), "float32")
-            B = T.match_buffer(var_B, (m, n), "float32")
+        @Ts.function
+        def exp(A: T.Tensor((m_exp, n_exp), "float32"), B: T.Tensor((m_exp, n_exp), "float32")):
             T.evaluate(0)
 
         @R.function
-        def main(x: R.Tensor(("m", "n"), "float32")):
+        def main(x: R.Tensor((m_main, n_main), "float32")):
             R.func_attr({"relax.force_pure": True})
-            m = T.int64()
-            n = T.int64()
-            alloc: R.Tensor((m, n), dtype="float32") = R.builtin.alloc_tensor(
-                R.shape([m, n]), dtype="float32", runtime_device_index=0
+            alloc: R.Tensor((m_main, n_main), dtype="float32") = R.builtin.alloc_tensor(
+                R.shape([m_main, n_main]), dtype="float32", runtime_device_index=0
             )
-            _ = Module.exp(x, alloc)
-            y: R.Tensor((m, n), dtype="float32") = alloc
+            _ = R.call_tir_packed(Module.exp, (x, alloc))
+            y: R.Tensor((m_main, n_main), dtype="float32") = alloc
             return x
+
+    m_exp = T.dynamic("m")
+    n_exp = T.dynamic("n")
+    m_main = T.dynamic("m")
+    n_main = T.dynamic("n")
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
-        def exp(var_A: T.handle, var_B: T.handle):
-            m = T.int64()
-            n = T.int64()
-            A = T.match_buffer(var_A, (m, n), "float32")
-            B = T.match_buffer(var_B, (m, n), "float32")
+        @Ts.function
+        def exp(A: T.Tensor((m_exp, n_exp), "float32"), B: T.Tensor((m_exp, n_exp), "float32")):
             T.evaluate(0)
 
         @R.function
-        def main(x: R.Tensor(("m", "n"), dtype="float32")) -> R.Tensor(("m", "n"), dtype="float32"):
-            m = T.int64()
-            n = T.int64()
+        def main(x: R.Tensor((m_main, n_main), dtype="float32")) -> R.Tensor(
+            (m_main, n_main), dtype="float32"
+        ):
             R.func_attr({"relax.force_pure": True})
             cls = Expected
             storage: R.Any = R.memory.alloc_storage(
-                R.shape([4 * (m * n)]), R.prim_value(0), R.str("global"), R.dtype("float32")
+                R.shape([4 * (m_main * n_main)]),
+                R.prim_value(0),
+                R.str("global"),
+                R.dtype("float32"),
             )
-            alloc: R.Tensor((m, n), dtype="float32") = R.memory.alloc_tensor(
-                storage, R.prim_value(0), R.shape([m, n]), R.dtype("float32")
+            alloc: R.Tensor((m_main, n_main), dtype="float32") = R.memory.alloc_tensor(
+                storage, R.prim_value(0), R.shape([m_main, n_main]), R.dtype("float32")
             )
-            _: R.Tuple = cls.exp(x, alloc)
-            y: R.Tensor((m, n), dtype="float32") = alloc
+            _: R.Tuple = R.call_tir_packed(cls.exp, (x, alloc))
+            y: R.Tensor((m_main, n_main), dtype="float32") = alloc
             return x
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
@@ -763,11 +767,11 @@ def test_zero_reference():
 def test_reshape_param():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add(
-            A: T.Buffer((T.int64(2), T.int64(25), T.int64(2)), "float32"),
-            B: T.Buffer((T.int64(2), T.int64(25), T.int64(2)), "float32"),
-            C: T.Buffer((T.int64(2), T.int64(25), T.int64(2)), "float32"),
+            A: T.Tensor((T.int64(2), T.int64(25), T.int64(2)), "float32"),
+            B: T.Tensor((T.int64(2), T.int64(25), T.int64(2)), "float32"),
+            C: T.Tensor((T.int64(2), T.int64(25), T.int64(2)), "float32"),
         ):
             T.evaluate(0)
 
@@ -781,7 +785,7 @@ def test_reshape_param():
             alloc: R.Tensor((2, 25, 2), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 25, 2]), dtype="float32", runtime_device_index=0
             )
-            _: R.Tuple() = Module.add(lv, lv1, alloc)
+            _: R.Tuple() = R.call_tir_packed(Module.add, (lv, lv1, alloc))
             gv: R.Tensor((2, 25, 2), dtype="float32") = alloc
             return gv
 
@@ -793,19 +797,19 @@ def test_reshape_param():
 def test_multiple_functions():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add(
-            A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "float32"),
         ):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add1(
-            A: T.Buffer((T.int64(2), T.int64(3)), "int32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "int32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "int32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "int32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "int32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "int32"),
         ):
             T.evaluate(0)
 
@@ -818,12 +822,12 @@ def test_multiple_functions():
             alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
-            _: R.Tuple() = cls.add(x, x, alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.add, (x, x, alloc))
             gv: R.Tensor((2, 3), dtype="float32") = alloc
             alloc1: R.Tensor((2, 3), dtype="int32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="int32", runtime_device_index=0
             )
-            _1: R.Tuple() = cls.add1(y, y, alloc1)
+            _1: R.Tuple() = R.call_tir_packed(cls.add1, (y, y, alloc1))
             gv1: R.Tensor((2, 3), dtype="int32") = alloc1
             return x
 
@@ -836,30 +840,30 @@ def test_multiple_functions():
             alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
-            _: R.Tuple() = cls.add(x, x, alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.add, (x, x, alloc))
             gv: R.Tensor((2, 3), dtype="float32") = alloc
             alloc1: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
-            _1: R.Tuple() = cls.add(y, y, alloc1)
+            _1: R.Tuple() = R.call_tir_packed(cls.add, (y, y, alloc1))
             gv1: R.Tensor((2, 3), dtype="float32") = alloc1
             return x
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add(
-            A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "float32"),
         ):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add1(
-            A: T.Buffer((T.int64(2), T.int64(3)), "int32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "int32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "int32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "int32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "int32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "int32"),
         ):
             T.evaluate(0)
 
@@ -875,7 +879,7 @@ def test_multiple_functions():
             alloc: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
                 storage, 0, R.shape([2, 3]), dtype="float32"
             )
-            _: R.Tuple() = cls.add(x, x, alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.add, (x, x, alloc))
             gv1: R.Tensor((2, 3), dtype="float32") = alloc
             storage1: R.Any = R.memory.alloc_storage(
                 R.shape([24]), virtual_device_index=0, storage_scope="global", dtype="int32"
@@ -883,7 +887,7 @@ def test_multiple_functions():
             alloc1: R.Tensor((2, 3), dtype="int32") = R.memory.alloc_tensor(
                 storage1, 0, R.shape([2, 3]), dtype="int32"
             )
-            _2: R.Tuple() = cls.add1(y, y, alloc1)
+            _2: R.Tuple() = R.call_tir_packed(cls.add1, (y, y, alloc1))
             gv12: R.Tensor((2, 3), dtype="int32") = alloc1
             return x
 
@@ -899,12 +903,12 @@ def test_multiple_functions():
             alloc: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
                 storage, 0, R.shape([2, 3]), dtype="float32"
             )
-            _: R.Tuple() = cls.add(x, x, alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.add, (x, x, alloc))
             gv1: R.Tensor((2, 3), dtype="float32") = alloc
             alloc1: R.Tensor((2, 3), dtype="float32") = R.memory.alloc_tensor(
                 storage, 0, R.shape([2, 3]), dtype="float32"
             )
-            _2: R.Tuple() = cls.add(y, y, alloc1)
+            _2: R.Tuple() = R.call_tir_packed(cls.add, (y, y, alloc1))
             gv12: R.Tensor((2, 3), dtype="float32") = alloc1
             return x
 
@@ -914,103 +918,105 @@ def test_multiple_functions():
 
 def test_tir_var_upper_bound():
     # fmt: off
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add(rxplaceholder: T.handle, rxplaceholder_1: T.handle, T_add: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def reshape(rxplaceholder: T.handle, T_reshape: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def relu(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def log(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def exp(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def pad(rxplaceholder: T.handle, PadInput: T.handle):
             T.evaluate(0)
 
         @R.function
-        def main(x: R.Tensor((2, "n"), dtype="float32")) -> R.Tensor(("2 * n + 2",), dtype="float32"):
+        def main(x: R.Tensor((2, n), dtype="float32")) -> R.Tensor((2 * n + 2,), dtype="float32"):
             R.func_attr({"tir_var_upper_bound": {"n": 4}, "relax.force_pure": True})
-            n = T.int64()
             cls = Module
             alloc: R.Tensor((2, n), dtype="float32") = R.builtin.alloc_tensor(R.shape([2, n]), dtype="float32", runtime_device_index=0)
-            _: R.Tuple() = cls.exp(x, alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.exp, (x, alloc))
             lv: R.Tensor((2, n), dtype="float32") = alloc
             lv1: R.Tensor((2 * n,), dtype="float32") = R.reshape(lv, (2 * n,))
             alloc1: R.Tensor((2 * n,), dtype="float32") = R.builtin.alloc_tensor(R.shape([2 * n]), dtype="float32", runtime_device_index=0)
-            _1: R.Tuple() = cls.relu(lv1, alloc1)
+            _1: R.Tuple() = R.call_tir_packed(cls.relu, (lv1, alloc1))
             lv2: R.Tensor((2 * n,), dtype="float32") = alloc1
             alloc2: R.Tensor((2 * n,), dtype="float32") = R.builtin.alloc_tensor(R.shape([2 * n]), dtype="float32", runtime_device_index=0)
-            _2: R.Tuple() = cls.add(lv2, R.const(1, "float32"), alloc2)
+            _2: R.Tuple() = R.call_tir_packed(cls.add, (lv2, R.const(1, "float32"), alloc2))
             lv3: R.Tensor((2 * n,), dtype="float32") = alloc2
             alloc3: R.Tensor((2 * n + 2,), dtype="float32") = R.builtin.alloc_tensor(R.shape([2 * n + 2]), dtype="float32", runtime_device_index=0)
-            _3: R.Tuple() = cls.pad(lv3, alloc3)
+            _3: R.Tuple() = R.call_tir_packed(cls.pad, (lv3, alloc3))
             lv4: R.Tensor((2 * n + 2,), dtype="float32") = alloc3
             alloc4: R.Tensor((2 * n + 2,), dtype="float32") = R.builtin.alloc_tensor(R.shape([10]), dtype="float32", runtime_device_index=0)
-            _4: R.Tuple() = cls.log(lv4, alloc4)
+            _4: R.Tuple() = R.call_tir_packed(cls.log, (lv4, alloc4))
             gv: R.Tensor((2 * n + 2,), dtype="float32") = alloc4
             return gv
 
+    n = T.dynamic("n")
+
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add(rxplaceholder: T.handle, rxplaceholder_1: T.handle, T_add: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def exp(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def log(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def pad(rxplaceholder: T.handle, PadInput: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def relu(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def reshape(rxplaceholder: T.handle, T_reshape: T.handle):
             T.evaluate(0)
 
         @R.function
-        def main(x: R.Tensor((2, "n"), dtype="float32")) -> R.Tensor(("2 * n + 2",), dtype="float32"):
-            n = T.int64()
+        def main(x: R.Tensor((2, n), dtype="float32")) -> R.Tensor((2 * n + 2,), dtype="float32"):
             R.func_attr({"tir_var_upper_bound": {"n": 4}, "relax.force_pure": True})
             cls = Expected
             storage: R.Any = R.memory.alloc_storage(R.shape([32]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc: R.Tensor((2, n), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([2, n]), R.dtype("float32"))
-            _: R.Tuple = cls.exp(x, alloc)
+            _: R.Tuple = R.call_tir_packed(cls.exp, (x, alloc))
             lv: R.Tensor((2, n), dtype="float32") = alloc
             lv1: R.Tensor((2 * n,), dtype="float32") = R.reshape(lv, R.shape([2 * n]))
             storage1: R.Any = R.memory.alloc_storage(R.shape([40]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc1: R.Tensor((2 * n,), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([2 * n]), R.dtype("float32"))
-            _1: R.Tuple = cls.relu(lv1, alloc1)
+            _1: R.Tuple = R.call_tir_packed(cls.relu, (lv1, alloc1))
             lv2: R.Tensor((2 * n,), dtype="float32") = alloc1
             alloc2: R.Tensor((2 * n,), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([2 * n]), R.dtype("float32"))
-            _2: R.Tuple = cls.add(lv2, R.const(1, "float32"), alloc2)
+            _2: R.Tuple = R.call_tir_packed(cls.add, (lv2, R.const(1, "float32"), alloc2))
             lv3: R.Tensor((2 * n,), dtype="float32") = alloc2
             alloc3: R.Tensor((2 * n + 2,), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([2 * n + 2]), R.dtype("float32"))
-            _3: R.Tuple = cls.pad(lv3, alloc3)
+            _3: R.Tuple = R.call_tir_packed(cls.pad, (lv3, alloc3))
             lv4: R.Tensor((2 * n + 2,), dtype="float32") = alloc3
             alloc4: R.Tensor((2 * n + 2,), dtype="float32") = R.builtin.alloc_tensor(R.shape([10]), R.dtype("float32"), R.prim_value(0))
-            _4: R.Tuple = cls.log(lv4, alloc4)
+            _4: R.Tuple = R.call_tir_packed(cls.log, (lv4, alloc4))
             gv: R.Tensor((2 * n + 2,), dtype="float32") = alloc4
             return gv
     # fmt: on
@@ -1021,104 +1027,106 @@ def test_tir_var_upper_bound():
 
 def test_lower_bound_only():
     # fmt: off
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add(rxplaceholder: T.handle, rxplaceholder_1: T.handle, T_add: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def reshape(rxplaceholder: T.handle, T_reshape: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def relu(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def log(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def exp(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def pad(rxplaceholder: T.handle, PadInput: T.handle):
             T.evaluate(0)
 
         @R.function
-        def main(x: R.Tensor((2, "n"), dtype="float32")) -> R.Tensor(("2 * n + 2",), dtype="float32"):
+        def main(x: R.Tensor((2, n), dtype="float32")) -> R.Tensor((2 * n + 2,), dtype="float32"):
             R.func_attr({"tir_var_lower_bound": {"n": 2}, "relax.force_pure": True})
-            n = T.int64()
             cls = Module
             alloc: R.Tensor((2, n), dtype="float32") = R.builtin.alloc_tensor(R.shape([2, n]), dtype="float32", runtime_device_index=0)
-            _: R.Tuple() = cls.exp(x, alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.exp, (x, alloc))
             lv: R.Tensor((2, n), dtype="float32") = alloc
             lv1: R.Tensor((2 * n,), dtype="float32") = R.reshape(lv, (2 * n,))
             alloc1: R.Tensor((2 * n,), dtype="float32") = R.builtin.alloc_tensor(R.shape([2 * n]), dtype="float32", runtime_device_index=0)
-            _1: R.Tuple() = cls.relu(lv1, alloc1)
+            _1: R.Tuple() = R.call_tir_packed(cls.relu, (lv1, alloc1))
             lv2: R.Tensor((2 * n,), dtype="float32") = alloc1
             alloc2: R.Tensor((2 * n,), dtype="float32") = R.builtin.alloc_tensor(R.shape([2 * n]), dtype="float32", runtime_device_index=0)
-            _2: R.Tuple() = cls.add(lv2, R.const(1, "float32"), alloc2)
+            _2: R.Tuple() = R.call_tir_packed(cls.add, (lv2, R.const(1, "float32"), alloc2))
             lv3: R.Tensor((2 * n,), dtype="float32") = alloc2
             alloc3: R.Tensor((2 * n + 2,), dtype="float32") = R.builtin.alloc_tensor(R.shape([2 * n + 2]), dtype="float32", runtime_device_index=0)
-            _3: R.Tuple() = cls.pad(lv3, alloc3)
+            _3: R.Tuple() = R.call_tir_packed(cls.pad, (lv3, alloc3))
             lv4: R.Tensor((2 * n + 2,), dtype="float32") = alloc3
             alloc4: R.Tensor((2 * n + 2,), dtype="float32") = R.builtin.alloc_tensor(R.shape([10]), dtype="float32", runtime_device_index=0)
-            _4: R.Tuple() = cls.log(lv4, alloc4)
+            _4: R.Tuple() = R.call_tir_packed(cls.log, (lv4, alloc4))
             gv: R.Tensor((2 * n + 2,), dtype="float32") = alloc4
             return gv
 
+    n = T.dynamic("n")
+
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add(rxplaceholder: T.handle, rxplaceholder_1: T.handle, T_add: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def exp(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def log(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def pad(rxplaceholder: T.handle, PadInput: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def relu(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def reshape(rxplaceholder: T.handle, T_reshape: T.handle):
             T.evaluate(0)
 
         @R.function
-        def main(x: R.Tensor((2, "n"), dtype="float32")) -> R.Tensor(("2 * n + 2",), dtype="float32"):
-            n = T.int64()
+        def main(x: R.Tensor((2, n), dtype="float32")) -> R.Tensor((2 * n + 2,), dtype="float32"):
             R.func_attr({"tir_var_lower_bound": {"n": 2}, "relax.force_pure": True})
             cls = Expected
             storage: R.Any = R.memory.alloc_storage(R.shape([8 * n]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc: R.Tensor((2, n), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([2, n]), R.dtype("float32"), R.prim_value(0))
-            _: R.Tuple = cls.exp(x, alloc)
+            _: R.Tuple = R.call_tir_packed(cls.exp, (x, alloc))
             lv: R.Tensor((2, n), dtype="float32") = alloc
             lv1: R.Tensor((2 * n,), dtype="float32") = R.reshape(lv, R.shape([2 * n]))
             storage1: R.Any = R.memory.alloc_storage(R.shape([4 * (2 * n)]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc1: R.Tensor((2 * n,), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([2 * n]), R.dtype("float32"))
-            _1: R.Tuple = cls.relu(lv1, alloc1)
+            _1: R.Tuple = R.call_tir_packed(cls.relu, (lv1, alloc1))
             lv2: R.Tensor((2 * n,), dtype="float32") = alloc1
             alloc2: R.Tensor((2 * n,), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([2 * n]), R.dtype("float32"))
-            _2: R.Tuple = cls.add(lv2, R.const(1, "float32"), alloc2)
+            _2: R.Tuple = R.call_tir_packed(cls.add, (lv2, R.const(1, "float32"), alloc2))
             lv3: R.Tensor((2 * n,), dtype="float32") = alloc2
             storage2: R.Any = R.memory.alloc_storage(R.shape([4 * (2 * n + 2)]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc3: R.Tensor((2 * n + 2,), dtype="float32") = R.memory.alloc_tensor(storage2, R.prim_value(0), R.shape([2 * n + 2]), R.dtype("float32"), R.prim_value(0))
-            _3: R.Tuple = cls.pad(lv3, alloc3)
+            _3: R.Tuple = R.call_tir_packed(cls.pad, (lv3, alloc3))
             lv4: R.Tensor((2 * n + 2,), dtype="float32") = alloc3
             alloc4: R.Tensor((2 * n + 2,), dtype="float32") = R.builtin.alloc_tensor(R.shape([10]), R.dtype("float32"), R.prim_value(0))
-            _4: R.Tuple = cls.log(lv4, alloc4)
+            _4: R.Tuple = R.call_tir_packed(cls.log, (lv4, alloc4))
             gv: R.Tensor((2 * n + 2,), dtype="float32") = alloc4
             return gv
     # fmt: on
@@ -1129,103 +1137,105 @@ def test_lower_bound_only():
 
 def test_upper_and_lower_bounds():
     # fmt: off
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add(rxplaceholder: T.handle, rxplaceholder_1: T.handle, T_add: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def reshape(rxplaceholder: T.handle, T_reshape: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def relu(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def log(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def exp(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def pad(rxplaceholder: T.handle, PadInput: T.handle):
             T.evaluate(0)
 
         @R.function
-        def main(x: R.Tensor((2, "n"), dtype="float32")) -> R.Tensor(("2 * n + 2",), dtype="float32"):
+        def main(x: R.Tensor((2, n), dtype="float32")) -> R.Tensor((2 * n + 2,), dtype="float32"):
             R.func_attr({"tir_var_upper_bound": {"n": 4}, "tir_var_lower_bound": {"n": 2}, "relax.force_pure": True})
-            n = T.int64()
             cls = Module
             alloc: R.Tensor((2, n), dtype="float32") = R.builtin.alloc_tensor(R.shape([2, n]), dtype="float32", runtime_device_index=0)
-            _: R.Tuple() = cls.exp(x, alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.exp, (x, alloc))
             lv: R.Tensor((2, n), dtype="float32") = alloc
             lv1: R.Tensor((2 * n,), dtype="float32") = R.reshape(lv, (2 * n,))
             alloc1: R.Tensor((2 * n,), dtype="float32") = R.builtin.alloc_tensor(R.shape([2 * n]), dtype="float32", runtime_device_index=0)
-            _1: R.Tuple() = cls.relu(lv1, alloc1)
+            _1: R.Tuple() = R.call_tir_packed(cls.relu, (lv1, alloc1))
             lv2: R.Tensor((2 * n,), dtype="float32") = alloc1
             alloc2: R.Tensor((2 * n,), dtype="float32") = R.builtin.alloc_tensor(R.shape([2 * n]), dtype="float32", runtime_device_index=0)
-            _2: R.Tuple() = cls.add(lv2, R.const(1, "float32"), alloc2)
+            _2: R.Tuple() = R.call_tir_packed(cls.add, (lv2, R.const(1, "float32"), alloc2))
             lv3: R.Tensor((2 * n,), dtype="float32") = alloc2
             alloc3: R.Tensor((2 * n + 2,), dtype="float32") = R.builtin.alloc_tensor(R.shape([2 * n + 2]), dtype="float32", runtime_device_index=0)
-            _3: R.Tuple() = cls.pad(lv3, alloc3)
+            _3: R.Tuple() = R.call_tir_packed(cls.pad, (lv3, alloc3))
             lv4: R.Tensor((2 * n + 2,), dtype="float32") = alloc3
             alloc4: R.Tensor((2 * n + 2,), dtype="float32") = R.builtin.alloc_tensor(R.shape([10]), dtype="float32", runtime_device_index=0)
-            _4: R.Tuple() = cls.log(lv4, alloc4)
+            _4: R.Tuple() = R.call_tir_packed(cls.log, (lv4, alloc4))
             gv: R.Tensor((2 * n + 2,), dtype="float32") = alloc4
             return gv
 
+    n = T.dynamic("n")
+
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add(rxplaceholder: T.handle, rxplaceholder_1: T.handle, T_add: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def exp(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def log(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def pad(rxplaceholder: T.handle, PadInput: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def relu(rxplaceholder: T.handle, compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def reshape(rxplaceholder: T.handle, T_reshape: T.handle):
             T.evaluate(0)
 
         @R.function
-        def main(x: R.Tensor((2, "n"), dtype="float32")) -> R.Tensor(("2 * n + 2",), dtype="float32"):
-            n = T.int64()
+        def main(x: R.Tensor((2, n), dtype="float32")) -> R.Tensor((2 * n + 2,), dtype="float32"):
             R.func_attr({"tir_var_upper_bound": {"n": 4}, "tir_var_lower_bound": {"n": 2}, "relax.force_pure": True})
             cls = Expected
             storage: R.Any = R.memory.alloc_storage(R.shape([32]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc: R.Tensor((2, n), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([2, n]), R.dtype("float32"))
-            _: R.Tuple = cls.exp(x, alloc)
+            _: R.Tuple = R.call_tir_packed(cls.exp, (x, alloc))
             lv: R.Tensor((2, n), dtype="float32") = alloc
             lv1: R.Tensor((2 * n,), dtype="float32") = R.reshape(lv, R.shape([2 * n]))
             storage1: R.Any = R.memory.alloc_storage(R.shape([40]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc1: R.Tensor((2 * n,), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([2 * n]), R.dtype("float32"))
-            _1: R.Tuple = cls.relu(lv1, alloc1)
+            _1: R.Tuple = R.call_tir_packed(cls.relu, (lv1, alloc1))
             lv2: R.Tensor((2 * n,), dtype="float32") = alloc1
             alloc2: R.Tensor((2 * n,), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([2 * n]), R.dtype("float32"))
-            _2: R.Tuple = cls.add(lv2, R.const(1, "float32"), alloc2)
+            _2: R.Tuple = R.call_tir_packed(cls.add, (lv2, R.const(1, "float32"), alloc2))
             lv3: R.Tensor((2 * n,), dtype="float32") = alloc2
             alloc3: R.Tensor((2 * n + 2,), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([2 * n + 2]), R.dtype("float32"))
-            _3: R.Tuple = cls.pad(lv3, alloc3)
+            _3: R.Tuple = R.call_tir_packed(cls.pad, (lv3, alloc3))
             lv4: R.Tensor((2 * n + 2,), dtype="float32") = alloc3
             alloc4: R.Tensor((2 * n + 2,), dtype="float32") = R.builtin.alloc_tensor(R.shape([10]), R.dtype("float32"), R.prim_value(0))
-            _4: R.Tuple = cls.log(lv4, alloc4)
+            _4: R.Tuple = R.call_tir_packed(cls.log, (lv4, alloc4))
             gv: R.Tensor((2 * n + 2,), dtype="float32") = alloc4
             return gv
     # fmt: on
@@ -1235,10 +1245,12 @@ def test_upper_and_lower_bounds():
 
 
 def test_invalid_tir_var_upper_bound():
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class Module:
         @R.function
-        def main(x: R.Tensor((2, "n"), dtype="float32")):
+        def main(x: R.Tensor((2, n), dtype="float32")):
             R.func_attr({"tir_var_upper_bound": {"n": [4]}, "relax.force_pure": True})
             return x
 
@@ -1247,10 +1259,12 @@ def test_invalid_tir_var_upper_bound():
 
 
 def test_invalid_tir_var_lower_bound():
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class Module:
         @R.function
-        def main(x: R.Tensor((2, "n"), dtype="float32")):
+        def main(x: R.Tensor((2, n), dtype="float32")):
             R.func_attr({"tir_var_lower_bound": {"n": [4]}, "relax.force_pure": True})
             return x
 
@@ -1260,51 +1274,53 @@ def test_invalid_tir_var_lower_bound():
 
 def test_tir_var_decreasing_monotone():
     # fmt: off
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
         @R.function
-        def main(x: R.Tensor(("n", "m", "T.max(n - m, 1)"), dtype="float32")) -> R.Tensor(("n", "m", "T.max(n - m, 1)"), dtype="float32"):
-            n = T.int64()
-            m = T.int64()
+        def main(x: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32")) -> R.Tensor((n, m, T.max(n - m, 1)), dtype="float32"):
             R.func_attr({"tir_var_upper_bound": {"m": 5, "n": 20}, "relax.force_pure": True})
             cls = Module
             alloc: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = R.builtin.alloc_tensor(R.shape([n, m, T.max(n - m, 1)]), R.dtype("float32"), R.prim_value(0))
-            _: R.Tuple = cls.tir_exp(x, alloc)
+            _: R.Tuple = R.call_tir_packed(cls.tir_exp, (x, alloc))
             y: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = alloc
             alloc1: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = R.builtin.alloc_tensor(R.shape([n, m, T.max(n - m, 1)]), R.dtype("float32"), R.prim_value(0))
-            _1: R.Tuple = cls.tir_exp(y, alloc1)
+            _1: R.Tuple = R.call_tir_packed(cls.tir_exp, (y, alloc1))
             z: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = alloc1
             alloc2: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = R.builtin.alloc_tensor(R.shape([n, m, T.max(n - m, 1)]), R.dtype("float32"), R.prim_value(0))
-            _2: R.Tuple = cls.tir_exp(z, alloc2)
+            _2: R.Tuple = R.call_tir_packed(cls.tir_exp, (z, alloc2))
             r: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = alloc2
             return r
 
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
         @R.function
-        def main(x: R.Tensor(("n", "m", "T.max(n - m, 1)"), dtype="float32")) -> R.Tensor(("n", "m", "T.max(n - m, 1)"), dtype="float32"):
-            n = T.int64()
-            m = T.int64()
+        def main(x: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32")) -> R.Tensor((n, m, T.max(n - m, 1)), dtype="float32"):
             R.func_attr({"tir_var_upper_bound": {"m": 5, "n": 20}, "relax.force_pure": True})
             cls = Expected
             storage: R.Any = R.memory.alloc_storage(R.shape([8000]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([n, m, T.max(n - m, 1)]), R.dtype("float32"))
-            _: R.Tuple = cls.tir_exp(x, alloc)
+            _: R.Tuple = R.call_tir_packed(cls.tir_exp, (x, alloc))
             y: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = alloc
             storage1: R.Any = R.memory.alloc_storage(R.shape([8000]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc1: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([n, m, T.max(n - m, 1)]), R.dtype("float32"))
-            _1: R.Tuple = cls.tir_exp(y, alloc1)
+            _1: R.Tuple = R.call_tir_packed(cls.tir_exp, (y, alloc1))
             z: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = alloc1
             alloc2: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = R.builtin.alloc_tensor(R.shape([n, m, T.max(n - m, 1)]), R.dtype("float32"), R.prim_value(0))
-            _2: R.Tuple = cls.tir_exp(z, alloc2)
+            _2: R.Tuple = R.call_tir_packed(cls.tir_exp, (z, alloc2))
             r: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = alloc2
             return r
     # fmt: on
@@ -1315,45 +1331,47 @@ def test_tir_var_decreasing_monotone():
 
 def test_call_tir_dyn():
     # fmt: off
+    n = T.dynamic("n")
+
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def tir_full(var_full: T.handle, n: T.int64):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
         @R.function
-        def main(s: R.Shape(["n"])) -> R.Tensor(("n",), dtype="float32"):
-            n = T.int64()
+        def main(s: R.Shape([n])) -> R.Tensor((n,), dtype="float32"):
             R.func_attr({"tir_var_upper_bound": {"n": 20}, "relax.force_pure": True})
             cls = Module
             alloc: R.Tensor((n,), dtype="float32") = R.builtin.alloc_tensor(R.shape([n]), R.dtype("float32"), R.prim_value(0))
             _: R.Tuple = R.vm.call_tir_dyn(cls.tir_full, (alloc, R.shape([n])))
             full: R.Tensor((n,), dtype="float32") = alloc
             alloc1: R.Tensor((n,), dtype="float32") = R.builtin.alloc_tensor(R.shape([n]), R.dtype("float32"), R.prim_value(0))
-            _1: R.Tuple = cls.tir_exp(full, alloc1)
+            _1: R.Tuple = R.call_tir_packed(cls.tir_exp, (full, alloc1))
             lv2: R.Tensor((n,), dtype="float32") = alloc1
             alloc2: R.Tensor((n,), dtype="float32") = R.builtin.alloc_tensor(R.shape([n]), R.dtype("float32"), R.prim_value(0))
-            _2: R.Tuple = cls.tir_exp(lv2, alloc2)
+            _2: R.Tuple = R.call_tir_packed(cls.tir_exp, (lv2, alloc2))
             lv3: R.Tensor((n,), dtype="float32") = alloc2
             return lv3
 
+    n = T.dynamic("n")
+
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def tir_full(var_full: T.handle, n: T.int64):
             T.evaluate(0)
 
         @R.function
-        def main(s: R.Shape(["n"])) -> R.Tensor(("n",), dtype="float32"):
-            n = T.int64()
+        def main(s: R.Shape([n])) -> R.Tensor((n,), dtype="float32"):
             R.func_attr({"tir_var_upper_bound": {"n": 20}, "relax.force_pure": True})
             cls = Expected
             storage: R.Any = R.memory.alloc_storage(R.shape([80]), R.prim_value(0), R.str("global"), R.dtype("float32"))
@@ -1362,10 +1380,10 @@ def test_call_tir_dyn():
             full: R.Tensor((n,), dtype="float32") = alloc
             storage1: R.Any = R.memory.alloc_storage(R.shape([80]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc1: R.Tensor((n,), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([n]), R.dtype("float32"))
-            _1: R.Tuple = cls.tir_exp(full, alloc1)
+            _1: R.Tuple = R.call_tir_packed(cls.tir_exp, (full, alloc1))
             lv2: R.Tensor((n,), dtype="float32") = alloc1
             alloc2: R.Tensor((n,), dtype="float32") = R.builtin.alloc_tensor(R.shape([n]), R.dtype("float32"), R.prim_value(0))
-            _2: R.Tuple = cls.tir_exp(lv2, alloc2)
+            _2: R.Tuple = R.call_tir_packed(cls.tir_exp, (lv2, alloc2))
             lv3: R.Tensor((n,), dtype="float32") = alloc2
             return lv3
     # fmt: on
@@ -1376,45 +1394,47 @@ def test_call_tir_dyn():
 
 def test_call_tir_dyn_plan_dynamic_func_output():
     # fmt: off
+    n = T.dynamic("n")
+
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def tir_full(var_full: T.handle, n: T.int64):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
         @R.function
-        def main(s: R.Shape(["n"])) -> R.Tensor(("n",), dtype="float32"):
-            n = T.int64()
+        def main(s: R.Shape([n])) -> R.Tensor((n,), dtype="float32"):
             R.func_attr({"tir_var_upper_bound": {"n": 20}, "relax.force_pure": True, "relax.memory_plan_dynamic_func_output": True})
             cls = Module
             alloc: R.Tensor((n,), dtype="float32") = R.builtin.alloc_tensor(R.shape([n]), R.dtype("float32"), R.prim_value(0))
             _: R.Tuple = R.vm.call_tir_dyn(cls.tir_full, (alloc, R.shape([n])))
             full: R.Tensor((n,), dtype="float32") = alloc
             alloc1: R.Tensor((n,), dtype="float32") = R.builtin.alloc_tensor(R.shape([n]), R.dtype("float32"), R.prim_value(0))
-            _1: R.Tuple = cls.tir_exp(full, alloc1)
+            _1: R.Tuple = R.call_tir_packed(cls.tir_exp, (full, alloc1))
             lv2: R.Tensor((n,), dtype="float32") = alloc1
             alloc2: R.Tensor((n,), dtype="float32") = R.builtin.alloc_tensor(R.shape([n]), R.dtype("float32"), R.prim_value(0))
-            _2: R.Tuple = cls.tir_exp(lv2, alloc2)
+            _2: R.Tuple = R.call_tir_packed(cls.tir_exp, (lv2, alloc2))
             lv3: R.Tensor((n,), dtype="float32") = alloc2
             return lv3
 
+    n = T.dynamic("n")
+
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def tir_full(var_full: T.handle, n: T.int64):
             T.evaluate(0)
 
         @R.function
-        def main(s: R.Shape(["n"])) -> R.Tensor(("n",), dtype="float32"):
-            n = T.int64()
+        def main(s: R.Shape([n])) -> R.Tensor((n,), dtype="float32"):
             R.func_attr({"tir_var_upper_bound": {"n": 20}, "relax.force_pure": True})
             cls = Expected
             storage: R.Any = R.memory.alloc_storage(R.shape([80]), R.prim_value(0), R.str("global"), R.dtype("float32"))
@@ -1423,11 +1443,11 @@ def test_call_tir_dyn_plan_dynamic_func_output():
             full: R.Tensor((n,), dtype="float32") = alloc
             storage1: R.Any = R.memory.alloc_storage(R.shape([80]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc1: R.Tensor((n,), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([n]), R.dtype("float32"))
-            _1: R.Tuple = cls.tir_exp(full, alloc1)
+            _1: R.Tuple = R.call_tir_packed(cls.tir_exp, (full, alloc1))
             lv2: R.Tensor((n,), dtype="float32") = alloc1
             storage2: R.Any = R.memory.alloc_storage(R.shape([80]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc2: R.Tensor((n,), dtype="float32") = R.memory.alloc_tensor(storage2, R.prim_value(0), R.shape([n]), R.dtype("float32"))
-            _2: R.Tuple = cls.tir_exp(lv2, alloc2)
+            _2: R.Tuple = R.call_tir_packed(cls.tir_exp, (lv2, alloc2))
             lv3: R.Tensor((n,), dtype="float32") = alloc2
             return lv3
     # fmt: on
@@ -1438,50 +1458,52 @@ def test_call_tir_dyn_plan_dynamic_func_output():
 
 def test_call_tir_dyn_plan_partially_dynamic():
     # fmt: off
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def tir_full(var_full: T.handle, n: T.int64, m: T.int64):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
         @R.function
-        def main(s: R.Shape(["n", "m"])) -> R.Tensor(("n", "m"), dtype="float32"):
-            n = T.int64()
-            m = T.int64()
+        def main(s: R.Shape([n, m])) -> R.Tensor((n, m), dtype="float32"):
             R.func_attr({"tir_var_upper_bound": {"n": 20}, "relax.force_pure": True, "relax.memory_plan_dynamic_func_output": True})
             cls = Module
             alloc: R.Tensor((n, m), dtype="float32") = R.builtin.alloc_tensor(R.shape([n, m]), R.dtype("float32"), R.prim_value(0))
             _: R.Tuple = R.vm.call_tir_dyn(cls.tir_full, (alloc, R.shape([n, m])))
             full: R.Tensor((n, m), dtype="float32") = alloc
             alloc1: R.Tensor((n, m), dtype="float32") = R.builtin.alloc_tensor(R.shape([n, m]), R.dtype("float32"), R.prim_value(0))
-            _1: R.Tuple = cls.tir_exp(full, alloc1)
+            _1: R.Tuple = R.call_tir_packed(cls.tir_exp, (full, alloc1))
             lv2: R.Tensor((n, m), dtype="float32") = alloc1
             alloc2: R.Tensor((n, m), dtype="float32") = R.builtin.alloc_tensor(R.shape([n, m]), R.dtype("float32"), R.prim_value(0))
-            _2: R.Tuple = cls.tir_exp(lv2, alloc2)
+            _2: R.Tuple = R.call_tir_packed(cls.tir_exp, (lv2, alloc2))
             lv3: R.Tensor((n, m), dtype="float32") = alloc2
             alloc3: R.Tensor((n, m), dtype="float32") = R.builtin.alloc_tensor(R.shape([n, m]), R.dtype("float32"), R.prim_value(0))
-            _3: R.Tuple = cls.tir_exp(lv3, alloc3)
+            _3: R.Tuple = R.call_tir_packed(cls.tir_exp, (lv3, alloc3))
             lv4: R.Tensor((n, m), dtype="float32") = alloc3
             return lv4
 
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def tir_full(var_full: T.handle, n: T.int64, m: T.int64):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
         @R.function
-        def main(s: R.Shape(["n", "m"])) -> R.Tensor(("n", "m"), dtype="float32"):
-            n = T.int64()
-            m = T.int64()
+        def main(s: R.Shape([n, m])) -> R.Tensor((n, m), dtype="float32"):
             R.func_attr({"relax.force_pure": True, "tir_var_upper_bound": {"n": 20}})
             cls = Expected
             storage: R.Any = R.memory.alloc_storage(R.shape([80 * m]), R.prim_value(0), R.str("global"), R.dtype("float32"))
@@ -1490,14 +1512,14 @@ def test_call_tir_dyn_plan_partially_dynamic():
             full: R.Tensor((n, m), dtype="float32") = alloc
             storage1: R.Any = R.memory.alloc_storage(R.shape([80 * m]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc1: R.Tensor((n, m), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([n, m]), R.dtype("float32"))
-            _1: R.Tuple = cls.tir_exp(full, alloc1)
+            _1: R.Tuple = R.call_tir_packed(cls.tir_exp, (full, alloc1))
             lv2: R.Tensor((n, m), dtype="float32") = alloc1
             alloc2: R.Tensor((n, m), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([n, m]), R.dtype("float32"))
-            _2: R.Tuple = cls.tir_exp(lv2, alloc2)
+            _2: R.Tuple = R.call_tir_packed(cls.tir_exp, (lv2, alloc2))
             lv3: R.Tensor((n, m), dtype="float32") = alloc2
             storage2: R.Any = R.memory.alloc_storage(R.shape([20 * m * 4]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc3: R.Tensor((n, m), dtype="float32") = R.memory.alloc_tensor(storage2, R.prim_value(0), R.shape([n, m]), R.dtype("float32"))
-            _3: R.Tuple = cls.tir_exp(lv3, alloc3)
+            _3: R.Tuple = R.call_tir_packed(cls.tir_exp, (lv3, alloc3))
             lv4 = alloc3
             return lv4
     # fmt: on
@@ -1510,7 +1532,7 @@ def test_function_independence():
     # fmt: off
     @tvm.script.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def exp(A: T.handle, B: T.handle):
             T.evaluate(0)
 
@@ -1519,10 +1541,10 @@ def test_function_independence():
             R.func_attr({"relax.force_pure": True})
             cls = Module
             alloc: R.Tensor((8,), dtype="float32") = R.builtin.alloc_tensor(R.shape([8,]), dtype="float32", runtime_device_index=0)
-            _: R.Tuple() = cls.exp(x, alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.exp, (x, alloc))
             lv: R.Tensor((8,), dtype="float32") = alloc
             alloc1: R.Tensor((8,), dtype="float32") = R.builtin.alloc_tensor(R.shape([8,]), dtype="float32", runtime_device_index=0)
-            _1: R.Tuple() = cls.exp(lv, alloc1)
+            _1: R.Tuple() = R.call_tir_packed(cls.exp, (lv, alloc1))
             gv: R.Tensor((8,), dtype="float32") = alloc1
             return gv
 
@@ -1531,16 +1553,16 @@ def test_function_independence():
             R.func_attr({"relax.force_pure": True})
             cls = Module
             alloc: R.Tensor((10,), dtype="float32") = R.builtin.alloc_tensor(R.shape([10,]), dtype="float32", runtime_device_index=0)
-            _: R.Tuple() = cls.exp(x, alloc)
+            _: R.Tuple() = R.call_tir_packed(cls.exp, (x, alloc))
             lv: R.Tensor((10,), dtype="float32") = alloc
             alloc1: R.Tensor((10,), dtype="float32") = R.builtin.alloc_tensor(R.shape([10,]), dtype="float32", runtime_device_index=0)
-            _1: R.Tuple() = cls.exp(lv, alloc1)
+            _1: R.Tuple() = R.call_tir_packed(cls.exp, (lv, alloc1))
             gv: R.Tensor((10,), dtype="float32") = alloc1
             return gv
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def exp(A: T.handle, B: T.handle):
             T.evaluate(0)
 
@@ -1550,10 +1572,10 @@ def test_function_independence():
             cls = Expected
             storage: R.Any = R.memory.alloc_storage(R.shape([32]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc: R.Tensor((8,), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([8]), R.dtype("float32"))
-            _: R.Tuple = cls.exp(x, alloc)
+            _: R.Tuple = R.call_tir_packed(cls.exp, (x, alloc))
             lv: R.Tensor((8,), dtype="float32") = alloc
             alloc1: R.Tensor((8,), dtype="float32") = R.builtin.alloc_tensor(R.shape([8]), R.dtype("float32"), R.prim_value(0))
-            _1: R.Tuple = cls.exp(lv, alloc1)
+            _1: R.Tuple = R.call_tir_packed(cls.exp, (lv, alloc1))
             gv: R.Tensor((8,), dtype="float32") = alloc1
             return gv
 
@@ -1563,10 +1585,10 @@ def test_function_independence():
             cls = Expected
             storage1: R.Any = R.memory.alloc_storage(R.shape([40]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc: R.Tensor((10,), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([10]), R.dtype("float32"))
-            _: R.Tuple = cls.exp(x, alloc)
+            _: R.Tuple = R.call_tir_packed(cls.exp, (x, alloc))
             lv: R.Tensor((10,), dtype="float32") = alloc
             alloc1: R.Tensor((10,), dtype="float32") = R.builtin.alloc_tensor(R.shape([10]), R.dtype("float32"), R.prim_value(0))
-            _1: R.Tuple = cls.exp(lv, alloc1)
+            _1: R.Tuple = R.call_tir_packed(cls.exp, (lv, alloc1))
             gv: R.Tensor((10,), dtype="float32") = alloc1
             return gv
     # fmt: on
@@ -1576,18 +1598,19 @@ def test_function_independence():
 
 
 def test_add():
+    batch_size = T.dynamic("batch_size")
+    vocab_size = T.dynamic("vocab_size")
+
     @I.ir_module
     class Module:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def cumsum(var_A: T.handle, var_A_1: T.handle, var_exclusive_scan_thrust: T.handle):
             T.evaluate(0)
 
         @R.function
-        def main(probs: R.Tensor(("batch_size", "vocab_size"), dtype="float32")) -> R.Tensor(
-            ("batch_size", "vocab_size"), dtype="float32"
+        def main(probs: R.Tensor((batch_size, vocab_size), dtype="float32")) -> R.Tensor(
+            (batch_size, vocab_size), dtype="float32"
         ):
-            batch_size = T.int64()
-            vocab_size = T.int64()
             R.func_attr(
                 {
                     "relax.force_pure": True,
@@ -1612,7 +1635,7 @@ def test_add():
                 R.prim_value(0),
                 R.str("global"),
             )
-            cls.cumsum(probs, lv1, alloc1)
+            R.call_tir_packed(cls.cumsum, (probs, lv1, alloc1))
             cumsum: R.Tensor((batch_size, vocab_size), dtype="float32") = alloc1
             lv1_1: R.Tensor((batch_size, vocab_size), dtype="float32") = R.call_packed(
                 "vm.builtin.reshape",
@@ -1622,18 +1645,19 @@ def test_add():
             )
             return lv1_1
 
+    batch_size = T.dynamic("batch_size")
+    vocab_size = T.dynamic("vocab_size")
+
     @I.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def cumsum(var_A: T.handle, var_A_1: T.handle, var_exclusive_scan_thrust: T.handle):
             T.evaluate(0)
 
         @R.function
-        def main(probs: R.Tensor(("batch_size", "vocab_size"), dtype="float32")) -> R.Tensor(
-            ("batch_size", "vocab_size"), dtype="float32"
+        def main(probs: R.Tensor((batch_size, vocab_size), dtype="float32")) -> R.Tensor(
+            (batch_size, vocab_size), dtype="float32"
         ):
-            batch_size = T.int64()
-            vocab_size = T.int64()
             R.func_attr(
                 {
                     "relax.force_pure": True,
@@ -1666,7 +1690,7 @@ def test_add():
             alloc1: R.Tensor((batch_size, vocab_size), dtype="float32") = R.memory.alloc_tensor(
                 storage1, R.prim_value(0), R.shape([batch_size, vocab_size]), R.dtype("float32")
             )
-            cls.cumsum(probs, lv1, alloc1)
+            R.call_tir_packed(cls.cumsum, (probs, lv1, alloc1))
             cumsum: R.Tensor((batch_size, vocab_size), dtype="float32") = alloc1
             lv1_1: R.Tensor((batch_size, vocab_size), dtype="float32") = R.call_packed(
                 "vm.builtin.reshape",
@@ -1683,29 +1707,29 @@ def test_add():
 def test_view():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
-        @R.function
+        @R.function(pure=False)
         def main():
             cls = Before
             x = R.builtin.alloc_tensor(R.shape([16, 16]), dtype="float32", runtime_device_index=0)
             x1 = R.memory.view(x, [128], "float32", 0)
             x2 = R.memory.ensure_zero_offset(x1)
             y = R.builtin.alloc_tensor(R.shape([128]), dtype="float32", runtime_device_index=0)
-            cls.tir_exp(x2, y)
+            R.call_tir_packed(cls.tir_exp, (x2, y))
             z = R.builtin.alloc_tensor(R.shape([128]), dtype="float32", runtime_device_index=0)
-            cls.tir_exp(y, z)
+            R.call_tir_packed(cls.tir_exp, (y, z))
             return z
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
             T.evaluate(0)
 
-        @R.function
+        @R.function(pure=False)
         def main() -> R.Tensor((128,), dtype="float32"):
             cls = Expected
             storage: R.Any = R.memory.alloc_storage(
@@ -1724,11 +1748,11 @@ def test_view():
             y: R.Tensor((128,), dtype="float32") = R.memory.alloc_tensor(
                 storage1, R.prim_value(0), R.shape([128]), R.dtype("float32")
             )
-            cls.tir_exp(x2, y)
+            R.call_tir_packed(cls.tir_exp, (x2, y))
             z: R.Tensor((128,), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([128]), R.dtype("float32"), R.prim_value(0), R.str("global")
             )
-            cls.tir_exp(y, z)
+            R.call_tir_packed(cls.tir_exp, (y, z))
             return z
 
     after = relax.transform.StaticPlanBlockMemory()(Before)
@@ -1738,15 +1762,15 @@ def test_view():
 def test_match_cast_preserves_storage_liveness():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def copy(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
+        @Ts.function
+        def copy(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def add(
-            A: T.Buffer((16,), "float32"),
-            B: T.Buffer((16,), "float32"),
-            C: T.Buffer((16,), "float32"),
+            A: T.Tensor((16,), "float32"),
+            B: T.Tensor((16,), "float32"),
+            C: T.Tensor((16,), "float32"),
         ):
             T.evaluate(0)
 
@@ -1755,12 +1779,12 @@ def test_match_cast_preserves_storage_liveness():
             R.func_attr({"relax.force_pure": True})
             cls = Before
             alloc = R.builtin.alloc_tensor(R.shape([16]), "float32", 0)
-            cls.copy(x, alloc)
+            R.call_tir_packed(cls.copy, (x, alloc))
             checked = R.match_cast(alloc, R.Tensor((16,), "float32"))
             alloc1 = R.builtin.alloc_tensor(R.shape([16]), "float32", 0)
-            cls.copy(x, alloc1)
+            R.call_tir_packed(cls.copy, (x, alloc1))
             alloc2 = R.builtin.alloc_tensor(R.shape([16]), "float32", 0)
-            cls.add(checked, alloc1, alloc2)
+            R.call_tir_packed(cls.add, (checked, alloc1, alloc2))
             return alloc2
 
     after = relax.transform.StaticPlanBlockMemory()(Before)
@@ -1778,8 +1802,8 @@ def test_match_cast_preserves_storage_liveness():
 def test_builtin_reshape_preserves_storage_liveness():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def copy(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
+        @Ts.function
+        def copy(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -1787,7 +1811,7 @@ def test_builtin_reshape_preserves_storage_liveness():
             R.func_attr({"relax.force_pure": True})
             cls = Before
             alloc = R.builtin.alloc_tensor(R.shape([16]), "float32", 0)
-            cls.copy(x, alloc)
+            R.call_tir_packed(cls.copy, (x, alloc))
             reshaped = R.call_packed(
                 "vm.builtin.reshape",
                 alloc,
@@ -1795,9 +1819,9 @@ def test_builtin_reshape_preserves_storage_liveness():
                 ty_args=R.Tensor((16,), "float32"),
             )
             alloc1 = R.builtin.alloc_tensor(R.shape([16]), "float32", 0)
-            cls.copy(reshaped, alloc1)
+            R.call_tir_packed(cls.copy, (reshaped, alloc1))
             alloc2 = R.builtin.alloc_tensor(R.shape([16]), "float32", 0)
-            cls.copy(alloc1, alloc2)
+            R.call_tir_packed(cls.copy, (alloc1, alloc2))
             return alloc2
 
     after = relax.transform.StaticPlanBlockMemory()(Before)
@@ -1815,7 +1839,7 @@ def test_builtin_reshape_preserves_storage_liveness():
 def test_with_dataflow():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def exp(A: T.handle, B: T.handle):
             T.evaluate(0)
 
@@ -1826,14 +1850,16 @@ def test_with_dataflow():
                 alloc: R.Tensor((10,), dtype="float32") = R.builtin.alloc_tensor(
                     R.shape([10]), R.dtype("float32"), runtime_device_index=0
                 )
-                _: R.Tuple() = cls.exp(x, alloc)
+                _: R.Tuple() = R.call_pure_packed(
+                    tvm.ir.Op.get("relax.call_tir_packed"), cls.exp, (x, alloc)
+                )
                 gv: R.Tensor((10,), dtype="float32") = alloc
                 R.output(gv)
             return gv
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def exp(A: T.handle, B: T.handle):
             T.evaluate(0)
 
@@ -1844,13 +1870,122 @@ def test_with_dataflow():
                 alloc: R.Tensor((10,), dtype="float32") = R.builtin.alloc_tensor(
                     R.shape([10]), R.dtype("float32"), R.prim_value(0), R.str("global")
                 )
-                cls.exp(x, alloc)
+                R.call_pure_packed(tvm.ir.Op.get("relax.call_tir_packed"), cls.exp, (x, alloc))
                 gv: R.Tensor((10,), dtype="float32") = alloc
                 R.output(gv)
             return gv
 
     after = relax.transform.StaticPlanBlockMemory()(Before)
     tvm.ir.assert_structural_equal(after, Expected)
+
+
+def _count_alloc_storage(func):
+    alloc_storage_op = tvm.ir.Op.get("relax.memory.alloc_storage")
+    count = 0
+
+    def visit(expr):
+        nonlocal count
+        if isinstance(expr, relax.Call) and expr.op.same_as(alloc_storage_op):
+            count += 1
+
+    relax.analysis.post_order_visit(func, visit)
+    return count
+
+
+def test_if_branches_do_not_share_storage_var():
+    @I.ir_module
+    class Before:
+        @Ts.function
+        def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            cond: R.Tensor((), dtype="bool"), x: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"relax.force_pure": True})
+            cls = Before
+            if cond:
+                alloc = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                R.call_tir_packed(cls.exp, (x, alloc))
+                out = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                R.call_tir_packed(cls.exp, (alloc, out))
+                z = out
+            else:
+                alloc1 = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                R.call_tir_packed(cls.exp, (x, alloc1))
+                out1 = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                R.call_tir_packed(cls.exp, (alloc1, out1))
+                z = out1
+            return z
+
+    after = relax.transform.StaticPlanBlockMemory()(Before)
+    assert relax.analysis.check_well_formed(after)
+    assert _count_alloc_storage(after["main"]) == 2
+
+
+def test_if_branch_storage_not_reused_after_if():
+    @I.ir_module
+    class Before:
+        @Ts.function
+        def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            cond: R.Tensor((), dtype="bool"), x: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"relax.force_pure": True})
+            cls = Before
+            if cond:
+                z = x
+            else:
+                alloc = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                R.call_tir_packed(cls.exp, (x, alloc))
+                out = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                R.call_tir_packed(cls.exp, (alloc, out))
+                z = out
+            alloc1 = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+            R.call_tir_packed(cls.exp, (z, alloc1))
+            out1 = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+            R.call_tir_packed(cls.exp, (alloc1, out1))
+            return out1
+
+    after = relax.transform.StaticPlanBlockMemory()(Before)
+    assert relax.analysis.check_well_formed(after)
+    assert _count_alloc_storage(after["main"]) == 2
+
+
+def test_if_branches_share_storage_allocated_before_if():
+    @I.ir_module
+    class Before:
+        @Ts.function
+        def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            cond: R.Tensor((), dtype="bool"), x: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"relax.force_pure": True})
+            cls = Before
+            alloc = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+            R.call_tir_packed(cls.exp, (x, alloc))
+            out = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+            R.call_tir_packed(cls.exp, (alloc, out))
+            if cond:
+                alloc1 = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                R.call_tir_packed(cls.exp, (out, alloc1))
+                z = out
+            else:
+                alloc2 = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                R.call_tir_packed(cls.exp, (out, alloc2))
+                z = out
+            return z
+
+    after = relax.transform.StaticPlanBlockMemory()(Before)
+    assert relax.analysis.check_well_formed(after)
+    assert _count_alloc_storage(after["main"]) == 1
 
 
 if __name__ == "__main__":

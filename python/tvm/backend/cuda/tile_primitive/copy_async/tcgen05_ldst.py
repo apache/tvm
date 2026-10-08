@@ -23,10 +23,10 @@ Callers that want sync semantics should issue the matching wait after the copy.
 """
 
 import tvm
-from tvm.arith import Analyzer
 from tvm.runtime import DataType
 from tvm.script import tirx as T
-from tvm.tirx import Buffer, PrimFunc
+from tvm.sym import Analyzer
+from tvm.tirx import Function, Var
 from tvm.tirx.layout import (
     S,
     TCol,
@@ -222,11 +222,11 @@ def _tmem_window(tmem_buf, tmem_region, atom_kind, frag_rows, analyzer):
     return width, window.offset.get(TCol, 0), lane_off // 16
 
 
-def copy_tmem_local_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
+def copy_tmem_local_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
     op_call = TilePrimitiveCall.downcast(op_call)
     dst_buffer_region, src_buffer_region = op_call.dst, op_call.src
-    dst: Buffer = dst_buffer_region.buffer
-    src: Buffer = src_buffer_region.buffer
+    dst: Var = dst_buffer_region.source
+    src: Var = src_buffer_region.source
 
     if src.scope() == "tmem" and dst.scope() == "local":
         direction = "tmem2local"
@@ -237,7 +237,7 @@ def copy_tmem_local_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> P
     else:
         raise ValueError(f"Unsupported src scope {src.scope()} and dst scope {dst.scope()}")
 
-    tmem_buf, local_buf = tmem_region.buffer, local_region.buffer
+    tmem_buf, local_buf = tmem_region.source, local_region.source
 
     assert tmem_buf.layout is not None
     assert local_buf.layout is not None
@@ -300,7 +300,7 @@ def copy_tmem_local_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> P
 
 def _emit_32x32b_path(
     *, direction, tmem_buf, local_buf, tmem_region, local_region, elem_per_32b, analyzer
-) -> PrimFunc:
+) -> Function:
     """Original M=128 fragment path using ``tcgen05.{ld,st}.32x32b.xN``."""
     # local: 128xWIDTH <-> tmem: 128xSHAPE[1]
     # ``.32x32b`` accesses 32 lanes per warp — the full warp partition — so
@@ -341,7 +341,7 @@ def _emit_32x32b_path(
     if elem_per_32b == 1:
         # Keep 32-bit fragments in source dtype; b32 helper makes a uint32 view change codegen.
         # fmt: off
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             local_storage = local_buf.view(local_buf.shape[1], layout=TileLayout(S[num]))
             emit(tmem_buf.allocated_addr[0], 0, offset_32b, [local_storage[local_st[1]+i] for i in range(num)])  # noqa: E501
@@ -349,7 +349,7 @@ def _emit_32x32b_path(
     else:
         # 16-bit fragments are packed two elements per b32 register operand.
         # fmt: off
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             local_storage = local_buf.view(local_buf.shape[1] * elem_per_32b, layout=TileLayout(S[num * elem_per_32b]))  # noqa: E501
             local_32b = local_storage.view("uint32")
@@ -370,7 +370,7 @@ def _emit_16xnb_path(
     local_region,
     elem_per_32b,
     analyzer,
-) -> PrimFunc:
+) -> Function:
     """``.16x*b`` fragment path using ``tcgen05.{ld,st}.<shape>.x<num>`` (one
     of ``.16x64b``, ``.16x128b``, ``.16x256b``).
 
@@ -454,7 +454,7 @@ def _emit_16xnb_path(
     # the layout factory's iters describe that packing.
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         # Per-thread 1-D flat view of the local storage, then a uint32 view
         # for the register-pointer arguments of the PTX builtin.
@@ -503,7 +503,7 @@ def _tcgen05_ldst_emitter(is_load, shape, num):
 
 def _emit_datapath_b_path(
     *, direction, tmem_buf, local_buf, tmem_region, local_region, elem_per_32b, analyzer
-) -> PrimFunc:
+) -> Function:
     """Read or write a Layout B (per-CTA M=64, ``.cta_group::2``) accumulator.
 
     Layout B splits a logical ``(64, N)`` tile into two ``N/2`` column halves
@@ -560,7 +560,7 @@ def _emit_datapath_b_path(
     emit = _tcgen05_ldst_emitter(direction == "tmem2local", "32x32b", n_half)
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         local_storage = local_buf.view(n_half, layout=TileLayout(S[n_half]))
         local_32b = local_storage.view("uint32")
@@ -592,5 +592,5 @@ def _emit_datapath_b_path(
 )
 def copy_async_schedule_tmem_local_async(
     op_call: TilePrimitiveCall, sctx: DispatchContext
-) -> PrimFunc:
+) -> Function:
     return copy_tmem_local_impl(op_call, sctx)

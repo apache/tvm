@@ -32,7 +32,7 @@ The authoritative operation list is the C++ registry
 wrapper classes live in
 ``python/tvm/tirx/operator/tile_primitive/ops.py``.  Raw
 ``TilePrimitiveCall`` constructors live in
-``python/tvm/tirx/script/builder/tirx.py``, while the validated authoring facade
+``python/tvm/tirx/script/ir_builder/tirx.py``, while the validated authoring facade
 is in ``python/tvm/tirx/script/tile.py``.  Both Python construction surfaces
 produce the same IR node type.
 
@@ -49,8 +49,8 @@ Dispatch runs in the ``tirx.TilePrimitiveDispatch`` pass, the first phase of
 #. builds a ``DispatchContext`` carrying the target, scope, launch parameters,
    value ranges, and encoded ``inter``/``intra`` maps plus ``scope_kind``;
 #. invokes the global FFI hook ``tirx.f_op_dispatcher`` with the call and
-   context, which returns a ``PrimFunc``;
-#. splices that ``PrimFunc`` body in place of the call and drains side-effect
+   context, which returns a ``Function``;
+#. splices that ``Function`` body in place of the call and drains side-effect
    callbacks for private allocations and device or host initialization.
 
 If a ``TilePrimitiveCall`` survives lowering, the verifier reports a fatal

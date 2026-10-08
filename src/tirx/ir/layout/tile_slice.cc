@@ -33,17 +33,20 @@ ffi::Optional<TileLayout> SlicePerGroup(TileLayout layout, PrimExpr begin, PrimE
     return std::nullopt;
   }
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
 
   int m = static_cast<int>(shard.size());
-  std::vector<PrimExpr> B(m);
+  std::vector<PrimExpr> B;
+  B.reserve(m);
   PrimExpr acc = PrimExpr(1);
   for (int k = m - 1; k >= 0; --k) {
-    B[k] = acc;
+    B.push_back(acc);
     acc = analyzer->Simplify(acc * shard[k]->extent);
   }
 
-  std::vector<PrimExpr> d0(m);
+  std::reverse(B.begin(), B.end());
+  std::vector<PrimExpr> d0;
+  d0.reserve(m);
   ffi::Map<Axis, PrimExpr> new_offset;
   for (const auto& [axis, off] : layout->offset) new_offset.Set(axis, off);
 
@@ -64,18 +67,18 @@ ffi::Optional<TileLayout> SlicePerGroup(TileLayout layout, PrimExpr begin, PrimE
     // ``[begin, begin + extent)`` is required to lie within
     // ``[0, Ek)`` on a single-shard group, which implies ``begin < Ek``
     // and hence ``floormod(begin, Ek) == begin``. For runtime ``begin``
-    // (e.g. pipeline-stage ``BufferLoad``), the analyzer cannot prove
+    // (e.g. pipeline-stage ``TensorLoad``), the analyzer cannot prove
     // this, so the defensive ``floormod`` survives codegen and shows up
     // as dead ``stage % depth`` work in every per-MMA SMEM-descriptor
     // offset (fa4 s1024: 72 redundant floormod-3 in the inner GEMM
     // loop). Skip the mod when ``m == 1`` and rely on the contract.
-    PrimExpr dk0;
+    PrimExpr dk0{ffi::UnsafeInit{}};
     if (m == 1) {
       dk0 = analyzer->Simplify(floordiv(begin, B[k]));
     } else {
       dk0 = analyzer->Simplify(floormod(floordiv(begin, B[k]), Ek));
     }
-    d0[k] = dk0;
+    d0.push_back(dk0);
     add_axis_offset(ak, analyzer->Simplify(dk0 * Sk));
   }
 
@@ -143,7 +146,7 @@ ffi::Optional<TileLayout> SlicePerGroup(TileLayout layout, PrimExpr begin, PrimE
 
 ffi::Optional<Layout> TileLayoutNode::Slice(const Array<PrimExpr>& shape,
                                             const Region& region) const {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   // Canonicalize the whole layout first so scope fusion (e.g. wid_in_wg+laneid
   // -> tid_in_wg) runs globally; otherwise grouping can split sibling thread
   // axes and SlicePerGroup's per-group fusion leaves an ill-formed mix.

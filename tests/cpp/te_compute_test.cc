@@ -36,6 +36,7 @@ TEST(Tensor, Basic) {
 }
 
 TEST(Tensor, Reduce) {
+  using namespace tvm::prim;
   using namespace tvm;
   using namespace tvm::te;
 

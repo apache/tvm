@@ -25,12 +25,13 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_set>
 
@@ -39,11 +40,11 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 class ThreadSyncPlanner : public StorageAccessVisitor {
  public:
+  using StorageAccessVisitor::Visit_;
   explicit ThreadSyncPlanner(StorageScope sync_scope) : sync_scope_(sync_scope) {}
 
   // The syncs inserted before each statement
@@ -57,15 +58,15 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
   std::vector<AccessEntry> Summarize(std::vector<StmtEntry> seq, const ForNode* loop) final {
     // Redirect all "shared.dyn" buffer access to the same buffer var
     // so that the accesses can be planned together.
-    Var shared_dyn_buf;
+    ffi::Optional<Var> shared_dyn_buf;
     for (StmtEntry& entry : seq) {
       for (AccessEntry& access : entry.access) {
         if (access.scope.rank == StorageRank::kShared && access.scope.tag == ".dyn" &&
             access.buffer.defined()) {
-          if (!shared_dyn_buf.defined()) {
+          if (!shared_dyn_buf.has_value()) {
             shared_dyn_buf = access.buffer;
           } else {
-            access.buffer = shared_dyn_buf;
+            access.buffer = shared_dyn_buf.value();
           }
         }
       }
@@ -87,12 +88,12 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
       }
       for (const AccessEntry& acc : s.access) {
         if (acc.type == kRead) {
-          if (FindConflict(writes, acc, false)) {
+          if (FindConflict(writes, acc)) {
             sync_before_stmt = true;
             break;
           }
         } else if (acc.type == kWrite) {
-          if (FindConflict(reads, acc, false)) {
+          if (FindConflict(reads, acc)) {
             sync_before_stmt = true;
             break;
           }
@@ -130,12 +131,12 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
         bool sync_before_stmt = false;
         for (const AccessEntry& acc : s.access) {
           if (acc.type == kRead) {
-            if (FindConflict(writes, acc, true)) {
+            if (FindConflict(writes, acc)) {
               sync_before_stmt = true;
               break;
             }
           } else if (acc.type == kWrite) {
-            if (FindConflict(reads, acc, true)) {
+            if (FindConflict(reads, acc)) {
               sync_before_stmt = true;
               break;
             }
@@ -187,28 +188,21 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
       }
     }
     head.insert(head.end(), tail.begin(), tail.end());
-    if (loop != nullptr) {
-      // clear double buffer flag after a loop is finished.
-      for (AccessEntry& e : head) {
-        e.double_buffer_write = false;
-      }
-    }
     return head;
   }
 
  private:
   // find conflicting entry in vec.
-  bool FindConflict(const std::vector<AccessEntry>& prev, const AccessEntry& curr,
-                    bool loop_carry) {
+  bool FindConflict(const std::vector<AccessEntry>& prev, const AccessEntry& curr) {
     for (const AccessEntry& x : prev) {
-      if (FindConflict(x, curr, loop_carry)) {
+      if (FindConflict(x, curr)) {
         return true;
       }
     }
     return false;
   }
 
-  bool FindConflict(const AccessEntry& prev, const AccessEntry& curr, bool loop_carry) {
+  bool FindConflict(const AccessEntry& prev, const AccessEntry& curr) {
     // Access to different buffers does not conflict.
     if (!prev.buffer.same_as(curr.buffer)) {
       return false;
@@ -233,7 +227,7 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
       if (prev_intset.IsSinglePoint() && curr_intset.IsSinglePoint()) {
         PrimExpr prev_index = prev_intset.PointValue();
         PrimExpr curr_index = curr_intset.PointValue();
-        has_same_index = ExprDeepEqual()(prev_index, curr_index);
+        has_same_index = prim::ExprDeepEqual()(prev_index, curr_index);
         if (thread_index_var != nullptr) {
           auto f_uses_thread_index = [=](const tvm::tirx::VarNode* parameter) {
             return parameter == thread_index_var;
@@ -260,12 +254,6 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
       return false;
     }
 
-    // If this is a read into a double buffer that was previously
-    // swapped out, then it doesn't conflict.
-    if (prev.double_buffer_write && curr.type == kRead && !loop_carry) {
-      return false;
-    }
-
     // If nothing else allows sharing the same buffer, then they are
     // in conflict.
     return true;
@@ -277,41 +265,40 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
 };
 
 // There are cases where necessary syncthreads is not inserted by ThreadSyncInserter.
-// For example, syncthreads is needed after async_wait_queue in the second loop below,
+// For example, syncthreads is needed after async_wait in the second loop below,
 // but since ThreadSyncInserter is not aware of the asynchronous semantics, it cannot tell
 // that the syncthreads is needed there.
 //
 // // Pipeline prologue
 // for i in range(125):
-//    async_commit_queue(0):
-//       async_scope:
-//          shared[(i + 3) % 4] = ...
+//    with async_copy_scope():
+//       shared[(i + 3) % 4] = ...
+//    async_commit(0)
 // ...
 //
 // // Pipeline Epilogue
 // for i in range(3):
-//    async_wait_queue(0, 2 - i):
-//       local[...] = shared[(i + 125) % 4]
+//    async_wait(0, 2 - i)
+//    local[...] = shared[(i + 125) % 4]
 
-// This class adds syncthreads after all async_wait_queue. That includes syncthreads that
+// This class adds syncthreads after all async_wait operations. That includes syncthreads that
 // can be inserted by ThreadSyncInserter as well, but ThreadSyncInserter will not insert
 // duplicate syncthreads if it finds an existing one at the synchronization point.
 class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   explicit ThreadSyncAfterWaitQueueInserter(StorageScope sync_scope) : sync_scope_(sync_scope) {}
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(s_tir::async_wait())) {
       auto sync = Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_storage_sync(),
-                                {StringImm(sync_scope_.to_string())})
-                               .as_or_throw<PrimExpr>());
-      auto inner = op->body.as<AttrStmtNode>();
-      TVM_FFI_ICHECK(inner && inner->attr_key == s_tir::attr::async_wait_inflight_count);
-      auto new_body = SeqStmt({sync, inner->body});
-      return AttrStmt(0, s_tir::attr::async_wait_queue_scope, op->value,
-                      AttrStmt(0, s_tir::attr::async_wait_inflight_count, inner->value, new_body));
+                                {StringImm(sync_scope_.to_string())}));
+      return SeqStmt({ffi::GetRef<Stmt>(op), sync});
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  private:
@@ -320,22 +307,24 @@ class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
 
 class ThreadSyncInserter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   ThreadSyncInserter(StorageScope sync_scope, const std::unordered_set<const ffi::Object*>& syncs)
       : sync_scope_(sync_scope), syncs_(syncs) {}
 
-  Stmt VisitStmt(const Stmt& stmt) final {
-    if (syncs_.size() == 0) return stmt;
-    if (syncs_.count(stmt.get())) {
-      Stmt barrier = Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_storage_sync(),
-                                   {StringImm(sync_scope_.to_string())})
-                                  .as_or_throw<PrimExpr>());
-      // Mutate after query, to avoid stmt change.
-      auto ret = StmtExprMutator::VisitStmt(stmt);
-      ret = SeqStmt({barrier, ret});
-      return ret;
-    } else {
-      return StmtExprMutator::VisitStmt(stmt);
-    }
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
+    const auto* stmt = value.as<StmtNode>();
+    if (!stmt) return StmtExprMutator::Mutate(value, inplace_mode);
+    if (syncs_.empty()) return ffi::Unchanged();
+    if (!syncs_.count(stmt)) return StmtExprMutator::Mutate(value, inplace_mode);
+    Stmt barrier = Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_storage_sync(),
+                                 {StringImm(sync_scope_.to_string())})
+                                .as_or_throw<PrimExpr>());
+    // Mutate after query, to avoid stmt change.
+    auto result = StmtExprMutator::Mutate(value, inplace_mode);
+    Stmt body = std::move(result).ValueOrUnchanged(value).as_or_throw<Stmt>();
+    return ffi::Any(SeqStmt({barrier, body}));
   }
 
  private:
@@ -347,28 +336,88 @@ class ThreadSyncInserter : public StmtExprMutator {
 Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
   StorageScope sync_scope = StorageScope::Create(storage_scope);
   if (sync_scope.rank == StorageRank::kShared && sync_scope.tag == "") {
-    stmt = ThreadSyncAfterWaitQueueInserter(sync_scope)(stmt);
+    stmt = ffi::make_object<ThreadSyncAfterWaitQueueInserter>(sync_scope)
+               ->Mutate(stmt)
+               .ValueOrUnchanged(stmt);
   }
-  ThreadSyncPlanner planner(sync_scope);
-  planner(stmt);
-  return ThreadSyncInserter(sync_scope, planner.syncs_inserted_)(std::move(stmt));
+  auto planner = ffi::make_object<ThreadSyncPlanner>(sync_scope);
+  planner->Visit(stmt);
+  return ffi::make_object<ThreadSyncInserter>(sync_scope, planner->syncs_inserted_)
+      ->Mutate(stmt, InplaceMode::kAllow)
+      .ValueOrUnchanged(std::move(stmt));
 }
+
+// The synchronization markers have served their purpose after all ThreadSync passes.
+// Only CUDA has backend queue operations; other targets retain synchronous copies.
+class SynchronizationLowerer : public StmtExprMutator {
+ public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  explicit SynchronizationLowerer(bool is_cuda) : is_cuda_(is_cuda) {}
+
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    if (op->op.same_as(s_tir::manual_sync()) || op->op.same_as(s_tir::async_copy_scope())) {
+      return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+    }
+    return StmtExprMutator::Mutate_(op, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
+    const auto* call = op->value.as<CallNode>();
+    if (!call ||
+        (!call->op.same_as(s_tir::async_commit()) && !call->op.same_as(s_tir::async_wait()))) {
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    }
+    if (!is_cuda_) return Evaluate(0);
+    TVM_FFI_ICHECK_EQ(call->args[0].as_or_throw<IntImm>()->value, 0)
+        << "For CUDA, the index of an async queue must be 0.";
+    if (call->op.same_as(s_tir::async_commit())) {
+      static const Op commit = Op::Get("tirx.ptx.cp_async_commit_group");
+      return Evaluate(Call(PrimType::Void(), commit,
+                           {StringImm("async"), StringImm("commit_group"), StringImm("")}));
+    }
+    static const Op wait = Op::Get("tirx.ptx.cp_async_wait_group");
+    // PTX's immediate operand retains the compile-time wait-count requirement.
+    return Evaluate(
+        Call(PrimType::Void(), wait,
+             {call->args[1], StringImm("async"), StringImm("wait_group"), StringImm("")}));
+  }
+
+ private:
+  bool is_cuda_;
+};
 
 namespace transform {
 
 Pass ThreadSync(ffi::String storage_scope) {
-  auto pass_func = [storage_scope](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [storage_scope](Function f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
-    n->body = s_tir::ThreadSync(std::move(n->body), storage_scope);
+    n->body = s_tir::ThreadSync(std::move(n->body).value(), storage_scope);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.ThreadSync", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.ThreadSync", {});
+}
+
+Pass LowerSynchronization() {
+  auto pass_func = [](Function f, IRModule, PassContext) {
+    if (!f->body.has_value()) return f;
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget);
+    bool is_cuda = target && target.value()->kind->name == "cuda";
+    auto* n = f.CopyOnWrite();
+    n->body = ffi::make_object<SynchronizationLowerer>(is_cuda)
+                  ->Mutate(n->body.value(), InplaceMode::kAllow)
+                  .ValueOrUnchanged(n->body.value());
+    return f;
+  };
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerSynchronization", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("s_tir.transform.ThreadSync",
-                        static_cast<Pass (*)(ffi::String)>(ThreadSync));
+  refl::GlobalDef()
+      .def("s_tir.transform.ThreadSync", static_cast<Pass (*)(ffi::String)>(ThreadSync))
+      .def("s_tir.transform.LowerSynchronization", LowerSynchronization);
 }
 
 }  // namespace transform

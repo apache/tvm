@@ -73,14 +73,13 @@ def test_unary_op_shared(input, op_type, src_dtype, dst_dtype):
 
     if in_place:
         # fmt: off
-        @T.prim_func
-        def unary_op(A_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, g_shape, src_dtype, layout=g_layout)
+        @T.function
+        def unary_op(A: T.Tensor(g_shape, src_dtype, layout=g_layout)) -> None:
 
             T.device_entry()
             _bx = T.cta_id([1])
             _tx = T.thread_id([thread_cnt])
-            A_smem = T.alloc_buffer(s_shape, src_dtype, scope="shared", layout=s_layout)
+            A_smem = T.alloc_tensor(s_shape, src_dtype, scope="shared", layout=s_layout)
             Tx.cta.copy(A_smem[tuple(copy_slice)], A[tuple(copy_slice)])
             T.cuda.cta_sync()
             if op_type == "zero":
@@ -92,16 +91,17 @@ def test_unary_op_shared(input, op_type, src_dtype, dst_dtype):
             # fmt: on
     else:
         # fmt: off
-        @T.prim_func
-        def unary_op(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, g_shape, src_dtype, layout=g_layout)
-            B = T.match_buffer(B_ptr, g_shape, dst_dtype, layout=g_layout)
+        @T.function
+        def unary_op(
+            A: T.Tensor(g_shape, src_dtype, layout=g_layout),
+            B: T.Tensor(g_shape, dst_dtype, layout=g_layout),
+        ) -> None:
 
             T.device_entry()
             _bx = T.cta_id([1])
             _tx = T.thread_id([thread_cnt])
-            A_smem = T.alloc_buffer(s_shape, src_dtype, scope="shared", layout=s_layout)
-            B_smem = T.alloc_buffer(s_shape, dst_dtype, scope="shared", layout=s_layout)
+            A_smem = T.alloc_tensor(s_shape, src_dtype, scope="shared", layout=s_layout)
+            B_smem = T.alloc_tensor(s_shape, dst_dtype, scope="shared", layout=s_layout)
             Tx.cta.copy(A_smem[tuple(copy_slice)], A[tuple(copy_slice)])
             T.cuda.cta_sync()
             if op_type == "zero":
@@ -159,16 +159,14 @@ def test_unary_op_shared_subcta_scope(exec_scope):
     n_warps = 4 if exec_scope == "warpgroup" else 1
     g_shape = (n_warps * 32, 8)
 
-    @T.prim_func
-    def unary_op_subcta(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape, dtype, layout=TileLayout(S[g_shape]))
-
+    @T.function
+    def unary_op_subcta(A: T.Tensor(g_shape, dtype, layout=TileLayout(S[g_shape]))) -> None:
         T.device_entry()
         warp_id = T.warp_id([(256) // 32])
         wg_id = T.warpgroup_id([(256) // 128])
         _bx = T.cta_id([1])
         _tid = T.thread_id([256])
-        A_smem = T.alloc_buffer(g_shape, dtype, scope="shared", layout=TileLayout(S[g_shape]))
+        A_smem = T.alloc_tensor(g_shape, dtype, scope="shared", layout=TileLayout(S[g_shape]))
         Tx.cta.copy(A_smem, A)
         T.cuda.cta_sync()
         if exec_scope == "warp":
@@ -250,97 +248,97 @@ def test_unary_op_shared_with_bias_scale(input, op_type, bias_type, src_dtype, d
 
     if in_place:
 
-        @T.prim_func
-        def unary_op_with_bias(A_ptr: T.handle, bias_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, g_shape, src_dtype, layout=g_layout)
-            bias = T.match_buffer(bias_ptr, g_shape, src_dtype, layout=g_layout)
-
+        @T.function
+        def unary_op_with_bias(
+            A: T.Tensor(g_shape, src_dtype, layout=g_layout),
+            bias: T.Tensor(g_shape, src_dtype, layout=g_layout),
+        ) -> None:
             T.device_entry()
             _bx = T.cta_id([1])
             _tx = T.thread_id([thread_cnt])
-            A_smem = T.alloc_buffer(s_shape, src_dtype, scope="shared", layout=s_layout)
-            bias_smem = T.alloc_buffer(s_shape, src_dtype, scope="shared", layout=s_layout)
+            A_smem = T.alloc_tensor(s_shape, src_dtype, scope="shared", layout=s_layout)
+            bias_smem = T.alloc_tensor(s_shape, src_dtype, scope="shared", layout=s_layout)
             Tx.cta.copy(A_smem[tuple(copy_slice)], A[tuple(copy_slice)])
             Tx.cta.copy(bias_smem[tuple(copy_slice)], bias[tuple(copy_slice)])
             T.cuda.cta_sync()
             if bias_type == "const":
                 if op_type == "sqrt":
-                    Tx.cta.sqrt(
+                    Tx.cta.sqrt_with_scale_bias(
                         A_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
-                        const_bias,
-                        scale,
+                        scale=scale,
+                        bias=const_bias,
                     )
                 elif op_type == "exp":
-                    Tx.cta.exp(
+                    Tx.cta.exp_with_scale_bias(
                         A_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
-                        const_bias,
-                        scale,
+                        scale=scale,
+                        bias=const_bias,
                     )
             elif bias_type == "region":
                 if op_type == "sqrt":
-                    Tx.cta.sqrt(
+                    Tx.cta.sqrt_with_scale_bias(
                         A_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
-                        bias_smem[tuple(map_slice_a)],
-                        scale,
+                        scale=scale,
+                        bias=bias_smem[tuple(map_slice_a)],
                     )
                 elif op_type == "exp":
-                    Tx.cta.exp(
+                    Tx.cta.exp_with_scale_bias(
                         A_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
-                        bias_smem[tuple(map_slice_a)],
-                        scale,
+                        scale=scale,
+                        bias=bias_smem[tuple(map_slice_a)],
                     )
             T.cuda.cta_sync()
             Tx.cta.copy(A[tuple(copy_slice)], A_smem[tuple(copy_slice)])
     else:
 
-        @T.prim_func
-        def unary_op_with_bias(A_ptr: T.handle, B_ptr: T.handle, bias_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, g_shape, src_dtype, layout=g_layout)
-            B = T.match_buffer(B_ptr, g_shape, dst_dtype, layout=g_layout)
-            bias = T.match_buffer(bias_ptr, g_shape, src_dtype, layout=g_layout)
-
+        @T.function
+        def unary_op_with_bias(
+            A: T.Tensor(g_shape, src_dtype, layout=g_layout),
+            B: T.Tensor(g_shape, dst_dtype, layout=g_layout),
+            bias: T.Tensor(g_shape, src_dtype, layout=g_layout),
+        ) -> None:
             T.device_entry()
             _bx = T.cta_id([1])
             _tx = T.thread_id([thread_cnt])
-            A_smem = T.alloc_buffer(s_shape, src_dtype, scope="shared", layout=s_layout)
-            B_smem = T.alloc_buffer(s_shape, dst_dtype, scope="shared", layout=s_layout)
-            bias_smem = T.alloc_buffer(s_shape, src_dtype, scope="shared", layout=s_layout)
+            A_smem = T.alloc_tensor(s_shape, src_dtype, scope="shared", layout=s_layout)
+            B_smem = T.alloc_tensor(s_shape, dst_dtype, scope="shared", layout=s_layout)
+            bias_smem = T.alloc_tensor(s_shape, src_dtype, scope="shared", layout=s_layout)
             Tx.cta.copy(A_smem[tuple(copy_slice)], A[tuple(copy_slice)])
             Tx.cta.copy(bias_smem[tuple(copy_slice)], bias[tuple(copy_slice)])
             T.cuda.cta_sync()
             if bias_type == "const":
                 if op_type == "sqrt":
-                    Tx.cta.sqrt(
+                    Tx.cta.sqrt_with_scale_bias(
                         B_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
-                        const_bias,
-                        scale,
+                        scale=scale,
+                        bias=const_bias,
                     )
                 elif op_type == "exp":
-                    Tx.cta.exp(
+                    Tx.cta.exp_with_scale_bias(
                         B_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
-                        const_bias,
-                        scale,
+                        scale=scale,
+                        bias=const_bias,
                     )
             elif bias_type == "region":
                 if op_type == "sqrt":
-                    Tx.cta.sqrt(
+                    Tx.cta.sqrt_with_scale_bias(
                         B_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
-                        bias_smem[tuple(map_slice_a)],
-                        scale,
+                        scale=scale,
+                        bias=bias_smem[tuple(map_slice_a)],
                     )
                 elif op_type == "exp":
-                    Tx.cta.exp(
+                    Tx.cta.exp_with_scale_bias(
                         B_smem[tuple(map_slice_res)],
                         A_smem[tuple(map_slice_a)],
-                        bias_smem[tuple(map_slice_a)],
-                        scale,
+                        scale=scale,
+                        bias=bias_smem[tuple(map_slice_a)],
                     )
             T.cuda.cta_sync()
             Tx.cta.copy(B[tuple(map_slice_res)], B_smem[tuple(map_slice_res)])
@@ -465,11 +463,11 @@ def test_unary_op_local(input, op_type, src_dtype, dst_dtype):
     g_layout_a = g_layout_b = TileLayout(S[g_shape_a])
     acc_shape = red_shape = (16, NUM_COL)
 
-    @T.prim_func
-    def test_unary(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape_a, src_dtype, layout=g_layout_a)
-        B = T.match_buffer(B_ptr, g_shape_b, dst_dtype, layout=g_layout_b)
-
+    @T.function
+    def test_unary(
+        A: T.Tensor(g_shape_a, src_dtype, layout=g_layout_a),
+        B: T.Tensor(g_shape_b, dst_dtype, layout=g_layout_b),
+    ) -> None:
         T.device_entry()
         bx, by, bz = T.cta_id([1, 1, 1])
         wg_id = T.warpgroup_id([N_GROUPS])
@@ -481,13 +479,13 @@ def test_unary_op_local(input, op_type, src_dtype, dst_dtype):
         warp_atom = atom.tile(warp_layout, (8, 4), (1, 2))
         tile = T.TileLayout(T.S[(2, NUM_COL // 8) : (1, 2)])
         acc_layout = warp_atom.tile(tile, (2, NUM_COL // 8), (8, 8))
-        acc = T.alloc_buffer(
+        acc = T.alloc_tensor(
             [2, NUM_COL // 4],
             dtype=src_dtype,
             scope="local",
             layout=atom.tile(tile, (2, NUM_COL // 8), (1, 2)),
         )
-        res = T.alloc_buffer(
+        res = T.alloc_tensor(
             [2, NUM_COL // 4],
             dtype=dst_dtype,
             scope="local",
@@ -602,12 +600,12 @@ def test_unary_op_local_with_bias_scale(input, op_type, bias_type, src_dtype, ds
     scale = T.float16(1.5) if src_dtype == "float16" else T.float32(1.5)
     const_bias = T.float16(0.88) if src_dtype == "float16" else T.float32(0.88)
 
-    @T.prim_func
-    def test_unary_with_bias(A_ptr: T.handle, B_ptr: T.handle, bias_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape_a, src_dtype, layout=g_layout_a)
-        B = T.match_buffer(B_ptr, g_shape_b, dst_dtype, layout=g_layout_b)
-        bias = T.match_buffer(bias_ptr, g_shape_bias, src_dtype, layout=g_layout_bias)
-
+    @T.function
+    def test_unary_with_bias(
+        A: T.Tensor(g_shape_a, src_dtype, layout=g_layout_a),
+        B: T.Tensor(g_shape_b, dst_dtype, layout=g_layout_b),
+        bias: T.Tensor(g_shape_bias, src_dtype, layout=g_layout_bias),
+    ) -> None:
         T.device_entry()
         bx, by, bz = T.cta_id([1, 1, 1])
         wg_id = T.warpgroup_id([N_GROUPS])
@@ -619,19 +617,19 @@ def test_unary_op_local_with_bias_scale(input, op_type, bias_type, src_dtype, ds
         warp_atom = atom.tile(warp_layout, (8, 4), (1, 2))
         tile = T.TileLayout(T.S[(2, NUM_COL // 8) : (1, 2)])
         acc_layout = warp_atom.tile(tile, (2, NUM_COL // 8), (8, 8))
-        acc = T.alloc_buffer(
+        acc = T.alloc_tensor(
             [2, NUM_COL // 4],
             dtype=src_dtype,
             scope="local",
             layout=atom.tile(tile, (2, NUM_COL // 8), (1, 2)),
         )
-        bias_local = T.alloc_buffer(
+        bias_local = T.alloc_tensor(
             [2, NUM_COL // 4],
             dtype=src_dtype,
             scope="local",
             layout=atom.tile(tile, (2, NUM_COL // 8), (1, 2)),
         )
-        res = T.alloc_buffer(
+        res = T.alloc_tensor(
             [2, NUM_COL // 4],
             dtype=dst_dtype,
             scope="local",
@@ -659,14 +657,14 @@ def test_unary_op_local_with_bias_scale(input, op_type, bias_type, src_dtype, ds
         bias_view = bias_local.view(*bias_shape, layout=acc_layout)
         if bias_type == "const":
             if op_type == "sqrt":
-                Tx.warp.sqrt(res_view, acc_view, const_bias, scale)
+                Tx.warp.sqrt_with_scale_bias(res_view, acc_view, scale=scale, bias=const_bias)
             elif op_type == "exp":
-                Tx.warp.exp(res_view, acc_view, const_bias, scale)
+                Tx.warp.exp_with_scale_bias(res_view, acc_view, scale=scale, bias=const_bias)
         elif bias_type == "region":
             if op_type == "sqrt":
-                Tx.warp.sqrt(res_view, acc_view, bias_view, scale)
+                Tx.warp.sqrt_with_scale_bias(res_view, acc_view, scale=scale, bias=bias_view)
             elif op_type == "exp":
-                Tx.warp.exp(res_view, acc_view, bias_view, scale)
+                Tx.warp.exp_with_scale_bias(res_view, acc_view, scale=scale, bias=bias_view)
 
             # write res into B
         for i in T.serial(NUM_COL // 8):
@@ -729,33 +727,33 @@ def test_unary_op_vectorized(shape, op_type, exec_scope, storage_scope):
     value = T.float16(7.89) if dtype == "float16" else T.float32(7.89)
 
     # fmt: off
-    @T.prim_func
-    def test_unary_thread(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, dtype, layout=TileLayout(S[shape]))
+    @T.function
+    def test_unary_thread(A: T.Tensor(shape, dtype, layout=TileLayout(S[shape]))) -> None:
+
         T.device_entry()
         _bx = T.cta_id([1])
         tx = T.thread_id([128])
         if storage_scope == "shared":
-            a_smem = T.alloc_buffer(
+            a_smem = T.alloc_tensor(
                 shape, dtype=dtype, layout=TileLayout(S[shape]), scope="shared"
             )
             Tx.fill(a_smem[tx], value)
             Tx.copy(A[tx], a_smem[tx])
         elif storage_scope == "local":
-            a_local = T.alloc_buffer(
+            a_local = T.alloc_tensor(
                 shape[1:], dtype=dtype, layout=TileLayout(S[shape[1:]]), scope="local"
             )
             Tx.fill(a_local, value)
             Tx.copy(A[tx], a_local)
 
-    @T.prim_func
-    def test_unary_cta(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, dtype, layout=TileLayout(S[shape]))
+    @T.function
+    def test_unary_cta(A: T.Tensor(shape, dtype, layout=TileLayout(S[shape]))) -> None:
+
         T.device_entry()
         _bx = T.cta_id([1])
         _tid = T.thread_id([128])
         if storage_scope == "shared":
-            a_smem = T.alloc_buffer(
+            a_smem = T.alloc_tensor(
                 shape, dtype=dtype, layout=TileLayout(S[shape]), scope="shared"
             )
             Tx.cta.fill(a_smem, value)
@@ -787,13 +785,12 @@ def test_unary_op_local_thread_wise(op_type, dtype):
     shape = (64, 32)
     local_shape = shape[1:]
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, dtype, layout=TileLayout(S[shape]))
+    @T.function
+    def kernel(A: T.Tensor(shape, dtype, layout=TileLayout(S[shape]))) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         tid = T.thread_id([64])
-        a_local = T.alloc_buffer(
+        a_local = T.alloc_tensor(
             local_shape, dtype, scope="local", layout=TileLayout(S[local_shape])
         )
         Tx.copy(a_local, A[tid])
@@ -849,10 +846,11 @@ def test_cast_thread_local(shape, A_dtype, B_dtype):
     B_ref = A_ref.astype(B_dtype)
 
     # fmt: off
-    @T.prim_func
-    def test_cast(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, A_dtype, layout=TileLayout(S[shape]))
-        B = T.match_buffer(B_ptr, shape, B_dtype, layout=TileLayout(S[shape]))
+    @T.function
+    def test_cast(
+        A: T.Tensor(shape, A_dtype, layout=TileLayout(S[shape])),
+        B: T.Tensor(shape, B_dtype, layout=TileLayout(S[shape])),
+    ) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -903,17 +901,18 @@ def test_cast_warpgroup_local_view(A_dtype, B_dtype):
     B_ref = A_ref.astype(B_dtype)
 
     # fmt: off
-    @T.prim_func
-    def test_cast(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape, A_dtype, layout=g_layout)
-        B = T.match_buffer(B_ptr, g_shape, B_dtype, layout=g_layout)
+    @T.function
+    def test_cast(
+        A: T.Tensor(g_shape, A_dtype, layout=g_layout),
+        B: T.Tensor(g_shape, B_dtype, layout=g_layout),
+    ) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
         wg_id = T.warpgroup_id([1])
         tid_in_wg = T.thread_id_in_wg([N_THREADS])
-        reg_src = T.alloc_buffer((LOCAL_LEN,), A_dtype, scope="local")
-        reg_dst = T.alloc_buffer((LOCAL_LEN,), B_dtype, scope="local")
+        reg_src = T.alloc_tensor((LOCAL_LEN,), A_dtype, scope="local")
+        reg_dst = T.alloc_tensor((LOCAL_LEN,), B_dtype, scope="local")
         for i in T.serial(LOCAL_LEN):
             reg_src[i] = A[tid_in_wg, i]
         reg_src_view = reg_src.view(N_THREADS, LOCAL_LEN, layout=cast_layout)
@@ -960,23 +959,22 @@ def test_cast_warpgroup_src_layout_to_flat_uses_vec2_intrinsic(A_dtype, B_dtype)
     B_ref = A_ref.astype(B_dtype)
 
     # fmt: off
-    @T.prim_func
-    def test_cast(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape, A_dtype, layout=g_layout)
-        B = T.match_buffer(B_ptr, g_shape, B_dtype, layout=g_layout)
+    @T.function
+    def test_cast(
+        A: T.Tensor(g_shape, A_dtype, layout=g_layout),
+        B: T.Tensor(g_shape, B_dtype, layout=g_layout),
+    ) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
         wg_id = T.warpgroup_id([1])
         tid = T.thread_id_in_wg([N_THREADS])
         for no in T.unroll(N_CHUNKS):
-            reg_src = T.alloc_buffer((LOCAL_LEN,), A_dtype, scope="local")
-            Dreg_chunk = T.alloc_buffer((LOCAL_LEN,), B_dtype, scope="local")
+            reg_src = T.alloc_tensor((LOCAL_LEN,), A_dtype, scope="local")
+            Dreg_chunk = T.alloc_tensor((LOCAL_LEN,), B_dtype, scope="local")
             for i in T.serial(LOCAL_LEN):
                 reg_src[i] = A[tid, no * LOCAL_LEN + i]
-            reg_src_view = reg_src.view(
-                N_THREADS, LOCAL_LEN, layout=wg_local_layout(LOCAL_LEN)
-            )
+            reg_src_view = reg_src.view(N_THREADS, LOCAL_LEN, layout=wg_local_layout(LOCAL_LEN))
             Dreg_chunk_view = Dreg_chunk.view(
                 N_THREADS, LOCAL_LEN, layout=wg_local_layout(LOCAL_LEN)
             )
@@ -1020,16 +1018,17 @@ def test_cast_cta_local_view(A_dtype, B_dtype):
     B_ref = A_ref.astype(B_dtype)
 
     # fmt: off
-    @T.prim_func
-    def test_cast(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape, A_dtype, layout=g_layout)
-        B = T.match_buffer(B_ptr, g_shape, B_dtype, layout=g_layout)
+    @T.function
+    def test_cast(
+        A: T.Tensor(g_shape, A_dtype, layout=g_layout),
+        B: T.Tensor(g_shape, B_dtype, layout=g_layout),
+    ) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
         tx_var = T.thread_id([N_THREADS])
-        reg_src = T.alloc_buffer((LOCAL_LEN,), A_dtype, scope="local")
-        reg_dst = T.alloc_buffer((LOCAL_LEN,), B_dtype, scope="local")
+        reg_src = T.alloc_tensor((LOCAL_LEN,), A_dtype, scope="local")
+        reg_dst = T.alloc_tensor((LOCAL_LEN,), B_dtype, scope="local")
         for i in T.serial(LOCAL_LEN):
             reg_src[i] = A[tx_var, i]
         reg_src_view = reg_src.view(N_THREADS, LOCAL_LEN, layout=cast_layout)
@@ -1071,15 +1070,17 @@ def test_cast_local_view_sliced(A_dtype, B_dtype, slice_start, slice_end):
     B_ref[:, slice_start:slice_end] = A_ref[:, slice_start:slice_end].astype(B_dtype)
 
     # fmt: off
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape, A_dtype, layout=g_layout)
-        B = T.match_buffer(B_ptr, g_shape, B_dtype, layout=g_layout)
+    @T.function
+    def kernel(
+        A: T.Tensor(g_shape, A_dtype, layout=g_layout),
+        B: T.Tensor(g_shape, B_dtype, layout=g_layout),
+    ) -> None:
+
         T.device_entry()
         _bx = T.cta_id([1])
         tx = T.thread_id([N_THREADS])
-        reg_src = T.alloc_buffer((LOCAL_LEN,), A_dtype, scope="local")
-        reg_dst = T.alloc_buffer((LOCAL_LEN,), B_dtype, scope="local")
+        reg_src = T.alloc_tensor((LOCAL_LEN,), A_dtype, scope="local")
+        reg_dst = T.alloc_tensor((LOCAL_LEN,), B_dtype, scope="local")
         for i in T.serial(LOCAL_LEN):
             reg_src[i] = A[tx, i]
         reg_src_view = reg_src.view(N_THREADS, LOCAL_LEN, layout=cast_layout)
@@ -1181,16 +1182,17 @@ def test_cast_mixed_axes_and_subregion(slice_start, slice_end):
     B_ref = np.zeros(full_shape, dtype="float16")
     B_ref[:, :, :, slice_start:slice_end] = A_ref[:, :, :, slice_start:slice_end].astype("float16")
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, full_shape, "float32", layout=g_layout)
-        B = T.match_buffer(B_ptr, full_shape, "float16", layout=g_layout)
+    @T.function
+    def kernel(
+        A: T.Tensor(full_shape, "float32", layout=g_layout),
+        B: T.Tensor(full_shape, "float16", layout=g_layout),
+    ) -> None:
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([N_WARPS])
         lane_id = T.lane_id([LANES])
-        reg_src = T.alloc_buffer((LOCAL_LEN,), "float32", scope="local")
-        reg_dst = T.alloc_buffer((LOCAL_LEN,), "float16", scope="local")
+        reg_src = T.alloc_tensor((LOCAL_LEN,), "float32", scope="local")
+        reg_dst = T.alloc_tensor((LOCAL_LEN,), "float16", scope="local")
         j, k = lane_id // 4, lane_id % 4
         for i in T.serial(LOCAL_LEN):
             reg_src[i] = A[j, warp_id, k, i]
@@ -1262,16 +1264,17 @@ def test_cast_validate_extent_mismatch_rejected():
         S[view_shape : (2 @ warpid, 8 @ laneid, 1 @ laneid, 1)]
     )  # dim1 extent 8 != 4
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, view_shape, "float32", layout=g_layout)
-        B = T.match_buffer(B_ptr, view_shape, "float16", layout=g_layout)
+    @T.function
+    def kernel(
+        A: T.Tensor(view_shape, "float32", layout=g_layout),
+        B: T.Tensor(view_shape, "float16", layout=g_layout),
+    ) -> None:
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([2])
         lane_id = T.lane_id([32])
-        reg_src = T.alloc_buffer((8,), "float32", scope="local")
-        reg_dst = T.alloc_buffer((8,), "float16", scope="local")
+        reg_src = T.alloc_tensor((8,), "float32", scope="local")
+        reg_dst = T.alloc_tensor((8,), "float16", scope="local")
         j, k = lane_id // 4, lane_id % 4
         for i in T.serial(8):
             reg_src[i] = A[warp_id, j, k, i]
@@ -1303,15 +1306,15 @@ def test_unary_exp_f16_shared_scalar_fallback_dispatch():
     shape = (64, 32)
     lay = TileLayout(S[shape])
 
-    @T.prim_func
-    def k(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, "float16", layout=lay)
-        B = T.match_buffer(B_ptr, shape, "float16", layout=lay)
+    @T.function
+    def k(
+        A: T.Tensor(shape, "float16", layout=lay), B: T.Tensor(shape, "float16", layout=lay)
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         _tx = T.thread_id([64])
-        sa = T.alloc_buffer(shape, "float16", scope="shared", layout=lay)
-        sb = T.alloc_buffer(shape, "float16", scope="shared", layout=lay)
+        sa = T.alloc_tensor(shape, "float16", scope="shared", layout=lay)
+        sb = T.alloc_tensor(shape, "float16", scope="shared", layout=lay)
         Tx.copy(sa, A)
         Tx.cta.exp(sb, sa)
         Tx.copy(B, sb)
@@ -1336,15 +1339,15 @@ def test_cast_vec2_packed_dispatch(src_dtype, dst_dtype, intrinsic):
     shape = (64, 32)
     lay = TileLayout(S[shape])
 
-    @T.prim_func
-    def k(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, src_dtype, layout=lay)
-        B = T.match_buffer(B_ptr, shape, dst_dtype, layout=lay)
+    @T.function
+    def k(
+        A: T.Tensor(shape, src_dtype, layout=lay), B: T.Tensor(shape, dst_dtype, layout=lay)
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         tx = T.thread_id([64])
-        ra = T.alloc_buffer(shape[1:], src_dtype, scope="local", layout=TileLayout(S[shape[1:]]))
-        rb = T.alloc_buffer(shape[1:], dst_dtype, scope="local", layout=TileLayout(S[shape[1:]]))
+        ra = T.alloc_tensor(shape[1:], src_dtype, scope="local", layout=TileLayout(S[shape[1:]]))
+        rb = T.alloc_tensor(shape[1:], dst_dtype, scope="local", layout=TileLayout(S[shape[1:]]))
         Tx.copy(ra, A[tx])
         Tx.cast(rb, ra)
         Tx.copy(B[tx], rb)
@@ -1375,25 +1378,22 @@ def _sl_compile(fn):
 def test_cast_wg_rejects_thread_local_view():
     """Tx.wg.cast on a .local() (thread-axis-stripped) view is rejected."""
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(
-            A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
-        )
-        B = T.match_buffer(
-            B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
-        )
+    @T.function
+    def kernel(
+        A: T.Tensor((_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+        B: T.Tensor((_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         _wg = T.warpgroup_id([1])
         tid = T.thread_id_in_wg([_SL_ROWS])
-        src = T.alloc_buffer(
+        src = T.alloc_tensor(
             (_SL_ROWS, _SL_COLS),
             "float32",
             scope="local",
             layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tid_in_wg, 1)]),
         )
-        dst = T.alloc_buffer(
+        dst = T.alloc_tensor(
             (_SL_ROWS, _SL_COLS),
             "float16",
             scope="local",
@@ -1414,24 +1414,21 @@ def test_cast_wg_rejects_thread_local_view():
 def test_cast_cta_rejects_thread_local_view():
     """Tx.cta.cast on a .local() view is rejected (cta -> tx)."""
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(
-            A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
-        )
-        B = T.match_buffer(
-            B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
-        )
+    @T.function
+    def kernel(
+        A: T.Tensor((_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+        B: T.Tensor((_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         tx_var = T.thread_id([_SL_ROWS])
-        src = T.alloc_buffer(
+        src = T.alloc_tensor(
             (_SL_ROWS, _SL_COLS),
             "float32",
             scope="local",
             layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tx, 1)]),
         )
-        dst = T.alloc_buffer(
+        dst = T.alloc_tensor(
             (_SL_ROWS, _SL_COLS),
             "float16",
             scope="local",
@@ -1453,25 +1450,22 @@ def test_cast_wg_rejects_partial_thread_coverage():
     """A tid_in_wg layout covering only 64 of the 128 wg threads is rejected."""
     half = 64
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(
-            A_ptr, (half, _SL_COLS), "float32", layout=TileLayout(S[(half, _SL_COLS)])
-        )
-        B = T.match_buffer(
-            B_ptr, (half, _SL_COLS), "float16", layout=TileLayout(S[(half, _SL_COLS)])
-        )
+    @T.function
+    def kernel(
+        A: T.Tensor((half, _SL_COLS), "float32", layout=TileLayout(S[half, _SL_COLS])),
+        B: T.Tensor((half, _SL_COLS), "float16", layout=TileLayout(S[half, _SL_COLS])),
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         _wg = T.warpgroup_id([1])
         tid = T.thread_id_in_wg([_SL_ROWS])
-        src = T.alloc_buffer(
+        src = T.alloc_tensor(
             (half, _SL_COLS),
             "float32",
             scope="local",
             layout=TileLayout(S[(half, _SL_COLS) : (1 @ tid_in_wg, 1)]),
         )
-        dst = T.alloc_buffer(
+        dst = T.alloc_tensor(
             (half, _SL_COLS),
             "float16",
             scope="local",
@@ -1492,25 +1486,22 @@ def test_cast_wg_rejects_partial_thread_coverage():
 def test_cast_wg_accepts_wg_level_layout():
     """Tx.wg.cast on a wg-level (tid_in_wg-distributed) layout compiles."""
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(
-            A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
-        )
-        B = T.match_buffer(
-            B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
-        )
+    @T.function
+    def kernel(
+        A: T.Tensor((_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+        B: T.Tensor((_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         _wg = T.warpgroup_id([1])
         tid = T.thread_id_in_wg([_SL_ROWS])
-        src = T.alloc_buffer(
+        src = T.alloc_tensor(
             (_SL_ROWS, _SL_COLS),
             "float32",
             scope="local",
             layout=TileLayout(S[(_SL_ROWS, _SL_COLS) : (1 @ tid_in_wg, 1)]),
         )
-        dst = T.alloc_buffer(
+        dst = T.alloc_tensor(
             (_SL_ROWS, _SL_COLS),
             "float16",
             scope="local",
@@ -1530,21 +1521,18 @@ def test_cast_wg_accepts_wg_level_layout():
 def test_cast_thread_accepts_local_view():
     """thread scope is exempt: a thread-axis-free local tile still compiles."""
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(
-            A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
-        )
-        B = T.match_buffer(
-            B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
-        )
+    @T.function
+    def kernel(
+        A: T.Tensor((_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+        B: T.Tensor((_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         tx_var = T.thread_id([_SL_ROWS])
-        src = T.alloc_buffer(
+        src = T.alloc_tensor(
             (_SL_COLS,), "float32", scope="local", layout=TileLayout(S[(_SL_COLS,)])
         )
-        dst = T.alloc_buffer(
+        dst = T.alloc_tensor(
             (_SL_COLS,), "float16", scope="local", layout=TileLayout(S[(_SL_COLS,)])
         )
         for i in T.serial(_SL_COLS):
@@ -1586,10 +1574,8 @@ def _tcgen05_cast_warpgroup_kernel():
     atom_layout = _tcgen05_cast_atom_layout()
     m, k = _TCGEN05_M, _TCGEN05_K
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (m, k), "bfloat16")
-        B = T.match_buffer(B_ptr, (m, k), "float32")
+    @T.function
+    def kernel(A: T.Tensor((m, k), "bfloat16"), B: T.Tensor((m, k), "float32")) -> None:
         T.device_entry()
         T.cta_id([1])
         T.warpgroup_id([1])
@@ -1597,8 +1583,8 @@ def _tcgen05_cast_warpgroup_kernel():
         T.lane_id([32])
         tid_wg = T.thread_id_in_wg([128])
         lane = T.lane_id([32])
-        a_bf16 = T.alloc_buffer((m, k), "bfloat16", scope="local", layout=atom_layout)
-        a_fp32 = T.alloc_buffer((m, k), "float32", scope="local", layout=atom_layout)
+        a_bf16 = T.alloc_tensor((m, k), "bfloat16", scope="local", layout=atom_layout)
+        a_fp32 = T.alloc_tensor((m, k), "float32", scope="local", layout=atom_layout)
         reg_in = a_bf16.local(_TCGEN05_REGS_PER_THREAD)
         reg_out = a_fp32.local(_TCGEN05_REGS_PER_THREAD)
         for r in T.serial(_TCGEN05_REGS_PER_THREAD):

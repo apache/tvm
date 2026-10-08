@@ -29,25 +29,31 @@ def test_buffer():
     m = tvm.tirx.Var("m", "int32")
     n = tvm.tirx.Var("n", "int32")
     l = tvm.tirx.Var("l", "int32")
-    Ab = tvm.tirx.decl_buffer((m, n), "float32")
-    Bb = tvm.tirx.decl_buffer((n, l), "float32")
+    Ab = tvm.tirx.decl_tensor((m, n), "float32")
+    Bb = tvm.tirx.decl_tensor((n, l), "float32")
 
     assert type(Ab) is tvm.ir.Var
-    assert tvm.tirx.is_buffer_var(Ab)
-    assert isinstance(Ab.ty, tvm.tirx.BufferType)
+    assert tvm.tirx.is_tensor_var(Ab)
+    assert isinstance(Ab.ty, tvm.tirx.TensorType)
     assert Ab.ty.dtype == tvm.ir.PrimType("float32")
     assert tuple(Ab.ty.shape) == (m, n)
-    assert not tvm.tirx.is_buffer_var(m)
+    assert not tvm.tirx.is_tensor_var(m)
+
+    serialized = tvm.ir.save_json(Ab.ty)
+    assert '"tirx.TensorType"' in serialized
+    restored = tvm.ir.load_json(serialized)
+    assert isinstance(restored, tvm.tirx.TensorType)
+    tvm.ir.assert_structural_equal(restored, Ab.ty, map_free_vars=True)
 
 
-def test_buffer_compatibility_alias_and_global_var_properties():
+def test_tensor_var_identity_and_global_var_properties():
     scalar = tvm.ir.Var("scalar", tvm.ir.PrimType("int32"))
-    buffer = tvm.tirx.decl_buffer((8,), "float32")
+    buffer = tvm.tirx.decl_tensor((8,), "float32")
 
-    assert tvm.tirx.Buffer is tvm.ir.Var
-    assert isinstance(scalar, tvm.tirx.Buffer)
-    assert not tvm.tirx.is_buffer_var(scalar)
-    assert tvm.tirx.is_buffer_var(buffer)
+    assert isinstance(buffer, tvm.ir.Var)
+    assert isinstance(scalar, tvm.ir.Var)
+    assert not tvm.tirx.is_tensor_var(scalar)
+    assert tvm.tirx.is_tensor_var(buffer)
 
     assert tuple(buffer.shape) == (8,)
     assert buffer.dtype == tvm.DataType("float32")
@@ -55,12 +61,12 @@ def test_buffer_compatibility_alias_and_global_var_properties():
 
     for name in ("shape", "dtype", "data"):
         assert not hasattr(scalar, name)
-        with pytest.raises(AttributeError, match="only available on a Var with BufferType"):
+        with pytest.raises(AttributeError, match="only available on a Var with TensorType"):
             getattr(scalar, name)
 
 
 def test_buffer_data_is_typed_projection():
-    buffer = tvm.tirx.decl_buffer((8,), "bool", scope="shared")
+    buffer = tvm.tirx.decl_tensor((8,), "bool", scope="shared")
 
     assert buffer.ty.dtype == tvm.ir.PrimType("bool")
     assert tvm.tirx.buffer_data_pointer_type(buffer) == tvm.ir.PointerType(
@@ -73,29 +79,38 @@ def test_buffer_data_is_typed_projection():
 
 def test_buffer_pointer_type_derived_from_dtype_and_scope():
     data = tvm.ir.Var("storage", tvm.ir.PointerType(tvm.ir.PrimType("uint8"), "local"))
-    buffer = tvm.tirx.decl_buffer((8,), "float16", data=data)
+    buffer = tvm.tirx.decl_tensor((8,), "float16", data=data)
 
     assert buffer.ty.dtype == tvm.ir.PrimType("float16")
     assert buffer.ty.storage_scope == "local"
     assert buffer.data.ty == tvm.ir.PointerType(tvm.ir.PrimType("float16"), "local")
 
 
-def test_decl_buffer_requires_physical_data_binding():
-    buffer = tvm.tirx.decl_buffer((8,), "float32")
+def test_decl_buffer_physical_data_binding():
+    buffer = tvm.tirx.decl_tensor((8,), "float32")
     data = tvm.tirx.Var("data", buffer.data.ty)
 
-    with pytest.raises(TypeError, match="requires a physical data binding"):
-        tvm.tirx.DeclBuffer(buffer)
-
-    decl = tvm.tirx.DeclBuffer(buffer, data=data)
-    assert decl.buffer.same_as(buffer)
-    assert decl.data.same_as(data)
+    decl = tvm.tirx.Bind(
+        buffer,
+        tvm.ir.Call(
+            "tirx.decl_tensor",
+            [
+                data,
+                tvm.ir.Tuple(buffer.shape),
+                tvm.ir.DataTypeImm(tvm.DataType(buffer.dtype)),
+                tvm.ir.StringImm(buffer.scope()),
+            ],
+            ty=buffer.ty,
+        ),
+    )
+    assert decl.var.same_as(buffer)
+    assert decl.value.args[0].same_as(data)
 
 
 def test_buffer_access_ptr():
     m = tvm.tirx.Var("m", "int32")
     n = tvm.tirx.Var("n", "int32")
-    Ab = tvm.tirx.decl_buffer((m, n), "float32", strides=[n + 1, 1])
+    Ab = tvm.tirx.decl_tensor((m, n), "float32", strides=[n + 1, 1])
     aptr = Ab.access_ptr("rw")
     assert isinstance(aptr.ty, tvm.ir.PointerType)
     assert aptr.ty.element_type == tvm.ir.PrimType("void")
@@ -104,7 +119,7 @@ def test_buffer_access_ptr():
     assert aptr.args[4].value == BufferAccessKind.READ | BufferAccessKind.WRITE
     typed_ptr = Ab.access_ptr("r", ptr_type="uint8")
     assert typed_ptr.ty == tvm.ir.PointerType(tvm.ir.PrimType("uint8"))
-    shared = tvm.tirx.decl_buffer((m, n), "float32", scope="shared")
+    shared = tvm.tirx.decl_tensor((m, n), "float32", scope="shared")
     assert shared.access_ptr("r").ty == tvm.ir.PointerType(tvm.ir.PrimType("void"), "shared")
     assert shared.access_ptr("r", ptr_type="uint8").ty == tvm.ir.PointerType(
         tvm.ir.PrimType("uint8"), "shared"
@@ -116,7 +131,7 @@ def test_buffer_access_ptr():
 def test_buffer_access_ptr_offset():
     m = tvm.tirx.Var("m", "int32")
     n = tvm.tirx.Var("n", "int32")
-    Ab = tvm.tirx.decl_buffer((m, n), "float32")
+    Ab = tvm.tirx.decl_tensor((m, n), "float32")
     aptr = Ab.access_ptr("rw", offset=100)
     tvm.testing.assert_prim_expr_equal(aptr.args[2], 100)
     assert aptr.args[4].value == BufferAccessKind.READ | BufferAccessKind.WRITE
@@ -134,12 +149,12 @@ def test_buffer_access_ptr_offset():
 def test_buffer_access_ptr_extent():
     m = tvm.tirx.Var("m", "int32")
     n = tvm.tirx.Var("n", "int32")
-    Ab = tvm.tirx.decl_buffer((m, n), "float32")
+    Ab = tvm.tirx.decl_tensor((m, n), "float32")
     aptr = Ab.access_ptr("rw")
     tvm.ir.assert_structural_equal(aptr.args[3], m * n)
     aptr = Ab.access_ptr("rw", offset=100)
     tvm.ir.assert_structural_equal(aptr.args[3], m * n - 100)
-    Ab = tvm.tirx.decl_buffer((m, n), "float32", strides=[n + 1, 1])
+    Ab = tvm.tirx.decl_tensor((m, n), "float32", strides=[n + 1, 1])
     aptr = Ab.access_ptr("rw", offset=100)
     tvm.ir.assert_structural_equal(aptr.args[3], Ab.ty.strides[0] * m - 100)
 
@@ -153,7 +168,7 @@ def test_buffer_access_ptr_extent():
 def test_buffer_vload():
     m = tvm.tirx.Var("m", "int32")
     n = tvm.tirx.Var("n", "int32")
-    Ab = tvm.tirx.decl_buffer((m, n), "float32", elem_offset=100)
+    Ab = tvm.tirx.decl_tensor((m, n), "float32", elem_offset=100)
     load = Ab.vload([2, 3])
     tvm.ir.assert_structural_equal(load.indices, [T.int32(2), T.int32(3)])
 
@@ -161,7 +176,7 @@ def test_buffer_vload():
 def test_buffer_offset_of():
     m = tvm.tirx.Var("m", "int32")
     n = tvm.tirx.Var("n", "int32")
-    Ab = tvm.tirx.decl_buffer((m, n), "float32", elem_offset=100)
+    Ab = tvm.tirx.decl_tensor((m, n), "float32", elem_offset=100)
     offset = Ab.offset_of([2, 3])
     tvm.ir.assert_structural_equal(offset, [n * 2 + 103])
 
@@ -172,8 +187,8 @@ def test_buffer_index_merge_mult_mod():
     s = tvm.tirx.Var("s", "int32")
     k0 = tvm.tirx.Var("k0", "int32")
     k1 = tvm.tirx.Var("k1", "int32")
-    A = tvm.tirx.decl_buffer((m, n), "float32")
-    A_stride = tvm.tirx.decl_buffer((m, n), "float32", strides=(s, 1))
+    A = tvm.tirx.decl_tensor((m, n), "float32")
+    A_stride = tvm.tirx.decl_tensor((m, n), "float32", strides=(s, 1))
 
     def assert_simplified_equal(index_simplified, index_direct):
         (
@@ -216,7 +231,7 @@ def test_buffer_index_merge_mult_mod():
     assert_simplified_equal(index_simplified, index_direct)
 
     # Test Case5
-    B = tvm.tirx.decl_buffer((1, 14, 14, 1024))
+    B = tvm.tirx.decl_tensor((1, 14, 14, 1024))
     i = tvm.tirx.Var("i", "int32")
     j = tvm.tirx.Var("j", "int32")
     k = tvm.tirx.Var("k", "int32")
@@ -244,7 +259,7 @@ def test_buffer_index_merge_mult_mod():
 
 def test_buffer_flatten():
     """A buffer should flatten to a 1-d shape"""
-    buf = tvm.tirx.decl_buffer([16, 32])
+    buf = tvm.tirx.decl_tensor([16, 32])
     flat = buf.get_flattened_buffer()
     # A metadata-changing rewrite creates a fresh typed Var.  The physical
     # pointer is always derived from that Var instead of being stored as a
@@ -257,7 +272,7 @@ def test_buffer_flatten():
 
 def test_buffer_flatten_preserves_identity():
     """Flattening a 1-d buffer should return the original"""
-    buf = tvm.tirx.decl_buffer([16])
+    buf = tvm.tirx.decl_tensor([16])
     flat = buf.get_flattened_buffer()
     assert buf.same_as(flat)
 

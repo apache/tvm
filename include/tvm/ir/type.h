@@ -35,6 +35,43 @@
 namespace tvm {
 
 /*!
+ * \brief The top type, which admits any value.
+ *
+ * AnyType types values that have no more specific static type, such as
+ * DataType-valued generic constants and opaque runtime objects.
+ */
+class AnyTypeNode : public TypeNode {
+ public:
+  static void RegisterReflection() { ffi::reflection::ObjectDef<AnyTypeNode>(); }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.AnyType", AnyTypeNode, TypeNode);
+};
+
+/*!
+ * \brief Managed reference to AnyTypeNode.
+ * \sa AnyTypeNode
+ */
+class AnyType : public Type {
+ public:
+  TVM_DLL AnyType(Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AnyType, Type, AnyTypeNode);
+};
+
+/*! \brief Semantic string type; its physical representation is context dependent. */
+class StringTypeNode : public TypeNode {
+ public:
+  static void RegisterReflection() { ffi::reflection::ObjectDef<StringTypeNode>(); }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.StringType", StringTypeNode, TypeNode);
+};
+
+/*! \brief Managed reference to StringTypeNode. */
+class StringType : public Type {
+ public:
+  TVM_DLL StringType();
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StringType, Type, StringTypeNode);
+};
+
+/*!
  * \brief Low-level raw pointer type.
  *
  *  PointerType represents type hints in the TIR to be
@@ -177,30 +214,6 @@ class FuncType : public Type {
   TVM_DLL FuncType(ffi::Array<Type> arg_types, Type ret_type, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FuncType, Type, FuncTypeNode);
-};
-
-/*!
- * \brief The type of tensor map.
- * \sa TensorMapType
- */
-class TensorMapTypeNode : public TypeNode {
- public:
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TensorMapTypeNode>();
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.TensorMapType", TensorMapTypeNode, TypeNode);
-};
-
-/*!
- * \brief Managed reference to TensorMapTypeNode.
- * \sa TensorMapTypeNode
- */
-class TensorMapType : public Type {
- public:
-  TVM_DLL TensorMapType(Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorMapType, Type, TensorMapTypeNode);
 };
 
 }  // namespace tvm

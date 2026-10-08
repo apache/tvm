@@ -30,6 +30,7 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
+#include <initializer_list>
 #include <string>
 
 namespace tvm {
@@ -41,66 +42,85 @@ void RegisterNKIIntrinsicAliases();
 }
 
 void RegisterTRNTargetBuiltins() {
-  // clang-format off
-static bool registered = false;
-if (registered) return;
-registered = true;
+  static bool registered = false;
+  if (registered) return;
+  registered = true;
 
-RegisterNKIIntrinsicAliases();
-  // clang-format on
+  RegisterNKIIntrinsicAliases();
+
+  OpDef("tirx.nki.tensorized_instruction", "Tensorize the NKI instructions in the region body.")
+      .signature()
+      .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
+                                      FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+      .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("nki"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
+                                    ffi::String("tirx.nki.tensorized_instruction"));
 }
 
 namespace {
 
-void RegisterNKIIntrinsic(const char* name) {
+struct NKIIntrinsicNames {
+  std::string canonical;
+  std::string printer;
+};
+
+TVM_FFI_NO_INLINE NKIIntrinsicNames MakeNKIIntrinsicNames(const char* op_name) {
   std::string prefix = "nki_";
-  std::string suffix(name);
+  std::string suffix(op_name);
   if (suffix.rfind(prefix, 0) == 0) {
     suffix = suffix.substr(prefix.size());
   }
-
-  std::string canonical_op_name = "tirx.nki." + suffix;
-  ffi::String namespace_attr("nki");
-  ffi::String printer_name("nki." + suffix);
-  int64_t effect = static_cast<int64_t>(CallEffectKind::kOpaque);
-
-  auto register_one = [&](const std::string& op_name) {
-    OpRegEntry::RegisterOrGet(op_name)
-        .set_name()
-        .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"),
-                                  /*plevel=*/15)
-        .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", namespace_attr,
-                                             /*plevel=*/15)
-        .set_attr<TCallEffectKind>("TCallEffectKind", effect, /*plevel=*/15)
-        .set_attr<TScriptPrinterName>("TScriptPrinterName", printer_name, /*plevel=*/15);
-  };
-
-  register_one(canonical_op_name);
+  return {"tirx.nki." + suffix, "tirx.nki." + suffix};
 }
 
-const char* kNKIIntrinsics[] = {
-    "nki_activation",
-    "nki_activation_reduce",
-    "nki_affine_select",
-    "nki_identity",
-    "nki_load",
-    "nki_matmul",
-    "nki_memset",
-    "nki_reciprocal",
-    "nki_scalar_tensor_scalar",
-    "nki_scalar_tensor_tensor",
-    "nki_store",
-    "nki_tensor_copy",
-    "nki_tensorreduce",
-    "nki_tensorscalar",
-    "nki_tensorscalar_reduce",
-    "nki_tensortensor",
-};
+TVM_FFI_NO_INLINE void RegisterNKIIntrinsicAttrs(OpDef& def, const std::string& printer_name) {
+  def.set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+      .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("nki"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String(printer_name));
+}
+
+template <typename... Specs>
+void RegisterNKIIntrinsic(const char* op_name, const Specs&... specs) {
+  NKIIntrinsicNames names = MakeNKIIntrinsicNames(op_name);
+  OpDef def(names.canonical);
+  def.signature(specs...);
+  RegisterNKIIntrinsicAttrs(def, names.printer);
+}
 
 void RegisterNKIIntrinsicAliases() {
-  for (const char* op_name : kNKIIntrinsics) {
-    RegisterNKIIntrinsic(op_name);
-  }
+  RegisterNKIIntrinsic("nki_activation", sig::arg("result"), sig::arg("data"), sig::arg("opcode"),
+                       sig::arg("bias"), sig::arg("scale"));
+  RegisterNKIIntrinsic("nki_activation_reduce", sig::arg("reduce_res"), sig::arg("act_res"),
+                       sig::arg("data"), sig::arg("opcode"), sig::arg("reduce_opcode"),
+                       sig::arg("bias"), sig::arg("scale"));
+  RegisterNKIIntrinsic("nki_affine_select", sig::arg("result"), sig::arg("pred"),
+                       sig::arg("true_value"), sig::arg("false_value"));
+  RegisterNKIIntrinsic("nki_identity", sig::arg("result"), sig::arg("size"));
+  RegisterNKIIntrinsic("nki_load", sig::arg("res"), sig::arg("data"));
+  RegisterNKIIntrinsic("nki_matmul", sig::arg("res"), sig::arg("lhs"), sig::arg("rhs"),
+                       sig::arg("accum"));
+  RegisterNKIIntrinsic("nki_memset", sig::arg("result"), sig::arg("value"));
+  RegisterNKIIntrinsic("nki_reciprocal", sig::arg("result"), sig::arg("data"));
+  RegisterNKIIntrinsic("nki_scalar_tensor_scalar", sig::arg("result"), sig::arg("data"),
+                       sig::arg("operand0"), sig::arg("operand1"), sig::arg("opcode0"),
+                       sig::arg("opcode1"), sig::arg("reverse0"), sig::arg("reverse1"));
+  RegisterNKIIntrinsic("nki_scalar_tensor_tensor", sig::arg("result"), sig::arg("data"),
+                       sig::arg("operand0"), sig::arg("operand1"), sig::arg("opcode0"),
+                       sig::arg("opcode1"), sig::arg("reverse0"), sig::arg("reverse1"));
+  RegisterNKIIntrinsic("nki_store", sig::arg("res"), sig::arg("data"));
+  RegisterNKIIntrinsic("nki_tensor_copy", sig::arg("res"), sig::arg("data"));
+  RegisterNKIIntrinsic("nki_tensorreduce", sig::arg("result"), sig::arg("data"), sig::arg("opcode"),
+                       sig::arg("negate"), sig::var_args("args"));
+  RegisterNKIIntrinsic("nki_tensorscalar", sig::arg("result"), sig::arg("operand0"),
+                       sig::arg("operand1"), sig::arg("opcode"), sig::arg("reverse"));
+  RegisterNKIIntrinsic("nki_tensorscalar_reduce", sig::arg("reduce_res"),
+                       sig::arg("tensorscalar_res"), sig::arg("operand0"), sig::arg("operand1"),
+                       sig::arg("opcode"), sig::arg("reduce_opcode"), sig::arg("reverse"));
+  RegisterNKIIntrinsic("nki_tensortensor", sig::arg("result"), sig::arg("operand0"),
+                       sig::arg("operand1"), sig::arg("opcode"));
 }
 
 }  // namespace

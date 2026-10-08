@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F841
 
 import numpy as np
 import pytest
@@ -24,12 +23,11 @@ import tvm.testing
 from tvm.script import tirx as T
 
 
-def test_buffer_store_predicate_not_supported():
+def test_tensor_store_predicate_not_supported():
     target = "c"
 
-    @T.prim_func(s_tir=True)
-    def func(b: T.handle):
-        B = T.match_buffer(b, (8,), "float32")
+    @T.function
+    def func(B: T.Tensor((8,), "float32")):
         T.evaluate(
             T.call_intrin(
                 "void",
@@ -57,14 +55,12 @@ def test_buffer_store_predicate_not_supported():
         pytest.param({"kind": "vulkan", "from_device": 0}, marks=pytest.mark.gpu),
     ],
 )
-def test_buffer_store_predicate_not_supported_gpu(target):
+def test_tensor_store_predicate_not_supported_gpu(target):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    @T.prim_func(s_tir=True)
-    def func(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (2, 3), "float32")
-        B = T.match_buffer(b, (6,), "float32")
+    @T.function
+    def func(A: T.Tensor((2, 3), "float32"), B: T.Tensor((6,), "float32")):
         T.func_attr({"global_symbol": "main"})
         for i_0 in T.thread_binding(3, thread="threadIdx.x"):
             T.evaluate(
@@ -87,10 +83,8 @@ def test_buffer_store_predicate_not_supported_gpu(target):
 def test_buffer_load_predicate_not_supported():
     target = "c"
 
-    @T.prim_func(s_tir=True)
-    def func(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (8,), "float32")
-        B = T.match_buffer(b, (8,), "float32")
+    @T.function
+    def func(A: T.Tensor((8,), "float32"), B: T.Tensor((8,), "float32")):
         for i_0 in range(4):
             B.vstore(
                 [T.Ramp(0, 2, 4)],
@@ -123,10 +117,8 @@ def test_buffer_load_predicate_not_supported_gpu(target):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    @T.prim_func(s_tir=True)
-    def func(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (8,), "float32")
-        B = T.match_buffer(b, (8,), "float32")
+    @T.function
+    def func(A: T.Tensor((8,), "float32"), B: T.Tensor((8,), "float32")):
         for i_0 in T.thread_binding(3, thread="threadIdx.x"):
             B.vstore(
                 [T.Ramp(0, 2, 4)],
@@ -150,7 +142,7 @@ def test_buffer_load_predicate_not_supported_gpu(target):
     [("opencl", "__global "), ("metal", "device ")],
 )
 def test_decl_buffer_offset_preserves_storage_scope(target, qualifier):
-    @T.prim_func(s_tir=True)
+    @T.function
     def kernel(A_ptr: T.handle("float32", "global")):
         T.func_attr(
             {
@@ -160,8 +152,8 @@ def test_decl_buffer_offset_preserves_storage_scope(target, qualifier):
                 "tirx.noalias": True,
             }
         )
-        A = T.decl_buffer((8,), "float32", data=A_ptr)
-        B = T.decl_buffer((4,), "float32", data=T.address_of(A[4]))
+        A = T.decl_tensor((8,), "float32", data=A_ptr)
+        B = T.decl_tensor((4,), "float32", data=T.address_of(A[4]))
         B[0] = T.float32(1)
 
     mod = tvm.IRModule({"kernel": kernel})
@@ -176,17 +168,16 @@ def test_codegen_loop_step(target):
     if target != "c" and not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    @T.prim_func(s_tir=True)
+    @T.function
     def test_loop_step(
-        A: T.Buffer((1024,), "float32"),
-        B: T.Buffer((1024,), "float32"),
-        C: T.Buffer((1024,), "float32"),
+        A: T.Tensor((1024,), "float32"),
+        B: T.Tensor((1024,), "float32"),
+        C: T.Tensor((1024,), "float32"),
     ):
         for i in T.serial(3, 1024, step=96):
             C[i] = A[i] + B[i]
 
-    with tvm.transform.PassContext(disabled_pass=["s_tir.CanonicalizeLoop"]):
-        lib = tvm.compile(test_loop_step, target=target)
+    lib = tvm.compile(test_loop_step, target=target)
 
     src = lib.mod.inspect_source()
     if target == "c":

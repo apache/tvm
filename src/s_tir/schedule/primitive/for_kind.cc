@@ -18,15 +18,15 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
-class WrongBlockIterTypeError : public ScheduleError {
+class WrongBlockIterTypeError : public ScheduleErrorContextObj {
  public:
   explicit WrongBlockIterTypeError(IRModule mod, ForKind for_kind, Var loop_var, SBlock block)
       : mod_(std::move(mod)), loop_var_(std::move(loop_var)), block_(std::move(block)) {
@@ -112,7 +112,7 @@ void CheckLoopParallelizableInBlock(const ScheduleState& self, ForKind for_kind,
     IterVarType iter_type = iter_var->iter_type;
     if (!(iter_type == kDataPar ||
           (iter_type == kCommReduce && thread_scope.rank == 1 && thread_scope.dim_index != -1))) {
-      throw WrongBlockIterTypeError(self->mod, for_kind, loop_var, block);
+      throw MakeScheduleError<WrongBlockIterTypeError>(self->mod, for_kind, loop_var, block);
     }
   }
 }
@@ -178,12 +178,7 @@ void ParallelizeComputation(const ScheduleState& self, const StmtSRef& loop_sref
   ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
   new_loop->kind = for_kind;
   if (thread_axis.has_value()) {
-    new_loop->thread_binding = IterVar(/*dom=*/Range(nullptr),        //
-                                                                      /*var=*/
-                                       PrimVar(thread_axis.value(),   //
-                                               loop->loop_var.ty()),  //
-                                       /*iter_type=*/kThreadIndex,    //
-                                       /*thread_tag=*/thread_axis.value());
+    new_loop->thread_binding = thread_axis.value();
   } else {
     new_loop->thread_binding = std::nullopt;
   }
@@ -304,10 +299,12 @@ struct UnrollTraits : public UnpackedInstTraits<UnrollTraits> {
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(ParallelTraits);
-TVM_REGISTER_INST_KIND_TRAITS(VectorizeTraits);
-TVM_REGISTER_INST_KIND_TRAITS(BindTraits);
-TVM_REGISTER_INST_KIND_TRAITS(UnrollTraits);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterInstructionKind<ParallelTraits>();
+  RegisterInstructionKind<VectorizeTraits>();
+  RegisterInstructionKind<BindTraits>();
+  RegisterInstructionKind<UnrollTraits>();
+}
 
 }  // namespace s_tir
 }  // namespace tvm

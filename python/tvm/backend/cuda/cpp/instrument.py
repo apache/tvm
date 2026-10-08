@@ -109,7 +109,7 @@ device_intrinsic(
 # =============================================================================
 @register_codegen("cuda_iket_official_event")
 def codegen_cuda_iket_official_event(event_id, source_code, payload=None):
-    if isinstance(source_code, tvm.tirx.StringImm):
+    if isinstance(source_code, tvm.ir.StringImm):
         source_code = source_code.value
     else:
         source_code = parse_str(source_code)
@@ -134,7 +134,7 @@ device_intrinsic(
 
 @register_codegen("cuda_printf")
 def codegen_cuda_printf(fmt, *args):
-    if isinstance(fmt, tvm.tirx.StringImm):
+    if isinstance(fmt, tvm.ir.StringImm):
         fmt = fmt.value
     if not isinstance(fmt, str):
         raise ValueError("T.cuda.printf format must be a string literal")

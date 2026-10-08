@@ -37,6 +37,7 @@
 
 namespace tvm {
 namespace codegen {
+using namespace tvm::prim;
 
 inline PrimExpr DispatchPureExternOCML(const PrimExpr& e) {
   // NOTE: OCML dispatch fails to work properly with vectorization, and thus should be used with
@@ -48,18 +49,19 @@ inline PrimExpr DispatchPureExternOCML(const PrimExpr& e) {
   const OpNode* op = call->op.as<OpNode>();
   TVM_FFI_ICHECK(op != nullptr);
   std::string name = op->name;
-  TVM_FFI_ICHECK_EQ(name.substr(0, 5), "tirx.");
+  TVM_FFI_ICHECK(name.substr(0, 5) == "tirx." || name == "prim.ceil" || name == "prim.log2")
+      << "Unexpected intrinsic name: " << name;
 
   std::ostringstream intrinsic_name;
   PrimType call_ty = call->ty.as_or_throw<PrimType>();
   intrinsic_name << "__ocml_" << name.substr(5) << "_f" << call_ty.bits();
 
-  ffi::Array<PrimExpr> new_args = {prim::StringImm(intrinsic_name.str())};
+  ffi::Array<Expr> new_args = {StringImm(intrinsic_name.str())};
   for (PrimExpr arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
     new_args.push_back(arg);
   }
 
-  return Call(call_ty, builtin::call_pure_extern(), new_args).as_or_throw<PrimExpr>();
+  return Call(call_ty, tirx::builtin::call_pure_extern(), new_args).as_or_throw<PrimExpr>();
 }
 
 inline PrimExpr DispatchShuffle(const PrimExpr& e) {
@@ -76,25 +78,25 @@ inline PrimExpr DispatchShuffle(const PrimExpr& e) {
   PrimExpr minus_one = IntImm::Int32(-1);
   PrimExpr zero = IntImm::Int32(0);
   PrimType i32_ty = PrimType::Int(32);
-  PrimExpr lo = Call(i32_ty, builtin::call_pure_extern(),
-                     ffi::Array<PrimExpr>{prim::StringImm("llvm.amdgcn.mbcnt.lo"), minus_one, zero})
+  PrimExpr lo = Call(i32_ty, tirx::builtin::call_pure_extern(),
+                     ffi::Array<Expr>{StringImm("llvm.amdgcn.mbcnt.lo"), minus_one, zero})
                     .as_or_throw<PrimExpr>();
-  PrimExpr self = Call(i32_ty, builtin::call_pure_extern(),
-                       ffi::Array<PrimExpr>{prim::StringImm("llvm.amdgcn.mbcnt.hi"), minus_one, lo})
+  PrimExpr self = Call(i32_ty, tirx::builtin::call_pure_extern(),
+                       ffi::Array<Expr>{StringImm("llvm.amdgcn.mbcnt.hi"), minus_one, lo})
                       .as_or_throw<PrimExpr>();
 
   // compute lane to get from
   PrimExpr width = args[3];
-  PrimExpr index;
-  if (call->op.same_as(builtin::tvm_warp_shuffle())) {
+  PrimExpr index{ffi::UnsafeInit{}};
+  if (call->op.same_as(tirx::builtin::tvm_warp_shuffle())) {
     PrimExpr src_lane = args[2];
     index = src_lane + (self & ~(width - 1));
-  } else if (call->op.same_as(builtin::tvm_warp_shuffle_up())) {
+  } else if (call->op.same_as(tirx::builtin::tvm_warp_shuffle_up())) {
     PrimExpr delta = args[2];
     index = self - delta;
     index = prim::Select(index < (self & ~(width - 1)), self, index);
   } else {
-    TVM_FFI_ICHECK(call->op.same_as(builtin::tvm_warp_shuffle_down()));
+    TVM_FFI_ICHECK(call->op.same_as(tirx::builtin::tvm_warp_shuffle_down()));
     PrimExpr delta = args[2];
     index = self + delta;
     index = prim::Select((self & (width - 1)) + delta >= width, self, index);
@@ -102,10 +104,9 @@ inline PrimExpr DispatchShuffle(const PrimExpr& e) {
   // reinterprete var as int32
   bool is_int32 = var_ty.MatchesElementType(DLDataTypeCode::kDLInt, 32);
   PrimExpr source = is_int32 ? var : reinterpret(PrimType::Int(32), var);
-  PrimExpr res =
-      Call(i32_ty, builtin::call_pure_extern(),
-           ffi::Array<PrimExpr>{prim::StringImm("llvm.amdgcn.ds.bpermute"), index << 2, source})
-          .as_or_throw<PrimExpr>();
+  PrimExpr res = Call(i32_ty, tirx::builtin::call_pure_extern(),
+                      ffi::Array<Expr>{StringImm("llvm.amdgcn.ds.bpermute"), index << 2, source})
+                     .as_or_throw<PrimExpr>();
   if (!is_int32) {
     res = reinterpret(var_ty, res);
   }
@@ -116,110 +117,110 @@ namespace llvm {
 using tirx::FLowerIntrinsic;
 
 void RegisterROCMIntrinRules() {
+  // dummy because we don't have the activemask
   // clang-format off
-// dummy because we don't have the activemask
-TVM_REGISTER_OP("tirx.tvm_warp_activemask")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
-      PrimExpr zero = IntImm::Int32(0);
-      return zero;
-    });
+  OpDef("tirx.tvm_warp_activemask")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
+        PrimExpr zero = IntImm::Int32(0);
+        return zero;
+      });
 
-TVM_REGISTER_OP("tirx.tvm_warp_shuffle")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", DispatchShuffle);
+  OpDef("tirx.tvm_warp_shuffle")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", DispatchShuffle);
 
-TVM_REGISTER_OP("tirx.tvm_warp_shuffle_up")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", DispatchShuffle);
+  OpDef("tirx.tvm_warp_shuffle_up")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", DispatchShuffle);
 
-TVM_REGISTER_OP("tirx.tvm_warp_shuffle_down")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", DispatchShuffle);
+  OpDef("tirx.tvm_warp_shuffle_down")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", DispatchShuffle);
 
-TVM_REGISTER_OP("tirx.floor")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                               DispatchLLVMPureIntrin<::llvm::Intrinsic::floor, 1>);
+  OpDef("tirx.floor")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                                 DispatchLLVMPureIntrin<::llvm::Intrinsic::floor, 1>);
 
-TVM_REGISTER_OP("tirx.ceil")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                               DispatchLLVMPureIntrin<::llvm::Intrinsic::ceil, 1>);
+  OpDef("prim.ceil")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                                 DispatchLLVMPureIntrin<::llvm::Intrinsic::ceil, 1>);
 
-TVM_REGISTER_OP("tirx.round")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                               DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>);
+  OpDef("tirx.round")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                                 DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>);
 
-TVM_REGISTER_OP("tirx.nearbyint")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                               DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>);
+  OpDef("tirx.nearbyint")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                                 DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>);
 
-TVM_REGISTER_OP("tirx.trunc")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                               DispatchLLVMPureIntrin<::llvm::Intrinsic::trunc, 1>);
+  OpDef("tirx.trunc")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                                 DispatchLLVMPureIntrin<::llvm::Intrinsic::trunc, 1>);
 
-TVM_REGISTER_OP("tirx.fabs")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                               DispatchLLVMPureIntrin<::llvm::Intrinsic::fabs, 1>);
+  OpDef("tirx.fabs")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                                 DispatchLLVMPureIntrin<::llvm::Intrinsic::fabs, 1>);
 
-TVM_REGISTER_OP("tirx.exp")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                               DispatchLLVMPureIntrin<::llvm::Intrinsic::exp, 1>);
+  OpDef("tirx.exp")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                                 DispatchLLVMPureIntrin<::llvm::Intrinsic::exp, 1>);
 
-TVM_REGISTER_OP("tirx.exp2")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                               DispatchLLVMPureIntrin<::llvm::Intrinsic::exp2, 1>);
+  OpDef("tirx.exp2")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                                 DispatchLLVMPureIntrin<::llvm::Intrinsic::exp2, 1>);
 
-TVM_REGISTER_OP("tirx.fma")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                               DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>);
+  OpDef("tirx.fma")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                                 DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>);
 
-TVM_REGISTER_OP("tirx.log")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                               DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>);
+  OpDef("tirx.log")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                                 DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>);
 
-TVM_REGISTER_OP("tirx.log2")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                               DispatchLLVMPureIntrin<::llvm::Intrinsic::log2, 1>);
+  OpDef("prim.log2")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                                 DispatchLLVMPureIntrin<::llvm::Intrinsic::log2, 1>);
 
-TVM_REGISTER_OP("tirx.log10")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                               DispatchLLVMPureIntrin<::llvm::Intrinsic::log10, 1>);
+  OpDef("tirx.log10")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                                 DispatchLLVMPureIntrin<::llvm::Intrinsic::log10, 1>);
 
-TVM_REGISTER_OP("tirx.sqrt")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                               DispatchLLVMPureIntrin<::llvm::Intrinsic::sqrt, 1>);
+  OpDef("tirx.sqrt")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                                 DispatchLLVMPureIntrin<::llvm::Intrinsic::sqrt, 1>);
 
-TVM_REGISTER_OP("tirx.pow")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                               DispatchLLVMPureIntrin<::llvm::Intrinsic::pow, 2>);
+  OpDef("tirx.pow")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                                 DispatchLLVMPureIntrin<::llvm::Intrinsic::pow, 2>);
 
-TVM_REGISTER_OP("tirx.cos")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                               DispatchLLVMPureIntrin<::llvm::Intrinsic::cos, 1>);
+  OpDef("tirx.cos")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                                 DispatchLLVMPureIntrin<::llvm::Intrinsic::cos, 1>);
 
-TVM_REGISTER_OP("tirx.sin")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                               DispatchLLVMPureIntrin<::llvm::Intrinsic::sin, 1>);
+  OpDef("tirx.sin")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                                 DispatchLLVMPureIntrin<::llvm::Intrinsic::sin, 1>);
 
-TVM_REGISTER_OP("tirx.tanh")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                               ::tvm::codegen::intrin::DispatchNumericalStableTanh);
+  OpDef("tirx.tanh")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+                                 ::tvm::codegen::intrin::DispatchNumericalStableTanh);
 
-TVM_REGISTER_OP("tirx.erf")
-    .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", ::tvm::codegen::intrin::DispatchFastErf);
-
-// TVM_REGISTER_OP("tirx.tan").set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-//                                                      DispatchPureExternOCML);
-
-// TVM_REGISTER_OP("tirx.cosh")
-//     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", DispatchPureExternOCML);
-
-// TVM_REGISTER_OP("tirx.sinh")
-//     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", DispatchPureExternOCML);
-
-// TVM_REGISTER_OP("tirx.atan")
-//     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", DispatchPureExternOCML);
-
-// TVM_REGISTER_OP("tirx.exp10")
-//     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-//                                DispatchLLVMPureIntrin<::llvm::Intrinsic::exp10, 1>);
+  OpDef("tirx.erf")
+      .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", ::tvm::codegen::intrin::DispatchFastErf);
   // clang-format on
+
+  // OpDef("tirx.tan").set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+  //                                                      DispatchPureExternOCML);
+
+  // OpDef("tirx.cosh")
+  //     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", DispatchPureExternOCML);
+
+  // OpDef("tirx.sinh")
+  //     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", DispatchPureExternOCML);
+
+  // OpDef("tirx.atan")
+  //     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", DispatchPureExternOCML);
+
+  // OpDef("tirx.exp10")
+  //     .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
+  //                                DispatchLLVMPureIntrin<::llvm::Intrinsic::exp10, 1>);
 }
 
 }  // namespace llvm

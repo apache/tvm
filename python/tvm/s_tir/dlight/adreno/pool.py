@@ -29,7 +29,7 @@ from .base import AdrenoScheduleRule
 class Pool2D(AdrenoScheduleRule):
     def apply(  # pylint: disable=too-many-locals,missing-docstring
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> s_tir.Schedule:

@@ -25,7 +25,6 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/script/printer/config.h>
 
 #include <string>
 
@@ -34,16 +33,6 @@ namespace script {
 namespace printer {
 
 using AccessPath = ffi::reflection::AccessPath;
-
-// Forward declaration
-class Doc;
-
-/*!
- * \brief Convert Doc into Python script.
- * \param doc Doc to be converted
- * \param cfg The configuration of the printer
- */
-ffi::String DocToPythonScript(Doc doc, const PrinterConfig& cfg);
 
 /*!
  * \brief The base class of all Doc.
@@ -107,19 +96,19 @@ class ExprDocNode : public DocNode {
    * \brief Create a doc representing attribute access on the current ExprDoc
    * \param attr The attribute to access.
    */
-  ExprDoc Attr(ffi::String attr) const;
+  TVM_DLL ExprDoc Attr(ffi::String attr) const;
 
   /*!
    * \brief Create a doc representing index access on the current ExprDoc
    * \param indices The indices to access.
    */
-  ExprDoc operator[](ffi::Array<Doc> indices) const;
+  TVM_DLL ExprDoc operator[](ffi::Array<Doc> indices) const;
 
   /*!
    * \brief Create a doc representing calling the current ExprDoc
    * \param args The positional arguments of the function call.
    */
-  ExprDoc Call(ffi::Array<ExprDoc, void> args) const;
+  TVM_DLL ExprDoc Call(ffi::Array<ExprDoc, void> args) const;
 
   /*!
    * \brief Create a doc representing attribute access on the current ExprDoc
@@ -127,9 +116,9 @@ class ExprDocNode : public DocNode {
    * \param kwargs_keys Keys of keywords arguments of the function call.
    * \param kwargs_values Values of keywords arguments of the function call.
    */
-  ExprDoc Call(ffi::Array<ExprDoc, void> args,       //
-               ffi::Array<ffi::String> kwargs_keys,  //
-               ffi::Array<ExprDoc, void> kwargs_values) const;
+  TVM_DLL ExprDoc Call(ffi::Array<ExprDoc, void> args,       //
+                       ffi::Array<ffi::String> kwargs_keys,  //
+                       ffi::Array<ExprDoc, void> kwargs_values) const;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -152,7 +141,7 @@ class ExprDoc : public Doc {
    * \brief Create a doc representing index access on the current ExprDoc
    * \param indices The indices to access.
    */
-  ExprDoc operator[](ffi::Array<Doc> indices) const;
+  TVM_DLL ExprDoc operator[](ffi::Array<Doc> indices) const;
 
   explicit ExprDoc(ffi::ObjectPtr<ExprDocNode> data) : Doc(data) {
     TVM_FFI_ICHECK(data != nullptr);
@@ -226,7 +215,7 @@ class StmtBlockDoc : public Doc {
    * \brief Constructor of StmtBlockDoc.
    * \param stmts The list of statements.
    */
-  explicit StmtBlockDoc(ffi::Array<StmtDoc> stmts);
+  TVM_DLL explicit StmtBlockDoc(ffi::Array<StmtDoc> stmts);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StmtBlockDoc, Doc, StmtBlockDocNode);
 };
 
@@ -262,7 +251,7 @@ class LiteralDocNode : public ExprDocNode {
  */
 class LiteralDoc : public ExprDoc {
  protected:
-  explicit LiteralDoc(ffi::Any value, const ffi::Optional<AccessPath>& object_path);
+  TVM_DLL explicit LiteralDoc(ffi::Any value, const ffi::Optional<AccessPath>& object_path);
 
  public:
   /*!
@@ -279,6 +268,16 @@ class LiteralDoc : public ExprDoc {
    */
   static LiteralDoc Int(int64_t v, const ffi::Optional<AccessPath>& p) {
     return LiteralDoc(IntImm::Int64(v), p);
+  }
+
+  /*!
+   * \brief Create an integer literal preserving its typed payload.
+   * \param v The typed integer value.
+   * \param p The object path.
+   * \return The integer literal.
+   */
+  static LiteralDoc Int(IntImm v, const ffi::Optional<AccessPath>& p) {
+    return LiteralDoc(std::move(v), p);
   }
   /*!
    * \brief Create a LiteralDoc to represent boolean.
@@ -357,7 +356,7 @@ class ExprStringDoc : public ExprDoc {
    * \param value The expression to render as a string.
    * \param object_path The object path.
    */
-  explicit ExprStringDoc(ExprDoc value, const ffi::Optional<AccessPath>& object_path);
+  TVM_DLL explicit ExprStringDoc(ExprDoc value, const ffi::Optional<AccessPath>& object_path);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExprStringDoc, ExprDoc, ExprStringDocNode);
 };
@@ -390,7 +389,7 @@ class IdDoc : public ExprDoc {
    * \brief Constructor of IdDoc.
    * \param name The name of identifier.
    */
-  explicit IdDoc(ffi::String name);
+  TVM_DLL explicit IdDoc(ffi::String name);
   explicit IdDoc(std::nullptr_t) : ExprDoc(nullptr) {}
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IdDoc, ExprDoc, IdDocNode);
 };
@@ -428,7 +427,7 @@ class AttrAccessDoc : public ExprDoc {
    * \param value The target expression of attribute access.
    * \param name The name of attribute to access.
    */
-  explicit AttrAccessDoc(ExprDoc value, ffi::String name);
+  TVM_DLL explicit AttrAccessDoc(ExprDoc value, ffi::String name);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AttrAccessDoc, ExprDoc, AttrAccessDocNode);
 };
 
@@ -471,7 +470,7 @@ class IndexDoc : public ExprDoc {
    * \param value The target expression of index access.
    * \param indices The indices to access.
    */
-  explicit IndexDoc(ExprDoc value, ffi::Array<Doc> indices);
+  TVM_DLL explicit IndexDoc(ExprDoc value, ffi::Array<Doc> indices);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IndexDoc, ExprDoc, IndexDocNode);
 };
 
@@ -521,8 +520,8 @@ class CallDoc : public ExprDoc {
    * \param kwargs_keys Keys of keyword arguments.
    * \param kwargs_values Values of keyword arguments, must have the same length as `kwargs_keys.
    */
-  CallDoc(ExprDoc callee, ffi::Array<ExprDoc> args, ffi::Array<ffi::String> kwargs_keys,
-          ffi::Array<ExprDoc> kwargs_values);
+  TVM_DLL CallDoc(ExprDoc callee, ffi::Array<ExprDoc> args, ffi::Array<ffi::String> kwargs_keys,
+                  ffi::Array<ExprDoc> kwargs_values);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CallDoc, ExprDoc, CallDocNode);
 };
 
@@ -601,7 +600,7 @@ class OperationDoc : public ExprDoc {
    * \param kind The kind of operation.
    * \param operands Operands of this expression.
    */
-  explicit OperationDoc(OperationDocNode::Kind kind, ffi::Array<ExprDoc> operands);
+  TVM_DLL explicit OperationDoc(OperationDocNode::Kind kind, ffi::Array<ExprDoc> operands);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(OperationDoc, ExprDoc, OperationDocNode);
 };
 
@@ -641,7 +640,7 @@ class LambdaDoc : public ExprDoc {
    * \param args Arguments of this function.
    * \param body Body expression of this function.
    */
-  explicit LambdaDoc(ffi::Array<IdDoc> args, ExprDoc body);
+  TVM_DLL explicit LambdaDoc(ffi::Array<IdDoc> args, ExprDoc body);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LambdaDoc, ExprDoc, LambdaDocNode);
 };
 
@@ -677,7 +676,7 @@ class TupleDoc : public ExprDoc {
    * \brief Constructor of TupleDoc
    * \param elements Elements of tuple.
    */
-  explicit TupleDoc(ffi::Array<ExprDoc> elements);
+  TVM_DLL explicit TupleDoc(ffi::Array<ExprDoc> elements);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TupleDoc, ExprDoc, TupleDocNode);
 };
 
@@ -713,7 +712,7 @@ class ListDoc : public ExprDoc {
    * \brief Constructor of ListDoc
    * \param elements Elements of list.
    */
-  explicit ListDoc(ffi::Array<ExprDoc> elements);
+  TVM_DLL explicit ListDoc(ffi::Array<ExprDoc> elements);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ListDoc, ExprDoc, ListDocNode);
 };
 
@@ -759,7 +758,7 @@ class DictDoc : public ExprDoc {
    * \param keys Keys of dictionary.
    * \param values Values of dictionary, must have same length as `keys`.
    */
-  explicit DictDoc(ffi::Array<ExprDoc> keys, ffi::Array<ExprDoc> values);
+  TVM_DLL explicit DictDoc(ffi::Array<ExprDoc> keys, ffi::Array<ExprDoc> values);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DictDoc, ExprDoc, DictDocNode);
 };
 
@@ -802,8 +801,8 @@ class SliceDoc : public Doc {
    * \param stop The exclusive end of slice.
    * \param step The step of slice.
    */
-  explicit SliceDoc(ffi::Optional<ExprDoc> start, ffi::Optional<ExprDoc> stop,
-                    ffi::Optional<ExprDoc> step);
+  TVM_DLL explicit SliceDoc(ffi::Optional<ExprDoc> start, ffi::Optional<ExprDoc> stop,
+                            ffi::Optional<ExprDoc> step);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SliceDoc, Doc, SliceDocNode);
 };
 
@@ -819,7 +818,7 @@ class AssignDocNode : public StmtDocNode {
   /*!
    * \brief The right hand side of the assignment.
    *
-   * If null, this doc represents declaration, e.g. `A: T.Buffer((1,2))`
+   * If null, this doc represents declaration, e.g. `A: T.Tensor((1,2))`
    * */
   ffi::Optional<ExprDoc> rhs;
   /*! \brief The type annotation of this assignment. */
@@ -848,7 +847,8 @@ class AssignDoc : public StmtDoc {
    * \param rhs The right hand side of the assignment.
    * \param annotation The type annotation of this assignment.
    */
-  explicit AssignDoc(ExprDoc lhs, ffi::Optional<ExprDoc> rhs, ffi::Optional<ExprDoc> annotation);
+  TVM_DLL explicit AssignDoc(ExprDoc lhs, ffi::Optional<ExprDoc> rhs,
+                             ffi::Optional<ExprDoc> annotation);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AssignDoc, StmtDoc, AssignDocNode);
 };
 
@@ -889,8 +889,8 @@ class IfDoc : public StmtDoc {
    * \param then_branch The then branch of the if-then-else statement.
    * \param else_branch The else branch of the if-then-else statement.
    */
-  explicit IfDoc(ExprDoc predicate, ffi::Array<StmtDoc> then_branch,
-                 ffi::Array<StmtDoc> else_branch);
+  TVM_DLL explicit IfDoc(ExprDoc predicate, ffi::Array<StmtDoc> then_branch,
+                         ffi::Array<StmtDoc> else_branch);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IfDoc, StmtDoc, IfDocNode);
 };
 
@@ -927,7 +927,7 @@ class WhileDoc : public StmtDoc {
    * \param predicate The predicate of the while statement.
    * \param body The body of the while statement.
    */
-  explicit WhileDoc(ExprDoc predicate, ffi::Array<StmtDoc> body);
+  TVM_DLL explicit WhileDoc(ExprDoc predicate, ffi::Array<StmtDoc> body);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(WhileDoc, StmtDoc, WhileDocNode);
 };
 
@@ -956,7 +956,7 @@ class BreakDoc : public StmtDoc {
   /*!
    * \brief Constructor of BreakDoc.
    */
-  explicit BreakDoc();
+  TVM_DLL explicit BreakDoc();
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BreakDoc, StmtDoc, BreakDocNode);
 };
 
@@ -985,7 +985,7 @@ class ContinueDoc : public StmtDoc {
   /*!
    * \brief Constructor of ContinueDoc.
    */
-  explicit ContinueDoc();
+  TVM_DLL explicit ContinueDoc();
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ContinueDoc, StmtDoc, ContinueDocNode);
 };
 
@@ -1030,7 +1030,7 @@ class ForDoc : public StmtDoc {
    * \param rhs The right hand side of the assignment of iterating variable.
    * \param body The body of the for statement.
    */
-  explicit ForDoc(ExprDoc lhs, ExprDoc rhs, ffi::Array<StmtDoc> body);
+  TVM_DLL explicit ForDoc(ExprDoc lhs, ExprDoc rhs, ffi::Array<StmtDoc> body);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ForDoc, StmtDoc, ForDocNode);
 };
 
@@ -1052,13 +1052,16 @@ class ScopeDocNode : public StmtDocNode {
   ExprDoc rhs{ffi::UnsafeInit()};
   /*! \brief The body of the scope doc. */
   ffi::Array<StmtDoc> body;
+  /*! \brief Whether a tail-position renderer may spell this scope concisely. */
+  bool allow_concise_scoping{false};
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ScopeDocNode>()
         .def_ro("lhs", &ScopeDocNode::lhs)
         .def_ro("rhs", &ScopeDocNode::rhs)
-        .def_ro("body", &ScopeDocNode::body);
+        .def_ro("body", &ScopeDocNode::body)
+        .def_ro("allow_concise_scoping", &ScopeDocNode::allow_concise_scoping);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.ScopeDoc", ScopeDocNode, StmtDocNode);
 };
@@ -1075,15 +1078,17 @@ class ScopeDoc : public StmtDoc {
    * \param lhs The name of the scoped variable.
    * \param rhs The value of the scoped variable.
    * \param body The body of the scope doc.
+   * \param allow_concise_scoping Whether a tail-position renderer may use a concise form.
    */
-  explicit ScopeDoc(ffi::Optional<ExprDoc> lhs, ExprDoc rhs, ffi::Array<StmtDoc> body);
+  TVM_DLL explicit ScopeDoc(ffi::Optional<ExprDoc> lhs, ExprDoc rhs, ffi::Array<StmtDoc> body,
+                            bool allow_concise_scoping = false);
 
   /*!
    * \brief Constructor of ScopeDoc.
    * \param rhs The value of the scoped variable.
    * \param body The body of the scope doc.
    */
-  explicit ScopeDoc(ExprDoc rhs, ffi::Array<StmtDoc> body);
+  TVM_DLL explicit ScopeDoc(ExprDoc rhs, ffi::Array<StmtDoc> body);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ScopeDoc, StmtDoc, ScopeDocNode);
 };
@@ -1116,7 +1121,7 @@ class ExprStmtDoc : public StmtDoc {
    * \brief Constructor of ExprStmtDoc.
    * \param expr The expression represented by this doc.
    */
-  explicit ExprStmtDoc(ExprDoc expr);
+  TVM_DLL explicit ExprStmtDoc(ExprDoc expr);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExprStmtDoc, StmtDoc, ExprStmtDocNode);
 };
 
@@ -1153,7 +1158,7 @@ class AssertDoc : public StmtDoc {
    * \param test The expression to test.
    * \param msg The optional error message when assertion failed.
    */
-  explicit AssertDoc(ExprDoc test, ffi::Optional<ExprDoc> msg = std::nullopt);
+  TVM_DLL explicit AssertDoc(ExprDoc test, ffi::Optional<ExprDoc> msg = std::nullopt);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AssertDoc, StmtDoc, AssertDocNode);
 };
 
@@ -1185,7 +1190,7 @@ class ReturnDoc : public StmtDoc {
    * \brief Constructor of ReturnDoc.
    * \param value The value to return.
    */
-  explicit ReturnDoc(ExprDoc value);
+  TVM_DLL explicit ReturnDoc(ExprDoc value);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ReturnDoc, StmtDoc, ReturnDocNode);
 };
 
@@ -1250,9 +1255,9 @@ class FunctionDoc : public StmtDoc {
    * \param body The body of function.
    * \param type_params The PEP 695 type parameters of the function.
    */
-  explicit FunctionDoc(IdDoc name, ffi::Array<AssignDoc> args, ffi::Array<ExprDoc> decorators,
-                       ffi::Optional<ExprDoc> return_type, ffi::Array<StmtDoc> body,
-                       ffi::Array<Doc> type_params = {});
+  TVM_DLL explicit FunctionDoc(IdDoc name, ffi::Array<AssignDoc> args,
+                               ffi::Array<ExprDoc> decorators, ffi::Optional<ExprDoc> return_type,
+                               ffi::Array<StmtDoc> body, ffi::Array<Doc> type_params = {});
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionDoc, StmtDoc, FunctionDocNode);
 };
 
@@ -1293,7 +1298,7 @@ class ClassDoc : public StmtDoc {
    * \param decorators The decorator of class.
    * \param body The body of class.
    */
-  explicit ClassDoc(IdDoc name, ffi::Array<ExprDoc> decorators, ffi::Array<StmtDoc> body);
+  TVM_DLL explicit ClassDoc(IdDoc name, ffi::Array<ExprDoc> decorators, ffi::Array<StmtDoc> body);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ClassDoc, StmtDoc, ClassDocNode);
 };
 
@@ -1318,7 +1323,7 @@ class CommentDocNode : public StmtDocNode {
  */
 class CommentDoc : public StmtDoc {
  public:
-  explicit CommentDoc(ffi::String comment);
+  TVM_DLL explicit CommentDoc(ffi::String comment);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CommentDoc, StmtDoc, CommentDocNode);
 };
 
@@ -1343,7 +1348,7 @@ class DocStringDocNode : public StmtDocNode {
  */
 class DocStringDoc : public StmtDoc {
  public:
-  explicit DocStringDoc(ffi::String docs);
+  TVM_DLL explicit DocStringDoc(ffi::String docs);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DocStringDoc, StmtDoc, DocStringDocNode);
 };
 
@@ -1393,9 +1398,40 @@ class OpCallDoc : public StmtDoc {
    * \param config The config of this op call.
    * \param dispatch The optional dispatch variant name of this op call.
    */
-  explicit OpCallDoc(ExprDoc callee, ffi::Array<Doc> args, ffi::Optional<DictDoc> workspace,
-                     ffi::Optional<DictDoc> config, ffi::Optional<ExprDoc> dispatch = std::nullopt);
+  TVM_DLL explicit OpCallDoc(ExprDoc callee, ffi::Array<Doc> args, ffi::Optional<DictDoc> workspace,
+                             ffi::Optional<DictDoc> config,
+                             ffi::Optional<ExprDoc> dispatch = std::nullopt);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(OpCallDoc, StmtDoc, OpCallDocNode);
+};
+
+/*!
+ * \brief A reference to a canonical script namespace.
+ *
+ * The renderer resolves the configured alias without remapping ordinary identifiers.
+ */
+class NamespaceDocNode : public ExprDocNode {
+ public:
+  /*! \brief The namespace name before alias resolution. */
+  ffi::String canonical_name;
+
+  static void RegisterReflection() {
+    ffi::reflection::ObjectDef<NamespaceDocNode>().def_ro("canonical_name",
+                                                          &NamespaceDocNode::canonical_name);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.NamespaceDoc", NamespaceDocNode, ExprDocNode);
+};
+
+/*!
+ * \brief An owning reference to a deferred script namespace.
+ */
+class NamespaceDoc : public ExprDoc {
+ public:
+  /*!
+   * \brief Construct a deferred namespace reference.
+   * \param canonical_name The namespace name before alias resolution.
+   */
+  TVM_DLL explicit NamespaceDoc(ffi::String canonical_name);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(NamespaceDoc, ExprDoc, NamespaceDocNode);
 };
 
 }  // namespace printer

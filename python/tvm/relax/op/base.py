@@ -23,10 +23,10 @@ import tvm_ffi
 
 import tvm
 import tvm.runtime
-from tvm.ir import Call
+from tvm.ir import Call, Op, StringImm
 from tvm.runtime import Object, ObjectConvertible
 
-from ..expr import Expr, ExternFunc, GlobalVar, StringImm, Var
+from ..expr import Expr, ExternFunc, GlobalVar, Var
 from ..type import TensorType, Type
 from ..utils import convert_to_expr
 from . import _ffi_api
@@ -37,7 +37,7 @@ py_print = print  # pylint: disable=invalid-name
 def register_gradient(
     op_name: str,
     fgradient: Callable[[Var, Call, Var, "BlockBuilder"], list[Expr]] | None = None,
-    level: int = 10,
+    override: bool = False,
 ):
     """Register operator gradient function for a relax operator.
 
@@ -50,10 +50,16 @@ def register_gradient(
          -> partials: List[Expr]
         The gradient function being used.
 
-    level: int
-        The priority level
+    override: bool, optional
+        Replace an existing gradient if True; duplicate registration otherwise
+        raises ValueError.
+
+    Returns
+    -------
+    result : callable
+        The registered gradient, or a decorator if fgradient is not supplied.
     """
-    return tvm.ir.register_op_attr(op_name, "FPrimalGradient", fgradient, level)
+    return tvm.ir.register_op_attr(op_name, "FPrimalGradient", fgradient, override)
 
 
 def null_value() -> Call:
@@ -95,16 +101,16 @@ def call_tir(
     out_ty: TensorType | list[TensorType],
 ) -> Call:
     """
-    Call a tirx.prim_func and return the output.
+    Call a tirx.function and return the output.
 
     Parameters
     ----------
     gvar : GlobalVar
-        The GlobalVar referring to a tirx PrimFunc.
+        The GlobalVar referring to a tirx Function.
 
     args : Expr
         The ordered tensor and primitive input arguments.  These correspond
-        positionally to the leading parameters of the PrimFunc.
+        positionally to the leading parameters of the Function.
 
     out_ty : Union[TensorType, List[TensorType]]
         The type information of the call_tir output.
@@ -124,6 +130,82 @@ def call_tir(
     return _ffi_api.call_tir(gvar, args, out_ty)  # type: ignore
 
 
+def call_tir_packed(gvar: GlobalVar, args: Expr) -> Call:
+    """Call a TIRx Function through its native packed-call contract.
+
+    Every native parameter is supplied explicitly, in order.  Unlike
+    :py:func:`call_tir`, this operator does not allocate destination tensors or
+    interpret destination parameters as results.  It performs no implicit
+    copies, casts, layout conversions, device transfers, or redistribution.
+
+    The result follows the native declared return type: a supported scalar
+    keeps its exact primitive type, void becomes the empty tuple, and a pointer
+    becomes an ``Any`` carrying an opaque pointer.  A pointer result does not
+    imply tensor ownership or a lifetime guarantee.  Native tensor, nonempty
+    tuple, callable, vector, and other unsupported return types are rejected.
+    There is no ``out_ty`` argument.
+
+    Parameters
+    ----------
+    gvar : GlobalVar
+        The GlobalVar referring to a TIRx Function with its native
+        ``tvm.ir.FuncType`` signature.
+
+    args : Expr
+        The ordered arguments, supplied as an inline Relax tuple, a Python
+        tuple or list, or a single expression.  Tensor parameters accept
+        compatible Relax tensors, with dtype, rank, and known shapes checked
+        against the native signature.  Remaining supported native tensor
+        constraints are checked by the packed ABI at runtime.  Specialized
+        global storage scopes require matching ``VDevice.memory_scope``;
+        non-default layouts, allocated-address contracts, unsupported storage
+        scopes, and unlowered distributed tensors are rejected.
+
+        Scalar parameters require the exact primitive dtype: scalar bool,
+        signed or unsigned integers up to 64 bits, or float16/32/64.  These
+        same scalar types are supported as direct results.  The existing packed
+        integer carrier is signed 64-bit: ``uint64`` values must be in
+        ``[0, 2**63 - 1]``; larger unsigned values are not representable.
+
+        Pointer parameters accept ``Any`` or a handle-compatible object,
+        including a runtime tensor.  A tensor passed to a pointer parameter
+        supplies its DLTensor header handle, not its data pointer.  This erased
+        carrier does not prove pointee type, address space, ownership, or
+        lifetime compatibility.  Known scalar values cannot serve as pointer
+        arguments.  The runtime carrier must satisfy the existing packed ABI's
+        null, opaque-pointer, DLTensor-pointer, or object-handle check.
+
+    The call is effectful and may mutate its arguments. For a call known to
+    have no observable effects, use an explicit ``call_pure_packed`` wrapper
+    around the ``relax.call_tir_packed`` operator. Purity is never inferred
+    from the native signature or packed ABI.
+
+    Returns
+    -------
+    ret : Call
+        A call whose result type is derived from the native declared return
+        during Relax type inference.
+
+    Examples
+    --------
+    A native ``(int64, int64) -> int64`` function returns its scalar directly::
+
+        result = relax.call_tir_packed(add_scalar, (a, b))
+
+    A caller that knows the scalar function has no effects may assert purity::
+
+        result = relax.call_pure_packed(
+            tvm.ir.Op.get("relax.call_tir_packed"), add_scalar, (a, b)
+        )
+
+    A native copy function with a void return writes to a caller-owned tensor::
+
+        relax.call_tir_packed(copy, (source, destination))
+    """
+    args = _wrap_inline_arg_tuple(args)
+    return Call.unchecked("relax.call_tir_packed", [gvar, args])
+
+
 def call_tir_with_grad(
     gvar: GlobalVar,
     args: Expr,
@@ -132,18 +214,18 @@ def call_tir_with_grad(
     te_grad_kwargs: dict[str, Object] | None = None,
 ) -> Call:
     """
-    Call a tirx.prim_func and return the output. This intrinsic will bind a te gradient function
+    Call a tirx.function and return the output. This intrinsic will bind a te gradient function
     (refered by te_grad_name) to the call_tir_with_grad node. The te gradient function will be
     called by the Gradient pass.
 
     Parameters
     ----------
     gvar : GlobalVar
-        The GlobalVar referring to a tirx PrimFunc.
+        The GlobalVar referring to a tirx Function.
 
     args : Expr
         The ordered tensor and primitive input arguments.  These correspond
-        positionally to the leading parameters of the PrimFunc.
+        positionally to the leading parameters of the Function.
 
     out_ty : Union[TensorType, List[TensorType]]
         The type information of the call_tir_with_grad output.
@@ -183,7 +265,7 @@ def call_tir_inplace(
     out_ty: TensorType | list[TensorType],
 ) -> Call:
     """
-    Call a TIR PrimFunc and return the result, doing the specified computations in-place
+    Call a TIR Function and return the result, doing the specified computations in-place
     (based on the `inplace_indices` argument; outputs will alias the inputs
     selected by in-place indices).
 
@@ -198,11 +280,11 @@ def call_tir_inplace(
     Parameters
     ----------
     gvar : GlobalVar
-        The GlobalVar referring to a TIR PrimFunc.
+        The GlobalVar referring to a TIR Function.
 
     args : Expr
         The ordered tensor and primitive input arguments.  These correspond
-        positionally to the leading parameters of the PrimFunc.
+        positionally to the leading parameters of the Function.
 
     inplace_indices : Union[int, List[int]]
         Specify which arguments should be used for in-place computations.
@@ -364,7 +446,7 @@ def make_closure(
     Parameters
     ----------
     func : Expr
-        The closure, can be ExternFunc or PrimFunc.
+        The closure, can be ExternFunc or Function.
 
     args : Expr
         The input arguments.
@@ -722,9 +804,9 @@ def call_inplace_packed(
 
 
 def call_pure_packed(
-    func: str | ExternFunc | GlobalVar,
+    func: str | ExternFunc | GlobalVar | Op,
     *args: Expr,
-    ty_args: Type | list[Type],
+    ty_args: Type | list[Type] | None = None,
 ) -> Expr:
     """
     Construct a call to a packed function that should be treated as pure,
@@ -740,14 +822,17 @@ def call_pure_packed(
 
     Parameters
     ----------
-    func : Union[str, ExternFunc]
+    func : Union[str, ExternFunc, Op]
       The name (global symbol) for a PackedFunc or an ExternFunc node.
+      The explicit ``relax.call_tir_packed`` Op is also accepted; its native
+      callee and argument tuple follow as arguments to this wrapper.
 
     args: Expr
       The arguments for the PackedFunc.
 
     ty_args: Union[Type, List[Type]]
         The list of type information arguments (giving the type information for the returned value).
+        Omit this for the native bridge, whose result follows the native signature.
 
     Returns
     -------
@@ -758,11 +843,14 @@ def call_pure_packed(
     if isinstance(func, ExternFunc):
         func = func.global_symbol
 
-    op = ExternFunc(func)
+    op = func if isinstance(func, Op) else ExternFunc(func)
     args = tuple(convert_to_expr(a) for a in args)
 
     if ty_args is None:
-        raise ValueError("R.call_pure_packed is required to have type_args")
+        if isinstance(op, Op) and op.same_as(Op.get("relax.call_tir_packed")):
+            ty_args = []
+        else:
+            raise ValueError("R.call_pure_packed is required to have type_args")
 
     if isinstance(ty_args, tuple):  # type: ignore
         ty_args = list(ty_args)

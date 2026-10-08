@@ -19,12 +19,12 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../meta_schedule/utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 namespace transform {
 /*!
@@ -44,7 +44,7 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
       return;
     }
   }
-  ffi::Array<tirx::IterVar> iters = sch->Get(block)->iter_vars;
+  ffi::Array<s_tir::IterVar> iters = sch->Get(block)->iter_vars;
 
   // when there is no loops, tirx will add a dummy iter var for the block
   // so loops.size() == 0 && iters.size() == 1
@@ -53,7 +53,7 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
   ffi::Array<s_tir::LoopRV> data_parallel_loops;
   // only fuse data parallel loops
   for (size_t i = 0; i < loops.size(); ++i) {
-    if (iters[i]->iter_type == tirx::IterVarType::kDataPar) {
+    if (iters[i]->iter_type == s_tir::IterVarType::kDataPar) {
       data_parallel_loops.push_back(loops[i]);
     }
   }
@@ -67,7 +67,7 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
   s_tir::LoopRV fused = sch->Fuse(data_parallel_loops, /*preserve_unit_iters=*/false);
   int64_t product = std::numeric_limits<int64_t>::max();
   if (sch->Get(fused)->extent->IsInstance<IntImmNode>()) {
-    product = sch->Get(fused)->extent.as<IntImmNode>()->value;
+    product = static_cast<int64_t>(sch->Get(fused)->extent.as<IntImmNode>()->value);
   }
   // schedule the fused loop
   if (product > max_thread_per_block * max_threadblocks) {
@@ -90,10 +90,10 @@ IRModule MarkScheduled(const IRModule& mod) {
   ffi::Map<GlobalVar, BaseFunc> result;
 
   for (const auto& [gv, base_func] : mod->functions) {
-    if (const auto* prim_func_node = base_func.as<tirx::PrimFuncNode>()) {
-      tirx::PrimFunc prim_func = ffi::GetRef<tirx::PrimFunc>(prim_func_node);
-      tirx::PrimFunc new_prim_func = WithAttr(std::move(prim_func), tirx::attr::kIsScheduled, true);
-      result.Set(gv, new_prim_func);
+    if (const auto* function_node = base_func.as<tirx::FunctionNode>()) {
+      tirx::Function function = ffi::GetRef<tirx::Function>(function_node);
+      tirx::Function new_function = WithAttr(std::move(function), tirx::attr::kIsScheduled, true);
+      result.Set(gv, new_function);
     } else {
       result.Set(gv, base_func);
     }
@@ -106,52 +106,52 @@ IRModule MarkScheduled(const IRModule& mod) {
 }
 
 /*!
- * \brief Wrap a PrimFunc body that is a bare \c SBlockRealize (no enclosing
+ * \brief Wrap a Function body that is a bare \c SBlockRealize (no enclosing
  * loops, no iter vars) so the realized block is no longer the function's root
  * sref.
  *
  * Without this, \c ThreadBind below calls \c Schedule::AddUnitLoop(block) on
- * a block that is itself the prim_func's root sref, hitting the
+ * a block that is itself the function's root sref, hitting the
  * "Cannot add loops on top of the root block" check in
  * \c s_tir::AddUnitLoop. The schedule infrastructure additionally requires
- * the prim_func body to be an \c SBlockRealize, so we keep that shape and
+ * the function body to be an \c SBlockRealize, so we keep that shape and
  * push the original block one level deeper, inside a wrapping root block
  * that holds a unit serial loop. The synthesised data-parallel iter keeps
  * iter_values/iter_vars counts consistent for downstream checks.
  */
-tirx::PrimFunc WrapBareSBlockBody(const tirx::PrimFunc& func) {
-  const auto* realize = func->body.as<tirx::SBlockRealizeNode>();
+tirx::Function WrapBareSBlockBody(const tirx::Function& func) {
+  const auto* realize = func->body.as<s_tir::SBlockRealizeNode>();
   if (realize == nullptr || !realize->block->iter_vars.empty()) {
     return func;
   }
-  // Only wrap when the block is a leaf computation. A well-formed PrimFunc
+  // Only wrap when the block is a leaf computation. A well-formed Function
   // produced by the rest of the pipeline has an implicit root SBlockRealize
   // whose block body is a For loop (or a nested SBlockRealize) — that case
   // already has somewhere to put thread bindings, so leave it alone.
   const tirx::Stmt& inner = realize->block->body;
-  if (inner->IsInstance<tirx::ForNode>() || inner->IsInstance<tirx::SBlockRealizeNode>()) {
+  if (inner->IsInstance<tirx::ForNode>() || inner->IsInstance<s_tir::SBlockRealizeNode>()) {
     return func;
   }
   tvm::IntImm zero(tvm::PrimType::Int(32), 0);
   tvm::IntImm one(tvm::PrimType::Int(32), 1);
   tirx::Var loop_var("u", tvm::PrimType::Int(32));
   tirx::Var iter_var_var("vu", tvm::PrimType::Int(32));
-  tirx::IterVar new_iter(tvm::Range::FromMinExtent(zero, one),
-                         iter_var_var.as_or_throw<tirx::PrimVar>(), tirx::IterVarType::kDataPar);
-  tirx::SBlock inner_block = realize->block;
-  inner_block.CopyOnWrite()->iter_vars = ffi::Array<tirx::IterVar>{new_iter};
-  tirx::SBlockRealize inner_realize(
+  s_tir::IterVar new_iter(tvm::Range::FromMinExtent(zero, one), iter_var_var.as_or_throw<PrimVar>(),
+                          s_tir::IterVarType::kDataPar);
+  s_tir::SBlock inner_block = realize->block;
+  inner_block.CopyOnWrite()->iter_vars = ffi::Array<s_tir::IterVar>{new_iter};
+  s_tir::SBlockRealize inner_realize(
       /*iter_values=*/ffi::Array<tvm::PrimExpr>{loop_var.as_or_throw<tvm::PrimExpr>()},
       /*predicate=*/realize->predicate, inner_block);
-  tirx::Stmt for_stmt = tirx::For(loop_var.as_or_throw<tirx::PrimVar>(), zero, one,
-                                  tirx::ForKind::kSerial, inner_realize);
-  tirx::SBlock root_block(/*iter_vars=*/ffi::Array<tirx::IterVar>{},
-                          /*reads=*/ffi::Array<tirx::BufferRegion>{},
-                          /*writes=*/ffi::Array<tirx::BufferRegion>{},
-                          /*name_hint=*/"root", /*body=*/for_stmt);
-  tirx::SBlockRealize root_realize(/*iter_values=*/ffi::Array<tvm::PrimExpr>{},
-                                   /*predicate=*/IntImm::Bool(true), root_block);
-  tirx::PrimFunc result = func;
+  tirx::Stmt for_stmt =
+      tirx::For(loop_var.as_or_throw<PrimVar>(), zero, one, tirx::ForKind::kSerial, inner_realize);
+  s_tir::SBlock root_block(/*iter_vars=*/ffi::Array<s_tir::IterVar>{},
+                           /*reads=*/ffi::Array<tvm::TensorRegion>{},
+                           /*writes=*/ffi::Array<tvm::TensorRegion>{},
+                           /*name_hint=*/"root", /*body=*/for_stmt);
+  s_tir::SBlockRealize root_realize(/*iter_values=*/ffi::Array<tvm::PrimExpr>{},
+                                    /*predicate=*/IntImm::Bool(true), root_block);
+  tirx::Function result = func;
   result.CopyOnWrite()->body = std::move(root_realize);
   return result;
 }
@@ -159,7 +159,7 @@ tirx::PrimFunc WrapBareSBlockBody(const tirx::PrimFunc& func) {
 bool IsScheduledOnGPU(const BaseFunc& func) {
   // the target from context.
   tvm::Target target = tvm::Target::Current();
-  // the Target in kTarget attribute of PrimFunc
+  // the Target in kTarget attribute of Function
   ffi::Optional<tvm::Target> func_target = func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget);
   if (func_target.has_value()) {
     target = func_target.value();
@@ -178,16 +178,16 @@ bool IsScheduledOnGPU(const BaseFunc& func) {
 Pass DefaultGPUSchedule() {
   auto pass_func =  //
       [=](IRModule m, PassContext pc) {
-        // Wrap any GPU-bound PrimFunc whose body is a bare SBlockRealize
+        // Wrap any GPU-bound Function whose body is a bare SBlockRealize
         // (e.g. a scalar op) so ThreadBind below has a loop to operate on.
         ffi::Map<GlobalVar, BaseFunc> wrapped;
         bool any_wrapped = false;
         for (const auto& [gv, base_func] : m->functions) {
-          if (const auto* prim_func_node = base_func.as<tirx::PrimFuncNode>();
-              prim_func_node != nullptr && IsScheduledOnGPU(base_func) &&
+          if (const auto* function_node = base_func.as<tirx::FunctionNode>();
+              function_node != nullptr && IsScheduledOnGPU(base_func) &&
               !base_func->HasNonzeroAttr(tirx::attr::kIsScheduled)) {
-            tirx::PrimFunc func = ffi::GetRef<tirx::PrimFunc>(prim_func_node);
-            tirx::PrimFunc new_func = WrapBareSBlockBody(func);
+            tirx::Function func = ffi::GetRef<tirx::Function>(function_node);
+            tirx::Function new_func = WrapBareSBlockBody(func);
             if (!new_func.same_as(func)) {
               wrapped.Set(gv, new_func);
               any_wrapped = true;
@@ -202,7 +202,7 @@ Pass DefaultGPUSchedule() {
         s_tir::Schedule sch = s_tir::Schedule::Traced(m, /*seed=*/-1, /*debug_mask=*/0,
                                                       s_tir::ScheduleErrorRenderLevel::kDetail);
         for (const auto& [gv, func] : m->functions) {
-          if (func->IsInstance<tirx::PrimFuncNode>() &&
+          if (func->IsInstance<tirx::FunctionNode>() &&
               !func->HasNonzeroAttr(tirx::attr::kIsScheduled) && IsScheduledOnGPU(func)) {
             // get the target from context.
             tvm::Target target = tvm::Target::Current();
@@ -214,7 +214,7 @@ Pass DefaultGPUSchedule() {
             }
             TVM_FFI_ICHECK(target.defined())
                 << "The target is missing either in the current context or in "
-                   "the prim_func's attribute.";
+                   "the function's attribute.";
             // get the max thread per block from target.
             ffi::Optional<int64_t> opt_max_thread_per_block =
                 target->GetAttr<int64_t>("max_num_threads");

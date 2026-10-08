@@ -28,7 +28,7 @@
 
 namespace tvm {
 namespace tirx {
-class PrimFunc;
+class Function;
 }  // namespace tirx
 namespace te {
 class Tensor;
@@ -37,7 +37,6 @@ class Tensor;
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 /*! \brief A tuning task extracted from the high-level IR */

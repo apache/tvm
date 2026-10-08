@@ -14,9 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 import tvm
 import tvm.s_tir
 import tvm.testing
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -24,39 +27,41 @@ def _check(original, transformed):
     func = original
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
+    # These expected fixtures include the subsequent lowering of thread loops.
+    mod = tvm.s_tir.transform.LowerThreadBinding()(mod)
     mod = tvm.tirx.transform.StmtSimplify()(mod)
     tvm.ir.assert_structural_equal(
         mod["main"], transformed.with_attr("global_symbol", "main"), True
     )
 
 
-@T.prim_func(s_tir=True)
-def compacted_elementwise_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float32")
-    C = T.match_buffer(c, (16, 16), "float32")
+@Ts.function
+def compacted_elementwise_func(
+    A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
+) -> None:
     for i in range(0, 16):
-        with T.sblock():
-            T.reads(A[i, 0:16])
-            T.writes(C[i, 0:16])
-            B = T.sblock_alloc_buffer([1, 16], "float32", scope="global")
+        with Ts.sblock():
+            Ts.reads(A[i, 0:16])
+            Ts.writes(C[i, 0:16])
+            B = Ts.sblock_alloc_buffer([1, 16], "float32", scope="global")
             for j in range(0, 16):
-                with T.sblock():
-                    T.reads(A[i, j])
-                    T.writes(B[0, j])
+                with Ts.sblock():
+                    Ts.reads(A[i, j])
+                    Ts.writes(B[0, j])
                     B[0, j] = A[i, j] + 1.0
             for j in range(0, 16):
-                with T.sblock():
-                    T.reads(B[0, j])
-                    T.writes(C[i, j])
+                with Ts.sblock():
+                    Ts.reads(B[0, j])
+                    Ts.writes(C[i, j])
                     C[i, j] = B[0, j] * 2.0
 
 
-@T.prim_func(s_tir=True)
-def transformed_elementwise_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float32")
-    C = T.match_buffer(c, (16, 16), "float32")
+@Ts.function
+def transformed_elementwise_func(
+    A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
+) -> None:
     for i in T.serial(0, 16):
-        B_new = T.alloc_buffer(
+        B_new = T.alloc_tensor(
             [1, 16],
             "float32",
             annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
@@ -67,42 +72,35 @@ def transformed_elementwise_func(a: T.handle, c: T.handle) -> None:
             C[i, j] = B_new[0, j] * 2.0
 
 
-@T.prim_func(s_tir=True)
-def compacted_gpu_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float32")
-    C = T.match_buffer(c, (16, 16), "float32")
+@Ts.function
+def compacted_gpu_func(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
     for i0 in T.thread_binding(0, 4, thread="blockIdx.x"):
         for i1 in T.thread_binding(0, 2, thread="threadIdx.x"):
             for i2 in T.thread_binding(0, 2, thread="vthread"):
-                with T.sblock():
-                    T.reads(A[i0 * 4 + i1 * 2 + i2, 0:16])
-                    T.writes(C[i0 * 4 + i1 * 2 + i2, 0:16])
-                    B = T.sblock_alloc_buffer([1, 16], "float32", scope="local")
+                with Ts.sblock():
+                    Ts.reads(A[i0 * 4 + i1 * 2 + i2, 0:16])
+                    Ts.writes(C[i0 * 4 + i1 * 2 + i2, 0:16])
+                    B = Ts.sblock_alloc_buffer([1, 16], "float32", scope="local")
                     for j in range(0, 16):
-                        with T.sblock():
-                            T.reads(A[i0 * 4 + i1 * 2 + i2, j])
-                            T.writes(B[0, j])
+                        with Ts.sblock():
+                            Ts.reads(A[i0 * 4 + i1 * 2 + i2, j])
+                            Ts.writes(B[0, j])
                             B[0, j] = A[i0 * 4 + i1 * 2 + i2, j] + 1.0
                     for j in range(0, 16):
-                        with T.sblock():
-                            T.reads(B[0, j])
-                            T.writes(C[i0 * 4 + i1 * 2 + i2, j])
+                        with Ts.sblock():
+                            Ts.reads(B[0, j])
+                            Ts.writes(C[i0 * 4 + i1 * 2 + i2, j])
                             C[i0 * 4 + i1 * 2 + i2, j] = B[0, j] * 2.0
 
 
-@T.prim_func(s_tir=True)
-def transformed_gpu_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float32")
-    C = T.match_buffer(c, (16, 16), "float32")
-
-    i0 = T.env_thread("blockIdx.x")
-    i1 = T.env_thread("threadIdx.x")
-    i2 = T.env_thread("vthread")
-
-    T.launch_thread(i0, 4)
-    T.launch_thread(i1, 2)
-    T.launch_thread(i2, 2)
-    B = T.alloc_buffer(
+@Ts.function
+def transformed_gpu_func(
+    A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
+) -> None:
+    i0 = T.launch_thread("blockIdx.x", 4)
+    i1 = T.launch_thread("threadIdx.x", 2)
+    i2 = T.launch_thread("vthread", 2)
+    B = T.alloc_tensor(
         [1, 16],
         "float32",
         scope="local",
@@ -114,35 +112,39 @@ def transformed_gpu_func(a: T.handle, c: T.handle) -> None:
         C[i0 * 4 + i1 * 2 + i2, j] = B[0, j] * 2.0
 
 
-@T.prim_func(s_tir=True)
-def compacted_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
-    A = T.match_buffer(a, (n, m), "float32")
-    C = T.match_buffer(c, (n, m), "float32")
-
+@Ts.function
+def compacted_symbolic_func(
+    A: T.Tensor((n, m), "float32"),  # noqa: F821
+    C: T.Tensor((n, m), "float32"),  # noqa: F821
+    n: T.int32,
+    m: T.int32,
+) -> None:
     for i in range(0, n):
-        with T.sblock():
-            T.reads(A[i, m])
-            T.writes(C[i, m])
-            B = T.sblock_alloc_buffer((m,), "float32", scope="global")
+        with Ts.sblock():
+            Ts.reads(A[i, m])
+            Ts.writes(C[i, m])
+            B = Ts.sblock_alloc_buffer((m,), "float32", scope="global")
             for j in range(0, m):
-                with T.sblock():
-                    T.reads(A[i, j])
-                    T.writes(B[j])
+                with Ts.sblock():
+                    Ts.reads(A[i, j])
+                    Ts.writes(B[j])
                     B[j] = A[i, j] + 1.0
             for j in range(0, m):
-                with T.sblock():
-                    T.reads(B[j])
-                    T.writes(C[i, j])
+                with Ts.sblock():
+                    Ts.reads(B[j])
+                    Ts.writes(C[i, j])
                     C[i, j] = B[j] * 2.0
 
 
-@T.prim_func(s_tir=True)
-def transformed_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
-    A = T.match_buffer(a, (n, m), "float32")
-    C = T.match_buffer(c, (n, m), "float32")
-
+@Ts.function
+def transformed_symbolic_func(
+    A: T.Tensor((n, m), "float32"),  # noqa: F821
+    C: T.Tensor((n, m), "float32"),  # noqa: F821
+    n: T.int32,
+    m: T.int32,
+) -> None:
     for i in range(0, n):
-        B = T.alloc_buffer(
+        B = T.alloc_tensor(
             [m],
             "float32",
             annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
@@ -153,78 +155,60 @@ def transformed_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) 
             C[i, j] = B[j] * 2.0
 
 
-@T.prim_func(s_tir=True)
-def compacted_predicate_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (32), "float32")
-    C = T.match_buffer(c, (32), "float32")
-
+@Ts.function
+def compacted_predicate_func(A: T.Tensor(32, "float32"), C: T.Tensor(32, "float32")) -> None:
     for i, j in T.grid(5, 7):
-        with T.sblock():
-            T.reads(A[i * 7 + j])
-            T.writes(C[i * 7 + j])
-            T.where(i * 7 + j < 32)
+        with Ts.sblock():
+            Ts.reads(A[i * 7 + j])
+            Ts.writes(C[i * 7 + j])
+            Ts.where(i * 7 + j < 32)
             C[i * 7 + j] = A[i * 7 + j] + 1.0
 
 
-@T.prim_func(s_tir=True)
-def transformed_predicate_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (32), "float32")
-    C = T.match_buffer(c, (32), "float32")
-
+@Ts.function
+def transformed_predicate_func(A: T.Tensor(32, "float32"), C: T.Tensor(32, "float32")) -> None:
     for i, j in T.grid(5, 7):
         if i * 7 + j < 32:
             C[i * 7 + j] = A[i * 7 + j] + 1.0
 
 
-@T.prim_func(s_tir=True)
-def compacted_unit_loop_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (32), "float32")
-    C = T.match_buffer(c, (32), "float32")
-
+@Ts.function
+def compacted_unit_loop_func(A: T.Tensor(32, "float32"), C: T.Tensor(32, "float32")) -> None:
     for x, y, z in T.grid(4, 1, 8):
-        with T.sblock():
-            T.reads(A[x * 8 + y * 8 + z])
-            T.writes(C[x * 8 + y * 8 + z])
+        with Ts.sblock():
+            Ts.reads(A[x * 8 + y * 8 + z])
+            Ts.writes(C[x * 8 + y * 8 + z])
             C[x * 8 + y * 8 + z] = A[x * 8 + y * 8 + z] + 1.0
 
 
-@T.prim_func(s_tir=True)
-def transformed_unit_loop_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (32), "float32")
-    C = T.match_buffer(c, (32), "float32")
-
+@Ts.function
+def transformed_unit_loop_func(A: T.Tensor(32, "float32"), C: T.Tensor(32, "float32")) -> None:
     for x, z in T.grid(4, 8):
         C[x * 8 + z] = A[x * 8 + z] + 1.0
 
 
-@T.prim_func(s_tir=True)
-def compacted_multi_alloc_func(a: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, (32), "float32")
-    D = T.match_buffer(d, (32), "float32")
-
+@Ts.function
+def compacted_multi_alloc_func(A: T.Tensor(32, "float32"), D: T.Tensor(32, "float32")) -> None:
     for i in range(0, 32):
-        with T.sblock():
-            T.reads(A[i])
-            T.writes(D[i])
-            B = T.sblock_alloc_buffer((32,), scope="global")
-            C = T.sblock_alloc_buffer((32,), scope="global")
+        with Ts.sblock():
+            Ts.reads(A[i])
+            Ts.writes(D[i])
+            B = Ts.sblock_alloc_buffer((32,), scope="global")
+            C = Ts.sblock_alloc_buffer((32,), scope="global")
             B[i] = A[i] + 1.0
             C[i] = A[i] + B[i]
             D[i] = C[i] * 2.0
 
 
-@T.prim_func(s_tir=True)
-def transformed_multi_alloc_func(a: T.handle, d: T.handle) -> None:
-    A = T.match_buffer(a, (32), "float32")
-    D = T.match_buffer(d, (32), "float32")
-
+@Ts.function
+def transformed_multi_alloc_func(A: T.Tensor(32, "float32"), D: T.Tensor(32, "float32")) -> None:
     for i in range(0, 32):
-        B = T.alloc_buffer(
+        B = T.alloc_tensor(
             (32,),
             "float32",
             annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
         )
-        C = T.alloc_buffer(
+        C = T.alloc_tensor(
             (32,),
             "float32",
             annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
@@ -234,36 +218,36 @@ def transformed_multi_alloc_func(a: T.handle, d: T.handle) -> None:
         D[i] = C[i] * 2.0
 
 
-@T.prim_func(s_tir=True)
-def compacted_strided_buffer_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float32")
-    C = T.match_buffer(c, (16, 16), "float32")
+@Ts.function
+def compacted_strided_buffer_func(
+    A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
+) -> None:
     for i0 in range(0, 4):
-        with T.sblock():
-            T.reads(A[i0 * 4 : i0 * 4 + 4, 0:16])
-            T.writes(C[i0 * 4 : i0 * 4 + 4, 0:16])
-            B = T.sblock_alloc_buffer([4, 16], "float32", strides=[17, 1], scope="global")
+        with Ts.sblock():
+            Ts.reads(A[i0 * 4 : i0 * 4 + 4, 0:16])
+            Ts.writes(C[i0 * 4 : i0 * 4 + 4, 0:16])
+            B = Ts.sblock_alloc_buffer([4, 16], "float32", strides=[17, 1], scope="global")
             for i1 in range(0, 4):
                 for j in range(0, 16):
-                    with T.sblock():
-                        T.reads(A[i0 * 4 + i1, j])
-                        T.writes(B[i1, j])
+                    with Ts.sblock():
+                        Ts.reads(A[i0 * 4 + i1, j])
+                        Ts.writes(B[i1, j])
                         B[i1, j] = A[i0 * 4 + i1, j] + 1.0
             for i1 in range(0, 4):
                 for j in range(0, 16):
-                    with T.sblock():
-                        T.reads(B[i1, j])
-                        T.writes(C[i0 * 4 + i1, j])
+                    with Ts.sblock():
+                        Ts.reads(B[i1, j])
+                        Ts.writes(C[i0 * 4 + i1, j])
                         C[i0 * 4 + i1, j] = B[i1, j] * 2.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.function
 def transformed_strided_buffer_func(
-    A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")
+    A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ) -> None:
     # body
     for i0 in T.serial(4):
-        B = T.alloc_buffer(
+        B = T.alloc_tensor(
             [4, 16],
             "float32",
             strides=[17, 1],
@@ -275,20 +259,21 @@ def transformed_strided_buffer_func(
             C[i0 * 4 + i1, j] = B[i1, j] * T.float32(2)
 
 
-@T.prim_func(s_tir=True)
-def compacted_symbolic_strided_buffer_func(a: T.handle) -> None:
-    n = T.int32()
-    A = T.match_buffer(a, (1, n, 10240))
+n = T.dynamic("n", "int32")
+
+
+@Ts.function
+def compacted_symbolic_strided_buffer_func(A: T.Tensor((1, n, 10240))) -> None:
     padded_size = T.meta_var(T.min((n + 63) // 64 * 64, 96))
-    # with T.sblock("root"):
+    # with Ts.sblock("root"):
     for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):
-        with T.sblock(""):
-            A_pad_shared_dyn = T.sblock_alloc_buffer(
+        with Ts.sblock(""):
+            A_pad_shared_dyn = Ts.sblock_alloc_buffer(
                 (1, padded_size, 64), strides=(72 * padded_size, 72, 1), scope="shared.dyn"
             )
             for ax0, ax1 in T.grid(96, 64):
-                with T.sblock("A_pad_shared.dyn"):
-                    T.where(i * 128 + j * 32 + ax0 < (n + 63) // 64 * 64)
+                with Ts.sblock("A_pad_shared.dyn"):
+                    Ts.where(i * 128 + j * 32 + ax0 < (n + 63) // 64 * 64)
                     A_pad_shared_dyn[0, ax0, ax1] = T.if_then_else(
                         i * 128 + j * 32 + ax0 < n,
                         A[0, i * 128 + j * 32 + ax0, k * 64 + ax1],
@@ -296,14 +281,16 @@ def compacted_symbolic_strided_buffer_func(a: T.handle) -> None:
                     )
 
 
-@T.prim_func(s_tir=True)
-def transformed_symbolic_strided_buffer_func(a: T.handle):
-    n = T.int32()
-    A = T.match_buffer(a, (1, n, 10240))
+n = T.dynamic("n", "int32")
+
+
+@Ts.function
+def transformed_symbolic_strided_buffer_func(A: T.Tensor((1, n, 10240))):
+    padded_size = T.min((n + 63) // 64 * 64, 96)
     for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):
-        A_pad_shared_dyn = T.alloc_buffer(
-            (1, T.min((n + 63) // 64 * 64, 96), 64),
-            strides=(72 * T.min((n + 63) // 64 * 64, 96), 72, 1),
+        A_pad_shared_dyn = T.alloc_tensor(
+            (1, padded_size, 64),
+            strides=(72 * padded_size, 72, 1),
             scope="shared.dyn",
             annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
         )
@@ -316,24 +303,17 @@ def transformed_symbolic_strided_buffer_func(a: T.handle):
                 )
 
 
-@T.prim_func(s_tir=True)
-def annotated_loops(a: T.handle) -> None:
-    A = T.match_buffer(a, (16,), "float32")
-    for i in range(0, 16, annotations={"pragma_1": "str_value", "pragma_2": 1, "pragma_3": 0.0}):
-        A[i] = 0.0
-
-
-@T.prim_func(s_tir=True)
-def boolean_handling_before(a: T.Buffer(10, "bool"), b: T.Buffer(10, "bool")) -> None:
+@Ts.function
+def boolean_handling_before(a: T.Tensor(10, "bool"), b: T.Tensor(10, "bool")) -> None:
     for i0 in T.serial(10):
-        with T.sblock("b"):
-            T.reads(a[i0])
-            T.writes(b[i0])
+        with Ts.sblock("b"):
+            Ts.reads(a[i0])
+            Ts.writes(b[i0])
             b[i0] = a[i0]
 
 
-@T.prim_func(s_tir=True)
-def boolean_handling_after(a: T.Buffer(10, "bool"), b: T.Buffer(10, "bool")) -> None:
+@Ts.function
+def boolean_handling_after(a: T.Tensor(10, "bool"), b: T.Tensor(10, "bool")) -> None:
     # body
     for i0 in T.serial(10):
         b[i0] = a[i0]
@@ -371,48 +351,16 @@ def test_symbolic_strided_buffer():
     _check(compacted_symbolic_strided_buffer_func, transformed_symbolic_strided_buffer_func)
 
 
-def test_annotated_loops():
-    mod = tvm.IRModule.from_expr(annotated_loops.with_attr("global_symbol", "main"))
-    mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
-    attr1 = mod["main"].body
-    attr2 = attr1.body
-    attr3 = attr2.body
-    assert attr1.attr_key == "pragma_1" and attr1.value == "str_value"
-    assert attr2.attr_key == "pragma_2"
-    tvm.ir.assert_structural_equal(attr2.value, tvm.tirx.IntImm("int32", 1))
-    assert attr3.attr_key == "pragma_3"
-    tvm.ir.assert_structural_equal(attr3.value, tvm.tirx.FloatImm("float32", 0.0))
-
-
-def test_annotated_block():
-    @T.prim_func(s_tir=True)
-    def annotated_block() -> None:
-        with T.sblock():
-            T.sblock_attr({"pragma_1": "str_value", "pragma_2": 1, "pragma_3": 0.0})
-            T.evaluate(0)
-
-    mod = tvm.IRModule.from_expr(annotated_block.with_attr("global_symbol", "main"))
-    mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
-    attr1 = mod["main"].body
-    attr2 = attr1.body
-    attr3 = attr2.body
-    assert attr1.attr_key == "pragma_1" and attr1.value == "str_value"
-    assert attr2.attr_key == "pragma_2"
-    tvm.ir.assert_structural_equal(attr2.value, tvm.tirx.IntImm("int32", 1))
-    assert attr3.attr_key == "pragma_3"
-    tvm.ir.assert_structural_equal(attr3.value, tvm.tirx.FloatImm("float32", 0.0))
-
-
 def test_preserved_annotations():
-    @T.prim_func(s_tir=True)
-    def before(A: T.Buffer(8, "float32"), B: T.Buffer(8, "float32")):
+    @Ts.function
+    def before(A: T.Tensor(8, "float32"), B: T.Tensor(8, "float32")):
         for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3], "k_2": 3.14}):
-            with T.sblock("block"):
-                T.sblock_attr({"k_3": "oops"})
+            with Ts.sblock("block"):
+                Ts.sblock_attr({"k_3": "oops"})
                 B[i] = A[i] + 1.0
 
-    @T.prim_func(s_tir=True)
-    def after(A: T.Buffer(8, "float32"), B: T.Buffer(8, "float32")):
+    @Ts.function
+    def after(A: T.Tensor(8, "float32"), B: T.Tensor(8, "float32")):
         for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3], "k_2": 3.14}):
             B[i] = A[i] + 1.0
 
@@ -422,14 +370,14 @@ def test_preserved_annotations():
 
 
 def test_none_pragma_annotation():
-    @T.prim_func(s_tir=True)
-    def before(A: T.Buffer(8, "float32"), B: T.Buffer(8, "float32")):
-        for i in T.serial(8, annotations={"pragma_unroll_explicit": None}):
-            with T.sblock("block"):
+    @Ts.function
+    def before(A: T.Tensor(8, "float32"), B: T.Tensor(8, "float32")):
+        for i in T.serial(8, annotations={"unroll_explicit": None}):
+            with Ts.sblock("block"):
                 B[i] = A[i] + 1.0
 
-    @T.prim_func(s_tir=True)
-    def after(A: T.Buffer(8, "float32"), B: T.Buffer(8, "float32")):
+    @Ts.function
+    def after(A: T.Tensor(8, "float32"), B: T.Tensor(8, "float32")):
         for i in T.serial(8):
             B[i] = A[i] + 1.0
 

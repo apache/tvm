@@ -144,7 +144,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
 
 class NNAPIJSONSerializer : public JSONSerializer {
  public:
-  explicit NNAPIJSONSerializer(ffi::Map<Constant, ffi::String> constant_names,
+  explicit NNAPIJSONSerializer(ffi::Map<GenericConst, ffi::String> constant_names,
                                ffi::Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
   using JSONSerializer::VisitExpr_;
@@ -204,7 +204,7 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
 
 ffi::Array<ffi::Module> NNAPICompiler(ffi::Array<Function> functions,
                                       ffi::Map<ffi::String, ffi::Any> /*unused*/,
-                                      ffi::Map<Constant, ffi::String> constant_names) {
+                                      ffi::Map<GenericConst, ffi::String> constant_names) {
   VLOG(1) << "NNAPI Compiler";
 
   ffi::Array<ffi::Module> compiled_functions;

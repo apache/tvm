@@ -23,11 +23,11 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
-def test_annotate_entry_func_single_primfunc():
+def test_annotate_entry_func_single_function():
     @tvm.script.ir_module
     class MockModule:
-        @T.prim_func(private=True, s_tir=True)
-        def func1(A: T.Buffer((16,), "float32")):
+        @T.function(private=True)
+        def func1(A: T.Tensor((16,), "float32")):
             for i in T.serial(16):
                 if i == 5:
                     if i == 5:
@@ -47,15 +47,15 @@ def test_annotate_entry_func_single_primfunc():
 # Test module
 @tvm.script.ir_module
 class MockModule:
-    @T.prim_func(private=True, s_tir=True)
-    def func1(A: T.Buffer((16,), "float32")):
+    @T.function(private=True)
+    def func1(A: T.Tensor((16,), "float32")):
         for i in T.serial(16):
             if i == 5:
                 if i == 5:
                     A[i] = 0.0
 
-    @T.prim_func(private=True, s_tir=True)
-    def func2(A: T.Buffer((32,), "float32")):
+    @T.function(private=True)
+    def func2(A: T.Tensor((32,), "float32")):
         for i in T.serial(32):
             if i == 15:
                 if i == 15:
@@ -63,7 +63,7 @@ class MockModule:
 
 
 @pytest.mark.xfail
-def test_annotate_entry_func_multiple_primfunc():
+def test_annotate_entry_func_multiple_function():
     mod = MockModule
     assert mod
     assert "target" not in (mod["func1"].attrs or {})
@@ -92,13 +92,13 @@ def test_bind_target_adds_attribute():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main():
             T.evaluate(0)
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main():
             T.func_attr({"target": T.target("cuda")})
             T.evaluate(0)
@@ -112,14 +112,14 @@ def test_bind_target_with_host_to_exposed_function():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main():
             T.func_attr({"global_symbol": "main"})
             T.evaluate(0)
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main():
             T.func_attr({"global_symbol": "main", "target": T.target("cuda", host="llvm")})
             T.evaluate(0)
@@ -140,13 +140,13 @@ def test_bind_target_with_host_to_internal_function():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @T.function(private=True)
         def main():
             T.evaluate(0)
 
     @I.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @T.function(private=True)
         def main():
             T.func_attr({"target": T.target("cuda")})
             T.evaluate(0)
@@ -160,7 +160,7 @@ def test_bind_target_ignores_existing():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main():
             T.func_attr({"target": T.target("nvptx")})
             T.evaluate(0)
@@ -176,14 +176,14 @@ def test_bind_target_updates_host():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main():
             T.func_attr({"global_symbol": "func", "target": T.target("nvptx")})
             T.evaluate(0)
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main():
             T.func_attr(
                 {
@@ -204,22 +204,22 @@ def test_bind_target_multiple_functions():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.function
         def func1():
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @T.function
         def func2():
             T.evaluate(0)
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.function
         def func1():
             T.func_attr({"target": T.target("cuda")})
             T.evaluate(0)
 
-        @T.prim_func(s_tir=True)
+        @T.function
         def func2():
             T.func_attr({"target": T.target("cuda")})
             T.evaluate(0)
@@ -233,15 +233,15 @@ def test_bind_target_with_device_host_call_same_func():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @T.function(private=True)
         def add(a: T.int32, b: T.int32) -> T.int32:
             return a + b
 
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(
-            A: T.Buffer((128, 128), "int32"),
-            B: T.Buffer((128, 128), "int32"),
-            C: T.Buffer((128, 128), "int32"),
+            A: T.Tensor((128, 128), "int32"),
+            B: T.Tensor((128, 128), "int32"),
+            C: T.Tensor((128, 128), "int32"),
         ):
             T.func_attr({"global_symbol": "main"})
             length: T.let[T.int32] = Before.add(64, 64)  # Call from host
@@ -251,21 +251,21 @@ def test_bind_target_with_device_host_call_same_func():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @T.function(private=True)
         def add(a: T.int32, b: T.int32) -> T.int32:
             T.func_attr({"target": T.target("cuda")})
             return a + b
 
-        @T.prim_func(private=True, s_tir=True)
+        @T.function(private=True)
         def add_host(a: T.int32, b: T.int32) -> T.int32:
             T.func_attr({"target": T.target({"kind": "llvm", "opt-level": 0})})
             return a + b
 
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(
-            A: T.Buffer((128, 128), "int32"),
-            B: T.Buffer((128, 128), "int32"),
-            C: T.Buffer((128, 128), "int32"),
+            A: T.Tensor((128, 128), "int32"),
+            B: T.Tensor((128, 128), "int32"),
+            C: T.Tensor((128, 128), "int32"),
         ):
             T.func_attr(
                 {
@@ -289,12 +289,12 @@ def test_bind_target_with_tirx_device_entry():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def add(a: T.int32, b: T.int32) -> T.int32:
             return a + b
 
-        @T.prim_func
-        def main(A: T.Buffer((1,), "int32")):
+        @T.function
+        def main(A: T.Tensor((1,), "int32")):
             T.func_attr({"global_symbol": "main"})
             host_value: T.let[T.int32] = Before.add(1, 2)
             T.device_entry()
@@ -303,18 +303,18 @@ def test_bind_target_with_tirx_device_entry():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def add(a: T.int32, b: T.int32) -> T.int32:
             T.func_attr({"target": T.target({"arch": "sm_100a", "kind": "cuda"})})
             return a + b
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def add_host(a: T.int32, b: T.int32) -> T.int32:
             T.func_attr({"target": T.target({"kind": "llvm", "opt-level": 0})})
             return a + b
 
-        @T.prim_func
-        def main(A: T.Buffer((1,), "int32")):
+        @T.function
+        def main(A: T.Tensor((1,), "int32")):
             T.func_attr(
                 {
                     "global_symbol": "main",
@@ -339,7 +339,7 @@ def test_bind_target_with_tirx_device_entry():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-def test_filter_primfunc():
+def test_filter_function():
     mod = MockModule
     assert mod
     # Annotate each function for testing
@@ -347,7 +347,7 @@ def test_filter_primfunc():
     mod["func2"] = mod["func2"].with_attr("temp", "test2")
 
     # Test condition that does not filter out anything
-    def checker_filter_out_none(func: tvm.tirx.PrimFunc):
+    def checker_filter_out_none(func: tvm.tirx.Function):
         return "temp" in func.attrs
 
     after = tvm.tirx.transform.Filter(checker_filter_out_none)(mod)
@@ -356,8 +356,8 @@ def test_filter_primfunc():
     assert checker_filter_out_none(after["func1"])
     assert checker_filter_out_none(after["func2"])
 
-    # Test condition that selectively filters out primfuncs
-    def checker_filter_out_one(func: tvm.tirx.PrimFunc):
+    # Test condition that selectively filters out functions
+    def checker_filter_out_one(func: tvm.tirx.Function):
         return ("temp" in func.attrs) and func.attrs["temp"] == "test1"
 
     after = tvm.tirx.transform.Filter(checker_filter_out_one)(mod)
@@ -366,7 +366,7 @@ def test_filter_primfunc():
     assert checker_filter_out_one(after["func1"])
 
     # Test condition that filters out everything
-    def checker_filter_out_both(func: tvm.tirx.PrimFunc):
+    def checker_filter_out_both(func: tvm.tirx.Function):
         return "invalid_attr" in func.attrs
 
     after = tvm.tirx.transform.Filter(checker_filter_out_both)(mod)
@@ -384,7 +384,7 @@ def test_filter_removes_global_var_map():
 
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.function
         def func():
             T.evaluate(0)
 
@@ -392,7 +392,7 @@ def test_filter_removes_global_var_map():
     class Expected:
         pass
 
-    After = tvm.tirx.transform.Filter(lambda prim_func: False)(Before)
+    After = tvm.tirx.transform.Filter(lambda function: False)(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
 

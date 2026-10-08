@@ -17,7 +17,6 @@
 """Configuration of TVMScript printer"""
 
 import os
-import sys
 from collections.abc import Sequence
 
 from tvm_ffi import get_global_func, register_object
@@ -30,21 +29,26 @@ from . import _ffi_node_api
 
 @register_object("script.PrinterConfig")
 class PrinterConfig(Object):
-    """Configuration of TVMScript printer"""
+    """Configuration of TVMScript printer.
+
+    The ``int_dtype`` and ``float_dtype`` arguments populate the string-valued
+    ``ir.int_dtype`` and ``ir.float_dtype`` entries in ``extra_config``.
+    Explicit entries in ``extra_config`` override those arguments.
+
+    ``tirx.scalar_buffer_as_mutable_var`` in ``extra_config`` defaults to true.
+    It prints eligible local scalar buffers as typed mutable variables. Set it
+    to false to retain explicit buffer allocations and indexed loads/stores.
+    """
 
     binding_names: Sequence[str]
     show_meta: bool
     ir_prefix: str
     module_alias: str
     buffer_dtype: str
-    int_dtype: str
-    float_dtype: str
     verbose_expr: bool
     indent_spaces: int
     print_line_numbers: bool
     num_context_lines: int
-    syntax_sugar: bool
-    show_object_address: bool
     extra_config: dict
     path_to_underline: list[AccessPath] | None
     path_to_annotate: dict[AccessPath, str] | None
@@ -65,8 +69,6 @@ class PrinterConfig(Object):
         indent_spaces: int = 4,
         print_line_numbers: bool = False,
         num_context_lines: int | None = None,
-        syntax_sugar: bool = True,
-        show_object_address: bool = False,
         show_all_ty: bool = True,
         extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
@@ -81,14 +83,12 @@ class PrinterConfig(Object):
             "ir_prefix": ir_prefix,
             "module_alias": module_alias,
             "buffer_dtype": buffer_dtype,
-            "int_dtype": int_dtype,
-            "float_dtype": float_dtype,
+            "ir.int_dtype": int_dtype,
+            "ir.float_dtype": float_dtype,
             "verbose_expr": verbose_expr,
             "indent_spaces": indent_spaces,
             "print_line_numbers": print_line_numbers,
             "num_context_lines": num_context_lines,
-            "syntax_sugar": syntax_sugar,
-            "show_object_address": show_object_address,
             "path_to_underline": path_to_underline,
             "path_to_annotate": path_to_annotate,
             "obj_to_underline": obj_to_underline,
@@ -132,8 +132,6 @@ class Scriptable:
         indent_spaces: int = 4,
         print_line_numbers: bool = False,
         num_context_lines: int = -1,
-        syntax_sugar: bool = True,
-        show_object_address: bool = False,
         show_all_ty: bool = True,
         extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
@@ -152,8 +150,7 @@ class Scriptable:
         ir_prefix : str = "I"
             The prefix of AST nodes from tvm.ir
         module_alias : str = "cls"
-            The alias of the current module at cross-function call,
-            Directly use module name if it's empty.
+            Retained for compatibility. Cross-function calls use the module name directly.
         int_dtype : str = "int32"
             The default data type of integer
         float_dtype : str = "void"
@@ -166,10 +163,6 @@ class Scriptable:
             Whether to print line numbers
         num_context_lines : int = -1
             The number of lines of context to print before and after the line to underline.
-        syntax_sugar: bool = True
-            Whether to output with syntax sugar, set false for complete printing.
-        show_object_address: bool = False
-            Whether to include the object's address as part of the TVMScript name
         show_all_ty: bool = True
             If True (default), annotate all variable bindings with the struct
             info of that variable.  If False, only add annotations where
@@ -194,24 +187,23 @@ class Scriptable:
 
         """
         # Auto-switch to tirx (`T`/`tirx`) flavor only when explicitly
-        # printing a PrimFunc / IRModule that has no s_tir-tagged content.
-        # Free objects (Buffer, BufferRegion, ...) keep the default `T`/`tir`
+        # printing a Function / IRModule that has no s_tir-tagged content.
+        # Free objects (Buffer, buffer-backed TensorRegion, ...) keep the default `T`/`tir`
         # flavor -- they have no enclosing function to indicate tirx vs s_tir.
         merged_extra: dict = {}
         if extra_config is not None:
             merged_extra.update(extra_config)
-        if "script.use_pep695" not in merged_extra:
-            merged_extra["script.use_pep695"] = merged_extra.get(
-                "relax.use_pep695", sys.version_info >= (3, 12)
-            )
+        # Keep the historical interactive display header. Direct printer calls
+        # retain executable imports for standalone parser round-trips.
+        merged_extra.setdefault("ir.comment_imports", True)
 
         # Only auto-switch if the caller has not already set a tirx.prefix override.
         if "tirx.prefix" not in merged_extra:
             from tvm.ir import IRModule  # pylint: disable=import-outside-toplevel
-            from tvm.tirx import PrimFunc  # pylint: disable=import-outside-toplevel
+            from tvm.tirx import Function  # pylint: disable=import-outside-toplevel
 
             switch_to_tirx = False
-            if isinstance(self, PrimFunc):
+            if isinstance(self, Function):
                 attrs = getattr(self, "attrs", None)
                 if attrs is None or not attrs.get("s_tir", False):
                     switch_to_tirx = True
@@ -219,7 +211,7 @@ class Scriptable:
                 any_prim = False
                 any_s_tir = False
                 for _, base_func in self.functions.items():
-                    if isinstance(base_func, PrimFunc):
+                    if isinstance(base_func, Function):
                         any_prim = True
                         if getattr(base_func, "attrs", None) and base_func.attrs.get(
                             "s_tir", False
@@ -244,8 +236,6 @@ class Scriptable:
                 indent_spaces=indent_spaces,
                 print_line_numbers=print_line_numbers,
                 num_context_lines=num_context_lines,
-                syntax_sugar=syntax_sugar,
-                show_object_address=show_object_address,
                 show_all_ty=show_all_ty,
                 extra_config=merged_extra if merged_extra else None,
                 path_to_underline=path_to_underline,
@@ -268,8 +258,6 @@ class Scriptable:
         indent_spaces: int = 4,
         print_line_numbers: bool = False,
         num_context_lines: int = -1,
-        syntax_sugar: bool = True,
-        show_object_address: bool = False,
         extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
         path_to_annotate: dict[AccessPath, str] | None = None,
@@ -277,10 +265,6 @@ class Scriptable:
         obj_to_annotate: dict[Object, str] | None = None,
     ) -> str:
         merged_extra = dict(extra_config or {})
-        if "script.use_pep695" not in merged_extra:
-            merged_extra["script.use_pep695"] = merged_extra.get(
-                "relax.use_pep695", sys.version_info >= (3, 12)
-            )
         return _relax_script(
             self,
             PrinterConfig(
@@ -294,8 +278,6 @@ class Scriptable:
                 indent_spaces=indent_spaces,
                 print_line_numbers=print_line_numbers,
                 num_context_lines=num_context_lines,
-                syntax_sugar=syntax_sugar,
-                show_object_address=show_object_address,
                 extra_config=merged_extra,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,
@@ -319,8 +301,6 @@ class Scriptable:
         indent_spaces: int = 4,
         print_line_numbers: bool = False,
         num_context_lines: int = -1,
-        syntax_sugar: bool = True,
-        show_object_address: bool = False,
         show_all_ty: bool = True,
         extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
@@ -334,7 +314,7 @@ class Scriptable:
         ----------
         style : str, optional
             Pygmentize printing style, auto-detected if None.  See
-            `tvm.script.highlight.cprint` for more details.
+            `tvm.script.printer.highlight.cprint` for more details.
 
         black_format: Optional[bool]
 
@@ -362,8 +342,7 @@ class Scriptable:
         ir_prefix : str = "I"
             The prefix of AST nodes from tvm.ir
         module_alias : str = "cls"
-            The alias of the current module at cross-function call,
-            Directly use module name if it's empty.
+            Retained for compatibility. Cross-function calls use the module name directly.
         int_dtype : str = "int32"
             The default data type of integer
         float_dtype : str = "void"
@@ -376,10 +355,6 @@ class Scriptable:
             Whether to print line numbers
         num_context_lines : int = -1
             The number of lines of context to print before and after the line to underline.
-        syntax_sugar: bool = True
-            Whether to output with syntax sugar, set false for complete printing.
-        show_object_address: bool = False
-            Whether to include the object's address as part of the TVMScript name
         show_all_ty: bool = True
             If True (default), annotate all variable bindings with the struct
             info of that variable.  If False, only add annotations where
@@ -396,7 +371,7 @@ class Scriptable:
             Object to be annotated
 
         """
-        from tvm.script.highlight import cprint  # pylint: disable=import-outside-toplevel
+        from tvm.script.printer.highlight import cprint  # pylint: disable=import-outside-toplevel
 
         if black_format is None:
             env = os.environ.get("TVM_BLACK_FORMAT")
@@ -414,8 +389,6 @@ class Scriptable:
                 indent_spaces=indent_spaces,
                 print_line_numbers=print_line_numbers,
                 num_context_lines=num_context_lines,
-                syntax_sugar=syntax_sugar,
-                show_object_address=show_object_address,
                 show_all_ty=show_all_ty,
                 extra_config=extra_config,
                 path_to_underline=path_to_underline,

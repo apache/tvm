@@ -21,7 +21,6 @@
 import functools
 import inspect
 import types
-import warnings
 from collections.abc import Callable, Mapping, Sequence
 from typing import Optional, Union
 
@@ -33,9 +32,10 @@ import tvm.ir
 from tvm.relax import Expr, Type, Var
 from tvm.relax.dpl import DFPattern
 from tvm.runtime import Object, Tensor
-from tvm.tirx import IndexMap, PrimFunc
+from tvm.tirx import Function, IndexMap
 
 from ..expr import Var
+from ..global_info import VDevice
 from . import _ffi_api
 from .legalize_ops.common import LegalizeFunc
 
@@ -111,7 +111,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
             @R.function
             def main(
@@ -130,7 +130,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class After:
             @R.function
             def main(
@@ -169,7 +169,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
             @R.function
             def main(
@@ -187,7 +187,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
             @R.function
             def main(
@@ -286,7 +286,7 @@ def DataflowUseInplaceCalls() -> tvm.ir.transform.Pass:
     Pass that changes calls to operators that can be done in-place
     (generally, these are elementwise operations) into in-place implementations.
     Supported operators will be replaced by calls to `call_tir_inplace` that invoke
-    in-place PrimFunc implementations of those operators (which are based on the legalizations of
+    in-place Function implementations of those operators (which are based on the legalizations of
     those operators).
 
     Note: ConvertToDataflow may need to be called first to provide dataflow blocks.
@@ -334,7 +334,7 @@ def LazyGetInput() -> tvm.ir.transform.Pass:
             ...
 
         @R.function
-        def after(fget_param: R.Callable([R.Prim('int64'), R.Any], R.Any)):
+        def after(fget_param: R.Callable([T.int64, R.Any], R.Any)):
             A_untyped = fget_param(0, R.str('A'))
             A = R.match_cast(A_untyped, R.Tensor([16,32], "float32")
             ...
@@ -372,7 +372,7 @@ def LazySetOutput() -> tvm.ir.transform.Pass:
             return (A, B)
 
         @R.function
-        def after(args, fset_param: R.Callable([R.Prim('int64'), R.Any])):
+        def after(args, fset_param: R.Callable([T.int64, R.Any])):
             ...
             fset_param(0, A)
             ...
@@ -411,6 +411,10 @@ def ConvertToDataflow(min_size: int = 2) -> tvm.ir.transform.Pass:
 
 def CallTIRRewrite() -> tvm.ir.transform.Pass:
     """Perform explicit tensor allocation for call_tir and call_dps_packed.
+
+    Run ToNonDataflow and RemovePurityChecking first when lowering checked
+    pure or dataflow functions. Native destination writes become effectful
+    call_tir_packed calls.
 
     Returns
     -------
@@ -483,12 +487,12 @@ def EliminateCommonSubexpr(call_only=False) -> FunctionPass:
     return _ffi_api.EliminateCommonSubexpr(call_only)  # type: ignore
 
 
-def UpdateVDevice(new_vdevice: tvm.ir.VDevice, index: int) -> tvm.ir.transform.Pass:
+def UpdateVDevice(new_vdevice: VDevice, index: int) -> tvm.ir.transform.Pass:
     """Update virtual device.
 
     Parameters
     ----------
-    new_vdevice : tvm.ir.VDevice
+    new_vdevice : tvm.relax.VDevice
         The new virtual device.
     index : int
         The device index indicates the device on which the update will be performed.
@@ -578,9 +582,9 @@ def ComputePrimValue() -> tvm.ir.transform.Pass:
     symbolic variables, these expressions cannot natively be computed
     within relax.  In order to provide values for symbolic expressions
     (e.g. `R.prim_value(N*N)`, where `N` is a symbolic variable), this
-    pass generates a PrimFunc in which the expression can be computed.
+    pass generates a Function in which the expression can be computed.
     The relax graph is then updated to include a call to that
-    PrimFunc, in place of the original `R.prim_value(expr)`.
+    Function, in place of the original `R.prim_value(expr)`.
 
     Returns
     -------
@@ -600,20 +604,6 @@ def LowerRuntimeBuiltin() -> tvm.ir.transform.Pass:
     return _ffi_api.LowerRuntimeBuiltin()  # type: ignore
 
 
-def VMBuiltinLower() -> tvm.ir.transform.Pass:
-    """Lowering generic intrinsic to VM intrinsics.
-
-    Returns
-    -------
-    ret: tvm.ir.transform.Pass
-    """
-    warnings.warn(
-        "tvm.relax.transform.VMBuiltinLower has been renamed to 'LowerRuntimeBuiltin'.  "
-        "This wrapper is for backwards compatibility, and will be removed in a later update."
-    )
-    return _ffi_api.LowerRuntimeBuiltin()  # type: ignore
-
-
 def VMShapeLower(*, emit_err_ctx: bool = True) -> tvm.ir.transform.Pass:
     """Lower the symbolic shape and argument and match-cast structinfo matching.
 
@@ -630,7 +620,7 @@ def VMShapeLower(*, emit_err_ctx: bool = True) -> tvm.ir.transform.Pass:
 
 
 def AttachGlobalSymbol() -> tvm.ir.transform.Pass:
-    """Attach global_symbol to Relax functions and TIR Primfuncs for codegen.
+    """Attach global_symbol to Relax functions and TIR Functions for codegen.
 
     Returns
     -------
@@ -661,9 +651,9 @@ def BindParams(
     for k, v in params.items():
         if isinstance(v, np.ndarray):
             v = tvm.runtime.tensor(v)
-        assert isinstance(v, tvm.runtime.Tensor | tvm.relax.Constant), (
+        assert isinstance(v, tvm.runtime.Tensor | tvm.ir.GenericConst), (
             f"param values are expected to be TVM.Tensor,"
-            f"numpy.ndarray or tvm.relax.Constant, but got {type(v)}"
+            f"numpy.ndarray or tvm.ir.GenericConst, but got {type(v)}"
         )
         tvm_params[k] = v
 
@@ -794,7 +784,7 @@ def FuseOps(fuse_opt_level=-1) -> tvm.ir.transform.Pass:
     implementation. By grouping bindings into new Relax functions, we substitute the bindings in
     the function being manipulated into function calls to the new grouped function.
 
-    A follow-up pass named "FuseTIR" will generate a TIR PrimFunc for each grouped function.
+    A follow-up pass named "FuseTIR" will generate a TIR Function for each grouped function.
 
     Note: ConvertToDataflow may need to be called first to provide dataflow blocks.
 
@@ -975,9 +965,9 @@ def MergeCompositeFunctions() -> tvm.ir.transform.Pass:
 
 
 def AttachAttrLayoutFreeBuffers() -> tvm.ir.transform.Pass:
-    """Attach layout free buffers to the tirx::PrimFunc.
+    """Attach layout free buffers to the tirx::Function.
 
-    This pass is used to attach layout free buffers to the tirx::PrimFunc according to
+    This pass is used to attach layout free buffers to the tirx::Function according to
     the function usage in the relax function. Currently, the layout free buffers are the model
     weights and relax constants.
 
@@ -1070,12 +1060,12 @@ def LegalizeOps(
     enable_warning: bool = False,
 ):
     """Legalize high-level operator calls in Relax functions to call_tir
-    with corresponding low-level TIR PrimFuncs.
+    with corresponding low-level TIR Functions.
 
     For each high-level operator, we register the way of legalizing it as a
     function, which takes a context BlockBuilder and the Call being legalized
     as input, and returns the legalized call. Here the input BlockBuilder is
-    mainly used for adding the PrimFunc created by call_te into the context
+    mainly used for adding the Function created by call_te into the context
     IRModule.
 
     The legalization function for each operator is registered as an attribute (with
@@ -1146,32 +1136,32 @@ def LegalizeOps(
                 r = R.call_tir(multiply, (y, z), (2, 3), dtype="float32")
                 return r
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def add(
-                A: T.Buffer((2, 3), "float32"),
-                B: T.Buffer((2, 3), "float32"),
-                T_add: T.Buffer((2, 3), "float32"),
+                A: T.Tensor((2, 3), "float32"),
+                B: T.Tensor((2, 3), "float32"),
+                T_add: T.Tensor((2, 3), "float32"),
             ):
                 T.func_attr({"tirx.noalias": True})
                 for ax0, ax1 in T.grid(2, 3):
-                    with T.sblock("T_add"):
-                        v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                        T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
-                        T.writes(T_add[v_ax0, v_ax1])
+                    with Ts.sblock("T_add"):
+                        v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                        Ts.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
+                        Ts.writes(T_add[v_ax0, v_ax1])
                         T_add[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
 
-            @T.prim_func(s_tir=True)
+            @Ts.function
             def multiply(
-                A: T.Buffer((2, 3), "float32"),
-                B: T.Buffer((2, 3), "float32"),
-                T_multiply: T.Buffer((2, 3), "float32"),
+                A: T.Tensor((2, 3), "float32"),
+                B: T.Tensor((2, 3), "float32"),
+                T_multiply: T.Tensor((2, 3), "float32"),
             ):
                 T.func_attr({"tirx.noalias": True})
                 for ax0, ax1 in T.grid(2, 3):
-                    with T.sblock("T_multiply"):
-                        v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                        T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
-                        T.writes(T_multiply[v_ax0, v_ax1])
+                    with Ts.sblock("T_multiply"):
+                        v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                        Ts.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
+                        Ts.writes(T_multiply[v_ax0, v_ax1])
                         T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * B[v_ax0, v_ax1]
     """
 
@@ -1302,19 +1292,19 @@ def DecomposeOpsForTraining(func_name: str | None = None) -> tvm.ir.transform.Pa
 
 
 def AlterOpImpl(
-    op_impl_map: dict[str, PrimFunc],
+    op_impl_map: dict[str, Function],
     op_buffer_transforms: dict[str, list[IndexMap | Callable]],
 ):
-    """Replace all PrimFunc's which have matching 'operator_name' attribute, with replacement
-    PrimFunc that could possibly have different layouts on i/o buffers. The layout
+    """Replace all Function's which have matching 'operator_name' attribute, with replacement
+    Function that could possibly have different layouts on i/o buffers. The layout
     transformations on i/o buffers is present in the op_buffer_transforms map. Inserts the layout
-    transformations in the call sites of PrimFuncs being replaced to transform i/o
-    tensors into expected layout by new PrimFunc.
+    transformations in the call sites of Functions being replaced to transform i/o
+    tensors into expected layout by new Function.
 
     Parameters
     ----------
-    op_impl_map: Dict[str, PrimFunc]
-        op_kind to PrimFunc map
+    op_impl_map: Dict[str, Function]
+        op_kind to Function map
     op_buffer_transforms: Dict[str, List[Union[IndexMap, Callable]]
         op_kind to layout transformation map for each of the buffers
     Returns
@@ -1414,15 +1404,15 @@ def ToMixedPrecision(
     return _ffi_api.ToMixedPrecision(out_dtype, fp16_input_names)  # type: ignore
 
 
-def SplitCallTIRByPattern(patterns: list[PrimFunc], fcodegen: Callable) -> tvm.ir.transform.Pass:
-    """Split a PrimFunc into 2 parts: the first part is a TIR PrimFunc which is
+def SplitCallTIRByPattern(patterns: list[Function], fcodegen: Callable) -> tvm.ir.transform.Pass:
+    """Split a Function into 2 parts: the first part is a TIR Function which is
        matched with some pattern, and the second part is the rest of the original
-       PrimFunc. It will call fcodegen to generate the code for the matched pattern
+       Function. It will call fcodegen to generate the code for the matched pattern
        to replace it with a ExternFunc call.
 
     Parameters
     ----------
-    patterns : List[PrimFunc]
+    patterns : List[Function]
         The list of patterns to match.
 
     fcodegen: Callable[[List[MatchResult]], List[Object]]
@@ -1583,17 +1573,17 @@ def AllocateWorkspace() -> tvm.ir.transform.Pass:
     return _ffi_api.AllocateWorkspace()  # type: ignore
 
 
-def SpecializePrimFuncBasedOnCallSite() -> tvm.ir.transform.Pass:
-    """This pass updates the var_buffer mapping of PrimFunctions from the call_tir info.
+def SpecializeFunctionBasedOnCallSite() -> tvm.ir.transform.Pass:
+    """This pass updates the var_buffer mapping of Functiontions from the call_tir info.
     Primarily used to update the VDevice information if any changes occurred from the caller.
     This pass recreates the buffers and updates the map.
 
     Returns
     -------
     ret: tvm.ir.transform.Pass
-        The registered pass for specializing PrimFuncs based on call site.
+        The registered pass for specializing Functions based on call site.
     """
-    return _ffi_api.SpecializePrimFuncBasedOnCallSite()  # type: ignore
+    return _ffi_api.SpecializeFunctionBasedOnCallSite()  # type: ignore
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):

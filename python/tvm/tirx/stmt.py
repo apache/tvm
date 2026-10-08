@@ -21,65 +21,28 @@ Each statement node have subfields that can be visited from python side.
 .. code-block:: python
 
     x = tvm.tirx.Var("n", "int32")
-    buffer = tvm.tirx.decl_buffer((16,), "float32")
-    st = tvm.tirx.stmt.BufferStore(buffer, 1, (x,))
-    assert isinstance(st, tvm.tirx.stmt.BufferStore)
+    buffer = tvm.tirx.decl_tensor((16,), "float32")
+    st = tvm.tirx.stmt.TensorStore(buffer, 1, (x,))
+    assert isinstance(st, tvm.tirx.stmt.TensorStore)
     assert(st.buffer == buffer)
 """
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from enum import IntEnum
 from typing import Any
 
 import tvm_ffi
 
-from tvm.ir import Expr, Range, Span, Type
-from tvm.runtime import Object, Scriptable, const
+from tvm.ir import DictAttrs, Expr, Op, Range, Span, StringImm, TensorRegion, Type, Var, make_node
+from tvm.runtime import Object, Scriptable
 
 from . import _ffi_api
-from .buffer import Buffer
 from .exec_scope import ScopeIdDef
-from .expr import IterVar, StringImm, Var
 
 
 @tvm_ffi.register_object("tirx.Stmt")
 class Stmt(Object, Scriptable):
     """Base class of all the statements."""
-
-
-def _normalize_legacy_stmt(stmt: Stmt | None) -> Stmt | None:
-    """Expand legacy body-carrying leaf stmt wrappers into SeqStmt form.
-
-    Legacy python compatibility may attach a `body` attribute to leaf statements
-    (Bind/DeclBuffer/AllocBuffer). This helper converts such wrappers to the new
-    leaf + SeqStmt representation when embedding inside another statement node.
-    """
-
-    if stmt is None:
-        return None
-
-    prefix: list[Stmt] = []
-    cur = stmt
-    while True:
-        if isinstance(cur, DeclBuffer) and hasattr(cur, "body"):
-            prefix.append(DeclBuffer(cur.buffer, data=cur.data, span=cur.span))
-            cur = cur.body
-            continue
-        if isinstance(cur, AllocBuffer) and hasattr(cur, "body"):
-            prefix.append(AllocBuffer(cur.buffer, cur.annotations, cur.span))
-            cur = cur.body
-            continue
-        break
-
-    if not prefix:
-        return stmt
-
-    normalized_tail = _normalize_legacy_stmt(cur)
-    if normalized_tail is not None:
-        prefix.append(normalized_tail)
-    if len(prefix) == 1:
-        return prefix[0]
-    return SeqStmt(prefix)
 
 
 @tvm_ffi.register_object("tirx.Bind")
@@ -195,7 +158,7 @@ class For(Stmt):
     body : Stmt
         The body statement.
 
-    thread_binding: Optional[tirx.IterVar]
+    thread_binding: Optional[str]
         The thread this loop binds to. Only valid
         if kind is ThreadBinding
 
@@ -215,7 +178,7 @@ class For(Stmt):
     extent: Expr
     kind: ForKind
     body: Stmt
-    thread_binding: IterVar | None
+    thread_binding: str | None
     annotations: Mapping[str, Object]
     step: Expr | None
     span: Span | None
@@ -227,12 +190,11 @@ class For(Stmt):
         extent: Expr,
         kind: ForKind,
         body: Stmt,
-        thread_binding: IterVar | None = None,
+        thread_binding: str | None = None,
         annotations: Mapping[str, Object] | None = None,
         step: Expr | None = None,
         span: Span | None = None,
     ) -> None:
-        body = _normalize_legacy_stmt(body)
         self.__init_handle_by_constructor__(
             _ffi_api.For,  # type: ignore
             loop_var,
@@ -268,17 +230,16 @@ class While(Stmt):
     span: Span | None
 
     def __init__(self, condition: Expr, body: Stmt, span: Span | None = None) -> None:
-        body = _normalize_legacy_stmt(body)
         self.__init_handle_by_constructor__(_ffi_api.While, condition, body, span)  # type: ignore
 
 
-@tvm_ffi.register_object("tirx.BufferStore")
-class BufferStore(Stmt):
-    """Buffer store node.
+@tvm_ffi.register_object("tirx.TensorStore")
+class TensorStore(Stmt):
+    """Store a value into a tensor variable.
 
     Parameters
     ----------
-    buffer : Buffer
+    buffer : Var
         The buffer.
 
     value : Expr
@@ -291,20 +252,20 @@ class BufferStore(Stmt):
         The location of the stmt in the source code.
     """
 
-    buffer: Buffer
+    buffer: Var
     value: Expr
     indices: list[Expr]
     span: Span | None
 
     def __init__(
         self,
-        buffer: Buffer,
+        buffer: Var,
         value: Expr,
         indices: list[Expr],
         span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.BufferStore,
+            _ffi_api.TensorStore,
             buffer,
             value,
             indices,
@@ -312,213 +273,52 @@ class BufferStore(Stmt):
         )
 
 
-@tvm_ffi.register_object("tirx.AllocBuffer")
-class AllocBuffer(Stmt):
-    """AllocBuffer node.
+@tvm_ffi.register_object("tirx.RegionStmt")
+class RegionStmt(Stmt):
+    """An operation with enclosing-scope operands and one lexical body.
 
-    Allocates a buffer and declares it in scope.
-
-    Parameters
-    ----------
-    buffer: Buffer
-        The buffer being allocated and declared.
-
-    annotations: Optional[dict]
-        Additional annotations about the allocation.
-
-    span: Optional[Span]
-        The location of this AllocBuffer in the source code.
+    ``body_params`` define variables visible only within ``body``. Their count
+    and types must match the operation's required ``FRegionGetBodyParams`` hook.
+    Zero-parameter regions register an empty-return hook; operations without a
+    hook do not support region construction. Explicit parameter
+    identities and their references in ``body`` are preserved. ``result_vars``
+    define variables after the region in the enclosing sequence. Attributes are
+    evaluated outside the body-parameter scope. Direct construction and JSON
+    serialization support result variables; structured script syntax currently
+    supports only result-free regions.
     """
 
-    buffer: Buffer
-    span: Span | None
-
-    def __init__(self, buffer: Buffer, *args, **kwargs) -> None:
-        body: Stmt | None = None
-        annotations: dict | None = None
-        span: Span | None = None
-
-        idx = 0
-        argc = len(args)
-
-        # Legacy form: AllocBuffer(buffer, body[, annotations][, span])
-        if idx < argc and isinstance(args[idx], Stmt):
-            body = args[idx]
-            idx += 1
-
-        if idx < argc:
-            arg = args[idx]
-            if isinstance(arg, Mapping):
-                annotations = dict(arg)
-                idx += 1
-            elif arg is None:
-                annotations = None
-                idx += 1
-            elif isinstance(arg, Span):
-                span = arg
-                idx += 1
-            else:
-                raise TypeError(
-                    "AllocBuffer expects (buffer[, annotations][, span]) or "
-                    "legacy (buffer, body[, annotations][, span])"
-                )
-
-        if idx < argc:
-            arg = args[idx]
-            if arg is None or isinstance(arg, Span):
-                span = arg
-                idx += 1
-            else:
-                raise TypeError("AllocBuffer span must be a Span or None")
-
-        if idx != argc:
-            raise TypeError(
-                "AllocBuffer expects (buffer[, annotations][, span]) or "
-                "legacy (buffer, body[, annotations][, span])"
-            )
-
-        if kwargs:
-            invalid_keys = set(kwargs.keys()) - {"body", "annotations", "span"}
-            if invalid_keys:
-                raise TypeError(f"Unexpected keyword arguments for AllocBuffer: {invalid_keys}")
-            if "body" in kwargs:
-                kw_body = kwargs["body"]
-                if kw_body is not None and not isinstance(kw_body, Stmt):
-                    raise TypeError("AllocBuffer body must be a Stmt or None")
-                if body is not None and kw_body is not None and body is not kw_body:
-                    raise TypeError("AllocBuffer body specified by both args and kwargs")
-                body = kw_body if kw_body is not None else body
-            if "annotations" in kwargs:
-                kw_ann = kwargs["annotations"]
-                if kw_ann is not None and not isinstance(kw_ann, Mapping):
-                    raise TypeError("AllocBuffer annotations must be Mapping or None")
-                if annotations is not None and kw_ann is not None and annotations != dict(kw_ann):
-                    raise TypeError("AllocBuffer annotations specified by both args and kwargs")
-                annotations = dict(kw_ann) if kw_ann is not None else annotations
-            if "span" in kwargs:
-                kw_span = kwargs["span"]
-                if kw_span is not None and not isinstance(kw_span, Span):
-                    raise TypeError("AllocBuffer span must be a Span or None")
-                if span is not None and kw_span is not None and span is not kw_span:
-                    raise TypeError("AllocBuffer span specified by both args and kwargs")
-                span = kw_span if kw_span is not None else span
-
-        self.__init_handle_by_constructor__(_ffi_api.AllocBuffer, buffer, annotations, span)
-        # Legacy compatibility. Body is carried on python side only.
-        if body is not None:
-            self.body = body
-
-
-@tvm_ffi.register_object("tirx.DeclBuffer")
-class DeclBuffer(Stmt):
-    """DeclBuffer node.
-
-    Parameters
-    ----------
-    buffer: Buffer
-        The buffer being declared.
-
-    data: Expr
-        The physical data expression bound to the buffer view.
-
-    span: Optional[Span]
-        The location of this DeclBuffer in the source code.
-    """
-
-    buffer: Buffer
-    data: Expr
-    span: Span | None
-
-    def __init__(self, buffer: Buffer, *args, **kwargs) -> None:
-        body: Stmt | None = None
-        data: Expr | None = kwargs.pop("data", None)
-        span: Span | None = None
-
-        if len(args) == 1:
-            arg0 = args[0]
-            if isinstance(arg0, Stmt):
-                body = arg0
-            elif arg0 is None or isinstance(arg0, Span):
-                span = arg0
-            else:
-                raise TypeError(
-                    "DeclBuffer expects (buffer[, span]) or legacy (buffer, body[, span])"
-                )
-        elif len(args) == 2:
-            body, span = args
-            if body is not None and not isinstance(body, Stmt):
-                raise TypeError("Legacy DeclBuffer body must be a Stmt or None")
-            if span is not None and not isinstance(span, Span):
-                raise TypeError("DeclBuffer span must be a Span or None")
-        elif len(args) > 2:
-            raise TypeError("DeclBuffer expects (buffer[, span]) or legacy (buffer, body[, span])")
-
-        if kwargs:
-            invalid_keys = set(kwargs.keys()) - {"body", "span"}
-            if invalid_keys:
-                raise TypeError(f"Unexpected keyword arguments for DeclBuffer: {invalid_keys}")
-            if "body" in kwargs:
-                kw_body = kwargs["body"]
-                if kw_body is not None and not isinstance(kw_body, Stmt):
-                    raise TypeError("DeclBuffer body must be a Stmt or None")
-                if body is not None and kw_body is not None and body is not kw_body:
-                    raise TypeError("DeclBuffer body specified by both args and kwargs")
-                body = kw_body if kw_body is not None else body
-            if "span" in kwargs:
-                kw_span = kwargs["span"]
-                if kw_span is not None and not isinstance(kw_span, Span):
-                    raise TypeError("DeclBuffer span must be a Span or None")
-                if span is not None and kw_span is not None and span is not kw_span:
-                    raise TypeError("DeclBuffer span specified by both args and kwargs")
-                span = kw_span if kw_span is not None else span
-
-        if data is None:
-            raise TypeError("DeclBuffer requires a physical data binding")
-        self.__init_handle_by_constructor__(_ffi_api.DeclBuffer, buffer, data, span)
-        # Legacy compatibility. Body is carried on python side only.
-        if body is not None:
-            self.body = body
-
-
-@tvm_ffi.register_object("tirx.AttrStmt")
-class AttrStmt(Stmt):
-    """AttrStmt node.
-
-    Parameters
-    ----------
-    node : Any
-        The node to annotate the attribute
-
-    attr_key : str
-        Attribute type key.
-
-    value : Expr
-        The value of the attribute
-
-    body : Stmt
-        The body statement.
-
-    span : Optional[Span]
-        The location of the stmt in the source code.
-    """
-
-    node: Any
-    attr_key: str
-    value: Expr
+    op: Op
+    args: list[Expr]
+    body_params: list[Var]
+    attrs: DictAttrs
     body: Stmt
+    result_vars: list[Var]
     span: Span | None
 
     def __init__(
-        self, node: Any, attr_key: str, value: Expr, body: Stmt, span: Span | None = None
+        self,
+        op: Op | str,
+        args: Sequence[Expr],
+        body_params: Sequence[Var],
+        attrs: DictAttrs | Mapping[str, Any] | None,
+        body: Stmt,
+        result_vars: Sequence[Var] | None = None,
+        span: Span | None = None,
     ) -> None:
-        body = _normalize_legacy_stmt(body)
+        if isinstance(op, str):
+            op = Op.get(op)
+        if attrs is None or isinstance(attrs, Mapping):
+            attrs = make_node("ir.DictAttrs", **(attrs or {}))
         self.__init_handle_by_constructor__(
-            _ffi_api.AttrStmt,
-            node,
-            attr_key,
-            value,
+            _ffi_api.RegionStmt,
+            op,
+            args,
+            body_params,
+            attrs,
             body,
-            span,  # type: ignore
+            [] if result_vars is None else result_vars,
+            span,
         )
 
 
@@ -539,7 +339,6 @@ class SeqStmt(Stmt):
     span: Span | None
 
     def __init__(self, seq: list[Stmt], span: Span | None = None) -> None:
-        seq = [_normalize_legacy_stmt(s) for s in seq]
         self.__init_handle_by_constructor__(_ffi_api.SeqStmt, seq, span)  # type: ignore
 
     def __getitem__(self, i: int):
@@ -575,8 +374,6 @@ class IfThenElse(Stmt):
     def __init__(
         self, condition: Expr, then_case: Stmt, else_case: Stmt | None, span: Span | None = None
     ) -> None:
-        then_case = _normalize_legacy_stmt(then_case)
-        else_case = _normalize_legacy_stmt(else_case)
         self.__init_handle_by_constructor__(
             _ffi_api.IfThenElse,
             condition,
@@ -608,180 +405,24 @@ class Evaluate(Stmt):
 
 @tvm_ffi.register_object("tirx.BufferRegionType")
 class BufferRegionType(Type):
-    """The structural type of a :class:`BufferRegion` expression."""
+    """The TIRX subscript type of a buffer-backed :class:`tvm.ir.TensorRegion`."""
 
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(_ffi_api.BufferRegionType)  # type: ignore
 
 
-@tvm_ffi.register_object("tirx.BufferRegion")
-class BufferRegion(Expr, Scriptable):
-    """BufferRegion node.
+def BufferRegion(buffer: Var, region: list[Range]) -> TensorRegion:
+    """Construct a buffer-backed tensor region with TIRX subscript semantics.
 
     Parameters
     ----------
-    buffer : Buffer
-        The buffer of the buffer region
+    buffer : Var
+        The source buffer.
 
     region : List[Range]
-        The region array of the buffer region
+        The ranges, with one entry for each buffer dimension.
     """
-
-    buffer: Buffer
-    region: list[Range]
-
-    def __init__(self, buffer: Buffer, region: list[Range]) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.BufferRegion, buffer, region)  # type: ignore
-
-
-@tvm_ffi.register_object("tirx.MatchBufferRegion")
-class MatchBufferRegion(Object, Scriptable):
-    """MatchBufferRegion node.
-
-    Parameters
-    ----------
-    buffer : Buffer
-        The target buffer
-
-    source : BufferRegion
-        The region of source buffer
-    """
-
-    buffer: Buffer
-    source: BufferRegion
-
-    def __init__(self, buffer: Buffer, source: BufferRegion) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.MatchBufferRegion,
-            buffer,
-            source,  # type: ignore
-        )
-
-
-@tvm_ffi.register_object("tirx.SBlock")
-class SBlock(Stmt):
-    """SBlock node.
-
-    Parameters
-    ----------
-    iter_vars : List[IterVar]
-        The block Variable.
-
-    reads : List[BufferRegion]
-        The read buffer regions of the block.
-
-    writes: List[BufferRegion]
-        The write buffer regions of the block.
-
-    name_hint: str
-        the name_hint of the block.
-
-    body: Stmt
-        The body of the block.
-
-    init: Optional[Stmt]
-        The init block of the reduction block
-
-    alloc_buffers: Optional[list[Buffer]]
-        The buffer allocations
-
-    match_buffers: Optional[List[MatchBufferRegion]]
-        The subregion buffer match
-
-    annotations: Optional[Mapping[str, Object]]
-        Additional annotation hints.
-
-    span : Optional[Span]
-        The location of this block in the source code.
-    """
-
-    iter_vars: list[IterVar]
-    reads: list[BufferRegion]
-    writes: list[BufferRegion]
-    name_hint: str
-    body: Stmt
-    init: Stmt | None
-    alloc_buffers: list[Buffer]
-    match_buffers: list[MatchBufferRegion]
-    annotations: Mapping[str, Object]
-    span: Span | None
-
-    def __init__(
-        self,
-        iter_vars: list[IterVar],
-        reads: list[BufferRegion],
-        writes: list[BufferRegion],
-        name_hint: str,
-        body: Stmt,
-        init: Stmt | None = None,
-        alloc_buffers: list[Buffer] | None = None,
-        match_buffers: list[MatchBufferRegion] | None = None,
-        annotations: Mapping[str, Object] | None = None,
-        span: Span | None = None,
-    ) -> None:
-        if alloc_buffers is None:
-            alloc_buffers = []
-        if match_buffers is None:
-            match_buffers = []
-        if annotations is None:
-            annotations = {}
-        body = _normalize_legacy_stmt(body)
-        init = _normalize_legacy_stmt(init)
-        self.__init_handle_by_constructor__(
-            _ffi_api.SBlock,  # type: ignore
-            iter_vars,
-            reads,
-            writes,
-            name_hint,
-            body,
-            init,
-            alloc_buffers,
-            match_buffers,
-            annotations,
-            span,
-        )  # type: ignore
-
-
-@tvm_ffi.register_object("tirx.SBlockRealize")
-class SBlockRealize(Stmt):
-    """SBlockRealize node.
-
-    Parameters
-    ----------
-    iter_values : List[Expr]
-        The binding values of the block var.
-
-    predicate : Union[Expr, bool]
-        The predicate of the block.
-
-    block : SBlock
-        The block to realize
-
-    span : Optional[Span]
-        The location of this block_realize in the source code.
-    """
-
-    iter_values: list[Expr]
-    predicate: Expr
-    block: SBlock
-    span: Span | None
-
-    def __init__(
-        self,
-        iter_values: list[Expr],
-        predicate: Expr | bool,
-        block: SBlock,
-        span: Span | None = None,
-    ) -> None:
-        if isinstance(predicate, bool):
-            predicate = const(predicate, "bool")
-        self.__init_handle_by_constructor__(
-            _ffi_api.SBlockRealize,  # type: ignore
-            iter_values,
-            predicate,
-            block,
-            span,
-        )  # type: ignore
+    return _ffi_api.BufferRegion(buffer, region)
 
 
 @tvm_ffi.register_object("tirx.ScopeIdDefStmt")

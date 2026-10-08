@@ -27,6 +27,7 @@
 
 namespace tvm {
 namespace topi {
+using namespace tvm::prim;
 
 using namespace tvm;
 using namespace tvm::runtime;

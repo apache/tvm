@@ -67,6 +67,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 namespace {
 
@@ -92,7 +93,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     }
 
     PostOrderVisit(func, [this](const Expr& expr) {
-      if (expr->IsInstance<ConstantNode>() || expr->IsInstance<ShapeExprNode>() ||
+      if (expr->IsInstance<GenericConstNode>() || expr->IsInstance<ShapeExprNode>() ||
           (!expr->IsInstance<CallNode>() && !expr->IsInstance<VarNode>() && expr.as<PrimExpr>())) {
         memo_[expr] = arena_->make<Group>();
       }
@@ -468,7 +469,7 @@ class CompositeInliner : public ExprMutator {
           new_func = WithoutAttr(new_func, tvm::relax::attr::kPrimitive);
           inlined_functions_.Set(func, new_func);
         }
-        return Call(Type::Missing(), inlined_functions_[func], call->args);
+        return Call::Unchecked(Type::Missing(), inlined_functions_[func], call->args);
       }
     }
 
@@ -505,30 +506,32 @@ class CompositeFunctionAnnotator : public ExprMutator {
       GlobalVar cur_var = call->op.as_or_throw<GlobalVar>();
       auto func = mod_->Lookup(cur_var).as_or_throw<Function>();
       if (auto codegen_name = func->GetAttr<ffi::String>(attr::kCodegen)) {
-        GlobalVar new_var;
-        if (var_map_.count(cur_var) > 0) {
-          // if we visited before, we don't need to create the new function,
-          // use the one we stored.
-          new_var = var_map_[cur_var];
-        } else {
-          // if it is first time, create the new function with a new name.
-          // remove old function from the irmoulde under construction.
-          auto old_var = builder_->GetContextIRModule()->GetGlobalVar(cur_var->name_hint);
-          builder_->GetContextIRModule()->Remove(old_var);
+        GlobalVar new_var = [&]() -> GlobalVar {
+          if (var_map_.count(cur_var) > 0) {
+            // if we visited before, we don't need to create the new function,
+            // use the one we stored.
+            return var_map_.at(cur_var);
+          } else {
+            // if it is first time, create the new function with a new name.
+            // remove old function from the irmoulde under construction.
+            auto old_var = builder_->GetContextIRModule()->GetGlobalVar(cur_var->name_hint);
+            builder_->GetContextIRModule()->Remove(old_var);
 
-          // rename the function.
-          ffi::String new_func_name = cur_var->name_hint + "_" + codegen_name.value();
-          Function new_func = inliner.Run(func.as_or_throw<Function>());
-          new_func = WithAttr(new_func, tvm::attr::kGlobalSymbol, new_func_name);
-          new_func = WithoutAttr(std::move(new_func), tvm::relax::attr::kPrimitive);
-          // add a function with a new name.
-          new_var = builder_->AddFunction(new_func, new_func_name);
-          var_map_[cur_var] = new_var;
-        }
+            // rename the function.
+            ffi::String new_func_name = cur_var->name_hint + "_" + codegen_name.value();
+            Function new_func = inliner.Run(func.as_or_throw<Function>());
+            new_func = WithAttr(new_func, tvm::attr::kGlobalSymbol, new_func_name);
+            new_func = WithoutAttr(std::move(new_func), tvm::relax::attr::kPrimitive);
+            // add a function with a new name.
+            auto new_var = builder_->AddFunction(new_func, new_func_name);
+            var_map_.insert_or_assign(cur_var, new_var);
+            return new_var;
+          }
+        }();
         // we call new var instead of the old one.
         // we don't have to update args since we are just updating the function to call,
         // without any change in the arguments.
-        return Call(Type::Missing(), new_var, call->args);
+        return Call::Unchecked(Type::Missing(), new_var, call->args);
       }
     }
     return ffi::GetRef<Call>(call);

@@ -48,15 +48,15 @@ def test_cta_sum_4_warps():
     N = NUM_WARPS * 32
 
     # fmt: off
-    @T.prim_func
-    def func(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (N,), "float32")
+    @T.function
+    def func(out: T.Tensor((N,), 'float32')):
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([NUM_WARPS])
         lane_id = T.lane_id([32])
         tid = T.thread_id([N])
-        scratch = T.alloc_buffer((NUM_WARPS,), "float32", scope="shared")
+        scratch = T.alloc_tensor((NUM_WARPS,), "float32", scope="shared")
         val: T.f32 = T.float32(tid + 1)
         val = T.cuda.cta_sum(val, NUM_WARPS, scratch.ptr_to([0]))
         out[tid] = val
@@ -76,15 +76,15 @@ def test_cta_sum_8_warps():
     N = NUM_WARPS * 32
 
     # fmt: off
-    @T.prim_func
-    def func(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (N,), "float32")
+    @T.function
+    def func(out: T.Tensor((N,), 'float32')):
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([NUM_WARPS])
         lane_id = T.lane_id([32])
         tid = T.thread_id([N])
-        scratch = T.alloc_buffer((NUM_WARPS,), "float32", scope="shared")
+        scratch = T.alloc_tensor((NUM_WARPS,), "float32", scope="shared")
         val: T.f32 = T.float32(tid + 1)
         val = T.cuda.cta_sum(val, NUM_WARPS, scratch.ptr_to([0]))
         out[tid] = val
@@ -103,15 +103,15 @@ def test_cta_max_4_warps():
     N = NUM_WARPS * 32
 
     # fmt: off
-    @T.prim_func
-    def func(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (N,), "float32")
+    @T.function
+    def func(out: T.Tensor((N,), 'float32')):
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([NUM_WARPS])
         lane_id = T.lane_id([32])
         tid = T.thread_id([N])
-        scratch = T.alloc_buffer((NUM_WARPS,), "float32", scope="shared")
+        scratch = T.alloc_tensor((NUM_WARPS,), "float32", scope="shared")
         val: T.f32 = T.float32(tid + 1)
         val = T.cuda.cta_max(val, NUM_WARPS, scratch.ptr_to([0]))
         out[tid] = val
@@ -129,15 +129,15 @@ def test_cta_min_4_warps():
     N = NUM_WARPS * 32
 
     # fmt: off
-    @T.prim_func
-    def func(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (N,), "float32")
+    @T.function
+    def func(out: T.Tensor((N,), 'float32')):
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([NUM_WARPS])
         lane_id = T.lane_id([32])
         tid = T.thread_id([N])
-        scratch = T.alloc_buffer((NUM_WARPS,), "float32", scope="shared")
+        scratch = T.alloc_tensor((NUM_WARPS,), "float32", scope="shared")
         val: T.f32 = T.float32(tid + 1)
         val = T.cuda.cta_min(val, NUM_WARPS, scratch.ptr_to([0]))
         out[tid] = val
@@ -155,15 +155,15 @@ def test_cta_sum_1_warp():
     N = 32
 
     # fmt: off
-    @T.prim_func
-    def func(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (N,), "float32")
+    @T.function
+    def func(out: T.Tensor((N,), 'float32')):
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([NUM_WARPS])
         lane_id = T.lane_id([32])
         tid = T.thread_id([N])
-        scratch = T.alloc_buffer((NUM_WARPS,), "float32", scope="shared")
+        scratch = T.alloc_tensor((NUM_WARPS,), "float32", scope="shared")
         val: T.f32 = T.float32(tid + 1)
         val = T.cuda.cta_sum(val, NUM_WARPS, scratch.ptr_to([0]))
         out[tid] = val
@@ -182,15 +182,15 @@ def test_cta_sum_all_warp_counts(num_warps):
     N = num_warps * 32
 
     # fmt: off
-    @T.prim_func
-    def func(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (N,), "float32")
+    @T.function
+    def func(out: T.Tensor((N,), 'float32')):
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([num_warps])
         lane_id = T.lane_id([32])
         tid = T.thread_id([N])
-        scratch = T.alloc_buffer((num_warps,), "float32", scope="shared")
+        scratch = T.alloc_tensor((num_warps,), "float32", scope="shared")
         val: T.f32 = T.float32(tid + 1)
         val = T.cuda.cta_sum(val, num_warps, scratch.ptr_to([0]))
         out[tid] = val

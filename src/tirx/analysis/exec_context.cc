@@ -21,9 +21,9 @@
  * \brief Compile-time active-thread state backed by TileLayout.
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/exec_context.h>
 
 #include <algorithm>
@@ -47,14 +47,16 @@ AxisRange MakeRange(int64_t extent, int64_t offset = 0, int64_t stride = 1) {
 
 bool TryAsInt64(const PrimExpr& expr, int64_t* value) {
   if (const auto* imm = expr.as<IntImmNode>()) {
-    *value = imm->value;
-    return true;
+    if (auto value_i64 = imm->value.as<int64_t>(); value_i64.has_value()) {
+      *value = *value_i64;
+      return true;
+    }
   }
   return false;
 }
 
 bool IsZero(const PrimExpr& expr) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   return analyzer->CanProveEqual(expr, 0);
 }
 
@@ -75,8 +77,8 @@ std::vector<std::pair<std::string, AxisRange>> AxisRanges(const ActiveSet& A) {
   std::vector<std::pair<std::string, AxisRange>> axes;
   for (const auto& iter : A.layout->shard) {
     AxisRange range;
-    TVM_FFI_ICHECK(A.GetAxis(iter->axis->name.operator std::string(), &range));
-    axes.push_back({iter->axis->name.operator std::string(), range});
+    TVM_FFI_ICHECK(A.GetAxis(iter->axis.name().operator std::string(), &range));
+    axes.push_back({iter->axis.name().operator std::string(), range});
   }
   return axes;
 }
@@ -379,10 +381,10 @@ bool AxisRange::Modulo(int64_t modulus, int64_t residue, AxisRange* out) const {
 bool ActiveSet::GetAxis(const std::string& axis, AxisRange* out) const {
   if (!layout.defined()) return false;
   for (const auto& iter : layout->shard) {
-    if (iter->axis->name != axis) continue;
+    if (iter->axis.name() != axis) continue;
     PrimExpr off = I64(0);
     for (const auto& kv : layout->offset) {
-      if (kv.first->name == axis) {
+      if (kv.first.name() == axis) {
         off = kv.second;
         break;
       }
@@ -416,7 +418,7 @@ std::vector<std::string> ActiveSet::AxisNames() const {
   std::vector<std::string> names;
   if (!layout.defined()) return names;
   for (const auto& iter : layout->shard) {
-    names.push_back(iter->axis->name.operator std::string());
+    names.push_back(iter->axis.name().operator std::string());
   }
   return names;
 }

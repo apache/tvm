@@ -58,20 +58,20 @@ class UnaryOp(TilePrimitiveCall):
         return [self.output]
 
 
-class UnaryOpWithBiasScale(UnaryOp):
-    """Extended unary operator with bias and scale parameters: unary_with_bias_scale(output, input, bias, scale).
+class UnaryOpWithScaleBias(UnaryOp):
+    """Extended unary operator with bias and scale parameters: unary_with_scale_bias(output, input, scale, bias).
 
-    These operators support additional bias and scale parameters for more complex operations (only on trn).
+    Both scale and bias are required operands, applied before the unary operation.
     output = unary(input * scale + bias)
     """  # noqa: E501
 
-    bias = ArgProperty(2)
-    scale = ArgProperty(3)
+    scale = ArgProperty(2)
+    bias = ArgProperty(3)
 
     @property
     def srcs(self) -> list[Expr]:
         """Get the source expressions (inputs) of the operator."""
-        return [self.input, self.bias, self.scale]
+        return [self.input, self.scale, self.bias]
 
 
 class BinaryOp(TilePrimitiveCall):
@@ -124,13 +124,16 @@ class Zero(UnaryOp):
     op = get_tirx_op("zero")
 
 
-class Sqrt(UnaryOpWithBiasScale):
-    """Compute square root of all elements in src and store to dst.
-
-    If bias and scale are provided: dst = sqrt(src * scale + bias)
-    """
+class Sqrt(UnaryOp):
+    """Compute sqrt(src) and store to dst."""
 
     op = get_tirx_op("sqrt")
+
+
+class SqrtWithScaleBias(UnaryOpWithScaleBias):
+    """Compute sqrt(src * scale + bias) and store to dst."""
+
+    op = get_tirx_op("sqrt_with_scale_bias")
 
 
 class Fill(UnaryOp):
@@ -169,7 +172,7 @@ class FMA(TilePrimitiveCall):
 
     fma(output, input, scale, bias)
 
-    scale and bias can each be either a BufferRegion or a Expr scalar.
+    scale and bias can each be either a TensorRegion or an Expr scalar.
     """
 
     op = get_tirx_op("fma")
@@ -382,31 +385,40 @@ class Minimum(BinaryOp):
     op = get_tirx_op("minimum")
 
 
-class Exp(UnaryOpWithBiasScale):
-    """Compute exponential (e^x) of all elements in src and store to dst.
-
-    If bias and scale are provided: dst = exp(src * scale + bias)
-    """
+class Exp(UnaryOp):
+    """Compute exp(src) and store to dst."""
 
     op = get_tirx_op("exp")
 
 
-class Exp2(UnaryOpWithBiasScale):
-    """Compute base-2 exponential (2^x) of all elements in src and store to dst.
+class ExpWithScaleBias(UnaryOpWithScaleBias):
+    """Compute exp(src * scale + bias) and store to dst."""
 
-    If bias and scale are provided: dst = exp2(src * scale + bias)
-    """
+    op = get_tirx_op("exp_with_scale_bias")
+
+
+class Exp2(UnaryOp):
+    """Compute exp2(src) and store to dst."""
 
     op = get_tirx_op("exp2")
 
 
-class Log2(UnaryOpWithBiasScale):
-    """Compute base-2 logarithm of all elements in src and store to dst.
+class Exp2WithScaleBias(UnaryOpWithScaleBias):
+    """Compute exp2(src * scale + bias) and store to dst."""
 
-    If bias and scale are provided: dst = log2(src * scale + bias)
-    """
+    op = get_tirx_op("exp2_with_scale_bias")
+
+
+class Log2(UnaryOp):
+    """Compute log2(src) and store to dst."""
 
     op = get_tirx_op("log2")
+
+
+class Log2WithScaleBias(UnaryOpWithScaleBias):
+    """Compute log2(src * scale + bias) and store to dst."""
+
+    op = get_tirx_op("log2_with_scale_bias")
 
 
 class Select(BinaryOp):
@@ -450,8 +462,8 @@ class BinaryReduce(TilePrimitiveCall):
 class UnaryReduce(TilePrimitiveCall):
     """Combine a unary operation with a reduction operation.
 
-    unary_reduce(unary_output, reduce_output, unary_input, unary_op, reduce_op, bias, scale, reduce_axes)
-    """  # noqa: E501
+    unary_reduce(unary_output, reduce_output, unary_input, unary_op, reduce_op, reduce_axes)
+    """
 
     op = get_tirx_op("unary_reduce")
 
@@ -460,19 +472,30 @@ class UnaryReduce(TilePrimitiveCall):
     unary_input = ArgProperty(2)
     unary_op = ArgProperty(3)
     reduce_op = ArgProperty(4)
-    bias = ArgProperty(5)
-    scale = ArgProperty(6)
-    reduce_axes = ArgProperty(7)
+    reduce_axes = ArgProperty(5)
 
     @property
     def srcs(self) -> list[Expr]:
         """Get the source expressions (inputs) of the operator."""
-        return [self.unary_input, self.bias, self.scale]
+        return [self.unary_input]
 
     @property
     def dsts(self) -> list[Expr]:
         """Get the destination expressions (outputs) of the operator."""
         return [self.unary_output, self.reduce_output]
+
+
+class UnaryReduceWithScaleBias(UnaryReduce):
+    """Write unary(input * scale + bias), then reduce the unary output."""
+
+    op = get_tirx_op("unary_reduce_with_scale_bias")
+    scale = ArgProperty(5)
+    bias = ArgProperty(6)
+    reduce_axes = ArgProperty(7)
+
+    @property
+    def srcs(self) -> list[Expr]:
+        return [self.unary_input, self.scale, self.bias]
 
 
 class BinaryChain(TilePrimitiveCall):
@@ -517,31 +540,6 @@ class ReduceNegate(ReduceOp):
     op = get_tirx_op("reduce_negate")
 
     reduce_op = ArgProperty(4)
-
-
-class ComposeOp(TilePrimitiveCall):
-    """Generic operator for composition of multiple operations.
-
-    Must be lowered to specific compose operations before operator-level passes.
-    """
-
-    # TODO: add a pass to lower generic compose_op to specific compose ops
-
-    op = get_tirx_op("compose_op")
-
-    @property
-    def srcs(self) -> list[Expr]:
-        """Get the source expressions (inputs) of the operator."""
-        raise NotImplementedError(
-            "Generic compose_op must be lowered to specific compose ops before operator-level passes"  # noqa: E501
-        )
-
-    @property
-    def dsts(self) -> list[Expr]:
-        """Get the destination expressions (outputs) of the operator."""
-        raise NotImplementedError(
-            "Generic compose_op must be lowered to specific compose ops before operator-level passes"  # noqa: E501
-        )
 
 
 class PermuteLayout(TilePrimitiveCall):

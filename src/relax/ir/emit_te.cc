@@ -22,6 +22,7 @@
  */
 #include "./emit_te.h"
 
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/type.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -34,18 +35,17 @@ namespace relax {
 TVM_FFI_STATIC_INIT_BLOCK() { RXPlaceholderOpNode::RegisterReflection(); }
 
 te::Tensor TETensor(Expr value, ffi::Map<tirx::Var, PrimExpr> tir_var_map, std::string name) {
-  auto n = ffi::make_object<RXPlaceholderOpNode>();
+  auto n = ffi::make_object<RXPlaceholderOpNode>(value);
   n->name = name;
-  n->value = value;
 
   // If the value is a constant, it might come as an argument of EmitTE and thus its shape and
   // checked-type might not be properly set. In this case we set the shape and dtype of the returned
   // TE tensor.
-  if (const auto* constant = value.as<ConstantNode>()) {
-    n->dtype = PrimType(constant->data->dtype);
+  if (const auto* constant = value.as<GenericConstNode>()) {
+    n->dtype = PrimType(constant->value.cast<runtime::Tensor>()->dtype);
 
-    int ndim = constant->data->ndim;
-    ffi::Shape shape_tuple = constant->data.Shape();
+    int ndim = constant->value.cast<runtime::Tensor>()->ndim;
+    ffi::Shape shape_tuple = constant->value.cast<runtime::Tensor>().Shape();
     ffi::Array<PrimExpr> shape;
     shape.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
@@ -54,7 +54,8 @@ te::Tensor TETensor(Expr value, ffi::Map<tirx::Var, PrimExpr> tir_var_map, std::
     n->shape = std::move(shape);
     return te::PlaceholderOp(n).output(0);
   }
-  TVM_FFI_ICHECK(!value->ty.IsMissing()) << "value must be normalized and contain Type";
+  TVM_FFI_ICHECK(!value->ty.as<MissingType>().has_value())
+      << "value must be normalized and contain Type";
   auto* tensor_ty = GetTypeAs<TensorTypeNode>(value);
   TVM_FFI_ICHECK(tensor_ty) << "Value must be a tensor";
   auto* shape_expr = tensor_ty->shape.as<ShapeExprNode>();
@@ -62,8 +63,15 @@ te::Tensor TETensor(Expr value, ffi::Map<tirx::Var, PrimExpr> tir_var_map, std::
       << "Expression does not have an known symbolic shape, please consider use "
          "match_cast "
       << "to constrain the shape before passing into te_tensor";
-  n->shape = shape_expr->values.Map(
-      [&tir_var_map](const PrimExpr& e) { return tirx::Substitute(e, tir_var_map); });
+  auto f_substitute =
+      [&tir_var_map](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = tir_var_map.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
+  n->shape = shape_expr->values.Map([&f_substitute](const PrimExpr& expr) {
+    return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(expr, f_substitute)
+        .as_or_throw<PrimExpr>();
+  });
   n->dtype = tensor_ty->dtype.value();
   return te::PlaceholderOp(n).output(0);
 }

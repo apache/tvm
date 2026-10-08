@@ -19,6 +19,7 @@ import pytest
 
 import tvm.testing
 from tvm.s_tir.analysis import assert_pure_function, is_pure_function
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -40,40 +41,40 @@ class CheckImpureFunction:
 
 
 class TestNoOp(CheckPureFunction):
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def func():
         pass
 
 
 class TestReturnValue(CheckPureFunction):
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def func() -> T.int32:
         return 42
 
 
 class TestComputeValueAndReturn(CheckPureFunction):
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def func(N: T.int32, M: T.int32) -> T.int32:
         return N * M
 
 
 class TestReadBufferArgument(CheckPureFunction):
-    @T.prim_func(s_tir=True)
-    def func(A: T.Buffer(16, "float32")) -> T.float32:
+    @Ts.function
+    def func(A: T.Tensor(16, "float32")) -> T.float32:
         return A[0]
 
 
 class TestWriteToBufferArgument(CheckImpureFunction):
-    @T.prim_func(s_tir=True)
-    def func(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+    @Ts.function
+    def func(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
         for i in range(16):
             B[i] = A[i]
 
 
 class TestWriteToInternalAllocation(CheckPureFunction):
-    @T.prim_func(s_tir=True)
-    def func(A: T.Buffer([16, 16], "float32")) -> T.float32:
-        Sum = T.decl_buffer([], "float32")
+    @Ts.function
+    def func(A: T.Tensor([16, 16], "float32")) -> T.float32:
+        Sum = T.decl_tensor([], "float32")
         Sum[()] = 0.0
         for i, j in T.grid(16, 16):
             Sum[()] = Sum[()] + A[i, j]
@@ -82,19 +83,19 @@ class TestWriteToInternalAllocation(CheckPureFunction):
 
 
 class TestCallPureBuiltin(CheckPureFunction):
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def func(x: T.float32) -> T.float32:
         return T.cos(x)
 
 
 class TestCallPureExtern(CheckPureFunction):
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def func():
         T.call_pure_extern("some_pure_extern_func_name", dtype="void")
 
 
 class TestCallImpureExtern(CheckImpureFunction):
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def func():
         T.call_extern("some_impure_extern_func_name", dtype="void")
 

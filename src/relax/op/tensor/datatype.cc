@@ -42,8 +42,8 @@ Expr astype(Expr x, DLDataType dtype) {
   ffi::ObjectPtr<AstypeAttrs> attrs = ffi::make_object<AstypeAttrs>();
   attrs->dtype = dtype;
 
-  static const Op& op = Op::Get("relax.astype");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(attrs), {});
+  static const Op op = Op::Get("relax.astype");
+  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -51,22 +51,23 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.astype", astype);
 }
 
-Type InferTypeAstype(const Call& call, const BlockBuilder& ctx) {
-  TensorType ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeAstype(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<AstypeAttrs>();
   ffi::ObjectPtr<TensorTypeNode> new_ty = ffi::make_object<TensorTypeNode>(*ty.get());
   new_ty->dtype = PrimType(attrs->dtype);
   return TensorType(new_ty);
 }
 
-TVM_REGISTER_OP("relax.astype")
-    .set_attrs_type<AstypeAttrs>()
-    .set_num_inputs(1)
-    .add_argument("x", "Tensor", "The input tensor")
-    .set_attr<FInferType>("FInferType", InferTypeAstype)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.astype")
+      .signature(sig::arg("x", "The input tensor"), sig::call_attrs<AstypeAttrs>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAstype>())
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.wrap_param */
 
@@ -74,8 +75,8 @@ Expr MakeWrapParam(Expr data, DLDataType dtype) {
   ffi::ObjectPtr<WrapParamAttrs> attrs = ffi::make_object<WrapParamAttrs>();
   attrs->dtype = dtype;
 
-  static const Op& op = Op::Get("relax.wrap_param");
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  static const Op op = Op::Get("relax.wrap_param");
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -83,20 +84,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.wrap_param", MakeWrapParam);
 }
 
-Type InferTypeWrapParam(const Call& call, const BlockBuilder& ctx) {
-  TensorType ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeWrapParam(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<WrapParamAttrs>();
   ffi::ObjectPtr<TensorTypeNode> new_ty = ffi::make_object<TensorTypeNode>(*ty.get());
   new_ty->dtype = PrimType(attrs->dtype);
   return TensorType(new_ty);
 }
 
-TVM_REGISTER_OP("relax.wrap_param")
-    .set_attrs_type<WrapParamAttrs>()
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor")
-    .set_attr<FInferType>("FInferType", InferTypeWrapParam)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.wrap_param")
+      .signature(sig::arg("data", "The input tensor"), sig::call_attrs<WrapParamAttrs>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeWrapParam>())
+      .set_attr<bool>("FPurity", true);
+}
 
 }  // namespace relax
 }  // namespace tvm

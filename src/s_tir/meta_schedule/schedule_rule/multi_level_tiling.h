@@ -32,7 +32,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 /*!
  * \brief Get the buffer dimensions for all the read buffers of a block, but marks the reduction
@@ -49,7 +48,6 @@ std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref);
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 /*!
@@ -122,7 +120,7 @@ class StateNode : public ffi::Object {
   /*! \brief The loop tiles */
   ffi::Array<ffi::Array<s_tir::LoopRV>> tiles;
   /*! \brief The factors of the loop tiles. */
-  ffi::Array<ffi::Array<s_tir::ExprRV>> tile_factors;
+  ffi::Array<ffi::Array<ffi::Optional<s_tir::ExprRV>>> tile_factors;
   /*! \brief The mapping from buffer index to read cache block. */
   std::unordered_map<int, s_tir::SBlockRV> read_reuse;
   /*! \brief The mapping from buffer index to write cache block. */
@@ -194,7 +192,7 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
  protected:
   virtual std::vector<State> ApplySubRules(std::vector<State> states);
 
-  virtual std::pair<ffi::Array<s_tir::ExprRV>, ffi::Array<s_tir::LoopRV>> SplitLoop(
+  virtual std::pair<ffi::Array<ffi::Optional<s_tir::ExprRV>>, ffi::Array<s_tir::LoopRV>> SplitLoop(
       const s_tir::Schedule& sch, s_tir::SBlockRV block, s_tir::LoopRV loop, int n_tiles) const;
 
   // Annotate a block to use cooperative fetching

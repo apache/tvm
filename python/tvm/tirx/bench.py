@@ -917,7 +917,7 @@ class CudaProfiler:
 
     def __init__(
         self,
-        profiler_buffer: T.Buffer,
+        profiler_buffer: T.Tensor,
         write_stride: int,
         num_groups: int,
         default_leader: None | tvm.tirx.Expr | bool = None,
@@ -935,8 +935,8 @@ class CudaProfiler:
             # Assume Expr-like input; use as-is
             self.profiler_enabled = profiler_enabled  # type: ignore[assignment]
 
-        self.profiler_tag = T.alloc_buffer([1], "uint64", scope="local", align=8)
-        self.profiler_write_offset = T.alloc_buffer([1], "uint32", scope="local", align=8)
+        self.profiler_tag = T.alloc_tensor([1], "uint64", scope="local", align=8)
+        self.profiler_write_offset = T.alloc_tensor([1], "uint32", scope="local", align=8)
 
     def _leader(self, leader: None | tvm.tirx.Expr | bool):
         if leader is not None:

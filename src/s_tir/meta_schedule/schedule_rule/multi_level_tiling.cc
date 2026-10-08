@@ -31,18 +31,17 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref) {
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  const VarNode* write_buffer = block->writes[0]->buffer.get();
+  const VarNode* write_buffer = block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>().get();
   int n = block->reads.size();
   std::vector<int> results(n, -1);
   for (int i = 0; i < n; ++i) {
-    const VarNode* read_buffer = block->reads[i]->buffer.get();
+    const VarNode* read_buffer = block->reads[i]->source.as_or_throw<tvm::tirx::TensorVar>().get();
     if (read_buffer != write_buffer) {
-      results[i] = GetBufferVar(read_buffer)->shape.size();
+      results[i] = GetTensorVar(read_buffer)->shape.size();
     }
   }
   return results;
@@ -53,15 +52,14 @@ std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref) {
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 using s_tir::GetSBlockVarTypes;
 using s_tir::IsWriteCache;
+using s_tir::IterVarType;
 using s_tir::LoopRV;
 using s_tir::SBlockRV;
 using s_tir::Schedule;
-using tirx::IterVarType;
 
 TVM_FFI_STATIC_INIT_BLOCK() { MultiLevelTilingNode::RegisterReflection(); }
 
@@ -190,14 +188,15 @@ std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const {
   return results;
 }
 
-std::pair<ffi::Array<s_tir::ExprRV>, ffi::Array<s_tir::LoopRV>> MultiLevelTilingNode::SplitLoop(
-    const Schedule& sch, SBlockRV block, LoopRV loop, int n_tiles) const {
-  ffi::Array<s_tir::ExprRV> factors = sch->SamplePerfectTile(
+std::pair<ffi::Array<ffi::Optional<s_tir::ExprRV>>, ffi::Array<s_tir::LoopRV>>
+MultiLevelTilingNode::SplitLoop(const Schedule& sch, SBlockRV block, LoopRV loop,
+                                int n_tiles) const {
+  ffi::Array<ffi::Optional<s_tir::ExprRV>> factors = sch->SamplePerfectTile(
       /*loop=*/loop,
       /*n=*/n_tiles,
       /*max_innermost_factor=*/max_innermost_factor);
   ffi::Array<s_tir::LoopRV> splits = sch->Split(/*loop=*/loop,
-                                                /*factors=*/{factors.begin(), factors.end()});
+                                                /*factors=*/factors);
   return {factors, splits};
 }
 
@@ -223,7 +222,7 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state,
   ffi::Array<LoopRV> skipped_outer_spatial_loops;
   std::vector<ffi::Array<LoopRV>> tiles(s_indices_.size() + r_indices_.size());
   state->tile_factors.resize(tiles.size());
-  std::vector<ffi::Array<s_tir::ExprRV>> tile_factors;
+  std::vector<ffi::Array<ffi::Optional<s_tir::ExprRV>>> tile_factors;
   tile_factors.resize(tiles.size());
   for (int i = 0, n = loops.size(); i < n; ++i) {
     LoopRV loop = loops[i];
@@ -237,7 +236,9 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state,
       }
       idx = &s_indices_;
       if (spatial_loop_product != -1) {
-        if (const int64_t* extent = s_tir::GetLoopIntExtent(sch->Get(loop).get())) {
+        const auto* extent_imm = sch->Get(loop)->extent.as<IntImmNode>();
+        if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+            extent.has_value()) {
           spatial_loop_product *= *extent;
         } else {
           spatial_loop_product = -1;
@@ -369,9 +370,10 @@ std::vector<State> MultiLevelTilingNode::AddAsyncPipeline(State state) const {
 void MultiLevelTilingNode::AnnotateCooperativeFetching(Schedule* sch,
                                                        const s_tir::SBlockRV& block) const {
   // Filter out invalid vector lanes according to the data type.
-  const tirx::SBlockNode* block_node = (*sch)->GetSRef(block)->StmtAs<tirx::SBlockNode>();
+  const s_tir::SBlockNode* block_node = (*sch)->GetSRef(block)->StmtAs<s_tir::SBlockNode>();
   TVM_FFI_ICHECK_EQ(block_node->writes.size(), 1);
-  const DLDataType dtype = block_node->writes[0]->buffer->dtype->dtype;
+  const DLDataType dtype =
+      block_node->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>()->dtype->dtype;
   std::function<bool(int)> f_filter = nullptr;
   if (dtype == DLDataType{kDLFloat, 32, 1}) {
     f_filter = [&](int vector_len) { return vector_len <= 4; };

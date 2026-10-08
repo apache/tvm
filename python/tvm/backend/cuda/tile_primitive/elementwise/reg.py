@@ -34,9 +34,9 @@ from __future__ import annotations
 import functools
 import operator
 
-from tvm.arith import Analyzer
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc, TilePrimitiveCall
+from tvm.sym import Analyzer
+from tvm.tirx import Function, TilePrimitiveCall
 from tvm.tirx.layout import TileLayout
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.operator.tile_primitive.dispatcher import fail
@@ -62,7 +62,7 @@ from .vec_emit import _emit_vec
 # Predicate
 # -----------------------------------------------------------------------------
 def _validate_anchor_layout(anchor_br) -> tuple[bool, str | None]:
-    layout = anchor_br.buffer.layout
+    layout = anchor_br.source.layout
     if layout.is_swizzle():
         return False, "anchor layout is swizzle"
     if not isinstance(layout, TileLayout):
@@ -87,7 +87,7 @@ def _validate_scope_level_anchor(anchor_br, sctx: DispatchContext) -> tuple[bool
 
     # Canonicalize the sliced anchor with the target so warp/lane axes fuse.
     st, ext = get_st_extent(anchor_br)
-    sliced = get_sublayout_from_region(anchor_br.buffer.layout, anchor_br.buffer.shape, st, ext)
+    sliced = get_sublayout_from_region(anchor_br.source.layout, anchor_br.source.shape, st, ext)
     with sctx.target:
         canon = sliced.canonicalize()
     shard = getattr(canon, "shard", None)
@@ -151,7 +151,7 @@ def _check_layout_operands_agree(plan, sctx) -> tuple[bool, str | None]:
     for br in layout_brs:
         st, ext = get_st_extent(br)
         with sctx.target:
-            sliced = get_sublayout_from_region(br.buffer.layout, br.buffer.shape, st, ext)
+            sliced = get_sublayout_from_region(br.source.layout, br.source.shape, st, ext)
             canon = sliced.canonicalize()
         sig = layout_signature(canon)
         if sig is None:
@@ -187,9 +187,9 @@ def is_reg_ewise(spec):
         if msg is not None or plan is None:
             return False, msg
         for br in buffer_regions(plan):
-            if br.buffer.scope() != "local":
-                return False, f"operand scope {br.buffer.scope()} != local"
-            if br.buffer.layout is None:
+            if br.source.scope() != "local":
+                return False, f"operand scope {br.source.scope()} != local"
+            if br.source.layout is None:
                 return False, f"operand {br} has no layout"
         if spec.check_extras is not None:
             ok2, reason2 = spec.check_extras(plan.extras, compute_dtype_of(plan))
@@ -230,7 +230,7 @@ def _prod(it) -> int:
 # -----------------------------------------------------------------------------
 # Main entry
 # -----------------------------------------------------------------------------
-def emit_reg(op_call: TilePrimitiveCall, spec, sctx: DispatchContext) -> PrimFunc:
+def emit_reg(op_call: TilePrimitiveCall, spec, sctx: DispatchContext) -> Function:
     plan, msg = spec.parse(op_call)
     if msg is not None or plan is None:
         fail(msg or "parse failed")
@@ -284,7 +284,7 @@ def _pick_vec_and_carve(spec, op_call, sctx, plan, per_op_mem_layouts):
     return 1, None, dict(per_op_mem_layouts)
 
 
-def _emit_induced(plan, spec, sctx, op_call, anchor_br) -> PrimFunc:
+def _emit_induced(plan, spec, sctx, op_call, anchor_br) -> Function:
     # Every buffer-region operand has a layout (enforced by predicate);
     # trivial / identity layouts are fine — the algorithm is robust to
     # layouts with no thread axes (strip is no-op, placeholders empty).
@@ -354,10 +354,10 @@ def _make_views_meta(per_op_carved, per_thread_total):
     iter strides at codegen time.
     """
     return {
-        op_br: T.decl_buffer(
+        op_br: T.decl_tensor(
             (per_thread_total,),
-            op_br.buffer.dtype,
-            op_br.buffer.data,
+            op_br.source.dtype,
+            op_br.source.data,
             scope="local",
             layout=per_op_carved[op_br],
         )
@@ -370,12 +370,12 @@ def _make_views_meta(per_op_carved, per_thread_total):
 # -----------------------------------------------------------------------------
 def _emit_induced_packed(
     plan, vec_impl, vec_len, outer_total, per_thread_total, per_op_carved, anchor_br
-) -> PrimFunc:
+) -> Function:
     extras = plan.extras
     srcs = plan.srcs
     dst_br = plan.dst
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         views = T.meta_var(_make_views_meta(per_op_carved, per_thread_total))
         # Serial loop (not T.unroll): T.unroll materializes each per-iter
@@ -408,14 +408,14 @@ def _emit_induced_packed(
 # -----------------------------------------------------------------------------
 def _emit_induced_scalar(
     plan, spec, outer_total, per_thread_total, per_op_carved, anchor_br
-) -> PrimFunc:
+) -> Function:
     extras = plan.extras
     srcs = plan.srcs
     dst_br = plan.dst
-    dst_dtype = dst_br.buffer.dtype
+    dst_dtype = dst_br.source.dtype
     compute = spec.compute_scalar
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         views = T.meta_var(_make_views_meta(per_op_carved, per_thread_total))
         # Serial loop (not T.unroll) — see _emit_induced_packed for why.

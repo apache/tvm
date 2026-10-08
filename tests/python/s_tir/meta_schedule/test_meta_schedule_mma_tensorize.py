@@ -23,6 +23,7 @@ import tvm
 import tvm.s_tir.tensor_intrin  # pylint: disable=unused-import
 import tvm.testing
 from tvm.s_tir.schedule import Schedule
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -35,16 +36,16 @@ np.random.seed(0)
 @tvm.script.ir_module
 class Gemm_F16F16F16:
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def main(
-        A: T.Buffer((M, K), "float16"),  # type: ignore
-        B: T.Buffer((K, N), "float16"),  # type: ignore
-        C: T.Buffer((M, N), "float16"),  # type: ignore
+        A: T.Tensor((M, K), "float16"),  # type: ignore
+        B: T.Tensor((K, N), "float16"),  # type: ignore
+        C: T.Tensor((M, N), "float16"),  # type: ignore
     ):
         for i, j, k in T.grid(M, N, K):
-            with T.sblock("C"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("C"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -52,16 +53,16 @@ class Gemm_F16F16F16:
 @tvm.script.ir_module
 class Gemm_F16F16F32:
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def main(
-        A: T.Buffer((M, K), "float16"),  # type: ignore
-        B: T.Buffer((K, N), "float16"),  # type: ignore
-        C: T.Buffer((M, N), "float32"),  # type: ignore
+        A: T.Tensor((M, K), "float16"),  # type: ignore
+        B: T.Tensor((K, N), "float16"),  # type: ignore
+        C: T.Tensor((M, N), "float32"),  # type: ignore
     ):
         for i, j, k in T.grid(M, N, K):
-            with T.sblock("C"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("C"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = C[vi, vj] + T.cast(A[vi, vk], "float32") * T.cast(B[vk, vj], "float32")
 
@@ -311,8 +312,8 @@ def test_f16f16f32_mma_gemm():
     l118, l119, l120, l121, l122, l123, l124 = sch.get_loops(block=b106)
     l125, l126, l127, l128, l129, l130, l131 = sch.get_loops(block=b107)
     l132, l133, l134, l135, l136, l137, l138, l139, l140, l141 = sch.get_loops(block=b108)
-    sch.annotate(block_or_loop=l132, ann_key="pragma_auto_unroll_max_step", ann_val=0)
-    sch.annotate(block_or_loop=l132, ann_key="pragma_unroll_explicit", ann_val=1)
+    sch.annotate(block_or_loop=l132, ann_key="auto_unroll_max_step", ann_val=0)
+    sch.annotate(block_or_loop=l132, ann_key="unroll_explicit", ann_val=1)
     l142, l143, l144 = sch.get_loops(block=b109)
     b145 = sch.get_sblock(name="C_o", func_name="main")
     l146, l147, l148, l149, l150, l151, l152, l153, l154, l155 = sch.get_loops(block=b145)

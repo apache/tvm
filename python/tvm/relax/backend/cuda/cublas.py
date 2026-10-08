@@ -22,9 +22,9 @@ from functools import reduce
 
 import tvm
 from tvm import DataType
-from tvm.arith import Analyzer
 from tvm.relax import transform
 from tvm.relax.transform import PatternCheckContext
+from tvm.sym import Analyzer
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import (
@@ -62,7 +62,7 @@ def _check_matmul(context: PatternCheckContext) -> bool:
         if scale.ty.ndim != 0 or zero_point.ty.ndim != 0:
             return False
         # Only zero_point == 0.0 is supported.
-        if zero_point.data.numpy()[()].item() != 0.0:
+        if zero_point.value.numpy()[()].item() != 0.0:
             return False
 
     lhs_dtype = lhs.ty.dtype

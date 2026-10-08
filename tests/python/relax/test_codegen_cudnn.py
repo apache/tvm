@@ -28,10 +28,10 @@ import tvm.topi.testing
 from tvm import relax
 from tvm.contrib.pickle_memoize import memoize
 from tvm.relax.backend.cuda.cudnn import partition_for_cudnn
+from tvm.relax.script import ir_builder as relax_builder
 from tvm.relax.testing import get_relax_stacked_attention_module
 from tvm.script import relax as R
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import relax as relax_builder
 
 
 @pytest.fixture(autouse=True)
@@ -66,14 +66,14 @@ def get_relax_conv2d_module(
 ):
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            data = R.arg("data", R.Tensor(data_shape, dtype))
-            weight = R.arg("weight", R.Tensor(weight_shape, dtype))
+            R.func_name_("main")
+            data = R.arg_("data", R.Tensor(data_shape, dtype))
+            weight = R.arg_("weight", R.Tensor(weight_shape, dtype))
             if with_bias:
                 if data_layout == "NHWC":
-                    bias = R.arg("bias", R.Tensor((1, 1, 1, weight_shape[0]), dtype))
+                    bias = R.arg_("bias", R.Tensor((1, 1, 1, weight_shape[0]), dtype))
                 elif data_layout == "NCHW":
-                    bias = R.arg("bias", R.Tensor((1, weight_shape[0], 1, 1), dtype))
+                    bias = R.arg_("bias", R.Tensor((1, weight_shape[0], 1, 1), dtype))
                 else:
                     raise ValueError(f"Unsupported data_layout: {data_layout}")
 
@@ -297,6 +297,37 @@ def get_numpy_stacked_attention_ref(b, s, n, h, h_v, bias_shape, qk_scale, dtype
 )
 def stacked_attention_size(request):
     return request.param
+
+
+def _is_offloaded_to_cudnn(mod):
+    return any("cudnn" in gv.name_hint for gv, _ in mod.functions_items())
+
+
+def _get_stacked_attention_module(dtype, causal_mask=None):
+    b, s, n, h, h_v = 4, 8, 32, 64, 64
+    qkv = np.random.randn(b, s, n * h * 2 + n * h_v).astype(dtype)
+    return get_relax_stacked_attention_module(
+        qkv, b, s, n, h, h_v, "split", causal_mask=causal_mask
+    )
+
+
+def test_stacked_attention_partition():
+    mod = _get_stacked_attention_module("float16")
+    assert _is_offloaded_to_cudnn(partition_for_cudnn(mod))
+
+
+@pytest.mark.parametrize("causal_mask", ["TopLeft", "BottomRight"])
+def test_stacked_attention_causal_not_partitioned(causal_mask):
+    # The cuDNN runtime builds an unmasked SDPA graph, offloading here would silently drop
+    # the causal mask.
+    mod = _get_stacked_attention_module("float16", causal_mask=causal_mask)
+    assert not _is_offloaded_to_cudnn(partition_for_cudnn(mod))
+
+
+def test_stacked_attention_fp32_not_partitioned():
+    # attention.cc only builds a half-precision graph and ICHECKs at module init otherwise.
+    mod = _get_stacked_attention_module("float32")
+    assert not _is_offloaded_to_cudnn(partition_for_cudnn(mod))
 
 
 @pytest.mark.skip(reason="require cudnn frontend")

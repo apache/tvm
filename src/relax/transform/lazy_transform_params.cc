@@ -33,11 +33,12 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 namespace {
 std::optional<int64_t> GetNumInputParams(const FunctionNode* func) {
   if (auto opt_int_imm = func->GetAttr<IntImm>(attr::kNumInput)) {
-    int64_t num_input_params = opt_int_imm.value()->value;
+    int64_t num_input_params = static_cast<int64_t>(opt_int_imm.value()->value);
     TVM_FFI_CHECK_GE(num_input_params, 0, ValueError)
         << "Annotation for attr::kNumInput (\"" << attr::kNumInput
         << "\") must be non-negative, but was " << num_input_params;
@@ -74,7 +75,7 @@ class LazyInputMutator : public ExprMutator {
     std::unordered_set<tirx::Var> externally_visible_vars(array_externally_visible_vars.begin(),
                                                           array_externally_visible_vars.end());
     Type new_ret_ty = EraseToWellDefined(func->ret_ty, [&](const Var& var) -> ffi::Optional<Expr> {
-      if (auto prim_var = var.as<tirx::PrimVar>();
+      if (auto prim_var = var.as<PrimVar>();
           prim_var && externally_visible_vars.count(prim_var.value())) {
         return prim_var.value().as_or_throw<PrimExpr>();
       }
@@ -96,11 +97,11 @@ class LazyInputMutator : public ExprMutator {
     if (plan_) {
       Var var = ffi::GetRef<Var>(op);
       if (auto it = plan_->param_lookup.find(var); it != plan_->param_lookup.end()) {
-        auto untyped = builder_->Emit(Call(Type::Missing(), plan_->fget_param,
-                                           {
-                                               PrimExpr(IntImm::Int64(it->second)),
-                                               StringImm(var->name),
-                                           }),
+        auto untyped = builder_->Emit(Call::Unchecked(Type::Missing(), plan_->fget_param,
+                                                      {
+                                                          PrimExpr(IntImm::Int64(it->second)),
+                                                          StringImm(var->name),
+                                                      }),
                                       var->name + "_untyped");
         return builder_->EmitMatchCast(untyped, GetType(var), var->name);
       }
@@ -208,8 +209,8 @@ class LazyOutputMutator : public ExprMutator {
     if (plan_.has_value()) {
       if (auto it = plan_->output_lookup.find(var); it != plan_->output_lookup.end()) {
         for (auto output_index : it->second) {
-          callback(Call(Type::Missing(), plan_->fset_output,
-                        {PrimExpr(IntImm::Int64(output_index)), var}));
+          callback(Call::Unchecked(Type::Missing(), plan_->fset_output,
+                                   {PrimExpr(IntImm::Int64(output_index)), var}));
         }
       }
     }

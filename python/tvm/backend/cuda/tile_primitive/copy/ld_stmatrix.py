@@ -25,7 +25,7 @@ Direction (ld vs st) and exec scope (warp / warpgroup) are decided inside
 from math import prod
 
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 from tvm.tirx.layout import ComposeLayout, S, TileLayout
 from tvm.tirx.operator.tile_primitive.dispatcher import fail, predicate, register_dispatch
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
@@ -72,20 +72,20 @@ def _is_ldstmatrix(op_call: TilePrimitiveCall, sctx: DispatchContext) -> tuple[b
     return True, None
 
 
-def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     op_call = TilePrimitiveCall.downcast(op_call)
 
     # Step 1: identify reg / smem sides and pull their tensor shape + layout.
     src_br = op_call.src
     dst_br = op_call.dst
-    if src_br.buffer.scope() == "local":
+    if src_br.source.scope() == "local":
         r_br, s_br = src_br, dst_br
         direction = "st"  # reg -> smem (stmatrix)
     else:
         r_br, s_br = dst_br, src_br
         direction = "ld"  # smem -> reg (ldmatrix)
-    r_buf = r_br.buffer
-    s_buf = s_br.buffer
+    r_buf = r_br.source
+    s_buf = s_br.source
     r_shape = list(r_buf.shape)
     r_layout = r_buf.layout
     s_shape = list(s_buf.shape)
@@ -302,7 +302,7 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
 
     def _get_warp_idx_in_T():
         # T.warp_id_in_wg() / T.warp_id() must be called from inside a
-        # @T.prim_func body — wrap so the prim_func parser calls us at parse
+        # @T.function body — wrap so the function parser calls us at parse
         # time (Python `if` here is plain control flow, not TIR-intercepted).
         if r_lane_axis == "laneid":
             return 0
@@ -360,7 +360,7 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
         )[s_mem_axis]
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         r_local = r_buf.local(m_total, layout=TileLayout(S[(m_total,)]))
         laneid = T.lane_id()
@@ -392,7 +392,7 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     priority=10,
     when=[predicate("ldstmatrix_applicable", _is_ldstmatrix)],
 )
-def copy_schedule_ldstmatrix(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def copy_schedule_ldstmatrix(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     return _emit(op_call, sctx)
 
 

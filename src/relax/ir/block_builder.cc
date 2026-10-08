@@ -20,7 +20,6 @@
 /*!
  * \file src/relax/block_builder.cc
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/function.h>
@@ -34,6 +33,7 @@
 #include <tvm/relax/type_functor.h>
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/function.h>
 
 #include <memory>
@@ -53,6 +53,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 //---------------------------------------
 // ctx and scope management.
@@ -89,13 +90,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
       GlobalVar gvar(func_name);
 
       Type finfo = Type::Missing();
-      if (!func->ty.IsMissing()) {
+      if (!func->ty.as<MissingType>().has_value()) {
         finfo = GetType(func);
-      } else if (auto* prim_func = func.as<tirx::PrimFuncNode>()) {
-        // NOTE: use a slightly different type than checked type
-        // in PrimFunc so handle can turn into Tensor.
-        // TODO(relax-team): add fine-grained PrimFunc type signature generation.
-        finfo = FuncType::OpaqueFunc(TypeFromStaticType(prim_func->ret_type));
       } else {
         TVM_FFI_THROW(RuntimeError) << "Expect ty field to be populated";
       }
@@ -197,9 +193,9 @@ class BlockBuilderImpl : public BlockBuilderNode {
     // defined in parameter type annotations. The implementation
     // is correct (since we will simply erase all relax Vars in EraseToWellDefined),
     // but can be further improved.
-    ffi::Map<tirx::PrimVar, PrimExpr> var_map = TypeVarCollector::Collect(GetType(var));
+    ffi::Map<PrimVar, PrimExpr> var_map = TypeVarCollector::Collect(GetType(var));
     for (const auto& kv : var_map) {
-      const tirx::PrimVar& shape_var = kv.first;
+      const PrimVar& shape_var = kv.first;
       const PrimExpr& shape_expr = kv.second;
       auto it = shape_var_map.find(shape_var);
       if (it == shape_var_map.end()) {
@@ -274,18 +270,18 @@ class BlockBuilderImpl : public BlockBuilderNode {
             << "Cannot emit dataflow var in non-dataflow block";
       }
       // normalized check
-      TVM_FFI_ICHECK(!var_binding->var->ty.IsMissing());
-      TVM_FFI_ICHECK(!var_binding->value->ty.IsMissing());
+      TVM_FFI_ICHECK(!var_binding->var->ty.as<MissingType>().has_value());
+      TVM_FFI_ICHECK(!var_binding->value->ty.as<MissingType>().has_value());
       cur_frame->bindings.push_back(binding);
-      binding_table_[var_binding->var] = var_binding->value;
+      binding_table_.insert_or_assign(var_binding->var, var_binding->value);
     } else if (const auto* match_cast = binding.as<MatchCastNode>()) {
       if (!cur_frame->is_dataflow) {
         TVM_FFI_ICHECK(!match_cast->var.as<DataflowVarNode>())
             << "Cannot emit dataflow var in non-dataflow block";
       }
       // normalized check
-      TVM_FFI_ICHECK(!match_cast->var->ty.IsMissing());
-      TVM_FFI_ICHECK(!match_cast->value->ty.IsMissing());
+      TVM_FFI_ICHECK(!match_cast->var->ty.as<MissingType>().has_value());
+      TVM_FFI_ICHECK(!match_cast->value->ty.as<MissingType>().has_value());
       // NOTE match shape do not follow simple binding rule
       // as a result should not appear in binding table.
       cur_frame->bindings.push_back(binding);
@@ -295,7 +291,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     }
   }
 
-  arith::Analyzer GetAnalyzer() final { return analyzer_; }
+  sym::Analyzer GetAnalyzer() final { return analyzer_; }
 
  protected:
   /*!
@@ -333,7 +329,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     //
     // TODO(relax-team) tracks the var defined also through match-cast.
     /*! \brief set of defined symbolic vars, value as themself. */
-    ffi::Map<tirx::PrimVar, PrimExpr> shape_var_map;
+    ffi::Map<PrimVar, PrimExpr> shape_var_map;
   };
 
   /*! \brief A stack to store block frames. */
@@ -352,7 +348,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   IRModule context_mod_;
 
   /*! \brief Internal analzyer */
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 
   /*!
    * \return The current frame.
@@ -394,7 +390,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     CurrentBindingBlockFrame()->bindings.push_back(VarBinding(var, expr));
 
     // update the binding table
-    binding_table_[var] = expr;
+    binding_table_.insert_or_assign(var, expr);
 
     return var;
   }
@@ -443,7 +439,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   };
 
   /*!
-   * \brief A hashmap to store the mapping of Relax functions and TIR PrimFuncs
+   * \brief A hashmap to store the mapping of Relax functions and TIR Functions
    * in context_mod to their GlobalVar to avoid generating duplicated functions.
    * We use a custom hash to avoid hashing constants that may be bound to each BaseFunc.
    */
@@ -472,7 +468,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   // shape vars as defined when calling BeginScope(params)
   class TypeVarCollector : public TypeVisitor {
    public:
-    static ffi::Map<tirx::PrimVar, PrimExpr> Collect(const Type& ty) {
+    static ffi::Map<PrimVar, PrimExpr> Collect(const Type& ty) {
       TypeVarCollector collector;
       collector(ty);
       return collector.shape_var_map_;
@@ -483,7 +479,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
       if (const auto* shape_expr = op->shape.as<ShapeExprNode>()) {
         for (const PrimExpr& s : shape_expr->values) {
           // Only collect single var defined shape. Ignore something like `R.Tensor((m + 1, n + 1))
-          if (auto var = s.as<tirx::PrimVar>()) {
+          if (auto var = s.as<PrimVar>()) {
             shape_var_map_.Set(var.value(), s);
           }
         }
@@ -493,14 +489,14 @@ class BlockBuilderImpl : public BlockBuilderNode {
     void VisitType_(const ShapeTypeNode* op) final {
       for (const PrimExpr& s : op->values.value_or(ffi::Array<PrimExpr>())) {
         // Only collect single var defined shape. Ignore something like `R.Shape((m + 1, n + 1))
-        if (auto var = s.as<tirx::PrimVar>()) {
+        if (auto var = s.as<PrimVar>()) {
           shape_var_map_.Set(var.value(), s);
         }
       }
     }
 
    private:
-    ffi::Map<tirx::PrimVar, PrimExpr> shape_var_map_;
+    ffi::Map<PrimVar, PrimExpr> shape_var_map_;
   };
 };
 
@@ -517,7 +513,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
 // We take benefit of the following invariants(that are checked in constructor):
 // - If an expr appears in Type, then it is already normalized.
 //   As a result, we do not need to peek into Type in Normalization.
-// - Constant, ShapeExpr, already have their Type populated in constructing time.
+// - GenericConst, ShapeExpr, already have their Type populated in constructing time.
 class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&)> {
  public:
   explicit Normalizer(IRModule context_mod) : BlockBuilderImpl(context_mod) {}
@@ -531,7 +527,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     // After Normalize: an Expr always have
     // ty (with the exception of Op).
     if (!normalized->IsInstance<OpNode>()) {
-      TVM_FFI_ICHECK(!normalized->ty.IsMissing())
+      TVM_FFI_ICHECK(!normalized->ty.as<MissingType>().has_value())
           << "The ty of an Expr except OpNode after "
              "normalization must not be missing. However, this Expr does not have ty: "
           << normalized;
@@ -564,7 +560,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       Var var = this->Emit(post, "");
       // NOTE: current frame addr can change due to underlying vector
       // re-allocation, redo lookup
-      CurrentBindingBlockFrame()->normalize_binding_map[arg] = var;
+      CurrentBindingBlockFrame()->normalize_binding_map.insert_or_assign(arg, var);
       return var;
     } else {
       return post;
@@ -574,7 +570,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   RELAX_EXPR_NORMALIZER_LEAF(ExternFuncNode);
   RELAX_EXPR_NORMALIZER_LEAF(GlobalVarNode);
   RELAX_EXPR_NORMALIZER_LEAF(OpNode);
-  RELAX_EXPR_NORMALIZER_LEAF(ConstantNode);
+  RELAX_EXPR_NORMALIZER_LEAF(GenericConstNode);
   RELAX_EXPR_NORMALIZER_LEAF(ShapeExprNode);
   RELAX_EXPR_NORMALIZER_LEAF(StringImmNode);
   RELAX_EXPR_NORMALIZER_LEAF(DataTypeImmNode);
@@ -589,7 +585,8 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   Expr VisitVar_(const typename T::ContainerType* var) {
     // Parameters and free-vars must be present with type
     // Other vars must have already been normalized through binding
-    TVM_FFI_ICHECK(!var->ty.IsMissing()) << "Var " << var->name << " does not have type.";
+    TVM_FFI_ICHECK(!var->ty.template as<MissingType>().has_value())
+        << "Var " << var->name << " does not have type.";
     return ffi::GetRef<Var>(var);
   }
 
@@ -628,7 +625,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
     Tuple tuple = unchanged ? ffi::GetRef<Tuple>(op) : Tuple(new_fields, op->span);
     // Update tuple fields.
-    if (tuple->ty.IsMissing()) {
+    if (tuple->ty.as<MissingType>().has_value()) {
       ffi::Array<Type> tuple_ty;
       for (Expr field : tuple->fields) {
         tuple_ty.push_back(GetType(field));
@@ -649,19 +646,23 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   }
 
   Expr VisitExpr_(const CallNode* op) final {
+    TVM_FFI_CHECK(op->op.as<OpNode>() || !op->op->ty.as<tvm::FuncTypeNode>(), TypeError)
+        << "Ordinary Relax calls cannot invoke a native TIRx function; "
+        << "use R.call_tir for destination passing or R.call_tir_packed for a direct result";
     Expr new_op = this->NormalizeArgument(op->op);
 
     ffi::Array<Expr> new_args =
         op->args.Map([this](const Expr& arg) { return NormalizeArgument(arg); });
 
-    Call call;
-    if (new_op.same_as(op->op) && new_args.same_as(op->args)) {
-      call = ffi::GetRef<Call>(op);
-    } else {
-      call = Call(Type::Missing(), new_op, new_args, op->attrs, op->ty_args);
-    }
+    Call call = [&]() -> Call {
+      if (new_op.same_as(op->op) && new_args.same_as(op->args)) {
+        return ffi::GetRef<Call>(op);
+      } else {
+        return Call::Unchecked(Type::Missing(), new_op, new_args, op->attrs, op->ty_args);
+      }
+    }();
 
-    if (call->ty.IsMissing()) {
+    if (call->ty.as<MissingType>().has_value()) {
       auto inferred_ty = InferType(call);
       UpdateType(call, inferred_ty);
     }
@@ -679,6 +680,11 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       }
     }
 
+    // TVMScript uses a builder with FNormalize disabled so it can construct
+    // intentionally ill-formed IR for a later check_well_formed call.
+    if (apply_f_normalize_) {
+      if (auto op = call->op.as<Op>()) op.value().Validate(call.get());
+    }
     return call;
   }
 
@@ -716,15 +722,16 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     ffi::Array<BindingBlock> normalized_blocks = NormalizeBlocks(new_blocks);
     unchanged &= normalized_blocks.same_as(new_blocks);
 
-    SeqExpr seq_expr;
-    if (unchanged) {
-      seq_expr = ffi::GetRef<SeqExpr>(op);
-    } else {
-      seq_expr = SeqExpr(normalized_blocks, new_body, op->span);
-    }
+    SeqExpr seq_expr = [&]() -> SeqExpr {
+      if (unchanged) {
+        return ffi::GetRef<SeqExpr>(op);
+      } else {
+        return SeqExpr(normalized_blocks, new_body, op->span);
+      }
+    }();
 
     // only do shape/type inference if the SeqExpr does not have shape/type
-    if (seq_expr->ty.IsMissing()) {
+    if (seq_expr->ty.as<MissingType>().has_value()) {
       UpdateType(seq_expr, EraseToWellDefinedInScope(GetType(seq_expr->body)));
     }
     return seq_expr;
@@ -735,14 +742,15 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     Expr new_true = this->VisitWithNewScope(op->true_branch);
     Expr new_false = this->VisitWithNewScope(op->false_branch);
 
-    If if_node;
-    if (new_cond.same_as(op->cond) && new_true.same_as(op->true_branch) &&
-        new_false.same_as(op->false_branch)) {
-      if_node = ffi::GetRef<If>(op);
-    } else {
-      if_node = If(new_cond, new_true, new_false, op->span);
-    }
-    if (if_node->ty.IsMissing()) {
+    If if_node = [&]() -> If {
+      if (new_cond.same_as(op->cond) && new_true.same_as(op->true_branch) &&
+          new_false.same_as(op->false_branch)) {
+        return ffi::GetRef<If>(op);
+      } else {
+        return If(new_cond, new_true, new_false, op->span);
+      }
+    }();
+    if (if_node->ty.as<MissingType>().has_value()) {
       auto true_info = EraseToWellDefinedInScope(GetType(new_true));
       auto false_info = EraseToWellDefinedInScope(GetType(new_false));
       UpdateType(if_node, TypeLCA(true_info, false_info));
@@ -756,7 +764,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     TupleGetItem node = new_tuple.same_as(op->tuple) ? ffi::GetRef<TupleGetItem>(op)
                                                      : TupleGetItem(new_tuple, op->index);
 
-    if (node->ty.IsMissing()) {
+    if (node->ty.as<MissingType>().has_value()) {
       auto opt = MatchType<TupleType>(node->tuple);
       TVM_FFI_ICHECK(opt) << "The type of Tuple must be TupleType, "
                           << "but expression " << node->tuple << " has type " << node->tuple->ty;
@@ -781,7 +789,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (!new_value.same_as(binding->value)) {
       binding = VarBinding(binding->var, new_value, binding->span);
     }
-    if (binding->var->ty.IsMissing()) {
+    if (binding->var->ty.as<MissingType>().has_value()) {
       UpdateType(binding->var, GetType(new_value));
     }
     return binding;
@@ -792,7 +800,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (!new_value.same_as(binding->value)) {
       binding = MatchCast(binding->var, new_value, binding->ty, binding->span);
     }
-    if (binding->var->ty.IsMissing()) {
+    if (binding->var->ty.as<MissingType>().has_value()) {
       UpdateType(binding->var, binding->ty);
     }
     return binding;
@@ -824,7 +832,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   // Helper function to infer the type of a Call.
   Type InferType(const Call& call) {
     if (auto* op_ptr = call->op.as<OpNode>()) {
-      // Case 1: the op field is a primitive op, look up FInferType attribute
+      // Case 1: the op field is a primitive op, look up FInferTypeWithBuilder attribute
       Op op = ffi::GetRef<Op>(op_ptr);
       bool is_dist_op = false;
       for (const auto& arg : call->args) {
@@ -839,15 +847,24 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
               << "Distributed operator must take DTensor instead of Tensor as input";
         }
         TVM_FFI_ICHECK(op_map_dist_infer_ty.count(op))
-            << " Cannot find the dist.FInferType attribute registered to op: " << op->name;
+            << " Cannot find the dist.FInferTypeWithBuilder attribute registered to op: "
+            << op->name;
         return op_map_dist_infer_ty[op](call, ffi::GetRef<BlockBuilder>(this));
       }
-      TVM_FFI_ICHECK(op_map_infer_ty.count(op))
-          << " Cannot find the FInferType attribute registered to op: " << op->name;
+      bool has_context_free = op_map_context_free_infer_ty.count(op);
+      bool has_contextual = op_map_infer_ty.count(op);
+      TVM_FFI_ICHECK(!(has_context_free && has_contextual))
+          << "Operator " << op->name << " registers both FInferType and FInferTypeWithBuilder";
+      if (has_context_free) {
+        return Call::ReinferType(call.get());
+      }
+      TVM_FFI_ICHECK(has_contextual)
+          << " Cannot find the FInferType or FInferTypeWithBuilder attribute registered to op: "
+          << op->name;
       return op_map_infer_ty[op](call, ffi::GetRef<BlockBuilder>(this));
     } else {
       // derive using function parameters
-      TVM_FFI_ICHECK(!call->op->ty.IsMissing());
+      TVM_FFI_ICHECK(!call->op->ty.as<MissingType>().has_value());
       auto opt = MatchType<FuncType>(call->op);
       TVM_FFI_ICHECK(opt) << "Call->op must contains a function type";
       FuncType finfo = opt.value();
@@ -864,7 +881,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     }
     auto* curr_scope = CurrentScopeFrame();
     auto f_var_map = [curr_scope](const Var& var) -> ffi::Optional<Expr> {
-      auto prim_var = var.as<tirx::PrimVar>();
+      auto prim_var = var.as<PrimVar>();
       if (!prim_var) return std::nullopt;
       auto it = curr_scope->shape_var_map.find(prim_var.value());
       if (it != curr_scope->shape_var_map.end()) return (*it).second;
@@ -880,31 +897,30 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       this->BeginInnerScope();
     }
 
-    Expr ret;
+    Expr ret = [&]() -> Expr {
+      // SeqExpr do not need to prepare for normalization.
+      if (expr.as<SeqExprNode>()) {
+        return this->VisitExpr(expr);
+      } else {
+        this->BeginBindingBlock();
+        Expr post = this->NormalizeArgument(expr);
+        BindingBlock prologue = this->EndBlock();
+        // "New scopes" (function bodies, if/else clauses) must be wrapped in seq exprs.
+        // Don't wrap if it's already a seq and there are no bindings to add
+        if (post.as<SeqExprNode>() && prologue->bindings.empty()) {
+          return post;
+        }
+        ffi::Array<BindingBlock> bindings;
+        if (!prologue->bindings.empty()) {
+          bindings.push_back(prologue);
+        }
 
-    // SeqExpr do not need to prepare for normalization.
-    if (expr.as<SeqExprNode>()) {
-      ret = this->VisitExpr(expr);
-    } else {
-      this->BeginBindingBlock();
-      Expr post = this->NormalizeArgument(expr);
-      BindingBlock prologue = this->EndBlock();
-      // "New scopes" (function bodies, if/else clauses) must be wrapped in seq exprs.
-      // Don't wrap if it's already a seq and there are no bindings to add
-      if (post.as<SeqExprNode>() && prologue->bindings.empty()) {
-        return post;
+        SeqExpr seq(bindings, post);
+        UpdateType(seq, EraseToWellDefinedInScope(GetType(seq->body)));
+
+        return seq;
       }
-      ffi::Array<BindingBlock> bindings;
-      if (!prologue->bindings.empty()) {
-        bindings.push_back(prologue);
-      }
-
-      SeqExpr seq(bindings, post);
-      UpdateType(seq, EraseToWellDefinedInScope(GetType(seq->body)));
-
-      ret = seq;
-    }
-
+    }();
     this->EndScope();
     return ret;
   }
@@ -919,14 +935,16 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       bool is_dataflow = block->IsInstance<DataflowBlockNode>();
       ffi::Array<Binding> current;
       for (const Binding& binding : block->bindings) {
-        Expr value;
-        if (const auto* var_binding = binding.as<VarBindingNode>()) {
-          value = var_binding->value;
-        } else if (const auto* match_cast = binding.as<MatchCastNode>()) {
-          value = match_cast->value;
-        } else {
-          TVM_FFI_THROW(InternalError) << "Unknown binding type: " << binding->GetTypeKey();
-        }
+        Expr value = [&]() -> Expr {
+          if (const auto* var_binding = binding.as<VarBindingNode>()) {
+            return var_binding->value;
+          } else if (const auto* match_cast = binding.as<MatchCastNode>()) {
+            return match_cast->value;
+          } else {
+            TVM_FFI_THROW(InternalError) << "Unknown binding type: " << binding->GetTypeKey();
+            throw;
+          }
+        }();
         // if we encounter a nested seq, we have to flatten it:
         //   1. Append the binding block we've accumulated so far
         //   2. Reset the current block
@@ -980,6 +998,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
             current.push_back(MatchCast(match_cast->var, seq->body, match_cast->ty));
           } else {
             TVM_FFI_THROW(InternalError) << "Unknown binding type: " << binding->GetTypeKey();
+            throw;
           }
         } else {
           current.push_back(binding);
@@ -1028,8 +1047,12 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   }
 
   /*! \brief Operator type inference map. */
-  tvm::OpAttrMap<FInferType> op_map_infer_ty = Op::GetAttrMap<FInferType>("FInferType");
-  tvm::OpAttrMap<FInferType> op_map_dist_infer_ty = Op::GetAttrMap<FInferType>("dist.FInferType");
+  tvm::OpAttrMap<FInferType> op_map_context_free_infer_ty =
+      Op::GetAttrMap<FInferType>("FInferType");
+  tvm::OpAttrMap<FInferTypeWithBuilder> op_map_infer_ty =
+      Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
+  tvm::OpAttrMap<FInferTypeWithBuilder> op_map_dist_infer_ty =
+      Op::GetAttrMap<FInferTypeWithBuilder>("relax.dist.FInferTypeWithBuilder");
   /*! \brief Operator normalization function */
   tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
 

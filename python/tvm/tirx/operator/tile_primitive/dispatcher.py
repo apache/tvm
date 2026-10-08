@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from tvm.ir import Op
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 from tvm.tirx.operator import get_tirx_op
 from tvm.tirx.tile_primitive import DispatchContext, TilePrimitiveCall
 
@@ -84,8 +84,8 @@ class DispatchCase:
     variant: str
     priority: int
     preds: list[Predicate]
-    # Impl must either return a PrimFunc or raise DispatchFail
-    impl: Callable[[TilePrimitiveCall, DispatchContext], PrimFunc]
+    # Impl must either return a Function or raise DispatchFail
+    impl: Callable[[TilePrimitiveCall, DispatchContext], Function]
 
 
 # Keyed by (Op, target_kind)
@@ -110,20 +110,20 @@ def register_dispatch(
     """Decorator to add a dispatch case for an op/target pair.
 
     Cases with higher priority run earlier. When list predicates must all pass.
-    The impl must return a PrimFunc on success, and must NOT return None.
+    The impl must return a Function on success, and must NOT return None.
     To decline handling, raise `fail("reason")` (or `DispatchFail`).
     """
 
     op = get_tirx_op(op_name)
 
     def decorator(impl: Callable[[TilePrimitiveCall, DispatchContext], Any]):
-        # Wrap impl to forbid returning None; require raise-or-PrimFunc
-        def wrapped_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+        # Wrap impl to forbid returning None; require raise-or-Function
+        def wrapped_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
             res = impl(op_call, sctx)
             if res is None:
-                # Enforce raise-or-PrimFunc contract for schedule implementations
+                # Enforce raise-or-Function contract for schedule implementations
                 raise DispatchFail(
-                    "impl returned None; schedule must return PrimFunc or raise fail()"
+                    "impl returned None; schedule must return Function or raise fail()"
                 )
             return res  # type: ignore[return-value]
 
@@ -236,10 +236,10 @@ def _format_failure_table(header: str, rows: list[tuple[str, list[str]]]) -> str
     return "\n".join(lines)
 
 
-def run_dispatch(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
+def run_dispatch(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
     """Run structured dispatch.
 
-    Returns a PrimFunc on success. Otherwise, raises RuntimeError with
+    Returns a Function on success. Otherwise, raises RuntimeError with
     an aggregated reason report.
     """
 

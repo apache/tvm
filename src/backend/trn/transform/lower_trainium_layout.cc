@@ -22,9 +22,9 @@
  * \brief Trainium-specific TIRx layout lowering.
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
@@ -34,11 +34,10 @@
 
 #include <algorithm>
 #include <tuple>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include "../../../arith/ir_mutator_with_analyzer.h"
+#include "../../../tirx/ir/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace tirx {
@@ -53,89 +52,110 @@ static bool IsTrainiumLayout(const TileLayoutNode* layout) {
   });
 }
 
-class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
+class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
  public:
   static std::pair<Stmt, ffi::Array<Var>> Lower(const Stmt& stmt, const ffi::Array<Var>& params) {
-    arith::Analyzer ana;
-    TrainiumLayoutApplier storage_lower(ana);
+    sym::Analyzer ana;
+    auto storage_lower = ffi::make_object<TrainiumLayoutApplier>(ana);
     ffi::Array<Var> new_params;
     new_params.reserve(params.size());
-    std::vector<std::pair<BufferVar, BufferVar>> param_flattened_buffers;
+    std::vector<std::pair<TensorVar, TensorVar>> param_flattened_buffers;
     for (const Var& param : params) {
-      auto buffer = param.as<BufferVar>();
+      auto buffer = param.as<TensorVar>();
       if (!buffer) {
         new_params.push_back(param);
         continue;
       }
       if (buffer.value()->layout.has_value()) {
-        BufferVar flattened = storage_lower.GetFlattenedBuffer(buffer.value());
-        auto type = CopyBufferType(buffer.value());
+        TensorVar flattened = storage_lower->GetFlattenedTensor(buffer.value());
+        auto type = CopyTensorType(buffer.value());
         type->layout = std::nullopt;
-        BufferVar source = RebuildBufferVar(buffer.value(), std::move(type));
+        TensorVar source = RebuildTensorVar(buffer.value(), std::move(type));
         param_flattened_buffers.emplace_back(flattened, source);
         new_params.push_back(source.var());
       } else {
         new_params.push_back(buffer.value().var());
       }
     }
-    auto new_stmt = storage_lower(stmt);
+    auto new_stmt = storage_lower->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
     for (const auto& [buf, source] : param_flattened_buffers) {
-      new_stmt = SeqStmt::Flatten(DeclBuffer(buf, source.data()), std::move(new_stmt));
+      new_stmt =
+          SeqStmt::Flatten(Bind(buf, Call(buf.type(), tirx::builtin::decl_tensor(),
+                                          {source.data(), tvm::Tuple(buf->shape),
+                                           DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
+                                          {})),
+                           std::move(new_stmt));
     }
     return std::make_pair(new_stmt, new_params);
   }
 
+  explicit TrainiumLayoutApplier(const sym::Analyzer& analyzer)
+      : tirx::IRMutatorWithAnalyzer(analyzer) {}
+
  protected:
-  using IRMutatorWithAnalyzer::VisitExpr_;
-  using IRMutatorWithAnalyzer::VisitStmt_;
+  using IRMutatorWithAnalyzer::Mutate_;
 
-  explicit TrainiumLayoutApplier(const arith::Analyzer& analyzer)
-      : arith::IRMutatorWithAnalyzer(analyzer) {}
-
-  ffi::Any VisitAny(const ffi::Any& any) {
-    if (any == nullptr) {
-      return any;
+  ffi::Any MutateTileArgument(const ffi::Any& any) {
+    if (auto buffer = any.as<TensorVar>()) {
+      return GetFlattenedTensor(buffer.value());
     }
-    if (auto buffer = any.as<BufferVar>()) {
-      return GetFlattenedBuffer(buffer.value());
-    } else if (auto prim_expr = any.as<PrimExpr>()) {
-      return VisitPrimExpr(prim_expr.value());
-    } else if (auto stmt = any.as<Stmt>()) {
-      return VisitStmt(stmt.value());
+    if (auto expr = any.as<PrimExpr>()) {
+      return Mutate(expr.value()).ValueOrUnchanged(expr.value());
+    }
+    if (auto stmt = any.as<Stmt>()) {
+      return Mutate(stmt.value()).ValueOrUnchanged(stmt.value());
     }
     return any;
   }
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
-    if (!op->buffer->layout.has_value()) {
-      return ffi::GetRef<Stmt>(op);
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      TensorVar original_buffer = op->var.as_or_throw<TensorVar>();
+      if (!original_buffer->layout.has_value()) {
+        return ffi::Unchanged();
+      }
+      auto buffer = GetFlattenedTensor(original_buffer, /*is_alloc=*/true);
+      if (buffer.same_as(original_buffer)) {
+        return ffi::Unchanged();
+      }
+      return Bind(buffer.var(),
+                  Call(buffer.type(), tirx::builtin::alloc_tensor(),
+                       {tvm::Tuple(buffer->shape, call->args[0]->span),
+                        DataTypeImm(buffer->dtype->dtype, call->args[1]->span),
+                        StringImm(buffer.scope(), call->args[2]->span)},
+                       call->attrs, call->ty_args, call->span),
+                  op->span);
     }
-    auto buffer = GetFlattenedBuffer(op->buffer, /*is_alloc=*/true);
-    if (buffer.same_as(op->buffer)) {
-      return ffi::GetRef<Stmt>(op);
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::decl_tensor())) {
+      TensorVar original_buffer = op->var.as_or_throw<TensorVar>();
+      Expr original_data = call->args[0];
+      auto data_update = Mutate(original_data, inplace_mode);
+      bool data_unchanged = data_update.UnchangedOrSameAs(original_data);
+      Expr data = std::move(data_update).ValueOrUnchanged(original_data);
+      auto buffer = GetFlattenedTensor(original_buffer);
+      if (buffer.same_as(original_buffer) && data_unchanged) {
+        return ffi::Unchanged();
+      }
+      return Bind(buffer,
+                  Call(buffer.type(), tirx::builtin::decl_tensor(),
+                       {std::move(data), tvm::Tuple(buffer->shape),
+                        DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
+                       call->attrs, call->ty_args, call->span),
+                  op->span);
     }
-    auto n = CopyOnWrite(op);
-    n->buffer = buffer;
-    return Stmt(n);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final {
-    Expr data = VisitExpr(op->data);
-    auto buffer = GetFlattenedBuffer(op->buffer);
-    if (buffer.same_as(op->buffer) && data.same_as(op->data)) {
-      return ffi::GetRef<Stmt>(op);
-    }
-    return DeclBuffer(buffer, std::move(data), op->span);
-  }
-
-  BufferVar GetFlattenedBuffer(BufferVar buf, bool is_alloc = false) {
-    auto it = buffer_remap_.find(buf);
-    if (it != buffer_remap_.end()) {
-      return it->second;
+  TensorVar GetFlattenedTensor(TensorVar buf, bool is_alloc = false) {
+    ffi::Any mapped = VarRemapGet(buf);
+    if (mapped.type_index() != ffi::TypeIndex::kTVMFFINone) {
+      return std::move(mapped).as_or_throw<UnchangedOr<TensorVar>>().ValueOrUnchanged(buf);
     }
     auto trn_layout = buf->layout.as<TileLayoutNode>();
-    BufferVar flattened;
-    ffi::ObjectPtr<BufferTypeNode> type;
+    TensorVar flattened = buf;
+    ffi::ObjectPtr<TensorTypeNode> type;
     if (IsTrainiumLayout(trn_layout)) {
       ffi::Array<PrimExpr> new_shape =
           buf.scope() == "trn.psum" ? ffi::Array<PrimExpr>{trn_layout->GetSpan(ffi::String("Bank")),
@@ -144,13 +164,13 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
                                     : ffi::Array<PrimExpr>{trn_layout->GetSize(ffi::String("P")),
                                                            trn_layout->GetSpan(ffi::String("F"))};
       flattened = buf;
-      type = CopyBufferType(flattened);
+      type = CopyTensorType(flattened);
       type->shape = new_shape;
       type->strides = {};
     } else if (is_alloc) {
       if (auto tile_layout = buf->layout.as<TileLayoutNode>();
           tile_layout && tile_layout->HasThreadAxis()) {
-        arith::Analyzer ana;
+        sym::Analyzer ana;
         PrimExpr mem_span = IntImm::Int32(1);
         for (const auto& iter : tile_layout->shard) {
           if (iter->axis->IsMemoryAxis()) {
@@ -168,16 +188,16 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
           }
         }
         flattened = buf;
-        type = CopyBufferType(flattened);
+        type = CopyTensorType(flattened);
         type->shape = {ana->Simplify(mem_span)};
         type->strides = {};
       } else {
-        flattened = buf.GetFlattenedBuffer();
-        type = CopyBufferType(flattened);
+        flattened = buf.GetFlattenedTensor();
+        type = CopyTensorType(flattened);
       }
     } else {
-      flattened = buf.GetFlattenedBuffer();
-      type = CopyBufferType(flattened);
+      flattened = buf.GetFlattenedTensor();
+      type = CopyTensorType(flattened);
     }
     if (flattened->dtype->dtype == DLDataType{kDLBool, 8, 1}) {
       type->dtype = PrimType::Int(8);
@@ -186,58 +206,70 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
       type->shape.Set(i, analyzer_->canonical_simplify(flattened->shape[i]));
     }
     type->layout = std::nullopt;
-    type->elem_offset = StmtExprMutator::VisitPrimExpr(buf->elem_offset);
-    flattened = RebuildBufferVar(flattened, std::move(type));
+    type->elem_offset = StmtExprMutator::Mutate(buf->elem_offset, InplaceMode::kDisallow)
+                            .ValueOrUnchanged(buf->elem_offset);
+    flattened = RebuildTensorVar(flattened, std::move(type));
 
-    buffer_remap_[buf] = flattened;
+    VarRemapSet(buf, flattened);
     return flattened;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
+    // Index conversion needs the original logical layout after the parent remaps the buffer.
+    TensorVar logical_buffer = op->buffer;
+    TensorStore store = StmtExprMutator::Mutate_(op, inplace_mode)
+                            .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                            .as_or_throw<TensorStore>();
     PrimType store_value_ty = op->value.ty();
     bool store_returns_bool = store_value_ty.MatchesCode(DLDataTypeCode::kDLBool);
-    store = VisitBufferAccess(store);
+    store = VisitBufferAccess(store, logical_buffer);
 
     if (store_returns_bool) {
       TVM_FFI_ICHECK_EQ(store->buffer->dtype->dtype, (DLDataType{kDLInt, 8, 1}))
           << "Expected int8 backing array for boolean tensor";
       auto writer = store.CopyOnWrite();
-      writer->value = tvm::cast(PrimType::Int(8), store->value);
+      writer->value = tvm::prim::cast(PrimType::Int(8), store->value);
       return std::move(store);
     }
     return std::move(store);
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    TensorVar logical_buffer = op->source.as_or_throw<TensorVar>();
     PrimType load_ty = op->ty.as_or_throw<PrimType>();
     bool load_returns_bool = load_ty.MatchesCode(DLDataTypeCode::kDLBool);
-    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
-    load = VisitBufferAccess(load);
+    TensorLoad load = StmtExprMutator::Mutate_(op, inplace_mode)
+                          .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
+                          .as_or_throw<TensorLoad>();
+    load = VisitBufferAccess(load, logical_buffer);
     if (load_returns_bool) {
-      TVM_FFI_ICHECK_EQ(load->source.as_or_throw<tvm::tirx::BufferVar>()->dtype->dtype,
+      TVM_FFI_ICHECK_EQ(load->source.as_or_throw<tvm::tirx::TensorVar>()->dtype->dtype,
                         (DLDataType{kDLInt, 8, 1}))
           << "Expected int8 backing array for boolean tensor";
       load.CopyOnWrite()->ExprNode::ty = PrimType::Int(8);
-      return tvm::cast(PrimType::Bool(), load);
+      return tvm::prim::cast(PrimType::Bool(), load);
     } else {
       return std::move(load);
     }
   }
 
-  Stmt VisitStmt_(const tirx::TilePrimitiveCallNode* op) final {
-    ffi::Array<ffi::Any> args = op->args;
-    args.MutateByApply([this](ffi::Any arg) -> ffi::Any { return VisitAny(arg); });
+  UnchangedOr<Stmt> Mutate_(const tirx::TilePrimitiveCallNode* op, InplaceMode inplace_mode) final {
+    auto args = op->args.Map(
+        [this](const Expr& arg) { return MutateTileArgument(arg).as_or_throw<Expr>(); });
     if (args.same_as(op->args)) {
-      return ffi::GetRef<Stmt>(op);
+      return ffi::Unchanged();
     } else {
-      auto n = CopyOnWrite(op);
+      if (inplace_mode == InplaceMode::kAllow) {
+        const_cast<TilePrimitiveCallNode*>(op)->args = std::move(args);
+        return ffi::Unchanged();
+      }
+      auto n = ffi::make_object<TilePrimitiveCallNode>(*op);
       n->args = std::move(args);
       return Stmt(n);
     }
   }
 
-  ffi::Array<PrimExpr> GetSimplifiedElemOffset(const BufferVar& buffer,
+  ffi::Array<PrimExpr> GetSimplifiedElemOffset(const TensorVar& buffer,
                                                const ffi::Array<PrimExpr>& indices) {
     if (buffer->layout.has_value()) {
       auto tile_layout = buffer->layout.value().as<TileLayoutNode>();
@@ -257,7 +289,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
         return res;
       }
       if (tile_layout && tile_layout->HasThreadAxis()) {
-        LOG(FATAL) << "Cannot lower direct BufferLoad/BufferStore on a buffer with thread-axis "
+        LOG(FATAL) << "Cannot lower direct TensorLoad/TensorStore on a buffer with thread-axis "
                    << "layout: unable to verify that the coordinate matches the current thread. "
                    << "Use .view() + .local() to decompose thread and memory axes.";
       }
@@ -270,110 +302,60 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
     return {analyzer_->Simplify(flattened_indices[0])};
   }
 
-  template <typename Node>
-  Node VisitBufferAccess(Node node) {
-    TVM_FFI_ICHECK(node->buffer.defined());
-    if (!node->buffer->layout.has_value()) {
+  TensorStore VisitBufferAccess(TensorStore node, const TensorVar& logical_buffer) {
+    TVM_FFI_ICHECK(logical_buffer.defined());
+    if (!logical_buffer->layout.has_value()) {
       return node;
     }
-    auto flattened_indices = GetSimplifiedElemOffset(node->buffer, node->indices);
-    BufferVar flattened_buffer = GetFlattenedBuffer(node->buffer);
+    auto flattened_indices = GetSimplifiedElemOffset(logical_buffer, node->indices);
+    TensorVar flattened_buffer = GetFlattenedTensor(logical_buffer);
     auto writer = node.CopyOnWrite();
     writer->buffer = flattened_buffer;
     writer->indices = flattened_indices;
     return node;
   }
 
-  TensorLoad VisitBufferAccess(TensorLoad node) {
-    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
-    TVM_FFI_ICHECK(buffer.defined());
-    if (!buffer->layout.has_value()) return node;
-    return BufferLoad(GetFlattenedBuffer(buffer), GetSimplifiedElemOffset(buffer, node->indices),
-                      node->span);
+  TensorLoad VisitBufferAccess(TensorLoad node, const TensorVar& logical_buffer) {
+    TVM_FFI_ICHECK(logical_buffer.defined());
+    if (!logical_buffer->layout.has_value()) {
+      if (node->source.same_as(logical_buffer.var())) return node;
+      return MakeTensorLoad(node->source.as_or_throw<TensorVar>(), node->indices, node->span);
+    }
+    return MakeTensorLoad(GetFlattenedTensor(logical_buffer),
+                          GetSimplifiedElemOffset(logical_buffer, node->indices), node->span);
   }
-
-  std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
 };
 
 class TrainiumBufferOffsetRemover : public StmtExprMutator {
  public:
-  static Stmt Remove(const Stmt& stmt) { return TrainiumBufferOffsetRemover()(stmt); }
+  static Stmt Remove(const Stmt& stmt) {
+    return ffi::make_object<TrainiumBufferOffsetRemover>()->Mutate(stmt).ValueOrUnchanged(stmt);
+  }
 
  private:
-  Expr VisitExpr_(const CallNode* call) final {
+  UnchangedOr<Expr> Mutate_(const CallNode* call, InplaceMode inplace_mode) final {
     if (call->op.same_as(tirx::builtin::buffer_offset())) {
       auto buffer_load = call->args[0].as_or_throw<TensorLoad>();
       TVM_FFI_ICHECK_EQ(buffer_load->indices.size(), 1) << "Expected a single index";
       return buffer_load->indices[0];
     }
-    return StmtExprMutator::VisitExpr_(call);
+    return StmtExprMutator::Mutate_(call, inplace_mode);
   }
-
-  Stmt VisitStmt_(const DeclBufferNode* op) {
-    auto buffer = op->buffer;
-    auto elem_offset = this->VisitPrimExpr(buffer->elem_offset);
-    Expr data = VisitExpr(op->data);
-    if (!elem_offset.same_as(buffer->elem_offset)) {
-      auto type = CopyBufferType(buffer);
-      type->elem_offset = std::move(elem_offset);
-      buffer = RebuildBufferVar(buffer, std::move(type));
-      buffer_remap_[op->buffer] = buffer;
-    }
-    if (buffer.same_as(op->buffer) && data.same_as(op->data)) {
-      return ffi::GetRef<Stmt>(op);
-    }
-    return DeclBuffer(buffer, std::move(data), op->span);
-  }
-
-  using StmtExprMutator::VisitExpr_;
-  using StmtExprMutator::VisitStmt_;
-
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
-    store = VisitBufferAccess(store);
-    return std::move(store);
-  }
-
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    TensorLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
-    load = VisitBufferAccess(load);
-    return std::move(load);
-  }
-
-  template <typename Node>
-  Node VisitBufferAccess(Node node) {
-    TVM_FFI_ICHECK(node->buffer.defined());
-    auto it = buffer_remap_.find(node->buffer);
-    if (it != buffer_remap_.end()) {
-      auto writer = node.CopyOnWrite();
-      writer->buffer = it->second;
-      return node;
-    }
-    return node;
-  }
-
-  TensorLoad VisitBufferAccess(TensorLoad node) {
-    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
-    TVM_FFI_ICHECK(buffer.defined());
-    auto it = buffer_remap_.find(buffer);
-    return it == buffer_remap_.end() ? node : BufferLoad(it->second, node->indices, node->span);
-  }
-
-  std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
 };
 
 namespace transform {
 
 Pass LowerTrainiumLayout() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
-    auto [body, params] = TrainiumLayoutApplier::Lower(n->body, n->params);
+    auto [body, params] = TrainiumLayoutApplier::Lower(n->body.value(), n->params);
     n->body = std::move(body);
     n->params = std::move(params);
-    n->body = TrainiumBufferOffsetRemover::Remove(n->body);
+    n->body = TrainiumBufferOffsetRemover::Remove(n->body.value());
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.backend.trn.LowerTrainiumLayout", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.backend.trn.LowerTrainiumLayout", {});
 }
 
 void RegisterTRNTransforms() {

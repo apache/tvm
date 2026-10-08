@@ -17,7 +17,7 @@
 """Reusable pipeline state and mbarrier helpers for SM100 kernels.
 
 These classes emit TIR via @T.inline. Decorate with @T.meta_class so that
-instances are automatically treated as meta values inside @T.prim_func.
+instances are automatically treated as meta values inside @T.function.
 """
 
 from tvm.script import tirx as T
@@ -91,7 +91,7 @@ def _map_addr_into_cta(ptr, rank):
 
     Plain Python rather than ``@T.inline``: the mapa call has to be handed to
     the enclosing frame explicitly or it is discarded, and the scratch it
-    writes into has to be declared in this scope to bind into the PrimFunc.
+    writes into has to be declared in this scope to bind into the Function.
     """
     mapped = T.alloc_local([1], "uint32")
     T.evaluate(
@@ -116,8 +116,8 @@ def _map_buffer_into_cta(ptr, rank, depth):
     mapped = T.alloc_local([1], "uint64")
     T.evaluate(T.ptx.mapa.u64(mapped[0], ptr, T.uint32(rank)))
     remote_ptr = TIRVar("remote_mbar_ptr", ptr_ty)
-    T.Bind(T.reinterpret(ptr_ty, mapped[0]), var=remote_ptr)
-    return T.decl_buffer([depth], "uint64", data=remote_ptr, scope="shared")
+    T.bind(T.reinterpret(ptr_ty, mapped[0]), var=remote_ptr)
+    return T.decl_tensor([depth], "uint64", data=remote_ptr, scope="shared")
 
 
 def _mbarrier_arrive_remote(bar, pred=None, count=None):

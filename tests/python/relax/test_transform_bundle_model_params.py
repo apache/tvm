@@ -16,6 +16,8 @@
 # under the License.
 # ruff: noqa: F401
 
+from __future__ import annotations
+
 import pytest
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
@@ -298,9 +300,9 @@ def test_primitive_model_param_is_materialized_outside_if_branches():
         @R.function
         def main(
             cond: R.Tensor((), "bool"),
-            extent: R.Prim("int64"),
-            weight: R.Tensor(["extent"], "float32"),
-        ) -> R.Tensor(["extent"], "float32"):
+            extent: T.int64,
+            weight: R.Tensor([extent], "float32"),  # noqa: F821
+        ) -> R.Tensor([extent], "float32"):  # noqa: F821
             R.func_attr({"num_input": 1})
             if cond:
                 out = R.add(weight, weight)
@@ -337,8 +339,8 @@ def test_primitive_model_param_remains_linked_to_dependent_tensor():
         @R.function
         def main(
             x: R.Tensor(dtype="float32", ndim=1),
-            extent: R.Prim("int64"),
-            weight: R.Tensor(["extent"], "float32"),
+            extent: T.int64,
+            weight: R.Tensor([extent], "float32"),
         ):
             R.func_attr({"num_input": 1})
             out = R.add(x, weight)

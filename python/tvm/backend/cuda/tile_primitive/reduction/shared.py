@@ -30,7 +30,7 @@ When: dst and src are both shared-memory buffers, exec scope is one of
 Before:
     Tx.cta.sum(B_smem[0:4], A_smem[0:4, 0:8], [-1], False)
 
-After (scheduled PrimFunc, group_size=8, spatial_par=4):
+After (scheduled Function, group_size=8, spatial_par=4):
     thread_data[0] = T.float32(0.0)
     thread_data[0] = thread_data[0] + A_smem[tid_in_scope]  # gather
     # log2(8) = 3 shuffle-xor steps with width=8
@@ -46,7 +46,7 @@ Before:
     if tid == 65:
         Tx.sum(B_smem[0:4], A_smem[0:4, 0:8], [-1], False)
 
-After (scheduled PrimFunc):
+After (scheduled Function):
     for spa in range(4):
         B_smem[spa] = T.float32(0.0)                       # init (skipped if accum)
         for red in range(8):
@@ -57,9 +57,10 @@ import functools
 import math
 import operator
 
-from tvm.arith.analyzer import Analyzer
+from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import BufferRegion, PrimFunc
+from tvm.sym.analyzer import Analyzer
+from tvm.tirx import Function
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import ReduceOpType
 from tvm.tirx.operator.tile_primitive.dispatcher import predicate, register_dispatch
@@ -84,7 +85,7 @@ def validate_reduction_shared(
         return False, f"unsupported exec_scope {sctx.scope_kind} for shared reduction"
 
     op = TilePrimitiveCall.downcast(op)
-    dst, src = op.output.buffer, op.input.buffer
+    dst, src = op.output.source, op.input.source
     if not (src.scope().startswith("shared") and dst.scope().startswith("shared")):
         return False, "expected shared scope for both src and dst"
     if src.dtype != dst.dtype:
@@ -117,19 +118,19 @@ def validate_reduction_shared(
 
 
 def _emit_reduction_shared_cta(
-    dst_br: BufferRegion,
-    src_br: BufferRegion,
+    dst_br: TensorRegion,
+    src_br: TensorRegion,
     accum: bool,
     reduce_op: ReduceOpType,
     sctx: DispatchContext,
     reduce_dims: list[int],
     spatial_dims: list[int],
-) -> PrimFunc:
+) -> Function:
     exec_scope_name = sctx.scope_kind
 
     def get_thread_cnt():
         if exec_scope_name == "cta":
-            return sctx.launch_params["threadIdx.x"].dom.extent
+            return sctx.launch_params["threadIdx.x"][1]
         elif exec_scope_name == "warpgroup":
             return 128
         elif exec_scope_name == "warp":
@@ -138,7 +139,7 @@ def _emit_reduction_shared_cta(
             return 1
 
     thread_cnt = get_thread_cnt()
-    dst, src = dst_br.buffer, src_br.buffer
+    dst, src = dst_br.source, src_br.source
     src_st, src_extent = get_st_extent(src_br)
     dst_st, dst_extent = get_st_extent(dst_br)
     dtype = src.dtype
@@ -158,7 +159,7 @@ def _emit_reduction_shared_cta(
     spatial_par = int(thread_cnt) // group_size
 
     def get_tid_in_scope():
-        tx_var = sctx.launch_params["threadIdx.x"].var
+        tx_var = sctx.launch_params["threadIdx.x"][0]
         if exec_scope_name == "cta":
             return tx_var
         elif exec_scope_name in ("warp", "warpgroup"):
@@ -188,10 +189,10 @@ def _emit_reduction_shared_cta(
             pass
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def impl():
         tid_in_scope = get_tid_in_scope()
-        thread_data = T.alloc_buffer([1], dtype=dtype, scope="local")
+        thread_data = T.alloc_tensor([1], dtype=dtype, scope="local")
         group_id = T.meta_var(T.floordiv(tid_in_scope, group_size))
         lane_in_grp = T.meta_var(tid_in_scope % group_size)
         for step in T.serial(T.ceildiv(spatial_len, spatial_par)):
@@ -215,15 +216,15 @@ def _emit_reduction_shared_cta(
 
 
 def _emit_reduction_shared_thread(
-    dst_br: BufferRegion,
-    src_br: BufferRegion,
+    dst_br: TensorRegion,
+    src_br: TensorRegion,
     accum: bool,
     reduce_op: ReduceOpType,
     sctx: DispatchContext,
     reduce_dims: list[int],
     spatial_dims: list[int],
-) -> PrimFunc:
-    dst, src = dst_br.buffer, src_br.buffer
+) -> Function:
+    dst, src = dst_br.source, src_br.source
     src_st, src_extent = get_st_extent(src_br)
     dst_st, dst_extent = get_st_extent(dst_br)
     dtype = src.dtype
@@ -236,7 +237,7 @@ def _emit_reduction_shared_thread(
     assert op_func is not None
     init_value = reduce_default_value_table(dtype).get(reduce_op)
 
-    @T.prim_func
+    @T.function
     def impl():
         for spa_fused in T.serial(spatial_len):
             dst_indices = T.meta_var(get_indices(spa_fused, dst_st, dst_extent))
@@ -255,7 +256,7 @@ def _emit_reduction_shared_thread(
 
 def reduction_shared_impl(
     op: TilePrimitiveCall, op_type: ReduceOpType, sctx: DispatchContext
-) -> PrimFunc | None:
+) -> Function | None:
     dst_br, src_br, reduce_axes, accum, config = _reduction_args(op)
     src_ndim = len(src_br.region)
     reduce_dims, spatial_dims = _analyze_axes(src_ndim, reduce_axes)
@@ -293,6 +294,6 @@ for op_name, op_type in [
     )
     def _shared_dispatch(
         op: TilePrimitiveCall, sctx: DispatchContext, _op_type=op_type
-    ) -> PrimFunc:
+    ) -> Function:
         op = TilePrimitiveCall.downcast(op)
         return reduction_shared_impl(op, _op_type, sctx)

@@ -17,28 +17,35 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../analysis.h"
 #include "../utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 ffi::Array<StmtSRef> GetSBlocks(const ScheduleState& self, const ffi::String& name,
                                 const GlobalVar& gv) {
-  struct Finder : public StmtVisitor {
+  struct Finder : public StmtExprVisitor {
+    using StmtExprVisitor::Visit_;
+
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+      if (value.as<ExprNode>()) return std::nullopt;
+      return StmtExprVisitor::Visit(value);
+    }
+
     explicit Finder(const ScheduleState& self, const ffi::String& name)
         : self_(self), name_(name) {}
 
-    void VisitStmt_(const SBlockNode* block) override {
+    ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) override {
       if (block->name_hint == name_) {
         auto it = self_->stmt2ref.find(block);
         TVM_FFI_ICHECK(it != self_->stmt2ref.end());
         results_.push_back(it->second);
       }
-      StmtVisitor::VisitStmt_(block);
+      return StmtExprVisitor::Visit_(block);
     }
 
     const ScheduleState& self_;
@@ -47,10 +54,10 @@ ffi::Array<StmtSRef> GetSBlocks(const ScheduleState& self, const ffi::String& na
   };
 
   BaseFunc func = self->mod->Lookup(gv);
-  const auto* prim_func = TVM_TYPE_AS(func, PrimFuncNode);
-  Finder finder(self, name);
-  finder(prim_func->body);
-  return std::move(finder.results_);
+  const auto* function = TVM_TYPE_AS(func, FunctionNode);
+  auto finder = ffi::make_object<Finder>(self, name);
+  finder->Visit(function->body);
+  return std::move(finder->results_);
 }
 
 ffi::Array<StmtSRef> GetLoops(const StmtSRef& block_sref) {
@@ -63,9 +70,19 @@ ffi::Array<StmtSRef> GetLoops(const StmtSRef& block_sref) {
 }
 
 ffi::Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent_sref) {
-  struct Collector : public StmtVisitor {
+  struct Collector : public StmtExprVisitor {
+    using StmtExprVisitor::Visit_;
+
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+      if (value.as<ExprNode>()) return std::nullopt;
+      return StmtExprVisitor::Visit(value);
+    }
+
    private:
-    void VisitStmt_(const SBlockNode* block) final { result.push_back(self->stmt2ref.at(block)); }
+    ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
+      result.push_back(self->stmt2ref.at(block));
+      return std::nullopt;
+    }
 
    public:
     explicit Collector(const ScheduleState& self) : self(self) {}
@@ -73,15 +90,15 @@ ffi::Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& p
     const ScheduleState& self;
     ffi::Array<StmtSRef> result;
   };
-  Collector collector(self);
+  auto collector = ffi::make_object<Collector>(self);
   if (parent_sref->stmt->IsInstance<ForNode>()) {
     const auto* loop = static_cast<const ForNode*>(parent_sref->stmt);
-    collector(loop->body);
+    collector->Visit(loop->body);
   } else if (parent_sref->stmt->IsInstance<SBlockNode>()) {
     const auto* block = static_cast<const SBlockNode*>(parent_sref->stmt);
-    collector(block->body);
+    collector->Visit(block->body);
   }
-  return std::move(collector.result);
+  return std::move(collector->result);
 }
 
 ffi::Array<StmtSRef> GetProducers(const ScheduleState& self, const StmtSRef& block_sref) {
@@ -257,12 +274,14 @@ struct GetOutputBlocksTraits : public UnpackedInstTraits<GetOutputBlocksTraits> 
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(GetSBlockTraits);
-TVM_REGISTER_INST_KIND_TRAITS(GetLoopsTraits);
-TVM_REGISTER_INST_KIND_TRAITS(GetChildBlocksTraits);
-TVM_REGISTER_INST_KIND_TRAITS(GetProducersTraits);
-TVM_REGISTER_INST_KIND_TRAITS(GetConsumersTraits);
-TVM_REGISTER_INST_KIND_TRAITS(GetOutputBlocksTraits);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterInstructionKind<GetSBlockTraits>();
+  RegisterInstructionKind<GetLoopsTraits>();
+  RegisterInstructionKind<GetChildBlocksTraits>();
+  RegisterInstructionKind<GetProducersTraits>();
+  RegisterInstructionKind<GetConsumersTraits>();
+  RegisterInstructionKind<GetOutputBlocksTraits>();
+}
 
 }  // namespace s_tir
 }  // namespace tvm

@@ -24,6 +24,7 @@
 #ifndef TVM_TIRX_EXEC_SCOPE_H_
 #define TVM_TIRX_EXEC_SCOPE_H_
 
+#include <tvm/ffi/container/tuple.h>
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ir/module.h>
 #include <tvm/tirx/var.h>
@@ -159,7 +160,7 @@ class ScopeIdDefVerifier {
    * \brief Verification mode.
    *
    * - kRelaxed: tolerate deferred (extent=None) ScopeIdDefs. Used for partial
-   *   programs in the well-formedness check at PrimFunc construction time.
+   *   programs in the well-formedness check at Function construction time.
    * - kStrict: every original ScopeIdDef must end with a resolved extent
    *   (either explicit at construction, or inferred via closure). Used at
    *   LowerTIRx entry where downstream resolve/codegen needs concrete values.
@@ -182,7 +183,7 @@ class ScopeIdDefVerifier {
  */
 class ScopeIdResolve {
  public:
-  using LaunchParams = std::unordered_map<ffi::String, IterVar>;
+  using LaunchParams = std::unordered_map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>>;
 
   /*! \brief Resolve a ScopeIdDef for a given canonical binding + target. */
   TVM_DLL static ffi::Array<PrimExpr> Resolve(ScopeBinding binding,

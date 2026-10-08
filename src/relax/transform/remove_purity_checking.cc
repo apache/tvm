@@ -49,20 +49,21 @@ class PurityRemover : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) override {
     if (call->op.same_as(call_pure_packed_op_)) {
-      auto ret = Call(Type::Missing(), call->args[0],
-                      ffi::Array<Expr>(call->args.begin() + 1, call->args.end()), call->attrs,
-                      call->ty_args);
+      auto ret = Call::Unchecked(Type::Missing(), call->args[0],
+                                 ffi::Array<Expr>(call->args.begin() + 1, call->args.end()),
+                                 call->attrs, call->ty_args);
       return VisitExpr(ret);
     }
     if (call->op.same_as(call_inplace_packed_op_)) {
       // call_inplace_packed has its own attrs so we don't pass those down
-      auto ret = Call(Type::Missing(), call->args[0],
-                      ffi::Array<Expr>(call->args.begin() + 1, call->args.end()), tvm::Attrs(),
-                      call->ty_args);
+      auto ret = Call::Unchecked(Type::Missing(), call->args[0],
+                                 ffi::Array<Expr>(call->args.begin() + 1, call->args.end()),
+                                 tvm::Attrs(), call->ty_args);
       return VisitExpr(ret);
     }
     if (call->op.same_as(invoke_pure_closure_op_)) {
-      auto ret = Call(Type::Missing(), invoke_closure_op_, call->args, call->attrs, call->ty_args);
+      auto ret = Call::Unchecked(Type::Missing(), invoke_closure_op_, call->args, call->attrs,
+                                 call->ty_args);
       return VisitExpr(ret);
     }
     return ExprMutator::VisitExpr_(call);
@@ -74,10 +75,10 @@ class PurityRemover : public ExprMutator {
   }
 
  private:
-  const Op& call_pure_packed_op_ = Op::Get("relax.call_pure_packed");
-  const Op& call_inplace_packed_op_ = Op::Get("relax.call_inplace_packed");
-  const Op& invoke_pure_closure_op_ = Op::Get("relax.invoke_pure_closure");
-  const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
+  const Op call_pure_packed_op_ = Op::Get("relax.call_pure_packed");
+  const Op call_inplace_packed_op_ = Op::Get("relax.call_inplace_packed");
+  const Op invoke_pure_closure_op_ = Op::Get("relax.invoke_pure_closure");
+  const Op invoke_closure_op_ = Op::Get("relax.invoke_closure");
 };
 
 Function RemovePurityChecking(const Function& f) { return PurityRemover().RemovePurity(f); }

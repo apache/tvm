@@ -19,9 +19,10 @@
 """Intrinsics for ARM tensorization."""
 
 from tvm import tirx
+from tvm.s_tir.script.ir_builder import function as build_function
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder.tirx import prim_func as build_prim_func
 from tvm.target.codegen import llvm_version_major
 
 from .. import TensorIntrin
@@ -36,31 +37,31 @@ from .dot_product_common import (
 # shape and dtype, and share the common description with x86.
 
 
-@T.prim_func(s_tir=True)
+@Ts.function
 def neon_4x4_i8i8i32_desc(
-    A: T.Buffer((4,), "int8", offset_factor=1),
-    B: T.Buffer((4, 4), "int8", offset_factor=1),
-    C: T.Buffer((4,), "int32", offset_factor=1),
+    A: T.Tensor((4,), "int8", offset_factor=1),
+    B: T.Tensor((4, 4), "int8", offset_factor=1),
+    C: T.Tensor((4,), "int32", offset_factor=1),
 ) -> None:
-    with T.sblock("root"):
-        T.reads(C[0:4], A[0:4], B[0:4, 0:4])
-        T.writes(C[0:4])
+    with Ts.sblock("root"):
+        Ts.reads(C[0:4], A[0:4], B[0:4, 0:4])
+        Ts.writes(C[0:4])
         for i in T.serial(0, 4):
             for k in T.serial(0, 4):
-                with T.sblock("update"):
-                    vi, vk = T.axis.remap("SR", [i, k])
+                with Ts.sblock("update"):
+                    vi, vk = Ts.axis.remap("SR", [i, k])
                     C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
 
 
-@T.prim_func(s_tir=True)
+@Ts.function
 def neon_4x4_i8i8i32_impl(
-    A: T.Buffer((4,), "int8", offset_factor=1),
-    B: T.Buffer((4, 4), "int8", offset_factor=1),
-    C: T.Buffer((4,), "int32", offset_factor=1),
+    A: T.Tensor((4,), "int8", offset_factor=1),
+    B: T.Tensor((4, 4), "int8", offset_factor=1),
+    C: T.Tensor((4,), "int32", offset_factor=1),
 ) -> None:
-    with T.sblock("root"):
-        T.reads(C[0:4], A[0:4], B[0:4, 0:4])
-        T.writes(C[0:4])
+    with Ts.sblock("root"):
+        Ts.reads(C[0:4], A[0:4], B[0:4, 0:4])
+        Ts.writes(C[0:4])
 
         A_int8 = A.vload([0], "int8x4")
         re_int32 = T.reinterpret(A_int8, dtype="int32")
@@ -118,30 +119,32 @@ def get_dotprod_intrin(in_dtype, out_dtype):
     out_dtype_x4 = f"{out_dtype}x4"
     in_dtype_x16 = f"{in_dtype}x16"
 
-    @T.prim_func(s_tir=True)
-    def dot_prod_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (4,), dtype=in_dtype, offset_factor=1)
-        B = T.match_buffer(b, (4, 4), dtype=in_dtype, offset_factor=1)
-        C = T.match_buffer(c, (4,), dtype=out_dtype, offset_factor=1)
-        with T.sblock("root"):
-            T.reads(C[0:4], A[0:4], B[0:4, 0:4])
-            T.writes(C[0:4])
+    @Ts.function
+    def dot_prod_desc(
+        A: T.Tensor((4,), dtype=in_dtype, offset_factor=1),
+        B: T.Tensor((4, 4), dtype=in_dtype, offset_factor=1),
+        C: T.Tensor((4,), dtype=out_dtype, offset_factor=1),
+    ) -> None:
+        with Ts.sblock("root"):
+            Ts.reads(C[0:4], A[0:4], B[0:4, 0:4])
+            Ts.writes(C[0:4])
             for i in T.serial(0, 4):
                 for k in T.serial(0, 4):
-                    with T.sblock("update"):
-                        vi, vk = T.axis.remap("SR", [i, k])
+                    with Ts.sblock("update"):
+                        vi, vk = Ts.axis.remap("SR", [i, k])
                         C[vi] = C[vi] + T.cast(A[vk], dtype=out_dtype) * T.cast(
                             B[vi, vk], dtype=out_dtype
                         )
 
-    @T.prim_func(s_tir=True)
-    def dot_prod_impl(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (4,), dtype=in_dtype, offset_factor=1)
-        B = T.match_buffer(b, (4, 4), dtype=in_dtype, offset_factor=1)
-        C = T.match_buffer(c, (4,), dtype=out_dtype, offset_factor=1)
-        with T.sblock("root"):
-            T.reads(C[0:4], A[0:4], B[0:4, 0:4])
-            T.writes(C[0:4])
+    @Ts.function
+    def dot_prod_impl(
+        A: T.Tensor((4,), dtype=in_dtype, offset_factor=1),
+        B: T.Tensor((4, 4), dtype=in_dtype, offset_factor=1),
+        C: T.Tensor((4,), dtype=out_dtype, offset_factor=1),
+    ) -> None:
+        with Ts.sblock("root"):
+            Ts.reads(C[0:4], A[0:4], B[0:4, 0:4])
+            Ts.writes(C[0:4])
 
             A_i8x4 = A.vload([0], in_dtype_x4)
             A_i32 = T.reinterpret(A_i8x4, dtype=out_dtype)
@@ -176,7 +179,7 @@ def _create_active_lane_mask(tensor, relative_offsets, vertical_limit):
 
     Parameters
     ----------
-    tensor : tvm.tirx.Buffer
+    tensor : tvm.ir.Var
         The tensor the buffer access will be performed on.
     relative_offsets : Tuple[Expr, Expr]
         The vertical and horizontal offsets into the accumulator tile.
@@ -256,40 +259,35 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
     SVF = tirx.get_vscale_expr("float32")
     SVF2 = 2 * SVF
 
-    @T.prim_func(s_tir=True)
-    def desc(a: T.handle, a_t: T.handle) -> None:
-        A = T.match_buffer(a, (SVF2, SVF2), dtype="float32", offset_factor=1)
-        A_t = T.match_buffer(a_t, (SVF2, SVF2), dtype="float32", offset_factor=1)
-        with T.sblock("root"):
-            T.reads(A[0:SVF2, 0:SVF2])
-            T.writes(A_t[0:SVF2, 0:SVF2])
+    @Ts.function
+    def desc(
+        A: T.Tensor((SVF2, SVF2), dtype="float32", offset_factor=1),
+        A_t: T.Tensor((SVF2, SVF2), dtype="float32", offset_factor=1),
+    ) -> None:
+        with Ts.sblock("root"):
+            Ts.reads(A[0:SVF2, 0:SVF2])
+            Ts.writes(A_t[0:SVF2, 0:SVF2])
             for k, m in T.grid(SVF2, SVF2):
-                with T.sblock("transpose"):
-                    v_m, v_k = T.axis.remap("SS", [m, k])
+                with Ts.sblock("transpose"):
+                    v_m, v_k = Ts.axis.remap("SS", [m, k])
                     A_t[v_k, v_m] = A[v_m, v_k]
 
     def impl():
         sub_tile_count = 4
 
         with IRBuilder() as ib:
-            with build_prim_func():
-                a = T.arg("a", T.handle())
-                a_t = T.arg("a_t", T.handle())
-
-                A = T.match_buffer(
-                    a, (SVF2, SVF2), "float32", offset_factor=1, strides=[T.int32(), 1]
+            with build_function():
+                A = T.arg_(
+                    "a", T.Tensor((SVF2, SVF2), "float32", offset_factor=1, strides=[T.int32(), 1])
                 )
-                A_t = T.match_buffer(
-                    a_t,
-                    (SVF2, SVF2),
-                    "float32",
-                    offset_factor=1,
-                    strides=[T.int32(), 1],
+                A_t = T.arg_(
+                    "a_t",
+                    T.Tensor((SVF2, SVF2), "float32", offset_factor=1, strides=[T.int32(), 1]),
                 )
 
-                with T.sblock("root"):
-                    T.reads(A[0:SVF2, 0:SVF2])
-                    T.writes(A_t[0:SVF2, 0:SVF2])
+                with Ts.sblock("root"):
+                    Ts.reads(A[0:SVF2, 0:SVF2])
+                    Ts.writes(A_t[0:SVF2, 0:SVF2])
 
                     # Load rows of the input matrix
                     with T.serial(0, SVF) as slice_idx:
@@ -391,37 +389,35 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
     SVF = tirx.get_vscale_expr("float16")
     SVF2 = 2 * SVF
 
-    @T.prim_func(s_tir=True)
-    def desc(a: T.handle, a_t: T.handle) -> None:
-        A = T.match_buffer(a, (SVF2, SVF), dtype="float16", offset_factor=1)
-        A_t = T.match_buffer(a_t, (SVF, SVF2), dtype="float16", offset_factor=1)
-        with T.sblock("root"):
-            T.reads(A[0:SVF2, 0:SVF])
-            T.writes(A_t[0:SVF, 0:SVF2])
+    @Ts.function
+    def desc(
+        A: T.Tensor((SVF2, SVF), dtype="float16", offset_factor=1),
+        A_t: T.Tensor((SVF, SVF2), dtype="float16", offset_factor=1),
+    ) -> None:
+        with Ts.sblock("root"):
+            Ts.reads(A[0:SVF2, 0:SVF])
+            Ts.writes(A_t[0:SVF, 0:SVF2])
             for k, m in T.grid(SVF, SVF2):
-                with T.sblock("transpose"):
-                    v_m, v_k = T.axis.remap("SS", [m, k])
+                with Ts.sblock("transpose"):
+                    v_m, v_k = Ts.axis.remap("SS", [m, k])
                     A_t[v_k, v_m] = A[v_m, v_k]
 
     def impl():
         with IRBuilder() as ib:
-            with build_prim_func():
-                a = T.arg("a", T.handle())
-                a_t = T.arg("a_t", T.handle())
-
-                A = T.match_buffer(
-                    a, (SVF2, SVF), "float16", offset_factor=1, strides=[T.int32(), 1]
+            with build_function():
+                A = T.arg_(
+                    "a", T.Tensor((SVF2, SVF), "float16", offset_factor=1, strides=[T.int32(), 1])
                 )
-                A_t = T.match_buffer(
-                    a_t, (SVF, SVF2), "float16", offset_factor=1, strides=[T.int32(), 1]
+                A_t = T.arg_(
+                    "a_t", T.Tensor((SVF, SVF2), "float16", offset_factor=1, strides=[T.int32(), 1])
                 )
 
                 ptrue_fp16 = _create_ptrue_mask("float16")
                 ptrue_fp32 = _create_ptrue_mask("float32")
 
-                with T.sblock("root"):
-                    T.reads(A[0:SVF2, 0:SVF])
-                    T.writes(A_t[0:SVF, 0:SVF2])
+                with Ts.sblock("root"):
+                    Ts.reads(A[0:SVF2, 0:SVF])
+                    Ts.writes(A_t[0:SVF, 0:SVF2])
 
                     # Load rows of the input matrix
                     with T.serial(SVF // 2) as slice_idx:
@@ -487,7 +483,7 @@ def get_transpose_interleave_intrin_name(in_dtype, out_dtype, extent_cols, exten
         sme_transpose_interleave_intrin_name = (
             ARM_SME_2SVLx2SVL_FP32_TRANSPOSE_INTERLEAVE + f"_{extent_cols}_{extent_rows}"
         )
-        tirx.TensorIntrin.register(
+        TensorIntrin.register(
             sme_transpose_interleave_intrin_name,
             *get_sme_transpose_interleave_2svlx2svl_fp32_intrin(extent_cols, extent_rows),
             override=True,
@@ -595,40 +591,40 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
         "llvm.aarch64.sme.mopa" if in_dtype == "float32" else "llvm.aarch64.sme.mopa.wide"
     )
 
-    @T.prim_func(s_tir=True)
-    def desc(a: T.handle, b: T.handle, c: T.handle):
-        A = T.match_buffer(a, (K, SVF2), dtype=in_dtype, offset_factor=1)
-        B = T.match_buffer(b, (K, SVF2), dtype=in_dtype, offset_factor=1)
-        C = T.match_buffer(c, (SVF2, SVF2), dtype="float32", offset_factor=1)
-
-        with T.sblock("root"):
-            T.reads(C[0:SVF2, 0:SVF2], A[0:K, 0:SVF2], B[0:K, 0:SVF2])
-            T.writes(C[0:SVF2, 0:SVF2])
+    @Ts.function
+    def desc(
+        A: T.Tensor((K, SVF2), dtype=in_dtype, offset_factor=1),
+        B: T.Tensor((K, SVF2), dtype=in_dtype, offset_factor=1),
+        C: T.Tensor((SVF2, SVF2), dtype="float32", offset_factor=1),
+    ):
+        with Ts.sblock("root"):
+            Ts.reads(C[0:SVF2, 0:SVF2], A[0:K, 0:SVF2], B[0:K, 0:SVF2])
+            Ts.writes(C[0:SVF2, 0:SVF2])
             for m, n, k in T.grid(SVF2, SVF2, K):
-                with T.sblock("gemm"):
-                    v_m, v_n, v_k = T.axis.remap("SSR", [m, n, k])
+                with Ts.sblock("gemm"):
+                    v_m, v_n, v_k = Ts.axis.remap("SSR", [m, n, k])
                     C[v_m, v_n] += T.Cast("float32", A[v_k, v_m]) * T.Cast("float32", B[v_k, v_n])
 
     def impl():
         sub_tile_count = 4
 
         with IRBuilder() as ib:
-            with build_prim_func():
-                a = T.arg("a", T.handle())
-                b = T.arg("b", T.handle())
-                c = T.arg("c", T.handle())
-
-                A = T.match_buffer(a, (K, SVF2), in_dtype, offset_factor=1, strides=[T.int32(), 1])
-                B = T.match_buffer(b, (K, SVF2), in_dtype, offset_factor=1, strides=[T.int32(), 1])
-                C = T.match_buffer(
-                    c, (SVF2, SVF2), "float32", offset_factor=1, strides=[T.int32(), 1]
+            with build_function():
+                A = T.arg_(
+                    "a", T.Tensor((K, SVF2), in_dtype, offset_factor=1, strides=[T.int32(), 1])
+                )
+                B = T.arg_(
+                    "b", T.Tensor((K, SVF2), in_dtype, offset_factor=1, strides=[T.int32(), 1])
+                )
+                C = T.arg_(
+                    "c", T.Tensor((SVF2, SVF2), "float32", offset_factor=1, strides=[T.int32(), 1])
                 )
 
                 ptrue = _create_ptrue_mask(in_dtype)
 
-                with T.sblock("root"):
-                    T.reads(C[0:SVF2, 0:SVF2], A[0:K, 0:SVF2], B[0:K, 0:SVF2])
-                    T.writes(C[0:SVF2, 0:SVF2])
+                with Ts.sblock("root"):
+                    Ts.reads(C[0:SVF2, 0:SVF2], A[0:K, 0:SVF2], B[0:K, 0:SVF2])
+                    Ts.writes(C[0:SVF2, 0:SVF2])
 
                     # Iterate over the reduction axis applying outer product and accumulate
                     rows_per_iter = 1 if in_dtype == "float32" else 2
@@ -643,30 +639,30 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
                         # outer product operation for now.
                         if in_dtype == "float32":
                             a_low = (
-                                T.BufferLoad(A, [k_row, T.Ramp(0, 1, in_dtype_svf)]),
+                                T.TensorLoad(A, [k_row, T.Ramp(0, 1, in_dtype_svf)]),
                                 _create_active_lane_mask(A, (k_row, 0), K),
                             )
                             b_low = (
-                                T.BufferLoad(B, [k_row, T.Ramp(0, 1, in_dtype_svf)]),
+                                T.TensorLoad(B, [k_row, T.Ramp(0, 1, in_dtype_svf)]),
                                 _create_active_lane_mask(B, (k_row, 0), K),
                             )
                             a_high = (
-                                T.BufferLoad(A, [k_row, T.Ramp(in_dtype_svf, 1, in_dtype_svf)]),
+                                T.TensorLoad(A, [k_row, T.Ramp(in_dtype_svf, 1, in_dtype_svf)]),
                                 _create_active_lane_mask(A, (k_row, in_dtype_svf), K),
                             )
                             b_high = (
-                                T.BufferLoad(B, [k_row, T.Ramp(in_dtype_svf, 1, in_dtype_svf)]),
+                                T.TensorLoad(B, [k_row, T.Ramp(in_dtype_svf, 1, in_dtype_svf)]),
                                 _create_active_lane_mask(B, (k_row, in_dtype_svf), K),
                             )
                         else:
-                            a_low = (T.BufferLoad(A, [k_row, T.Ramp(0, 1, in_dtype_svf)]), ptrue)
-                            b_low = (T.BufferLoad(B, [k_row, T.Ramp(0, 1, in_dtype_svf)]), ptrue)
+                            a_low = (T.TensorLoad(A, [k_row, T.Ramp(0, 1, in_dtype_svf)]), ptrue)
+                            b_low = (T.TensorLoad(B, [k_row, T.Ramp(0, 1, in_dtype_svf)]), ptrue)
                             a_high = (
-                                T.BufferLoad(A, [k_row + 1, T.Ramp(0, 1, in_dtype_svf)]),
+                                T.TensorLoad(A, [k_row + 1, T.Ramp(0, 1, in_dtype_svf)]),
                                 ptrue,
                             )
                             b_high = (
-                                T.BufferLoad(B, [k_row + 1, T.Ramp(0, 1, in_dtype_svf)]),
+                                T.TensorLoad(B, [k_row + 1, T.Ramp(0, 1, in_dtype_svf)]),
                                 ptrue,
                             )
 
@@ -725,23 +721,21 @@ def get_sme_init_intrin():
     """
     SVF2 = 2 * 4 * T.vscale()
 
-    @T.prim_func(s_tir=True)
-    def desc(c: T.handle) -> None:
-        C = T.match_buffer(c, (SVF2, SVF2), "float32", offset_factor=1)
-        with T.sblock("root"):
-            T.reads()
-            T.writes(C[0:SVF2, 0:SVF2])
+    @Ts.function
+    def desc(C: T.Tensor((SVF2, SVF2), "float32", offset_factor=1)) -> None:
+        with Ts.sblock("root"):
+            Ts.reads()
+            Ts.writes(C[0:SVF2, 0:SVF2])
             for m, n in T.grid(SVF2, SVF2):
-                with T.sblock("init"):
-                    v_m, v_n = T.axis.remap("SS", [m, n])
+                with Ts.sblock("init"):
+                    v_m, v_n = Ts.axis.remap("SS", [m, n])
                     C[v_m, v_n] = T.float32(0)
 
-    @T.prim_func(s_tir=True)
-    def impl(c: T.handle) -> None:
-        C = T.match_buffer(c, (SVF2, SVF2), "float32", offset_factor=1)
-        with T.sblock("root"):
-            T.reads()
-            T.writes(C[0:SVF2, 0:SVF2])
+    @Ts.function
+    def impl(C: T.Tensor((SVF2, SVF2), "float32", offset_factor=1)) -> None:
+        with Ts.sblock("root"):
+            Ts.reads()
+            Ts.writes(C[0:SVF2, 0:SVF2])
             clear_all_tiles = T.int32(255)
             T.evaluate(T.call_llvm_intrin("void", "llvm.aarch64.sme.zero", clear_all_tiles))
 
@@ -764,7 +758,6 @@ ARM_SME_BLOCK2_2SVLx1SVL_FP16_TRANSPOSE_INTERLEAVE = (
     "sme_block2_2svlx1svl_fp16_transpose_interleave"
 )
 ARM_SME_2SVLx2SVL_GEMM_INTERLEAVED_MOPA = "sme_2svlx2svl_gemm_interleaved_mopa"
-
 
 # The following tensor intrinsics use LLVM intrinsics that are only available
 # in versions of LLVM >= 15. Installations with older versions of LLVM will

@@ -63,11 +63,11 @@ namespace codegen {
 // NVPTX code generator.
 class CodeGenNVPTX : public CodeGenLLVM {
  public:
-  llvm::Function* DeclareFunction(const GlobalVar& gvar, const PrimFunc& f) final {
+  llvm::Function* DeclareFunction(const GlobalVar& gvar, const Function& f) final {
     // add function as void return value
     return CodeGenLLVM::DeclareFunctionInternal(gvar, f);
   }
-  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) final {
+  void AddFunction(const GlobalVar& gvar, const Function& f) final {
     // add function as void return value
     CodeGenLLVM::AddFunctionInternal(gvar, f);
     // annotate as kernel function
@@ -78,34 +78,48 @@ class CodeGenNVPTX : public CodeGenLLVM {
                    llvm::ValueAsMetadata::get(ConstInt32(1))}));
   }
 
-  void VisitStmt_(const AllocBufferNode* op) final {
+  void Dispatch_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      return DispatchAllocTensor(op, call);
+    }
+    CodeGenLLVM::Dispatch_(op);
+  }
+
+  void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
+    tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+    DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+    ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+    TensorVar buffer = op->var.as_or_throw<TensorVar>();
+    DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
     llvm::Value* buf = nullptr;
-    StorageInfo& info = alloc_storage_info_[op->buffer.get()];
+    StorageInfo& info = alloc_storage_info_[buffer.get()];
     // maximum necessary alignment in the NV devices
     if (info.alignment > 16) {
       info.alignment = 16;
     }
 
-    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer.var()));
-    PrimType dtype = op->buffer->dtype;
+    auto storage_scope = runtime::StorageScope::Create(scope);
 
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
       // Shared memory: address space == 3
-      buf = AllocateSharedMemory(dtype, 0, 3, info.alignment, llvm::GlobalValue::ExternalLinkage);
+      buf = AllocateSharedMemory(PrimType(dtype), 0, 3, info.alignment,
+                                 llvm::GlobalValue::ExternalLinkage);
     } else {
       // Compute constant_size from buffer shape
-      const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
+      const IntImmNode* dim_imm = shape->fields[0].as<IntImmNode>();
       TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation in GPU";
-      size_t constant_size = static_cast<size_t>(dim_imm->value);
+      size_t constant_size = dim_imm->value.as<size_t>().value();
       TVM_FFI_ICHECK_GT(constant_size, 0)
           << "Can only handle constant size stack allocation in GPU";
 
       if (constant_size % 4 == 0 && info.alignment == 0) {
-        info.alignment = GetTempAllocaAlignment(dtype, constant_size);
+        info.alignment = GetTempAllocaAlignment(PrimType(dtype), constant_size);
       }
       if (storage_scope.rank == runtime::StorageRank::kLocal) {
         llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
-          return builder_->CreateAlloca(DTypeToLLVMType(dtype), ConstInt32(constant_size));
+          return builder_->CreateAlloca(DTypeToLLVMType(PrimType(dtype)),
+                                        ConstInt32(constant_size));
         });
         auto alignment = static_cast<unsigned>(alloca->getAlign().value());
         if (alignment < static_cast<unsigned>(info.alignment)) {
@@ -115,23 +129,24 @@ class CodeGenNVPTX : public CodeGenLLVM {
       } else {
         TVM_FFI_ICHECK(storage_scope.rank == runtime::StorageRank::kShared)
             << "Can only allocate shared or local memory inside kernel";
-        buf = AllocateSharedMemory(dtype, constant_size, 3, info.alignment,
+        buf = AllocateSharedMemory(PrimType(dtype), constant_size, 3, info.alignment,
                                    llvm::GlobalValue::ExternalLinkage);
       }
     }
 
-    buf = builder_->CreatePointerCast(
-        buf, llvmGetPointerTo(DTypeToLLVMType(dtype), buf->getType()->getPointerAddressSpace()));
-    TVM_FFI_ICHECK(!var_map_.count(op->buffer.get()));
-    var_map_[op->buffer.get()] = buf;
-    if (op->annotations.count(tirx::attr::kVolatile)) {
-      volatile_buf_.insert(op->buffer.get());
+    buf = builder_->CreatePointerCast(buf,
+                                      llvmGetPointerTo(DTypeToLLVMType(PrimType(dtype)),
+                                                       buf->getType()->getPointerAddressSpace()));
+    TVM_FFI_ICHECK(!var_map_.count(buffer.get()));
+    var_map_[buffer.get()] = buf;
+    if (annotations->dict.count(tirx::attr::kVolatile)) {
+      volatile_buf_.insert(buffer.get());
     }
   }
 
   // Return the thread index via intrinsics.
-  llvm::Value* GetThreadIndex(const IterVar& iv) final {
-    runtime::ThreadScope ts = runtime::ThreadScope::Create(iv->thread_tag);
+  llvm::Value* GetThreadIndex(const PrimVar& var, const ffi::String& thread_tag) final {
+    runtime::ThreadScope ts = runtime::ThreadScope::Create(thread_tag);
     llvm::Intrinsic::ID intrin_id = llvm::Intrinsic::nvvm_read_ptx_sreg_tid_x;
     if (ts.rank == 1) {
       switch (ts.dim_index) {
@@ -169,11 +184,12 @@ class CodeGenNVPTX : public CodeGenLLVM {
 #else
     llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), intrin_id);
 #endif
-    return builder_->CreateCall(f, {});
+    llvm::Value* result = builder_->CreateCall(f, {});
+    return this->CreateCast(PrimType::Int(32), var.ty(), result);
   }
 
   llvm::Value* CreateStorageSync(const CallNode* op) final {
-    const std::string& sync = op->args[0].as<prim::StringImmNode>()->value;
+    const std::string& sync = op->args[0].as<StringImmNode>()->value;
     if (sync == "warp") {
       // TODO(tqchen) warp sync in CUDA9
       return nullptr;

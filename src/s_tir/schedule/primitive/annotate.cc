@@ -17,12 +17,12 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 void Annotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann_key,
@@ -160,8 +160,10 @@ struct UnannotateTraits : public UnpackedInstTraits<UnannotateTraits> {
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(AnnotateTraits);
-TVM_REGISTER_INST_KIND_TRAITS(UnannotateTraits);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterInstructionKind<AnnotateTraits>();
+  RegisterInstructionKind<UnannotateTraits>();
+}
 
 }  // namespace s_tir
 }  // namespace tvm

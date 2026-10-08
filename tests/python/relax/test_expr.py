@@ -44,7 +44,7 @@ def _check_json_roundtrip(x):
 
 def _check_type_missing(ty):
     assert isinstance(ty, tvm.ir.Type)
-    assert ty.is_missing()
+    assert isinstance(ty, tvm.ir.MissingType)
 
 
 def test_var() -> None:
@@ -335,16 +335,16 @@ def test_prim_value_helper_rejects_relax_expr():
 
 
 def test_string_imm():
-    s0 = rx.StringImm("hello")
-    s1 = rx.StringImm("hello")
+    s0 = tvm.ir.StringImm("hello")
+    s1 = tvm.ir.StringImm("hello")
     assert s0.value == "hello"
     _check_equal(s0, s1)
     _check_json_roundtrip(s0)
 
 
 def test_datatype_imm():
-    d0 = rx.DataTypeImm("int32")
-    d1 = rx.DataTypeImm("int32")
+    d0 = tvm.ir.DataTypeImm(tvm.DataType("int32"))
+    d1 = tvm.ir.DataTypeImm(tvm.DataType("int32"))
     assert d0.value == "int32"
     _check_equal(d0, d1)
     _check_json_roundtrip(d0)
@@ -375,8 +375,57 @@ def test_call_accepts_core_expr_operator():
 
 def test_call_raises_error_for_missing_operator():
     """relax::Call requires a defined operator."""
-    with pytest.raises(ValueError, match="defined operator"):
+    with pytest.raises(TypeError, match=r"Expected `ir.Expr` but got `None`"):
         rx.Call(None, [])
+
+
+def test_call_reinfer_type_from_current_inputs():
+    original_ty = rx.TensorType([2], "float32")
+    changed_ty = rx.TensorType([4], "float16")
+    x = rx.Var("x", original_ty)
+    y = rx.Var("y", changed_ty)
+
+    initial = rx.Call("relax.abs", [x])
+    _check_equal(tvm.ir.reinfer_type(initial), original_ty)
+    assert tvm.ir.reinfer_type(initial).same_as(original_ty)
+    _check_type_missing(initial.ty)
+
+    unchanged = rx.Call("relax.abs", [x], ty=original_ty)
+    assert tvm.ir.reinfer_type(unchanged).same_as(unchanged.ty)
+
+    equivalent_ty = rx.TensorType(original_ty.shape, original_ty.dtype)
+    equivalent = rx.Call("relax.abs", [x], ty=equivalent_ty)
+    assert tvm.ir.reinfer_type(equivalent).same_as(equivalent_ty)
+
+    stale = rx.Call("relax.abs", [y], ty=original_ty)
+    _check_equal(tvm.ir.reinfer_type(stale), changed_ty)
+    assert tvm.ir.reinfer_type(stale).same_as(changed_ty)
+    _check_equal(stale.ty, original_ty)
+
+    with pytest.raises(tvm.error.InternalError, match="type is not populated"):
+        tvm.ir.reinfer_type(rx.Call("relax.abs", [rx.Var("untyped")]))
+    with pytest.raises(tvm.error.InternalError, match="type is not populated"):
+        tvm.ir.reinfer_type(rx.Call("relax.abs", [rx.Var("untyped")], ty=original_ty))
+    with pytest.raises(ValueError, match="No context-free"):
+        tvm.ir.reinfer_type(rx.Call.unchecked("relax.matmul", [x, x]))
+    func = rx.Var("func", rx.FuncType([original_ty], original_ty))
+    with pytest.raises(ValueError, match="Op callee"):
+        tvm.ir.reinfer_type(rx.Call(func, [x]))
+
+    with pytest.raises(TypeError):
+        tvm.ir.reinfer_type(rx.Call("relax.abs", [rx.Var("scalar", tvm.ir.PrimType("int32"))]))
+
+    out_ty = rx.TensorType([8], "float32")
+    closure = rx.Var("closure", rx.AnyType())
+    explicit = rx.Call("relax.invoke_closure", [closure, rx.Tuple([])], ty_args=[out_ty])
+    _check_equal(tvm.ir.reinfer_type(explicit), out_ty)
+    changed_explicit = rx.Call(
+        "relax.invoke_closure", [closure, rx.Tuple([])], ty_args=[changed_ty]
+    )
+    _check_equal(tvm.ir.reinfer_type(changed_explicit), changed_ty)
+
+    _check_equal(tvm.ir.reinfer_type(rx.op.astype(x, "float16")), rx.TensorType([2], "float16"))
+    _check_equal(tvm.ir.reinfer_type(rx.op.astype(x, "int32")), rx.TensorType([2], "int32"))
 
 
 def test_shared_operator_surface_preserves_relax_semantics():

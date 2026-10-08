@@ -40,6 +40,7 @@ from typing import Any
 import tvm
 from tvm import s_tir, tirx
 from tvm.runtime import DataType
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -47,12 +48,10 @@ from .position_embedding import switch_rope_freq_func
 
 
 def _var(dtype):
-    return T.sblock_alloc_buffer((1,), dtype, scope="local")
-
+    return Ts.sblock_alloc_buffer((1,), dtype, scope="local")
 
 def _var_cpu(dtype):
-    return T.sblock_alloc_buffer((1,), dtype)
-
+    return Ts.sblock_alloc_buffer((1,), dtype)
 
 def get_max_num_threads_per_block(target: Target) -> int:
     """
@@ -64,7 +63,6 @@ def get_max_num_threads_per_block(target: Target) -> int:
     if max_threads_per_block is None:
         return max_num_threads
     return max(max_num_threads, max_threads_per_block)
-
 
 def check_thread_limits(target: Target, bdx: int, bdy: int, bdz: int, gdz: int):
     """
@@ -88,7 +86,6 @@ def check_thread_limits(target: Target, bdx: int, bdy: int, bdz: int, gdz: int):
         assert bdz <= 64, f"webgpu's threadIdx.z cannot exceed 64, but got bdz={bdz}"
         assert gdz == 1, f"webgpu's blockIdx.z should be 1, but got gdz={gdz}"
 
-
 class AttnKind(enum.IntEnum):
     """The attention kind class.
     MHA denotes multi-head attention, multi-query attention or grouped query attention.
@@ -98,7 +95,6 @@ class AttnKind(enum.IntEnum):
     MHA = 0
     MLA = 1
     MHA_SLIDING = 3
-
 
 class RopeMode(enum.IntEnum):
     """The RoPE mode of the Paged KV cache.
@@ -111,8 +107,7 @@ class RopeMode(enum.IntEnum):
     NORMAL = 1
     INLINE = 2
 
-
-def _rope(buffer: T.Buffer, offset: tirx.Var, rotary_dim: int, theta: tirx.Var, scale: tirx.Var, indices: tuple[tirx.Var, ...], qkv_dtype: str, rope_scaling: dict[str, Any]):
+def _rope(buffer: T.Tensor, offset: tirx.Var, rotary_dim: int, theta: tirx.Var, scale: tirx.Var, indices: tuple[tirx.Var, ...], qkv_dtype: str, rope_scaling: dict[str, Any]):
     d = indices[-1]
     cos_freq, sin_freq, var_map = switch_rope_freq_func(rope_scaling)(offset * scale, d, rotary_dim, theta, "float32")
     cos = cos_freq * buffer[indices].astype("float32")
@@ -126,14 +121,12 @@ def _rope(buffer: T.Buffer, offset: tirx.Var, rotary_dim: int, theta: tirx.Var, 
         expr = tirx.Let(var, value, expr)
     return expr
 
-
 def _causal_mask(causal, row, col, kv_len, qo_len):
     return T.if_then_else(
         causal > 0,
         col < kv_len - qo_len + row + 1,
         col < kv_len,
     )
-
 
 def _causal_or_sliding_cross_mask(causal, row, col, kv_len, qo_len, sliding_window_size):
     visible_past = T.max(sliding_window_size - row - 1, 0)
@@ -143,21 +136,18 @@ def _causal_or_sliding_cross_mask(causal, row, col, kv_len, qo_len, sliding_wind
         _causal_mask(causal, row, col, kv_len, qo_len),
     )
 
-
-def _declare_length_info(var_length_info, batch_size, sliding_window, elem_offset):
+def _length_info_buffer(batch_size, sliding_window, elem_offset):
     return (
-        T.match_buffer(var_length_info, (3, batch_size), "int32", elem_offset=elem_offset)
+        T.Tensor( (3, batch_size), "int32", elem_offset=elem_offset)
         if sliding_window
-        else T.match_buffer(var_length_info, (batch_size,), "int32", elem_offset=elem_offset)
+        else T.Tensor( (batch_size,), "int32", elem_offset=elem_offset)
     )
-
 
 def _get_kv_chunk_len(num_pages, page_size, seq_id, length_info, sliding_window):
     if not sliding_window:
         return (num_pages - 1) * page_size + length_info[seq_id]
     # ((num_pages - 1) * page_size + last_page_len) - sliding_window_offset + sink_size
     return (num_pages - 1) * page_size + length_info[0, seq_id] - length_info[1, seq_id] + length_info[2, seq_id]
-
 
 def _get_seq_offset(pos, seq_id, length_info, sliding_window):
     if not sliding_window:
@@ -169,45 +159,40 @@ def _get_seq_offset(pos, seq_id, length_info, sliding_window):
         pos - length_info[2, seq_id] + length_info[1, seq_id],
     )
 
-
 def _alloc_softmax_state_buffers(tile_x, tile_z, bdx, num_warps):
     """Allocate the shared/local online-softmax working state used by every tiled prefill kernel.
 
     Returns ``(S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new)``.
     """
-    S_smem = T.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="shared")
-    S_local = T.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="local")
-    m_smem = T.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
-    m_prev_smem = T.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
-    d_smem = T.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
+    S_smem = Ts.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="shared")
+    S_local = Ts.sblock_alloc_buffer((tile_x, tile_z), "float32", scope="local")
+    m_smem = Ts.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
+    m_prev_smem = Ts.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
+    d_smem = Ts.sblock_alloc_buffer((tile_x,), "float32", scope="shared")
     md_shape = (math.ceil(tile_x / (bdx * num_warps)),)
-    m_new = T.sblock_alloc_buffer(md_shape, "float32", scope="local")
-    m_prev = T.sblock_alloc_buffer(md_shape, "float32", scope="local")
-    d_new = T.sblock_alloc_buffer(md_shape, "float32", scope="local")
+    m_new = Ts.sblock_alloc_buffer(md_shape, "float32", scope="local")
+    m_prev = Ts.sblock_alloc_buffer(md_shape, "float32", scope="local")
+    d_new = Ts.sblock_alloc_buffer(md_shape, "float32", scope="local")
     return S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new
-
 
 def _alloc_mha_qkvo_buffers(tile_x, tile_z, d_qk, d_v, dtype):
     """Allocate Q/K/V shared + O local buffers for standard MHA/GQA prefill kernels."""
-    Q_smem = T.sblock_alloc_buffer((tile_x, d_qk), dtype, scope="shared")
-    K_smem = T.sblock_alloc_buffer((tile_z, d_qk), dtype, scope="shared")
-    V_smem = T.sblock_alloc_buffer((tile_z, d_v), dtype, scope="shared")
-    O_local = T.sblock_alloc_buffer((tile_x, d_v), "float32", scope="local")
+    Q_smem = Ts.sblock_alloc_buffer((tile_x, d_qk), dtype, scope="shared")
+    K_smem = Ts.sblock_alloc_buffer((tile_z, d_qk), dtype, scope="shared")
+    V_smem = Ts.sblock_alloc_buffer((tile_z, d_v), dtype, scope="shared")
+    O_local = Ts.sblock_alloc_buffer((tile_x, d_v), "float32", scope="local")
     return Q_smem, K_smem, V_smem, O_local
-
 
 def _alloc_mla_qkvo_buffers(tile_x, tile_z, d_qk, d_latent, dtype):
     """Allocate Q + combined KV shared + O local for MLA prefill (V reuses the KV buffer)."""
-    Q_smem = T.sblock_alloc_buffer((tile_x, d_qk), dtype, scope="shared")
-    KV_smem = T.sblock_alloc_buffer((tile_z, d_qk), dtype, scope="shared")
-    O_local = T.sblock_alloc_buffer((tile_x, d_latent), "float32", scope="local")
+    Q_smem = Ts.sblock_alloc_buffer((tile_x, d_qk), dtype, scope="shared")
+    KV_smem = Ts.sblock_alloc_buffer((tile_z, d_qk), dtype, scope="shared")
+    O_local = Ts.sblock_alloc_buffer((tile_x, d_latent), "float32", scope="local")
     return Q_smem, KV_smem, O_local
-
 
 def _alloc_tile_walk_state():
     """Return (tile_id, batch_idx, batch_tiles, batch_rows, iterator, kv_chunk_len) int32 scalars for the paged/ragged/MLA tile-walk state machine."""
     return _var("int32"), _var("int32"), _var("int32"), _var("int32"), _var("int32"), _var("int32")
-
 
 def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_size):
     """Build @T.macro helpers shared across tiled online-softmax prefill kernels.
@@ -221,7 +206,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
     """
     @T.macro
     def init_states(
-        m_smem: T.Buffer, d_smem: T.Buffer, O_local: T.Buffer, ty: T.int32, tx: T.int32,
+        m_smem: T.Tensor, d_smem: T.Tensor, O_local: T.Tensor, ty: T.int32, tx: T.int32,
     ):
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
@@ -229,33 +214,33 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                 m_smem[row] = -5e4
                 d_smem[row] = 1.0
         for li, lj in T.grid(tile_x, tile_o):
-            with T.sblock("O_init"):
-                i, j = T.axis.remap("SS", [li, lj])
+            with Ts.sblock("O_init"):
+                i, j = Ts.axis.remap("SS", [li, lj])
                 O_local[i, j] = 0.0
         T.tvm_storage_sync("shared")
 
     @T.macro
     def compute_s_gemm(
-        Q_smem: T.Buffer, K_smem: T.Buffer, S_local: T.Buffer, S_smem: T.Buffer, sm_scale: T.float32,
+        Q_smem: T.Tensor, K_smem: T.Tensor, S_local: T.Tensor, S_smem: T.Tensor, sm_scale: T.float32,
     ):
-        with T.sblock():
+        with Ts.sblock():
             for li, lj, lk in T.grid(tile_x, tile_z, tile_y):
-                with T.sblock("S_gemm"):
-                    i, j, k = T.axis.remap("SSR", [li, lj, lk])
-                    with T.init():
+                with Ts.sblock("S_gemm"):
+                    i, j, k = Ts.axis.remap("SSR", [li, lj, lk])
+                    with Ts.init():
                         S_local[i, j] = 0.0
                     S_local[i, j] += T.cast(Q_smem[i, k], "float32") * T.cast(K_smem[j, k], "float32") * sm_scale * math.log2(math.exp(1))
         T.tvm_storage_sync("shared")
         for li, lj in T.grid(tile_x, tile_z):
-            with T.sblock("S_store"):
-                i, j = T.axis.remap("SS", [li, lj])
+            with Ts.sblock("S_store"):
+                i, j = Ts.axis.remap("SS", [li, lj])
                 S_smem[i, j] = S_local[i, j]
         T.tvm_storage_sync("shared")
 
     @T.macro
     def softmax_update_causal(
-        S_smem: T.Buffer, m_smem: T.Buffer, d_smem: T.Buffer, m_prev_smem: T.Buffer,
-        m_new: T.Buffer, m_prev: T.Buffer, d_new: T.Buffer,
+        S_smem: T.Tensor, m_smem: T.Tensor, d_smem: T.Tensor, m_prev_smem: T.Tensor,
+        m_new: T.Tensor, m_prev: T.Tensor, d_new: T.Tensor,
         ty: T.int32, tx: T.int32, LH_start: T.int32, L_kv_start: T.int32,
         causal: T.int32, kv_len: T.int32, qo_len: T.int32, sliding_window_size: T.int32,
     ):
@@ -263,7 +248,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
             if row < tile_x:
-                with T.sblock("update1"):
+                with Ts.sblock("update1"):
                     m_prev[i] = m_smem[row]
                     m_new[i] = m_smem[row]
                     row_: T.let[T.int32] = (LH_start + row) // group_size
@@ -274,7 +259,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         # Phase 2: exp-and-scale S_smem; masked-out entries use -inf
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
-            with T.sblock("update"):
+            with Ts.sblock("update"):
                 for j in T.serial(tile_z):
                     # predicate sits inside loop so sync stays outside conditional branches
                     if row < tile_x:
@@ -287,7 +272,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
             if row < tile_x:
-                with T.sblock("update"):
+                with Ts.sblock("update"):
                     for j in T.serial(tile_z):
                         d_new[i] += S_smem[row, j]
                     m_smem[row] = m_new[i]
@@ -297,21 +282,21 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
 
     @T.macro
     def compute_o_gemm(
-        S_smem: T.Buffer, V_smem: T.Buffer, O_local: T.Buffer,
-        m_prev_smem: T.Buffer, m_smem: T.Buffer,
+        S_smem: T.Tensor, V_smem: T.Tensor, O_local: T.Tensor,
+        m_prev_smem: T.Tensor, m_smem: T.Tensor,
     ):
-        with T.sblock():
+        with Ts.sblock():
             for li, lj, lk in T.grid(tile_x, tile_o, tile_z):
-                with T.sblock("O_gemm"):
-                    i, j, k = T.axis.remap("SSR", [li, lj, lk])
-                    with T.init():
+                with Ts.sblock("O_gemm"):
+                    i, j, k = Ts.axis.remap("SSR", [li, lj, lk])
+                    with Ts.init():
                         O_local[i, j] *= T.exp2(m_prev_smem[i] - m_smem[i])
                     O_local[i, j] += S_smem[i, k] * T.cast(V_smem[k, j], "float32")
 
     @T.macro
     def paged_store_output_lse(
-        output: T.Buffer, lse: T.Buffer, O_local: T.Buffer, m_smem: T.Buffer, d_smem: T.Buffer,
-        q_indptr: T.Buffer, b_idx: T.int32, by: T.int32, LH_start: T.int32,
+        output: T.Tensor, lse: T.Tensor, O_local: T.Tensor, m_smem: T.Tensor, d_smem: T.Tensor,
+        q_indptr: T.Tensor, b_idx: T.int32, by: T.int32, LH_start: T.int32,
     ):
         """Paged-style (q_indptr-based) O_store + lse_store epilogue.
 
@@ -319,15 +304,15 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         the ``by * group_size`` term drops to zero at compile time.
         """
         for li, lj in T.grid(tile_x, tile_o):
-            with T.sblock("O_store"):
-                i, j = T.axis.remap("SS", [li, lj])
+            with Ts.sblock("O_store"):
+                i, j = Ts.axis.remap("SS", [li, lj])
                 cur_L: T.let[T.int32] = q_indptr[b_idx] + (LH_start + i) // group_size
                 cur_H_qo: T.let[T.int32] = by * group_size + (LH_start + i) % group_size
                 if cur_L < q_indptr[b_idx + 1]:
                     output[cur_L, cur_H_qo, j] = O_local[i, j] / d_smem[i]
         for li in T.grid(tile_x):
-            with T.sblock("lse_store"):
-                i = T.axis.remap("S", [li])
+            with Ts.sblock("lse_store"):
+                i = Ts.axis.remap("S", [li])
                 cur_L: T.let[T.int32] = q_indptr[b_idx] + (LH_start + i) // group_size
                 cur_H_qo: T.let[T.int32] = by * group_size + (LH_start + i) % group_size
                 if cur_L < q_indptr[b_idx + 1]:
@@ -335,8 +320,8 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
 
     @T.macro
     def advance_tile_batch(
-        tile_id: T.Buffer, batch_idx: T.Buffer, batch_tiles: T.Buffer, batch_rows: T.Buffer,
-        q_indptr: T.Buffer, batch_size: T.int32,
+        tile_id: T.Tensor, batch_idx: T.Tensor, batch_tiles: T.Tensor, batch_rows: T.Tensor,
+        q_indptr: T.Tensor, batch_size: T.int32,
     ):
         """Advance tile_id/batch_idx past exhausted batches.
 
@@ -353,8 +338,8 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
 
     @T.macro
     def softmax_update_valid_length(
-        S_smem: T.Buffer, m_smem: T.Buffer, d_smem: T.Buffer, m_prev_smem: T.Buffer,
-        m_new: T.Buffer, m_prev: T.Buffer, d_new: T.Buffer,
+        S_smem: T.Tensor, m_smem: T.Tensor, d_smem: T.Tensor, m_prev_smem: T.Tensor,
+        m_new: T.Tensor, m_prev: T.Tensor, d_new: T.Tensor,
         ty: T.int32, tx: T.int32, LH_start: T.int32, L_kv_start: T.int32,
         valid_len: T.int32, qo_len: T.int32, kv_len: T.int32,
     ):
@@ -363,7 +348,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
             if row < tile_x:
-                with T.sblock("update1"):
+                with Ts.sblock("update1"):
                     m_prev[i] = m_smem[row]
                     m_new[i] = m_smem[row]
                     row_: T.let[T.int32] = (LH_start + row) // group_size
@@ -373,7 +358,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                     d_new[i] = d_smem[row] * T.exp2(m_prev[i] - m_new[i])
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
-            with T.sblock("update"):
+            with Ts.sblock("update"):
                 for j in T.serial(tile_z):
                     if row < tile_x:
                         row_: T.let[T.int32] = (LH_start + row) // group_size
@@ -384,7 +369,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
             if row < tile_x:
-                with T.sblock("update"):
+                with Ts.sblock("update"):
                     for j in T.serial(tile_z):
                         d_new[i] += S_smem[row, j]
                     m_smem[row] = m_new[i]
@@ -394,8 +379,8 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
 
     @T.macro
     def softmax_update_causal_padded_left(
-        S_smem: T.Buffer, m_smem: T.Buffer, d_smem: T.Buffer, m_prev_smem: T.Buffer,
-        m_new: T.Buffer, m_prev: T.Buffer, d_new: T.Buffer,
+        S_smem: T.Tensor, m_smem: T.Tensor, d_smem: T.Tensor, m_prev_smem: T.Tensor,
+        m_new: T.Tensor, m_prev: T.Tensor, d_new: T.Tensor,
         ty: T.int32, tx: T.int32, LH_start: T.int32, L_kv_start: T.int32,
         valid_len: T.int32, qo_len: T.int32, kv_len: T.int32,
     ):
@@ -406,7 +391,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
             if row < tile_x:
-                with T.sblock("update1"):
+                with Ts.sblock("update1"):
                     m_prev[i] = m_smem[row]
                     m_new[i] = m_smem[row]
                     row_: T.let[T.int32] = (LH_start + row) // group_size
@@ -419,7 +404,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                     d_new[i] = d_smem[row] * T.exp2(m_prev[i] - m_new[i])
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
-            with T.sblock("update"):
+            with Ts.sblock("update"):
                 for j in T.serial(tile_z):
                     if row < tile_x:
                         row_: T.let[T.int32] = (LH_start + row) // group_size
@@ -433,7 +418,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
             if row < tile_x:
-                with T.sblock("update"):
+                with Ts.sblock("update"):
                     for j in T.serial(tile_z):
                         d_new[i] += S_smem[row, j]
                     m_smem[row] = m_new[i]
@@ -442,7 +427,6 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
         T.tvm_storage_sync("shared")
 
     return init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, softmax_update_valid_length, advance_tile_batch, paged_store_output_lse, softmax_update_causal_padded_left
-
 
 def _get_prefill_shared_memory_usage(
     tile_x, tile_z, d, dtype, *, d_v=None, merged_kv=False
@@ -460,11 +444,9 @@ def _get_prefill_shared_memory_usage(
     softmax_bytes = (tile_x * tile_z + 3 * tile_x) * 4
     return qkv_bytes + softmax_bytes
 
-
 def _get_prefill_vector_size(extent, load_vec):
     """Return the scheduler's vector width for a contiguous extent."""
     return min(load_vec, extent & ~(extent - 1))
-
 
 def _get_prefill_tile_size(x, y, num_threads):
     """Return the scheduler's per-thread 2D tile, or ``None`` if none is legal."""
@@ -480,7 +462,6 @@ def _get_prefill_tile_size(x, y, num_threads):
         inner_y += 1
     return None
 
-
 def _get_prefill_load_config(x, y, num_threads, load_vec):
     """Return ``(vector width, tile x, tile y)`` for a scheduled load, if legal."""
     if (x * y) % num_threads != 0:
@@ -494,7 +475,6 @@ def _get_prefill_load_config(x, y, num_threads, load_vec):
     if tile is None:
         return None
     return vec_size, *tile
-
 
 def _is_prefill_kernel_config_legal(
     tile_x, tile_y, tile_z, d_v, load_vec, bdx, num_warps, merged_kv
@@ -511,7 +491,6 @@ def _is_prefill_kernel_config_legal(
             or _get_prefill_load_config(tile_z, d_v, num_threads, load_vec) is not None,
         )
     )
-
 
 def _fit_prefill_config_to_shared_memory(
     tile_x,
@@ -621,7 +600,6 @@ def _fit_prefill_config_to_shared_memory(
         f"{max_shared_memory_per_block} bytes"
     )
 
-
 def _get_prefill_kernel_config(
     h_kv, h_q, d, dtype, target: Target, *, d_v=None, merged_kv=False
 ):
@@ -690,7 +668,6 @@ def _get_prefill_kernel_config(
         )
 
     return NUM_BLKS, LOAD_VEC, group_size, bdx, num_warps, tile_x, tile_y, tile_z
-
 
 def _schedule_prefill_kernel(sch: s_tir.Schedule, load_vec, bdx, num_warps, tile_x, tile_y, tile_z, transform_k_load: bool, merged_qk_load: bool) -> tvm.s_tir.Schedule:
     get_extent = lambda *lps: [int(sch.get(lp).extent) for lp in lps]

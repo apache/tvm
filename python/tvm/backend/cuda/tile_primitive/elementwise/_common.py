@@ -30,10 +30,10 @@ from __future__ import annotations
 import functools
 import operator
 
-from tvm.arith.analyzer import Analyzer
+from tvm.ir import TensorRegion
 from tvm.runtime import DataType
 from tvm.script import tirx as T
-from tvm.tirx import BufferRegion
+from tvm.sym.analyzer import Analyzer
 from tvm.tirx.layout import Axis, Iter, TileLayout
 
 from ..common import get_indices, get_st_extent
@@ -46,9 +46,9 @@ from ..copy.vec_auto_reg import _all_threads_active, _axis_decl, _compute_perm_r
 # -----------------------------------------------------------------------------
 # Plan helpers
 # -----------------------------------------------------------------------------
-def buffer_regions(plan) -> list[BufferRegion]:
-    """All BufferRegion args (dst + buffer-region srcs), in plan order."""
-    out: list[BufferRegion] = [plan.dst]
+def buffer_regions(plan) -> list[TensorRegion]:
+    """All TensorRegion args (dst + buffer-region srcs), in plan order."""
+    out: list[TensorRegion] = [plan.dst]
     for s in plan.srcs:
         if s.buf_region is not None:
             out.append(s.buf_region)
@@ -68,10 +68,10 @@ def dtype_bits(dtype) -> int:
 
 def compute_dtype_of(plan) -> str:
     """Widest dtype in bits across dst + buffer/scalar srcs (dst breaks ties)."""
-    candidates = [dtype_name(plan.dst.buffer.dtype)]
+    candidates = [dtype_name(plan.dst.source.dtype)]
     for s in plan.srcs:
         if s.buf_region is not None:
-            candidates.append(dtype_name(s.buf_region.buffer.dtype))
+            candidates.append(dtype_name(s.buf_region.source.dtype))
         elif s.scalar is not None:
             candidates.append(scalar_dtype(s.scalar))
     widest = candidates[0]
@@ -96,7 +96,7 @@ def scalar_dtype(scalar) -> str:
     return str(dtype)
 
 
-def n_elements(buf_region: BufferRegion) -> int:
+def n_elements(buf_region: TensorRegion) -> int:
     _, ext = get_st_extent(buf_region)
     return functools.reduce(operator.mul, ext, 1)
 
@@ -104,7 +104,7 @@ def n_elements(buf_region: BufferRegion) -> int:
 # -----------------------------------------------------------------------------
 # Anchor selection (reg.py)
 # -----------------------------------------------------------------------------
-def pick_anchor(plan) -> BufferRegion:
+def pick_anchor(plan) -> TensorRegion:
     """Anchor is always ``plan.dst`` — every operand must have a layout
     (enforced by predicate); dst's layout drives iteration. No choice to make.
     """
@@ -118,7 +118,7 @@ def _tensor_shape_of(region) -> tuple[int, ...]:
     """Per-dim region extent (post-slice tensor shape, NOT layout shape).
 
     Accepts either ``[(start, end), ...]`` pairs (as built locally from a
-    ``BufferRegion``) or the ``BufferRegion.region`` sequence of ``Range``
+    ``TensorRegion``) or the ``TensorRegion.region`` sequence of ``Range``
     objects directly. ``Range.extent`` is already simplified by the
     front-end, so we avoid computing ``end - start`` on raw Expr (which
     yields an un-simplified ``Sub`` and breaks ``int(...)``).
@@ -205,8 +205,8 @@ def preprocess_operand(op_br, anchor_tshape):
     Raises ``ValueError`` if the lift is not broadcast-compatible (caller
     should have verified via ``shape_broadcast_compat`` in the predicate).
     """
-    op_layout = op_br.buffer.layout
-    op_shape = op_br.buffer.shape
+    op_layout = op_br.source.layout
+    op_shape = op_br.source.shape
     op_region = [(r.min, r.min + r.extent) for r in op_br.region]
     sliced = op_layout.slice(list(op_shape), op_region).canonicalize()
     sliced = _extract_tile(sliced, op_region)
@@ -286,8 +286,8 @@ def align_operands_to_anchor(anchor_br, layout_others_br):
     Uses ``_align_layouts_no_post_canon`` (not copy's ``align_layouts_raw``
     directly) so ``anchor_p.shard`` length matches ``op_seps`` groupings.
     """
-    anchor_layout = anchor_br.buffer.layout
-    anchor_shape = anchor_br.buffer.shape
+    anchor_layout = anchor_br.source.layout
+    anchor_shape = anchor_br.source.shape
     anchor_region = [(r.min, r.min + r.extent) for r in anchor_br.region]
 
     per_op_aligned: dict = {}
@@ -301,8 +301,8 @@ def align_operands_to_anchor(anchor_br, layout_others_br):
         return anchor_p, per_op_aligned
 
     for op_br in layout_others_br:
-        op_layout = op_br.buffer.layout
-        op_shape = op_br.buffer.shape
+        op_layout = op_br.source.layout
+        op_shape = op_br.source.shape
         op_region = [(r.min, r.min + r.extent) for r in op_br.region]
         r_p, op_p, op_seps = _align_layouts_no_post_canon(
             anchor_layout,
@@ -371,7 +371,7 @@ def fetch_src_value(src, fused, dst_indices, dst_start, dst_extent):
         idx = _broadcast_indices(dst_indices, dst_start, dst_extent, src_st, src_ext)
     else:
         idx = get_indices(fused, src_st, src_ext)
-    return region.buffer[tuple(idx)]
+    return region.source[tuple(idx)]
 
 
 def emit_scope_sync(scope_kind: str):

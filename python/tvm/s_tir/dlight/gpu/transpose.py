@@ -16,13 +16,13 @@
 # under the License.
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 
-from tvm import arith, s_tir, tirx
+from tvm import s_tir, sym, tirx
 from tvm.ir import TensorLoad
 from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
 from tvm.target import Target
 
-from ..analysis import detect_dominant_read, normalize_prim_func
+from ..analysis import detect_dominant_read, normalize_function
 from ..base import try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
@@ -32,7 +32,7 @@ class Transpose(GPUScheduleRule):
 
     def is_transpose(self, sch: Schedule, block_rv: SBlockRV):
         block = sch.get(block_rv)
-        if isinstance(block.body, tirx.BufferStore):
+        if isinstance(block.body, tirx.TensorStore):
             rhs = block.body.value
             if isinstance(rhs, TensorLoad):
                 lhs_indices = block.body.indices
@@ -43,12 +43,12 @@ class Transpose(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         # pylint: disable=invalid-name
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
         if target.kind.name == "cuda":
             len_tx = 16
@@ -65,7 +65,7 @@ class Transpose(GPUScheduleRule):
         len_vec = 4
 
         sch = s_tir.Schedule(func)
-        blocks = normalize_prim_func(sch)
+        blocks = normalize_function(sch)
         transpose_block_idx = -1
         for idx, block in reversed(list(enumerate(blocks))):
             if self.is_transpose(sch, block.block_rv):
@@ -91,7 +91,7 @@ class Transpose(GPUScheduleRule):
         c_factor = 1
         if prologue is not None:
             block_stmt = sch.get(prologue)
-            result = arith.normalize_to_iter_sum(
+            result = sym.normalize_to_iter_sum(
                 detect_dominant_read(block_stmt),
                 input_iters={i.var: i.dom for i in block_stmt.iter_vars},
             )
@@ -122,8 +122,8 @@ class Transpose(GPUScheduleRule):
         sch.unroll(v)
         sch.storage_align(block=cache_read, buffer_index=0, axis=0, factor=32, offset=1)
 
-        sch.annotate(bi, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth)
-        sch.annotate(bi, ann_key="pragma_unroll_explicit", ann_val=1)
+        sch.annotate(bi, ann_key="auto_unroll_max_step", ann_val=unroll_depth)
+        sch.annotate(bi, ann_key="unroll_explicit", ann_val=1)
 
         if prologue is not None:
             sch.compute_inline(prologue)

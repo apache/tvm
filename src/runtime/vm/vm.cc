@@ -612,46 +612,20 @@ ffi::Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const ffi::Strin
   Index gf_idx = it->second;
   const VMFuncInfo& finfo = exec_->func_table[gf_idx];
 
-  if (finfo.kind == VMFuncInfo::FuncKind::kVMFunc) {
-    // NOTE: should not capture strong ref to self and avoid cyclic ref.
-    auto impl = ffi::Function([gf_idx](ffi::PackedArgs args, ffi::Any* rv) {
-      // Per convention, ctx ptr is a VirtualMachine*
-      VirtualMachine* ctx_ptr = static_cast<VirtualMachine*>(args[0].cast<void*>());
+  TVM_FFI_ICHECK(finfo.kind == VMFuncInfo::FuncKind::kVMFunc)
+      << "Cannot support closure with function kind " << static_cast<int>(finfo.kind);
+  // NOTE: should not capture strong ref to self and avoid cyclic ref.
+  auto impl = ffi::Function([gf_idx](ffi::PackedArgs args, ffi::Any* rv) {
+    // Per convention, ctx ptr is a VirtualMachine*
+    VirtualMachine* ctx_ptr = static_cast<VirtualMachine*>(args[0].cast<void*>());
 
-      std::vector<RegType> inputs(args.size() - 1);
-      for (size_t i = 0; i < inputs.size(); ++i) {
-        inputs[i] = args[i + 1];
-      }
-      *rv = static_cast<VirtualMachineImpl*>(ctx_ptr)->InvokeBytecode(gf_idx, inputs);
-    });
-    return VMClosure(func_name, impl);
-  } else {
-    TVM_FFI_ICHECK(finfo.kind == VMFuncInfo::FuncKind::kVMTIRFunc)
-        << "Cannot support closure with function kind " << static_cast<int>(finfo.kind);
-    ffi::Optional<ffi::Function> tir_func = GetFuncFromImports("__vmtir__" + finfo.name);
-    TVM_FFI_ICHECK(tir_func.has_value())
-        << "Cannot find underlying compiled tirx function of VMTIRFunc " << finfo.name;
-    auto impl = ffi::Function([this, finfo, tir_func](ffi::PackedArgs args, ffi::Any* rv) {
-      // Per convention, ctx ptr is a VirtualMachine*
-      VirtualMachine* ctx_ptr = static_cast<VirtualMachine*>(args[0].cast<void*>());
-      TVM_FFI_ICHECK(ctx_ptr == this);
-      TVM_FFI_ICHECK_EQ(args.size() - 1, finfo.num_args)
-          << "Function " << finfo.name << " expects " << finfo.num_args << " arguments";
-      TVM_FFI_ICHECK_GE(finfo.register_file_size, finfo.num_args + 1);
-      std::vector<ffi::Any> reg_file(finfo.register_file_size);
-      for (int64_t i = 0; i < finfo.num_args; ++i) {
-        reg_file[i] = args[i + 1];
-      }
-      void* reg_anylist_handle = reg_file.data();
-      void* const_anylist_handle = this->const_pool_.data();
-      void* func_anylist_handle = this->func_pool_.data();
-      (*tir_func)(static_cast<void*>(ctx_ptr), reg_anylist_handle, const_anylist_handle,
-                  func_anylist_handle);
-      // Return value always stored after inputs.
-      *rv = reg_file[finfo.num_args];
-    });
-    return VMClosure(func_name, impl);
-  }
+    std::vector<RegType> inputs(args.size() - 1);
+    for (size_t i = 0; i < inputs.size(); ++i) {
+      inputs[i] = args[i + 1];
+    }
+    *rv = static_cast<VirtualMachineImpl*>(ctx_ptr)->InvokeBytecode(gf_idx, inputs);
+  });
+  return VMClosure(func_name, impl);
 }
 
 //--------------------------------------------------------------------
@@ -716,8 +690,7 @@ void VirtualMachineImpl::InitFuncPool() {
       func_pool_[func_index] = *func;
 
     } else {
-      TVM_FFI_ICHECK(info.kind == VMFuncInfo::FuncKind::kVMFunc ||
-                     info.kind == VMFuncInfo::FuncKind::kVMTIRFunc);
+      TVM_FFI_ICHECK(info.kind == VMFuncInfo::FuncKind::kVMFunc);
       auto clo = this->GetClosure(info.name);
       func_pool_[func_index] = clo;
     }

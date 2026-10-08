@@ -24,10 +24,12 @@
 #ifndef TVM_TIR_ANALYSIS_VAR_USE_DEF_ANALYSIS_H_
 #define TVM_TIR_ANALYSIS_VAR_USE_DEF_ANALYSIS_H_
 
+#include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
+#include <unordered_set>
 
 namespace tvm {
 namespace tirx {
@@ -45,7 +47,7 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
   // be accessible to the users.
   bool visit_thread_extent_{true};
   ffi::Array<Var> undefined_;
-  ffi::Array<BufferVar> undefined_buffers_;
+  ffi::Array<TensorVar> undefined_buffers_;
 
   std::unordered_map<const VarNode*, int> use_count_;
   std::unordered_map<const VarNode*, int> def_count_;
@@ -53,31 +55,22 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
   std::unordered_map<const VarNode*, int> buffer_def_count_;
 
  private:
-  ExprDeepEqual deep_equal_;
+  std::unordered_set<const VarNode*> inactive_region_defs_;
+  prim::ExprDeepEqual deep_equal_;
   std::unordered_map<const VarNode*, const prim::LetNode*> let_binding_;
-  void VisitStmt_(const AttrStmtNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final;
 
-  void VisitStmt_(const BindNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final;
 
-  void VisitStmt_(const ForNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final;
 
-  void VisitStmt_(const AllocBufferNode* op) final;
-
-  void VisitExpr_(const prim::LetNode* op) final;
-
-  void VisitExpr_(const VarNode* op) final;
-
-  // Piggyback on base class VisitBufferDef/VisitBufferUse to handle buffer
-  // def/use tracking. Base class calls these from AllocBuffer, DeclBuffer,
-  // BufferStore, BufferLoad, and SBlock visitors.
-  void VisitBufferDef(const BufferVar& buffer, bool alloc_data) final;
-  void VisitBufferUse(const BufferVar& buffer) final;
+  ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* op) final;
 
   void HandleDef(const Var& v);
   void HandleUse(const Var& v);
 
-  void HandleDef(const BufferVar& buf);
-  void HandleUse(const BufferVar& buf);
+  void HandleDef(const TensorVar& buf);
+  void HandleUse(const TensorVar& buf);
 };
 
 }  // namespace tirx

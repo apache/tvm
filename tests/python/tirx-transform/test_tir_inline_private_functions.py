@@ -34,31 +34,31 @@ class BaseTestCase:
 
 
 class TestSimple(BaseTestCase):
-    """Simple case directly acting on PrimFunc"""
+    """Simple case directly acting on Function"""
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer([80, 16], "float32"), B: T.Buffer([64, 16], "float32")):
+        @T.function
+        def main(A: T.Tensor([80, 16], "float32"), B: T.Tensor([64, 16], "float32")):
             for i in range(64):
                 Before.subroutine(T.address_of(A[i, 0]), T.address_of(B[i, 0]))
 
-        @T.prim_func(private=True, s_tir=True)
+        @T.function(private=True)
         def subroutine(A_data: T.handle("float32"), B_data: T.handle("float32")):
-            A = T.decl_buffer([16, 16], "float32", data=A_data)
-            B = T.decl_buffer([16], "float32", data=B_data)
+            A = T.decl_tensor([16, 16], "float32", data=A_data)
+            B = T.decl_tensor([16], "float32", data=B_data)
             for i in range(16):
                 B[i] = 0.0
                 for j in range(16):
                     B[i] = B[i] + A[i, j]
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer([80, 16], "float32"), B: T.Buffer([64, 16], "float32")):
+        @T.function
+        def main(A: T.Tensor([80, 16], "float32"), B: T.Tensor([64, 16], "float32")):
             for i in range(64):
-                Aview = T.decl_buffer([16, 16], "float32", data=T.address_of(A[i, 0]))
-                Bview = T.decl_buffer([16], "float32", data=T.address_of(B[i, 0]))
+                Aview = T.decl_tensor([16, 16], "float32", data=T.address_of(A[i, 0]))
+                Bview = T.decl_tensor([16], "float32", data=T.address_of(B[i, 0]))
                 for j in range(16):
                     Bview[j] = 0.0
                     for k in range(16):
@@ -75,19 +75,19 @@ class TestRetainCrossFunctionSubroutines(BaseTestCase):
     InlinePrivateSubroutines should not inline these cases.
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer([80, 16], "float32"), B: T.Buffer([64, 16], "float32")):
+        @T.function
+        def main(A: T.Tensor([80, 16], "float32"), B: T.Tensor([64, 16], "float32")):
             T.func_attr({"target": T.target("llvm")})
             for i in range(64):
                 Before.subroutine(T.address_of(A[i, 0]), T.address_of(B[i, 0]))
 
-        @T.prim_func(private=True, s_tir=True)
+        @T.function(private=True)
         def subroutine(A_data: T.handle("float32"), B_data: T.handle("float32")):
-            T.func_attr({"target": T.target("cuda")})
-            A = T.decl_buffer([16, 16], "float32", data=A_data)
-            B = T.decl_buffer([16], "float32", data=B_data)
+            T.func_attr({"target": T.target({"kind": "cuda", "arch": "sm_80"})})
+            A = T.decl_tensor([16, 16], "float32", data=A_data)
+            B = T.decl_tensor([16], "float32", data=B_data)
             for i in range(16):
                 B[i] = 0.0
                 for j in range(16):
@@ -105,15 +105,15 @@ class TestRetainRecursiveSubroutines(BaseTestCase):
     analysis of the subroutine.
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer(16, "float32")):
+        @T.function
+        def main(A: T.Tensor(16, "float32")):
             Before.subroutine(T.address_of(A[0]), 16)
 
-        @T.prim_func(private=True, s_tir=True)
+        @T.function(private=True)
         def subroutine(A_data: T.handle("float32"), A_size: T.int32):
-            A = T.decl_buffer(A_size, "float32", data=A_data)
+            A = T.decl_tensor(A_size, "float32", data=A_data)
             A[1] = A[0] + A[1]
 
             if A_size > 1:
@@ -129,40 +129,37 @@ class TestDeduplicateBlockName(BaseTestCase):
     def test_produces_expected(self):
         super().test_produces_expected(self)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer([2, 16], "float32"), B: T.Buffer([2, 16], "float32")):
+        @T.function
+        def main(A: T.Tensor([2, 16], "float32"), B: T.Tensor([2, 16], "float32")):
             Before.subroutine(T.address_of(A[0, 0]), T.address_of(B[0, 0]))
             Before.subroutine(T.address_of(A[1, 0]), T.address_of(B[1, 0]))
 
-        @T.prim_func(private=True, s_tir=True)
+        @T.function(private=True)
         def subroutine(A_data: T.handle("float32"), B_data: T.handle("float32")):
-            A = T.decl_buffer(16, "float32", data=A_data)
-            B = T.decl_buffer(16, "float32", data=B_data)
+            A = T.decl_tensor(16, "float32", data=A_data)
+            B = T.decl_tensor(16, "float32", data=B_data)
             for i in range(16):
-                with T.sblock("scalar_mul"):
-                    B[i] = A[i] * 2.0
+                B[i] = A[i] * 2.0
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer([80, 16], "float32"), B: T.Buffer([64, 16], "float32")):
+        @T.function
+        def main(A: T.Tensor([80, 16], "float32"), B: T.Tensor([64, 16], "float32")):
             A_data_1 = T.bind(T.address_of(A[0, 0]), T.handle("float32"))
-            A_1 = T.decl_buffer(16, "float32", data=A_data_1)
+            A_1 = T.decl_tensor(16, "float32", data=A_data_1)
             B_data_1: T.let[T.handle("float32")] = T.address_of(B[0, 0])
-            B_1 = T.decl_buffer(16, "float32", data=B_data_1)
+            B_1 = T.decl_tensor(16, "float32", data=B_data_1)
             for i in range(16):
-                with T.sblock("scalar_mul_1"):
-                    B_1[i] = A_1[i] * 2.0
+                B_1[i] = A_1[i] * 2.0
 
             A_data_2 = T.bind(T.address_of(A[1, 0]), T.handle("float32"))
-            A_2 = T.decl_buffer(16, "float32", data=A_data_2)
+            A_2 = T.decl_tensor(16, "float32", data=A_data_2)
             B_data_2: T.let[T.handle("float32")] = T.address_of(B[1, 0])
-            B_2 = T.decl_buffer(16, "float32", data=B_data_2)
+            B_2 = T.decl_tensor(16, "float32", data=B_data_2)
             for i in range(16):
-                with T.sblock("scalar_mul_2"):
-                    B_2[i] = A_2[i] * 2.0
+                B_2[i] = A_2[i] * 2.0
 
 
 class TestInlineCallOccurringInExpression(BaseTestCase):
@@ -177,28 +174,28 @@ class TestInlineCallOccurringInExpression(BaseTestCase):
     expression, the annotation can be removed.
     """
 
-    @pytest.mark.xfail(reason="Inlining of PrimFuncs outside of tirx.Evaluate is not yet supported")
+    @pytest.mark.xfail(reason="Inlining of Functions outside of tirx.Evaluate is not yet supported")
     def test_produces_expected(self):
         super().test_produces_expected(self)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer(16, "float32")):
+        @T.function
+        def main(A: T.Tensor(16, "float32")):
             for i in range(16):
                 A[i] = Before.subroutine(i)
 
-        @T.prim_func(private=True, s_tir=True)
+        @T.function(private=True)
         def subroutine(i: T.int32) -> T.float32:
             cos = T.cos(T.cast(i, "float32"))
             sin = T.sin(T.cast(i, "float32"))
             retval = cos * cos + sin * sin
             return retval
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer(16, "float32")):
+        @T.function
+        def main(A: T.Tensor(16, "float32")):
             for i in range(16):
                 cos = T.cos(T.cast(i, "float32"))
                 sin = T.sin(T.cast(i, "float32"))
@@ -216,35 +213,34 @@ class TestInlineFunctionWithBufferArguments(BaseTestCase):
     annotation can be removed.
     """
 
-    @pytest.mark.xfail(reason="Inlining of PrimFuncs with buffer arguments")
+    @pytest.mark.xfail(reason="Inlining of Functions with buffer arguments")
     def test_produces_expected(self):
         super().test_produces_expected(self)
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer(16, "float32")):
+        @T.function
+        def main(A: T.Tensor(16, "float32")):
             Before.subroutine(
                 T.tvm_stack_make_array(
                     A.data,
-                    T.tvm_stack_make_shape(*A.ty.shape, dtype="handle"),
+                    T.tvm_stack_make_shape(*A.ty.shape),
                     0,
                     len(A.ty.shape),
                     0.0,
                     A.ty.elem_offset,
-                    dtype="handle",
                 )
             )
 
-        @T.prim_func(private=True, s_tir=True)
-        def subroutine(A: T.Buffer(16, "float32")):
+        @T.function(private=True)
+        def subroutine(A: T.Tensor(16, "float32")):
             for i in range(16):
                 A[i] = A[i] * 2.0
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer(16, "float32")):
+        @T.function
+        def main(A: T.Tensor(16, "float32")):
             for i in range(16):
                 A[i] = A[i] * 2.0
 

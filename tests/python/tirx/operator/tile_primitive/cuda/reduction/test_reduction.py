@@ -68,27 +68,43 @@ def test_reduction_shared(
     g_layout_dst = s_layout_dst = TileLayout(S[dst_shape])
 
     # fmt: off
-    @T.prim_func
-    def test_reduction(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, src_shape, dtype, layout=g_layout_src)
-        B = T.match_buffer(B_ptr, dst_shape, dtype, layout=g_layout_dst)
+    @T.function
+    def test_reduction(
+        A: T.Tensor(src_shape, dtype, layout=g_layout_src),
+        B: T.Tensor(dst_shape, dtype, layout=g_layout_dst),
+    ) -> None:
 
         T.device_entry()
         _bx = T.cta_id([1])
         _tid = T.thread_id([thread_cnt])
-        A_smem = T.alloc_buffer(s_shape_src, dtype, scope="shared", layout=s_layout_src)
-        B_smem = T.alloc_buffer(s_shape_dst, dtype, scope="shared", layout=s_layout_dst)
+        A_smem = T.alloc_tensor(s_shape_src, dtype, scope="shared", layout=s_layout_src)
+        B_smem = T.alloc_tensor(s_shape_dst, dtype, scope="shared", layout=s_layout_dst)
 
         Tx.cta.copy(A_smem[tuple(copy_slice_src)], A[tuple(copy_slice_src)])
         if accum:
             Tx.cta.copy(B_smem[tuple(copy_slice_dst)], B[tuple(copy_slice_dst)])
         T.cuda.cta_sync()
         if op_type == "sum":
-            Tx.cta.sum(B_smem[tuple(reduce_slice_dst)], A_smem[tuple(reduce_slice_src)], axes=axes, accum=accum) # noqa: E501
+            Tx.cta.sum(
+                B_smem[tuple(reduce_slice_dst)],
+                A_smem[tuple(reduce_slice_src)],
+                axes=axes,
+                accum=accum,
+            )
         elif op_type == "max":
-            Tx.cta.max(B_smem[tuple(reduce_slice_dst)], A_smem[tuple(reduce_slice_src)], axes=axes, accum=accum) # noqa: E501
+            Tx.cta.max(
+                B_smem[tuple(reduce_slice_dst)],
+                A_smem[tuple(reduce_slice_src)],
+                axes=axes,
+                accum=accum,
+            )
         elif op_type == "min":
-            Tx.cta.min(B_smem[tuple(reduce_slice_dst)], A_smem[tuple(reduce_slice_src)], axes=axes, accum=accum) # noqa: E501
+            Tx.cta.min(
+                B_smem[tuple(reduce_slice_dst)],
+                A_smem[tuple(reduce_slice_src)],
+                axes=axes,
+                accum=accum,
+            )
         T.cuda.cta_sync()
         Tx.cta.copy(B[tuple(copy_slice_dst)], B_smem[tuple(copy_slice_dst)])
         # fmt: on
@@ -152,16 +168,18 @@ def test_reduction_shared_subscope(exec_scope, op_type, accum):
 
     # fmt: off
     if exec_scope == "warp":
-        @T.prim_func
-        def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, src_shape, dtype, layout=g_layout_src)
-            B = T.match_buffer(B_ptr, dst_shape, dtype, layout=g_layout_dst)
+        @T.function
+        def test_func(
+            A: T.Tensor(src_shape, dtype, layout=g_layout_src),
+            B: T.Tensor(dst_shape, dtype, layout=g_layout_dst),
+        ) -> None:
+
             T.device_entry()
             warp_id = T.warp_id([(256) // 32])
             _bx = T.cta_id([1])
             _tid = T.thread_id([256])
-            A_smem = T.alloc_buffer(list(src_shape), dtype, scope="shared", layout=s_layout_src)
-            B_smem = T.alloc_buffer(list(dst_shape), dtype, scope="shared", layout=s_layout_dst)
+            A_smem = T.alloc_tensor(list(src_shape), dtype, scope="shared", layout=s_layout_src)
+            B_smem = T.alloc_tensor(list(dst_shape), dtype, scope="shared", layout=s_layout_dst)
             Tx.cta.copy(A_smem, A)
             if accum:
                 Tx.cta.copy(B_smem, B)
@@ -175,17 +193,20 @@ def test_reduction_shared_subscope(exec_scope, op_type, accum):
                     Tx.warp.min(B_smem, A_smem, axes=axes, accum=accum)
             T.cuda.cta_sync()
             Tx.cta.copy(B, B_smem)
+
     elif exec_scope == "warpgroup":
-        @T.prim_func
-        def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, src_shape, dtype, layout=g_layout_src)
-            B = T.match_buffer(B_ptr, dst_shape, dtype, layout=g_layout_dst)
+        @T.function
+        def test_func(
+            A: T.Tensor(src_shape, dtype, layout=g_layout_src),
+            B: T.Tensor(dst_shape, dtype, layout=g_layout_dst),
+        ) -> None:
+
             T.device_entry()
             wg_id = T.warpgroup_id([(256) // 128])
             _bx = T.cta_id([1])
             _tid = T.thread_id([256])
-            A_smem = T.alloc_buffer(list(src_shape), dtype, scope="shared", layout=s_layout_src)
-            B_smem = T.alloc_buffer(list(dst_shape), dtype, scope="shared", layout=s_layout_dst)
+            A_smem = T.alloc_tensor(list(src_shape), dtype, scope="shared", layout=s_layout_src)
+            B_smem = T.alloc_tensor(list(dst_shape), dtype, scope="shared", layout=s_layout_dst)
             Tx.cta.copy(A_smem, A)
             if accum:
                 Tx.cta.copy(B_smem, B)
@@ -199,16 +220,19 @@ def test_reduction_shared_subscope(exec_scope, op_type, accum):
                     Tx.wg.min(B_smem, A_smem, axes=axes, accum=accum)
             T.cuda.cta_sync()
             Tx.cta.copy(B, B_smem)
+
     elif exec_scope == "thread":
-        @T.prim_func
-        def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, src_shape, dtype, layout=g_layout_src)
-            B = T.match_buffer(B_ptr, dst_shape, dtype, layout=g_layout_dst)
+        @T.function
+        def test_func(
+            A: T.Tensor(src_shape, dtype, layout=g_layout_src),
+            B: T.Tensor(dst_shape, dtype, layout=g_layout_dst),
+        ) -> None:
+
             T.device_entry()
             _bx = T.cta_id([1])
             _tid = T.thread_id([256])
-            A_smem = T.alloc_buffer(list(src_shape), dtype, scope="shared", layout=s_layout_src)
-            B_smem = T.alloc_buffer(list(dst_shape), dtype, scope="shared", layout=s_layout_dst)
+            A_smem = T.alloc_tensor(list(src_shape), dtype, scope="shared", layout=s_layout_src)
+            B_smem = T.alloc_tensor(list(dst_shape), dtype, scope="shared", layout=s_layout_dst)
             Tx.cta.copy(A_smem, A)
             if accum:
                 Tx.cta.copy(B_smem, B)
@@ -222,6 +246,7 @@ def test_reduction_shared_subscope(exec_scope, op_type, accum):
                     Tx.min(B_smem, A_smem, axes=axes, accum=accum)
             T.cuda.cta_sync()
             Tx.cta.copy(B, B_smem)
+
         # fmt: on
 
     target = tvm.target.Target("cuda")
@@ -298,16 +323,17 @@ def test_reduction_local_thread_wise(src_shape, dst_shape, axes, op_type, accum)
         return indices
 
     # fmt: off
-    @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, list(src_shape), dtype, layout=TileLayout(S[src_shape]))
-        B = T.match_buffer(B_ptr, list(dst_shape), dtype, layout=TileLayout(S[dst_shape]))
+    @T.function
+    def test_func(
+        A: T.Tensor(list(src_shape), dtype, layout=TileLayout(S[src_shape])),
+        B: T.Tensor(list(dst_shape), dtype, layout=TileLayout(S[dst_shape])),
+    ) -> None:
 
         T.device_entry()
         _bx = T.cta_id([1])
         _tid = T.thread_id([1])
-        A_local = T.alloc_buffer(list(src_shape), dtype, scope="local")
-        B_local = T.alloc_buffer(list(dst_shape), dtype, scope="local")
+        A_local = T.alloc_tensor(list(src_shape), dtype, scope="local")
+        B_local = T.alloc_tensor(list(dst_shape), dtype, scope="local")
 
         for i in T.serial(src_total):
             idx = T.meta_var(decompose_flat(i, src_shape))
@@ -426,18 +452,19 @@ def test_reduction_local_view_basic(inner_dims, dst_dims, axes, accum, slice_end
         return indices
 
     # fmt: off
-    @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, list(src_shape), dtype, layout=g_layout_a)
-        B = T.match_buffer(B_ptr, list(dst_shape), dtype, layout=g_layout_b)
+    @T.function
+    def test_func(
+        A: T.Tensor(list(src_shape), dtype, layout=g_layout_a),
+        B: T.Tensor(list(dst_shape), dtype, layout=g_layout_b),
+    ) -> None:
 
         T.device_entry()
         _bx = T.cta_id([1])
         _warp_id = T.warp_id([1])
         lane_id = T.lane_id([thread_cnt])
 
-        acc = T.alloc_buffer(list((1, *inner_dims)), dtype=dtype, scope="local", layout=g_layout_a)
-        red = T.alloc_buffer(list((1, *dst_dims)), dtype=dtype, scope="local", layout=g_layout_b)
+        acc = T.alloc_tensor(list((1, *inner_dims)), dtype=dtype, scope="local", layout=g_layout_a)
+        red = T.alloc_tensor(list((1, *dst_dims)), dtype=dtype, scope="local", layout=g_layout_b)
         for i in T.serial(src_local_total):
             idx = T.meta_var(decompose_flat(i, inner_dims))
             acc[(0, *list(idx))] = A[(lane_id, *list(idx))]
@@ -449,11 +476,17 @@ def test_reduction_local_view_basic(inner_dims, dst_dims, axes, accum, slice_end
         red_view = red.view(*dst_shape, layout=red_view_layout)
         if slice_end is not None:
             if op_type == "sum":
-                Tx.warp.sum(red_view, acc_view[:, slice_end // 2:slice_end], axes=axes, accum=accum)
+                Tx.warp.sum(
+                    red_view, acc_view[:, slice_end // 2 : slice_end], axes=axes, accum=accum
+                )
             elif op_type == "max":
-                Tx.warp.max(red_view, acc_view[:, slice_end // 2:slice_end], axes=axes, accum=accum)
+                Tx.warp.max(
+                    red_view, acc_view[:, slice_end // 2 : slice_end], axes=axes, accum=accum
+                )
             elif op_type == "min":
-                Tx.warp.min(red_view, acc_view[:, slice_end // 2:slice_end], axes=axes, accum=accum)
+                Tx.warp.min(
+                    red_view, acc_view[:, slice_end // 2 : slice_end], axes=axes, accum=accum
+                )
         else:
             if op_type == "sum":
                 Tx.warp.sum(red_view, acc_view, axes=axes, accum=accum)
@@ -522,35 +555,36 @@ def test_reduction_local_view_complex(n_groups, n_warps, op_type, dtype, shuffle
     acc_shape, red_shape = (16, NUM_COL), (16, 4)
 
     # fmt: off
-    @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape_a, dtype, layout=g_layout_a)
-        B = T.match_buffer(B_ptr, g_shape_b, dtype, layout=g_layout_b)
+    @T.function
+    def test_func(
+        A: T.Tensor(g_shape_a, dtype, layout=g_layout_a),
+        B: T.Tensor(g_shape_b, dtype, layout=g_layout_b),
+    ) -> None:
 
         T.device_entry()
         _bx = T.cta_id([1])
         wg_id = T.warpgroup_id([n_groups])
         warp_id_in_wg = T.warp_id_in_wg([n_warps // n_groups])
         lane_id = T.lane_id([thread_cnt])
-                # acc layout
+        # acc layout
         atom = T.TileLayout(T.S[(1, 2) : (2, 1)])
-        warp_layout = T.TileLayout(T.S[(8, 4) : (4@laneid, 1@laneid)])
+        warp_layout = T.TileLayout(T.S[(8, 4) : (4 @ laneid, 1 @ laneid)])
         warp_atom = atom.tile(warp_layout, (8, 4), (1, 2))
         tile = T.TileLayout(T.S[(2, NUM_COL // 8) : (1, 2)])
         acc_layout = warp_atom.tile(tile, (2, NUM_COL // 8), (8, 8))
-        acc = T.alloc_buffer(
+        acc = T.alloc_tensor(
             [2, NUM_COL // 4],
             dtype=dtype,
             scope="local",
             layout=atom.tile(tile, (2, NUM_COL // 8), (1, 2)),
         )
 
-                # red layout
+        # red layout
         red_atom = T.TileLayout(T.S[(1, 1) : (1, 1)])
         red_warp_atom = red_atom.tile(warp_layout, (8, 4), (1, 1))
         red_tile = T.TileLayout(T.S[(2, 1) : (1, 1)])
         red_layout = red_warp_atom.tile(red_tile, (2, 1), (8, 4))
-        red = T.alloc_buffer(
+        red = T.alloc_tensor(
             [2],
             dtype=dtype,
             scope="local",
@@ -579,7 +613,7 @@ def test_reduction_local_view_complex(n_groups, n_warps, op_type, dtype, shuffle
             Tx.warp.max(red_view, acc_view, thread_reduce=shuffle, accum=accum)
         elif op_type == "min":
             Tx.warp.min(red_view, acc_view, thread_reduce=shuffle, accum=accum)
-                # perform an additional shuffle step if not shuffled above
+            # perform an additional shuffle step if not shuffled above
         if not shuffle:
             if op_type == "sum":
                 Tx.warp.sum(red_view, red_view, thread_reduce=True)
@@ -589,9 +623,7 @@ def test_reduction_local_view_complex(n_groups, n_warps, op_type, dtype, shuffle
                 Tx.warp.min(red_view, red_view, thread_reduce=True)
             # Write red into B
         for i in T.unroll(2):
-            B[wg_id * 64 + warp_id_in_wg * 16 + i * 8 + lane_id // 4, lane_id % 4] = (
-                red[i]
-            )
+            B[wg_id * 64 + warp_id_in_wg * 16 + i * 8 + lane_id // 4, lane_id % 4] = red[i]
 
         # fmt: on
 
@@ -649,32 +681,33 @@ def test_reduction_local_optimized_3input_maxmin(reduction_len, op_type, accum):
     dtype = "float32"
 
     # fmt: off
-    @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, [reduction_len], dtype, layout=TileLayout(S[reduction_len]))
-        B = T.match_buffer(B_ptr, [1], dtype, layout=TileLayout(S[1]))
+    @T.function
+    def test_func(
+        A: T.Tensor([reduction_len], dtype, layout=TileLayout(S[reduction_len])),
+        B: T.Tensor([1], dtype, layout=TileLayout(S[1])),
+    ) -> None:
 
         T.device_entry()
         _bx = T.cta_id([1])
         _tid = T.thread_id([1])
-        A_local = T.alloc_buffer([reduction_len], dtype, scope="local")
-        B_local = T.alloc_buffer([1], dtype, scope="local")
+        A_local = T.alloc_tensor([reduction_len], dtype, scope="local")
+        B_local = T.alloc_tensor([1], dtype, scope="local")
 
-                # Load from global to local
+        # Load from global to local
         for i in T.serial(reduction_len):
             A_local[i] = A[i]
 
-                # Initialize B_local for accum test
+            # Initialize B_local for accum test
         if accum:
             B_local[0] = B[0]
 
-                # Thread-level reduction
+            # Thread-level reduction
         if op_type == "max":
             Tx.max(B_local, A_local, accum=accum)
         elif op_type == "min":
             Tx.min(B_local, A_local, accum=accum)
 
-                # Store result to global
+            # Store result to global
         B[0] = B_local[0]
         # fmt: on
 
@@ -721,33 +754,35 @@ def test_reduction_local_optimized_packed_add_sum(reduction_len, accum):
     dtype = "float32"
 
     # fmt: off
-    @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, [reduction_len], dtype, layout=TileLayout(S[reduction_len]))
-        B = T.match_buffer(B_ptr, [1], dtype, layout=TileLayout(S[1]))
+    @T.function
+    def test_func(
+        A: T.Tensor([reduction_len], dtype, layout=TileLayout(S[reduction_len])),
+        B: T.Tensor([1], dtype, layout=TileLayout(S[1])),
+    ) -> None:
 
         T.device_entry()
         _bx = T.cta_id([1])
         _tid = T.thread_id([1])
-        A_local = T.alloc_buffer([reduction_len], dtype, scope="local")
-        B_local = T.alloc_buffer([1], dtype, scope="local")
+        A_local = T.alloc_tensor([reduction_len], dtype, scope="local")
+        B_local = T.alloc_tensor([1], dtype, scope="local")
 
-                # Load from global to local
+        # Load from global to local
         for i in T.serial(reduction_len):
             A_local[i] = A[i]
 
-                # Initialize B_local for accum test
+            # Initialize B_local for accum test
         if accum:
             B_local[0] = B[0]
 
-                # Thread-level sum reduction
+            # Thread-level sum reduction
         Tx.sum(B_local, A_local, accum=accum)
 
-                # Store result to global
+        # Store result to global
         B[0] = B_local[0]
         # fmt: on
 
         # Compile for the device that will execute the packed SM100+ operation.
+
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": test_func})
@@ -796,17 +831,17 @@ def test_reduction_op_warp_shuffle(op_type, dtype):
     dst_layout = TileLayout(S[1:1] + R[N : 1 @ laneid])
 
     # fmt: off
-    @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape, dtype, layout=g_layout)
-        B = T.match_buffer(B_ptr, g_shape, dtype, layout=g_layout)
+    @T.function
+    def test_func(
+        A: T.Tensor(g_shape, dtype, layout=g_layout), B: T.Tensor(g_shape, dtype, layout=g_layout)
+    ) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
-        src_local = T.alloc_buffer([1], dtype, scope="local")
-        dst_local = T.alloc_buffer([1], dtype, scope="local")
+        src_local = T.alloc_tensor([1], dtype, scope="local")
+        dst_local = T.alloc_tensor([1], dtype, scope="local")
         src_local[0] = A[lane_id]
         src_view = src_local.view(N, layout=src_layout)
         dst_view = dst_local.view(1, layout=dst_layout)
@@ -865,18 +900,19 @@ def test_reduction_op_warp_shuffle_multi_elem(op_type, dtype):
     dst_layout = TileLayout(S[ELEMS_PER_THREAD:1] + R[N_LANES : 1 @ laneid])
 
     # fmt: off
-    @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape, dtype, layout=g_layout)
-        dst_lay = TileLayout(S[ELEMS_PER_THREAD])
-        B = T.match_buffer(B_ptr, [ELEMS_PER_THREAD], dtype, layout=dst_lay)
+    dst_lay = TileLayout(S[ELEMS_PER_THREAD])
+    @T.function
+    def test_func(
+        A: T.Tensor(g_shape, dtype, layout=g_layout),
+        B: T.Tensor([ELEMS_PER_THREAD], dtype, layout=dst_lay),
+    ) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
-        src_local = T.alloc_buffer([ELEMS_PER_THREAD], dtype, scope="local")
-        dst_local = T.alloc_buffer([ELEMS_PER_THREAD], dtype, scope="local")
+        src_local = T.alloc_tensor([ELEMS_PER_THREAD], dtype, scope="local")
+        dst_local = T.alloc_tensor([ELEMS_PER_THREAD], dtype, scope="local")
         for i in T.serial(ELEMS_PER_THREAD):
             src_local[i] = A[lane_id * ELEMS_PER_THREAD + i]
         src_view = src_local.view(TOTAL, layout=src_layout)
@@ -934,17 +970,18 @@ def test_reduction_op_warp_shuffle_gapped_permuted_storage():
     assert [int(storage.apply(i, shape=[4])["m"]) for i in range(4)] == [0, 4, 2, 6]
 
     # fmt: off
-    @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, src_shape, "float32", layout=TileLayout(S[src_shape]))
-        B = T.match_buffer(B_ptr, local_shape, "float32", layout=TileLayout(S[local_shape]))
+    @T.function
+    def test_func(
+        A: T.Tensor(src_shape, "float32", layout=TileLayout(S[src_shape])),
+        B: T.Tensor(local_shape, "float32", layout=TileLayout(S[local_shape])),
+    ) -> None:
 
         T.device_entry()
         _cta_id = T.cta_id([1])
         _warp_id = T.warp_id([1])
         lane_id = T.lane_id([n_lanes])
-        src_local = T.alloc_buffer([7], "float32", scope="local")
-        dst_local = T.alloc_buffer([7], "float32", scope="local")
+        src_local = T.alloc_tensor([7], "float32", scope="local")
+        dst_local = T.alloc_tensor([7], "float32", scope="local")
         src_view = src_local.view(*src_shape, layout=src_layout)
         dst_view = dst_local.view(*local_shape, layout=dst_layout)
         for i, j in T.grid(*local_shape):
@@ -990,10 +1027,11 @@ def test_reduction_warp_shuffle_multi_warp_loop():
     dst_layout = TileLayout(S[1:1] + R[BDX : 1 @ laneid])
 
     # fmt: off
-    @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, [N_ITER, N], "float32", scope="global")
-        B = T.match_buffer(B_ptr, [N_ITER], "float32", scope="global")
+    @T.function
+    def test_func(
+        A: T.Tensor([N_ITER, N], "float32", scope="global"),
+        B: T.Tensor([N_ITER], "float32", scope="global"),
+    ) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -1003,10 +1041,10 @@ def test_reduction_warp_shuffle_multi_warp_loop():
         pool = T.SMEMPool()
         sum_smem = pool.alloc([BDY], "float32")
         pool.commit()
-        partial_buf = T.alloc_buffer([1], "float32", scope="local")
-        result_buf = T.alloc_buffer([1], "float32", scope="local")
-        cross_buf = T.alloc_buffer([1], "float32", scope="local")
-        cross_res = T.alloc_buffer([1], "float32", scope="local")
+        partial_buf = T.alloc_tensor([1], "float32", scope="local")
+        result_buf = T.alloc_tensor([1], "float32", scope="local")
+        cross_buf = T.alloc_tensor([1], "float32", scope="local")
+        cross_res = T.alloc_tensor([1], "float32", scope="local")
 
         for it in T.serial(N_ITER):
             partial_buf[0] = A[it, thread_id]
@@ -1016,7 +1054,7 @@ def test_reduction_warp_shuffle_multi_warp_loop():
             sum_smem[ty] = result_buf[0]
             T.cuda.cta_sync()
 
-                    # Phase 4: cross-warp reduction (warp 0 only)
+            # Phase 4: cross-warp reduction (warp 0 only)
             if ty == 0:
                 if tx < BDY:
                     cross_buf[0] = sum_smem[tx]
@@ -1062,18 +1100,18 @@ def test_reduction_warpgroup_wg_local_layout(op_name):
     dtype = "float32"
     target = tvm.target.Target("cuda")
 
-    @T.prim_func
-    def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (rows, cols), dtype, layout=TileLayout(S[(rows, cols)]))
-        B = T.match_buffer(B_ptr, (rows, 1), dtype, layout=TileLayout(S[(rows, 1)]))
-
+    @T.function
+    def test_func(
+        A: T.Tensor((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
+        B: T.Tensor((rows, 1), dtype, layout=TileLayout(S[rows, 1])),
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         wg_id = T.warpgroup_id([1])
         tid = T.thread_id_in_wg([rows])
 
-        src = T.alloc_buffer((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))
-        dst = T.alloc_buffer((rows, 1), dtype, scope="local", layout=wg_local_layout(1))
+        src = T.alloc_tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))
+        dst = T.alloc_tensor((rows, 1), dtype, scope="local", layout=wg_local_layout(1))
         src_local = src.local(cols)
         for i in T.serial(cols):
             src_local[i] = A[tid, i]

@@ -62,11 +62,11 @@ void CodeGenCHost::InitGlobalContext() {
 
 void CodeGenCHost::DefineModuleName() { decl_stream << "void* " << module_name_ << " = NULL;\n"; }
 
-void CodeGenCHost::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
+void CodeGenCHost::AddFunction(const GlobalVar& gvar, const Function& func) {
   return AddFunction(gvar, func, /*emit_fwd_func_decl=*/false);
 }
 
-void CodeGenCHost::AddFunction(const GlobalVar& gvar, const PrimFunc& func,
+void CodeGenCHost::AddFunction(const GlobalVar& gvar, const Function& func,
                                bool emit_fwd_func_decl) {
   auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
   if (global_symbol) {
@@ -190,7 +190,7 @@ void CodeGenCHost::PrintType(const PrimType& type, std::ostream& os) {  // NOLIN
   TVM_FFI_THROW(InternalError) << "Cannot convert type " << type->dtype << " to C type";
 }
 
-void CodeGenCHost::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenCHost::Dispatch_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
   int lanes = op->ty.as_or_throw<PrimType>().lanes();
   os << "((";
@@ -223,11 +223,11 @@ void CodeGenCHost::PrintGetFuncFromBackend(const std::string& func_name,
 }
 
 void CodeGenCHost::PrintCallPacked(const CallNode* op) {
-  const prim::StringImmNode* func_name = op->args[0].as<prim::StringImmNode>();
+  const StringImmNode* func_name = op->args[0].as<StringImmNode>();
   TVM_FFI_ICHECK(func_name != nullptr)
       << "tvm_call_[c]packed_lowered expects first argument as function name";
-  int64_t begin = op->args[2].as<IntImmNode>()->value;
-  int64_t end = op->args[3].as<IntImmNode>()->value;
+  int64_t begin = static_cast<int64_t>(op->args[2].as<IntImmNode>()->value);
+  int64_t end = static_cast<int64_t>(op->args[3].as<IntImmNode>()->value);
   int64_t num_args = end - begin;
   TVM_FFI_ICHECK_GE(num_args, 0);
 
@@ -269,7 +269,7 @@ void CodeGenCHost::PrintCallPacked(const CallNode* op) {
 }
 
 std::string CodeGenCHost::GetPackedName(const CallNode* op) {
-  const prim::StringImmNode* s = op->args[0].as<prim::StringImmNode>();
+  const StringImmNode* s = op->args[0].as<StringImmNode>();
   TVM_FFI_ICHECK(s != nullptr) << "tvm_call_packed_lowered expects first argument as function name";
   std::string func_name = s->value;
   std::string packed_func_name = func_name + "_packed";
@@ -285,21 +285,22 @@ std::string CodeGenCHost::GetPackedName(const CallNode* op) {
   return unique_name;
 }
 
-void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenCHost::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   if (op->op.same_as(builtin::tvm_stack_alloca())) {
     std::string stack_name = name_supply_->FreshName("stack");
-    const std::string& type = op->args[0].as<prim::StringImmNode>()->value;
+    const std::string& type = op->args[0].as<StringImmNode>()->value;
     const IntImmNode* num = op->args[1].as<IntImmNode>();
     TVM_FFI_ICHECK(num != nullptr);
     static_assert(alignof(TVMFFIAny) % alignof(DLTensor) == 0, "invariant");
+    size_t count = num->value.as<size_t>().value();
     size_t unit = sizeof(TVMFFIAny);
     size_t size = 0;
     if (type == "shape") {
-      size = (num->value * sizeof(ffi::Shape::index_type) + unit - 1) / unit;
+      size = (count * sizeof(ffi::Shape::index_type) + unit - 1) / unit;
     } else if (type == "tvm_ffi_any") {
-      size = (num->value * sizeof(TVMFFIAny) + unit - 1) / unit;
+      size = (count * sizeof(TVMFFIAny) + unit - 1) / unit;
     } else if (type == "array") {
-      size = (num->value * sizeof(DLTensor) + unit - 1) / unit;
+      size = (count * sizeof(DLTensor) + unit - 1) / unit;
     } else {
       TVM_FFI_THROW(InternalError) << "Unknown stack alloca type " << type;
     }
@@ -316,11 +317,11 @@ void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     this->PrintIndent();
     this->stream << "return -1;\n";
   } else {
-    CodeGenC::VisitExpr_(op, os);
+    CodeGenC::Dispatch_(op, os);
   }
 }
 
-void CodeGenCHost::VisitStmt_(const AssertStmtNode* op) {  // NOLINT(*)
+void CodeGenCHost::Dispatch_(const AssertStmtNode* op) {  // NOLINT(*)
   if (emit_asserts_) {
     std::string cond = PrintExpr(op->condition);
     PrintIndent();
@@ -346,11 +347,11 @@ void CodeGenCHost::VisitStmt_(const AssertStmtNode* op) {  // NOLINT(*)
   }
 }
 
-void CodeGenCHost::VisitExpr_(const prim::MinNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenCHost::Dispatch_(const prim::MinNode* op, std::ostream& os) {  // NOLINT(*)
   PrintTernaryCondExpr(op, "<", os);
 }
 
-void CodeGenCHost::VisitExpr_(const prim::MaxNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenCHost::Dispatch_(const prim::MaxNode* op, std::ostream& os) {  // NOLINT(*)
   PrintTernaryCondExpr(op, ">", os);
 }
 
@@ -358,10 +359,10 @@ template <typename T>
 inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
                                                std::ostream& os) {  // NOLINT(*)
   std::ostringstream temp_a;
-  VisitExpr(op->a, temp_a);
+  Dispatch(op->a, temp_a);
   std::string a_id = SSAGetID(temp_a.str(), op->a.ty());
   std::ostringstream temp_b;
-  VisitExpr(op->b, temp_b);
+  Dispatch(op->b, temp_b);
   std::string b_id = SSAGetID(temp_b.str(), op->b.ty());
 
   os << "((" << a_id << ") " << compare << " (" << b_id << ") "
@@ -386,15 +387,15 @@ ffi::Module BuildCHost(IRModule mod, Target target) {
   cg.Init(output_ssa, emit_asserts, emit_fwd_func_decl, target->str(), devices);
   cg.SetConstantsByteAlignment(target->GetAttr<int64_t>("constants-byte-alignment").value_or(16));
 
-  auto is_aot_executor_fn = [](const PrimFunc& func) -> bool {
+  auto is_aot_executor_fn = [](const Function& func) -> bool {
     return func->GetAttr<bool>("runner_function", false).value();
   };
 
-  std::vector<std::pair<GlobalVar, PrimFunc>> funcs;
+  std::vector<std::pair<GlobalVar, Function>> funcs;
   for (auto [gvar, base_func] : mod->functions) {
-    TVM_FFI_ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodegenCHost: Can only take PrimFunc";
-    auto prim_func = base_func.as_or_throw<PrimFunc>();
-    funcs.push_back({gvar, prim_func});
+    TVM_FFI_ICHECK(base_func->IsInstance<FunctionNode>()) << "CodegenCHost: Can only take Function";
+    auto function = base_func.as_or_throw<Function>();
+    funcs.push_back({gvar, function});
   }
 
   // Sort functions
@@ -405,15 +406,15 @@ ffi::Module BuildCHost(IRModule mod, Target target) {
     return sort_key(kv_a) < sort_key(kv_b);
   });
 
-  for (const auto& [gvar, prim_func] : funcs) {
-    cg.DeclareFunction(gvar, prim_func);
+  for (const auto& [gvar, function] : funcs) {
+    cg.DeclareFunction(gvar, function);
   }
 
   // Codegen all functions.  Passing emit_fwd_func_decl=true adds a
   // forward declaration for any `builtin::call_extern`, based on the
   // arguments provided to it.
-  for (const auto& [gvar, prim_func] : funcs) {
-    cg.AddFunction(gvar, prim_func, emit_fwd_func_decl);
+  for (const auto& [gvar, function] : funcs) {
+    cg.AddFunction(gvar, function, emit_fwd_func_decl);
   }
 
   std::string code = cg.Finish();

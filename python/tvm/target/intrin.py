@@ -16,8 +16,7 @@
 # under the License.
 """Target dependent intrinsic registration."""
 
-from tvm.ir import register_intrin_lowering
-from tvm.tirx import call_pure_extern
+from tvm.tirx import call_pure_extern, register_intrin_lowering
 
 
 def _rule_float_suffix(op):
@@ -77,6 +76,6 @@ def _rule_float_direct(op):
 
 
 # opencl pattern for exp
-register_intrin_lowering("tirx.exp", target="opencl", f=_rule_float_direct, level=99)
+register_intrin_lowering("tirx.exp", target="opencl", f=_rule_float_direct, override=True)
 # default pattern for exp
-register_intrin_lowering("tirx.exp", target="default", f=_rule_float_suffix, level=99)
+register_intrin_lowering("tirx.exp", target="default", f=_rule_float_suffix, override=True)

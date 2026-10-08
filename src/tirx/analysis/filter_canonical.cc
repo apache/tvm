@@ -25,11 +25,11 @@
 
 #include "filter_canonical.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/builtin.h>
 
 namespace tvm {
@@ -37,16 +37,8 @@ namespace tirx {
 
 namespace {
 
-// Recognized conjunction shapes: logical-And and bitwise-And calls.
-// Mirrors FlattenConjuncts in tile_primitive_dispatch.cc so the classifier
-// accepts the same set of "fully conjunctive" predicates that the existing
-// pass-internal helpers do.
-bool IsBitwiseAndCall(const CallNode* call) {
-  return call->op.same_as(prim::builtin::bitwise_and()) && call->args.size() == 2;
-}
-
 bool IsPtxElectSyncCall(const CallNode* call) {
-  static const Op& ptx_elect_sync_op = Op::Get("tirx.cuda.elect_sync");
+  static const Op ptx_elect_sync_op = Op::Get("tirx.cuda.elect_sync");
   return call->op.same_as(ptx_elect_sync_op);
 }
 
@@ -63,6 +55,10 @@ PrimExpr StripCast(const PrimExpr& expr) {
   return cur;
 }
 
+// Recognized conjunction shapes: logical-And and bitwise-And nodes.
+// Mirrors FlattenConjuncts in tile_primitive_dispatch.cc so the classifier
+// accepts the same set of "fully conjunctive" predicates that the existing
+// pass-internal helpers do.
 void FlattenConjuncts(const PrimExpr& pred, std::vector<PrimExpr>* out) {
   PrimExpr stripped = StripCast(pred);
   if (const auto* and_node = stripped.as<prim::AndNode>()) {
@@ -70,12 +66,10 @@ void FlattenConjuncts(const PrimExpr& pred, std::vector<PrimExpr>* out) {
     FlattenConjuncts(and_node->b, out);
     return;
   }
-  if (const auto* call = stripped.as<CallNode>()) {
-    if (IsBitwiseAndCall(call)) {
-      FlattenConjuncts(call->args[0].as_or_throw<PrimExpr>(), out);
-      FlattenConjuncts(call->args[1].as_or_throw<PrimExpr>(), out);
-      return;
-    }
+  if (const auto* and_node = stripped.as<prim::BitwiseAndNode>()) {
+    FlattenConjuncts(and_node->a, out);
+    FlattenConjuncts(and_node->b, out);
+    return;
   }
   out->push_back(stripped);
 }
@@ -102,7 +96,7 @@ CmpOp Reflect(CmpOp op) {
 }
 
 // Compute the half-open range [lo, hi) for `var <op> c`.
-// Uses arith::ConstIntBound sentinels for unbounded sides.
+// Uses sym::ConstIntBound sentinels for unbounded sides.
 void OpToRange(CmpOp op, int64_t c, int64_t* lo, int64_t* hi) {
   switch (op) {
     case CmpOp::kEq:
@@ -110,20 +104,20 @@ void OpToRange(CmpOp op, int64_t c, int64_t* lo, int64_t* hi) {
       *hi = c + 1;
       return;
     case CmpOp::kLT:
-      *lo = arith::ConstIntBound::kNegInf;
+      *lo = sym::ConstIntBound::kNegInf;
       *hi = c;
       return;
     case CmpOp::kLE:
-      *lo = arith::ConstIntBound::kNegInf;
+      *lo = sym::ConstIntBound::kNegInf;
       *hi = c + 1;
       return;
     case CmpOp::kGT:
       *lo = c + 1;
-      *hi = arith::ConstIntBound::kPosInf;
+      *hi = sym::ConstIntBound::kPosInf;
       return;
     case CmpOp::kGE:
       *lo = c;
-      *hi = arith::ConstIntBound::kPosInf;
+      *hi = sym::ConstIntBound::kPosInf;
       return;
   }
 }
@@ -138,7 +132,7 @@ bool TryParseCompareAtom(const PrimExpr& expr, const ScopeIdPredicate& is_scope_
                          FilterAtom* out) {
   // Decode op + (lhs, rhs). The five comparison node types map to CmpOp.
   CmpOp op;
-  PrimExpr lhs, rhs;
+  PrimExpr lhs{ffi::UnsafeInit{}}, rhs{ffi::UnsafeInit{}};
   if (const auto* eq = expr.as<prim::EQNode>()) {
     op = CmpOp::kEq;
     lhs = eq->a;
@@ -181,13 +175,15 @@ bool TryParseCompareAtom(const PrimExpr& expr, const ScopeIdPredicate& is_scope_
   CmpOp normalized = mirrored ? Reflect(op) : op;
   int64_t lo = 0;
   int64_t hi = 0;
-  OpToRange(normalized, imm_node->value, &lo, &hi);
+  auto value = imm_node->value.as<int64_t>();
+  if (!value.has_value()) return false;
+  OpToRange(normalized, *value, &lo, &hi);
 
   out->kind = FilterAtomKind::kRange;
   out->scopeid_var = var;
   out->lo = lo;
   out->hi = hi;
-  out->elect_sync_call = PrimExpr();
+  out->elect_sync_call = std::nullopt;
   return true;
 }
 
@@ -199,7 +195,7 @@ bool TryParseElectSyncAtom(const PrimExpr& expr, FilterAtom* out) {
   if (call == nullptr) return false;
   if (!IsPtxElectSyncCall(call)) return false;
   out->kind = FilterAtomKind::kElectSync;
-  out->scopeid_var = Var();
+  out->scopeid_var = std::nullopt;
   out->lo = 0;
   out->hi = 0;
   out->elect_sync_call = expr;

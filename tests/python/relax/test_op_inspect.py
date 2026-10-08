@@ -27,6 +27,7 @@ from tvm import relax
 from tvm.ir import Op
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import tirx as T
 
 # Parameterization for reading dtype of DLTensor.  Chosen to have
 # multiple distinct type codes, number of lanes, and widths.
@@ -123,7 +124,7 @@ def test_tensor_shape(shape):
     @I.ir_module
     class mod:
         @R.function
-        def main(A: R.Tensor, axis: R.Prim("int64")):
+        def main(A: R.Tensor, axis: T.int64):
             return inspect_tensor_field("tensor_shape_i", A, axis)
 
     built = tvm.compile(mod)
@@ -149,7 +150,7 @@ def test_strides_of_compact_tensor(shape):
     @I.ir_module
     class mod:
         @R.function
-        def main(A: R.Tensor, axis: R.Prim("int64")):
+        def main(A: R.Tensor, axis: T.int64):
             return inspect_tensor_field("tensor_stride_i", A, axis)
 
     built = tvm.compile(mod)
@@ -167,7 +168,7 @@ def test_strides_of_non_compact_tensor():
     @I.ir_module
     class mod:
         @R.function
-        def main(A: R.Tensor, axis: R.Prim("int64")):
+        def main(A: R.Tensor, axis: T.int64):
             return inspect_tensor_field("tensor_stride_i", A, axis)
 
     built = tvm.compile(mod)

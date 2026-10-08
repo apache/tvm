@@ -109,8 +109,7 @@ def test_no_kill_for_null_value():
     """R.null_value() must never be targeted by R.vm.kill_object
 
     A variable bound to `R.null_value()` is never assigned a real VM
-    register/anylist slot by either CodeGenVM or CodeGenVMTIR (both
-    special-case `null_value` to a sentinel value instead).
+    register by CodeGenVM, which special-cases `null_value` to a sentinel value.
     KillAfterLastUse must therefore never insert `R.vm.kill_object`
     for such a variable, even though its type is `R.Any` (the same
     type used by legitimate killable objectws such as VM storage).
@@ -148,7 +147,7 @@ def _assert_no_kill_of_null_value(func: tvm.relax.Function):
     """Assert no R.vm.kill_object call in `func` targets a null_value()-bound var
 
     An `R.null_value()`-bound variable never occupies a VM register in
-    either CodeGenVM or CodeGenVMTIR, so passing one to
+    CodeGenVM, so passing one to
     R.vm.kill_object is always invalid. Checking this structurally
     (rather than only checking that relax.build succeeds) ensures the
     test fails if a future change merely makes codegen tolerant of the
@@ -189,7 +188,7 @@ def test_reapply_after_default_pipeline_builds_successfully():
     KillAfterLastUse application, after VMShapeLower has introduced a
     `shape_heap: R.Any = R.null_value()` binding), must not insert an
     invalid `R.vm.kill_object(shape_heap)`, and the resulting module
-    must still build successfully under every exec_mode.
+    must still build successfully using bytecode.
     """
 
     @I.ir_module
@@ -208,8 +207,7 @@ def test_reapply_after_default_pipeline_builds_successfully():
     # Prove the invalid kill is gone, not merely that codegen tolerates it.
     _assert_no_kill_of_null_value(second_kill["main"])
 
-    for exec_mode in ["bytecode", "compiled"]:
-        tvm.relax.build(second_kill, target=target, relax_pipeline="zero", exec_mode=exec_mode)
+    tvm.relax.build(second_kill, target=target, relax_pipeline="zero")
 
 
 if __name__ == "__main__":

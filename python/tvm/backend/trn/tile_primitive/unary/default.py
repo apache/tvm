@@ -17,7 +17,7 @@
 
 """Implementation of default unary operator dispatches."""
 
-from tvm.tirx import FloatImm, PrimFunc
+from tvm.tirx import FloatImm, Function
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import MapOpType
 from tvm.tirx.tile_primitive import TilePrimitiveCall
@@ -32,7 +32,7 @@ from .utils import (
 )
 
 
-def unary_trn(op: TilePrimitiveCall, unary_op: MapOpType, sctx: DispatchContext) -> PrimFunc | None:
+def unary_trn(op: TilePrimitiveCall, unary_op: MapOpType, sctx: DispatchContext) -> Function | None:
     """Schedule unary operation on Trainium."""
     # Check execution environment
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):

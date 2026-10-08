@@ -25,8 +25,6 @@
  */
 // Thanks to Andrew Adams and Vinod Grover for
 // explaining the concept of warp shuffle.
-#include <tvm/arith/analyzer.h>
-#include <tvm/arith/pattern.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
@@ -35,6 +33,8 @@
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/sym/pattern.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
@@ -44,13 +44,14 @@
 
 #include <unordered_set>
 
-#include "../../arith/pattern_match.h"
 #include "../../runtime/thread_storage_scope.h"
+#include "../../sym/pattern_match.h"
 #include "ir_utils.h"
 #include "update_pointer_storage_scope.h"
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 // Rewrite Rule
 //
@@ -107,7 +108,7 @@ namespace tirx {
 
 // Visitor to find m in pattern
 // store warp_mem[m * warp_index + (width * m) * y + x]
-const VarNode* GetBufferVar(const Expr& expr) {
+const VarNode* GetTensorVar(const Expr& expr) {
   if (const auto* var = expr.as<VarNode>()) {
     return var;
   }
@@ -118,47 +119,116 @@ const VarNode* GetBufferVar(const Expr& expr) {
   return nullptr;
 }
 
-class WarpStoreCoeffFinder : private StmtExprVisitor {
+// Hardware axis identity belongs to a lexical definition, not to a reused Var.
+// Each pass instance processes one device Function after SplitHostDevice.
+struct WarpThreadBinding {
+  ffi::String tag;
+  PrimExpr extent;
+};
+using WarpThreadBindings = std::unordered_map<const VarNode*, WarpThreadBinding>;
+using WarpIndexAliases = std::unordered_map<const VarNode*, PrimExpr>;
+
+PrimExpr ExpandWarpIndexAliases(const PrimExpr& index, const WarpIndexAliases& aliases) {
+  return SubstituteWithDataTypeLegalization(index, [&](const Var& var) -> ffi::Optional<PrimExpr> {
+    auto it = aliases.find(var.get());
+    if (it != aliases.end()) return it->second;
+    return std::nullopt;
+  });
+}
+
+// Normalize equivalent hardware bindings only for index analysis. The selected
+// representative is the innermost live definition, so emitted indexes stay in scope.
+PrimExpr NormalizeWarpIndex(const PrimExpr& index, const WarpThreadBindings& active_bindings,
+                            const Var& warp_index, const WarpIndexAliases& aliases) {
+  PrimExpr expanded = ExpandWarpIndexAliases(index, aliases);
+  return SubstituteWithDataTypeLegalization(
+      expanded, [&](const Var& var) -> ffi::Optional<PrimExpr> {
+        auto it = active_bindings.find(var.get());
+        if (it != active_bindings.end() && it->second.tag == "threadIdx.x" &&
+            !var.same_as(warp_index)) {
+          return prim::cast(var->ty.as_or_throw<PrimType>(), warp_index.as_or_throw<PrimVar>());
+        }
+        return std::nullopt;
+      });
+}
+
+class WarpStoreCoeffFinder : public StmtExprVisitor {
  public:
-  WarpStoreCoeffFinder(const VarNode* buffer, Var warp_index, arith::AnalyzerObj* analyzer)
-      : buffer_(buffer), warp_index_(warp_index), analyzer_(analyzer) {}
+  WarpStoreCoeffFinder(const VarNode* buffer, const WarpThreadBindings& bindings,
+                       WarpThreadBindings active_bindings, Var warp_index,
+                       sym::AnalyzerObj* analyzer, const WarpIndexAliases& aliases)
+      : buffer_(buffer),
+        bindings_(bindings),
+        active_bindings_(std::move(active_bindings)),
+        warp_index_(warp_index),
+        analyzer_(analyzer),
+        aliases_(aliases) {}
   // find the warp co-efficient in the statement given the warp size
   int Find(const Stmt& stmt) {
-    this->VisitStmt(stmt);
+    this->Visit(stmt);
     return warp_coeff_;
   }
 
  private:
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    // Operands are evaluated before the new launch binding comes into scope.
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->args));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->attrs));
+    Var previous_index = warp_index_;
+    auto previous_bindings = active_bindings_;
+    if (op->op.same_as(tirx::builtin::launch_thread())) {
+      PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
+      const auto& binding = bindings_.at(var.get());
+      active_bindings_.insert_or_assign(var.get(), binding);
+      if (binding.tag == "threadIdx.x") warp_index_ = var;
+    }
+    auto result = Visit(op->body);
+    active_bindings_ = std::move(previous_bindings);
+    warp_index_ = previous_index;
+    return result;
+  }
+
+  void UpdateCoefficient(int64_t coefficient) {
+    TVM_FFI_ICHECK(warp_index_.defined())
+        << "Warp memory store must be inside a threadIdx.x launch";
+    TVM_FFI_ICHECK_GT(coefficient, 0);
+    if (warp_coeff_ != 0) {
+      TVM_FFI_ICHECK_EQ(warp_coeff_, coefficient)
+          << "LowerWarpMemory requires compatible store coefficients across launch bindings";
+    } else {
+      warp_coeff_ = coefficient;
+    }
+  }
+
   /// Visitor implementation
-  void VisitExpr_(const CallNode* op) final {
-    static const Op& mma_fill_op = Op::Get("tirx.mma_fill");
-    static const Op& ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
-    static const Op& mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
-    if (op->op.same_as(mma_fill_op) && GetBufferVar(op->args[1]) == buffer_) {
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
+    static const Op mma_fill_op = Op::Get("tirx.mma_fill");
+    static const Op ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
+    static const Op mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
+    if (op->op.same_as(mma_fill_op) && GetTensorVar(op->args[1]) == buffer_) {
       auto* local_size = op->args[0].as<IntImmNode>();
       TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill";
-      warp_coeff_ = local_size->value;
-    } else if (op->op.same_as(ptx_ldmatrix_legacy_op) && GetBufferVar(op->args[3]) == buffer_) {
+      UpdateCoefficient(local_size->value.as<int>().value());
+    } else if (op->op.same_as(ptx_ldmatrix_legacy_op) && GetTensorVar(op->args[3]) == buffer_) {
       // ldmatrix writes the warp buffer; its local_offset carries
       // ``... + lift(local_size) * tx`` from which the warp coefficient
       // is derived.
       UpdatePattern(op->args[4].as_or_throw<PrimExpr>());
-    } else if (op->op.same_as(mma_fill_legacy_op) && GetBufferVar(op->args[1]) == buffer_) {
+    } else if (op->op.same_as(mma_fill_legacy_op) && GetTensorVar(op->args[1]) == buffer_) {
       auto* local_size = op->args[0].as<IntImmNode>();
       TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill_legacy";
-      warp_coeff_ = local_size->value;
+      UpdateCoefficient(local_size->value.as<int>().value());
     }
     // mma_store_legacy/ptx_mma_legacy only *use* the warp buffer
     // (read+rewrite); WarpStoreCoeffFinder relies on ldmatrix/mma_fill
     // (the actual stores) for the warp coefficient.
 
-    StmtExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     if (op->buffer.get() != buffer_) {
-      StmtVisitor::VisitStmt_(op);
-      return;
+      return StmtExprVisitor::Visit_(op);
     }
 
     TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
@@ -167,8 +237,8 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
     PrimExpr index = op->indices[0];
     PrimType value_ty = op->value.ty();
     if (value_ty.lanes() != 1) {
-      arith::PVar<PrimExpr> base;
-      TVM_FFI_ICHECK(arith::ramp(base, 1, value_ty.lanes()).Match(index))
+      sym::PVar<PrimExpr> base;
+      TVM_FFI_ICHECK(sym::ramp(base, 1, value_ty.lanes()).Match(index))
           << "LowerWarpMemory failed due to store index=" << index
           << ", can only handle continuous store";
       UpdatePattern(base.Eval());
@@ -177,11 +247,15 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
     }
 
     UpdatePattern(index);
+    return std::nullopt;
   }
 
   void UpdatePattern(const PrimExpr& index) {
+    TVM_FFI_ICHECK(warp_index_.defined())
+        << "Warp memory store must be inside a threadIdx.x launch";
+    PrimExpr normalized_index = NormalizeWarpIndex(index, active_bindings_, warp_index_, aliases_);
     ffi::Array<PrimExpr> m =
-        arith::DetectLinearEquation(index, {warp_index_.as_or_throw<PrimVar>()});
+        sym::DetectLinearEquation(normalized_index, {warp_index_.as_or_throw<PrimVar>()});
     TVM_FFI_ICHECK_EQ(m.size(), 2U)
         << "LowerWarpMemory failed. Could not simplify the store index `" << index
         << "` into the form ax + by + cz + ... Warp memory is approximated by storing values in "
@@ -194,92 +268,104 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
         << ", require positive constant coefficient on warp index " << warp_index_ << " but get "
         << mcoeff;
 
-    if (warp_coeff_ != 0) {
-      TVM_FFI_ICHECK_EQ(warp_coeff_, mcoeff_as_int->value)
-          << "LowerWarpMemory failed due to two different store coefficient to warp index";
-    } else {
-      warp_coeff_ = mcoeff_as_int->value;
-    }
+    UpdateCoefficient(mcoeff_as_int->value.as<int>().value());
   }
 
   // The buffer variable
   const VarNode* buffer_;
-  // the warp index
-  Var warp_index_;
+  const WarpThreadBindings& bindings_;
+  WarpThreadBindings active_bindings_;
+  // The active lexical warp index.
+  Var warp_index_{ffi::UnsafeInit{}};
   // the coefficient
   int64_t warp_coeff_{0};
   // analyzer.
-  arith::AnalyzerObj* analyzer_;
+  sym::AnalyzerObj* analyzer_;
+  const WarpIndexAliases& aliases_;
 };
 
-// Visitor to find the warp index
-class WarpIndexFinder : private StmtVisitor {
+// Collect each lexical launch definition and validate compatible hardware widths.
+class WarpIndexFinder : public StmtExprVisitor {
  public:
-  explicit WarpIndexFinder(int warp_size) : warp_size_(warp_size) {}
-  // find the warp co-efficient and the shuffle width in the statement
-  std::pair<Var, int> Find(const Stmt& stmt) {
-    this->VisitStmt(stmt);
-    TVM_FFI_ICHECK(warp_index_.defined())
-        << "Cannot find warp index(threadIdx.x) within the scope of warp memory";
-    return std::make_pair(warp_index_->var, width_);
+  explicit WarpIndexFinder(int warp_size, WarpThreadBindings enclosing_bindings)
+      : warp_size_(warp_size), bindings_(std::move(enclosing_bindings)) {
+    for (const auto& [var, binding] : bindings_) CheckWidth(binding);
+  }
+
+  std::pair<WarpThreadBindings, int> Find(const Stmt& stmt) {
+    this->Visit(stmt);
+    TVM_FFI_ICHECK_GT(width_, 0) << "Cannot find threadIdx.x within the scope of warp memory";
+    return {std::move(bindings_), width_};
   }
 
  private:
-  /// Visitor implementation
-  void VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::thread_extent) {
-      IterVar iv = op->node.as_or_throw<IterVar>();
-      if (iv->thread_tag == "threadIdx.x") {
-        auto* value_as_int = op->value.as<IntImmNode>();
-        TVM_FFI_ICHECK(value_as_int && value_as_int->value <= warp_size_ &&
-                       warp_size_ % value_as_int->value == 0)
-            << "Expect threadIdx.x 's size to be no larger than, and a factor of"
-            << " warp size(" << warp_size_ << ")"
-            << " to enable warp memory"
-            << " but get " << op->value << " instead";
-        if (warp_index_.defined()) {
-          TVM_FFI_ICHECK(warp_index_.same_as(iv))
-              << "Find two instance of " << warp_index_->thread_tag << " in the same kernel. "
-              << "Please create it using thread_axis once and reuse the axis "
-              << "across multiple binds in the same kernel";
-        } else {
-          width_ = value_as_int->value;
-          warp_index_ = iv;
-        }
-      }
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    if (op->op.same_as(tirx::builtin::launch_thread())) {
+      WarpThreadBinding binding{op->args[0].as_or_throw<StringImm>()->value,
+                                op->args[1].as_or_throw<PrimExpr>()};
+      CheckWidth(binding);
+      bindings_.insert_or_assign(op->body_params[0].as_or_throw<PrimVar>().get(),
+                                 std::move(binding));
     }
-    StmtVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
-  // warp size
-  int warp_size_{0};
-  // number of threads involved in one shuffle
+
+  void CheckWidth(const WarpThreadBinding& binding) {
+    if (binding.tag != "threadIdx.x") return;
+    const auto* extent = binding.extent.as<IntImmNode>();
+    TVM_FFI_ICHECK(extent && extent->value > 0 && extent->value <= warp_size_ &&
+                   warp_size_ % extent->value == 0)
+        << "Expect threadIdx.x size to be a positive factor of warp size (" << warp_size_
+        << "), but got " << binding.extent;
+    int width = extent->value.as<int>().value();
+    TVM_FFI_ICHECK(width_ == 0 || width_ == width)
+        << "LowerWarpMemory requires compatible threadIdx.x extents across launch bindings";
+    width_ = width;
+  }
+
+  int warp_size_;
   int width_{0};
-  // the warp index
-  IterVar warp_index_{nullptr};
+  WarpThreadBindings bindings_;
 };
 // Mutator to change the read pattern
-class WarpAccessRewriter : protected StmtExprMutator {
+class WarpAccessRewriter : public StmtExprMutator {
  public:
-  explicit WarpAccessRewriter(int warp_size, arith::AnalyzerObj* analyzer)
-      : warp_size_(warp_size), analyzer_(analyzer) {}
-  // Rewrite the AllocBuffer statement which transforms
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  explicit WarpAccessRewriter(int warp_size, sym::AnalyzerObj* analyzer,
+                              WarpThreadBindings enclosing_bindings, Var warp_index,
+                              const WarpIndexAliases& aliases)
+      : warp_size_(warp_size),
+        warp_index_(warp_index),
+        analyzer_(analyzer),
+        bindings_(enclosing_bindings),
+        active_bindings_(std::move(enclosing_bindings)),
+        aliases_(aliases) {}
+  // Rewrite the AllocTensor statement which transforms
   // warp memory to local memory.
-  // \param op  The AllocBuffer node for warp memory.
+  // \param op The allocation binding for warp memory.
+  // \param buffer_call The matched allocation Call.
   // \param body The remaining statements (siblings) that use this buffer.
-  Stmt Rewrite(const AllocBufferNode* op, Stmt body) {
-    buffer_ = op->buffer.get();
+  Stmt Rewrite(const BindNode* op, const CallNode* buffer_call, Stmt body) {
+    tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+    DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+    PrimType element_type(dtype);
+    buffer_ = op->var.get();
     int64_t alloc_size = 1;
-    for (const auto& dim : op->buffer->shape) {
+    for (const auto& dim : shape->fields) {
       if (const IntImmNode* int_size = dim.as<IntImmNode>()) {
-        alloc_size *= int_size->value;
+        alloc_size = static_cast<int64_t>(alloc_size * int_size->value);
       } else {
         alloc_size = 0;
       }
     }
     TVM_FFI_ICHECK_GT(alloc_size, 0) << "warp memory only support constant alloc size";
-    alloc_size *= op->buffer->dtype.lanes();
-    std::tie(warp_index_, width_) = WarpIndexFinder(warp_size_).Find(body);
-    warp_coeff_ = WarpStoreCoeffFinder(buffer_, warp_index_, analyzer_).Find(body);
+    alloc_size *= element_type.lanes();
+    std::tie(bindings_, width_) =
+        ffi::make_object<WarpIndexFinder>(warp_size_, bindings_)->Find(body);
+    warp_coeff_ = ffi::make_object<WarpStoreCoeffFinder>(buffer_, bindings_, active_bindings_,
+                                                         warp_index_, analyzer_, aliases_)
+                      ->Find(body);
 
     // Align the local memory size. The number of elements may not
     // be a multiple of width_ * warp_coeff_; round it up.
@@ -288,23 +374,49 @@ class WarpAccessRewriter : protected StmtExprMutator {
     warp_group_ = (alloc_size + (factor - 1)) / factor;
     alloc_size = warp_group_ * factor;
 
-    auto type = CopyBufferType(op->buffer);
+    auto type = CopyTensorType(op->var.as_or_throw<TensorVar>());
     type->storage_scope = "local";
     type->shape = {IntImm::Int32(alloc_size / width_)};
     type->strides = {};
-    type->elem_offset = IntImm(op->buffer->elem_offset.ty(), 0);
-    BufferVar new_buf = RebuildBufferVar(op->buffer, std::move(type));
+    type->elem_offset = IntImm(op->var.as_or_throw<TensorVar>()->elem_offset.ty(), 0);
+    TensorVar new_buf = RebuildTensorVar(op->var.as_or_throw<TensorVar>(), std::move(type));
     new_buffer_ = new_buf;
-    Stmt rewritten_body = this->VisitStmt(body);
-    return SeqStmt::Flatten(AllocBuffer(new_buf, op->annotations), rewritten_body);
+    Stmt rewritten_body = this->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
+    return SeqStmt::Flatten(
+        Bind(new_buf.var(),
+             Call(new_buf.type(), tirx::builtin::alloc_tensor(),
+                  {tvm::Tuple(new_buf->shape, buffer_call->args[0]->span),
+                   DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span),
+                   StringImm(new_buf.scope(), buffer_call->args[2]->span)},
+                  buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
+             op->span),
+        rewritten_body);
   }
 
  protected:
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    if (!op->op.same_as(tirx::builtin::launch_thread()))
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    PrimExpr old_extent = op->args[1].as_or_throw<PrimExpr>();
+    PrimExpr extent = Mutate(old_extent, inplace_mode).ValueOrUnchanged(old_extent);
+    PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
+    Var previous_index = warp_index_;
+    auto previous_bindings = active_bindings_;
+    const auto& binding = bindings_.at(var.get());
+    active_bindings_.insert_or_assign(var.get(), binding);
+    if (binding.tag == "threadIdx.x") warp_index_ = var;
+    Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+    active_bindings_ = std::move(previous_bindings);
+    warp_index_ = previous_index;
+    return RegionStmt(op->op, {op->args[0], extent}, op->body_params, op->attrs, body,
+                      op->result_vars, op->span);
+  }
+
   Expr RewriteIndicesAt(const CallNode* op, const std::vector<int>& indices) {
     ffi::Array<Expr> new_args = op->args;
     for (int i : indices) {
       // Preserve the pointer operand as an Expr and narrow only its scalar index.
-      if (GetBufferVar(op->args[i]) == buffer_) {
+      if (GetTensorVar(op->args[i]) == buffer_) {
         PrimExpr local_index = SplitIndexByGroup(op->args[i + 1].as_or_throw<PrimExpr>()).first;
         new_args.Set(i, new_buffer_.data());
         new_args.Set(i + 1, local_index);
@@ -313,13 +425,13 @@ class WarpAccessRewriter : protected StmtExprMutator {
     return Call(op->ty, op->op, new_args, op->attrs, {}, op->span);
   }
 
-  Expr VisitExpr_(const CallNode* op) override {
-    static const Op& mma_store_op = Op::Get("tirx.mma_store");
-    static const Op& mma_fill_op = Op::Get("tirx.mma_fill");
-    static const Op& ptx_mma_legacy_op = Op::Get("tirx.ptx_legacy.mma");
-    static const Op& ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
-    static const Op& mma_store_legacy_op = Op::Get("tirx.mma_store_legacy");
-    static const Op& mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
+    static const Op mma_store_op = Op::Get("tirx.mma_store");
+    static const Op mma_fill_op = Op::Get("tirx.mma_fill");
+    static const Op ptx_mma_legacy_op = Op::Get("tirx.ptx_legacy.mma");
+    static const Op ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
+    static const Op mma_store_legacy_op = Op::Get("tirx.mma_store_legacy");
+    static const Op mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
     if (op->op.same_as(mma_store_op)) {
       return RewriteIndicesAt(op, {3});
     }
@@ -347,16 +459,27 @@ class WarpAccessRewriter : protected StmtExprMutator {
       return RewriteIndicesAt(op, {1});
     }
 
-    return StmtExprMutator::VisitExpr_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  Expr VisitExpr_(const VarNode* op) override {
-    TVM_FFI_ICHECK(op != buffer_) << "Cannot access address of warp memory directly";
-    return StmtExprMutator::VisitExpr_(op);
+  UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) override {
+    if (def_region_kind() == kTVMFFIDefRegionKindNone) {
+      TVM_FFI_ICHECK(op != buffer_) << "Cannot access address of warp memory directly";
+    }
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) override {
-    auto store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) override {
+    // The source is a memory access, not a direct address use checked by the Var hook.
+    auto value = Mutate(op->value, inplace_mode);
+    auto indices =
+        Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
+    TensorStore store = ffi::GetRef<TensorStore>(op);
+    if (!value.UnchangedOrSameAs(op->value) || !indices.UnchangedOrSameAs(op->indices)) {
+      auto* n = store.CopyOnWrite();
+      n->value = std::move(value).ValueOrUnchanged(op->value);
+      n->indices = std::move(indices).ValueOrUnchanged(op->indices);
+    }
 
     if (store->buffer.get() == buffer_) {
       TVM_FFI_ICHECK_EQ(store->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
@@ -373,10 +496,16 @@ class WarpAccessRewriter : protected StmtExprMutator {
     return store;
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) override {
-    auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<TensorLoad>();
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) override {
+    // Keep the memory source opaque to the direct-address check in the Var hook.
+    auto indices =
+        Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
+    TensorLoad load = ffi::GetRef<TensorLoad>(op);
+    if (!indices.UnchangedOrSameAs(op->indices)) {
+      load.CopyOnWrite()->indices = std::move(indices).ValueUnchecked();
+    }
 
-    if (load->source.as_or_throw<tvm::tirx::BufferVar>().get() != buffer_) {
+    if (load->source.as_or_throw<tvm::tirx::TensorVar>().get() != buffer_) {
       return load;
     }
 
@@ -393,7 +522,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
         << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->indices[0]
         << " local_index=" << local_index;
 
-    load = BufferLoad(new_buffer_, {local_index}, load->span);
+    load = MakeTensorLoad(new_buffer_, {local_index}, load->span);
 
     if (analyzer_->CanProveEqual(group, warp_index_.as_or_throw<PrimExpr>())) {
       return load;
@@ -411,11 +540,14 @@ class WarpAccessRewriter : protected StmtExprMutator {
   // local index is the index in the local
   // source index is the corresponding source index
   // in this access pattern.
-  std::pair<PrimExpr, PrimExpr> SplitIndexByGroup(const PrimExpr& index) {
+  std::pair<PrimExpr, PrimExpr> SplitIndexByGroup(const PrimExpr& original_index) {
+    TVM_FFI_ICHECK(warp_index_.defined())
+        << "Warp memory access must be inside a threadIdx.x launch";
+    PrimExpr index = NormalizeWarpIndex(original_index, active_bindings_, warp_index_, aliases_);
     PrimType index_ty = index.ty();
     if (index_ty.lanes() != 1) {
-      arith::PVar<PrimExpr> base;
-      TVM_FFI_ICHECK(arith::ramp(base, 1, index_ty.lanes()).Match(index));
+      sym::PVar<PrimExpr> base;
+      TVM_FFI_ICHECK(sym::ramp(base, 1, index_ty.lanes()).Match(index));
 
       auto [local_index, group] = SplitIndexByGroup(base.Eval());
       local_index = prim::Ramp(local_index, IntImm(local_index.ty(), 1), index_ty.lanes());
@@ -443,62 +575,84 @@ class WarpAccessRewriter : protected StmtExprMutator {
   // The buffer variable
   const VarNode* buffer_;
   // The fresh local buffer replacing the warp-scoped definition.
-  BufferVar new_buffer_;
+  TensorVar new_buffer_{ffi::UnsafeInit{}};
   // number of threads involved in one shuffle
   int width_{0};
   // Warp index
-  Var warp_index_;
+  Var warp_index_{ffi::UnsafeInit{}};
   // the coefficient m
   int warp_coeff_{0};
   // the coefficient n
   int warp_group_{0};
   // Internal analyzer
-  arith::AnalyzerObj* analyzer_;
+  sym::AnalyzerObj* analyzer_;
+  WarpThreadBindings bindings_;
+  WarpThreadBindings active_bindings_;
+  const WarpIndexAliases& aliases_;
 };
 
 // Bind bound information of variables to make analyzer more effective
 // TODO(tqchen): consider a pass to inline the bound info into the expr
 // so analysis can be context independent.
-class BindVarBoundInfo : public StmtVisitor {
+class BindVarBoundInfo : public StmtExprVisitor {
  public:
-  explicit BindVarBoundInfo(arith::AnalyzerObj* analyzer) : analyzer_(analyzer) {}
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+  explicit BindVarBoundInfo(sym::AnalyzerObj* analyzer, WarpIndexAliases* aliases)
+      : analyzer_(analyzer), aliases_(aliases) {}
 
-  void VisitStmt_(const ForNode* op) final {
-    const Var& loop_var = op->loop_var;
-    analyzer_->Bind(loop_var, Range::FromMinExtent(op->min, op->extent));
-    StmtVisitor::VisitStmt_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (auto value = op->value.as<PrimExpr>();
+        value && op->var.as<PrimVar>() && value->ty().IsScalar() &&
+        value->ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) &&
+        SideEffect(*value) <= CallEffectKind::kPure) {
+      // Preserve thread dependence even for unit extents. Analyzer range
+      // simplification would erase that dependence before coefficient matching.
+      aliases_->insert_or_assign(op->var.get(), ExpandWarpIndexAliases(*value, *aliases_));
+    }
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const AttrStmtNode* op) {
-    if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
-      IterVar iv = op->node.as_or_throw<IterVar>();
-      TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
-      if (!var_dom_.count(iv->var.get())) {
-        Range dom = Range::FromMinExtent(0, op->value);
-        var_dom_[iv->var.get()] = dom;
-        analyzer_->Bind(iv->var, dom);
-      }
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
+    const Var& loop_var = op->loop_var;
+    analyzer_->Bind(loop_var, Range::FromMinExtent(op->min, op->extent));
+    return StmtExprVisitor::Visit_(op);
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    if (op->op.same_as(tirx::builtin::launch_thread())) {
+      PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
+      PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
+      Range dom = Range::FromMinExtent(IntImm(extent.ty(), 0), extent);
+      analyzer_->Bind(var, dom);
     }
-    StmtVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
  protected:
   // internal analyzer.
-  arith::AnalyzerObj* analyzer_;
-  // variable domain
-  std::unordered_map<const VarNode*, Range> var_dom_;
+  sym::AnalyzerObj* analyzer_;
+  WarpIndexAliases* aliases_;
 };
 
 // Mutator to change the read pattern
-class WarpMemoryRewriter : private StmtMutator {
+class WarpMemoryRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) override {
+    if (input.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(input, inplace_mode);
+  }
   explicit WarpMemoryRewriter(int warp_size) : warp_size_(warp_size) {}
 
   Stmt Rewrite(Stmt stmt) {
     if (warp_size_ == 1) return stmt;
-    BindVarBoundInfo binder(analyzer_.get());
-    binder(stmt);
-    stmt = operator()(std::move(stmt));
+    auto binder = ffi::make_object<BindVarBoundInfo>(analyzer_.get(), &aliases_);
+    binder->Visit(stmt);
+    stmt = Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
     return stmt;
   }
 
@@ -506,60 +660,80 @@ class WarpMemoryRewriter : private StmtMutator {
   std::unordered_map<Var, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> new_storage_scopes_;
 
  private:
-  Stmt VisitStmt_(const SeqStmtNode* op) {
-    // Process SeqStmt to find warp AllocBuffer and gather remaining siblings as body.
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    if (!op->op.same_as(tirx::builtin::launch_thread()))
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
+    auto previous_bindings = active_bindings_;
+    Var previous_index = warp_index_;
+    ffi::String tag = op->args[0].as_or_throw<StringImm>()->value;
+    active_bindings_.insert_or_assign(var.get(),
+                                      WarpThreadBinding{tag, op->args[1].as_or_throw<PrimExpr>()});
+    if (tag == "threadIdx.x") warp_index_ = var;
+    Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+    active_bindings_ = std::move(previous_bindings);
+    warp_index_ = previous_index;
+    return RegionStmt(op->op, op->args, op->body_params, op->attrs, body, op->result_vars,
+                      op->span);
+  }
+
+  UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) {
+    // Process SeqStmt to find warp AllocTensor and gather remaining siblings as body.
     ffi::Array<Stmt> new_seq;
     bool changed = false;
     for (size_t i = 0; i < op->seq.size(); ++i) {
-      const auto* alloc = op->seq[i].as<AllocBufferNode>();
-      if (alloc && alloc->buffer.scope() == "warp") {
-        new_storage_scopes_[alloc->buffer.var()] = "local";
+      const auto* alloc = op->seq[i].as<BindNode>();
+      if (const auto* call = alloc ? alloc->value.as<CallNode>() : nullptr;
+          call && call->op.same_as(builtin::alloc_tensor()) &&
+          call->args[2].as_or_throw<StringImm>()->value == "warp") {
+        new_storage_scopes_[alloc->var] = "local";
         // Gather remaining siblings as the "body" for rewriting.
         ffi::Array<Stmt> remaining;
         for (size_t j = i + 1; j < op->seq.size(); ++j) {
           remaining.push_back(op->seq[j]);
         }
         Stmt body = remaining.empty() ? Stmt(Evaluate(0)) : SeqStmt::Flatten(remaining);
-        WarpAccessRewriter rewriter(warp_size_, analyzer_.get());
-        Stmt rewritten = rewriter.Rewrite(alloc, body);
-        new_seq.push_back(rewritten);
+        auto rewriter = ffi::make_object<WarpAccessRewriter>(
+            warp_size_, analyzer_.get(), active_bindings_, warp_index_, aliases_);
+        Stmt rewritten = rewriter->Rewrite(alloc, call, body);
+        // Continue through the remaining allocation bindings in the same scope.
+        new_seq.push_back(Mutate(rewritten, inplace_mode).ValueOrUnchanged(rewritten));
         changed = true;
         break;
       } else {
-        Stmt visited = this->VisitStmt(op->seq[i]);
-        new_seq.push_back(visited);
-        if (!visited.same_as(op->seq[i])) changed = true;
+        auto result = this->Mutate(op->seq[i]);
+        changed |= !result.UnchangedOrSameAs(op->seq[i]);
+        new_seq.push_back(std::move(result).ValueOrUnchanged(op->seq[i]).as_or_throw<Stmt>());
       }
     }
-    if (!changed) return ffi::GetRef<Stmt>(op);
+    if (!changed) return ffi::Unchanged();
     return SeqStmt::Flatten(new_seq);
   }
 
-  Stmt VisitStmt_(const AllocBufferNode* op) {
-    // Non-warp AllocBuffer: just delegate to base class.
-    return StmtMutator::VisitStmt_(op);
-  }
-
   int warp_size_{0};
-  arith::Analyzer analyzer_;
-  // variable domain
-  std::unordered_map<const VarNode*, Range> var_dom_;
+  sym::Analyzer analyzer_;
+  WarpThreadBindings active_bindings_;
+  Var warp_index_{ffi::UnsafeInit{}};
+  WarpIndexAliases aliases_;
 };
 
 namespace transform {
 
 Pass LowerWarpMemory() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     TVM_FFI_ICHECK(target.has_value()) << "LowerWarpMemory: Require the target attribute";
     int warp_size = target.value()->GetAttr<int64_t>("thread_warp_size", 1).value();
-    WarpMemoryRewriter warp_memory_rewriter(warp_size);
-    auto stmt = warp_memory_rewriter.Rewrite(std::move(n->body));
-    n->body = UpdatePointerStorageScope(warp_memory_rewriter.new_storage_scopes_)(stmt);
+    auto warp_memory_rewriter = ffi::make_object<WarpMemoryRewriter>(warp_size);
+    auto stmt = warp_memory_rewriter->Rewrite(std::move(n->body).value());
+    n->body = ffi::make_object<UpdatePointerStorageScope>(warp_memory_rewriter->new_storage_scopes_)
+                  ->Mutate(stmt, InplaceMode::kAllow)
+                  .ValueOrUnchanged(stmt);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.LowerWarpMemory", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.LowerWarpMemory", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

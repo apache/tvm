@@ -17,32 +17,36 @@
 
 """Unary elementwise ops: zero / fill / reciprocal / sqrt / exp / exp2 / log2 / silu.
 
-All carry the same ``T.<unary>(dst, src[, bias, scale])`` shape (bias / scale
-optional; ``silu`` ignores bias/scale to preserve legacy behavior).
+Plain unary operations take dst and src. Explicit scale/bias variants additionally
+take scale and bias, applying both before the unary operation.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from tvm.ir import is_prim_expr
+from tvm.ir import TensorRegion, is_prim_expr
 from tvm.script import tirx as T
-from tvm.tirx import BufferRegion, TilePrimitiveCall
-from tvm.tirx.expr import FloatImm
+from tvm.tirx import TilePrimitiveCall
 
 from .._common import scalar_dtype
 from . import OpSpec, Plan, SrcSpec
 
 
 def _parse_unary(op: TilePrimitiveCall) -> tuple[Plan | None, str | None]:
-    """T.<unary>(dst, src[, bias, scale]) → Plan."""
-    _dst: BufferRegion = op.args[0]
+    """T.<unary>(dst, src[, scale, bias]) → Plan."""
+    _dst: TensorRegion = op.args[0]
     _src = op.args[1]
-    _bias = op.args[2] if len(op.args) > 2 else None
-    _scale = op.args[3] if len(op.args) > 2 else None
+    _scale = op.args[2] if len(op.args) == 4 else None
+    _bias = op.args[3] if len(op.args) == 4 else None
+
+    if _bias is not None and not isinstance(_bias, TensorRegion) and not is_prim_expr(_bias):
+        return None, f"unsupported bias type {type(_bias).__name__}"
+    if _scale is not None and not is_prim_expr(_scale):
+        return None, f"unsupported scale type {type(_scale).__name__}"
 
     srcs: list[SrcSpec] = []
-    if isinstance(_src, BufferRegion):
+    if isinstance(_src, TensorRegion):
         srcs.append(SrcSpec(buf_region=_src))
     elif is_prim_expr(_src):
         srcs.append(SrcSpec(scalar=_src))
@@ -51,9 +55,9 @@ def _parse_unary(op: TilePrimitiveCall) -> tuple[Plan | None, str | None]:
 
     extras: dict[str, Any] = {
         "scale": _scale,
-        "bias_const": _bias if isinstance(_bias, FloatImm) else None,
+        "bias_const": _bias if is_prim_expr(_bias) else None,
     }
-    if isinstance(_bias, BufferRegion):
+    if isinstance(_bias, TensorRegion):
         srcs.append(SrcSpec(buf_region=_bias))
         extras["has_bias_buf"] = True
     else:
@@ -115,8 +119,20 @@ UNARY_OPS: dict[str, OpSpec] = {
     "fill": OpSpec("fill", _parse_unary, _compute_fill, _check_unary_extras),
     "reciprocal": OpSpec("reciprocal", _parse_unary, _compute_reciprocal, _check_unary_extras),
     "sqrt": OpSpec("sqrt", _parse_unary, _with_bias_scale(T.sqrt), _check_unary_extras),
+    "sqrt_with_scale_bias": OpSpec(
+        "sqrt_with_scale_bias", _parse_unary, _with_bias_scale(T.sqrt), _check_unary_extras
+    ),
     "exp": OpSpec("exp", _parse_unary, _with_bias_scale(T.exp), _check_unary_extras),
+    "exp_with_scale_bias": OpSpec(
+        "exp_with_scale_bias", _parse_unary, _with_bias_scale(T.exp), _check_unary_extras
+    ),
     "exp2": OpSpec("exp2", _parse_unary, _with_bias_scale(T.exp2), _check_unary_extras),
+    "exp2_with_scale_bias": OpSpec(
+        "exp2_with_scale_bias", _parse_unary, _with_bias_scale(T.exp2), _check_unary_extras
+    ),
     "log2": OpSpec("log2", _parse_unary, _with_bias_scale(T.log2), _check_unary_extras),
+    "log2_with_scale_bias": OpSpec(
+        "log2_with_scale_bias", _parse_unary, _with_bias_scale(T.log2), _check_unary_extras
+    ),
     "silu": OpSpec("silu", _parse_unary, _compute_silu, _check_unary_extras),
 }

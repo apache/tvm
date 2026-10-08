@@ -61,7 +61,6 @@
 #include <tvm/ffi/reflection/creator.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/ir/instrument.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/with_context.h>
 
@@ -72,68 +71,8 @@
 namespace tvm {
 namespace transform {
 
-/*!
- * \brief PassContextNode contains the information that a pass can rely on,
- * such as analysis results.
- * \sa PassContext
- */
-class PassContextNode : public ffi::Object {
- public:
-  /*! \brief The default optimization level. */
-  int opt_level{2};
-
-  /*! \brief The list of required passes. */
-  ffi::Array<ffi::String> required_pass;
-  /*! \brief The list of disabled passes. */
-  ffi::Array<ffi::String> disabled_pass;
-  /*! \brief Pass specific configurations. */
-  ffi::Map<ffi::String, Any> config;
-
-  /*! \brief A list of pass instrument implementations. */
-  ffi::Array<instrument::PassInstrument> instruments;
-
-  PassContextNode() = default;
-
-  /*!
-   * \brief Get a config value from the pass context.
-   *
-   * \param key The config key.
-   * \param default_value The default value if the key does not exist, defaults to nullptr.
-   *
-   * \return The result
-   *
-   * \tparam TOBjectRef the expected object type.
-   * \throw Error if the key exists but the value does not match TObjectRef.
-   */
-  template <typename TObjectRef>
-  ffi::Optional<TObjectRef> GetConfig(
-      const std::string& key,
-      ffi::Optional<TObjectRef> default_value = ffi::Optional<TObjectRef>(std::nullopt)) const {
-    if (!config.defined()) return default_value;
-    auto it = config.find(key);
-    if (it != config.end()) {
-      return (*it).second.as_or_throw<ffi::Optional<TObjectRef>>();
-    } else {
-      return default_value;
-    }
-  }
-  // variant that uses TObjectRef to enable implicit conversion to default value.
-  template <typename TObjectRef>
-  ffi::Optional<TObjectRef> GetConfig(const std::string& key, TObjectRef default_value) const {
-    return GetConfig<TObjectRef>(key, ffi::Optional<TObjectRef>(default_value));
-  }
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PassContextNode>()
-        .def_ro("opt_level", &PassContextNode::opt_level)
-        .def_ro("required_pass", &PassContextNode::required_pass)
-        .def_ro("disabled_pass", &PassContextNode::disabled_pass)
-        .def_ro("instruments", &PassContextNode::instruments)
-        .def_ro("config", &PassContextNode::config);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.PassContext", PassContextNode, ffi::Object);
-};
+class PassInfo;
+class PassContextNode;
 
 /*!
  * \brief PassContext that is used to configure the pass behavior.
@@ -158,23 +97,17 @@ class PassContext : public ffi::ObjectRef {
   /*!
    * \brief constructor with ffi::ObjectPtr
    */
-  explicit PassContext(ffi::ObjectPtr<PassContextNode> n) : ffi::ObjectRef(n) {}
+  explicit PassContext(ffi::ObjectPtr<PassContextNode> n);
   /*!
    * \brief const accessor.
    * \return const access pointer.
    */
-  const PassContextNode* operator->() const {
-    TVM_FFI_ICHECK(get() != nullptr);
-    return static_cast<const PassContextNode*>(get());
-  }
+  const PassContextNode* operator->() const;
   /*!
    * \brief mutable accessor.
    * \return mutable access pointer.
    */
-  PassContextNode* operator->() {
-    TVM_FFI_ICHECK(get() != nullptr);
-    return static_cast<PassContextNode*>(get_mutable());
-  }
+  PassContextNode* operator->();
 
   /*!
    * \brief Construct a PassContext containing the default configurations.
@@ -577,6 +510,198 @@ TVM_DLL Pass PrintIR(ffi::String header = "");
 TVM_DLL ffi::Error EnrichPassErrorWithContext(
     const ffi::Error& err, const IRModule& mod, ffi::String pass_name,
     ffi::Optional<GlobalVar> func = ffi::Optional<GlobalVar>(std::nullopt));
+
+}  // namespace transform
+
+namespace instrument {
+
+/*!
+ * \brief PassInstrumentNode forms an instrument implementation.
+ * It provides API for users to register callbacks at different instrumentation points.
+ *
+ * Within a PassContext, call sequence of a PassInstrument implementation is like:
+ *
+ *   with PassContext(instruments=[pi]):  # pi = a PassInstrument implementation
+ *       pi.EnterPassContext()
+ *
+ *       if pi.ShouldRun(Pass1):
+ *           pi.RunBeforePass()
+ *           Pass1()
+ *           pi.RunAfterPass()
+ *
+ *       if pi.ShouldRun(Pass2):
+ *           pi.RunBeforePass()
+ *           Pass2()
+ *           pi.RunAfterPass()
+ *
+ *       pi.ExitPassContext()
+ *
+ * `EnterPassContext` and `ExitPassContext` are only called once when entering/exiting a
+ * PassContext. `ShouldRun`, `RunBeforePass` and `RunAfterPass` are called multiple times depending
+ * on how many passes.
+ *
+ * If there are multiple pass instrumentations provided, the instrument points are the same.
+ * PassInstrument implementations' callbacks are called in order:
+ *
+ *   with PassContext(instruments=[pi1, pi2]):  # pi1, pi2 = two distinct PassInstrument impls
+ *       pi.EnterPassContext() for pi in instruments
+ *
+ *       should_run = all([pi.ShoudRun(Pass1) for pi in instruments)])
+ *       if (should_run)
+ *           pi.RunBeforePass() for pi in instruments
+ *           Pass1()
+ *           pi.RunAfterPass()  for pi in instruments
+ *
+ *       should_run = all([pi.ShouldRun(Pass2) for pi in instruments)])
+ *       if (should_run)
+ *           pi.RunBeforePass() for pi in instruments
+ *           Pass2()
+ *           pi.RunAfterPass() for pi in instruments
+ *
+ *       pi.ExitPassContext() for pi in instruments
+ *
+ * Note:
+ *   1. Assume there is no dependency between PassInstrument implementations in `instruments` .
+ *   2. `EnterPassContext` and `ExitPassContext` have `with` behavior (see PassContext and its FFI):
+ *        If there is any exception raised in `ShouldRun()`, `RunBeforePass()`, `RunAfterPass()` and
+ *        `Pass()`, `ExitPassContext()` is still called.
+ *   3. In mutiple PassInstrument instances scenario, callbacks are called in order:
+ *        If one throws exceptions, remainings will not be called.
+ *
+ * \sa PassInstrument
+ * \sa src/ir/transform.cc
+ */
+class PassInstrumentNode : public ffi::Object {
+ public:
+  /*! \brief Name of this pass instrument object. */
+  ffi::String name;
+
+  virtual ~PassInstrumentNode() {}
+
+  /*! \brief Instrument when entering PassContext. Called once within a PassContext. */
+  virtual void EnterPassContext() const = 0;
+
+  /*! \brief Instrument when exiting PassContext. Called once within a PassContext. */
+  virtual void ExitPassContext() const = 0;
+
+  /*!
+   * \brief Determine whether to run the pass or not. Called multiple times depend on number of
+   *        passes.
+   * \param mod The module that an optimization pass runs on.
+   * \param info The pass information.
+   *
+   * \return true to run the pass; false to skip the pass.
+   */
+  virtual bool ShouldRun(const IRModule& mod, const transform::PassInfo& info) const = 0;
+
+  /*!
+   * \brief Instrument before pass run. Called multiple times depend on number of passes.
+   * \param mod The module that an optimization pass runs on.
+   * \param info The pass information.
+   */
+  virtual void RunBeforePass(const IRModule& mod, const transform::PassInfo& info) const = 0;
+
+  /*!
+   * \brief Instrument after pass run. Called multiple time depend on number of passes.
+   * \param mod The module that an optimization pass runs on.
+   * \param info The pass information.
+   */
+  virtual void RunAfterPass(const IRModule& mod, const transform::PassInfo& info) const = 0;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PassInstrumentNode>().def_ro("name", &PassInstrumentNode::name);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO("instrument.PassInstrument", PassInstrumentNode, ffi::Object);
+};
+
+/*!
+ * \brief Managed reference class for PassInstrumentNode
+ * \sa PassInstrumentNode
+ */
+class PassInstrument : public ffi::ObjectRef {
+ public:
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PassInstrument, ffi::ObjectRef, PassInstrumentNode);
+};
+
+}  // namespace instrument
+
+namespace transform {
+
+/*!
+ * \brief PassContextNode contains the information that a pass can rely on,
+ * such as analysis results.
+ * \sa PassContext
+ */
+class PassContextNode : public ffi::Object {
+ public:
+  /*! \brief The default optimization level. */
+  int opt_level{2};
+
+  /*! \brief The list of required passes. */
+  ffi::Array<ffi::String> required_pass;
+  /*! \brief The list of disabled passes. */
+  ffi::Array<ffi::String> disabled_pass;
+  /*! \brief Pass specific configurations. */
+  ffi::Map<ffi::String, Any> config;
+
+  /*! \brief A list of pass instrument implementations. */
+  ffi::Array<instrument::PassInstrument> instruments;
+
+  PassContextNode() = default;
+
+  /*!
+   * \brief Get a config value from the pass context.
+   *
+   * \param key The config key.
+   * \param default_value The default value if the key does not exist, defaults to nullptr.
+   *
+   * \return The result
+   *
+   * \tparam TOBjectRef the expected object type.
+   * \throw Error if the key exists but the value does not match TObjectRef.
+   */
+  template <typename TObjectRef>
+  ffi::Optional<TObjectRef> GetConfig(
+      const std::string& key,
+      ffi::Optional<TObjectRef> default_value = ffi::Optional<TObjectRef>(std::nullopt)) const {
+    if (!config.defined()) return default_value;
+    auto it = config.find(key);
+    if (it != config.end()) {
+      return (*it).second.as_or_throw<ffi::Optional<TObjectRef>>();
+    } else {
+      return default_value;
+    }
+  }
+  // variant that uses TObjectRef to enable implicit conversion to default value.
+  template <typename TObjectRef>
+  ffi::Optional<TObjectRef> GetConfig(const std::string& key, TObjectRef default_value) const {
+    return GetConfig<TObjectRef>(key, ffi::Optional<TObjectRef>(default_value));
+  }
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PassContextNode>()
+        .def_ro("opt_level", &PassContextNode::opt_level)
+        .def_ro("required_pass", &PassContextNode::required_pass)
+        .def_ro("disabled_pass", &PassContextNode::disabled_pass)
+        .def_ro("instruments", &PassContextNode::instruments)
+        .def_ro("config", &PassContextNode::config);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.PassContext", PassContextNode, ffi::Object);
+};
+
+inline PassContext::PassContext(ffi::ObjectPtr<PassContextNode> n) : ffi::ObjectRef(n) {}
+
+inline const PassContextNode* PassContext::operator->() const {
+  TVM_FFI_ICHECK(get() != nullptr);
+  return static_cast<const PassContextNode*>(get());
+}
+
+inline PassContextNode* PassContext::operator->() {
+  TVM_FFI_ICHECK(get() != nullptr);
+  return static_cast<PassContextNode*>(get_mutable());
+}
 
 }  // namespace transform
 }  // namespace tvm

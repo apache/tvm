@@ -17,8 +17,9 @@
 
 """Implementation of BinaryReduce dispatch."""
 
+from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import BufferRegion, PrimFunc, TilePrimitiveCall
+from tvm.tirx import Function, TilePrimitiveCall
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
 from tvm.tirx.operator.tile_primitive.ops import BinaryReduce
 
@@ -30,7 +31,7 @@ from ..reduction.utils import generate_intermediate_buffer
 from .utils import opcode_table
 
 
-def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
+def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
     """Generate a TRN schedule for binary reduction operations."""
     op = TilePrimitiveCall.downcast(op)
     assert isinstance(op, BinaryReduce), f"invalid operator downcast: {op}"
@@ -42,7 +43,9 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
     analyzer = init_analyzer(sctx)
 
     # Normalize negative axes
-    reduce_axes = [i if i >= 0 else len(binary_output.buffer.ty.shape) + i for i in reduce_axes]
+    reduce_axes = [
+        int(i) if int(i) >= 0 else len(binary_output.source.ty.shape) + int(i) for i in reduce_axes
+    ]
 
     # Find instruction patterns
     inst_gen = InstructionGenerator(
@@ -77,7 +80,7 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
     f_var = T.Var("F", "int32")
     reduction_b_var = T.Var("rB", "int32")
     spatial_b_var = T.Var("sB", "int32")
-    p_size = binary_output.buffer.ty.layout.size("P")
+    p_size = binary_output.source.ty.layout.size("P")
     inst_gen.bind_inst_iter(binary_output, p_var, p_size, 1, False)
     inst_gen.bind_inst_iter(binary_output, f_var, inst_repr.size, inst_repr.stride, True)
     reduction_b_extent = inst_gen.fill_in_block_dim(binary_output, reduction_b_var, reduce_axes)
@@ -88,22 +91,23 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
         )
 
     # Handle source 2 (either buffer region or constant)
-    CONST = binary_input2 if not isinstance(binary_input2, BufferRegion) else None
+    CONST = binary_input2 if not isinstance(binary_input2, TensorRegion) else None
     # Extract buffers and opcodes
     src1, src2 = (
-        binary_input1.buffer,
-        (binary_input2.buffer if isinstance(binary_input2, BufferRegion) else None),
+        binary_input1.source,
+        (binary_input2.source if isinstance(binary_input2, TensorRegion) else None),
     )
-    dst1, dst2 = binary_output.buffer, reduce_output.buffer
+    dst1, dst2 = binary_output.source, reduce_output.source
     binary_opcode, reduce_opcode = opcode_table[op.binary_op], opcode_table[op.reduce_op]
     # Create appropriate implementation based on intermediate buffer requirement
     if reduction_b_extent == 1:
         # Direct implementation without intermediate buffer
         # fmt: off
-        @T.prim_func
+        # This fragment captures buffers and indices from its insertion scope.
+        @T.function(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
-                with T.attr(0, "tensorized_nki_instruction", 1):
+                with T.nki.tensorized_instruction():
                     for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                         for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop})  # noqa: E501
@@ -111,7 +115,7 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
                             vec_dst_idx = T.meta_var(inst_gen.generate_indices(binary_output))
                             reduce_dst_idx = T.meta_var(inst_gen.generate_indices(reduce_output))
                             if inst_gen.make_guard(binary_output):
-                                if CONST is None:
+                                if T.constexpr(CONST is None):
                                     src_2_indices = T.meta_var(inst_gen.generate_indices(binary_input2))  # noqa: E501
                                     T.nki.tensorscalar_reduce(dst2[tuple(reduce_dst_idx)], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], src2[tuple(src_2_indices)], binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
                                 else:
@@ -120,23 +124,24 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
     else:
         # Implementation with intermediate buffer
         # fmt: off
-        @T.prim_func
+        # This fragment captures buffers and indices from its insertion scope.
+        @T.function(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
                 for reduction_b_loop in T.serial(0, reduction_b_extent):
-                    with T.attr(0, "tensorized_nki_instruction", 1):
+                    with T.nki.tensorized_instruction():
                         for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                             for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                                 inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop, reduction_b_var: reduction_b_loop})  # noqa: E501
                                 if inst_gen.make_guard(binary_output):
                                     src_1_indices = T.meta_var(inst_gen.generate_indices(binary_input1))  # noqa: E501
                                     vec_dst_idx = T.meta_var(inst_gen.generate_indices(binary_output))  # noqa: E501
-                                    if CONST is None:
+                                    if T.constexpr(CONST is None):
                                         src_2_indices = T.meta_var(inst_gen.generate_indices(binary_input2))  # noqa: E501
                                         T.nki.tensorscalar_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], src2[tuple(src_2_indices)], binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
                                     else:
                                         T.nki.tensorscalar_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(vec_dst_idx)], src1[tuple(src_1_indices)], CONST, binary_opcode, reduce_opcode, reverse[0])  # noqa: E501
-                with T.attr(0, "tensorized_nki_instruction", 1):
+                with T.nki.tensorized_instruction():
                     for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                         for f_loop in T.serial(0, reduction_b_extent, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map_all({p_var: p_loop, spatial_b_var: b_loop})
@@ -164,5 +169,5 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
         )
     ],
 )
-def binary_reduce_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def binary_reduce_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     return binary_reduce_trn(op, sctx)

@@ -24,7 +24,7 @@ import tvm
 from tvm import ir
 from tvm.ir.module import IRModule
 from tvm.target import Target
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 
 
 def split_host_device_mods(mod: IRModule) -> tuple[IRModule, dict[Target, IRModule]]:
@@ -58,18 +58,18 @@ def split_host_device_mods(mod: IRModule) -> tuple[IRModule, dict[Target, IRModu
 
         @I.ir_module
         class Module:
-            @T.prim_func(private=True, s_tir=True)
+            @T.function(private=True)
             def add(a: T.int32, b: T.int32) -> T.int32:
                 T.func_attr({"target": T.target({"arch": "sm_90", "keys": ["cuda", "gpu"],
                                                 "kind": "cuda", "max_num_threads": 1024}))
                 return a + b
 
-            @T.prim_func(private=True, s_tir=True)
+            @T.function(private=True)
             def add_host(a: T.int32, b: T.int32) -> T.int32:
                 T.func_attr({"target": T.target({"keys": ["cpu"], "kind": "c"}))
                 return a + b
 
-            @T.prim_func(s_tir=True)
+            @T.function
             def main_kernel(A: T.handle, B: T.handle, C: T.handle, length: T.int32):
                 T.func_attr({"target": T.target({"arch": "sm_90", "keys": ["cuda", "gpu"],
                                                 "kind": "cuda"}),
@@ -77,7 +77,7 @@ def split_host_device_mods(mod: IRModule) -> tuple[IRModule, dict[Target, IRModu
                             "tirx.is_global_func": True})
                 # ... kernel implementation
 
-            @T.prim_func(s_tir=True)
+            @T.function
             def main(self_handle: T.handle, args: T.handle, num_args: T.int32, result: T.handle):
                 T.func_attr({"target": T.target({"keys": ["cpu"], "kind": "c"}),
                             "calling_conv": 1,  # kCPackedFunc for entry functions
@@ -102,7 +102,7 @@ def split_host_device_mods(mod: IRModule) -> tuple[IRModule, dict[Target, IRModu
 
     def is_host_func(f):
         target = f.attrs.get("target", tvm.target.Target("llvm"))
-        return target.kind.name in ["llvm", "c"]
+        return target.kind.name in ["llvm", "c", "cuda_host"]
 
     host_mod = tvm.tirx.transform.Filter(is_host_func)(mod)
     device_mod = tvm.tirx.transform.Filter(lambda f: not is_host_func(f))(mod)
@@ -155,16 +155,16 @@ def tir_to_runtime(
 
 
 def build(
-    mod: PrimFunc | IRModule,
+    mod: Function | IRModule,
     target: str | Target | None = None,
-    pipeline: None | str | tvm.transform.Pass = "default",
+    pipeline: str | tvm.transform.Pass | None = "default",
 ):
     """Build a function with a signature, generating code for devices
     coupled with target information.
 
     Parameters
     ----------
-    mod : Union[PrimFunc, IRModule]
+    mod : Union[Function, IRModule]
         The input to be built.
     target : Optional[Union[str, Target]]
         The target for compilation.
@@ -176,14 +176,14 @@ def build(
     tvm.runtime.Module
         A module combining both host and device code.
     """
-    # Convert PrimFunc to IRModule
-    if isinstance(mod, PrimFunc):
+    # Convert Function to IRModule
+    if isinstance(mod, Function):
         mod = tvm.IRModule.from_expr(mod)
     else:
         assert isinstance(mod, tvm.IRModule)
 
     # Step 0: Determine the target in environment
-    # It's used to bind the PrimFunc without target attr to serve as a default target
+    # It's used to bind the Function without target attr to serve as a default target
     target_to_bind = Target.current() if target is None else target
     if target_to_bind is None:
         target_to_bind = "llvm"
@@ -215,14 +215,14 @@ def build(
     mod = tvm.tirx.transform.BindTarget(target_to_bind)(mod)
 
     # Step 4: Apply the tirx pipeline
-    if pipeline is not None:
+    if pipeline not in (None, "default"):
         # custom pipeline
         assert isinstance(pipeline, str)
         pipeline, finalize_host_passes, finalize_device_passes = tvm.tirx.get_tir_pipeline(pipeline)
     else:
         # default pipeline depends on the target
         pipeline, finalize_host_passes, finalize_device_passes = tvm.tirx.get_default_tir_pipeline(
-            target
+            target, mod
         )
     mod = pipeline(mod)
 

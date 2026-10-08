@@ -20,11 +20,11 @@
 import functools
 import operator
 
-from tvm.arith.analyzer import Analyzer
 from tvm.backend.trn.layout import is_trainium_layout
-from tvm.ir import assert_structural_equal
+from tvm.ir import TensorRegion, assert_structural_equal
 from tvm.script import tirx as T
-from tvm.tirx import BufferRegion, PrimFunc
+from tvm.sym.analyzer import Analyzer
+from tvm.tirx import Function
 from tvm.tirx.operator.tile_primitive import (
     DispatchContext,
     fail,
@@ -46,7 +46,7 @@ class OperatorKind:
 
 
 def get_pf_dim_from_buffer_region(
-    buffer_region: BufferRegion,
+    buffer_region: TensorRegion,
     analyzer: Analyzer,
     operator_kind: OperatorKind,
     transposed: bool = False,
@@ -55,13 +55,13 @@ def get_pf_dim_from_buffer_region(
     # Find non-unit dimensions
     non_unit_dims = [
         i
-        for i in range(len(buffer_region.buffer.ty.shape))
+        for i in range(len(buffer_region.source.ty.shape))
         if not analyzer.can_prove_equal(buffer_region.region[i].extent, 1)
     ]
     assert len(non_unit_dims) == 2, "Only 2D matrix is supported for gemm"
 
     layout, seps = normalize_and_group(
-        buffer_region.buffer.ty.layout, buffer_region.buffer.ty.shape
+        buffer_region.source.ty.layout, buffer_region.source.ty.shape
     )
     # Determine partition and free dimensions based on operator kind
     if operator_kind == OperatorKind.A:
@@ -110,7 +110,7 @@ def get_pf_dim_from_buffer_region(
     return p_dim, f_dim
 
 
-def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
+def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
     """Schedule GEMM operation on Trainium."""
     # Basic validation checks
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
@@ -129,10 +129,10 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     ) = op.args
     analyzer = init_analyzer(sctx)
     A, B, C, _D = (
-        A_buffer_region.buffer,
-        B_buffer_region.buffer,
-        C_buffer_region.buffer,
-        D_buffer_region.buffer,
+        A_buffer_region.source,
+        B_buffer_region.source,
+        C_buffer_region.source,
+        D_buffer_region.source,
     )
 
     # Validate alpha, beta
@@ -223,11 +223,10 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     # fmt: off
     @T.inline
     def matmul_inst_macro(lhs_b_loop, rhs_b_loop, reduction_b_loop, acc, C_as_output, max_psum_slots):  # noqa: E501
-        with T.attr(0, "tensorized_nki_instruction", 1):
+        with T.nki.tensorized_instruction():
             for p_loop in T.serial(0, p_size, annotations={"nki_dim": "P"}):
                 for lhs_f_loop in T.serial(0, lhs_f_size, annotations={"nki_dim": "lhs_F"}):
                     for rhs_f_loop in T.serial(0, inst_repr.size, annotations={"nki_dim": "rhs_F"}):
-                        b_idx = T.meta_var(lhs_b_loop * rhs_b_extent + rhs_b_loop)
                         inst_gen.set_bind_map(A_buffer_region, {lhs_b: lhs_b_loop, lhs_f: lhs_f_loop, p: p_loop, reduction_b: reduction_b_loop})  # noqa: E501
                         inst_gen.set_bind_map(B_buffer_region, {rhs_b: rhs_b_loop, rhs_f: rhs_f_loop, p: p_loop, reduction_b: reduction_b_loop})  # noqa: E501
                         inst_gen.set_bind_map(C_buffer_region, {lhs_f: lhs_f_loop, rhs_f: rhs_f_loop, lhs_b: lhs_b_loop, rhs_b: rhs_b_loop})  # noqa: E501
@@ -235,13 +234,14 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
                         rhs_indices = T.meta_var(inst_gen.generate_indices(B_buffer_region))
                         C_indices = T.meta_var(inst_gen.generate_indices(C_buffer_region))
                         if inst_gen.make_guard(A_buffer_region) and inst_gen.make_guard(B_buffer_region):  # noqa: E501
-                            if C_as_output:
+                            if T.constexpr(C_as_output):
                                 T.evaluate(T.nki.matmul(acc[C_indices], A[lhs_indices], B[rhs_indices]))  # noqa: E501
                             else:
-                                T.evaluate(T.nki.matmul(acc[b_idx % max_psum_slots, lhs_f_loop, rhs_f_loop], A[lhs_indices], B[rhs_indices]))  # noqa: E501
+                                T.evaluate(T.nki.matmul(acc[(lhs_b_loop * rhs_b_extent + rhs_b_loop) % max_psum_slots, lhs_f_loop, rhs_f_loop], A[lhs_indices], B[rhs_indices]))  # noqa: E501
 
     if C.scope() == "trn.psum":
-        @T.prim_func
+        # This fragment captures buffers and indices from its insertion scope.
+        @T.function(check_well_formed=False)
         def impl_C_psum():
             for lhs_b_loop, rhs_b_loop, reduction_b_loop in T.grid(lhs_b_extent, rhs_b_extent, reduction_b_extent):  # noqa: E501
                 matmul_inst_macro(lhs_b_loop, rhs_b_loop, reduction_b_loop, C, True, None)
@@ -256,13 +256,10 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     acc_psum_shape = (max_psum_banks, p_size, largest_psum_per_bank)
     if "acc_psum" not in op.workspace:
         assert sctx.alloc_only, "Accumulation psum buffer must be specified in workspace. Run tvm.tirx.trn.transform.TrnPrivateBufferAlloc first."  # noqa: E501
-        acc_psum = T.buffer(
-                acc_psum_shape,
-                "float32",
-                scope="trn.psum",
-                allocated_addr=(0, 0),
-                buffer_name="acc_psum"
-            )
+        acc_psum = T.Var(
+            "acc_psum",
+            T.Tensor(acc_psum_shape, "float32", scope="trn.psum", allocated_addr=(0, 0)),
+        )
         sctx.add_alloc_buffer(acc_psum)
         max_psum_slots = max_psum_banks
     else:
@@ -270,19 +267,19 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
         check_workspace_buffer(acc_psum, (p_size, largest_psum_per_bank), "trn.psum")
         max_psum_slots = acc_psum.ty.shape[0]
 
-    @T.prim_func
+    # This fragment captures buffers and indices from its insertion scope.
+    @T.function(check_well_formed=False)
     def impl_C_sbuf():
         for lhs_b_loop, rhs_b_loop in T.grid(lhs_b_extent, rhs_b_extent):
             for reduction_b_loop in T.serial(0, reduction_b_extent):
                 matmul_inst_macro(lhs_b_loop, rhs_b_loop, reduction_b_loop, acc_psum, False, max_psum_slots)  # noqa: E501
-            with T.attr(0, "tensorized_nki_instruction", 1):
+            with T.nki.tensorized_instruction():
                 for lhs_f_loop in T.serial(0, lhs_f_size, annotations={"nki_dim": "P"}):
                     for rhs_f_loop in T.serial(0, inst_repr.size, annotations={"nki_dim": "F"}):
-                        b_idx = T.meta_var(lhs_b_loop * rhs_b_extent + rhs_b_loop)
                         inst_gen.set_bind_map(C_buffer_region, {lhs_f: lhs_f_loop, rhs_f: rhs_f_loop, lhs_b: lhs_b_loop, rhs_b: rhs_b_loop})  # noqa: E501
                         if inst_gen.make_guard(C_buffer_region):
                             acc_indices = T.meta_var(inst_gen.generate_indices(C_buffer_region))
-                            T.evaluate(T.nki.tensor_copy(C[acc_indices], acc_psum[b_idx % max_psum_slots, lhs_f_loop, rhs_f_loop]))  # noqa: E501
+                            T.evaluate(T.nki.tensor_copy(C[acc_indices], acc_psum[(lhs_b_loop * rhs_b_extent + rhs_b_loop) % max_psum_slots, lhs_f_loop, rhs_f_loop]))  # noqa: E501
     # fmt: on
     return impl_C_sbuf
 
@@ -303,5 +300,5 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
         )
     ],
 )
-def gemm_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def gemm_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     return matmul_trn(op, sctx)

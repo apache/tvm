@@ -20,7 +20,9 @@
 #define TVM_S_TIR_SCHEDULE_CONCRETE_SCHEDULE_H_
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt.h>
 
 #include <memory>
 #include <utility>
@@ -30,7 +32,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 class ConcreteScheduleNode : public ScheduleNode {
@@ -50,7 +51,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   /*! \brief A symbol table that maps random variables to concrete StmtSRef/Integers */
   TSymbolTable symbol_table_;
   /*! \brief A persistent stateless arithmetic analyzer. */
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   /*! \brief The value of random state for sampling. */
   LinearCongruentialEngine::TRandState rand_state_;
 
@@ -90,7 +91,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   /******** Schedule: Sampling ********/
   ExprRV SampleCategorical(const ffi::Array<int64_t>& candidates, const ffi::Array<FloatImm>& probs,
                            ffi::Optional<int64_t> decision = std::nullopt) override;
-  ffi::Array<ExprRV> SamplePerfectTile(
+  ffi::Array<ffi::Optional<ExprRV>> SamplePerfectTile(
       const LoopRV& loop_rv, int n, int max_innermost_factor,
       ffi::Optional<ffi::Array<int64_t>> decision = std::nullopt) override;
   ffi::Array<ExprRV> SamplePartitionedTile(
@@ -227,12 +228,11 @@ class ConcreteScheduleNode : public ScheduleNode {
   /*!
    * \brief Add a list of integers as random variables into the symbol table
    * \param value The list of integers to be added to the symbol table
-   * \param convert_negone_to_none Convert negative one to none RV.
-   * Which is convention of certain primitives.
    * \return The new random variables created
    */
-  inline ffi::Array<ExprRV> CreateRV(const std::vector<int64_t>& value,
-                                     bool convert_negone_to_none = false);
+  inline ffi::Array<ExprRV> CreateRV(const std::vector<int64_t>& value);
+  /*! \brief Create tile factors, representing an inferred (-1) factor as absence. */
+  inline ffi::Array<ffi::Optional<ExprRV>> CreateOptionalRV(const std::vector<int64_t>& value);
   /*! \brief Remove a random variable from the symbol table */
   inline void RemoveFromSymbolTable(const ffi::ObjectRef& rv);
   /*!
@@ -260,15 +260,17 @@ inline For ConcreteScheduleNode::Get(const LoopRV& loop_rv) const {
 }
 
 inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
-  PrimExpr transformed = Substitute(expr_rv, [this](const Var& var) -> ffi::Optional<Expr> {
+  auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     auto it = this->symbol_table_.find(var);
     if (it == this->symbol_table_.end()) {
       TVM_FFI_THROW(IndexError) << "Cannot find corresponding ExprRV: " << var;
     }
     const ffi::ObjectRef& obj = (*it).second;
     const auto* int_imm = TVM_TYPE_AS(obj, IntImmNode);
-    return IntImm::Int32(int_imm->value);
-  });
+    return ffi::Any(IntImm::Int32(int_imm->value));
+  };
+  PrimExpr transformed =
+      ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(expr_rv, f_substitute).as_or_throw<PrimExpr>();
   return this->analyzer_->Simplify(transformed);
 }
 
@@ -373,16 +375,21 @@ inline ExprRV ConcreteScheduleNode::CreateRV(int64_t value) {
   return rv.as_or_throw<PrimExpr>();
 }
 
-inline ffi::Array<ExprRV> ConcreteScheduleNode::CreateRV(const std::vector<int64_t>& value,
-                                                         bool convert_negone_to_none) {
+inline ffi::Array<ExprRV> ConcreteScheduleNode::CreateRV(const std::vector<int64_t>& value) {
   ffi::Array<ExprRV> results;
   results.reserve(value.size());
   for (int64_t v : value) {
-    if (convert_negone_to_none && v == -1) {
-      results.push_back(ExprRV(nullptr));
-      continue;
-    }
     results.push_back(CreateRV(v));
+  }
+  return results;
+}
+
+inline ffi::Array<ffi::Optional<ExprRV>> ConcreteScheduleNode::CreateOptionalRV(
+    const std::vector<int64_t>& value) {
+  ffi::Array<ffi::Optional<ExprRV>> results;
+  results.reserve(value.size());
+  for (int64_t v : value) {
+    results.push_back(v == -1 ? ffi::Optional<ExprRV>(std::nullopt) : CreateRV(v));
   }
   return results;
 }

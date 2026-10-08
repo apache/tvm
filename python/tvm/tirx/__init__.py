@@ -20,52 +20,53 @@
 
 import tvm.script
 
-tvm.script.register_dialect("tirx", "tvm.tirx.script")
+tvm.script.register_dialect("tirx", "tvm.tirx.script", builder_path="tvm.tirx.script.ir_builder")
 
 
 from tvm.ir import Expr
 from tvm.runtime import const
 
 from .buffer import (
-    Buffer,
     BufferAccessKind,
-    BufferType,
+    TensorType,
     buffer_data,
     buffer_data_pointer_type,
-    decl_buffer,
-    is_buffer_var,
+    decl_tensor,
+    is_tensor_var,
 )
+from .type import TensorMapType
 from .expr import convert
-from .expr import Var, Reduce, FloatImm, IntImm, StringImm, Cast
+from .expr import Var, FloatImm, IntImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
+from .expr import LShift, RShift, BitwiseAnd, BitwiseOr, BitwiseXor, BitwiseNot
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
-from .expr import Select, BufferLoad, Ramp, Broadcast, Shuffle
-from .expr import CallEffectKind, Let, IterVar, CommReducer
+from .expr import Select, TensorLoad, Ramp, Broadcast, Shuffle
+from .expr import CallEffectKind, Let
 
 from .stmt import Stmt, Bind, AssertStmt, ForKind, For, While, Return, Break, Continue
 
-# Legacy alias: LetStmt was folded into Bind (which now accepts an optional body)
+# Legacy alias: LetStmt was folded into the body-less Bind statement.
 LetStmt = Bind
 
-from .stmt import BufferStore, AllocBuffer, AttrStmt, DeclBuffer
+from .stmt import TensorStore, RegionStmt
 
 from .stmt import SeqStmt
 from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
-from .stmt import BufferRegion, BufferRegionType, MatchBufferRegion, SBlock, SBlockRealize
+from .stmt import BufferRegion, BufferRegionType
 from .stmt import ScopeIdDefStmt
-from .tile_primitive import DispatchContext, LambdaExpr, TilePrimitiveCall
+from .tile_primitive import DispatchContext, TilePrimitiveCall
 
-from .function import PrimFunc, TensorIntrin, IndexMap
+from .function import Function, IndexMap
 
-from .op import call_packed_lowered, call_cpacked_lowered, call_tir
+from .op import call_packed_lowered, call_cpacked_lowered, register_intrin_lowering
 from .op import call_packed, call_cpacked, call_intrin, call_pure_extern, call_extern
-from .op import call_llvm_intrin, call_llvm_pure_intrin, all, any, min_value, max_value, trace
+from .op import CallFFIKernelAttr, call_ffi_kernel, TensorMapEncodeTiledAttr, tensormap_encode_tiled
+from .op import call_llvm_intrin, call_llvm_pure_intrin, all, any, min_value, max_value
 from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
-from .op import tvm_tuple, handle_add_byte_offset, tvm_struct_get, tvm_struct_set
-from .op import address_of, lookup_param, assume, undef
-from .op import continue_loop, break_loop
+from .op import handle_add_byte_offset, tvm_struct_get, tvm_struct_set
+from .op import address_of, assume, assume_aligned, undef
 from .op import tvm_thread_allreduce, type_annotation, tvm_access_ptr, ptr_byte_offset
-from .op import tvm_throw_last_error
+from .op import tvm_throw_last_error, cpu_parallel_barrier
 from .op import (
     tvm_load_matrix_sync,
     tvm_store_matrix_sync,
@@ -84,10 +85,9 @@ from .op import erf, sigmoid, sqrt, rsqrt, floor, ceil, hypot
 from .op import trunc, abs, round, nextafter, nearbyint, power, pow, popcount, fmod, if_then_else
 from .op import likely, isnan, isnullptr, isfinite, isinf, copysign
 from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod, ceildiv, logaddexp
-from .op import comm_reducer, min, max, sum
+from .op import min, max
 from .op import q_multiply_shift, q_multiply_shift_per_axis, shift_left, shift_right
 from .op import TVMBackendAllocWorkspace, TVMBackendFreeWorkspace
-from .op import start_profile_intrinsic, end_profile_intrinsic
 from .op import vscale, get_active_lane_mask, get_vscale_expr
 from .op import dp4a
 from .op import ignore_loop_partition
@@ -114,4 +114,25 @@ if not _RUNTIME_ONLY_TIRX:
 
 import tvm.script
 
-tvm.script.register_dialect("tirx", "tvm.tirx.script")
+tvm.script.register_dialect("tirx", "tvm.tirx.script", builder_path="tvm.tirx.script.ir_builder")
+
+
+def _check_script_module(module: "tvm.ir.IRModule") -> None:
+    # Delay builder imports until validation, keeping dialect/runtime bootstrap safe.
+    from tvm.tirx.script.ir_builder.parser_protocol import _check_module_well_formed
+
+    _check_module_well_formed(module)
+
+
+tvm.script.register_module_validator(_check_script_module)
+
+
+def _initialize_script_namespace() -> None:
+    from . import script
+
+    script._initialize()
+
+
+from tvm.script.parser import register_namespace_initializer as _register_namespace_initializer
+
+_register_namespace_initializer(_initialize_script_namespace, aliases=("tirx", "Tx", "Axis"))

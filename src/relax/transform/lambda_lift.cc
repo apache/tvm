@@ -310,9 +310,10 @@ class LambdaLifter : public ExprMutator {
     // Defining the rewrite rule prior to visiting the body, so that
     // recursive closures can be updated.
     if (is_recursive && is_closure) {
-      nested_closure_map_.emplace(current_lambda_var_.value(),
-                                  Call(Type::Missing(), gvar_lifted_func,
-                                       captured_vars.Map([](Var var) -> Expr { return var; })));
+      nested_closure_map_.emplace(
+          current_lambda_var_.value(),
+          Call::Unchecked(Type::Missing(), gvar_lifted_func,
+                          captured_vars.Map([](Var var) -> Expr { return var; })));
     }
 
     if (!is_closure) {
@@ -323,15 +324,14 @@ class LambdaLifter : public ExprMutator {
     Type ret_ty = GetType(body);
     body = Bind(body, rebinding_map);
 
-    Function lifted_func;
-    if (lifted_func_params.same_as(func_node->params) && body.same_as(func_node->body) &&
-        ret_ty.same_as(func_node->ret_ty)) {
-      lifted_func = ffi::GetRef<Function>(func_node);
-    } else {
-      lifted_func =
-          Function(lifted_func_params, body, ret_ty, func_node->is_pure, func_node->attrs);
-    }
-
+    Function lifted_func = [&]() -> Function {
+      if (lifted_func_params.same_as(func_node->params) && body.same_as(func_node->body) &&
+          ret_ty.same_as(func_node->ret_ty)) {
+        return ffi::GetRef<Function>(func_node);
+      } else {
+        return Function(lifted_func_params, body, ret_ty, func_node->is_pure, func_node->attrs);
+      }
+    }();
     TVM_FFI_ICHECK(lifted_func.defined());
 
     if (is_closure || IsClosure(lifted_func)) {
@@ -351,7 +351,7 @@ class LambdaLifter : public ExprMutator {
       Tuple arg_tuple(captured_vars.Map([](Var var) -> Expr { return var; }));
       // Call make_closure intrinsic
       callable_value =
-          Call(Type::Missing(), make_closure_op_, {gvar_lifted_func, arg_tuple}, {}, {});
+          Call::Unchecked(Type::Missing(), make_closure_op_, {gvar_lifted_func, arg_tuple}, {}, {});
     }
 
     return callable_value;
@@ -387,8 +387,9 @@ class LambdaLifter : public ExprMutator {
         }();
 
         auto prev = call;
-        call = Call(Type::Missing(), is_pure ? invoke_pure_closure_op_ : invoke_closure_op_,
-                    {var, Tuple(call->args)}, {}, {orig_ty});
+        call =
+            Call::Unchecked(Type::Missing(), is_pure ? invoke_pure_closure_op_ : invoke_closure_op_,
+                            {var, Tuple(call->args)}, {}, {orig_ty});
       }
     }
 
@@ -403,7 +404,8 @@ class LambdaLifter : public ExprMutator {
         }
 
         auto prev = call;
-        call = Call(Type::Missing(), nested_call->op, new_args, call->attrs, call->ty_args);
+        call =
+            Call::Unchecked(Type::Missing(), nested_call->op, new_args, call->attrs, call->ty_args);
       }
     }
 
@@ -489,9 +491,9 @@ class LambdaLifter : public ExprMutator {
   std::unordered_map<const FunctionNode*, ffi::String> lifted_names_;
 
   /*! \brief Cache ops that would be used later to reduce lookup overhead. */
-  const Op& make_closure_op_ = Op::Get("relax.make_closure");
-  const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
-  const Op& invoke_pure_closure_op_ = Op::Get("relax.invoke_pure_closure");
+  const Op make_closure_op_ = Op::Get("relax.make_closure");
+  const Op invoke_closure_op_ = Op::Get("relax.invoke_closure");
+  const Op invoke_pure_closure_op_ = Op::Get("relax.invoke_pure_closure");
 };
 
 namespace transform {

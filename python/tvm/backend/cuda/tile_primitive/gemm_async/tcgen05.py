@@ -26,10 +26,11 @@ import functools
 import operator
 
 import tvm
-from tvm.arith.analyzer import Analyzer
+from tvm.ir import Call, DataTypeImm, DictAttrs, StringImm, TensorRegion, Tuple
 from tvm.runtime import DataType
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc
+from tvm.sym.analyzer import Analyzer
+from tvm.tirx import Function, IntImm
 from tvm.tirx import op as tirx_op
 from tvm.tirx.layout import (
     ComposeLayout,
@@ -43,7 +44,7 @@ from tvm.tirx.layout import (
     tmem_mma_operand_layout,
 )
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.stmt import AllocBuffer, Evaluate, SeqStmt
+from tvm.tirx.stmt import Bind, Evaluate, SeqStmt
 from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ...cpp.descriptors import (
@@ -278,12 +279,12 @@ def _get_explicit_mma_tile(config):
     values = []
     for name in ("mma_m", "mma_n"):
         value = config[name]
-        if isinstance(value, bool):
+        if isinstance(value, bool) or (isinstance(value, IntImm) and str(value.ty.dtype) == "bool"):
             raise ValueError(
                 f"gemm_async[tcgen05]: {name} must be a positive integer, got {value!r}"
             )
         try:
-            value = operator.index(value)
+            value = int(value) if isinstance(value, IntImm) else operator.index(value)
         except TypeError as err:
             raise ValueError(
                 f"gemm_async[tcgen05]: {name} must be a positive integer, got {value!r}"
@@ -351,7 +352,7 @@ def _layout_matches_datapath_f(tmem_buf) -> bool:
         return False
 
 
-def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     """Schedule an asynchronous GEMM operation using tcgen05.mma (Blackwell Tensor Core).
 
     Computes C = A @ B (with optional transpose on A/B and accumulation).
@@ -380,7 +381,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         sctx: Schedule context (single-thread or warp execution scope)
 
     Returns:
-        A PrimFunc implementing the tcgen05 MMA schedule.
+        A Function implementing the tcgen05 MMA schedule.
 
     Raises:
         ValueError: If buffer scopes are invalid (C must be tmem, A must be shared or tmem,
@@ -391,13 +392,13 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     op_call = TilePrimitiveCall.downcast(op_call)
     is_block_scaled = op_call.is_block_scaled
 
-    C_buffer_region: tvm.tirx.BufferRegion = op_call.output
-    A_buffer_region: tvm.tirx.BufferRegion = op_call.lhs
-    B_buffer_region: tvm.tirx.BufferRegion = op_call.rhs
+    C_buffer_region: TensorRegion = op_call.output
+    A_buffer_region: TensorRegion = op_call.lhs
+    B_buffer_region: TensorRegion = op_call.rhs
     C_buffer, A_buffer, B_buffer = (
-        C_buffer_region.buffer,
-        A_buffer_region.buffer,
-        B_buffer_region.buffer,
+        C_buffer_region.source,
+        A_buffer_region.source,
+        B_buffer_region.source,
     )
 
     C_scope, A_scope, B_scope = C_buffer.scope(), A_buffer.scope(), B_buffer.scope()
@@ -465,8 +466,10 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     if is_block_scaled:
         SFA_buffer_region, SFB_buffer_region = op_call.sfa, op_call.sfb
         transA, transB, accum = op_call.transA, op_call.transB, op_call.accum
-        SFA_buffer: tvm.tirx.Buffer = SFA_buffer_region.buffer
-        SFB_buffer: tvm.tirx.Buffer = SFB_buffer_region.buffer
+        transA = bool(transA) if isinstance(transA, IntImm) else transA
+        transB = bool(transB) if isinstance(transB, IntImm) else transB
+        SFA_buffer: tvm.ir.Var = SFA_buffer_region.source
+        SFB_buffer: tvm.ir.Var = SFB_buffer_region.source
         SFA_scope, SFB_scope = SFA_buffer.scope(), SFB_buffer.scope()
         if not (SFA_scope == "tmem" and SFB_scope == "tmem"):
             raise ValueError(
@@ -498,8 +501,12 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         _validate_sf_tmem_layout(SFB_slice_layout, SFB_rows, SFB_K_total, sfb_sf_mma_k, "SFB")
     else:
         transA, transB, accum = op_call.transA, op_call.transB, op_call.accum
+        transA = bool(transA) if isinstance(transA, IntImm) else transA
+        transB = bool(transB) if isinstance(transB, IntImm) else transB
 
     cta_group = op_call.config.get("cta_group", 1)
+    if isinstance(cta_group, IntImm):
+        cta_group = cta_group.value
     assert cta_group in [1, 2], f"tcgen05 schedule expected cta_group=1 or 2, got {cta_group}"
     # descI (pre-encoded uint32 instruction descriptor): rejected on the dense
     # path (dispatcher encodes it); block-scaled callers may still pass it in.
@@ -949,7 +956,12 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     # Packed Layout-E C (M, 2, N//2) is uniquely the cta_group::1 M=64 .ws datapath
     # (PTX §9.7.16.10.5), so .ws is inferred; weight_stationary=False on it is rejected.
     if packed_n2 and not is_2x2:
-        if op_call.config.get("weight_stationary") is False:
+        explicit_ws = op_call.config.get("weight_stationary")
+        if (
+            isinstance(explicit_ws, IntImm)
+            and str(explicit_ws.ty.dtype) == "bool"
+            and not int(explicit_ws)
+        ):
             raise ValueError(
                 "gemm_async[tcgen05]: C uses the packed (M, 2, N//2):(1@TLane, "
                 "64@TLane, 1@TCol) Layout-E TMEM layout, which is the M=64 "
@@ -1075,8 +1087,8 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     _krp = Evaluate(tirx_op.tvm_kernel_replace_point())
 
     def _make_lo_uniform(desc_buf):
-        desc_lo = tvm.tirx.decl_buffer((1,), "uint32", name=f"{desc_buf.name}_lo", scope="local")
-        desc_hi = tvm.tirx.decl_buffer((1,), "uint32", name=f"{desc_buf.name}_hi", scope="local")
+        desc_lo = tvm.tirx.decl_tensor((1,), "uint32", name=f"{desc_buf.name}_lo", scope="local")
+        desc_hi = tvm.tirx.decl_tensor((1,), "uint32", name=f"{desc_buf.name}_hi", scope="local")
         unpack = T.ptx.mov.b64(desc_lo[0], desc_hi[0], desc_buf[0])
         shuffle = T.ptx.shfl_sync.idx.b32(
             desc_lo[0],
@@ -1088,8 +1100,32 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         pack = T.ptx.mov.b64(desc_buf[0], desc_lo[0], desc_hi[0])
         return SeqStmt(
             [
-                AllocBuffer(desc_lo),
-                AllocBuffer(desc_hi),
+                Bind(
+                    desc_lo,
+                    Call(
+                        "tirx.alloc_tensor",
+                        [
+                            Tuple(desc_lo.ty.shape),
+                            DataTypeImm(desc_lo.ty.dtype.dtype),
+                            StringImm(desc_lo.scope()),
+                        ],
+                        attrs=DictAttrs({}),
+                        ty=desc_lo.ty,
+                    ),
+                ),
+                Bind(
+                    desc_hi,
+                    Call(
+                        "tirx.alloc_tensor",
+                        [
+                            Tuple(desc_hi.ty.shape),
+                            DataTypeImm(desc_hi.ty.dtype.dtype),
+                            StringImm(desc_hi.scope()),
+                        ],
+                        attrs=DictAttrs({}),
+                        ty=desc_hi.ty,
+                    ),
+                ),
                 Evaluate(unpack),
                 Evaluate(shuffle),
                 Evaluate(pack),
@@ -1101,7 +1137,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         # issuer, so make the descriptor low word uniform there.  A
         # single-thread caller is already elected: a full-mask shuffle in that
         # scope is invalid, and the same thread consumes the descriptor anyway.
-        desc_buf = tvm.tirx.decl_buffer((1,), "uint64", name=name, scope="local")
+        desc_buf = tvm.tirx.decl_tensor((1,), "uint64", name=name, scope="local")
         encode_call = tvm.tirx.call_intrin(
             "",
             "tirx.cuda.tcgen05_encode_matrix_descriptor",
@@ -1111,7 +1147,22 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
             sdo,
             swizzle_val,
         )
-        wrap_stmts = [AllocBuffer(desc_buf), Evaluate(encode_call)]
+        wrap_stmts = [
+            Bind(
+                desc_buf,
+                Call(
+                    "tirx.alloc_tensor",
+                    [
+                        Tuple(desc_buf.ty.shape),
+                        DataTypeImm(desc_buf.ty.dtype.dtype),
+                        StringImm(desc_buf.scope()),
+                    ],
+                    attrs=DictAttrs({}),
+                    ty=desc_buf.ty,
+                ),
+            ),
+            Evaluate(encode_call),
+        ]
         if warp_scope:
             wrap_stmts.append(_make_lo_uniform(desc_buf))
         wrap_stmts.append(_krp)
@@ -1168,6 +1219,8 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     # smem_desc modes: "hoist" (default, encode once after alloc), "local_hoist"
     # (encode at call site, reuse via add_16B_offset), "encode"/"recompute" (per MMA).
     smem_desc_mode = op_call.config.get("smem_desc", "hoist")
+    if isinstance(smem_desc_mode, tvm.ir.StringImm):
+        smem_desc_mode = smem_desc_mode.value
     local_hoist = smem_desc_mode == "local_hoist"
     encode_per_mma = smem_desc_mode == "encode"
     use_add = smem_desc_mode not in ("recompute", "encode")
@@ -1225,23 +1278,6 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
 
         sfa_base = SFA_buffer.allocated_addr[0]
         sfb_base = SFB_buffer.allocated_addr[0]
-
-        # Compute initial SFA/SFB addresses (for ki=0). Both physical axes are
-        # part of a TMEM address: TLane occupies the high half-word and TCol
-        # the low half-word. Dropping TLane silently redirects an explicitly
-        # banded scale view to row zero.
-        sfa_coord_0 = SFA_slice_layout.apply(0)
-        sfb_coord_0 = SFB_slice_layout.apply(0)
-        sfa_tlane_0 = sfa_coord_0.get("TLane", 0)
-        sfb_tlane_0 = sfb_coord_0.get("TLane", 0)
-        sfa_tcol_0 = sfa_coord_0.get("TCol", 0)
-        sfb_tcol_0 = sfb_coord_0.get("TCol", 0)
-        SFA_init_addr = _get_tmem_addr_fast(
-            sfa_base, sfa_tlane_0, tvm.tirx.floordiv(sfa_tcol_0, SFA_elem_per_col)
-        )
-        SFB_init_addr = _get_tmem_addr_fast(
-            sfb_base, sfb_tlane_0, tvm.tirx.floordiv(sfb_tcol_0, SFB_elem_per_col)
-        )
 
         # Rotate sf_id per ki when multiple ki share one SF column.
         needs_sf_id = sfa_sf_mma_k < SFA_elem_per_col and sfa_elems_per_ki > 0
@@ -1435,22 +1471,21 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
 
     # descI is not None only for block-scaled calls (dense descI raises above).
     if descI is not None and not needs_sf_id:
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             call_main(descI)
     elif descI is not None:
         # Local copy: main_impl rotates descI in-place per ki.
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             descI_local: T.uint32
             descI_local = descI
             call_main(descI_local)
     elif is_block_scaled:
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             descI_local: T.uint32
             T.cuda.tcgen05.encode_instr_descriptor_block_scaled(T.address_of(descI_local), d_dtype=C_type, a_dtype=A_type, b_dtype=B_type, sfa_dtype=SFA_type, sfb_dtype=SFB_type,  # noqa: E501, F821
-                                                               sfa_tmem_addr=SFA_init_addr, sfb_tmem_addr=SFB_init_addr,  # noqa: E501
                                                                M=M_mma * cta_group, N=N_mma, K=MMA_K, trans_a=a_mn_major, trans_b=b_mn_major, n_cta_groups=cta_group)  # noqa: E501
             call_main(descI_local)  # noqa: F821
     else:
@@ -1472,7 +1507,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         )
         descI_const = tvm.tirx.const(descI_value, "uint32")
 
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             call_main(descI_const)
     # fmt: on
@@ -1523,5 +1558,5 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         )
     ],
 )
-def gemm_async_dispatch_tcgen05(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def gemm_async_dispatch_tcgen05(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     return gemm_async_tcgen05_impl(op_call, sctx)

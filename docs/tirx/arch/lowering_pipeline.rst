@@ -57,62 +57,58 @@ The ``tirx_pipeline`` module pass applies this exact sequence (a few are gated b
      - ``LowerTIRx``
      - the core lowering — see `Inside LowerTIRx`_ below
    * - 2
-     - ``UnifyThreadBinding``
-     - merges equivalent thread-axis bindings so each ``threadIdx`` / ``blockIdx``
-       axis is declared once
-   * - 3
      - ``StmtSimplify``
-     - statement-level arithmetic simplification (the arith analyzer)
-   * - 4
+     - statement-level arithmetic simplification (the sym analyzer)
+   * - 3
      - ``LowerTIRxOpaque``
      - lowers remaining opaque constructs to lower-level TIRx forms
-   * - 5
+   * - 4
      - ``FlattenBuffer``
-     - flattens multi-dimensional ``BufferLoad`` / ``BufferStore`` to 1-D
-   * - 6
+     - flattens multi-dimensional ``TensorLoad`` / ``TensorStore`` to 1-D
+   * - 5
      - ``BF16ComputeLegalize``
      - rewrites ``bfloat16`` compute to a legal (f32-up-cast) form
-   * - 7
+   * - 6
      - ``NarrowDataType(32)``
      - narrows index/loop ``PrimExpr`` dtypes to 32-bit where provably safe
-   * - 8
+   * - 7
      - ``VectorizeLoop``
      - turns ``Tx.vectorized`` loops into vector ops (skipped if
        ``tir.disable_vectorize``)
-   * - 9
+   * - 8
      - ``UnrollLoop``
      - unrolls loops marked ``Tx.unroll`` (and small constant loops)
-   * - 10
+   * - 9
      - ``StmtSimplify``
      - simplify again, now that vectorize/unroll exposed constants
-   * - 11
+   * - 10
      - ``CommonSubexprElim``
      - hoists repeated subexpressions into temporaries (skipped if
        ``tir.disable_cse_tir``)
-   * - 12
+   * - 11
      - ``FP8ComputeLegalize``
      - rewrites ``float8`` compute to a legal form
-   * - 13
+   * - 12
      - ``VerifyMemory``
      - checks no host-side code directly dereferences device memory (a safety gate)
-   * - 14
+   * - 13
      - ``AnnotateEntryFunc``
-     - marks the single PrimFunc as the module entry point
-   * - 15
+     - marks the single Function as the module entry point
+   * - 14
      - ``SplitHostDevice``
      - extracts target-annotated device regions into **device** functions and
        leaves launch calls in the **host** function; the regions originate from
        the thread extents produced while lowering ``Tx.device_entry`` and scope ids
-   * - 16
+   * - 15
      - ``LowerIket``
      - lowers CUDA IKET instrumentation after host/device splitting
-   * - 17
+   * - 16
      - ``MakePackedAPI``
      - rewrites the host function to the packed-func ABI (the launcher TVM calls)
-   * - 18
+   * - 17
      - ``FP8StorageLegalize``
      - legalizes ``float8`` storage (packing into supported container types)
-   * - 19
+   * - 18
      - ``BF16StorageLegalize``
      - legalizes ``bfloat16`` storage
 
@@ -143,10 +139,10 @@ Inside LowerTIRx
   (``addr = data + elem_offset + layout.apply(coord)``), flattens the buffers,
   and removes buffer offsets that have been folded into the resulting views.
 
-After ``LowerTIRx`` the module remains a ``tvm.tirx.PrimFunc``, but contains no
+After ``LowerTIRx`` the module remains a ``tvm.tirx.Function``, but contains no
 tile primitives or ``TileLayout`` indirection, and scope ids have been resolved
 to thread axes.  Later TIRx passes lower the remaining opaque constructs and
-the target code generators consume ``tirx::PrimFunc`` directly; there is no
+the target code generators consume ``tirx::Function`` directly; there is no
 conversion to the separate ``tvm.tir`` object model.
 
 A worked example
@@ -156,11 +152,12 @@ Take a one-line scale kernel:
 
 .. code-block:: python
 
-    @Tx.prim_func
-    def scale(A_ptr: Tx.handle, B_ptr: Tx.handle):
-        A = Tx.match_buffer(A_ptr, (256,), "float32")
-        B = Tx.match_buffer(B_ptr, (256,), "float32")
-        Tx.device_entry(); bx = Tx.cta_id([1]); tx = Tx.thread_id([256])
+    @Tx.function
+    def scale(A: Tx.Tensor((256,), "float32"), B: Tx.Tensor((256,), "float32")):
+
+        Tx.device_entry()
+        bx = Tx.cta_id([1])
+        tx = Tx.thread_id([256])
         B[tx] = A[tx] * Tx.float32(2.0)
 
 **After ``LowerTIRx``** the scope ids are real thread axes and the layout is applied

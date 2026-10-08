@@ -27,6 +27,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/iter_var.h>
 #include <tvm/tirx/op.h>
 
 #include <algorithm>
@@ -47,7 +48,7 @@ class SLayoutAxis {
   static const SLayoutAxis& Get(const char name);
 
   // Get the singleton SLayoutAxis using itvar->var->name
-  static const SLayoutAxis& Get(const tirx::IterVar& itvar);
+  static const SLayoutAxis& Get(const s_tir::IterVar& itvar);
 
   // Get the singleton SLayoutAxis using name[0] (size of name must be 1).
   static const SLayoutAxis& Get(const std::string& name);
@@ -104,11 +105,11 @@ class SLayoutNode : public ffi::Object {
   ffi::String name;
   /*! \brief specify each axis of the layout,
    *   in which the variable name is the name of the axis.
-   *   The IterVar's extent indicates the size of the axis,
+   *   The s_tir::IterVar's extent indicates the size of the axis,
    *   it is a variable for a primal axis, but a constant for a subordinate axis.
    *   Empty for scalar's layout.
    */
-  ffi::Array<tirx::IterVar> axes;
+  ffi::Array<s_tir::IterVar> axes;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -125,7 +126,7 @@ class SLayoutNode : public ffi::Object {
  */
 class SLayout : public ffi::ObjectRef {
  public:
-  explicit SLayout(const ffi::Array<tirx::IterVar>& axes);
+  explicit SLayout(const ffi::Array<s_tir::IterVar>& axes);
 
   /*! \brief construct from a string */
   SLayout(const tvm::ffi::String& name) : SLayout(name.operator std::string()) {}  // NOLINT(*)
@@ -161,20 +162,20 @@ class SLayout : public ffi::ObjectRef {
   }
 
   /*!
-   * \brief Packs the Given Array of IterVars into a Single IterVar. Each IterVar in the Array
-   *        should represent either a single primal axis or one or more subordinate axis
+   * \brief Packs the Given Array of IterVars into a Single s_tir::IterVar. Each s_tir::IterVar in
+   * the Array should represent either a single primal axis or one or more subordinate axis
    * \param iters Array of iter vars to be packed
    * \return A packed iter var
    */
-  static IterVar PackIterVar(ffi::Array<IterVar> iters);
+  static s_tir::IterVar PackIterVar(ffi::Array<s_tir::IterVar> iters);
 
   /*!
-   * \brief Unpacks a Packed IterVar into its constituents
-   * \param packed_iter A Packed IterVar containing a single primal axis or one or more subordinate
-   *                    axis
+   * \brief Unpacks a Packed s_tir::IterVar into its constituents
+   * \param packed_iter A Packed s_tir::IterVar containing a single primal axis or one or more
+   * subordinate axis
    * \return Constituent IterVars
    */
-  static ffi::Array<IterVar> UnpackIterVar(IterVar packed_iter);
+  static ffi::Array<s_tir::IterVar> UnpackIterVar(s_tir::IterVar packed_iter);
 
   /*!
    * \brief Returns a sub-layout which is the portion of the object
@@ -273,7 +274,7 @@ class SLayout : public ffi::ObjectRef {
    * \param iter the input iter var.
    * \return the index or -1 if not found.
    */
-  inline int32_t IndexOf(const tirx::IterVar& iter) const { return IndexOf(iter->var->name); }
+  inline int32_t IndexOf(const s_tir::IterVar& iter) const { return IndexOf(iter->var->name); }
 
   /*!
    * \brief Get the factor size of the subordinate axis.
@@ -291,7 +292,7 @@ class SLayout : public ffi::ObjectRef {
    */
   bool Contains(const SLayoutAxis& axis) const {
     if (!defined()) return false;
-    for (const tirx::IterVar packed_var : operator->()->axes) {
+    for (const s_tir::IterVar packed_var : operator->()->axes) {
       auto iter_vars = UnpackIterVar(packed_var);
       for (auto var : iter_vars) {
         if (var->var->name == axis.name()) {
@@ -306,15 +307,15 @@ class SLayout : public ffi::ObjectRef {
     TVM_FFI_ICHECK(defined()) << "Try to access axis from an undefined layout.";
     int32_t index = i < 0 ? static_cast<int32_t>(ndim() + i) : i;
     TVM_FFI_ICHECK(index >= 0 && static_cast<size_t>(index) < ndim()) << "Invalid index " << i;
-    const tirx::IterVar axis = operator->()->axes[index];
+    const s_tir::IterVar axis = operator->()->axes[index];
     return SLayoutAxis::Get(axis);
   }
 
-  IterVar PackedAxisAt(int32_t i) const {
+  s_tir::IterVar PackedAxisAt(int32_t i) const {
     TVM_FFI_ICHECK(defined()) << "Try to access axis from an undefined layout.";
     int32_t index = i < 0 ? static_cast<int32_t>(ndim() + i) : i;
     TVM_FFI_ICHECK(index >= 0 && static_cast<size_t>(index) < ndim()) << "Invalid index " << i;
-    const tirx::IterVar axis = operator->()->axes[index];
+    const s_tir::IterVar axis = operator->()->axes[index];
     return axis;
   }
 

@@ -49,12 +49,13 @@ using namespace tvm::te;
  * \param tag The tag to mark the operation.
  * \return The normalized tensor, with the same shape as data.
  */
-inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& beta,
+inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const ffi::Optional<Tensor>& beta,
                          const ffi::Array<int64_t>& axis, double epsilon,
                          std::string name = "T_layer_norm", std::string tag = kInjective) {
+  using namespace tvm::prim;
   const auto& data_type = data->dtype;
-  const auto& gamma_type = gamma.defined() ? gamma->dtype : data_type;
-  const auto& beta_type = beta.defined() ? beta->dtype : data_type;
+  const auto& gamma_type = gamma->dtype;
+  const auto& beta_type = beta.has_value() ? beta.value()->dtype : data_type;
   TVM_FFI_ICHECK(data_type == gamma_type && data_type == beta_type)
       << "layer_norm: data, gamma and beta must have the same type";
   TVM_FFI_ICHECK(data_type == PrimType::Float(32) || data_type == PrimType::Float(16))
@@ -99,7 +100,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
         if (is_float16) {
           x = prim::Cast(f32_ty, x);
         }
-        return sum(x, reduce_axes);
+        return prim::sum(x, reduce_axes);
       },
       data->op->name + "_sum", kCommReduce);
 
@@ -125,7 +126,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
           x = prim::Cast(f32_ty, x);
         }
         PrimExpr diff = x - temp_mean(indices);
-        return sum(diff * diff, reduce_axes);
+        return prim::sum(diff * diff, reduce_axes);
       },
       data->op->name + "_var_sum", kCommReduce);
 
@@ -140,13 +141,13 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
     }
     auto mean = temp_mean(non_reduce_indices);
     auto var = temp_var_sum(non_reduce_indices) / reduce_extent;
-    auto layer_norm = (data(indices) - mean) * rsqrt(var + MakeConst(var.ty(), epsilon));
+    auto layer_norm = (data(indices) - mean) * prim::rsqrt(var + MakeConst(var.ty(), epsilon));
     if (is_float16) {
       layer_norm = prim::Cast(PrimType::Float(16), layer_norm);
     }
     layer_norm = topi::multiply(layer_norm, gamma(reduce_indices));
-    if (beta.defined()) {
-      layer_norm = topi::add(layer_norm, beta(reduce_indices));
+    if (beta.has_value()) {
+      layer_norm = topi::add(layer_norm, beta.value()(reduce_indices));
     }
     return layer_norm;
   };

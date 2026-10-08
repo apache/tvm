@@ -22,12 +22,13 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/random_engine.h>
 #include <tvm/s_tir/schedule/state.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/tensor_intrin.h>
 
 #include <vector>
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /******** Schedule: Sampling ********/
@@ -194,7 +195,7 @@ ffi::Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& blo
 /*!
  * \brief Get the list of output blocks within the given scope
  * An output block is a block which has atleast one buffer being written
- * to, but is not allocated within the PrimFunc
+ * to, but is not allocated within the Function
  * \param scope_block_rv The scope block from which output blocks are collected
  * \return A list of all blocks that write to some output buffer
  * block
@@ -491,7 +492,7 @@ TVM_DLL void ReverseComputeAt(ScheduleState self, const StmtSRef& block_sref,
  * \brief Inline a block into its consumer(s). It requires:
  * 1) The block is a complete non-root block, which only produces one buffer
  * 2) The block must not be the only leaf in the scope.
- * 3) The body of the block must be a BufferStore statement in the form of,
+ * 3) The body of the block must be a TensorStore statement in the form of,
  *    A[i, j, k, ...] = ...
  * where the indices of the LHS are all distinct atomic variables,
  * and no variables other than those indexing variables are allowed in the statement.
@@ -504,9 +505,9 @@ TVM_DLL void ComputeInline(ScheduleState self, const StmtSRef& block_sref);
  * 1) The block is a complete non-root block, which only produces and consumers one buffer
  * 2) The block must not be the only leaf in the scope.
  * 3) The only producer of the block is a read-after-write producer and a complete non-root block
- * 4) The body of the block must be a BufferStore statement in the form of,
+ * 4) The body of the block must be a TensorStore statement in the form of,
  *    B[f(i, j, k, ...)] = g(i, j, k, A[i, j, k, ...] ...)
- * where the indices of each `BufferLoad` on the RHS are all distinct atomic variables,
+ * where the indices of each `TensorLoad` on the RHS are all distinct atomic variables,
  * and no variables other than those indexing variables are allowed in the statement.
  * \param self The state of the schedule
  * \param block_sref The sref to the block to be inlined to its producer
@@ -700,7 +701,7 @@ TVM_DLL void PadEinsum(ScheduleState self, const StmtSRef& block_sref,
  * appears in the block's ancestor loops as `rolling axis`, fold and circularize the buffer along
  * the rolling dimension, append block predicate to avoid recomputing overlapping elements.
  * It requires:
- * 1) The buffer to be an intermediate buffer defined via `alloc_buffer`.
+ * 1) The buffer to be an intermediate buffer defined via `alloc_tensor`.
  * 2) The LCA of the producer and consumer of the buffer is a for loop, typically,
  *    the producer and consumer of the buffer are cascaded through compute_at.
  * 3) The access region of the buffer has at least one dimension that contains

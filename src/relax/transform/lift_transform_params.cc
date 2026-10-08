@@ -41,6 +41,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 constexpr const char* kLiftTransformConsumeParams = "relax.lift_transform_params.consume_params";
 TVM_REGISTER_PASS_CONFIG_OPTION(kLiftTransformConsumeParams, bool);
@@ -159,6 +160,7 @@ struct GlobalCollectInfo : public BaseCollectInfo {
   ffi::Array<Var> GetCompileTimeOutputs() const { return GetCompileTimeOutputsHelper(params); }
 };
 struct LocalCollectInfo : public BaseCollectInfo {
+  explicit LocalCollectInfo(Function func) : orig_func(std::move(func)) {}
   /* \brief The analyzed function */
   Function orig_func;
 
@@ -240,7 +242,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
       ffi::Array<tirx::Var> global_tir_vars = global_info->GetPropagatedSymbolicVariables();
       global_tir_vars = global_tir_vars.Map([&](const tirx::Var& var) -> tirx::Var {
         if (auto it = global_to_local.find(var); it != global_to_local.end()) {
-          return (*it).second.as_or_throw<tirx::PrimVar>();
+          return (*it).second.as_or_throw<PrimVar>();
         } else {
           // This is the case when the some of the outputs of the shared transform is not used in
           // this function.
@@ -251,7 +253,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
     }();
     if (propagated_tir_vars.size()) {
       ShapeType shape_ty(propagated_tir_vars.Map(
-          [](tirx::Var var) { return var.as_or_throw<tirx::PrimVar>().as_or_throw<PrimExpr>(); }));
+          [](tirx::Var var) { return var.as_or_throw<PrimVar>().as_or_throw<PrimExpr>(); }));
       Var shape_expr("vars_from_compile_time_params", shape_ty);
       params.push_back(shape_expr);
     }
@@ -301,7 +303,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
 
       using ExprMutator::VisitExpr_;
       Expr VisitExpr_(const CallNode* call) override {
-        static const Op& stop_lift_params_op = Op::Get("relax.builtin.stop_lift_params");
+        static const Op stop_lift_params_op = Op::Get("relax.builtin.stop_lift_params");
         if (call->op.same_as(stop_lift_params_op)) {
           return VisitExpr(call->args[0]);
         } else {
@@ -341,7 +343,7 @@ class BaseLiftableBindingCollector : public ExprVisitor {
 
     // Cond 2. Do not lift regarding the "builtin.stop_lift_params" op.
     if (const auto* call = value.as<CallNode>()) {
-      static const Op& stop_lift_params_op = Op::Get("relax.builtin.stop_lift_params");
+      static const Op stop_lift_params_op = Op::Get("relax.builtin.stop_lift_params");
       if (call->op.same_as(stop_lift_params_op)) {
         return false;
       }
@@ -377,9 +379,8 @@ class BaseLiftableBindingCollector : public ExprVisitor {
 class LocalLiftableBindingCollector : public BaseLiftableBindingCollector {
  public:
   static LocalCollectInfo Collect(const Function& func, GlobalCollectInfo* global_info) {
-    LocalLiftableBindingCollector visitor(global_info);
+    LocalLiftableBindingCollector visitor(func, global_info);
     visitor(func);
-    visitor.info_.orig_func = func;
 
     auto set_union =
         [&](std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& target_set,
@@ -404,7 +405,8 @@ class LocalLiftableBindingCollector : public BaseLiftableBindingCollector {
   }
 
  private:
-  explicit LocalLiftableBindingCollector(GlobalCollectInfo* global_info) {
+  LocalLiftableBindingCollector(Function func, GlobalCollectInfo* global_info)
+      : info_(std::move(func)) {
     info_.global_info = global_info;
   }
   void VisitExpr_(const FunctionNode* func) override {
@@ -635,7 +637,7 @@ inline bool ends_with(const std::string& value, const std::string& ending) {
 class ConsumeBundledParams : public ExprMutator {
  public:
   void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* tuple_get_item) final {
-    static const auto& call_pure_packed = Op::Get("relax.call_pure_packed");
+    static const auto call_pure_packed = Op::Get("relax.call_pure_packed");
     static const auto& builtin_tuple_reset_item = ExternFunc("vm.builtin.tuple_reset_item");
     if (tuple_get_item->tuple.same_as(params_)) {
       if (auto it = param_remap_.find(tuple_get_item->index); it != param_remap_.end()) {
@@ -644,11 +646,11 @@ class ConsumeBundledParams : public ExprMutator {
       }
       ExprMutator::VisitBinding_(binding, tuple_get_item);
       auto new_var = VisitExpr(binding->var);
-      param_remap_[tuple_get_item->index] = new_var;
-      builder_->Emit(
-          Call(Type::Missing(), call_pure_packed,
-               {builtin_tuple_reset_item, tuple_get_item->tuple, PrimExpr(tuple_get_item->index)},
-               tvm::Attrs(), {TupleType(ffi::Array<Type>{})}));
+      param_remap_.insert_or_assign(tuple_get_item->index, new_var);
+      builder_->Emit(Call::Unchecked(
+          Type::Missing(), call_pure_packed,
+          {builtin_tuple_reset_item, tuple_get_item->tuple, PrimExpr(tuple_get_item->index)},
+          tvm::Attrs(), {TupleType(ffi::Array<Type>{})}));
     } else {
       ExprMutator::VisitBinding_(binding, tuple_get_item);
     }
@@ -665,7 +667,7 @@ class ConsumeBundledParams : public ExprMutator {
   }
 
  private:
-  Var params_;
+  Var params_{ffi::UnsafeInit{}};
   std::unordered_map<int, Expr> param_remap_;
 };
 
@@ -744,7 +746,7 @@ Pass PartitionTransformParams(ffi::Variant<bool, ffi::Array<ffi::String>> shared
     for (const auto& [gvar, func] : target_functions) {
       auto info = LocalLiftableBindingCollector::Collect(
           func, global_collect_info.has_value() ? &global_collect_info.value() : nullptr);
-      local_collect_info[gvar] = info;
+      local_collect_info.insert_or_assign(gvar, info);
     }
 
     IRModule updated_runtime_functions;
@@ -812,7 +814,7 @@ Pass LiftTransformParams(ffi::Variant<bool, ffi::Array<ffi::String>> shared_tran
           if (pc->GetConfig<bool>(kLiftTransformConsumeParams).value_or(false)) {
             func = ConsumeBundledParams()(func).as_or_throw<Function>();
           }
-          to_add[gvar] = func;
+          to_add.insert_or_assign(gvar, func);
         }
       }
     }

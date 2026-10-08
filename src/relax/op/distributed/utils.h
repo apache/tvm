@@ -25,9 +25,9 @@
 #ifndef TVM_RELAX_OP_DISTRIBUTED_UTILS_H_
 #define TVM_RELAX_OP_DISTRIBUTED_UTILS_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/relax/distributed/axis_group_graph.h>
 #include <tvm/relax/op_attr_types.h>
+#include <tvm/sym/analyzer.h>
 
 #include "../op_common.h"
 

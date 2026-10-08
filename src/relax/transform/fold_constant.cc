@@ -32,6 +32,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 class ConstantFolder : public ExprMutator {
  public:
@@ -65,7 +66,9 @@ class ConstantFolder : public ExprMutator {
     for (const auto v : shape->values) {
       auto* ptr = v.as<IntImmNode>();
       if (!ptr) return std::nullopt;
-      shape_values.push_back(ptr->value);
+      auto value = ptr->value.as<int64_t>();
+      if (!value.has_value()) return std::nullopt;
+      shape_values.push_back(*value);
     }
     return ffi::Shape(shape_values.begin(), shape_values.end());
   }
@@ -78,9 +81,9 @@ class ConstantFolder : public ExprMutator {
       const ffi::Array<Expr>& args) {
     ffi::Array<runtime::Tensor> res;
     for (auto arg : args) {
-      auto* ptr = arg.as<relax::ConstantNode>();
-      if (!ptr) return std::nullopt;
-      res.push_back(ptr->data);
+      auto* ptr = arg.as<::tvm::GenericConstNode>();
+      if (!ptr || !ptr->value.as<runtime::Tensor>()) return std::nullopt;
+      res.push_back(ptr->value.cast<runtime::Tensor>());
     }
     return res;
   }
@@ -89,12 +92,12 @@ class ConstantFolder : public ExprMutator {
    * \brief Pattern match op to a TIR function and look it up.
    * \return The TIR function, or nullopt if pattern match fails.
    */
-  ffi::Optional<tirx::PrimFunc> MatchPrimFunc(const Expr& op) {
+  ffi::Optional<tirx::Function> MatchFunction(const Expr& op) {
     const GlobalVar& global_var = op.as_or_throw<GlobalVar>();
     // NOTE: as check works for nullptr(returns null)
     ffi::Optional<BaseFunc> base_func = builder_->GetContextIRModule()->functions.Get(global_var);
-    if (auto* pfunc = base_func.as<tirx::PrimFuncNode>()) {
-      return ffi::GetRef<tirx::PrimFunc>(pfunc);
+    if (auto* pfunc = base_func.as<tirx::FunctionNode>()) {
+      return ffi::GetRef<tirx::Function>(pfunc);
     }
     return std::nullopt;
   }
@@ -103,9 +106,9 @@ class ConstantFolder : public ExprMutator {
    * \brief Get a cached build version of func
    * \return The cached func, nullopt if func cannot be built.
    */
-  ffi::Optional<ffi::Function> GetCachedBuild(tirx::PrimFunc func) {
-    // TODO(tvm-team): consider another way of bulk extract and build PrimFunc once
-    // would be helpful for future cases where PrimFunc recursively call into each other
+  ffi::Optional<ffi::Function> GetCachedBuild(tirx::Function func) {
+    // TODO(tvm-team): consider another way of bulk extract and build tirx::Function once
+    // would be helpful for future cases where tirx::Function recursively call into each other
     Target eval_cpu_target{"llvm"};
 
     auto it = func_build_cache_.find(func);
@@ -115,7 +118,7 @@ class ConstantFolder : public ExprMutator {
     ffi::Optional<ffi::Function> build_func = std::nullopt;
 
     try {
-      // Not all the primfunc can be directly built via llvm, for example, if a function is
+      // Not all the function can be directly built via llvm, for example, if a function is
       // already scheduled to only work on GPU, we will need to skip this in the const folder for
       // now
       // TODO(Hongyi): further check and narrow the scope of foldable function
@@ -171,13 +174,13 @@ class ConstantFolder : public ExprMutator {
     for (const auto& dim : opt_shape.value()) {
       const auto* int_dim = dim.as<IntImmNode>();
       if (!int_dim) return true;
-      int64_t d = int_dim->value;
-      if (d <= 0) return true;
-      if (num_elements > kMaxFoldElements / d) {
+      auto d = int_dim->value.as<int64_t>();
+      if (int_dim->value <= 0) return true;
+      if (!d.has_value() || num_elements > kMaxFoldElements / *d) {
         num_elements = kMaxFoldElements + 1;
         break;
       }
-      num_elements *= d;
+      num_elements *= *d;
     }
 
     if (num_elements <= kMaxFoldElements) return true;
@@ -195,7 +198,7 @@ class ConstantFolder : public ExprMutator {
 
   // Try constant evaluate a call_tir with a single tensor output.
   // Returns std::nullopt on failure.
-  ffi::Optional<Expr> ConstEvaluateCallTIR(tirx::PrimFunc tir_func,
+  ffi::Optional<Expr> ConstEvaluateCallTIR(tirx::Function tir_func,
                                            ffi::Array<runtime::Tensor> arr_args, ffi::Shape shape,
                                            DLDataType ret_type) {
     // obtain function from the cache.
@@ -222,12 +225,12 @@ class ConstantFolder : public ExprMutator {
     ffi::Any ret;
     // invoke
     func.value().CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), &ret);
-    return Constant(ret_tensor);
+    return MakeTensorConst(ret_tensor);
   }
 
   // Try constant evaluate a call_tir with tuple outputs (multiple output tensors).
   // Returns std::nullopt on failure.
-  ffi::Optional<Expr> ConstEvaluateCallTIRTuple(tirx::PrimFunc tir_func,
+  ffi::Optional<Expr> ConstEvaluateCallTIRTuple(tirx::Function tir_func,
                                                 ffi::Array<runtime::Tensor> arr_args,
                                                 const TupleTypeNode* tuple_ty) {
     ffi::Optional<ffi::Function> func = GetCachedBuild(tir_func);
@@ -263,7 +266,7 @@ class ConstantFolder : public ExprMutator {
 
     ffi::Array<Expr> fields;
     for (size_t i = 0; i < num_outputs; ++i) {
-      fields.push_back(Constant(ret_tensors[i]));
+      fields.push_back(MakeTensorConst(ret_tensors[i]));
     }
     return Tuple(fields);
   }
@@ -272,7 +275,7 @@ class ConstantFolder : public ExprMutator {
   ffi::Optional<Expr> VisitCallTIR(Call call) {
     // call_tir needs to have at least two arguments
     TVM_FFI_ICHECK_GE(call->args.size(), 2);
-    ffi::Optional<tirx::PrimFunc> func = MatchPrimFunc(call->args[0]);
+    ffi::Optional<tirx::Function> func = MatchFunction(call->args[0]);
     TVM_FFI_ICHECK(call->args[1].as<TupleNode>()) << "call_tir.args[1] must be Tuple";
     ffi::Optional<ffi::Array<runtime::Tensor>> arr_args =
         MatchConstArrayArgs(call->args[1].as<TupleNode>()->fields);
@@ -290,8 +293,7 @@ class ConstantFolder : public ExprMutator {
     if (shape) {
       TensorType ret_ty = call->ty.as_or_throw<TensorType>();
       return ConstEvaluateCallTIR(func.value(), arr_args.value(), shape.value(),
-                                  ret_ty->dtype.value()->dtype)
-          .value_or({});
+                                  ret_ty->dtype.value()->dtype);
     }
     return {};
   }
@@ -309,8 +311,10 @@ class ConstantFolder : public ExprMutator {
     // Check if it is useful to fold this call
     if (!ShouldBeFolded(post_call)) return post_call;
 
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
     static const auto& infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
+    static const auto& infer_type_with_builder_map =
+        Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
     auto* op_node = post_call->op.as<OpNode>();
 
@@ -344,7 +348,8 @@ class ConstantFolder : public ExprMutator {
       new_args.push_back(arg);
     }
     Type ret_ty = Type::Missing();
-    if (post_call->ty.as<PrimTypeNode>() && !infer_type_map.count(op)) {
+    if (post_call->ty.as<PrimTypeNode>() && !infer_type_map.count(op) &&
+        !infer_type_with_builder_map.count(op)) {
       ret_ty = post_call->ty.as_or_throw<Type>();
     }
     post_call = Call(ret_ty, post_call->op, new_args, post_call->attrs, post_call->ty_args,
@@ -372,9 +377,9 @@ class ConstantFolder : public ExprMutator {
         //   decomposition map for each op in a similar way we do for legalization.
         TVM_FFI_ICHECK_EQ(post_call->args.size(), 1);
         Expr arg = post_call->args[0];
-        if (arg->IsInstance<ConstantNode>()) {
-          Constant constant = arg.as_or_throw<Constant>();
-          runtime::Tensor ndarray = constant->data;
+        if (arg->IsInstance<GenericConstNode>()) {
+          GenericConst constant = arg.as_or_throw<GenericConst>();
+          runtime::Tensor ndarray = constant->value.cast<runtime::Tensor>();
           TVM_FFI_ICHECK_EQ(ndarray->device.device_type, kDLCPU);
           TVM_FFI_ICHECK(ndarray.IsContiguous());
           TVM_FFI_ICHECK_EQ(ndarray->byte_offset, 0);
@@ -397,13 +402,16 @@ class ConstantFolder : public ExprMutator {
         bool is_known = true;
         for (size_t i = 0; i < values.size(); i++) {
           PrimExpr val = values[i];
-          arr.push_back(val.as<IntImmNode>()->value);
-          is_known &= val.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64);
+          if (!val.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64)) {
+            is_known = false;
+            break;
+          }
+          arr.push_back(static_cast<int64_t>(val.as<IntImmNode>()->value));
         }
         if (is_known) {
           const auto func = tvm::ffi::Function::GetGlobalRequired("relax.run.shape_to_tensor");
           runtime::Tensor vals = func(arr).cast<runtime::Tensor>();
-          return Constant(vals);
+          return MakeTensorConst(vals);
         }
       }
     }
@@ -414,14 +422,14 @@ class ConstantFolder : public ExprMutator {
   Expr VisitExpr_(const VarNode* op) final {
     ffi::Optional<Expr> opt = LookupBinding(ffi::GetRef<Var>(op));
     // `as` check checks if opt is not null and is instance of constant
-    if (opt.as<relax::ConstantNode>()) {
+    if (opt.as<::tvm::GenericConstNode>()) {
       return opt.value();
     }
     return ExprMutator::VisitExpr_(op);
   }
 
   // cache for function build, via structural equality
-  std::unordered_map<tirx::PrimFunc, ffi::Optional<ffi::Function>, ffi::StructuralHash,
+  std::unordered_map<tirx::Function, ffi::Optional<ffi::Function>, ffi::StructuralHash,
                      ffi::StructuralEqual>
       func_build_cache_;
 };

@@ -36,6 +36,8 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
+using tvm::prim::cast;
 
 using ffi::reflection::AccessPath;
 using ffi::reflection::AccessStep;
@@ -58,7 +60,7 @@ TVMFFIABIBuilder::TVMFFIABIBuilder(const ffi::String& func_name, const ffi::Arra
   for (size_t i = 0; i < params.size(); ++i) {
     if (i > 0) os << ", ";
     Var param = params[i];
-    if (auto buf = param.as<BufferVar>()) {
+    if (auto buf = param.as<TensorVar>()) {
       std::string buf_name = buf.value().name();
       os << buf_name << ": Tensor([";
       for (size_t j = 0; j < buf.value()->shape.size(); ++j) {
@@ -85,7 +87,7 @@ TVMFFIABIBuilder::TVMFFIABIBuilder(const ffi::String& func_name, const ffi::Arra
   }
   os << ")";
   func_signature_ = os.str();
-  sig_imm_ = prim::StringImm(func_signature_);
+  sig_imm_ = StringImm(func_signature_);
 
   // Emit argument count check (early check — must execute before any loads)
   int num_args = static_cast<int>(params.size());
@@ -188,41 +190,41 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
       // Duplicate bind: create rich assertion with both paths
       PrimExpr prev_value = it->second.value.as_or_throw<PrimExpr>();
       PrimExpr scond = analyzer_->Simplify(prev_value == value);
-      if (is_zero(scond)) {
+      if (IsZero(scond)) {
         TVM_FFI_THROW(InternalError) << "Bind have an unmet assertion: " << prev_value
                                      << " == " << value << " at " << RenderAccessPath(path);
       }
-      if (!is_one(scond)) {
+      if (!IsOne(scond)) {
         ffi::String current_path_str = RenderAccessPath(path);
         ffi::String first_path_str = RenderAccessPath(it->second.first_def_path);
         int param_index = GetParamIndex(path);
-        ffi::Array<prim::StringImm> parts;
-        parts.push_back(prim::StringImm("Mismatched "));
-        parts.push_back(prim::StringImm(current_path_str));
+        ffi::Array<StringImm> parts;
+        parts.push_back(StringImm("Mismatched "));
+        parts.push_back(StringImm(current_path_str));
         if (param_index >= 0) {
-          parts.push_back(prim::StringImm(" on argument #"));
-          parts.push_back(prim::StringImm(std::to_string(param_index)));
+          parts.push_back(StringImm(" on argument #"));
+          parts.push_back(StringImm(std::to_string(param_index)));
         }
         parts.push_back(when_calling_imm_);
         parts.push_back(sig_imm_);
         if (!first_path_str.empty() && first_path_str != current_path_str) {
-          parts.push_back(prim::StringImm("`,\n  expected to match "));
-          parts.push_back(prim::StringImm(first_path_str));
+          parts.push_back(StringImm("`,\n  expected to match "));
+          parts.push_back(StringImm(first_path_str));
         } else {
-          parts.push_back(prim::StringImm("`,\n  expected matching value"));
+          parts.push_back(StringImm("`,\n  expected matching value"));
         }
-        asserts_.emplace_back(AssertStmt(scond, prim::StringImm("ValueError"), parts));
+        asserts_.emplace_back(AssertStmt(scond, StringImm("ValueError"), parts));
       }
     }
   } else {
     // Non-Var expression (e.g. batch_size + 1): defer assertion to Finalize()
     // so display-var substitution can render human-readable names.
     PrimExpr scond = analyzer_->Simplify(arg == value);
-    if (is_zero(scond)) {
+    if (IsZero(scond)) {
       TVM_FFI_THROW(InternalError) << "Bind have an unmet assertion: " << arg << " == " << value
                                    << " at " << RenderAccessPath(path);
     }
-    if (!is_one(scond)) {
+    if (!IsOne(scond)) {
       pending_const_asserts_.push_back({scond, path, arg});
     }
   }
@@ -247,20 +249,19 @@ bool TVMFFIABIBuilder::BindPointer(const Var& arg, const Expr& value,
   PrimExpr prev_value = pointer_as_uint(it->second.value);
   PrimExpr current_value = pointer_as_uint(value);
   PrimExpr condition = analyzer_->Simplify(prev_value == current_value);
-  if (is_zero(condition)) {
+  if (IsZero(condition)) {
     TVM_FFI_THROW(InternalError) << "Bind has an unmet pointer assertion at "
                                  << RenderAccessPath(path);
   }
-  if (!is_one(condition)) {
+  if (!IsOne(condition)) {
     ffi::String current_path = RenderAccessPath(path);
     ffi::String first_path = RenderAccessPath(it->second.first_def_path);
-    ffi::Array<prim::StringImm> parts{prim::StringImm("Mismatched "),
-                                      prim::StringImm(current_path)};
+    ffi::Array<StringImm> parts{StringImm("Mismatched "), StringImm(current_path)};
     if (!first_path.empty() && first_path != current_path) {
-      parts.push_back(prim::StringImm("`,\n  expected to match "));
-      parts.push_back(prim::StringImm(first_path));
+      parts.push_back(StringImm("`,\n  expected to match "));
+      parts.push_back(StringImm(first_path));
     }
-    asserts_.emplace_back(AssertStmt(condition, prim::StringImm("ValueError"), parts));
+    asserts_.emplace_back(AssertStmt(condition, StringImm("ValueError"), parts));
   }
   return false;
 }
@@ -284,29 +285,33 @@ class ExprPathRenderer : public ExprFunctor<std::string(const Expr&)> {
   explicit ExprPathRenderer(FVarName f_var_name) : f_var_name_(std::move(f_var_name)) {}
 
  protected:
-  std::string VisitExpr_(const VarNode* op) final { return f_var_name_(op); }
-  std::string VisitExpr_(const IntImmNode* op) final { return std::to_string(op->value); }
-  std::string VisitExpr_(const FloatImmNode* op) final {
+  std::string Dispatch_(const VarNode* op) final { return f_var_name_(op); }
+  std::string Dispatch_(const IntImmNode* op) final {
     std::ostringstream os;
     os << op->value;
     return os.str();
   }
-  std::string VisitExpr_(const prim::CastNode* op) final { return VisitExpr(op->value); }
-  std::string VisitExpr_(const prim::AddNode* op) final { return BinOp(op->a, " + ", op->b); }
-  std::string VisitExpr_(const prim::SubNode* op) final { return BinOp(op->a, " - ", op->b); }
-  std::string VisitExpr_(const prim::MulNode* op) final { return BinOp(op->a, " * ", op->b); }
-  std::string VisitExpr_(const prim::DivNode* op) final { return BinOp(op->a, " / ", op->b); }
-  std::string VisitExpr_(const prim::ModNode* op) final { return BinOp(op->a, " % ", op->b); }
-  std::string VisitExpr_(const prim::FloorDivNode* op) final {
+  std::string Dispatch_(const FloatImmNode* op) final {
+    std::ostringstream os;
+    os << op->value;
+    return os.str();
+  }
+  std::string Dispatch_(const prim::CastNode* op) final { return Dispatch(op->value); }
+  std::string Dispatch_(const prim::AddNode* op) final { return BinOp(op->a, " + ", op->b); }
+  std::string Dispatch_(const prim::SubNode* op) final { return BinOp(op->a, " - ", op->b); }
+  std::string Dispatch_(const prim::MulNode* op) final { return BinOp(op->a, " * ", op->b); }
+  std::string Dispatch_(const prim::DivNode* op) final { return BinOp(op->a, " / ", op->b); }
+  std::string Dispatch_(const prim::ModNode* op) final { return BinOp(op->a, " % ", op->b); }
+  std::string Dispatch_(const prim::FloorDivNode* op) final {
     return FuncOp("floordiv", op->a, op->b);
   }
-  std::string VisitExpr_(const prim::FloorModNode* op) final {
+  std::string Dispatch_(const prim::FloorModNode* op) final {
     return FuncOp("floormod", op->a, op->b);
   }
-  std::string VisitExpr_(const prim::MinNode* op) final { return FuncOp("min", op->a, op->b); }
-  std::string VisitExpr_(const prim::MaxNode* op) final { return FuncOp("max", op->a, op->b); }
+  std::string Dispatch_(const prim::MinNode* op) final { return FuncOp("min", op->a, op->b); }
+  std::string Dispatch_(const prim::MaxNode* op) final { return FuncOp("max", op->a, op->b); }
   // Fallback: use operator<< for unhandled expression types.
-  std::string VisitExprDefault_(const ffi::Object* op) final {
+  std::string DispatchDefault_(const ffi::Object* op) final {
     std::ostringstream os;
     os << ffi::GetRef<Expr>(static_cast<const ExprNode*>(op));
     return os.str();
@@ -314,10 +319,10 @@ class ExprPathRenderer : public ExprFunctor<std::string(const Expr&)> {
 
  private:
   std::string BinOp(const PrimExpr& a, const char* op, const PrimExpr& b) {
-    return VisitExpr(a) + op + VisitExpr(b);
+    return Dispatch(a) + op + Dispatch(b);
   }
   std::string FuncOp(const char* name, const PrimExpr& a, const PrimExpr& b) {
-    return std::string(name) + "(" + VisitExpr(a) + ", " + VisitExpr(b) + ")";
+    return std::string(name) + "(" + Dispatch(a) + ", " + Dispatch(b) + ")";
   }
   FVarName f_var_name_;
 };
@@ -339,22 +344,22 @@ void TVMFFIABIBuilder::RenderPendingAsserts() {
   });
 
   for (auto& pending : pending_const_asserts_) {
-    std::string display_str = renderer.VisitExpr(pending.expected_expr);
+    std::string display_str = renderer.Dispatch(pending.expected_expr);
 
     ffi::String path_str = RenderAccessPath(pending.path);
     int param_index = GetParamIndex(pending.path);
-    ffi::Array<prim::StringImm> parts;
-    parts.push_back(prim::StringImm("Invalid "));
-    parts.push_back(prim::StringImm(path_str));
+    ffi::Array<StringImm> parts;
+    parts.push_back(StringImm("Invalid "));
+    parts.push_back(StringImm(path_str));
     if (param_index >= 0) {
-      parts.push_back(prim::StringImm(" on argument #"));
-      parts.push_back(prim::StringImm(std::to_string(param_index)));
+      parts.push_back(StringImm(" on argument #"));
+      parts.push_back(StringImm(std::to_string(param_index)));
     }
     parts.push_back(when_calling_imm_);
     parts.push_back(sig_imm_);
-    parts.push_back(prim::StringImm("`,\n  expected "));
-    parts.push_back(prim::StringImm(display_str));
-    asserts_.emplace_back(AssertStmt(pending.condition, prim::StringImm("ValueError"), parts));
+    parts.push_back(StringImm("`,\n  expected "));
+    parts.push_back(StringImm(display_str));
+    asserts_.emplace_back(AssertStmt(pending.condition, StringImm("ValueError"), parts));
   }
   pending_const_asserts_.clear();
 }
@@ -391,12 +396,12 @@ void TVMFFIABIBuilder::BindArray(const ffi::Array<PrimExpr>& arg, const ffi::Arr
 // BindBuffer (buffer-to-buffer bind with ffi::reflection::AccessPath)
 // ============================================================
 
-void TVMFFIABIBuilder::BindBuffer(const BufferVar& arg, const BufferVar& value,
+void TVMFFIABIBuilder::BindBuffer(const TensorVar& arg, const TensorVar& value,
                                   ffi::reflection::AccessPath base_path, bool fuzzy_match) {
   TVM_FFI_ICHECK_EQ(arg.scope(), value.scope())
-      << "Argument " << arg.name() << " BufferVar bind scope mismatch";
+      << "Argument " << arg.name() << " TensorVar bind scope mismatch";
   TVM_FFI_ICHECK_EQ(arg->dtype, value->dtype)
-      << "Argument " << arg.name() << " BufferVar bind data type mismatch";
+      << "Argument " << arg.name() << " TensorVar bind data type mismatch";
   if (value->data_alignment % arg->data_alignment != 0) {
     LOG(WARNING) << "Trying to bind buffer to another one with lower alignment requirement "
                  << " required alignment=" << arg->data_alignment
@@ -404,9 +409,9 @@ void TVMFFIABIBuilder::BindBuffer(const BufferVar& arg, const BufferVar& value,
   }
 
   if (value->elem_offset.defined()) {
-    if (is_zero(arg->elem_offset)) {
-      TVM_FFI_ICHECK(is_zero(value->elem_offset))
-          << "Trying to bind a BufferVar with offset into one without offset "
+    if (IsZero(arg->elem_offset)) {
+      TVM_FFI_ICHECK(IsZero(value->elem_offset))
+          << "Trying to bind a TensorVar with offset into one without offset "
           << " required elem_offset=" << arg->elem_offset
           << ", provided elem_offset=" << value->elem_offset;
     }
@@ -418,11 +423,11 @@ void TVMFFIABIBuilder::BindBuffer(const BufferVar& arg, const BufferVar& value,
         PrimExpr factor = IntImm(offset.ty(), arg->offset_factor);
         PrimExpr zero = IntImm(offset.ty(), 0);
         PrimExpr acond = analyzer_->Simplify(truncmod(offset, factor) == zero);
-        if (is_zero(acond)) {
+        if (IsZero(acond)) {
           TVM_FFI_THROW(InternalError)
               << "Bind have an unmet assertion at " << RenderAccessPath(offset_path);
         }
-        if (!is_one(acond)) {
+        if (!IsOne(acond)) {
           int param_index = GetParamIndex(base_path);
           int data_bytes =
               ((((arg->dtype->dtype).bits * static_cast<int16_t>((arg->dtype->dtype).lanes)) + 7) /
@@ -440,11 +445,11 @@ void TVMFFIABIBuilder::BindBuffer(const BufferVar& arg, const BufferVar& value,
   ffi::reflection::AccessPath strides_path = base_path->Attr(ffi::String("strides"));
 
   if (arg->shape.size() < value->shape.size()) {
-    TVM_FFI_ICHECK(fuzzy_match) << "BufferVar size mismatch at " << RenderAccessPath(base_path);
+    TVM_FFI_ICHECK(fuzzy_match) << "TensorVar size mismatch at " << RenderAccessPath(base_path);
     size_t diff = value->shape.size() - arg->shape.size();
     for (size_t i = 0; i < diff; ++i) {
-      TVM_FFI_ICHECK(is_one(analyzer_->Simplify(value->shape[i])))
-          << "BufferVar shape mismatch at " << RenderAccessPath(base_path) << ": " << arg->shape
+      TVM_FFI_ICHECK(IsOne(analyzer_->Simplify(value->shape[i])))
+          << "TensorVar shape mismatch at " << RenderAccessPath(base_path) << ": " << arg->shape
           << " vs " << value->shape;
     }
     for (size_t i = 0; i < arg->shape.size(); ++i) {
@@ -489,7 +494,7 @@ Expr TVMFFIABIBuilder::LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int par
 
 Expr TVMFFIABIBuilder::DecodeParamOpaqueHandle(int param_index, const PrimExpr& type_index) {
   // ── Type check: accept handle-like types ───────────────────
-  std::string expected_type = params_[param_index]->ty.as<BufferTypeNode>() ? "Tensor" : "pointer";
+  std::string expected_type = params_[param_index]->ty.as<TensorTypeNode>() ? "Tensor" : "pointer";
   EmitTypeIndexCheck(param_index,
                      type_index == ffi::TypeIndex::kTVMFFINone ||
                          type_index == ffi::TypeIndex::kTVMFFIOpaquePtr ||
@@ -560,7 +565,7 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
   ffi::reflection::AccessPath param_path =
       ffi::reflection::AccessPath::Root()->Extend(AccessStep::ArrayItem(param_index));
 
-  if (param->ty.as<BufferTypeNode>()) {
+  if (param->ty.as<TensorTypeNode>()) {
     Var handle(param->name + ".handle", PointerType::VoidPointerTy());
     Expr handle_value = DecodeParamOpaqueHandle(param_index, type_index.as_or_throw<PrimExpr>());
     BindPointer(handle, handle_value, param_path, true);
@@ -578,7 +583,7 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
   PrimType dtype = param->ty.as_or_throw<PrimType>();
 
   // Type-check and load value via per-dtype dispatch
-  PrimExpr arg_value;
+  PrimExpr arg_value{ffi::UnsafeInit{}};
   if (dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
     arg_value = DecodeParamBool(param_index, type_index.as_or_throw<PrimExpr>());
   } else if (dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
@@ -608,14 +613,31 @@ void TVMFFIABIBuilder::DecodeAllParams() {
   // Phase 2: Bind DLTensor buffers (shape, strides, dtype, device checks)
   for (int i = 0; i < num_args; ++i) {
     Var param = params_[i];
-    if (auto buffer = param.as<BufferVar>()) {
+    if (auto buffer = param.as<TensorVar>()) {
       Var handle = buffer_handles_.at(param.get());
       ffi::reflection::AccessPath param_path = ffi::reflection::AccessPath::Root()
                                                    ->Extend(AccessStep::ArrayItem(i))
                                                    ->Attr(ffi::String(buffer.value().name()));
       Expr data = DecodeParamDLTensor(buffer.value(), device_type_, device_id_, handle,
                                       func_name_ + "." + param->name, param_path);
-      decl_buffers_.push_back(DeclBuffer(buffer.value(), data));
+      decl_buffers_.push_back(
+          Bind(buffer.value(),
+               Call(buffer.value().type(), builtin::decl_tensor(),
+                    {data, tvm::Tuple(buffer.value()->shape),
+                     DataTypeImm(buffer.value()->dtype->dtype), StringImm(buffer.value().scope())},
+                    {})));
+      PrimExpr size = IntImm(PrimType(buffer.value()->DefaultIndexType()), 1);
+      for (const auto& extent : buffer.value()->shape) size *= extent;
+      Stmt alignment =
+          Evaluate(Call(PrimType::Void(), builtin::assume_aligned(),
+                        {buffer.value(), IntImm::Int32(buffer.value()->data_alignment)}));
+      // Empty tensors may have arbitrary data pointers. Their checks must not
+      // be strengthened into an unconditional alignment promise.
+      if (IsConstInt(size)) {
+        if (!IsZero(size)) decl_buffers_.push_back(alignment);
+      } else {
+        decl_buffers_.push_back(IfThenElse(size != 0, alignment));
+      }
     }
   }
 }
@@ -646,7 +668,7 @@ PrimExpr TVMFFIABIBuilder::LoadInt64ArrayElem(const Var& ptr, int index) {
 // Strides validation subfunctions
 // ============================================================
 
-void TVMFFIABIBuilder::BindCompactStrides(const BufferVar& buffer, const Var& strides_ptr,
+void TVMFFIABIBuilder::BindCompactStrides(const TensorVar& buffer, const Var& strides_ptr,
                                           const PrimExpr& v_strides_is_null,
                                           const ffi::reflection::AccessPath& param_path) {
   PrimType stype(buffer->DefaultIndexType());
@@ -660,21 +682,20 @@ void TVMFFIABIBuilder::BindCompactStrides(const BufferVar& buffer, const Var& st
   }
   if (conds.size() != 0) {
     int param_index = GetParamIndex(param_path);
-    Stmt check =
-        AssertStmt(foldl([](PrimExpr a, PrimExpr b, Span span) { return logical_and(a, b, span); },
-                         IntImm::Bool(true), conds),
-                   prim::StringImm("ValueError"),
-                   ffi::Array<prim::StringImm>(
-                       {prim::StringImm("Mismatched "), prim::StringImm(buffer.name()),
-                        prim::StringImm(".strides on argument #"),
-                        prim::StringImm(std::to_string(param_index)), when_calling_imm_, sig_imm_,
-                        prim::StringImm("`,\n  expected to be compact array")}));
+    Stmt check = AssertStmt(
+        foldl([](PrimExpr a, PrimExpr b, Span span) { return logical_and(a, b, span); },
+              IntImm::Bool(true), conds),
+        StringImm("ValueError"),
+        ffi::Array<StringImm>({StringImm("Mismatched "), StringImm(buffer.name()),
+                               StringImm(".strides on argument #"),
+                               StringImm(std::to_string(param_index)), when_calling_imm_, sig_imm_,
+                               StringImm("`,\n  expected to be compact array")}));
     check = IfThenElse(prim::Not(v_strides_is_null), check);
     asserts_.emplace_back(SeqStmt({check, Evaluate(0)}));
   }
 }
 
-void TVMFFIABIBuilder::BindRegularStrides(const BufferVar& buffer, const Var& strides_ptr,
+void TVMFFIABIBuilder::BindRegularStrides(const TensorVar& buffer, const Var& strides_ptr,
                                           const Var& shape_ptr, const PrimExpr& v_strides_is_null,
                                           const ffi::reflection::AccessPath& param_path) {
   PrimExpr stride_from_shape = 1;
@@ -693,7 +714,7 @@ void TVMFFIABIBuilder::BindRegularStrides(const BufferVar& buffer, const Var& st
 // DecodeParamDLTensor (private)
 // ============================================================
 
-Expr TVMFFIABIBuilder::DecodeParamDLTensor(const BufferVar& buffer, const PrimExpr& device_type,
+Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& buffer, const PrimExpr& device_type,
                                            const PrimExpr& device_id, const Var& handle,
                                            const std::string& arg_name,
                                            ffi::reflection::AccessPath base_path) {
@@ -777,11 +798,11 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const BufferVar& buffer, const PrimEx
         PrimExpr factor = IntImm(offset.ty(), buffer->offset_factor);
         PrimExpr zero = IntImm(offset.ty(), 0);
         PrimExpr acond = analyzer_->Simplify(truncmod(offset, factor) == zero);
-        if (is_zero(acond)) {
+        if (IsZero(acond)) {
           TVM_FFI_THROW(InternalError)
               << "Bind have an unmet assertion at " << RenderAccessPath(byte_offset_path);
         }
-        if (!is_one(acond)) {
+        if (!IsOne(acond)) {
           EmitAssert(acond, "ValueError",  //
                      "Misaligned Tensor data on argument #", std::to_string(param_index),
                      when_calling_imm_, sig_imm_, "`,\n  expected data alignment=",
@@ -798,8 +819,8 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const BufferVar& buffer, const PrimEx
     // Use custom assertion for device_type to show human-readable device name
     if (const auto* const_dt = device_type_.as<IntImmNode>()) {
       PrimExpr cond = analyzer_->Simplify(IntImm::Int32(const_dt->value) == actual_device_type);
-      if (!is_one(cond)) {
-        std::string device_name = runtime::DLDeviceType2Str(static_cast<int>(const_dt->value));
+      if (!IsOne(cond)) {
+        std::string device_name = runtime::DLDeviceType2Str(const_dt->value.as<int>().value());
         EmitAssert(cond, "ValueError",  //
                    "Mismatched ", buf_name, ".device_type on argument #",
                    std::to_string(param_index), when_calling_imm_, sig_imm_, "`,\n  expected ",
@@ -835,11 +856,11 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const BufferVar& buffer, const PrimEx
       PrimExpr data_non_null =
           !Call(PrimType::Bool(), builtin::isnullptr(), {vptr}).as_or_throw<PrimExpr>();
       asserts_.emplace_back(AssertStmt(
-          empty_alloc || data_non_null, prim::StringImm("ValueError"),
-          ffi::Array<prim::StringImm>(
-              {prim::StringImm(buf_name), prim::StringImm(" data pointer is NULL on argument #"),
-               prim::StringImm(std::to_string(param_index)), when_calling_imm_, sig_imm_,
-               prim::StringImm("`,\n  expected non-NULL data pointer")})));
+          empty_alloc || data_non_null, StringImm("ValueError"),
+          ffi::Array<StringImm>({StringImm(buf_name),
+                                 StringImm(" data pointer is NULL on argument #"),
+                                 StringImm(std::to_string(param_index)), when_calling_imm_,
+                                 sig_imm_, StringImm("`,\n  expected non-NULL data pointer")})));
 
       if (check_alignment_) {
         // Check data pointer alignment
@@ -853,22 +874,13 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const BufferVar& buffer, const PrimEx
               truncmod(ptr_as_int, IntImm(PrimType::UInt(64), buffer->data_alignment)) ==
               IntImm(PrimType::UInt(64), 0);
           asserts_.emplace_back(AssertStmt(
-              alloc_size == 0 || align_cond, prim::StringImm("ValueError"),
-              ffi::Array<prim::StringImm>({prim::StringImm("Misaligned Tensor data on argument #"),
-                                           prim::StringImm(std::to_string(param_index)),
-                                           when_calling_imm_, sig_imm_,
-                                           prim::StringImm("`,\n  expected data alignment="),
-                                           prim::StringImm(std::to_string(buffer->data_alignment)),
-                                           prim::StringImm(" bytes")})));
+              alloc_size == 0 || align_cond, StringImm("ValueError"),
+              ffi::Array<StringImm>({StringImm("Misaligned Tensor data on argument #"),
+                                     StringImm(std::to_string(param_index)), when_calling_imm_,
+                                     sig_imm_, StringImm("`,\n  expected data alignment="),
+                                     StringImm(std::to_string(buffer->data_alignment)),
+                                     StringImm(" bytes")})));
         }
-        // mark alignment of external bufs — must be after the alignment assertion
-        // so the compiler does not emit aligned loads before the check fires.
-        asserts_.emplace_back(AttrStmt(buffer.var(), tirx::attr::storage_alignment,
-                                       IntImm::Int32(buffer->data_alignment), Evaluate(0)));
-      } else {
-        // Even without alignment check, mark alignment for the compiler.
-        init_nest_.emplace_back(AttrStmt(buffer.var(), tirx::attr::storage_alignment,
-                                         IntImm::Int32(buffer->data_alignment), Evaluate(0)));
       }
     }
     return typed_data;

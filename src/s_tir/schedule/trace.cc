@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 
@@ -26,10 +27,31 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
-TVM_FFI_STATIC_INIT_BLOCK() { TraceNode::RegisterReflection(); }
+namespace {
+
+ffi::String TraceAsPythonRepr(const TraceNode* self) {
+  std::ostringstream os;
+  os << "# from tvm import s_tir\n";
+  os << "def apply_trace(sch: s_tir.Schedule) -> None:\n";
+  ffi::Array<ffi::String> repr = self->AsPython(/*remove_postproc=*/false);
+  bool is_first = true;
+  for (const ffi::String& line : repr) {
+    if (is_first) {
+      is_first = false;
+    } else {
+      os << '\n';
+    }
+    os << "  " << std::string(line);
+  }
+  if (is_first) {
+    os << "  pass";
+  }
+  return os.str();
+}
+
+}  // namespace
 
 /**************** Constructors  ****************/
 
@@ -40,6 +62,21 @@ Trace::Trace(ffi::Array<Instruction> insts, ffi::Map<Instruction, Any> decisions
   n->insts = std::move(insts);
   n->decisions = std::move(decisions);
   data_ = std::move(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  TraceNode::RegisterReflection();
+  // Register __ffi_repr__ so str(trace) returns the Python script format
+  refl::TypeAttrDef<TraceNode>().def(
+      refl::type_attr::kRepr,
+      [](Trace trace, ffi::Function) -> ffi::String { return TraceAsPythonRepr(trace.get()); });
+
+  refl::GlobalDef().def(
+      "s_tir.schedule.Trace", [](ffi::Optional<ffi::Array<Instruction>> insts,
+                                 ffi::Optional<ffi::Map<Instruction, Any>> decisions) {
+        return Trace(insts.value_or(ffi::Array<Instruction>()), decisions.value_or({}));
+      });
 }
 
 /**************** Utilities  ****************/
@@ -82,6 +119,18 @@ ffi::Array<Any> TranslateInputRVs(
     }
     return std::nullopt;
   };
+  auto f_substitute =
+      [&f_subst_with_rv_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = f_subst_with_rv_map(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
+  auto f_substitute_prim =
+      [&f_subst_with_rv_map_prim](
+          const Var& var, TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (kind != kTVMFFIDefRegionKindNone) return ffi::Unchanged();
+    if (auto repl = f_subst_with_rv_map_prim(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
 
   for (const Any& input : inputs) {
     if (input.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
@@ -96,9 +145,12 @@ ffi::Array<Any> TranslateInputRVs(
       TVM_FFI_CHECK(it != rv_map.end(), IndexError) << "Random variable doesn't exist: " << input;
       result.push_back(ffi::GetRef<ffi::ObjectRef>(it->second));
     } else if (auto expr = input.try_cast<PrimExpr>()) {  // RV: Expr
-      result.push_back(Substitute(expr.value(), f_subst_with_rv_map));
+      result.push_back(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(expr.value(), f_substitute)
+                           .as_or_throw<PrimExpr>());
     } else if (auto index_map = input.as<IndexMap>()) {
-      result.push_back(Substitute(index_map.value(), f_subst_with_rv_map_prim));
+      result.push_back(
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index_map.value(), f_substitute_prim)
+              .as_or_throw<IndexMap>());
     } else if (auto arr = input.as<ffi::Array<Any>>()) {
       // Recursively convert elements of the array into a new list of ObjectRefs.
       result.push_back(TranslateInputRVs(arr.value(), rv_map));
@@ -174,6 +226,16 @@ ffi::Array<Any> TranslateInputRVs(
     const std::unordered_map<std::string, ffi::ObjectRef>& named_rvs) {
   ffi::Array<Any> results;
   results.reserve(inputs.size());
+  auto f_substitute = [&named_rvs](
+                          const Var& var,
+                          TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (kind != kTVMFFIDefRegionKindNone) return ffi::Unchanged();
+    auto it = named_rvs.find(var->name);
+    if (it != named_rvs.end()) {
+      return ffi::Any(it->second.as_or_throw<Var>().as_or_throw<PrimExpr>());
+    }
+    return ffi::Unchanged();
+  };
   for (const Any& input : inputs) {
     if (input.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
       // directly put back POD type
@@ -206,13 +268,8 @@ ffi::Array<Any> TranslateInputRVs(
       // Case 6. IndexMap
       if (obj.as<IndexMapNode>()) {
         IndexMap index_map = obj.as_or_throw<IndexMap>();
-        index_map = Substitute(index_map, [&named_rvs](const Var& var) -> ffi::Optional<PrimExpr> {
-          auto it = named_rvs.find(var->name);
-          if (it != named_rvs.end()) {
-            return it->second.as_or_throw<Var>().as_or_throw<PrimExpr>();
-          }
-          return std::nullopt;
-        });
+        index_map = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index_map, f_substitute)
+                        .as_or_throw<IndexMap>();
         results.push_back(index_map);
         continue;
       } else {
@@ -478,7 +535,7 @@ void Trace::ApplyJSONToSchedule(ffi::ObjectRef json, Schedule sch) {
       TVM_FFI_ICHECK(arr && arr->size() == 2);
       auto arr0 = arr->at(0).try_cast<IntImm>();
       TVM_FFI_ICHECK(arr0);
-      index = arr0.value()->value;
+      index = static_cast<int64_t>(arr0.value()->value);
       // Unbox any IntImm into int64_t so decisions whose trait expects
       // Optional<int64_t> or Optional<Array<int64_t>> dispatch correctly.
       decision = NormalizeJSONIntegers(arr->at(1));
@@ -598,28 +655,6 @@ Trace TraceNode::Simplified(bool remove_postproc) const {
 
 /**************** Repr ****************/
 
-namespace {
-ffi::String TraceAsPythonRepr(const TraceNode* self) {
-  std::ostringstream os;
-  os << "# from tvm import s_tir\n";
-  os << "def apply_trace(sch: s_tir.Schedule) -> None:\n";
-  ffi::Array<ffi::String> repr = self->AsPython(/*remove_postproc=*/false);
-  bool is_first = true;
-  for (const ffi::String& line : repr) {
-    if (is_first) {
-      is_first = false;
-    } else {
-      os << '\n';
-    }
-    os << "  " << std::string(line);
-  }
-  if (is_first) {
-    os << "  pass";
-  }
-  return os.str();
-}
-}  // namespace
-
 /**************** Instruction Registration ****************/
 
 struct EnterPostprocTraits : public UnpackedInstTraits<EnterPostprocTraits> {
@@ -642,18 +677,13 @@ struct EnterPostprocTraits : public UnpackedInstTraits<EnterPostprocTraits> {
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(EnterPostprocTraits);
+TVM_FFI_STATIC_INIT_BLOCK() { RegisterInstructionKind<EnterPostprocTraits>(); }
 
 /**************** FFI ****************/
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("s_tir.schedule.Trace",
-           [](ffi::Optional<ffi::Array<Instruction>> insts,
-              ffi::Optional<ffi::Map<Instruction, Any>> decisions) {
-             return Trace(insts.value_or(ffi::Array<Instruction>()), decisions.value_or({}));
-           })
       .def_method("s_tir.schedule.TraceGetDecision", &TraceNode::GetDecision)
       .def("s_tir.schedule.TraceAppend",
            [](Trace self, Instruction inst, ffi::Optional<ffi::ObjectRef> decision) {
@@ -670,10 +700,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("s_tir.schedule.TraceWithDecision", &TraceNode::WithDecision)
       .def_method("s_tir.schedule.TraceSimplified", &TraceNode::Simplified)
       .def("s_tir.schedule.TraceApplyJSONToSchedule", Trace::ApplyJSONToSchedule);
-  // Register __ffi_repr__ so str(trace) returns the Python script format
-  refl::TypeAttrDef<TraceNode>().def(
-      refl::type_attr::kRepr,
-      [](Trace trace, ffi::Function) -> ffi::String { return TraceAsPythonRepr(trace.get()); });
 }
 
 }  // namespace s_tir

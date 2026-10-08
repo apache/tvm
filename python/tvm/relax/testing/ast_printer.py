@@ -91,7 +91,7 @@ class ASTPrinter(ExprFunctor):
         Handles whether to include the ty fields.
         """
         fields = kwargs.copy()
-        if not node.ty.is_missing() and self.include_ty_annotations:
+        if not isinstance(node.ty, tvm.ir.MissingType) and self.include_ty_annotations:
             fields["ty"] = self.visit_ty_(node.ty)
         return self.build_ast_node(nodename, force_newline=force_newline, **fields)
 
@@ -113,10 +113,10 @@ class ASTPrinter(ExprFunctor):
         member_lines = ",\n".join(map(self.indent, mem_list))
         return f"{open_tok}\n{member_lines}\n{close_tok}"
 
-    def visit_constant_(self, op: relax.Constant) -> str:
+    def visit_generic_const_(self, op: tvm.ir.GenericConst) -> str:
         # simple rule of thumb: keep scalars inline, but anything larger goes on a new one
-        force_newline = len(op.data.shape) > 0
-        return self.build_expr(op, "Constant", force_newline=force_newline, data=str(op.data))
+        force_newline = isinstance(op.value, tvm.runtime.Tensor) and len(op.value.shape) > 0
+        return self.build_expr(op, "GenericConst", force_newline=force_newline, value=str(op.value))
 
     def visit_tuple_(self, op: relax.Tuple) -> str:
         return self.build_expr(op, "Tuple", fields=self.build_list(map(self.visit_expr, op.fields)))
@@ -207,11 +207,11 @@ class ASTPrinter(ExprFunctor):
             false_branch=self.visit_expr(op.false_branch),
         )
 
-    def visit_string_imm_(self, op: relax.StringImm) -> str:
+    def visit_string_imm_(self, op: tvm.ir.StringImm) -> str:
         return self.build_expr(op, "StringImm", value=wrap_quotes(op.value))
 
-    def visit_data_type_imm_(self, op: relax.DataTypeImm) -> str:
-        return self.build_expr(op, "DataTypeImm", value=op.value)
+    def visit_data_type_imm_(self, op: tvm.ir.DataTypeImm) -> str:
+        return self.build_expr(op, "DataTypeImm", value=str(op.value))
 
     def visit_op_(self, op: tvm.ir.Op) -> str:
         # TODO: List other attributes?
@@ -247,6 +247,8 @@ class ASTPrinter(ExprFunctor):
             return self.build_ast_node("AnyType")
         if isinstance(type_node, relax.PackedFuncType):
             return self.build_ast_node("PackedFuncType")
+        if isinstance(type_node, tvm.ir.StringType):
+            return self.build_ast_node("StringType")
         if isinstance(type_node, tvm.ir.PrimType):
             return self.build_ast_node("PrimType", dtype=type_node.dtype)
         if isinstance(type_node, relax.TensorType):
@@ -284,6 +286,8 @@ class ASTPrinter(ExprFunctor):
             return self.build_ast_node("ShapeType", **fields)
         elif isinstance(ty_node, relax.AnyType):
             return self.build_ast_node("AnyType")
+        elif isinstance(ty_node, tvm.ir.StringType):
+            return self.build_ast_node("StringType")
         elif isinstance(ty_node, tvm.ir.PrimType):
             return self.build_ast_node("PrimType", dtype=ty_node.dtype)
         elif isinstance(ty_node, relax.TensorType):

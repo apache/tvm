@@ -112,6 +112,16 @@ void LogMessageImpl(const std::string& file, int lineno, int level, const std::s
 
 }  // namespace detail
 
+static uint32_t ByteArrayChecksum(const TVMFFIByteArray* bytes) {
+  TVM_FFI_ICHECK_NE(bytes, nullptr);
+  uint32_t checksum = 2166136261U;
+  for (size_t i = 0; i < bytes->size; ++i) {
+    checksum ^= static_cast<uint8_t>(bytes->data[i]);
+    checksum *= 16777619U;
+  }
+  return checksum;
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
@@ -123,6 +133,25 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           "tvmjs.testing.log_info_str",
           [](ffi::PackedArgs args, ffi::Any* ret) { LOG(INFO) << args[0].cast<ffi::String>(); })
       .def("tvmjs.testing.add_one", [](int x) { return x + 1; })
+      .def_packed("tvmjs.testing.check_byte_array_across_callbacks",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    TVMFFIByteArray* bytes = args[0].cast<TVMFFIByteArray*>();
+                    uint32_t expected = ByteArrayChecksum(bytes);
+                    (args[1].cast<ffi::Function>())();
+                    if (ByteArrayChecksum(bytes) != expected) {
+                      *ret = int64_t{1};
+                      return;
+                    }
+                    (args[1].cast<ffi::Function>())();
+                    *ret = static_cast<int64_t>(ByteArrayChecksum(bytes) != expected) * 2;
+                  })
+      .def_packed("tvmjs.testing.return_bytes_across_callbacks",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    TVMFFIByteArray* bytes = args[0].cast<TVMFFIByteArray*>();
+                    *ret = ffi::Bytes(bytes->data, bytes->size);
+                    (args[1].cast<ffi::Function>())();
+                    (args[1].cast<ffi::Function>())();
+                  })
       .def_packed("tvmjs.testing.wrap_callback", [](ffi::PackedArgs args, ffi::Any* ret) {
         ffi::Function pf = args[0].cast<ffi::Function>();
         *ret = ffi::TypedFunction<void()>([pf]() { pf(); });

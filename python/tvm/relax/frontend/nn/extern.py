@@ -60,7 +60,7 @@ class ExternModule:
                 if isinstance(arg, float):
                     return rx.prim_value(tirx.FloatImm("float64", arg))
                 if isinstance(arg, str):
-                    return rx.StringImm(arg)
+                    return tvm.ir.StringImm(arg)
                 if tvm.ir.is_prim_expr(arg):
                     return rx.prim_value(arg)
                 if isinstance(arg, tuple | list):

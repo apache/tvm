@@ -34,7 +34,7 @@ _ir = None
 def _get_ir():
     global _ir
     if _ir is None:
-        from tvm.tirx.script.builder import ir as _mod
+        from tvm.tirx.script.ir_builder import ir as _mod
 
         _ir = _mod
     return _ir
@@ -59,8 +59,9 @@ def _default_tmem_layout(rows, cols):
 
 
 def _emit_stmt(expr):
-    ir = _get_ir()
-    ir.add_to_parent(ir.evaluate(expr))
+    from tvm.tirx.script.ir_builder.parser_protocol import evaluate
+
+    evaluate(expr)
 
 
 def _shape_product(shape):
@@ -233,8 +234,8 @@ class TMEMPool:
         from tvm.script import tirx as T
 
         warp_id = T.warp_id()
-        with T.If(warp_id == target_warp):
-            with T.Then():
+        with T.if_(warp_id == target_warp):
+            with T.then_():
                 emit()
 
     def _resolve_cols(self, shape, dtype, cols, layout=None):
@@ -289,7 +290,7 @@ class TMEMPool:
         if layout is None:
             assert len(shape) == 2, "TMEMPool.alloc() requires layout= for non-2D TMEM buffers"
             layout = _default_tmem_layout(shape[0], shape[1])
-        res = ir.decl_buffer(shape, dtype, scope="tmem", allocated_addr=col_start, layout=layout)
+        res = ir.decl_tensor(shape, dtype, scope="tmem", allocated_addr=col_start, layout=layout)
         self.offset = col_end
         self.max_offset = max(self.max_offset, self.offset)
         return res
@@ -399,7 +400,7 @@ class SMEMPool:
     Parameters
     ----------
     ptr : Var or None, optional
-        If omitted, an ``alloc_buffer([0], "uint8", scope="shared.dyn")`` is
+        If omitted, an ``alloc_tensor([0], "uint8", scope="shared.dyn")`` is
         created automatically and ``commit()`` must be called after all
         allocations to emit the size annotation.
         If a ``Var`` is provided, the caller manages the backing buffer and
@@ -409,7 +410,7 @@ class SMEMPool:
     def __init__(self, ptr=_POOL_UNSET):
         ir = _get_ir()
         if ptr is _POOL_UNSET:
-            self.buf = ir.alloc_buffer([0], "uint8", scope="shared.dyn")
+            self.buf = ir.alloc_tensor([0], "uint8", scope="shared.dyn")
             self.ptr = self.buf.data
             self._owns_buffer = True
         else:
@@ -431,7 +432,7 @@ class SMEMPool:
         ir = _get_ir()
         if align > 0:
             self.offset = (self.offset + align - 1) // align * align
-        res = ir.decl_buffer(
+        res = ir.decl_tensor(
             shape,
             dtype,
             data=self.ptr,
@@ -476,7 +477,7 @@ class SMEMPool:
             self.max_offset = max(self.max_offset, self.offset)
 
     def commit(self, size=None):
-        """Emit pool size annotation into the IR.
+        """Emit the dynamic shared memory byte-count declaration into the IR.
 
         Must be called after all ``alloc()`` / ``move_base_to()`` calls.
 
@@ -494,10 +495,7 @@ class SMEMPool:
             f"the pool high-water mark ({self.max_offset})"
         )
         import tvm.tirx
+        from tvm.backend.cuda.op import dyn_smem_bytes
+        from tvm.tirx.script.ir_builder.parser_protocol import add_to_parent
 
-        ir = _get_ir()
-        ir.add_to_parent(
-            tvm.tirx.AttrStmt(
-                0, "tirx.dyn_smem_bytes", tvm.tirx.IntImm("int64", resolved), tvm.tirx.Evaluate(0)
-            )
-        )
+        add_to_parent(tvm.tirx.Evaluate(dyn_smem_bytes(tvm.tirx.IntImm("int64", resolved))))

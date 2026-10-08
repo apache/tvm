@@ -18,54 +18,44 @@
  */
 /*!
  * \file tvm/script/printer/printer.h
- * \brief Entry-point header for TVMScript printing.
- *
- * Declares the free function `tvm::Script(node, optional_config)` and the
- * dispatch vtable `TVMScriptPrinter::vtable()` used by per-dialect printers.
- * `PrinterConfig` and its dataclass helpers live in config.h; this header is
- * what callers include to invoke printing.
+ * \brief TVMScript text entry points.
  */
 #ifndef TVM_SCRIPT_PRINTER_PRINTER_H_
 #define TVM_SCRIPT_PRINTER_PRINTER_H_
 
-#include <tvm/ir/node_functor.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/optional.h>
 #include <tvm/script/printer/config.h>
+
+#include <optional>
+#include <string>
 
 namespace tvm {
 
-/*! \brief Print \p node as TVMScript with the given \p config.
- *
- *  Falls back to ffi::ReprPrint for types not registered with TVMScriptPrinter.
+/*!
+ * \brief Print an IR object as TVMScript, using repr when no translation hook exists.
+ * \param node The input IR object.
+ * \param config Optional translation and rendering configuration.
+ * \return The rendered script or fallback representation.
  */
 TVM_DLL std::string Script(const ffi::ObjectRef& node,
                            const ffi::Optional<PrinterConfig>& config = std::nullopt);
 
-/*! \brief Dispatch vtable used by per-dialect printers to register their
- *         object-type printing functions.  Internal, but exposed here because
- *         TVM_REGISTER_SCRIPT_AS_REPR refers to it.
- */
-class TVMScriptPrinter {
- public:
-  using FType = NodeFunctor<std::string(const ffi::ObjectRef&, const PrinterConfig&)>;
-  TVM_DLL static FType& vtable();
-};
+namespace script {
+namespace printer {
 
 /*!
- * \brief Register Script as the kRepr callback for ObjectType and install
- *        the per-type dispatch entry in TVMScriptPrinter::vtable().
- *
- * \param ObjectType  The concrete object node type (e.g. tirx::VarNode).
- * \param Method      The TVMScriptPrinter vtable dispatch function.
+ * \brief Register a namespace alias during dialect static initialization.
+ * \param key The existing prefix configuration key, such as "tirx.prefix".
+ * \param default_alias The alias reserved before translation assigns variable names.
  */
-#define TVM_REGISTER_SCRIPT_AS_REPR(ObjectType, Method)                                        \
-  TVM_FFI_STATIC_INIT_BLOCK() {                                                                \
-    namespace refl = tvm::ffi::reflection;                                                     \
-    refl::TypeAttrDef<ObjectType>().def(refl::type_attr::kRepr,                                \
-                                        [](ffi::ObjectRef obj, ffi::Function) -> ffi::String { \
-                                          return RedirectedReprPrinterMethod(obj);             \
-                                        });                                                    \
-  }                                                                                            \
-  TVM_STATIC_IR_FUNCTOR(TVMScriptPrinter, vtable).set_dispatch<ObjectType>(Method)
+TVM_DLL void RegisterNamespaceAlias(const ffi::String& key, const ffi::String& default_alias);
 
+/*! \brief Read the registered namespace aliases. */
+TVM_DLL const ffi::Map<ffi::String, ffi::String>& GetNamespaceAliases();
+
+}  // namespace printer
+}  // namespace script
 }  // namespace tvm
+
 #endif  // TVM_SCRIPT_PRINTER_PRINTER_H_

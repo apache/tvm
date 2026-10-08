@@ -20,15 +20,13 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax, te, tirx
-from tvm.ir import Call, Op
+from tvm.ir import Call, GenericConst, Op, StringImm
 from tvm.ir.base import assert_structural_equal
 from tvm.relax import PyExprMutator, PyExprVisitor
 from tvm.relax.expr import (
     BindingBlock,
-    Constant,
     DataflowBlock,
     DataflowVar,
-    DataTypeImm,
     Expr,
     ExternFunc,
     Function,
@@ -37,7 +35,6 @@ from tvm.relax.expr import (
     MatchCast,
     SeqExpr,
     ShapeExpr,
-    StringImm,
     Tuple,
     TupleGetItem,
     Var,
@@ -85,8 +82,8 @@ class ASTPrinter(PyExprVisitor):
         super().__init__()
         self.log = ASTLog()
 
-    def visit_constant_(self, op: Constant) -> None:
-        self.log.add("Constant")
+    def visit_generic_const_(self, op: GenericConst) -> None:
+        self.log.add("GenericConst")
 
     def visit_global_var_(self, op: GlobalVar) -> None:
         self.log.add("GlobalVar")
@@ -144,9 +141,6 @@ class ASTPrinter(PyExprVisitor):
 
     def visit_string_imm_(self, op: StringImm) -> None:
         self.log.add("StringImm")
-
-    def visit_data_type_imm_(self, op: DataTypeImm) -> None:
-        self.log.add("DataTypeImm")
 
     def visit_shape_expr_(self, op: ShapeExpr) -> None:
         self.log.add("ShapeExpr")
@@ -210,9 +204,9 @@ class ASTPostPrinterMutator(PyExprMutator):
         super().__init__()
         self.log = ASTLog()
 
-    def visit_constant_(self, op: Constant) -> Expr:
+    def visit_generic_const_(self, op: GenericConst) -> Expr:
         op = self.visit_expr_post_order(op)
-        self.log.add("Constant")
+        self.log.add("GenericConst")
         return op
 
     def visit_global_var_(self, op: GlobalVar) -> Expr:
@@ -268,11 +262,6 @@ class ASTPostPrinterMutator(PyExprMutator):
     def visit_string_imm_(self, op: StringImm) -> Expr:
         op = self.visit_expr_post_order(op)
         self.log.add("StringImm")
-        return op
-
-    def visit_data_type_imm_(self, op: DataTypeImm) -> Expr:
-        op = self.visit_expr_post_order(op)
-        self.log.add("DataTypeImm")
         return op
 
     def visit_shape_expr_(self, op: ShapeExpr) -> Expr:
@@ -379,7 +368,7 @@ def basic_check(expr, visitor_str, mutator_str):
 
 
 def test_constant():
-    basic_check(relax.const(1.0), "Constant", "Constant")
+    basic_check(relax.const(1.0), "GenericConst", "GenericConst")
 
 
 def test_var():
@@ -412,12 +401,12 @@ def test_seq_expr():
                 "SeqExpr",
                 "\tBindingBlock",
                 "\t\tVarBinding",
-                "\t\t\tConstant",
+                "\t\t\tGenericConst",
                 "\t\t\tVarDef",
                 "\tVar",
             ]
         ),
-        "\n".join(["Constant", "VarDef", "VarBinding", "BindingBlock", "Var", "SeqExpr"]),
+        "\n".join(["GenericConst", "VarDef", "VarBinding", "BindingBlock", "Var", "SeqExpr"]),
     )
 
 
@@ -432,8 +421,8 @@ def test_prim_expr():
     basic_check(m + n, "\n".join(["Var", "Var"]), "\n".join(["Var", "Var"]))
     basic_check(
         tvm.tirx.call_extern("int32", "test"),
-        "\n".join(["Call", "\tOp"]),
-        "\n".join(["Op", "Call"]),
+        "\n".join(["Call", "\tOp", "\tStringImm"]),
+        "\n".join(["Op", "StringImm", "Call"]),
     )
 
 
@@ -451,11 +440,11 @@ def test_call():
 
     visitor = ASTPrinter()
     visitor.visit_expr(tensor_load)
-    assert str(visitor.log) == "\n".join(["Call", "\tExprFallback"])
+    assert str(visitor.log) == "\n".join(["Call", "\tOp", "\tExprFallback"])
 
     mutator = ASTPostPrinterMutator()
     assert mutator.visit_expr(tensor_load).same_as(tensor_load)
-    assert str(mutator.log) == "\n".join(["ExprFallback", "Call"])
+    assert str(mutator.log) == "\n".join(["Op", "ExprFallback", "Call"])
 
 
 def test_if():
@@ -572,7 +561,7 @@ def test_function():
                 "\tSeqExpr",
                 "\t\tBindingBlock",
                 "\t\t\tVarBinding",
-                "\t\t\t\tConstant",
+                "\t\t\t\tGenericConst",
                 "\t\t\t\tVarDef",
                 "\t\tVar",
             ]
@@ -580,7 +569,7 @@ def test_function():
         "\n".join(
             [
                 "VarDef",
-                "Constant",
+                "GenericConst",
                 "VarDef",
                 "VarBinding",
                 "BindingBlock",

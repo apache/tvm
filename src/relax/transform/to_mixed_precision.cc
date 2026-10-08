@@ -153,8 +153,8 @@ class DTypeDecisionCollector : public ExprVisitor {
       auto fvisitleaf = [&](const Expr& expr, NType to) {
         if (const auto* var = expr.as<VarNode>()) {
           UpdateVarDTypeMap(ffi::GetRef<Var>(var), to);
-        } else if (expr->IsInstance<ConstantNode>()) {
-          // Constant can be casted anyway, so we don't need to do anything here
+        } else if (expr->IsInstance<GenericConstNode>()) {
+          // GenericConst can be casted anyway, so we don't need to do anything here
           return;
         } else {
           TVM_FFI_THROW(InternalError) << "Unsupported argument type: " << expr->GetTypeKey();
@@ -292,7 +292,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
           }
           TensorType fp16_ty(tensor_ty->shape.value(), PrimType::Float(16), vdev, tensor_ty->span);
           Var fp16_var(var->name, fp16_ty, var->span);
-          var_remap_[var] = fp16_var;
+          var_remap_.insert_or_assign(var, fp16_var);
           return fp16_var;
         }
       }
@@ -355,8 +355,8 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       return false;
     };
 
-    auto is_in_fp16_range = [this](const ConstantNode* constant) {
-      const auto& data = constant->data;
+    auto is_in_fp16_range = [this](const GenericConstNode* constant) {
+      const auto& data = constant->value.cast<runtime::Tensor>();
       if (data->dtype.lanes > 1) {
         // Skip vectorized types for now.
         return false;
@@ -393,7 +393,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
 
     for (const Expr& arg : args) {
       auto ty = GetType(arg);
-      auto constant = arg.as<ConstantNode>();
+      auto constant = arg.as<GenericConstNode>();
       auto tuple = arg.as<TupleNode>();
 
       if (!IsNestedTensor(arg) || is_fp16(ty) || (constant && is_in_fp16_range(constant)) ||
@@ -424,7 +424,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     // If cur_var is not rewritten, we don't need to emit a new var
     if (!rewrite.same_as(cur_var)) {
       // Emit a new var, and update the var remap
-      var_remap_[var] = builder_->Emit(rewrite);
+      var_remap_.insert_or_assign(var, builder_->Emit(rewrite));
     }
   }
 
@@ -432,7 +432,10 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     // We rewrite the remapped var to the original dtype
     auto it = var_remap_.find(var);
     if (it != var_remap_.end()) {
-      return RewriteExpr(it->second, NTypeFrom(var));
+      if (IsNestedTensor(var)) {
+        return RewriteExpr(it->second, NTypeFrom(var));
+      }
+      return it->second;
     }
     return var;
   }
@@ -598,7 +601,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
   ffi::Array<Var> params_;
   std::unordered_set<std::string> fp16_input_names_;
 
-  const Op& wrap_param_op = Op::Get("relax.wrap_param");
+  const Op wrap_param_op = Op::Get("relax.wrap_param");
 };
 
 Expr ToMixedPrecision(const Function& f, DLDataType out_dtype,

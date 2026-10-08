@@ -28,10 +28,10 @@
 #ifndef TVM_TIR_TRANSFORM_TVM_FFI_BINDER_H_
 #define TVM_TIR_TRANSFORM_TVM_FFI_BINDER_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/buffer.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/tirx/expr.h>
 #include <tvm/tirx/stmt.h>
 
 #include <string>
@@ -59,10 +59,10 @@ namespace tirx {
  * by a later buffer's shape (batch_size).  Separating definitions from
  * checks guarantees all variables are in scope when assertions reference them.
  *
- * - init_nest: Binds, DeclBuffers for shape/strides arrays, AttrStmts —
+ * - init_nest: Binds, DeclTensors for shape/strides arrays —
  *   all value-loading code that defines variables.
  * - asserts: AssertStmts — all validation checks.
- * - decl_buffers: DeclBuffer for buffer-typed parameters — buffer declarations.
+ * - decl_buffers: DeclTensor for buffer-typed parameters — buffer declarations.
  *
  * ## Calling Protocol
  *
@@ -96,11 +96,11 @@ class TVMFFIABIBuilder {
   struct Result {
     /*! \brief Var -> VarDefInfo map for defined variables. */
     std::unordered_map<const VarNode*, VarDefInfo> var_defs;
-    /*! \brief Variable definitions (Binds, shape/strides DeclBuffers, AttrStmts). */
+    /*! \brief Variable definitions (Binds, shape/strides DeclTensors). */
     std::vector<Stmt> init_nest;
     /*! \brief Validation checks (all AssertStmts). */
     std::vector<Stmt> asserts;
-    /*! \brief BufferVar declarations for buffer-typed parameters. */
+    /*! \brief TensorVar declarations for buffer-typed parameters. */
     std::vector<Stmt> decl_buffers;
   };
 
@@ -148,10 +148,10 @@ class TVMFFIABIBuilder {
   // ── Assert helpers ────────────────────────────────────────────
 
   /*! \brief Convert various string types to StringImm for EmitAssert. */
-  static prim::StringImm ToMsgPart(prim::StringImm s) { return s; }
-  static prim::StringImm ToMsgPart(const char* s) { return prim::StringImm(s); }
-  static prim::StringImm ToMsgPart(std::string s) { return prim::StringImm(std::move(s)); }
-  static prim::StringImm ToMsgPart(ffi::String s) { return prim::StringImm(std::move(s)); }
+  static StringImm ToMsgPart(StringImm s) { return s; }
+  static StringImm ToMsgPart(const char* s) { return StringImm(s); }
+  static StringImm ToMsgPart(std::string s) { return StringImm(std::move(s)); }
+  static StringImm ToMsgPart(ffi::String s) { return StringImm(std::move(s)); }
 
   /*!
    * \brief Emit an assertion into init_nest_ with auto-converted message parts.
@@ -166,9 +166,9 @@ class TVMFFIABIBuilder {
    */
   template <typename... Args>
   void EmitAssert(const PrimExpr& cond, const char* error_kind, Args&&... args) {
-    ffi::Array<prim::StringImm> parts;
+    ffi::Array<StringImm> parts;
     (parts.push_back(ToMsgPart(std::forward<Args>(args))), ...);
-    init_nest_.emplace_back(AssertStmt(cond, prim::StringImm(error_kind), parts));
+    init_nest_.emplace_back(AssertStmt(cond, StringImm(error_kind), parts));
   }
 
   // ── Binding submethods ─────────────────────────────────────────
@@ -261,7 +261,7 @@ class TVMFFIABIBuilder {
                  const ffi::reflection::AccessPath& base_path);
 
   /*!
-   * \brief BufferVar-to-buffer bind with ffi::reflection::AccessPath.
+   * \brief TensorVar-to-buffer bind with ffi::reflection::AccessPath.
    *
    * Binds data, elem_offset, shape, and strides of \p arg against \p value,
    * emitting assertions for any mismatches.
@@ -271,7 +271,7 @@ class TVMFFIABIBuilder {
    * \param base_path Base ffi::reflection::AccessPath for the buffer parameter.
    * \param fuzzy_match If true, allow value to have more dimensions than arg.
    */
-  void BindBuffer(const BufferVar& arg, const BufferVar& value,
+  void BindBuffer(const TensorVar& arg, const TensorVar& value,
                   ffi::reflection::AccessPath base_path, bool fuzzy_match);
 
   /*!
@@ -284,7 +284,7 @@ class TVMFFIABIBuilder {
    * \param arg_name Human-readable name for error messages.
    * \param base_path Base ffi::reflection::AccessPath for the tensor parameter.
    */
-  Expr DecodeParamDLTensor(const BufferVar& buffer, const PrimExpr& device_type,
+  Expr DecodeParamDLTensor(const TensorVar& buffer, const PrimExpr& device_type,
                            const PrimExpr& device_id, const Var& handle,
                            const std::string& arg_name, ffi::reflection::AccessPath base_path);
 
@@ -319,7 +319,7 @@ class TVMFFIABIBuilder {
    * \param v_strides_is_null Expression checking if strides pointer is NULL.
    * \param param_path ffi::reflection::AccessPath for the tensor parameter.
    */
-  void BindCompactStrides(const BufferVar& buffer, const Var& strides_ptr,
+  void BindCompactStrides(const TensorVar& buffer, const Var& strides_ptr,
                           const PrimExpr& v_strides_is_null,
                           const ffi::reflection::AccessPath& param_path);
 
@@ -332,7 +332,7 @@ class TVMFFIABIBuilder {
    * \param v_strides_is_null Expression checking if strides pointer is NULL.
    * \param param_path ffi::reflection::AccessPath for the tensor parameter.
    */
-  void BindRegularStrides(const BufferVar& buffer, const Var& strides_ptr, const Var& shape_ptr,
+  void BindRegularStrides(const TensorVar& buffer, const Var& strides_ptr, const Var& shape_ptr,
                           const PrimExpr& v_strides_is_null,
                           const ffi::reflection::AccessPath& param_path);
 
@@ -385,16 +385,16 @@ class TVMFFIABIBuilder {
 
   /*! \brief The definition map: VarNode* -> VarDefInfo (value + first_def_path). */
   std::unordered_map<const VarNode*, VarDefInfo> var_defs_;
-  /*! \brief Variable definitions: Binds, shape/strides DeclBuffers, AttrStmts. */
+  /*! \brief Variable definitions: Binds, shape/strides DeclTensors. */
   std::vector<Stmt> init_nest_;
   /*! \brief Validation checks: all AssertStmts. */
   std::vector<Stmt> asserts_;
-  /*! \brief BufferVar declarations for buffer-typed parameters. */
+  /*! \brief TensorVar declarations for buffer-typed parameters. */
   std::vector<Stmt> decl_buffers_;
   /*! \brief Deferred constant-expression assertions for display-var substitution. */
   std::vector<PendingConstAssert> pending_const_asserts_;
   /*! \brief internal analyzer. */
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 
   // Function metadata
   /*! \brief function name for error messages. */
@@ -415,8 +415,8 @@ class TVMFFIABIBuilder {
   std::unordered_map<int, std::string> param_names_;
 
   // Pre-cached common message fragments for string sharing across assertions
-  prim::StringImm sig_imm_;  // func_signature_ (set in constructor)
-  prim::StringImm when_calling_imm_ = prim::StringImm(" when calling:\n  `");
+  StringImm sig_imm_{ffi::UnsafeInit{}};  // func_signature_ (set in constructor)
+  StringImm when_calling_imm_ = StringImm(" when calling:\n  `");
   /*! \brief Whether to emit data pointer alignment checks (disabled for now). */
   bool check_alignment_ = false;
 };

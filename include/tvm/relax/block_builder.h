@@ -24,11 +24,11 @@
 #ifndef TVM_RELAX_BLOCK_BUILDER_H_
 #define TVM_RELAX_BLOCK_BUILDER_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/base.h>
+#include <tvm/sym/analyzer.h>
 
 namespace tvm {
 namespace relax {
@@ -96,7 +96,7 @@ class BlockBuilderNode : public ffi::Object {
   virtual IRModule Finalize() = 0;
 
   /*!
-   * \brief Add a Relax function or a TIR PrimFunc to internal context module.
+   * \brief Add a Relax function or a TIR tirx::Function to internal context module.
    * \param func The function to be added.
    * \param func_name_hint The name hint of the function to be added.
    * \note If the function to be added already exists, return its
@@ -106,7 +106,7 @@ class BlockBuilderNode : public ffi::Object {
   virtual GlobalVar AddFunction(const BaseFunc& func, ffi::String func_name_hint) = 0;
 
   /*!
-   * \brief Update a Relax function or a TIR PrimFunc in the internal context module.
+   * \brief Update a Relax function or a TIR tirx::Function in the internal context module.
    * \param gv The global var referring the function to be updated.
    * \param function The updated function.
    */
@@ -248,7 +248,7 @@ class BlockBuilderNode : public ffi::Object {
    * \brief Get the analyzer of the BlockBuilder.
    * \return The BlockBuilder's arithmetic analyzer.
    */
-  virtual arith::Analyzer GetAnalyzer() = 0;
+  virtual sym::Analyzer GetAnalyzer() = 0;
 
   static constexpr const bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO("relax.BlockBuilder", BlockBuilderNode, ffi::Object);

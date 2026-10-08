@@ -157,10 +157,10 @@ def _has_cuda():
 needs_cuda = pytest.mark.skipif(not _has_cuda(), reason="needs CUDA")
 
 
-def _compile_and_run(prim_func, np_inputs):
+def _compile_and_run(function, np_inputs):
     target = tvm.target.Target("cuda")
     with target:
-        mod = tvm.IRModule({"main": prim_func})
+        mod = tvm.IRModule({"main": function})
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
 
     def run_and_check():
@@ -200,10 +200,9 @@ def test_sf_blockwise_transpose(name, pipe, blk, dtype):
     post = TileLayout(S[shape:dst_strides])
 
     # fmt: off
-    @T.prim_func
-    def f(A: T.handle, B: T.handle):
-        A_buf = T.match_buffer(A, shape, dtype, layout=pre)
-        B_buf = T.match_buffer(B, shape, dtype, layout=post)
+    @T.function
+    def f(A_buf: T.Tensor(shape, dtype, layout=pre), B_buf: T.Tensor(shape, dtype, layout=post)):
+
         T.device_entry()
         T.cta_id([1])
         T.thread_id([32])
@@ -248,10 +247,12 @@ def test_identity_passes_through_as_copy():
     layout = TileLayout(S[shape : (32, 1)])
 
     # fmt: off
-    @T.prim_func
-    def f(A: T.handle, B: T.handle):
-        A_buf = T.match_buffer(A, shape, "uint32", layout=layout)
-        B_buf = T.match_buffer(B, shape, "uint32", layout=layout)
+    @T.function
+    def f(
+        A_buf: T.Tensor(shape, "uint32", layout=layout),
+        B_buf: T.Tensor(shape, "uint32", layout=layout),
+    ):
+
         T.device_entry()
         T.cta_id([1])
         T.thread_id([32])
@@ -285,10 +286,9 @@ def test_generic_transpose(shape, src_strides, dst_strides, dtype):
     post = TileLayout(S[shape:dst_strides])
 
     # fmt: off
-    @T.prim_func
-    def f(A: T.handle, B: T.handle):
-        A_buf = T.match_buffer(A, shape, dtype, layout=pre)
-        B_buf = T.match_buffer(B, shape, dtype, layout=post)
+    @T.function
+    def f(A_buf: T.Tensor(shape, dtype, layout=pre), B_buf: T.Tensor(shape, dtype, layout=post)):
+
         T.device_entry()
         T.cta_id([1])
         T.thread_id([32])
@@ -312,10 +312,12 @@ def test_generic_transpose(shape, src_strides, dst_strides, dtype):
 
 def _build_and_assert_rejected(shape, src_layout, dst_layout, dtype, msg_substr):
     # fmt: off
-    @T.prim_func
-    def f(A: T.handle, B: T.handle):
-        A_buf = T.match_buffer(A, shape, dtype, layout=src_layout)
-        B_buf = T.match_buffer(B, shape, dtype, layout=dst_layout)
+    @T.function
+    def f(
+        A_buf: T.Tensor(shape, dtype, layout=src_layout),
+        B_buf: T.Tensor(shape, dtype, layout=dst_layout),
+    ):
+
         T.device_entry()
         T.cta_id([1])
         T.thread_id([32])
@@ -336,10 +338,12 @@ def test_reject_dtype_mismatch():
     layout = TileLayout(S[shape : (32, 1)])
 
     # fmt: off
-    @T.prim_func
-    def f(A: T.handle, B: T.handle):
-        A_buf = T.match_buffer(A, shape, "uint32", layout=layout)
-        B_buf = T.match_buffer(B, shape, "uint16", layout=layout)
+    @T.function
+    def f(
+        A_buf: T.Tensor(shape, "uint32", layout=layout),
+        B_buf: T.Tensor(shape, "uint16", layout=layout),
+    ):
+
         T.device_entry()
         T.cta_id([1])
         T.thread_id([32])
@@ -357,10 +361,12 @@ def test_reject_shape_mismatch():
     dst_layout = TileLayout(S[(8, 16) : (16, 1)])
 
     # fmt: off
-    @T.prim_func
-    def f(A: T.handle, B: T.handle):
-        A_buf = T.match_buffer(A, (4, 32), "uint32", layout=src_layout)
-        B_buf = T.match_buffer(B, (8, 16), "uint32", layout=dst_layout)
+    @T.function
+    def f(
+        A_buf: T.Tensor((4, 32), "uint32", layout=src_layout),
+        B_buf: T.Tensor((8, 16), "uint32", layout=dst_layout),
+    ):
+
         T.device_entry()
         T.cta_id([1])
         T.thread_id([32])
@@ -389,10 +395,12 @@ def test_reject_swizzle_layout():
     plain = TileLayout(S[(4, 32) : (1, 4)])
 
     # fmt: off
-    @T.prim_func
-    def f(A: T.handle, B: T.handle):
-        A_buf = T.match_buffer(A, (4, 32), "uint32", layout=swizzled)
-        B_buf = T.match_buffer(B, (4, 32), "uint32", layout=plain)
+    @T.function
+    def f(
+        A_buf: T.Tensor((4, 32), "uint32", layout=swizzled),
+        B_buf: T.Tensor((4, 32), "uint32", layout=plain),
+    ):
+
         T.device_entry()
         T.cta_id([1])
         T.thread_id([32])
@@ -410,10 +418,12 @@ def test_reject_non_warp_scope():
     layout_post = TileLayout(S[(4, 32) : (1, 4)])
 
     # fmt: off
-    @T.prim_func
-    def f(A: T.handle, B: T.handle):
-        A_buf = T.match_buffer(A, (4, 32), "uint32", layout=layout_pre)
-        B_buf = T.match_buffer(B, (4, 32), "uint32", layout=layout_post)
+    @T.function
+    def f(
+        A_buf: T.Tensor((4, 32), "uint32", layout=layout_pre),
+        B_buf: T.Tensor((4, 32), "uint32", layout=layout_post),
+    ):
+
         T.device_entry()
         T.cta_id([1])
         T.thread_id([32])
@@ -445,15 +455,14 @@ def test_shared_to_shared_uses_direct_ldst(dtype):
     post = TileLayout(S[shape : (1, 4)])  # transposed within the 128-block
 
     # fmt: off
-    @T.prim_func
-    def f(A: T.handle, B: T.handle):
-        A_buf = T.match_buffer(A, shape, dtype, layout=pre)
-        B_buf = T.match_buffer(B, shape, dtype, layout=post)
+    @T.function
+    def f(A_buf: T.Tensor(shape, dtype, layout=pre), B_buf: T.Tensor(shape, dtype, layout=post)):
+
         T.device_entry()
         T.cta_id([1])
         tid = T.thread_id([32])
-        sA = T.alloc_buffer(shape, dtype, scope="shared", layout=pre)
-        sB = T.alloc_buffer(shape, dtype, scope="shared", layout=post)
+        sA = T.alloc_tensor(shape, dtype, scope="shared", layout=pre)
+        sB = T.alloc_tensor(shape, dtype, scope="shared", layout=post)
         Tx.cta.copy(sA[:, :], A_buf[:, :])
         T.cuda.cta_sync()
         Tx.warp.permute_layout(sB[:, :], sA[:, :])

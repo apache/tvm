@@ -33,6 +33,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 TensorType MatchTensorType(Expr data) {
   auto _ty = MatchType<TensorType>(data);
@@ -143,16 +144,16 @@ Expr DecomposeLayerNorm(const Call& call) {
 }
 
 Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
-  TVM_FFI_ICHECK(!call_node->ty.IsMissing());
+  TVM_FFI_ICHECK(!call_node->ty.as<MissingType>().has_value());
   Expr expr = call_node->args[0];
   const ShapeTypeNode* ty = GetTypeAs<ShapeTypeNode>(call_node);
   TVM_FFI_ICHECK(ty);
   // call builtin function that converts tensor to shape tuple
   // TODO(@sunggg): Register operator for "vm.builtin.tensor_to_shape"
-  static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
-  Var call = builder->Emit(Call(Type::Missing(), call_pure_packed_op,
-                                {ExternFunc("vm.builtin.tensor_to_shape"), expr}, {},
-                                {ffi::GetRef<ShapeType>(ty)}));
+  static const Op call_pure_packed_op = Op::Get("relax.call_pure_packed");
+  Var call = builder->Emit(Call::Unchecked(Type::Missing(), call_pure_packed_op,
+                                           {ExternFunc("vm.builtin.tensor_to_shape"), expr}, {},
+                                           {ffi::GetRef<ShapeType>(ty)}));
 
   // Operators like reshape take the output of `TensorToShape` as their output shape.
   // Because TOPI expects to have such output shape in symbolic shape at least (i.e.,
@@ -190,8 +191,8 @@ class TrainingOperatorMutator : public ExprMutator {
   }
 
   /* composite opeartor list */
-  const Op& batch_norm_op_ = Op::Get("relax.nn.batch_norm");
-  const Op& layer_norm_op_ = Op::Get("relax.nn.layer_norm");
+  const Op batch_norm_op_ = Op::Get("relax.nn.batch_norm");
+  const Op layer_norm_op_ = Op::Get("relax.nn.layer_norm");
 };
 
 class OpDecomposer : public ExprMutator {
@@ -209,34 +210,13 @@ class OpDecomposer : public ExprMutator {
   }
 
   /* composite opeartor list */
-  const Op& batch_norm_op_ = Op::Get("relax.nn.batch_norm");
-  const Op& tensor_to_shape_op_ = Op::Get("relax.tensor_to_shape");
+  const Op batch_norm_op_ = Op::Get("relax.nn.batch_norm");
+  const Op tensor_to_shape_op_ = Op::Get("relax.tensor_to_shape");
 };
 
 namespace transform {
 
 namespace {
-
-/*! \brief Helper: add or remove an attribute on a BaseFunc */
-BaseFunc BaseFuncWithAttr(BaseFunc func, const std::string& attr_key, Any attr_value) {
-  if (auto tirx = func.as<tirx::PrimFunc>()) {
-    return WithAttr(tirx.value(), attr_key, attr_value);
-  } else if (auto relax_fn = func.as<relax::Function>()) {
-    return WithAttr(relax_fn.value(), attr_key, attr_value);
-  } else {
-    return func;
-  }
-}
-
-BaseFunc BaseFuncWithoutAttr(BaseFunc func, const std::string& attr_key) {
-  if (auto tirx = func.as<tirx::PrimFunc>()) {
-    return WithoutAttr(tirx.value(), attr_key);
-  } else if (auto relax_fn = func.as<relax::Function>()) {
-    return WithoutAttr(relax_fn.value(), attr_key);
-  } else {
-    return func;
-  }
-}
 
 /*!
  * \brief Apply a pass to a single named function within an IRModule.
@@ -258,7 +238,7 @@ Pass ApplyDecomposeToFunction(Pass pass, ffi::String func_name) {
           // Mark internal functions as externally-exposed so that
           // call-tracing transforms inside the pass do not remove them.
           internal_functions.insert(gvar->name_hint);
-          func = BaseFuncWithAttr(func, tvm::attr::kGlobalSymbol, gvar->name_hint);
+          func = WithAttr(std::move(func), tvm::attr::kGlobalSymbol, gvar->name_hint);
         }
       } else {
         // Replace non-target functions with stubs to keep references intact.
@@ -282,7 +262,7 @@ Pass ApplyDecomposeToFunction(Pass pass, ffi::String func_name) {
           write_ptr->Remove((*it).second);
         }
         if (internal_functions.count(gvar->name_hint)) {
-          func = BaseFuncWithoutAttr(func, tvm::attr::kGlobalSymbol);
+          func = WithoutAttr(std::move(func), tvm::attr::kGlobalSymbol);
         }
         write_ptr->Add(gvar, func);
       }

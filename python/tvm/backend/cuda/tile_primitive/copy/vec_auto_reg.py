@@ -30,10 +30,10 @@ vectorized copy loop. Direction-symmetric: covers R2S / S2R / R2G / G2R.
 import tvm_ffi
 
 import tvm
-from tvm.arith import Analyzer, ConstIntBound
 from tvm.runtime import DataType
 from tvm.script import tirx as T
-from tvm.tirx import Buffer, PrimFunc
+from tvm.sym import Analyzer, ConstIntBound
+from tvm.tirx import Function, Var
 from tvm.tirx import Var as _TirVar
 from tvm.tirx.expr import IntImm as _IntImm
 from tvm.tirx.layout import ComposeLayout, Iter, TileLayout
@@ -74,9 +74,9 @@ def _all_threads_active(sctx: DispatchContext) -> tuple[bool, str | None]:
         if tx_iv is None:
             return False, "cta scope missing threadIdx.x launch_params"
         try:
-            required["warpid"] = int(tx_iv.dom.extent) // 32
+            required["warpid"] = int(tx_iv[1]) // 32
         except (TypeError, ValueError):
-            return False, f"non-static threadIdx.x extent: {tx_iv.dom.extent}"
+            return False, f"non-static threadIdx.x extent: {tx_iv[1]}"
     for axis_name, expected in required.items():
         if axis_name not in sctx.intra:
             return False, f"sctx.intra missing {axis_name!r}"
@@ -94,8 +94,8 @@ def _r_side_layout_valid(
     op_call: TilePrimitiveCall, sctx: DispatchContext
 ) -> tuple[bool, str | None]:
     op_call = TilePrimitiveCall.downcast(op_call)
-    src: Buffer = op_call.src.buffer
-    dst: Buffer = op_call.dst.buffer
+    src: Var = op_call.src.source
+    dst: Var = op_call.dst.source
     r_buf = src if src.scope() == "local" else dst
     layout = r_buf.layout
     if layout is None:
@@ -138,8 +138,8 @@ def _s_side_slice_ok(op_call: TilePrimitiveCall) -> tuple[bool, str | None]:
     op_call = TilePrimitiveCall.downcast(op_call)
     src_br = op_call.src
     dst_br = op_call.dst
-    s_br = dst_br if src_br.buffer.scope() == "local" else src_br
-    s_buf: Buffer = s_br.buffer
+    s_br = dst_br if src_br.source.scope() == "local" else src_br
+    s_buf: Var = s_br.source
     layout = s_buf.layout
     if layout is None:
         return False, "S has no layout"
@@ -270,12 +270,12 @@ def _align_layouts(op_call: TilePrimitiveCall, sctx: DispatchContext):
     op_call = TilePrimitiveCall.downcast(op_call)
     src_br = op_call.src
     dst_br = op_call.dst
-    if src_br.buffer.scope() == "local":
+    if src_br.source.scope() == "local":
         r_br, s_br = src_br, dst_br
     else:
         r_br, s_br = dst_br, src_br
-    r_buf = r_br.buffer
-    s_buf = s_br.buffer
+    r_buf = r_br.source
+    s_buf = s_br.source
     r_region = [(r.min, r.min + r.extent) for r in r_br.region]
     s_region = [(r.min, r.min + r.extent) for r in s_br.region]
     with sctx.target:
@@ -377,7 +377,7 @@ def _axis_decl(axis_name: str, sctx: DispatchContext):
     fills our deferred defs from those siblings.
     """
     if axis_name == "tx":
-        return sctx.launch_params["threadIdx.x"].var
+        return sctx.launch_params["threadIdx.x"][0]
     if axis_name == "laneid":
         return T.lane_id()
     if axis_name == "wid_in_wg":
@@ -411,7 +411,7 @@ def _thread_axis_extent(axis_name: str, sctx: DispatchContext) -> int | None:
     if tx is None:
         return None
     try:
-        tx_extent = int(tx.dom.extent)
+        tx_extent = int(tx[1])
     except (TypeError, ValueError):
         return None
     divisor = {"tx": 1, "warpid": 32, "wgid": 128}.get(axis_name)
@@ -523,10 +523,10 @@ def _outer_const_offsets(outer_atoms, flat_idx: int) -> tuple[int, int]:
     return ds, dr
 
 
-def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     op_call = TilePrimitiveCall.downcast(op_call)
-    src: Buffer = op_call.src.buffer
-    dst: Buffer = op_call.dst.buffer
+    src: Var = op_call.src.source
+    dst: Var = op_call.dst.source
     if src.scope() == "local":
         r_buf, s_buf, r_is_src = src, dst, True
     else:
@@ -597,7 +597,7 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     # fmt: off
     s_zero_indices = [0] * len(s_buf.shape)
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         if not has_swizzle:
             s_base = _apply_s_layout(

@@ -21,10 +21,9 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/string.h>
-#include <tvm/ir/config_schema.h>
+#include <tvm/target/config_schema.h>
 
 using namespace tvm;
-using namespace tvm::ir;
 namespace refl = tvm::ffi::reflection;
 
 // Basic int/bool/string option resolution

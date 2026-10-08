@@ -40,6 +40,8 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
+
 namespace distributed {
 
 class DistIRSharder : public ExprMutator {
@@ -112,20 +114,21 @@ class DistIRSharder : public ExprMutator {
   }
 
   Expr ShardInputParamTensorAndConstant(Expr input) {
-    TVM_FFI_ICHECK(!input->ty.IsMissing());
+    TVM_FFI_ICHECK(!input->ty.as<MissingType>().has_value());
     Type old_ty = GetType(input);
     Type new_ty = ConvertType(old_ty, false);
     if (const auto* var = input.as<VarNode>()) {
       Var new_param(var->name, new_ty);
       return new_param;
-    } else if (const auto* constant = input.as<ConstantNode>()) {
+    } else if (const auto* constant = input.as<GenericConstNode>()) {
       for (const auto& spec : old_ty.as_or_throw<DTensorType>()->placement->dim_specs) {
         TVM_FFI_ICHECK(spec->kind == PlacementSpecKind::kReplica);
       }
-      Constant new_constant(constant->data, new_ty);
+      GenericConst new_constant(constant->value.cast<runtime::Tensor>(), new_ty);
       return new_constant;
     } else {
-      TVM_FFI_THROW(InternalError) << "Cannot shard tensor which is not Var or Constant: " << input;
+      TVM_FFI_THROW(InternalError)
+          << "Cannot shard tensor which is not Var or GenericConst: " << input;
       throw;
     }
   }
@@ -137,17 +140,17 @@ class DistIRSharder : public ExprMutator {
     if (sharding_spec->kind == PlacementSpecKind::kReplica) {
       Var new_var = builder_->Emit(broadcast_from_worker0(new_expr));
       if (const auto* var = old_expr.as<VarNode>()) {
-        var_remap_[ffi::GetRef<Var>(var)] = new_var;
+        var_remap_.insert_or_assign(ffi::GetRef<Var>(var), new_var);
       } else {
-        tuple_getitem_remap_[old_expr.as_or_throw<TupleGetItem>()] = new_var;
+        tuple_getitem_remap_.insert_or_assign(old_expr.as_or_throw<TupleGetItem>(), new_var);
       }
     } else if (sharding_spec->kind == PlacementSpecKind::kSharding) {
       Var scatter_var = builder_->Emit(
           scatter_from_worker0(new_expr, dtensor_ty->device_mesh->shape[0], sharding_spec->axis));
       if (const auto* var = old_expr.as<VarNode>()) {
-        var_remap_[ffi::GetRef<Var>(var)] = scatter_var;
+        var_remap_.insert_or_assign(ffi::GetRef<Var>(var), scatter_var);
       } else {
-        tuple_getitem_remap_[old_expr.as_or_throw<TupleGetItem>()] = scatter_var;
+        tuple_getitem_remap_.insert_or_assign(old_expr.as_or_throw<TupleGetItem>(), scatter_var);
       }
     } else {
       TVM_FFI_THROW(InternalError) << "Unsupported placement spec";
@@ -174,7 +177,7 @@ class DistIRSharder : public ExprMutator {
     ffi::Array<Var> new_params;
     for (const Var& var : func->params) {
       Var new_param = ShardInputParamTensorAndConstant(var).as_or_throw<Var>();
-      var_remap_[var] = new_param;
+      var_remap_.insert_or_assign(var, new_param);
       new_params.push_back(new_param);
     }
     func_ = func;
@@ -186,7 +189,8 @@ class DistIRSharder : public ExprMutator {
 
   void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val) {
     if (tuple_getitem_remap_.count(ffi::GetRef<TupleGetItem>(val))) {
-      var_remap_[binding->var] = tuple_getitem_remap_[ffi::GetRef<TupleGetItem>(val)];
+      var_remap_.insert_or_assign(binding->var,
+                                  tuple_getitem_remap_.at(ffi::GetRef<TupleGetItem>(val)));
     } else {
       ExprMutator::VisitBinding_(binding, val);
     }
@@ -254,7 +258,7 @@ class DistIRSharder : public ExprMutator {
     ReEmitBinding(binding, builder_->Normalize(new_call));
   }
 
-  Function func_;
+  Function func_{ffi::UnsafeInit{}};
   ffi::Array<Var> new_params_;
   std::unordered_map<TupleGetItem, Var, ffi::StructuralHash, ffi::StructuralEqual>
       tuple_getitem_remap_;

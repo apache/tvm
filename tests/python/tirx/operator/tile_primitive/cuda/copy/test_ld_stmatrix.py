@@ -112,15 +112,14 @@ def _build_warp_kernel(num, direction, trans, swizzle=False):
 
     # fmt: off
     if direction == "ld":
-        @T.prim_func
-        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, (M, N), "float16")
-            B = T.match_buffer(B_ptr, (M, N), "float16")
+        @T.function
+        def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
+
             T.device_entry()
             T.cta_id([1])
             T.lane_id([32])
             tid = T.thread_id([32])
-            A_smem = T.alloc_buffer(s_shape, "float16", scope="shared", layout=s_layout)
+            A_smem = T.alloc_tensor(s_shape, "float16", scope="shared", layout=s_layout)
             row = tid // 4
             cp = tid % 4
             for t in range(num):
@@ -128,7 +127,7 @@ def _build_warp_kernel(num, direction, trans, swizzle=False):
                     gr, gc = _coord(row, cp, t, w)
                     A_smem[row, cp, t, w] = A[gr, gc]
             T.cuda.cta_sync()
-            R_local = T.alloc_buffer(s_shape, "float16", scope="local", layout=r_layout)
+            R_local = T.alloc_tensor(s_shape, "float16", scope="local", layout=r_layout)
             Tx.warp.copy(R_local[full], A_smem[full])
             r_view = R_local.local()
             for t in range(num):
@@ -136,18 +135,17 @@ def _build_warp_kernel(num, direction, trans, swizzle=False):
                     gr, gc = _coord(row, cp, t, w)
                     B[gr, gc] = r_view[t * 2 + w]
     else:  # direction == "st"
-        @T.prim_func
-        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, (M, N), "float16")
-            B = T.match_buffer(B_ptr, (M, N), "float16")
+        @T.function
+        def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
+
             T.device_entry()
             T.cta_id([1])
             T.lane_id([32])
             tid = T.thread_id([32])
-            A_smem = T.alloc_buffer(s_shape, "float16", scope="shared", layout=s_layout)
+            A_smem = T.alloc_tensor(s_shape, "float16", scope="shared", layout=s_layout)
             row = tid // 4
             cp = tid % 4
-            R_local = T.alloc_buffer(s_shape, "float16", scope="local", layout=r_layout)
+            R_local = T.alloc_tensor(s_shape, "float16", scope="local", layout=r_layout)
             r_view = R_local.local()
             for t in range(num):
                 for w in range(2):
@@ -180,10 +178,9 @@ def _build_warpgroup_kernel(num, direction, trans, swizzle=False):
 
     # fmt: off
     if direction == "ld":
-        @T.prim_func
-        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, (M, N), "float16")
-            B = T.match_buffer(B_ptr, (M, N), "float16")
+        @T.function
+        def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
+
             T.device_entry()
             T.cta_id([1])
             T.warpgroup_id([1])
@@ -191,7 +188,7 @@ def _build_warpgroup_kernel(num, direction, trans, swizzle=False):
             T.lane_id([32])
             T.thread_id_in_wg([128])
             tid = T.thread_id([128])
-            A_smem = T.alloc_buffer(s_shape, "float16", scope="shared", layout=s_layout)
+            A_smem = T.alloc_tensor(s_shape, "float16", scope="shared", layout=s_layout)
             wid = tid // 32
             lid = tid % 32
             row = lid // 4
@@ -201,7 +198,7 @@ def _build_warpgroup_kernel(num, direction, trans, swizzle=False):
                     gr, gc = _coord(wid, row, cp, t, w)
                     A_smem[wid, row, cp, t, w] = A[gr, gc]
             T.cuda.cta_sync()
-            R_local = T.alloc_buffer(s_shape, "float16", scope="local", layout=r_layout)
+            R_local = T.alloc_tensor(s_shape, "float16", scope="local", layout=r_layout)
             Tx.wg.copy(R_local[full], A_smem[full])
             r_view = R_local.local()
             for t in range(num):
@@ -209,10 +206,9 @@ def _build_warpgroup_kernel(num, direction, trans, swizzle=False):
                     gr, gc = _coord(wid, row, cp, t, w)
                     B[gr, gc] = r_view[t * 2 + w]
     else:
-        @T.prim_func
-        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, (M, N), "float16")
-            B = T.match_buffer(B_ptr, (M, N), "float16")
+        @T.function
+        def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
+
             T.device_entry()
             T.cta_id([1])
             T.warpgroup_id([1])
@@ -220,12 +216,12 @@ def _build_warpgroup_kernel(num, direction, trans, swizzle=False):
             T.lane_id([32])
             T.thread_id_in_wg([128])
             tid = T.thread_id([128])
-            A_smem = T.alloc_buffer(s_shape, "float16", scope="shared", layout=s_layout)
+            A_smem = T.alloc_tensor(s_shape, "float16", scope="shared", layout=s_layout)
             wid = tid // 32
             lid = tid % 32
             row = lid // 4
             cp = lid % 4
-            R_local = T.alloc_buffer(s_shape, "float16", scope="local", layout=r_layout)
+            R_local = T.alloc_tensor(s_shape, "float16", scope="local", layout=r_layout)
             r_view = R_local.local()
             for t in range(num):
                 for w in range(2):
@@ -258,16 +254,15 @@ def _build_cta_kernel(num, direction, trans, swizzle=False):
 
     # fmt: off
     if direction == "ld":
-        @T.prim_func
-        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, (M, N), "float16")
-            B = T.match_buffer(B_ptr, (M, N), "float16")
+        @T.function
+        def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
+
             T.device_entry()
             T.cta_id([1])
             T.warp_id([4])
             T.lane_id([32])
             tid = T.thread_id([128])
-            A_smem = T.alloc_buffer(s_shape, "float16", scope="shared", layout=s_layout)
+            A_smem = T.alloc_tensor(s_shape, "float16", scope="shared", layout=s_layout)
             wid = tid // 32
             lid = tid % 32
             row = lid // 4
@@ -277,7 +272,7 @@ def _build_cta_kernel(num, direction, trans, swizzle=False):
                     gr, gc = _coord(wid, row, cp, t, w)
                     A_smem[wid, row, cp, t, w] = A[gr, gc]
             T.cuda.cta_sync()
-            R_local = T.alloc_buffer(s_shape, "float16", scope="local", layout=r_layout)
+            R_local = T.alloc_tensor(s_shape, "float16", scope="local", layout=r_layout)
             Tx.cta.copy(R_local[full], A_smem[full])
             r_view = R_local.local()
             for t in range(num):
@@ -285,21 +280,20 @@ def _build_cta_kernel(num, direction, trans, swizzle=False):
                     gr, gc = _coord(wid, row, cp, t, w)
                     B[gr, gc] = r_view[t * 2 + w]
     else:
-        @T.prim_func
-        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, (M, N), "float16")
-            B = T.match_buffer(B_ptr, (M, N), "float16")
+        @T.function
+        def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
+
             T.device_entry()
             T.cta_id([1])
             T.warp_id([4])
             T.lane_id([32])
             tid = T.thread_id([128])
-            A_smem = T.alloc_buffer(s_shape, "float16", scope="shared", layout=s_layout)
+            A_smem = T.alloc_tensor(s_shape, "float16", scope="shared", layout=s_layout)
             wid = tid // 32
             lid = tid % 32
             row = lid // 4
             cp = lid % 4
-            R_local = T.alloc_buffer(s_shape, "float16", scope="local", layout=r_layout)
+            R_local = T.alloc_tensor(s_shape, "float16", scope="local", layout=r_layout)
             r_view = R_local.local()
             for t in range(num):
                 for w in range(2):
@@ -399,22 +393,20 @@ def _build_multi_iter_kernel(outer_ext: int):
     s_layout = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
     full = tuple(slice(0, e) for e in shape)
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, "float16")
-        B = T.match_buffer(B_ptr, shape, "float16")
+    @T.function
+    def kernel(A: T.Tensor(shape, "float16"), B: T.Tensor(shape, "float16")) -> None:
         T.device_entry()
         T.cta_id([1])
         T.lane_id([32])
         tid = T.thread_id([32])
-        A_smem = T.alloc_buffer(shape, "float16", scope="shared", layout=s_layout)
+        A_smem = T.alloc_tensor(shape, "float16", scope="shared", layout=s_layout)
         for a in range(outer_ext):
             for c in range(2):
                 for d in range(4):
                     for e in range(2):
                         A_smem[a, tid // 4, c, d, tid % 4, e] = A[a, tid // 4, c, d, tid % 4, e]
         T.cuda.cta_sync()
-        R_local = T.alloc_buffer(shape, "float16", scope="local", layout=r_layout)
+        R_local = T.alloc_tensor(shape, "float16", scope="local", layout=r_layout)
         Tx.warp.copy(R_local[full], A_smem[full])
         r_view = R_local.local()
         for a in range(outer_ext):
@@ -480,16 +472,15 @@ def test_ldstmatrix_tcgen05_warpgroup_atom_emits_ldmatrix():
     reg_layout = tcgen05_atom_layout("16x256b", (m, k), "float32")
     smem_layout = mma_shared_layout("bfloat16", 3, (m, k))
 
-    @T.prim_func
-    def kernel(s_ptr: T.handle) -> None:
-        smem = T.match_buffer(s_ptr, (m, k), "bfloat16", scope="shared", layout=smem_layout)
+    @T.function
+    def kernel(smem: T.Tensor((m, k), "bfloat16", scope="shared", layout=smem_layout)) -> None:
         T.device_entry()
         T.cta_id([1])
         T.warpgroup_id([1])
         T.warp_id_in_wg([4])
         T.lane_id([32])
         T.thread_id_in_wg([128])
-        a_reg = T.alloc_buffer((m, k), "bfloat16", scope="local", layout=reg_layout)
+        a_reg = T.alloc_tensor((m, k), "bfloat16", scope="local", layout=reg_layout)
         Tx.wg.copy(a_reg, smem)
 
     _, src = _compile_src(kernel)

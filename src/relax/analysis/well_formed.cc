@@ -43,7 +43,7 @@
  *    10. The IR is in ANF:
  *       (a) Expressions cannot contain nested complex expressions.
  *           Here are the expressions that may be nested inside other expressions:
- *           Var, DataflowVar, GlobalVar, Constant, ShapeExpr,
+ *           Var, DataflowVar, GlobalVar, GenericConst, ShapeExpr,
  *           Op, Tuple (we call these "leaf" expressions).
  *       (b) The right-hand side of a binding may contain a non-leaf expression
  *           (where all expressions nested in it are leaf expressions),
@@ -75,6 +75,7 @@
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/expr_functor.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <sstream>
 #include <string>
@@ -83,6 +84,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 // TODO(relax-team): Consider further refactor using
 // Scope Frame to store manage the var context.
@@ -133,14 +135,32 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
     kMatchVarDef
   };
 
-  class PrimitiveExprChecker : public tirx::ExprVisitor {
+  class PrimitiveExprChecker : public tirx::StmtExprVisitor {
    public:
-    explicit PrimitiveExprChecker(WellFormedChecker* parent) : parent_(parent) {}
+    explicit PrimitiveExprChecker(WellFormedChecker* parent)
+        : tirx::StmtExprVisitor([] {
+            static const VTable table = [] {
+              VTable table;
+              PrimitiveExprChecker::InitVTable(&table);
+              table.Finalize();
+              return table;
+            }();
+            return &table;
+          }()),
+          parent_(parent) {}
 
    private:
-    void VisitExpr_(const tvm::VarNode* op) final { parent_->VisitExpr(ffi::GetRef<Expr>(op)); }
+    ffi::Optional<VisitInterrupt> Visit_(const tvm::VarNode* op) final {
+      parent_->VisitExpr(ffi::GetRef<Expr>(op));
+      return std::nullopt;
+    }
 
-    WellFormedChecker* parent_;
+    static void InitVTable(VTable* table) {
+      tirx::StmtExprVisitor::InitVTable(table);
+      SetDispatch<tirx::StmtExprVisitor, DataflowVarNode>(table);
+    }
+
+    WellFormedChecker* parent_{nullptr};
   };
 
   /*! \brief Get the name of a function for use in error messages. */
@@ -166,7 +186,7 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
   }
 
   void VisitExpr(const Expr& expr) final {
-    if (!expr.as<OpNode>() && expr->ty.IsMissing()) {
+    if (!expr.as<OpNode>() && expr->ty.as<MissingType>().has_value()) {
       TVM_FFI_VISIT_THROW(TypeError, expr) << "The ty of Expr " << expr << " is missing.";
     }
     relax::ExprVisitor::VisitExpr(expr);
@@ -182,7 +202,12 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
       }
     }
 
-    if (!op->ty.IsMissing()) {
+    if (!op->ty.as<MissingType>().has_value()) {
+      if (op->ty.as<tvm::FuncTypeNode>()) {
+        // A native callee owns its parameter symbols and tensor contracts.
+        // Explicit call bridges validate their Relax-facing use separately.
+        return;
+      }
       if (!op->ty->IsInstance<FuncTypeNode>()) {
         TVM_FFI_VISIT_THROW(TypeError, var)
             << "The ty of GlobalVar " << ffi::GetRef<Expr>(op) << " must be either FuncType.";
@@ -275,13 +300,23 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
       }
     }
 
-    // Runtime parameters themselves are definitions only in source order.
+    // Primitive parameters may supply dimensions anywhere in the signature.
+    // Register each once so duplicate parameters remain an error.
+    for (Var param : op->params) {
+      if (GetType(param).as<PrimTypeNode>()) {
+        RegisterVarDefinition(param);
+      }
+    }
+
+    // Other runtime parameters retain source-order definition scope.
     for (Var param : op->params) {
       if (auto* dataflow_var = param.as<DataflowVarNode>()) {
         TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<DataflowVar>(dataflow_var))
             << "DataflowVar " << param << " is defined outside DataflowBlock.";
       }
-      RegisterVarDefinition(param);
+      if (!GetType(param).as<PrimTypeNode>()) {
+        RegisterVarDefinition(param);
+      }
 
       auto it = param_var_func_map_.find(param);
       if (it != param_var_func_map_.end() && it->second != cur_visited_func_) {
@@ -293,7 +328,7 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
       CheckType(param.get());
     }
     // check function ret_ty
-    if (!op->ret_ty.IsMissing()) {
+    if (!op->ret_ty.as<MissingType>().has_value()) {
       this->VisitType(op->ret_ty);
     } else {
       TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(op)) << "Function must have defined ret_ty";
@@ -325,6 +360,9 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
 
   void VisitExpr_(const CallNode* call) final {
     TVM_FFI_VISIT_BEGIN();
+    TVM_FFI_CHECK(call->op.as<OpNode>() || !call->op->ty.as<tvm::FuncTypeNode>(), TypeError)
+        << "Ordinary Relax calls cannot invoke a native TIRx function; "
+        << "use R.call_tir or R.call_tir_packed";
     if (IsLeafOrTuple(call->op)) {
       const FunctionNode* prev_visited_func = cur_visited_func_;
       cur_visited_func_ = nullptr;  // do not attribute the callee to its caller
@@ -383,22 +421,23 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
       }
     }
 
-    if (auto func_validate = op_map_validate_.get(call->op, nullptr); func_validate != nullptr) {
+    if (auto op = call->op.as<Op>()) {
       try {
-        func_validate(ffi::GetRef<Call>(call));
+        op.value().Validate(call);
       } catch (std::exception& err) {
         TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Call>(call))
-            << "Operator-specific validation (FValidate) for " << call->op
-            << " identified error: \n"
+            << "Operator-specific validation for " << call->op << " identified error: \n"
             << err.what();
       }
     }
 
     bool has_infer_type = true;
     if (auto op = call->op.as<Op>()) {
-      has_infer_type = op_map_infer_type_.count(op.value());
+      has_infer_type =
+          op_map_infer_type_.count(op.value()) || op_map_infer_type_with_builder_.count(op.value());
     }
-    if (check_ty && !call->ty.IsMissing() && (!call->ty.as<PrimTypeNode>() || has_infer_type)) {
+    if (check_ty && !call->ty.as<MissingType>().has_value() &&
+        (!call->ty.as<PrimTypeNode>() || has_infer_type)) {
       // The `InferType` method isn't currently exposed by the
       // Normalizer, and can only be called indirectly by normalizing
       // an expression that does not yet have `Type`.
@@ -505,16 +544,17 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
       is_lambda = true;
       recur_vars_.insert(binding->var);
     }
-    if (binding->value->IsInstance<tirx::PrimFuncNode>()) {
+    if (binding->value->IsInstance<tirx::FunctionNode>()) {
       TVM_FFI_VISIT_THROW(ValueError, binding->value)
-          << "Inline PrimFunc is disallowed in Relax IR.";
+          << "Inline tirx::Function is disallowed in Relax IR.";
     } else {
       this->VisitExpr(binding->value);
     }
 
     this->VisitVarDef(binding->var);
 
-    if (check_ty && !binding->var->ty.IsMissing() && !binding->value->ty.IsMissing()) {
+    if (check_ty && !binding->var->ty.as<MissingType>().has_value() &&
+        !binding->value->ty.as<MissingType>().has_value()) {
       auto expr_ty = GetType(binding->value);
       auto var_ty = GetType(binding->var);
       if (!IsBaseOf(var_ty, expr_ty)) {
@@ -629,7 +669,9 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
     }
   }
 
-  void VisitPrimitiveExpr(const PrimExpr& expr) { PrimitiveExprChecker(this)(expr); }
+  void VisitPrimitiveExpr(const PrimExpr& expr) {
+    ffi::make_object<PrimitiveExprChecker>(this)->Visit(expr);
+  }
 
   void MarkTypeVarDefinition(const Var& var) {
     var_set_.insert(var);
@@ -683,8 +725,9 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
   std::unordered_map<Var, const FunctionNode*> param_var_func_map_;
 
   tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
-  tvm::OpAttrMap<FValidate> op_map_validate_ = Op::GetAttrMap<FValidate>("FValidate");
   tvm::OpAttrMap<FInferType> op_map_infer_type_ = Op::GetAttrMap<FInferType>("FInferType");
+  tvm::OpAttrMap<FInferTypeWithBuilder> op_map_infer_type_with_builder_ =
+      Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
 };
 
 void WellFormed(ffi::Variant<IRModule, Function> obj, bool check_ty) {

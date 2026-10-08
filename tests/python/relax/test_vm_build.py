@@ -16,6 +16,8 @@
 # under the License.
 # ruff: noqa: F841
 
+from __future__ import annotations
+
 import ctypes
 from collections.abc import Callable
 
@@ -32,19 +34,13 @@ from tvm.relax.testing import nn
 from tvm.relax.testing.vm import check_saved_func
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.support import cc, popen_pool, utils
 from tvm.testing import env
 
-EXEC_MODE = ["bytecode", "compiled"]
 
-
-@pytest.fixture(params=EXEC_MODE)
-def exec_mode(request):
-    return request.param
-
-
-def test_vm_compile_simple(exec_mode):
+def test_vm_compile_simple():
     @tvm.script.ir_module
     class TestVMCompileStage0:
         @R.function
@@ -56,7 +52,7 @@ def test_vm_compile_simple(exec_mode):
 
     mod = TestVMCompileStage0
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
     inp1 = tvm.runtime.tensor(np.random.rand(3, 4).astype(np.float32))
     inp2 = tvm.runtime.tensor(np.random.rand(3, 4).astype(np.float32))
     vm = relax.VirtualMachine(ex, tvm.cpu())
@@ -64,7 +60,7 @@ def test_vm_compile_simple(exec_mode):
     tvm.testing.assert_allclose(inp2.numpy(), inp1.numpy(), rtol=1e-7, atol=1e-7)
 
 
-def test_vm_compile_without_target_arg(exec_mode):
+def test_vm_compile_without_target_arg():
     """Like test_vm_compile_simple, but with a default target"""
 
     @tvm.script.ir_module
@@ -76,7 +72,7 @@ def test_vm_compile_without_target_arg(exec_mode):
             )
             return y
 
-    ex = relax.build(mod, exec_mode=exec_mode)
+    ex = relax.build(mod)
     inp1 = tvm.runtime.tensor(np.random.rand(3, 4).astype(np.float32))
     inp2 = tvm.runtime.tensor(np.random.rand(3, 4).astype(np.float32))
     vm = relax.VirtualMachine(ex, tvm.cpu())
@@ -84,7 +80,7 @@ def test_vm_compile_without_target_arg(exec_mode):
     tvm.testing.assert_allclose(inp2.numpy(), inp1.numpy(), rtol=1e-7, atol=1e-7)
 
 
-def test_vm_compile_unlowered_operator_error(exec_mode):
+def test_vm_compile_unlowered_operator_error():
     @tvm.script.ir_module
     class Conv2dTranspose:
         @R.function
@@ -105,19 +101,22 @@ def test_vm_compile_unlowered_operator_error(exec_mode):
         tvm.error.InternalError,
         match=r"(?s)Offending call:.*(?:R|relax)\.nn\.conv2d_transpose.*data_layout.*NHWC",
     ):
-        relax.build(mod, target="llvm", exec_mode=exec_mode)
+        relax.build(mod, target="llvm")
 
 
-def test_match_check(exec_mode):
+def test_match_check():
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+
     @tvm.script.ir_module
     class TestMatchCheck:
         @R.function
-        def foo(x: R.Tensor(["n", "m"], "int32"), y: R.Any) -> R.Tensor(["m", "n"], dtype=None):
+        def foo(x: R.Tensor([n, m], "int32"), y: R.Any) -> R.Tensor([m, n], dtype=None):
             return y
 
     mod = TestMatchCheck
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x0 = tvm.runtime.tensor(np.zeros((1, 2)).astype("int32"))
     y0 = tvm.runtime.tensor(np.zeros((2, 1)).astype("float32"))
@@ -133,18 +132,20 @@ def test_match_check(exec_mode):
         vm["foo"](x0, y2)
 
 
-def test_vm_compile_stage2(exec_mode):
+def test_vm_compile_stage2():
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+
     @tvm.script.ir_module
     class TestVMCompileStage2:
         @R.function
         def foo(x: R.Tensor(dtype="float32")) -> R.Shape:
-            n, m = T.int64(), T.int64()
             _ = R.match_cast(x, R.Tensor((n, m), "float32"))
             return R.shape([n * 2, m * 3])
 
     mod = TestVMCompileStage2
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     shape = (32, 16)
@@ -166,7 +167,7 @@ def test_vm_compile_stage2(exec_mode):
         vm["foo"]([])
 
 
-def test_vm_compile_stage3(exec_mode):
+def test_vm_compile_stage3():
     @tvm.script.ir_module
     class TestVMCompileStage3:
         @R.function
@@ -178,7 +179,7 @@ def test_vm_compile_stage3(exec_mode):
 
     mod = TestVMCompileStage3
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     shape = (32, 16)
@@ -187,13 +188,15 @@ def test_vm_compile_stage3(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
-def test_vm_compile_e2e(exec_mode):
+def test_vm_compile_e2e():
+    n = T.dynamic("n")
+    m = T.dynamic("m")
+
     @tvm.script.ir_module
     class TestVMCompileE2E:
         @R.function
         def foo(x: R.Tensor(dtype="float32")) -> R.Tensor:
             with R.dataflow():
-                n, m = T.int64(), T.int64()
                 _ = R.match_cast(x, R.Tensor((n, m), "float32"))
                 y = R.call_dps_packed("test.vm.tile", (x), R.Tensor((n, m * 2), dtype="float32"))
                 R.output(y)
@@ -202,7 +205,7 @@ def test_vm_compile_e2e(exec_mode):
     mod = TestVMCompileE2E
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     shape = (32, 16)
@@ -211,39 +214,43 @@ def test_vm_compile_e2e(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), np.tile(inp.numpy(), (1, 2)), rtol=1e-7, atol=1e-7)
 
 
-def test_vm_compile_e2e_func_param_with_shape(exec_mode):
+def test_vm_compile_e2e_func_param_with_shape():
+    m_tir_matmul = T.dynamic("m", "int32")
+    n_tir_matmul = T.dynamic("n", "int32")
+    k_tir_matmul = T.dynamic("k", "int32")
+    m_func = T.dynamic("m")
+    k_func = T.dynamic("k")
+    n_func = T.dynamic("n")
+
     @tvm.script.ir_module
     class TestVMCompileE2E2:
-        @T.prim_func(s_tir=True)
-        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+        @Ts.function
+        def tir_matmul(
+            A: T.Tensor((m_tir_matmul, n_tir_matmul)),
+            B: T.Tensor((n_tir_matmul, k_tir_matmul)),
+            C: T.Tensor((m_tir_matmul, k_tir_matmul)),
+        ) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
-            m = T.int32()
-            n = T.int32()
-            k = T.int32()
-            A = T.match_buffer(x, (m, n))
-            B = T.match_buffer(y, (n, k))
-            C = T.match_buffer(z, (m, k))
 
-            for i, j, k in T.grid(m, k, n):
-                with T.sblock("matmul"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+            for i, j, k_tir_matmul_index in T.grid(m_tir_matmul, k_tir_matmul, n_tir_matmul):
+                with Ts.sblock("matmul"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k_tir_matmul_index])
+                    with Ts.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
         @R.function
         def func(
-            x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")
+            x: R.Tensor((m_func, n_func), "float32"), w: R.Tensor((n_func, k_func), "float32")
         ) -> R.Tensor:
-            m, k = T.int64(), T.int64()
             cls = TestVMCompileE2E2
-            gv0 = R.call_tir(cls.tir_matmul, (x, w), R.Tensor((m, k), dtype="float32"))
+            gv0 = R.call_tir(cls.tir_matmul, (x, w), R.Tensor((m_func, k_func), dtype="float32"))
             return gv0
 
     mod = TestVMCompileE2E2
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     data = tvm.runtime.tensor(np.random.rand(32, 16).astype(np.float32))
@@ -253,23 +260,23 @@ def test_vm_compile_e2e_func_param_with_shape(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-6, atol=1e-6)
 
 
-def test_call_tir_inplace_e2e_simple(exec_mode):
+def test_call_tir_inplace_e2e_simple():
     @tvm.script.ir_module
     class TestCallTIRInplaceE2ESimple:
-        @T.prim_func(s_tir=True)
+        @Ts.function
         def copy(
-            A: T.Buffer((2, 3), "int32"),
-            B: T.Buffer((2, 3), "int32"),
-            C: T.Buffer((2, 3), "int32"),
-            out1: T.Buffer((2, 3), "int32"),
+            A: T.Tensor((2, 3), "int32"),
+            B: T.Tensor((2, 3), "int32"),
+            C: T.Tensor((2, 3), "int32"),
+            out1: T.Tensor((2, 3), "int32"),
         ):
             # copies the contents of C into A, B, and out1
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.sblock("T_zeros"):
-                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(C[ax0, ax1])
-                    T.writes(A[ax0, ax1], B[ax0, ax1], out1[ax0, ax1])
+                with Ts.sblock("T_zeros"):
+                    ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(C[ax0, ax1])
+                    Ts.writes(A[ax0, ax1], B[ax0, ax1], out1[ax0, ax1])
                     A[ax0, ax1] = C[ax0, ax1]
                     B[ax0, ax1] = C[ax0, ax1]
                     out1[ax0, ax1] = C[ax0, ax1]
@@ -291,7 +298,7 @@ def test_call_tir_inplace_e2e_simple(exec_mode):
     mod = TestCallTIRInplaceE2ESimple
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     x = tvm.runtime.tensor(np.zeros((2, 3)).astype(np.int32))
@@ -311,19 +318,19 @@ def test_call_tir_inplace_e2e_simple(exec_mode):
     tvm.testing.assert_allclose(outs[2].numpy(), z.numpy(), rtol=1e-7, atol=1e-7)
 
 
-def test_call_tir_inplace_e2e_rw(exec_mode):
+def test_call_tir_inplace_e2e_rw():
     # read and write from the same tensor
     @tvm.script.ir_module
     class TestCallTIRInplaceE2ERW:
-        @T.prim_func(s_tir=True)
-        def inplace_add(A: T.Buffer((2, 3), "int32"), B: T.Buffer((2, 3), "int32")):
+        @Ts.function
+        def inplace_add(A: T.Tensor((2, 3), "int32"), B: T.Tensor((2, 3), "int32")):
             # sums A and B, storing the result in A
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.sblock("T_add"):
-                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(A[ax0, ax1], B[ax0, ax1])
-                    T.writes(A[ax0, ax1])
+                with Ts.sblock("T_add"):
+                    ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(A[ax0, ax1], B[ax0, ax1])
+                    Ts.writes(A[ax0, ax1])
                     A[ax0, ax1] = A[ax0, ax1] + B[ax0, ax1]
 
         @R.function
@@ -338,7 +345,7 @@ def test_call_tir_inplace_e2e_rw(exec_mode):
     mod = TestCallTIRInplaceE2ERW
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     x = tvm.runtime.tensor(np.ones((2, 3)).astype(np.int32))
@@ -352,7 +359,7 @@ def test_call_tir_inplace_e2e_rw(exec_mode):
     tvm.testing.assert_allclose(out.numpy(), expected.numpy(), rtol=1e-7, atol=1e-7)
 
 
-def test_vm_emit_te_extern(exec_mode):
+def test_vm_emit_te_extern():
     if not tvm.get_global_func("tvm.contrib.cblas.matmul", True):
         print("skip because extern function is not available")
         return
@@ -368,7 +375,7 @@ def test_vm_emit_te_extern(exec_mode):
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     data = tvm.runtime.tensor(np.random.rand(16, 32).astype(np.float32))
@@ -378,7 +385,7 @@ def test_vm_emit_te_extern(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-6, atol=1e-6)
 
 
-def test_vm_emit_te_concat(exec_mode):
+def test_vm_emit_te_concat():
     # concatenate of two vectors of size (n,) and (m,)
     bb = relax.BlockBuilder()
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
@@ -396,7 +403,7 @@ def test_vm_emit_te_concat(exec_mode):
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.runtime.tensor(
@@ -415,9 +422,9 @@ def test_vm_emit_te_concat(exec_mode):
     )
 
 
-def test_vm_emit_te_dtype_change(exec_mode):
+def test_vm_emit_te_dtype_change():
     bb = relax.BlockBuilder()
-    n = tirx.Var("n", "int64")
+    n = T.dynamic("n", "int64")
     x = relax.Var("x", R.Tensor([n], "float32"))
 
     # convert a tensor with dtype of float32 to int16
@@ -432,7 +439,7 @@ def test_vm_emit_te_dtype_change(exec_mode):
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.runtime.tensor(
@@ -444,9 +451,9 @@ def test_vm_emit_te_dtype_change(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), inp.numpy().astype("int16"))
 
 
-def test_vm_emit_te_floor_symbolic_shape(exec_mode):
+def test_vm_emit_te_floor_symbolic_shape():
     bb = relax.BlockBuilder()
-    n = tirx.Var("n", "int64")
+    n = T.dynamic("n", "int64")
     x = relax.Var("x", R.Tensor([n], "float32"))
 
     def te_func(A):
@@ -460,7 +467,7 @@ def test_vm_emit_te_floor_symbolic_shape(exec_mode):
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     shape = (9,)
@@ -474,7 +481,7 @@ def test_vm_emit_te_floor_symbolic_shape(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), expected_output(), rtol=1e-7, atol=1e-7)
 
 
-def test_vm_emit_te_constant_param_cpu(exec_mode):
+def test_vm_emit_te_constant_param_cpu():
     x_np = np.random.rand(2, 2).astype("float32")
     c_np = np.random.rand(2, 2).astype("float32")
 
@@ -488,7 +495,7 @@ def test_vm_emit_te_constant_param_cpu(exec_mode):
         bb.emit_func_output(gv)
 
     mod = bb.get()
-    exec = relax.build(mod, "llvm", exec_mode=exec_mode)
+    exec = relax.build(mod, "llvm")
     dev = tvm.cpu()
     vm = relax.VirtualMachine(exec, dev)
 
@@ -498,7 +505,7 @@ def test_vm_emit_te_constant_param_cpu(exec_mode):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
-def test_vm_emit_te_constant_param_gpu(exec_mode):
+def test_vm_emit_te_constant_param_gpu():
     x_np = np.random.rand(2, 2).astype("float32")
     c_np = np.random.rand(2, 2).astype("float32")
 
@@ -516,7 +523,7 @@ def test_vm_emit_te_constant_param_gpu(exec_mode):
     loops = sch.get_loops(sch.get_sblock(name="T_add", func_name="add"))
     sch.bind(loops[0], "threadIdx.x")
 
-    exec = relax.build(sch.mod, "cuda", exec_mode=exec_mode)
+    exec = relax.build(sch.mod, "cuda")
 
     def run_and_check():
         dev = tvm.cuda()
@@ -527,9 +534,9 @@ def test_vm_emit_te_constant_param_gpu(exec_mode):
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-def test_vm_relax_symbolic_shape(exec_mode):
+def test_vm_relax_symbolic_shape():
     bb = relax.BlockBuilder()
-    n = tirx.Var("n", "int64")
+    n = T.dynamic("n", "int64")
     x = relax.Var("x", R.Tensor([n], "float32"))
     y = relax.Var("y", R.Tensor([(n // 2) + 1], "float32"))
 
@@ -544,7 +551,7 @@ def test_vm_relax_symbolic_shape(exec_mode):
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     shape1 = (5,)
@@ -559,17 +566,18 @@ def test_vm_relax_symbolic_shape(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), expected_output(), rtol=1e-7, atol=1e-7)
 
 
-def test_vm_relax_symbolic_shape_tuple(exec_mode):
-    @I.ir_module(s_tir=True)
+def test_vm_relax_symbolic_shape_tuple():
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
+    @I.ir_module
     class mod:
         @R.function
-        def main(shape: R.Shape(["m", "n"])):
-            m = T.int64()
-            n = T.int64()
+        def main(shape: R.Shape([m, n])):
             return R.shape([2 * m, 3 * n])
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     func = vm["main"]
@@ -583,10 +591,10 @@ def test_vm_relax_symbolic_shape_tuple(exec_mode):
         func(R.prim_value(2))
 
 
-def test_vm_relax_dyn_tir_shape(exec_mode):
-    # case where TIR variables are unbound in generated PrimFunc
+def test_vm_relax_dyn_tir_shape():
+    # case where TIR variables are unbound in generated Function
     bb = relax.BlockBuilder()
-    n = tirx.Var("n", "int64")
+    n = T.dynamic("n", "int64")
 
     def te_func(A):
         C = te.compute((n + 1), lambda i: A[i])
@@ -602,7 +610,7 @@ def test_vm_relax_dyn_tir_shape(exec_mode):
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
 
     with utils.tempdir() as temp:
         ex.export_library(temp.relpath("exec.so"))
@@ -616,9 +624,9 @@ def test_vm_relax_dyn_tir_shape(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), inp2.numpy(), rtol=1e-7, atol=1e-7)
 
 
-def test_vm_tuple(exec_mode):
+def test_vm_tuple():
     bb = relax.BlockBuilder()
-    n = tirx.Var("n", "int64")
+    n = T.dynamic("n", "int64")
 
     with bb.function("rx_func"):
         x = nn.Placeholder((n,), dtype="float32", name="x")
@@ -630,7 +638,7 @@ def test_vm_tuple(exec_mode):
     mod = bb.get()
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
 
     vm = relax.VirtualMachine(ex, tvm.cpu())
     shape = (5,)
@@ -643,7 +651,7 @@ def test_vm_tuple(exec_mode):
     tvm.testing.assert_allclose(res3.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
-def test_vm_tuplegetitem(exec_mode):
+def test_vm_tuplegetitem():
     @tvm.script.ir_module
     class TestVMTupleGetItem:
         @R.function
@@ -659,7 +667,7 @@ def test_vm_tuplegetitem(exec_mode):
 
     mod = TestVMTupleGetItem
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x_inp = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
     y_inp = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
@@ -667,7 +675,7 @@ def test_vm_tuplegetitem(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
-def test_lower_memory_alloc_storage_tensor(exec_mode):
+def test_lower_memory_alloc_storage_tensor():
     @tvm.script.ir_module
     class TestMemoryAllocStorageTensor:
         @R.function
@@ -679,42 +687,40 @@ def test_lower_memory_alloc_storage_tensor(exec_mode):
             )
             y = R.memory.alloc_tensor(storage, 0, R.shape([2, 3]), dtype="float32")
             # this is an impure operation, but the overall function is pure so we force purity
-            _ = cls.copy(x, y)
+            _ = R.call_tir_packed(cls.copy, (x, y))
             return y
 
-        @T.prim_func(s_tir=True)
-        def copy(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+        @Ts.function
+        def copy(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
             for i0, i1 in T.grid(2, 3):
-                with T.sblock("block"):
-                    vi0, vi1 = T.axis.remap("SS", [i0, i1])
+                with Ts.sblock("block"):
+                    vi0, vi1 = Ts.axis.remap("SS", [i0, i1])
                     B[vi0, vi1] = A[vi0, vi1]
 
     mod = TestMemoryAllocStorageTensor
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
     y = vm["main"](x)
     tvm.testing.assert_allclose(y.numpy(), x.numpy(), rtol=1e-7, atol=1e-7)
 
 
-def test_sub_func_call(exec_mode):
+def test_sub_func_call():
+    m = T.dynamic("m", "int32")
+    n = T.dynamic("n", "int32")
+    k = T.dynamic("k", "int32")
+
     @tvm.script.ir_module
     class TestVMSubFunction:
-        @T.prim_func(s_tir=True)
-        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+        @Ts.function
+        def tir_matmul(A: T.Tensor((m, n)), B: T.Tensor((n, k)), C: T.Tensor((m, k))) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
-            m = T.int32()
-            n = T.int32()
-            k = T.int32()
-            A = T.match_buffer(x, (m, n))
-            B = T.match_buffer(y, (n, k))
-            C = T.match_buffer(z, (m, k))
 
-            for i, j, k in T.grid(m, k, n):
-                with T.sblock("matmul"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+            for i, j, k_index in T.grid(m, k, n):
+                with Ts.sblock("matmul"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k_index])
+                    with Ts.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -745,7 +751,7 @@ def test_sub_func_call(exec_mode):
             return gv1
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(TestVMSubFunction, target, exec_mode=exec_mode)
+    ex = relax.build(TestVMSubFunction, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x_inp = tvm.runtime.tensor(np.random.rand(32, 32).astype(np.float32))
     y_inp = tvm.runtime.tensor(np.random.rand(32, 32).astype(np.float32))
@@ -755,7 +761,7 @@ def test_sub_func_call(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-6, atol=1e-6)
 
 
-def test_recursion(exec_mode):
+def test_recursion():
     @tvm.script.ir_module
     class TestVMRecursion:
         @R.function
@@ -776,7 +782,7 @@ def test_recursion(exec_mode):
             return res
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(TestVMRecursion, target, exec_mode=exec_mode)
+    ex = relax.build(TestVMRecursion, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     inp = np.empty(1).astype("float32")
@@ -789,26 +795,26 @@ def test_recursion(exec_mode):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
-def test_vm_to_device(exec_mode):
+def test_vm_to_device():
     @tvm.script.ir_module
     class TestToVDevice:
         @R.function
         def foo1(
             x: R.Tensor((2, 3), "float32"),
         ) -> R.Tensor((2, 3), "float32"):
-            copied = R.to_vdevice(x, tvm.ir.VDevice("cuda", 0, "global"))
+            copied = R.to_vdevice(x, tvm.relax.VDevice("cuda", 0, "global"))
             return copied
 
         @R.function
         def foo2(
             x: R.Tensor((2, 3), "float32"),
         ) -> R.Tensor((2, 3), "float32"):
-            copied = R.to_vdevice(x, tvm.ir.VDevice("llvm", 0, "global"))
+            copied = R.to_vdevice(x, tvm.relax.VDevice("llvm", 0, "global"))
             return copied
 
     mod = TestToVDevice
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
 
     def run_and_check():
         vm = relax.VirtualMachine(ex, tvm.cpu())
@@ -826,7 +832,7 @@ def test_vm_to_device(exec_mode):
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-def test_vm_closure(exec_mode):
+def test_vm_closure():
     @tvm.script.ir_module
     class TestClosure:
         @R.function
@@ -845,7 +851,7 @@ def test_vm_closure(exec_mode):
 
     mod = TestClosure
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x_inp = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
     y_inp = tvm.runtime.tensor(np.array([[3.1, 4.0, 5.0], [6.0, 7.1, 9.0]], dtype="float32"))
@@ -853,7 +859,7 @@ def test_vm_closure(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), x_inp.numpy() + y_inp.numpy())
 
 
-def test_time_evaluator(exec_mode):
+def test_time_evaluator():
     @tvm.script.ir_module
     class TestTimeEvaluator:
         @R.function
@@ -863,7 +869,7 @@ def test_time_evaluator(exec_mode):
             )
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(TestTimeEvaluator, target, exec_mode=exec_mode)
+    ex = relax.build(TestTimeEvaluator, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x = tvm.runtime.tensor(np.random.rand(1).astype("float32"))
     y = tvm.runtime.tensor(np.random.rand(1).astype("float32"))
@@ -880,22 +886,21 @@ def test_time_evaluator(exec_mode):
     assert timing_res.results
 
 
+m = T.dynamic("m", "int32")
+n = T.dynamic("n", "int32")
+
+
 @tvm.script.ir_module
 class TestVMSetInput:
-    @T.prim_func(s_tir=True)
-    def test_vm_mul(x: T.handle, y: T.handle, z: T.handle):
+    @Ts.function
+    def test_vm_mul(A: T.Tensor((m, n)), B: T.Tensor((m, n)), C: T.Tensor((m, n))):
         T.func_attr({"global_symbol": "test_vm_mul"})
-        m = T.int32()
-        n = T.int32()
-        A = T.match_buffer(x, (m, n))
-        B = T.match_buffer(y, (m, n))
-        C = T.match_buffer(z, (m, n))
 
         for i, j in T.grid(m, n):
-            with T.sblock("mul"):
-                vi = T.axis.spatial(m, i)
-                vj = T.axis.spatial(n, j)
-                with T.init():
+            with Ts.sblock("mul"):
+                vi = Ts.axis.spatial(m, i)
+                vj = Ts.axis.spatial(n, j)
+                with Ts.init():
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = A[vi, vj] * B[vi, vj]
 
@@ -926,46 +931,46 @@ class TestVMSetInput:
         return gv0
 
 
-def test_multi_systemlib(exec_mode):
+def test_multi_systemlib():
     pytest.importorskip("cloudpickle")  # needed by popen_pool.PopenWorker
+
+    N = T.dynamic("N")
+    m = T.dynamic("m")
 
     @tvm.script.ir_module
     class ModA:
         I.module_attrs({"system_lib_prefix": "libA_"})
 
-        @T.prim_func(s_tir=True)
-        def tir_init(x_handle: T.handle):
-            N = T.int64()
-            x = T.match_buffer(x_handle, [N], "float32")
+        @Ts.function
+        def tir_init(x: T.Tensor([N], "float32")):
             for i in range(N):
                 x[i] = T.float32(0)
 
         @R.function
-        def main(s: R.Shape(["m"])) -> R.Tensor:
-            m = T.int64()
+        def main(s: R.Shape([m])) -> R.Tensor:
             gv0 = R.call_tir(ModA.tir_init, (), R.Tensor((m + 1,), dtype="float32"))
             return gv0
+
+    N = T.dynamic("N")
+    m = T.dynamic("m")
 
     @tvm.script.ir_module
     class ModB:
         I.module_attrs({"system_lib_prefix": "libB_"})
 
-        @T.prim_func(s_tir=True)
-        def tir_init(x_handle: T.handle):
-            N = T.int64()
-            x = T.match_buffer(x_handle, [N], "float32")
+        @Ts.function
+        def tir_init(x: T.Tensor([N], "float32")):
             for i in range(N):
                 x[i] = T.float32(1)
 
         @R.function
-        def main(s: R.Shape(["m"])) -> R.Tensor:
-            m = T.int64()
+        def main(s: R.Shape([m])) -> R.Tensor:
             gv0 = R.call_tir(ModB.tir_init, (), R.Tensor((m,), dtype="float32"))
             return gv0
 
     target = tvm.target.Target("llvm", host="llvm")
-    libA = relax.build(ModA, target, exec_mode=exec_mode)
-    libB = relax.build(ModB, target, exec_mode=exec_mode)
+    libA = relax.build(ModA, target)
+    libB = relax.build(ModB, target)
 
     temp = utils.tempdir()
     pathA = temp.relpath("libA.a")
@@ -1052,10 +1057,10 @@ def set_input_attempt_get(vm: relax.VirtualMachine, device: tvm.runtime.Device) 
     _ = vm.get_outputs("main")
 
 
-def make_vm(mod, exec_mode, temp) -> tuple[relax.VirtualMachine, tvm.runtime.Device]:
+def make_vm(mod, temp) -> tuple[relax.VirtualMachine, tvm.runtime.Device]:
     """Returns a local VM for the given mod and the device"""
     target = tvm.target.Target("llvm", host="llvm")
-    exec = relax.build(mod, target, exec_mode=exec_mode)
+    exec = relax.build(mod, target)
     libname = temp.relpath("exec.so")
     exec.export_library(libname)
     exec_loaded = tvm.runtime.load_module(libname)
@@ -1066,14 +1071,13 @@ def make_vm(mod, exec_mode, temp) -> tuple[relax.VirtualMachine, tvm.runtime.Dev
 def run_on_rpc(
     mod: tvm.IRModule,
     trial_func: Callable[[relax.VirtualMachine, tvm.runtime.Device], None],
-    exec_mode: str,
 ):
     """
     Sets up a VM over localhost using the given mod and runs the given trial function.
     The trial function should take a VM and a device
     """
     target = tvm.target.Target("llvm", host="llvm")
-    exec = relax.build(mod, target, exec_mode=exec_mode)
+    exec = relax.build(mod, target)
     temp = utils.tempdir()
     path = temp.relpath("vm_library.so")
     exec.export_library(path)
@@ -1097,12 +1101,12 @@ def run_on_rpc(
     check_remote(rpc.Server("127.0.0.1"))
 
 
-def test_set_input(exec_mode):
+def test_set_input():
     temp = utils.tempdir()
-    set_input_trial(*make_vm(TestVMSetInput, exec_mode, temp))
+    set_input_trial(*make_vm(TestVMSetInput, temp))
 
 
-def test_set_input_tuple(exec_mode):
+def test_set_input_tuple():
     @tvm.script.ir_module
     class MyMod:
         @R.function
@@ -1111,7 +1115,7 @@ def test_set_input_tuple(exec_mode):
             return y
 
     temp = utils.tempdir()
-    vm, device = make_vm(MyMod, exec_mode, temp)
+    vm, device = make_vm(MyMod, temp)
     device = tvm.cpu(0)
     a = tvm.runtime.empty((32,), "float32", device=device)
     b = tvm.runtime.empty((32,), "float32", device=device)
@@ -1128,14 +1132,14 @@ def save_function_kwargs_trial(vm: relax.VirtualMachine, device: tvm.runtime.Dev
     tvm.testing.assert_allclose(res0.numpy(), a.numpy() * b.numpy(), rtol=1e-7, atol=1e-7)
 
 
-def test_save_function_kwargs(exec_mode):
+def test_save_function_kwargs():
     temp = utils.tempdir()
-    save_function_kwargs_trial(*make_vm(TestVMSetInput, exec_mode, temp))
+    save_function_kwargs_trial(*make_vm(TestVMSetInput, temp))
 
 
-def test_save_function_kwargs_rpc(exec_mode):
+def test_save_function_kwargs_rpc():
     pytest.importorskip("cloudpickle")  # needed by the popen RPC server
-    run_on_rpc(TestVMSetInput, save_function_kwargs_trial, exec_mode)
+    run_on_rpc(TestVMSetInput, save_function_kwargs_trial)
 
 
 def save_function_time_evaluator_trial(
@@ -1148,61 +1152,61 @@ def save_function_time_evaluator_trial(
     vm.time_evaluator("saved_main", device)()
 
 
-def test_save_function_time_evaluator(exec_mode):
+def test_save_function_time_evaluator():
     temp = utils.tempdir()
-    save_function_time_evaluator_trial(*make_vm(TestVMSetInput, exec_mode, temp))
+    save_function_time_evaluator_trial(*make_vm(TestVMSetInput, temp))
 
 
-def test_save_function_time_evaluator_rpc(exec_mode):
+def test_save_function_time_evaluator_rpc():
     pytest.importorskip("cloudpickle")  # needed by the popen RPC server
-    run_on_rpc(TestVMSetInput, save_function_time_evaluator_trial, exec_mode)
+    run_on_rpc(TestVMSetInput, save_function_time_evaluator_trial)
 
 
 # if you set an input, you should not be able to call statelessly
 
 
-def test_set_input_stateless_failure(exec_mode):
+def test_set_input_stateless_failure():
     temp = utils.tempdir()
-    args = make_vm(TestVMSetInput, exec_mode, temp)
+    args = make_vm(TestVMSetInput, temp)
     with pytest.raises(RuntimeError):
         set_input_attempt_stateless(*args)
 
 
-def test_set_input_stateless_failure_rpc(exec_mode):
+def test_set_input_stateless_failure_rpc():
     pytest.importorskip("cloudpickle")  # needed by the popen RPC server
     with pytest.raises(RuntimeError):
-        run_on_rpc(TestVMSetInput, set_input_attempt_stateless, exec_mode)
+        run_on_rpc(TestVMSetInput, set_input_attempt_stateless)
 
 
-def test_set_input_invoke_failure(exec_mode):
+def test_set_input_invoke_failure():
     temp = utils.tempdir()
-    args = make_vm(TestVMSetInput, exec_mode, temp)
+    args = make_vm(TestVMSetInput, temp)
     with pytest.raises(ValueError):
         set_input_attempt_invoke(*args)
 
 
-def test_set_input_invoke_failure_rpc(exec_mode):
+def test_set_input_invoke_failure_rpc():
     pytest.importorskip("cloudpickle")  # needed by the popen RPC server
     with pytest.raises(RuntimeError):
-        run_on_rpc(TestVMSetInput, set_input_attempt_invoke, exec_mode)
+        run_on_rpc(TestVMSetInput, set_input_attempt_invoke)
 
 
-def test_set_input_get_failure(exec_mode):
+def test_set_input_get_failure():
     temp = utils.tempdir()
-    args = make_vm(TestVMSetInput, exec_mode, temp)
+    args = make_vm(TestVMSetInput, temp)
     with pytest.raises(ValueError):
         set_input_attempt_get(*args)
 
 
-def test_set_input_get_failure_rpc(exec_mode):
+def test_set_input_get_failure_rpc():
     pytest.importorskip("cloudpickle")  # needed by the popen RPC server
     with pytest.raises(RuntimeError):
-        run_on_rpc(TestVMSetInput, set_input_attempt_get, exec_mode)
+        run_on_rpc(TestVMSetInput, set_input_attempt_get)
 
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
-def test_relax_module_with_multiple_targets(exec_mode):
+def test_relax_module_with_multiple_targets():
     """Relax functions may contain kernels for multiple targets
 
     In this example, the module contains one function to execute on
@@ -1210,9 +1214,9 @@ def test_relax_module_with_multiple_targets(exec_mode):
 
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        I.module_global_infos({"vdevice": [I.vdevice("llvm")]})
+        I.module_global_infos({"vdevice": [R.vdevice("llvm")]})
 
         @R.function
         def func_cuda(A: R.Tensor([32, 32], "float32"), B: R.Tensor([32, 32], "float32")):

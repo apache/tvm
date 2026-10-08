@@ -61,23 +61,26 @@ class LLVMTarget;
 // CPU host code generation
 class CodeGenCPU : public CodeGenLLVM {
  public:
+  using CodeGenLLVM::Dispatch_;
   CodeGenCPU();
   virtual ~CodeGenCPU();
 
   void Init(const std::string& module_name, LLVMTarget* llvm_target,
             ffi::Optional<ffi::String> system_lib_prefix, bool dynamic_lookup,
             bool target_c_runtime) override;
-  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) override;
+  void AddFunction(const GlobalVar& gvar, const Function& f) override;
   void AddMainFunction(const std::string& entry_func_name) override;
   std::unique_ptr<llvm::Module> Finish() override;
-  void VisitStmt_(const AssertStmtNode* op) override;
-  void VisitStmt_(const AttrStmtNode* op) override;
-  void VisitStmt_(const ForNode* op) override;
+  void Dispatch_(const AssertStmtNode* op) override;
+  void Dispatch_(const RegionStmtNode* op) override;
+  void Dispatch_(const ForNode* op) override;
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
   llvm::Value* CreateCallExtern(Type ret_type, ffi::String global_symbol,
                                 const ffi::Array<Expr>& args, bool skip_first_arg) override;
 
  protected:
+  // Set attributes on the function outlined from a compute scope.
+  virtual void SetComputeScopeAttributes(llvm::Function* func) { SetTargetAttributes(func); }
   void AddStartupFunction() final;
   // meta data
   llvm::MDNode* md_tbaa_ctx_ptr_{nullptr};
@@ -104,9 +107,8 @@ class CodeGenCPU : public CodeGenLLVM {
  private:
   // the parallel group information
   struct ParallelEnv {
-    Var task_id;
-    Var num_task;
-    bool stride_pattern{false};
+    ffi::Optional<Var> task_id;
+    ffi::Optional<Var> num_task;
     bool in_parallel_loop{false};
     int parallel_loop_count{0};
     llvm::Value* penv{nullptr};
@@ -142,18 +144,16 @@ class CodeGenCPU : public CodeGenLLVM {
                                    const int64_t begin, const int64_t end, bool use_string_lookup);
   // create call into tvm packed function.
   llvm::Value* CreateCallPacked(const CallNode* op);
-  // Create trace call into tvm packed function.
-  llvm::Value* CreateCallTracePacked(const CallNode* op);
   // Create parallel launch
   void CreateParallelLaunch(const Stmt& body, int num_task, std::string name = "");
   // Create a new compute scope.
-  void CreateComputeScope(const AttrStmtNode* op);
+  void CreateComputeScope(const RegionStmtNode* op);
   // Check if the call to packed function is successful
   // if not directly finalize function and pass on return code.
   // return the end block after the check
   llvm::BasicBlock* CheckCallSuccess(llvm::Value* retcode);
 
-  llvm::DISubprogram* CreateDebugFunction(const GlobalVar& gvar, const PrimFunc& f);
+  llvm::DISubprogram* CreateDebugFunction(const GlobalVar& gvar, const Function& f);
   llvm::DISubprogram* CreateDebugFunction(llvm::StringRef name, const ffi::Array<Type>& param_types,
                                           const Type& return_type);
 

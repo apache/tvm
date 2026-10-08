@@ -21,9 +21,10 @@ import functools
 import operator
 import re
 from collections.abc import Sequence
-from typing import ClassVar, Optional, Union
+from typing import Optional, Union
 
 import tvm_ffi
+from tvm_ffi.dataclasses import Enum
 
 import tvm
 from tvm.runtime import Object
@@ -323,7 +324,7 @@ class Layout(Object):
     def _get_default_strides(data: list[int | Expr], stride: int = 1) -> tuple:
         assert isinstance(data, list | tuple), "data must be a tuple"
         # Promote ``stride`` to the dtype of the shape extents so the resulting
-        # strides match what te-create_prim_func / C++ ``GetDefaultStrides``
+        # strides match what te-create_function / C++ ``GetDefaultStrides``
         # produce for int64-shaped buffers (otherwise the last stride stays a
         # Python ``int`` -> int32 IntImm and breaks structural-equal).
         for t in data:
@@ -472,6 +473,9 @@ class Layout(Object):
             raise ValueError(f"Unsupported layout type: {type(self)}")
 
 
+# Result namespaces are available once this class has been created.
+
+
 # Set of axis names registered on the C++ side. Used for lazy resolution of
 # both module-level (`from tvm.tirx.layout import laneid`) and class-attribute
 # (`Axis.laneid`) accesses. The actual FFI call to look up each axis is
@@ -499,7 +503,7 @@ _AXIS_NAMES = (
 )
 
 
-class _AxisMeta(type(Object)):
+class _AxisMeta(type(Enum)):
     """Metaclass: lazy resolve `Axis.<name>` for registered axes."""
 
     def __getattr__(cls, name):
@@ -508,27 +512,21 @@ class _AxisMeta(type(Object)):
         raise AttributeError(f"type object 'Axis' has no attribute {name!r}")
 
 
-@tvm_ffi.register_object("tirx.Axis")
-class Axis(Object, metaclass=_AxisMeta):
+class Axis(Enum, metaclass=_AxisMeta, type_key="tirx.Axis", init=False):
     """Layout axis wrapper."""
 
-    # ---- forbid direct construction ----
-    def __init__(self, *args, **kwargs):
-        raise RuntimeError("Cannot create Axis directly; use Axis.get()")
+    @property
+    def name(self) -> str:
+        """Return the canonical axis name."""
+        return self._str_index
 
-    @staticmethod
-    def _register_axis(name: str) -> "Axis":
+    @classmethod
+    def get(cls, name: str) -> "Axis":
+        """Get or create the axis singleton named `name`.
+
+        Unknown names are registered without thread or memory attributes.
+        """
         return _ffi_api.AxisGet(name)  # pylint: disable=no-member
-
-    # Singleton cache, populated lazily as names are accessed.
-    reg_dict: ClassVar[dict[str, "Axis"]] = {}
-
-    @staticmethod
-    def get(name: str) -> "Axis":
-        """Get or create an axis by name. Unknown names are auto-registered."""
-        if name not in Axis.reg_dict:
-            Axis.reg_dict[name] = Axis._register_axis(name)
-        return Axis.reg_dict[name]
 
     def is_thread(self) -> bool:
         """Check if the axis is a thread axis."""
@@ -662,7 +660,7 @@ def tmem_datapath_layout(datapath: str, rows: int, cols: int, sub_slab: int = 0)
     Returns
     -------
     TileLayout
-        Buffer-shape-compatible layout for ``(rows, cols)``.
+        Var-shape-compatible layout for ``(rows, cols)``.
     """
     if datapath not in _TMEM_DATAPATH_ROWS:
         raise ValueError(
@@ -1186,7 +1184,7 @@ class _OffsetExpr:
 
     def _add_term(self, axis: Axis, value: Expr):
         if axis in self.terms:
-            # Merge if both exist; rely on tvm arith for symbolic add
+            # Merge if both exist; rely on tvm sym for symbolic add
             self.terms[axis] = self.terms[axis] + value  # type: ignore[operator]
         else:
             self.terms[axis] = value
@@ -1429,7 +1427,7 @@ class TileLayout(Layout):
     @classmethod
     def trainium(cls, annotation: str, shape: tuple[Expr], is_psum: bool = False) -> "TileLayout":
         """Create a TileLayout from an annotation string and a shape."""
-        analyzer = tvm.arith.Analyzer()
+        analyzer = tvm.sym.Analyzer()
         assert re.fullmatch(r"[PF]*", annotation), (
             f"annotation {annotation} must be a string of 'P' and 'F'"
         )
@@ -1487,7 +1485,7 @@ class TileLayout(Layout):
 
     def to_psum(self) -> "TileLayout":
         """Convert the layout to a psum layout."""
-        analyzer = tvm.arith.Analyzer()
+        analyzer = tvm.sym.Analyzer()
         shard = []
         for i in self.shard:
             if i.axis.name == "F":
@@ -1539,6 +1537,9 @@ class TileLayout(Layout):
         return self.permute_dims(flat)
 
 
+# Result namespaces are available once this class has been created.
+
+
 @tvm_ffi.register_object("tirx.ComposeLayout")
 class ComposeLayout(Layout):
     """A memory layout that swizzles a tile layout.
@@ -1571,3 +1572,6 @@ class ComposeLayout(Layout):
             tile_layout,
             swizzle_inner,
         )
+
+
+# Result namespaces are available once this class has been created.

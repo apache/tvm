@@ -30,6 +30,7 @@ import numpy as np
 import tvm
 from tvm import relax, tirx
 from tvm.relax import op as _op
+from tvm.script import s_tir as Ts
 
 from .tflite_flexbuffer import FlexBufferDecoder
 
@@ -100,6 +101,7 @@ class OperatorConverter:
         {
             "ABS",
             "ADD",
+            "AVERAGE_POOL_2D",
             "ATAN2",
             "CEIL",
             "CONCATENATION",
@@ -125,6 +127,7 @@ class OperatorConverter:
             "LOGISTIC",
             "LOG_SOFTMAX",
             "MAXIMUM",
+            "MAX_POOL_2D",
             "MEAN",
             "MINIMUM",
             "MUL",
@@ -1239,7 +1242,7 @@ class OperatorConverter:
 
         For COMPLEX64 tensors, the trailing (2,) axis encodes the real/imag pair.
         Returns an empty tuple () for rank-0 tensors. Shape elements are Python ints
-        (not numpy scalars) so the result is safe to feed into TIRX ``T.Buffer(shape, ...)``.
+        (not numpy scalars) so the result is safe to feed into TIRX ``T.Tensor(shape, ...)``.
         """
         tensor = self._unwrap_tflite_tensor(tensor)
         shape = to_int_list(tensor.ShapeAsNumpy()) if tensor.ShapeLength() > 0 else ()
@@ -1279,9 +1282,9 @@ class OperatorConverter:
         rhs_zero_point = rhs_tensor.qnn_params["zero_point"]
         # 0.1 + 0.2 != 0.3
         return np.allclose(
-            lhs_scale.data.numpy(), rhs_scale.data.numpy(), rtol=1e-5, atol=1e-5
+            lhs_scale.value.numpy(), rhs_scale.value.numpy(), rtol=1e-5, atol=1e-5
         ) and np.allclose(
-            lhs_zero_point.data.numpy(), rhs_zero_point.data.numpy(), rtol=1e-5, atol=1e-5
+            lhs_zero_point.value.numpy(), rhs_zero_point.value.numpy(), rtol=1e-5, atol=1e-5
         )
 
     def quantize(self, expr, tensor_to_quantize):
@@ -1688,12 +1691,12 @@ class OperatorConverter:
 
         def is_dynamic(tensor):
             return self.has_expr(tensor.tensor_idx) and not isinstance(
-                self.get_expr(tensor.tensor_idx), relax.Constant
+                self.get_expr(tensor.tensor_idx), tvm.ir.GenericConst
             )
 
         def static_scalar(tensor):
             if self.has_expr(tensor.tensor_idx):
-                value = self.get_expr(tensor.tensor_idx).data.numpy()
+                value = self.get_expr(tensor.tensor_idx).value.numpy()
             else:
                 value = self.get_tensor_value(tensor)
             # TFLite RANGE operands are scalar tensors in the flatbuffer.
@@ -2647,12 +2650,12 @@ class OperatorConverter:
             raise tvm.error.OpNotImplemented(f"{op_name} output dtype {out_dtype} is not supported")
         out_shape = tuple(self._get_static_tensor_shape(out_tensor, op_name))
 
-        prim_func = _build_stablehlo_rng_bit_generator_primfunc(
+        function = _build_stablehlo_rng_bit_generator_function(
             algorithm, state_len, out_dtype, out_shape
         )
         module_builder = self.conversion_state["module_builder"]
         func_name = f"tflite_stablehlo_rng_{algorithm}_{out_state_tensor.tensor_idx}"
-        gv = module_builder.add_func(prim_func, func_name)
+        gv = module_builder.add_func(function, func_name)
         state_expr = self.get_tensor_expr(state_tensor)
         call = relax.call_tir(
             gv,
@@ -4650,6 +4653,13 @@ class OperatorConverter:
             # 1 KH KW C(input_c * depth_multiplier)
             _, kernel_h, kernel_w, in_channels = to_int_list(self.get_tensor_shape(weight_tensor))
             assert in_channels == input_c * depth_multiplier
+            # Relax grouped convolution expects one input channel per group in
+            # HWOI when input_c > 1.  The single-channel case remains HWIO.
+            depthwise_weight_shape = (
+                (kernel_h, kernel_w, input_c, depth_multiplier)
+                if input_c == 1
+                else (kernel_h, kernel_w, in_channels, 1)
+            )
         else:
             output_channels, kernel_h, kernel_w, in_channels = to_int_list(
                 self.get_tensor_shape(weight_tensor)
@@ -4689,6 +4699,13 @@ class OperatorConverter:
         )
         weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
 
+        per_channel_depthwise = (
+            is_depthwise_conv
+            and input_tensor.qnn_params
+            and weight_tensor.qnn_params
+            and weight_tensor.tensor.Quantization().ScaleLength() > 1
+        )
+
         in_expr = self.get_expr(input_tensor_idx)
 
         # TFLite converts float32 models to float16 models by introducing
@@ -4698,9 +4715,8 @@ class OperatorConverter:
         if self.has_expr(weight_tensor.tensor_idx):
             weight_expr = self.get_expr(weight_tensor.tensor_idx)
             if is_depthwise_conv:
-                weight_expr = relax.op.reshape(
-                    weight_expr, (kernel_h, kernel_w, input_c, depth_multiplier)
-                )
+                if not per_channel_depthwise:
+                    weight_expr = relax.op.reshape(weight_expr, depthwise_weight_shape)
             else:
                 weight_expr = relax.op.permute_dims(weight_expr, axes=(1, 2, 3, 0))
         else:
@@ -4713,10 +4729,11 @@ class OperatorConverter:
             # convolution:
             # OC KH KW IC, we require KH KW IC OC (HWIO)
             # depthwise convolution:
-            # 1 KH KW C(input_c * depth_multiplier), we require
-            # KH KW IC M (depth_multiplier) (HWOI)
+            # 1 KH KW C(input_c * depth_multiplier), we require HWIO
+            # [KH,KW,1,M] for one input channel, otherwise HWOI [KH,KW,C*M,1].
             if is_depthwise_conv:
-                weight_value = weight_value.reshape(kernel_h, kernel_w, input_c, depth_multiplier)
+                if not per_channel_depthwise:
+                    weight_value = weight_value.reshape(depthwise_weight_shape)
             else:
                 weight_value = weight_value.transpose((1, 2, 3, 0))
 
@@ -4748,11 +4765,39 @@ class OperatorConverter:
             # QuantizedDimension() == 0 (OC in original) → axis 3 in HWIO.
             weight_axis = weight_tensor.qnn_params["axis"]
             if is_depthwise_conv:
-                if weight_axis != 0:
-                    raise tvm.error.OpNotImplemented(
-                        "Per-channel quantized depthwise convolution is not supported "
-                        "because the channel axis changes semantics after the "
-                        "[1,KH,KW,C*M] → [KH,KW,C,M] reshape."
+                if per_channel_depthwise:
+                    if weight_axis != 3:
+                        raise tvm.error.OpAttributeInvalid(
+                            "Per-channel DepthwiseConv2D weight QuantizedDimension() must be 3 "
+                            f"(the flattened output-channel axis), got {weight_axis}"
+                        )
+                    scale_count = weight_tensor.tensor.Quantization().ScaleLength()
+                    if scale_count != in_channels:
+                        raise tvm.error.OpAttributeInvalid(
+                            "Per-channel DepthwiseConv2D weight scale count must match "
+                            f"input_channels * depth_multiplier ({in_channels}), got {scale_count}"
+                        )
+                    # Dequantize while the TFLite [1, KH, KW, C*M] channel axis is
+                    # still intact.  Reshaping first would split that axis into C and M,
+                    # which a single-axis dequantize cannot represent.
+                    w_f32 = relax.op.dequantize(
+                        weight_expr,
+                        scale=weight_tensor.qnn_params["scale"],
+                        zero_point=weight_tensor.qnn_params["zero_point"],
+                        axis=3,
+                    )
+                    w_f32 = relax.op.reshape(w_f32, depthwise_weight_shape)
+                else:
+                    if weight_axis != 0:
+                        raise tvm.error.OpAttributeInvalid(
+                            "Per-tensor DepthwiseConv2D weight QuantizedDimension() must be 0, "
+                            f"got {weight_axis}"
+                        )
+                    w_f32 = relax.op.dequantize(
+                        weight_expr,
+                        scale=weight_tensor.qnn_params["scale"],
+                        zero_point=weight_tensor.qnn_params["zero_point"],
+                        axis=0,
                     )
             else:
                 if weight_axis != 0:
@@ -4760,13 +4805,12 @@ class OperatorConverter:
                         f"Conv2D weight QuantizedDimension() must be 0 (output-channel "
                         f"axis in [OC,KH,KW,IC] layout), got {weight_axis}"
                     )
-                weight_axis = 3
-            w_f32 = relax.op.dequantize(
-                weight_expr,
-                scale=weight_tensor.qnn_params["scale"],
-                zero_point=weight_tensor.qnn_params["zero_point"],
-                axis=weight_axis,
-            )
+                w_f32 = relax.op.dequantize(
+                    weight_expr,
+                    scale=weight_tensor.qnn_params["scale"],
+                    zero_point=weight_tensor.qnn_params["zero_point"],
+                    axis=3,
+                )
             # Float convolution
             out = relax.op.nn.conv2d(in_f32, w_f32, **params)
         else:
@@ -5540,12 +5584,12 @@ class OperatorConverter:
         # reference. Both kernels share the same call_tir contract, so the
         # downstream code is kernel-agnostic.
         if _is_power_of_2(height) and _is_power_of_2(width):
-            prim_func = _build_tflite_rfft2d_fft_primfunc(input_shape, relax_output_shape)
+            function = _build_tflite_rfft2d_fft_function(input_shape, relax_output_shape)
         else:
-            prim_func = _build_tflite_rfft2d_primfunc(input_shape, relax_output_shape)
+            function = _build_tflite_rfft2d_function(input_shape, relax_output_shape)
         module_builder = self.conversion_state["module_builder"]
         func_name = f"tflite_rfft2d_{output_tensor.tensor_idx}"
-        gv = module_builder.add_func(prim_func, func_name)
+        gv = module_builder.add_func(function, func_name)
         data_expr = self.get_tensor_expr(data_tensor)
         call = relax.call_tir(
             gv,
@@ -5779,7 +5823,7 @@ class OperatorConverter:
             )
 
             # The pad value for quantized pad is the input zero point by default.
-            pad_value = float(input_tensor.qnn_params["zero_point"].data.numpy())
+            pad_value = float(input_tensor.qnn_params["zero_point"].value.numpy())
 
         if len(input_tensors) == 3:
             pad_value = self.get_tensor_value(input_tensors[2])
@@ -7519,6 +7563,13 @@ class OperatorConverter:
         cls_pred = self.get_expr(inputs[1].tensor_idx)
         loc_prob = self.get_expr(inputs[0].tensor_idx)
         batch_size = inputs[1].tensor.Shape(0)
+        input_num_classes = int(inputs[1].tensor.Shape(2))
+        label_offset = input_num_classes - num_classes
+        if label_offset not in (0, 1):
+            raise ValueError(
+                "DETECTION_POSTPROCESS class predictions must contain num_classes "
+                "or num_classes + 1 entries"
+            )
         anchor_values = self.get_tensor_value(inputs[2])
         anchor_boxes = len(anchor_values)
         anchor_type = self.get_tensor_type_str(inputs[2].tensor.Type())
@@ -7532,6 +7583,14 @@ class OperatorConverter:
             cls_pred = self.dequantize(cls_pred, inputs[1])
         if inputs[2].qnn_params:
             anchor_expr = self.dequantize(anchor_expr, inputs[2])
+
+        if label_offset:
+            cls_pred = relax.op.strided_slice(
+                cls_pred,
+                axes=[2],
+                begin=[label_offset],
+                end=[label_offset + num_classes],
+            )
 
         # loc_prob coords are in yxhw format
         # need to convert to xywh
@@ -7569,7 +7628,11 @@ class OperatorConverter:
             1 / w_scale,
             1 / h_scale,
         )
-        multibox_transform_loc_attrs["keep_background"] = use_regular_nms
+        # TFLite DetectionPostProcess consumes probabilities, not logits.  Any
+        # optional background class was sliced above, so class 0 is now a real
+        # foreground class and must be kept for both NMS implementations.
+        multibox_transform_loc_attrs["keep_background"] = True
+        multibox_transform_loc_attrs["apply_softmax"] = False
 
         multibox_res = self.bb.emit(
             relax.op.vision.multibox_transform_loc(
@@ -8232,7 +8295,7 @@ def _bit_reversal_swap_pairs(n):
     return swaps
 
 
-def _build_tflite_rfft2d_primfunc(input_shape, output_pair_shape):
+def _build_tflite_rfft2d_function(input_shape, output_pair_shape):
     """Build a reference TIR kernel for TFLite RFFT2D.
 
     The TFLite frontend represents complex tensors as float32 real/imag pairs
@@ -8267,22 +8330,22 @@ def _build_tflite_rfft2d_primfunc(input_shape, output_pair_shape):
     output_complex_total = batch * height * out_width
     neg_two_pi = np.float32(-2.0 * math.pi)
 
-    @T.prim_func(private=True, s_tir=True, check_well_formed=False)
+    @Ts.function(private=True, check_well_formed=False)
     def kernel(
-        data: T.Buffer(input_shape, "float32"), output: T.Buffer(output_pair_shape, "float32")
+        data: T.Tensor(input_shape, "float32"), output: T.Tensor(output_pair_shape, "float32")
     ):
         # Flat 1D aliases of the multi-dim buffers. The kernel is rank-agnostic
         # over the leading batch dimensions, so collapsing the index space
         # avoids special-casing 2D / 3D / 4D input shapes.
-        data_flat = T.decl_buffer((input_total,), "float32", data=data.data)
-        output_flat = T.decl_buffer((output_complex_total * 2,), "float32", data=output.data)
+        data_flat = T.decl_tensor((input_total,), "float32", data=data.data)
+        output_flat = T.decl_tensor((output_complex_total * 2,), "float32", data=output.data)
         neg_two_pi_const = T.float32(neg_two_pi)
 
         for b_idx, out_y, out_x in T.grid(batch, height, out_width):
-            with T.sblock("rfft2d"):
-                v_b, v_oy, v_ox = T.axis.remap("SSS", [b_idx, out_y, out_x])
-                real_sum = T.float32(0)
-                imag_sum = T.float32(0)
+            with Ts.sblock("rfft2d"):
+                v_b, v_oy, v_ox = Ts.axis.remap("SSS", [b_idx, out_y, out_x])
+                real_sum: T.float32 = T.float32(0)
+                imag_sum: T.float32 = T.float32(0)
                 input_base = v_b * height * width
                 for in_y, in_x in T.grid(height, width):
                     phase_y = T.Cast("float32", v_oy) * T.Cast("float32", in_y) / T.float32(height)
@@ -8298,7 +8361,7 @@ def _build_tflite_rfft2d_primfunc(input_shape, output_pair_shape):
     return kernel
 
 
-def _build_tflite_rfft2d_fft_primfunc(input_shape, output_pair_shape):
+def _build_tflite_rfft2d_fft_function(input_shape, output_pair_shape):
     """Build a 2D Cooley-Tukey FFT TIR kernel for TFLite RFFT2D.
 
     Precondition: both ``input_shape[-2]`` (height) and ``input_shape[-1]``
@@ -8342,7 +8405,7 @@ def _build_tflite_rfft2d_fft_primfunc(input_shape, output_pair_shape):
 
     if not (_is_power_of_2(height) and _is_power_of_2(width)):
         raise ValueError(
-            f"_build_tflite_rfft2d_fft_primfunc requires power-of-2 height and width, "
+            f"_build_tflite_rfft2d_fft_function requires power-of-2 height and width, "
             f"got H={height}, W={width}"
         )
 
@@ -8350,7 +8413,7 @@ def _build_tflite_rfft2d_fft_primfunc(input_shape, output_pair_shape):
     # constant for a given FFT length and will be inlined in the TIR source.
     # Each emitted line is indented 16 spaces (4 levels: top → b_idx loop →
     # sblock → row/col loop body) so it lands inside the for loop when
-    # concatenated into the primfunc source.
+    # concatenated into the function source.
     row_swap_stmts = []
     for i, j in _bit_reversal_swap_pairs(width):
         row_swap_stmts.append(
@@ -8380,7 +8443,7 @@ def _build_tflite_rfft2d_fft_primfunc(input_shape, output_pair_shape):
     col_swaps_code = "".join(col_swap_stmts) if col_swap_stmts else "                pass\n"
 
     # Build the per-stage butterfly code with the stage loop fully unrolled
-    # at primfunc-construction time. After unrolling, all loop bounds
+    # at function-construction time. After unrolling, all loop bounds
     # (block_start, k) are compile-time integers, so the TIR parser doesn't
     # need to reason about runtime loop extents and the scheduler can
     # see static twiddle factors instead of runtime trig calls.
@@ -8431,27 +8494,28 @@ def _build_tflite_rfft2d_fft_primfunc(input_shape, output_pair_shape):
         log2_h, height, "                ", stride=width, base_expr="col_base"
     )
 
-    # Build the primfunc source. The bit-reversal swaps are inlined (one
+    # Build the function source. The bit-reversal swaps are inlined (one
     # unconditional block per (i, j) pair) and the butterfly stages are
     # fully unrolled, so the TIR parser sees ordinary statements rather than
     # runtime table lookups or runtime-magnitude loops. The body is wrapped
     # in a single S-TIR block over the batch dimension so the Relax
-    # pipeline (which expects an SBlockRealize at the primfunc body) accepts
+    # pipeline (which expects an SBlockRealize at the function body) accepts
     # this kernel.
-    primfunc_source = (
+    function_source = (
         "from tvm.script.parser import tirx as T\n"
-        "@T.prim_func(private=True, s_tir=True, check_well_formed=False)\n"
+        "from tvm.script import s_tir as Ts\n"
+        "@Ts.function(private=True, check_well_formed=False)\n"
         "def kernel(\n"
-        f"    data: T.Buffer({tuple(int(x) for x in input_shape)}, 'float32'),\n"
-        f"    output: T.Buffer({tuple(int(x) for x in output_pair_shape)}, 'float32'),\n"
+        f"    data: T.Tensor({tuple(int(x) for x in input_shape)}, 'float32'),\n"
+        f"    output: T.Tensor({tuple(int(x) for x in output_pair_shape)}, 'float32'),\n"
         "):\n"
-        f"    data_flat = T.decl_buffer(({input_total},), 'float32', data=data.data)\n"
-        f"    output_flat = T.decl_buffer(({output_complex_total * 2},), 'float32', data=output.data)\n"
-        f"    scratch_real = T.decl_buffer(({input_total},), 'float32')\n"
-        f"    scratch_imag = T.decl_buffer(({input_total},), 'float32')\n"
+        f"    data_flat = T.decl_tensor(({input_total},), 'float32', data=data.data)\n"
+        f"    output_flat = T.decl_tensor(({output_complex_total * 2},), 'float32', data=output.data)\n"
+        f"    scratch_real = T.decl_tensor(({input_total},), 'float32')\n"
+        f"    scratch_imag = T.decl_tensor(({input_total},), 'float32')\n"
         f"    for b_idx in T.serial({batch}):\n"
-        f"        with T.sblock('rfft2d_fft'):\n"
-        f"            v_b = T.axis.remap('S', [b_idx])\n"
+        f"        with Ts.sblock('rfft2d_fft'):\n"
+        f"            v_b = Ts.axis.remap('S', [b_idx])\n"
         f"            # Initialize scratch from real input; imag = 0.\n"
         f"            for i in T.serial({height * width}):\n"
         f"                src = v_b * {height * width} + i\n"
@@ -8487,14 +8551,14 @@ def _build_tflite_rfft2d_fft_primfunc(input_shape, output_pair_shape):
     # for any callers who want to introspect the generated source.
     import linecache as _linecache
 
-    fake_file = f"<tflite_rfft2d_fft_primfunc H={height} W={width} outW={out_width}>"
+    fake_file = f"<tflite_rfft2d_fft_function H={height} W={width} outW={out_width}>"
     _linecache.cache[fake_file] = (
-        len(primfunc_source.splitlines()),
+        len(function_source.splitlines()),
         None,
-        [line + "\n" for line in primfunc_source.splitlines()],
+        [line + "\n" for line in function_source.splitlines()],
         fake_file,
     )
-    code = compile(primfunc_source, fake_file, "exec")
+    code = compile(function_source, fake_file, "exec")
     exec(code, namespace)
     return namespace["kernel"]
 
@@ -8508,7 +8572,7 @@ _STABLEHLO_RNG_PHILOX_WEYL_A = 0x9E3779B9
 _STABLEHLO_RNG_PHILOX_WEYL_B = 0xBB67AE85
 
 
-def _build_stablehlo_rng_bit_generator_primfunc(algorithm, state_len, out_dtype, out_shape):
+def _build_stablehlo_rng_bit_generator_function(algorithm, state_len, out_dtype, out_shape):
     """Build a bit-exact TIR kernel for STABLEHLO_RNG_BIT_GENERATOR.
 
     Mirrors the TFLite runtime kernel (tensorflow/lite/kernels/rng_bit_generator.cc),
@@ -8549,26 +8613,26 @@ def _build_stablehlo_rng_bit_generator_primfunc(algorithm, state_len, out_dtype,
 
     if algorithm == "threefry":
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def kernel(
-            initial_state: T.Buffer((state_len,), "uint64"),
-            output_state: T.Buffer((state_len,), "uint64"),
-            output: T.Buffer(out_shape, out_dtype),
+            initial_state: T.Tensor((state_len,), "uint64"),
+            output_state: T.Tensor((state_len,), "uint64"),
+            output: T.Tensor(out_shape, out_dtype),
         ):
             # A single opaque structured block keeps the imperative kernel as a
-            # well-formed block-structured PrimFunc, as required by the Relax
+            # well-formed block-structured Function, as required by the Relax
             # pipeline (e.g. HasReshapePattern).
-            with T.sblock("rng_bit_generator"):
+            with Ts.sblock("rng_bit_generator"):
                 state_key = initial_state[0]
                 state_counter = initial_state[1]
                 key_0 = _u32(state_key & T.uint64(0xFFFFFFFF))
                 key_1 = _u32(state_key >> T.uint64(32))
                 output_state[0] = state_key
                 output_state[1] = state_counter + T.uint64(num_blocks)
-                out_flat = T.decl_buffer((total,), out_dtype, data=output.data)
-                keys = T.decl_buffer((3,), "uint32", scope="local")
-                rotations = T.decl_buffer((8,), "uint32", scope="local")
-                ctr = T.decl_buffer((2,), "uint32", scope="local")
+                out_flat = T.decl_tensor((total,), out_dtype, data=output.data)
+                keys = T.decl_tensor((3,), "uint32", scope="local")
+                rotations = T.decl_tensor((8,), "uint32", scope="local")
+                ctr = T.decl_tensor((2,), "uint32", scope="local")
                 keys[0] = key_0
                 keys[1] = key_1
                 keys[2] = key_0 ^ key_1 ^ T.uint32(parity)
@@ -8599,23 +8663,23 @@ def _build_stablehlo_rng_bit_generator_primfunc(algorithm, state_len, out_dtype,
 
         return kernel
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.function(private=True)
     def kernel(
-        initial_state: T.Buffer((state_len,), "uint64"),
-        output_state: T.Buffer((state_len,), "uint64"),
-        output: T.Buffer(out_shape, out_dtype),
+        initial_state: T.Tensor((state_len,), "uint64"),
+        output_state: T.Tensor((state_len,), "uint64"),
+        output: T.Tensor(out_shape, out_dtype),
     ):
-        with T.sblock("rng_bit_generator"):
+        with Ts.sblock("rng_bit_generator"):
             state_key = initial_state[0]
             state_counter = initial_state[1]
             key_0 = _u32(state_key & T.uint64(0xFFFFFFFF))
             key_1 = _u32(state_key >> T.uint64(32))
             output_state[0] = state_key
             output_state[1] = state_counter + T.uint64(num_blocks)
-            out_flat = T.decl_buffer((total,), out_dtype, data=output.data)
-            ctr = T.decl_buffer((4,), "uint32", scope="local")
-            keys = T.decl_buffer((2,), "uint32", scope="local")
-            high_ctr = T.decl_buffer((2,), "uint32", scope="local")
+            out_flat = T.decl_tensor((total,), out_dtype, data=output.data)
+            ctr = T.decl_tensor((4,), "uint32", scope="local")
+            keys = T.decl_tensor((2,), "uint32", scope="local")
+            high_ctr = T.decl_tensor((2,), "uint32", scope="local")
             if state_len == 3:
                 # PHILOX u64[3]: the third state word feeds the high counter and
                 # is passed through to the output state unchanged.
@@ -8798,10 +8862,10 @@ def prepare_dense_matrix_from_sparse(sparse_tensor, sparse_tensor_value, sparse_
 
 def get_scalar_from_constant(expr):
     """Returns scalar value from Relax constant scalar."""
-    assert isinstance(expr, relax.Constant) and not expr.data.shape, (
+    assert isinstance(expr, tvm.ir.GenericConst) and not expr.value.shape, (
         "Expr is not a constant scalar."
     )
-    value = expr.data.numpy()
+    value = expr.value.numpy()
     assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(np.float32), (
         "value must be float32/int32"
     )
@@ -8811,7 +8875,7 @@ def get_scalar_from_constant(expr):
 def get_tensor_from_constant(expr):
     """Returns tensor of values from Relax constant node."""
     assert isinstance(expr, relax.const)
-    value = expr.data.numpy()
+    value = expr.value.numpy()
     assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(np.float32), (
         "value must be float32/int32"
     )

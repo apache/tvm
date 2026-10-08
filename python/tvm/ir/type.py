@@ -30,17 +30,13 @@ class Type(Node, Scriptable):
 
     @staticmethod
     def missing():
-        """Return the sentinel for missing type information."""
+        """Construct a MissingType for missing type information."""
         return _ffi_api.TypeMissing()
 
     @staticmethod
     def Missing():
-        """Return the sentinel for missing type information."""
+        """Construct a MissingType for missing type information."""
         return _ffi_api.TypeMissing()
-
-    def is_missing(self):
-        """Return whether this is the missing-type sentinel."""
-        return _ffi_api.TypeIsMissing(self)
 
     def __eq__(self, other):
         """Compare two types for structural equivalence."""
@@ -52,6 +48,26 @@ class Type(Node, Scriptable):
     def same_as(self, other):
         """Compares two TVM types by referential equality."""
         return self.is_(other)
+
+
+@tvm_ffi.register_object("ir.MissingType")
+class MissingType(Type):
+    """Type information that has not been supplied or computed.
+
+    Unlike AnyType or Void, this is not a concrete type and must be resolved
+    before a boundary that requires fully typed IR.
+    """
+
+    def __init__(self):
+        self.__init_handle_by_constructor__(_ffi_api.MissingType)
+
+
+@tvm_ffi.register_object("ir.AnyType")
+class AnyType(Type):
+    """The top type, which admits any value."""
+
+    def __init__(self, span=None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.AnyType, span)
 
 
 @tvm_ffi.register_object("ir.OpaqueType")
@@ -103,6 +119,14 @@ class PrimType(Type):
     def is_scalar(self) -> bool:
         """Return whether this type has exactly one fixed lane."""
         return self.dtype.lanes == 1
+
+
+@tvm_ffi.register_object("ir.StringType")
+class StringType(Type):
+    """Semantic string type, independent of the function's calling convention."""
+
+    def __init__(self) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.StringType)
 
 
 @tvm_ffi.register_object("ir.PointerType")
@@ -159,21 +183,4 @@ class FuncType(Type):
             _ffi_api.FuncType,
             arg_types,
             ret_type,
-        )
-
-
-@tvm_ffi.register_object("ir.TensorMapType")
-class TensorMapType(Type):
-    """TensorMapType used in the low-level TIR.
-
-    Parameters
-    ----------
-    span : tvm.ir.Span
-        The span information.
-    """
-
-    def __init__(self, span=None):
-        self.__init_handle_by_constructor__(
-            _ffi_api.TensorMapType,
-            span,  # pylint: disable=no-member
         )

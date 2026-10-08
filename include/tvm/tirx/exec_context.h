@@ -44,9 +44,9 @@ constexpr int kWgSize = 4;
 
 /*! \brief Active slice offset + stride * [0, extent) encoded on one TileLayout axis. */
 struct AxisRange {
-  PrimExpr extent;
-  PrimExpr offset;
-  PrimExpr stride;
+  PrimExpr extent{ffi::UnsafeInit{}};
+  PrimExpr offset{ffi::UnsafeInit{}};
+  PrimExpr stride{ffi::UnsafeInit{}};
 
   /*! \brief Intersect with [lo, hi). Returns false if the result is empty. */
   bool Intersect(int64_t lo, int64_t hi, AxisRange* out) const;
@@ -82,7 +82,7 @@ struct ExecSplit {
   std::unordered_map<std::string, AxisRange> intra;
 };
 
-/*! \brief Initial A at PrimFunc device entry: all threads active, offsets zero. */
+/*! \brief Initial A at Function device entry: all threads active, offsets zero. */
 TVM_DLL ActiveSet InitialActiveSet(int64_t lane_ext, int64_t warp_ext, int64_t cta_ext);
 TVM_DLL ActiveSet InitialActiveSet(int64_t lane_ext, int64_t warp_ext, int64_t cta_ext,
                                    const std::vector<std::pair<std::string, int64_t>>& cta_axes);

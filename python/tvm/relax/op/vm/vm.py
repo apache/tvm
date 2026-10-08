@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 """Relax vm primitives."""
 
-from tvm.ir import Call
+from tvm.ir import Call, DataTypeImm, GenericConst, StringImm
 
-from ...expr import DataTypeImm, Expr, StringImm, Tuple, prim_value
+from ...expr import Expr, Tuple, prim_value
 from ...utils import convert_to_expr
 from . import _ffi_api
 
@@ -52,8 +52,8 @@ def alloc_storage(
         A relax Call, which gets the allocated storage.
     """
     shape = convert_to_expr(shape)
-    if isinstance(dtype, str):
-        dtype = DataTypeImm(dtype)
+    if isinstance(dtype, str | GenericConst):
+        dtype = DataTypeImm(dtype.value if isinstance(dtype, GenericConst) else dtype)
     if isinstance(storage_scope, str):
         storage_scope = StringImm(storage_scope)
     if isinstance(runtime_device_index, int):
@@ -96,8 +96,8 @@ def alloc_tensor(
     if isinstance(offset, int):
         offset = prim_value(offset)
     shape = convert_to_expr(shape)
-    if isinstance(dtype, str):
-        dtype = DataTypeImm(dtype)
+    if isinstance(dtype, str | GenericConst):
+        dtype = DataTypeImm(dtype.value if isinstance(dtype, GenericConst) else dtype)
     if isinstance(runtime_device_ind, int):
         runtime_device_ind = prim_value(runtime_device_ind)
     return _ffi_api.alloc_tensor(storage, offset, shape, dtype, runtime_device_ind)  # type: ignore
@@ -121,13 +121,13 @@ def kill_object(obj: Expr) -> Call:
 
 
 def call_tir_dyn(func: Expr, args: Tuple) -> Call:
-    """Construct a Call to call_tir_dyn (invoke the given TIR PrimFunc)
+    """Construct a Call to call_tir_dyn (invoke the given TIR Function)
     consisting of the input tensors and the shape of the result.
 
     Parameters
     ----------
     func : Expr
-        An expression evaluating to a TIR PrimFunc.
+        An expression evaluating to a TIR Function.
 
     args : Tuple
         The input args, includes a list of tensors, and a ShapeExpr.

@@ -21,6 +21,7 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
+from tvm.script import s_tir as Ts
 from tvm.target import Target
 from tvm.testing import env
 
@@ -95,13 +96,6 @@ def test_target_llvm_options():
     assert sorted(target.attrs["cl-opt"]) == sorted(
         ["-unroll-threshold:uint=100", "-unroll-count:uint=3"]
     )
-
-
-def test_target_llvm_jit_options():
-    target = tvm.target.Target({"kind": "llvm", "jit": "mcjit"})
-    assert target.attrs["jit"] == "mcjit"
-    target = tvm.target.Target({"kind": "llvm", "jit": "orcjit"})
-    assert target.attrs["jit"] == "orcjit"
 
 
 def test_target_llvm_vector_width():
@@ -432,7 +426,7 @@ def test_module_dict_from_deserialized_targets():
 
     from tvm.script import tirx as T
 
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def func():
         T.evaluate(0)
 

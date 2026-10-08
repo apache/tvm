@@ -28,7 +28,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 /*! \brief The argument information. */
@@ -56,11 +55,11 @@ class ArgInfo : public ffi::ObjectRef {
    */
   TVM_DLL static ArgInfo FromJSON(const ffi::ObjectRef& json_obj);
   /*!
-   * \brief Extract a list of the argument information from PrimFunc.
-   * \param func The PrimFunc to get argument information from.
+   * \brief Extract a list of the argument information from Function.
+   * \param func The Function to get argument information from.
    * \return An array of the argument information derived.
    */
-  TVM_DLL static ffi::Array<ArgInfo, void> FromPrimFunc(const tirx::PrimFunc& func);
+  TVM_DLL static ffi::Array<ArgInfo, void> FromFunction(const tirx::Function& func);
   /*!
    * \brief Extract a list of the argument information from the entry func of an IRModule
    * \param mod The IRModule to extract argument information from.

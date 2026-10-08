@@ -18,46 +18,29 @@
 Defining a function
 ===================
 
-A kernel is a ``@Tx.prim_func`` (like ``scale`` in :doc:`first_kernel`), or a
+A kernel is a ``@Tx.function`` (like ``scale`` in :doc:`first_kernel`), or a
 ``@Tx.jit`` when it has compile-time parameters (see the last section). This
 chapter covers the parameter list — how to declare buffers, what types you can
-pass, symbolic shapes, and the ``prim_func`` / ``jit`` distinction.
+pass, symbolic shapes, and the ``function`` / ``jit`` distinction.
 
 Declaring buffer parameters
 ---------------------------
 
-There are two equivalent ways to take a tensor parameter:
+Declare tensor parameters with ``Tx.Tensor`` annotations. The annotation accepts
+shape, dtype, layout, offset, scope, and alignment metadata:
 
-- **Handle + match_buffer.** Take a ``Tx.handle`` (an opaque data pointer) and bind
-  it in the body with ``Tx.match_buffer``. This is the explicit form and the one
-  that exposes every descriptor field — ``layout``, ``elem_offset``, ``scope``,
-  ``align``, and symbolic shapes:
+.. code-block:: python
 
-  .. code-block:: python
+    @Tx.function
+    def f(A: Tx.Tensor((256,), "float32", align=16), B: Tx.Tensor((256,), "float32")): ...
 
-      @Tx.prim_func
-      def f(A_ptr: Tx.handle, B_ptr: Tx.handle):
-          A = Tx.match_buffer(A_ptr, (256,), "float32", align=16)
-          B = Tx.match_buffer(B_ptr, (256,), "float32")
-          ...
-
-- **Tx.Buffer annotation.** Annotate the parameter directly. This is the concise
-  form — equivalent to a handle bound with ``match_buffer`` using the defaults:
-
-  .. code-block:: python
-
-      @Tx.prim_func
-      def f(A: Tx.Buffer((256,), "float32"), B: Tx.Buffer((256,), "float32")):
-          ...
-
-Both give you a ``Buffer`` you index with ``A[i]`` / ``A[i, j]``. Use ``Tx.Buffer``
-for the common case; drop to ``Tx.handle`` + ``match_buffer`` when you need a custom
-layout/offset/scope/alignment or a :ref:`symbolic shape <symbolic-shapes>`.
+The parameters are buffers that you index with ``A[i]`` or ``A[i, j]``.
+Annotations also support :ref:`symbolic shapes <symbolic-shapes>`.
 
 What the parameter list accepts
 -------------------------------
 
-A ``PrimFunc`` parameter is one of the following. The third column is what you
+A ``Function`` parameter is one of the following. The third column is what you
 pass on the Python side when you call the compiled ``Executable``:
 
 .. list-table::
@@ -67,12 +50,12 @@ pass on the Python side when you call the compiled ``Executable``:
    * - Annotation
      - Is
      - Pass at call time
-   * - ``Tx.Buffer((d0, d1), dtype)``
+   * - ``Tx.Tensor((d0, d1), dtype)``
      - a tensor parameter (shape + dtype fixed)
      - a tensor on the right device
    * - ``Tx.handle``
-     - an opaque data pointer (bind with ``match_buffer``)
-     - a tensor
+     - an opaque handle
+     - a handle value
    * - ``Tx.int32`` / ``Tx.float32`` / …
      - a runtime scalar
      - a Python ``int`` / ``float``
@@ -85,10 +68,10 @@ interop) or
 ``tvm.runtime.tensor(...)``. Arguments are positional and match the parameter
 order. For example, a kernel with a scalar parameter::
 
-    @Tx.prim_func
-    def scal(A_ptr: Tx.handle, B_ptr: Tx.handle, s: Tx.float32):
-        A = Tx.match_buffer(A_ptr, (256,), "float32")
-        B = Tx.match_buffer(B_ptr, (256,), "float32")
+    @Tx.function
+    def scal(A: Tx.Tensor((256,), 'float32'), B: Tx.Tensor((256,), 'float32'), s: Tx.float32):
+
+
         Tx.device_entry(); bx = Tx.cta_id([1]); tx = Tx.thread_id([256])
         B[tx] = A[tx] * s
 
@@ -105,22 +88,25 @@ passed tensor** at run time, so a *single compiled kernel* handles any size:
 
 .. code-block:: python
 
-    @Tx.prim_func
-    def scale_dyn(a: Tx.handle, b: Tx.handle):
-        n = Tx.int32()                          # free symbolic extent
-        A = Tx.match_buffer(a, (n,), "float32")
-        B = Tx.match_buffer(b, (n,), "float32")
+    n = Tx.int32()  # free symbolic extent
+
+
+    @Tx.function
+    def scale_dyn(A: Tx.Tensor((n,), "float32"), B: Tx.Tensor((n,), "float32")):
         Tx.device_entry()
-        bx = Tx.cta_id([1]); tx = Tx.thread_id([1])
-        for i in range(n):                     # loop / launch bounds may use n
+        bx = Tx.cta_id([1])
+        tx = Tx.thread_id([1])
+        for i in range(n):  # loop / launch bounds may use n
             B[i] = A[i] * Tx.float32(2.0)
 
-    exe = tvm.compile(tvm.IRModule({"main": scale_dyn}),
-                      target=tvm.target.Target("cuda"), tir_pipeline="tirx")
-    exe(torch.rand(100, device="cuda"), torch.empty(100, device="cuda"))   # n = 100
-    exe(torch.rand(200, device="cuda"), torch.empty(200, device="cuda"))   # n = 200, same kernel
 
-Both ``match_buffer`` calls share ``n``, so the two shapes are constrained equal;
+    exe = tvm.compile(
+        tvm.IRModule({"main": scale_dyn}), target=tvm.target.Target("cuda"), tir_pipeline="tirx"
+    )
+    exe(torch.rand(100, device="cuda"), torch.empty(100, device="cuda"))  # n = 100
+    exe(torch.rand(200, device="cuda"), torch.empty(200, device="cuda"))  # n = 200, same kernel
+
+Both buffer annotations share ``n``, so the two shapes are constrained equal;
 ``n`` is never passed explicitly — it comes from the tensor.
 
 In the generated CUDA, ``n`` is just a runtime kernel argument; the host launcher
@@ -154,11 +140,12 @@ merged function (trimmed):
 
 .. code-block:: python
 
-    @Tx.prim_func
-    def main(a: Tx.handle, b: Tx.handle):
-        n = Tx.int32()
-        A = Tx.match_buffer(a, (n,))
-        B = Tx.match_buffer(b, (n,))
+    n = Tx.int32()  # free symbolic extent
+
+
+    @Tx.function
+    def main(A: Tx.Tensor((n,)), B: Tx.Tensor((n,))):
+
         with Tx.launch_thread("blockIdx.x", 1), Tx.launch_thread("threadIdx.x", 1):
             for i in range(n):
                 B[i] = A[i] * Tx.float32(2.0)
@@ -169,18 +156,20 @@ trailing ``1, 1`` are the grid/block launch dims):
 
 .. code-block:: python
 
-    @Tx.prim_func   # device
+    @Tx.function  # device
     def scale_dyn_kernel(A_ptr: Tx.handle("float32"), B_ptr: Tx.handle("float32"), n: Tx.int32):
         ...
         for i in range(n):
             B[i] = A[i] * Tx.float32(2.0)
 
-    @Tx.prim_func   # host
-    def main(a: Tx.handle, b: Tx.handle):
-        n = Tx.int32()
-        A = Tx.match_buffer(a, (n,))
-        B = Tx.match_buffer(b, (n,))
-        Tx.call_packed("scale_dyn_kernel", A.data, B.data, n, 1, 1)   # n forwarded
+
+    n = Tx.int32()  # free symbolic extent
+
+
+    @Tx.function  # host
+    def main(A: Tx.Tensor((n,)), B: Tx.Tensor((n,))):
+
+        Tx.call_packed("scale_dyn_kernel", A.data, B.data, n, 1, 1)  # n forwarded
 
 ``MakePackedAPI`` then fills in where ``n`` comes from — reading it from the
 argument's shape (essentially ``n = a.shape[0]``) — and adds the dtype / shape /
@@ -188,27 +177,38 @@ device checks (e.g. asserting ``B.shape[0] == n``)::
 
     n = Tx.Cast("int32", Tx.tvm_struct_get(a_shape, 0, 17, "int64"))   # = a.shape[0]
 
-``@Tx.prim_func`` vs ``@Tx.jit``
+``@Tx.function`` vs ``@Tx.jit``
 --------------------------------
 
-- ``@Tx.prim_func`` parses the function immediately into a ``PrimFunc``. Sizes are
+- ``@Tx.function`` parses the function immediately into a ``Function``. Sizes are
   whatever you wrote — concrete ints, or runtime-symbolic vars (above).
 - ``@Tx.jit`` **defers** parsing until you call ``.specialize(**constexpr)``:
   parameters annotated ``Tx.constexpr`` are baked in as compile-time constants and
-  the result is an ordinary ``PrimFunc``. Use it when you want sizes/flags fixed at
+  the result is an ordinary ``Function``. Use it when you want sizes/flags fixed at
   compile time (so the compiler can unroll, statically size shared memory, etc.).
-  Referencing a constexpr inside an annotation (e.g. ``Tx.Buffer((N,), ...)``)
+  Referencing a constexpr inside an annotation (e.g. ``Tx.Tensor((N,), ...)``)
   requires ``from __future__ import annotations`` at the top of the file.
 
 .. code-block:: python
 
+    from __future__ import annotations
+
+
     @Tx.jit
-    def add(A: Tx.Buffer((N,), "float32"), B: Tx.Buffer((N,), "float32"),
-            C: Tx.Buffer((N,), "float32"), *, N: Tx.constexpr):
-        Tx.device_entry(); bx = Tx.cta_id([1]); tx = Tx.thread_id([N])
+    def add(
+        A: Tx.Tensor((N,), "float32"),
+        B: Tx.Tensor((N,), "float32"),
+        C: Tx.Tensor((N,), "float32"),
+        *,
+        N: Tx.constexpr,
+    ):
+        Tx.device_entry()
+        bx = Tx.cta_id([1])
+        tx = Tx.thread_id([N])
         C[tx] = A[tx] + B[tx]
 
-    kernel = add.specialize(N=256)   # -> a PrimFunc with N = 256 baked in
+
+    kernel = add.specialize(N=256)  # -> a Function with N = 256 baked in
 
 So: a **symbolic shape** is one kernel whose size is resolved at run time; a
 **constexpr + jit** produces a specialized kernel per value, resolved at compile
@@ -220,13 +220,14 @@ Launch parameters
 ``Tx.device_entry()``
 ~~~~~~~~~~~~~~~~~~~~~
 
-``Tx.device_entry()`` is a flat marker (no ``with``) that starts the authored
-device region: parameter binding and shape reads precede it, while the kernel
-body follows it. The parser represents the marker as
-``AttrStmt("tirx.device_entry", ...)``. ``LowerTIRx`` then removes the marker,
-resolves scope ids, and wraps the device body in thread-extent attributes;
-target binding and ``SplitHostDevice`` use those resulting device regions to
-extract the kernel shown above.
+``Tx.device_entry()`` starts the authored device region: parameter binding and
+shape reads precede it, while the kernel body follows it. A flat call scopes the
+remaining statements in the enclosing body; ``with Tx.device_entry():`` gives
+an explicit boundary. Both forms create a ``RegionStmt`` with the
+``tirx.device_entry`` op. ``LowerTIRx`` removes this region, resolves scope ids,
+and wraps the device body in single-axis ``launch_thread`` regions. Target
+binding and ``SplitHostDevice`` use those resulting device regions to extract
+the kernel shown above.
 
 Scope ids
 ~~~~~~~~~
@@ -286,13 +287,12 @@ By default, the block size also drives the kernel's ``__launch_bounds__``. The
 first argument (max threads per block) is set automatically from the thread
 extent. To also set the second argument — the minimum blocks per SM, an
 occupancy hint — add
-``Tx.attr({"tirx.launch_bounds_min_blocks_per_sm": N})`` in the device region (note:
-``Tx.attr``, not ``func_attr``):
+``Tx.cuda.launch_bounds_min_blocks_per_sm(N)`` in the device region:
 
 .. code-block:: python
 
     Tx.device_entry()
-    Tx.attr({"tirx.launch_bounds_min_blocks_per_sm": 2})   # second launch-bounds arg
+    Tx.cuda.launch_bounds_min_blocks_per_sm(2)   # second launch-bounds arg
     bx = Tx.cta_id([1]); tx = Tx.thread_id([256])
     ...
 
@@ -300,16 +300,23 @@ occupancy hint — add
 
     extern "C" __global__ void __launch_bounds__(256, 2) scale_kernel(...) { ... }
 
-Without the attr the second argument is omitted (just ``__launch_bounds__(256)``).
+Without this declaration the second argument is omitted (just ``__launch_bounds__(256)``).
+
+``Tx.cuda.launch_bounds_max_blocks_per_cluster(N)`` supplies the third operand
+and requires a minimum-blocks declaration. ``Tx.cuda.max_registers_per_thread(N)``
+emits ``__maxnreg__(N)`` and cannot accompany launch bounds. These declarations
+accept positive integer constants. Matching repetitions are allowed; conflicting
+values are rejected. They configure the containing kernel and produce no runtime
+instructions at their textual position.
 
 Some kernels require an exact block and cluster shape instead of an advisory
-maximum. Set ``tirx.required_block_size`` to ``1`` to make the thread and
-cluster extents a compile-time launch contract:
+maximum. Use ``Tx.cuda.required_block_size`` with the three thread dimensions followed
+by the three cluster dimensions to declare a compile-time launch contract:
 
 .. code-block:: python
 
     Tx.device_entry()
-    Tx.attr({"tirx.required_block_size": 1})
+    Tx.cuda.required_block_size(128, 1, 1, 1, 2, 1)
     bx, by = Tx.cta_id([4, 2])
     _, cy = Tx.cta_id_in_cluster([1, 2])
     tx = Tx.thread_id([128])
@@ -320,15 +327,15 @@ cluster extents a compile-time launch contract:
     extern "C" __global__ void __block_size__((128, 1, 1), (1, 2, 1)) kernel(...) { ... }
 
 This requires CUDA Toolkit 13 or newer. All thread and cluster dimensions must
-be static; CUDA lowers ``__block_size__`` to PTX ``.reqntid`` and checks the
+be positive constants matching the declared launch extents; CUDA lowers ``__block_size__`` to PTX ``.reqntid`` and checks the
 same dimensions at launch. A preferred cluster dimension must be absent or
 equal to the required cluster dimension, and each logical block-grid dimension
 must be divisible by its cluster dimension.
 
-``tirx.required_block_size`` can be combined with the launch-bounds attributes
+``Tx.cuda.required_block_size`` can be combined with the launch-bounds declarations
 when an occupancy hint is also needed; code generation then emits both
 ``__block_size__`` and ``__launch_bounds__``. It cannot be combined with
-``tirx.max_registers``.
+``Tx.cuda.max_registers_per_thread``.
 
 At run time the kernel is launched through the **CUDA Driver API**. TVM's CUDA
 runtime loads the module (``cuModuleLoadData``), fetches the function
@@ -337,7 +344,7 @@ runtime loads the module (``cuModuleLoadData``), fetches the function
 the config carries a list of launch *attributes* — the thread-block **cluster
 dimension** and **preferred cluster dimension** (Hopper/Blackwell), plus optional
 programmatic-dependent-launch and cooperative-launch flags. Kernels with
-``tirx.required_block_size`` instead use CUDA's required-block sentinel; their
+``Tx.cuda.required_block_size`` instead use CUDA's required-block sentinel; their
 compile-time cluster shape replaces the ordinary runtime cluster attribute. In
 outline, ``src/backend/cuda/runtime/cuda_module.cc`` follows this path:
 

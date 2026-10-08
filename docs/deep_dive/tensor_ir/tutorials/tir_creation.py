@@ -57,37 +57,38 @@ import tvm_ffi
 
 import tvm
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 @I.ir_module
 class MyModule:
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def mm_relu(
-        A: T.Buffer((128, 128), "float32"),
-        B: T.Buffer((128, 128), "float32"),
-        C: T.Buffer((128, 128), "float32"),
+        A: T.Tensor((128, 128), "float32"),
+        B: T.Tensor((128, 128), "float32"),
+        C: T.Tensor((128, 128), "float32"),
     ):
-        Y = T.alloc_buffer((128, 128), dtype="float32")
+        Y = T.alloc_tensor((128, 128), dtype="float32")
         for i in range(128):
             for j in range(128):
                 for k in range(128):
-                    with T.sblock("Y"):
-                        vi = T.axis.spatial(128, i)
-                        vj = T.axis.spatial(128, j)
-                        vk = T.axis.reduce(128, k)
-                        T.reads(A[vi, vk], B[vk, vj])
-                        T.writes(Y[vi, vj])
-                        with T.init():
+                    with Ts.sblock("Y"):
+                        vi = Ts.axis.spatial(128, i)
+                        vj = Ts.axis.spatial(128, j)
+                        vk = Ts.axis.reduce(128, k)
+                        Ts.reads(A[vi, vk], B[vk, vj])
+                        Ts.writes(Y[vi, vj])
+                        with Ts.init():
                             Y[vi, vj] = T.float32(0)
                         Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
         for i in range(128):
             for j in range(128):
-                with T.sblock("C"):
-                    vi = T.axis.spatial(128, i)
-                    vj = T.axis.spatial(128, j)
-                    T.reads(Y[vi, vj])
-                    T.writes(C[vi, vj])
+                with Ts.sblock("C"):
+                    vi = Ts.axis.spatial(128, i)
+                    vj = Ts.axis.spatial(128, j)
+                    Ts.reads(Y[vi, vj])
+                    Ts.writes(C[vi, vj])
                     C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
 
 
@@ -98,29 +99,29 @@ class MyModule:
 # streamline the code:
 #
 # - Utilize ``T.grid`` to condense nested loops;
-# - Employ ``T.axis.remap`` to abbreviate block iterator annotations;
-# - Exclude ``T.reads`` and ``T.writes`` for blocks whose content can
+# - Employ ``Ts.axis.remap`` to abbreviate block iterator annotations;
+# - Exclude ``Ts.reads`` and ``Ts.writes`` for blocks whose content can
 #   be inferred from the block body;
 
 
 @I.ir_module
 class ConciseModule:
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def mm_relu(
-        A: T.Buffer((128, 128), "float32"),
-        B: T.Buffer((128, 128), "float32"),
-        C: T.Buffer((128, 128), "float32"),
+        A: T.Tensor((128, 128), "float32"),
+        B: T.Tensor((128, 128), "float32"),
+        C: T.Tensor((128, 128), "float32"),
     ):
-        Y = T.alloc_buffer((128, 128), dtype="float32")
+        Y = T.alloc_tensor((128, 128), dtype="float32")
         for i, j, k in T.grid(128, 128, 128):
-            with T.sblock("Y"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("Y"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     Y[vi, vj] = T.float32(0)
                 Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(128, 128):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("C"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
 
 
@@ -144,22 +145,22 @@ dtype = "float32"
 # IRModule in TVMScript
 @I.ir_module
 class ConciseModuleFromPython:
-    @T.prim_func(s_tir=True)
+    @Ts.function
     def mm_relu(
-        A: T.Buffer((M, K), dtype),
-        B: T.Buffer((K, N), dtype),
-        C: T.Buffer((M, N), dtype),
+        A: T.Tensor((M, K), dtype),
+        B: T.Tensor((K, N), dtype),
+        C: T.Tensor((M, N), dtype),
     ):
-        Y = T.alloc_buffer((M, N), dtype)
+        Y = T.alloc_tensor((M, N), dtype)
         for i, j, k in T.grid(M, N, K):
-            with T.sblock("Y"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("Y"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     Y[vi, vj] = T.cast(T.float32(0), dtype)
                 Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(M, N):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("C"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 C[vi, vj] = T.max(Y[vi, vj], T.cast(T.float32(0), dtype))
 
 
@@ -168,7 +169,6 @@ class ConciseModuleFromPython:
 
 print(tvm_ffi.structural_equal(ConciseModule, ConciseModuleFromPython))
 
-
 ######################################################################
 # TensorIR Function with Dynamic Shapes
 # *************************************
@@ -176,30 +176,28 @@ print(tvm_ffi.structural_equal(ConciseModule, ConciseModuleFromPython))
 # interaction with Python is feasible. For instance, Python variables can
 # be used to ascertain the shape and data type of a TensorIR.
 
+# Dynamic shape definition
+M = T.dynamic("M", "int32")
+N = T.dynamic("N", "int32")
+K = T.dynamic("K", "int32")
+
 
 @I.ir_module
 class DynamicShapeModule:
-    @T.prim_func(s_tir=True)
-    def mm_relu(a: T.handle, b: T.handle, c: T.handle):
-        # Dynamic shape definition
-        M = T.int32()
-        N = T.int32()
-        K = T.int32()
-
+    @Ts.function
+    def mm_relu(A: T.Tensor([M, K], dtype), B: T.Tensor([K, N], dtype), C: T.Tensor([M, N], dtype)):
         # Bind the input buffers with the dynamic shapes
-        A = T.match_buffer(a, [M, K], dtype)
-        B = T.match_buffer(b, [K, N], dtype)
-        C = T.match_buffer(c, [M, N], dtype)
-        Y = T.alloc_buffer((M, N), dtype)
+
+        Y = T.alloc_tensor((M, N), dtype)
         for i, j, k in T.grid(M, N, K):
-            with T.sblock("Y"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("Y"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     Y[vi, vj] = T.cast(T.float32(0), dtype)
                 Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(M, N):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("C"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 C[vi, vj] = T.max(Y[vi, vj], T.cast(T.float32(0), dtype))
 
 
@@ -266,7 +264,7 @@ C = te.compute((128, 128), lambda i, j: te.max(Y[i, j], 0), name="C")
 # In this specific instance, we aim to construct a function with two input parameters **A, B**
 # and one output parameter **C**.
 
-te_func = te.create_prim_func([A, B, C]).with_attr({"global_symbol": "mm_relu"})
+te_func = te.create_function([A, B, C]).with_attr({"global_symbol": "mm_relu"})
 TEModule = tvm.IRModule({"mm_relu": te_func})
 TEModule.show()
 
@@ -284,6 +282,6 @@ k = te.reduce_axis((0, K), "k")
 Y = te.compute((M, N), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name="Y")
 C = te.compute((M, N), lambda i, j: te.max(Y[i, j], 0), name="C")
 
-dyn_te_func = te.create_prim_func([A, B, C]).with_attr({"global_symbol": "mm_relu"})
+dyn_te_func = te.create_function([A, B, C]).with_attr({"global_symbol": "mm_relu"})
 DynamicTEModule = tvm.IRModule({"mm_relu": dyn_te_func})
 DynamicTEModule.show()

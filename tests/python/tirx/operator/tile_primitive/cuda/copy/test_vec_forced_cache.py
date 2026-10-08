@@ -38,10 +38,8 @@ def _build_g2l2g_kernel(n_elements, dtype, dispatch, **copy_config):
     """One thread: A (global) → reg (local) via forced-vec copy (with the
     given config), then reg → B (global) via a plain forced-vec copy."""
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (n_elements,), dtype)
-        B = T.match_buffer(B_ptr, (n_elements,), dtype)
+    @T.function
+    def kernel(A: T.Tensor((n_elements,), dtype), B: T.Tensor((n_elements,), dtype)) -> None:
         T.device_entry()
         T.cta_id([1])
         T.thread_id([1])
@@ -56,14 +54,12 @@ def _build_g2s2g_kernel(n_elements, dtype, dispatch, **copy_config):
     """One thread: A (global) → smem via forced-vec copy (ld + st through a
     local tmp inside the dispatch), then smem → B elementwise."""
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (n_elements,), dtype)
-        B = T.match_buffer(B_ptr, (n_elements,), dtype)
+    @T.function
+    def kernel(A: T.Tensor((n_elements,), dtype), B: T.Tensor((n_elements,), dtype)) -> None:
         T.device_entry()
         T.cta_id([1])
         T.thread_id([1])
-        smem = T.alloc_buffer((n_elements,), dtype, scope="shared")
+        smem = T.alloc_tensor((n_elements,), dtype, scope="shared")
         Tx.copy(smem[:], A[:], dispatch=dispatch, **copy_config)
         for i in range(n_elements):
             B[i] = smem[i]
@@ -150,13 +146,12 @@ def test_copy_vec_128b_nc_global_to_shared():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_copy_vec_nc_rejects_non_global_src():
-    @T.prim_func
-    def kernel(B_ptr: T.handle) -> None:
-        B = T.match_buffer(B_ptr, (4,), "float32")
+    @T.function
+    def kernel(B: T.Tensor((4,), "float32")) -> None:
         T.device_entry()
         T.cta_id([1])
         T.thread_id([1])
-        smem = T.alloc_buffer((4,), "float32", scope="shared")
+        smem = T.alloc_tensor((4,), "float32", scope="shared")
         reg = T.alloc_local((4,), "float32")
         Tx.copy(reg[:], smem[:], dispatch="vec_128b", cache="nc")
         B[0] = reg[0]

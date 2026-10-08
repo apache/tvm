@@ -1088,6 +1088,9 @@ def test_fill_dynamic_dims():
         def func(self, dims, value):
             return tf.fill(dims, value)
 
+    fill_dim_0 = T.dynamic("fill_dim_0")
+    fill_dim_1 = T.dynamic("fill_dim_1")
+
     @I.ir_module
     class Expected:
         @R.function
@@ -1095,8 +1098,6 @@ def test_fill_dynamic_dims():
             dims: R.Tensor((2,), dtype="int32"), value: R.Tensor((), dtype="float32")
         ) -> R.Tensor(dtype="float32", ndim=2):
             R.func_attr({"num_input": 2})
-            fill_dim_0 = T.int64()
-            fill_dim_1 = T.int64()
             with R.dataflow():
                 lv: R.Tensor((2,), dtype="int32") = R.match_cast(
                     dims, R.Tensor((2,), dtype="int32")
@@ -1123,13 +1124,14 @@ def test_random_uniform_dynamic_shape():
         def func(self, shape):
             return tf.raw_ops.RandomUniform(shape=shape, dtype=tf.float32, seed=7, seed2=11)
 
+    random_uniform_dim_0 = T.dynamic("random_uniform_dim_0")
+    random_uniform_dim_1 = T.dynamic("random_uniform_dim_1")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(shape: R.Tensor((2,), dtype="int32")) -> R.Tensor(dtype="float32", ndim=2):
             R.func_attr({"num_input": 1})
-            random_uniform_dim_0 = T.int64()
-            random_uniform_dim_1 = T.int64()
             with R.dataflow():
                 lv: R.Tensor((2,), dtype="int32") = R.match_cast(
                     shape, R.Tensor((2,), dtype="int32")
@@ -1167,13 +1169,14 @@ def test_random_standard_normal_dynamic_shape():
         def func(self, shape):
             return tf.raw_ops.RandomStandardNormal(shape=shape, dtype=tf.float32, seed=3, seed2=5)
 
+    random_standard_normal_dim_0 = T.dynamic("random_standard_normal_dim_0")
+    random_standard_normal_dim_1 = T.dynamic("random_standard_normal_dim_1")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(shape: R.Tensor((2,), dtype="int32")) -> R.Tensor(dtype="float32", ndim=2):
             R.func_attr({"num_input": 1})
-            random_standard_normal_dim_0 = T.int64()
-            random_standard_normal_dim_1 = T.int64()
             with R.dataflow():
                 lv: R.Tensor((2,), dtype="int32") = R.match_cast(
                     shape, R.Tensor((2,), dtype="int32")
@@ -1227,6 +1230,8 @@ def test_multinomial_dynamic_num_samples():
                 seed2=17,
             )
 
+    multinomial_num_samples = T.dynamic("multinomial_num_samples")
+
     @I.ir_module
     class Expected:
         @R.function
@@ -1235,7 +1240,6 @@ def test_multinomial_dynamic_num_samples():
             num_samples: R.Tensor((), dtype="int32"),
         ) -> R.Tensor(dtype="int64", ndim=2):
             R.func_attr({"num_input": 2})
-            multinomial_num_samples = T.int64()
             with R.dataflow():
                 lv: R.Tensor((), dtype="int32") = R.match_cast(
                     num_samples, R.Tensor((), dtype="int32")
@@ -3577,7 +3581,7 @@ _DETECTION_POSTPROCESS_SMOKE_CASES = [
             "num_anchors": 4,
         },
         2,
-        False,
+        True,
         id="basic_fast_nms",
     ),
     pytest.param(
@@ -3603,7 +3607,7 @@ _DETECTION_POSTPROCESS_SHAPE_CASES = [
     pytest.param(
         {
             "num_classes": 2,
-            "input_num_classes": 5,
+            "input_num_classes": 2,
             "max_detections": 2,
             "detections_per_class": 2,
             "use_regular_nms": False,
@@ -3612,7 +3616,7 @@ _DETECTION_POSTPROCESS_SHAPE_CASES = [
             "batch_size": 1,
             "num_anchors": 4,
         },
-        id="wider_input_classes",
+        id="matching_input_classes",
     ),
     pytest.param(
         {
@@ -3637,6 +3641,23 @@ _DETECTION_POSTPROCESS_SHAPE_CASES = [
 )
 def test_detection_postprocess_smoke(build_kwargs, expected_topk_count, expected_keep_background):
     mod = _build_detection_postprocess_mod(**build_kwargs)
+
+    topk_calls = []
+    multibox_calls = []
+
+    def _visit(expr):
+        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get("relax.topk"):
+            topk_calls.append(expr)
+        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get(
+            "relax.vision.multibox_transform_loc"
+        ):
+            multibox_calls.append(expr)
+
+    relax.analysis.post_order_visit(mod["main"].body, _visit)
+    assert len(topk_calls) == expected_topk_count
+    assert len(multibox_calls) == 1
+    assert multibox_calls[0].attrs.keep_background == expected_keep_background
+    assert not multibox_calls[0].attrs.apply_softmax
 
     expected_batch = build_kwargs["batch_size"]
     expected_max_detections = build_kwargs["max_detections"]
@@ -3679,6 +3700,38 @@ def test_detection_postprocess_shape_variations(build_kwargs):
             ]
         ),
     )
+
+
+def test_detection_postprocess_removes_background_without_softmax():
+    """TFLite scores are probabilities; remove its optional background class exactly once."""
+    mod = _build_detection_postprocess_mod(
+        num_classes=2,
+        input_num_classes=3,
+        max_detections=2,
+        detections_per_class=2,
+        batch_size=1,
+    )
+    multibox_calls = []
+
+    def _visit(expr):
+        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get(
+            "relax.vision.multibox_transform_loc"
+        ):
+            multibox_calls.append(expr)
+
+    relax.analysis.post_order_visit(mod["main"].body, _visit)
+    assert len(multibox_calls) == 1
+    assert not multibox_calls[0].attrs.apply_softmax
+    assert multibox_calls[0].attrs.keep_background
+    tvm.ir.assert_structural_equal(
+        multibox_calls[0].args[0].ty,
+        relax.TensorType((1, 2, 4), "float32"),
+    )
+
+
+def test_detection_postprocess_rejects_invalid_class_count():
+    with pytest.raises(ValueError, match=r"num_classes \+ 1"):
+        _build_detection_postprocess_mod(num_classes=2, input_num_classes=5)
 
 
 def _make_resize_expected(
@@ -5319,7 +5372,7 @@ def test_rfft2d_static_pair_output():
     expected = np.fft.rfft2(data).astype(np.complex64)
     # atol accommodates the float32 reference kernel: numpy's rfft2 internally uses
     # float64, while the reference TIR kernel accumulates in float32 (see
-    # _build_tflite_rfft2d_primfunc docstring).
+    # _build_tflite_rfft2d_function docstring).
     np.testing.assert_allclose(
         _run_module(mod, data), _complex64_to_pair(expected), rtol=1e-5, atol=1e-5
     )
@@ -5364,7 +5417,7 @@ def test_rfft2d_odd_width_pair_output():
     )
     expected = np.fft.rfft2(data).astype(np.complex64)
     # atol accommodates the float32 reference kernel (see
-    # _build_tflite_rfft2d_primfunc docstring).
+    # _build_tflite_rfft2d_function docstring).
     np.testing.assert_allclose(
         _run_module(mod, data), _complex64_to_pair(expected), rtol=1e-5, atol=1e-5
     )
@@ -11020,14 +11073,14 @@ def test_tensor_quantization_parameters_are_parsed():
     )
     per_tensor_wrapper, per_axis_wrapper = converter.get_tensors([0, 1])
 
-    np.testing.assert_allclose(per_tensor_wrapper.qnn_params["scale"].data.numpy(), 0.5)
-    np.testing.assert_equal(per_tensor_wrapper.qnn_params["zero_point"].data.numpy(), 3)
+    np.testing.assert_allclose(per_tensor_wrapper.qnn_params["scale"].value.numpy(), 0.5)
+    np.testing.assert_equal(per_tensor_wrapper.qnn_params["zero_point"].value.numpy(), 3)
     assert per_tensor_wrapper.qnn_params["axis"] == 0
 
     np.testing.assert_allclose(
-        per_axis_wrapper.qnn_params["scale"].data.numpy(), np.array([0.25, 0.75])
+        per_axis_wrapper.qnn_params["scale"].value.numpy(), np.array([0.25, 0.75])
     )
-    np.testing.assert_equal(per_axis_wrapper.qnn_params["zero_point"].data.numpy(), 0)
+    np.testing.assert_equal(per_axis_wrapper.qnn_params["zero_point"].value.numpy(), 0)
     assert per_axis_wrapper.qnn_params["axis"] == 3
 
     mod = from_tflite(tflite_model)
@@ -11351,6 +11404,10 @@ def test_quantized_avg_pool2d_uses_astype():
         tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+
+    # Exercise the public entry point so quantized pool allowlist regressions
+    # cannot be hidden by calling the converter method directly.
+    from_tflite(tflite_model)
 
     subgraph = tflite_model.Subgraphs(0)
     bb = relax.BlockBuilder()
@@ -12315,8 +12372,8 @@ def test_quantized_conv2d_per_channel_weight_with_int32_bias_dequantizes_bias():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-def test_per_channel_depthwise_conv_unsupported():
-    """Per-channel quantized depthwise Conv2D raises OpNotImplemented."""
+def test_per_channel_depthwise_conv_dequantizes_before_reshape():
+    """Per-channel depthwise weights keep C*M intact and lower to HWOI."""
     import flatbuffers
     import tflite.Model
 
@@ -12325,9 +12382,12 @@ def test_per_channel_depthwise_conv_unsupported():
     in_q = _build_quantization_parameters(
         builder, scale=[0.5], zero_point=[0], quantized_dimension=0
     )
-    # Per-channel weight: 2 channels, scale vector length 2
+    # Two input channels with depth_multiplier=2 produce four output channels.
     wt_q = _build_quantization_parameters(
-        builder, scale=[0.25, 0.75], zero_point=[0, 0], quantized_dimension=3
+        builder,
+        scale=[0.25, 0.5, 0.75, 1.0],
+        zero_point=[0, 0, 0, 0],
+        quantized_dimension=3,
     )
     out_q = _build_quantization_parameters(
         builder, scale=[1.0], zero_point=[0], quantized_dimension=0
@@ -12337,16 +12397,16 @@ def test_per_channel_depthwise_conv_unsupported():
         builder, 0, [1, 4, 4, 2], tensor_type=_tfl_tensor_type.INT8, quantization=in_q
     )
     t_wt = _build_tensor(
-        builder, 1, [1, 3, 3, 2], tensor_type=_tfl_tensor_type.INT8, quantization=wt_q
+        builder, 1, [1, 3, 3, 4], tensor_type=_tfl_tensor_type.INT8, quantization=wt_q
     )
     t_ou = _build_tensor(
-        builder, 2, [1, 2, 2, 2], tensor_type=_tfl_tensor_type.INT8, quantization=out_q
+        builder, 2, [1, 2, 2, 4], tensor_type=_tfl_tensor_type.INT8, quantization=out_q
     )
 
     _tfl_depthwise_conv2d_options.DepthwiseConv2DOptionsStart(builder)
     _tfl_depthwise_conv2d_options.DepthwiseConv2DOptionsAddStrideH(builder, 1)
     _tfl_depthwise_conv2d_options.DepthwiseConv2DOptionsAddStrideW(builder, 1)
-    _tfl_depthwise_conv2d_options.DepthwiseConv2DOptionsAddDepthMultiplier(builder, 1)
+    _tfl_depthwise_conv2d_options.DepthwiseConv2DOptionsAddDepthMultiplier(builder, 2)
     _tfl_depthwise_conv2d_options.DepthwiseConv2DOptionsAddPadding(builder, 1)
     _tfl_depthwise_conv2d_options.DepthwiseConv2DOptionsAddFusedActivationFunction(builder, 0)
     dw_opts = _tfl_depthwise_conv2d_options.DepthwiseConv2DOptionsEnd(builder)
@@ -12379,8 +12439,25 @@ def test_per_channel_depthwise_conv_unsupported():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="Per-channel"):
-        from_tflite(tflite_model)
+    mod = from_tflite(tflite_model)
+    dequantize_calls = []
+    reshape_calls = []
+
+    def _visit(expr):
+        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get("relax.dequantize"):
+            dequantize_calls.append(expr)
+        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get("relax.reshape"):
+            reshape_calls.append(expr)
+
+    relax.analysis.post_order_visit(mod["main"].body, _visit)
+    assert any(call.attrs.axis == 3 for call in dequantize_calls)
+    depthwise_reshapes = [
+        call
+        for call in reshape_calls
+        if call.ty.dtype == "float32"
+        and tuple(dim.value for dim in call.ty.shape.values) == (3, 3, 4, 1)
+    ]
+    assert len(depthwise_reshapes) == 1
 
 
 def test_uint8_reshape_requantize_uses_dq_reshape_q():
@@ -13233,6 +13310,9 @@ def test_dilate_dynamic_dilations():
     mod = from_tflite(tflite_model)
     mod["main"] = mod["main"].without_attr("params")
 
+    dilate_stride_0 = T.dynamic("dilate_stride_0")
+    dilate_stride_1 = T.dynamic("dilate_stride_1")
+
     @I.ir_module
     class Expected:
         @R.function
@@ -13241,8 +13321,6 @@ def test_dilate_dynamic_dilations():
             tvmgen_tensor_1: R.Tensor((2,), dtype="int32"),
         ) -> R.Tensor(dtype="float32", ndim=2):
             R.func_attr({"num_input": 2})
-            dilate_stride_0 = T.int64()
-            dilate_stride_1 = T.int64()
             with R.dataflow():
                 lv: R.Tensor((2,), dtype="int32") = R.match_cast(
                     tvmgen_tensor_1, R.Tensor((2,), dtype="int32")

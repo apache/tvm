@@ -42,23 +42,22 @@ def get_dense_mat_by_mask(val, mask):
     return ret.reshape(m, n_chunks * 4)
 
 
-@T.prim_func(s_tir=True)
-def mma_sp_m16n8k16_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: T.handle):
+@T.function
+def mma_sp_m16n8k16_f16f16f16(
+    A: T.Tensor([16, 8], dtype="float16"),
+    B: T.Tensor([16, 8], dtype="float16"),
+    C: T.Tensor([16, 8], dtype="float16"),
+    metadata: T.Tensor([8], dtype="uint32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 8], dtype="float16")
-    B = T.match_buffer(b, [16, 8], dtype="float16")
-    C = T.match_buffer(c, [16, 8], dtype="float16")
-    metadata = T.match_buffer(_metadata, [8], dtype="uint32")
-    brow = T.env_thread("blockIdx.y")
-    bcol = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(brow, 1)
-    T.launch_thread(bcol, 1)
-    T.launch_thread(tx, 32)
-    multi_a = T.decl_buffer([4], "float16", scope="local")
-    multi_b = T.decl_buffer([4], "float16", scope="local")
-    accum = T.decl_buffer([4], "float16", scope="local")
-    meta_local = T.decl_buffer([1], "uint32", scope="local")
+
+    T.launch_thread("blockIdx.y", 1)
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
+    multi_a = T.decl_tensor([4], "float16", scope="local")
+    multi_b = T.decl_tensor([4], "float16", scope="local")
+    accum = T.decl_tensor([4], "float16", scope="local")
+    meta_local = T.decl_tensor([1], "uint32", scope="local")
     for i in range(4):
         accum[i] = T.float16(0)
 
@@ -70,9 +69,9 @@ def mma_sp_m16n8k16_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
 
     meta_local[0] = metadata[tx // 4]
 
-    a_words = T.decl_buffer([2], "uint32", data=multi_a.data, scope="local")
-    b_words = T.decl_buffer([2], "uint32", data=multi_b.data, scope="local")
-    acc_words = T.decl_buffer([2], "uint32", data=accum.data, scope="local")
+    a_words = T.decl_tensor([2], "uint32", data=multi_a.data, scope="local")
+    b_words = T.decl_tensor([2], "uint32", data=multi_b.data, scope="local")
+    acc_words = T.decl_tensor([2], "uint32", data=accum.data, scope="local")
     T.ptx.mma.sp.sync.aligned.m16n8k16.row.col.f16.f16.f16.f16(
         acc_words[0],
         acc_words[1],
@@ -90,23 +89,22 @@ def mma_sp_m16n8k16_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
         C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
-@T.prim_func(s_tir=True)
-def mma_sp_m16n8k16_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: T.handle):
+@T.function
+def mma_sp_m16n8k16_f16f16f32(
+    A: T.Tensor([16, 8], dtype="float16"),
+    B: T.Tensor([16, 8], dtype="float16"),
+    C: T.Tensor([16, 8], dtype="float32"),
+    metadata: T.Tensor([8], dtype="uint32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 8], dtype="float16")
-    B = T.match_buffer(b, [16, 8], dtype="float16")
-    C = T.match_buffer(c, [16, 8], dtype="float32")
-    metadata = T.match_buffer(_metadata, [8], dtype="uint32")
-    brow = T.env_thread("blockIdx.y")
-    bcol = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(brow, 1)
-    T.launch_thread(bcol, 1)
-    T.launch_thread(tx, 32)
-    multi_a = T.decl_buffer([4], "float16", scope="local")
-    multi_b = T.decl_buffer([4], "float16", scope="local")
-    accum = T.decl_buffer([4], "float32", scope="local")
-    meta_local = T.decl_buffer([1], "uint32", scope="local")
+
+    T.launch_thread("blockIdx.y", 1)
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
+    multi_a = T.decl_tensor([4], "float16", scope="local")
+    multi_b = T.decl_tensor([4], "float16", scope="local")
+    accum = T.decl_tensor([4], "float32", scope="local")
+    meta_local = T.decl_tensor([1], "uint32", scope="local")
     for i in range(4):
         accum[i] = T.float16(0)
 
@@ -118,8 +116,8 @@ def mma_sp_m16n8k16_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
 
     meta_local[0] = metadata[tx // 4]
 
-    a_words = T.decl_buffer([2], "uint32", data=multi_a.data, scope="local")
-    b_words = T.decl_buffer([2], "uint32", data=multi_b.data, scope="local")
+    a_words = T.decl_tensor([2], "uint32", data=multi_a.data, scope="local")
+    b_words = T.decl_tensor([2], "uint32", data=multi_b.data, scope="local")
     T.ptx.mma.sp.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32(
         accum[0],
         accum[1],
@@ -141,23 +139,22 @@ def mma_sp_m16n8k16_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
         C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
-@T.prim_func(s_tir=True)
-def mma_sp_m16n8k32_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: T.handle):
+@T.function
+def mma_sp_m16n8k32_f16f16f16(
+    A: T.Tensor([16, 16], dtype="float16"),
+    B: T.Tensor([32, 8], dtype="float16"),
+    C: T.Tensor([16, 8], dtype="float16"),
+    metadata: T.Tensor([16], dtype="uint32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 16], dtype="float16")
-    B = T.match_buffer(b, [32, 8], dtype="float16")
-    C = T.match_buffer(c, [16, 8], dtype="float16")
-    metadata = T.match_buffer(_metadata, [16], dtype="uint32")
-    brow = T.env_thread("blockIdx.y")
-    bcol = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(brow, 1)
-    T.launch_thread(bcol, 1)
-    T.launch_thread(tx, 32)
-    multi_a = T.decl_buffer([8], "float16", scope="local")
-    multi_b = T.decl_buffer([8], "float16", scope="local")
-    accum = T.decl_buffer([4], "float16", scope="local")
-    meta_local = T.decl_buffer([1], "uint32", scope="local")
+
+    T.launch_thread("blockIdx.y", 1)
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
+    multi_a = T.decl_tensor([8], "float16", scope="local")
+    multi_b = T.decl_tensor([8], "float16", scope="local")
+    accum = T.decl_tensor([4], "float16", scope="local")
+    meta_local = T.decl_tensor([1], "uint32", scope="local")
     for i in range(4):
         accum[i] = T.float16(0)
 
@@ -169,9 +166,9 @@ def mma_sp_m16n8k32_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
 
     meta_local[0] = metadata[tx // 4 * 2 + tx % 2]
 
-    a_words = T.decl_buffer([4], "uint32", data=multi_a.data, scope="local")
-    b_words = T.decl_buffer([4], "uint32", data=multi_b.data, scope="local")
-    acc_words = T.decl_buffer([2], "uint32", data=accum.data, scope="local")
+    a_words = T.decl_tensor([4], "uint32", data=multi_a.data, scope="local")
+    b_words = T.decl_tensor([4], "uint32", data=multi_b.data, scope="local")
+    acc_words = T.decl_tensor([2], "uint32", data=accum.data, scope="local")
     T.ptx.mma.sp.sync.aligned.m16n8k32.row.col.f16.f16.f16.f16(
         acc_words[0],
         acc_words[1],
@@ -193,23 +190,22 @@ def mma_sp_m16n8k32_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
         C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
-@T.prim_func(s_tir=True)
-def mma_sp_m16n8k32_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: T.handle):
+@T.function
+def mma_sp_m16n8k32_f16f16f32(
+    A: T.Tensor([16, 16], dtype="float16"),
+    B: T.Tensor([32, 8], dtype="float16"),
+    C: T.Tensor([16, 8], dtype="float32"),
+    metadata: T.Tensor([16], dtype="uint32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 16], dtype="float16")
-    B = T.match_buffer(b, [32, 8], dtype="float16")
-    C = T.match_buffer(c, [16, 8], dtype="float32")
-    metadata = T.match_buffer(_metadata, [16], dtype="uint32")
-    brow = T.env_thread("blockIdx.y")
-    bcol = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(brow, 1)
-    T.launch_thread(bcol, 1)
-    T.launch_thread(tx, 32)
-    multi_a = T.decl_buffer([8], "float16", scope="local")
-    multi_b = T.decl_buffer([8], "float16", scope="local")
-    accum = T.decl_buffer([4], "float32", scope="local")
-    meta_local = T.decl_buffer([1], "uint32", scope="local")
+
+    T.launch_thread("blockIdx.y", 1)
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
+    multi_a = T.decl_tensor([8], "float16", scope="local")
+    multi_b = T.decl_tensor([8], "float16", scope="local")
+    accum = T.decl_tensor([4], "float32", scope="local")
+    meta_local = T.decl_tensor([1], "uint32", scope="local")
     for i in range(4):
         accum[i] = T.float16(0)
 
@@ -221,8 +217,8 @@ def mma_sp_m16n8k32_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
 
     meta_local[0] = metadata[tx // 4 * 2 + tx % 2]
 
-    a_words = T.decl_buffer([4], "uint32", data=multi_a.data, scope="local")
-    b_words = T.decl_buffer([4], "uint32", data=multi_b.data, scope="local")
+    a_words = T.decl_tensor([4], "uint32", data=multi_a.data, scope="local")
+    b_words = T.decl_tensor([4], "uint32", data=multi_b.data, scope="local")
     T.ptx.mma.sp.sync.aligned.m16n8k32.row.col.f32.f16.f16.f32(
         accum[0],
         accum[1],
@@ -266,8 +262,8 @@ def test_mma_sp_m16n8k16_f16():
 
     for out_dtype in ["float16", "float32"]:
         func = mma_sp_m16n8k16_f16f16f16 if out_dtype == "float16" else mma_sp_m16n8k16_f16f16f32
-        sch = tvm.s_tir.Schedule(func)
-        cuda_mod = tvm.compile(sch.mod, target="cuda")
+        mod = tvm.IRModule.from_expr(func)
+        cuda_mod = tvm.compile(mod, target="cuda")
 
         A_np = np.random.uniform(-1, 1, [16, 8]).astype("float16")
         B_np = np.random.uniform(-1, 1, [16, 8]).astype("float16")
@@ -308,8 +304,8 @@ def test_mma_sp_m16n8k32_f16():
 
     for out_dtype in ["float16", "float32"]:
         func = mma_sp_m16n8k32_f16f16f16 if out_dtype == "float16" else mma_sp_m16n8k32_f16f16f32
-        sch = tvm.s_tir.Schedule(func)
-        cuda_mod = tvm.compile(sch.mod, target="cuda")
+        mod = tvm.IRModule.from_expr(func)
+        cuda_mod = tvm.compile(mod, target="cuda")
 
         A_np = np.random.uniform(-1, 1, [16, 16]).astype("float16")
         B_np = np.random.uniform(-1, 1, [32, 8]).astype("float16")

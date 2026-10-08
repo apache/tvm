@@ -19,12 +19,14 @@
 
 /*!
  * \file src/tirx/ir/specialize.cc
- * \brief Specialize parameters of PrimFunc.
+ * \brief Specialize parameters of Function.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/analysis.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/op.h>
@@ -34,7 +36,6 @@
 #include <unordered_set>
 
 #include "../transform/ir_utils.h"
-#include "functor_common.h"
 
 namespace tvm {
 namespace tirx {
@@ -44,7 +45,7 @@ using VarMap = std::unordered_map<Var, Expr>;
 /**************** Helper functions ****************/
 
 /*! \brief Helper function to check whether the given var is in function parameter list. */
-inline bool IsParam(const PrimFunc& func, const Var& param) {
+inline bool IsParam(const Function& func, const Var& param) {
   return std::any_of(func->params.begin(), func->params.end(),
                      [&](const Var& var) { return var.same_as(param); });
 }
@@ -52,45 +53,59 @@ inline bool IsParam(const PrimFunc& func, const Var& param) {
 /**************** Specializer ****************/
 
 // Try fold constants if op's child get specialized to constant.
-#define DEFINE_SPECIALIZER_BINARY_OP_MUTATE(BinaryNode, BinaryFunc) \
-  Expr VisitExpr_(const BinaryNode* op) final {                     \
-    PrimExpr a = VisitPrimExpr(op->a);                              \
-    PrimExpr b = VisitPrimExpr(op->b);                              \
-    if (a.same_as(op->a) && b.same_as(op->b)) {                     \
-      return ffi::GetRef<PrimExpr>(op);                             \
-    } else {                                                        \
-      return BinaryFunc(a, b);                                      \
-    }                                                               \
+#define DEFINE_SPECIALIZER_BINARY_OP_MUTATE(BinaryNode, BinaryFunc)                     \
+  UnchangedOr<PrimExpr> Mutate_(const BinaryNode* op, InplaceMode inplace_mode) final { \
+    auto a_result = Mutate(op->a, inplace_mode);                                        \
+    bool a_unchanged = a_result.UnchangedOrSameAs(op->a);                               \
+    PrimExpr a = std::move(a_result).ValueOrUnchanged(op->a);                           \
+    auto b_result = Mutate(op->b, inplace_mode);                                        \
+    bool b_unchanged = b_result.UnchangedOrSameAs(op->b);                               \
+    PrimExpr b = std::move(b_result).ValueOrUnchanged(op->b);                           \
+    if (a_unchanged && b_unchanged) {                                                   \
+      return ffi::Unchanged();                                                          \
+    } else {                                                                            \
+      return BinaryFunc(a, b, op->span);                                                \
+    }                                                                                   \
   }
-#define DEFINE_SPECIALIZER_UNARY_OP_MUTATE(UnaryNode, UnaryFunc) \
-  Expr VisitExpr_(const UnaryNode* op) final {                   \
-    PrimExpr a = VisitPrimExpr(op->a);                           \
-    if (a.same_as(op->a)) {                                      \
-      return ffi::GetRef<PrimExpr>(op);                          \
-    } else {                                                     \
-      return UnaryFunc(a);                                       \
-    }                                                            \
+#define DEFINE_SPECIALIZER_UNARY_OP_MUTATE(UnaryNode, UnaryFunc)                       \
+  UnchangedOr<PrimExpr> Mutate_(const UnaryNode* op, InplaceMode inplace_mode) final { \
+    auto a_result = Mutate(op->a, inplace_mode);                                       \
+    bool a_unchanged = a_result.UnchangedOrSameAs(op->a);                              \
+    PrimExpr a = std::move(a_result).ValueOrUnchanged(op->a);                          \
+    if (a_unchanged) {                                                                 \
+      return ffi::Unchanged();                                                         \
+    } else {                                                                           \
+      return UnaryFunc(a, op->span);                                                   \
+    }                                                                                  \
   }
 
 /*! \brief Mutator to specialize function and remove const parameters */
-class PrimFuncSpecializer : public StmtExprMutator {
+class FunctionSpecializer : public StmtExprMutator {
  public:
-  explicit PrimFuncSpecializer(const VarMap& var_map) : var_map_(var_map) {}
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  explicit FunctionSpecializer(const VarMap& var_map) {
+    for (const auto& [var, value] : var_map) {
+      if (!var.as<TensorVar>()) VarRemapSet(var, value);
+    }
+  }
 
-  static PrimFunc Specialize(PrimFunc f, const VarMap& var_map) {
-    PrimFuncSpecializer specializer(var_map);
+  static Function Specialize(Function f, const VarMap& var_map) {
+    auto specializer = ffi::make_object<FunctionSpecializer>(var_map);
     for (const Var& param : f->params) {
-      auto buffer = param.as<BufferVar>();
+      auto buffer = param.as<TensorVar>();
       auto replacement = var_map.find(param);
       if (!buffer || replacement == var_map.end()) {
         continue;
       }
       if (auto replacement_var = replacement->second.as<Var>()) {
-        if (auto replacement_buffer = replacement_var.value().as<BufferVar>()) {
+        if (auto replacement_buffer = replacement_var.value().as<TensorVar>()) {
           if (IsParam(f, replacement_var.value())) {
-            specializer.buffer_aliases_[buffer.value()] = replacement_buffer.value();
+            specializer->VarRemapSet(buffer.value(), replacement_buffer.value());
           } else {
-            specializer.constrained_buffer_params_.insert(param.get());
+            specializer->constrained_buffer_params_.insert(param.get());
+            specializer->buffer_storage_scopes_.emplace(buffer.value(),
+                                                        replacement_buffer.value()->storage_scope);
           }
         }
       }
@@ -101,89 +116,110 @@ class PrimFuncSpecializer : public StmtExprMutator {
     bool param_updated = false;
     for (const auto& var : f->params) {
       Var new_var = var;
-      if (auto buffer = var.as<BufferVar>()) {
-        BufferVar new_buffer = specializer.MutateBuffer(buffer.value());
+      if (auto buffer = var.as<TensorVar>()) {
+        TensorVar new_buffer = specializer->MutateBuffer(buffer.value());
         new_var = new_buffer.var();
         if (!new_buffer.same_as(buffer.value())) {
           param_updated = true;
-          specializer.buffer_map_[buffer.value()] = new_buffer;
+          specializer->VarRemapSet(buffer.value(), new_buffer);
+          specializer->defined_buffers_.insert(buffer.value().get());
         }
       }
       // Remove parmeters which has been specialized.
       if (var_map.find(var) == var_map.end() ||
-          specializer.constrained_buffer_params_.count(var.get())) {
+          specializer->constrained_buffer_params_.count(var.get())) {
         params.push_back(new_var);
       } else {
         param_updated = true;
       }
     }
 
-    // Updating function body
-    Stmt body = specializer(f->body);
+    auto planner = ffi::make_object<BufferPlanner>(specializer.get());
+    planner->Visit(f->body);
 
-    if (param_updated || !f->body.same_as(body)) {
-      return PrimFunc(params, body, f->ret_type, f->attrs, f->span);
+    auto body_result =
+        specializer->Mutate(f->body, f.unique() ? InplaceMode::kAllow : InplaceMode::kDisallow);
+    bool body_unchanged = body_result.UnchangedOrSameAs(f->body);
+    auto body = std::move(body_result).ValueOrUnchanged(f->body);
+
+    if (param_updated || !body_unchanged) {
+      return Function(params, body, f->ret_type, f->attrs, f->span);
     } else {
       return f;
     }
   }
 
  private:
-  Stmt VisitStmt_(const SBlockNode* op) final {
-    // Step.0. Define buffer mappings which is allocated inside the block
-    ffi::Array<BufferVar> alloc_buffers =
-        op->alloc_buffers.Map([this](const auto& buf) { return MutateAllocBuffer(buf); });
+  class BufferPlanner : public StmtExprVisitor {
+   public:
+    using StmtExprVisitor::Visit_;
 
-    // Step.1. Recursively visit block body
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<SBlockNode>();
-    TVM_FFI_ICHECK(op != nullptr);
+    explicit BufferPlanner(FunctionSpecializer* specializer) : specializer_(specializer) {}
 
-    ffi::Array<BufferRegion> reads =
-        op->reads.Map([this](const auto& region) { return MutateBufferRegion(region); });
-    ffi::Array<BufferRegion> writes =
-        op->writes.Map([this](const auto& region) { return MutateBufferRegion(region); });
-
-    if (alloc_buffers.same_as(op->alloc_buffers) && reads.same_as(op->reads) &&
-        writes.same_as(op->writes)) {
-      return ffi::GetRef<SBlock>(op);
-    } else {
-      ffi::ObjectPtr<SBlockNode> n = CopyOnWrite(op);
-      n->alloc_buffers = std::move(alloc_buffers);
-      n->reads = std::move(reads);
-      n->writes = std::move(writes);
-      return Stmt(n);
+   private:
+    ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
+      if (op->ty.as<TensorTypeNode>()) {
+        if (def_region_kind() == kTVMFFIDefRegionKindSimple) {
+          const TensorVar buffer = GetTensorVar(op);
+          specializer_->MutateAllocTensor(buffer);
+        } else {
+          specializer_->ValidateBufferUse(GetTensorVar(op));
+        }
+      }
+      return StmtExprVisitor::Visit_(op);
     }
+
+    ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+      if (const auto* call = op->value.as<CallNode>();
+          call &&
+          (call->op.same_as(builtin::alloc_tensor()) || call->op.same_as(builtin::decl_tensor()))) {
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
+            kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->var); }));
+        if (call->op.same_as(builtin::decl_tensor())) return Visit(call->args[0]);
+        return std::nullopt;
+      }
+      return StmtExprVisitor::Visit_(op);
+    }
+
+    FunctionSpecializer* specializer_;
+  };
+
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
+    auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+    if (!result.IsUnchanged()) {
+      op = ffi::AnyView(result).as<CallNode>();
+      if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
+    }
+    if (!op->op.same_as(builtin::buffer_data()) || op->args.size() != 1) return result;
+    PointerType type = op->args[0].as_or_throw<TensorVar>().DataPointerType();
+    if (ffi::StructuralEqual()(op->ty, type)) return result;
+    if (inplace_mode == InplaceMode::kAllow) {
+      const_cast<CallNode*>(op)->ty = std::move(type);
+      return result;
+    }
+    auto copy = ffi::make_object<CallNode>(*op);
+    copy->ty = std::move(type);
+    return Expr(std::move(copy));
   }
 
-  Stmt VisitStmt_(const DeclBufferNode* op) final {
-    // Visit the buffer before delegating to StmtExprMutator, so the
-    // buffer's replacement will be defined before the point of use.
-    BufferVar new_buf = MutateAllocBuffer(op->buffer);
-
-    auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<DeclBuffer>();
-
-    if (!new_buf.same_as(node->buffer)) {
-      node.CopyOnWrite()->buffer = new_buf;
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    auto result = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow);
+    if (result.UnchangedOrSameAs(ffi::GetRef<PrimExpr>(op))) return ffi::Unchanged();
+    auto load = std::move(result).ValueUnchecked().as_or_throw<TensorLoad>();
+    if (auto buffer = load->source.as<TensorVar>()) {
+      return MakeTensorLoad(buffer.value(), load->indices, load->span);
     }
-
-    return node;
+    return load;
   }
 
-  // Override VisitBufferUse to use our own buffer_map_ instead of base class field visiting.
-  BufferVar VisitBufferUse(const BufferVar& buffer) final { return GetNewBuffer(buffer); }
-
-  Expr VisitExpr_(const VarNode* op) final {
-    Var var = ffi::GetRef<Var>(op);
-    if (constrained_buffer_params_.count(op)) {
-      return var;
+  UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
+    auto result = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow);
+    if (result.UnchangedOrSameAs(ffi::GetRef<Expr>(op))) return ffi::Unchanged();
+    auto region = std::move(result).ValueUnchecked().as_or_throw<TensorRegion>();
+    if (auto buffer = region->source.as<TensorVar>()) {
+      return BufferRegion(buffer.value(), region->region, region->span);
     }
-    auto it = var_map_.find(var);
-    if (it == var_map_.end()) {
-      return StmtExprMutator::VisitExpr_(op);
-    } else {
-      return it->second;
-    }
+    return region;
   }
 
   DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::AddNode, add);
@@ -204,29 +240,30 @@ class PrimFuncSpecializer : public StmtExprMutator {
   DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::AndNode, logical_and);
   DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::OrNode, logical_or);
   DEFINE_SPECIALIZER_UNARY_OP_MUTATE(prim::NotNode, logical_not);
-
- private:
-  BufferVar MutateBuffer(const BufferVar& buffer) {
-    if (auto it = buffer_aliases_.find(buffer); it != buffer_aliases_.end()) {
-      return it->second;
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::LShiftNode, left_shift);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::RShiftNode, right_shift);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::BitwiseAndNode, bitwise_and);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::BitwiseOrNode, bitwise_or);
+  DEFINE_SPECIALIZER_BINARY_OP_MUTATE(prim::BitwiseXorNode, bitwise_xor);
+  DEFINE_SPECIALIZER_UNARY_OP_MUTATE(prim::BitwiseNotNode, prim::BitwiseNot);
+  TensorVar MutateBuffer(const TensorVar& buffer) {
+    ffi::Any mapped = VarRemapGet(buffer);
+    if (mapped.type_index() != ffi::TypeIndex::kTVMFFINone) {
+      return std::move(mapped).as_or_throw<UnchangedOr<TensorVar>>().ValueOrUnchanged(buffer);
     }
 
     ffi::Optional<ffi::String> specialized_storage_scope;
-    if (auto it = var_map_.find(buffer.var()); it != var_map_.end()) {
-      if (const auto* new_var = it->second.as<VarNode>()) {
-        if (new_var->ty.as<BufferTypeNode>()) {
-          BufferVar replacement(ffi::GetRef<Var>(new_var));
-          specialized_storage_scope = replacement->storage_scope;
-        }
-      }
+    if (auto it = buffer_storage_scopes_.find(buffer); it != buffer_storage_scopes_.end()) {
+      specialized_storage_scope = it->second;
     }
 
     ffi::Array<PrimExpr> shape =
-        buffer->shape.Map([this](const PrimExpr& e) { return VisitPrimExpr(e); });
+        buffer->shape.Map([this](const PrimExpr& e) { return Mutate(e).ValueOrUnchanged(e); });
     ffi::Array<PrimExpr> strides =
-        buffer->strides.Map([this](const PrimExpr& e) { return VisitPrimExpr(e); });
+        buffer->strides.Map([this](const PrimExpr& e) { return Mutate(e).ValueOrUnchanged(e); });
 
-    PrimExpr elem_offset = VisitPrimExpr(buffer->elem_offset);
+    PrimExpr elem_offset =
+        Mutate(buffer->elem_offset, InplaceMode::kDisallow).ValueOrUnchanged(buffer->elem_offset);
 
     // Layout iter extents/strides may reference the same shape vars; remap
     // them in lock-step with shape (otherwise the specialized buffer keeps
@@ -236,8 +273,8 @@ class PrimFuncSpecializer : public StmtExprMutator {
     if (buffer->layout.has_value()) {
       if (auto opt_tile = buffer->layout.value().as<TileLayoutNode>()) {
         auto remap_iter = [this](const Iter& it) -> Iter {
-          PrimExpr new_extent = VisitPrimExpr(it->extent);
-          PrimExpr new_stride = VisitPrimExpr(it->stride);
+          PrimExpr new_extent = Mutate(it->extent).ValueOrUnchanged(it->extent);
+          PrimExpr new_stride = Mutate(it->stride).ValueOrUnchanged(it->stride);
           if (new_extent.same_as(it->extent) && new_stride.same_as(it->stride)) {
             return it;
           }
@@ -258,7 +295,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
         buffer->strides.same_as(strides) && !layout_changed && !storage_scope_changed) {
       return buffer;
     } else {
-      auto n = CopyBufferType(buffer);
+      auto n = CopyTensorType(buffer);
       n->elem_offset = std::move(elem_offset);
       n->shape = std::move(shape);
       n->strides = std::move(strides);
@@ -268,69 +305,38 @@ class PrimFuncSpecializer : public StmtExprMutator {
       if (storage_scope_changed) {
         n->storage_scope = specialized_storage_scope.value();
       }
-      return RebuildBufferVar(buffer, std::move(n));
+      return RebuildTensorVar(buffer, std::move(n));
     }
   }
 
-  Range MutateRange(const Range& range) {
-    PrimExpr min = this->VisitPrimExpr(range->min);
-    PrimExpr extent = this->VisitPrimExpr(range->extent);
-    if (min.same_as(range->min) && extent.same_as(range->extent)) {
-      return range;
-    } else {
-      return Range::FromMinExtent(std::move(min), std::move(extent));
-    }
-  }
-
-  BufferVar MutateAllocBuffer(const BufferVar& alloc_buf) {
-    TVM_FFI_ICHECK(!buffer_map_.count(alloc_buf))
+  void MutateAllocTensor(const TensorVar& alloc_buf) {
+    TVM_FFI_ICHECK(defined_buffers_.insert(alloc_buf.get()).second)
         << "Multiple points of definition found for buffer " << alloc_buf;
-
-    BufferVar buf = MutateBuffer(alloc_buf);
-    buffer_map_[alloc_buf] = buf;
-    return buf;
+    VarRemapSet(alloc_buf, MutateBuffer(alloc_buf));
   }
 
-  BufferVar GetNewBuffer(const BufferVar& old_buffer) {
-    if (auto it = buffer_map_.find(old_buffer); it != buffer_map_.end()) {
-      return it->second;
-    }
+  void ValidateBufferUse(const TensorVar& old_buffer) {
+    if (VarRemapGet(old_buffer).type_index() != ffi::TypeIndex::kTVMFFINone) return;
 
     auto mutated = MutateBuffer(old_buffer);
     TVM_FFI_ICHECK(mutated.same_as(old_buffer))
-        << "BufferVar " << old_buffer << " (shape = " << old_buffer->shape << ")"
+        << "TensorVar " << old_buffer << " (shape = " << old_buffer->shape << ")"
         << " was used without a declaration, "
         << "and would be specialized into " << mutated << " (shape = " << mutated->shape << ").  "
         << "While usage of an undeclared buffer is currently allowed in TIR, "
         << "mutation must occur at the buffer's point of definition "
         << "(see discussion on https://github.com/apache/tvm/pull/14565 for more details).  "
         << "Please add a definition for this buffer, "
-        << "either as a BufferType-annotated PrimFunc parameter, "
-        << "in a tirx::SBlock's alloc_buffer, "
-        << "or in a DeclBuffer statement.";
-
-    return old_buffer;
+        << "either as a TensorType-annotated Function parameter, "
+        << "in a block's buffer allocations, "
+        << "or in a DeclTensor statement.";
   }
 
-  BufferRegion MutateBufferRegion(const BufferRegion& buffer_region) {
-    auto it = buffer_map_.find(buffer_region->buffer);
-    const BufferVar& buffer = it != buffer_map_.end() ? it->second : buffer_region->buffer;
-    ffi::Array<Range> region = buffer_region->region.Map(
-        std::bind(&PrimFuncSpecializer::MutateRange, this, std::placeholders::_1));
-    if (it == buffer_map_.end() && region.same_as(buffer_region->region)) {
-      return buffer_region;
-    } else {
-      return BufferRegion(buffer, std::move(region));
-    }
-  }
-
- private:
-  /*! \brief The vars to be substitute and their values */
-  const VarMap& var_map_;
-  /*! \brief map from old buffer to mutated buffer */
-  std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_map_;
-  /*! \brief Direct aliases between buffer parameters. */
-  std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_aliases_;
+  /*! \brief Definition identities used only to validate declaration order. */
+  std::unordered_set<const VarNode*> defined_buffers_;
+  /*! \brief Storage constraints supplied by concrete, non-parameter buffers. */
+  std::unordered_map<TensorVar, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      buffer_storage_scopes_;
   /*! \brief Buffer parameters constrained by a concrete, non-parameter buffer. */
   std::unordered_set<const VarNode*> constrained_buffer_params_;
 };
@@ -342,25 +348,25 @@ class PrimFuncSpecializer : public StmtExprMutator {
  * \param specific_buf The matching buffer.
  * \param var_map The var mapping to be updated.
  * \note This function will match target buffer's shape, strides and element_offset
- *   For example, we define a buffer in PrimFunc:
- *   A: T.Buffer([m, n])
+ *   For example, we define a buffer in Function:
+ *   A: T.Tensor([m, n])
  *
- *   Then we match it with a buffer B =  tirx.decl_buffer((8, 16))
+ *   Then we match it with a buffer B =  tirx.decl_tensor((8, 16))
  *
  *   It means we have two var mappings here: m = 8 and n = 16
  *
  *   If the buffer signature is not a Var, the mapping will fail.
- *   e.g. A = T.match_buffer(a, [m * 2, n + 1])
+ *   e.g. A: T.Tensor([m * 2, n + 1])
  */
-void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const BufferVar& specific_buf,
+void UpdateSpecializeVarMap(const Function& func, const Var& param, const TensorVar& specific_buf,
                             VarMap* var_map) {
   // preliminaries
-  tirx::ExprDeepEqual equal;
+  prim::ExprDeepEqual equal;
 
-  auto opt_buffer = param.as<BufferVar>();
+  auto opt_buffer = param.as<TensorVar>();
   TVM_FFI_CHECK(opt_buffer, ValueError)
-      << "specialize expects param to have a BufferType annotation";
-  const BufferVar& buf_to_specialize = opt_buffer.value();
+      << "specialize expects param to have a TensorType annotation";
+  const TensorVar& buf_to_specialize = opt_buffer.value();
 
   // build var mapping using specific_buf's parameters
   auto build_var_mapping = [&](const Expr& new_expr, const Expr& old_expr) {
@@ -383,7 +389,7 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
             << "The assigned value of var " << var << " mismatched. " << it->second << " vs. "
             << new_expr << ".";
       } else {
-        (*var_map)[var] = new_expr;
+        var_map->insert_or_assign(var, new_expr);
       }
     }
   };
@@ -427,56 +433,56 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
  * \param specific_expr The parameter value.
  * \param var_map The var mapping to be updated.
  */
-void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Expr& specific_expr,
+void UpdateSpecializeVarMap(const Function& func, const Var& param, const Expr& specific_expr,
                             VarMap* var_map) {
-  // check param is in PrimFunc's parameters
+  // check param is in Function's parameters
   TVM_FFI_CHECK(IsParam(func, param), ValueError)
-      << "Specialize expects param to be in PrimFunc's params";
+      << "Specialize expects param to be in Function's params";
   // Specialize a scalar parameter rather than a buffer parameter.
-  TVM_FFI_CHECK(!param.as<BufferVar>(), ValueError)
-      << "Specialize expects param to not have a BufferType annotation";
+  TVM_FFI_CHECK(!param.as<TensorVar>(), ValueError)
+      << "Specialize expects param to not have a TensorType annotation";
   // build var mapping using specific_expr
-  (*var_map)[param] = specific_expr;
+  var_map->insert_or_assign(param, specific_expr);
 }
 
 /**************** Implementation ****************/
 
-PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<BufferVar, Expr>>& param_map) {
+Function Specialize(Function func, const ffi::Map<Var, ffi::Variant<TensorVar, Expr>>& param_map) {
   VarMap var_map;
   for (const auto& kv : param_map) {
     const Var& param = kv.first;
-    const ffi::Variant<BufferVar, Expr>& instance = kv.second;
-    if (auto opt_buffer = instance.as<BufferVar>()) {
+    const ffi::Variant<TensorVar, Expr>& instance = kv.second;
+    if (auto opt_buffer = instance.as<TensorVar>()) {
       UpdateSpecializeVarMap(func, param, opt_buffer.value(), &var_map);
     } else if (auto opt_expr = instance.as<Expr>()) {
       UpdateSpecializeVarMap(func, param, opt_expr.value(), &var_map);
     } else {
-      TVM_FFI_THROW(TypeError) << "specialize expected instance to be BufferVar or Expr";
+      TVM_FFI_THROW(TypeError) << "specialize expected instance to be TensorVar or Expr";
     }
   }
-  return PrimFuncSpecializer::Specialize(func, std::move(var_map));
+  return FunctionSpecializer::Specialize(func, std::move(var_map));
 }
 
 /**************** FFI ****************/
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.Specialize", [](PrimFunc func,
+  refl::GlobalDef().def("tirx.Specialize", [](Function func,
                                               const ffi::Map<Var, ffi::Any>& param_map) {
     VarMap var_map;
     for (const auto& [param, instance] : param_map) {
-      if (auto buffer = instance.as<BufferVar>()) {
+      if (auto buffer = instance.as<TensorVar>()) {
         UpdateSpecializeVarMap(func, param, buffer.value(), &var_map);
       } else if (const ExprNode* expr = instance.as<ExprNode>()) {
         UpdateSpecializeVarMap(func, param, ffi::GetRef<Expr>(expr), &var_map);
       } else if (instance.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
         UpdateSpecializeVarMap(func, param, instance.cast<PrimExpr>(), &var_map);
       } else {
-        TVM_FFI_THROW(TypeError) << "specialize expected instance to be BufferVar or Expr, but got "
+        TVM_FFI_THROW(TypeError) << "specialize expected instance to be TensorVar or Expr, but got "
                                  << instance.GetTypeKey();
       }
     }
-    return PrimFuncSpecializer::Specialize(func, std::move(var_map));
+    return FunctionSpecializer::Specialize(func, std::move(var_map));
   });
 }
 

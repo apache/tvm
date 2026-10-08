@@ -27,13 +27,13 @@ from tvm.tirx.transform.transform import BindTarget
 def get_before(dtype: str):
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(Aptr: T.handle(dtype), Bptr: T.handle(dtype), Dptr: T.handle(dtype)):
             T.func_attr({"global_symbol": "main"})
-            A = T.decl_buffer((100,), dtype, data=Aptr)
-            B = T.decl_buffer((100,), dtype, data=Bptr)
-            D = T.decl_buffer((100,), dtype, data=Dptr)
-            C = T.decl_buffer((100,), dtype)
+            A = T.decl_tensor((100,), dtype, data=Aptr)
+            B = T.decl_tensor((100,), dtype, data=Bptr)
+            D = T.decl_tensor((100,), dtype, data=Dptr)
+            C = T.decl_tensor((100,), dtype)
             for i in T.grid(100):
                 C[i] = A[i] + B[i]
                 D[i] = T.exp(C[i])
@@ -52,13 +52,13 @@ def cast_to_f8(f8_dtype: str, promote_dtype: str, v):
 def get_after_compute_legalize(dtype: str, promote_dtype: str):
     @tvm.script.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(Aptr: T.handle(dtype), Bptr: T.handle(dtype), Dptr: T.handle(dtype)):
             T.func_attr({"global_symbol": "main"})
-            A = T.decl_buffer((100,), dtype, data=Aptr)
-            B = T.decl_buffer((100,), dtype, data=Bptr)
-            D = T.decl_buffer((100,), dtype, data=Dptr)
-            C = T.decl_buffer((100,), promote_dtype)
+            A = T.decl_tensor((100,), dtype, data=Aptr)
+            B = T.decl_tensor((100,), dtype, data=Bptr)
+            D = T.decl_tensor((100,), dtype, data=Dptr)
+            C = T.decl_tensor((100,), promote_dtype)
             for i in T.grid(100):
                 C[i] = promote_f8(dtype, promote_dtype, A[i]) + promote_f8(
                     dtype, promote_dtype, B[i]
@@ -185,13 +185,13 @@ def cast_to_uint8(f8_dtype: str, promote_dtype: str, v):
 def get_after_storage_legalize(dtype: str, promote_dtype: str):
     @tvm.script.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(Aptr: T.handle("uint8"), Bptr: T.handle("uint8"), Dptr: T.handle("uint8")):
             T.func_attr({"global_symbol": "main"})
-            A = T.decl_buffer((100,), "uint8", data=Aptr)
-            B = T.decl_buffer((100,), "uint8", data=Bptr)
-            D = T.decl_buffer((100,), "uint8", data=Dptr)
-            C = T.decl_buffer((100,), promote_dtype)
+            A = T.decl_tensor((100,), "uint8", data=Aptr)
+            B = T.decl_tensor((100,), "uint8", data=Bptr)
+            D = T.decl_tensor((100,), "uint8", data=Dptr)
+            C = T.decl_tensor((100,), promote_dtype)
             for i in T.grid(100):
                 C[i] = promote_uint8(dtype, promote_dtype, A[i]) + promote_uint8(
                     dtype, promote_dtype, B[i]
@@ -217,9 +217,9 @@ def test_fp8_compute_legalize(dtype, promote_dtype):
 
 
 def test_fp8_compute_legalize_preserves_opaque_buffer_access(dtype, promote_dtype):
-    @T.prim_func(s_tir=True)
+    @T.function
     def before():
-        buffer = T.alloc_buffer((16,), dtype)
+        buffer = T.alloc_tensor((16,), dtype)
         T.evaluate(T.call_extern("void", "consume", buffer.data))
 
     before_mod = tvm.IRModule.from_expr(before)

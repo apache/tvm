@@ -24,7 +24,8 @@ from tvm_ffi import register_object
 
 from tvm.ir import IRModule
 from tvm.runtime import Object
-from tvm.tirx import For, PrimFunc, SBlock, SBlockRealize
+from tvm.s_tir import SBlock, SBlockRealize
+from tvm.tirx import For, Function
 
 from ..sblock_scope import SBlockScope, StmtSRef
 from . import _ffi_api
@@ -51,11 +52,11 @@ class ScheduleDebugMask(IntEnum):
     VERIFY_CACHED_FLAGS = 2
 
 
-def _parse_mod(mod: PrimFunc | IRModule) -> IRModule:
-    if isinstance(mod, PrimFunc):
+def _parse_mod(mod: Function | IRModule) -> IRModule:
+    if isinstance(mod, Function):
         mod = IRModule({"main": mod})
     if not isinstance(mod, IRModule):
-        raise TypeError(f"Expected `mod` to be PrimFunc or IRModule, but gets: {mod}")
+        raise TypeError(f"Expected `mod` to be Function or IRModule, but gets: {mod}")
     return mod
 
 
@@ -108,17 +109,17 @@ class ScheduleState(Object):
 
     def __init__(
         self,
-        mod: PrimFunc | IRModule,
+        mod: Function | IRModule,
         *,
         debug_mask: str | int = "none",
         enable_check: bool = True,
     ) -> None:
-        """Construct a schedule state from an IRModule or a PrimFunc
+        """Construct a schedule state from an IRModule or a Function
 
         Parameters
         ----------
-        mod : Union[PrimFunc, IRModule]
-            The IRModule or PrimFunc to be scheduled
+        mod : Union[Function, IRModule]
+            The IRModule or Function to be scheduled
         debug_mask : Union[str, int]
             Do extra correctness checking after the class creation and each time
             after calling the Replace method.

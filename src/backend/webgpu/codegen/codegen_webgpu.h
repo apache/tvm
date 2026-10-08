@@ -27,6 +27,7 @@
 #ifndef TVM_TARGET_WEBGPU_CODEGEN_WEBGPU_H_
 #define TVM_TARGET_WEBGPU_CODEGEN_WEBGPU_H_
 
+#include <tvm/sym/analyzer.h>
 #include <tvm/target/codegen.h>
 
 #include <cstddef>
@@ -50,12 +51,12 @@ class CodeGenWebGPU final : public CodeGenC {
   // overrides
   std::string Finish() final;
   using CodeGenC::AddFunction;
-  runtime::FunctionInfo AddFunction(const PrimFunc& f, bool skip_readonly_decl);  // NOLINT(*)
-  void InitFuncState(const PrimFunc& f) final;
+  runtime::FunctionInfo AddFunction(const Function& f, bool skip_readonly_decl);  // NOLINT(*)
+  void InitFuncState(const Function& f) final;
   void PrintStorageSync(const CallNode* op) final;  // NOLINT(*)
   using CodeGenC::PrintType;
-  void PrintType(const PrimType& t, std::ostream& os) final;  // NOLINT(*)
-  void BindThreadIndex(const IterVar& iv) final;              // NOLINT(*)
+  void PrintType(const PrimType& t, std::ostream& os) final;                      // NOLINT(*)
+  void BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) final;  // NOLINT(*)
 
   // assignment printing
   void PrintSSAAssign(const std::string& target, const std::string& src, const Type& type) final;
@@ -66,26 +67,31 @@ class CodeGenWebGPU final : public CodeGenC {
                          const std::string& value) final;
 
   // overload visitor
-  void VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const CallNode* op, std::ostream& os) final;             // NOLINT(*)
-  void VisitExpr_(const TensorLoadNode* op, std::ostream& os) final;       // NOLINT(*)
-  void VisitExpr_(const prim::CastNode* op, std::ostream& os) final;       // NOLINT(*)
-  void VisitExpr_(const prim::SelectNode* op, std::ostream& os) final;     // NOLINT(*)
-  void VisitExpr_(const prim::LetNode* op, std::ostream& os) final;        // NOLINT(*)
-  void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;         // NOLINT(*)
-  void VisitExpr_(const IntImmNode* op, std::ostream& os) final;           // NOLINT(*)
+  void Dispatch_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
+  void Dispatch_(const CallNode* op, std::ostream& os) final;             // NOLINT(*)
+  void Dispatch_(const TensorLoadNode* op, std::ostream& os) final;       // NOLINT(*)
+  void Dispatch_(const prim::CastNode* op, std::ostream& os) final;       // NOLINT(*)
+  void Dispatch_(const prim::LShiftNode* op, std::ostream& os) final;     // NOLINT(*)
+  void Dispatch_(const prim::RShiftNode* op, std::ostream& os) final;     // NOLINT(*)
+  void Dispatch_(const prim::SelectNode* op, std::ostream& os) final;     // NOLINT(*)
+  void Dispatch_(const prim::LetNode* op, std::ostream& os) final;        // NOLINT(*)
+  void Dispatch_(const FloatImmNode* op, std::ostream& os) final;         // NOLINT(*)
+  void Dispatch_(const IntImmNode* op, std::ostream& os) final;           // NOLINT(*)
 
   // stmt printing
-  void VisitStmt_(const BindNode* op) final;
-  void VisitStmt_(const BufferStoreNode* op) final;
-  void VisitStmt_(const ForNode* op) final;
-  void VisitStmt_(const AllocBufferNode* op) final;
-  void VisitStmt_(const AssertStmtNode* op) final;
-  void VisitStmt_(const WhileNode* op) final;
-  void VisitStmt_(const BreakNode* op) final;
-  void VisitStmt_(const ContinueNode* op) final;
+  void Dispatch_(const RegionStmtNode* op) final;
+  void Dispatch_(const BindNode* op) final;
+  void Dispatch_(const TensorStoreNode* op) final;
+  void Dispatch_(const ForNode* op) final;
+  void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
+  void Dispatch_(const AssertStmtNode* op) final;
+  void Dispatch_(const WhileNode* op) final;
+  void Dispatch_(const BreakNode* op) final;
+  void Dispatch_(const ContinueNode* op) final;
 
  private:
+  sym::Analyzer analyzer_;
+
   /*!
    * \brief Enforce value to be U32.
    */

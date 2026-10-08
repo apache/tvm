@@ -19,9 +19,9 @@
 
 /*!
  * \file tvm/tirx/builtin.h
- * \brief TIR builtin intrinsics.
+ * \brief TIRx builtin region and call operations.
  *
- * TIR builtin intrinsics are stored as tvm:Op.
+ * TIRx builtin operations are stored as tvm::Op.
  * They are processed in the same way as we process Ops.
  *
  * It is not necessary to create a function for every Op,
@@ -39,20 +39,105 @@
 namespace tvm {
 namespace tirx {
 
-/*! \brief Collection of builtin intrinsics as ops */
+/*! \brief Collection of builtin region and call operations as Ops. */
 namespace builtin {
 /*!
- * \brief Return from a GPU thread.
+ * \name Region operations
+ * \brief Operations used by RegionStmt to enclose a lexical body.
+ *
+ * Every region operation registers FRegionGetBodyParams, returning fresh typed
+ * body parameters or an empty array for no parameters. Attribute presence alone
+ * identifies region support; classification does not invoke the hook. Operands
+ * and attributes are evaluated outside the body-parameter scope.
+ * \{
+ */
+/*!
+ * \brief Thread launch region: operands are a nonempty StringImm tag and a
+ * scalar signed or unsigned integer extent wider than one bit.
+ * The sole body parameter is a fresh thread-index PrimVar matching the extent type.
+ * Tags starting with vthread denote virtual threads. There are no attrs or results.
+ */
+TVM_DLL const Op& launch_thread();
+
+/*!
+ * \brief Mark a user-facing device entry containing device scope definitions.
+ * Takes no operands, body parameters, attributes or results.
+ */
+TVM_DLL const Op& device_entry();
+/*!
+ * \brief Supply lexical device context for allocation and packed-call lowering.
+ * Operands are integer device type and device ID; there are no body parameters,
+ * attributes or results. The region does not change the active runtime device.
+ */
+TVM_DLL const Op& device_context();
+/*!
+ * \brief Outline the body as a CPU compute helper named by a StringImm operand.
+ * There are no body parameters, attributes or results.
+ */
+TVM_DLL const Op& compute_scope();
+/*!
+ * \brief Launch a CPU worker team around parallel loops and team barriers.
+ * Takes no operands, body parameters, attributes or results.
+ */
+TVM_DLL const Op& parallel_launch();
+/*! \} */
+
+/*!
+ * \name Call operations
+ * \brief Operations invoked through Call with explicit operands and result types.
+ * \{
+ */
+/*!
+ * \brief Allocate a buffer: alloc_tensor(shape, dtype, scope) -> TensorType.
+ *
+ * Arguments, in order:
+ * - args[0]: shape, Tuple of integer extents (IntImm or symbolic integer expressions).
+ * - args[1]: dtype, DataTypeImm with a DLDataType payload for the element type.
+ * - args[2]: scope, StringImm naming the storage scope.
+ *
+ * DictAttrs directly holds the allocation annotations, defaulting to an empty dictionary.
+ * The TensorType result agrees with the operands and retains buffer access/storage metadata.
+ *
+ * \code
+ * // Example pattern match code for a given Binding:
+ * if (const auto* call = binding->value.as<CallNode>();
+ *     call && call->op.same_as(builtin::alloc_tensor())) {
+ *   tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
+ *   DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+ *   ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+ *   DictAttrs annotations = call->attrs.as_or_throw<DictAttrs>();
+ * }
+ * \endcode
+ */
+TVM_DLL const Op& alloc_tensor();
+/*!
+ * \brief Declare a buffer view: decl_tensor(data, shape, dtype, scope) -> TensorType.
+ *
+ * Arguments, in order:
+ * - args[0]: data, Expr for the existing physical pointer backing the buffer view.
+ * - args[1]: shape, Tuple of integer extents (IntImm or symbolic integer expressions).
+ * - args[2]: dtype, DataTypeImm with a DLDataType payload for the element type.
+ * - args[3]: scope, StringImm naming the storage scope.
+ *
+ * There are no attributes. The TensorType result agrees with the operands and retains
+ * buffer access/storage metadata. The operation binds a view without allocating memory.
+ *
+ * \code
+ * // Example pattern match code for a given Binding:
+ * if (const auto* call = binding->value.as<CallNode>();
+ *     call && call->op.same_as(builtin::decl_tensor())) {
+ *   Expr data = call->args[0];
+ *   tvm::Tuple shape = call->args[1].as_or_throw<tvm::Tuple>();
+ *   DLDataType dtype = call->args[2].as_or_throw<DataTypeImm>()->value;
+ *   ffi::String scope = call->args[3].as_or_throw<StringImm>()->value;
+ * }
+ * \endcode
+ */
+TVM_DLL const Op& decl_tensor();
+/*!
+ * \brief Return from a GPU thread without returning a function value.
  */
 TVM_DLL const Op& thread_return();
-/*!
- * \brief Loop continue.
- */
-TVM_DLL const Op& continue_loop();
-/*!
- * \brief Loop break.
- */
-TVM_DLL const Op& break_loop();
 /*!
  * \brief Reinterpret the value using the target type.
  */
@@ -78,17 +163,6 @@ TVM_DLL const Op& filter();
 TVM_DLL const Op& selector();
 
 /*!
- * \brief See pesudo code
- *
- *  Construct a big uint that may not be representable by int64
- *
- *  Expr large_uint_imm(uint32_t v0, uin32_t v1) {
- *    return (v1 << 32) | v0;
- *  }
- */
-TVM_DLL const Op& large_uint_imm();
-
-/*!
  * \brief Execute a multiplication between two Q-numbers x and y
  * followed by a right shift s
  * The default rounding rule is to the nearest value, rounding half up
@@ -105,7 +179,7 @@ TVM_DLL const Op& q_multiply_shift_per_axis();
  * the number of indices must be supported by the target (i.e. N>1
  * only on targets that support non-flat memory buffers).
  *
- *  Handle address_of(BufferLoad *op) {
+ *  Handle address_of(TensorLoad *op) {
  *     return &op->buffer_var[op->indices[0], op->indices[1], ..., op->indices[N-1]];
  *  }
  */
@@ -242,21 +316,6 @@ TVM_DLL const Op& ptr_byte_offset();
 TVM_DLL const Op& tvm_static_handle();
 
 /*!
- * \brief Return a unique context id, used for hint of workspace separation.
- *  Different context id ganrantees not having overlapping workspace.
- */
-TVM_DLL const Op& tvm_context_id();
-
-/*!
- * \brief tvm_tuple is not an actual function and cannot codegen.
- *  It is used to represent tuple structure in value field of AttrStmt,
- *  for the sake of giving hint to optimization.
- *
- *  void tvm_tuple(value0, value1, ..., value_n);
- */
-TVM_DLL const Op& tvm_tuple();
-
-/*!
  * \brief See pesudo code
  *
  *  void* handle_add_byte_offset(void* handle, int offset) {
@@ -284,14 +343,6 @@ TVM_DLL const Op& tvm_struct_get();
  * \sa TVMStructFieldKind
  */
 TVM_DLL const Op& tvm_struct_set();
-
-/*!
- * \brief See pseudo code
- * Type lookup_param(ffi::String param_name) {
- *     return __tvm_param__param_name;
- * }
- */
-TVM_DLL const Op& lookup_param();
 
 /*!
  * \brief See pesudo code
@@ -361,6 +412,24 @@ TVM_DLL const Op& tvm_stack_make_array();
 TVM_DLL const Op& tvm_call_packed();
 
 /*!
+ * \brief Launch a kernel using the packed-function argument convention.
+ *
+ * Arguments are the kernel symbol, kernel operands, then launch values.
+ * CallFFIKernelAttr::launch_params describes the launch-value suffix.
+ * Host backends may consume this call directly or lower it to tvm_call_packed.
+ */
+TVM_DLL const Op& call_ffi_kernel();
+
+/*!
+ * \brief Encode a tiled tensor map at invocation time.
+ *
+ * TensorMapEncodeTiledAttr stores the descriptor dtype, rank and fixed options.
+ * Arguments are descriptor and data pointers, global dimensions (rank), byte
+ * strides (rank - 1), box dimensions (rank), then element strides (rank).
+ */
+TVM_DLL const Op& tensormap_encode_tiled();
+
+/*!
  * \brief See pesudo code
  *
  * return_type tvm_call_packed(fname, TVMFFIAny* args) {
@@ -370,19 +439,6 @@ TVM_DLL const Op& tvm_call_packed();
  *  }
  */
 TVM_DLL const Op& tvm_call_cpacked();
-
-/*!
- * \brief See pesudo code
- *
- *  return_type tvm_call_trace_packed(name, TVMFFIAny* args) {
- *     ModuleNode* env = GetCurrentEnv();
- *     const ffi::Function* f = env->GetFuncFromEnv(name);
- *     (*f)(args, args, len(args));
- *     // return type can be int, float, handle.
- *     return cast(return_type, result);
- *  }
- */
-TVM_DLL const Op& tvm_call_trace_packed();
 
 /*!
  * \brief Mark a condition to be thread invariant.
@@ -424,25 +480,6 @@ TVM_DLL const Op& tvm_call_packed_lowered();
 TVM_DLL const Op& tvm_call_cpacked_lowered();
 
 /*!
- * \brief Lowered version of trace intrinsic, the space of value and
- *  type codes are explicitly allocated. The return value is the
- *  (end - 1) value on the stack.
- *
- *  return_type tvm_call_trace_packed_lowered(name,
- *                                            TVMFFIAny* args_stack,
- *                                            int begin,
- *                                            int end) {
- *     ModuleNode* env = GetCurrentEnv();
- *     const ffi::Function* f = env->GetFuncFromEnv(name);
- *     f->CallPacked(ffi::PackedArgs(args_stack[begin:end]),
- *                   ffi::Any(args_stack + end));
- *     // return type can be int, float, handle.
- *     return cast(return_type, load_return_from(args_stack + end))
- *  }
- */
-TVM_DLL const Op& tvm_call_trace_packed_lowered();
-
-/*!
  * \brief See pseudo code
  *
  *  int tvm_storage_sync(std::string storage_scope) {
@@ -451,6 +488,14 @@ TVM_DLL const Op& tvm_call_trace_packed_lowered();
  *  }
  */
 TVM_DLL const Op& tvm_storage_sync();
+
+/*!
+ * \brief Synchronize all workers in the current CPU parallel launch.
+ *
+ * Every worker must reach this operation. It must be outside partitioned
+ * parallel loops, whose iteration counts can differ between workers.
+ */
+TVM_DLL const Op& cpu_parallel_barrier();
 
 /*!
  * \brief Marker where a transform should replace generated kernel initialization.
@@ -495,23 +540,35 @@ TVM_DLL const Op& tvm_warp_shuffle_xor();
 TVM_DLL const Op& tvm_warp_activemask();
 
 /*!
- * \brief Initialize the global barrier.
- *  Call this at beginning of kernel that need global barrier.
- */
-TVM_DLL const Op& tvm_global_barrier_kinit();
-
-/*!
- * \brief See pesudo code
+ * \brief Cross-thread reduction with an explicit typed combiner and identities.
  *
- *  void tvm_thread_allreduce(UIntImm size, Expr source0, ..., Expr cond,
- *                            Var reduce_temp0, .., Var thread_idx1, ...) {
- *     // constraint by the other thread_idx remain the same.
- *     // reduce_temp is used to save intermediate result.
- *     reduce_temp0, ... = reduce(combiner, source0, ..., cond
- *       over [thread_idx1, thread_idx2] passed by any caller)
- *  }
+ * void tvm_thread_allreduce(LambdaExpr combine, Expr identity, Expr values,
+ *                           PrimExpr predicate, Expr destinations, Expr thread_axes);
+ *
+ * For N values, combine binds lhs[0:N] followed by rhs[0:N] and returns an
+ * N-element Tuple, or a scalar when N is one. Identity, values, destinations
+ * and thread_axes may each be a scalar or an explicit Tuple of fields.
+ * Each value, identity, pair of parameters and result have
+ * the same primitive type. Inactive inputs are replaced by their identities.
+ * Destinations are N tensor loads at index zero of one-element result temporaries
+ * (optionally cast for boolean storage). Each result temporary must be accessed
+ * only at index zero. Thread axes are reduction thread variables or zero for
+ * simplified unit axes.
+ * Other thread indices remain fixed. The operation writes the reduced values
+ * to the destination tensors and returns void.
  */
 TVM_DLL const Op& tvm_thread_allreduce();
+
+/*!
+ * \brief View a scalar all-reduce operand/result as one field, or expose its Tuple fields.
+ * \param value The scalar expression or explicit Tuple.
+ * \return The fields without changing the expression's representation in IR.
+ */
+inline ffi::Array<Expr> GetAllreduceFields(const Expr& value) {
+  if (const auto* tuple = value.as<tvm::TupleNode>()) return tuple->fields;
+  return {value};
+}
+
 // Metal cooperative_tensor intrinsics (MetalPerformancePrimitives / Metal 4)
 
 /*!
@@ -598,51 +655,6 @@ TVM_DLL const Op& texture2d_store();
 TVM_DLL const Op& texture2d_load();
 
 /*!
- * \brief Initiate a non-blocking DMA copy from source to destination
- *
- * The copy is launched immediately.
- *
- * If a `dma_start_group()` call is active, the copy will be added
- * to the current group for tracking of in-flight group counts.
- *
- * If no `dma_start_group()` call is active, the copy will be tracked
- * individually i.e. as a group with size 1.
- */
-TVM_DLL const Op& dma_copy();
-
-/*!
- * \brief Wait until the number of DMA groups in flight is less than
- * or equal to some maximum
- *
- * Calling `dma_wait()` while a group is active is unsupported.
- */
-TVM_DLL const Op& dma_wait();
-
-/*!
- * \brief Start a group of DMA copies
- *
- * Any call to `dma_copy()` that occurs after `dma_start_group()` will
- * be added to the current group for tracking of in-flight group counts.
- *
- * Only one DMA group may be active at a given time.  Calling
- * `dma_start_group()` while a group is active is unsupported.
- */
-TVM_DLL const Op& dma_start_group();
-
-/*!
- * \brief End a group of DMA copies
- *
- * Track all calls to `dma_copy()` that occurred since the preceding
- * `dma_start_group()` as a single group in-flight.
- *
- * Calling `dma_end_group()` without an active group is unsupported.
- *
- * Note: A group of DMA calls may be empty, and will still contribute
- * to the count of in-flight groups used by `dma_wait()`.
- */
-TVM_DLL const Op& dma_end_group();
-
-/*!
  * \brief Provide a true statement that can be used for simplifications
  *
  * Compile-time representation of known constraints about function
@@ -652,66 +664,20 @@ TVM_DLL const Op& dma_end_group();
 TVM_DLL const Op& assume();
 
 /*!
+ * \brief Assume a tensor's base address has the given constant byte alignment.
+ *
+ * This leaf operation carries a compiler fact, without checking or changing
+ * the address. Alignment must be a power of two between 1 and 2^27 bytes.
+ */
+TVM_DLL const Op& assume_aligned();
+
+/*!
  * \brief Returns an initialized but arbitrary value
  *
  * Compile-time representation of memory locations whose values may be
  * altered as a result of optimizations.
  */
 TVM_DLL const Op& undef();
-
-/*!
- * \brief Profiling intrinsic
- */
-TVM_DLL const Op& start_profile_intrinsic();
-
-/*!
- * \brief Profiling intrinsic
- */
-TVM_DLL const Op& end_profile_intrinsic();
-
-/*!
- * \brief Get a item from any list and return it.
- *
- *  Any anylist_getitem(Handle anylist,
- *                      int index)
- *     return anylist[index];
- *  }
- *
- * \note This intrinsic is only applicable when appearing
- *       in call_packed and anylist_setitem_call_packed.
- */
-TVM_DLL const Op& anylist_getitem();
-
-/*!
- * \brief Reset and clear a item in any list.
- *
- *  void anylist_resetitem(Handle anylist,
- *                         int index)
- *    anylist[index] = nullptr;
- *  }
- *
- * \note This intrinsic is only applicable when appearing
- *       in call_packed and anylist_setitem_call_packed.
- */
-TVM_DLL const Op& anylist_resetitem();
-
-/*!
- * \brief Set an item into any list by running packed function call.
- *
- *  void anylist_setitem_call_packed(Handle anylist,
- *                                   int index,
- *                                   name, *args)
- *
- *    anylist[index] = call_packed(name, *args)
- *  }
- *  \note This intrinsic can be used in combination with anylist_getitem.
- */
-TVM_DLL const Op& anylist_setitem_call_packed();
-
-/*!
- * \brief Same as anylist_setitem_call_packed but use C calling convention.
- */
-TVM_DLL const Op& anylist_setitem_call_cpacked();
 
 /*!
  * \brief Calculate a predicate mask given an upper bound (limit) and a current value (base).
@@ -747,10 +713,10 @@ TVM_DLL const Op& ignore_loop_partition();
 TVM_DLL const Op& buffer_offset();
 
 /*!
- * \brief Project the physical pointer associated with a BufferVar definition.
+ * \brief Project the physical pointer associated with a TensorVar definition.
  *
- * The result pointer type is derived from the BufferType dtype and storage
- * scope of the sole BufferVar argument.  This operation is consumed by TIRx
+ * The result pointer type is derived from the TensorType dtype and storage
+ * scope of the sole TensorVar argument.  This operation is consumed by TIRx
  * lowering and code generation.
  */
 TVM_DLL const Op& buffer_data();
@@ -784,6 +750,7 @@ enum TVMStructFieldKind : int {
  * \brief Print the content of a buffer during runtime.
  */
 TVM_DLL const Op& print_buffer();
+/*! \} */
 }  // namespace builtin
 }  // namespace tirx
 }  // namespace tvm

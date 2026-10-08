@@ -21,6 +21,7 @@
  * \file reduce.cc
  * \brief TE reduction expression definitions.
  */
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/te/operation.h>
@@ -60,16 +61,27 @@ CommReducer::CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs,
     PrimType dtype = identity_element[i].ty();
     PrimVar l = lhs[i].CopyWithDType(dtype);
     PrimVar r = rhs[i].CopyWithDType(dtype);
-    var_map[lhs[i].get()] = l;
-    var_map[rhs[i].get()] = r;
+    var_map.insert_or_assign(lhs[i].get(), l);
+    var_map.insert_or_assign(rhs[i].get(), r);
 
     p_lhs->SetItem(i, l);
     p_rhs->SetItem(i, r);
   }
 
+  auto f_substitute = [&var_map](const Expr& expr) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    // An axis can itself be a reducer parameter value. Substitute it before
+    // structural traversal reaches the metadata's Var-typed binder field.
+    const VarNode* var = expr.as<VarNode>();
+    if (const auto* axis = expr.as<IterVarNode>()) var = axis->var.get();
+    if (auto it = var_map.find(var); it != var_map.end()) return ffi::Any(it->second);
+    if (expr.as<IterVarNode>()) return ffi::Any(ffi::GetRef<Var>(var));
+    return ffi::Unchanged();
+  };
+  // The replacement variables intentionally adopt each identity element's dtype.
   ffi::ArrayObj* p_result = result.CopyOnWrite();
   for (int i = 0; i < static_cast<int>(n_group); ++i) {
-    p_result->SetItem(i, Substitute(result[i], var_map));
+    p_result->SetItem(i, ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(result[i], f_substitute)
+                             .as_or_throw<PrimExpr>());
   }
 
   auto node = ffi::make_object<CommReducerNode>();
@@ -91,7 +103,19 @@ ffi::Array<PrimExpr> CommReducerNode::operator()(ffi::Array<PrimExpr> a,
     value_map.Set(lhs[i], a[i]);
     value_map.Set(rhs[i], b[i]);
   }
-  return Substitute(this->result, value_map);
+  auto f_substitute = [&value_map](const Expr& expr) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    const VarNode* var = expr.as<VarNode>();
+    if (const auto* axis = expr.as<IterVarNode>()) var = axis->var.get();
+    if (var != nullptr) {
+      if (auto repl = value_map.Get(ffi::GetRef<Var>(var))) return ffi::Any(*std::move(repl));
+      if (expr.as<IterVarNode>()) return ffi::Any(ffi::GetRef<Var>(var));
+    }
+    return ffi::Unchanged();
+  };
+  return this->result.Map([&f_substitute](const PrimExpr& expr) {
+    return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(expr, f_substitute)
+        .as_or_throw<PrimExpr>();
+  });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -106,15 +130,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Reduce
 Reduce::Reduce(CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<IterVar> axis,
-               PrimExpr condition, int value_index, ffi::Array<PrimExpr> init, Span span) {
+               ffi::Optional<PrimExpr> condition, int value_index, ffi::Array<PrimExpr> init,
+               Span span)
+    : PrimExpr(ffi::UnsafeInit{}) {
   for (size_t i = 0; i < axis.size(); ++i) {
     TVM_FFI_ICHECK_EQ(axis[i]->iter_type, kCommReduce)
         << "Can only take axis created by reduce_axis";
   }
-  if (!condition.defined()) {
-    condition = IntImm::Bool(true);
-  }
-  auto n = ffi::make_object<ReduceNode>();
+  auto n = ffi::make_object<ReduceNode>(condition.value_or(IntImm::Bool(true)));
   TVM_FFI_ICHECK(source.defined());
   for (size_t i = 0; i < axis.size(); ++i) {
     TVM_FFI_ICHECK(axis[i].defined());
@@ -137,7 +160,6 @@ Reduce::Reduce(CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<Ite
   n->source = std::move(source);
   n->init = std::move(init);
   n->axis = std::move(axis);
-  n->condition = condition;
   n->value_index = value_index;
   n->span = std::move(span);
   data_ = std::move(n);
@@ -145,11 +167,11 @@ Reduce::Reduce(CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<Ite
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "te.Reduce", [](CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<IterVar> axis,
-                      PrimExpr condition, int value_index, ffi::Array<PrimExpr> init, Span span) {
-        return Reduce(combiner, source, axis, condition, value_index, init, span);
-      });
+  refl::GlobalDef().def("te.Reduce", [](CommReducer combiner, ffi::Array<PrimExpr> source,
+                                        ffi::Array<IterVar> axis, ffi::Optional<PrimExpr> condition,
+                                        int value_index, ffi::Array<PrimExpr> init, Span span) {
+    return Reduce(combiner, source, axis, condition, value_index, init, span);
+  });
 }
 
 }  // namespace te

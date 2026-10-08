@@ -43,10 +43,10 @@
 
 namespace tvm {
 
-namespace arith {
+namespace sym {
 class AnalyzerObj;
 class Analyzer;
-}  // namespace arith
+}  // namespace sym
 
 namespace relax {
 
@@ -342,6 +342,9 @@ class PatternContext : public ffi::ObjectRef {
  */
 class ExprPatternNode : public DFPatternNode {
  public:
+  explicit ExprPatternNode(Expr expr) : expr(std::move(expr)) {}
+  explicit ExprPatternNode(ffi::UnsafeInit) : expr(ffi::UnsafeInit{}) {}
+
   Expr expr; /*!< The expression to match */
 
   static void RegisterReflection() {
@@ -441,7 +444,7 @@ class GlobalVarPattern : public DFPattern {
 };
 
 /*!
- * \brief A Pattern to Match a Relax Constant.
+ * \brief A Pattern to Match a Relax GenericConst.
  * \sa ConstantPattern
  */
 class ConstantPatternNode : public DFPatternNode {

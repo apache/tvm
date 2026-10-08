@@ -21,9 +21,9 @@ import functools
 import operator
 
 from tvm import relax
-from tvm.arith import Analyzer
 from tvm.ir import Call, PrimType
 from tvm.relax.type import ShapeType
+from tvm.sym import Analyzer
 
 from ..block_builder import BlockBuilder
 from ..expr import Expr, ShapeExpr, Var

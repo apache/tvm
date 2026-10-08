@@ -35,12 +35,11 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace backend {
 namespace adreno {
 namespace transform {
 
-using tirx::transform::CreatePrimFuncPass;
+using tirx::transform::CreateFunctionPass;
 using tvm::transform::Pass;
 using tvm::transform::PassContext;
 

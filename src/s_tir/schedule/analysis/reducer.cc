@@ -18,13 +18,15 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/te/operation.h>
+#include <tvm/tirx/builtin.h>
 
 #include "../utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /******** Pattern Matcher ********/
@@ -32,7 +34,7 @@ using namespace tvm::tirx;
 /*!
  * \brief PrimExpr pattern matcher.
  *
- * It is different from the pattern matcher in arith/pattern_match.h, which is dedicated
+ * It is different from the pattern matcher in sym/pattern_match.h, which is dedicated
  * for compile-time constant patterns. This pattern matcher can work on dynamic user-specific
  * patterns.
  *
@@ -53,40 +55,44 @@ using namespace tvm::tirx;
  *
  * \endcode
  */
-class PatternMatcher : public ExprVisitor {
+class PatternMatcher : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
   explicit PatternMatcher(ffi::Array<PrimExpr> pattern) : pattern_(std::move(pattern)) {}
 
-  void VisitExpr_(const VarNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
     auto it = filled_map_.find(op);
     if (it == filled_map_.end()) {
-      filled_map_[op] = expr_to_match_;
+      filled_map_.insert_or_assign(op, expr_to_match_);
     } else {
       if (it->second.same_as(expr_to_match_) ||
           ffi::StructuralEqual()(it->second, expr_to_match_)) {
-        return;
+        return std::nullopt;
       }
       match_success_ = false;
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const LetNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const LetNode* op) final {
     const auto* ptr = expr_to_match_.as<LetNode>();
     if (ptr == nullptr) {
       match_success_ = false;
     } else {
       Expr tmp = expr_to_match_;
       expr_to_match_ = ptr->var;
-      VisitExpr(op->var);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->var));
       expr_to_match_ = ptr->value;
-      VisitExpr(op->value);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
       expr_to_match_ = ptr->body;
-      VisitExpr(op->body);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->body));
       std::swap(expr_to_match_, tmp);
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const CallNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     const auto* ptr = expr_to_match_.as<CallNode>();
     if (ptr == nullptr) {
       match_success_ = false;
@@ -97,26 +103,28 @@ class PatternMatcher : public ExprVisitor {
         Expr tmp = expr_to_match_;
         for (size_t i = 0; i < op->args.size(); ++i) {
           expr_to_match_ = ptr->args[i];
-          VisitExpr(op->args[i]);
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->args[i]));
         }
         std::swap(expr_to_match_, tmp);
       }
     }
+    return std::nullopt;
   }
 
-#define TVM_DECLARE_PATTERN_MATCHER_BIN_OP(OpName) \
-  void VisitExpr_(const OpName* op) {              \
-    const auto* ptr = expr_to_match_.as<OpName>(); \
-    if (ptr == nullptr) {                          \
-      match_success_ = false;                      \
-    } else {                                       \
-      Expr current = expr_to_match_;               \
-      expr_to_match_ = ptr->a;                     \
-      VisitExpr(op->a);                            \
-      expr_to_match_ = ptr->b;                     \
-      VisitExpr(op->b);                            \
-      std::swap(expr_to_match_, current);          \
-    }                                              \
+#define TVM_DECLARE_PATTERN_MATCHER_BIN_OP(OpName)         \
+  ffi::Optional<VisitInterrupt> Visit_(const OpName* op) { \
+    const auto* ptr = expr_to_match_.as<OpName>();         \
+    if (ptr == nullptr) {                                  \
+      match_success_ = false;                              \
+    } else {                                               \
+      Expr current = expr_to_match_;                       \
+      expr_to_match_ = ptr->a;                             \
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->a));    \
+      expr_to_match_ = ptr->b;                             \
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->b));    \
+      std::swap(expr_to_match_, current);                  \
+    }                                                      \
+    return std::nullopt;                                   \
   }
 
   TVM_DECLARE_PATTERN_MATCHER_BIN_OP(AddNode);
@@ -137,7 +145,7 @@ class PatternMatcher : public ExprVisitor {
   TVM_DECLARE_PATTERN_MATCHER_BIN_OP(AndNode);
   TVM_DECLARE_PATTERN_MATCHER_BIN_OP(OrNode);
 
-  void VisitExpr_(const CastNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const CastNode* op) final {
     const auto* ptr = expr_to_match_.as<CastNode>();
     if (ptr == nullptr) {
       match_success_ = false;
@@ -147,71 +155,76 @@ class PatternMatcher : public ExprVisitor {
       } else {
         Expr tmp = expr_to_match_;
         expr_to_match_ = ptr->value;
-        VisitExpr(op->value);
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
         std::swap(expr_to_match_, tmp);
       }
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const NotNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const NotNode* op) final {
     const auto* ptr = expr_to_match_.as<NotNode>();
     if (ptr == nullptr) {
       match_success_ = false;
     } else {
       Expr tmp = expr_to_match_;
       expr_to_match_ = ptr->a;
-      VisitExpr(op->a);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->a));
       std::swap(expr_to_match_, tmp);
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const SelectNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SelectNode* op) final {
     const auto* ptr = expr_to_match_.as<SelectNode>();
     if (ptr == nullptr) {
       match_success_ = false;
     } else {
       Expr tmp = expr_to_match_;
       expr_to_match_ = ptr->condition;
-      VisitExpr(op->condition);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->condition));
       expr_to_match_ = ptr->true_value;
-      VisitExpr(op->true_value);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->true_value));
       expr_to_match_ = ptr->false_value;
-      VisitExpr(op->false_value);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->false_value));
       std::swap(expr_to_match_, tmp);
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const RampNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const RampNode* op) final {
     const auto* ptr = expr_to_match_.as<RampNode>();
     if (ptr == nullptr) {
       match_success_ = false;
     } else {
       Expr tmp = expr_to_match_;
       expr_to_match_ = ptr->base;
-      VisitExpr(op->base);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->base));
       expr_to_match_ = ptr->stride;
-      VisitExpr(op->stride);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->stride));
       expr_to_match_ = ptr->lanes;
-      VisitExpr(op->lanes);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->lanes));
       std::swap(expr_to_match_, tmp);
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const BroadcastNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BroadcastNode* op) final {
     const auto* ptr = expr_to_match_.as<BroadcastNode>();
     if (ptr == nullptr) {
       match_success_ = false;
     } else {
       Expr tmp = expr_to_match_;
       expr_to_match_ = ptr->value;
-      VisitExpr(op->value);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
       expr_to_match_ = ptr->lanes;
-      VisitExpr(op->lanes);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->lanes));
       std::swap(expr_to_match_, tmp);
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const ShuffleNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ShuffleNode* op) final {
     const auto* ptr = expr_to_match_.as<ShuffleNode>();
     if (ptr == nullptr) {
       match_success_ = false;
@@ -222,50 +235,55 @@ class PatternMatcher : public ExprVisitor {
         Expr tmp = expr_to_match_;
         for (size_t i = 0; i < op->indices.size(); ++i) {
           expr_to_match_ = ptr->indices[i];
-          VisitExpr(op->indices[i]);
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->indices[i]));
         }
         for (size_t i = 0; i < op->vectors.size(); ++i) {
           expr_to_match_ = ptr->vectors[i];
-          VisitExpr(op->vectors[i]);
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->vectors[i]));
         }
         std::swap(expr_to_match_, tmp);
       }
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const IntImmNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const IntImmNode* op) final {
     const auto* ptr = expr_to_match_.as<IntImmNode>();
     match_success_ = ptr != nullptr && op->value == ptr->value;
+    return std::nullopt;
   }
 
-  void VisitExpr_(const FloatImmNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const FloatImmNode* op) final {
     const auto* ptr = expr_to_match_.as<FloatImmNode>();
     match_success_ = ptr != nullptr && op->value == ptr->value;
+    return std::nullopt;
   }
 
-  void VisitExpr_(const StringImmNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const StringImmNode* op) final {
     const auto* ptr = expr_to_match_.as<StringImmNode>();
     match_success_ = ptr != nullptr && op->value == ptr->value;
+    return std::nullopt;
   }
 
-  void VisitExpr_(const TensorLoadNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     const auto* ptr = expr_to_match_.as<TensorLoadNode>();
     if (ptr == nullptr) {
       match_success_ = false;
     } else {
-      if (!op->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
-              ptr->source.as_or_throw<tvm::tirx::BufferVar>()) ||
+      if (!op->source.as_or_throw<tvm::tirx::TensorVar>().same_as(
+              ptr->source.as_or_throw<tvm::tirx::TensorVar>()) ||
           op->indices.size() != ptr->indices.size()) {
         match_success_ = false;
       } else {
         Expr tmp = expr_to_match_;
         for (size_t i = 0; i < op->indices.size(); ++i) {
           expr_to_match_ = ptr->indices[i];
-          VisitExpr(op->indices[i]);
+          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->indices[i]));
         }
         std::swap(expr_to_match_, tmp);
       }
     }
+    return std::nullopt;
   }
 
   void Match(const ffi::Array<PrimExpr>& exprs_to_match) {
@@ -276,7 +294,7 @@ class PatternMatcher : public ExprVisitor {
     int n_buffers = pattern_.size();
     for (int i = 0; i < n_buffers; ++i) {
       this->expr_to_match_ = exprs_to_match[i];
-      this->operator()(pattern_[i]);
+      this->Visit(pattern_[i]);
     }
   }
 
@@ -292,7 +310,7 @@ class PatternMatcher : public ExprVisitor {
  private:
   bool match_success_{true};
   ffi::Array<PrimExpr> pattern_;
-  Expr expr_to_match_;
+  Expr expr_to_match_{ffi::UnsafeInit{}};
   std::unordered_map<const VarNode*, Expr> filled_map_;
 };
 
@@ -300,22 +318,22 @@ class PatternMatcher : public ExprVisitor {
 
 static const char* kRFactorCrossThreadReductionApplicableBlockDef =
     R"(Definition of a reduction block that is applicable by RFactor and Cross-Thread Reduction:
-1) The block init should be a single BufferStore or a SeqStmt of BufferStores
+1) The block init should be a single TensorStore or a SeqStmt of TensorStores
 2) The buffers initialized in the block init should be all different
-3) The number of consecutive Binds in the block body (if any) should equal the number of BufferStores in the block init
+3) The number of consecutive Binds in the block body (if any) should equal the number of TensorStores in the block init
 4) The variables of the Binds in the block body should be all different
-5) The statement after the innermost Bind should be a single BufferStore or a SeqStmt of BufferStores
-6) The number of BufferStores under the block body should equal the number of BufferStores in the block init, and thereby equal the number of Binds above
-7) The variables bound by the Binds in the block body must all directly serve as values of the BufferStores inside, and the stored values of the BufferStores can only be those variables
-8) The variables stored by the BufferStores in the block body should be all different
-9) The buffers written by the BufferStores in the block body should be all different
+5) The statement after the innermost Bind should be a single TensorStore or a SeqStmt of TensorStores
+6) The number of TensorStores under the block body should equal the number of TensorStores in the block init, and thereby equal the number of Binds above
+7) The variables bound by the Binds in the block body must all directly serve as values of the TensorStores inside, and the stored values of the TensorStores can only be those variables
+8) The variables stored by the TensorStores in the block body should be all different
+9) The buffers written by the TensorStores in the block body should be all different
 10) The buffers initialized in the block init and written in the block body should match
 11) The buffers written by the block should have same shape
-12) The indices of all BufferStores in the reduction block should be the same)";
+12) The indices of all TensorStores in the reduction block should be the same)";
 
 void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleState>& self,
                                                    SBlock block, int violated_cond) {
-  class RFactorNotApplicableError : public ScheduleError {
+  class RFactorNotApplicableError : public ScheduleErrorContextObj {
    public:
     explicit RFactorNotApplicableError(IRModule mod, SBlock block, int violated_cond)
         : mod_(std::move(mod)), block_(std::move(block)), violated_cond_(violated_cond) {}
@@ -342,7 +360,8 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleS
   };
 
   if (self.has_value()) {
-    throw RFactorNotApplicableError(self.value()->mod, std::move(block), violated_cond);
+    throw MakeScheduleError<RFactorNotApplicableError>(self.value()->mod, std::move(block),
+                                                       violated_cond);
   } else {
     TVM_FFI_THROW(ValueError) << "Cross-thread reduction cannot be applied to the block "
                               << block->name_hint << " because the block violates the condition #"
@@ -352,8 +371,8 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleS
 }
 
 /*!
- * \brief Extract the BufferStores, which serve as the reduction updates, from the given Bind nodes
- * and the BufferStores inside. And meanwhile set the buffer order of the reduction
+ * \brief Extract the TensorStores, which serve as the reduction updates, from the given Bind nodes
+ * and the TensorStores inside. And meanwhile set the buffer order of the reduction
  * \param self The schedule state, used for error reporting
  * \param block The reduction block, used for error reporting
  * \param let The Bind nodes from which the reduction updates are extracted
@@ -364,7 +383,7 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleS
  */
 void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock block,
                              const ffi::Array<Stmt>& stmts, int n_buffers,
-                             ffi::Array<BufferStore>* updates,
+                             ffi::Array<TensorStore>* updates,
                              std::unordered_map<const VarNode*, int>* buf2index) {
   std::unordered_map<const VarNode*, int> var2index;
   ffi::Array<PrimExpr> let_values;
@@ -380,7 +399,7 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/3);
     }
     const auto* bind = stmts[i].as<BindNode>();
-    if (bind == nullptr) {
+    if (bind == nullptr || !bind->value.as<PrimExpr>()) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/3);
     }
     let_values.push_back(bind->value.as_or_throw<PrimExpr>());
@@ -395,7 +414,7 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
     ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/3);
   }
 
-  // The remaining stmts after the Bind nodes should be BufferStores.
+  // The remaining stmts after the Bind nodes should be TensorStores.
   // Collect them into a sequence.
   ffi::Array<Stmt> seq;
   for (int i = n_buffers; i < static_cast<int>(stmts.size()); ++i) {
@@ -406,10 +425,10 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
   }
 
   // Step 2.
-  // - Create BufferStores according to the variables being stored.
+  // - Create TensorStores according to the variables being stored.
   // - Construct the mapping from reduction buffers to the index.
   for (const Stmt& stmt : seq) {
-    const auto* buf_store = stmt.as<BufferStoreNode>();
+    const auto* buf_store = stmt.as<TensorStoreNode>();
     if (buf_store == nullptr) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/5);
     }
@@ -426,7 +445,7 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
     if ((*updates)[idx].defined()) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/8);
     }
-    updates->Set(idx, BufferStore(buf_store->buffer, let_values[idx], buf_store->indices));
+    updates->Set(idx, TensorStore(buf_store->buffer, let_values[idx], buf_store->indices));
     auto insert_result = buf2index->insert(std::make_pair(buf_store->buffer.get(), idx));
     if (!insert_result.second) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/9);
@@ -437,18 +456,18 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
   }
 }
 
-std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdatesFromReductionBlock(
+std::pair<ffi::Array<PrimExpr>, ffi::Array<TensorStore>> GetInitValuesAndUpdatesFromReductionBlock(
     const ffi::Optional<ScheduleState>& self, SBlock block) {
-  ffi::Array<BufferStore> inits;
-  ffi::Array<BufferStore> updates;
+  ffi::Array<TensorStore> inits;
+  ffi::Array<TensorStore> updates;
 
-  // Step 1. Extract the BufferStores serving as block inits.
-  if (auto init = block->init.as<BufferStore>()) {
+  // Step 1. Extract the TensorStores serving as block inits.
+  if (auto init = block->init.as<TensorStore>()) {
     inits.push_back(init.value());
   } else if (const auto* seq_init = block->init.as<SeqStmtNode>()) {
     std::unordered_set<const VarNode*> init_buffers;
     for (const Stmt& stmt : seq_init->seq) {
-      auto init = stmt.as<BufferStore>();
+      auto init = stmt.as<TensorStore>();
       if (!init) {
         ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/1);
       }
@@ -462,11 +481,11 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdates
     ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/1);
   }
 
-  // Step 2. Extract the block updates, in the form of BufferStores.
+  // Step 2. Extract the block updates, in the form of TensorStores.
   int n_buffers = inits.size();
   std::unordered_map<const VarNode*, int> buf2index;
-  if (const auto* update = block->body.as<BufferStoreNode>()) {
-    updates.push_back(ffi::GetRef<BufferStore>(update));
+  if (const auto* update = block->body.as<TensorStoreNode>()) {
+    updates.push_back(ffi::GetRef<TensorStore>(update));
     buf2index[update->buffer.get()] = 0;
   } else if (const auto* seq = block->body.as<SeqStmtNode>()) {
     ExtractReductionUpdates(self, block, seq->seq, n_buffers, &updates, &buf2index);
@@ -481,14 +500,14 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdates
   init_values.resize(n_buffers);
 
   // - Check all buffers have the same shape
-  // - Check all indices of the BufferStores are the same
+  // - Check all indices of the TensorStores are the same
   // - Check buffers written in the block init and the block body can match
   // - Check buffers do not duplicate
   const ffi::Array<PrimExpr>& expected_shape = updates[0]->buffer->shape;
   const ffi::Array<PrimExpr>& expected_indices = updates[0]->indices;
   TVM_FFI_ICHECK_EQ(expected_shape.size(), expected_indices.size());
   int n_dim = expected_indices.size();
-  arith::Analyzer ana;
+  sym::Analyzer ana;
   for (int i = 0; i < n_buffers; ++i) {
     if (static_cast<int>(updates[i]->buffer->shape.size()) != n_dim) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/11);
@@ -544,13 +563,13 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
   // Step 2. Check if the reduction block iters are used to index the output buffer.
   std::unordered_set<const VarNode*> buffer_written;
   buffer_written.reserve(block->writes.size());
-  for (const BufferRegion& write_region : block->writes) {
-    buffer_written.insert(write_region->buffer.get());
+  for (const TensorRegion& write_region : block->writes) {
+    buffer_written.insert(write_region->source.as_or_throw<tvm::tirx::TensorVar>().get());
   }
 
   std::unordered_set<const VarNode*> buffer_allocated;
   buffer_allocated.reserve(block->alloc_buffers.size());
-  for (const BufferVar& buffer : block->alloc_buffers) {
+  for (const TensorVar& buffer : block->alloc_buffers) {
     buffer_allocated.insert(buffer.get());
   }
 
@@ -565,23 +584,28 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
 
   std::unordered_map<const VarNode*, const VarNode*> match_buffer_sources;
   for (const MatchBufferRegion& region : block->match_buffers) {
-    match_buffer_sources[region->buffer.get()] = region->source->buffer.get();
+    match_buffer_sources[region->buffer.get()] =
+        region->source->source.as_or_throw<tvm::tirx::TensorVar>().get();
   }
   auto visit_block = [&](const SBlock& nested_block) -> ffi::Expected<ffi::WalkResult> {
     for (const MatchBufferRegion& region : nested_block->match_buffers) {
-      match_buffer_sources[region->buffer.get()] = region->source->buffer.get();
+      match_buffer_sources[region->buffer.get()] =
+          region->source->source.as_or_throw<tvm::tirx::TensorVar>().get();
     }
     return ffi::WalkResult::Advance();
   };
-  auto visit_alloc = [&](const AllocBuffer& alloc) -> ffi::Expected<ffi::WalkResult> {
-    // Inline AllocBuffer statements (e.g. `T.local_scalar(...)` expansions)
+  auto visit_alloc = [&](const tirx::Bind& alloc) -> ffi::Expected<ffi::WalkResult> {
+    // Inline AllocTensor statements (e.g. `T.local_scalar(...)` expansions)
     // declare buffer-local scratch storage inside the block body; treat them
     // the same as block->alloc_buffers entries for the "write-without-signature"
     // check below.
-    buffer_allocated.insert(alloc->buffer.get());
+    if (const auto* call = alloc->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      buffer_allocated.insert(alloc->var.get());
+    }
     return ffi::WalkResult::Advance();
   };
-  auto visit_store = [&](const BufferStore& store) -> ffi::Expected<ffi::WalkResult> {
+  auto visit_store = [&](const TensorStore& store) -> ffi::Expected<ffi::WalkResult> {
     bool write_is_covered_by_match_buffer =
         match_buffer_sources.count(store->buffer.get()) &&
         buffer_written.count(match_buffer_sources.find(store->buffer.get())->second);
@@ -603,10 +627,10 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
   return result.has_value() ? result.value()->value.cast<bool>() : true;
 }
 
-class NoMatchedReducerError : public ScheduleError {
+class NoMatchedReducerError : public ScheduleErrorContextObj {
  public:
   explicit NoMatchedReducerError(IRModule mod, ffi::Array<PrimExpr> identities,
-                                 ffi::Array<BufferStore> combiners)
+                                 ffi::Array<TensorStore> combiners)
       : mod_(std::move(mod)),
         identities_(std::move(identities)),
         combiners_(std::move(combiners)) {}
@@ -629,19 +653,19 @@ class NoMatchedReducerError : public ScheduleError {
 
   IRModule mod_;
   ffi::Array<PrimExpr> identities_;
-  ffi::Array<BufferStore> combiners_;
+  ffi::Array<TensorStore> combiners_;
 };
 
 std::tuple<te::CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAndCombinerLhsRhs(
     const ffi::Optional<ScheduleState>& self, const ffi::Array<PrimExpr>& identities,
-    const ffi::Array<BufferStore>& combiners) {
+    const ffi::Array<TensorStore>& combiners) {
   te::CommReducer reducer{nullptr};
   ffi::Array<PrimExpr> combiner_lhs, combiner_rhs;
   bool matched =
       FromIdentityCombiner(identities, combiners, &reducer, &combiner_lhs, &combiner_rhs);
   if (!matched) {
     if (self.has_value()) {
-      throw NoMatchedReducerError(self.value()->mod, identities, combiners);
+      throw MakeScheduleError<NoMatchedReducerError>(self.value()->mod, identities, combiners);
     } else {
       TVM_FFI_THROW(ValueError)
           << "No matched reducer for the identity and the combiner of the "
@@ -657,7 +681,7 @@ bool MatchReducer(const te::CommReducer& reducer, const ffi::Array<PrimExpr>& id
                   const ffi::Array<PrimExpr>& combined_values,
                   const ffi::Array<TensorLoad>& buf_loads, ffi::Array<PrimExpr>* lhs,
                   ffi::Array<PrimExpr>* rhs) {
-  ExprDeepEqual equal;
+  prim::ExprDeepEqual equal;
   TVM_FFI_ICHECK_EQ(identities.size(), combined_values.size());
   int n_buffers = identities.size();
   for (int i = 0; i < n_buffers; ++i) {
@@ -666,18 +690,18 @@ bool MatchReducer(const te::CommReducer& reducer, const ffi::Array<PrimExpr>& id
     }
   }
 
-  PatternMatcher pattern_matcher(reducer->result);
-  pattern_matcher.Match(combined_values);
+  auto pattern_matcher = ffi::make_object<PatternMatcher>(reducer->result);
+  pattern_matcher->Match(combined_values);
   ffi::Array<PrimExpr> lhs_tmp, rhs_tmp;
   lhs_tmp.reserve(n_buffers);
   rhs_tmp.reserve(n_buffers);
-  if (!pattern_matcher.Success()) {
+  if (!pattern_matcher->Success()) {
     return false;
   }
 
   for (int i = 0; i < n_buffers; ++i) {
-    PrimExpr l = pattern_matcher.Eval(reducer->lhs[i]);
-    PrimExpr r = pattern_matcher.Eval(reducer->rhs[i]);
+    PrimExpr l = pattern_matcher->Eval(reducer->lhs[i]);
+    PrimExpr r = pattern_matcher->Eval(reducer->rhs[i]);
     if (!equal(buf_loads[i], l)) {
       return false;
     }
@@ -690,7 +714,7 @@ bool MatchReducer(const te::CommReducer& reducer, const ffi::Array<PrimExpr>& id
 }
 
 bool FromIdentityCombiner(const ffi::Array<PrimExpr>& identities,
-                          const ffi::Array<BufferStore>& combiners, te::CommReducer* result_reducer,
+                          const ffi::Array<TensorStore>& combiners, te::CommReducer* result_reducer,
                           ffi::Array<PrimExpr>* lhs, ffi::Array<PrimExpr>* rhs) {
   int n = identities.size();
   ffi::Array<TensorLoad> buf_loads;
@@ -699,7 +723,7 @@ bool FromIdentityCombiner(const ffi::Array<PrimExpr>& identities,
   stored_values.reserve(n);
 
   for (int i = 0; i < n; ++i) {
-    buf_loads.push_back(BufferLoad(combiners[i]->buffer, combiners[i]->indices));
+    buf_loads.push_back(MakeTensorLoad(combiners[i]->buffer, combiners[i]->indices));
     stored_values.push_back(combiners[i]->value);
   }
 

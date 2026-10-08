@@ -21,7 +21,7 @@ import copy
 from enum import Enum
 
 import tvm
-from tvm.arith.analyzer import Analyzer
+from tvm.sym.analyzer import Analyzer
 from tvm.tirx.layout import ComposeLayout, Layout, S, TileLayout
 
 

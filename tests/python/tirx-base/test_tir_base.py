@@ -52,7 +52,7 @@ def test_scalar_add():
         rhs = tirx.Cast(rhs_type, rhs_input)
         output = lhs + rhs
         output = tirx.Return(output)
-        func = tirx.PrimFunc([lhs_input, rhs_input], output)
+        func = tirx.Function([lhs_input, rhs_input], output)
         func = build_tir_func(func)
         out = func(1.0, 2.0)
         assert out == 3.0
@@ -95,7 +95,7 @@ def test_cast_between_types():
 def test_return_const():
     a = tirx.const(0)
     b = tirx.Return(a)
-    func = tirx.PrimFunc([], b)
+    func = tirx.Function([], b)
     func = build_tir_func(func)
     out = func()
     assert out == 0
@@ -114,7 +114,7 @@ def test_return_accepts_expr_and_roundtrips():
     tvm.ir.assert_structural_equal(restored, stmt)
     assert tvm_ffi.structural_hash(restored) == tvm_ffi.structural_hash(stmt)
 
-    with pytest.raises(tvm.error.InternalError):
+    with pytest.raises(TypeError):
         tirx.Return(None)
 
 
@@ -149,7 +149,7 @@ def test_return_stmt_functor_traversal_and_mutation():
 
 
 def test_control_flow_jump():
-    @T.prim_func(s_tir=True)
+    @T.function
     def func(a: T.float32, b: T.float32):
         if True:
             return a
@@ -160,9 +160,9 @@ def test_control_flow_jump():
     assert out == 1.0
 
 
-def test_break_loop():
-    @T.prim_func(s_tir=True)
-    def func(In: T.Buffer((2,), "int32"), Out: T.Buffer((2,), "int32")):
+def test_break_statement():
+    @T.function
+    def func(In: T.Tensor((2,), "int32"), Out: T.Tensor((2,), "int32")):
         Out[0] = 0
         Out[1] = 1
         for i in range(10):
@@ -187,9 +187,9 @@ def test_break_loop():
     assert b[1] == 9
 
 
-def test_continue_loop():
-    @T.prim_func(s_tir=True)
-    def func(Out: T.Buffer((2,), "int32")):
+def test_continue_statement():
+    @T.function
+    def func(Out: T.Tensor((2,), "int32")):
         T.func_attr({"global_symbol": "main"})
         Out[0] = 0
         Out[1] = 0
@@ -198,7 +198,7 @@ def test_continue_loop():
                 if (i * 10 + j) % 3 != 0:
                     continue
                 Out[0] = Out[0] + 1
-        k = T.decl_buffer([], "int32")
+        k = T.decl_tensor([], "int32")
         k[()] = 0
         while k[()] < Out[0]:
             k[()] = k[()] + 1
@@ -226,11 +226,11 @@ def test_eq_ops():
     # `__eq__` / `__ne__` operators on `IntImm` / `StringImm`; the `is` operators
     # bypass those overloads and would defeat the test.
     a = tirx.IntImm("int8", 1)
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         assert a != None
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         assert not a == None
-    b = tirx.StringImm("abc")
+    b = tvm.ir.StringImm("abc")
     assert b != None
     assert not b == None
 

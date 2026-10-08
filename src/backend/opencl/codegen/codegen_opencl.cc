@@ -43,11 +43,12 @@ const VarNode* TryUnwrapTextureVar(const Expr& texture) {
   if (const auto* var = texture.as<VarNode>()) {
     return var;
   }
-  if (const auto* call = texture.as<CallNode>(); call && call->op.same_as(builtin::buffer_data())) {
+  if (const auto* call = texture.as<CallNode>();
+      call && call->op.same_as(tirx::builtin::buffer_data())) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 1U);
     const auto* buffer = call->args[0].as<VarNode>();
-    TVM_FFI_ICHECK(buffer && buffer->ty.as<BufferTypeNode>())
-        << "buffer_data expects a Var with BufferType";
+    TVM_FFI_ICHECK(buffer && buffer->ty.as<TensorTypeNode>())
+        << "buffer_data expects a Var with TensorType";
     return buffer;
   }
   return nullptr;
@@ -61,7 +62,7 @@ struct TextureArgument {
 TextureArgument UnwrapTextureArgument(const Expr& texture) {
   const auto* var = TryUnwrapTextureVar(texture);
   TVM_FFI_ICHECK(var)
-      << "Texture arguments must be a pointer Var or a buffer_data(BufferVar) projection";
+      << "Texture arguments must be a pointer Var or a buffer_data(TensorVar) projection";
   const auto* pointer_type = texture->ty.as<PointerTypeNode>();
   TVM_FFI_ICHECK(pointer_type) << "Texture arguments must have PointerType";
   TVM_FFI_ICHECK(runtime::IsTextureStorage(std::string(pointer_type->storage_scope)))
@@ -77,10 +78,8 @@ class InferTextureAccess : public StmtExprVisitor {
   static constexpr const uint8_t kWriteAccess = 2;
 
   InferTextureAccess() {}
-  using StmtExprVisitor::VisitExpr_;
-  using StmtExprVisitor::VisitStmt_;
   std::unordered_map<const VarNode*, std::string> Infer(const Stmt& n) {
-    StmtExprVisitor::VisitStmt(n);
+    StmtExprVisitor::Visit(n);
     std::unordered_map<const VarNode*, std::string> storage_scope_qualifiers;
     for (auto& texture : var_access_map_) {
       if (texture.second == kReadAccess) {
@@ -93,24 +92,27 @@ class InferTextureAccess : public StmtExprVisitor {
     }
     return storage_scope_qualifiers;
   }
-  void VisitStmt_(const DeclBufferNode* op) final {
-    if (const VarNode* source = TryUnwrapTextureVar(op->data)) {
-      auto it = buffer_data_map_.find(source);
-      buffer_data_map_[op->buffer.get()] = it == buffer_data_map_.end() ? source : it->second;
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::decl_tensor())) {
+      if (const VarNode* source = TryUnwrapTextureVar(call->args[0])) {
+        auto it = buffer_data_map_.find(source);
+        buffer_data_map_[op->var.get()] = it == buffer_data_map_.end() ? source : it->second;
+      }
     }
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
-  void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::texture2d_load())) {
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
+    if (op->op.same_as(tirx::builtin::texture2d_load())) {
       const VarNode* texture = UnwrapTextureArgument(op->args[0]).var;
       auto it = buffer_data_map_.find(texture);
       var_access_map_[it == buffer_data_map_.end() ? texture : it->second] |= kReadAccess;
-    } else if (op->op.same_as(builtin::texture2d_store())) {
+    } else if (op->op.same_as(tirx::builtin::texture2d_store())) {
       const VarNode* texture = UnwrapTextureArgument(op->args[0]).var;
       auto it = buffer_data_map_.find(texture);
       var_access_map_[it == buffer_data_map_.end() ? texture : it->second] |= kWriteAccess;
     }
-    StmtExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
  private:
@@ -123,9 +125,11 @@ CodeGenOpenCL::CodeGenOpenCL() {
   restrict_keyword_ = "restrict";
 }
 
-void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
+void CodeGenOpenCL::InitFuncState(const Function& f) {
   CodeGenC::InitFuncState(f);
-  this->SetTextureScope(InferTextureAccess().Infer(f->body));
+  if (f->body.has_value()) {
+    this->SetTextureScope(ffi::make_object<InferTextureAccess>()->Infer(f->body.value()));
+  }
   for (Var arg : f->params) {
     auto ptr_type = arg->ty.as<PointerTypeNode>();
     if (ptr_type && runtime::IsTextureStorage(std::string(ptr_type->storage_scope))) {
@@ -141,7 +145,7 @@ void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
 
 void CodeGenOpenCL::PrintFuncPrefix(std::ostream& os) { os << "__kernel "; }
 
-void CodeGenOpenCL::PreFunctionBody(const PrimFunc& f) {
+void CodeGenOpenCL::PreFunctionBody(const Function& f) {
   for (Var arg : f->params) {
     auto ptr_type = arg->ty.as<PointerTypeNode>();
     if (ptr_type && runtime::IsTextureStorage(std::string(ptr_type->storage_scope))) {
@@ -229,16 +233,19 @@ std::string CodeGenOpenCL::Finish() {
   return CodeGenC::Finish();
 }
 
-void CodeGenOpenCL::BindThreadIndex(const IterVar& iv) {
-  TVM_FFI_ICHECK(!var_idmap_.count(iv->var.get()));
-  runtime::ThreadScope ts = runtime::ThreadScope::Create(iv->thread_tag);
+void CodeGenOpenCL::BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) {
+  TVM_FFI_ICHECK(!var_idmap_.count(var.get()));
+  runtime::ThreadScope ts = runtime::ThreadScope::Create(thread_tag);
+  TVM_FFI_ICHECK_GE(ts.dim_index, 0);
+  TVM_FFI_ICHECK_LT(ts.dim_index, 3);
   std::ostringstream os;
   if (ts.rank == 1) {
     os << "get_local_id(" << ts.dim_index << ")";
   } else {
+    TVM_FFI_ICHECK_EQ(ts.rank, 0) << "Unsupported OpenCL thread tag " << thread_tag;
     os << "get_group_id(" << ts.dim_index << ")";
   }
-  var_idmap_[iv->var.get()] = CastFromTo(os.str(), PrimType::UInt(64), iv->var.ty());
+  var_idmap_[var.get()] = CastFromTo(os.str(), PrimType::UInt(64), var.ty());
 }
 
 void CodeGenOpenCL::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
@@ -390,7 +397,7 @@ void CodeGenOpenCL::PrintVecElemLoadExpr(const PrimType& t, int i, const std::st
 }
 
 void CodeGenOpenCL::PrintStorageSync(const CallNode* op) {
-  const std::string& sync = op->args[0].as<prim::StringImmNode>()->value;
+  const std::string& sync = op->args[0].as<StringImmNode>()->value;
   if (sync == "warp") {
     this->PrintIndent();
     this->stream << "barrier(CLK_LOCAL_MEM_FENCE);\n";
@@ -446,37 +453,47 @@ std::string CodeGenOpenCL::CastTo(std::string value, const PrimType& target) {
   }
 }
 
-void CodeGenOpenCL::VisitStmt_(const AllocBufferNode* op) {
-  // Compute constant_size from buffer shape
-  size_t constant_size = 1;
-  for (const auto& dim : op->buffer->shape) {
-    const IntImmNode* dim_imm = dim.as<IntImmNode>();
-    TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
-    constant_size *= dim_imm->value;
+void CodeGenOpenCL::Dispatch_(const BindNode* op) {
+  if (const auto* call = op->value.as<CallNode>(); call) {
+    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
   }
-  allocation_size_.insert({op->buffer.get(), constant_size * op->buffer->dtype.lanes()});
-  CodeGenC::VisitStmt_(op);
+  CodeGenC::Dispatch_(op);
 }
 
-void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
-  if (op->op.same_as(builtin::address_of())) {
+void CodeGenOpenCL::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
+  tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+  DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  TensorVar buffer = op->var.as_or_throw<TensorVar>();
+  // Compute constant_size from buffer shape
+  size_t constant_size = 1;
+  for (const auto& dim : shape->fields) {
+    const IntImmNode* dim_imm = dim.as<IntImmNode>();
+    TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
+    constant_size *= dim_imm->value.as<size_t>().value();
+  }
+  allocation_size_.insert({buffer.get(), constant_size * PrimType(dtype).lanes()});
+  CodeGenC::DispatchAllocTensor(op, buffer_call);
+}
+
+void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
+  if (op->op.same_as(tirx::builtin::address_of())) {
     // Overload tvm_address_of to add storage scope (e.g. __global).
     const TensorLoadNode* load = op->args[0].as<TensorLoadNode>();
     TVM_FFI_ICHECK(op->args.size() == 1 && load);
     TVM_FFI_ICHECK_EQ(load->indices.size(), 1)
         << "CodeGenOpenCL only supports flat memory allocations.";
     os << "((";
-    auto it = alloc_storage_scope_.find(load->source.as_or_throw<tvm::tirx::BufferVar>().get());
+    auto it = alloc_storage_scope_.find(load->source.as_or_throw<tvm::tirx::TensorVar>().get());
     if (it != alloc_storage_scope_.end()) {
       PrintStorageScope(it->second, os);
     }
     this->PrintType(load->ty.as_or_throw<PrimType>().WithLanes(1), os);
-    os << " *)" << this->GetVarID(load->source.as_or_throw<tvm::tirx::BufferVar>().get()) << " + ";
+    os << " *)" << this->GetVarID(load->source.as_or_throw<tvm::tirx::TensorVar>().get()) << " + ";
     this->PrintExpr(load->indices[0], os);
     os << ')';
-  } else if (op->op.same_as(builtin::texture2d_store())) {
+  } else if (op->op.same_as(tirx::builtin::texture2d_store())) {
     TextureArgument texture = UnwrapTextureArgument(op->args[0]);
-    const int channel_size = op->args[4].as_or_throw<IntImm>()->value;
+    const int channel_size = op->args[4].as_or_throw<IntImm>()->value.as<int>().value();
     TVM_FFI_ICHECK(channel_size == 64 || channel_size == 128)
         << "Unsupported Channel Size: " << channel_size;
     PrimType channel_type(runtime::GetChannelType(channel_size));
@@ -508,11 +525,11 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     this->PrintType(channel_type, os);
     os << "(" << value << ")";
     os << ")";
-  } else if (op->op.same_as(builtin::texture2d_load())) {
+  } else if (op->op.same_as(tirx::builtin::texture2d_load())) {
     TextureArgument texture = UnwrapTextureArgument(op->args[0]);
     enable_compliant_texture_reads_ = true;
     std::stringstream ss;
-    const int channel_size = op->args[4].as_or_throw<IntImm>()->value;
+    const int channel_size = op->args[4].as_or_throw<IntImm>()->value.as<int>().value();
     PrimType op_ty = op->ty.as_or_throw<PrimType>();
     const int data_lanes = channel_size / op_ty.bits();
     TVM_FFI_ICHECK(channel_size == 64 || channel_size == 128)
@@ -542,13 +559,16 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
 
     std::string rhs = SSAGetID(ss.str(), op_ty.WithLanes(data_lanes));
     if (auto ramp = op->args.back().as<prim::RampNode>()) {
-      if (ramp->base.as<IntImmNode>() && *tirx::as_const_int(ramp->base) == 0 &&
-          *tirx::as_const_int(ramp->lanes) == data_lanes &&
-          *tirx::as_const_int(ramp->stride) == 1) {
+      const auto* base = ramp->base.as<IntImmNode>();
+      const auto* lanes_imm = ramp->lanes.as<IntImmNode>();
+      auto lanes = lanes_imm ? lanes_imm->value.as<int>() : std::nullopt;
+      const auto* stride = ramp->stride.as<IntImmNode>();
+      if (base && lanes.has_value() && stride && base->value == 0 && *lanes == data_lanes &&
+          stride->value == 1) {
         os << rhs;
-      } else if (*tirx::as_const_int(ramp->stride) == 1) {
+      } else if (lanes.has_value() && stride && stride->value == 1) {
         os << "(*(";
-        this->PrintType(op_ty.WithLanes(*tirx::as_const_int(ramp->lanes)), os);
+        this->PrintType(op_ty.WithLanes(*lanes), os);
         os << "*)";
         os << "((";
         this->PrintType(op_ty.WithLanes(1), os);
@@ -566,7 +586,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
       os << "]";
     }
   } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
-    auto func = op->args[0].as_or_throw<prim::StringImm>();
+    auto func = op->args[0].as_or_throw<StringImm>();
     // Enable atomics extension if used.
     if (func->value == "atomic_add" &&
         op->ty.as_or_throw<PrimType>().code() == DLDataTypeCode::kDLFloat) {
@@ -580,14 +600,14 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
       if (func->value == "atomic_add") {
         enable_atomics_ = true;
       }
-      CodeGenC::VisitExpr_(op, os);
+      CodeGenC::Dispatch_(op, os);
     }
   } else {
-    CodeGenC::VisitExpr_(op, os);
+    CodeGenC::Dispatch_(op, os);
   }
 }
 
-void CodeGenOpenCL::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenOpenCL::Dispatch_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
   int lanes = op->ty.as_or_throw<PrimType>().lanes();
   os << "((";
@@ -600,7 +620,7 @@ void CodeGenOpenCL::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) 
   os << "))";
 }
 
-void CodeGenOpenCL::VisitExpr_(const prim::RampNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenOpenCL::Dispatch_(const prim::RampNode* op, std::ostream& os) {  // NOLINT(*)
   os << "((";
   PrintType(op->ty.as_or_throw<PrimType>(), os);
   os << ")(";
@@ -613,7 +633,7 @@ void CodeGenOpenCL::VisitExpr_(const prim::RampNode* op, std::ostream& os) {  //
   os << "))";
 }
 
-void CodeGenOpenCL::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenOpenCL::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   if (std::isinf(op->value)) {
     if (op->value < 0) {
       os << "-";
@@ -622,7 +642,7 @@ void CodeGenOpenCL::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // N
   } else if (std::isnan(op->value)) {
     os << "NAN";
   } else {
-    CodeGenC::VisitExpr_(op, os);
+    CodeGenC::Dispatch_(op, os);
   }
 }
 
@@ -643,15 +663,15 @@ inline void PrintBinaryExpr(const T* op, const char* opstr, std::ostream& os, Co
   }
 }
 
-void CodeGenOpenCL::VisitExpr_(const prim::MinNode* op, std::ostream& os) {
+void CodeGenOpenCL::Dispatch_(const prim::MinNode* op, std::ostream& os) {
   PrintBinaryExpr(op, "min", os, this);
 }
 
-void CodeGenOpenCL::VisitExpr_(const prim::MaxNode* op, std::ostream& os) {
+void CodeGenOpenCL::Dispatch_(const prim::MaxNode* op, std::ostream& os) {
   PrintBinaryExpr(op, "max", os, this);
 }
 
-void CodeGenOpenCL::VisitExpr_(const prim::ModNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenOpenCL::Dispatch_(const prim::ModNode* op, std::ostream& os) {  // NOLINT(*)
   std::string opstr;
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   if (op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
@@ -681,7 +701,7 @@ void CodeGenOpenCL::VisitExpr_(const prim::ModNode* op, std::ostream& os) {  // 
   }
 }
 
-void CodeGenOpenCL::VisitExpr_(const prim::AndNode* op, std::ostream& os) {
+void CodeGenOpenCL::Dispatch_(const prim::AndNode* op, std::ostream& os) {
   std::ostringstream oss;
   os << "(";
   this->PrintExpr(op->a, oss);
@@ -693,7 +713,7 @@ void CodeGenOpenCL::VisitExpr_(const prim::AndNode* op, std::ostream& os) {
   os << ")";
 }
 
-void CodeGenOpenCL::VisitExpr_(const prim::OrNode* op, std::ostream& os) {
+void CodeGenOpenCL::Dispatch_(const prim::OrNode* op, std::ostream& os) {
   std::ostringstream oss;
   os << "(";
   this->PrintExpr(op->a, oss);
@@ -705,7 +725,7 @@ void CodeGenOpenCL::VisitExpr_(const prim::OrNode* op, std::ostream& os) {
   os << ")";
 }
 
-void CodeGenOpenCL::VisitExpr_(const prim::SelectNode* op, std::ostream& os) {
+void CodeGenOpenCL::Dispatch_(const prim::SelectNode* op, std::ostream& os) {
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   std::ostringstream oss;
   os << "select(";
@@ -736,30 +756,30 @@ void CodeGenOpenCL::SetTextureScope(
 ffi::Module BuildOpenCL(IRModule mod, Target target) {
   bool output_ssa = false;
 
-  ffi::Map<GlobalVar, PrimFunc> functions;
+  ffi::Map<GlobalVar, Function> functions;
   for (auto [gvar, base_func] : mod->functions) {
-    TVM_FFI_ICHECK(base_func->IsInstance<PrimFuncNode>())
-        << "CodeGenOpenCL: Can only take PrimFunc";
-    auto prim_func = base_func.as_or_throw<PrimFunc>();
-    auto calling_conv = prim_func->GetAttr<CallingConv>(tvm::attr::kCallingConv);
+    TVM_FFI_ICHECK(base_func->IsInstance<FunctionNode>())
+        << "CodeGenOpenCL: Can only take Function";
+    auto function = base_func.as_or_throw<Function>();
+    auto calling_conv = function->GetAttr<CallingConv>(tvm::attr::kCallingConv);
     TVM_FFI_ICHECK(calling_conv.has_value())
         << "CodeGenOpenCL: expected kCallingConv attribute to be set.";
     TVM_FFI_ICHECK(calling_conv.value() == CallingConv::kDeviceKernelLaunch)
         << "CodeGenOpenCL: expect calling_conv equals CallingConv::kDeviceKernelLaunch, but got "
         << static_cast<int>(calling_conv.value());
-    functions.Set(gvar, prim_func);
+    functions.Set(gvar, function);
   }
 
   std::stringstream code;
   const auto fpostproc = tvm::ffi::Function::GetGlobal("tvm_callback_opencl_postproc");
-  for (auto [gvar, prim_func] : functions) {
+  for (auto [gvar, function] : functions) {
     code << "// Function: " << gvar->name_hint << std::endl;
     CodeGenOpenCL cg;
     cg.Init(output_ssa);
-    for (auto [other_gvar, other_prim_func] : functions) {
-      cg.DeclareFunction(other_gvar, other_prim_func);
+    for (auto [other_gvar, other_function] : functions) {
+      cg.DeclareFunction(other_gvar, other_function);
     }
-    cg.AddFunction(gvar, prim_func);
+    cg.AddFunction(gvar, function);
     std::string fsource = cg.Finish();
     if (fpostproc) {
       fsource = (*fpostproc)(fsource, target).cast<std::string>();

@@ -367,13 +367,14 @@ def test_op_tensor_to_shape():
             gv: R.Shape(ndim=3) = R.tensor_to_shape(t)
             return gv
 
+    x = T.dynamic("x")
+    x_1 = T.dynamic("x_1")
+    x_2 = T.dynamic("x_2")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(t: R.Tensor([3], dtype="int64")) -> R.Shape(ndim=3):
-            x = T.int64()
-            x_1 = T.int64()
-            x_2 = T.int64()
             gv: R.Shape(ndim=3) = R.call_pure_packed(
                 "vm.builtin.tensor_to_shape", t, ty_args=(R.Shape(ndim=3),)
             )

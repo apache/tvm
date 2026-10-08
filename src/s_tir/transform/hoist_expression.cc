@@ -20,29 +20,30 @@
 /*!
  * \file hoist_expression.cc
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/analysis.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/stmt_functor.h>
+#include <tvm/tirx/builtin.h>
 
 #include <queue>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 
-#include "../../arith/interval_set.h"
-#include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../runtime/thread_storage_scope.h"
-#include "../../tirx/transform/ir_utils.h"
+#include "../../s_tir/ir/ir_mutator_with_analyzer.h"
+#include "../../sym/interval_set.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 enum class HoistedConditionals : int {
@@ -130,6 +131,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("s_tir.HoistIfThenElse", HoistIfThenElseConfig);
 
 class HoistInfoCollector : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
   struct ConditionInfo {
     ConditionInfo(PrimExpr condition, HoistedConditionals hoist_from, bool uses_block_var,
                   std::unordered_set<const VarNode*> required_let_bindings, bool generate_else_case)
@@ -174,7 +176,7 @@ class HoistInfoCollector : public StmtExprVisitor {
     // The loop variable
     Var loop_var;
 
-    // The For or AttrStmt that defines the loop var.
+    // The loop or scope that defines the loop var.
     Stmt loop_def;
 
     // Bindings defined in Bind nodes inside the for-loop whose value
@@ -198,18 +200,18 @@ class HoistInfoCollector : public StmtExprVisitor {
   };
 
   static std::vector<HoistInfo> Collect(Stmt stmt, HoistExpressionConfig config) {
-    HoistInfoCollector collector(config);
-    collector(stmt);
-    return collector.completed_loops;
+    auto collector = ffi::make_object<HoistInfoCollector>(config);
+    collector->Visit(stmt);
+    return collector->completed_loops;
   }
 
  private:
   using Parent = StmtExprVisitor;
-  using Parent::VisitExpr_;
-  using Parent::VisitStmt_;
 
+ public:
   explicit HoistInfoCollector(HoistExpressionConfig config) : config(config) {}
 
+ private:
   void AttemptHoistConditional(PrimExpr cond, HoistedConditionals hoist_from,
                                bool generate_else_block = true) {
     if (SideEffect(cond) > CallEffectKind::kPure) {
@@ -244,50 +246,57 @@ class HoistInfoCollector : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const AndNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const prim::AndNode* op) final {
     AttemptHoistConditional(op->a, HoistedConditionals::kBooleanExpression);
     AttemptHoistConditional(op->b, HoistedConditionals::kBooleanExpression);
-    Parent::VisitExpr_(op);
+    return Parent::Visit_(op);
   }
 
-  void VisitExpr_(const OrNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const prim::OrNode* op) final {
     AttemptHoistConditional(op->a, HoistedConditionals::kBooleanExpression);
     AttemptHoistConditional(op->b, HoistedConditionals::kBooleanExpression);
-    Parent::VisitExpr_(op);
+    return Parent::Visit_(op);
   }
 
-  void VisitStmt_(const ForNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     active_loops.push_back({op->loop_var, ffi::GetRef<Stmt>(op)});
     active_loop_vars.insert(op->loop_var.get());
 
-    Parent::VisitStmt_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Parent::Visit_(op));
     completed_loops.push_back(active_loops.back());
 
     active_loop_vars.erase(op->loop_var.get());
     active_loops.pop_back();
+    return std::nullopt;
   }
 
-  void VisitStmt_(const AttrStmtNode* op) final {
-    Var var;
-    if (const auto* node_iter_var = op->node.as<IterVarNode>()) {
-      var = node_iter_var->var;
-    } else if (auto opt = op->node.as<Var>()) {
-      var = opt.value();
-    } else {
-      return Parent::VisitStmt_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    if (op->op.same_as(tirx::builtin::launch_thread())) {
+      Var var = op->body_params[0].as_or_throw<PrimVar>();
+      active_block_vars.insert(var.get());
+      active_loop_vars.insert(var.get());
+      active_loops.push_back({var, ffi::GetRef<Stmt>(op)});
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Parent::Visit_(op));
+      completed_loops.push_back(active_loops.back());
+      active_loops.pop_back();
+      active_loop_vars.erase(var.get());
+      active_block_vars.erase(var.get());
+      return std::nullopt;
     }
-
-    active_block_vars.insert(var.get());
-    active_loop_vars.insert(var.get());
-    active_loops.push_back({var, ffi::GetRef<Stmt>(op)});
-
-    Parent::VisitStmt_(op);
-
-    completed_loops.push_back(active_loops.back());
-    active_loops.pop_back();
-
-    active_loop_vars.erase(var.get());
-    active_block_vars.erase(var.get());
+    // Unknown operations have no code-motion semantics. Analyze their inner
+    // loops independently without hoisting across the region boundary.
+    auto outer_loops = std::move(active_loops);
+    auto outer_loop_vars = std::move(active_loop_vars);
+    auto outer_block_vars = std::move(active_block_vars);
+    active_loops.clear();
+    active_loop_vars.clear();
+    active_block_vars.clear();
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Parent::Visit_(op));
+    active_loops = std::move(outer_loops);
+    active_loop_vars = std::move(outer_loop_vars);
+    active_block_vars = std::move(outer_block_vars);
+    if (!active_loops.empty()) active_loops.back().reached_sequential_node = true;
+    return std::nullopt;
   }
 
   void VisitBinding(Var var, PrimExpr value, HoistedLetBindings hoist_from) {
@@ -330,18 +339,23 @@ class HoistInfoCollector : public StmtExprVisitor {
     let_var_to_let_vars[var.get()] = std::move(let_bindings_used);
   }
 
-  void VisitStmt_(const BindNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (auto value = op->value.as<PrimExpr>()) {
       VisitBinding(op->var, value.value(), HoistedLetBindings::kBind);
     }
-    Parent::VisitStmt_(op);
+    return Parent::Visit_(op);
   }
 
-  void VisitStmt_(const SeqStmtNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* op) final {
     if (active_loops.size()) {
       int non_bind_count = 0;
       for (size_t i = 0; i < op->seq.size(); ++i) {
-        if (!op->seq[i].as<BindNode>()) {
+        const auto* bind = op->seq[i].as<BindNode>();
+        if (!bind) {
+          non_bind_count++;
+        } else if (const auto* call = bind->value.as<CallNode>();
+                   call && (call->op.same_as(tirx::builtin::alloc_tensor()) ||
+                            call->op.same_as(tirx::builtin::decl_tensor()))) {
           non_bind_count++;
         }
       }
@@ -354,35 +368,37 @@ class HoistInfoCollector : public StmtExprVisitor {
       if (auto* bind = op->seq[i].as<BindNode>()) {
         seq_bind_vars.push_back(bind->var.get());
       }
-      VisitStmt(op->seq[i]);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->seq[i]));
     }
     for (auto* var : seq_bind_vars) {
       let_var_to_loop_vars.erase(var);
       let_var_to_let_vars.erase(var);
     }
+    return std::nullopt;
   }
 
-  void VisitExpr_(const LetNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* op) final {
     VisitBinding(op->var, op->value, HoistedLetBindings::kLetExpr);
 
-    Parent::VisitExpr_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Parent::Visit_(op));
 
     let_var_to_loop_vars.erase(op->var.get());
     let_var_to_let_vars.erase(op->var.get());
+    return std::nullopt;
   }
 
-  void VisitStmt_(const IfThenElseNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) final {
     AttemptHoistConditional(op->condition, HoistedConditionals::kIfElseStmt,
                             op->else_case.has_value());
-    Parent::VisitStmt_(op);
+    return Parent::Visit_(op);
   }
 
-  void VisitExpr_(const CallNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     if (op->op.same_as(prim::builtin::if_then_else())) {
       PrimExpr cond = op->args[0].as_or_throw<PrimExpr>();
       AttemptHoistConditional(cond, HoistedConditionals::kIfElseExpr);
     }
-    Parent::VisitExpr_(op);
+    return Parent::Visit_(op);
   }
 
   // Find the loop above which this expression could be hoisted.  If
@@ -430,7 +446,7 @@ class HoistInfoCollector : public StmtExprVisitor {
   // hoisted.
   HoistExpressionConfig config;
 
-  // Current thread_extent bindings of block variables.
+  // Current hardware launch bindings of block variables.
   std::unordered_set<const VarNode*> active_block_vars;
 
   // An ordered list of loops that are currently being visited.
@@ -451,25 +467,27 @@ class HoistInfoCollector : public StmtExprVisitor {
   std::unordered_set<const VarNode*> active_loop_vars;
 };
 
-class ExpressionHoister : public arith::IRMutatorWithAnalyzer {
+class ExpressionHoister : public s_tir::IRMutatorWithAnalyzer {
  public:
+  using s_tir::IRMutatorWithAnalyzer::Mutate;
+  using s_tir::IRMutatorWithAnalyzer::Mutate_;
+
   static Stmt Hoist(Stmt stmt, HoistExpressionConfig config) {
     auto loop_info = HoistInfoCollector::Collect(stmt, config);
 
-    arith::Analyzer analyzer;
-    ExpressionHoister hoister(std::move(loop_info), config, analyzer);
-    stmt = hoister(std::move(stmt));
-    stmt = ConvertSSA(std::move(stmt));
+    sym::Analyzer analyzer;
+    auto hoister = ffi::make_object<ExpressionHoister>(std::move(loop_info), config, analyzer);
+    stmt = hoister->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(std::move(stmt));
+    stmt = s_tir::ConvertSSA(std::move(stmt));
     return stmt;
   }
 
  private:
-  using Parent = arith::IRMutatorWithAnalyzer;
-  using Parent::VisitExpr_;
-  using Parent::VisitStmt_;
+  using Parent = s_tir::IRMutatorWithAnalyzer;
 
+ public:
   explicit ExpressionHoister(std::vector<HoistInfoCollector::HoistInfo> loop_info,
-                             HoistExpressionConfig config, const arith::Analyzer& analyzer)
+                             HoistExpressionConfig config, const sym::Analyzer& analyzer)
       : Parent(analyzer), config_(config) {
     for (auto& info : loop_info) {
       // Mark let bindings to use if they are enabled on their own.
@@ -490,10 +508,11 @@ class ExpressionHoister : public arith::IRMutatorWithAnalyzer {
         }
       }
 
-      loop_info_lookup[info.loop_def.get()] = std::move(info);
+      loop_info_lookup.insert_or_assign(info.loop_def.get(), std::move(info));
     }
   }
 
+ private:
   Stmt WrapHoistedStatements(Stmt stmt, const HoistInfoCollector::HoistInfo& info) {
     for (auto cond_it = info.conditions.rbegin(); cond_it != info.conditions.rend(); cond_it++) {
       if (cond_it->IsEnabled(config_)) {
@@ -520,8 +539,8 @@ class ExpressionHoister : public arith::IRMutatorWithAnalyzer {
     return stmt;
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
-    Stmt stmt = Parent::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
 
     auto it = loop_info_lookup.find(op);
     TVM_FFI_ICHECK(it != loop_info_lookup.end())
@@ -529,31 +548,26 @@ class ExpressionHoister : public arith::IRMutatorWithAnalyzer {
     return WrapHoistedStatements(stmt, it->second);
   }
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
-    Stmt stmt = Parent::VisitStmt_(op);
-
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     auto it = loop_info_lookup.find(op);
-    if (it == loop_info_lookup.end()) {
-      return stmt;
-    } else {
-      return WrapHoistedStatements(stmt, it->second);
-    }
+    return it == loop_info_lookup.end() ? stmt : WrapHoistedStatements(stmt, it->second);
   }
 
-  Stmt VisitStmt_(const BindNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (hoisted_let_bindings.count(op->var.get())) {
       // The binding was hoisted; remove it from this location.
       return Evaluate(0);
     } else {
-      return Parent::VisitStmt_(op);
+      return Parent::Mutate_(op, inplace_mode);
     }
   }
 
-  Expr VisitExpr_(const LetNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) final {
     if (hoisted_let_bindings.count(op->var.get())) {
-      return this->VisitExpr(op->body);
+      return this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     } else {
-      return Parent::VisitExpr_(op);
+      return Parent::Mutate_(op, inplace_mode);
     }
   }
 
@@ -570,22 +584,23 @@ Stmt HoistExpression(Stmt stmt, HoistExpressionConfig config) {
 namespace transform {
 
 Pass HoistExpression() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<HoistExpressionConfig>("s_tir.HoistExpression");
 
     if (!cfg.has_value()) {
       cfg = tvm::transform::PassConfigWithDefaults<HoistExpressionConfig>();
     }
-    n->body = ExpressionHoister::Hoist(std::move(n->body), cfg.value());
+    n->body = ExpressionHoister::Hoist(std::move(n->body).value(), cfg.value());
     return f;
   };
-  auto insertion_pass = CreatePrimFuncPass(pass_func, 0, "s_tir.InsertHoistedExpression", {});
+  auto insertion_pass = CreateFunctionPass(pass_func, 0, "s_tir.InsertHoistedExpression", {});
 
   return tvm::transform::Sequential(
       {
           insertion_pass,
-          tirx::transform::StmtSimplify(),
+          s_tir::transform::StmtSimplify(),
           tirx::transform::RemoveNoOp(),
       },
       "s_tir.HoistExpression");
@@ -597,7 +612,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 static Pass HoistIfThenElseImpl() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<HoistIfThenElseConfig>("s_tir.HoistIfThenElse");
     auto flag = f->GetAttr<int64_t>("tirx.HoistIfThenElseExprWithBlock");
@@ -605,7 +621,7 @@ static Pass HoistIfThenElseImpl() {
       HoistExpressionConfig config(static_cast<int>(HoistedConditionals::kUsingBlockVar) |
                                        static_cast<int>(HoistedConditionals::kIfElseExpr),
                                    static_cast<int>(HoistedLetBindings::kNone));
-      n->body = ExpressionHoister::Hoist(std::move(n->body), config);
+      n->body = ExpressionHoister::Hoist(std::move(n->body).value(), config);
       return f;
     }
     if (!cfg.has_value()) {
@@ -616,32 +632,33 @@ static Pass HoistIfThenElseImpl() {
                                          : HoistedConditionals::kNone);
     HoistExpressionConfig config(block_var | static_cast<int>(HoistedConditionals::kIfElseStmt),
                                  static_cast<int>(HoistedLetBindings::kNone));
-    n->body = ExpressionHoister::Hoist(std::move(n->body), config);
+    n->body = ExpressionHoister::Hoist(std::move(n->body).value(), config);
     return f;
   };
-  auto insertion_pass = CreatePrimFuncPass(pass_func, 0, "s_tir.InsertHoistIfThenElse", {});
+  auto insertion_pass = CreateFunctionPass(pass_func, 0, "s_tir.InsertHoistIfThenElse", {});
   return tvm::transform::Sequential(
       {
           insertion_pass,
-          tirx::transform::StmtSimplify(),
+          s_tir::transform::StmtSimplify(),
           tirx::transform::RemoveNoOp(),
       },
       "s_tir.HoistIfThenElse");
 }
 
 static Pass HoistIfThenElseBasicImpl() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     HoistExpressionConfig config(static_cast<int>(HoistedConditionals::kIfElseStmt),
                                  static_cast<int>(HoistedLetBindings::kNone));
-    n->body = ExpressionHoister::Hoist(std::move(n->body), config);
+    n->body = ExpressionHoister::Hoist(std::move(n->body).value(), config);
     return f;
   };
-  auto insertion_pass = CreatePrimFuncPass(pass_func, 0, "s_tir.InsertHoistIfThenElseBasic", {});
+  auto insertion_pass = CreateFunctionPass(pass_func, 0, "s_tir.InsertHoistIfThenElseBasic", {});
   return tvm::transform::Sequential(
       {
           insertion_pass,
-          tirx::transform::StmtSimplify(),
+          s_tir::transform::StmtSimplify(),
           tirx::transform::RemoveNoOp(),
       },
       "s_tir.HoistIfThenElseBasic");

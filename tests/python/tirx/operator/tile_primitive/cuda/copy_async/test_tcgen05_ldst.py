@@ -271,13 +271,13 @@ def _run_roundtrip_16b(
     atom_view = tcgen05_atom_layout(shape, (frag_rows, K_cols_elem), dtype)
     tmem_layout = tmem_datapath_layout(tmem_datapath, tmem_rows, stage_width_elem)
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+    @T.function
+    def kernel(
+        A: T.Tensor((128, per_thread_elems), dtype), B: T.Tensor((128, per_thread_elems), dtype)
+    ) -> None:
         # Per-thread input/output: A[tid_in_wg, i] feeds register slot i of the
         # warpgroup-collective fragment; B[tid_in_wg, i] is what comes back
         # after a .16x*b.st → .16x*b.ld round-trip.
-        A = T.match_buffer(A_ptr, (128, per_thread_elems), dtype)
-        B = T.match_buffer(B_ptr, (128, per_thread_elems), dtype)
 
         T.device_entry()
         warp_id = T.warp_id([128 // 32])
@@ -297,7 +297,7 @@ def _run_roundtrip_16b(
 
             T.tvm_storage_sync("shared")
 
-            tmem = T.decl_buffer(
+            tmem = T.decl_tensor(
                 (tmem_rows, stage_width_elem),
                 dtype,
                 scope="tmem",
@@ -511,12 +511,13 @@ def test_tcgen05_16xnb_sub_slab_view_read(shape, rep):
     layout_f0 = tmem_datapath_layout("F", 64, tmem_cols, sub_slab=0)
     layout_f1 = tmem_datapath_layout("F", 64, tmem_cols, sub_slab=1)
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B128_ptr: T.handle, B0_ptr: T.handle, B1_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128, regs128), dtype)
-        B128 = T.match_buffer(B128_ptr, (128, regs128), dtype)
-        B0 = T.match_buffer(B0_ptr, (128, regs64), dtype)
-        B1 = T.match_buffer(B1_ptr, (128, regs64), dtype)
+    @T.function
+    def kernel(
+        A: T.Tensor((128, regs128), dtype),
+        B128: T.Tensor((128, regs128), dtype),
+        B0: T.Tensor((128, regs64), dtype),
+        B1: T.Tensor((128, regs64), dtype),
+    ) -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
         T.cta_id([2])
@@ -531,21 +532,21 @@ def test_tcgen05_16xnb_sub_slab_view_read(shape, rep):
                     T.address_of(tmem_addr), T.uint32(tmem_cols)
                 )
             T.tvm_storage_sync("shared")
-            tmem_d = T.decl_buffer(
+            tmem_d = T.decl_tensor(
                 (128, tmem_cols),
                 dtype,
                 scope="tmem",
                 allocated_addr=tmem_addr[0],
                 layout=layout_d,
             )
-            tmem_f0 = T.decl_buffer(
+            tmem_f0 = T.decl_tensor(
                 (64, tmem_cols),
                 dtype,
                 scope="tmem",
                 allocated_addr=tmem_addr[0],
                 layout=layout_f0,
             )
-            tmem_f1 = T.decl_buffer(
+            tmem_f1 = T.decl_tensor(
                 (64, tmem_cols),
                 dtype,
                 scope="tmem",
@@ -631,7 +632,7 @@ def test_layout_F_rejects_incompatible_atoms(atom_kind, frag_rows):
     tmem_rows = 64
     stage_width_elem = max(32, local_cols)
 
-    @T.prim_func
+    @T.function
     def kernel() -> None:
         T.device_entry()
         T.warp_id([128 // 32])
@@ -643,7 +644,7 @@ def test_layout_F_rejects_incompatible_atoms(atom_kind, frag_rows):
         tmem_addr = T.alloc_shared([1], "uint32")
         if wg_id == 0:
             T.tvm_storage_sync("shared")
-            tmem = T.decl_buffer(
+            tmem = T.decl_tensor(
                 (tmem_rows, stage_width_elem),
                 "float32",
                 scope="tmem",
@@ -667,7 +668,7 @@ def test_layout_B_rejects_16xnb_fragment():
     tmem_layout = tmem_datapath_layout("B", 64, n_cols)
     wrong_layout = tcgen05_atom_layout("16x256b", (64, n_cols), "float32")
 
-    @T.prim_func
+    @T.function
     def kernel() -> None:
         T.device_entry()
         T.cta_id([1])
@@ -675,7 +676,7 @@ def test_layout_B_rejects_16xnb_fragment():
         T.warp_id_in_wg([4])
         T.lane_id([32])
         tmem_addr = T.alloc_shared([1], "uint32")
-        tmem = T.decl_buffer(
+        tmem = T.decl_tensor(
             (64, n_cols),
             "float32",
             scope="tmem",
@@ -696,7 +697,7 @@ def test_layout_B_rejects_partial_column_copy():
     """A logical B column slice is not one contiguous physical tcol interval."""
     n_cols = 64
 
-    @T.prim_func
+    @T.function
     def kernel() -> None:
         T.device_entry()
         T.cta_id([1])
@@ -704,7 +705,7 @@ def test_layout_B_rejects_partial_column_copy():
         T.warp_id_in_wg([4])
         T.lane_id([32])
         tmem_addr = T.alloc_shared([1], "uint32")
-        tmem = T.decl_buffer(
+        tmem = T.decl_tensor(
             (64, n_cols),
             "float32",
             scope="tmem",
@@ -725,7 +726,7 @@ def test_datapath_B_codegen(direction):
     """Both directions emit one physical .32x32b.x32 instruction."""
     n_cols = 64
 
-    @T.prim_func
+    @T.function
     def kernel() -> None:
         T.device_entry()
         T.cta_id([1])
@@ -733,7 +734,7 @@ def test_datapath_B_codegen(direction):
         T.warp_id_in_wg([4])
         T.lane_id([32])
         tmem_addr = T.alloc_shared([1], "uint32")
-        tmem = T.decl_buffer(
+        tmem = T.decl_tensor(
             (64, n_cols),
             "float32",
             scope="tmem",
@@ -763,10 +764,10 @@ def test_datapath_B_ld_st_roundtrip(n_cols, col_offset):
     n_half = n_cols // 2
     tmem_cols = _next_pow2(max(32, col_offset + n_half))
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128, n_half), "float32")
-        B = T.match_buffer(B_ptr, (128, n_half), "float32")
+    @T.function
+    def kernel(
+        A: T.Tensor((128, n_half), "float32"), B: T.Tensor((128, n_half), "float32")
+    ) -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
         T.cta_id([1])
@@ -782,7 +783,7 @@ def test_datapath_B_ld_st_roundtrip(n_cols, col_offset):
                     T.address_of(tmem_addr), T.uint32(tmem_cols)
                 )
             T.tvm_storage_sync("shared")
-            tmem = T.decl_buffer(
+            tmem = T.decl_tensor(
                 (64, n_cols),
                 "float32",
                 scope="tmem",
@@ -869,12 +870,13 @@ def _run_load_test(shape: str, rep: int, dtype: str):
     # ``T.copy_async`` matches when dispatching to the right atom path.
     atom_view = tcgen05_atom_layout(shape, (frag_rows, K_cols_elem), dtype)
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+    @T.function
+    def kernel(
+        A: T.Tensor((128, stage_width_elem), dtype), B: T.Tensor((128, per_thread_elems), dtype)
+    ) -> None:
         # A is the host data we stage into TMEM via the standard .32x32b path.
-        A = T.match_buffer(A_ptr, (128, stage_width_elem), dtype)
+
         # B is a per-thread register dump: B[tid_in_wg, reg_idx_in_elements].
-        B = T.match_buffer(B_ptr, (128, per_thread_elems), dtype)
 
         A_flat = A.view(-1)
 
@@ -896,7 +898,7 @@ def _run_load_test(shape: str, rep: int, dtype: str):
 
             T.tvm_storage_sync("shared")
 
-            tmem = T.decl_buffer(
+            tmem = T.decl_tensor(
                 (128, stage_width_elem),
                 dtype,
                 scope="tmem",
@@ -1036,12 +1038,14 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
     stage_view = TileLayout(S[(128, stage_width_elem) : (1 @ axis_tid_in_wg, 1)])
     atom_view = tcgen05_atom_layout(shape, (frag_rows, K_cols_elem), dtype)
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+    @T.function
+    def kernel(
+        A: T.Tensor((128, per_thread_elems), dtype), B: T.Tensor((128, stage_width_elem), dtype)
+    ) -> None:
         # A[tid_in_wg, i] is the i-th per-thread element to feed into the atom store.
-        A = T.match_buffer(A_ptr, (128, per_thread_elems), dtype)
+
         # B[lane, col] is the TMEM-staged readout after the round-trip.
-        B = T.match_buffer(B_ptr, (128, stage_width_elem), dtype)
+
         B_flat = B.view(-1)
 
         T.device_entry()
@@ -1062,7 +1066,7 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
 
             T.tvm_storage_sync("shared")
 
-            tmem = T.decl_buffer(
+            tmem = T.decl_tensor(
                 (128, stage_width_elem),
                 dtype,
                 scope="tmem",
@@ -1169,9 +1173,8 @@ def test_alloc_tcgen05_frag_wrapper_compiles(shape, frag_rows, K_cols):
     """Ensure T.alloc_tcgen05_ldst_frag yields a buffer that ``T.copy_async`` accepts
     and lowers to the correct tcgen05 atom for each supported instr_shape."""
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle) -> None:
-        T.match_buffer(A_ptr, (128, K_cols), "float32")
+    @T.function
+    def kernel(A: T.Tensor((128, K_cols), "float32")) -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
         T.cta_id([2])
@@ -1187,7 +1190,7 @@ def test_alloc_tcgen05_frag_wrapper_compiles(shape, frag_rows, K_cols):
                     T.address_of(tmem_addr), T.uint32(max(32, K_cols))
                 )
             T.tvm_storage_sync("shared")
-            tmem = T.decl_buffer(
+            tmem = T.decl_tensor(
                 (128, K_cols),
                 "float32",
                 scope="tmem",
@@ -1223,9 +1226,8 @@ def test_tcgen05_32x32b_float32_keeps_typed_register_operands():
 
     K_cols = 32
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle) -> None:
-        T.match_buffer(A_ptr, (128, K_cols), "float32")
+    @T.function
+    def kernel(A: T.Tensor((128, K_cols), "float32")) -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
         T.cta_id([2])
@@ -1241,7 +1243,7 @@ def test_tcgen05_32x32b_float32_keeps_typed_register_operands():
                     T.address_of(tmem_addr), T.uint32(K_cols)
                 )
             T.tvm_storage_sync("shared")
-            tmem = T.decl_buffer(
+            tmem = T.decl_tensor(
                 (128, K_cols),
                 "float32",
                 scope="tmem",
@@ -1280,7 +1282,7 @@ def test_tcgen05_ldst_constant_tmem_address_is_uint32():
 
     K_cols = 32
 
-    @T.prim_func
+    @T.function
     def kernel() -> None:
         T.device_entry()
         T.warp_id([4])
@@ -1291,7 +1293,7 @@ def test_tcgen05_ldst_constant_tmem_address_is_uint32():
         T.thread_id([128])
 
         if wg_id == 0:
-            tmem = T.decl_buffer(
+            tmem = T.decl_tensor(
                 (128, K_cols),
                 "float32",
                 scope="tmem",
@@ -1359,11 +1361,14 @@ def _run_sliced_vs_full_load(shape, full_rep, n_chunks):
     atom_view = tcgen05_atom_layout(shape, (frag_rows, K_cols_fp32), dtype)
     stage_view = TileLayout(S[(128, stage_w) : (1 @ axis_tid_in_wg, 1)])
 
-    @T.prim_func
-    def kernel(A_ptr: T.handle, Bf_ptr: T.handle, Bs_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128, stage_width_elem), dtype)
-        Bf = T.match_buffer(Bf_ptr, (128, per_thread_elems), dtype)  # full-load dump
-        Bs = T.match_buffer(Bs_ptr, (128, per_thread_elems), dtype)  # sliced-load dump
+    @T.function
+    def kernel(
+        A: T.Tensor((128, stage_width_elem), dtype),
+        Bf: T.Tensor((128, per_thread_elems), dtype),
+        Bs: T.Tensor((128, per_thread_elems), dtype),
+    ) -> None:
+        # full-load dump
+        # sliced-load dump
         A_flat = A.view(-1)
 
         T.device_entry()
@@ -1381,7 +1386,7 @@ def _run_sliced_vs_full_load(shape, full_rep, n_chunks):
                     T.address_of(tmem_addr), T.uint32(tmem_col_width_32b)
                 )
             T.tvm_storage_sync("shared")
-            tmem = T.decl_buffer(
+            tmem = T.decl_tensor(
                 (128, stage_width_elem),
                 dtype,
                 scope="tmem",
@@ -1499,10 +1504,8 @@ def test_copy_tmem2reg_async(dtype, width_32b):
     local_view = TileLayout(S[(128, WIDTH) : (1 @ axis_tid_in_wg, 1)])
 
     # fmt: off
-    @T.prim_func
-    def copy_async_test(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128, WIDTH), dtype)
-        B = T.match_buffer(B_ptr, (128, WIDTH), dtype)
+    @T.function
+    def copy_async_test(A: T.Tensor((128, WIDTH), dtype), B: T.Tensor((128, WIDTH), dtype)) -> None:
 
         A_flat = A.view(-1)
         B_flat = B.view(-1)
@@ -1523,7 +1526,7 @@ def test_copy_tmem2reg_async(dtype, width_32b):
 
             T.tvm_storage_sync("shared")
 
-            tmem = T.decl_buffer((128, WIDTH), dtype, scope="tmem", allocated_addr=tmem_addr[0],
+            tmem = T.decl_tensor((128, WIDTH), dtype, scope="tmem", allocated_addr=tmem_addr[0],
                                  layout=TileLayout(S[(128, WIDTH) : (1 @ TLane, 1 @ TCol)]))
 
             A_reg = T.alloc_local((WIDTH), dtype)
@@ -1597,10 +1600,8 @@ def test_copy_tmem2reg(dtype, width_32b, offset_32b):
     local_view = TileLayout(S[(128, WIDTH) : (1 @ axis_tid_in_wg, 1)])
 
     # fmt: off
-    @T.prim_func
-    def copy_sync(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128, WIDTH), dtype)
-        B = T.match_buffer(B_ptr, (128, WIDTH), dtype)
+    @T.function
+    def copy_sync(A: T.Tensor((128, WIDTH), dtype), B: T.Tensor((128, WIDTH), dtype)) -> None:
 
         A_flat = A.view(-1)
         B_flat = B.view(-1)
@@ -1621,7 +1622,7 @@ def test_copy_tmem2reg(dtype, width_32b, offset_32b):
 
             T.tvm_storage_sync("shared")
 
-            tmem = T.decl_buffer((128, OFFSET + WIDTH), dtype, scope="tmem", allocated_addr=tmem_addr[0],  # noqa: E501
+            tmem = T.decl_tensor((128, OFFSET + WIDTH), dtype, scope="tmem", allocated_addr=tmem_addr[0],  # noqa: E501
                                  layout=TileLayout(S[(128, OFFSET + WIDTH) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
 
             A_reg = T.alloc_local((WIDTH), dtype)
@@ -1696,10 +1697,8 @@ def test_copy_tmem2reg_sliced_local(dtype, width_32b, local_offset_32b):
     local_view = TileLayout(S[(128, TOTAL_LOCAL_WIDTH) : (1 @ axis_tid_in_wg, 1)])
 
     # fmt: off
-    @T.prim_func
-    def copy_sync(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128, WIDTH), dtype)
-        B = T.match_buffer(B_ptr, (128, WIDTH), dtype)
+    @T.function
+    def copy_sync(A: T.Tensor((128, WIDTH), dtype), B: T.Tensor((128, WIDTH), dtype)) -> None:
 
         A_flat = A.view(-1)
         B_flat = B.view(-1)
@@ -1720,7 +1719,7 @@ def test_copy_tmem2reg_sliced_local(dtype, width_32b, local_offset_32b):
 
             T.tvm_storage_sync("shared")
 
-            tmem = T.decl_buffer((128, WIDTH), dtype, scope="tmem", allocated_addr=tmem_addr[0],
+            tmem = T.decl_tensor((128, WIDTH), dtype, scope="tmem", allocated_addr=tmem_addr[0],
                                  layout=TileLayout(S[(128, WIDTH) : (1 @ TLane, 1 @ TCol)]))
 
             A_reg = T.alloc_local((TOTAL_LOCAL_WIDTH), dtype)

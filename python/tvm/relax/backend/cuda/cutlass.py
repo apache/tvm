@@ -83,7 +83,7 @@ def _has_dependency(from_var: Var, to_var: Var, var_usages: Mapping[Var, Sequenc
 
 
 def _is_same_shape(shape1, shape2):
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
     return all([analyzer.can_prove_equal(s1, s2) for s1, s2 in zip(shape1, shape2)])
 
 

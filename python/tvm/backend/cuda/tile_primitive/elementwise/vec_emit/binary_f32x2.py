@@ -19,9 +19,9 @@
 
 PTX op family: ``{add,sub,mul}.<rm>.ftz.f32x2``. Each call processes 2 f32s
 per operand. The old ``_make_binary_packed_f32x2_factory`` (240+ lines, 8
-``@T.prim_func`` shape combos per op) collapses to one ``emit`` per op
+``@T.function`` shape combos per op) collapses to one ``emit`` per op
 because operand-shape branching is now Python-level (outside any
-``@T.prim_func``).
+``@T.function``).
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ def _f32x2_applies(op_name):
     def applies(op_call, sctx, plan):
         from ...common import sm_version_ok
 
-        if dtype_name(plan.dst.buffer.dtype) != "float32":
+        if dtype_name(plan.dst.source.dtype) != "float32":
             return False, "dst dtype not f32"
         if not sm_version_ok(op_call, sctx, min_version=100)[0]:
             return False, "sm version < 100"
@@ -60,7 +60,7 @@ def _f32x2_applies(op_name):
                 if scalar_dtype(s.scalar) != "float32":
                     return False, "scalar src dtype not f32"
             else:
-                if dtype_name(s.buf_region.buffer.dtype) != "float32":
+                if dtype_name(s.buf_region.source.dtype) != "float32":
                     return False, "buffer src dtype not f32"
                 if s.index_fn is not None:
                     return False, "broadcasting src not supported by f32x2 packed"

@@ -14,49 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TIRx tile primitive IR nodes: LambdaExpr, DispatchContext, TilePrimitiveCall.
+"""TIRx tile primitive IR nodes: DispatchContext, TilePrimitiveCall.
 
 Mirrors the C++ header ``include/tvm/tirx/tile_primitive.h``.
 """
 # pylint: disable=no-member
 
-import inspect
-from collections.abc import Callable
 from typing import Any, ClassVar
 
 import tvm_ffi
 from tvm_ffi import register_object
 
-from tvm.ir import Expr, Op, Range
+from tvm.ir import Expr, Op, Range, Var
 from tvm.runtime import Object, Scriptable
 from tvm.target import Target
 
 from . import _ffi_api
-from .buffer import Buffer
 from .exec_scope import ExecScope
-from .expr import FloatImm, IterVar, Var
 from .stmt import Stmt
-
-
-@register_object("tirx.LambdaExpr")
-class LambdaExpr(Object):
-    """A reified Python lambda: bound variables and a body over them.
-
-    Used by tile primitive ops that take a per-element expression over the
-    destination axes (e.g. ``tirx.tile.select``).
-    """
-
-    vars: list[Var]
-    pred: Expr
-
-    def __init__(self, f_pred: Callable[..., Expr]):
-        vars = [Var(name, "int32") for name in inspect.signature(f_pred).parameters]
-        pred = f_pred(*vars)
-        self.__init_handle_by_constructor__(_ffi_api.LambdaExpr, vars, pred)
-
-    def apply(self, indices: list[Expr]) -> Expr:
-        """Substitute the bound variables with the given indices, returning the body."""
-        return _ffi_api.LambdaExprApply(self, indices)
 
 
 @register_object("tirx.DispatchContext")
@@ -71,7 +46,7 @@ class DispatchContext(Object, Scriptable):
     exec_scope : ExecScope
         The execution scope of the dispatch context.
 
-    launch_params : Dict[str, Expr]
+    launch_params : Dict[str, Tuple[Var, Expr]]
         The launch parameters of the dispatch context.
 
     var_range_map : Dict[Var, Range]
@@ -86,7 +61,7 @@ class DispatchContext(Object, Scriptable):
 
     target: Target
     exec_scope: ExecScope
-    launch_params: dict[str, IterVar]
+    launch_params: dict[str, tuple[Var, Expr]]
     var_range_map: dict[Var, Range]
     alloc_only: bool
     callbacks: dict[str, Object]
@@ -104,7 +79,7 @@ class DispatchContext(Object, Scriptable):
         self,
         target: Target,
         exec_scope: ExecScope,
-        launch_params: dict[str, IterVar],
+        launch_params: dict[str, tuple[Var, Expr]],
         var_range_map: dict[Var, Range],
         alloc_only: bool = False,
         callbacks: dict[str, Object] = {},
@@ -127,14 +102,14 @@ class DispatchContext(Object, Scriptable):
             scope_kind,
         )
 
-    def add_alloc_buffer(self, buffer: Buffer) -> None:
+    def add_alloc_buffer(self, buffer: Var) -> None:
         """Add an allocated buffer to the dispatch context.
            Can be called only if alloc_only is True.
            The buffer will be added to the workspace of operator (the key in the workspace is the buffer name).
 
         Parameters
         ----------
-        buffer : Buffer
+        buffer : Var
             The buffer to be added.
         """  # noqa: E501
         _ffi_api.DispatchContextAddAllocBuffer(self, buffer)  # pylint: disable=no-member
@@ -156,12 +131,12 @@ class DispatchContext(Object, Scriptable):
         """  # noqa: E501
         _ffi_api.DispatchContextAddInitStmt(self, stmt, host)  # pylint: disable=no-member
 
-    def add_post_buffer_def_stmt(self, buffer: Buffer, stmt: Stmt) -> None:
-        """Add a statement to be inserted after a buffer's definition (DeclBuffer/AllocBuffer).
+    def add_post_buffer_def_stmt(self, buffer: Var, stmt: Stmt) -> None:
+        """Add a statement to be inserted after a buffer's definition (DeclTensor/AllocTensor).
 
         Parameters
         ----------
-        buffer : Buffer
+        buffer : Var
             The buffer whose definition scope the statement should appear in.
         stmt : Stmt
             The statement to be inserted.
@@ -191,7 +166,7 @@ class DispatchContext(Object, Scriptable):
         key : str
             Cache key (built by the caller from construction parameters).
         value : Object
-            The object to cache (e.g. a Buffer or Var).
+            The object to cache (e.g. a Var or Var).
         """
         _ffi_api.DispatchContextSharedStateSet(self, key, value)
 
@@ -243,12 +218,6 @@ class DispatchContext(Object, Scriptable):
         return self.scope_kind == "cluster"
 
 
-def normalize_const_arg(arg) -> Expr:
-    if isinstance(arg, float):
-        return FloatImm("float32", arg)
-    return arg
-
-
 @tvm_ffi.register_object("tirx.TilePrimitiveCall")
 class TilePrimitiveCall(Stmt):
     """TilePrimitiveCall node.
@@ -261,11 +230,13 @@ class TilePrimitiveCall(Stmt):
     args : List[Expr]
         The arguments.
 
-    workspace : Map[str, Buffer]
+    workspace : Map[str, Var]
         The workspace.
 
-    config : Map[str, ObjectRef]
-        The scheduler/config dictionary.
+    config : Map[str, Expr]
+        The scheduler/config dictionary. Omit unused keys; explicit None values
+        are invalid. max_inst_size=-1 means unbounded, while omission retains
+        the backend default. A present gather4 contains exactly four coordinates.
 
     dispatch : Optional[str]
         The explicit variant name to dispatch to.
@@ -275,8 +246,8 @@ class TilePrimitiveCall(Stmt):
     """
 
     args: list[Expr]
-    workspace: dict[str, Buffer]
-    config: dict[str, Any]
+    workspace: dict[str, Var]
+    config: dict[str, Expr]
     dispatch: str | None
     scope: ExecScope
     _registry: ClassVar[dict[Op, type["TilePrimitiveCall"]]] = {}
@@ -285,7 +256,7 @@ class TilePrimitiveCall(Stmt):
         self,
         *args: list[Expr],
         op: Op | None = None,
-        workspace: dict[str, Buffer] | None = None,
+        workspace: dict[str, Var] | None = None,
         config: dict[str, Any] | None = None,
         dispatch: str | None = None,
         scope: ExecScope | None = None,
@@ -301,7 +272,6 @@ class TilePrimitiveCall(Stmt):
                 "Directly instantiating TilePrimitiveCall needs to specify the op"
             )
             op = self.__class__.op
-        args = list(map(normalize_const_arg, args))
         self.__init_handle_by_constructor__(
             _ffi_api.TilePrimitiveCall,
             op,
@@ -360,7 +330,7 @@ class TilePrimitiveCall(Stmt):
         )
         return TilePrimitiveCall.downcast(new_call)
 
-    def with_workspace(self, workspace: dict[str, Buffer]) -> "TilePrimitiveCall":
+    def with_workspace(self, workspace: dict[str, Var]) -> "TilePrimitiveCall":
         """Return a copy with ``workspace`` replaced, preserving all other fields."""
         return self.replace(workspace=workspace)
 
@@ -373,14 +343,14 @@ class TilePrimitiveCall(Stmt):
         raise NotImplementedError("Subclass must implement this method")
 
     def get_private_buffers(
-        self, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: "DispatchContext"
+        self, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: "DispatchContext"
     ) -> dict[str, Any]:
         """
         Create private (intermediate) buffers needed in this operator.
 
         Parameters
         ----------
-        buffer_dict: Dict[Any, Tuple[Buffer, Optional[Stmt]]]
+        buffer_dict: Dict[Any, Tuple[Var, Optional[Stmt]]]
             A dictionary containing private buffers (and their init stmts) in other operators.
             Key can be anything to reference the buffer.
             This is used to reuse private buffers in other operators (like identity tensor etc.).
@@ -408,12 +378,12 @@ class TilePrimitiveCall(Stmt):
             raise ValueError(f"Unsupported target: {sctx.target.kind.name}")
 
     def get_private_buffers_trn(
-        self, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: "DispatchContext"
+        self, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: "DispatchContext"
     ) -> dict[str, Any]:
         return {}
 
     def get_private_buffers_cuda(
-        self, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: "DispatchContext"
+        self, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: "DispatchContext"
     ) -> dict[str, Any]:
         return {}
 

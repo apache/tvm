@@ -34,12 +34,12 @@ from tvm.script import tirx as T
 from tvm.tirx.cuda import iket
 
 
-@T.prim_func
-def canonical_iket_workload(out: T.Buffer((32,), "int32")):
+@T.function
+def canonical_iket_workload(out: T.Tensor((32,), "int32")):
     T.device_entry()
     profiler = iket.IketProfiler()
     tx = T.thread_id([32])
-    token = profiler.sentinel_token("token")
+    token: T.uint32 = profiler.sentinel_token("token")
     profiler.range_end(token)
     token = profiler.range_start("token")
     profiler.mark("checkpoint")
@@ -50,8 +50,8 @@ def canonical_iket_workload(out: T.Buffer((32,), "int32")):
     out[tx] = tx + 1
 
 
-@T.prim_func
-def native_payload_workload(out: T.Buffer((32,), "int32")):
+@T.function
+def native_payload_workload(out: T.Tensor((32,), "int32")):
     T.device_entry()
     profiler = iket.IketProfiler()
     tx = T.thread_id([32])
@@ -64,15 +64,15 @@ def native_payload_workload(out: T.Buffer((32,), "int32")):
     profiler.mark("bool_false_payload", tx != 0)
     profiler.mark("float32_payload", T.float32(-3.25))
     profiler.mark("float64_payload", T.float64(6.5))
-    token = profiler.range_start("token_payload", tx + 200)
+    token: T.uint32 = profiler.range_start("token_payload", tx + 200)
     profiler.range_end(token, tx + 300)
     profiler.range_push("stack_payload", tx + 400)
     profiler.range_pop()
     out[tx] = tx + 2
 
 
-@T.prim_func
-def extended_payload_workload(out: T.Buffer((32,), "int32")):
+@T.function
+def extended_payload_workload(out: T.Tensor((32,), "int32")):
     T.device_entry()
     profiler = iket.IketProfiler()
     tx = T.thread_id([32])
@@ -122,6 +122,7 @@ def _parse_args():
     parser.add_argument("--keep", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--timeout", type=float, default=600.0)
     parser.add_argument("--max-ts-cnt-per-warp", type=int, default=None)
+    parser.add_argument("--arch", default="sm_100a")
     parser.add_argument(
         "--fail-capture",
         action="store_true",
@@ -131,7 +132,9 @@ def _parse_args():
 
 
 def _injection_tool_name():
-    config_path = os.environ.get("SMODEL_INJECTION_CONFIG")
+    config_path = os.environ.get("IKET_INJECTION_CONFIG") or os.environ.get(
+        "SMODEL_INJECTION_CONFIG"
+    )
     if not config_path:
         return None
     return json.loads(Path(config_path).read_text(encoding="utf-8")).get("toolName")
@@ -140,7 +143,7 @@ def _injection_tool_name():
 def _profile_workload(args):
     if args.fail_capture and _injection_tool_name() == "iket":
         raise RuntimeError("intentional capture-only IKET workload failure")
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm.target.Target({"kind": "cuda", "arch": args.arch})
     workloads = (
         (canonical_iket_workload, 1),
         (native_payload_workload, 2),

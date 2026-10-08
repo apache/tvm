@@ -18,181 +18,135 @@
  */
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/module.h>
+#include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/vector_expr.h>
+#include <tvm/relax/distributed/type.h>
+#include <tvm/relax/expr.h>
+#include <tvm/relax/type.h>
 #include <tvm/script/printer/printer.h>
+#include <tvm/te/operation.h>
+#include <tvm/tirx/exec_scope.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/index_map.h>
+#include <tvm/tirx/layout.h>
+#include <tvm/tirx/stmt.h>
+#include <tvm/tirx/tile_primitive.h>
 
-#include <algorithm>
-#include <sstream>
+#include <utility>
+
+#include "utils.h"
 
 namespace tvm {
 
-namespace {
-
-std::string RenderFallbackWithInvisiblePathInfo(const ffi::String& script,
-                                                const PrinterConfig& config) {
-  if (!config->render_invisible_path_info || config->path_to_underline.empty()) {
-    return std::string(script);
-  }
-
-  std::ostringstream os;
-  for (size_t i = 0; i < config->path_to_underline.size(); ++i) {
-    if (i != 0) os << "\n";
-    os << "Access path: " << config->path_to_underline[i]
-       << "\nNote: No visible object for this path is rendered in TVMScript.";
-  }
-  os << "\n\n" << script;
-  return os.str();
-}
-
-}  // namespace
-
-TVM_FFI_STATIC_INIT_BLOCK() { PrinterConfigNode::RegisterReflection(); }
-
-TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
-  static FType inst;
-  return inst;
-}
-
-std::string Script(const ffi::ObjectRef& node, const ffi::Optional<PrinterConfig>& cfg) {
-  PrinterConfig config = cfg.value_or(PrinterConfig());
-  if (!TVMScriptPrinter::vtable().can_dispatch(node)) {
-    // Fall back to ffi::ReprPrint for types not registered with TVMScriptPrinter.
-    return RenderFallbackWithInvisiblePathInfo(ffi::ReprPrint(ffi::Any(node)), config);
-  }
-  return TVMScriptPrinter::vtable()(node, config);
-}
-
-bool IsIdentifier(const std::string& name) {
-  // Python identifiers follow the regex: "^[a-zA-Z_][a-zA-Z0-9_]*$"
-  // `std::regex` would cause a symbol conflict with PyTorch, we avoids to use it in the codebase.
-  //
-  // We convert the regex into following conditions:
-  // 1. The name is not empty.
-  // 2. The first character is either an alphabet or an underscore.
-  // 3. The rest of the characters are either an alphabet, a digit or an underscore.
-  return name.size() > 0 &&                            //
-         (std::isalpha(name[0]) || name[0] == '_') &&  //
-         std::all_of(name.begin() + 1, name.end(),
-                     [](char c) { return std::isalnum(c) || c == '_'; });
-}
-
-PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
-  ffi::ObjectPtr<PrinterConfigNode> n = ffi::make_object<PrinterConfigNode>();
-  if (auto v = config_dict.Get("name")) {
-    n->binding_names.push_back(v.value().as_or_throw<ffi::String>());
-  }
-  if (auto v = config_dict.Get("show_meta")) {
-    n->show_meta = v.value().cast<bool>();
-  }
-  if (auto v = config_dict.Get("ir_prefix")) {
-    n->ir_prefix = v.value().as_or_throw<ffi::String>();
-  }
-  if (auto v = config_dict.Get("module_alias")) {
-    n->module_alias = v.value().as_or_throw<ffi::String>();
-  }
-  if (auto v = config_dict.Get("buffer_dtype")) {
-    n->buffer_dtype = ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>());
-  }
-  if (auto v = config_dict.Get("int_dtype")) {
-    n->int_dtype = ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>());
-  }
-  if (auto v = config_dict.Get("float_dtype")) {
-    n->float_dtype = ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>());
-  }
-  if (auto v = config_dict.Get("verbose_expr")) {
-    n->verbose_expr = v.value().cast<bool>();
-  }
-  if (auto v = config_dict.Get("indent_spaces")) {
-    n->indent_spaces = v.value().cast<int>();
-  }
-  if (auto v = config_dict.Get("print_line_numbers")) {
-    n->print_line_numbers = v.value().cast<bool>();
-  }
-  if (auto v = config_dict.Get("num_context_lines")) {
-    n->num_context_lines = v.value().cast<int>();
-  }
-  if (auto v = config_dict.Get("path_to_underline")) {
-    n->path_to_underline =
-        v.value().as_or_throw<ffi::Optional<ffi::Array<ffi::reflection::AccessPath>>>().value_or(
-            ffi::Array<ffi::reflection::AccessPath>());
-  }
-  if (auto v = config_dict.Get("path_to_annotate")) {
-    n->path_to_annotate =
-        v.value()
-            .as_or_throw<ffi::Optional<ffi::Map<ffi::reflection::AccessPath, ffi::String>>>()
-            .value_or(ffi::Map<ffi::reflection::AccessPath, ffi::String>());
-  }
-  if (auto v = config_dict.Get("obj_to_underline")) {
-    n->obj_to_underline =
-        v.value().as_or_throw<ffi::Optional<ffi::Array<ffi::ObjectRef>>>().value_or(
-            ffi::Array<ffi::ObjectRef>());
-  }
-  if (auto v = config_dict.Get("obj_to_annotate")) {
-    n->obj_to_annotate =
-        v.value().as_or_throw<ffi::Optional<ffi::Map<ffi::ObjectRef, ffi::String>>>().value_or(
-            ffi::Map<ffi::ObjectRef, ffi::String>());
-  }
-  if (auto v = config_dict.Get("syntax_sugar")) {
-    n->syntax_sugar = v.value().cast<bool>();
-  }
-  if (auto v = config_dict.Get("show_object_address")) {
-    n->show_object_address = v.value().cast<bool>();
-  }
-  if (auto v = config_dict.Get("render_invisible_path_info")) {
-    n->render_invisible_path_info = v.value().cast<bool>();
-  }
-  // Dialect-specific keys are stored in extra_config with dotted-name keys.
-  // String-typed dialect keys passed through directly.
-  for (const char* key : {"tirx.prefix", "relax.prefix"}) {
-    if (auto v = config_dict.Get(key)) {
-      n->extra_config.Set(ffi::String(key), v.value());
-    }
-  }
-  // Boolean dialect keys.
-  if (auto v = config_dict.Get("relax.show_all_ty")) {
-    n->extra_config.Set(ffi::String("relax.show_all_ty"), v.value());
-  }
-  if (auto v = config_dict.Get("extra_config")) {
-    auto extra = v.value().as_or_throw<ffi::Map<ffi::String, ffi::Any>>();
-    for (auto kv : extra) {
-      n->extra_config.Set(kv.first, kv.second);
-    }
-    if (auto render = extra.Get("render_invisible_path_info")) {
-      n->render_invisible_path_info = render.value().cast<bool>();
-    }
-  }
-
-  // Checking prefixes if they are valid Python identifiers.
-  TVM_FFI_ICHECK(IsIdentifier(std::string(n->ir_prefix)))
-      << "Invalid `ir_prefix`: " << n->ir_prefix;
-  ffi::String tir_prefix = n->GetExtraConfig<ffi::String>("tirx.prefix", "T");
-  ffi::String relax_prefix = n->GetExtraConfig<ffi::String>("relax.prefix", "R");
-  TVM_FFI_ICHECK(IsIdentifier(std::string(tir_prefix))) << "Invalid `tirx.prefix`: " << tir_prefix;
-  TVM_FFI_ICHECK(IsIdentifier(std::string(relax_prefix)))
-      << "Invalid `relax.prefix`: " << relax_prefix;
-  TVM_FFI_ICHECK(n->module_alias.empty() || IsIdentifier(std::string(n->module_alias)))
-      << "Invalid `module_alias`: " << n->module_alias;
-
-  this->data_ = std::move(n);
-}
-
-ffi::Array<ffi::String> PrinterConfigNode::GetBuiltinKeywords() {
-  ffi::String tir_prefix = GetExtraConfig<ffi::String>("tirx.prefix", "T");
-  ffi::String relax_prefix = GetExtraConfig<ffi::String>("relax.prefix", "R");
-  ffi::Array<ffi::String> result{this->ir_prefix, tir_prefix, relax_prefix};
-  if (!this->module_alias.empty()) {
-    result.push_back(this->module_alias);
-  }
-  return result;
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
+  namespace refl = ffi::reflection;
+  using script::printer::details::RegisterScriptRepr;
   refl::GlobalDef()
-      .def("node.PrinterConfig",
-           [](ffi::Map<ffi::String, Any> config_dict) { return PrinterConfig(config_dict); })
-      .def("node.TVMScriptPrinterScript", tvm::Script);
+      .def("node.TVMScriptPrinterScript", tvm::Script)
+      .def("script.printer.Script", tvm::Script)
+      .def("script.printer.ReprPrintRelax",
+           [](const ffi::ObjectRef& obj, const PrinterConfig& config) {
+             return tvm::Script(obj, config);
+           });
+
+  RegisterScriptRepr<DataTypeImmNode>();
+  RegisterScriptRepr<GenericConstNode>();
+  RegisterScriptRepr<AnyTypeNode>();
+  RegisterScriptRepr<CallNode>();
+  RegisterScriptRepr<DictAttrsNode>();
+  RegisterScriptRepr<FloatImmNode>();
+  RegisterScriptRepr<FuncTypeNode>();
+  RegisterScriptRepr<GlobalVarNode>();
+  RegisterScriptRepr<IRModuleNode>();
+  RegisterScriptRepr<IntImmNode>();
+  RegisterScriptRepr<MissingTypeNode>();
+  RegisterScriptRepr<PointerTypeNode>();
+  RegisterScriptRepr<PrimTypeNode>();
+  RegisterScriptRepr<RangeNode>();
+  RegisterScriptRepr<StringImmNode>();
+  RegisterScriptRepr<TensorLoadNode>();
+  RegisterScriptRepr<TupleTypeNode>();
+  RegisterScriptRepr<VarNode>();
+  RegisterScriptRepr<prim::AddNode>();
+  RegisterScriptRepr<prim::AndNode>();
+  RegisterScriptRepr<prim::BitwiseAndNode>();
+  RegisterScriptRepr<prim::BitwiseNotNode>();
+  RegisterScriptRepr<prim::BitwiseOrNode>();
+  RegisterScriptRepr<prim::BitwiseXorNode>();
+  RegisterScriptRepr<prim::BroadcastNode>();
+  RegisterScriptRepr<prim::CastNode>();
+  RegisterScriptRepr<prim::DivNode>();
+  RegisterScriptRepr<prim::EQNode>();
+  RegisterScriptRepr<prim::FloorDivNode>();
+  RegisterScriptRepr<prim::FloorModNode>();
+  RegisterScriptRepr<prim::GENode>();
+  RegisterScriptRepr<prim::GTNode>();
+  RegisterScriptRepr<prim::LENode>();
+  RegisterScriptRepr<prim::LShiftNode>();
+  RegisterScriptRepr<prim::LTNode>();
+  RegisterScriptRepr<prim::LetNode>();
+  RegisterScriptRepr<prim::MaxNode>();
+  RegisterScriptRepr<prim::MinNode>();
+  RegisterScriptRepr<prim::ModNode>();
+  RegisterScriptRepr<prim::MulNode>();
+  RegisterScriptRepr<prim::NENode>();
+  RegisterScriptRepr<prim::NotNode>();
+  RegisterScriptRepr<prim::OrNode>();
+  RegisterScriptRepr<prim::RShiftNode>();
+  RegisterScriptRepr<prim::RampNode>();
+  RegisterScriptRepr<prim::SelectNode>();
+  RegisterScriptRepr<prim::ShuffleNode>();
+  RegisterScriptRepr<prim::SubNode>();
+  RegisterScriptRepr<relax::BindingBlockNode>();
+  RegisterScriptRepr<relax::DataflowBlockNode>();
+  RegisterScriptRepr<relax::DataflowVarNode>();
+  RegisterScriptRepr<relax::ExternFuncNode>();
+  RegisterScriptRepr<relax::FuncTypeNode>();
+  RegisterScriptRepr<relax::FunctionNode>();
+  RegisterScriptRepr<relax::IfNode>();
+  RegisterScriptRepr<relax::MatchCastNode>();
+  RegisterScriptRepr<relax::PackedFuncTypeNode>();
+  RegisterScriptRepr<relax::SeqExprNode>();
+  RegisterScriptRepr<relax::ShapeExprNode>();
+  RegisterScriptRepr<relax::ShapeTypeNode>();
+  RegisterScriptRepr<relax::TensorTypeNode>();
+  RegisterScriptRepr<relax::TupleGetItemNode>();
+  RegisterScriptRepr<relax::TupleNode>();
+  RegisterScriptRepr<relax::VarBindingNode>();
+  RegisterScriptRepr<relax::distributed::DTensorTypeNode>();
+  RegisterScriptRepr<relax::distributed::DeviceMeshNode>();
+  RegisterScriptRepr<relax::distributed::PlacementNode>();
+  RegisterScriptRepr<te::CommReducerNode>();
+  RegisterScriptRepr<te::ReduceNode>();
+  RegisterScriptRepr<tirx::AssertStmtNode>();
+  RegisterScriptRepr<tirx::RegionStmtNode>();
+  RegisterScriptRepr<tirx::BindNode>();
+  RegisterScriptRepr<tirx::BreakNode>();
+  RegisterScriptRepr<tirx::TensorStoreNode>();
+  RegisterScriptRepr<tirx::TensorTypeNode>();
+  RegisterScriptRepr<tirx::ComposeLayoutNode>();
+  RegisterScriptRepr<tirx::ContinueNode>();
+  RegisterScriptRepr<tirx::EvaluateNode>();
+  RegisterScriptRepr<tirx::ExecScopeNode>();
+  RegisterScriptRepr<tirx::ForNode>();
+  RegisterScriptRepr<tirx::IfThenElseNode>();
+  RegisterScriptRepr<tirx::IndexMapNode>();
+  RegisterScriptRepr<tirx::IterNode>();
+  RegisterScriptRepr<s_tir::IterVarNode>();
+  RegisterScriptRepr<LambdaExprNode>();
+  RegisterScriptRepr<tirx::FunctionNode>();
+  RegisterScriptRepr<tirx::ReturnNode>();
+  RegisterScriptRepr<tirx::ScopeIdDefNode>();
+  RegisterScriptRepr<tirx::ScopeIdDefStmtNode>();
+  RegisterScriptRepr<tirx::SeqStmtNode>();
+  RegisterScriptRepr<tirx::TileLayoutNode>();
+  RegisterScriptRepr<tirx::TilePrimitiveCallNode>();
+  RegisterScriptRepr<tirx::WhileNode>();
+  RegisterScriptRepr<TensorRegionNode>();
 }
 
 }  // namespace tvm

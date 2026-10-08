@@ -17,12 +17,12 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 class CrossThreadReductionNode : public ScheduleRuleNode {
@@ -226,7 +226,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     // - If the lowest common ancestor is a loop, the target block is also the first consumer.
     const tirx::StmtSRef& lca_sref =
         s_tir::GetSRefLowestCommonAncestor(s_tir::SBlockRVs2StmtSRefs(sch, consumers));
-    if (consumers.size() > 1 && lca_sref->StmtAs<tirx::SBlockNode>() != nullptr) {
+    if (consumers.size() > 1 && lca_sref->StmtAs<s_tir::SBlockNode>() != nullptr) {
       return std::make_tuple(false, s_tir::LoopRV{ffi::UnsafeInit()},
                              s_tir::SBlockRV{ffi::UnsafeInit()}, s_tir::LoopRV{ffi::UnsafeInit()});
     }
@@ -262,7 +262,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     int n_tgt_block_loop = static_cast<int>(tgt_block_loops.size());
 
     for (int i = 0; i < n_block_loop && i < n_tgt_block_loop; ++i) {
-      if (s_tir::GetLoopIterType(sch->GetSRef(block_loops[i])) != tirx::IterVarType::kDataPar) {
+      if (s_tir::GetLoopIterType(sch->GetSRef(block_loops[i])) != s_tir::IterVarType::kDataPar) {
         return i - 1;
       } else if (sch->GetSRef(tgt_block_loops[i]).same_as(lca_sref)) {
         // If the lowest common ancestor is a loop, the compute location of the input block should

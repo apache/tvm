@@ -56,7 +56,7 @@ struct DDRAllocation : public Allocation {
     // to the heap manager may allocate memory that resides in part or in full in the cache. Hence,
     // we must invalidate the allocation from the cache to ensure that DMA with cache bypass enabled
     // will function properly. DMA with cache bypass enabled assumes that HexagonBuffer objects are
-    // not cached unless explicitly modified by the primfunc. We must invalidate after malloc to
+    // not cached unless explicitly modified by the function. We must invalidate after malloc to
     // uphold this assumption.
     qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(data_), nbytes, QURT_MEM_CACHE_INVALIDATE,
                          QURT_MEM_DCACHE);

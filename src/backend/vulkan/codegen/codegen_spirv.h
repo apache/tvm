@@ -24,8 +24,8 @@
 #ifndef TVM_TARGET_VULKAN_CODEGEN_SPIRV_H_
 #define TVM_TARGET_VULKAN_CODEGEN_SPIRV_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
@@ -50,9 +50,12 @@ using namespace tirx;
 /*!
  * \brief Code generator into SPIRV
  */
-class CodeGenSPIRV : public ExprFunctor<spirv::Value(const Expr&)>,
+class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
                      public StmtFunctor<void(const Stmt&)> {
  public:
+  using tirx::ExprFunctor<spirv::Value(const Expr&)>::Dispatch;
+  using StmtFunctor::Dispatch;
+
   /*!
    * \brief Initialize the codegen based on a specific target.
    *
@@ -67,55 +70,61 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const Expr&)>,
    * \param name The name of the target function.
    * \return The final spirv module.
    */
-  virtual runtime::SPIRVShader BuildFunction(const PrimFunc& f, const std::string& name);
+  virtual runtime::SPIRVShader BuildFunction(const Function& f, const std::string& name);
   /*!
    * \brief Create Value for expression e
    * \param e The expression to be created value for.
    * \return created value.
    */
-  spirv::Value MakeValue(const PrimExpr& e) { return VisitExpr(e); }
-  spirv::Value MakeValue(const Expr& e) { return VisitExpr(e); }
+  spirv::Value MakeValue(const PrimExpr& e) { return Dispatch(e); }
+  spirv::Value MakeValue(const Expr& e) { return Dispatch(e); }
   // override codegen
-  spirv::Value VisitExpr_(const VarNode* op) override;
-  spirv::Value VisitExpr_(const prim::CastNode* op) override;
-  spirv::Value VisitExpr_(const IntImmNode* op) override;
-  spirv::Value VisitExpr_(const FloatImmNode* op) override;
-  spirv::Value VisitExpr_(const prim::StringImmNode* op) override;
-  spirv::Value VisitExpr_(const prim::AddNode* op) override;
-  spirv::Value VisitExpr_(const prim::SubNode* op) override;
-  spirv::Value VisitExpr_(const prim::MulNode* op) override;
-  spirv::Value VisitExpr_(const prim::DivNode* op) override;
-  spirv::Value VisitExpr_(const prim::ModNode* op) override;
-  spirv::Value VisitExpr_(const prim::MinNode* op) override;
-  spirv::Value VisitExpr_(const prim::MaxNode* op) override;
-  spirv::Value VisitExpr_(const prim::LTNode* op) override;
-  spirv::Value VisitExpr_(const prim::LENode* op) override;
-  spirv::Value VisitExpr_(const prim::GTNode* op) override;
-  spirv::Value VisitExpr_(const prim::GENode* op) override;
-  spirv::Value VisitExpr_(const prim::EQNode* op) override;
-  spirv::Value VisitExpr_(const prim::NENode* op) override;
-  spirv::Value VisitExpr_(const prim::AndNode* op) override;
-  spirv::Value VisitExpr_(const prim::OrNode* op) override;
-  spirv::Value VisitExpr_(const prim::NotNode* op) override;
-  spirv::Value VisitExpr_(const prim::SelectNode* op) override;
-  spirv::Value VisitExpr_(const prim::LetNode* op) override;
-  spirv::Value VisitExpr_(const CallNode* op) override;
-  spirv::Value VisitExpr_(const prim::RampNode* op) override;
-  spirv::Value VisitExpr_(const prim::BroadcastNode* op) override;
-  spirv::Value VisitExpr_(const TensorLoadNode* op) override;
-  spirv::Value VisitExpr_(const prim::ShuffleNode* op) override;
+  spirv::Value Dispatch_(const VarNode* op) override;
+  spirv::Value Dispatch_(const prim::CastNode* op) override;
+  spirv::Value Dispatch_(const IntImmNode* op) override;
+  spirv::Value Dispatch_(const FloatImmNode* op) override;
+  spirv::Value Dispatch_(const StringImmNode* op) override;
+  spirv::Value Dispatch_(const prim::AddNode* op) override;
+  spirv::Value Dispatch_(const prim::SubNode* op) override;
+  spirv::Value Dispatch_(const prim::MulNode* op) override;
+  spirv::Value Dispatch_(const prim::DivNode* op) override;
+  spirv::Value Dispatch_(const prim::ModNode* op) override;
+  spirv::Value Dispatch_(const prim::MinNode* op) override;
+  spirv::Value Dispatch_(const prim::MaxNode* op) override;
+  spirv::Value Dispatch_(const prim::LTNode* op) override;
+  spirv::Value Dispatch_(const prim::LENode* op) override;
+  spirv::Value Dispatch_(const prim::GTNode* op) override;
+  spirv::Value Dispatch_(const prim::GENode* op) override;
+  spirv::Value Dispatch_(const prim::EQNode* op) override;
+  spirv::Value Dispatch_(const prim::NENode* op) override;
+  spirv::Value Dispatch_(const prim::AndNode* op) override;
+  spirv::Value Dispatch_(const prim::OrNode* op) override;
+  spirv::Value Dispatch_(const prim::NotNode* op) override;
+  spirv::Value Dispatch_(const prim::LShiftNode* op) override;
+  spirv::Value Dispatch_(const prim::RShiftNode* op) override;
+  spirv::Value Dispatch_(const prim::BitwiseAndNode* op) override;
+  spirv::Value Dispatch_(const prim::BitwiseOrNode* op) override;
+  spirv::Value Dispatch_(const prim::BitwiseXorNode* op) override;
+  spirv::Value Dispatch_(const prim::BitwiseNotNode* op) override;
+  spirv::Value Dispatch_(const prim::SelectNode* op) override;
+  spirv::Value Dispatch_(const prim::LetNode* op) override;
+  spirv::Value Dispatch_(const CallNode* op) override;
+  spirv::Value Dispatch_(const prim::RampNode* op) override;
+  spirv::Value Dispatch_(const prim::BroadcastNode* op) override;
+  spirv::Value Dispatch_(const TensorLoadNode* op) override;
+  spirv::Value Dispatch_(const prim::ShuffleNode* op) override;
   // stmt
-  void VisitStmt_(const BufferStoreNode* op) override;
-  void VisitStmt_(const ForNode* op) override;
-  void VisitStmt_(const WhileNode* op) override;
-  void VisitStmt_(const IfThenElseNode* op) override;
-  void VisitStmt_(const DeclBufferNode* op) override;
-  void VisitStmt_(const AllocBufferNode* op) override;
-  void VisitStmt_(const AttrStmtNode* op) override;
-  void VisitStmt_(const AssertStmtNode* op) override;
-  void VisitStmt_(const BindNode* op) override;
-  void VisitStmt_(const SeqStmtNode* op) override;
-  void VisitStmt_(const EvaluateNode* op) override;
+  void Dispatch_(const TensorStoreNode* op) override;
+  void Dispatch_(const ForNode* op) override;
+  void Dispatch_(const WhileNode* op) override;
+  void Dispatch_(const IfThenElseNode* op) override;
+  void DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call);
+  void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
+  void Dispatch_(const RegionStmtNode* op) override;
+  void Dispatch_(const AssertStmtNode* op) override;
+  void Dispatch_(const BindNode* op) override;
+  void Dispatch_(const SeqStmtNode* op) override;
+  void Dispatch_(const EvaluateNode* op) override;
 
  protected:
   /*! \brief Storage information for a buffer */
@@ -132,7 +141,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const Expr&)>,
     /*! \brief Whether the element type of the buffer is known.
      *
      * This value is determined based on the type_annotation of the
-     * buffer variable (AllocBufferNode) or of the parameter (shader
+     * buffer variable (alloc_tensor binding) or of the parameter (shader
      * arguments).
      */
     bool element_type_known{false};
@@ -140,7 +149,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const Expr&)>,
     /*! \brief The known element type of the buffer.
      *
      * This value is determined based on the type_annotation of the
-     * buffer variable (AllocBufferNode) or of the parameter (shader
+     * buffer variable (alloc_tensor binding) or of the parameter (shader
      * arguments).
      */
     PrimType element_type{PrimType::Void()};
@@ -187,7 +196,8 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const Expr&)>,
   // Reset the state so it works for a new function.
   void InitFuncState();
   // Get the thread index
-  spirv::Value GetThreadIndex(const IterVar& iv, const PrimExpr& extent);
+  spirv::Value GetThreadIndex(const PrimVar& var, const ffi::String& thread_tag,
+                              const PrimExpr& extent);
 
   spirv::Value CreateStorageSync(const CallNode* op);
   void Scalarize(const PrimExpr& e, std::function<void(int i, spirv::Value v)> f);
@@ -220,13 +230,15 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const Expr&)>,
   std::unordered_map<const VarNode*, StorageInfo> storage_info_;
 
   // The definition of local variable.
+  /*! \brief Extents of physical thread axes in the current function. */
+  std::unordered_map<std::string, PrimExpr> thread_extents_;
   std::unordered_map<const VarNode*, spirv::Value> var_map_;
 
   // The analyzer.
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 
   // deep comparison of PrimExpr
-  ExprDeepEqual deep_equal_;
+  prim::ExprDeepEqual deep_equal_;
 
   // binding of let variables. Enables duplicate var defs that map to same value
   std::unordered_map<Var, const prim::LetNode*> let_binding_;

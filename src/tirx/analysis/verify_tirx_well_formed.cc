@@ -22,10 +22,11 @@
  * \brief Check if the TIRX program is well-formed.
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/op.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
@@ -37,9 +38,9 @@
 #include <tuple>
 #include <variant>
 
-#include "../ir/functor_common.h"
 #include "../ir/tir_visitor_with_path.h"
 #include "tvm/ir/module.h"
+#include "verify_well_formed.h"
 
 namespace tvm {
 namespace tirx {
@@ -51,16 +52,7 @@ class ExecScopeVerifier : public Verifier<ExecScopeVerifier> {
  private:
   using Verifier::Visit;
 
-  void VisitStmt_(const SBlockNode* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: SBlock is not allowed in tirx=True mode at " << path;
-  }
-
-  void VisitStmt_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: SBlockRealize is not allowed in tirx=True mode at " << path;
-  }
-
-  void VisitStmt_(const tirx::TilePrimitiveCallNode* op,
-                  ffi::reflection::AccessPath path) override {
+  void Dispatch_(const tirx::TilePrimitiveCallNode* op, ffi::reflection::AccessPath path) override {
     static const auto& category_map = Op::GetAttrMap<tirx::TIRxOpCategory>("TIRxOpCategory");
     Verify(category_map.get(op->op, ffi::String("")) == "tile_primitive")
         << "TIRxError: TilePrimitiveCall at " << path << " has non-tile op " << op->op;
@@ -74,12 +66,12 @@ class ScopeIdVerifier : public Verifier<ScopeIdVerifier> {
  private:
   using Verifier::Visit;
 
-  void VisitStmt_(const AttrStmtNode* op, ffi::reflection::AccessPath path) override {
-    if (op->attr_key == tvm::tirx::attr::kDeviceEntry) {
+  void Dispatch_(const RegionStmtNode* op, ffi::reflection::AccessPath path) override {
+    if (op->op.same_as(tirx::builtin::device_entry())) {
       // Device-region marker: defs gathered from the body are verified when
-      // the AttrStmt exits, with launch-param sanity enforced as ``is_root``.
+      // the region exits, with launch-param sanity enforced as ``is_root``.
       size_t baseline = scope_id_def_.size();
-      Verifier::VisitStmt_(op, path);
+      Verifier::Dispatch_(op, path);
       size_t total = scope_id_def_.size();
       if (total > baseline) {
         RunScopeIdVerify(path, baseline, /*is_root=*/true);
@@ -89,7 +81,7 @@ class ScopeIdVerifier : public Verifier<ScopeIdVerifier> {
       }
       return;
     }
-    Verifier::VisitStmt_(op, path);
+    Verifier::Dispatch_(op, path);
   }
 
   void RunScopeIdVerify(ffi::reflection::AccessPath path, size_t baseline, bool is_root) {
@@ -118,13 +110,13 @@ class ScopeIdVerifier : public Verifier<ScopeIdVerifier> {
     }
   }
 
-  void VisitStmt_(const ScopeIdDefStmtNode* op, ffi::reflection::AccessPath path) override {
+  void Dispatch_(const ScopeIdDefStmtNode* op, ffi::reflection::AccessPath path) override {
     scope_id_def_.push_back(op->def);
-    Verifier::VisitStmt_(op, path);
+    Verifier::Dispatch_(op, path);
   }
 
   Array<ScopeIdDef> scope_id_def_;
-  arith::Analyzer ana_;
+  sym::Analyzer ana_;
 };
 
 class LayoutVerifier : public Verifier<LayoutVerifier> {
@@ -133,14 +125,6 @@ class LayoutVerifier : public Verifier<LayoutVerifier> {
 
  private:
   using Verifier::Visit;
-
-  void VisitStmt_(const SBlockNode* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: SBlock is not allowed in tirx=True mode at " << path;
-  }
-
-  void VisitStmt_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: SBlockRealize is not allowed in tirx=True mode at " << path;
-  }
 };
 
 class AsyncStructsVerifier : public Verifier<AsyncStructsVerifier> {
@@ -149,14 +133,6 @@ class AsyncStructsVerifier : public Verifier<AsyncStructsVerifier> {
 
  private:
   using Verifier::Visit;
-
-  void VisitStmt_(const SBlockNode* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: SBlock is not allowed in tirx=True mode at " << path;
-  }
-
-  void VisitStmt_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: SBlockRealize is not allowed in tirx=True mode at " << path;
-  }
 };
 
 class DeviceFuncVerifier : public Verifier<DeviceFuncVerifier> {
@@ -165,17 +141,9 @@ class DeviceFuncVerifier : public Verifier<DeviceFuncVerifier> {
 
  private:
   using Verifier::Visit;
-
-  void VisitStmt_(const SBlockNode* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: SBlock is not allowed in tirx=True mode at " << path;
-  }
-
-  void VisitStmt_(const SBlockRealizeNode* op, ffi::reflection::AccessPath path) override {
-    Verify(false) << "TIRxError: SBlockRealize is not allowed in tirx=True mode at " << path;
-  }
 };
 
-bool VerifyTIRxWellFormed(const PrimFunc& func, bool assert_mode, bool device_func) {
+bool VerifyTIRxWellFormed(const Function& func, bool assert_mode, bool device_func) {
   if (!ExecScopeVerifier::Verify(func, assert_mode)) {
     return false;
   }
@@ -198,13 +166,8 @@ bool VerifyTIRxWellFormed(const PrimFunc& func, bool assert_mode, bool device_fu
 
 bool VerifyTIRxWellFormed(const IRModule& mod, bool assert_mode, bool device_func) {
   for (const auto& [gvar, base_func] : mod->functions) {
-    if (auto prim_func = base_func.as<PrimFunc>()) {
-      // s_tir=True PrimFuncs use s_tir semantics — defer to VerifyWellFormed.
-      if (prim_func.value()->attrs->dict.count(tvm::attr::kSTir)) {
-        if (!VerifyWellFormed(prim_func.value(), assert_mode)) return false;
-        continue;
-      }
-      bool res = VerifyTIRxWellFormed(prim_func.value(), assert_mode, device_func);
+    if (auto function = base_func.as<Function>()) {
+      bool res = VerifyTIRxWellFormed(function.value(), assert_mode, device_func);
       if (!res) {
         return false;
       }
@@ -217,12 +180,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.analysis.VerifyTIRxWellFormed",
                         [](const ffi::ObjectRef& obj, bool assert_mode, bool device_func) {
-                          if (auto n = obj.as<PrimFunc>()) {
+                          if (auto n = obj.as<Function>()) {
                             return VerifyTIRxWellFormed(n.value(), assert_mode, device_func);
                           } else if (auto n = obj.as<IRModule>()) {
                             return VerifyTIRxWellFormed(n.value(), assert_mode, device_func);
                           } else {
-                            LOG(FATAL) << "Expects PrimFunc or IRModule,  but get "
+                            LOG(FATAL) << "Expects Function or IRModule,  but get "
                                        << obj->GetTypeKey() << " instead.";
                             return false;
                           }

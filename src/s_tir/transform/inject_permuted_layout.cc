@@ -21,25 +21,25 @@
  * \file inject_permuted_layout.cc
  * \brief The pass injects permuted layout for shared memory buffers to avoid bank conflicts.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/stmt_functor.h>
 
-#include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../runtime/thread_storage_scope.h"
+#include "../../s_tir/ir/ir_mutator_with_analyzer.h"
 #include "../../support/utils.h"
 #include "../../tirx/transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
-using namespace arith;
+using namespace sym;
 using namespace runtime;
 
 namespace {
@@ -57,36 +57,38 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
 
 }  // namespace
 
-class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
+class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
  public:
-  static PrimFunc Transform(PrimFunc func) {
+  using IRMutatorWithAnalyzer::Mutate;
+  using IRMutatorWithAnalyzer::Mutate_;
+
+  static Function Transform(Function func) {
     Analyzer analyzer;
 
-    auto new_body = PermutedLayoutInjector(func, analyzer)(func->body);
+    auto new_body = ffi::make_object<PermutedLayoutInjector>(func, analyzer)
+                        ->Mutate(func->body)
+                        .ValueOrUnchanged(func->body);
     auto func_node = func.CopyOnWrite();
     func_node->body = new_body;
     return func;
   }
 
- private:
-  explicit PermutedLayoutInjector(PrimFunc func, const Analyzer& analyzer)
+  explicit PermutedLayoutInjector(Function func, const Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer) {
     for (const Var& param : func->params) {
-      if (auto buffer = param.as<BufferVar>()) {
+      if (auto buffer = param.as<TensorVar>()) {
         buffer_map_.insert({buffer.value().var(), buffer.value()});
       }
     }
   }
 
-  using IRMutatorWithAnalyzer::VisitExpr_;
-  using IRMutatorWithAnalyzer::VisitStmt_;
-
+ private:
   ffi::Array<PrimExpr> PermuteIndices(PrimExpr row_idx, PrimExpr col_idx, int row_size) {
     TVM_FFI_ICHECK(permute_);
     // Index after vectorizing by 8
     PrimExpr col_idx_outer = floordiv(col_idx, VECTORIZE_FACTOR),
              col_idx_inner = floormod(col_idx, VECTORIZE_FACTOR);
-    PrimExpr new_col_idx_outer;
+    PrimExpr new_col_idx_outer{ffi::UnsafeInit{}};
     if (row_size % 64 == 0) {
       // Use 8 * 8 permuted layout
       // Every number below corresponds to 8 consecutive fp16 number in shared mem, i.e. one read
@@ -138,7 +140,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     }
   }
 
-  Stmt VisitStmt_(const SBlockNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     // Record the mapping from buffer identity to buffer for later lookup.
     for (auto buffer : op->alloc_buffers) {
       buffer_map_.insert({buffer.var(), buffer});
@@ -149,13 +151,15 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
 
     if (op->annotations.count("permuted_layout") == 0 ||
         !CheckAnnotation(op->annotations.at("permuted_layout"))) {
-      return IRMutatorWithAnalyzer::VisitStmt_(op);
+      return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
     }
 
     auto prev_permute = permute_;
     permute_ = true;
 
-    SBlock block = IRMutatorWithAnalyzer::VisitStmt_(op).as_or_throw<SBlock>();
+    SBlock block = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                       .as_or_throw<SBlock>();
 
     permute_ = prev_permute;
 
@@ -165,9 +169,9 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return block;
   }
 
-  int CheckAndGetBufferRowSize(BufferVar buffer) {
+  int CheckAndGetBufferRowSize(TensorVar buffer) {
     TVM_FFI_ICHECK(buffer->shape.size() >= 2)
-        << "The dimension of BufferVar \"" << buffer.name() << "\" with shape " << buffer->shape
+        << "The dimension of TensorVar \"" << buffer.name() << "\" with shape " << buffer->shape
         << " should be at least 2";
 
     auto dim = buffer->shape.size();
@@ -176,19 +180,19 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
 
     if (buffer_row_size % 64 != 0) {
       TVM_FFI_ICHECK(buffer_row_size % 32 == 0)
-          << "Permuted SLayout for BufferVar \"" << buffer.name() << "\" with shape "
+          << "Permuted SLayout for TensorVar \"" << buffer.name() << "\" with shape "
           << buffer->shape << " is not supported since its second dimension is not divisible by 32";
       TVM_FFI_ICHECK(buffer_col_size % 2 == 0)
-          << "Permuted SLayout for BufferVar \"" << buffer.name() << "\" with shape "
+          << "Permuted SLayout for TensorVar \"" << buffer.name() << "\" with shape "
           << buffer->shape
           << " is not supported since its first dimension is not divisible by 2 and second "
              "dimension is not divisible by 64";
     }
 
-    return buffer_row_size;
+    return buffer_row_size.as<int>().value();
   }
 
-  ffi::Array<PrimExpr> HandleBufferIndices(BufferVar buffer, ffi::Array<PrimExpr> indices) {
+  ffi::Array<PrimExpr> HandleTensorIndices(TensorVar buffer, ffi::Array<PrimExpr> indices) {
     auto buffer_row_size = CheckAndGetBufferRowSize(buffer);
 
     // Mutate the last two indices
@@ -201,11 +205,13 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return indices;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     // Rewrite write from global to shared.dyn or shared
     // We assume the shape of the shared memory is [..., row_size, col_size],
     // where row_size is divisible by 64, or divisible by 32 and col_size is divisible by 2.
-    auto store = IRMutatorWithAnalyzer::VisitStmt_(op).as_or_throw<BufferStore>();
+    auto store = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+                     .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                     .as_or_throw<TensorStore>();
 
     if (!permute_ || store->buffer->shape.size() < 2) {
       return store;
@@ -217,26 +223,28 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     }
 
     auto store_node = store.CopyOnWrite();
-    store_node->indices = HandleBufferIndices(store_node->buffer, store_node->indices);
+    store_node->indices = HandleTensorIndices(store_node->buffer, store_node->indices);
     return store;
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     // Rewrite load from shared or shared.dyn to global
-    auto load = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<TensorLoad>();
+    auto load = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+                    .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
+                    .as_or_throw<TensorLoad>();
 
-    if (!permute_ || load->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size() < 2) {
+    if (!permute_ || load->source.as_or_throw<tvm::tirx::TensorVar>()->shape.size() < 2) {
       return load;
     }
 
-    auto scope = StorageScope::Create(load->source.as_or_throw<tvm::tirx::BufferVar>().scope());
+    auto scope = StorageScope::Create(load->source.as_or_throw<tvm::tirx::TensorVar>().scope());
     if (scope.rank != StorageRank::kShared) {
       return load;
     }
 
-    return BufferLoad(
-        load->source.as_or_throw<tvm::tirx::BufferVar>(),
-        HandleBufferIndices(load->source.as_or_throw<tvm::tirx::BufferVar>(), load->indices),
+    return MakeTensorLoad(
+        load->source.as_or_throw<tvm::tirx::TensorVar>(),
+        HandleTensorIndices(load->source.as_or_throw<tvm::tirx::TensorVar>(), load->indices),
         load->span);
   }
 
@@ -272,16 +280,18 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return access_ptr_call;
   }
 
-  Expr VisitExpr_(const CallNode* op) final {
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     // Rewrite from/to shared or shared.dyn to/from local
-    auto call = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<Call>();
+    auto call = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+                    .ValueOrUnchanged(ffi::GetRef<Expr>(op))
+                    .as_or_throw<Call>();
 
     if (!permute_) {
       return call;
     }
 
-    static const Op& ptx_ldmatrix_op = Op::Get("tirx.ptx_legacy.ldmatrix");
-    static const Op& mma_store_op = Op::Get("tirx.mma_store_legacy");
+    static const Op ptx_ldmatrix_op = Op::Get("tirx.ptx_legacy.ldmatrix");
+    static const Op mma_store_op = Op::Get("tirx.mma_store_legacy");
     if (!call->op.same_as(ptx_ldmatrix_op) && !call->op.same_as(mma_store_op)) {
       return call;
     }
@@ -298,7 +308,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
       return call;
     } else if (call->op.same_as(mma_store_op)) {
       // TODO(yixin): mma_store is not fully tested yet
-      // because we will directly store result to BufferVar instead of calling mma_store now
+      // because we will directly store result to TensorVar instead of calling mma_store now
       Expr access_ptr = call->args[2];
       auto new_access_ptr = HandleAccessPtrAndOffset(access_ptr);
       auto new_call = call.CopyOnWrite();
@@ -312,18 +322,18 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
   static constexpr size_t VECTORIZE_FACTOR = 8;
   static constexpr size_t BANK_SIZE_BYTES = 128;
 
-  // Mapping from data Var of a BufferVar to BufferVar, for lookup
-  std::unordered_map<Var, BufferVar> buffer_map_;
+  // Mapping from data Var of a TensorVar to TensorVar, for lookup
+  std::unordered_map<Var, TensorVar> buffer_map_;
   bool permute_ = false;
 };
 
 namespace transform {
 
 Pass InjectPermutedLayout() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     return PermutedLayoutInjector::Transform(std::move(f));
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.InjectPermutedLayout", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.InjectPermutedLayout", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

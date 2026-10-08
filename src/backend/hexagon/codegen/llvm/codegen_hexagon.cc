@@ -79,8 +79,8 @@ class CodeGenHexagon final : public CodeGenCPU {
             bool target_c_runtime) override;
   void InitTarget() final;
 
-  using CodeGenCPU::VisitStmt_;
-  llvm::Value* VisitExpr_(const TensorLoadNode* op) override;
+  using CodeGenCPU::Dispatch_;
+  llvm::Value* Dispatch_(const TensorLoadNode* op) override;
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
 
   llvm::Value* CreateCallExtern(Type ret_type, ffi::String global_symbol,
@@ -107,7 +107,7 @@ class CodeGenHexagon final : public CodeGenCPU {
 
   bool IsQHLFunction(const std::string& func);
 
-  llvm::Value* VectorLookupLoad(BufferVar buffer, PrimType buffer_type,
+  llvm::Value* VectorLookupLoad(TensorVar buffer, PrimType buffer_type,
                                 ffi::Array<PrimExpr> indices);
   llvm::Value* Intrinsic(llvm::Intrinsic::ID, llvm::ArrayRef<llvm::Value*> args);
   std::vector<std::string> fqhl_list_ = {
@@ -199,39 +199,18 @@ llvm::Value* CodeGenHexagon::CreateCallExtern(Type ret_type, ffi::String global_
   return CodeGenCPU::CreateCallExtern(ret_type, global_symbol, args, skip_first_arg);
 }
 
-llvm::Value* CodeGenHexagon::VisitExpr_(const TensorLoadNode* op) {
+llvm::Value* CodeGenHexagon::Dispatch_(const TensorLoadNode* op) {
   // Check if we can generate a vector lookup.
   if (!op->indices[0].as<prim::RampNode>()) {
-    if (auto* vlut = VectorLookupLoad(op->source.as_or_throw<tvm::tirx::BufferVar>(),
+    if (auto* vlut = VectorLookupLoad(op->source.as_or_throw<tvm::tirx::TensorVar>(),
                                       op->ty.as_or_throw<PrimType>(), op->indices)) {
       return vlut;
     }
   }
-  return CodeGenCPU::VisitExpr_(op);
+  return CodeGenCPU::Dispatch_(op);
 }
 
 llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
-  if (op->op.same_as(builtin::start_profile_intrinsic()) ||
-      op->op.same_as(builtin::end_profile_intrinsic())) {
-    llvm::Value* id = MakeValue(op->args[0].as_or_throw<PrimExpr>());
-    auto instrprof_id = llvm::Intrinsic::hexagon_instrprof_custom;
-#if TVM_LLVM_VERSION >= 200
-    llvm::Function* func = llvm::cast<llvm::Function>(
-        llvm::Intrinsic::getOrInsertDeclaration(module_.get(), instrprof_id, {}));
-#else
-    llvm::Function* func = llvm::Intrinsic::getDeclaration(module_.get(), instrprof_id);
-#endif
-    llvm::GlobalVariable* name_var = module_->getGlobalVariable("handler_name");
-    if (!name_var) {
-      llvm::StringRef init_str = "lwp_handler";
-      llvm::Constant* init = llvm::ConstantDataArray::getString(module_->getContext(), init_str);
-
-      name_var = new llvm::GlobalVariable(*module_, init->getType(), true,
-                                          llvm::GlobalValue::InternalLinkage, init, "handler_name");
-    }
-    llvm::Type* t_int8_p_ = llvmGetPointerTo(t_int8_, 0);
-    return builder_->CreateCall(func, {llvm::ConstantExpr::getBitCast(name_var, t_int8_p_), id});
-  }
   return CodeGenCPU::CreateIntrinsic(op);
 }
 
@@ -327,7 +306,7 @@ llvm::Value* CodeGenHexagon::Intrinsic(llvm::Intrinsic::ID IntID,
   return builder_->CreateCall(intf_callee, conv_args);
 }
 
-llvm::Value* CodeGenHexagon::VectorLookupLoad(BufferVar buffer, PrimType buffer_type,
+llvm::Value* CodeGenHexagon::VectorLookupLoad(TensorVar buffer, PrimType buffer_type,
                                               ffi::Array<PrimExpr> indices) {
   PrimExpr index = indices[0];
   PrimType index_ty = index.ty();
@@ -337,7 +316,8 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(BufferVar buffer, PrimType buffer_
 
   if (buffer_type.bits() != 8) return nullptr;
 
-  int table_elem_count = arith::Analyzer()->Simplify(buffer->shape[0]).as<IntImmNode>()->value;
+  int table_elem_count =
+      sym::Analyzer()->Simplify(buffer->shape[0]).as<IntImmNode>()->value.as<int>().value();
   if (table_elem_count <= 0 || table_elem_count > 256) return nullptr;
 
   auto int32 = PrimType::Int(32);
@@ -352,9 +332,9 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(BufferVar buffer, PrimType buffer_
   PrimType table_type = buffer_type.WithLanes(table_elem_count);
 
   auto table_all = MakeValue(
-      BufferLoad(buffer, {
-                             prim::Ramp(IntImm(int32, 0), IntImm(int32, 1), table_elem_count),
-                         }));
+      MakeTensorLoad(buffer, {
+                                 prim::Ramp(IntImm(int32, 0), IntImm(int32, 1), table_elem_count),
+                             }));
 
   // The number of value vectors should be a power of 2.
   int table_vec_count = llvm::PowerOf2Ceil(GetVectorBytes(table_type) / native_vector_bytes);
@@ -484,12 +464,12 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
   std::string entry_func;
 
   for (auto kv : mod->functions) {
-    if (!kv.second->IsInstance<PrimFuncNode>()) {
+    if (!kv.second->IsInstance<FunctionNode>()) {
       // (@jroesch): we relax constraints here, relax functions will just be ignored.
-      DLOG(INFO) << "Can only lower IR Module with PrimFuncs, but got " << kv.second->GetTypeKey();
+      DLOG(INFO) << "Can only lower IR Module with Functions, but got " << kv.second->GetTypeKey();
       continue;
     }
-    auto f = kv.second.as_or_throw<PrimFunc>();
+    auto f = kv.second.as_or_throw<Function>();
     if (f->HasNonzeroAttr(tirx::attr::kIsEntryFunc)) {
       auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
       TVM_FFI_ICHECK(global_symbol.has_value());
@@ -567,7 +547,7 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
   TVM_FFI_ICHECK(f.has_value()) << "tvm.contrib.hexagon.link_shared does not to exist, "
                                    "do import tvm.contrib.hexagon";
 
-  ffi::Array<PrimExpr> o_names = {prim::StringImm(o_name)};
+  ffi::Array<Expr> o_names = {StringImm(o_name)};
   ffi::Map<ffi::String, ffi::String> extra_args;
   if (target->attrs.count("mcpu")) {
     std::string mcpu = target->attrs.at("mcpu").as_or_throw<ffi::String>();

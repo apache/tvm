@@ -56,6 +56,184 @@ def setup_cuda_compile_mode(request):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_cuda_host_bundle(tmp_path):
+    from shutil import which
+
+    import tvm_ffi.cpp
+
+    from tvm.backend.cuda import export_cuda_host
+
+    if which("nvcc") is None:
+        pytest.skip("CUDA-host compilation requires NVCC")
+
+    @T.function
+    def add_one(A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float32")):
+        for tx in T.thread_binding(32, "threadIdx.x"):
+            B[tx] = A[tx] + T.float32(1)
+
+    target = tvm.target.Target("cuda", host="cuda_host")
+    built = tvm.compile(add_one, target=target).mod
+    source = export_cuda_host(built)
+    assert source.index("__global__") < source.index("cudaLaunchKernelEx")
+    library = tvm_ffi.cpp.build_inline(
+        name="cuda_host_add_one",
+        cuda_sources=source,
+        extra_cuda_cflags=[f"-arch={target.arch}"],
+        build_directory=str(tmp_path),
+        backend="cuda",
+    )
+    loaded = tvm_ffi.load_module(library)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        values = np.arange(32, dtype="float32")
+        a = tvm.runtime.tensor(values, dev)
+        b = tvm.runtime.empty((32,), "float32", dev)
+        loaded["add_one"](a, b)
+        tvm.testing.assert_allclose(b.numpy(), values + 1)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_cuda_host_bundle_bf16_cluster(tmp_path):
+    """bfloat16 pointers and cluster launch attributes in a CUDA-host bundle."""
+    from shutil import which
+
+    import tvm_ffi.cpp
+
+    from tvm.backend.cuda import export_cuda_host
+
+    ml_dtypes = pytest.importorskip("ml_dtypes")
+    if which("nvcc") is None:
+        pytest.skip("CUDA-host compilation requires NVCC")
+    if int(tvm.cuda(0).compute_version.split(".")[0]) < 9:
+        pytest.skip("thread block clusters require SM90 or newer")
+
+    @T.function
+    def main(
+        A: T.Tensor((128,), "bfloat16"),
+        B: T.Tensor((128,), "bfloat16"),
+        R: T.Tensor((4,), "int32"),
+    ):
+        T.device_entry()
+        for cx in T.thread_binding(2, thread="clusterCtaIdx.x"):
+            for bx in T.thread_binding(4, thread="blockIdx.x"):
+                for tx in T.thread_binding(32, thread="threadIdx.x"):
+                    B[bx * 32 + tx] = A[bx * 32 + tx] + T.bfloat16(1)
+                    if tx == 0:
+                        R[bx] = cx
+
+    arch = env.cuda_arch()
+    target = tvm.target.Target({"kind": "cuda", "arch": arch}, host="cuda_host")
+    with target:
+        built = tvm.compile(tvm.IRModule({"main": main}), target=target, tir_pipeline="tirx").mod
+    source = export_cuda_host(built)
+    assert "cudaLaunchAttributeClusterDimension" in source
+    library = tvm_ffi.cpp.build_inline(
+        name="cuda_host_bf16_cluster",
+        cuda_sources=source,
+        extra_cuda_cflags=[f"-arch={arch}"],
+        build_directory=str(tmp_path),
+        backend="cuda",
+    )
+    loaded = tvm_ffi.load_module(library)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        values = np.arange(128).astype(ml_dtypes.bfloat16)
+        a = tvm.runtime.tensor(values, dev)
+        b = tvm.runtime.empty((128,), "bfloat16", dev)
+        r = tvm.runtime.empty((4,), "int32", dev)
+        loaded["main"](a, b, r)
+        tvm.testing.assert_allclose(b.numpy().astype("float32"), np.arange(128) + 1)
+        # Each CTA reports its rank within a two-CTA cluster.
+        np.testing.assert_array_equal(r.numpy(), [0, 1, 0, 1])
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_cuda_host_bundle_programmatic_dependent_launch(tmp_path):
+    """A programmatic-dependent-launch flag becomes a launch attribute."""
+    from shutil import which
+
+    import tvm_ffi.cpp
+
+    from tvm.backend.cuda import export_cuda_host
+
+    if which("nvcc") is None:
+        pytest.skip("CUDA-host compilation requires NVCC")
+    if int(tvm.cuda(0).compute_version.split(".")[0]) < 9:
+        pytest.skip("programmatic dependent launch requires SM90 or newer")
+
+    @T.function
+    def add_one(A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float32")):
+        T.func_attr({"tirx.kernel_launch_params": ["tirx.use_programtic_dependent_launch"]})
+        for tx in T.thread_binding(32, "threadIdx.x"):
+            B[tx] = A[tx] + T.float32(1)
+
+    target = tvm.target.Target("cuda", host="cuda_host")
+    source = export_cuda_host(tvm.compile(add_one, target=target).mod)
+    assert "cudaLaunchAttributeProgrammaticStreamSerialization" in source
+    library = tvm_ffi.cpp.build_inline(
+        name="cuda_host_programmatic_dependent_launch",
+        cuda_sources=source,
+        extra_cuda_cflags=[f"-arch={target.arch}"],
+        build_directory=str(tmp_path),
+        backend="cuda",
+    )
+    loaded = tvm_ffi.load_module(library)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        values = np.arange(32, dtype="float32")
+        a = tvm.runtime.tensor(values, dev)
+        b = tvm.runtime.empty((32,), "float32", dev)
+        loaded["add_one"](a, b)
+        tvm.testing.assert_allclose(b.numpy(), values + 1)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_cuda_host_bundle_tensor_map_parameter(tmp_path, monkeypatch):
+    """A tensor-map parameter handle compiles in the C++ host wrapper."""
+    from shutil import which
+
+    import tvm_ffi.cpp
+
+    from tvm.backend.cuda import export_cuda_host
+
+    if which("nvcc") is None:
+        pytest.skip("CUDA-host compilation requires NVCC")
+
+    @T.function
+    def main(A_map: T.TensorMap()):
+        T.device_entry()
+        tx = T.thread_id([32])
+        if tx == 0:
+            T.evaluate(T.address_of(A_map))
+
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"}, host="cuda_host")
+    with target:
+        built = tvm.compile(tvm.IRModule({"main": main}), target=target, tir_pipeline="tirx").mod
+    source = export_cuda_host(built)
+    assert "(CUtensorMap*)" in source
+    monkeypatch.setenv("TVM_FFI_CUDA_ARCH_LIST", "9.0a")
+    tvm_ffi.cpp.build_inline(
+        name="cuda_host_tensor_map_parameter",
+        cuda_sources=source,
+        build_directory=str(tmp_path),
+        backend="cuda",
+    )
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_vectorize_add():
     num_thread = 8
 
@@ -70,19 +248,15 @@ def test_cuda_vectorize_add():
         one = tvm.tirx.const(1, vec_dtype)
         num_blocks = (n + num_thread - 1) // num_thread
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
-            def main(A: T.Buffer((n,), vec_dtype), B: T.Buffer((n,), vec_dtype)):
+            @T.function
+            def main(A: T.Tensor((n,), vec_dtype), B: T.Tensor((n,), vec_dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(num_thread, thread="threadIdx.x"):
-                        with T.sblock("B"):
-                            v_i = T.axis.spatial(n, i_0 * num_thread + i_1)
-                            T.where(i_0 * num_thread + i_1 < n)
-                            T.reads(A[v_i])
-                            T.writes(B[v_i])
-                            B[v_i] = A[v_i] + one
+                        if i_0 * num_thread + i_1 < n:
+                            B[i_0 * num_thread + i_1] = A[i_0 * num_thread + i_1] + one
 
         fun = tvm.compile(Module, target="cuda")
 
@@ -136,18 +310,14 @@ def test_cuda_bf16_vectorize_add():
         num_blocks = n // num_thread
         one = tvm.tirx.Broadcast(tvm.tirx.const(1, "bfloat16"), lanes)
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
-            def main(A: T.Buffer((n,), vec_dtype), B: T.Buffer((n,), vec_dtype)):
+            @T.function
+            def main(A: T.Tensor((n,), vec_dtype), B: T.Tensor((n,), vec_dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(num_thread, thread="threadIdx.x"):
-                        with T.sblock("B"):
-                            v_i = T.axis.spatial(n, i_0 * num_thread + i_1)
-                            T.reads(A[v_i])
-                            T.writes(B[v_i])
-                            B[v_i] = A[v_i] + one
+                        B[i_0 * num_thread + i_1] = A[i_0 * num_thread + i_1] + one
 
         with tvm.transform.PassContext(
             disabled_pass=["tirx.BF16Promote", "tirx.BF16CastElimination", "tirx.BF16TypeLowering"]
@@ -184,23 +354,25 @@ def test_cuda_multiply_add():
         vec_dtype = f"{dtype}x{lanes}"
         num_blocks = n // num_thread
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
+            @T.function
             def main(
-                A: T.Buffer((n,), vec_dtype),
-                B: T.Buffer((n,), vec_dtype),
-                C: T.Buffer((n,), "int32"),
-                D: T.Buffer((n,), "int32"),
+                A: T.Tensor((n,), vec_dtype),
+                B: T.Tensor((n,), vec_dtype),
+                C: T.Tensor((n,), "int32"),
+                D: T.Tensor((n,), "int32"),
             ):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(num_thread, thread="threadIdx.x"):
-                        with T.sblock("D"):
-                            v_i = T.axis.spatial(n, i_0 * num_thread + i_1)
-                            T.reads(A[v_i], B[v_i], C[v_i])
-                            T.writes(D[v_i])
-                            D[v_i] = T.call_pure_extern("int32", "__dp4a", A[v_i], B[v_i], C[v_i])
+                        D[i_0 * num_thread + i_1] = T.call_pure_extern(
+                            "int32",
+                            "__dp4a",
+                            A[i_0 * num_thread + i_1],
+                            B[i_0 * num_thread + i_1],
+                            C[i_0 * num_thread + i_1],
+                        )
 
         fun = tvm.compile(Module, target="cuda")
 
@@ -232,18 +404,14 @@ def test_cuda_vectorize_load():
         vec_dtype = f"{dtype}x{lanes}"
         num_blocks = n // num_thread
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
-            def main(A: T.Buffer((n,), vec_dtype), B: T.Buffer((n,), vec_dtype)):
+            @T.function
+            def main(A: T.Tensor((n,), vec_dtype), B: T.Tensor((n,), vec_dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(num_thread, thread="threadIdx.x"):
-                        with T.sblock("B"):
-                            v_i = T.axis.spatial(n, i_0 * num_thread + i_1)
-                            T.reads(A[v_i])
-                            T.writes(B[v_i])
-                            B[v_i] = A[v_i]
+                        B[i_0 * num_thread + i_1] = A[i_0 * num_thread + i_1]
 
         fun = tvm.compile(Module, target="cuda")
 
@@ -271,18 +439,14 @@ def test_cuda_make_int8():
         dtype = "int8"
         const_value = tvm.tirx.const(value, dtype=dtype)
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
-            def main(A: T.Buffer((n, lanes), dtype)):
+            @T.function
+            def main(A: T.Tensor((n, lanes), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(n, thread="blockIdx.x"):
                     for j in T.vectorized(lanes):
-                        with T.sblock("A"):
-                            v_i, v_j = T.axis.remap("SS", [i, j])
-                            T.reads()
-                            T.writes(A[v_i, v_j])
-                            A[v_i, v_j] = const_value
+                        A[i, j] = const_value
 
         fun = tvm.compile(Module, target="cuda")
 
@@ -312,19 +476,15 @@ def test_cuda_inf_nan():
     def check_inf_nan(n, value, dtype):
         inf_value = tvm.tirx.const(value, dtype=dtype)
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
-            def main(A: T.Buffer((n,), dtype), C: T.Buffer((n,), dtype)):
+            @T.function
+            def main(A: T.Tensor((n,), dtype), C: T.Tensor((n,), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(8, thread="threadIdx.x"):
-                        with T.sblock("C"):
-                            v_i = T.axis.spatial(n, i_0 * 8 + i_1)
-                            T.where(i_0 * 8 + i_1 < n)
-                            T.reads()
-                            T.writes(C[v_i])
-                            C[v_i] = inf_value
+                        if i_0 * 8 + i_1 < n:
+                            C[i_0 * 8 + i_1] = inf_value
 
         fun = tvm.compile(Module, target="cuda")
 
@@ -356,28 +516,35 @@ def test_crossthread_reduction1(target):
         pytest.skip(f"{target} not enabled")
 
     def sched(nthd):
-        @I.ir_module(s_tir=True)
+        n = T.dynamic("n", "int32")
+        m = T.dynamic("m", "int32")
+
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
-            def main(var_A: T.handle, var_B: T.handle):
+            @T.function
+            def main(A: T.Tensor((n, m)), B: T.Tensor((n,))):
                 T.func_attr({"tirx.noalias": True})
-                n, m = T.int32(), T.int32()
-                A = T.match_buffer(var_A, (n, m))
-                B = T.match_buffer(var_B, (n,))
+
                 for i in T.thread_binding(n, thread="blockIdx.x"):
                     for m_0 in T.thread_binding(nthd, thread="threadIdx.x"):
+                        partial = T.alloc_tensor((1,), "float32", scope="local")
+                        reduced = T.alloc_tensor((1,), "float32", scope="local")
+                        partial[0] = T.float32(0)
                         for m_1 in range((m + nthd - 1) // nthd):
-                            with T.sblock("B"):
-                                v_i = T.axis.spatial(n, i)
-                                v_m = T.axis.reduce(m, m_0 * ((m + nthd - 1) // nthd) + m_1)
-                                T.where(m_0 * ((m + nthd - 1) // nthd) + m_1 < m)
-                                T.reads(A[v_i, v_m])
-                                T.writes(B[v_i])
-                                with T.init():
-                                    B[v_i] = T.float32(0.0)
-                                B[v_i] = B[v_i] + A[v_i, v_m]
+                            if m_0 * ((m + nthd - 1) // nthd) + m_1 < m:
+                                partial[0] = partial[0] + A[i, m_0 * ((m + nthd - 1) // nthd) + m_1]
+                        T.tvm_thread_allreduce(
+                            T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                            (T.float32(0),),
+                            (partial[0],),
+                            True,
+                            (reduced[0],),
+                            (m_0,),
+                        )
+                        if m_0 == 0:
+                            B[i] = reduced[0]
 
-        fun = tvm.compile(Module, target="cuda")
+        fun = tvm.compile(Module, target=target)
         return fun
 
     def verify(nthd):
@@ -414,38 +581,49 @@ def test_crossthread_reduction2(target):
         pytest.skip(f"{target} not enabled")
 
     def sched(nthdx, nthdy):
-        @I.ir_module(s_tir=True)
+        n = T.dynamic("n", "int32")
+        k0 = T.dynamic("k0", "int32")
+        k1 = T.dynamic("k1", "int32")
+
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
-            def main(var_A: T.handle, var_B: T.handle):
+            @T.function
+            def main(A: T.Tensor((n, k0, k1)), B: T.Tensor((n,))):
                 T.func_attr({"tirx.noalias": True})
-                n, k0, k1 = T.int32(), T.int32(), T.int32()
-                A = T.match_buffer(var_A, (n, k0, k1))
-                B = T.match_buffer(var_B, (n,))
+
                 for i in T.thread_binding(n, thread="blockIdx.x"):
                     for k0_0 in T.thread_binding(nthdx, thread="threadIdx.x"):
-                        for k0_1 in range((k0 + nthdx - 1) // nthdx):
-                            for k1_0 in T.thread_binding(nthdy, thread="threadIdx.y"):
-                                for k1_1 in range((k1 + nthdy - 1) // nthdy):
-                                    with T.sblock("B"):
-                                        v_i = T.axis.spatial(n, i)
-                                        v_k0 = T.axis.reduce(
-                                            k0, k0_0 * ((k0 + nthdx - 1) // nthdx) + k0_1
-                                        )
-                                        v_k1 = T.axis.reduce(
-                                            k1, k1_0 * ((k1 + nthdy - 1) // nthdy) + k1_1
-                                        )
-                                        T.where(
-                                            k0_0 * ((k0 + nthdx - 1) // nthdx) + k0_1 < k0
-                                            and k1_0 * ((k1 + nthdy - 1) // nthdy) + k1_1 < k1
-                                        )
-                                        T.reads(A[v_i, v_k0, v_k1])
-                                        T.writes(B[v_i])
-                                        with T.init():
-                                            B[v_i] = T.float32(0.0)
-                                        B[v_i] = B[v_i] + A[v_i, v_k0, v_k1]
+                        for k1_0 in T.thread_binding(nthdy, thread="threadIdx.y"):
+                            partial = T.alloc_tensor((1,), "float32", scope="local")
+                            reduced = T.alloc_tensor((1,), "float32", scope="local")
+                            partial[0] = T.float32(0)
+                            for k0_1, k1_1 in T.grid(
+                                (k0 + nthdx - 1) // nthdx, (k1 + nthdy - 1) // nthdy
+                            ):
+                                if (
+                                    k0_0 * ((k0 + nthdx - 1) // nthdx) + k0_1 < k0
+                                    and k1_0 * ((k1 + nthdy - 1) // nthdy) + k1_1 < k1
+                                ):
+                                    partial[0] = (
+                                        partial[0]
+                                        + A[
+                                            i,
+                                            k0_0 * ((k0 + nthdx - 1) // nthdx) + k0_1,
+                                            k1_0 * ((k1 + nthdy - 1) // nthdy) + k1_1,
+                                        ]
+                                    )
+                            T.tvm_thread_allreduce(
+                                T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                                (T.float32(0),),
+                                (partial[0],),
+                                True,
+                                (reduced[0],),
+                                (k0_0, k1_0),
+                            )
+                            if k0_0 == 0 and k1_0 == 0:
+                                B[i] = reduced[0]
 
-        func = tvm.compile(Module, target="cuda")
+        func = tvm.compile(Module, target=target)
         return func
 
     def verify(nthdx, nthdy):
@@ -475,22 +653,17 @@ def test_crossthread_reduction2(target):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_reduction_binding():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer((96, 32), "float32"), B: T.Buffer((96,), "float32")):
+        @T.function
+        def main(A: T.Tensor((96, 32), "float32"), B: T.Tensor((96,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for k in range(32):
                 for m_0 in T.thread_binding(3, thread="blockIdx.x"):
                     for m_1 in range(32):
-                        with T.sblock("B"):
-                            v_m = T.axis.spatial(96, m_0 * 32 + m_1)
-                            v_k = T.axis.reduce(32, k)
-                            T.reads(A[v_m, v_k])
-                            T.writes(B[v_m])
-                            with T.init():
-                                B[v_m] = T.float32(0.0)
-                            B[v_m] = B[v_m] + A[v_m, v_k]
+                        if k == 0:
+                            B[m_0 * 32 + m_1] = T.float32(0.0)
+                        B[m_0 * 32 + m_1] = B[m_0 * 32 + m_1] + A[m_0 * 32 + m_1, k]
 
     func = tvm.compile(Module, target="cuda")
 
@@ -503,21 +676,26 @@ def test_cuda_const_float_to_half():
 
     half_const = tvm.tirx.const(0.5, dtype="float16")
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def main(a: T.Buffer((2, 3, 4), "float16"), C: T.Buffer((2, 3, 4), "bool")):
+        @T.function
+        def main(a: T.Tensor((2, 3, 4), "float16"), C: T.Tensor((2, 3, 4), "bool")):
             T.func_attr({"tirx.noalias": True})
             for i_j_k_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
                 for i_j_k_fused_1 in T.thread_binding(64, thread="threadIdx.x"):
-                    with T.sblock("C"):
-                        v_i = T.axis.spatial(2, (i_j_k_fused_0 * 64 + i_j_k_fused_1) // 12)
-                        v_j = T.axis.spatial(3, (i_j_k_fused_0 * 64 + i_j_k_fused_1) % 12 // 4)
-                        v_k = T.axis.spatial(4, (i_j_k_fused_0 * 64 + i_j_k_fused_1) % 4)
-                        T.where(i_j_k_fused_0 * 64 + i_j_k_fused_1 < 24)
-                        T.reads(a[v_i, v_j, v_k])
-                        T.writes(C[v_i, v_j, v_k])
-                        C[v_i, v_j, v_k] = half_const < a[v_i, v_j, v_k]
+                    if i_j_k_fused_0 * 64 + i_j_k_fused_1 < 24:
+                        C[
+                            (i_j_k_fused_0 * 64 + i_j_k_fused_1) // 12,
+                            (i_j_k_fused_0 * 64 + i_j_k_fused_1) % 12 // 4,
+                            (i_j_k_fused_0 * 64 + i_j_k_fused_1) % 4,
+                        ] = (
+                            half_const
+                            < a[
+                                (i_j_k_fused_0 * 64 + i_j_k_fused_1) // 12,
+                                (i_j_k_fused_0 * 64 + i_j_k_fused_1) % 12 // 4,
+                                (i_j_k_fused_0 * 64 + i_j_k_fused_1) % 4,
+                            ]
+                        )
 
     func = tvm.compile(Module, target="cuda")
 
@@ -543,19 +721,17 @@ def test_cuda_floordiv_with_vectorization():
         n = 256
         k = 37
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
-            def main(A: T.Buffer((256,), "float32"), B: T.Buffer((256,), "float32")):
+            @T.function
+            def main(A: T.Tensor((256,), "float32"), B: T.Tensor((256,), "float32")):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
                     for i_1_0 in T.thread_binding(64, thread="threadIdx.x"):
                         for i_1_1 in T.vectorized(4):
-                            with T.sblock("B"):
-                                v_i = T.axis.spatial(256, i_0 * 256 + i_1_0 * 4 + i_1_1)
-                                T.reads(A[v_i // 37])
-                                T.writes(B[v_i])
-                                B[v_i] = A[v_i // 37]
+                            B[i_0 * 256 + i_1_0 * 4 + i_1_1] = A[
+                                (i_0 * 256 + i_1_0 * 4 + i_1_1) // 37
+                            ]
 
         func = tvm.compile(Module, target="cuda")
 
@@ -579,19 +755,17 @@ def test_cuda_floormod_with_vectorization():
         n = 256
         k = 37
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
-            def main(A: T.Buffer((256,), "float32"), B: T.Buffer((256,), "float32")):
+            @T.function
+            def main(A: T.Tensor((256,), "float32"), B: T.Tensor((256,), "float32")):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
                     for i_1_0 in T.thread_binding(64, thread="threadIdx.x"):
                         for i_1_1 in T.vectorized(4):
-                            with T.sblock("B"):
-                                v_i = T.axis.spatial(256, i_0 * 256 + i_1_0 * 4 + i_1_1)
-                                T.reads(A[v_i % 37])
-                                T.writes(B[v_i])
-                                B[v_i] = A[v_i % 37]
+                            B[i_0 * 256 + i_1_0 * 4 + i_1_1] = A[
+                                (i_0 * 256 + i_1_0 * 4 + i_1_1) % 37
+                            ]
 
         func = tvm.compile(Module, target="cuda")
 
@@ -665,18 +839,16 @@ def test_vectorized_casts(t0, t1, factor):
     n = 128
     num_thread = n // factor
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer((n,), t0), B: T.Buffer((n,), t1), C: T.Buffer((n,), t0)):
+        @T.function
+        def main(A: T.Tensor((n,), t0), B: T.Tensor((n,), t1), C: T.Tensor((n,), t0)):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(num_thread, thread="threadIdx.x"):
                 for i_1 in T.vectorized(factor):
-                    with T.sblock("C"):
-                        v_i = T.axis.spatial(n, i_0 * factor + i_1)
-                        T.reads(A[v_i], B[v_i])
-                        T.writes(C[v_i])
-                        C[v_i] = A[v_i] + T.Cast(t0, B[v_i])
+                    C[i_0 * factor + i_1] = A[i_0 * factor + i_1] + T.Cast(
+                        t0, B[i_0 * factor + i_1]
+                    )
 
     func = tvm.compile(Module, target="cuda")
 
@@ -704,20 +876,18 @@ def sched(compute_fn, dtype, n=128):
     For n=128 this gives: blockIdx.x=1, threadIdx.x=32, serial=1, vectorized=4.
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer((n,), dtype), B: T.Buffer((n,), dtype)):
+        @T.function
+        def main(A: T.Tensor((n,), dtype), B: T.Tensor((n,), dtype)):
             T.func_attr({"tirx.noalias": True})
             for i0_0 in T.thread_binding(1, thread="blockIdx.x"):
                 for i0_1_0 in T.thread_binding(32, thread="threadIdx.x"):
                     for i0_1_1_0 in range(1):
                         for i0_1_1_1 in T.vectorized(4):
-                            with T.sblock("B"):
-                                v_i0 = T.axis.spatial(n, i0_1_0 * 4 + i0_1_1_0 * 4 + i0_1_1_1)
-                                T.reads(A[v_i0])
-                                T.writes(B[v_i0])
-                                B[v_i0] = compute_fn(A[v_i0])
+                            B[i0_1_0 * 4 + i0_1_1_0 * 4 + i0_1_1_1] = compute_fn(
+                                A[i0_1_0 * 4 + i0_1_1_0 * 4 + i0_1_1_1]
+                            )
 
     return tvm.compile(Module, target="cuda")
 
@@ -876,23 +1046,17 @@ def test_cuda_vectorize_load_permute_pad():
         dim0 = n // lanes
         dim1 = l + 2 * padding
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
-            def main(A: T.Buffer((n, l), dtype), B: T.Buffer((dim0, dim1, lanes), dtype)):
+            @T.function
+            def main(A: T.Tensor((n, l), dtype), B: T.Tensor((dim0, dim1, lanes), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(dim0, thread="blockIdx.x"):
                     for j in T.thread_binding(dim1, thread="threadIdx.x"):
                         for k in T.vectorized(lanes):
-                            with T.sblock("B"):
-                                v_i, v_j, v_k = T.axis.remap("SSS", [i, j, k])
-                                T.reads(A[v_i * lanes + v_k, v_j - padding])
-                                T.writes(B[v_i, v_j, v_k])
-                                B[v_i, v_j, v_k] = T.if_then_else(
-                                    v_j < padding or l + padding <= v_j,
-                                    zero,
-                                    A[v_i * lanes + v_k, v_j - padding],
-                                )
+                            B[i, j, k] = T.if_then_else(
+                                j < padding or l + padding <= j, zero, A[i * lanes + k, j - padding]
+                            )
 
         fun = tvm.compile(Module, target="cuda")
 
@@ -924,18 +1088,14 @@ def test_cuda_vectorize_load_permute_pad():
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_try_unaligned_vector_load():
     def build(N, C_N, offset):
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
-            def main(A: T.Buffer((N,), "float16"), C: T.Buffer((C_N,), "float16")):
+            @T.function
+            def main(A: T.Tensor((N,), "float16"), C: T.Tensor((C_N,), "float16")):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(C_N // 2, thread="threadIdx.x"):
                     for i_1 in T.vectorized(2):
-                        with T.sblock("C"):
-                            v_i = T.axis.spatial(C_N, i_0 * 2 + i_1)
-                            T.reads(A[v_i + offset])
-                            T.writes(C[v_i])
-                            C[v_i] = A[v_i + offset]
+                        C[i_0 * 2 + i_1] = A[i_0 * 2 + i_1 + offset]
 
         f = tvm.tirx.build(Module, target="cuda")
 
@@ -972,55 +1132,41 @@ def test_try_unaligned_vector_load():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_thread_sync_inside_condition():
-    @T.prim_func(s_tir=True)
-    def func1(A: T.Buffer((4, 4), "float32")) -> None:
-        A_shared = T.sblock_alloc_buffer((4, 4), "float32", scope="shared")
-        for bx in T.thread_binding(1, "blockIdx.x"):
-            for tx in T.thread_binding(32, "threadIdx.x"):
-                if A[0, 0] > 1.0:
-                    for i, j in T.grid(4, 4):
-                        A_shared[i, j] = A[i, j]
-                    for i, j in T.grid(4, 4):
-                        A[i, j] = A_shared[i, j] + 1.0
-
-    @T.prim_func(s_tir=True)
-    def func2(A: T.Buffer((4, 4), "float32")) -> None:
-        A_shared = T.sblock_alloc_buffer((4, 4), "float32", scope="shared")
+    @T.function
+    def func2(A: T.Tensor((4, 4), "float32")) -> None:
+        A_shared = T.alloc_tensor((4, 4), "float32", scope="shared")
         for bx in T.thread_binding(1, "blockIdx.x"):
             for tx in T.thread_binding(32, "threadIdx.x"):
                 if T.tvm_thread_invariant(A[0, 0] > 1.0):
                     for i, j in T.grid(4, 4):
                         A_shared[i, j] = A[i, j]
+                    T.tvm_storage_sync("shared")
                     for i, j in T.grid(4, 4):
                         A[i, j] = A_shared[i, j] + 1.0
 
-    @T.prim_func(s_tir=True)
-    def func3(A: T.Buffer((4, 4), "float32")) -> None:
-        A_shared = T.sblock_alloc_buffer((4, 4), "float32", scope="shared")
+    @T.function
+    def func3(A: T.Tensor((4, 4), "float32")) -> None:
+        A_shared = T.alloc_tensor((4, 4), "float32", scope="shared")
         for bx in T.thread_binding(1, "blockIdx.x"):
             for tx in T.thread_binding(32, "threadIdx.x"):
                 while T.tvm_thread_invariant(A[0, 0] > 1.0):
                     for i, j in T.grid(4, 4):
                         A_shared[i, j] = A[i, j]
+                    T.tvm_storage_sync("shared")
                     for i, j in T.grid(4, 4):
                         A[i, j] = A_shared[i, j] + 1.0
 
-    mod = tvm.IRModule({"main": func1})
-    with pytest.raises(tvm.error.InternalError):
-        tvm.compile(mod, target="cuda")
-
-    mod = tvm.IRModule({"main": func2})
-    tvm.compile(mod, target="cuda")
-
-    mod = tvm.IRModule({"main": func3})
-    tvm.compile(mod, target="cuda")
+    for func in [func2, func3]:
+        mod = tvm.IRModule({"main": func})
+        compiled = tvm.compile(mod, target="cuda")
+        assert "__syncthreads()" in compiled.mod.imports[0].inspect_source()
 
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_invalid_reinterpret():
-    @T.prim_func(s_tir=True)
-    def func(A: T.Buffer((4,), "uint32"), B: T.Buffer((4,), "uint8")) -> None:
+    @T.function
+    def func(A: T.Tensor((4,), "uint32"), B: T.Tensor((4,), "uint8")) -> None:
         for tx in T.thread_binding(4, "threadIdx.x"):
             B[tx] = T.call_intrin("uint8", "tirx.reinterpret", A[tx])
 
@@ -1032,9 +1178,8 @@ def test_invalid_reinterpret():
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_cuda_tensormap():
     # fmt: off
-    @T.prim_func(s_tir=True)
-    def main(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (16, 16), dtype="float32", align=16)
+    @T.function
+    def main(A: T.Tensor((16, 16), dtype='float32', align=16)):
 
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
         T.call_packed("runtime.cuTensorMapInit", A_map, "float32", 2, A.data,
@@ -1062,17 +1207,17 @@ extern "C" __global__ void __launch_bounds__(128) main_kernel(float* __restrict_
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_device_func_call():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(private=True, s_tir=True)
+        @T.function(private=True)
         def add(a: T.float32, b: T.float32) -> T.float32:
             return a + b
 
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(
-            A: T.Buffer((1024, 1024), "float32"),
-            B: T.Buffer((1024, 1024), "float32"),
-            C: T.Buffer((1024, 1024), "float32"),
+            A: T.Tensor((1024, 1024), "float32"),
+            B: T.Tensor((1024, 1024), "float32"),
+            C: T.Tensor((1024, 1024), "float32"),
         ):
             for bx in T.thread_binding(1024, "blockIdx.x"):
                 for tx in T.thread_binding(1024, "threadIdx.x"):
@@ -1088,11 +1233,11 @@ def test_cuda_device_func_call():
 def test_cuda_float_const_hex_format():
     """Test that float constants are emitted in hexadecimal format for precision"""
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(
-            A: T.Buffer((1024, 1024), "float32"),
+            A: T.Tensor((1024, 1024), "float32"),
         ):
             for bx in T.thread_binding(1024, "blockIdx.x"):
                 for tx in T.thread_binding(1024, "threadIdx.x"):
@@ -1106,17 +1251,17 @@ def test_cuda_float_const_hex_format():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_device_host_call_same_func():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(private=True, s_tir=True)
+        @T.function(private=True)
         def add(a: T.int32, b: T.int32) -> T.int32:
             return a + b
 
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(
-            A: T.Buffer((128, 128), "int32"),
-            B: T.Buffer((128, 128), "int32"),
-            C: T.Buffer((128, 128), "int32"),
+            A: T.Tensor((128, 128), "int32"),
+            B: T.Tensor((128, 128), "int32"),
+            C: T.Tensor((128, 128), "int32"),
         ):
             length: T.let[T.int32] = Module.add(64, 64)  # Call from host
             for bx in T.thread_binding(length, "blockIdx.x"):
@@ -1148,13 +1293,11 @@ def test_device_host_call_same_func():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@pytest.mark.gpu
-@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_thread_return():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")):
+        @T.function
+        def main(A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")):
             for bx in T.thread_binding(32, "blockIdx.x"):
                 for tx in T.thread_binding(32, "threadIdx.x"):
                     if bx >= 16 or tx >= 16:
@@ -1164,16 +1307,17 @@ def test_thread_return():
     lib = tvm.compile(Module, target="cuda")
     cuda_code = lib.mod.imports[0].inspect_source()
     assert "return;" in cuda_code
+    assert "return 0;" not in cuda_code
 
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_loop_step():
-    @T.prim_func(s_tir=True)
+    @T.function
     def cuda_loop_step(
-        A: T.Buffer((1024,), "float32"),
-        B: T.Buffer((1024,), "float32"),
-        C: T.Buffer((1024,), "float32"),
+        A: T.Tensor((1024,), "float32"),
+        B: T.Tensor((1024,), "float32"),
+        C: T.Tensor((1024,), "float32"),
     ):
         # Each thread computes a strided subset of the i loop: start = tx*3, step = 96 (3 * 32 threads)
         for bx in T.thread_binding(1, "blockIdx.x"):
@@ -1182,8 +1326,7 @@ def test_cuda_loop_step():
                     C[i] = A[i] + B[i]
 
     target = tvm.target.Target({"kind": "cuda"})
-    with tvm.transform.PassContext(disabled_pass=["s_tir.CanonicalizeLoop"]):
-        lib = tvm.compile(cuda_loop_step, target=target)
+    lib = tvm.compile(cuda_loop_step, target=target)
 
     cuda_src = lib.mod.imports[0].inspect_source()
     assert "i += 96" in cuda_src
@@ -1208,18 +1351,14 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
     """Force the codegen wrapper into the fallback branch, then export+load+run."""
     n = 1024
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer((n,), "float32"), B: T.Buffer((n,), "float32")):
+        @T.function
+        def main(A: T.Tensor((n,), "float32"), B: T.Tensor((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):
-                    with T.sblock("B"):
-                        v_i = T.axis.spatial(n, i_0 * 32 + i_1)
-                        T.reads(A[v_i])
-                        T.writes(B[v_i])
-                        B[v_i] = A[v_i] + 1.0
+                    B[i_0 * 32 + i_1] = A[i_0 * 32 + i_1] + 1.0
 
     monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
     host_lib = tvm.compile(Module, target="cuda")

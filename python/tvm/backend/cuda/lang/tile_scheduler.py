@@ -17,7 +17,7 @@
 """Reusable tile scheduler helpers for TIR tests/kernels.
 
 These classes emit TIR via @T.inline. Decorate with @T.meta_class so that
-instances are automatically treated as meta values inside @T.prim_func.
+instances are automatically treated as meta values inside @T.function.
 """
 
 from tvm.backend.cuda.lang.clc import query_cancel_first_ctaid_x
@@ -223,7 +223,6 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
         # Rename internal state for clarity
         self.work_idx = self.linear_idx  # alias: global work item index
         self.tile_count = T.local_scalar("int32")
-        self.tile_idx = self.tile_count  # alias for backward compatibility
 
         is_static_m = isinstance(num_m_tiles, int)
 

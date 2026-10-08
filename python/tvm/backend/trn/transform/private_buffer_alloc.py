@@ -16,19 +16,18 @@
 # under the License.
 import tvm_ffi
 
-from tvm.ir import Range
+from tvm.ir import Call, DataTypeImm, DictAttrs, Op, Range, StringImm, Tuple, Var
 from tvm.target import Target
-from tvm.tirx.buffer import Buffer
 from tvm.tirx.stmt import (
-    AllocBuffer,
-    AttrStmt,
+    Bind,
     For,
+    RegionStmt,
     SeqStmt,
     Stmt,
 )
 from tvm.tirx.tile_primitive import DispatchContext, TilePrimitiveCall
 from tvm.tirx.transform.common import seek_kernel_replace_point
-from tvm.tirx.transform.function_pass import prim_func_pass
+from tvm.tirx.transform.function_pass import function_pass
 
 
 def _collect_private_allocations(stmt: Stmt, target: Target):
@@ -37,9 +36,18 @@ def _collect_private_allocations(stmt: Stmt, target: Target):
     buffer_dict = {}
     private_buf_refs = {}
 
-    def visit_attr(op: AttrStmt):
-        if op.attr_key == "thread_extent":
-            launch_params[op.node.thread_tag] = op.value
+    def visit_region(op: RegionStmt):
+        if op.op.name != "tirx.launch_thread":
+            return None
+        tag = op.args[0].value
+        if tag.startswith("vthread"):
+            return None
+        previous_launch_params = dict(launch_params)
+        launch_params[tag] = (op.body_params[0], op.args[1])
+        visit(op.body)
+        launch_params.clear()
+        launch_params.update(previous_launch_params)
+        return tvm_ffi.WalkResult.SKIP
 
     def visit_for(op: For):
         var_range_map[op.loop_var] = Range.from_min_extent(op.min, op.extent)
@@ -59,27 +67,30 @@ def _collect_private_allocations(stmt: Stmt, target: Target):
         op = TilePrimitiveCall.downcast(op)
         private_buf_refs[op] = op.get_private_buffers(buffer_dict, sctx)
 
-    tvm_ffi.structural_walk(
-        stmt,
-        [(AttrStmt, visit_attr), (For, visit_for), (TilePrimitiveCall, visit_op_call)],
-        order="pre",
-    )
+    def visit(node):
+        tvm_ffi.structural_walk(
+            node,
+            [(RegionStmt, visit_region), (For, visit_for), (TilePrimitiveCall, visit_op_call)],
+            order="pre",
+        )
+
+    visit(stmt)
     return buffer_dict, private_buf_refs
 
 
 def _inject_private_allocations(
     stmt: Stmt,
-    alloc_buffers: list[Buffer],
+    alloc_buffers: list[Var],
     init_stmts: list[Stmt],
-    added_workspace: dict[TilePrimitiveCall, dict[str, Buffer]],
+    added_workspace: dict[TilePrimitiveCall, dict[str, Var]],
 ) -> Stmt:
     is_outer_block = True
 
-    def visit_attr(op: AttrStmt):
+    def visit_region(op: RegionStmt):
         nonlocal is_outer_block
-        # AttrStmt(kDeviceEntry) marks the device-region root: inject the
+        # The device-entry region marks the root: inject the
         # collected init stmts + alloc_buffers into its body.
-        if op.attr_key == "tirx.device_entry":
+        if op.op.same_as(Op.get("tirx.device_entry")):
             is_outer = is_outer_block
             is_outer_block = False
             if is_outer:
@@ -87,8 +98,23 @@ def _inject_private_allocations(
                 for init_stmt in init_stmts:
                     body = seek_kernel_replace_point(init_stmt, body)
                 for buffer in reversed(alloc_buffers):
-                    body = SeqStmt([AllocBuffer(buffer), body])
-                return AttrStmt(op.node, op.attr_key, op.value, body)
+                    allocation = Bind(
+                        buffer,
+                        Call(
+                            "tirx.alloc_tensor",
+                            [
+                                Tuple(buffer.ty.shape),
+                                DataTypeImm(buffer.ty.dtype.dtype),
+                                StringImm(buffer.scope()),
+                            ],
+                            attrs=DictAttrs({}),
+                            ty=buffer.ty,
+                        ),
+                    )
+                    body = SeqStmt([allocation, body])
+                return RegionStmt(
+                    op.op, op.args, op.body_params, op.attrs, body, op.result_vars, op.span
+                )
         return op
 
     def visit_op_call(op: TilePrimitiveCall):
@@ -100,7 +126,7 @@ def _inject_private_allocations(
 
     return tvm_ffi.structural_map(
         stmt,
-        [(AttrStmt, visit_attr), (TilePrimitiveCall, visit_op_call)],
+        [(RegionStmt, visit_region), (TilePrimitiveCall, visit_op_call)],
         order="pre",
     )
 
@@ -118,7 +144,7 @@ def private_alloc(stmt: Stmt, target: Target) -> Stmt:
     return _inject_private_allocations(stmt, alloc_buffers, init_stmts, added_workspace)
 
 
-@prim_func_pass(opt_level=0, name="TrnPrivateBufferAlloc")
+@function_pass(opt_level=0, name="TrnPrivateBufferAlloc")
 class TrnPrivateBufferAlloc:
     """Generate private buffer allocations for each TilePrimitiveCall"""
 

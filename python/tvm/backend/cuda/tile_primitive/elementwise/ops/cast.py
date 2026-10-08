@@ -21,16 +21,17 @@ CUDA intrinsics like ``__float22half2_rn``."""
 
 from __future__ import annotations
 
-from tvm.tirx import BufferRegion, TilePrimitiveCall
+from tvm.ir import TensorRegion
+from tvm.tirx import TilePrimitiveCall
 
 from ..vec_emit.cast_vec2 import CAST_VEC2_IMPL
 from . import OpSpec, Plan, SrcSpec
 
 
 def _parse_cast(op: TilePrimitiveCall) -> tuple[Plan | None, str | None]:
-    _dst: BufferRegion = op.args[0]
+    _dst: TensorRegion = op.args[0]
     _src = op.args[1]
-    if not isinstance(_src, BufferRegion):
+    if not isinstance(_src, TensorRegion):
         return None, "cast src must be a buffer region"
     return Plan(dst=_dst, srcs=[SrcSpec(buf_region=_src)], extras={}), None
 

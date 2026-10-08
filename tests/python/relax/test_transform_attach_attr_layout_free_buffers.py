@@ -19,26 +19,27 @@ import numpy as np
 
 import tvm.testing
 from tvm import relax, tirx
+from tvm.relax.script import ir_builder as relax_builder
 from tvm.relax.transform import CombineParallelMatmul
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import relax as relax_builder
 
 
 def test_param():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def matmul(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.sblock("C"):
-                    with T.init():
+                with Ts.sblock("C"):
+                    with Ts.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
@@ -51,18 +52,18 @@ def test_param():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def matmul1(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.sblock("C"):
-                    with T.init():
+                with Ts.sblock("C"):
+                    with Ts.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
@@ -82,17 +83,17 @@ def test_param():
 def test_const():
     const_value = np.ones((32, 32), dtype="float32")
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def matmul(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.sblock("C"):
-                    with T.init():
+                with Ts.sblock("C"):
+                    with Ts.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
@@ -109,18 +110,18 @@ def test_const():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def matmul1(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.sblock("C"):
-                    with T.init():
+                with Ts.sblock("C"):
+                    with Ts.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
@@ -142,17 +143,17 @@ def test_const():
 
 
 def test_multiple_same_func():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def matmul(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.sblock("C"):
-                    with T.init():
+                with Ts.sblock("C"):
+                    with Ts.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
@@ -178,18 +179,18 @@ def test_multiple_same_func():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def matmul1(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.sblock("C"):
-                    with T.init():
+                with Ts.sblock("C"):
+                    with Ts.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
@@ -220,17 +221,17 @@ def test_multiple_same_func():
 
 
 def test_multiple_same_func_with_different_free_buffers():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def matmul(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.sblock("C"):
-                    with T.init():
+                with Ts.sblock("C"):
+                    with Ts.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
@@ -256,31 +257,31 @@ def test_multiple_same_func_with_different_free_buffers():
                 R.output(gv)
             return gv
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def matmul1(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.sblock("C"):
-                    with T.init():
+                with Ts.sblock("C"):
+                    with Ts.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def matmul2(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [0]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
-                with T.sblock("C"):
-                    with T.init():
+                with Ts.sblock("C"):
+                    with Ts.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 

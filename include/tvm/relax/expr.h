@@ -59,7 +59,9 @@ class ShapeExprNode : public ExprNode {
 class ShapeExpr : public Expr {
  public:
   TVM_DLL explicit ShapeExpr(ffi::Array<PrimExpr> values, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ShapeExpr, Expr, ShapeExprNode);
+  explicit ShapeExpr(ffi::ObjectPtr<ShapeExprNode> node) : Expr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ShapeExpr, Expr, ShapeExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ShapeExprNode);
 };
 
@@ -82,115 +84,22 @@ class DataflowVar : public Var {
   TVM_DLL explicit DataflowVar(ffi::String name, ffi::Optional<Type> ty_annotation,
                                Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowVar, Var, DataflowVarNode);
+  explicit DataflowVar(ffi::ObjectPtr<DataflowVarNode> node) : Var(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DataflowVar, Var, DataflowVarNode);
 };
 
-/*!
- * \brief Constant tensor.
- *
- * \note Scalar constants are represented by ndim-0 constant tensors.
- */
-class ConstantNode : public ExprNode {
- public:
-  /*! \brief The data of the tensor */
-  runtime::Tensor data;
-
-  /*! \return The corresponding tensor type of the data */
-  TensorType tensor_type() const;
-
-  /*! \return Whether it is scalar(ndim-0 tensor) */
-  bool is_scalar() const { return data->ndim == 0; }
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ConstantNode>().def_ro("data", &ConstantNode::data);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Constant", ConstantNode, ExprNode);
-};
-
-class Constant : public Expr {
- public:
-  /*!
-   * \brief The constructor
-   * \param data The data of the constant tensor.
-   * \param ty_annotation The type of the constant tensor.
-   *        If not specified, infer it from data.
-   * \param span The source span of the expression.
-   */
-  TVM_DLL explicit Constant(runtime::Tensor data, ffi::Optional<Type> ty_annotation = std::nullopt,
-                            Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Constant, Expr, ConstantNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ConstantNode);
-};
-
-/*!
- * \brief Represent a string literal constant.
- */
-class StringImmNode : public ExprNode {
- public:
-  /*! \brief The data value. */
-  ffi::String value;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<StringImmNode>().def_ro("value", &StringImmNode::value);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.StringImm", StringImmNode, ExprNode);
-};
-
-/*!
- * \brief Managed reference to StringImm
- * \sa StringImmNode
- */
-class StringImm : public Expr {
- public:
-  /*!
-   * \brief The constructor
-   * \param value The value input.
-   * \param span The source span of the expression.
-   */
-  TVM_DLL explicit StringImm(ffi::String value, Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StringImm, Expr, StringImmNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(StringImmNode);
-};
-
-/*!
- * \brief Represent a data type constant.
- */
-class DataTypeImmNode : public ExprNode {
- public:
-  /*! \brief The data value. */
-  DLDataType value;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DataTypeImmNode>().def_ro("value", &DataTypeImmNode::value);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.DataTypeImm", DataTypeImmNode, ExprNode);
-};
-
-/*!
- * \brief Managed reference to DataTypeImm
- * \sa DataTypeImmNode
- */
-class DataTypeImm : public Expr {
- public:
-  /*!
-   * \brief The constructor
-   * \param value The value input.
-   * \param span The source span of the expression.
-   */
-  TVM_DLL explicit DataTypeImm(DLDataType value, Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataTypeImm, Expr, DataTypeImmNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(DataTypeImmNode);
-};
+/*! \brief Construct a tensor constant, inferring shape and dtype when type is omitted. */
+TVM_DLL GenericConst MakeTensorConst(runtime::Tensor data,
+                                     ffi::Optional<Type> ty_annotation = std::nullopt,
+                                     Span span = Span());
 
 /*! \brief The base class of a variable binding in Relax. */
 class BindingNode : public ffi::Object {
  public:
+  explicit BindingNode(Var var) : var(std::move(var)) {}
+  explicit BindingNode(ffi::UnsafeInit) : var(ffi::UnsafeInit{}) {}
+
   mutable Span span;
   /*! \brief The return variable to bound to. */
   Var var;
@@ -233,6 +142,11 @@ class Binding : public ffi::ObjectRef {
  */
 class MatchCastNode : public BindingNode {
  public:
+  explicit MatchCastNode(Var var, Expr value)
+      : BindingNode(std::move(var)), value(std::move(value)) {}
+  explicit MatchCastNode(ffi::UnsafeInit)
+      : BindingNode(ffi::UnsafeInit{}), value(ffi::UnsafeInit{}) {}
+
   /*! \brief The input value to match cast. */
   Expr value;
   /*! \brief The type pattern to match to. */
@@ -262,6 +176,11 @@ class MatchCast : public Binding {
 
 class VarBindingNode : public BindingNode {
  public:
+  explicit VarBindingNode(Var var, Expr value)
+      : BindingNode(std::move(var)), value(std::move(value)) {}
+  explicit VarBindingNode(ffi::UnsafeInit)
+      : BindingNode(ffi::UnsafeInit{}), value(ffi::UnsafeInit{}) {}
+
   /*! \brief The binding value. */
   Expr value;
 
@@ -335,6 +254,9 @@ class DataflowBlock : public BindingBlock {
  */
 class SeqExprNode : public ExprNode {
  public:
+  explicit SeqExprNode(Expr body) : body(std::move(body)) {}
+  explicit SeqExprNode(ffi::UnsafeInit) : body(ffi::UnsafeInit{}) {}
+
   ffi::Array<BindingBlock> blocks;
   Expr body;
 
@@ -382,7 +304,9 @@ class SeqExpr : public Expr {
   TVM_DLL SeqExpr(Expr body);  // NOLINT(*)
 
   TVM_DLL explicit SeqExpr(ffi::Array<BindingBlock> blocks, Expr body, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SeqExpr, Expr, SeqExprNode);
+  explicit SeqExpr(ffi::ObjectPtr<SeqExprNode> node) : Expr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SeqExpr, Expr, SeqExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SeqExprNode);
 };
 
@@ -399,6 +323,13 @@ class SeqExpr : public Expr {
  */
 class IfNode : public ExprNode {
  public:
+  explicit IfNode(Expr cond, SeqExpr true_branch, SeqExpr false_branch)
+      : cond(std::move(cond)),
+        true_branch(std::move(true_branch)),
+        false_branch(std::move(false_branch)) {}
+  explicit IfNode(ffi::UnsafeInit)
+      : cond(ffi::UnsafeInit{}), true_branch(ffi::UnsafeInit{}), false_branch(ffi::UnsafeInit{}) {}
+
   /*! \brief The condition. */
   Expr cond;
   /*! \brief The expression evaluated when condition is true. */
@@ -439,13 +370,18 @@ class If : public Expr {
    */
   TVM_DLL If(Expr cond, Expr true_branch, Expr false_branch, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(If, Expr, IfNode);
+  explicit If(ffi::ObjectPtr<IfNode> node) : Expr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(If, Expr, IfNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IfNode);
 };
 
 /*! \brief A Relax function. */
 class FunctionNode : public BaseFuncNode {
  public:
+  explicit FunctionNode(SeqExpr body) : body(std::move(body)) {}
+  explicit FunctionNode(ffi::UnsafeInit) : body(ffi::UnsafeInit{}) {}
+
   /*! \brief The parameters to the function. */
   ffi::Array<Var> params;
   /*! \brief The body of the function. */
@@ -501,7 +437,9 @@ class Function : public BaseFunc {
   TVM_DLL static Function CreateEmpty(ffi::Array<Var> params, Type ret_ty, bool is_pure = true,
                                       DictAttrs attrs = DictAttrs(), Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Function, BaseFunc, FunctionNode);
+  explicit Function(ffi::ObjectPtr<FunctionNode> node) : BaseFunc(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Function, BaseFunc, FunctionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);
 };
 
@@ -554,7 +492,9 @@ class ExternFunc : public BaseFunc {
   TVM_DLL ExternFunc(ffi::String global_symbol, Span span = Span());
   TVM_DLL ExternFunc(ffi::String global_symbol, Type ty, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExternFunc, BaseFunc, ExternFuncNode);
+  explicit ExternFunc(ffi::ObjectPtr<ExternFuncNode> node) : BaseFunc(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExternFunc, BaseFunc, ExternFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ExternFuncNode);
 };
 

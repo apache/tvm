@@ -25,7 +25,7 @@ from tvm.tirx import compilation_pipeline as tir_pipeline
 tir = tirx  # alias for backward compat
 
 
-def default_s_tir_pipeline():
+def default_s_tir_pipeline(*, prepare_only=False):
     """The default tirx pipeline used in tvm.tirx.build"""
 
     @tvm.transform.module_pass(opt_level=0)
@@ -43,45 +43,36 @@ def default_s_tir_pipeline():
             s_tir.transform.ManifestSharedMemoryLocalStage(),
             s_tir.transform.CompactBufferAllocation(),
             s_tir.transform.LowerAutoCopy(),
-            s_tir.transform.UnifyThreadBinding(),
             s_tir.transform.LowerMatchBuffer(),
-            tirx.transform.StmtSimplify(),
+            s_tir.transform.StmtSimplify(),
             s_tir.transform.InjectPermutedLayout(),
             s_tir.transform.AnnotateIrregularLoop(),
             s_tir.transform.InjectSoftwarePipeline(),
             s_tir.transform.TransformMmaBufferLayout(),
+            s_tir.transform.LoopPartition(),
             s_tir.transform.LowerOpaqueBlock(),
+            s_tir.transform.LowerThreadBinding(),
             tirx.transform.FlattenBuffer(),
             tirx.transform.BF16ComputeLegalize(),
             tirx.transform.NarrowDataType(32),
-            s_tir.transform.LoopPartition(),
             tirx.transform.VectorizeLoop(not bool(config.get("tirx.disable_vectorize", False))),
             s_tir.transform.InjectVirtualThread(),
-            s_tir.transform.InjectDoubleBuffer(),
         ]
         if not bool(config.get("tirx.disable_storage_rewrite", False)):
             passes.append(tirx.transform.StorageRewrite())
-        if config.get("tirx.use_async_copy", False):
-            passes.append(s_tir.transform.LowerAsyncDMA())
         passes.extend(
             [
                 s_tir.transform.HoistIfThenElse(),
                 tirx.transform.UnrollLoop(),
                 s_tir.transform.RenormalizeSplitPattern(),
-                tirx.transform.StmtSimplify(),
+                s_tir.transform.StmtSimplify(),
                 tirx.transform.RemoveNoOp(),
                 s_tir.transform.RewriteUnsafeSelect(),
             ]
         )
         # Additional passes based on configuration.
-        if bool(config.get("tirx.instrument_bound_checkers", False)):
-            passes.append(s_tir.transform.InstrumentBoundCheckers())
-        if bool(config.get("tirx.s_tir.ldg32", False)):
-            passes.append(s_tir.transform.InjectPTXLDG32(True))
         if not bool(config.get("tirx.disable_cse_tir", False)):
             passes.append(tirx.transform.CommonSubexprElim())
-        if bool(config.get("tirx.instrument_lwp", False)):
-            passes.append(s_tir.transform.InstrumentProfileIntrinsics())
         passes.extend(
             [
                 # Bind the target first so that target-specific attributes are available.
@@ -90,7 +81,6 @@ def default_s_tir_pipeline():
                 s_tir.transform.VerifyVTCMLimit(),
                 s_tir.transform.LowerVtcmAlloc(),
                 tirx.transform.VerifyMemory(),
-                tirx.transform.AnnotateEntryFunc(),
             ]
         )
         passes.extend(
@@ -104,17 +94,18 @@ def default_s_tir_pipeline():
         )
         if bool(config.get("tirx.use_async_copy", False)):
             passes.append(s_tir.transform.InjectPTXAsyncCopy())
-        if bool(config.get("tirx.s_tir.ldg32", False)):
-            passes.append(s_tir.transform.InjectPTXLDG32())
-        passes.extend(
-            [
-                s_tir.transform.MergeSharedMemoryAllocations(),
-                tirx.transform.SplitHostDevice(),
-                tirx.transform.MakePackedAPI(),
-                tirx.transform.FP8StorageLegalize(),
-                tirx.transform.BF16StorageLegalize(),
-            ]
-        )
+        passes.append(s_tir.transform.LowerSynchronization())
+        passes.append(s_tir.transform.MergeSharedMemoryAllocations())
+        if not prepare_only:
+            passes.extend(
+                [
+                    tirx.transform.AnnotateEntryFunc(),
+                    tirx.transform.SplitHostDevice(),
+                    tirx.transform.MakePackedAPI(),
+                    tirx.transform.FP8StorageLegalize(),
+                    tirx.transform.BF16StorageLegalize(),
+                ]
+            )
         mod = tvm.ir.transform.Sequential(passes)(mod)
         return mod
 
@@ -141,3 +132,39 @@ def finalize_device_passes():  # pylint: disable=unused-argument
 
 
 tir_pipeline.PIPELINE_MAP["s_tir"] = default_s_tir_pipeline
+
+
+def _select_default_pipeline(mod, target):
+    """Select S-TIR lowering only for functions constructed in this dialect."""
+    scheduled = {
+        gv: func
+        for gv, func in mod.functions.items()
+        if isinstance(func, tirx.Function) and not func.is_tirx
+    }
+    if not scheduled:
+        return None
+    mixed = len(scheduled) != len(mod.functions)
+    name = "s_tir"
+    if target is not None and target.kind.name == "opencl" and "adreno" in target.keys:
+        name = "adreno"
+    s_pipeline = tir_pipeline.get_tir_pipeline(name, prepare_only=mixed)
+    if not mixed:
+        return s_pipeline
+
+    lower_s_tir, finalize_host, finalize_device = s_pipeline
+    lower_tirx, _, _ = tir_pipeline.get_tir_pipeline("tirx", prepare_only=True)
+
+    @tvm.transform.module_pass(opt_level=0)
+    def _lower_mixed(input_mod, _ctx):
+        s_funcs = {gv: func for gv, func in input_mod.functions.items() if gv in scheduled}
+        t_funcs = {gv: func for gv, func in input_mod.functions.items() if gv not in scheduled}
+        lowered = tvm.IRModule(attrs=input_mod.attrs, global_infos=input_mod.global_infos)
+        for funcs, lowering in ((s_funcs, lower_s_tir), (t_funcs, lower_tirx)):
+            group = tvm.IRModule(funcs, attrs=input_mod.attrs, global_infos=input_mod.global_infos)
+            lowered.update(lowering(group))
+        return tir_pipeline.finalize_tir_pipeline()(lowered)
+
+    return _lower_mixed, finalize_host, finalize_device
+
+
+tir_pipeline.register_default_tir_pipeline_selector(_select_default_pipeline)

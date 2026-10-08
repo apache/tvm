@@ -49,6 +49,7 @@ using namespace tvm::te;
  */
 inline Tensor softmax(const Tensor& x, int axis = -1, std::string name = "tensor",
                       std::string tag = "softmax_output") {
+  using namespace tvm::prim;
   auto input_shape = x->shape;
   auto ndim = input_shape.size();
   if (axis < 0) {
@@ -92,12 +93,12 @@ inline Tensor softmax(const Tensor& x, int axis = -1, std::string name = "tensor
 
   auto _compute_exp = [&](const Tensor& max_elem, const ffi::Array<PrimVar>& indices) {
     auto non_reduce_indices = get_non_reduce_indices(indices);
-    return tvm::exp(x(indices) - max_elem(non_reduce_indices));
+    return tvm::prim::exp(x(indices) - max_elem(non_reduce_indices));
   };
 
   auto _compute_expsum = [&](const Tensor& exp, const ffi::Array<PrimVar>& indices) {
     auto eval_range = insert_reduce_index(indices, k2);
-    return tvm::sum(exp(eval_range), {k2});
+    return tvm::prim::sum(exp(eval_range), {k2});
   };
 
   auto _normalize = [&](const Tensor& exp, const Tensor& expsum,
@@ -141,11 +142,12 @@ inline Tensor log_softmax(const Tensor& x, std::string name = "tensor",
   k = tvm::te::reduce_axis(Range(0, n), "k");
 
   auto expsum = tvm::te::compute(
-      {m}, [&](PrimVar i) { return tvm::sum(tvm::exp(x(i, k) - max_elem(i)), {k}); });
+      {m}, [&](PrimVar i) { return tvm::prim::sum(tvm::prim::exp(x(i, k) - max_elem(i)), {k}); });
 
   return tvm::te::compute(
-      x->shape, [&](PrimVar i, PrimVar j) { return x(i, j) - max_elem(i) - tvm::log(expsum(i)); },
-      name, tag);
+      x->shape,
+      [&](PrimVar i, PrimVar j) { return x(i, j) - max_elem(i) - tvm::prim::log(expsum(i)); }, name,
+      tag);
 }
 
 }  // namespace nn

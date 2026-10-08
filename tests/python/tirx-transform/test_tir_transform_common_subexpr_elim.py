@@ -28,8 +28,8 @@ from tvm.script import tirx as T
 def test_basic():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def main(B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, z3: T.int32):
+        @T.function
+        def main(B: T.Tensor((50,), "int32"), i1: T.int32, i2: T.int32, z3: T.int32):
             z1 = T.bind(1)
             z2 = T.bind(2)
             B[i1] = z1 + z2
@@ -41,8 +41,8 @@ def test_basic():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
-        def main(B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, z3: T.int32):
+        @T.function
+        def main(B: T.Tensor((50,), "int32"), i1: T.int32, i2: T.int32, z3: T.int32):
             z1 = T.bind(1)
             z2 = T.bind(2)
             cse_v1 = T.bind(z1 + z2)
@@ -65,9 +65,9 @@ def test_basic():
 def test_if_single_branch():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(
-            B: T.Buffer((50,), "int32"),
+            B: T.Tensor((50,), "int32"),
             i1: T.int32,
             i2: T.int32,
             i3: T.int32,
@@ -83,9 +83,9 @@ def test_if_single_branch():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(
-            B: T.Buffer((50,), "int32"),
+            B: T.Tensor((50,), "int32"),
             i1: T.int32,
             i2: T.int32,
             i3: T.int32,
@@ -111,9 +111,9 @@ def test_if_single_branch():
 def test_if_both_branches():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(
-            B: T.Buffer((50,), "int32"),
+            B: T.Tensor((50,), "int32"),
             i1: T.int32,
             i2: T.int32,
             i3: T.int32,
@@ -129,9 +129,9 @@ def test_if_both_branches():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(
-            B: T.Buffer((50,), "int32"),
+            B: T.Tensor((50,), "int32"),
             i1: T.int32,
             i2: T.int32,
             i3: T.int32,
@@ -157,9 +157,9 @@ def test_if_both_branches():
 def test_cascade():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(
-            B: T.Buffer((50,), "int32"),
+            B: T.Tensor((50,), "int32"),
             i1: T.int32,
             i2: T.int32,
             i3: T.int32,
@@ -173,9 +173,9 @@ def test_cascade():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(
-            B: T.Buffer((50,), "int32"),
+            B: T.Tensor((50,), "int32"),
             i1: T.int32,
             i2: T.int32,
             i3: T.int32,
@@ -200,14 +200,14 @@ def test_cascade():
 def test_no_duplication():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(x: T.int32, y: T.int32, z: T.int32):
             a = T.bind(x + (y + z))
             T.evaluate(a)
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(x: T.int32, y: T.int32, z: T.int32):
             a = T.bind(x + (y + z))
             T.evaluate(a)
@@ -236,7 +236,7 @@ def test_deterministic():
     for add in inc1 + inc2:
         expression = expression + add
     body = tvm.tirx.SeqStmt([tvm.tirx.Bind(result, expression), tvm.tirx.Evaluate(result)])
-    mod = tvm.IRModule.from_expr(tvm.tirx.PrimFunc([x], body))
+    mod = tvm.IRModule.from_expr(tvm.tirx.Function([x], body))
 
     initial_hash = None
     for _ in range(REPEATS):
@@ -256,16 +256,16 @@ def test_deterministic():
 def test_for_loop():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
+        @T.function
+        def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
             for i in range(10):
                 B[i] = y + z
                 B[i + 10] = y + z
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
-        def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
+        @T.function
+        def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
             for i in range(10):
                 cse_v1 = T.bind(y + z)
                 B[i] = cse_v1
@@ -283,16 +283,16 @@ def test_for_loop():
 def test_for_hoist():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
+        @T.function
+        def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
             B[0] = y + z
             for i in range(10):
                 B[i + 1] = y + z
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
-        def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
+        @T.function
+        def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
             cse_v1 = T.bind(y + z)
             B[0] = cse_v1
             for i in range(10):
@@ -303,22 +303,22 @@ def test_for_hoist():
 
 
 # =====================================================================
-# T9: Cannot-lift -- expressions containing BufferLoad
-# Expressions containing BufferLoad are ineligible even when duplicated,
+# T9: Cannot-lift -- expressions containing TensorLoad
+# Expressions containing TensorLoad are ineligible even when duplicated,
 # because lifting them would change semantics (buffer may alias).
 # =====================================================================
 def test_cannot_lift_bufferload():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer((50,), "int32"), B: T.Buffer((50,), "int32")):
+        @T.function
+        def main(A: T.Tensor((50,), "int32"), B: T.Tensor((50,), "int32")):
             B[0] = A[0] + A[0]
             B[1] = A[0] + A[0]
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer((50,), "int32"), B: T.Buffer((50,), "int32")):
+        @T.function
+        def main(A: T.Tensor((50,), "int32"), B: T.Tensor((50,), "int32")):
             B[0] = A[0] + A[0]
             B[1] = A[0] + A[0]
 
@@ -334,9 +334,9 @@ def test_cannot_lift_bufferload():
 def test_nested_if():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(
-            B: T.Buffer((50,), "int32"),
+            B: T.Tensor((50,), "int32"),
             c1: T.int32,
             c2: T.int32,
             y: T.int32,
@@ -352,9 +352,9 @@ def test_nested_if():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(
-            B: T.Buffer((50,), "int32"),
+            B: T.Tensor((50,), "int32"),
             c1: T.int32,
             c2: T.int32,
             y: T.int32,
@@ -380,9 +380,9 @@ def test_nested_if():
 def test_multi_independent():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(
-            B: T.Buffer((50,), "int32"),
+            B: T.Tensor((50,), "int32"),
             a: T.int32,
             b: T.int32,
             c: T.int32,
@@ -395,9 +395,9 @@ def test_multi_independent():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(
-            B: T.Buffer((50,), "int32"),
+            B: T.Tensor((50,), "int32"),
             a: T.int32,
             b: T.int32,
             c: T.int32,
@@ -422,15 +422,15 @@ def test_multi_independent():
 def test_if_condition():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
+        @T.function
+        def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
             if y + z > 0:
                 B[0] = y + z
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
-        def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
+        @T.function
+        def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
             cse_v1 = T.bind(y + z)
             if cse_v1 > 0:
                 B[0] = cse_v1
@@ -446,15 +446,15 @@ def test_if_condition():
 def test_cannot_lift_call():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def main(B: T.Buffer((50,), "int32"), x: T.int32):
+        @T.function
+        def main(B: T.Tensor((50,), "int32"), x: T.int32):
             B[0] = T.call_extern("my_func", x, dtype="int32") + 1
             B[1] = T.call_extern("my_func", x, dtype="int32") + 1
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
-        def main(B: T.Buffer((50,), "int32"), x: T.int32):
+        @T.function
+        def main(B: T.Tensor((50,), "int32"), x: T.int32):
             B[0] = T.call_extern("my_func", x, dtype="int32") + 1
             B[1] = T.call_extern("my_func", x, dtype="int32") + 1
 
@@ -471,9 +471,9 @@ def test_cannot_lift_call():
 def test_no_single_use_binding():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(
-            B: T.Buffer((50,), "int32"),
+            B: T.Tensor((50,), "int32"),
             x: T.int32,
             y: T.int32,
             z: T.int32,
@@ -483,9 +483,9 @@ def test_no_single_use_binding():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(
-            B: T.Buffer((50,), "int32"),
+            B: T.Tensor((50,), "int32"),
             x: T.int32,
             y: T.int32,
             z: T.int32,
@@ -506,15 +506,15 @@ def test_no_single_use_binding():
 def test_for_extent_lift():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
+        @T.function
+        def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
             for i in range(y + z):
                 B[i] = y + z
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
-        def main(B: T.Buffer((50,), "int32"), y: T.int32, z: T.int32):
+        @T.function
+        def main(B: T.Tensor((50,), "int32"), y: T.int32, z: T.int32):
             cse_v1 = T.bind(y + z)
             for i in range(cse_v1):
                 B[i] = cse_v1
@@ -531,20 +531,20 @@ def test_for_extent_lift():
 def test_loop_var_expr_stays_inside():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(
-            A: T.Buffer((50,), "int32"),
-            B: T.Buffer((50,), "int32"),
+            A: T.Tensor((50,), "int32"),
+            B: T.Tensor((50,), "int32"),
         ):
             for i in range(10):
                 A[i * 4] = B[i * 4]
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(
-            A: T.Buffer((50,), "int32"),
-            B: T.Buffer((50,), "int32"),
+            A: T.Tensor((50,), "int32"),
+            B: T.Tensor((50,), "int32"),
         ):
             for i in range(10):
                 cse_v1 = T.bind(i * 4)
@@ -561,14 +561,14 @@ def test_loop_var_expr_stays_inside():
 def test_no_normalization_without_commoning():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(x: T.int32, y: T.int32, z: T.int32):
             a = T.bind(x + (y + z))
             T.evaluate(a)
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main(x: T.int32, y: T.int32, z: T.int32):
             a = T.bind(x + (y + z))
             T.evaluate(a)
@@ -589,9 +589,9 @@ def test_let_body_no_extraction():
     y = tvm.tirx.Var("y", "int32")
     # Let(x, 1, (x+y) + (x+y)) -- x+y appears twice but x is Let-bound
     let_expr = tvm.tirx.Let(x, tvm.tirx.IntImm("int32", 1), (x + y) + (x + y))
-    buf = tvm.tirx.decl_buffer((10,), "int32", name="B")
+    buf = tvm.tirx.decl_tensor((10,), "int32", name="B")
     i = tvm.tirx.Var("i", "int32")
-    store = tvm.tirx.BufferStore(buf, let_expr, [i])
+    store = tvm.tirx.TensorStore(buf, let_expr, [i])
     loop = tvm.tirx.For(
         i,
         tvm.tirx.const(0, "int32"),
@@ -599,7 +599,7 @@ def test_let_body_no_extraction():
         tvm.tirx.ForKind.SERIAL,
         store,
     )
-    func = tvm.tirx.PrimFunc([buf, y], loop)
+    func = tvm.tirx.Function([buf, y], loop)
     mod = tvm.IRModule({"main": func})
     mod_after = tvm.tirx.transform.CommonSubexprElim()(mod)
     # No CSE variables should be introduced
@@ -619,9 +619,9 @@ def test_let_value_cse():
     z = tvm.tirx.Var("z", "int32")
     # Let(x, y+z, x+1) with y+z also appearing outside the Let
     let_expr = tvm.tirx.Let(x, y + z, x + 1)
-    buf = tvm.tirx.decl_buffer((10,), "int32", name="B")
+    buf = tvm.tirx.decl_tensor((10,), "int32", name="B")
     i = tvm.tirx.Var("i", "int32")
-    store = tvm.tirx.BufferStore(buf, (y + z) + let_expr, [i])
+    store = tvm.tirx.TensorStore(buf, (y + z) + let_expr, [i])
     loop = tvm.tirx.For(
         i,
         tvm.tirx.const(0, "int32"),
@@ -629,7 +629,7 @@ def test_let_value_cse():
         tvm.tirx.ForKind.SERIAL,
         store,
     )
-    func = tvm.tirx.PrimFunc([buf, y, z], loop)
+    func = tvm.tirx.Function([buf, y, z], loop)
     mod = tvm.IRModule({"main": func})
     mod_after = tvm.tirx.transform.CommonSubexprElim()(mod)
     # y+z should be extracted (appears in Let value AND outside)
@@ -652,9 +652,9 @@ def test_nested_let_no_extraction():
     nested_let = tvm.tirx.Let(
         x, tvm.tirx.IntImm("int32", 1), tvm.tirx.Let(y, tvm.tirx.IntImm("int32", 2), inner)
     )
-    buf = tvm.tirx.decl_buffer((10,), "int32", name="B")
+    buf = tvm.tirx.decl_tensor((10,), "int32", name="B")
     i = tvm.tirx.Var("i", "int32")
-    store = tvm.tirx.BufferStore(buf, nested_let, [i])
+    store = tvm.tirx.TensorStore(buf, nested_let, [i])
     loop = tvm.tirx.For(
         i,
         tvm.tirx.const(0, "int32"),
@@ -662,7 +662,7 @@ def test_nested_let_no_extraction():
         tvm.tirx.ForKind.SERIAL,
         store,
     )
-    func = tvm.tirx.PrimFunc([buf, z], loop)
+    func = tvm.tirx.Function([buf, z], loop)
     mod = tvm.IRModule({"main": func})
     mod_after = tvm.tirx.transform.CommonSubexprElim()(mod)
     script = mod_after["main"].script()
@@ -688,16 +688,16 @@ def test_let_floordiv_pattern():
     inner_let = tvm.tirx.Let(rdiv, tvm.tirx.Div(x, y), select_expr)
     outer_let = tvm.tirx.Let(rmod, tvm.tirx.Mod(x, y), inner_let)
     # Wrap in Let(x, load, Let(y, load, ...))
-    buf_a = tvm.tirx.decl_buffer((10,), "int32", name="A")
-    buf_b = tvm.tirx.decl_buffer((10,), "int32", name="B")
-    buf_c = tvm.tirx.decl_buffer((10,), "int32", name="C")
+    buf_a = tvm.tirx.decl_tensor((10,), "int32", name="A")
+    buf_b = tvm.tirx.decl_tensor((10,), "int32", name="B")
+    buf_c = tvm.tirx.decl_tensor((10,), "int32", name="C")
     i = tvm.tirx.Var("i", "int32")
     full_expr = tvm.tirx.Let(
         x,
-        tvm.tirx.BufferLoad(buf_a, [i]),
-        tvm.tirx.Let(y, tvm.tirx.BufferLoad(buf_b, [i]), outer_let),
+        tvm.tirx.TensorLoad(buf_a, [i]),
+        tvm.tirx.Let(y, tvm.tirx.TensorLoad(buf_b, [i]), outer_let),
     )
-    store = tvm.tirx.BufferStore(buf_c, full_expr, [i])
+    store = tvm.tirx.TensorStore(buf_c, full_expr, [i])
     loop = tvm.tirx.For(
         i,
         tvm.tirx.const(0, "int32"),
@@ -705,7 +705,7 @@ def test_let_floordiv_pattern():
         tvm.tirx.ForKind.SERIAL,
         store,
     )
-    func = tvm.tirx.PrimFunc([buf_a, buf_b, buf_c], loop)
+    func = tvm.tirx.Function([buf_a, buf_b, buf_c], loop)
     mod = tvm.IRModule({"main": func})
     # Should not crash and should not extract Let-bound vars
     mod_after = tvm.tirx.transform.CommonSubexprElim()(mod)
@@ -721,8 +721,8 @@ def test_let_floordiv_pattern():
 def test_no_lift_bool_predicate():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def main(B: T.Buffer((50,), "int32"), n: T.int32, x: T.int32):
+        @T.function
+        def main(B: T.Tensor((50,), "int32"), n: T.int32, x: T.int32):
             for i in range(50):
                 if i < n:
                     B[i] = x
@@ -742,8 +742,8 @@ def test_no_lift_bool_predicate():
 def test_no_lift_bool_logical():
     @tvm.script.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def main(B: T.Buffer((50,), "int32"), a: T.bool, b: T.bool, x: T.int32):
+        @T.function
+        def main(B: T.Tensor((50,), "int32"), a: T.bool, b: T.bool, x: T.int32):
             if T.And(a, b):
                 B[0] = x
             if T.And(a, b):
@@ -759,8 +759,8 @@ def test_no_lift_bool_logical():
 def test_shared_subtree_stays_ssa():
     @tvm.script.ir_module
     class Payload:
-        @T.prim_func(s_tir=True)
-        def main(B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32):
+        @T.function
+        def main(B: T.Tensor((50,), "int32"), i1: T.int32, i2: T.int32):
             B[i1] = (i1 + i2) * 2
             B[i2] = (i1 + i2) * 3
 

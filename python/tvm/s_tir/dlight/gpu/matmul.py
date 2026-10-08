@@ -23,10 +23,11 @@ from enum import Enum
 
 from tvm import s_tir, tirx
 from tvm.ir import Range
+from tvm.s_tir import IterVar
 from tvm.s_tir.schedule.schedule import SBlockRV
 from tvm.script import tirx as T
 from tvm.target import Target
-from tvm.tirx import Expr, IterVar, Var
+from tvm.tirx import Expr, Var
 from tvm.tirx.analysis import undefined_vars
 
 from ..analysis import IterInfo, SBlockInfo, get_root_block
@@ -166,12 +167,12 @@ def make_iter_fusion_index_map(
     return tirx.IndexMap(input_iters, final_indices, None)
 
 
-def detect_iter_traits(block: tirx.SBlock) -> tuple[list[IterTrait]] | None:
+def detect_iter_traits(block: s_tir.SBlock) -> tuple[list[IterTrait]] | None:
     """Detect iter traits based on the pattern C[S, I, J] += A[S, I, K] * B[S, J, K]
 
     Parameters
     ----------
-    block : tirx.SBlock
+    block : s_tir.SBlock
         The block to be analyzed
 
     Returns
@@ -215,7 +216,7 @@ def detect_iter_traits(block: tirx.SBlock) -> tuple[list[IterTrait]] | None:
                 kind = IterKind.kIter_J
             else:
                 return None
-        elif iter_var.iter_type == tirx.IterVar.CommReduce:
+        elif iter_var.iter_type == s_tir.IterVar.CommReduce:
             if var in A_axes and var in B_axes and var not in C_axes:
                 kind = IterKind.kIter_K
             else:
@@ -236,12 +237,12 @@ def detect_iter_traits(block: tirx.SBlock) -> tuple[list[IterTrait]] | None:
     return A_traits, B_traits, C_traits, block_traits
 
 
-def get_index_map(block: tirx.SBlock) -> tuple[tirx.IndexMap, ...] | None:
+def get_index_map(block: s_tir.SBlock) -> tuple[tirx.IndexMap, ...] | None:
     """Get index maps for the block
 
     Parameters
     ----------
-    block : tirx.SBlock
+    block : s_tir.SBlock
         The block to be analyzed
 
     Returns
@@ -276,8 +277,8 @@ def get_index_map(block: tirx.SBlock) -> tuple[tirx.IndexMap, ...] | None:
 
 
 def get_sblock_info(sch: s_tir.Schedule, block: s_tir.schedule.SBlockRV) -> SBlockInfo:
-    def _iter_kind(loop: tirx.IterVar) -> str:
-        return {tirx.IterVar.DataPar: "S", tirx.IterVar.CommReduce: "R"}.get(loop.iter_type, "O")
+    def _iter_kind(loop: s_tir.IterVar) -> str:
+        return {s_tir.IterVar.DataPar: "S", s_tir.IterVar.CommReduce: "R"}.get(loop.iter_type, "O")
 
     def _is_reduction_block(block: s_tir.schedule.SBlockRV):
         for iter_var in sch.get(block).iter_vars:
@@ -326,13 +327,13 @@ def get_reduction_blocks(sch, blocks) -> bool:
     return reduction_blocks
 
 
-def get_in_out_dtypes(block: tirx.SBlock) -> tuple[str]:
+def get_in_out_dtypes(block: s_tir.SBlock) -> tuple[str]:
     """
     Detect In/Out data types for the given block based on the analysis if read/write buffers.
     """
     assert len(block.reads) > 0 and len(block.writes) > 0
-    in_dtype = block.reads[0].buffer.dtype
-    out_dtype = block.writes[0].buffer.dtype
+    in_dtype = block.reads[0].source.dtype
+    out_dtype = block.writes[0].source.dtype
     return (in_dtype, out_dtype)
 
 
@@ -348,7 +349,7 @@ class MetalMatmul(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,missing-docstring
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> s_tir.Schedule | None:
@@ -356,7 +357,7 @@ class MetalMatmul(GPUScheduleRule):
             get_simdgroup_intrin_group,
         )
 
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
         root_block = get_root_block(sch)
@@ -489,7 +490,7 @@ class MatmulTensorization(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,missing-docstring
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> s_tir.Schedule | None:
@@ -497,7 +498,7 @@ class MatmulTensorization(GPUScheduleRule):
             get_wmma_intrin_group,
         )
 
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
         root_block = get_root_block(sch)
@@ -710,7 +711,7 @@ class MatmulInt8Tensorization(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,missing-docstring
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> s_tir.Schedule | None:
@@ -718,7 +719,7 @@ class MatmulInt8Tensorization(GPUScheduleRule):
             get_wmma_intrin_group,
         )
 
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
         root_block = get_root_block(sch)
@@ -964,11 +965,11 @@ class Matmul(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,missing-docstring
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> s_tir.Schedule | None:
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
         config = self.get_configs(target)
@@ -1084,8 +1085,8 @@ class Matmul(GPUScheduleRule):
             sch.vectorize(v)
 
         if config.unroll > 0:
-            sch.annotate(tx, ann_key="pragma_auto_unroll_max_step", ann_val=config.unroll)
-            sch.annotate(tx, ann_key="pragma_unroll_explicit", ann_val=1)
+            sch.annotate(tx, ann_key="auto_unroll_max_step", ann_val=config.unroll)
+            sch.annotate(tx, ann_key="unroll_explicit", ann_val=1)
 
         l2g = sch.cache_write(main_block, 0, "local")
         sch.reverse_compute_at(l2g, tx, preserve_unit_loops=True)

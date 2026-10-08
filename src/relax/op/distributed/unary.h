@@ -64,12 +64,15 @@ Type InferDistTypeUnaryArith(const Call& call, const BlockBuilder& ctx) {
 
 Type InferDistTypeUnaryCheck(const Call& call, const BlockBuilder& ctx);
 
+// clang-format off
 #define RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(OpName, RequireFloatDtype) \
-  TVM_REGISTER_OP("relax." #OpName)                                           \
-      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<RequireFloatDtype>)
+  OpDef("relax." #OpName)                                                     \
+      .set_attr<FInferTypeWithBuilder>("relax.dist.FInferTypeWithBuilder", InferDistTypeUnaryArith<RequireFloatDtype>)
 
 #define RELAX_REGISTER_UNARY_CHECK_DIST_INFER_TYPE(OpName) \
-  TVM_REGISTER_OP("relax." #OpName).set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryCheck)
+  OpDef("relax." #OpName)                              \
+      .set_attr<FInferTypeWithBuilder>("relax.dist.FInferTypeWithBuilder", InferDistTypeUnaryCheck)
+// clang-format on
 
 }  // namespace distributed
 }  // namespace relax

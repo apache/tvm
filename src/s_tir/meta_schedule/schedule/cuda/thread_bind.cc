@@ -70,7 +70,8 @@ ffi::Array<LoopRV> BindSpatialLoop(Schedule sch, LoopRV loop, int64_t max_thread
                                    int64_t max_threads_per_block,
                                    std::function<ExprRV(int64_t)> get_factor) {
   int64_t extent = -1;
-  if (const int64_t* e = as_const_int(sch->Get(loop)->extent)) {
+  const auto* e_imm = sch->Get(loop)->extent.as<IntImmNode>();
+  if (auto e = e_imm ? e_imm->value.as<int64_t>() : std::nullopt; e.has_value()) {
     extent = *e;
   } else {
     extent = std::numeric_limits<int64_t>::max();

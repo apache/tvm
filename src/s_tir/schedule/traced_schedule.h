@@ -20,12 +20,12 @@
 #define TVM_S_TIR_SCHEDULE_TRACED_SCHEDULE_H_
 
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "./concrete_schedule.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 class TracedScheduleNode : public ConcreteScheduleNode {
@@ -50,7 +50,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   /******** Schedule: Sampling ********/
   ExprRV SampleCategorical(const ffi::Array<int64_t>& candidates, const ffi::Array<FloatImm>& probs,
                            ffi::Optional<int64_t> decision = std::nullopt) final;
-  ffi::Array<ExprRV> SamplePerfectTile(
+  ffi::Array<ffi::Optional<ExprRV>> SamplePerfectTile(
       const LoopRV& loop_rv, int n, int max_innermost_factor,
       ffi::Optional<ffi::Array<int64_t>> decision = std::nullopt) final;
   ffi::Array<ExprRV> SamplePartitionedTile(

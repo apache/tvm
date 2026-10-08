@@ -22,6 +22,16 @@ import tvm_ffi as _ffi
 from . import _ffi_api
 
 
+def ConvertSSA():
+    """De-duplicate definitions, including schedulable block iterators, across Functions."""
+    return _ffi_api.ConvertSSA()
+
+
+def StmtSimplify():
+    """Simplify schedulable TIR with block constraints and tirx.StmtSimplify options."""
+    return _ffi_api.StmtSimplify()
+
+
 def CanonicalizeLoop():
     """Canonicalize the loop to start from zero and use trivial step
 
@@ -126,6 +136,8 @@ def LowerMatchBuffer():
 def LowerOpaqueBlock():
     """Remove the block to ensure that the TIR can not be scheduled again.
 
+    Run LoopPartition first when thread-binding loops carry loop_partition_hint.
+
     Returns
     -------
     fpass : tvm.transform.Pass
@@ -156,16 +168,18 @@ def InjectPermutedLayout():
     return _ffi_api.InjectPermutedLayout()  # type: ignore
 
 
-def UnifyThreadBinding():
-    """Unify all the thread bindings for "blockIdx.x/y/z",
-    "threadIdx.x/y/z", and "vthread.x/y/z".
+def LowerThreadBinding():
+    """Lower thread-binding loops to fresh lexical launch regions.
+
+    Run after LoopPartition and LowerOpaqueBlock. Each loop keeps its own
+    lexical binding, including loops that use the same hardware axis.
 
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.UnifyThreadBinding()  # type: ignore
+    return _ffi_api.LowerThreadBinding()  # type: ignore
 
 
 def InjectSoftwarePipeline():
@@ -220,6 +234,10 @@ class LoopPartitionConfig(_ffi.Object):
 def LoopPartition():
     """Partition loops in the stmt.
 
+    Consumes the owning For's ``loop_partition_hint`` annotation. A provably
+    true value enables partitioning even without likely tags. Run this pass
+    before opaque lowering when hinting thread-binding loops.
+
     Returns
     -------
     fpass : tvm.transform.Pass
@@ -237,22 +255,6 @@ def InjectVirtualThread():
         The result pass
     """
     return _ffi_api.InjectVirtualThread()  # type: ignore
-
-
-@_ffi.register_object("s_tir.transform.InjectDoubleBufferConfig")
-class InjectDoubleBufferConfig(_ffi.Object):
-    """Config for inject double buffer pass"""
-
-
-def InjectDoubleBuffer():
-    """Inject double buffer statements.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InjectDoubleBuffer()  # type: ignore
 
 
 def HoistIfThenElse(variant=None):
@@ -310,39 +312,6 @@ def RewriteUnsafeSelect():
     return _ffi_api.RewriteUnsafeSelect()  # type: ignore
 
 
-def InstrumentBoundCheckers():
-    """Instruments bound checkers.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InstrumentBoundCheckers()  # type: ignore
-
-
-def InjectPTXLDG32(enable_inject_ptx_intrin=True):
-    """Inject ptx.ldg.32 intrinsics.
-
-    Parameters
-    ----------
-    enable_inject_ptx_intrin : bool
-        If True, inject ptx.ldg.32 intrinsics.
-    """
-    return _ffi_api.InjectPTXLDG32(enable_inject_ptx_intrin)  # type: ignore
-
-
-def InstrumentProfileIntrinsics():
-    """Insert intrinsic calls to instrument function and loop level profiling.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InstrumentProfileIntrinsics()  # type: ignore
-
-
 def VerifyVTCMLimit(default_target=None):
     """Verify if the size of the allocated vtcm memory satisfies the limit.
 
@@ -351,7 +320,7 @@ def VerifyVTCMLimit(default_target=None):
     Parameters
     ----------
     default_target : Optional[tvm.target.Target]
-        The default target to use if a PrimFunc does not have a target attribute.
+        The default target to use if a Function does not have a target attribute.
 
     Returns
     -------
@@ -388,6 +357,11 @@ def ThreadSync(storage_scope):
     return _ffi_api.ThreadSync(storage_scope)  # type: ignore
 
 
+def LowerSynchronization():
+    """Lower async queue operations and erase regions after synchronization planning."""
+    return _ffi_api.LowerSynchronization()  # type: ignore
+
+
 def InferFragment():
     """Infer the TensorCore fragment information using tensor intrinsics.
 
@@ -408,17 +382,6 @@ def LowerThreadAllreduce():
         The result pass
     """
     return _ffi_api.LowerThreadAllreduce()  # type: ignore
-
-
-def LowerAsyncDMA():
-    """Lower async DMA to DMA.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LowerAsyncDMA()  # type: ignore
 
 
 def InjectPTXAsyncCopy():
@@ -445,7 +408,7 @@ def MergeSharedMemoryAllocations():
 
 
 def DefaultGPUSchedule():
-    """Set default thread bindings for GPU PrimFuncs.
+    """Set default thread bindings for GPU Functions.
 
     Returns
     -------
@@ -502,3 +465,22 @@ def UseAssumeToReduceBranches():
         The result pass
     """
     return _ffi_api.UseAssumeToReduceBranches()  # type: ignore
+
+
+def ForceNarrowIndexToInt32():
+    """Force narrow down indexing expressions and integer buffers to int32 dtype.
+
+    Unlike :py:func:`tvm.tirx.transform.ForceNarrowIndexToInt32`, this pass also rewrites block
+    iterators, block access regions, and match buffer regions, so it can run on scheduled
+    functions before block lowering.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+
+    Note
+    ----
+    This pass should not be used in default cases.
+    """
+    return _ffi_api.ForceNarrowIndexToInt32()  # type: ignore

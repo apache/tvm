@@ -22,12 +22,11 @@ import operator
 import pytest
 
 import tvm
-from tvm.arith import Analyzer
 from tvm.ir import assert_structural_equal
 from tvm.ir.type import PointerType, PrimType
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tirx as Tx_builder
+from tvm.sym import Analyzer
 from tvm.tirx import Var
 from tvm.tirx.cuda.tile_primitive.tma_utils import (
     SwizzleMode,
@@ -54,6 +53,7 @@ from tvm.tirx.layout import (
     wgid,
     wid_in_wg,
 )
+from tvm.tirx.script import ir_builder as Tx_builder
 
 
 def test_axis():
@@ -1491,7 +1491,7 @@ def test_mma_shared_layout():
 def test_pool_allocator_alloc_mma():
     def alloc_layout(shape, dtype, swizzle_mode="auto"):
         with IRBuilder():
-            with Tx_builder.prim_func():
+            with Tx_builder.function():
                 pool = T.SMEMPool(Var("smem_ptr", PointerType(PrimType("uint8"))))
                 buf = pool.alloc_tcgen05_mma_AB(shape, dtype, swizzle_mode=swizzle_mode)
         return buf.layout
@@ -1793,18 +1793,16 @@ def _evaluate_layout_expr(expr, values):
         return lhs % rhs
     if node_type == "Cast":
         return _evaluate_layout_expr(expr.value, values)
-    if node_type == "Call":
-        args = [_evaluate_layout_expr(arg, values) for arg in expr.args]
-        op_name = str(expr.op.name)
-        if op_name == "ir.prim.bitwise_xor":
-            return args[0] ^ args[1]
-        if op_name == "ir.prim.bitwise_and":
-            return args[0] & args[1]
-        if op_name == "ir.prim.shift_left":
-            return args[0] << args[1]
-        if op_name == "ir.prim.shift_right":
-            return args[0] >> args[1]
-        raise AssertionError(f"Cannot evaluate call {op_name}")
+    if node_type in ("BitwiseXor", "BitwiseAnd", "LShift", "RShift"):
+        lhs = _evaluate_layout_expr(expr.a, values)
+        rhs = _evaluate_layout_expr(expr.b, values)
+        if node_type == "BitwiseXor":
+            return lhs ^ rhs
+        if node_type == "BitwiseAnd":
+            return lhs & rhs
+        if node_type == "LShift":
+            return lhs << rhs
+        return lhs >> rhs
     raise AssertionError(f"Cannot evaluate node type {node_type}")
 
 
@@ -2057,7 +2055,7 @@ def test_slice_single_shard_skips_defensive_floormod():
     decomposes ``begin`` into per-shard coordinates via
     ``floormod(floordiv(begin, B[k]), Ek)``. When ``m == 1`` (single shard
     in the group) and ``begin`` is a runtime expression (e.g. a pipeline
-    stage ``BufferLoad``), the analyzer cannot prove ``begin < Ek`` so the
+    stage ``TensorLoad``), the analyzer cannot prove ``begin < Ek`` so the
     defensive ``floormod`` survives codegen.
 
     Concretely, fa4's K_smem with shape ``(SMEM_PIPE_DEPTH_KV=3, 128, 128)``

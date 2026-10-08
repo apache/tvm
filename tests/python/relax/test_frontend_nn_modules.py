@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501, F401, F841
+# ruff: noqa: E501, F401
 
 import numpy as np
 import pytest
@@ -282,18 +282,19 @@ def test_conv3d():
 
 
 def test_conv2d_dynamic():
+    n = T.dynamic("n")
+    h = T.dynamic("h")
+    w = T.dynamic("w")
+    c = T.dynamic("c")
+    in_channels = T.dynamic("in_channels")
+
     @R.function
     def forward(
-        x: R.Tensor(("n", "c", "h", "w"), dtype="float32"),
+        x: R.Tensor((n, c, h, w), dtype="float32"),
         _io: R.Any,
-        weight: R.Tensor((32, "in_channels", 3, 3), dtype="float32"),
+        weight: R.Tensor((32, in_channels, 3, 3), dtype="float32"),
         bias: R.Tensor((32,), dtype="float32"),
-    ) -> R.Tuple(R.Tensor(("n", 32, "h - 2", "w - 2"), dtype="float32"), R.Tuple(R.Any)):
-        n = T.int64()
-        h = T.int64()
-        w = T.int64()
-        c = T.int64()
-        in_channels = T.int64()
+    ) -> R.Tuple(R.Tensor((n, 32, h - 2, w - 2), dtype="float32"), R.Tuple(R.Any)):
         R.func_attr({"num_input": 2})
         with R.dataflow():
             lv1: R.Tensor((n, 32, h - 2, w - 2), dtype="float32") = R.nn.conv2d(x, weight)

@@ -24,22 +24,27 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief The visitor that finds all the reduction block to be decomposed */
-struct ReductionBlockFinder : private StmtVisitor {
- public:
+struct ReductionBlockFinder : public StmtExprVisitor {
+  using StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
   /*! \brief Find all the reduction blocks that should be decomposed */
   static std::vector<std::pair<StmtSRef, ffi::String>> Find(const ScheduleState& self) {
     std::vector<std::pair<StmtSRef, ffi::String>> results;
     for (const auto& kv : self->mod->functions) {
       GlobalVar g_var = kv.first;
       BaseFunc base_func = kv.second;
-      if (const auto* prim_func = base_func.as<PrimFuncNode>()) {
-        ReductionBlockFinder finder;
-        finder(prim_func->body);
-        for (const SBlockNode* block : finder.results_) {
+      if (const auto* function = base_func.as<FunctionNode>()) {
+        auto finder = ffi::make_object<ReductionBlockFinder>();
+        finder->Visit(function->body);
+        for (const SBlockNode* block : finder->results_) {
           results.emplace_back(self->stmt2ref.at(block), g_var->name_hint);
         }
       }
@@ -48,19 +53,19 @@ struct ReductionBlockFinder : private StmtVisitor {
   }
 
  private:
-  void VisitStmt_(const ForNode* loop) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
     runtime::ThreadScope thread_scope = GetThreadScope(loop);
     if (IsThreadIdx(thread_scope) || IsBlockIdx(thread_scope)) {
       thread_bound_loop_vars_.insert(loop->loop_var.get());
     }
-    StmtVisitor::VisitStmt_(loop);
+    return StmtExprVisitor::Visit_(loop);
   }
 
-  void VisitStmt_(const SBlockRealizeNode* realize) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* realize) final {
     if (realize->block->init.has_value() && AllReductionIterVarAreUnbound(realize)) {
       results_.push_back(realize->block.get());
     }
-    StmtVisitor::VisitStmt_(realize);
+    return StmtExprVisitor::Visit_(realize);
   }
 
   bool AllReductionIterVarAreUnbound(const SBlockRealizeNode* realize) const {
@@ -78,7 +83,7 @@ struct ReductionBlockFinder : private StmtVisitor {
     for (int i = 0; i < n; ++i) {
       IterVar iter_var = block->iter_vars[i];
       PrimExpr binding = realize->iter_values[i];
-      if (iter_var->iter_type == tirx::kCommReduce) {
+      if (iter_var->iter_type == s_tir::kCommReduce) {
         if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(binding, walkfn).has_value()) {
           return false;
         }
@@ -115,7 +120,6 @@ int FindDecomposePoint(const StmtSRef& block_sref) {
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 /*! \brief Rewrite reduction block by moving the init block out */

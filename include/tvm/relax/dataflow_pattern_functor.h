@@ -49,7 +49,7 @@ class DFPatternFunctor;
   }
 
 #define RELAX_DFPATTERN_FUNCTOR_DISPATCH(OP)                                                    \
-  vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) {     \
+  vtable.template SetDispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) {      \
     return self->VisitDFPattern_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...); \
   });
 
@@ -57,7 +57,7 @@ template <typename R, typename... Args>
 class DFPatternFunctor<R(const DFPattern& n, Args...)> {
  private:
   using TSelf = DFPatternFunctor<R(const DFPattern& n, Args...)>;
-  using FType = tvm::NodeFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args...)>;
+  using FType = tvm::ObjectFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args...)>;
 
  public:
   /*! \brief virtual destructor */

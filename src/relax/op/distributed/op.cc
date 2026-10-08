@@ -30,12 +30,17 @@ Type InferDistTypeCallTIR(const Call& call, const BlockBuilder& ctx) {
     TVM_FFI_VISIT_THROW(InternalError, call) << "ty_args should have exact 1 output type.";
   }
   TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>())
-      << "call_tir expects the first argument to be a GlobalVar referring to a TIR PrimFunc. "
+      << "call_tir expects the first argument to be a GlobalVar referring to a TIR tirx::Function. "
       << "However, gets " << call->args[0];
   return call->ty_args[0];
 }
 
-TVM_REGISTER_OP("relax.call_tir").set_attr<FInferType>("dist.FInferType", InferDistTypeCallTIR);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
+  OpDef("relax.call_tir")
+      .set_attr<FInferTypeWithBuilder>("relax.dist.FInferTypeWithBuilder", InferDistTypeCallTIR);
+  // clang-format on
+}
 
 Type InferDistTypeStopLiftParams(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
@@ -44,8 +49,11 @@ Type InferDistTypeStopLiftParams(const Call& call, const BlockBuilder& ctx) {
   return call->args[0]->ty.as_or_throw<Type>();
 }
 
-TVM_REGISTER_OP("relax.builtin.stop_lift_params")
-    .set_attr<FInferType>("dist.FInferType", InferDistTypeStopLiftParams);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.builtin.stop_lift_params")
+      .set_attr<FInferTypeWithBuilder>("relax.dist.FInferTypeWithBuilder",
+                                       InferDistTypeStopLiftParams);
+}
 
 }  // namespace distributed
 }  // namespace relax

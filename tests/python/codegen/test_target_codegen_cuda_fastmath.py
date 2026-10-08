@@ -35,19 +35,19 @@ from tvm.testing import env
 VECTOR_N_INPUTS = 8
 
 
-def make_prim_func(
+def make_function(
     name: str,
     dtype: str,
     num_inputs: int,
     op: Callable[[tirx.Expr, ...], tirx.Expr],
-) -> tirx.PrimFunc:
+) -> tirx.Function:
     """Make a primitive function that applies the given operation to the input buffer."""
     if num_inputs == 1:
 
-        @T.prim_func
+        @T.function
         def kernel(
-            A: T.Buffer((VECTOR_N_INPUTS,), dtype),
-            B: T.Buffer((VECTOR_N_INPUTS,), dtype),
+            A: T.Tensor((VECTOR_N_INPUTS,), dtype),
+            B: T.Tensor((VECTOR_N_INPUTS,), dtype),
         ):
             T.func_attr({"global_symbol": name + "_kernel", "tirx.noalias": True})
             for i in T.thread_binding(VECTOR_N_INPUTS, thread="threadIdx.x"):
@@ -56,11 +56,11 @@ def make_prim_func(
         return kernel
     elif num_inputs == 2:
 
-        @T.prim_func
+        @T.function
         def kernel(
-            A: T.Buffer((VECTOR_N_INPUTS,), dtype),
-            E: T.Buffer((VECTOR_N_INPUTS,), dtype),
-            B: T.Buffer((VECTOR_N_INPUTS,), dtype),
+            A: T.Tensor((VECTOR_N_INPUTS,), dtype),
+            E: T.Tensor((VECTOR_N_INPUTS,), dtype),
+            B: T.Tensor((VECTOR_N_INPUTS,), dtype),
         ):
             T.func_attr({"global_symbol": name + "_kernel", "tirx.noalias": True})
             for i in T.thread_binding(VECTOR_N_INPUTS, thread="threadIdx.x"):
@@ -205,8 +205,8 @@ def make_mod(
 ) -> tuple[tvm.target.Target, tvm.IRModule]:
     """Make a module for the given dtype and case."""
     target = tvm.target.Target("cuda")
-    prim_func = make_prim_func(case.name, dtype, case.num_inputs, case.op)
-    return target, tvm.IRModule.from_expr(prim_func.with_attr("target", target))
+    function = make_function(case.name, dtype, case.num_inputs, case.op)
+    return target, tvm.IRModule.from_expr(function.with_attr("target", target))
 
 
 def expected_intrinsic(dtype: str, case: MathCase, enable_fast_math: bool) -> str:

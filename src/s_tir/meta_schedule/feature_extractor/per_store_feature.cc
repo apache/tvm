@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/transform.h>
 
@@ -53,7 +54,7 @@ using ForVec = std::vector<const ForNode*>;
 template <class V>
 using ForBufferMap =
     std::unordered_map<const ForNode*,
-                       std::unordered_map<BufferVar, V, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>>;
+                       std::unordered_map<TensorVar, V, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>>;
 
 /*! \brief Given x, compute log2(|x| + 1) */
 inline double slog(double x) { return x >= 0 ? std::log2(x + 1) : std::log2(-x + 1); }
@@ -66,17 +67,17 @@ namespace utils {
  * \param analyzer The analyzer
  * \return The shape of the buffer
  */
-std::vector<int64_t> GetBufferShape(const BufferVar& buffer, arith::AnalyzerObj* analyzer) {
+std::vector<int64_t> GetBufferShape(const TensorVar& buffer, sym::AnalyzerObj* analyzer) {
   int ndim = buffer->shape.size();
   std::vector<int64_t> result;
   result.reserve(ndim);
   for (const PrimExpr& i : buffer->shape) {
     if (const IntImmNode* int_imm = i.as<IntImmNode>()) {
-      result.push_back(int_imm->value);
+      result.push_back(static_cast<int64_t>(int_imm->value));
       continue;
     }
-    arith::ConstIntBound bound = analyzer->const_int_bound(i);
-    if (0 <= bound->max_value && bound->max_value < arith::ConstIntBound::kPosInf) {
+    sym::ConstIntBound bound = analyzer->const_int_bound(i);
+    if (0 <= bound->max_value && bound->max_value < sym::ConstIntBound::kPosInf) {
       result.push_back(bound->max_value);
     } else {
       result.push_back(1);
@@ -86,14 +87,13 @@ std::vector<int64_t> GetBufferShape(const BufferVar& buffer, arith::AnalyzerObj*
 }
 
 /*!
- * \brief Given a loop, return its `pragma_auto_unroll_max_step` annotation if it exists
+ * \brief Given a loop, return its `auto_unroll_max_step` annotation if it exists
  * \param loop The loop to be checked
- * \return The value of `pragma_auto_unroll_max_step` if it exists, or -1 if it does not exist
+ * \return The value of `auto_unroll_max_step` if it exists, or -1 if it does not exist
  */
-int64_t GetPragmaAutoUnroll(const ForNode* loop) {
-  if (ffi::Optional<IntImm> auto_unroll =
-          GetAnn<IntImm>(loop, tirx::attr::pragma_auto_unroll_max_step)) {
-    return auto_unroll.value()->value;
+int64_t GetAutoUnrollMaxStep(const ForNode* loop) {
+  if (ffi::Optional<IntImm> auto_unroll = GetAnn<IntImm>(loop, tirx::attr::auto_unroll_max_step)) {
+    return static_cast<int64_t>(auto_unroll.value()->value);
   }
   return -1;
 }
@@ -109,7 +109,9 @@ int64_t GetPragmaAutoUnroll(const ForNode* loop) {
  */
 int64_t FirstLoopExtent(const ForVec& loops, int64_t default_value) {
   if (!loops.empty()) {
-    if (const int64_t* extent = GetLoopIntExtent(loops[0])) {
+    const auto* extent_imm = loops[0]->extent.as<IntImmNode>();
+    if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+        extent.has_value()) {
       return *extent;
     }
   }
@@ -125,7 +127,7 @@ int64_t FirstLoopExtent(const ForVec& loops, int64_t default_value) {
  * \return The relaxed and unioned region
  */
 IntVec RelaxAndUnion(const std::vector<MultiIndex>& multi_indices, int64_t* numel,
-                     arith::AnalyzerObj* analyzer) {
+                     sym::AnalyzerObj* analyzer) {
   *numel = 1;
   if (multi_indices.empty()) {
     return {};
@@ -134,10 +136,10 @@ IntVec RelaxAndUnion(const std::vector<MultiIndex>& multi_indices, int64_t* nume
   int ndim = multi_indices[0].size();
   IntVec access_shape(ndim, 0);
   for (int i = 0; i < ndim; ++i) {
-    int64_t minimum = arith::ConstIntBound::kPosInf;
-    int64_t maximum = arith::ConstIntBound::kNegInf;
+    int64_t minimum = sym::ConstIntBound::kPosInf;
+    int64_t maximum = sym::ConstIntBound::kNegInf;
     for (int j = 0; j < n_indices; ++j) {
-      arith::ConstIntBound bound = analyzer->const_int_bound(multi_indices[j][i]);
+      sym::ConstIntBound bound = analyzer->const_int_bound(multi_indices[j][i]);
       minimum = std::min(minimum, bound->min_value);
       maximum = std::max(maximum, bound->max_value);
     }
@@ -156,46 +158,51 @@ IntVec RelaxAndUnion(const std::vector<MultiIndex>& multi_indices, int64_t* nume
  */
 int64_t GetVarStride(const std::vector<MultiIndex>& multi_indices, const IntVec& buffer_stride,
                      const Var& var) {
-  class CoefficientExtractor : private ExprVisitor {
+  class CoefficientExtractor : public StmtExprVisitor {
    public:
+    using StmtExprVisitor::Visit_;
+
     static int64_t Extract(const PrimExpr& expr, const Var& var) {
-      CoefficientExtractor extractor(var);
-      extractor.VisitExpr(expr);
-      return (extractor.visited_var && !extractor.visited_mul && !extractor.visited_add)
+      auto extractor = ffi::make_object<CoefficientExtractor>(var);
+      extractor->Visit(expr);
+      return (extractor->visited_var && !extractor->visited_mul && !extractor->visited_add)
                  ? 1
-                 : (extractor.visited_var ? extractor.stride : 0);
+                 : (extractor->visited_var ? extractor->stride : 0);
     }
 
-   private:
     explicit CoefficientExtractor(const Var& var)
         : var(var), stride(0), visited_var(false), visited_add(false), visited_mul(false) {}
 
-    void VisitExpr_(const MulNode* node) override {
-      ExprVisitor::VisitExpr_(node);
+   private:
+    ffi::Optional<VisitInterrupt> Visit_(const MulNode* node) override {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
       if (visited_var && !visited_add) {
         if (const auto* a = node->a.as<IntImmNode>()) {
           visited_mul = true;
-          stride = a->value;
+          stride = static_cast<int64_t>(a->value);
         } else if (const auto* b = node->b.as<IntImmNode>()) {
           visited_mul = true;
-          stride = b->value;
+          stride = static_cast<int64_t>(b->value);
         }
       }
+      return std::nullopt;
     }
 
-    void VisitExpr_(const AddNode* node) override {
-      ExprVisitor::VisitExpr_(node);
+    ffi::Optional<VisitInterrupt> Visit_(const AddNode* node) override {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(node));
       if (visited_var && !visited_mul) {
         visited_add = true;
         stride = 1;
       }
+      return std::nullopt;
     }
 
-    void VisitExpr_(const VarNode* node) override {
+    ffi::Optional<VisitInterrupt> Visit_(const VarNode* node) override {
       if (node == var.get()) {
         visited_var = true;
         stride = 2;
       }
+      return std::nullopt;
     }
 
     const Var& var;
@@ -256,13 +263,23 @@ namespace transform {
  * \brief Create a pass that simplifies the IR for feature extraction
  * \return The pass created
  */
-Pass SimplifyForFeatureExtraction() {
-  class Simplifier : private StmtExprMutator {
+Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
+  class Simplifier : public StmtExprMutator {
    public:
-    static Stmt Run(Stmt stmt) { return Simplifier()(std::move(stmt)); }
+    using StmtExprMutator::Mutate;
+    using StmtExprMutator::Mutate_;
+
+    explicit Simplifier(bool normalize_thread_bindings)
+        : normalize_thread_bindings_(normalize_thread_bindings) {}
+
+    static Stmt Run(Stmt stmt, bool normalize_thread_bindings) {
+      return ffi::make_object<Simplifier>(normalize_thread_bindings)
+          ->Mutate(stmt, InplaceMode::kAllow)
+          .ValueOrUnchanged(std::move(stmt));
+    }
 
    private:
-    static bool HasBufferLoad(const PrimExpr& expr) {
+    static bool HasTensorLoad(const PrimExpr& expr) {
       auto walk_fn = [](const TensorLoad&) -> ffi::Expected<ffi::WalkResult> {
         return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(true));
       };
@@ -270,42 +287,106 @@ Pass SimplifyForFeatureExtraction() {
       return result.has_value() ? result.value()->value.cast<bool>() : false;
     }
 
-    Expr VisitExpr_(const SelectNode* node) final {
-      if (HasBufferLoad(node->true_value) || HasBufferLoad(node->false_value) ||
-          HasBufferLoad(node->condition)) {
-        return ffi::GetRef<Select>(node);
+    UnchangedOr<PrimExpr> Mutate_(const SelectNode* node, InplaceMode inplace_mode) final {
+      if (normalize_thread_bindings_) return StmtExprMutator::Mutate_(node, inplace_mode);
+      if (HasTensorLoad(node->true_value) || HasTensorLoad(node->false_value) ||
+          HasTensorLoad(node->condition)) {
+        return ffi::Unchanged();
       }
-      return MakeConst(node->ty.as_or_throw<PrimType>(), 1.0);
+      return prim::MakeConst(node->ty.as_or_throw<PrimType>(), 1.0);
     }
 
-    Expr VisitExpr_(const VarNode* var) final {
-      if (unit_vars_.count(ffi::GetRef<Var>(var))) {
-        return MakeConst(var->ty.as_or_throw<PrimType>(), 0.0);
-      }
-      return ffi::GetRef<Var>(var);
-    }
-
-    Stmt VisitStmt_(const ForNode* loop) final {
-      if (is_zero(loop->extent)) {
+    UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
+      auto mutate_retained_loop = [&]() -> UnchangedOr<Stmt> {
+        if (!normalize_thread_bindings_) return StmtExprMutator::Mutate_(loop, inplace_mode);
+        auto annotations = Mutate(loop->annotations, inplace_mode)
+                               .as_or_throw<UnchangedOr<ffi::Map<ffi::String, ffi::Any>>>();
+        auto result = StmtExprMutator::Mutate_(loop, inplace_mode);
+        if (annotations.UnchangedOrSameAs(loop->annotations)) return result;
+        For updated =
+            std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(loop)).as_or_throw<For>();
+        updated.CopyOnWrite()->annotations = std::move(annotations).ValueUnchecked();
+        return updated;
+      };
+      if (!normalize_thread_bindings_ && IsZero(loop->extent)) {
         return Evaluate(0);
       }
-      if (is_zero(loop->min) && is_one(loop->extent) && loop->kind == ForKind::kSerial &&
-          loop->annotations.empty()) {
-        unit_vars_.insert(loop->loop_var);
-        return VisitStmt(loop->body);
+      if (normalize_thread_bindings_ && loop->kind == ForKind::kThreadBinding) {
+        const auto& tag = loop->thread_binding.value();
+        if (support::StartsWith(tag, "vthread")) {
+          // Virtual axes are independent iterations and isolate hardware aliases.
+          thread_bindings_.push_back(nullptr);
+          auto result = mutate_retained_loop();
+          thread_bindings_.pop_back();
+          return result;
+        }
+        for (auto it = thread_bindings_.rbegin(); it != thread_bindings_.rend() && *it; ++it) {
+          const ForNode* outer = *it;
+          if (outer->thread_binding.value() != tag) continue;
+          // Feature counts describe hardware work, not repeated lexical names
+          // for one axis. Normalize only nested aliases in this analysis input.
+          sym::Analyzer analyzer;
+          TVM_FFI_CHECK(analyzer->CanProveEqual(loop->min, outer->min) &&
+                            analyzer->CanProveEqual(loop->extent, outer->extent),
+                        ValueError)
+              << "Incompatible nested thread extents for " << tag;
+          auto previous_remap = VarRemapGet(loop->loop_var);
+          VarRemapSet(loop->loop_var, prim::cast(loop->loop_var.ty(), outer->loop_var));
+          auto annotations = Mutate(loop->annotations, inplace_mode)
+                                 .as_or_throw<UnchangedOr<ffi::Map<ffi::String, ffi::Any>>>()
+                                 .ValueOrUnchanged(loop->annotations);
+          Stmt body = Mutate(loop->body, inplace_mode).ValueOrUnchanged(loop->body);
+          VarRemapSet(loop->loop_var, previous_remap);
+          if (!annotations.empty()) {
+            PrimType ty = loop->loop_var.ty();
+            body = For(PrimVar("annotation", ty), IntImm(ty, 0), IntImm(ty, 1), ForKind::kSerial,
+                       std::move(body), std::nullopt, std::move(annotations), std::nullopt);
+          }
+          return body;
+        }
+        thread_bindings_.push_back(loop);
+        auto result = mutate_retained_loop();
+        thread_bindings_.pop_back();
+        return result;
+      }
+      if (!normalize_thread_bindings_ && IsZero(loop->min) && IsOne(loop->extent) &&
+          loop->kind == ForKind::kSerial && loop->annotations.empty()) {
+        VarRemapSet(loop->loop_var, MakeConst(loop->loop_var.ty(), 0.0));
+        return Mutate(loop->body, inplace_mode).ValueOrUnchanged(loop->body);
       } else {
-        return StmtExprMutator::VisitStmt_(loop);
+        return mutate_retained_loop();
       }
     }
 
-    std::unordered_set<Var> unit_vars_;
+    UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+      if (!normalize_thread_bindings_) return StmtExprMutator::Mutate_(op, inplace_mode);
+      auto annotations = Mutate(op->annotations, inplace_mode)
+                             .as_or_throw<UnchangedOr<ffi::Map<ffi::String, ffi::Any>>>();
+      auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+      if (annotations.UnchangedOrSameAs(op->annotations)) return result;
+      SBlock block =
+          std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
+      block.CopyOnWrite()->annotations = std::move(annotations).ValueUnchecked();
+      return block;
+    }
+
+    UnchangedOr<Stmt> Mutate_(const RegionStmtNode* region, InplaceMode inplace_mode) final {
+      thread_bindings_.push_back(nullptr);
+      auto result = StmtExprMutator::Mutate_(region, inplace_mode);
+      thread_bindings_.pop_back();
+      return result;
+    }
+
+    bool normalize_thread_bindings_;
+    std::vector<const ForNode*> thread_bindings_;
   };
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    PrimFuncNode* n = f.CopyOnWrite();
-    n->body = Simplifier::Run(std::move(n->body));
+  auto pass_func = [normalize_thread_bindings](Function f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
+    FunctionNode* n = f.CopyOnWrite();
+    n->body = Simplifier::Run(std::move(n->body).value(), normalize_thread_bindings);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.SimplifyForFeatureExtraction", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.SimplifyForFeatureExtraction", {});
 }
 
 /*!
@@ -321,11 +402,11 @@ tvm::transform::Sequential PassListForPerStoreFeature() {
       s_tir::transform::PlanAndUpdateBufferAllocationLocation(),
       s_tir::transform::ConvertBlocksToOpaque(),
       s_tir::transform::CompactBufferAllocation(),
-      tirx::transform::StmtSimplify(),
+      s_tir::transform::StmtSimplify(),
       s_tir::transform::LowerAutoCopy(),
-      s_tir::transform::UnifyThreadBinding(),
+      s_tir::transform::SimplifyForFeatureExtraction(/*normalize_thread_bindings=*/true),
       s_tir::transform::LowerMatchBuffer(),
-      tirx::transform::StmtSimplify(),
+      s_tir::transform::StmtSimplify(),
   });
 }
 
@@ -335,7 +416,7 @@ tvm::transform::Sequential PassListForPerStoreFeature() {
 struct LoopNest {
   int64_t prod = 1;    // The product of the extents of all the loops
   ForVec loops;        // All the loops
-  IntVec auto_unroll;  // The loops with auto unroll pragma
+  IntVec auto_unroll;  // The loops with auto unroll policy
   ForVec parallel;     // The loops whose ForKind are kParallel
   ForVec vectorize;    // The loops whose ForKind are kVectorized
   ForVec unroll;       // The loops whose ForKind are kUnrolled
@@ -354,11 +435,13 @@ struct LoopNest {
    * \return A list of for loops that the loop is bound to
    */
   ForVec* Push(const ForNode* loop, int64_t* auto_unroll_attr) {
-    if (const int64_t* extent = GetLoopIntExtent(loop)) {
+    const auto* extent_imm = loop->extent.as<IntImmNode>();
+    if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+        extent.has_value()) {
       this->prod *= *extent;
     }
     this->loops.push_back(loop);
-    if ((*auto_unroll_attr = utils::GetPragmaAutoUnroll(loop)) > 0) {
+    if ((*auto_unroll_attr = utils::GetAutoUnrollMaxStep(loop)) > 0) {
       this->auto_unroll.push_back(*auto_unroll_attr);
     }
     ForVec* ref_loops = nullptr;
@@ -369,7 +452,7 @@ struct LoopNest {
     } else if (loop->kind == ForKind::kUnrolled) {
       ref_loops = &unroll;
     } else if (loop->kind == ForKind::kThreadBinding) {
-      std::string thread_tag = loop->thread_binding.value()->thread_tag;
+      std::string thread_tag = loop->thread_binding.value();
       if (thread_tag == "blockIdx.x") {
         ref_loops = &blockIdx_x;
       } else if (thread_tag == "blockIdx.y") {
@@ -407,7 +490,9 @@ struct LoopNest {
     if (auto_unroll_attr > 0) {
       this->auto_unroll.pop_back();
     }
-    if (const int64_t* extent = GetLoopIntExtent(loop)) {
+    const auto* extent_imm = loop->extent.as<IntImmNode>();
+    if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+        extent.has_value()) {
       this->prod /= *extent;
     }
     this->loops.pop_back();
@@ -445,7 +530,7 @@ struct Feature {
     static constexpr int64_t kCount = 16;
 
     ArithOps() = default;
-    ArithOps(const BufferStoreNode* store, int64_t prod_loop_extent);
+    ArithOps(const TensorStoreNode* store, int64_t prod_loop_extent);
 
     void Export(std::vector<double>* v) const {
       double vs[] = {
@@ -513,7 +598,7 @@ struct Feature {
 
   static constexpr int64_t kCount = ArithOps::kCount + ForKindFeature::kCount * 3 + 8;
 
-  explicit Feature(const BufferStoreNode* store, const LoopNest& loop_nest, bool is_gpu)
+  explicit Feature(const TensorStoreNode* store, const LoopNest& loop_nest, bool is_gpu)
       : arith_ops(store, loop_nest.prod),
         vectorize(loop_nest.vectorize),
         unroll(loop_nest.unroll),
@@ -545,27 +630,35 @@ struct Feature {
   }
 };
 
-Feature::ArithOps::ArithOps(const BufferStoreNode* store, int64_t prod_loop_extent) {
-  class ArithOpCounter : public ExprVisitor {
+Feature::ArithOps::ArithOps(const TensorStoreNode* store, int64_t prod_loop_extent) {
+  class ArithOpCounter : public StmtExprVisitor {
    public:
-#define TVM_FEATURE_SIMPLE(Type, Counter)       \
-  void VisitExpr_(const Type* op) final {       \
-    result_.Counter += this->prod_loop_extent_; \
-    ExprVisitor::VisitExpr_(op);                \
+    using StmtExprVisitor::Visit_;
+
+#define TVM_FEATURE_SIMPLE(Type, Counter)                      \
+  ffi::Optional<VisitInterrupt> Visit_(const Type* op) final { \
+    result_.Counter += this->prod_loop_extent_;                \
+    return StmtExprVisitor::Visit_(op);                        \
   }
 #define TVM_FEATURE_BINARY(Type, FloatCounter, IntCounter)                      \
-  void VisitExpr_(const Type* op) final {                                       \
+  ffi::Optional<VisitInterrupt> Visit_(const Type* op) final {                  \
     if (op->ty.as_or_throw<PrimType>().MatchesCode(DLDataTypeCode::kDLFloat)) { \
       result_.FloatCounter += this->prod_loop_extent_;                          \
     } else {                                                                    \
       result_.IntCounter += this->prod_loop_extent_;                            \
     }                                                                           \
-    ExprVisitor::VisitExpr_(op);                                                \
+    return StmtExprVisitor::Visit_(op);                                         \
   }
     TVM_FEATURE_SIMPLE(AndNode, bool_op);
     TVM_FEATURE_SIMPLE(OrNode, bool_op);
     TVM_FEATURE_SIMPLE(NotNode, bool_op);
     TVM_FEATURE_SIMPLE(SelectNode, select_op);
+    TVM_FEATURE_SIMPLE(prim::LShiftNode, int_math_func);
+    TVM_FEATURE_SIMPLE(prim::RShiftNode, int_math_func);
+    TVM_FEATURE_SIMPLE(prim::BitwiseAndNode, int_math_func);
+    TVM_FEATURE_SIMPLE(prim::BitwiseOrNode, int_math_func);
+    TVM_FEATURE_SIMPLE(prim::BitwiseXorNode, int_math_func);
+    TVM_FEATURE_SIMPLE(prim::BitwiseNotNode, int_math_func);
     TVM_FEATURE_BINARY(AddNode, float_add_sub, int_add_sub);
     TVM_FEATURE_BINARY(SubNode, float_add_sub, int_add_sub);
     TVM_FEATURE_BINARY(MulNode, float_mul, int_mul);
@@ -584,11 +677,10 @@ Feature::ArithOps::ArithOps(const BufferStoreNode* store, int64_t prod_loop_exte
 #undef TVM_FEATURE_BINARY
 #undef TVM_FEATURE_SIMPLE
 
-    void VisitExpr_(const CallNode* op) final {
+    ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
       auto result_type = op->ty.as<PrimType>();
       if (!result_type) {
-        ExprVisitor::VisitExpr_(op);
-        return;
+        return StmtExprVisitor::Visit_(op);
       }
       static auto op_call_effect_ = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
       CallEffectKind effect_kind =
@@ -608,16 +700,16 @@ Feature::ArithOps::ArithOps(const BufferStoreNode* store, int64_t prod_loop_exte
           result_.int_other_func += prod_loop_extent_;
         }
       }
-      ExprVisitor::VisitExpr_(op);
+      return StmtExprVisitor::Visit_(op);
     }
 
     int64_t prod_loop_extent_;
     ArithOps result_;
   };
-  ArithOpCounter counter;
-  counter.prod_loop_extent_ = prod_loop_extent;
-  counter(store->value);
-  *this = counter.result_;
+  auto counter = ffi::make_object<ArithOpCounter>();
+  counter->prod_loop_extent_ = prod_loop_extent;
+  counter->Visit(store->value);
+  *this = counter->result_;
 }
 
 Feature::ForKindFeature::ForKindFeature(const ForVec& loops) {
@@ -627,13 +719,17 @@ Feature::ForKindFeature::ForKindFeature(const ForVec& loops) {
     this->len = 0;
     this->pos = ForKindFeature::Pos::kPosNone;
   } else {
-    const int64_t* last_loop_extent = GetLoopIntExtent(loops.back());
+    const auto* last_loop_extent_imm = loops.back()->extent.as<IntImmNode>();
+    auto last_loop_extent =
+        last_loop_extent_imm ? last_loop_extent_imm->value.as<int64_t>() : std::nullopt;
     this->num = loops.size();
-    this->len = last_loop_extent ? *last_loop_extent : 1;
+    this->len = last_loop_extent.has_value() ? *last_loop_extent : 1;
     this->pos = ForKindFeature::Pos::kPosMixed;
     int64_t& prod = this->prod = 1;
     for (const ForNode* loop : loops) {
-      if (const int64_t* extent = GetLoopIntExtent(loop)) {
+      const auto* extent_imm = loop->extent.as<IntImmNode>();
+      if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+          extent.has_value()) {
         prod *= *extent;
       }
     }
@@ -657,9 +753,9 @@ struct Feature {
     kUnknownRW = 3,
   };
   enum class ReuseType : int {
-    /*! BufferVar reuse because accessed on each iteration of a loop */
+    /*! TensorVar reuse because accessed on each iteration of a loop */
     kLoopMultipleRead = 0,
-    /*! BufferVar reuse because it is serially accessed */
+    /*! TensorVar reuse because it is serially accessed */
     kSerialMultipleReadWrite = 1,
     /*! No buffer reuse */
     kNoReuse = 2,
@@ -667,14 +763,14 @@ struct Feature {
 
   struct SubFeature {
     /*! \brief The buffer this feature is for */
-    BufferVar buffer;
+    TensorVar buffer;
     /*! \brief The access type of the buffer */
     AccessType access_type = AccessType::kUnknownRW;
     /*! \brief A list of multi-dimensonal indices used to access the buffer */
     std::vector<MultiIndex> multi_indices = {};
     // Access information
     /*! \brief loop_accessed_numel[i][...] means the number of elements accessed by loops[i] */
-    std::vector<std::unordered_map<BufferVar, int64_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>>
+    std::vector<std::unordered_map<TensorVar, int64_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>>
         loop_accessed_numel = {};
     /*! \brief The shape of the data access */
     IntVec access_shape;
@@ -745,7 +841,7 @@ struct Feature {
 
     static void Pad(std::vector<double>* v) { v->insert(v->end(), 18, 0.0); }
 
-    void SetStride(const LoopNest& loop_nest, arith::AnalyzerObj* analyzer);
+    void SetStride(const LoopNest& loop_nest, sym::AnalyzerObj* analyzer);
 
     void SetReuse(const LoopNest& loop_nest,     //
                   int64_t top_loop_touch_bytes,  //
@@ -753,7 +849,7 @@ struct Feature {
 
     void SetFeature(const LoopNest& loop_nest, int64_t cache_line_bytes);
 
-    explicit SubFeature(BufferVar buffer, AccessType access_type,
+    explicit SubFeature(TensorVar buffer, AccessType access_type,
                         std::vector<MultiIndex> multi_indices, int n_loops)
         : buffer(std::move(buffer)),
           access_type(access_type),
@@ -772,33 +868,33 @@ struct Feature {
     }
   }
 
-  explicit Feature(const BufferStoreNode* store, const LoopNest& loop_nest,
+  explicit Feature(const TensorStoreNode* store, const LoopNest& loop_nest,
                    int64_t cache_line_bytes, IntVec* for_touched_bytes,
-                   ForBufferMap<IntVec>* buffer_touched_under_loop, arith::AnalyzerObj* analyzer);
+                   ForBufferMap<IntVec>* buffer_touched_under_loop, sym::AnalyzerObj* analyzer);
 
-  void Init(const BufferStoreNode* store, int n_loops);
+  void Init(const TensorStoreNode* store, int n_loops);
 
   void SetRegion(const LoopNest& loop_nest,                        //
                  IntVec* for_touched_bytes,                        //
                  ForBufferMap<IntVec>* buffer_touched_under_loop,  //
-                 arith::AnalyzerObj* analyzer);
+                 sym::AnalyzerObj* analyzer);
 
   std::vector<SubFeature> sub_features;
 };
 
-void Feature::Init(const BufferStoreNode* store, int n_loops) {
+void Feature::Init(const TensorStoreNode* store, int n_loops) {
   struct Info {
     AccessType access_type = AccessType::kUnknownRW;
     std::vector<MultiIndex> multi_indices;
   };
-  std::unordered_map<BufferVar, Info, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_info;
+  std::unordered_map<TensorVar, Info, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_info;
   {
     Info& info = buffer_info[store->buffer];
     info.access_type = AccessType::kWrite;
     info.multi_indices.push_back({store->indices.begin(), store->indices.end()});
   }
   auto walk_fn = [&buffer_info](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
-    BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
+    TensorVar buffer = load->source.as_or_throw<tvm::tirx::TensorVar>();
     Info& info = buffer_info[buffer];
     switch (info.access_type) {
       case AccessType::kRead:
@@ -828,7 +924,7 @@ void Feature::Init(const BufferStoreNode* store, int n_loops) {
 
 void Feature::SetRegion(const LoopNest& loop_nest, IntVec* for_touched_bytes,
                         ForBufferMap<IntVec>* buffer_touched_under_loop,
-                        arith::AnalyzerObj* analyzer) {
+                        sym::AnalyzerObj* analyzer) {
   int n_loops = loop_nest.loops.size();
   const std::vector<const ForNode*>& loops = loop_nest.loops;
   // Step 1. Initialize and bind all the loop variables to a constant
@@ -853,7 +949,7 @@ void Feature::SetRegion(const LoopNest& loop_nest, IntVec* for_touched_bytes,
                    /*allow_override=*/true);
     int64_t& touched_bytes = (*for_touched_bytes)[i] = 0;
     for (SubFeature& feature : sub_features) {
-      BufferVar buffer = feature.buffer;
+      TensorVar buffer = feature.buffer;
       // Note: `feature.access_shape` for `i == 0` is the only one preserved,
       // while others are discarded
       int64_t numel;
@@ -866,11 +962,11 @@ void Feature::SetRegion(const LoopNest& loop_nest, IntVec* for_touched_bytes,
   }
 }
 
-void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::AnalyzerObj* analyzer) {
+void Feature::SubFeature::SetStride(const LoopNest& loop_nest, sym::AnalyzerObj* analyzer) {
   int n_loops = loop_nest.loops.size();
   const std::vector<const ForNode*>& loops = loop_nest.loops;
   // For each buffer, we find the loop stride on it
-  BufferVar buffer = this->buffer;
+  TensorVar buffer = this->buffer;
   int ndim = buffer->shape.size();
   IntVec buffer_shape = utils::GetBufferShape(buffer, analyzer);
   // Calculate the buffer's stride from its shape
@@ -908,7 +1004,9 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::AnalyzerOb
   // Calculate this->prod
   int64_t& prod = this->prod_non_strided_loop_extent = 1;
   for (int j = n_loops - 1; j > i; --j) {
-    if (const int64_t* extent = GetLoopIntExtent(loops[j])) {
+    const auto* extent_imm = loops[j]->extent.as<IntImmNode>();
+    if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+        extent.has_value()) {
       prod *= *extent;
     }
   }
@@ -916,7 +1014,7 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::AnalyzerOb
 
 void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_touch_bytes,
                                    const ForBufferMap<IntVec>& buffer_touched_under_loop) {
-  BufferVar buffer = this->buffer;
+  TensorVar buffer = this->buffer;
   // Step 3.1. Collect all `Var`s that appears in the buffer region
   std::unordered_set<const VarNode*> region_vars;
   auto walk_fn = [&region_vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
@@ -944,14 +1042,18 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
     // Case 1. Find an invariant loop, i.e. reuse with kLoopMultipleRead
     if (!region_vars.count(loop->loop_var.get())) {
       reuse_type = ReuseType::kLoopMultipleRead;
-      if (const int64_t* extent = GetLoopIntExtent(loop)) {
+      const auto* extent_imm = loop->extent.as<IntImmNode>();
+      if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+          extent.has_value()) {
         reuse_ct = *extent;
       } else {
         reuse_ct = 1;
       }
       reuse_dis_iter = 1;
       for (int j = n_loops - 1; j > i; --j) {
-        if (const int64_t* extent = GetLoopIntExtent(loops[j])) {
+        const auto* extent_imm = loops[j]->extent.as<IntImmNode>();
+        if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+            extent.has_value()) {
           reuse_dis_iter *= *extent;
         }
       }
@@ -960,7 +1062,7 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
         reuse_dis_bytes = top_loop_touch_bytes;
       } else {
         for (const auto& iter : buffer_touched_under_loop.at(loops[i + 1])) {
-          BufferVar buffer = iter.first;
+          TensorVar buffer = iter.first;
           const IntVec& numels = iter.second;
           int64_t numel = std::accumulate(numels.begin(), numels.end(), int64_t(0));
           reuse_dis_bytes += numel * static_cast<int64_t>(buffer->dtype.StorageBytes());
@@ -972,7 +1074,8 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
     const IntVec& touched = buffer_touched_under_loop.at(loop).at(buffer);
     if (touched.size() >= 2) {
       int64_t extent = 1;
-      if (const int64_t* ext = GetLoopIntExtent(loop)) {
+      const auto* ext_imm = loop->extent.as<IntImmNode>();
+      if (auto ext = ext_imm ? ext_imm->value.as<int64_t>() : std::nullopt; ext.has_value()) {
         extent = *ext;
       }
       reuse_type = ReuseType::kSerialMultipleReadWrite;
@@ -980,7 +1083,7 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
       reuse_dis_iter = *std::min_element(touched.begin(), touched.end());
       reuse_dis_bytes = 0.0;
       for (const auto& iter : buffer_touched_under_loop.at(loop)) {
-        BufferVar buffer = iter.first;
+        TensorVar buffer = iter.first;
         const IntVec& numels = iter.second;
         int64_t numel = std::accumulate(numels.begin(), numels.end(), int64_t(0));
         reuse_dis_bytes += numel * static_cast<int64_t>(buffer->dtype.StorageBytes());
@@ -1017,9 +1120,9 @@ void Feature::SubFeature::SetFeature(const LoopNest& loop_nest, int64_t cache_li
   this->unique_lines_d_reuse_ct = this->unique_lines / proxy_reuse_ct;
 }
 
-Feature::Feature(const BufferStoreNode* store, const LoopNest& loop_nest, int64_t cache_line_bytes,
+Feature::Feature(const TensorStoreNode* store, const LoopNest& loop_nest, int64_t cache_line_bytes,
                  IntVec* for_touched_bytes, ForBufferMap<IntVec>* buffer_touched_under_loop,
-                 arith::AnalyzerObj* analyzer) {
+                 sym::AnalyzerObj* analyzer) {
   int n_loops = loop_nest.loops.size();
   // Step 0. Initialize data structures
   this->Init(store, n_loops);
@@ -1104,7 +1207,9 @@ struct Feature {
                                arith_ops.float_math_func + arith_ops.float_other_func;
     total_compute_ops /= loop_nest.prod;
     for (int i = n_loops - 1; i >= 0; --i) {
-      if (const int64_t* extent = GetLoopIntExtent(loops[i])) {
+      const auto* extent_imm = loops[i]->extent.as<IntImmNode>();
+      if (auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
+          extent.has_value()) {
         total_compute_ops *= *extent;
       }
       compute_ops.push_back(total_compute_ops);
@@ -1165,8 +1270,7 @@ struct Feature {
 
   Feature() = default;
 
-  explicit Feature(const LoopNest& loop_nest, const BufferVar& buffer,
-                   arith::AnalyzerObj* analyzer) {
+  explicit Feature(const LoopNest& loop_nest, const TensorVar& buffer, sym::AnalyzerObj* analyzer) {
     std::vector<int64_t> shape = utils::GetBufferShape(buffer, analyzer);
     int64_t numel = 1;
     for (int64_t x : shape) {
@@ -1186,7 +1290,7 @@ namespace group5 {
 struct Feature {
   int64_t outer_prod;        // The product of lengths of outer loops
   int num_loops;             // The number of outer loops
-  int auto_unroll_max_step;  // The value of pragma "auto_unroll_max_step"
+  int auto_unroll_max_step;  // The value of annotation "auto_unroll_max_step"
 
   static constexpr int64_t kCount = 3;
 
@@ -1211,21 +1315,28 @@ struct Feature {
 namespace group6 {
 
 /*! \brief The auxiliary feature extractor for workloads */
-class WorkloadEmbeddingExtractor : private StmtVisitor {
+class WorkloadEmbeddingExtractor : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
   static std::vector<double> Extract(const IRModule& mod) {
-    WorkloadEmbeddingExtractor self;
+    auto self = ffi::make_object<WorkloadEmbeddingExtractor>();
     for (const auto& kv : mod->functions) {
-      if (const PrimFuncNode* func = kv.second.as<PrimFuncNode>()) {
-        self(func->body);
+      if (const FunctionNode* func = kv.second.as<FunctionNode>()) {
+        self->Visit(func->body);
       }
     }
-    return self.embedding;
+    return self->embedding;
   }
 
  private:
-  void VisitStmt_(const SBlockNode* block) final {
-    StmtVisitor::VisitStmt_(block);
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(block));
     std::string name = block->name_hint;
     std::for_each(name.begin(), name.end(), [](char& c) { c = ::tolower(c); });
     if (name.find("softmax") != std::string::npos) {
@@ -1245,6 +1356,7 @@ class WorkloadEmbeddingExtractor : private StmtVisitor {
     } else if (name.find("conv2d") != std::string::npos) {
       embedding[7] = 1.0;
     }
+    return std::nullopt;
   }
 
   std::vector<double> embedding = std::vector<double>(8, 0.0);
@@ -1281,25 +1393,33 @@ struct Feature {
 };
 
 /*! \brief The main feature extractor */
-class PerStoreFeatureCollector : private StmtVisitor {
+class PerStoreFeatureCollector : public StmtExprVisitor {
  public:
+  using StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return StmtExprVisitor::Visit(value);
+  }
+
   static std::vector<Feature> Collect(bool is_gpu, int64_t cache_line_bytes,
                                       int64_t arith_intensity_curve_num_samples,
                                       const IRModule& mod) {
-    PerStoreFeatureCollector collector(is_gpu, cache_line_bytes, arith_intensity_curve_num_samples);
+    auto collector = ffi::make_object<PerStoreFeatureCollector>(is_gpu, cache_line_bytes,
+                                                                arith_intensity_curve_num_samples);
     for (const auto& kv : mod->functions) {
-      if (const PrimFuncNode* func = kv.second.as<PrimFuncNode>()) {
-        collector(func->body);
+      if (const FunctionNode* func = kv.second.as<FunctionNode>()) {
+        collector->Visit(func->body);
         for (const Var& param : func->params) {
-          if (auto buffer = param.as<BufferVar>()) {
-            collector.HandleBufferAlloc(buffer.value());
+          if (auto buffer = param.as<TensorVar>()) {
+            collector->HandleBufferAlloc(buffer.value());
           }
         }
       }
     }
     std::vector<Feature> result;
-    result.reserve(collector.buffer_features_.size());
-    for (auto& it : collector.buffer_features_) {
+    result.reserve(collector->buffer_features_.size());
+    for (auto& it : collector->buffer_features_) {
       Feature& feature = it.second;
       if (feature.buffer != nullptr) {
         TVM_FFI_ICHECK(feature.group1);
@@ -1317,16 +1437,17 @@ class PerStoreFeatureCollector : private StmtVisitor {
   }
 
  private:
-  void VisitStmt_(const ForNode* loop) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
     int64_t auto_unroll;
     ForVec* for_vec = loop_nest_.Push(loop, &auto_unroll);
-    StmtVisitor::VisitStmt_(loop);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
     loop_nest_.Pop(loop, for_vec, auto_unroll);
+    return std::nullopt;
   }
 
-  void VisitStmt_(const BufferStoreNode* store) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* store) final {
     if (store->value->IsInstance<IntImmNode>() || store->value->IsInstance<FloatImmNode>()) {
-      return;
+      return std::nullopt;
     }
     const VarNode* buffer = store->buffer.get();
     Feature& feature = buffer_features_[buffer];
@@ -1342,30 +1463,34 @@ class PerStoreFeatureCollector : private StmtVisitor {
         std::make_unique<group3::Feature>(arith_intensity_curve_num_samples_, loop_nest_,
                                           for_touched_bytes_, feature.group1->arith_ops);
     feature.group5 = std::make_unique<group5::Feature>(loop_nest_);
+    return std::nullopt;
   }
 
-  void VisitStmt_(const SBlockNode* block) final {
-    StmtVisitor::VisitStmt_(block);
-    for (const BufferVar& buffer : block->alloc_buffers) {
+  ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(block));
+    for (const TensorVar& buffer : block->alloc_buffers) {
       HandleBufferAlloc(buffer);
     }
+    return std::nullopt;
   }
 
-  void HandleBufferAlloc(const BufferVar& buffer) {
+  void HandleBufferAlloc(const TensorVar& buffer) {
     Feature& feature = buffer_features_[buffer.get()];
     feature.group4 = std::make_unique<group4::Feature>(loop_nest_, buffer, analyzer_.get());
   }
 
+ public:
   explicit PerStoreFeatureCollector(bool is_gpu, int64_t cache_line_bytes,
                                     int64_t arith_intensity_curve_num_samples)
       : is_gpu_(is_gpu),
         cache_line_bytes_(cache_line_bytes),
         arith_intensity_curve_num_samples_(arith_intensity_curve_num_samples) {}
 
+ private:
   bool is_gpu_;
   int64_t cache_line_bytes_;
   int64_t arith_intensity_curve_num_samples_;
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   LoopNest loop_nest_ = {};
   IntVec for_touched_bytes_ = {};
   ForBufferMap<IntVec> buffer_touched_under_loop_ = {};
@@ -1377,7 +1502,6 @@ class PerStoreFeatureCollector : private StmtVisitor {
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 class PerStoreFeatureNode : public FeatureExtractorNode {

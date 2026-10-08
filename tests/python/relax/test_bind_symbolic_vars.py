@@ -14,8 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F821
-
 import pytest
 
 import tvm
@@ -34,8 +32,12 @@ def test_bind_static_value(replace_by_tir_var):
     The replaced variables may be given either as strings, or as TIR variables
     """
 
+    M = T.dynamic("M")
+    K = T.dynamic("K")
+    N = T.dynamic("N")
+
     @R.function(private=True)
-    def before(A: R.Tensor(("M", "K")), B: R.Tensor(("K", "N"))) -> R.Tensor(("M", "N")):
+    def before(A: R.Tensor((M, K)), B: R.Tensor((K, N))) -> R.Tensor((M, N)):
         return R.matmul(A, B)
 
     @R.function(private=True)
@@ -60,8 +62,8 @@ def test_error_with_duplicate_var_names():
     variables share the same name, the replacement map may not refer
     to that variable by string.
     """
-    N1 = tvm.tirx.Var("N", "int64")
-    N2 = tvm.tirx.Var("N", "int64")
+    N1 = T.dynamic("N", "int64")
+    N2 = T.dynamic("N", "int64")
 
     @R.function(private=True)
     def func(A: R.Tensor((N1, N1)), B: R.Tensor((N1, N2))) -> R.Tensor((N1, N2)):
@@ -79,9 +81,9 @@ def test_string_var_when_other_var_has_duplicate_var_names():
     replacing variables by name only applies to those duplicate names.
     Other variables may still be replaced by name.
     """
-    N1 = tvm.tirx.Var("N", "int64")
-    N2 = tvm.tirx.Var("N", "int64")
-    BatchSize = tvm.tirx.Var("BatchSize", "int64")
+    N1 = T.dynamic("N", "int64")
+    N2 = T.dynamic("N", "int64")
+    BatchSize = T.dynamic("BatchSize", "int64")
 
     @R.function(private=True)
     def before(A: R.Tensor((BatchSize, N1, N1)), B: R.Tensor((N1, N2))) -> R.Tensor(
@@ -102,8 +104,11 @@ def test_string_var_when_other_var_has_duplicate_var_names():
 def test_error_with_nonexisting_var_name():
     """A string name of a symbolic var must be used by the function"""
 
+    M = T.dynamic("M")
+    N = T.dynamic("N")
+
     @R.function(private=True)
-    def func(A: R.Tensor(("M", "N"))):
+    def func(A: R.Tensor((M, N))):
         return A
 
     with pytest.raises(RuntimeError):
@@ -113,8 +118,11 @@ def test_error_with_nonexisting_var_name():
 def test_error_with_nonexisting_tir_var():
     """A TIR symbolic var must be a symbolic var of the function"""
 
+    M = T.dynamic("M")
+    N = T.dynamic("N")
+
     @R.function(private=True)
-    def func(A: R.Tensor(["M", "N"])):
+    def func(A: R.Tensor([M, N])):
         return A
 
     with pytest.raises(RuntimeError):
@@ -124,8 +132,11 @@ def test_error_with_nonexisting_tir_var():
 def test_error_with_multiple_definitions():
     """The string/TIR var syntaxes may not define the same variable"""
 
+    M = T.dynamic("M")
+    N = T.dynamic("N")
+
     @R.function(private=True)
-    def func(A: R.Tensor(["M", "N"])):
+    def func(A: R.Tensor([M, N])):
         return A
 
     tir_var = func.params[0].ty.shape[0]
@@ -138,11 +149,14 @@ def test_error_with_multiple_definitions():
 def test_error_if_output_has_undefined():
     """The replacements may not introduce undefined symbolic vars"""
 
+    M = T.dynamic("M")
+    N = T.dynamic("N")
+
     @R.function(private=True)
-    def func(A: R.Tensor(["M", "N"])):
+    def func(A: R.Tensor([M, N])):
         return A
 
-    outside_var = tvm.tirx.Var("outside_var", "int64")
+    outside_var = T.dynamic("outside_var", "int64")
 
     with pytest.raises(RuntimeError):
         func.bind_symbolic_vars({"M": outside_var * 2})
@@ -151,15 +165,20 @@ def test_error_if_output_has_undefined():
 def test_replacements_may_produce_new_symbolic_vars():
     """The output may introduce symbolic vars, but they must be bound"""
 
-    @R.function(private=True)
-    def before(A: R.Tensor(["M", "N"])):
-        return A
+    M = T.dynamic("M")
+    N = T.dynamic("N")
 
     @R.function(private=True)
-    def expected(A: R.Tensor(["outside_var * 2", "outside_var"])):
+    def before(A: R.Tensor([M, N])):
         return A
 
-    outside_var = tvm.tirx.Var("outside_var", "int64")
+    outside_var = T.dynamic("outside_var")
+
+    @R.function(private=True)
+    def expected(A: R.Tensor([outside_var * 2, outside_var])):
+        return A
+
+    outside_var = T.dynamic("outside_var", "int64")
 
     after = before.bind_symbolic_vars({"M": outside_var * 2, "N": outside_var})
     tvm.ir.assert_structural_equal(expected, after)
@@ -168,16 +187,18 @@ def test_replacements_may_produce_new_symbolic_vars():
 def test_bind_symbolic_vars_in_tensor_shape():
     """The bound variable should be replaced when appearing in type"""
 
+    M = T.dynamic("M")
+    N = T.dynamic("N")
+
     @R.function(private=True)
-    def before(A: R.Tensor(["M", "N"])):
-        M = T.int64()
-        N = T.int64()
+    def before(A: R.Tensor([M, N])):
         B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([2 * M * N]))
         return B
 
+    M = T.dynamic("M")
+
     @R.function(private=True)
-    def expected(A: R.Tensor(["M", 16])):
-        M = T.int64()
+    def expected(A: R.Tensor([M, 16])):
         B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([M * 32]))
         return B
 
@@ -188,15 +209,18 @@ def test_bind_symbolic_vars_in_tensor_shape():
 def test_bind_symbolic_vars_in_shape_expr():
     """The bound variable should be replaced when appearing in R.Shape"""
 
+    M = T.dynamic("M")
+    N = T.dynamic("N")
+
     @R.function(private=True)
-    def before(A: R.Tensor(["M * N"]), x: R.Shape(["M", "N"])):
-        M = T.int64()
-        N = T.int64()
+    def before(A: R.Tensor([M * N]), x: R.Shape([M, N])):
         B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([2 * M * N]))
         return B
 
+    M = T.dynamic("M")
+
     @R.function(private=True)
-    def expected(A: R.Tensor(["M * 16"]), x: R.Shape(["M", 16])):
+    def expected(A: R.Tensor([M * 16]), x: R.Shape([M, 16])):
         B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([M * 32]))
         return B
 
@@ -207,14 +231,18 @@ def test_bind_symbolic_vars_in_shape_expr():
 def test_bind_strided_slice():
     """relax.op.strided_slice stores Expr attributes"""
 
+    N = T.dynamic("N")
+    M = T.dynamic("M")
+
     @R.function(private=True)
-    def before(A: R.Tensor(["M", "N"])):
-        N = T.int64()
+    def before(A: R.Tensor([M, N])):
         B = R.strided_slice(A, [1], [0], [N // 4])
         return B
 
+    M = T.dynamic("M")
+
     @R.function(private=True)
-    def expected(A: R.Tensor(["M", 32])):
+    def expected(A: R.Tensor([M, 32])):
         # Binding substitutes runtime primitive arguments without applying
         # shape-only analyzer simplification to them.
         B = R.strided_slice(A, [1], [0], [T.FloorDiv(T.int64(32), T.int64(4))])
@@ -227,17 +255,19 @@ def test_bind_strided_slice():
 def test_bind_inside_match_cast():
     """Symbolic variables may occur within R.match_cast"""
 
+    M = T.dynamic("M")
+    N = T.dynamic("N")
+
     @R.function(private=True)
-    def before(A: R.Tensor(["M", "N"]), B: R.Tensor(ndim=2)):
-        M = T.int64()
-        N = T.int64()
+    def before(A: R.Tensor([M, N]), B: R.Tensor(ndim=2)):
         C = R.match_cast(B, R.Tensor([M, N]))
         D = R.add(A, C)
         return D
 
+    M = T.dynamic("M")
+
     @R.function(private=True)
-    def expected(A: R.Tensor(["M", 32]), B: R.Tensor(ndim=2)):
-        M = T.int64()
+    def expected(A: R.Tensor([M, 32]), B: R.Tensor(ndim=2)):
         C = R.match_cast(B, R.Tensor([M, 32]))
         D = R.add(A, C)
         return D

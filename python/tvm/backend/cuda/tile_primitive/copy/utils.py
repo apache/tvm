@@ -48,8 +48,8 @@ def _scope_allowed(
 ):
     op_call = TilePrimitiveCall.downcast(op_call)
     dst_buffer_region, src_buffer_region = (op_call.dst, op_call.src)
-    src_scope = src_buffer_region.buffer.scope()
-    dst_scope = dst_buffer_region.buffer.scope()
+    src_scope = src_buffer_region.source.scope()
+    dst_scope = dst_buffer_region.source.scope()
     ok = any(
         (
             match_scope(src_scope, src_pat) and match_scope(dst_scope, dst_pat)

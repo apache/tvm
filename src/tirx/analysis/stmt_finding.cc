@@ -23,17 +23,18 @@
 namespace tvm {
 namespace tirx {
 
-const PrimFuncNode* FindEntryFunc(const IRModule& mod, GlobalVar* result_g_var) {
-  GlobalVar result;
-  // Priority 1: PrimFunc marked as `tirx::attr::kIsEntryFunc`
-  int num_prim_func = 0;
-  const tirx::PrimFuncNode* main_func = nullptr;
-  const tirx::PrimFuncNode* last_func = nullptr;
+const FunctionNode* FindEntryFunc(const IRModule& mod, GlobalVar* result_g_var) {
+  ffi::Optional<GlobalVar> result, last_gvar;
+  // Priority 1: Function marked as `tirx::attr::kIsEntryFunc`
+  int num_function = 0;
+  const tirx::FunctionNode* main_func = nullptr;
+  const tirx::FunctionNode* last_func = nullptr;
   for (const auto& kv : mod->functions) {
     GlobalVar gv = kv.first;
     BaseFunc base_func = kv.second;
-    if (const auto* func = base_func.as<tirx::PrimFuncNode>()) {
+    if (const auto* func = base_func.as<tirx::FunctionNode>()) {
       last_func = func;
+      last_gvar = gv;
       if (func->HasNonzeroAttr(tirx::attr::kIsEntryFunc)) {
         if (result_g_var != nullptr) {
           *result_g_var = gv;
@@ -44,20 +45,20 @@ const PrimFuncNode* FindEntryFunc(const IRModule& mod, GlobalVar* result_g_var) 
         main_func = func;
         result = gv;
       }
-      ++num_prim_func;
+      ++num_function;
     }
   }
-  // Priority 2: PrimFunc whose name is `main`
+  // Priority 2: Function whose name is `main`
   if (main_func != nullptr) {
     if (result_g_var != nullptr) {
-      *result_g_var = result;
+      *result_g_var = result.value();
     }
     return main_func;
   }
-  // Priority 3: The only PrimFunc in the IRModule
-  if (num_prim_func == 1) {
+  // Priority 3: The only Function in the IRModule
+  if (num_function == 1) {
     if (result_g_var != nullptr) {
-      *result_g_var = result;
+      *result_g_var = last_gvar.value();
     }
     return last_func;
   }

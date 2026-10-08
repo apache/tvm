@@ -42,14 +42,14 @@ def test_rpc():
     n = te.var("n")
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: te.log(te.abs(A(*i) + 1)), name="B")
-    mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]))
+    mod = tvm.IRModule.from_expr(te.create_function([A, B]))
     sch = tvm.s_tir.Schedule(mod)
     (i,) = sch.get_loops(block=sch.get_sblock("B"))
     i0, i1 = sch.split(i, [None, 32])
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")
 
-    fadd = tvm.build(sch.mod.with_attr("system_lib_prefix", ""), target=target)
+    fadd = tvm.tirx.build(sch.mod.with_attr("system_lib_prefix", ""), target=target)
     temp = utils.tempdir()
 
     wasm_path = temp.relpath("addone_gpu.wasm")

@@ -23,21 +23,21 @@ from tvm import s_tir, tirx
 from tvm.target import Target
 
 from .. import base
-from ..analysis import normalize_prim_func
+from ..analysis import normalize_function
 from ..base import try_inline
 from .base import GPUScheduleRule
 
 
 def _has_internal_thread_env(stmt: tirx.Stmt) -> bool:
     """Check whether a statement already launches GPU threads internally,
-    e.g. via `T.launch_thread` (AttrStmt "thread_extent") or nested
+    e.g. via `T.launch_thread` regions or nested
     thread-bound loops. Such blocks manage their own thread environment
     and must not be wrapped in an additional thread binding."""
     found = False
 
-    def visit_attr(node: tirx.AttrStmt):
+    def visit_region(node: tirx.RegionStmt):
         nonlocal found
-        if node.attr_key in ("thread_extent", "virtual_thread"):
+        if node.op.name == "tirx.launch_thread":
             found = True
 
     def visit_for(node: tirx.For):
@@ -47,9 +47,22 @@ def _has_internal_thread_env(stmt: tirx.Stmt) -> bool:
 
     tvm_ffi.structural_walk(
         stmt,
-        [(tirx.AttrStmt, visit_attr), (tirx.For, visit_for)],
+        [(tirx.RegionStmt, visit_region), (tirx.For, visit_for)],
         order="post",
     )
+    return found
+
+
+def _has_zero_extent_loop(stmt: tirx.Stmt) -> bool:
+    """Check whether a statement contains a statically empty loop."""
+    found = False
+
+    def visit_for(node: tirx.For):
+        nonlocal found
+        if isinstance(node.extent, tirx.IntImm) and node.extent.value == 0:
+            found = True
+
+    tvm_ffi.structural_walk(stmt, (tirx.For, visit_for), order="post")
     return found
 
 
@@ -61,16 +74,18 @@ class Fallback(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,missing-docstring
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> s_tir.Schedule:
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
+            return None
+        if _has_zero_extent_loop(func.body):
             return None
         max_threads_per_block = base.max_threads_per_block(target)
 
         sch = s_tir.Schedule(func)
-        block_infos = normalize_prim_func(sch)
+        block_infos = normalize_function(sch)
 
         if block_infos is None:
             return None

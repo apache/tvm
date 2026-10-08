@@ -31,20 +31,29 @@ from tvm.script import tirx as T
 from tvm.tirx.transform import FlattenBuffer
 
 
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
+
+
 def _collect_defined_buffers(func):
     defined = set()
 
     def visit(node):
-        if isinstance(node, tvm.tirx.AllocBuffer | tvm.tirx.DeclBuffer):
-            defined.add(node.buffer)
+        if _is_buffer_binding(node, "tirx.alloc_tensor", "tirx.decl_tensor"):
+            defined.add(node.var)
 
     tvm_ffi.structural_walk(func.body, visit)
     return defined
 
 
 def _assert_loads_reference_defined_buffers(func):
-    """Every BufferLoad — direct, or embedded in a buffer's type fields —
-    must reference a buffer defined by an AllocBuffer/DeclBuffer in the
+    """Every TensorLoad — direct, or embedded in a buffer's type fields —
+    must reference a buffer defined by an AllocTensor/DeclTensor in the
     function."""
     defined = _collect_defined_buffers(func)
 
@@ -61,17 +70,17 @@ def _assert_loads_reference_defined_buffers(func):
         tvm_ffi.structural_walk(expr, visit)
 
     def visit(node):
-        if isinstance(node, tvm.ir.TensorLoad | tvm.tirx.BufferStore):
+        if isinstance(node, tvm.ir.TensorLoad | tvm.tirx.TensorStore):
             buffer = node.source if isinstance(node, tvm.ir.TensorLoad) else node.buffer
             if not is_defined(buffer):
                 stale.append(f"access of {buffer.name}")
             for index in node.indices:
                 check_expr(index, f"index of {buffer.name}")
-        if isinstance(node, tvm.tirx.AllocBuffer | tvm.tirx.DeclBuffer):
-            for extent in node.buffer.shape:
-                check_expr(extent, f"shape of {node.buffer.name}")
-            if node.buffer.elem_offset is not None:
-                check_expr(node.buffer.elem_offset, f"elem_offset of {node.buffer.name}")
+        if _is_buffer_binding(node, "tirx.alloc_tensor", "tirx.decl_tensor"):
+            for extent in node.var.shape:
+                check_expr(extent, f"shape of {node.var.name}")
+            if node.var.elem_offset is not None:
+                check_expr(node.var.elem_offset, f"elem_offset of {node.var.name}")
 
     tvm_ffi.structural_walk(func.body, visit)
     assert not stale, f"stale buffer references after FlattenBuffer: {stale}"
@@ -87,12 +96,12 @@ def test_flatten_remaps_loads_in_view_shape():
     """A view sized by a local scalar: the scalar's rebuild must reach the
     load embedded in the view's shape."""
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before():
         n = T.alloc_local([1], "int32")
         n[0] = 8
-        data = T.alloc_buffer([64], "float16", scope="shared")
-        view = T.decl_buffer((n[0],), "float16", data.data, scope="shared")
+        data = T.alloc_tensor([64], "float16", scope="shared")
+        view = T.decl_tensor((n[0],), "float16", data.data, scope="shared")
         view[0] = T.float16(0)
 
     _assert_loads_reference_defined_buffers(_flatten(before))
@@ -103,12 +112,12 @@ def test_flatten_remaps_loads_in_folded_elem_offset():
     scalar load into every access index; those spliced loads must follow
     the scalar's rebuild."""
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before():
         n = T.alloc_local([1], "int32")
         n[0] = 4
-        base = T.alloc_buffer([128], "uint64", scope="shared")
-        mbar = T.decl_buffer((1,), "uint64", base.data, elem_offset=n[0], scope="shared")
+        base = T.alloc_tensor([128], "uint64", scope="shared")
+        mbar = T.decl_tensor((1,), "uint64", base.data, elem_offset=n[0], scope="shared")
         mbar[0] = T.uint64(1)
 
     after = _flatten(before)
@@ -118,7 +127,7 @@ def test_flatten_remaps_loads_in_folded_elem_offset():
     found = []
 
     def visit(node):
-        if isinstance(node, tvm.tirx.BufferStore) and node.buffer.name.startswith("mbar"):
+        if isinstance(node, tvm.tirx.TensorStore) and node.buffer.name.startswith("mbar"):
 
             def inner(sub):
                 if isinstance(sub, tvm.ir.TensorLoad):
@@ -134,16 +143,16 @@ def test_flatten_keeps_identity_of_already_flat_buffers():
     """A flat buffer whose type is unchanged by flattening must keep its
     identity (no gratuitous rebuild)."""
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before():
-        flat = T.alloc_buffer([32], "float32", scope="shared", layout=None)
+        flat = T.alloc_tensor([32], "float32", scope="shared", layout=None)
         flat[0] = T.float32(0)
 
     before_allocs = {}
 
     def collect_before(node):
-        if isinstance(node, tvm.tirx.AllocBuffer):
-            before_allocs[node.buffer.name] = node.buffer
+        if _is_buffer_binding(node, "tirx.alloc_tensor"):
+            before_allocs[node.var.name] = node.var
 
     tvm_ffi.structural_walk(before.body, collect_before)
 
@@ -151,8 +160,8 @@ def test_flatten_keeps_identity_of_already_flat_buffers():
     preserved = []
 
     def visit(node):
-        if isinstance(node, tvm.tirx.AllocBuffer) and node.buffer.name in before_allocs:
-            preserved.append(node.buffer.same_as(before_allocs[node.buffer.name]))
+        if _is_buffer_binding(node, "tirx.alloc_tensor") and node.var.name in before_allocs:
+            preserved.append(node.var.same_as(before_allocs[node.var.name]))
 
     tvm_ffi.structural_walk(after.body, visit)
     assert preserved and all(preserved), "already-flat buffer identity was not preserved"

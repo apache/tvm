@@ -25,6 +25,7 @@ import tvm
 import tvm.relax.testing.transform
 import tvm.testing
 from tvm import relax
+from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -56,7 +57,7 @@ def custom_op(define_normalization):
         return call.args[0]
 
     op_attrs = {
-        "FInferType": infer_ty,
+        "relax.FInferTypeWithBuilder": infer_ty,
         "FLegalize": legalize,
         "FPurity": True,
     }
@@ -187,8 +188,8 @@ def test_normalize_to_inline_tuple_for_call_tir(custom_op):
                 ty_args=[A.ty],
             )
 
-        @T.prim_func(private=True, s_tir=True)
-        def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+        @Ts.function(private=True)
+        def multiply_by_two(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * 2.0
 
@@ -204,8 +205,8 @@ def test_normalize_to_inline_tuple_for_call_tir(custom_op):
                 ty_args=[A.ty],
             )
 
-        @T.prim_func(private=True, s_tir=True)
-        def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+        @Ts.function(private=True)
+        def multiply_by_two(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * 2.0
 
@@ -234,8 +235,8 @@ def test_normalize_argument_to_inline_tuple_for_call_tir(custom_op):
                 ty_args=[args[0].ty],
             )
 
-        @T.prim_func(private=True, s_tir=True)
-        def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+        @Ts.function(private=True)
+        def multiply_by_two(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * 2.0
 
@@ -250,8 +251,8 @@ def test_normalize_argument_to_inline_tuple_for_call_tir(custom_op):
                 ty_args=[args[0].ty],
             )
 
-        @T.prim_func(private=True, s_tir=True)
-        def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+        @Ts.function(private=True)
+        def multiply_by_two(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * 2.0
 
@@ -281,8 +282,8 @@ def test_normalize_to_inline_tuple_for_call_tir_inplace(custom_op):
                 out_ty=[A.ty],
             )
 
-        @T.prim_func(private=True, s_tir=True)
-        def multiply_by_two(A: T.Buffer(16, "float32")):
+        @Ts.function(private=True)
+        def multiply_by_two(A: T.Tensor(16, "float32")):
             for i in range(16):
                 A[i] = A[i] * 2.0
 
@@ -301,8 +302,8 @@ def test_normalize_to_inline_tuple_for_call_tir_inplace(custom_op):
                 ty_args=[A.ty],
             )
 
-        @T.prim_func(private=True, s_tir=True)
-        def multiply_by_two(A: T.Buffer(16, "float32")):
+        @Ts.function(private=True)
+        def multiply_by_two(A: T.Tensor(16, "float32")):
             for i in range(16):
                 A[i] = A[i] * 2.0
 
@@ -332,14 +333,14 @@ def test_normalize_to_inline_tuple_for_call_tir_with_grad(custom_op):
                 te_grad_name="f_grad",
             )
 
-        @T.prim_func(private=True, s_tir=True)
-        def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+        @Ts.function(private=True)
+        def multiply_by_two(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * 2.0
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def f_grad(
-            A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32"), Grad: T.Buffer(16, "float32")
+            A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32"), Grad: T.Tensor(16, "float32")
         ):
             for i in range(16):
                 Grad[i] = 2.0
@@ -359,14 +360,14 @@ def test_normalize_to_inline_tuple_for_call_tir_with_grad(custom_op):
                 ty_args=[A.ty],
             )
 
-        @T.prim_func(private=True, s_tir=True)
-        def multiply_by_two(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+        @Ts.function(private=True)
+        def multiply_by_two(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * 2.0
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.function(private=True)
         def f_grad(
-            A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32"), Grad: T.Buffer(16, "float32")
+            A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32"), Grad: T.Tensor(16, "float32")
         ):
             for i in range(16):
                 Grad[i] = 2.0

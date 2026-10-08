@@ -19,17 +19,17 @@
 from collections.abc import Callable
 
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 
-def macro_or_prim_func(macro: Callable, need_macro: bool = False) -> Callable:
-    """Wrap a macro in a ``prim_func`` unless the caller explicitly wants the macro."""
+def macro_or_function(macro: Callable, need_macro: bool = False) -> Callable:
+    """Wrap a macro in a ``function`` unless the caller explicitly wants the macro."""
     if need_macro:
         return macro
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def func():
         macro()
 
@@ -51,12 +51,12 @@ def thread_selector(sctx: DispatchContext, inner_impl, macro: bool = False) -> C
     inner_impl : T.inline
         The body to execute inside the selected thread.
     macro : bool
-        If True, return the macro directly; otherwise wrap it in a ``prim_func``.
+        If True, return the macro directly; otherwise wrap it in a ``function``.
     """
-    assert not isinstance(inner_impl, PrimFunc), "inner_impl must be a macro, not a PrimFunc"
+    assert not isinstance(inner_impl, Function), "inner_impl must be a macro, not a Function"
     name = sctx.scope_kind
     if name == "thread":
-        return macro_or_prim_func(inner_impl, need_macro=macro)
+        return macro_or_function(inner_impl, need_macro=macro)
     if name == "cta":
 
         @T.inline()
@@ -65,7 +65,7 @@ def thread_selector(sctx: DispatchContext, inner_impl, macro: bool = False) -> C
             if T.cuda.elect_sync():
                 inner_impl()
 
-        return macro_or_prim_func(impl, need_macro=macro)
+        return macro_or_function(impl, need_macro=macro)
     if name == "warp":
 
         @T.inline()
@@ -74,7 +74,7 @@ def thread_selector(sctx: DispatchContext, inner_impl, macro: bool = False) -> C
             if T.cuda.elect_sync():
                 inner_impl()
 
-        return macro_or_prim_func(impl, need_macro=macro)
+        return macro_or_function(impl, need_macro=macro)
     if name == "warpgroup":
 
         @T.inline()
@@ -85,7 +85,7 @@ def thread_selector(sctx: DispatchContext, inner_impl, macro: bool = False) -> C
                 if T.cuda.elect_sync():
                     inner_impl()
 
-        return macro_or_prim_func(impl, need_macro=macro)
+        return macro_or_function(impl, need_macro=macro)
     raise ValueError(f"thread_selector: unsupported exec_scope {name!r}")
 
 

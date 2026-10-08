@@ -44,8 +44,8 @@ PrimExpr FlattenCoord(const Array<PrimExpr>& coord, const Array<PrimExpr>& shape
 ffi::Map<ffi::String, PrimExpr> BuildSpanMap(const TileLayout& layout) {
   ffi::Map<ffi::String, PrimExpr> span_map;
   for (const auto& iter : layout->shard) {
-    if (span_map.find(iter->axis->name) == span_map.end()) {
-      span_map.Set(iter->axis->name, layout->GetSpan(iter->axis->name));
+    if (span_map.find(iter->axis.name()) == span_map.end()) {
+      span_map.Set(iter->axis.name(), layout->GetSpan(iter->axis.name()));
     }
   }
   return span_map;
@@ -55,7 +55,7 @@ std::vector<PrimExpr> GetDefaultStrides(const ffi::Array<PrimExpr>& data, PrimEx
   std::vector<PrimExpr> strides;
   if (data.empty()) return strides;
   size_t n = data.size();
-  strides.resize(n);
+  strides.reserve(n);
   // Promote ``initial_stride`` (an IntImm constructed from `1`, defaults to
   // int32) to the dtype of the shape extents so the resulting strides
   // match what the tvmscript parser produces (``stride *= shape[i]`` in
@@ -66,15 +66,16 @@ std::vector<PrimExpr> GetDefaultStrides(const ffi::Array<PrimExpr>& data, PrimEx
     current_stride = IntImm(data[0].ty(), imm->value);
   }
   for (int i = static_cast<int>(n) - 1; i >= 0; --i) {
-    strides[i] = current_stride;
+    strides.push_back(current_stride);
     current_stride *= data[i];
   }
+  std::reverse(strides.begin(), strides.end());
   return strides;
 }
 
 bool AxisMatchesFilter(const Axis& axis, const ffi::Optional<ffi::String>& axis_name) {
   return (!axis_name.has_value() && axis->IsMemoryAxis()) ||
-         (axis_name.has_value() && axis->name == axis_name.value());
+         (axis_name.has_value() && axis.name() == axis_name.value());
 }
 
 TileLayout IdentityTileLayout(const ffi::Array<PrimExpr>& shape) {

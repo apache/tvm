@@ -21,7 +21,7 @@
  * \file tvm/tirx/op_attr_types.h
  * \brief Attribute types in the Op registry for TIR ops.
  *
- * These attributes can be set via OpRegEntry::set_attr
+ * These attributes can be set via OpDef::set_attr
  *
  * \sa tvm/ir/op.h
  */
@@ -29,13 +29,27 @@
 #define TVM_TIR_OP_ATTR_TYPES_H_
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/native_function.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 
-#include <ostream>
-
 namespace tvm {
 namespace tirx {
+/*!
+ * \brief Construct fresh typed variables for a region's lexical body parameters.
+ *
+ * The input carries only the operation, operands and attributes, without a body
+ * or builder state. Parameters are ordered, distinct definitions and may have
+ * name hints. Every region operation must register this hook, returning an empty
+ * array when it has no body parameters. Presence of the attribute identifies
+ * region support without invoking the hook or allocating variables.
+ */
+using FRegionGetBodyParams =
+    ffi::reflection::NativeFunctionView<ffi::Array<Var>(const CallNode* call)>;
+
+/*! \brief Shared FRegionGetBodyParams implementation for regions without body parameters. */
+inline ffi::Array<Var> RegionNoBodyParams(const CallNode*) { return {}; }
+
 /*!
  * \brief Global symbol of the op after lowering.
  */
@@ -57,9 +71,18 @@ using FLowerIntrinsic = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 using FLegalize = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
 /*!
- * \brief The operator's name in TVMScript printer
+ * \brief The fully qualified TVMScript name, including its dialect namespace.
  */
 using TScriptPrinterName = ffi::String;
+
+/*!
+ * \brief The published script callable accepts the shared Op construction contract.
+ *
+ * Published by Python construction namespaces, not by Op definitions: a printer
+ * name alone does not establish a legacy wrapper's positional/keyword contract.
+ * Semantic syntax hooks retain precedence over ordinary named construction.
+ */
+using TScriptStandardCall = bool;
 
 /*!
  * \brief Specifies that TVMScript printer prints the dtype as the first/last argument.
@@ -98,75 +121,6 @@ using TIRxOpCategory = ffi::String;
  * Expected values include "cuda", "ptx", "nvshmem", "nki", and "metal".
  */
 using TDeviceIntrinsicNamespace = ffi::String;
-
-/*!
- * \brief The effect type of the call.
- */
-enum class CallEffectKind : int {
-  /*! \brief Function corresponds to an annotation(e.g. likely) and can translate to identity. */
-  kExprAnnotation = 0,
-  /*!
-   * \brief Pure function that do not interacts
-   *        with any external state.
-   */
-  kPure = 1,
-  /*!
-   * \brief Function's that may read from states(e.g. RAM)
-   */
-  kReadState = 2,
-  /*!
-   * \brief Function that may read/write from states(e.g. RAM).
-   */
-  kUpdateState = 3,
-  /*!
-   * \brief Opaque function, cannot make any assumption
-   */
-  kOpaque = kUpdateState,
-  /*!
-   * \brief Special intrinsic to annotate call arguments info
-   *        only valid as a direct argument to a call.
-   */
-  kSpecialCallArg = 4,
-  /*!
-   * \brief Embed opaque information in the Expr, cannot be codegen.
-   */
-  kEmbedInfo = 5,
-  /*!
-   * \brief Function that changes control flow
-   */
-  kControlJump = 6,
-};
-
-inline std::ostream& operator<<(std::ostream& os, CallEffectKind side_effect) {
-  switch (side_effect) {
-    case CallEffectKind::kExprAnnotation:
-      return os << "kExprAnnotation";
-
-    case CallEffectKind::kPure:
-      return os << "kPure";
-
-    case CallEffectKind::kReadState:
-      return os << "kReadState";
-
-    case CallEffectKind::kUpdateState:
-      return os << "kUpdateState";
-
-    case CallEffectKind::kSpecialCallArg:
-      return os << "kSpecialCallArg";
-
-    case CallEffectKind::kEmbedInfo:
-      return os << "kEmbedInfo";
-
-    case CallEffectKind::kControlJump:
-      return os << "kControlJump";
-
-    default:
-      TVM_FFI_THROW(InternalError) << "Unknown CallEffectKind: " << static_cast<int>(side_effect);
-  }
-}
-
-/*! \brief Use integer to record the kind. */
-using TCallEffectKind = int64_t;
 
 }  // namespace tirx
 }  // namespace tvm

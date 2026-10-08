@@ -27,9 +27,9 @@
 #include <tvm/ir/transform.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/target/tag.h>
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
+#include <tvm/target/target_tag_registry.h>
 
 #include <algorithm>
 #include <sstream>
@@ -39,8 +39,6 @@
 #include <vector>
 
 namespace tvm {
-
-TVM_FFI_STATIC_INIT_BLOCK() { TargetNode::RegisterReflection(); }
 
 class TargetInternal {
  public:
@@ -66,11 +64,6 @@ class TargetInternal {
 
 Target Target::WithHost(const Target& target, const Target& host) {
   return TargetInternal::WithHost(target, host);
-}
-
-void CheckAndUpdateHostConsistency(Target* target, Target* host) {
-  *target = Target(*target, *host);
-  *host = (*target)->GetHost().value_or(Target());
 }
 
 static std::vector<ffi::String> DeduplicateKeys(const std::vector<ffi::String>& keys) {
@@ -146,6 +139,15 @@ Target::Target(TargetKind kind, ffi::Optional<ffi::ObjectRef> host, ffi::String 
   data->keys = std::move(keys);
   data->attrs = std::move(attrs);
   data_ = std::move(data);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  TargetNode::RegisterReflection();
+  // Register __ffi_repr__ so that ffi.ReprPrint uses JSON format for Target
+  refl::TypeAttrDef<TargetNode>().def(
+      refl::type_attr::kRepr,
+      [](Target target, ffi::Function) -> ffi::String { return target->str(); });
 }
 
 ffi::Map<ffi::String, ffi::Any> TargetNode::ToConfig() const {
@@ -253,7 +255,8 @@ void TargetInternal::ConstructorDispatcher(ffi::PackedArgs args, ffi::Any* rv) {
 
 ffi::ObjectPtr<TargetNode> TargetInternal::FromString(
     const ffi::String& tag_or_config_or_target_str) {
-  if (ffi::Optional<Target> target = TargetTag::Get(tag_or_config_or_target_str)) {
+  if (ffi::Optional<Target> target =
+          TargetTagRegistry::Global()->Get(tag_or_config_or_target_str)) {
     Target value = target.value();
     return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<TargetNode>(value);
   }
@@ -298,7 +301,7 @@ ffi::ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi:
     auto tag_name = config[kTag].try_cast<ffi::String>();
     TVM_FFI_ICHECK(tag_name.has_value())
         << "Expect type of field \"tag\" is String, but get type: " << config[kTag].GetTypeKey();
-    auto tag_config = TargetTag::GetConfig(tag_name.value());
+    auto tag_config = TargetTagRegistry::Global()->GetConfig(tag_name.value());
     TVM_FFI_ICHECK(tag_config.has_value()) << "Unknown target tag: " << tag_name.value();
     // Start from the tag's base config, then apply user overrides
     ffi::Map<ffi::String, ffi::Any> merged = tag_config.value();
@@ -483,10 +486,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            })
       .def("target.TargetAsJSON",
            [](const Target& target) -> ffi::String { return target->str(); });
-  // Register __ffi_repr__ so that ffi.ReprPrint uses JSON format for Target
-  refl::TypeAttrDef<TargetNode>().def(
-      refl::type_attr::kRepr,
-      [](Target target, ffi::Function) -> ffi::String { return target->str(); });
 }
 
 // AC: kRepr already registered above at refl::TypeAttrDef<TargetNode>().def(kRepr, ...)

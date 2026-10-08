@@ -31,23 +31,14 @@ namespace builtin {
  */
 TVM_DLL const Op& vscale();
 
-/*! \brief Left shift. */
-TVM_DLL const Op& shift_left();
+/*! \brief Round up to the nearest integral value. */
+TVM_DLL const Op& ceil();
 
-/*! \brief Right shift. */
-TVM_DLL const Op& shift_right();
+/*! \brief Base-two logarithm. */
+TVM_DLL const Op& log2();
 
-/*! \brief Bitwise and operator. */
-TVM_DLL const Op& bitwise_and();
-
-/*! \brief Bitwise or operator. */
-TVM_DLL const Op& bitwise_or();
-
-/*! \brief Bitwise xor operator. */
-TVM_DLL const Op& bitwise_xor();
-
-/*! \brief Bitwise not operator. */
-TVM_DLL const Op& bitwise_not();
+/*! \brief Count leading zero bits. */
+TVM_DLL const Op& clz();
 
 /*!
  * \brief Same as select, used for unsafe memory access.

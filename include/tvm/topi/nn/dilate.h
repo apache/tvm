@@ -24,7 +24,7 @@
 #ifndef TVM_TOPI_NN_DILATE_H_
 #define TVM_TOPI_NN_DILATE_H_
 
-#include <tvm/arith/analyzer.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/topi/tags.h>
 
@@ -69,12 +69,13 @@ PrimExpr all(ffi::Array<PrimExpr> args) {
  */
 inline Tensor dilate(const Tensor& x, ffi::Array<PrimExpr> strides, double dilation_value,
                      std::string name = "tensor", std::string tag = kInjective) {
+  using namespace tvm::prim;
   auto n = x->shape.size();
   TVM_FFI_ICHECK_EQ(n, strides.size())
       << "strides size (" << strides.size() << ") must match dimension of x (" << n << ")";
 
   ffi::Array<PrimExpr> out_shape;
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   for (size_t i = 0; i < n; ++i) {
     out_shape.push_back(analyzer->Simplify((x->shape[i] - 1) * (strides[i] + 1)));
   }
@@ -85,7 +86,7 @@ inline Tensor dilate(const Tensor& x, ffi::Array<PrimExpr> strides, double dilat
         ffi::Array<PrimExpr> not_zero;
         ffi::Array<PrimExpr> index_tuple;
         for (size_t i = 0; i < n; ++i) {
-          if (IsConstInt(strides[i]) && GetConstInt(strides[i]) == 1) {
+          if (IsConstInt(strides[i]) && strides[i].as_or_throw<IntImm>()->value == 1) {
             index_tuple.push_back(indices[i]);
           } else {
             index_tuple.push_back(indexdiv(indices[i], strides[i]));

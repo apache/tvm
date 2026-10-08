@@ -29,37 +29,34 @@
 namespace tvm {
 namespace relax {
 
-/*!
- * \brief Quick helper macro
- * - Expose a make function to construct the node.
- * - Register op to the registry.
- * \param OpName The name of operator to register. The name passed in will
- *  1. be prepended with a prefix "relax.op." as the FFI identifier string for the make function,
- *  2. be prepended with a prefix "relax." as the identifier string in the operator registry.
- */
-#define RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName)                                                  \
-  Expr OpName(Expr x1, Expr x2) {                                                                  \
-    static const Op& op = Op::Get("relax." #OpName);                                               \
-    return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});                                       \
-  }                                                                                                \
-  TVM_FFI_STATIC_INIT_BLOCK() {                                                                    \
-    tvm::ffi::reflection::GlobalDef().def("relax.op." #OpName, OpName);                            \
-  }                                                                                                \
-  TVM_REGISTER_OP("relax." #OpName)                                                                \
-      .set_num_inputs(2)                                                                           \
-      .add_argument("x1", "Tensor", "The first input tensor.")                                     \
-      .add_argument("x2", "Tensor", "The second input tensor.")                                    \
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)                    \
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow) \
-      .set_attr<bool>("FPurity", true)
+/* Register a binary constructor and its Op metadata together. */
+#define RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName, ...)                                           \
+  Expr OpName(Expr x1, Expr x2) {                                                                \
+    static const Op op = Op::Get("relax." #OpName);                                              \
+    return Call::Unchecked(Type::Missing(), op, {x1, x2}, Attrs(), {});                          \
+  }                                                                                              \
+  TVM_FFI_STATIC_INIT_BLOCK() {                                                                  \
+    tvm::ffi::reflection::GlobalDef().def("relax.op." #OpName, OpName);                          \
+    OpDef("relax." #OpName)                                                                      \
+        .signature(sig::arg("x1", "The first input tensor."),                                    \
+                   sig::arg("x2", "The second input tensor."),                                   \
+                   sig::var_ty_args("out_type",                                                  \
+                                    "Optional output tensor type carrying the virtual device.")) \
+        .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)                \
+        .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy",                                \
+                                         MixedPrecisionPolicyKind::kFollow)                      \
+        .set_attr<bool>("FPurity", true) __VA_ARGS__;                                            \
+  }
 
-#define RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(OpName)                    \
-  RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName).set_attr<FInferType>("FInferType", \
-                                                                 InferTypeBroadcastArith)
+#define RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(OpName) \
+  RELAX_REGISTER_BINARY_OP_AND_IMPL(                        \
+      OpName,                                               \
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeBroadcastArith))
 
-#define RELAX_REGISTER_CMP_OP_AND_IMPL(OpName)                                 \
-  RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName).set_attr<FInferType>("FInferType", \
-                                                                 InferTypeBroadcastCMP)
+#define RELAX_REGISTER_CMP_OP_AND_IMPL(OpName) \
+  RELAX_REGISTER_BINARY_OP_AND_IMPL(           \
+      OpName,                                  \
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeBroadcastCMP))
 
 /***************** Arithmetic operators *****************/
 

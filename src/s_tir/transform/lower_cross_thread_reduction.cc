@@ -20,15 +20,18 @@
 /*!
  * \file lower_cross_thread_reduction.cc
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/utils.h"
@@ -66,8 +69,7 @@ bool IsBoundToThreadIdx(const ForNode* loop) {
   if (!loop->thread_binding.has_value()) {
     return false;
   }
-  runtime::ThreadScope scope =
-      runtime::ThreadScope::Create(loop->thread_binding.value()->thread_tag);
+  runtime::ThreadScope scope = runtime::ThreadScope::Create(loop->thread_binding.value());
   return scope.rank == 1 && scope.dim_index >= 0;
 }
 
@@ -82,16 +84,17 @@ bool IsDominantBlock(const SBlock& scope_block, const SBlock& block) {
   // Step 1. Count the number of writers for each buffer written by the scope block.
   std::unordered_map<const VarNode*, int> buffer_writer_cnt;
   auto walk_fn = [&buffer_writer_cnt](const SBlock& block) -> ffi::Expected<ffi::WalkResult> {
-    for (const BufferRegion& buffer_region : block->writes) {
-      ++buffer_writer_cnt[buffer_region->buffer.get()];
+    for (const TensorRegion& buffer_region : block->writes) {
+      ++buffer_writer_cnt[buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().get()];
     }
     return ffi::WalkResult::Skip();
   };
   ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(scope_block->body, walk_fn);
   // Step 2. Check whether `block` is the only writer of its outputs.
-  for (const BufferRegion& buffer_region : block->writes) {
-    TVM_FFI_ICHECK(buffer_writer_cnt.count(buffer_region->buffer.get()));
-    if (buffer_writer_cnt[buffer_region->buffer.get()] != 1) {
+  for (const TensorRegion& buffer_region : block->writes) {
+    TVM_FFI_ICHECK(
+        buffer_writer_cnt.count(buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().get()));
+    if (buffer_writer_cnt[buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().get()] != 1) {
       return false;
     }
   }
@@ -110,7 +113,7 @@ bool IsDominantBlock(const SBlock& scope_block, const SBlock& block) {
  * check again.
  */
 bool IsReductionBlock(const SBlockRealize& realize, const ffi::Map<Var, Range>& loop_range_map,
-                      const SBlock& scope_block, arith::AnalyzerObj* analyzer) {
+                      const SBlock& scope_block, sym::AnalyzerObj* analyzer) {
   const auto* block = realize->block.as<SBlockNode>();
   // Cond 1. The block has the `init` statement.
   if (!block->init.has_value()) {
@@ -141,18 +144,18 @@ bool IsReductionBlock(const SBlockRealize& realize, const ffi::Map<Var, Range>& 
  * computation results or not, which is used for determine the buffer name prefix
  * \return The created buffers
  */
-ffi::Array<BufferVar> MakeScratchpads(const ffi::Array<BufferVar>& reduction_buffers,
+ffi::Array<TensorVar> MakeScratchpads(const ffi::Array<TensorVar>& reduction_buffers,
                                       bool is_cross_thread_buffer) {
-  ffi::Array<BufferVar> new_buffers;
+  ffi::Array<TensorVar> new_buffers;
   new_buffers.reserve(reduction_buffers.size());
-  for (const BufferVar& buffer : reduction_buffers) {
+  for (const TensorVar& buffer : reduction_buffers) {
     ffi::String name = is_cross_thread_buffer ? "cross" : "in";
     name = name + "_thread_" + buffer.name();
-    new_buffers.push_back(BufferVar(name, BufferType(/*storage_scope=*/"local",
+    new_buffers.push_back(TensorVar(name, TensorType(/*storage_scope=*/"local",
                                                      /*dtype=*/buffer->dtype,
                                                      /*shape=*/{IntImm::Int32(1)},
                                                      /*strides=*/{IntImm::Int32(1)},
-                                                     /*elem_offset=*/PrimExpr{nullptr},
+                                                     /*elem_offset=*/std::nullopt,
                                                      /*data_alignment=*/0,
                                                      /*offset_factor=*/0)));
   }
@@ -163,71 +166,88 @@ ffi::Array<BufferVar> MakeScratchpads(const ffi::Array<BufferVar>& reduction_buf
  * \brief Substitute given source buffers with given target buffers respectively in the input
  * statement
  */
-class BufferReplacer : private StmtExprMutator {
+class BufferReplacer : public StmtExprMutator {
  public:
-  static Stmt Run(ffi::Array<BufferVar> src_buffers, ffi::Array<BufferVar> tgt_buffers, Stmt stmt) {
-    ffi::Map<BufferVar, BufferVar> buffer_map;
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
+  static Stmt Run(ffi::Array<TensorVar> src_buffers, ffi::Array<TensorVar> tgt_buffers, Stmt stmt) {
+    ffi::Map<TensorVar, TensorVar> buffer_map;
     TVM_FFI_ICHECK_EQ(src_buffers.size(), tgt_buffers.size());
     int n_buffers = src_buffers.size();
     for (int i = 0; i < n_buffers; ++i) {
       buffer_map.Set(src_buffers[i], tgt_buffers[i]);
     }
-    return BufferReplacer(buffer_map)(std::move(stmt));
+    return ffi::make_object<BufferReplacer>(buffer_map)
+        ->Mutate(stmt, InplaceMode::kAllow)
+        .ValueOrUnchanged(std::move(stmt));
+  }
+
+  explicit BufferReplacer(ffi::Map<TensorVar, TensorVar> buffer_map) {
+    for (const auto& [buffer, replacement] : buffer_map) VarRemapSet(buffer, replacement);
   }
 
  private:
-  explicit BufferReplacer(ffi::Map<BufferVar, BufferVar> buffer_map)
-      : buffer_map_(std::move(buffer_map)) {}
-
-  Expr VisitExpr_(const TensorLoadNode* load) final {
-    auto it = buffer_map_.find(load->source.as_or_throw<tvm::tirx::BufferVar>());
-    return it != buffer_map_.end() ? BufferLoad((*it).second, {0}) : ffi::GetRef<TensorLoad>(load);
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* load, InplaceMode inplace_mode) final {
+    auto replacement = VarRemapGet(load->source).as<TensorVar>();
+    return replacement ? MakeTensorLoad(replacement.value(), {0}) : ffi::GetRef<TensorLoad>(load);
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* store) final {
-    auto it = buffer_map_.find(store->buffer);
-    if (it != buffer_map_.end()) {
-      PrimExpr value = StmtExprMutator::VisitPrimExpr(store->value);
-      return BufferStore((*it).second, std::move(value), {0});
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* store, InplaceMode inplace_mode) final {
+    if (auto replacement = VarRemapGet(store->buffer).as<TensorVar>()) {
+      PrimExpr value = StmtExprMutator::Mutate(ffi::AnyView(store->value), inplace_mode)
+                           .ValueOrUnchanged(store->value)
+                           .as_or_throw<PrimExpr>();
+      return TensorStore(replacement.value(), std::move(value), {0});
     } else {
-      return StmtMutator::VisitStmt_(store);
+      return StmtExprMutator::Mutate_(store, inplace_mode);
     }
   }
-
-  ffi::Map<BufferVar, BufferVar> buffer_map_;
 };
 
 /*!
  * \brief Substitute a given source block with a given target block, or remove the source block
  * branch from the AST if the target block is undefined
  */
-class InThreadReducerMaker : private StmtMutator {
+class InThreadReducerMaker : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
   /*!
    * \brief Visitor class to collect all reduction block variables under a loop.
    */
-  class UnderLoopReductionBlockVarCollector : public StmtVisitor {
+  class UnderLoopReductionBlockVarCollector : public StmtExprVisitor {
    public:
+    using StmtExprVisitor::Visit_;
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+      if (value.as<ExprNode>()) return std::nullopt;
+      return StmtExprVisitor::Visit(value);
+    }
     /*!
      * \brief Check if the given statement has any reduction blocks.
      * \param stmt The statement to check.
      * \return True if the statement has reduction blocks, false otherwise.
      */
     static bool CheckHasReductionBlocks(const Stmt& stmt) {
-      UnderLoopReductionBlockVarCollector collector;
-      collector(stmt);
-      return collector.reduction_block_vars_.size() > 0;
+      auto collector = ffi::make_object<UnderLoopReductionBlockVarCollector>();
+      collector->Visit(stmt);
+      return collector->reduction_block_vars_.size() > 0;
     }
 
    private:
-    void VisitStmt_(const SBlockNode* block) final {
+    ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
       ffi::Array<IterVar> iter_vars = block->iter_vars;
       for (const IterVar& iter_var : block->iter_vars) {
         if (iter_var->iter_type == kCommReduce) {
           reduction_block_vars_.push_back(iter_var);
         }
       }
-      StmtVisitor::VisitStmt_(block);
+      return StmtExprVisitor::Visit_(block);
     }
 
     /*! \brief the map from thread tag to its extent */
@@ -236,50 +256,69 @@ class InThreadReducerMaker : private StmtMutator {
 
   static ffi::Optional<Stmt> Make(const SBlockRealizeNode* src_realize,
                                   ffi::Optional<SBlockRealize> tgt_realize, Stmt stmt) {
-    return InThreadReducerMaker(src_realize, std::move(tgt_realize))(std::move(stmt));
+    return ffi::make_object<InThreadReducerMaker>(src_realize, std::move(tgt_realize))
+        ->Rewrite(std::move(stmt));
   }
 
- private:
   explicit InThreadReducerMaker(const SBlockRealizeNode* src_realize,
                                 ffi::Optional<SBlockRealize> tgt_realize)
       : src_realize_(src_realize), tgt_realize_(tgt_realize) {}
-  Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
+
+ private:
+  // Statement removal is carried separately from the mutator's required Stmt result.
+  // Each enclosing loop or sequence consumes the Optional before constructing its body.
+  ffi::Optional<Stmt> Rewrite(Stmt stmt) {
+    removed_ = false;
+    Stmt result = Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt).as_or_throw<Stmt>();
+    if (removed_) {
+      return std::nullopt;
+    }
+    return result;
+  }
+
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {
     if (realize == src_realize_) {
-      return tgt_realize_.has_value()  //
-                 ? tgt_realize_.value()
-                 : Stmt{nullptr};
-    }
-    return ffi::GetRef<SBlockRealize>(realize);
-  }
-
-  Stmt VisitStmt_(const ForNode* loop) final {
-    if (std::optional<For> opt_res = StmtMutator::VisitStmt_(loop).as<For>()) {
-      For res = *opt_res;
-      if (res->thread_binding.has_value()) {
-        UnderLoopReductionBlockVarCollector collector;
-        if (!res->body.defined() || collector.CheckHasReductionBlocks(res)) {
-          return res->body;
-        }
-        return res;
-
-      } else {
-        return res;
+      if (tgt_realize_.has_value()) {
+        return tgt_realize_.value();
       }
-    } else {
-      return Stmt{nullptr};
+      removed_ = true;
     }
+    return ffi::Unchanged();
   }
 
-  Stmt VisitStmt_(const SeqStmtNode* seq) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
+    auto body = Rewrite(loop->body);
+    if (!body.has_value()) {
+      removed_ = true;
+      return ffi::Unchanged();
+    }
+    For res = ffi::GetRef<For>(loop);
+    if (!body.value().same_as(loop->body)) {
+      res.CopyOnWrite()->body = body.value();
+    }
+    if (res->thread_binding.has_value() &&
+        UnderLoopReductionBlockVarCollector::CheckHasReductionBlocks(res)) {
+      return res->body;
+    }
+    return res;
+  }
+
+  UnchangedOr<Stmt> Mutate_(const SeqStmtNode* seq, InplaceMode inplace_mode) final {
     ffi::Array<Stmt> stmts;
     stmts.reserve(seq->size());
     for (const Stmt& stmt : seq->seq) {
-      if (ffi::Optional<Stmt> opt_res = VisitStmt(stmt)) {
-        stmts.push_back(opt_res.value());
+      if (auto result = Rewrite(stmt)) {
+        stmts.push_back(result.value());
       }
     }
-    return stmts.empty() ? Stmt{nullptr} : SeqStmt::Flatten(stmts);
+    removed_ = stmts.empty();
+    if (removed_) {
+      return ffi::Unchanged();
+    }
+    return SeqStmt::Flatten(stmts);
   }
+
+  bool removed_ = false;
 
   const SBlockRealizeNode* src_realize_;
   ffi::Optional<SBlockRealize> tgt_realize_;
@@ -298,9 +337,9 @@ class InThreadReducerMaker : private StmtMutator {
  * \param reduction_loops The reduction loops
  */
 Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                        //
-                             const ffi::Optional<ffi::Array<BufferVar>>& it_buffers,  //
-                             const ffi::Array<BufferVar>& ct_buffers,                 //
-                             const ffi::Array<BufferVar>& wb_buffers,                 //
+                             const ffi::Optional<ffi::Array<TensorVar>>& it_buffers,  //
+                             const ffi::Array<TensorVar>& ct_buffers,                 //
+                             const ffi::Array<TensorVar>& wb_buffers,                 //
                              const ffi::Array<PrimExpr>& old_wb_indices,              //
                              const te::CommReducer& reducer,                          //
                              const ffi::Array<PrimExpr>& combiner_rhs,                //
@@ -308,17 +347,17 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
   int n_buffers = wb_buffers.size();
   const SBlockNode* block = realize->block.get();
 
-  auto f_create_buffer_regions = [](ffi::Array<BufferVar> buffers) {
-    ffi::Array<BufferRegion> regions;
+  auto f_create_buffer_regions = [](ffi::Array<TensorVar> buffers) {
+    ffi::Array<TensorRegion> regions;
     regions.reserve(buffers.size());
-    for (const BufferVar& buffer : buffers) {
+    for (const TensorVar& buffer : buffers) {
       regions.push_back(BufferRegion(buffer, {Range::FromMinExtent(0, 1)}));
     }
     return regions;
   };
 
-  ffi::Array<BufferRegion> ct_buffer_regions = f_create_buffer_regions(ct_buffers);
-  ffi::Optional<ffi::Array<BufferRegion>> it_buffer_regions = std::nullopt;
+  ffi::Array<TensorRegion> ct_buffer_regions = f_create_buffer_regions(ct_buffers);
+  ffi::Optional<ffi::Array<TensorRegion>> it_buffer_regions = std::nullopt;
   if (it_buffers.has_value()) {
     it_buffer_regions = f_create_buffer_regions(it_buffers.value());
   }
@@ -335,7 +374,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     inits.reserve(n_buffers);
     for (int i = 0; i < n_buffers; ++i) {
       inits.push_back(
-          BufferStore(it_buffers.value()[i], reducer->identity_element[i], {IntImm::Int32(0)}));
+          TensorStore(it_buffers.value()[i], reducer->identity_element[i], {IntImm::Int32(0)}));
     }
     stmts.push_back(SBlockRealize(/*iter_values=*/{},
                                   /*predicate=*/IntImm::Bool(true),
@@ -371,35 +410,39 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
   }
   // Stmt 3: do cross-thread reduction
   {
-    // Step 3.1. Create the parameters to the intrinsic
-    ffi::Array<PrimExpr> parameters;
-    parameters.reserve(reduction_loops.size() + 4);
-    // 1-st argument: number of buffers
-    parameters.push_back(IntImm(PrimType::UInt(32), n_buffers));
-    // Next `n_buffers` arguments: sources
+    // Step 3.1. Carry the reducer directly as typed staging operands.
+    ffi::Array<Var> combine_vars;
+    for (const Var& var : reducer->lhs) combine_vars.push_back(var);
+    for (const Var& var : reducer->rhs) combine_vars.push_back(var);
+    LambdaExpr combine(combine_vars, tvm::Tuple(reducer->result));
+    ffi::Array<PrimExpr> values;
     if (it_buffers.has_value()) {
       for (int i = 0; i < n_buffers; ++i) {
-        parameters.push_back(BufferLoad(it_buffers.value()[i], {IntImm::Int32(0)}));
+        values.push_back(MakeTensorLoad(it_buffers.value()[i], {IntImm::Int32(0)}));
       }
     } else {
-      parameters.insert(parameters.end(), combiner_rhs.begin(), combiner_rhs.end());
+      values = combiner_rhs;
     }
-    // Next argument: predicate
-    parameters.push_back(IntImm::Bool(true));
-    // Next `n_buffers` arguments: destinations
+    ffi::Array<PrimExpr> destinations;
     for (int i = 0; i < n_buffers; ++i) {
-      parameters.push_back(BufferLoad(ct_buffers[i], {0}));
+      destinations.push_back(MakeTensorLoad(ct_buffers[i], {0}));
     }
-    // Next arguments: all the reduction threads
+    ffi::Array<PrimExpr> thread_axes;
     for (const ForNode* reduction_loop : reduction_loops) {
       if (reduction_loop->thread_binding.has_value()) {
-        parameters.push_back(reduction_loop->loop_var);
+        thread_axes.push_back(reduction_loop->loop_var);
       }
     }
+    ffi::Array<Expr> parameters{combine,
+                                tvm::Tuple(reducer->identity_element),
+                                tvm::Tuple(values),
+                                IntImm::Bool(true),
+                                tvm::Tuple(destinations),
+                                tvm::Tuple(thread_axes)};
     // Step 3.2. Create the block and the block-realize.
     ffi::Array<IterVar> iter_vars{nullptr};
     ffi::Array<PrimExpr> bindings{nullptr};
-    ffi::Array<BufferRegion> reads{nullptr};
+    ffi::Array<TensorRegion> reads{nullptr};
     if (it_buffers.has_value()) {
       iter_vars = ffi::Array<IterVar>{};
       bindings = ffi::Array<PrimExpr>{};
@@ -418,14 +461,10 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
                /*writes=*/ct_buffer_regions,
                /*name_hint=*/block->name_hint + "_cross_thread",
                /*body=*/
-               AttrStmt(/*node=*/reducer,
-                        /*attr_key=*/s_tir::attr::reduce_scope,
-                        /*value=*/IntImm::Int32(0),
-                        /*body=*/
-                        Evaluate(Call(/*dtype=*/PrimType::Void(),
-                                      /*op=*/tirx::builtin::tvm_thread_allreduce(),
-                                      /*args=*/std::move(parameters))
-                                     .as_or_throw<PrimExpr>())))));
+               Evaluate(Call(/*dtype=*/PrimType::Void(),
+                             /*op=*/tirx::builtin::tvm_thread_allreduce(),
+                             /*args=*/std::move(parameters))
+                            .as_or_throw<PrimExpr>()))));
   }
   // Stmt 4: write cross-thread reduction result to the original buffer
   {
@@ -440,7 +479,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
       const IterVar& iter_var = block->iter_vars[i];
       const PrimExpr& binding = realize->iter_values[i];
       if (iter_var->iter_type != kCommReduce) {
-        IterVar new_iter_var{nullptr};
+        IterVar new_iter_var{ffi::UnsafeInit{}};
         {
           ffi::ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>(*iter_var.get());
           Var v(iter_var->var->name, iter_var->var->ty, iter_var->var->span);
@@ -453,19 +492,32 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
       }
     }
     ffi::Array<Stmt> wb_updates;
-    ffi::Array<BufferRegion> wb_regions;
+    ffi::Array<TensorRegion> wb_regions;
     wb_updates.reserve(n_buffers);
     wb_regions.reserve(n_buffers);
     int n_dim = static_cast<int>(old_wb_indices.size());
-    ffi::Array<Range> region = Substitute(block->writes[0]->region, var_map);
+    auto map_var = [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (auto repl = var_map.Get(var)) {
+        return ffi::Any((*std::move(repl)).as_or_throw<PrimExpr>());
+      }
+      return ffi::Unchanged();
+    };
+    ffi::Array<Range> region = block->writes[0]->region.Map([&map_var](const Range& range) {
+      PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, map_var)
+                         .as_or_throw<PrimExpr>();
+      PrimExpr extent = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->extent, map_var)
+                            .as_or_throw<PrimExpr>();
+      return Range::FromMinExtent(min, extent);
+    });
     ffi::Array<PrimExpr> wb_indices;
     wb_indices.reserve(n_dim);
     for (int d = 0; d < n_dim; ++d) {
-      wb_indices.push_back(Substitute(old_wb_indices[d], var_map));
+      wb_indices.push_back(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(old_wb_indices[d], map_var)
+                               .as_or_throw<PrimExpr>());
     }
     for (int i = 0; i < n_buffers; ++i) {
-      wb_updates.push_back(
-          BufferStore(wb_buffers[i], BufferLoad(ct_buffers[i], {IntImm::Int32(0)}), wb_indices));
+      wb_updates.push_back(TensorStore(
+          wb_buffers[i], MakeTensorLoad(ct_buffers[i], {IntImm::Int32(0)}), wb_indices));
       wb_regions.push_back(BufferRegion(wb_buffers[i], region));
     }
 
@@ -540,7 +592,11 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
 /*!
  * \brief Detect cross-thread reduction pattern and then transform
  */
-class CrossThreadReductionTransformer : public StmtMutator {
+class CrossThreadReductionTransformer : public StmtExprMutator {
+ public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
  private:
   // Check if the input block needs cross-thread reduction.
   std::vector<const ForNode*> NeedCrossThreadReduction(const SBlockRealizeNode* realize) {
@@ -591,8 +647,8 @@ class CrossThreadReductionTransformer : public StmtMutator {
     SBlock block = realize->block;
 
     // If the block writes to local memory, no rewrite is needed.
-    for (BufferRegion write_region : block->writes) {
-      if (write_region->buffer.scope() == "local") {
+    for (TensorRegion write_region : block->writes) {
+      if (write_region->source.as_or_throw<tvm::tirx::TensorVar>().scope() == "local") {
         return {};
       }
     }
@@ -600,8 +656,9 @@ class CrossThreadReductionTransformer : public StmtMutator {
     // Find out the reduction threads for the read-buffers which are produced by
     // cross-thread reduction.
     std::unordered_map<ThreadScope, Range, ThreadScopeHash, ThreadScopeEqual> thread2range;
-    for (BufferRegion read_region : block->reads) {
-      auto buf_it = crt_buf2threads_.find(read_region->buffer.get());
+    for (TensorRegion read_region : block->reads) {
+      auto buf_it =
+          crt_buf2threads_.find(read_region->source.as_or_throw<tvm::tirx::TensorVar>().get());
       if (buf_it == crt_buf2threads_.end()) {
         continue;
       }
@@ -613,7 +670,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
     // Erase those threads which are not free to this block.
     for (const ForNode* loop : loop_stack_) {
       if (loop->thread_binding.has_value()) {
-        ThreadScope scope = ThreadScope::Create(loop->thread_binding.value()->thread_tag);
+        ThreadScope scope = ThreadScope::Create(loop->thread_binding.value());
         thread2range.erase(scope);
       }
     }
@@ -637,7 +694,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
    *  - the RHS values of the reduction updates,
    *  - the indices which is used to access the reduction buffers when storing the reduction results
    */
-  std::tuple<int, te::CommReducer, ffi::Array<BufferVar>, ffi::Array<PrimExpr>,
+  std::tuple<int, te::CommReducer, ffi::Array<TensorVar>, ffi::Array<PrimExpr>,
              ffi::Array<PrimExpr>>
   CheckCanApplyCrossThreadReduction(const SBlockNode* block,
                                     const std::vector<const ForNode*>& reduction_loops) const {
@@ -676,11 +733,11 @@ class CrossThreadReductionTransformer : public StmtMutator {
       }
     }
 
-    // Condition 3. Get the identity values of the block init and the BufferStore block combiner
+    // Condition 3. Get the identity values of the block init and the TensorStore block combiner
     // updates of the reduction. Extract the commutative reducer, combiner lhs and combiner rhs from
     // the reduction identities and the reduction combiner.
     ffi::Array<PrimExpr> init_values{nullptr};
-    ffi::Array<BufferStore> updates{nullptr};
+    ffi::Array<TensorStore> updates{nullptr};
     te::CommReducer reducer{nullptr};
     ffi::Array<PrimExpr> combiner_lhs{nullptr};
     ffi::Array<PrimExpr> combiner_rhs{nullptr};
@@ -691,9 +748,9 @@ class CrossThreadReductionTransformer : public StmtMutator {
 
     // Condition 4. All reduction buffers should be all local or all non-local.
     int is_local_buf = -1;
-    ffi::Array<BufferVar> reduction_buffers;
+    ffi::Array<TensorVar> reduction_buffers;
     reduction_buffers.reserve(updates.size());
-    for (const BufferStore& buf_store : updates) {
+    for (const TensorStore& buf_store : updates) {
       reduction_buffers.push_back(buf_store->buffer);
       if (buf_store->buffer.scope() == "local") {
         TVM_FFI_CHECK_NE(is_local_buf, 0, ValueError)
@@ -729,14 +786,17 @@ class CrossThreadReductionTransformer : public StmtMutator {
                            updates[0]->indices);
   }
 
-  Stmt VisitStmt(const Stmt& stmt) final {
-    statement_stack_.push_back(stmt.get());
-    Stmt result = StmtMutator::VisitStmt(stmt);
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    const auto* stmt = value.as<StmtNode>();
+    if (!stmt) return StmtExprMutator::Mutate(value, inplace_mode);
+    statement_stack_.push_back(stmt);
+    auto result = StmtExprMutator::Mutate(value, inplace_mode);
     statement_stack_.pop_back();
     return result;
   }
 
-  Stmt VisitStmt_(const ForNode* loop) final {
+  UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     loop_stack_.push_back(loop);
     loop_range_map_.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
 
@@ -748,7 +808,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
     bool is_block_idx = false;
     bool is_thread_idx = false;
     if (loop->kind == ForKind::kThreadBinding) {
-      ThreadScope scope = ThreadScope::Create(loop->thread_binding.value()->thread_tag);
+      ThreadScope scope = ThreadScope::Create(loop->thread_binding.value());
       if (scope.rank == 1 && scope.dim_index >= 0) {
         is_thread_idx = true;
         ++thread_idx_depth;
@@ -758,7 +818,8 @@ class CrossThreadReductionTransformer : public StmtMutator {
       }
     }
 
-    Stmt result = StmtMutator::VisitStmt_(loop);
+    Stmt result =
+        StmtExprMutator::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
     loop_stack_.pop_back();
     loop_range_map_.erase(loop->loop_var);
     if (is_thread_idx) {
@@ -780,12 +841,13 @@ class CrossThreadReductionTransformer : public StmtMutator {
     }
   }
 
-  Stmt VisitStmt_(const SBlockNode* block) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
     ffi::Map<Var, Range> old_loop_range_map;
-
     block_stack_.push_back(block);
     std::swap(old_loop_range_map, loop_range_map_);
-    SBlock new_block = StmtMutator::VisitStmt_(block).as_or_throw<SBlock>();
+    SBlock new_block = StmtExprMutator::Mutate_(block, inplace_mode)
+                           .ValueOrUnchanged(ffi::GetRef<Stmt>(block))
+                           .as_or_throw<SBlock>();
     block_stack_.pop_back();
     std::swap(old_loop_range_map, loop_range_map_);
 
@@ -793,7 +855,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
     auto it = block2new_buffers_.find(block);
     if (it != block2new_buffers_.end()) {
       SBlockNode* p_new_block = new_block.CopyOnWrite();
-      for (const BufferVar& new_buffer : it->second) {
+      for (const TensorVar& new_buffer : it->second) {
         if (new_buffer.defined()) {
           p_new_block->alloc_buffers.push_back(new_buffer);
         }
@@ -810,7 +872,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
     // which condition the block violates.
     int n_bound_reduction_loops = 0;
     te::CommReducer reducer{nullptr};
-    ffi::Array<BufferVar> reduction_buffers{nullptr};
+    ffi::Array<TensorVar> reduction_buffers{nullptr};
     ffi::Array<PrimExpr> combiner_rhs{nullptr};
     ffi::Array<PrimExpr> wb_indices{nullptr};
     std::tie(n_bound_reduction_loops, reducer, reduction_buffers, combiner_rhs, wb_indices) =
@@ -820,22 +882,23 @@ class CrossThreadReductionTransformer : public StmtMutator {
     //  - the block-realize has a non-constant-true predicate.
     bool need_in_thread_reduction =
         n_bound_reduction_loops < static_cast<int>(reduction_loops.size()) ||
-        !is_one(realize->predicate);
+        !IsOne(realize->predicate);
     // Step 3. Create intermediate buffers, storing them in `ct_buffers` and
     // `it_buffers`. Let the scope block allocate these new buffers.
-    ffi::Array<BufferVar>& new_buffers = block2new_buffers_[block_stack_.back()];
-    ffi::Array<BufferVar> ct_buffers =
+    ffi::Array<TensorVar>& new_buffers = block2new_buffers_[block_stack_.back()];
+    ffi::Array<TensorVar> ct_buffers =
         MakeScratchpads(reduction_buffers, /*is_cross_thread_buffer=*/true);
     new_buffers.insert(new_buffers.end(), ct_buffers.begin(), ct_buffers.end());
-    ffi::Optional<ffi::Array<BufferVar>> it_buffers = std::nullopt;
+    ffi::Optional<ffi::Array<TensorVar>> it_buffers = std::nullopt;
     if (need_in_thread_reduction) {
       it_buffers = MakeScratchpads(reduction_buffers, /*is_cross_thread_buffer=*/false);
       new_buffers.insert(new_buffers.end(), it_buffers.value().begin(), it_buffers.value().end());
     }
     // Step 4. Transform.
-    loop2new_stmt_[reduction_loops[0]] =
+    loop2new_stmt_.insert_or_assign(
+        reduction_loops[0],
         TransformReductionBlock(realize, it_buffers, ct_buffers, reduction_buffers, wb_indices,
-                                reducer, combiner_rhs, reduction_loops);
+                                reducer, combiner_rhs, reduction_loops));
 
     // Step 5. Record the reduction thread dims for the write-back buffers.
     // The information is used for consumer block broadcasting detection.
@@ -843,12 +906,11 @@ class CrossThreadReductionTransformer : public StmtMutator {
     reduction_threads.reserve(reduction_loops.size());
     for (const ForNode* loop : reduction_loops) {
       if (loop->thread_binding.has_value()) {
-        reduction_threads.emplace_back(
-            ThreadScope::Create(loop->thread_binding.value()->thread_tag),
-            Range::FromMinExtent(loop->min, loop->extent));
+        reduction_threads.emplace_back(ThreadScope::Create(loop->thread_binding.value()),
+                                       Range::FromMinExtent(loop->min, loop->extent));
       }
     }
-    for (const BufferVar& reduction_buf : reduction_buffers) {
+    for (const TensorVar& reduction_buf : reduction_buffers) {
       crt_buf2threads_[reduction_buf.get()] = reduction_threads;
     }
   }
@@ -883,27 +945,26 @@ class CrossThreadReductionTransformer : public StmtMutator {
           /*kind=*/ForKind::kThreadBinding,                   //
           /*body=*/body,                                      //
           /*thread_binding=*/
-          IterVar(Range(), PrimVar("", loop_vars[i]->ty.as_or_throw<PrimType>()),
-                  IterVarType::kThreadIndex, "threadIdx." + dim_index),
+          ffi::String("threadIdx." + dim_index),
           /*annotations=*/{},
           /*step=*/std::nullopt);
     }
     return body;
   }
 
-  Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
+  UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {
     // Part 1. Check if the block needs cross-thread reduction rewrite.
     std::vector<const ForNode*> reduction_loops = NeedCrossThreadReduction(realize);
     if (!reduction_loops.empty()) {
-      // Return an empty statement, because the transformation result will
-      // be inserted when returning to the first reduction-related loop.
+      // Keep the original statement during traversal.  The complete transformed
+      // subtree replaces it when returning to the first reduction-related loop.
       has_cross_thread_reduction_ = true;
       MakeCrossThreadReduction(realize, reduction_loops);
-      return Stmt{nullptr};
+      return ffi::Unchanged();
     }
 
     if (!has_cross_thread_reduction_) {
-      return StmtMutator::VisitStmt_(realize);
+      return StmtExprMutator::Mutate_(realize, inplace_mode);
     }
 
     // Part 2. Check if the block needs all-thread broadcasting rewrite.
@@ -914,18 +975,17 @@ class CrossThreadReductionTransformer : public StmtMutator {
       return MakeCrossThreadBroadcast(realize, unbound_thread2range);
     }
 
-    return StmtMutator::VisitStmt_(realize);
+    return StmtExprMutator::Mutate_(realize, inplace_mode);
   }
 
- private:
   bool has_cross_thread_reduction_ = false;
   std::vector<const StmtNode*> statement_stack_;
   std::vector<const ForNode*> loop_stack_;
   std::vector<const SBlockNode*> block_stack_;
-  std::unordered_map<const SBlockNode*, ffi::Array<BufferVar>> block2new_buffers_;
+  std::unordered_map<const SBlockNode*, ffi::Array<TensorVar>> block2new_buffers_;
   std::unordered_map<const ForNode*, Stmt> loop2new_stmt_;
   ffi::Map<Var, Range> loop_range_map_;
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 
   int block_idx_depth = 0;
   int thread_idx_depth = 0;
@@ -935,12 +995,14 @@ class CrossThreadReductionTransformer : public StmtMutator {
 namespace transform {
 
 Pass LowerCrossThreadReduction() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    PrimFuncNode* fptr = f.CopyOnWrite();
-    fptr->body = CrossThreadReductionTransformer()(fptr->body);
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
+    FunctionNode* fptr = f.CopyOnWrite();
+    fptr->body = ffi::make_object<CrossThreadReductionTransformer>()
+                     ->Mutate(fptr->body)
+                     .ValueOrUnchanged(fptr->body);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerCrossThreadReduction", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerCrossThreadReduction", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

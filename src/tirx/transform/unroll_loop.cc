@@ -22,11 +22,13 @@
  * \file unroll_loop.cc
  */
 // Unrolls the loop as in Halide pipeline.
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/scope_stack.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -77,12 +79,15 @@ TVM_FFI_STATIC_INIT_BLOCK() { UnrollLoopConfigNode::RegisterReflection(); }
 
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.UnrollLoop", UnrollLoopConfig);
 
-class VarLocalAccessMarker : public ExprVisitor {
+class VarLocalAccessMarker : public StmtExprVisitor {
  public:
   explicit VarLocalAccessMarker(std::unordered_set<Var>* var_touched_local)
       : var_touched_local_(var_touched_local) {}
 
-  void VisitExpr_(const VarNode* op) final { var_touched_local_->insert(ffi::GetRef<Var>(op)); }
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
+    var_touched_local_->insert(ffi::GetRef<Var>(op));
+    return std::nullopt;
+  }
 
  private:
   std::unordered_set<Var>* var_touched_local_;
@@ -93,43 +98,64 @@ class VarLocalAccessMarker : public ExprVisitor {
 // the local memory access can be turned into register access.
 class LoopUnroller : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   explicit LoopUnroller(int auto_max_step, int auto_max_depth, int auto_max_extent,
                         bool explicit_unroll, bool unroll_local_access)
-      : auto_max_step_(auto_max_step),
-        auto_max_depth_(auto_max_depth),
+      : auto_max_depth_(auto_max_depth),
         auto_max_extent_(auto_max_extent),
-        explicit_unroll_(explicit_unroll),
-        unroll_local_access_(unroll_local_access) {}
-
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == "pragma_auto_unroll_max_step") {
-      int value = static_cast<int>(op->value.as_or_throw<IntImm>()->value);
-      std::swap(value, auto_max_step_);
-      Stmt ret = this->VisitStmt(op->body);
-      std::swap(value, auto_max_step_);
-      return ret;
-    } else if (op->attr_key == "pragma_unroll_explicit") {
-      bool explicit_unroll = op->value.as_or_throw<IntImm>()->value;
-      std::swap(explicit_unroll, explicit_unroll_);
-      Stmt ret = this->VisitStmt(op->body);
-      std::swap(explicit_unroll, explicit_unroll_);
-      return ret;
-    } else {
-      return StmtExprMutator::VisitStmt_(op);
-    }
+        unroll_local_access_(unroll_local_access) {
+    unroll_policy_.Current() = {auto_max_step, explicit_unroll};
   }
 
-  Stmt VisitStmt_(const ForNode* op) {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    auto parent_policy = unroll_policy_.Current();
+    return unroll_policy_.WithNewScope([&]() {
+      auto& policy = unroll_policy_.Current();
+      policy = parent_policy;
+      if (auto value = op->annotations.Get(attr::auto_unroll_max_step);
+          value.has_value() && value.value() != nullptr) {
+        policy.auto_unroll_max_step = value.value().cast<IntImm>()->value.as<int>().value();
+      }
+      if (auto value = op->annotations.Get(attr::unroll_explicit);
+          value.has_value() && value.value() != nullptr) {
+        policy.unroll_explicit = static_cast<bool>(value.value().cast<IntImm>()->value);
+      }
+      return RewriteLoop(op, inplace_mode);
+    });
+  }
+
+  UnchangedOr<Stmt> RewriteLoop(const ForNode* op, InplaceMode inplace_mode) {
     // Post order so we can collect more information
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<ForNode>();
+    auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+    if (!result.IsUnchanged()) {
+      op = ffi::AnyView(result).as<ForNode>();
+      if (!op->unique()) {
+        inplace_mode = InplaceMode::kDisallow;
+      }
+    }
+    if (op->annotations.count(attr::auto_unroll_max_step) ||
+        op->annotations.count(attr::unroll_explicit)) {
+      ForNode* node;
+      if (inplace_mode == InplaceMode::kAllow) {
+        node = const_cast<ForNode*>(op);
+      } else {
+        auto copy = ffi::make_object<ForNode>(*op);
+        node = copy.get();
+        result = For(std::move(copy));
+      }
+      node->annotations.erase(attr::auto_unroll_max_step);
+      node->annotations.erase(attr::unroll_explicit);
+      op = node;
+    }
     int value = GetExtent(op);
     // condition for auto unroll
     bool auto_unroll = (op->kind == ForKind::kSerial && value >= 0 && normal_loop_depth_ == 0 &&
                         unroll_depth_ <= auto_max_depth_);
 
-    auto_unroll =
-        auto_unroll && (value * step_count_ <= auto_max_step_ || value <= auto_max_extent_);
+    const auto& policy = unroll_policy_.Current();
+    auto_unroll = auto_unroll &&
+                  (value * step_count_ <= policy.auto_unroll_max_step || value <= auto_max_extent_);
 
     if (op->kind == ForKind::kUnrolled) {
       TVM_FFI_ICHECK_GE(value, 0) << "Cannot unroll non-constant loop";
@@ -149,72 +175,80 @@ class LoopUnroller : public StmtExprMutator {
       normal_loop_depth_ += 1;
     }
 
-    if ((auto_unroll && explicit_unroll_) ||
+    if ((auto_unroll && policy.unroll_explicit) ||
         // unroll loops with extent = 1, no matter how many steps in body
         (0 <= value && value <= auto_max_extent_ && auto_max_extent_ == 1)) {
       return Unroll(op);
     } else {
       if (auto_unroll) {
         if (op->kind != ForKind::kUnrolled) {
-          auto n = CopyOnWrite(op);
+          if (inplace_mode == InplaceMode::kAllow) {
+            const_cast<ForNode*>(op)->kind = ForKind::kUnrolled;
+            return result;
+          }
+          auto n = ffi::make_object<ForNode>(*op);
           n->kind = ForKind::kUnrolled;
           return For(n);
         }
       }
-      return stmt;
+      return result;
     }
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     if (unroll_local_access_) {
       auto storage_scope =
-          runtime::StorageScope::Create(op->source.as_or_throw<tvm::tirx::BufferVar>().scope());
+          runtime::StorageScope::Create(op->source.as_or_throw<tvm::tirx::TensorVar>().scope());
       if (storage_scope.rank == runtime::StorageRank::kLocal ||
           storage_scope.rank == runtime::StorageRank::kWarp) {
-        VarLocalAccessMarker marker(&var_touched_local_);
+        auto marker = ffi::make_object<VarLocalAccessMarker>(&var_touched_local_);
         for (PrimExpr e : op->indices) {
-          marker(e);
+          marker->Visit(e);
         }
       }
     }
-    return ffi::GetRef<PrimExpr>(op);
+    return ffi::Unchanged();
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     ++step_count_;
     if (unroll_local_access_) {
       auto storage_scope = runtime::StorageScope::Create(op->buffer.scope());
       if (storage_scope.rank == runtime::StorageRank::kLocal ||
           storage_scope.rank == runtime::StorageRank::kWarp) {
-        VarLocalAccessMarker marker(&var_touched_local_);
+        auto marker = ffi::make_object<VarLocalAccessMarker>(&var_touched_local_);
         for (PrimExpr e : op->indices) {
-          marker(e);
+          marker->Visit(e);
         }
       }
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  Stmt VisitStmt_(const EvaluateNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     ++step_count_;
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
-    auto fmutate = [this](const Stmt& s) {
+  UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
+    ffi::Array<Stmt> seq;
+    bool changed = false;
+    for (Stmt child : op->seq) {
       int step_count = step_count_;
       int unroll_depth = unroll_depth_;
       int normal_loop_depth = normal_loop_depth_;
       step_count_ = 0;
       unroll_depth_ = 0;
       normal_loop_depth_ = 0;
-      Stmt ret = this->VisitStmt(s);
+      auto result = this->Mutate(child);
+      changed |= !result.UnchangedOrSameAs(child);
+      seq.push_back(std::move(result).ValueOrUnchanged(child));
       step_count_ += step_count;
       normal_loop_depth_ = std::max(normal_loop_depth, normal_loop_depth_);
       unroll_depth_ = std::max(unroll_depth_, unroll_depth);
-      return ret;
-    };
-    return StmtExprMutator::VisitSeqStmt_(op, false, fmutate);
+    }
+    if (!changed) return ffi::Unchanged();
+    return SeqStmt::Flatten(seq);
   }
 
   Stmt Unroll(const ForNode* op) {
@@ -225,9 +259,17 @@ class LoopUnroller : public StmtExprMutator {
     Stmt body = op->body;
     ffi::Map<Var, PrimExpr> vmap;
     ffi::Array<Stmt> unrolled;
+    auto f_substitute = [&vmap](
+                            const Var& var,
+                            TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      if (kind != kTVMFFIDefRegionKindNone) return ffi::Unchanged();
+      if (auto repl = vmap.Get(var)) return ffi::Any(*std::move(repl));
+      return ffi::Unchanged();
+    };
     for (int i = 0; i < value; ++i) {
       vmap.Set(op->loop_var, op->min + IntImm(op->loop_var.ty(), i));
-      Stmt step = Substitute(body, vmap);
+      Stmt step =
+          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(body, f_substitute).as_or_throw<Stmt>();
       unrolled.push_back(step);
     }
     return SeqStmt::Flatten(unrolled);
@@ -242,19 +284,21 @@ class LoopUnroller : public StmtExprMutator {
     int value = -1;
     // integers that do not fit in int32_t are treated as symbolic,
     // as it's impossible to unroll such large loops
-    if (v1 != nullptr && v1->value <= std::numeric_limits<int>::max()) {
-      value = static_cast<int>(v1->value);
+    if (v1 != nullptr) {
+      value = v1->value.as<int>().value_or(-1);
     }
     return value;
   }
 
-  // maximum number of step to perform auto unroll.
-  int auto_max_step_;
+  struct UnrollPolicy {
+    int auto_unroll_max_step{0};
+    bool unroll_explicit{true};
+  };
+  ScopeStack<UnrollPolicy> unroll_policy_;
   int auto_max_depth_;
   // max extent of loop to auto unroll
   // this does not count the total steps, only count the number of loops
   int auto_max_extent_;
-  bool explicit_unroll_;
   // Wether to unroll loops to local access.
   bool unroll_local_access_{false};
   // Number of normal loops in scope
@@ -266,32 +310,36 @@ class LoopUnroller : public StmtExprMutator {
   // set of indices touched during visit local memory
   std::unordered_set<Var> var_touched_local_;
   // analyzer
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
 };
 
 Stmt UnrollLoop(Stmt stmt, UnrollLoopConfig cfg) {
-  Stmt ret = LoopUnroller(cfg->auto_max_step, cfg->auto_max_depth, cfg->auto_max_extent,
-                          cfg->explicit_unroll, cfg->unroll_local_access)(stmt);
-  if (!ret.same_as(stmt)) {
-    return ConvertSSA(ret);
+  // Identity determines whether unrolled definitions require SSA conversion.
+  auto result =
+      ffi::make_object<LoopUnroller>(cfg->auto_max_step, cfg->auto_max_depth, cfg->auto_max_extent,
+                                     cfg->explicit_unroll, cfg->unroll_local_access)
+          ->Mutate(stmt, InplaceMode::kDisallow);
+  if (!result.UnchangedOrSameAs(stmt)) {
+    return ConvertSSA(std::move(result).ValueUnchecked());
   } else {
-    return ret;
+    return stmt;
   }
 }
 
 namespace transform {
 
 Pass UnrollLoop() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<UnrollLoopConfig>("tirx.UnrollLoop");
     if (!cfg.has_value()) {
       cfg = tvm::transform::PassConfigWithDefaults<UnrollLoopConfig>();
     }
-    n->body = UnrollLoop(std::move(f->body), cfg.value());
+    n->body = UnrollLoop(std::move(f->body).value(), cfg.value());
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.UnrollLoop", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.UnrollLoop", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

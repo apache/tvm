@@ -34,47 +34,6 @@ namespace tvm {
 namespace tirx {
 
 /*!
- * \brief A reified Python lambda: a list of bound variables and a body over them.
- *
- * Used by tile primitive ops that take a per-element expression over the
- * destination axes (e.g. ``tirx.tile.select``). ``vars`` are the abstract
- * axis variables (lambda-bound); ``pred`` is the body referencing them.
- * At lowering time the dispatch substitutes ``vars`` with the concrete
- * instruction axes via ``Apply``.
- */
-class LambdaExprNode : public ffi::Object {
- public:
-  /*! \brief The bound variables of the lambda. */
-  Array<Var> vars;
-  /*! \brief The lambda body over ``vars``. */
-  PrimExpr pred;
-
-  /*! \brief Replace the bound variables with the given indices, returning the substituted body. */
-  PrimExpr Apply(const Array<PrimExpr>& indices) const;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<LambdaExprNode>()
-        .def_ro("vars", &LambdaExprNode::vars, refl::AttachFieldFlag::SEqHashDefPattern())
-        .def_ro("pred", &LambdaExprNode::pred);
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.LambdaExpr", LambdaExprNode, ffi::Object);
-};
-
-/*!
- * \brief Managed reference to LambdaExprNode.
- * \sa LambdaExprNode
- */
-class LambdaExpr : public ffi::ObjectRef {
- public:
-  explicit LambdaExpr(Array<Var> vars, PrimExpr pred);
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LambdaExpr, ffi::ObjectRef, LambdaExprNode);
-};
-
-/*!
  * \brief The type of the function that sanitizes the arguments of a TIRX operator.
  * \param op The operator.
  * \param args The arguments.
@@ -92,8 +51,8 @@ constexpr const char* kDeviceInitStmt = "device_init_stmt";
  *  which will be inserted at the beginning of the kernel
  */
 constexpr const char* kHostInitStmt = "host_init_stmt";
-/*! \brief Statements to be inserted after a specific buffer's definition (DeclBuffer/AllocBuffer).
- *  Stored as Map<BufferVar, ffi::Array<Stmt>>.
+/*! \brief Statements to be inserted after a specific buffer's definition (DeclTensor/AllocTensor).
+ *  Stored as Map<TensorVar, ffi::Array<Stmt>>.
  */
 constexpr const char* kPostBufferDefStmt = "post_buffer_def_stmt";
 }  // namespace callback
@@ -107,8 +66,8 @@ class DispatchContextNode : public ffi::Object {
   Target target;
   /*! \brief The exec scope of the operator */
   ExecScope exec_scope;
-  /*! \brief The kernel launch parameters. */
-  ffi::Map<ffi::String, IterVar> launch_params;
+  /*! \brief Hardware tag to (index variable, extent) launch parameters. */
+  ffi::Map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>> launch_params;
   /*! \brief A map from loop variables to their ranges. */
   ffi::Map<Var, Range> var_range_map;
   /*! \brief Whether the dispatch context is only used for buffer allocation. */
@@ -148,13 +107,13 @@ class DispatchContextNode : public ffi::Object {
   }
 
   /*! \brief Add a buffer to be allocated in the kernel. */
-  void AddAllocBuffer(BufferVar buffer);
+  void AddAllocBuffer(TensorVar buffer);
 
   /*! \brief Add an initialization statement to be inserted. */
   void AddInitStmt(Stmt stmt, bool host = false);
 
   /*! \brief Add a statement to be inserted after a buffer's definition. */
-  void AddPostBufferDefStmt(BufferVar buffer, Stmt stmt);
+  void AddPostBufferDefStmt(TensorVar buffer, Stmt stmt);
 
   /*! \brief Set a value in the shared state cache. */
   void SharedStateSet(ffi::String key, ffi::ObjectRef value);
@@ -171,7 +130,7 @@ class DispatchContextNode : public ffi::Object {
 class DispatchContext : public ffi::ObjectRef {
  public:
   TVM_DLL DispatchContext(Target target, ExecScope exec_scope,
-                          ffi::Map<ffi::String, IterVar> launch_params = {},
+                          ffi::Map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>> launch_params = {},
                           ffi::Map<Var, Range> var_range_map = {}, bool alloc_only = false,
                           ffi::Map<ffi::String, ffi::ObjectRef> callbacks = {},
                           ffi::Map<ffi::String, ffi::ObjectRef> shared_state = {},
@@ -189,9 +148,9 @@ class TilePrimitiveCallNode : public StmtNode {
  public:
   explicit TilePrimitiveCallNode(ffi::UnsafeInit tag) : op(tag) {}
 
-  TilePrimitiveCallNode(tvm::Op op, ffi::Array<ffi::Any> args,
-                        ffi::Map<ffi::String, BufferVar> workspace,
-                        ffi::Map<ffi::String, ffi::Any> config, ffi::Optional<ffi::String> dispatch,
+  TilePrimitiveCallNode(tvm::Op op, ffi::Array<Expr> args,
+                        ffi::Map<ffi::String, TensorVar> workspace,
+                        ffi::Map<ffi::String, Expr> config, ffi::Optional<ffi::String> dispatch,
                         ExecScope scope)
       : op(std::move(op)),
         args(std::move(args)),
@@ -204,13 +163,13 @@ class TilePrimitiveCallNode : public StmtNode {
   tvm::Op op;
 
   // Arguments to the operator.
-  ffi::Array<ffi::Any> args;
+  ffi::Array<Expr> args;
 
   // Workspace (pre-allocated buffers) for the operator.
-  ffi::Map<ffi::String, BufferVar> workspace;
+  ffi::Map<ffi::String, TensorVar> workspace;
 
   // Config for the operator/scheduler.
-  ffi::Map<ffi::String, ffi::Any> config;
+  ffi::Map<ffi::String, Expr> config;
 
   // Optional dispatch variant name registered via @register_dispatch.
   ffi::Optional<ffi::String> dispatch{std::nullopt};
@@ -238,57 +197,57 @@ class TilePrimitiveCallNode : public StmtNode {
  */
 class TilePrimitiveCall : public Stmt {
  public:
-  TVM_DLL TilePrimitiveCall(tvm::Op op, ffi::Array<ffi::Any> args,
-                            ffi::Map<ffi::String, BufferVar> workspace = {},
-                            ffi::Map<ffi::String, ffi::Any> config = {},
+  TVM_DLL TilePrimitiveCall(tvm::Op op, ffi::Array<Expr> args,
+                            ffi::Map<ffi::String, TensorVar> workspace = {},
+                            ffi::Map<ffi::String, Expr> config = {},
                             ffi::Optional<ffi::String> dispatch = std::nullopt,
                             ExecScope scope = ExecScope(ScopeKind::kThread));
 
-  static bool IsValidOpCallArgType(const ffi::Any& arg);
+  explicit TilePrimitiveCall(ffi::ObjectPtr<TilePrimitiveCallNode> node) : Stmt(std::move(node)) {}
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TilePrimitiveCall, Stmt, TilePrimitiveCallNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TilePrimitiveCall, Stmt, TilePrimitiveCallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TilePrimitiveCallNode);
 };
 
 /*!
  * \brief See pesudo code below:
  *
- * Tx.cast(BufferRegion dst, BufferRegion src)
+ * Tx.cast(TensorRegion dst, TensorRegion src)
  */
 TVM_DLL const Op& cast();
 
 /*!
  * \brief See pesudo code below:
  *
- * Tx.copy(BufferRegion dst, BufferRegion src)
+ * Tx.copy(TensorRegion dst, TensorRegion src)
  */
 TVM_DLL const Op& copy();
 
 /*!
  * \brief See pesudo code below:
  *
- * Tx.Async.copy(BufferRegion dst, BufferRegion src)
+ * Tx.Async.copy(TensorRegion dst, TensorRegion src)
  */
 TVM_DLL const Op& copy_async();
 
 /*!
  * \brief See pesudo code below:
  *
- *  Tx.fill(BufferRegion dst, PrimExpr value)
+ *  Tx.fill(TensorRegion dst, PrimExpr value)
  */
 TVM_DLL const Op& fill();
 
 /*!
  * \brief See pesudo code below:
  *
- * Tx.gemm(BufferVar A, BufferVar B, BufferVar C, BufferVar D, PrimExpr alpha, PrimExpr beta)
+ * Tx.gemm(TensorVar A, TensorVar B, TensorVar C, TensorVar D, PrimExpr alpha, PrimExpr beta)
  */
 TVM_DLL const Op& gemm();
 
 /*!
  * \brief See pesudo code below:
  *
- * Tx.gemm_async(BufferRegion C, BufferRegion A, BufferRegion B, bool transA, bool transB,
+ * Tx.gemm_async(TensorRegion C, TensorRegion A, TensorRegion B, bool transA, bool transB,
  * bool accum)
  */
 TVM_DLL const Op& gemm_async();
@@ -296,10 +255,16 @@ TVM_DLL const Op& gemm_async();
 TVM_DLL const Op& zero();
 
 TVM_DLL const Op& sqrt();
+TVM_DLL const Op& sqrt_with_scale_bias();
 
 TVM_DLL const Op& exp();
+TVM_DLL const Op& exp_with_scale_bias();
 
 TVM_DLL const Op& exp2();
+TVM_DLL const Op& exp2_with_scale_bias();
+
+TVM_DLL const Op& log2();
+TVM_DLL const Op& log2_with_scale_bias();
 
 TVM_DLL const Op& add();
 
@@ -328,6 +293,7 @@ TVM_DLL const Op& reduce_negate();
 TVM_DLL const Op& binary_reduce();
 
 TVM_DLL const Op& unary_reduce();
+TVM_DLL const Op& unary_reduce_with_scale_bias();
 
 TVM_DLL const Op& binary_chain();
 
@@ -336,8 +302,6 @@ TVM_DLL const Op& select();
 TVM_DLL const Op& fma();
 
 TVM_DLL const Op& silu();
-
-TVM_DLL const Op& compose_op();
 
 TVM_DLL const Op& permute_layout();
 

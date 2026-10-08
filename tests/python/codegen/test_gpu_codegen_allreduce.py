@@ -26,44 +26,41 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-def _reduce_sum_module(d1, d2, d3):
-    @I.ir_module(s_tir=True)
+def _reduce_module(d1, d2, d3, is_max=False):
+    combine = T.Lambda(
+        [T.float32, T.float32],
+        (lambda x, y: (T.max(x, y),)) if is_max else (lambda x, y: (x + y,)),
+    )
+
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer((1, d1, d2, d3), "float32"), B: T.Buffer((1, d1, d2), "float32")):
+        @T.function
+        def main(A: T.Tensor((1, d1, d2, d3), "float32"), B: T.Tensor((1, d1, d2), "float32")):
             for i in T.thread_binding(1, thread="blockIdx.x"):
                 for j in T.thread_binding(d1, thread="threadIdx.z"):
                     for k in T.thread_binding(d2, thread="threadIdx.y"):
                         for l in T.thread_binding(d3, thread="threadIdx.x"):
-                            with T.sblock("reduce"):
-                                vi, vj, vk, vl = T.axis.remap("SSSR", [i, j, k, l])
-                                T.reads(A[vi, vj, vk, vl])
-                                T.writes(B[vi, vj, vk])
-                                with T.init():
-                                    B[vi, vj, vk] = T.float32(0.0)
-                                B[vi, vj, vk] = B[vi, vj, vk] + A[vi, vj, vk, vl]
+                            reduced = T.alloc_tensor((1,), "float32", scope="local")
+                            T.tvm_thread_allreduce(
+                                combine,
+                                (T.float32(-3.4028234663852886e38 if is_max else 0),),
+                                (A[i, j, k, l],),
+                                True,
+                                (reduced[0],),
+                                (l,),
+                            )
+                            if l == 0:
+                                B[i, j, k] = reduced[0]
 
     return Module
+
+
+def _reduce_sum_module(d1, d2, d3):
+    return _reduce_module(d1, d2, d3)
 
 
 def _reduce_max_module(d1, d2, d3):
-    @I.ir_module(s_tir=True)
-    class Module:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer((1, d1, d2, d3), "float32"), B: T.Buffer((1, d1, d2), "float32")):
-            for i in T.thread_binding(1, thread="blockIdx.x"):
-                for j in T.thread_binding(d1, thread="threadIdx.z"):
-                    for k in T.thread_binding(d2, thread="threadIdx.y"):
-                        for l in T.thread_binding(d3, thread="threadIdx.x"):
-                            with T.sblock("reduce"):
-                                vi, vj, vk, vl = T.axis.remap("SSSR", [i, j, k, l])
-                                T.reads(A[vi, vj, vk, vl])
-                                T.writes(B[vi, vj, vk])
-                                with T.init():
-                                    B[vi, vj, vk] = T.float32(-3.4028234663852886e38)
-                                B[vi, vj, vk] = T.max(B[vi, vj, vk], A[vi, vj, vk, vl])
-
-    return Module
+    return _reduce_module(d1, d2, d3, is_max=True)
 
 
 def generate_param_sets():

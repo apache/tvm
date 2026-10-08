@@ -34,9 +34,9 @@ TARGET = tvm.target.Target("cuda")
 requires_nvcc = pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc not available")
 
 
-def _cuda_source(func) -> str:
-    with TARGET:
-        mod = tvm.compile(tvm.IRModule({"main": func}), target=TARGET, tir_pipeline="tirx")
+def _cuda_source(func, target=TARGET) -> str:
+    with target:
+        mod = tvm.compile(tvm.IRModule({"main": func}), target=target, tir_pipeline="tirx")
     return mod.mod.imports[0].inspect_source("cuda")
 
 
@@ -67,14 +67,13 @@ def test_ptx_registration():
         # *escaped* family: `and`/`or`/`not` (ISA 9.7.9) are Python keywords and
         # print as `T.ptx.and_`. Identity for every other family.
         family = escape_token(entry.family)  # several entries may share a mnemonic
-        assert op.get_attr("TScriptPrinterName") == f"ptx.{family}", entry.name
+        assert op.get_attr("TScriptPrinterName") == f"tirx.ptx.{family}", entry.name
         assert entry.op_name in CODEGEN_REGISTRY, entry.name
 
 
 def test_ptx_prefetch_codegen():
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "float32")
+    @T.function
+    def kernel(A: T.Tensor((32,), "float32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -87,10 +86,8 @@ def test_ptx_prefetch_codegen():
 
 
 def test_ptx_ld_st_codegen():
-    @T.prim_func
-    def kernel(a_ptr: T.handle, b_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
-        B = T.match_buffer(b_ptr, (32,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((32,), "uint32"), B: T.Tensor((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -114,10 +111,8 @@ def test_ptx_ld_st_codegen():
 def test_ptx_ld_s32_wide_destination_codegen():
     """A signed scalar load may sign-extend into a wider destination register."""
 
-    @T.prim_func
-    def kernel(a_ptr: T.handle, out_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "int32")
-        Out = T.match_buffer(out_ptr, (32,), "int64")
+    @T.function
+    def kernel(A: T.Tensor((32,), "int32"), Out: T.Tensor((32,), "int64")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -133,13 +128,12 @@ def test_ptx_ld_s32_wide_destination_codegen():
 
 
 def test_ptx_st_shared_coercion():
-    @T.prim_func
-    def kernel(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (1,), "uint32")
+    @T.function
+    def kernel(out: T.Tensor((1,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
-        smem = T.alloc_buffer((4,), "uint32", scope="shared")
+        smem = T.alloc_tensor((4,), "uint32", scope="shared")
         if tx == 0:
             # Shared-space slot fed a shared-scope pointer: engine must
             # auto-wrap with cvta_generic_to_shared.
@@ -153,13 +147,12 @@ def test_ptx_st_shared_coercion():
 
 
 def test_ptx_explicit_cvta():
-    @T.prim_func
-    def kernel(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (1,), "uint64")
+    @T.function
+    def kernel(out: T.Tensor((1,), "uint64")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
-        smem = T.alloc_buffer((4,), "uint32", scope="shared")
+        smem = T.alloc_tensor((4,), "uint32", scope="shared")
         smem[tx % 4] = T.uint32(0)
         if tx == 0:
             T.ptx.cvta.to.shared.u64(out[0], smem.data)
@@ -170,9 +163,8 @@ def test_ptx_explicit_cvta():
 
 
 def test_ptx_red_codegen():
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (1,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((1,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -185,9 +177,8 @@ def test_ptx_red_codegen():
 
 
 def test_ptx_predication_codegen():
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -203,9 +194,8 @@ def test_ptx_predication_codegen():
 
 
 def test_ptx_red_vector_codegen_and_roundtrip():
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (16,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((16,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -231,32 +221,31 @@ def test_ptx_red_vector_codegen_and_roundtrip():
     ) in src
     assert "red.global.add.v4.f32 [%0], {%1, %2, %3, %4};" in src
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="already a 32-bit pair"):
+    with pytest.raises(ValueError, match="already a 32-bit pair"):
 
-        @T.prim_func
-        def packed_v8(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        @T.function
+        def packed_v8(A: T.Tensor((1,), "uint32")):
             T.device_entry()
             v = T.local_scalar("uint32")
             T.ptx.red.global_.add.noftz.v8.f16x2(A.ptr_to([0]), v, v, v, v, v, v, v, v)
 
-    with pytest.raises((AttributeError, tvm.error.DiagnosticError), match="not a valid modifier"):
+    with pytest.raises(AttributeError, match="not a valid modifier"):
 
-        @T.prim_func
-        def f32_max(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "float32")
+        @T.function
+        def f32_max(A: T.Tensor((1,), "float32")):
             T.device_entry()
             v = T.local_scalar("float32")
             T.ptx.red.global_.max.v2.f32(A.ptr_to([0]), v, v)
 
 
 def test_ptx_atom_bitbucket_codegen_and_roundtrip():
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (16,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((16,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -283,16 +272,16 @@ def test_ptx_atom_bitbucket_codegen_and_roundtrip():
         assert text in src, text
     assert "atom.global.add.v2.f32 {_," not in src
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
 @requires_nvcc
 def test_ptx_predicated_destination_preserves_old_value():
-    @T.prim_func
-    def kernel(a_ptr: T.handle, out_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (1,), "float32")
-        Out = T.match_buffer(out_ptr, (32,), "float32")
+    @T.function
+    def kernel(A: T.Tensor((1,), "float32"), Out: T.Tensor((32,), "float32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -311,10 +300,8 @@ def test_ptx_predicated_destination_preserves_old_value():
 
 @requires_nvcc
 def test_ptx_predicated_destination_is_undefined_by_default():
-    @T.prim_func
-    def kernel(a_ptr: T.handle, out_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (1,), "float32")
-        Out = T.match_buffer(out_ptr, (32,), "float32")
+    @T.function
+    def kernel(A: T.Tensor((1,), "float32"), Out: T.Tensor((32,), "float32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -335,10 +322,8 @@ def test_ptx_string_form_matches_chain():
     string_call = T.ptx["ld.acquire.gpu.global.b32"]
 
     def make(fn):
-        @T.prim_func
-        def kernel(a_ptr: T.handle, b_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (32,), "uint32")
-            B = T.match_buffer(b_ptr, (32,), "uint32")
+        @T.function
+        def kernel(A: T.Tensor((32,), "uint32"), B: T.Tensor((32,), "uint32")):
             T.device_entry()
             T.cta_id([1])
             tx = T.thread_id([32])
@@ -642,11 +627,11 @@ def test_ptx_92_cp_reduce_negative_grids():
 
 
 def test_ptx_92_cp_bulk_roundtrip():
-    @T.prim_func
-    def kernel(src: T.Buffer((64,), "uint32"), dst: T.Buffer((64,), "uint32")):
+    @T.function
+    def kernel(src: T.Tensor((64,), "uint32"), dst: T.Tensor((64,), "uint32")):
         T.device_entry()
-        smem = T.alloc_buffer((64,), "uint32", scope="shared")
-        mbar = T.alloc_buffer((2,), "uint64", scope="shared")
+        smem = T.alloc_tensor((64,), "uint32", scope="shared")
+        mbar = T.alloc_tensor((2,), "uint64", scope="shared")
         T.ptx[
             "cp.async.bulk.shared::cta.global."
             "mbarrier::complete_tx::bytes.L2::cache_hint.ignore_oob"
@@ -666,62 +651,61 @@ def test_ptx_92_cp_bulk_roundtrip():
             dst.ptr_to([0]), smem.ptr_to([0]), T.uint32(16)
         )
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
 def test_ptx_trace_time_errors():
     # Global ld fed a raw uint32 address.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="shared state space"):
+    with pytest.raises(ValueError, match="shared state space"):
 
-        @T.prim_func
-        def bad_global_addr(out: T.Buffer((1,), "uint32")):
+        @T.function
+        def bad_global_addr(out: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.ld.global_.b32(out[0], T.uint32(0))
 
     # Bogus modifier token.
-    with pytest.raises((AttributeError, tvm.error.DiagnosticError), match="not a valid modifier"):
+    with pytest.raises(AttributeError, match="not a valid modifier"):
 
-        @T.prim_func
-        def bad_modifier(out: T.Buffer((1,), "uint32")):
+        @T.function
+        def bad_modifier(out: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.ld.global_.bogus.b32(out[0], T.uint32(0))
 
     # A floating register is not compatible with an integer instruction type,
     # even when it is wider (the relaxed ld/st rule admits a bit carrier, not a
     # differently typed floating register).
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="must have dtype"):
+    with pytest.raises(ValueError, match="must have dtype"):
 
-        @T.prim_func
-        def bad_value_dtype(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        @T.function
+        def bad_value_dtype(A: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.st.global_.u32(A.ptr_to([0]), T.float64(1.0))
 
     # Missing required modifier (no type token).
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="missing required modifier"):
+    with pytest.raises(ValueError, match="missing required modifier"):
 
-        @T.prim_func
-        def missing_type(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        @T.function
+        def missing_type(A: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.st.global_(A.ptr_to([0]), T.uint32(0))
 
     # Per-slot legal tokens whose combination is illegal PTX: acquire
     # requires a scope — rejected by the entry's check function.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="requires a scope"):
+    with pytest.raises(ValueError, match="requires a scope"):
 
-        @T.prim_func
-        def acquire_without_scope(out: T.Buffer((1,), "uint32"), a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        @T.function
+        def acquire_without_scope(out: T.Tensor((1,), "uint32"), A: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.ld.global_.acquire.b32(out[0], A.ptr_to([0]))
 
     # A float is not an address in any state space.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="pointer or uint64 handle"):
+    with pytest.raises(ValueError, match="pointer or uint64 handle"):
 
-        @T.prim_func
-        def bad_addr_dtype(out: T.Buffer((1,), "uint32")):
+        @T.function
+        def bad_addr_dtype(out: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.ld.global_.b32(out[0], T.float32(0))
 
@@ -730,31 +714,28 @@ def test_ptx_destination_errors():
     """A destination is a register the caller declared: it must be a writable lvalue."""
     # A floating destination is incompatible with an integer instruction type;
     # relaxed widening does not numerically convert between the two.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="must have dtype"):
+    with pytest.raises(ValueError, match="must have dtype"):
 
-        @T.prim_func
-        def wrong_dst_dtype(out: T.Buffer((1,), "float64"), a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        @T.function
+        def wrong_dst_dtype(out: T.Tensor((1,), "float64"), A: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.ld.global_.u32(out[0], A.ptr_to([0]))
 
     # A T.let binding is immutable, so it cannot be written into. This is the
     # gate that keeps the analyzer from re-expanding one call into N.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="writable scalar"):
+    with pytest.raises(ValueError, match="writable scalar"):
 
-        @T.prim_func
-        def let_destination(out: T.Buffer((1,), "uint32"), a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        @T.function
+        def let_destination(out: T.Tensor((1,), "uint32"), A: T.Tensor((1,), "uint32")):
             T.device_entry()
             bound: T.let = out[0] + T.uint32(1)
             T.ptx.ld.global_.b32(bound, A.ptr_to([0]))
 
     # An rvalue is not a destination either.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="writable scalar"):
+    with pytest.raises(ValueError, match="writable scalar"):
 
-        @T.prim_func
-        def rvalue_destination(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        @T.function
+        def rvalue_destination(A: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.ld.global_.b32(T.uint32(0), A.ptr_to([0]))
 
@@ -767,9 +748,8 @@ def test_ptx_register_group_codegen():
     names the aggregate width, and the operand shape carries the rest.
     """
 
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "float32")
+    @T.function
+    def kernel(A: T.Tensor((4,), "float32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -792,11 +772,10 @@ def test_ptx_register_group_codegen():
 def test_ptx_register_group_errors():
     """A register group is one operand: its arity is fixed and its lanes agree."""
     # No `mov` shape takes two operands, so nothing in the family matches.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match=r"expects \d+ operand"):
+    with pytest.raises(ValueError, match=r"expects \d+ operand"):
 
-        @T.prim_func
-        def wrong_arity(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (4,), "uint32")
+        @T.function
+        def wrong_arity(A: T.Tensor((4,), "uint32")):
             T.device_entry()
             packed = T.local_scalar("uint64")
             T.ptx.mov.b64(packed, A[0])
@@ -804,11 +783,10 @@ def test_ptx_register_group_errors():
 
     # Each lane of a destination group is its own register the caller declared,
     # so each has to be an lvalue -- not just the first.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="writable scalar"):
+    with pytest.raises(ValueError, match="writable scalar"):
 
-        @T.prim_func
-        def non_lvalue_lane(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (4,), "uint32")
+        @T.function
+        def non_lvalue_lane(A: T.Tensor((4,), "uint32")):
             T.device_entry()
             packed = T.local_scalar("uint64")
             lo = T.local_scalar("uint32")
@@ -818,11 +796,10 @@ def test_ptx_register_group_errors():
     # Lanes disagreeing on dtype: legal for each lane alone (both are 32-bit),
     # but the group is one operand with one C parameter type, so binding the
     # odd lane to it would be a numeric conversion.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="must have one dtype"):
+    with pytest.raises(ValueError, match="must have one dtype"):
 
-        @T.prim_func
-        def mixed_lane_dtypes(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (4,), "uint32")
+        @T.function
+        def mixed_lane_dtypes(A: T.Tensor((4,), "uint32")):
             T.device_entry()
             packed = T.local_scalar("uint64")
             f = T.local_scalar("float32")
@@ -832,20 +809,18 @@ def test_ptx_register_group_errors():
 
     # A bare float literal names no dtype: on a .b32 lane it could be the
     # float's bits or the number, and it used to silently become T.uint32(1).
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="is ambiguous"):
+    with pytest.raises(ValueError, match="is ambiguous"):
 
-        @T.prim_func
-        def bare_float_literal(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (4,), "uint32")
+        @T.function
+        def bare_float_literal(A: T.Tensor((4,), "uint32")):
             T.device_entry()
             packed = T.local_scalar("uint64")
             T.ptx.mov.b64(packed, 1.5, 2.5)
             A[0] = T.uint32(0)
 
     # An explicit constant is accepted and picks the float32 helper.
-    @T.prim_func
-    def typed_literal(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "float32")
+    @T.function
+    def typed_literal(A: T.Tensor((4,), "float32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -866,13 +841,12 @@ def test_ptx_optional_operand_arity_dispatch():
     re-parse as a counted one).
     """
 
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((4,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
-        bar = T.alloc_buffer((2,), "uint64", scope="shared")
+        bar = T.alloc_tensor((2,), "uint64", scope="shared")
         T.ptx.bar.sync(T.uint32(0))
         T.ptx.bar.sync(T.uint32(0), T.uint32(64))
         T.ptx.mbarrier.arrive.shared.b64(bar.ptr_to([0]))
@@ -890,20 +864,21 @@ def test_ptx_optional_operand_arity_dispatch():
     # The predicated no-count arrive survives a print/parse round trip as
     # itself -- the pred marker is what stops the count entry from absorbing
     # the predicate as a count.
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
 def test_ptx_mbarrier_92_shapes_render_and_roundtrip():
     """PTX 9.2 noComplete sink/state and wait shapes render exactly."""
 
-    @T.prim_func
-    def kernel(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (4,), "uint32")
+    @T.function
+    def kernel(out: T.Tensor((4,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
-        bar = T.alloc_buffer((2,), "uint64", scope="shared")
+        bar = T.alloc_tensor((2,), "uint64", scope="shared")
         state = T.local_scalar("uint64")
         pending = T.local_scalar("uint32")
         wait_complete = T.local_scalar("uint32")
@@ -954,7 +929,9 @@ def test_ptx_mbarrier_92_shapes_render_and_roundtrip():
     ):
         assert text in src, text
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
@@ -983,10 +960,8 @@ def test_ptx_bit_width_axis():
     numeric conversion and emit `cvt.rzi.u32.f32`.
     """
 
-    @T.prim_func
-    def kernel(a_ptr: T.handle, o_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "float32")
-        Out = T.match_buffer(o_ptr, (4,), "float32")
+    @T.function
+    def kernel(A: T.Tensor((4,), "float32"), Out: T.Tensor((4,), "float32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -1019,9 +994,8 @@ def test_ptx_bit_width_axis():
 def test_ptx_relaxed_load_store_typing():
     """Scalar/vector ld, st and ldu accept ISA section 9.4.1's wider register carriers."""
 
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (8,), "uint64")
+    @T.function
+    def kernel(A: T.Tensor((8,), "uint64")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -1052,11 +1026,10 @@ def test_ptx_relaxed_load_store_typing():
     assert '"l"(__value)' in src or '"l"(__value0)' in src
     assert "cvt." not in src
 
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="must have dtype"):
+    with pytest.raises(ValueError, match="must have dtype"):
 
-        @T.prim_func
-        def floating_source_for_integer_type(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint16")
+        @T.function
+        def floating_source_for_integer_type(A: T.Tensor((1,), "uint16")):
             T.device_entry()
             T.ptx.st.global_.u16(A.ptr_to([0]), T.float32(1))
 
@@ -1104,9 +1077,8 @@ def test_ptx_vec256_cache_policy():
         "float32",
     )
 
-    @T.prim_func
-    def vec256_calls(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (8,), "uint32")
+    @T.function
+    def vec256_calls(A: T.Tensor((8,), "uint32")):
         T.device_entry()
         policy = T.local_scalar("uint64")
         x0 = T.local_scalar("uint32")
@@ -1124,11 +1096,17 @@ def test_ptx_vec256_cache_policy():
             A.ptr_to([0]), x0, x1, x2, x3, x4, x5, x6, x7, policy
         )
 
-    reparsed = tvm.script.from_source(vec256_calls.script())
+    reparsed = tvm.script.from_source(
+        vec256_calls.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(vec256_calls, reparsed)
 
 
 @requires_nvcc
+@pytest.mark.skipif(
+    not env.has_cuda_compute(10),
+    reason="st.async.release.global requires CUDA compute >= 10.0",
+)
 def test_ptx_st_bulk_size_carriers_and_st_async_byte_bridge():
     """st.bulk takes 32/64-bit sizes; st.async stages one private .b8 register."""
     from tvm.backend.cuda.ptx.render import render_variant
@@ -1165,9 +1143,8 @@ def test_ptx_st_bulk_size_carriers_and_st_async_byte_bridge():
         assert (bits & 0xFF) == bits
         assert (signed_value & 0xFF) == bits
 
-    @T.prim_func
-    def carrier_calls(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (8,), "uint8")
+    @T.function
+    def carrier_calls(A: T.Tensor((8,), "uint8")):
         T.device_entry()
         T.cta_id([1])
         T.thread_id([1])
@@ -1178,7 +1155,9 @@ def test_ptx_st_bulk_size_carriers_and_st_async_byte_bridge():
         T.ptx.st_async.release.sys.global_.u8(A.ptr_to([4]), T.uint8(0xFF))
         T.ptx.st_async.release.sys.global_.s8(A.ptr_to([5]), T.int8(-1))
 
-    reparsed = tvm.script.from_source(carrier_calls.script())
+    reparsed = tvm.script.from_source(
+        carrier_calls.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(carrier_calls, reparsed)
     _assert_ptxas_ok(_cuda_source(carrier_calls), arch="sm_100")
 
@@ -1208,9 +1187,8 @@ def test_ptx_integer_arithmetic_dispatch():
     b", a dtype no token in the instruction names.
     """
 
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "int32")
+    @T.function
+    def kernel(A: T.Tensor((4,), "int32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -1240,24 +1218,26 @@ def test_ptx_integer_arithmetic_dispatch():
     assert "popc.b32 %0, %1;" in src
     assert "dp4a.s32.s32 %0, %1, %2, %3;" in src
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # A derived dtype is enforced at trace time like any other: `.wide.s32`
     # writes 64 bits, so a 32-bit destination is rejected before codegen.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="must have dtype int64"):
+    with pytest.raises(ValueError, match="must have dtype int64"):
 
-        @T.prim_func
-        def narrow_wide_dst(out: T.Buffer((1,), "int32")):
+        @T.function
+        def narrow_wide_dst(out: T.Tensor((1,), "int32")):
             T.device_entry()
             T.ptx.mul.wide.s32(out[0], T.int32(2), T.int32(3))
 
     # `.sat` is a syntax line of its own, not a free qualifier: the check
     # rejects it where the ISA does not spell it.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="hi.s32"):
+    with pytest.raises(ValueError, match="hi.s32"):
 
-        @T.prim_func
-        def sat_on_lo(out: T.Buffer((1,), "int32")):
+        @T.function
+        def sat_on_lo(out: T.Tensor((1,), "int32")):
             T.device_entry()
             T.ptx.mad.lo.sat.s32(out[0], T.int32(2), T.int32(3), T.int32(4))
 
@@ -1265,24 +1245,24 @@ def test_ptx_integer_arithmetic_dispatch():
     # integer lines on which `.sat` has never been legal. Keep both reasons
     # visible so an invalid spelling is not misreported as an architecture
     # gate. In particular, sub.sat.u32 is not the counterpart of add.sat.u32.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="sm_120f-only"):
+    with pytest.raises(ValueError, match="sm_120f-only"):
 
-        @T.prim_func
-        def add_sat_sm120(out: T.Buffer((1,), "uint32")):
+        @T.function
+        def add_sat_sm120(out: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.add.sat.u32(out[0], T.uint32(2), T.uint32(3))
 
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match=r"not on the add\.u64"):
+    with pytest.raises(ValueError, match=r"not on the add\.u64"):
 
-        @T.prim_func
-        def add_sat_no_syntax_line(out: T.Buffer((1,), "uint64")):
+        @T.function
+        def add_sat_no_syntax_line(out: T.Tensor((1,), "uint64")):
             T.device_entry()
             T.ptx.add.sat.u64(out[0], T.uint64(2), T.uint64(3))
 
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match=r"not on the sub\.u32"):
+    with pytest.raises(ValueError, match=r"not on the sub\.u32"):
 
-        @T.prim_func
-        def sub_sat_no_syntax_line(out: T.Buffer((1,), "uint32")):
+        @T.function
+        def sub_sat_no_syntax_line(out: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.sub.sat.u32(out[0], T.uint32(2), T.uint32(3))
 
@@ -1297,9 +1277,8 @@ def test_ptx_floating_point_dispatch():
     9.7.3.17), and the lone approximation with no `.ftz` at all (tanh).
     """
 
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "float32")
+    @T.function
+    def kernel(A: T.Tensor((4,), "float32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -1346,30 +1325,32 @@ def test_ptx_floating_point_dispatch():
     # selp, with the real .pred register living inside the asm block.
     assert ".reg .pred pd0; testp.notanumber.f32 pd0, %1; selp.b32 %0, 1, 0, pd0;" in src
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # sqrt has no f64 approximation at any spelling, unlike rcp (9.7.3.14).
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="only on the .f32 line"):
+    with pytest.raises(ValueError, match="only on the .f32 line"):
 
-        @T.prim_func
-        def sqrt_approx_f64(out: T.Buffer((1,), "float64")):
+        @T.function
+        def sqrt_approx_f64(out: T.Tensor((1,), "float64")):
             T.device_entry()
             T.ptx.sqrt.approx.f64(out[0], T.float64(2.0))
 
     # ... and rcp's f64 approximation is unreachable without its mandatory .ftz.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="rcp.approx.ftz.f64"):
+    with pytest.raises(ValueError, match="rcp.approx.ftz.f64"):
 
-        @T.prim_func
-        def rcp_approx_f64(out: T.Buffer((1,), "float64")):
+        @T.function
+        def rcp_approx_f64(out: T.Tensor((1,), "float64")):
             T.device_entry()
             T.ptx.rcp.approx.f64(out[0], T.float64(2.0))
 
     # One of .approx/.full/.rnd is required: the bare mnemonic names no line.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="missing required modifier"):
+    with pytest.raises(ValueError, match="missing required modifier"):
 
-        @T.prim_func
-        def div_without_mode(out: T.Buffer((1,), "float32")):
+        @T.function
+        def div_without_mode(out: T.Tensor((1,), "float32")):
             T.device_entry()
             T.ptx.div.f32(out[0], T.float32(1.0), T.float32(2.0))
 
@@ -1383,9 +1364,8 @@ def test_ptx_half_precision_dispatch():
     and ex2's split over whether `.ftz` is mandatory or unspellable.
     """
 
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((4,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -1422,42 +1402,48 @@ def test_ptx_half_precision_dispatch():
     ):
         assert text in src, text
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # The `.oob` line spells neither .ftz nor .sat beside it.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="oob line spells no"):
+    with pytest.raises(ValueError, match="oob line spells no"):
 
-        @T.prim_func
-        def oob_with_ftz(out: T.Buffer((1,), "uint16")):
+        @T.function
+        def oob_with_ftz(out: T.Tensor((1,), "uint16")):
             T.device_entry()
             T.ptx.fma.rn.oob.ftz.f16(out[0], T.uint16(0), T.uint16(0), T.uint16(0))
 
     # .sat and .relu are two clampings on two different syntax lines.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="separate syntax lines"):
+    with pytest.raises(ValueError, match="separate syntax lines"):
 
-        @T.prim_func
-        def sat_and_relu(out: T.Buffer((1,), "uint16")):
+        @T.function
+        def sat_and_relu(out: T.Tensor((1,), "uint16")):
             T.device_entry()
             T.ptx.fma.rn.sat.relu.f16(out[0], T.uint16(0), T.uint16(0), T.uint16(0))
 
     # ex2's bf16 line without its mandatory .ftz names no syntax line.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="mandatorily"):
+    with pytest.raises(ValueError, match="mandatorily"):
 
-        @T.prim_func
-        def ex2_bf16_no_ftz(out: T.Buffer((1,), "uint16")):
+        @T.function
+        def ex2_bf16_no_ftz(out: T.Tensor((1,), "uint16")):
             T.device_entry()
             T.ptx.ex2.approx.bf16(out[0], T.uint16(0))
 
     # ... and the bf16 abs/neg lines spell no .ftz at all.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="takes no .ftz"):
+    with pytest.raises(ValueError, match="takes no .ftz"):
 
-        @T.prim_func
-        def abs_bf16_ftz(out: T.Buffer((1,), "uint16")):
+        @T.function
+        def abs_bf16_ftz(out: T.Tensor((1,), "uint16")):
             T.device_entry()
             T.ptx.abs.ftz.bf16(out[0], T.uint16(0))
 
 
+@pytest.mark.skipif(
+    not env.has_cuda_compute(10),
+    reason="mixed f32/f16 and f32/bf16 arithmetic requires CUDA compute >= 10.0",
+)
 def test_ptx_mixed_precision_dispatch():
     """ISA 9.7.5, which adds no instruction of its own.
 
@@ -1468,9 +1454,8 @@ def test_ptx_mixed_precision_dispatch():
     ones, and what selects a line is only whether that second token is written.
     """
 
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "float32")
+    @T.function
+    def kernel(A: T.Tensor((4,), "float32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -1493,31 +1478,33 @@ def test_ptx_mixed_precision_dispatch():
     # Two carriers in one helper: the converted source is 16-bit, the rest f32.
     assert '"=f"(__d) : "h"(__a), "f"(__b)' in src
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # The mixed line spells no .ftz, unlike the .f32 line it shares an entry with.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="takes no .ftz"):
+    with pytest.raises(ValueError, match="takes no .ftz"):
 
-        @T.prim_func
-        def mixed_with_ftz(out: T.Buffer((1,), "float32")):
+        @T.function
+        def mixed_with_ftz(out: T.Tensor((1,), "float32")):
             T.device_entry()
             T.ptx.add.rn.ftz.f32.f16(out[0], T.uint16(0), T.float32(0))
 
     # A converted source exists only on the .f32 line -- there is no f64 form.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="only exists on the .f32"):
+    with pytest.raises(ValueError, match="only exists on the .f32"):
 
-        @T.prim_func
-        def mixed_f64(out: T.Buffer((1,), "float64")):
+        @T.function
+        def mixed_f64(out: T.Tensor((1,), "float64")):
             T.device_entry()
             T.ptx.add.rn.f64.f16(out[0], T.uint16(0), T.float64(0))
 
     # And `mul` is the one mnemonic of the four with no mixed line at all, so
     # its entry declares no srctype slot and the token does not resolve.
-    with pytest.raises((AttributeError, tvm.error.DiagnosticError), match="not a valid modifier"):
+    with pytest.raises(AttributeError, match="not a valid modifier"):
 
-        @T.prim_func
-        def mul_mixed(out: T.Buffer((1,), "float32")):
+        @T.function
+        def mul_mixed(out: T.Tensor((1,), "float32")):
             T.device_entry()
             T.ptx.mul.rn.f32.f16(out[0], T.uint16(0), T.float32(0))
 
@@ -1532,9 +1519,8 @@ def test_ptx_comparison_selection_dispatch():
     ptxas picks the syntax line.
     """
 
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "int32")
+    @T.function
+    def kernel(A: T.Tensor((4,), "int32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -1568,60 +1554,60 @@ def test_ptx_comparison_selection_dispatch():
     ):
         assert text in src, text
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # Each source type takes its own operator set, and ptxas agrees with every
     # rejection below (probed at sm_90 before they were written into the check).
     # lo/ls/hi/hs are unsigned-only alternates for lt/le/gt/ge.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="signed"):
+    with pytest.raises(ValueError, match="signed"):
 
-        @T.prim_func
-        def unsigned_op_on_signed(out: T.Buffer((1,), "uint32")):
+        @T.function
+        def unsigned_op_on_signed(out: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.setp.lo.s32(out[0], T.int32(1), T.int32(2))
 
     # The unordered comparisons and the NaN predicates are floating point only.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="floating-point comparison"):
+    with pytest.raises(ValueError, match="floating-point comparison"):
 
-        @T.prim_func
-        def float_op_on_integer(out: T.Buffer((1,), "uint32")):
+        @T.function
+        def float_op_on_integer(out: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.setp.nan.u32(out[0], T.uint32(1), T.uint32(2))
 
     # A bit-size type has no ordering, only equality.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="only with eq/ne"):
+    with pytest.raises(ValueError, match="only with eq/ne"):
 
-        @T.prim_func
-        def ordered_on_bitsize(out: T.Buffer((1,), "uint32")):
+        @T.function
+        def ordered_on_bitsize(out: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.setp.lt.b32(out[0], T.uint32(1), T.uint32(2))
 
     # .ftz applies only to .f32 comparisons ...
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="only to .f32 comparisons"):
+    with pytest.raises(ValueError, match="only to .f32 comparisons"):
 
-        @T.prim_func
-        def ftz_off_f32(out: T.Buffer((1,), "uint32")):
+        @T.function
+        def ftz_off_f32(out: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.setp.eq.ftz.s32(out[0], T.int32(1), T.int32(2))
 
     # ... and on slct, only to the .f32 selector line.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="f32 selector line"):
+    with pytest.raises(ValueError, match="f32 selector line"):
 
-        @T.prim_func
-        def ftz_on_s32_selector(out: T.Buffer((1,), "uint32")):
+        @T.function
+        def ftz_on_s32_selector(out: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.slct.ftz.b32.s32(out[0], T.uint32(1), T.uint32(2), T.int32(3))
 
     # Only d/a/b receive slct's relaxed bit-size typing. The selector must
     # still match the second instruction type exactly, even when another
     # same-constraint integer carrier would fit through inline asm.
-    with pytest.raises(
-        (ValueError, tvm.error.DiagnosticError), match=r"operand 'c'.*int32.*uint32"
-    ):
+    with pytest.raises(ValueError, match=r"operand 'c'.*int32.*uint32"):
 
-        @T.prim_func
-        def relaxed_selector(out: T.Buffer((1,), "uint32")):
+        @T.function
+        def relaxed_selector(out: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.slct.f32.s32(out[0], T.float32(1), T.int32(2), T.uint32(3))
 
@@ -1675,9 +1661,8 @@ def test_ptx_half_comparison_dispatch():
     is a fact of the section, not a product of two slots.
     """
 
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((4,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -1711,63 +1696,65 @@ def test_ptx_half_comparison_dispatch():
     ):
         assert text in src, text
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # Every rejection below was probed against ptxas before being written into
     # the check. The (dtype, stype) grid: a packed source needs a 32-bit answer.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="no half-precision syntax"):
+    with pytest.raises(ValueError, match="no half-precision syntax"):
 
-        @T.prim_func
-        def bad_pair(out: T.Buffer((1,), "uint16")):
+        @T.function
+        def bad_pair(out: T.Tensor((1,), "uint16")):
             T.device_entry()
             T.ptx.set.eq.u16.f16x2(out[0], T.uint32(0), T.uint32(0))
 
     # `.ftz` follows the source precision: a bf16 source has none to flush.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="does not take it"):
+    with pytest.raises(ValueError, match="does not take it"):
 
-        @T.prim_func
-        def ftz_bf16_source(out: T.Buffer((1,), "uint32")):
+        @T.function
+        def ftz_bf16_source(out: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.set.eq.ftz.u32.bf16(out[0], T.uint16(0), T.uint16(0))
 
     # ... and no bf16 destination takes it either.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="destination takes no"):
+    with pytest.raises(ValueError, match="destination takes no"):
 
-        @T.prim_func
-        def ftz_bf16_dest(out: T.Buffer((1,), "uint16")):
+        @T.function
+        def ftz_bf16_dest(out: T.Tensor((1,), "uint16")):
             T.device_entry()
             T.ptx.set.eq.ftz.bf16.f32(out[0], T.float32(0), T.float32(0))
 
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="spells no .ftz"):
+    with pytest.raises(ValueError, match="spells no .ftz"):
 
-        @T.prim_func
-        def setp_ftz_bf16(out: T.Buffer((1,), "uint32")):
+        @T.function
+        def setp_ftz_bf16(out: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.setp.eq.ftz.bf16(out[0], T.uint16(0), T.uint16(0))
 
     # The unordered comparisons need a floating-point source.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="integer source"):
+    with pytest.raises(ValueError, match="integer source"):
 
-        @T.prim_func
-        def unordered_on_integer(out: T.Buffer((1,), "uint16")):
+        @T.function
+        def unordered_on_integer(out: T.Tensor((1,), "uint16")):
             T.device_entry()
             T.ptx.set.equ.f16.s32(out[0], T.int32(0), T.int32(0))
 
     # The classification fix is narrow: a real .b16 source remains a bit-size
     # value and therefore still permits equality comparisons only.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="bit-size source"):
+    with pytest.raises(ValueError, match="bit-size source"):
 
-        @T.prim_func
-        def ordered_on_bitsize(out: T.Buffer((1,), "uint16")):
+        @T.function
+        def ordered_on_bitsize(out: T.Tensor((1,), "uint16")):
             T.device_entry()
             T.ptx.set.lt.f16.b16(out[0], T.uint16(0), T.uint16(0))
 
     # 9.7.8 spells no unsigned alternates at all, so `lo` never resolves here.
-    with pytest.raises((AttributeError, tvm.error.DiagnosticError), match="not a valid modifier"):
+    with pytest.raises(AttributeError, match="not a valid modifier"):
 
-        @T.prim_func
-        def unsigned_alternate(out: T.Buffer((1,), "uint32")):
+        @T.function
+        def unsigned_alternate(out: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.setp.lo.f16(out[0], T.uint16(0), T.uint16(0))
 
@@ -1785,9 +1772,8 @@ def test_ptx_logic_shift_dispatch():
     operand, so a helper can hold three bridges around one instruction.
     """
 
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (4,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((4,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -1831,41 +1817,40 @@ def test_ptx_logic_shift_dispatch():
     # The load-bearing one: `and`/`or`/`not` have to survive being printed.
     script = kernel.script()
     assert "T.ptx.and_(" in script and "T.ptx.not_(" in script
-    reparsed = tvm.script.from_source(script)
+    reparsed = tvm.script.from_source(script, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # cnot has no predicate line -- ptxas: "Unexpected instruction types
     # specified for 'cnot'" -- so the token is not in its slot at all.
-    with pytest.raises((AttributeError, tvm.error.DiagnosticError), match="not a valid modifier"):
+    with pytest.raises(AttributeError, match="not a valid modifier"):
 
-        @T.prim_func
-        def cnot_pred(out: T.Buffer((1,), "uint32")):
+        @T.function
+        def cnot_pred(out: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.cnot.pred(out[0], T.uint32(0))
 
     # lop3's BoolOp line stops at .or/.and; ptxas rejects .xor outright.
-    with pytest.raises((AttributeError, tvm.error.DiagnosticError), match="not a valid modifier"):
+    with pytest.raises(AttributeError, match="not a valid modifier"):
 
-        @T.prim_func
-        def lop3_xor(out: T.Buffer((1,), "uint32")):
+        @T.function
+        def lop3_xor(out: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.lop3.xor.b32(out[0], T.uint32(0), T.uint32(0), T.uint32(0), 0x80)
 
     # shl is untyped -- a left shift zero-fills whatever the bits mean, so
     # there is no signed line (unlike shr, which needs to know how to fill).
-    with pytest.raises((AttributeError, tvm.error.DiagnosticError), match="not a valid modifier"):
+    with pytest.raises(AttributeError, match="not a valid modifier"):
 
-        @T.prim_func
-        def shl_signed(out: T.Buffer((1,), "int32")):
+        @T.function
+        def shl_signed(out: T.Tensor((1,), "int32")):
             T.device_entry()
             T.ptx.shl.s32(out[0], T.int32(1), T.uint32(2))
 
     # Open immediates may survive tracing so explicitly-unrolled expressions
     # can specialize, but a runtime LUT byte still has no register form and is
     # rejected at CUDA codegen.
-    @T.prim_func
-    def lut_runtime(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (1,), "uint32")
+    @T.function
+    def lut_runtime(A: T.Tensor((1,), "uint32")):
         T.device_entry()
         tx = T.thread_id([32])
         if tx == 0:
@@ -1875,9 +1860,8 @@ def test_ptx_logic_shift_dispatch():
     with pytest.raises((ValueError, tvm.error.InternalError), match="compile-time constants"):
         _cuda_source(lut_runtime)
 
-    @T.prim_func
-    def lut_unrolled(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (1,), "uint32")
+    @T.function
+    def lut_unrolled(A: T.Tensor((1,), "uint32")):
         T.device_entry()
         tx = T.thread_id([32])
         if tx == 0:
@@ -1889,9 +1873,8 @@ def test_ptx_logic_shift_dispatch():
     assert "lop3.b32 %0, %1, %2, %3, 0;" in unrolled_src
     assert "lop3.b32 %0, %1, %2, %3, 128;" in unrolled_src
 
-    @T.prim_func
-    def lut_boundaries(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (1,), "uint32")
+    @T.function
+    def lut_boundaries(A: T.Tensor((1,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         T.thread_id([1])
@@ -1903,31 +1886,24 @@ def test_ptx_logic_shift_dispatch():
     assert "lop3.b32 %0, %1, %2, %3, 0;" in boundary_src
     assert "lop3.b32 %0, %1, %2, %3, 255;" in boundary_src
 
-    with pytest.raises(
-        (ValueError, tvm.error.DiagnosticError), match=r"inclusive range 0\.\.255, got -1"
-    ):
+    with pytest.raises(ValueError, match=r"inclusive range 0\.\.255, got -1"):
 
-        @T.prim_func
-        def lut_below_range(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        @T.function
+        def lut_below_range(A: T.Tensor((1,), "uint32")):
             T.device_entry()
             d = T.local_scalar("uint32")
             T.ptx.lop3.b32(d, A[0], A[0], A[0], -1)
 
-    with pytest.raises(
-        (ValueError, tvm.error.DiagnosticError), match=r"inclusive range 0\.\.255, got 256"
-    ):
+    with pytest.raises(ValueError, match=r"inclusive range 0\.\.255, got 256"):
 
-        @T.prim_func
-        def lut_above_range(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        @T.function
+        def lut_above_range(A: T.Tensor((1,), "uint32")):
             T.device_entry()
             d = T.local_scalar("uint32")
             T.ptx.lop3.b32(d, A[0], A[0], A[0], 256)
 
-    @T.prim_func
-    def lut_unrolled_out_of_range(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (1,), "uint32")
+    @T.function
+    def lut_unrolled_out_of_range(A: T.Tensor((1,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         T.thread_id([1])
@@ -1949,13 +1925,12 @@ def test_ptx_data_movement_dispatch():
     operands are immediates that live in the instruction text.
     """
 
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (8,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((8,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
-        smem = T.alloc_buffer((4,), "uint32", scope="shared")
+        smem = T.alloc_tensor((4,), "uint32", scope="shared")
         d = T.local_scalar("uint32")
         p = T.local_scalar("uint32")
         v = T.local_scalar("uint32")
@@ -2013,66 +1988,62 @@ def test_ptx_data_movement_dispatch():
     ):
         assert text in src, text
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # Every rejection below was probed against ptxas before it was written into
     # a check. multimem pairs an ordering semantic with a scope ...
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="go together"):
+    with pytest.raises(ValueError, match="go together"):
 
-        @T.prim_func
-        def sem_without_scope(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        @T.function
+        def sem_without_scope(A: T.Tensor((1,), "uint32")):
             T.device_entry()
             v = T.local_scalar("uint32")
             T.ptx.multimem_ld_reduce.relaxed.add.u32(v, A.ptr_to([0]))
 
     # ... and `.weak` is the line that has neither.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="takes no scope"):
+    with pytest.raises(ValueError, match="takes no scope"):
 
-        @T.prim_func
-        def weak_with_scope(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        @T.function
+        def weak_with_scope(A: T.Tensor((1,), "uint32")):
             T.device_entry()
             v = T.local_scalar("uint32")
             T.ptx.multimem_ld_reduce.weak.gpu.add.u32(v, A.ptr_to([0]))
 
     # The op x type table: `.add` is the row that takes .s32 but not .s64.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match=r"\.add takes"):
+    with pytest.raises(ValueError, match=r"\.add takes"):
 
-        @T.prim_func
-        def add_s64(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "int64")
+        @T.function
+        def add_s64(A: T.Tensor((1,), "int64")):
             T.device_entry()
             v = T.local_scalar("int64")
             T.ptx.multimem_ld_reduce.add.s64(v, A.ptr_to([0]))
 
     # The scalar float line has no lone half: a width has to reach 32 bits.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="the scalar line takes"):
+    with pytest.raises(ValueError, match="the scalar line takes"):
 
-        @T.prim_func
-        def scalar_f16(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint16")
+        @T.function
+        def scalar_f16(A: T.Tensor((1,), "uint16")):
             T.device_entry()
             v = T.local_scalar("uint16")
             T.ptx.multimem_ld_reduce.add.f16(v, A.ptr_to([0]))
 
     # `.acc::f32` raises an accumulation, so it needs something to accumulate.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="applies to .add"):
+    with pytest.raises(ValueError, match="applies to .add"):
 
-        @T.prim_func
-        def acc_on_min(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        @T.function
+        def acc_on_min(A: T.Tensor((1,), "uint32")):
             T.device_entry()
             v = T.local_scalar("uint32")
             T.ptx.multimem_ld_reduce.min.acc__f32.f16x2(v, A.ptr_to([0]))
 
     # st.async's mmio line is system-scoped only.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="requires .sys"):
+    with pytest.raises(ValueError, match="requires .sys"):
 
-        @T.prim_func
-        def mmio_gpu(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        @T.function
+        def mmio_gpu(A: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.st_async.mmio.release.gpu.global_.u32(A.ptr_to([0]), T.uint32(1))
 
@@ -2087,9 +2058,8 @@ def test_ptx_parallel_sync_dispatch():
     represented by two entries, all resolved by tokens and arity alone.
     """
 
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (8,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((8,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -2133,26 +2103,27 @@ def test_ptx_parallel_sync_dispatch():
     ):
         assert text in src, text
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # Every rejection below was probed against ptxas first. redux pairs the
     # arithmetic ops with a signed type and the bitwise ones with the untyped
     # word -- they are two syntax lines, so the token does not even resolve.
-    with pytest.raises((AttributeError, tvm.error.DiagnosticError), match="not a valid modifier"):
+    with pytest.raises(AttributeError, match="not a valid modifier"):
 
-        @T.prim_func
-        def redux_add_b32(out: T.Buffer((1,), "uint32")):
+        @T.function
+        def redux_add_b32(out: T.Tensor((1,), "uint32")):
             T.device_entry()
             T.ptx.redux_sync.add.b32(out[0], T.uint32(1), T.uint32(0xFFFFFFFF))
 
     # atom's vector lines bound the width by the element: a packed pair stops
     # at .v4, and only a lone half reaches .v8.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="already a 32-bit pair"):
+    with pytest.raises(ValueError, match="already a 32-bit pair"):
 
-        @T.prim_func
-        def packed_v8(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint32")
+        @T.function
+        def packed_v8(A: T.Tensor((1,), "uint32")):
             T.device_entry()
             v = T.local_scalar("uint32")
             T.ptx.atom.global_.add.noftz.v8.f16x2(
@@ -2160,11 +2131,10 @@ def test_ptx_parallel_sync_dispatch():
             )
 
     # red.async's op groups: `.add` reaches 64 bits, the bitwise ops do not.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match=r"\.and takes"):
+    with pytest.raises(ValueError, match=r"\.and takes"):
 
-        @T.prim_func
-        def red_async_and_u64(a_ptr: T.handle):
-            A = T.match_buffer(a_ptr, (1,), "uint64")
+        @T.function
+        def red_async_and_u64(A: T.Tensor((1,), "uint64")):
             T.device_entry()
             v = T.local_scalar("uint64")
             T.ptx.red_async.relaxed.cluster.shared__cluster.mbarrier__complete_tx__bytes.and_.u64(
@@ -2175,13 +2145,12 @@ def test_ptx_parallel_sync_dispatch():
 def test_ptx_lazy_subscript_operands_realize():
     """Raw buffer elements realize before PTX predicate operand validation."""
 
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (1,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((1,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         T.thread_id([32])
-        regs = T.alloc_buffer((2,), "uint32", scope="local")
+        regs = T.alloc_tensor((2,), "uint32", scope="local")
         full = T.uint32(0xFFFFFFFF)
         T.ptx.elect_sync(regs[0], regs[1], full)
         T.ptx.vote_sync.all.pred(regs[0], T.ptx.pred(regs[1]), full)
@@ -2195,16 +2164,14 @@ def test_ptx_lazy_subscript_operands_realize():
 
 
 def test_ptx_parser_roundtrip():
-    """script() output re-parses to a structurally equal PrimFunc."""
+    """script() output re-parses to a structurally equal Function."""
 
-    @T.prim_func
-    def kernel(a_ptr: T.handle, b_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
-        B = T.match_buffer(b_ptr, (32,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((32,), "uint32"), B: T.Tensor((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
-        smem = T.alloc_buffer((4,), "uint32", scope="shared")
+        smem = T.alloc_tensor((4,), "uint32", scope="shared")
         if tx == 0:
             val = T.local_scalar("uint32")
             smem_addr = T.local_scalar("uint64")
@@ -2223,7 +2190,9 @@ def test_ptx_parser_roundtrip():
         T.cuda.cta_sync()
         B[tx] = smem[tx % 4]
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
@@ -2237,9 +2206,8 @@ def test_ptx_pred_operand_roundtrip():
     family (which is exactly what the src-size / ignore-src pair does).
     """
 
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -2253,16 +2221,17 @@ def test_ptx_pred_operand_roundtrip():
             )
         A[tx] = A[tx]
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
 def test_ptx_wgmma_scale_d_runtime_predicate_roundtrip():
     """WGMMA scale-d is a runtime predicate, not a 0/1 text immediate."""
 
-    @T.prim_func
-    def kernel(out_ptr: T.handle):
-        Out = T.match_buffer(out_ptr, (128,), "uint32")
+    @T.function
+    def kernel(Out: T.Tensor((128,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([128])
@@ -2285,15 +2254,17 @@ def test_ptx_wgmma_scale_d_runtime_predicate_roundtrip():
     assert "setp.ne.b32 ps0," in src
     assert "}, %4, %5, ps0;" in src
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
     # There is deliberately no compatibility overload for the old integer
     # immediate spelling. A bool already identifies a predicate; a runtime
     # integer must carry the explicit T.ptx.pred(...) register-class marker.
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match=r"T\.ptx\.pred"):
+    with pytest.raises(ValueError, match=r"T\.ptx\.pred"):
 
-        @T.prim_func
+        @T.function
         def bare_integer_scale_d():
             T.device_entry()
             d0: T.uint32 = T.uint32(0)
@@ -2340,11 +2311,93 @@ def test_ptx_wgmma_integer_shape_domains_follow_concrete_syntax():
         assert "m64n256k256" in b1_shapes
 
 
+@pytest.mark.parametrize("form", ("ss", "ts"))
+@pytest.mark.parametrize("collector", ("", "b0::fill", "b1::use", "b2::lastuse", "b3::discard"))
+def test_ptx_tcgen05_mma_ws_collector_dispatch(form, collector):
+    opcode = "tcgen05.mma.ws.cta_group::1.kind::f16"
+    if collector:
+        opcode += f".collector::{collector}"
+    a_dtype = "uint64" if form == "ss" else "uint32"
+
+    @T.function
+    def kernel():
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([32])
+        T.ptx[opcode](
+            T.uint32(0),
+            T.cast(0, a_dtype),
+            T.uint64(0),
+            T.uint32(0),
+            T.ptx.pred(T.uint32(0)),
+            T.uint64(0),
+        )
+
+    src = _cuda_source(kernel, tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}))
+    a_operand = "%1" if form == "ss" else "[%1]"
+    assert f"{opcode} [%0], {a_operand}, %2, %3, ps0, %5;" in src
+    tvm.ir.assert_structural_equal(
+        kernel,
+        tvm.script.from_source(
+            kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+        ),
+    )
+
+
 @requires_nvcc
+def test_ptx_tcgen05_mma_ws_collectors_certify_sm100a():
+    """All WS kinds, B buffers/operations, and predication assemble on SM100a."""
+    from tvm.backend.cuda.ptx.render import render_variant
+    from tvm.backend.cuda.ptx.table import TABLE, renderings
+
+    by_arch = {}
+    for form in ("ss", "ts"):
+        entry = TABLE[f"tcgen05_mma_ws_{form}"]
+        for rendering in renderings(entry):
+            _, helper, source = render_variant(entry, *_as_render_args(rendering))
+            _append_certification(by_arch, "sm_100a", helper, source)
+    _assert_certifications_ok(by_arch)
+
+
+@pytest.mark.parametrize("mismatch", ("modifier", "operand"))
+def test_ptx_codegen_rejects_stale_table_layout(mismatch):
+    """A traced call must not silently feed modifier strings to an old helper."""
+    from dataclasses import replace
+
+    from tvm.backend.cuda.ptx.engine import PTXNamespace, _make_codegen
+    from tvm.backend.cuda.ptx.table import TABLE, ModifierSlot, OperandSlot
+
+    entry = TABLE["tcgen05_mma_ws_ss"]
+    if mismatch == "modifier":
+        changed = replace(entry, slots=(*entry.slots, ModifierSlot("extra", ("extra",))))
+        opcode = "tcgen05.mma.ws.cta_group::1.kind::f16.extra"
+        extra = ()
+    else:
+        changed = replace(entry, operands=(*entry.operands, OperandSlot("extra", dtype="u64")))
+        opcode = "tcgen05.mma.ws.cta_group::1.kind::f16"
+        extra = (T.uint64(0),)
+    namespace = PTXNamespace({changed.name: changed})
+    call = namespace[opcode](
+        T.uint32(0),
+        T.uint64(0),
+        T.uint64(0),
+        T.uint32(0),
+        namespace.pred(T.uint32(0)),
+        T.uint64(0),
+        *extra,
+    )
+    with pytest.raises(ValueError, match="PTX call and registered table entry may be inconsistent"):
+        _make_codegen(entry)(*call.args)
+
+
+@requires_nvcc
+@pytest.mark.skipif(
+    not env.has_cuda_compute(10),
+    reason="tcgen05.mma.block32 requires at least CUDA compute 10.0",
+)
 def test_ptx_tcgen05_mma_block_size_form():
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -2362,9 +2415,9 @@ def test_ptx_tcgen05_mma_block_size_form():
     assert "tcgen05.mma.cta_group::1.kind::mxf4.block_scale.block32" in src
     _assert_ptxas_ok(src, arch="sm_100a")
 
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="mxf4.*block32"):
+    with pytest.raises(ValueError, match="mxf4.*block32"):
 
-        @T.prim_func
+        @T.function
         def invalid_mxf4_block16():
             T.device_entry()
             tmem = T.local_scalar("uint32")
@@ -2384,9 +2437,8 @@ def test_ptx_tcgen05_mma_block_size_form():
 def test_ptx_tcgen05_mma_block_size_collector_form():
     """PTX 9.4 collector qualifiers on block-scaled MMA certify at their sm_107f floor."""
 
-    @T.prim_func
-    def sm107_collector_kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
+    @T.function
+    def sm107_collector_kernel(A: T.Tensor((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -2405,7 +2457,9 @@ def test_ptx_tcgen05_mma_block_size_collector_form():
             ](tmem, tmem, desc, idesc, tmem, tmem, T.ptx.pred(flag))
         A[tx] = A[tx]
 
-    collector_src = _cuda_source(sm107_collector_kernel)
+    collector_src = _cuda_source(
+        sm107_collector_kernel, tvm.target.Target({"kind": "cuda", "arch": "sm_107f"})
+    )
     ss_collector_opcode = (
         "tcgen05.mma.cta_group::1.kind::mxf4nvf4.block_scale.block16"
         ".collector::a::discard.collector::b::fill"
@@ -2427,9 +2481,8 @@ def test_ptx_tcgen05_mma_block_size_collector_form():
 def test_ptx_tcgen05_mma_block_scale_collector_a_without_block_size():
     """SM107 activation-stationary FP8 accepts collector A without `.block*`."""
 
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -2527,9 +2580,9 @@ def test_ptx_pred_operand_rejects_untagged_integer():
     tells the two `cp.async` optional-operand syntax lines apart. A bool needs
     no tag -- it already says what it is.
     """
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match=r"T\.ptx\.pred"):
+    with pytest.raises(ValueError, match=r"T\.ptx\.pred"):
 
-        @T.prim_func
+        @T.function
         def untagged_integer():
             T.device_entry()
             T.cta_id([1])
@@ -2540,9 +2593,8 @@ def test_ptx_pred_operand_rejects_untagged_integer():
             T.ptx["tcgen05.mma.cta_group::1.kind::f16"](tmem, desc, desc, idesc, 0, 0, 0, 0, flag)
 
     # A bool expression carries the class in its own dtype, so it needs no tag.
-    @T.prim_func
-    def bool_needs_no_tag(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
+    @T.function
+    def bool_needs_no_tag(A: T.Tensor((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -2567,9 +2619,8 @@ def test_ptx_sink_lane_codegen_and_roundtrip():
     arity.
     """
 
-    @T.prim_func
-    def kernel(a_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -2582,7 +2633,9 @@ def test_ptx_sink_lane_codegen_and_roundtrip():
     src = _cuda_source(kernel)
     assert "mov.b64 {_, %0}, %1;" in src
     assert "_sink_d0" in src
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
@@ -2594,9 +2647,9 @@ def test_ptx_sink_rejected_where_the_isa_has_no_underscore():
     Not from the family either: mov's *pack* shape has a scalar destination
     and a vector source, and the ISA gives neither of them a sink.
     """
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="not sinkable here"):
+    with pytest.raises(ValueError, match="not sinkable here"):
 
-        @T.prim_func
+        @T.function
         def sink_a_source():
             T.device_entry()
             packed = T.local_scalar("uint64")
@@ -2606,9 +2659,9 @@ def test_ptx_sink_rejected_where_the_isa_has_no_underscore():
             T.evaluate(hi)
 
     # ISA 9.7.10.4: "provided that at least one element is a scalar register".
-    with pytest.raises((ValueError, tvm.error.DiagnosticError), match="must be a real register"):
+    with pytest.raises(ValueError, match="must be a real register"):
 
-        @T.prim_func
+        @T.function
         def sink_every_lane():
             T.device_entry()
             packed = T.local_scalar("uint64")
@@ -2616,10 +2669,8 @@ def test_ptx_sink_rejected_where_the_isa_has_no_underscore():
 
 
 def test_ptx_printer_form():
-    @T.prim_func
-    def kernel(a_ptr: T.handle, b_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
-        B = T.match_buffer(b_ptr, (32,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((32,), "uint32"), B: T.Tensor((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -2923,11 +2974,11 @@ def test_ptx_94_cp_bulk_semantic_renderings():
 def test_ptx_94_cp_bulk_semantics_roundtrip():
     """The string namespace dispatches every widened PTX 9.4 sibling."""
 
-    @T.prim_func
-    def kernel(src: T.Buffer((64,), "uint32")):
+    @T.function
+    def kernel(src: T.Tensor((64,), "uint32")):
         T.device_entry()
-        smem = T.alloc_buffer((64,), "uint32", scope="shared")
-        mbar = T.alloc_buffer((2,), "uint64", scope="shared")
+        smem = T.alloc_tensor((64,), "uint32", scope="shared")
+        mbar = T.alloc_tensor((2,), "uint64", scope="shared")
         T.ptx[
             "cp.async.bulk.relaxed.sys.shared::cta.global."
             "mbarrier::complete_tx::bytes."
@@ -2972,7 +3023,9 @@ def test_ptx_94_cp_bulk_semantics_roundtrip():
             T.uint32(1),
         )
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
@@ -3135,8 +3188,8 @@ def test_ptx_tcgen05_mapa_address_coercion():
     raw_u64 = tvm.tirx.Var("a64", "uint64")
     ncols = tvm.tirx.Var("n", "uint32")
     mask = tvm.tirx.Var("mask", "uint16")
-    out32 = tvm.tirx.decl_buffer((1,), "uint32", name="out32", scope="local")
-    out64 = tvm.tirx.decl_buffer((1,), "uint64", name="out64", scope="local")
+    out32 = tvm.tirx.decl_tensor((1,), "uint32", name="out32", scope="local")
+    out64 = tvm.tirx.decl_tensor((1,), "uint64", name="out64", scope="local")
 
     bare_alloc = T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.b32(generic_ptr, ncols)
     assert bare_alloc.args[0].same_as(generic_ptr)
@@ -3167,9 +3220,8 @@ def test_ptx_tcgen05_mapa_address_coercion():
 def test_ptx_tcgen05_mapa_address_roundtrip():
     """The generic/shared split remains exact through TVMScript print and parse."""
 
-    @T.prim_func
-    def kernel(ptr: T.handle):
-        generic = T.match_buffer(ptr, (4,), "uint64")
+    @T.function
+    def kernel(generic: T.Tensor((4,), "uint64")):
         T.device_entry()
         mapped32 = T.local_scalar("uint32")
         mapped64 = T.local_scalar("uint64")
@@ -3195,7 +3247,9 @@ def test_ptx_tcgen05_mapa_address_roundtrip():
         T.ptx.mapa.shared__cluster.u64(mapped64, window64, T.uint32(1))
         T.ptx.mapa.shared__cluster.u32(mapped32, T.uint32(0), T.uint32(1))
 
-    reparsed = tvm.script.from_source(kernel.script())
+    reparsed = tvm.script.from_source(
+        kernel.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+    )
     tvm.ir.assert_structural_equal(kernel, reparsed)
 
 
@@ -3792,7 +3846,7 @@ def test_ptx_coercion_ir_forms():
     call = T.ptx.st.release.gpu.global_.b32(global_ptr, val, pred=flag)
     assert call.args[2].same_as(flag)
     assert len(call.args) == 2 + 1 + 8 + 1  # operands + pred + slot tokens + marker
-    out = tvm.tirx.decl_buffer((1,), "uint32", name="out", scope="local")
+    out = tvm.tirx.decl_tensor((1,), "uint32", name="out", scope="local")
     call = T.ptx.ld.global_.b32(out[0], global_ptr, pred=flag)
     assert str(call.args[-1]).strip('"') == "pred"
     call = T.ptx.ld.global_.b32(out[0], global_ptr, pred=flag, preserve_dst=True)
@@ -4144,7 +4198,7 @@ def test_ptx_all_variants_render_unique():
             _, helper, _ = render_variant(entry, *args, addr_offsets=addr_offsets)
             assert helper not in names, f"address-offset helper name collision: {helper}"
             names.add(helper)
-    assert total == 762050  # update when the table grows or a ptxas gap narrows it
+    assert total == 762178  # update when the table grows or a ptxas gap narrows it
 
 
 def test_ptx_no_instruction_registered_twice():
@@ -4496,14 +4550,12 @@ def test_ptx_all_helpers_certify(shard):
 
 @requires_nvcc
 def test_ptx_nvcc_smoke():
-    @T.prim_func
-    def kernel(a_ptr: T.handle, b_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
-        B = T.match_buffer(b_ptr, (32,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((32,), "uint32"), B: T.Tensor((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
-        smem = T.alloc_buffer((4,), "uint32", scope="shared")
+        smem = T.alloc_tensor((4,), "uint32", scope="shared")
         if tx == 0:
             val = T.local_scalar("uint32")
             T.ptx.ld.global_.acquire.gpu.b32(val, A.ptr_to([0]))
@@ -4519,10 +4571,8 @@ def test_ptx_nvcc_smoke():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="CUDA GPU not available")
 def test_ptx_ld_st_gpu_roundtrip():
-    @T.prim_func
-    def kernel(a_ptr: T.handle, b_ptr: T.handle):
-        A = T.match_buffer(a_ptr, (32,), "uint32")
-        B = T.match_buffer(b_ptr, (32,), "uint32")
+    @T.function
+    def kernel(A: T.Tensor((32,), "uint32"), B: T.Tensor((32,), "uint32")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])

@@ -21,33 +21,33 @@ from collections.abc import Mapping
 
 import tvm_ffi
 
-from tvm import arith, s_tir, tirx
+from tvm import s_tir, sym, tirx
 from tvm.target import Target
 
 from ..analysis import (
     SBlockInfo,
     detect_dominant_read,
     is_broadcast_epilogue,
-    normalize_prim_func,
+    normalize_function,
 )
 from ..base import suggest_threads_per_block, try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
 
-def _get_reduction_expr(block: tirx.SBlock) -> tirx.Expr | None:
+def _get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
     # Detect and return `Y` in `X[...] = X[...] + Y`
-    buffer_store = block.body
-    if not isinstance(buffer_store, tirx.BufferStore):
+    tensor_store = block.body
+    if not isinstance(tensor_store, tirx.TensorStore):
         return None
-    if not isinstance(buffer_store.value, tirx.Add):
+    if not isinstance(tensor_store.value, tirx.Add):
         return None
     if not tvm_ffi.structural_equal(
-        buffer_store.value.a,
-        tirx.BufferLoad(buffer_store.buffer, block.body.indices),
+        tensor_store.value.a,
+        tirx.TensorLoad(tensor_store.buffer, block.body.indices),
         map_free_vars=True,
     ):
         return None
-    return buffer_store.value.b
+    return tensor_store.value.b
 
 
 def _has_reduction_loop(block_info):
@@ -65,7 +65,7 @@ def _suggest_inner_spatial_tx(s_factor: int | tirx.Expr) -> int:
 
 
 def _get_spatial_domains_in_access_order(
-    block_info: SBlockInfo, access: arith.IterSumExpr
+    block_info: SBlockInfo, access: sym.IterSumExpr
 ) -> list[int | tirx.Expr] | None:
     """Return normalized spatial extents in access order."""
     iter_to_info = {info.var: info for info in block_info.iters}
@@ -118,14 +118,14 @@ class Reduction(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
-        block_infos = normalize_prim_func(sch)
+        block_infos = normalize_function(sch)
         if block_infos is None:
             return None
         block_infos = try_inline_contiguous_spatial(sch, block_infos)
@@ -151,7 +151,7 @@ class Reduction(GPUScheduleRule):
         ):
             return None
         # Step 2. Normalize the block, merge spatial and reduction iters
-        access = arith.normalize_to_iter_sum(
+        access = sym.normalize_to_iter_sum(
             detect_dominant_read(block_stmt),
             input_iters={i.var: i.dom for i in block_stmt.iter_vars},
         )
@@ -187,7 +187,7 @@ class Reduction(GPUScheduleRule):
         self,
         sch: s_tir.Schedule,
         block_info: SBlockInfo,
-        access: arith.IterSumExpr,
+        access: sym.IterSumExpr,
     ) -> tuple[bool | None, int | None, Mapping[int, int] | None, int | None]:
         if access.base != 0:
             return None, None, None, None
@@ -269,8 +269,8 @@ class Reduction(GPUScheduleRule):
         sch.reorder(bx, tx, r)
         sch.bind(bx, "blockIdx.x")
         sch.bind(tx, "threadIdx.x")
-        sch.annotate(tx, ann_key="pragma_auto_unroll_max_step", ann_val=256)
-        sch.annotate(tx, ann_key="pragma_unroll_explicit", ann_val=1)
+        sch.annotate(tx, ann_key="auto_unroll_max_step", ann_val=256)
+        sch.annotate(tx, ann_key="unroll_explicit", ann_val=1)
         sch.set_scope(rf, 0, "local")
         sch.decompose_reduction(rf, r)
         # Schedule the write back block

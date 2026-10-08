@@ -19,6 +19,7 @@ import tvm
 import tvm.testing
 from tvm import s_tir
 from tvm.s_tir.transform import HoistedConditionals, HoistedLetBindings
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -40,14 +41,14 @@ def _run_transform(before, hoisted_conditionals, hoisted_let_bindings):
 
 
 def test_hoist_to_top_if_else_stmt():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((16,), "float32"), n: T.int32):
+    @Ts.function(private=True)
+    def before(A: T.Tensor((16,), "float32"), n: T.int32):
         for i in T.serial(16):
             if n != 0:
                 A[i] = 0.0
 
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer((16,), "float32"), n: T.int32):
+    @Ts.function(private=True)
+    def expected(A: T.Tensor((16,), "float32"), n: T.int32):
         if n != 0:
             for i in T.serial(16):
                 A[i] = 0.0
@@ -57,14 +58,14 @@ def test_hoist_to_top_if_else_stmt():
 
 
 def test_hoist_to_top_all():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((16,), "float32"), n: T.int32):
+    @Ts.function(private=True)
+    def before(A: T.Tensor((16,), "float32"), n: T.int32):
         for i in T.serial(16):
             if n != 0:
                 A[i] = 0.0
 
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer((16,), "float32"), n: T.int32):
+    @Ts.function(private=True)
+    def expected(A: T.Tensor((16,), "float32"), n: T.int32):
         if n != 0:
             for i in T.serial(16):
                 A[i] = 0.0
@@ -74,8 +75,8 @@ def test_hoist_to_top_all():
 
 
 def test_suppress_hoist_if_else_never():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((16,), "float32"), n: T.int32):
+    @Ts.function(private=True)
+    def before(A: T.Tensor((16,), "float32"), n: T.int32):
         for i in T.serial(16):
             if n != 0:
                 A[i] = 0.0
@@ -87,8 +88,8 @@ def test_suppress_hoist_if_else_never():
 
 
 def test_suppress_hoist_if_else_expr_only():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((16,), "float32"), n: T.int32):
+    @Ts.function(private=True)
+    def before(A: T.Tensor((16,), "float32"), n: T.int32):
         for i in T.serial(16):
             if n != 0:
                 A[i] = 0.0
@@ -100,19 +101,17 @@ def test_suppress_hoist_if_else_expr_only():
 
 
 def test_hoist_block_var():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((128, 16), "float32"), n: T.int32):
-        i = T.env_thread("threadIdx.x")
-        T.launch_thread(i, 128)
+    @Ts.function(private=True)
+    def before(A: T.Tensor((128, 16), "float32"), n: T.int32):
+        i = T.launch_thread("threadIdx.x", 128)
 
         for j in T.serial(16):
             if i < 32:
                 A[i, j] = 0.0
 
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer((128, 16), "float32"), n: T.int32):
-        i = T.env_thread("threadIdx.x")
-        T.launch_thread(i, 128)
+    @Ts.function(private=True)
+    def expected(A: T.Tensor((128, 16), "float32"), n: T.int32):
+        i = T.launch_thread("threadIdx.x", 128)
 
         if i < 32:
             for j in T.serial(16):
@@ -123,10 +122,9 @@ def test_hoist_block_var():
 
 
 def test_suppress_hoist_block_var():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((128, 16), "float32"), n: T.int32):
-        thread_x = T.env_thread("threadIdx.x")
-        T.launch_thread(thread_x, 128)
+    @Ts.function(private=True)
+    def before(A: T.Tensor((128, 16), "float32"), n: T.int32):
+        T.launch_thread("threadIdx.x", 128)
 
         for i in T.thread_binding(0, 128, thread="threadIdx.x"):
             if i < 32:
@@ -144,22 +142,19 @@ def test_suppress_hoist_block_var():
 
 
 def test_hoist_across_block_var():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((128, 16), "float32"), n: T.int32):
-        thread_x = T.env_thread("threadIdx.x")
-        T.launch_thread(thread_x, 128)
+    @Ts.function(private=True)
+    def before(A: T.Tensor((128, 16), "float32"), n: T.int32):
+        T.launch_thread("threadIdx.x", 128)
 
         for i in T.thread_binding(0, 128, thread="threadIdx.x"):
             if n == 0:
                 for j in T.serial(16):
                     A[i, j] = 0.0
 
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer((128, 16), "float32"), n: T.int32):
-        thread_x = T.env_thread("threadIdx.x")
-
+    @Ts.function(private=True)
+    def expected(A: T.Tensor((128, 16), "float32"), n: T.int32):
         if n == 0:
-            T.launch_thread(thread_x, 128)
+            T.launch_thread("threadIdx.x", 128)
             for i in T.thread_binding(0, 128, thread="threadIdx.x"):
                 for j in T.serial(16):
                     A[i, j] = 0.0
@@ -169,21 +164,18 @@ def test_hoist_across_block_var():
 
 
 def test_suppress_hoist_across_block_var():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((128, 16), "float32"), n: T.int32):
-        thread_x = T.env_thread("threadIdx.x")
-        T.launch_thread(thread_x, 128)
+    @Ts.function(private=True)
+    def before(A: T.Tensor((128, 16), "float32"), n: T.int32):
+        T.launch_thread("threadIdx.x", 128)
 
         for i in T.thread_binding(0, 128, thread="threadIdx.x"):
             for j in T.serial(16):
                 if n == 0:
                     A[i, j] = 0.0
 
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer((128, 16), "float32"), n: T.int32):
-        thread_x = T.env_thread("threadIdx.x")
-
-        T.launch_thread(thread_x, 128)
+    @Ts.function(private=True)
+    def expected(A: T.Tensor((128, 16), "float32"), n: T.int32):
+        T.launch_thread("threadIdx.x", 128)
         if n == 0:
             for i in T.thread_binding(0, 128, thread="threadIdx.x"):
                 for j in T.serial(16):
@@ -198,15 +190,15 @@ def test_suppress_hoist_across_block_var():
 
 
 def test_hoist_to_middle():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def before(A: T.Tensor((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
                 if i < 3:
                     A[i, j] = 0.0
 
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def expected(A: T.Tensor((4, 4), "float32")):
         for i in T.serial(4):
             if i < 3:
                 for j in T.serial(4):
@@ -217,16 +209,16 @@ def test_hoist_to_middle():
 
 
 def test_hoist_with_let():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def before(A: T.Tensor((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
                 condition: T.let[T.bool] = i < 3
                 if condition:
                     A[i, j] = 0.0
 
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def expected(A: T.Tensor((4, 4), "float32")):
         for i in T.serial(4):
             condition: T.let[T.bool] = i < 3  # noqa: F841
             if i < 3:
@@ -246,16 +238,16 @@ def test_hoist_disable_let():
     the raw expression.
     """
 
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def before(A: T.Tensor((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
                 condition: T.let[T.bool] = i < 3
                 if condition:
                     A[i, j] = 0.0
 
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def expected(A: T.Tensor((4, 4), "float32")):
         for i, j in T.grid(4, 4):
             condition: T.let[T.bool] = i < 3  # noqa: F841
             if i < 3:
@@ -266,8 +258,8 @@ def test_hoist_disable_let():
 
 
 def test_hoist_if_else():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def before(A: T.Tensor((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
                 if i < 3:
@@ -275,8 +267,8 @@ def test_hoist_if_else():
                 else:
                     A[i, j] = 1.0
 
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def expected(A: T.Tensor((4, 4), "float32")):
         for i in T.serial(4):
             if i < 3:
                 for j in T.serial(4):
@@ -290,8 +282,8 @@ def test_hoist_if_else():
 
 
 def test_hoist_sequential_assign():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def before(A: T.Tensor((4, 4), "float32"), B: T.Tensor((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
                 if i < 3:
@@ -301,8 +293,8 @@ def test_hoist_sequential_assign():
                     A[i, j] = 1.0
                     B[i, j] = 1.0
 
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def expected(A: T.Tensor((4, 4), "float32"), B: T.Tensor((4, 4), "float32")):
         for i in T.serial(4):
             if i < 3:
                 for j in T.serial(4):
@@ -318,8 +310,8 @@ def test_hoist_sequential_assign():
 
 
 def test_hoist_multi_if():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def before(A: T.Tensor((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
                 for k in T.serial(4):
@@ -327,8 +319,8 @@ def test_hoist_multi_if():
                         if i < 2:
                             A[i, j] = 0.0
 
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def expected(A: T.Tensor((4, 4), "float32")):
         for i in T.serial(4):
             if i < 2:
                 for j in T.serial(4):
@@ -341,14 +333,14 @@ def test_hoist_multi_if():
 
 
 def test_hoist_complex_conditional():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def before(A: T.Tensor((4, 4), "float32")):
         for i, j, k in T.grid(4, 4, 4):
             if j < 3 and i < 2:
                 A[i, j] = 0.0
 
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def expected(A: T.Tensor((4, 4), "float32")):
         for i in T.serial(4):
             if i < 2:
                 for j in T.serial(4):
@@ -361,14 +353,14 @@ def test_hoist_complex_conditional():
 
 
 def test_suppress_splitting_conditional():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def before(A: T.Tensor((4, 4), "float32")):
         for i, j, k in T.grid(4, 4, 4):
             if j < 3 and i < 2:
                 A[i, j] = 0.0
 
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def expected(A: T.Tensor((4, 4), "float32")):
         for i, j in T.grid(4, 4):
             if j < 3 and i < 2:
                 for k in T.serial(4):
@@ -383,8 +375,8 @@ def test_suppress_splitting_conditional():
 
 
 def test_hoist_multi_if_else():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def before(A: T.Tensor((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
                 for k in T.serial(4):
@@ -399,8 +391,8 @@ def test_hoist_multi_if_else():
                         else:
                             A[i, j] = 3.0
 
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def expected(A: T.Tensor((4, 4), "float32")):
         for i in T.serial(4):
             if i < 2:
                 for j in T.serial(4):
@@ -424,8 +416,8 @@ def test_hoist_multi_if_else():
 
 
 def test_hoist_multi_if_else_different_branches():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def before(A: T.Tensor((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
                 for k in T.serial(4):
@@ -440,8 +432,8 @@ def test_hoist_multi_if_else_different_branches():
                         else:
                             A[i, j] = 3.0
 
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def expected(A: T.Tensor((4, 4), "float32")):
         for i in T.serial(4):
             if i < 2:
                 if i < 1:
@@ -474,13 +466,13 @@ def test_hoist_multi_if_else_different_branches():
 
 
 def test_hoist_if_else_expr():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def before(A: T.Tensor((4, 4), "float32")):
         for i, j in T.grid(4, 4):
-            A[i, j] = T.if_then_else(i < 2, 1.0, 2.0, dtype="float32")
+            A[i, j] = T.if_then_else(i < 2, 1.0, 2.0)
 
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def expected(A: T.Tensor((4, 4), "float32")):
         for i in T.serial(4):
             if i < 2:
                 for j in T.serial(4):
@@ -494,10 +486,10 @@ def test_hoist_if_else_expr():
 
 
 def test_suppress_hoist_if_else_expr():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def before(A: T.Tensor((4, 4), "float32")):
         for i, j in T.grid(4, 4):
-            A[i, j] = T.if_then_else(i < 2, 1.0, 2.0, dtype="float32")
+            A[i, j] = T.if_then_else(i < 2, 1.0, 2.0)
 
     expected = before
 
@@ -510,14 +502,14 @@ def test_suppress_hoist_if_else_expr():
 
 
 def test_hoist_let_expr():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def before(A: T.Tensor((4, 4), "float32")):
         for i, j in T.grid(4, 4):
             x = T.float32()
             A[i, j] = T.Let(5.0 * x + T.cast(j, "float32"), where={x: T.cast(i + 1, "float32")})
 
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def expected(A: T.Tensor((4, 4), "float32")):
         for i in T.serial(4):
             x: T.let[T.float32] = T.cast(i + 1, "float32")  # noqa: F841
             for j in T.serial(4):
@@ -528,8 +520,8 @@ def test_hoist_let_expr():
 
 
 def test_suppress_hoist_let_expr():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer((4, 4), "float32")):
+    @Ts.function(private=True)
+    def before(A: T.Tensor((4, 4), "float32")):
         for i, j in T.grid(4, 4):
             x = T.float32()
             A[i, j] = T.Let(5.0 * x + T.cast(j, "float32"), where={x: T.cast(i + 1, "float32")})

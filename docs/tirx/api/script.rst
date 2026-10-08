@@ -22,7 +22,7 @@ TIRx kernels use ``tvm.script.tirx`` for the parser and core IR builders::
 
    from tvm.script import tirx as Tx
 
-   Tx.alloc_buffer(...)
+   Tx.alloc_tensor(...)
 
 Tile primitives and backend-specific namespaces are documented separately in
 :doc:`tile`, :doc:`cuda`, and :doc:`ptx`.  For the relationship between these
@@ -30,26 +30,19 @@ authoring layers and TIRx IR, see :ref:`tirx-programming-model`.
 
 Parser entry points
 -------------------
-.. automodule:: tvm.tirx.script.parser.entry
-   :members:
+.. automodule:: tvm.script.tirx
+   :members: function, jit, inline, macro
+   :undoc-members:
    :no-index:
-   :exclude-members: TIRInline
 
 Core IR builder
 ---------------
-.. automodule:: tvm.tirx.script.builder.ir
+.. automodule:: tvm.tirx.script.ir_builder.ir
    :members:
    :no-index:
-   :exclude-members: LetAnnotation, alloc_tcgen05_ldst_frag, anylist_getitem, anylist_resetitem, anylist_setitem_call_packed, anylist_setitem_call_cpacked, match_buffer
+   :exclude-members: LetAnnotation, alloc_tcgen05_ldst_frag
 
-.. currentmodule:: tvm.tirx.script.builder.ir
-
-.. py:function:: match_buffer(param, shape=None, dtype="float32", data=None, strides=None, elem_offset=None, scope="global", align=-1, offset_factor=0, layout="default")
-
-   Bind a function parameter or an existing buffer region to a TIRx buffer.
-   ``shape`` is required for a function parameter and is inferred from a
-   ``BufferRegion`` when omitted.  ``layout`` accepts a layout object, a
-   registered layout string, or ``None``.
+.. currentmodule:: tvm.tirx.script.ir_builder.ir
 
 .. py:class:: LetAnnotation(type_spec=None)
 

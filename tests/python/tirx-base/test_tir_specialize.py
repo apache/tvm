@@ -17,161 +17,157 @@
 # pylint: disable=missing-function-docstring, missing-module-docstring
 # ruff: noqa: F401
 
+from __future__ import annotations
+
 import pytest
 
 import tvm
-from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm.script import tirx as T
 
+m = T.dynamic("m", "int32")
 
-@T.prim_func(s_tir=True)
-def matmul(a: T.handle, b: T.handle, c: T.handle, n: T.int32) -> None:
-    m = T.int32()
-    A = T.match_buffer(a, [m, n])
-    B = T.match_buffer(b, [m, n])
-    C = T.match_buffer(c, [m, m])
 
+def assert_structural_equal_ignore_global_symbol(lhs, rhs):
+    tvm.ir.assert_structural_equal(
+        lhs.without_attr("global_symbol"), rhs.without_attr("global_symbol")
+    )
+
+
+@T.function
+def matmul(A: T.Tensor([m, n]), B: T.Tensor([m, n]), C: T.Tensor([m, m]), n: T.int32) -> None:
     for i, j, k in T.grid(m, m, n):
-        with T.sblock("update"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
-                C[vi, vj] = 0.0
-            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+        if k == 0:
+            C[i, j] = 0.0
+        C[i, j] = C[i, j] + A[i, k] * B[j, k]
 
 
-@T.prim_func(s_tir=True)
-def matmul_128(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
-
+@T.function
+def matmul_128(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
     for i, j, k in T.grid(128, 128, 128):
-        with T.sblock("update"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
-                C[vi, vj] = 0.0
-            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+        if k == 0:
+            C[i, j] = 0.0
+        C[i, j] = C[i, j] + A[i, k] * B[j, k]
 
 
-@T.prim_func(s_tir=True)
-def matmul_m_128(a: T.handle, b: T.handle, c: T.handle) -> None:
-    m = T.int32()
-    A = T.match_buffer(a, [m, 128])
-    B = T.match_buffer(b, [m, 128])
-    C = T.match_buffer(c, [m, m])
+m = T.dynamic("m", "int32")
 
+
+@T.function
+def matmul_m_128(A: T.Tensor([m, 128]), B: T.Tensor([m, 128]), C: T.Tensor([m, m])) -> None:
     for i, j, k in T.grid(m, m, 128):
-        with T.sblock("update"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
-                C[vi, vj] = 0.0
-            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+        if k == 0:
+            C[i, j] = 0.0
+        C[i, j] = C[i, j] + A[i, k] * B[j, k]
 
 
 # x is considered undefined because it appears as part of x*8,
 # but not on its own
-@T.prim_func(check_well_formed=False, s_tir=True)
-def matmul_m_8x(a: T.handle, b: T.handle, c: T.handle) -> None:
-    x = T.int32()
-    m = T.int32()
-    A = T.match_buffer(a, [m, x * 8])
-    B = T.match_buffer(b, [m, x * 8])
-    C = T.match_buffer(c, [m, m])
+x = T.dynamic("x", "int32")
+m = T.dynamic("m", "int32")
 
+
+@T.function(check_well_formed=False)
+def matmul_m_8x(A: T.Tensor([m, x * 8]), B: T.Tensor([m, x * 8]), C: T.Tensor([m, m])) -> None:
     for i, j, k in T.grid(m, m, x * 8):
-        with T.sblock("update"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
-                C[vi, vj] = 0.0
-            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+        if k == 0:
+            C[i, j] = 0.0
+        C[i, j] = C[i, j] + A[i, k] * B[j, k]
 
 
-@T.prim_func(s_tir=True)
-def element_wise(a: T.handle, c: T.handle) -> None:
-    m = T.int32()
-    n = T.int32()
-    A = T.match_buffer(a, (m, n), "float32")
-    C = T.match_buffer(c, (m, n), "float32")
+m = T.dynamic("m", "int32")
+n = T.dynamic("n", "int32")
 
-    B = T.sblock_alloc_buffer((m, n), "float32")
+
+@T.function
+def element_wise(A: T.Tensor((m, n), "float32"), C: T.Tensor((m, n), "float32")) -> None:
+    B = T.alloc_tensor((m, n), "float32")
 
     for i, j in T.grid(m, n):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            B[vi, vj] = A[vi, vj] * 2.0
+        B[i, j] = A[i, j] * 2.0
 
     for i, j in T.grid(m, n):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            C[vi, vj] = B[vi, vj] + 1.0
+        C[i, j] = B[i, j] + 1.0
 
 
-@T.prim_func(s_tir=True)
-def element_wise_128_64(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 64), "float32")
-    C = T.match_buffer(c, (128, 64), "float32")
-    B = T.sblock_alloc_buffer((128, 64), "float32")
+@T.function
+def element_wise_128_64(
+    A: T.Tensor((128, 64), "float32"), C: T.Tensor((128, 64), "float32")
+) -> None:
+    B = T.alloc_tensor((128, 64), "float32")
 
     for i, j in T.grid(128, 64):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            B[vi, vj] = A[vi, vj] * 2.0
+        B[i, j] = A[i, j] * 2.0
 
     for i, j in T.grid(128, 64):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            C[vi, vj] = B[vi, vj] + 1.0
+        C[i, j] = B[i, j] + 1.0
 
 
-@T.prim_func(s_tir=True)
-def element_wise_128_n(a: T.handle, c: T.handle) -> None:
-    n = T.int32()
-    A = T.match_buffer(a, (128, n), "float32")
-    C = T.match_buffer(c, (128, n), "float32")
-    B = T.sblock_alloc_buffer((128, n), "float32")
+n = T.dynamic("n", "int32")
+
+
+@T.function
+def element_wise_128_n(A: T.Tensor((128, n), "float32"), C: T.Tensor((128, n), "float32")) -> None:
+    B = T.alloc_tensor((128, n), "float32")
 
     for i, j in T.grid(128, n):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            B[vi, vj] = A[vi, vj] * 2.0
+        B[i, j] = A[i, j] * 2.0
 
     for i, j in T.grid(128, n):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            C[vi, vj] = B[vi, vj] + 1.0
+        C[i, j] = B[i, j] + 1.0
 
 
-@T.prim_func(s_tir=True)
-def mem_copy(a: T.handle, b: T.handle, m: T.int32, n: T.int32, p: T.int32, q: T.int32) -> None:
-    A = T.match_buffer(a, (m, n), "float32", strides=[p, 1], elem_offset=q)
-    B = T.match_buffer(b, (m, n), "float32", strides=[p, 1], elem_offset=q)
+mem_copy_m = T.int32()
 
+mem_copy_n = T.int32()
+
+
+@T.function
+def mem_copy(
+    A: T.Tensor((mem_copy_m, mem_copy_n), "float32", strides=[p, 1], elem_offset=q),  # noqa: F821
+    B: T.Tensor((mem_copy_m, mem_copy_n), "float32", strides=[p, 1], elem_offset=q),  # noqa: F821
+    m: mem_copy_m,
+    n: mem_copy_n,
+    p: T.int32,
+    q: T.int32,
+) -> None:
     for i, j in T.grid(m, n):
-        with T.sblock():
-            vi, vj = T.axis.remap("SS", [i, j])
-            B[vi, vj] = A[vi, vj]
+        B[i, j] = A[i, j]
 
 
-@T.prim_func(s_tir=True)
-def mem_copy_16_16_8_4(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float32", strides=[8, 1], elem_offset=4)
-    B = T.match_buffer(b, (16, 16), "float32", strides=[8, 1], elem_offset=4)
-
+@T.function
+def mem_copy_16_16_8_4(
+    A: T.Tensor((16, 16), "float32", strides=[8, 1], elem_offset=4),
+    B: T.Tensor((16, 16), "float32", strides=[8, 1], elem_offset=4),
+) -> None:
     for i, j in T.grid(16, 16):
-        with T.sblock():
-            vi, vj = T.axis.remap("SS", [i, j])
-            B[vi, vj] = A[vi, vj]
+        B[i, j] = A[i, j]
 
 
-@T.prim_func(s_tir=True)
-def mem_copy_m_n_p_n(a: T.handle, b: T.handle, m: T.int32, n: T.int32, p: T.int32) -> None:
-    A = T.match_buffer(a, (m, n), "float32", strides=[p, 1], elem_offset=n)
-    B = T.match_buffer(b, (m, n), "float32", strides=[p, 1], elem_offset=n)
+mem_copy_m_n_p_n_m = T.int32()
 
+mem_copy_m_n_p_n_n = T.int32()
+
+
+@T.function
+def mem_copy_m_n_p_n(
+    A: T.Tensor(
+        (mem_copy_m_n_p_n_m, mem_copy_m_n_p_n_n),
+        "float32",
+        strides=[p, 1],  # noqa: F821
+        elem_offset=mem_copy_m_n_p_n_n,
+    ),
+    B: T.Tensor(
+        (mem_copy_m_n_p_n_m, mem_copy_m_n_p_n_n),
+        "float32",
+        strides=[p, 1],  # noqa: F821
+        elem_offset=mem_copy_m_n_p_n_n,
+    ),
+    m: mem_copy_m_n_p_n_m,
+    n: mem_copy_m_n_p_n_n,
+    p: T.int32,
+) -> None:
     for i, j in T.grid(m, n):
-        with T.sblock():
-            vi, vj = T.axis.remap("SS", [i, j])
-            B[vi, vj] = A[vi, vj]
+        B[i, j] = A[i, j]
 
 
 def test_specialize_nothing():
@@ -182,7 +178,7 @@ def test_specialize_nothing():
 def test_specialize_matmul():
     a, _, _, n = matmul.params
     # fully specialized
-    func = matmul.specialize({a: tvm.tirx.decl_buffer((128, 128))})
+    func = matmul.specialize({a: tvm.tirx.decl_tensor((128, 128))})
     assert_structural_equal_ignore_global_symbol(func, matmul_128)
     # partially specialized
     func = matmul.specialize({n: 128})
@@ -196,17 +192,17 @@ def test_specialize_elemwise():
     a, c = element_wise.params
     C = c
     # fully specialized
-    func = element_wise.specialize({a: tvm.tirx.decl_buffer((128, 64))})
+    func = element_wise.specialize({a: tvm.tirx.decl_tensor((128, 64))})
     assert_structural_equal_ignore_global_symbol(func, element_wise_128_64)
     # partially specialized
-    func = element_wise.specialize({c: tvm.tirx.decl_buffer((128, C.ty.shape[1]))})
+    func = element_wise.specialize({c: tvm.tirx.decl_tensor((128, C.ty.shape[1]))})
     assert_structural_equal_ignore_global_symbol(func, element_wise_128_n)
 
 
 def test_specialize_mem_copy():
     a, _, m, n, p, q = mem_copy.params
     # fully specialized
-    func = mem_copy.specialize({a: tvm.tirx.decl_buffer((16, 16), strides=[8, 1], elem_offset=4)})
+    func = mem_copy.specialize({a: tvm.tirx.decl_tensor((16, 16), strides=[8, 1], elem_offset=4)})
     assert_structural_equal_ignore_global_symbol(func, mem_copy_16_16_8_4)
     func = mem_copy.specialize({n: 16, m: 16, p: 8, q: 4})
     assert_structural_equal_ignore_global_symbol(func, mem_copy_16_16_8_4)
@@ -221,42 +217,35 @@ def test_specialize_recursive_load():
 
 
 def test_specialize_with_const_folding():
-    @T.prim_func(s_tir=True)
-    def before(a: T.handle, b: T.handle):
-        n = T.int32()
-        A = T.match_buffer(a, [n // 8, 8], "int32")
-        B = T.match_buffer(b, [n], "int32")
-        for i in range(n - 1):
-            with T.sblock():
-                vi = T.axis.S(n - 1, i)
-                B[vi] = A[vi // 8, vi % 8] + (n + 1) * 42
+    n = T.dynamic("n", "int32")
 
-    @T.prim_func(s_tir=True)
-    def expected(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, [2, 8], "int32")
-        B = T.match_buffer(b, [16], "int32")
+    @T.function
+    def before(A: T.Tensor([n // 8, 8], "int32"), B: T.Tensor([n], "int32")):
+        for i in range(n - 1):
+            B[i] = A[i // 8, i % 8] + (n + 1) * 42
+
+    @T.function
+    def expected(A: T.Tensor([2, 8], "int32"), B: T.Tensor([16], "int32")):
         for i in range(15):
-            with T.sblock():
-                vi = T.axis.S(15, i)
-                B[vi] = A[vi // 8, vi % 8] + 714
+            B[i] = A[i // 8, i % 8] + 714
 
     b = before.params[1]
-    after = before.specialize({b: tvm.tirx.decl_buffer([16], dtype="int32")})
+    after = before.specialize({b: tvm.tirx.decl_tensor([16], dtype="int32")})
     assert_structural_equal_ignore_global_symbol(expected, after)
 
 
 def test_specialize_decl_buffer():
-    """Buffers occurring in a DeclBuffer statement should be updated"""
+    """Buffers occurring in a DeclTensor statement should be updated"""
 
-    @T.prim_func(private=True, s_tir=True)
+    @T.function(private=True)
     def before(A_data: T.handle("float32"), A_size: T.int32):
-        A_buf = T.decl_buffer(A_size, "float32", data=A_data)
+        A_buf = T.decl_tensor(A_size, "float32", data=A_data)
         for i in range(A_size):
             A_buf[i] = A_buf[i] * 2.0
 
-    @T.prim_func(private=True, s_tir=True)
+    @T.function(private=True)
     def expected(A_data: T.handle("float32")):
-        A_buf = T.decl_buffer(16, "float32", data=A_data)
+        A_buf = T.decl_tensor(16, "float32", data=A_data)
         for i in range(16):
             A_buf[i] = A_buf[i] * 2.0
 
@@ -267,16 +256,16 @@ def test_specialize_decl_buffer():
 
 
 def test_specialize_preserves_decl_buffer_alias():
-    @T.prim_func(private=True, s_tir=True)
-    def before(A_handle: T.handle, n: T.int32):
-        A = T.match_buffer(A_handle, (n,), "int32")
-        A_flat = T.decl_buffer((n,), "int32", data=A.data)
+    before_n = T.int32()
+
+    @T.function(private=True)
+    def before(A: T.Tensor((before_n,), "int32"), n: before_n):
+        A_flat = T.decl_tensor((n,), "int32", data=A.data)
         A_flat[n - 1] = 42
 
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A_handle: T.handle):
-        A = T.match_buffer(A_handle, (8,), "int32")
-        A_flat = T.decl_buffer((8,), "int32", data=A.data)
+    @T.function(private=True)
+    def expected(A: T.Tensor((8,), "int32")):
+        A_flat = T.decl_tensor((8,), "int32", data=A.data)
         A_flat[7] = 42
 
     after = before.specialize({before.params[1]: 8})
@@ -291,17 +280,17 @@ def test_specialize_buffer_var_to_var():
     buffers using the same buffer var should also be updated.
     """
 
-    @T.prim_func(private=True, s_tir=True)
-    def before(A: T.Buffer([16, 16], "float32"), B: T.Buffer([16, 16], "float32")):
-        A_flat = T.decl_buffer([256], "float32", data=A.data)
-        B_flat = T.decl_buffer([256], "float32", data=B.data)
+    @T.function(private=True)
+    def before(A: T.Tensor([16, 16], "float32"), B: T.Tensor([16, 16], "float32")):
+        A_flat = T.decl_tensor([256], "float32", data=A.data)
+        B_flat = T.decl_tensor([256], "float32", data=B.data)
         for i in range(256):
             B_flat[i] = A_flat[i] * 2.0
 
-    @T.prim_func(private=True, s_tir=True)
-    def expected(A: T.Buffer([16, 16], "float32")):
-        A_flat = T.decl_buffer([256], "float32", data=A.data)
-        B_flat = T.decl_buffer([256], "float32", data=A.data)
+    @T.function(private=True)
+    def expected(A: T.Tensor([16, 16], "float32")):
+        A_flat = T.decl_tensor([256], "float32", data=A.data)
+        B_flat = T.decl_tensor([256], "float32", data=A.data)
         for i in range(256):
             B_flat[i] = A_flat[i] * 2.0
 
@@ -314,25 +303,25 @@ def test_specialize_buffer_var_to_var():
 
 
 def test_specialize_buffer_var_to_expr():
-    """A DeclBuffer source expression may be specialized directly."""
+    """A DeclTensor source expression may be specialized directly."""
 
-    @T.prim_func(private=True, s_tir=True)
+    @T.function(private=True)
     def before(A_data: T.handle("float32"), B_data: T.handle("float32")):
-        A_buf = T.decl_buffer(32, "float32", data=A_data)
-        B_buf = T.decl_buffer(16, "float32", data=B_data)
+        A_buf = T.decl_tensor(32, "float32", data=A_data)
+        B_buf = T.decl_tensor(16, "float32", data=B_data)
         for i in range(16):
             B_buf[i] = A_buf[i] * 2.0
 
-    @T.prim_func(private=True, s_tir=True)
+    @T.function(private=True)
     def expected(A_data: T.handle("float32")):
-        A_buf = T.decl_buffer(32, "float32", data=A_data)
-        B_buf = T.decl_buffer(16, "float32", data=T.address_of(A_buf[16]))
+        A_buf = T.decl_tensor(32, "float32", data=A_data)
+        B_buf = T.decl_tensor(16, "float32", data=T.address_of(A_buf[16]))
         for i in range(16):
             B_buf[i] = A_buf[i] * 2.0
 
     B_data = before.params[1]
-    # body is a SeqStmt; the first statement is DeclBuffer for A_buf
-    A_buf = before.body[0].buffer
+    # body is a SeqStmt; the first statement is DeclTensor for A_buf
+    A_buf = before.body[0].var
     param_map = {B_data: tvm.tirx.address_of(A_buf[16])}
     after = before.specialize(param_map)
 
@@ -342,22 +331,21 @@ def test_specialize_buffer_var_to_expr():
 def test_specialization_updates_ty():
     """Update type in specialization
 
-    A PrimFunc may have a `relax.Type`.  If that PrimFunc is
-    specialized, the type should be updated.
+    A Function's native function type must reflect its specialized parameters.
     """
 
-    @T.prim_func(private=True, s_tir=True)
+    @T.function(private=True)
     def before(n: T.int32) -> T.int32:
         return n * 10
 
-    @T.prim_func(private=True, s_tir=True)
+    @T.function(private=True)
     def expected() -> T.int32:
         return 50
 
-    ty_before = tvm.relax.FuncType([tvm.ir.PrimType("int32")], tvm.ir.PrimType("int32"))
+    ty_before = tvm.ir.FuncType([tvm.ir.PrimType("int32")], tvm.ir.PrimType("int32"))
     tvm.ir.assert_structural_equal(before.ty, ty_before)
 
-    ty_expected = tvm.relax.FuncType([], tvm.ir.PrimType("int32"))
+    ty_expected = tvm.ir.FuncType([], tvm.ir.PrimType("int32"))
     tvm.ir.assert_structural_equal(expected.ty, ty_expected)
 
     n = before.params[0]

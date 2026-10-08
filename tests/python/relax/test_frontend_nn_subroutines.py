@@ -42,14 +42,18 @@ def test_linear():
             state = nn.op.matmul(input, self.weights)
             return self.activation(state)
 
+    batch_size_forward = I.dynamic("batch_size")
+    batch_size_layer = I.dynamic("batch_size")
+    batch_size_activation = I.dynamic("batch_size")
+
     @I.ir_module
     class Expected:
         @R.function
         def forward(
-            state: R.Tensor(("batch_size", 64), dtype="float32"),
+            state: R.Tensor((batch_size_forward, 64), dtype="float32"),
             _io: R.Any,
             weights: R.Tensor((64, 32), dtype="float32"),
-        ) -> R.Tuple(R.Tensor(("batch_size", 32), dtype="float32"), R.Tuple(R.Any)):
+        ) -> R.Tuple(R.Tensor((batch_size_forward, 32), dtype="float32"), R.Tuple(R.Any)):
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 state = Expected.layer(state, weights)
@@ -69,9 +73,9 @@ def test_linear():
 
         @R.function(private=True)
         def layer(
-            state: R.Tensor(("batch_size", 64), dtype="float32"),
+            state: R.Tensor((batch_size_layer, 64), dtype="float32"),
             weights: R.Tensor((64, 32), dtype="float32"),
-        ) -> R.Tensor(("batch_size", 32), dtype="float32"):
+        ) -> R.Tensor((batch_size_layer, 32), dtype="float32"):
             with R.dataflow():
                 state = R.matmul(state, weights)
                 state = Expected.activation(state)
@@ -81,8 +85,8 @@ def test_linear():
 
         @R.function(private=True)
         def activation(
-            state: R.Tensor(("batch_size", 32), dtype="float32"),
-        ) -> R.Tensor(("batch_size", 32), dtype="float32"):
+            state: R.Tensor((batch_size_activation, 32), dtype="float32"),
+        ) -> R.Tensor((batch_size_activation, 32), dtype="float32"):
             with R.dataflow():
                 state = R.nn.silu(state)
                 dataflow_output = state

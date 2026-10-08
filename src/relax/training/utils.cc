@@ -167,7 +167,7 @@ class AppendLossMutator : private ExprMutator {
           << " while the corresponding type of parameter of loss function is " << loss_param_ty
           << ", which is different.";
 
-      this->var_remap_[loss_param] = backbone_ret;
+      this->var_remap_.insert_or_assign(loss_param, backbone_ret);
     }
   }
 
@@ -193,7 +193,7 @@ class AppendLossMutator : private ExprMutator {
       auto var = backbone_return_arr_[i];
       if (other_outputs_var.count(var) == 0 && !var->ty.as<PrimTypeNode>()) {
         auto new_var = DataflowVar(var->name, GetType(var), var->span);
-        this->var_remap_[var] = new_var;
+        this->var_remap_.insert_or_assign(var, new_var);
         backbone_return_arr_.Set(i, new_var);
       }
     }
@@ -204,7 +204,7 @@ class AppendLossMutator : private ExprMutator {
   /*! \brief The number of prediction_outputs of the backbone function. */
   int num_backbone_outputs_;
   /*! \brief The body of the loss function */
-  SeqExpr loss_body_;
+  SeqExpr loss_body_{ffi::UnsafeInit{}};
   /*! \brief The unpacked return values of the backbone. All return values should be Vars. */
   ffi::Array<Var> backbone_return_arr_;
 };

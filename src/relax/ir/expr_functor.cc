@@ -33,7 +33,7 @@
 
 // functions to be overriden.
 #define RELAX_VISIT_BINDING_DISPATCH(OP)                                        \
-  vtable.template set_dispatch<OP>(                                             \
+  vtable.template SetDispatch<OP>(                                              \
       [](const ffi::ObjectRef& n, TSelf* self, const VarBindingNode* binding) { \
         self->VisitBinding_(binding, static_cast<const OP*>(n.get()));          \
       });
@@ -41,7 +41,7 @@
 #define RELAX_VAR_BINDING_DISPATCH_IMPL(Type)                                           \
   Type::VisitBindingVTable Type::InitVisitBindingVTable() {                             \
     VisitBindingVTable vtable;                                                          \
-    RELAX_VISIT_BINDING_DISPATCH(ConstantNode);                                         \
+    RELAX_VISIT_BINDING_DISPATCH(GenericConstNode);                                     \
     RELAX_VISIT_BINDING_DISPATCH(TupleNode);                                            \
     RELAX_VISIT_BINDING_DISPATCH(VarNode);                                              \
     RELAX_VISIT_BINDING_DISPATCH(DataflowVarNode);                                      \
@@ -62,7 +62,7 @@
     static VisitBindingVTable vtable = InitVisitBindingVTable();                        \
     const Expr& value = binding->value;                                                 \
     TVM_FFI_ICHECK(value.defined()) << "Found null pointer node while traversing AST."; \
-    if (vtable.can_dispatch(value)) {                                                   \
+    if (vtable.CanDispatch(value)) {                                                    \
       vtable(value, this, binding);                                                     \
     } else {                                                                            \
       VisitBinding_(binding, value.get());                                              \
@@ -85,6 +85,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 // ==================
 // ExprVisitor
@@ -112,7 +113,7 @@ void ExprVisitor::DefaultTypeFieldVisitor::VisitType_(const FuncTypeNode* op) {
 }
 
 void VisitExprDepTypeFieldIfNeeded(ExprVisitor* visitor, const Type& ty) {
-  if (!ty.IsMissing()) {
+  if (!ty.as<MissingType>().has_value()) {
     auto* ty_node = ty.as<TypeNode>();
     TVM_FFI_DCHECK(ty_node != nullptr);
     visitor->VisitExprDepTypeField(ffi::GetRef<Type>(ty_node));
@@ -121,9 +122,9 @@ void VisitExprDepTypeFieldIfNeeded(ExprVisitor* visitor, const Type& ty) {
 
 void ExprVisitor::VisitExpr(const Expr& expr) { ExprFunctor::VisitExpr(expr); }
 
-void ExprVisitor::VisitExpr_(const ConstantNode* op) {
+void ExprVisitor::VisitExpr_(const GenericConstNode* op) {
   this->VisitSpan(op->span);
-  // Constant's Type does not depend on Expr.
+  // GenericConst's Type does not depend on Expr.
 }
 
 void ExprVisitor::VisitExpr_(const GlobalVarNode* op) {
@@ -192,6 +193,11 @@ void ExprVisitor::VisitExpr_(const TensorLoadNode* op) {
   }
 
 RELAX_VISIT_TIRX_BINOP(AddNode);
+RELAX_VISIT_TIRX_BINOP(LShiftNode);
+RELAX_VISIT_TIRX_BINOP(RShiftNode);
+RELAX_VISIT_TIRX_BINOP(BitwiseAndNode);
+RELAX_VISIT_TIRX_BINOP(BitwiseOrNode);
+RELAX_VISIT_TIRX_BINOP(BitwiseXorNode);
 RELAX_VISIT_TIRX_BINOP(SubNode);
 RELAX_VISIT_TIRX_BINOP(MulNode);
 RELAX_VISIT_TIRX_BINOP(DivNode);
@@ -218,6 +224,12 @@ void ExprVisitor::VisitExpr_(const prim::CastNode* op) {
 }
 
 void ExprVisitor::VisitExpr_(const prim::NotNode* op) {
+  this->VisitSpan(op->span);
+  this->VisitExpr(op->a);
+  VisitExprDepTypeFieldIfNeeded(this, op->ty);
+}
+
+void ExprVisitor::VisitExpr_(const prim::BitwiseNotNode* op) {
   this->VisitSpan(op->span);
   this->VisitExpr(op->a);
   VisitExprDepTypeFieldIfNeeded(this, op->ty);
@@ -260,8 +272,6 @@ void ExprVisitor::VisitExpr_(const prim::ShuffleNode* op) {
 void ExprVisitor::VisitExpr_(const tvm::IntImmNode* op) { this->VisitSpan(op->span); }
 
 void ExprVisitor::VisitExpr_(const tvm::FloatImmNode* op) { this->VisitSpan(op->span); }
-
-void ExprVisitor::VisitExpr_(const prim::StringImmNode* op) { this->VisitSpan(op->span); }
 
 void ExprVisitor::VisitExpr_(const IfNode* op) {
   this->VisitSpan(op->span);
@@ -311,7 +321,6 @@ void ExprVisitor::VisitExprFallback_(const ExprNode* op) {
 }
 
 void ExprVisitor::VisitExpr_(const StringImmNode* op) { this->VisitSpan(op->span); }
-
 void ExprVisitor::VisitExpr_(const DataTypeImmNode* op) { this->VisitSpan(op->span); }
 
 void ExprVisitor::VisitSpan(const Span& span) {}
@@ -320,7 +329,7 @@ void ExprVisitor::VisitTypePrimExprField(const PrimExpr& expr) { this->VisitExpr
 
 // implementations of binding visitor dispatch
 RELAX_VAR_BINDING_DISPATCH_IMPL(ExprVisitor);
-RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(ConstantNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(GenericConstNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(TupleNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(VarNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(DataflowVarNode);
@@ -443,8 +452,8 @@ Type ExprMutatorBase::DefaultTypeFieldMutator::VisitType_(const FuncTypeNode* op
 
 Expr ExprMutatorBase::VisitExpr(const Expr& expr) { return ExprFunctor::VisitExpr(expr); }
 
-Expr ExprMutatorBase::VisitExpr_(const ConstantNode* op) {
-  // Constant' type won't be affected by Expr/PrimExpr change.
+Expr ExprMutatorBase::VisitExpr_(const GenericConstNode* op) {
+  // GenericConst' type won't be affected by Expr/PrimExpr change.
   return ffi::GetRef<Expr>(op);
 }
 
@@ -512,7 +521,7 @@ Expr ExprMutatorBase::VisitExpr_(const CallNode* call_node) {
   }
 
   Type ret_ty = call_node->ty;
-  if (!ret_ty.IsMissing()) {
+  if (!ret_ty.as<MissingType>().has_value()) {
     ret_ty = this->VisitExprDepTypeField(ret_ty);
   }
   bool ret_ty_unchanged = ret_ty.same_as(call_node->ty);
@@ -536,7 +545,7 @@ Expr ExprMutatorBase::VisitExpr_(const TensorLoadNode* op) {
   if (indices.same_as(op->indices)) {
     return ffi::GetRef<Expr>(op);
   }
-  return tirx::BufferLoad(op->source.as_or_throw<tirx::BufferVar>(), indices, op->span);
+  return tirx::MakeTensorLoad(op->source.as_or_throw<tirx::TensorVar>(), indices, op->span);
 }
 
 #define RELAX_MUTATE_TIRX_BINOP(OP)                              \
@@ -550,6 +559,11 @@ Expr ExprMutatorBase::VisitExpr_(const TensorLoadNode* op) {
   }
 
 RELAX_MUTATE_TIRX_BINOP(Add);
+RELAX_MUTATE_TIRX_BINOP(LShift);
+RELAX_MUTATE_TIRX_BINOP(RShift);
+RELAX_MUTATE_TIRX_BINOP(BitwiseAnd);
+RELAX_MUTATE_TIRX_BINOP(BitwiseOr);
+RELAX_MUTATE_TIRX_BINOP(BitwiseXor);
 RELAX_MUTATE_TIRX_BINOP(Sub);
 RELAX_MUTATE_TIRX_BINOP(Mul);
 RELAX_MUTATE_TIRX_BINOP(Div);
@@ -579,6 +593,11 @@ Expr ExprMutatorBase::VisitExpr_(const prim::CastNode* op) {
 Expr ExprMutatorBase::VisitExpr_(const prim::NotNode* op) {
   PrimExpr a = this->VisitExpr(op->a).as_or_throw<PrimExpr>();
   return a.same_as(op->a) ? ffi::GetRef<Expr>(op) : Expr(prim::Not(a, op->span));
+}
+
+Expr ExprMutatorBase::VisitExpr_(const prim::BitwiseNotNode* op) {
+  PrimExpr a = this->VisitExpr(op->a).as_or_throw<PrimExpr>();
+  return a.same_as(op->a) ? ffi::GetRef<Expr>(op) : Expr(prim::BitwiseNot(a, op->span));
 }
 
 Expr ExprMutatorBase::VisitExpr_(const prim::SelectNode* op) {
@@ -626,8 +645,6 @@ Expr ExprMutatorBase::VisitExpr_(const tvm::IntImmNode* op) { return ffi::GetRef
 
 Expr ExprMutatorBase::VisitExpr_(const tvm::FloatImmNode* op) { return ffi::GetRef<Expr>(op); }
 
-Expr ExprMutatorBase::VisitExpr_(const prim::StringImmNode* op) { return ffi::GetRef<Expr>(op); }
-
 Expr ExprMutatorBase::VisitExpr_(const IfNode* op) {
   Expr guard = this->VisitExpr(op->cond);
   Expr true_b = this->VisitExpr(op->true_branch);
@@ -661,7 +678,6 @@ Expr ExprMutatorBase::VisitExprFallback_(const ExprNode* op) {
 }
 
 Expr ExprMutatorBase::VisitExpr_(const StringImmNode* op) { return ffi::GetRef<Expr>(op); }
-
 Expr ExprMutatorBase::VisitExpr_(const DataTypeImmNode* op) { return ffi::GetRef<Expr>(op); }
 
 Expr ExprMutatorBase::VisitExpr_(const ShapeExprNode* op) {
@@ -760,7 +776,7 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
     Var new_param = this->VisitVarDef(param);
     params.push_back(new_param);
     if (!param.same_as(new_param)) {
-      var_remap_[param] = new_param;
+      var_remap_.insert_or_assign(param, new_param);
       all_params_unchanged = false;
     }
   }
@@ -832,7 +848,7 @@ Expr ExprMutator::VisitExpr_(const SeqExprNode* op) {
 }
 
 RELAX_VAR_BINDING_DISPATCH_IMPL(ExprMutator);
-RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(ConstantNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(GenericConstNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(TupleNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(VarNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(DataflowVarNode);
@@ -871,9 +887,9 @@ void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
     new_var = temp;
   }
 
-  this->var_remap_[binding->var] = new_var;
-  this->var_remap_[visited_var] = new_var;
-  this->var_remap_[new_var] = new_var;
+  this->var_remap_.insert_or_assign(binding->var, new_var);
+  this->var_remap_.insert_or_assign(visited_var, new_var);
+  this->var_remap_.insert_or_assign(new_var, new_var);
 
   builder_->EmitNormalized(VarBinding(new_var, new_value));
 }
@@ -894,9 +910,9 @@ void ExprMutator::VisitBinding_(const MatchCastNode* binding) {
       new_value = builder_->NormalizeArgument(new_value);
       new_var = WithType(new_var, new_ty);
 
-      var_remap_[binding->var] = new_var;
-      var_remap_[visited_var] = new_var;
-      var_remap_[new_var] = new_var;
+      var_remap_.insert_or_assign(binding->var, new_var);
+      var_remap_.insert_or_assign(visited_var, new_var);
+      var_remap_.insert_or_assign(new_var, new_var);
 
       return MatchCast(new_var, new_value, new_ty, binding->span);
     }
@@ -930,7 +946,7 @@ Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
   if (!output->IsInstance<DataflowVarNode>()) {
     Var delegated_output = output;
     output = DataflowVar(output->name, GetType(output), output->span);
-    var_remap_[delegated_output] = output;
+    var_remap_.insert_or_assign(delegated_output, output);
   }
   return output;
 }
@@ -971,15 +987,13 @@ BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
 }
 
 Var ExprMutator::VisitVarDef(const Var& var) {
-  Var ret;
   if (const auto* node = var.as<DataflowVarNode>()) {
-    ret = VisitVarDef_(node);
+    return VisitVarDef_(node);
   } else if (const auto* node = var.as<VarNode>()) {
-    ret = VisitVarDef_(node);
-  } else {
-    TVM_FFI_THROW(TypeError) << "Invalid type: " << var->GetTypeKey();
+    return VisitVarDef_(node);
   }
-  return ret;
+  TVM_FFI_THROW(TypeError) << "Invalid type: " << var->GetTypeKey();
+  throw;
 }
 
 Expr ExprMutator::VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<Var>> params) {
@@ -998,7 +1012,7 @@ Expr ExprMutator::VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<V
   builder_->BeginScope(params);
   // Outer scope only includes TIR variables that can be inferred from
   // the function parameters.
-  With<arith::ConstraintContext> context(builder_->GetAnalyzer(), constraint);
+  With<sym::ConstraintContext> context(builder_->GetAnalyzer(), constraint);
   builder_->BeginInnerScope();
   // Inner scope also includes any TIR variables that are defined by
   // MatchCast nodes, and are internal to the scope.
@@ -1034,10 +1048,10 @@ ffi::Optional<Expr> ExprMutator::LookupBinding(const Var& var) {
 }
 
 Var ExprMutator::WithType(Var var, Type ty) {
-  TVM_FFI_ICHECK(!ty.IsMissing());
+  TVM_FFI_ICHECK(!ty.as<MissingType>().has_value());
 
   // TODO(relax-team) add TypeEqual check
-  if (!var->ty.IsMissing()) {
+  if (!var->ty.as<MissingType>().has_value()) {
     // use same-as as a quick path
     if (var->ty.same_as(ty) || ffi::StructuralEqual()(var->ty, ty)) {
       return var;

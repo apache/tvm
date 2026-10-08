@@ -119,7 +119,7 @@ def get_const_int(expr):
     if isinstance(expr, Integral):
         return expr
     if not isinstance(expr, tvm.tirx.IntImm):
-        ana = tvm.arith.Analyzer()
+        ana = tvm.sym.Analyzer()
         expr = ana.simplify(expr)
     if not isinstance(expr, tvm.tirx.IntImm):
         raise ValueError("Expect value to be constant int")
@@ -142,7 +142,7 @@ def get_const_float(expr):
     if isinstance(expr, float):
         return float(expr)
     if not isinstance(expr, tvm.tirx.FloatImm):
-        ana = tvm.arith.Analyzer()
+        ana = tvm.sym.Analyzer()
         expr = ana.simplify(expr)
     if not isinstance(expr, tvm.tirx.FloatImm):
         raise ValueError("Expect value to be constant float")
@@ -165,7 +165,7 @@ def equal_const_int(expr, value):
     if isinstance(expr, Integral):
         return expr == value
     if not isinstance(expr, tvm.tirx.IntImm):
-        ana = tvm.arith.Analyzer()
+        ana = tvm.sym.Analyzer()
         expr = ana.simplify(expr)
     if not isinstance(expr, tvm.tirx.IntImm):
         return False
@@ -196,7 +196,7 @@ def get_const_tuple(in_tuple):
         if tvm.ir.is_prim_var(elem):
             ret.append(elem)
         elif not isinstance(elem, tvm.tirx.IntImm | int):
-            ana = tvm.arith.Analyzer() if ana is None else ana
+            ana = tvm.sym.Analyzer() if ana is None else ana
             elem = ana.simplify(elem)
             if not isinstance(elem, tvm.tirx.IntImm):
                 ret.append(elem)
@@ -271,12 +271,12 @@ def simplify(expr):
     if isinstance(expr, te.Tensor):
         return te.compute(
             expr.shape,
-            lambda *indices: tvm.arith.Analyzer().simplify(expr[indices]),
+            lambda *indices: tvm.sym.Analyzer().simplify(expr[indices]),
             name="simplify_output",
             tag="simplify",
         )
     elif tvm.ir.is_prim_expr(expr):
-        return tvm.arith.Analyzer().simplify(expr)
+        return tvm.sym.Analyzer().simplify(expr)
     else:
         return expr
 

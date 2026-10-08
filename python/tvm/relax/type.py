@@ -21,20 +21,12 @@
 import tvm_ffi
 from tvm_ffi import Array
 
-from tvm.ir import EnvFunc, PrimType, Span, TupleType, VDevice
+from tvm.ir import AnyType, EnvFunc, PrimType, Span, TupleType
+from tvm.relax.global_info import VDevice
 
 from . import _ffi_api
 from .expr import Expr, ShapeExpr, Type
 from .ty import PackedFuncType
-
-
-@tvm_ffi.register_object("relax.AnyType")
-class AnyType(Type):
-    """Type of any Relax value."""
-
-    def __init__(self, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.AnyType, span)  # type: ignore
-
 
 ObjectType = AnyType
 
@@ -195,5 +187,5 @@ class FuncType(Type):
         """
 
         if isinstance(derive_func, str):
-            derive_func = EnvFunc.get("tvm.relax.type.infer_view_ty")
+            derive_func = EnvFunc.get(derive_func)
         return _ffi_api.FuncTypeOpaqueFunc(ret, derive_func, purity, span)  # type: ignore

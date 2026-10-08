@@ -348,10 +348,10 @@ class BlockBuilder(Object):
             The keyword arguments passed to the function.
             Note that the following keyword args are reserved:
 
-                - 'primfunc_name_hint' for passing name hint to the PrimFunc
+                - 'function_name_hint' for passing name hint to the Function
                   that gets generated.
-                - 'primfunc_attrs' is reserved for passing func attributes to
-                  be added to the PrimFunc that gets created.
+                - 'function_attrs' is reserved for passing func attributes to
+                  be added to the Function that gets created.
 
 
         Returns
@@ -360,12 +360,12 @@ class BlockBuilder(Object):
             A newly created call node
         """
 
-        primfunc_name = kwargs.pop("primfunc_name_hint", None)
+        function_name = kwargs.pop("function_name_hint", None)
         tir_func, call_args, output_ty = gen_call_tir_inputs(func, *args, **kwargs)
 
-        if not primfunc_name:
-            primfunc_name = func.__name__
-        gvar = self.add_func(tir_func, primfunc_name)
+        if not function_name:
+            function_name = func.__name__
+        gvar = self.add_func(tir_func, function_name)
 
         return call_tir(gvar, call_args, output_ty)
 
@@ -401,10 +401,10 @@ class BlockBuilder(Object):
             The keyword arguments passed to the function.
             Note that the following keyword args are reserved:
 
-                - 'primfunc_name_hint' for passing name hint to the PrimFunc
+                - 'function_name_hint' for passing name hint to the Function
                   that gets generated.
-                - 'primfunc_attrs' is reserved for passing func attributes to
-                  be added to the PrimFunc that gets created.
+                - 'function_attrs' is reserved for passing func attributes to
+                  be added to the Function that gets created.
 
         Returns
         -------
@@ -412,15 +412,15 @@ class BlockBuilder(Object):
             A newly created call node
         """
 
-        primfunc_name = kwargs.pop("primfunc_name_hint", None)
+        function_name = kwargs.pop("function_name_hint", None)
         tir_func, call_args, output_ty = gen_call_tir_inputs(func, *args, **kwargs)
 
         if te_grad_kwargs is None:
             te_grad_kwargs = {}
 
-        if not primfunc_name:
-            primfunc_name = func.__name__
-        gvar = self.add_func(tir_func, primfunc_name)
+        if not function_name:
+            function_name = func.__name__
+        gvar = self.add_func(tir_func, function_name)
 
         return call_tir_with_grad(gvar, call_args, output_ty, te_grad_name, te_grad_kwargs)
 
@@ -439,8 +439,8 @@ class BlockBuilder(Object):
 
         kwargs : Any, optional
             The keyword arguments passed to the function.
-            Note that the key "primfunc_name_hint" is reserved for passing name hint
-            to the PrimFunc that gets generated.
+            Note that the key "function_name_hint" is reserved for passing name hint
+            to the Function that gets generated.
 
         Returns
         -------
@@ -470,25 +470,27 @@ class BlockBuilder(Object):
 
         .. code-block:: python
 
+            m = T.dynamic("m")
+            n = T.dynamic("n")
+
             @tvm.script.ir_module
             class Module:
-                @T.prim_func(s_tir=True)
-                def te_func(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle,
-                            var_compute: T.handle) -> None:
+                @Ts.function
+                def te_func(
+                    rxplaceholder: T.Tensor([n, m], dtype="float32"),
+                    rxplaceholder_1: T.Tensor([n, m], dtype="float32"),
+                    compute: T.Tensor([128, 128], dtype="float32"),
+                ) -> None:
                     # function attr dict
                     T.func_attr({"tirx.noalias": True})
-                    m = T.int64()
-                    n = T.int64()
-                    rxplaceholder = T.match_buffer(var_rxplaceholder, [n, m], dtype="float32")
-                    rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [n, m], dtype="float32")
-                    compute = T.match_buffer(var_compute, [128, 128], dtype="float32")
+
                     # body
-                    # with T.sblock("root")
+                    # with Ts.sblock("root")
                     for i0, i1 in T.grid(128, 128):
-                        with T.sblock("compute"):
-                            i, j = T.axis.remap("SS", [i0, i1])
-                            T.reads([rxplaceholder[i, j], rxplaceholder_1[i, j]])
-                            T.writes([compute[i, j]])
+                        with Ts.sblock("compute"):
+                            i, j = Ts.axis.remap("SS", [i0, i1])
+                            Ts.reads([rxplaceholder[i, j], rxplaceholder_1[i, j]])
+                            Ts.writes([compute[i, j]])
                             compute[i, j] = rxplaceholder[i, j] + rxplaceholder_1[i, j]
 
                 @R.function
@@ -519,20 +521,25 @@ class BlockBuilder(Object):
 
         .. code-block:: python
 
+            m = T.dynamic("m")
+            n = T.dynamic("n")
+
             @tvm.script.ir_module
             class Module:
-                @T.prim_func(s_tir=True)
-                def te_func(var_rxplaceholder: T.handle, var_compute: T.handle, n: T.int64) -> None:
-                    rxplaceholder = T.match_buffer(var_rxplaceholder, [n + T.int64(1)],
-                                                   dtype="float32")
-                    compute = T.match_buffer(var_compute, [n + T.int64(1)], dtype="float32")
+                @Ts.function
+                def te_func(
+                    rxplaceholder: T.Tensor([n + T.int64(1)], dtype="float32"),
+                    compute: T.Tensor([n + T.int64(1)], dtype="float32"),
+                    n: T.int64,
+                ) -> None:
+
                     # body
-                    # with T.sblock("root")
+                    # with Ts.sblock("root")
                     for i0 in T.serial(0, n + T.int64(1)):
-                        with T.sblock("compute"):
-                            i = T.axis.spatial(n + T.int64(1), i0)
-                            T.reads([rxplaceholder[i]])
-                            T.writes([compute[i]])
+                        with Ts.sblock("compute"):
+                            i = Ts.axis.spatial(n + T.int64(1), i0)
+                            Ts.reads([rxplaceholder[i]])
+                            Ts.writes([compute[i]])
                             compute[i] = rxplaceholder[i]
 
                 @R.function
@@ -642,7 +649,7 @@ class BlockBuilder(Object):
         # `bb.function()`, then any variables provided from the params
         # are not in scope.  Otherwise, TIR variables used in dynamic
         # inputs are removed as undefined (e.g. Replacing
-        # `R.Tensor(["batch_size"])` with `R.Tensor(ndims=1)`).
+        # `R.Tensor([batch_size])` with `R.Tensor(ndims=1)`).
         self.begin_scope(self._func._params)
         try:
             seqe = self.normalize(seqe)
@@ -716,7 +723,7 @@ class BlockBuilder(Object):
         return _ffi_api.BlockBuilderGetUniqueName(self, name_prefix)  # type: ignore
 
     def add_func(self, func: BaseFunc, func_name: str) -> GlobalVar:
-        """Add a Relax function or a TIR PrimFunc to the IRModule being built.
+        """Add a Relax function or a TIR Function to the IRModule being built.
 
         Parameters
         ----------
@@ -734,7 +741,7 @@ class BlockBuilder(Object):
         return _ffi_api.BlockBuilderAddFunction(self, func, func_name)  # type: ignore
 
     def update_func(self, gv: GlobalVar, updated_func: BaseFunc) -> None:
-        """Add a Relax function or a TIR PrimFunc to the IRModule being built.
+        """Add a Relax function or a TIR Function to the IRModule being built.
 
         Parameters
         ----------

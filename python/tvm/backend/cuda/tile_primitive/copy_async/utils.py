@@ -21,7 +21,7 @@ The TMA-specific lowering moved to ``tma.py``. What remains here are the tiny
 layout helpers other variants (e.g. ``dsmem.py``) still import.
 """
 
-from tvm.arith import Analyzer
+from tvm.sym import Analyzer
 from tvm.tirx.layout import Layout, TileLayout
 
 from ..layout_utils import strip_swizzle_to_tile

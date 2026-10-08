@@ -19,7 +19,7 @@
 
 from tvm import te, tirx
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tirx as T
+from tvm.tirx.script import ir_builder as T
 
 from . import utils
 
@@ -89,62 +89,65 @@ def index_put(data, indices, values, accumulate=False):
         index_len *= dim
 
     def gen_ir(data_ptr, index_ptrs, values_ptr, out_ptr, reduce_func):
-        data = T.buffer_proxy(data_ptr)
-        indices = [T.buffer_proxy(idx) for idx in index_ptrs]
-        values = T.buffer_proxy(values_ptr)
-        out = T.buffer_proxy(out_ptr)
+        data = data_ptr
+        indices = index_ptrs
+        values = values_ptr
+        out = out_ptr
 
         with IRBuilder() as ib:
-            with T.seq_scope():
-                with T.parallel(0, full_range) as i:
-                    out[i] = data[i]
+            with T.parallel(0, full_range) as i:
+                T.tensor_store(out, data[T.tensor_indices(data, i)], T.tensor_indices(out, i))
 
-                with T.parallel(0, index_len) as k:
-                    # Decompose k into multi-dimensional broadcast index
-                    k_temp = k
-                    broadcast_indices = []
+            with T.parallel(0, index_len) as k:
+                # Decompose k into multi-dimensional broadcast index
+                k_temp = k
+                broadcast_indices = []
+                for i in range(broadcast_ndim - 1, -1, -1):
+                    broadcast_indices.insert(0, k_temp % broadcast_shape[i])
+                    k_temp = k_temp // broadcast_shape[i]
+
+                flat_index = 0
+                stride = 1
+                for dim in range(len(shape) - 1, -1, -1):
+                    # Get the index for this dimension using broadcasting
+                    idx_shape = index_shapes[dim]
+                    idx_ndim = len(idx_shape)
+
+                    # Compute the linear index into this index tensor
+                    idx_offset = 0
+                    idx_stride = 1
                     for i in range(broadcast_ndim - 1, -1, -1):
-                        broadcast_indices.insert(0, k_temp % broadcast_shape[i])
-                        k_temp = k_temp // broadcast_shape[i]
+                        # Right-align the index shape with broadcast shape
+                        dim_idx = idx_ndim - broadcast_ndim + i
+                        if dim_idx >= 0:
+                            dim_size = idx_shape[dim_idx]
+                            # Use broadcasting: if size is 1, use index 0
+                            # otherwise use broadcast_indices[i]
+                            if utils.equal_const_int(dim_size, 1):
+                                idx_in_dim = 0
+                            else:
+                                idx_in_dim = broadcast_indices[i]
+                            idx_offset += idx_in_dim * idx_stride
+                            idx_stride *= dim_size
 
-                    flat_index = 0
-                    stride = 1
-                    for dim in range(len(shape) - 1, -1, -1):
-                        # Get the index for this dimension using broadcasting
-                        idx_shape = index_shapes[dim]
-                        idx_ndim = len(idx_shape)
+                    idx_val = indices[dim][T.tensor_indices(indices[dim], (idx_offset))]
+                    shifted_idx = idx_val + (idx_val < 0) * shape[dim]
+                    flat_index += shifted_idx * stride
+                    stride *= shape[dim]
 
-                        # Compute the linear index into this index tensor
-                        idx_offset = 0
-                        idx_stride = 1
-                        for i in range(broadcast_ndim - 1, -1, -1):
-                            # Right-align the index shape with broadcast shape
-                            dim_idx = idx_ndim - broadcast_ndim + i
-                            if dim_idx >= 0:
-                                dim_size = idx_shape[dim_idx]
-                                # Use broadcasting: if size is 1, use index 0
-                                # otherwise use broadcast_indices[i]
-                                if utils.equal_const_int(dim_size, 1):
-                                    idx_in_dim = 0
-                                else:
-                                    idx_in_dim = broadcast_indices[i]
-                                idx_offset += idx_in_dim * idx_stride
-                                idx_stride *= dim_size
-
-                        idx_val = indices[dim][idx_offset]
-                        shifted_idx = idx_val + (idx_val < 0) * shape[dim]
-                        flat_index += shifted_idx * stride
-                        stride *= shape[dim]
-
-                    reduce_func(out, flat_index, values[k])
+                reduce_func(out, flat_index, values[T.tensor_indices(values, k)])
 
             return ib.get()
 
     def update_func(dst_ptr, dst_index, update):
-        dst_ptr[dst_index] = update
+        T.tensor_store(dst_ptr, update, T.tensor_indices(dst_ptr, dst_index))
 
     def add_func(dst_ptr, dst_index, update):
-        dst_ptr[dst_index] += update
+        T.tensor_store(
+            dst_ptr,
+            dst_ptr[T.tensor_indices(dst_ptr, dst_index)] + (update),
+            T.tensor_indices(dst_ptr, dst_index),
+        )
 
     reduce_func = add_func if accumulate else update_func
 
@@ -153,7 +156,7 @@ def index_put(data, indices, values, accumulate=False):
     in_buffers.extend(indices)
     in_buffers.append(values)
 
-    out_buf = tirx.decl_buffer(data.shape, data.dtype, "out_buf", layout=None)
+    out_buf = tirx.decl_tensor(data.shape, data.dtype, "out_buf", layout=None)
     return te.extern(
         [data.shape],
         in_buffers,

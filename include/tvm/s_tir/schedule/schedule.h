@@ -23,11 +23,11 @@
 #include <tvm/s_tir/random_engine.h>
 #include <tvm/s_tir/schedule/state.h>
 #include <tvm/s_tir/schedule/trace.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/index_map.h>
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief The level of detailed error message rendering */
@@ -240,9 +240,9 @@ class ScheduleNode : public ffi::Object {
    * \param n The number of tiles to be sampled
    * \param max_innermost_factor The maximum tile size allowed to be sampled in the innermost loop
    * \param decision The sampling decision
-   * \return A list of length `n`, the random perfect tile sizes sampled
+   * \return A list of length `n`, with absent factors representing sizes inferred by Split.
    */
-  virtual ffi::Array<ExprRV> SamplePerfectTile(
+  virtual ffi::Array<ffi::Optional<ExprRV>> SamplePerfectTile(
       const LoopRV& loop_rv, int n, int max_innermost_factor,
       ffi::Optional<ffi::Array<int64_t>> decision = std::nullopt) = 0;
   /*!
@@ -324,7 +324,7 @@ class ScheduleNode : public ffi::Object {
   /*!
    * \brief Get the list of output blocks within the given scope
    * An output block is a block which has atleast one buffer being written
-   * to, but is not allocated within the PrimFunc
+   * to, but is not allocated within the Function
    * \param scope_block_rv The scope block from which output blocks are collected
    * \return A list of all blocks that write to some output buffer
    * block
@@ -593,7 +593,7 @@ class ScheduleNode : public ffi::Object {
    * \brief Inline a block into its consumer(s). It requires:
    * 1) The block is a complete non-root block, which only produces one buffer
    * 2) The block must not be the only leaf in the scope.
-   * 3) The body of the block must be a BufferStore statement in the form of,
+   * 3) The body of the block must be a TensorStore statement in the form of,
    *    A[i, j, k, ...] = ...
    * where the indices of the LHS are all distinct atomic variables,
    * and no variables other than those indexing variables are allowed in the statement.
@@ -605,9 +605,9 @@ class ScheduleNode : public ffi::Object {
    * 1) The block is a complete non-root block, which only produces and consumers one buffer
    * 2) The block must not be the only leaf in the scope.
    * 3) The only producer of the block is a read-after-write producer and a complete non-root block
-   * 4) The body of the block must be a BufferStore statement in the form of,
+   * 4) The body of the block must be a TensorStore statement in the form of,
    *    B[f(i, j, k, ...)] = g(i, j, k, A[i, j, k, ...] ...)
-   * where the indices of each `BufferLoad` on the RHS are all distinct atomic variables,
+   * where the indices of each `TensorLoad` on the RHS are all distinct atomic variables,
    * and no variables other than those indexing variables are allowed in the statement.
    * \param block The block to be inlined to its producer
    */
@@ -815,7 +815,7 @@ class ScheduleNode : public ffi::Object {
    * \details This schedule primitives identifies the Einsum pattern in the block body, and find its
    * producer blocks. It then pads the computation of the Einsum pattern and its producer blocks.
    * The output buffer and the producer buffer is resized according to the padding size. It requires
-   * the output buffer and the producer buffer to be allocated inside the PrimFunc.
+   * the output buffer and the producer buffer to be allocated inside the Function.
    *
    * The padding is a list of non-negative integers, each element corresponds to the padding for
    * each block iter in the order of block iters. The block and its producer blocks should have
@@ -834,7 +834,7 @@ class ScheduleNode : public ffi::Object {
    * appears in the block's ancestor loops as `rolling axis`, fold and circularize the buffer along
    * the rolling dimension, append block predicate to avoid recomputing overlapping elements.
    * It requires:
-   * 1) The buffer to be an intermediate buffer defined via `alloc_buffer`.
+   * 1) The buffer to be an intermediate buffer defined via `alloc_tensor`.
    * 2) The LCA of the producer and consumer of the buffer is a for loop, typically,
    *    the producer and consumer of the buffer are cascaded through compute_at.
    * 3) The access region of the buffer has at least one dimension that contains

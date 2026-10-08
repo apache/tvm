@@ -24,7 +24,7 @@
 #ifndef TVM_TOPI_NN_BNN_H_
 #define TVM_TOPI_NN_BNN_H_
 
-#include <tvm/arith/analyzer.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/topi/detail/constant_utils.h>
 #include <tvm/topi/tags.h>
@@ -55,7 +55,7 @@ inline tvm::te::Tensor binarize_pack(const tvm::te::Tensor& data, int axis,
   TVM_FFI_ICHECK_EQ(GetConstInt(ishape[axis]) % 32, 0)
       << "binarize_pack: axis size must be a multiple of 32";
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   auto n = ishape.size();
   ffi::Array<PrimExpr> oshape;
   for (size_t i = 0; i < n; ++i) {
@@ -78,7 +78,7 @@ inline tvm::te::Tensor binarize_pack(const tvm::te::Tensor& data, int axis,
             idx.push_back(i == static_cast<size_t>(axis) ? start_idx[i] + static_cast<int>(j)
                                                          : start_idx[i]);
           }
-          auto sign = tvm::cast(PrimType::UInt(32), data(idx) >= 0);
+          auto sign = tvm::prim::cast(PrimType::UInt(32), data(idx) >= 0);
           packed = (packed | sign);
           if (j == 31) {
             return packed;
@@ -99,6 +99,7 @@ inline tvm::te::Tensor binarize_pack(const tvm::te::Tensor& data, int axis,
  * \return Tensor with shape [batch, out_dim], dtype is float32
  */
 inline tvm::te::Tensor binary_dense(const tvm::te::Tensor& data, const tvm::te::Tensor& weight) {
+  using namespace tvm::prim;
   TVM_FFI_ICHECK_EQ(data->shape.size(), 2) << "binary_dense requires 2-D data";
   TVM_FFI_ICHECK_EQ(weight->shape.size(), 2) << "binary_dense requires 2-D weight";
   TVM_FFI_ICHECK_EQ(data->dtype, PrimType::UInt(32)) << "binary_dense requires uint32 data";
@@ -111,7 +112,9 @@ inline tvm::te::Tensor binary_dense(const tvm::te::Tensor& data, const tvm::te::
   auto k = tvm::te::reduce_axis(Range(0, in_dim), "k");
   auto matmul = tvm::te::compute(
       {batch, out_dim},
-      [&](PrimVar i, PrimVar j) { return tvm::sum(popcount(data(i, k) ^ weight(j, k)), {k}); },
+      [&](PrimVar i, PrimVar j) {
+        return tvm::prim::sum(popcount(data(i, k) ^ weight(j, k)), {k});
+      },
       "tensor", "binary_dense");
 
   return tvm::te::compute(

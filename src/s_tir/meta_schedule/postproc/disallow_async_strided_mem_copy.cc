@@ -25,18 +25,18 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*! \brief Check if an IRModule has any async strided mem copies. */
-struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
- public:
+struct AsyncStridedMemCopyFinder : public StmtExprVisitor {
+  using StmtExprVisitor::Visit_;
+
   static bool Find(const IRModule& mod) {
-    AsyncStridedMemCopyFinder finder;
+    auto finder = ffi::make_object<AsyncStridedMemCopyFinder>();
     for (const auto& kv : mod->functions) {
-      if (const auto* prim_func = kv.second.as<PrimFuncNode>()) {
-        finder(prim_func->body);
-        if (finder.found_) {
+      if (const auto* function = kv.second.as<FunctionNode>()) {
+        finder->Visit(function->body);
+        if (finder->found_) {
           return true;
         }
       }
@@ -45,76 +45,38 @@ struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
   }
 
  private:
-  void VisitStmt_(const ForNode* loop) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* loop) final {
     if (!found_) {
       input_iters.Set(loop->loop_var, Range(loop->min, loop->extent));
-      StmtExprVisitor::VisitStmt_(loop);
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(loop));
     }
+    return std::nullopt;
   }
 
-  void VisitStmt_(const AttrStmtNode* attrStmt) final {
-    if (!found_) {
-      if (attrStmt->attr_key == s_tir::attr::async_commit_queue_scope) {
-        auto async_scope = attrStmt->body.as<AttrStmtNode>();
-        if (!async_scope) {
-          StmtExprVisitor::VisitStmt_(attrStmt);
-        }
-
-        auto for_loop = async_scope->body.as<ForNode>();
-        if (!for_loop) {
-          StmtExprVisitor::VisitStmt_(attrStmt);
-        }
-
-        input_iters.Set(for_loop->loop_var, Range(for_loop->min, for_loop->extent));
-
-        auto bufferstorenode = for_loop->body.as<BufferStoreNode>();
-        if (!bufferstorenode) {
-          StmtExprVisitor::VisitStmt_(attrStmt);
-        }
-
-        auto bufferloadnode = bufferstorenode->value.as<TensorLoadNode>();
-        if (!bufferloadnode) {
-          StmtExprVisitor::VisitStmt_(attrStmt);
-        }
-
-        // get store buffer; assert it exists and is contiguous given it uses a single index
-        auto bufferstore = bufferstorenode->buffer.as<BufferTypeNode>();
-
-        // get load buffer; assert it exists and is contiguous given it uses a single index
-        BufferVar load_buffer = bufferloadnode->source.as_or_throw<BufferVar>();
-        auto bufferload = load_buffer.as<BufferTypeNode>();
-
-        if (!bufferstore || !bufferload) {
-          StmtExprVisitor::VisitStmt_(attrStmt);
-        }
-
-        // map loop variable to zero for the store index & simplify
-        ffi::Array<PrimExpr> store_index = bufferstorenode->indices;
-
-        // Use DetectIterMap to detect whether store index is non-contiguous.
-        arith::Analyzer analyzer;
-        auto store_iter_map = DetectIterMap(store_index, input_iters, 1,
-                                            arith::IterMapLevel::Surjective, analyzer, false);
-        if (!store_iter_map->errors.empty()) {
-          found_ = true;
-        }
-
-        // map loop variable to zero for the load index & simplify
-        ffi::Array<PrimExpr> load_index = bufferloadnode->indices;
-
-        // Use DetectIterMap to detect whether load index is non-contiguous.
-        auto load_iter_map = DetectIterMap(load_index, input_iters, 1,
-                                           arith::IterMapLevel::Surjective, analyzer, false);
-        if (!load_iter_map->errors.empty()) {
-          found_ = true;
-        }
-      }
-      if (!found_) {
-        StmtExprVisitor::VisitStmt_(attrStmt);
-      }
-    }
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    bool previous = in_async_copy_;
+    in_async_copy_ |= op->op.same_as(s_tir::async_copy_scope());
+    auto result = StmtExprVisitor::Visit_(op);
+    in_async_copy_ = previous;
+    return result;
   }
 
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
+    if (!found_ && in_async_copy_) {
+      if (const auto* load = op->value.as<TensorLoadNode>()) {
+        // Inspect each copy, including copies grouped under one commit or predicate.
+        sym::Analyzer analyzer;
+        auto store_map = DetectIterMap(op->indices, input_iters, 1, sym::IterMapLevel::Surjective,
+                                       analyzer, false);
+        auto load_map = DetectIterMap(load->indices, input_iters, 1, sym::IterMapLevel::Surjective,
+                                      analyzer, false);
+        found_ = !store_map->errors.empty() || !load_map->errors.empty();
+      }
+    }
+    return std::nullopt;
+  }
+
+  bool in_async_copy_ = false;
   bool found_ = false;
   ffi::Map<PrimVar, Range> input_iters = ffi::Map<PrimVar, Range>();
 };
@@ -122,7 +84,6 @@ struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
 }  // namespace s_tir
 
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 /*! \brief Check if the IRModule has any loop with non-constant extent. */
@@ -140,7 +101,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
     for (const auto& kv : mod->functions) {
       const GlobalVar& g_var = kv.first;
       const BaseFunc& base_func = kv.second;
-      if (const auto* prim_func = base_func.as<tirx::PrimFuncNode>()) {
+      if (const auto* function = base_func.as<tirx::FunctionNode>()) {
         IRModule lowered{ffi::UnsafeInit()};
         try {
           auto pass_list = ffi::Array<tvm::transform::Pass>();
@@ -152,15 +113,15 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
           pass_list.push_back(s_tir::transform::LowerMatchBuffer());
           pass_list.push_back(s_tir::transform::InjectSoftwarePipeline());
           pass_list.push_back(s_tir::transform::LowerOpaqueBlock());
+          pass_list.push_back(s_tir::transform::LowerThreadBinding());
           pass_list.push_back(tirx::transform::FlattenBuffer());
           pass_list.push_back(tirx::transform::BF16ComputeLegalize());
           pass_list.push_back(tirx::transform::NarrowDataType(32));
           pass_list.push_back(tirx::transform::StmtSimplify());
           pass_list.push_back(s_tir::transform::InjectVirtualThread());
-          pass_list.push_back(s_tir::transform::InjectDoubleBuffer());
           pass_list.push_back(tirx::transform::VectorizeLoop(true));
           pass_list.push_back(tirx::transform::StorageRewrite());
-          tirx::PrimFunc f = WithAttr(ffi::GetRef<tirx::PrimFunc>(prim_func), "global_symbol",
+          tirx::Function f = WithAttr(ffi::GetRef<tirx::Function>(function), "global_symbol",
                                       ffi::String(g_var->name_hint));
           IRModule mod =
               IRModule(ffi::Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));

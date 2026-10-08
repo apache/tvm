@@ -24,7 +24,7 @@ Python API
 
     error
     ir
-    arith
+    sym
     instrument
     transform
     target

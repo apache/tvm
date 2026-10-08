@@ -216,7 +216,7 @@ class DeviceHintCollector : ExprVisitor {
   ffi::Map<Var, VDevice> hint_on_device_inputs_;
 
   // The `R.hint_on_device` operator.
-  const Op& hint_on_device_op_ = Op::Get("relax.hint_on_device");
+  const Op hint_on_device_op_ = Op::Get("relax.hint_on_device");
 };
 
 // Utility to determine which Var instances must be located on the
@@ -274,8 +274,8 @@ class VDeviceSetCollector : ExprVisitor {
   // introduce a transfer across devices.
   std::unordered_map<Var, ffi::Array<Var>> var_to_co_located_vars_;
 
-  const Op& hint_on_device_op_ = Op::Get("relax.hint_on_device");
-  const Op& to_vdevice_op_ = Op::Get("relax.to_vdevice");
+  const Op hint_on_device_op_ = Op::Get("relax.hint_on_device");
+  const Op to_vdevice_op_ = Op::Get("relax.to_vdevice");
 };
 
 ffi::Map<Var, VDevice> InferVDevice(IRModule mod) {
@@ -397,14 +397,14 @@ class VDeviceTypeUpdater : ExprMutator {
     } else {
       ffi::ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>();
       attrs->dst_vdevice = output_vdevice;
-      return Call(Type::Missing(), to_vdevice_op_, {arg}, Attrs(attrs), {});
+      return Call::Unchecked(Type::Missing(), to_vdevice_op_, {arg}, Attrs(attrs), {});
     }
   }
 
   VDeviceLookup vdevice_lookup_;
   ffi::Map<Var, VDevice> vdevice_map_;
-  const Op& hint_on_device_op_ = Op::Get("relax.hint_on_device");
-  const Op& to_vdevice_op_ = Op::Get("relax.to_vdevice");
+  const Op hint_on_device_op_ = Op::Get("relax.hint_on_device");
+  const Op to_vdevice_op_ = Op::Get("relax.to_vdevice");
 };
 }  // namespace
 

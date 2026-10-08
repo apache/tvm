@@ -24,10 +24,10 @@
 #ifndef TVM_RELAX_UTILS_H_
 #define TVM_RELAX_UTILS_H_
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
+#include <tvm/sym/analyzer.h>
 
 namespace tvm {
 namespace relax {
@@ -71,7 +71,7 @@ TVM_DLL Type Bind(const Type& ty, const tvm::ffi::Map<Var, Expr>& binds);
  * \return The input binding map augmented with inferred symbolic bindings.
  */
 TVM_DLL tvm::ffi::Map<Var, Expr> InferSymbolicVarMap(
-    const tvm::ffi::Map<tvm::Var, relax::Expr>& binds, const arith::Analyzer& analyzer);
+    const tvm::ffi::Map<tvm::Var, relax::Expr>& binds, const sym::Analyzer& analyzer);
 
 /*!
  * \brief Check if the given Type is for a boolean scalar (tensor of rank 0 with a boolean
@@ -92,7 +92,7 @@ TVM_DLL bool IsBoolType(const Type& ty, bool permit_unknown_rank = true,
 /*!
  * \brief Check if the given expression is a "leaf" node or tuple node for normalization purposes.
  *
- *    The following expressions are defined as leaf nodes: Var, Constant, ShapeExpr,
+ *    The following expressions are defined as leaf nodes: Var, GenericConst, ShapeExpr,
  *    GlobalVar, Op, ExternFunc.
  *
  *    Tuples are included in this list mainly for convenience in grouping operator arguments.

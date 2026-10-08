@@ -81,9 +81,8 @@ from .transform import (
     TopologicalSort,
     UpdateParamType,
     UpdateVDevice,
-    VMBuiltinLower,
     VMShapeLower,
-    SpecializePrimFuncBasedOnCallSite,
+    SpecializeFunctionBasedOnCallSite,
     dataflowblock_pass,
     function_pass,
 )

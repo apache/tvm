@@ -21,9 +21,9 @@ import functools
 import math
 import operator
 
-from tvm.arith.analyzer import Analyzer
+from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import BufferRegion
+from tvm.sym.analyzer import Analyzer
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.operator.tile_primitive.common import ReduceOpType
 from tvm.tirx.tile_primitive import TilePrimitiveCall
@@ -47,7 +47,7 @@ def reduce_default_value_table(dtype):
 
 def _reduction_args(
     op: TilePrimitiveCall,
-) -> tuple[BufferRegion, BufferRegion, tuple[int, ...], bool, dict]:
+) -> tuple[TensorRegion, TensorRegion, tuple[int, ...], bool, dict]:
     """Parse ReduceOp -> (dst, src, reduce_axes, accum, config)."""
     op = TilePrimitiveCall.downcast(op)
     dst = op.output
@@ -63,8 +63,8 @@ def _match_reduction_storage_scope(
 ) -> tuple[bool, str | None]:
     """Check that dst and src scopes match one of the expected patterns."""
     op = TilePrimitiveCall.downcast(op)
-    dst_scope = op.output.buffer.scope()
-    src_scope = op.input.buffer.scope()
+    dst_scope = op.output.source.scope()
+    src_scope = op.input.source.scope()
 
     ok = any(match_scope(dst_scope, p) and match_scope(src_scope, p) for p in expected_scope)
     msg = f"storage scope mismatch: dst {dst_scope}, src {src_scope}; expected {expected_scope}"
@@ -218,7 +218,7 @@ _REDUCE_OP_TO_STR = {ReduceOpType.SUM: "sum", ReduceOpType.MAX: "max", ReduceOpT
 
 def _dtype_ok(op: TilePrimitiveCall, sctx: DispatchContext, expected_dtype: str):
     op = TilePrimitiveCall.downcast(op)
-    dtype = op.input.buffer.dtype
+    dtype = op.input.source.dtype
     ok = dtype == expected_dtype
     return (ok, None if ok else f"dtype {dtype} != {expected_dtype}")
 
@@ -248,7 +248,7 @@ def _src_ndim_ok(op: TilePrimitiveCall, sctx: DispatchContext, expected_ndim: in
 
 def _local_scope_match(op: TilePrimitiveCall, sctx: DispatchContext):
     op = TilePrimitiveCall.downcast(op)
-    src, dst = op.input.buffer, op.output.buffer
+    src, dst = op.input.source, op.output.source
     ok = all(
         [
             src.scope() == "local",

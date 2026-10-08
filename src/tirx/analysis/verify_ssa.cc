@@ -41,15 +41,11 @@ class SSAVerifier final : public StmtExprVisitor {
  public:
   bool is_ssa_{true};
 
-  void VisitExpr(const Expr& n) final {
-    if (!is_ssa_) return;
-    StmtExprVisitor::VisitExpr(n);
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView n) final {
+    if (!is_ssa_) return std::nullopt;
+    return StmtExprVisitor::Visit(n);
   }
-  void VisitStmt(const Stmt& n) final {
-    if (!is_ssa_) return;
-    StmtExprVisitor::VisitStmt(n);
-  }
-  void VisitExpr_(const prim::LetNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const prim::LetNode* op) final {
     // Weaker SSA condition
     // A single var can be binded in multiple lets
     // but they have to bind to the same value.
@@ -60,62 +56,42 @@ class SSAVerifier final : public StmtExprVisitor {
     if (it != def_map_.end()) {
       if (!deep_equal_(it->second.as_or_throw<PrimExpr>(), op->value)) {
         is_ssa_ = false;
-        return;
+        return std::nullopt;
       }
     } else {
       MarkDef(op->var, op->value);
     }
-    StmtExprVisitor::VisitExpr_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitStmt_(const BindNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     MarkDef(op->var, op->value);
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
-  void VisitStmt_(const ForNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     MarkDef(op->loop_var, op->loop_var);
-    StmtExprVisitor::VisitStmt_(op);
-  }
-  void VisitStmt_(const AllocBufferNode* op) final {
-    MarkDef(op->buffer.var(), op->buffer.var());
-    StmtExprVisitor::VisitStmt_(op);
+    return StmtExprVisitor::Visit_(op);
   }
 
-  void VisitExpr_(const VarNode* node) final {
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* node) final {
     auto var = ffi::GetRef<Var>(node);
     if (match_scope_) {
       MarkDef(var, var, true);
     }
+    return StmtExprVisitor::Visit_(node);
   }
 
-  void Run(const PrimFunc& func) {
+  void Run(const Function& func) {
     for (auto param : func->params) {
       MarkDef(param, param);
     }
 
-    for (const Var& param : func->params) {
-      if (auto buffer = param.as<BufferVar>()) {
-        this->DefineBuffer(buffer.value());
-      }
-    }
-    this->VisitStmt(func->body);
-  }
-
-  void DefineBuffer(const BufferVar& buffer) {
     match_scope_ = true;
-    this->VisitExpr(buffer.var());
-    for (size_t i = 0; i < buffer->shape.size(); ++i) {
-      this->VisitExpr(buffer->shape[i]);
+    for (const Var& param : func->params) {
+      WithDefRegionKind(kTVMFFIDefRegionKindPattern, [&] { return Visit(param->ty); });
     }
-
-    if (buffer->strides.defined()) {
-      for (size_t i = 0; i < buffer->strides.size(); ++i) {
-        this->VisitExpr(buffer->strides[i]);
-      }
-    }
-    this->VisitExpr(buffer->elem_offset);
-
     match_scope_ = false;
+    this->Visit(func->body);
   }
 
  private:
@@ -126,21 +102,21 @@ class SSAVerifier final : public StmtExprVisitor {
         return;
       }
     } else {
-      def_map_[var] = value;
+      def_map_.insert_or_assign(var, value);
     }
   }
   // whether we are in match scope, where a var can occur multiple times.
   bool match_scope_{false};
   // deep equal
-  ExprDeepEqual deep_equal_;
+  prim::ExprDeepEqual deep_equal_;
   // def map, for let, maps to the bind value, for others maps to self.
   std::unordered_map<Var, Expr> def_map_;
 };
 
-bool VerifySSA(const PrimFunc& func) {
-  SSAVerifier visitor;
-  visitor.Run(func);
-  return visitor.is_ssa_;
+bool VerifySSA(const Function& func) {
+  auto visitor = ffi::make_object<SSAVerifier>();
+  visitor->Run(func);
+  return visitor->is_ssa_;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -153,7 +129,7 @@ namespace transform {
 Pass VerifySSA() {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
-      if (auto func = kv.second.as<PrimFunc>()) {
+      if (auto func = kv.second.as<Function>()) {
         TVM_FFI_CHECK(VerifySSA(func.value()), RuntimeError)
             << "IR is not in SSA form" << func.value();
       }

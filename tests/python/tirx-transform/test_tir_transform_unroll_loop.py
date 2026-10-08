@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 import tvm
 from tvm.script import ir as I
 from tvm.script import tirx as T
@@ -22,9 +24,8 @@ from tvm.script import tirx as T
 def test_unroll_loop():
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def main(A: T.handle, n: T.int64):
-            Ab = T.match_buffer(A, (n,), "int64")
+        @T.function
+        def main(Ab: T.Tensor((n,), "int64"), n: T.int64):  # noqa: F821
             for i in T.serial(n, n + 2):
                 for j in T.unroll(8):
                     Ab[j + 1] = Ab[i] + T.int64(1)
@@ -50,14 +51,12 @@ def test_unroll_loop():
         assert ret.kind == tvm.tirx.ForKind.UNROLLED
 
     @I.ir_module
-    class ModuleWithPragma:
-        @T.prim_func(s_tir=True)
-        def main(A: T.handle, n: T.int64):
-            Ab = T.match_buffer(A, (n,), "int64")
-            with T.attr(T.int32(0), "pragma_auto_unroll_max_step", 16):
-                for i in T.serial(n, n + 2):
-                    for j in T.unroll(8):
-                        Ab[j + 1] = Ab[i] + T.int64(1)
+    class ModuleWithPolicy:
+        @T.function
+        def main(Ab: T.Tensor((n,), "int64"), n: T.int64):  # noqa: F821
+            for i in T.serial(n, n + 2, annotations={"auto_unroll_max_step": 16}):
+                for j in T.unroll(8):
+                    Ab[j + 1] = Ab[i] + T.int64(1)
             for i in T.serial(n, n + 2):
                 for j in T.unroll(8):
                     Ab[j + 1] = Ab[i] + T.int64(1)
@@ -65,7 +64,7 @@ def test_unroll_loop():
     with tvm.transform.PassContext(
         config={"tirx.UnrollLoop": {"auto_max_depth": 8, "explicit_unroll": False}}
     ):
-        ret = tvm.tirx.transform.UnrollLoop()(ModuleWithPragma)["main"].body
+        ret = tvm.tirx.transform.UnrollLoop()(ModuleWithPolicy)["main"].body
         assert isinstance(ret[0], tvm.tirx.For)
         assert ret[0].kind == tvm.tirx.ForKind.UNROLLED
         assert isinstance(ret[1], tvm.tirx.For)
@@ -75,9 +74,8 @@ def test_unroll_loop():
 def test_unroll_fake_loop():
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def main(A: T.handle, n: T.int64):
-            Ab = T.match_buffer(A, (n,), "int32")
+        @T.function
+        def main(Ab: T.Tensor((n,), "int32"), n: T.int64):  # noqa: F821
             for i in T.serial(1):
                 Ab[i * 2] = 3
                 for j in T.serial(10):
@@ -89,25 +87,25 @@ def test_unroll_fake_loop():
         }
     ):
         ret = tvm.tirx.transform.UnrollLoop()(Module)["main"].body
-        assert isinstance(ret[0], tvm.tirx.BufferStore)
+        assert isinstance(ret[0], tvm.tirx.TensorStore)
 
 
 def test_unroll_allocations():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main():
             for i in T.unroll(2):
-                buf = T.alloc_buffer([16], "float32")
+                buf = T.alloc_tensor([16], "float32")
                 buf[0] = 0.0
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.function
         def main():
-            buf1 = T.alloc_buffer([16], "float32")
+            buf1 = T.alloc_tensor([16], "float32")
             buf1[0] = 0.0
-            buf2 = T.alloc_buffer([16], "float32")
+            buf2 = T.alloc_tensor([16], "float32")
             buf2[0] = 0.0
 
     after = tvm.tirx.transform.UnrollLoop()(Before)
@@ -118,21 +116,21 @@ def test_unroll_allocations():
 def test_unroll_local_access():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
-        def main(B: T.Buffer((64,), "float32")):
+        @T.function
+        def main(B: T.Tensor((64,), "float32")):
             for bx in T.thread_binding(4, thread="blockIdx.x"):
                 for tx in T.thread_binding(4, thread="threadIdx.x"):
-                    A_local = T.alloc_buffer((4,), scope="local")
+                    A_local = T.alloc_tensor((4,), scope="local")
                     for i in T.serial(4):
                         A_local[i] = T.float32(i)
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
-        def main(B: T.Buffer((64,), "float32")):
+        @T.function
+        def main(B: T.Tensor((64,), "float32")):
             for bx in T.thread_binding(4, thread="blockIdx.x"):
                 for tx in T.thread_binding(4, thread="threadIdx.x"):
-                    A_local = T.alloc_buffer((4,), scope="local")
+                    A_local = T.alloc_tensor((4,), scope="local")
                     A_local[0] = T.float32(0)
                     A_local[1] = T.float32(1)
                     A_local[2] = T.float32(2)

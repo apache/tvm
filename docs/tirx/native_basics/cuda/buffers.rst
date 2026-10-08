@@ -18,29 +18,31 @@
 Buffers and memory
 ==================
 
-Parameter buffers are bound with ``Tx.match_buffer``; scratch buffers are created
-in the body with one of two declaration APIs (below). Index a buffer with
-``A[i, j]``, slice it with ``A[m0:m0+BM, 0:BK]`` (a ``BufferRegion``), and take a
+``Tx.Tensor`` constructs a ``tirx.TensorType`` for a tensor parameter. Its
+shape, dtype, strides, offsets, layout and storage scope describe the same
+low-level storage contract used by the allocation and declaration helpers.
+Scratch tensors are created in the body with the APIs below. Index a tensor with
+``A[i, j]``, slice it with ``A[m0:m0+BM, 0:BK]`` (a ``TensorRegion``), and take a
 pointer with ``A.ptr_to([i, j])`` or the raw data pointer ``A.data``.
 
 Declaring buffers
 -----------------
 
-Two fundamental APIs create a buffer:
+Two fundamental APIs create a tensor variable:
 
-- ``Tx.alloc_buffer(shape, dtype, scope=..., ...)`` — **allocates new storage**
-  (emits an ``AllocBuffer`` node) and returns the ``Buffer``. ``Tx.alloc_shared`` /
-  ``Tx.alloc_local`` are just ``alloc_buffer`` with ``scope="shared"`` /
+- ``Tx.alloc_tensor(shape, dtype, scope=..., ...)`` — **allocates new storage**
+  (binds a ``tirx.alloc_tensor`` call) and returns an ``ir.Var``. ``Tx.alloc_shared`` /
+  ``Tx.alloc_local`` are just ``alloc_tensor`` with ``scope="shared"`` /
   ``scope="local"``.
-- ``Tx.decl_buffer(shape, dtype, data=..., ...)`` — **declares a view** over an
+- ``Tx.decl_tensor(shape, dtype, data=..., ...)`` — **declares a view** over an
   existing pointer ``data`` (no allocation); use it to alias or reinterpret
   storage — a sub-region of a pool, or a tensor-memory address. With ``data=None``
-  it allocates, like ``alloc_buffer``.
+  it allocates, like ``alloc_tensor``, except in ``tmem`` scope, where
+  ``allocated_addr`` identifies externally allocated tensor memory.
 
-A buffer's ``data`` pointer is an immutable ``Var`` (``alloc_buffer`` defines it;
-``decl_buffer`` takes one). To back a buffer with a pointer *expression*, assign
-it to a name first; the parser creates an immutable pointer binding. See
-:doc:`data_types`.
+``A.data`` projects the physical pointer from the tensor variable.
+``alloc_tensor`` supplies new storage; ``decl_tensor`` with ``data`` binds an
+existing pointer expression. See :doc:`data_types`.
 
 Both share one descriptor; the parameters that matter most:
 
@@ -90,10 +92,11 @@ The ``scope`` argument selects the memory space:
 
 .. code-block:: python
 
-    A = Tx.match_buffer(A_ptr, (M, K), "float16", align=16)   # parameter buffer
-    As = Tx.alloc_shared((BM, BK), "float16")                 # new shared tile
-    acc = Tx.alloc_local((4,), "float32")                     # per-thread accumulator
-    view = Tx.decl_buffer((BM, BK), "float16", data=As.data)  # a view over As
+    @Tx.function
+    def kernel(A: Tx.Tensor((M, K), "float16", align=16)):
+        As = Tx.alloc_shared((BM, BK), "float16")  # new shared tile
+        acc = Tx.alloc_local((4,), "float32")  # per-thread accumulator
+        view = Tx.decl_tensor((BM, BK), "float16", data=As.data)  # a view over As
 
 **A ptr-based buffer is just metadata over a pointer.** For any non-tmem buffer,
 the declaration is a pointer plus a layout, and indexing resolves to an address::
@@ -103,16 +106,17 @@ the declaration is a pointer plus a layout, and indexing resolves to an address:
 (``layout.apply`` returns the per-axis mapping; its ``"m"`` component is the
 element offset.) So the *same* logical access compiles to different address
 arithmetic depending purely on the buffer's metadata. Writing
-``B[i, j] = A[i, j] + 1`` over a 4×8 region, with ``B`` declared four ways:
+``B[i, j] = A[i, j] + 1`` over a 4×8 region, with ``B`` annotated four ways in
+the function signature:
 
 .. code-block:: python
 
     from tvm.tirx.layout import TileLayout, S
 
-    B = Tx.match_buffer(p, (4, 8), "float32")                                       # row-major
-    B = Tx.match_buffer(p, (4, 8), "float32", layout=TileLayout(S[(4, 8):(1, 4)]))  # column-major
-    B = Tx.match_buffer(p, (4, 8), "float32", elem_offset=64)                       # shifted view
-    B = Tx.match_buffer(p, (4, 8), "float32", layout=TileLayout(S[(4, 8):(16, 1)])) # row stride 16
+    B: Tx.Tensor((4, 8), "float32")  # row-major
+    B: Tx.Tensor((4, 8), "float32", layout=TileLayout(S[(4, 8) : (1, 4)]))  # column-major
+    B: Tx.Tensor((4, 8), "float32", elem_offset=64)  # shifted view
+    B: Tx.Tensor((4, 8), "float32", layout=TileLayout(S[(4, 8) : (16, 1)]))  # row stride 16
 
 each makes ``B[i, j]`` lower to a different index in the generated CUDA (the
 ``A[i, j]`` load stays ``i*8 + j`` — only ``B``'s metadata changed):
@@ -139,14 +143,13 @@ whole block sees the writes, then read it back:
 
 .. code-block:: python
 
-    @Tx.prim_func
-    def smem_demo(A_ptr: Tx.handle, B_ptr: Tx.handle):
-        A = Tx.match_buffer(A_ptr, (128,), "float32")
-        B = Tx.match_buffer(B_ptr, (128,), "float32")
+    @Tx.function
+    def smem_demo(A: Tx.Tensor((128,), "float32"), B: Tx.Tensor((128,), "float32")):
+
         Tx.device_entry()
         bx = Tx.cta_id([1])
         tx = Tx.thread_id([128])
-        sm = Tx.alloc_shared((128,), "float32")   # static shared memory
+        sm = Tx.alloc_shared((128,), "float32")  # static shared memory
         sm[tx] = A[tx]
         Tx.cuda.cta_sync()
         B[tx] = sm[tx] * Tx.float32(2.0)
@@ -170,14 +173,14 @@ Dynamic
 **Dynamic** shared memory (``scope="shared.dyn"``) is sized per launch (the
 ``sharedMemBytes`` launch parameter), not at compile time. A kernel may have **only
 one** dynamic-shared allocation — the *arena*. So you allocate it once and ``decl``
-each buffer as a view into it: ``Tx.decl_buffer`` with ``data=`` the arena pointer
+each buffer as a view into it: ``Tx.decl_tensor`` with ``data=`` the arena pointer
 and an ``elem_offset``:
 
 .. code-block:: python
 
-    arena = Tx.alloc_buffer((128,), "float32", scope="shared.dyn")   # the one arena
-    As = Tx.decl_buffer((64,), "float32", data=arena.data, scope="shared.dyn")                 # offset 0
-    Bs = Tx.decl_buffer((64,), "float32", data=arena.data, elem_offset=64, scope="shared.dyn") # offset 64
+    arena = Tx.alloc_tensor((128,), "float32", scope="shared.dyn")   # the one arena
+    As = Tx.decl_tensor((64,), "float32", data=arena.data, scope="shared.dyn")                 # offset 0
+    Bs = Tx.decl_tensor((64,), "float32", data=arena.data, elem_offset=64, scope="shared.dyn") # offset 64
     As[tx] = A[tx]
     Bs[tx] = B[tx]
     Tx.cuda.cta_sync()
@@ -194,7 +197,7 @@ boilerplate elided; arena named ``smem`` for clarity):
     __syncthreads();
     C_ptr[tx] = smem[tx] + smem[tx + 64];
 
-(Two separate ``alloc_buffer(scope="shared.dyn")`` is an error — *only one dynamic
+(Two separate ``alloc_tensor(scope="shared.dyn")`` is an error — *only one dynamic
 shared memory allocation is allowed*.) So static shared memory is sized at compile
 time (``__shared__ T x[N];``); dynamic shared memory is this one launch-sized arena
 with views decl'd at offsets inside it.
@@ -355,10 +358,10 @@ Tensor memory
 Blackwell *tensor memory* is not a plain scratch scope: it must be explicitly
 reserved and freed with the warp-uniform ``Tx.ptx.tcgen05.alloc`` /
 ``tcgen05.dealloc`` intrinsics, and each tensor is a view into it declared with
-``Tx.decl_buffer(..., scope="tmem", allocated_addr=<address>, layout=<tmem layout>)``.
+``Tx.decl_tensor(..., scope="tmem", allocated_addr=<address>, layout=<tmem layout>)``.
 The ``allocated_addr`` is the allocated tensor-memory base address plus any desired
 column offset. It is mandatory — the tensor-core dispatch asserts it — so
-``Tx.alloc_buffer(scope="tmem")`` (which does **not** set it) will not work. Unlike
+``Tx.alloc_tensor(scope="tmem")`` (which does **not** set it) will not work. Unlike
 shared memory, tensor memory is not directly addressable: it is read and written
 only through ``tcgen05`` ``mma`` / ``ld`` / ``st`` / ``cp``.
 
@@ -371,7 +374,7 @@ tensor as a view at a column offset, and one warp frees it at the end:
     if warp_id == alloc_warp:                         # tcgen05.alloc is warp-uniform
         Tx.ptx[f"tcgen05.alloc.cta_group::{cta_group}.sync.aligned.shared::cta.b32"](
             Tx.address_of(addr), Tx.uint32(512))
-    acc = Tx.decl_buffer((CTA_M, 512), "float32", scope="tmem",
+    acc = Tx.decl_tensor((CTA_M, 512), "float32", scope="tmem",
                         allocated_addr=addr[0], layout=tmem_layout)  # allocated base
     # ... use acc as a gemm_async / copy_async operand ...
     if warp_id == alloc_warp:
@@ -405,10 +408,11 @@ helpers when the MMA datapath determines the layout:
 
 See the :doc:`../../tile_primitives` walkthroughs for full examples.
 
-Buffer APIs
------------
+Tensor variable APIs
+--------------------
 
-A ``Buffer`` is metadata over a pointer (see *Declaring buffers* above), so most of
+A tensor variable is an ``ir.Var`` carrying ``tirx.TensorType`` metadata
+(see *Declaring buffers* above), so most of
 its methods are *compile-time* reshapes/reinterprets that change index arithmetic
 or hand you a pointer — they emit no runtime op of their own. The common ones:
 
@@ -490,7 +494,7 @@ no shape infers a one-dimensional shape from the logical storage size:
 
 .. code-block:: python
 
-    R  = Tx.alloc_buffer((32, 8), "float32", scope="local", layout=TileLayout(S[(32, 8) : (1 @ laneid, 1)]))
+    R  = Tx.alloc_tensor((32, 8), "float32", scope="local", layout=TileLayout(S[(32, 8) : (1 @ laneid, 1)]))
     R_flat = R.local()       # this lane's 8 local elements, physical order
     R_2d = R.local(2, 4)     # the same elements, row-major 2x4 reshape
 

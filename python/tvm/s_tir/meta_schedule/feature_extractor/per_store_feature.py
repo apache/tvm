@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
-"""We extract one feature vector per BufferStoreNode statement in a TIR Stmt,
+"""We extract one feature vector per TensorStoreNode statement in a TIR Stmt,
 so we call this feature as "per-store" feature.
 """
 
@@ -27,12 +27,12 @@ from .feature_extractor import FeatureExtractor
 
 @register_object("s_tir.meta_schedule.PerStoreFeature")
 class PerStoreFeature(FeatureExtractor):
-    """PerStoreFeature extracts one feature vector per BufferStoreNode
+    """PerStoreFeature extracts one feature vector per TensorStoreNode
 
     Parameters
     ----------
     buffers_per_store : int
-        The number of buffers in each BufferStore; Pad or truncate if necessary.
+        The number of buffers in each TensorStore; Pad or truncate if necessary.
     arith_intensity_curve_num_samples : int
         The number of samples used in the arithmetic intensity curve.
     cache_line_bytes : int
@@ -42,7 +42,7 @@ class PerStoreFeature(FeatureExtractor):
     """
 
     buffers_per_store: int
-    """The number of buffers in each BufferStore; Pad or truncate if necessary."""
+    """The number of buffers in each TensorStore; Pad or truncate if necessary."""
     arith_intensity_curve_num_samples: int  # pylint: disable=invalid-name
     """The number of samples used in the arithmetic intensity curve."""
     cache_line_bytes: int

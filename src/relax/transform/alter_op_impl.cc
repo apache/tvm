@@ -19,11 +19,10 @@
 
 /*!
  * \file src/relax/transform/alter_op_impl.cc
- * \brief Change the layout of PrimFunc in the graph. It uses the kOperatorName attribute to
- * identify PrimFuncs to be replaced. Marks the new PrimFuncs with kFrozenLayout attribute set to
+ * \brief Change the layout of tirx::Function in the graph. It uses the kOperatorName attribute to
+ * identify Functions to be replaced. Marks the new Functions with kFrozenLayout attribute set to
  * true.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -32,11 +31,12 @@
 #include <tvm/relax/attrs/manipulate.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/transform.h>
 #include <tvm/topi/tags.h>
 
-#include "../../te/operation/create_primfunc.h"
+#include "../../te/operation/create_function.h"
 namespace tvm {
 namespace relax {
 
@@ -67,7 +67,7 @@ static IndexMap DeepCopyIndexMap(const IndexMap& index_map) {
 bool IsTransformBijective(const Expr& expr, const IndexMap& transform) {
   ffi::Array<PrimExpr> input_shape = GetShapeFromTensor(expr);
   ffi::Array<Range> initial_ranges = ConstructRangeFromShape(input_shape);
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   auto [inverse, padding_predicate] = transform.NonSurjectiveInverse(initial_ranges, analyzer);
   (void)inverse;  // to avoid unused variable warning;
   if (!analyzer->CanProve(!padding_predicate)) return false;
@@ -75,13 +75,13 @@ bool IsTransformBijective(const Expr& expr, const IndexMap& transform) {
 }
 
 /*!
- * \brief Replace each call_tir to PrimFunc which matches the kOperatorName attribute with the
- * provided replacement PrimFunc and mark it with kFrozenLayout attribute. Insert layout
+ * \brief Replace each call_tir to tirx::Function which matches the kOperatorName attribute with the
+ * provided replacement tirx::Function and mark it with kFrozenLayout attribute. Insert layout
  * transformations on i/o buffers as necessary for correctness.
  */
 class AlterOpImplMutator : public ExprMutator {
  public:
-  AlterOpImplMutator(const IRModule& mod, const ffi::Map<ffi::String, tirx::PrimFunc>& op_impl_map,
+  AlterOpImplMutator(const IRModule& mod, const ffi::Map<ffi::String, tirx::Function>& op_impl_map,
                      const ffi::Map<ffi::String, ffi::Array<IndexMap>>& op_buffer_transforms_)
       : ExprMutator(mod),
         mod_(mod),
@@ -114,8 +114,8 @@ class AlterOpImplMutator : public ExprMutator {
 
     // Get operator name from callee
     TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>());
-    const tirx::PrimFunc& old_func =
-        mod_->Lookup(call->args[0].as_or_throw<GlobalVar>()).as_or_throw<tirx::PrimFunc>();
+    const tirx::Function& old_func =
+        mod_->Lookup(call->args[0].as_or_throw<GlobalVar>()).as_or_throw<tirx::Function>();
     ffi::Optional<ffi::String> maybe_op_kind = old_func->attrs.GetAttr<ffi::String>(kOperatorName);
 
     // If the callee does not have kOperatorName attribute or no replacement is requested for
@@ -133,7 +133,7 @@ class AlterOpImplMutator : public ExprMutator {
         << "Either the i/o buffers do not require any transformations or transformations for each "
            "buffer is provided.";
     TVM_FFI_ICHECK_EQ(old_func->params.size(), replacement_func->params.size())
-        << "Number of parameters of old and replacement PrimFunc must match";
+        << "Number of parameters of old and replacement tirx::Function must match";
 
     GlobalVar replacement_gv = GetOrCreateGlobalVarForFunc(replacement_func, op_kind);
 
@@ -142,9 +142,9 @@ class AlterOpImplMutator : public ExprMutator {
 
     TVM_FFI_ICHECK_EQ(call->ty_args.size(), 1) << "call_tir ty_args.size() is expected to be 1";
     Type updated_ret_ty = UpdateOutputType(call->ty_args[0], buffer_transforms);
-    auto updated_call =
-        builder_->Normalize(Call(Type::Missing(), call_tir_op_, {replacement_gv, updated_inputs},
-                                 call->attrs, {updated_ret_ty}));
+    auto updated_call = builder_->Normalize(Call::Unchecked(Type::Missing(), call_tir_op_,
+                                                            {replacement_gv, updated_inputs},
+                                                            call->attrs, {updated_ret_ty}));
 
     // Now transform each of the outputs to previous layout.
     return TransformOutputs(updated_call, buffer_transforms, call->ty_args[0]);
@@ -167,7 +167,9 @@ class AlterOpImplMutator : public ExprMutator {
   }
 
   bool IsScalarConstant(const Expr& expr) {
-    if (expr->IsInstance<ConstantNode>() && expr.as<ConstantNode>()->is_scalar()) {
+    if (expr->IsInstance<GenericConstNode>() &&
+        expr.as<GenericConstNode>()->value.as<runtime::Tensor>() &&
+        expr.as<GenericConstNode>()->value.cast<runtime::Tensor>()->ndim == 0) {
       return true;
     }
     return false;
@@ -182,17 +184,18 @@ class AlterOpImplMutator : public ExprMutator {
     // identical. The scope of vars used in index map initial indices is local to the op. Not doing
     // so would confuse the structural equality check.
     attrs->index_map = DeepCopyIndexMap(index_map);
-    return Call(Type::Missing(), layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});
+    return Call::Unchecked(Type::Missing(), layout_transform_op_, {expr}, Attrs{std::move(attrs)},
+                           {});
   }
 
   /*!
    * \brief Adds the \p remove_pad op to the module if it has not already been added before.
-   * \returns The global var associated with the remove_pad PrimFunc.
+   * \returns The global var associated with the remove_pad tirx::Function.
    */
   GlobalVar GetOrCreateRemovePadOp(const ffi::Array<PrimExpr>& old_shape, DLDataType dtype) {
     int t_shape = old_shape.size();
     if (remove_pad_map_.count(t_shape) != 0) {
-      return remove_pad_map_[t_shape];
+      return remove_pad_map_.at(t_shape);
     }
     // Create dynamic shapes for input and output tensors
     ffi::Array<PrimExpr> dyn_padded_shape, dyn_old_shape;
@@ -208,22 +211,22 @@ class AlterOpImplMutator : public ExprMutator {
     // Output tensor of remove_pad op
     te::Tensor output_tensor = te::compute(
         dyn_old_shape,
-        [&placeholder_tensor](const ffi::Array<tirx::PrimVar>& indices) {
+        [&placeholder_tensor](const ffi::Array<PrimVar>& indices) {
           return placeholder_tensor(indices);
         },
         "output", topi::kElementWise);
 
     ffi::String op_name = "remove_pad";
-    // Create PrimFunc and add op_name to func.attrs
-    PrimFunc remove_pad_with_frozen_layout =
-        WithAttr(CreatePrimFunc({placeholder_tensor, output_tensor}), kOperatorName, op_name);
-    // Add PrimFunc to module
+    // Create tirx::Function and add op_name to func.attrs
+    tirx::Function remove_pad_with_frozen_layout =
+        WithAttr(CreateFunction({placeholder_tensor, output_tensor}), kOperatorName, op_name);
+    // Add tirx::Function to module
     GlobalVar gv_remove_pad = builder_->AddFunction(remove_pad_with_frozen_layout, op_name);
-    // Mark the remove_pad PrimFunc as private by removing it from global scope
+    // Mark the remove_pad tirx::Function as private by removing it from global scope
     builder_->UpdateFunction(gv_remove_pad,
                              WithoutAttr(remove_pad_with_frozen_layout, "global_symbol"));
 
-    remove_pad_map_[t_shape] = gv_remove_pad;
+    remove_pad_map_.insert_or_assign(t_shape, gv_remove_pad);
     return gv_remove_pad;
   }
 
@@ -234,34 +237,35 @@ class AlterOpImplMutator : public ExprMutator {
     }
     ffi::Array<PrimExpr> old_shape = GetShapeFromTensorType(old_tensor_ty);
     ffi::Array<Range> initial_ranges = ConstructRangeFromShape(old_shape);
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     auto [inverse_index_map, padding_predicate] =
         index_map.NonSurjectiveInverse(initial_ranges, analyzer);
 
-    if (tirx::is_zero(padding_predicate)) {
+    if (tvm::prim::IsZero(padding_predicate)) {
       return TransformLayout(expr, inverse_index_map);
     } else {
       auto padded_expr = builder_->Normalize(TransformLayout(expr, inverse_index_map));
       const auto& tensor_ty = padded_expr->ty.as_or_throw<TensorType>();
 
       GlobalVar gv_remove_pad = GetOrCreateRemovePadOp(old_shape, tensor_ty->dtype.value()->dtype);
-      return Call(Type::Missing(), call_tir_op_, {gv_remove_pad, Tuple({padded_expr})}, {},
-                  {old_tensor_ty});
+      return Call::Unchecked(Type::Missing(), call_tir_op_, {gv_remove_pad, Tuple({padded_expr})},
+                             {}, {old_tensor_ty});
     }
   }
 
   /*!
    * \brief Adds the \p replacement_func to the module if it has not already been added before.
-   * \returns The global var associated with the PrimFunc.
+   * \returns The global var associated with the tirx::Function.
    */
-  GlobalVar GetOrCreateGlobalVarForFunc(const PrimFunc& replacement_func,
+  GlobalVar GetOrCreateGlobalVarForFunc(const tirx::Function& replacement_func,
                                         const ffi::String& op_kind) {
     if (cache_.count(replacement_func) != 0) {
       return cache_[replacement_func];
     }
-    // Retain the operator name attribute on the replacement PrimFunc. This can help any future
-    // passes that use kOperatorName attribute to identify operator represented by a PrimFunc.
-    PrimFunc replacement_func_with_frozen_layout =
+    // Retain the operator name attribute on the replacement tirx::Function. This can help any
+    // future passes that use kOperatorName attribute to identify operator represented by a
+    // tirx::Function.
+    tirx::Function replacement_func_with_frozen_layout =
         WithAttr(replacement_func, kOperatorName, op_kind);
 
     GlobalVar gv_replacement =
@@ -317,7 +321,7 @@ class AlterOpImplMutator : public ExprMutator {
   Type UpdateOutputType(const TensorType& tensor_ty, const IndexMap& transform) {
     if (transform.get() == nullptr) return tensor_ty;
     auto shape = GetShapeFromTensorType(tensor_ty);
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     auto new_shape = transform->MapShape(shape, analyzer);
     if (tensor_ty->vdevice.has_value()) {
       return TensorType(ShapeExpr(new_shape), tensor_ty->dtype, tensor_ty->vdevice.value());
@@ -353,24 +357,24 @@ class AlterOpImplMutator : public ExprMutator {
   }
 
  private:
-  /*! \brief Cache to keep track of the GlobalVar associated with the new PrimFunc added */
-  ffi::Map<PrimFunc, GlobalVar> cache_;
+  /*! \brief Cache to keep track of the GlobalVar associated with the new tirx::Function added */
+  ffi::Map<tirx::Function, GlobalVar> cache_;
   /*! \brief Input IRModule */
   const IRModule& mod_;
   /*! \brief Map from shape_dim.size to the remove_pad GlobalVar */
   std::unordered_map<int, GlobalVar> remove_pad_map_;
-  /*! \brief Map from kOperatorName attribute to the replacement PrimFunc */
-  const ffi::Map<ffi::String, PrimFunc>& op_impl_map_;
+  /*! \brief Map from kOperatorName attribute to the replacement tirx::Function */
+  const ffi::Map<ffi::String, tirx::Function>& op_impl_map_;
   /*! \brief Map from kOperatorName attribute to the layout transforms on i/o buffers */
   const ffi::Map<ffi::String, ffi::Array<IndexMap>>& op_buffer_transforms__;
 
-  const Op& call_tir_op_ = Op::Get("relax.call_tir");
-  const Op& layout_transform_op_ = Op::Get("relax.layout_transform");
+  const Op call_tir_op_ = Op::Get("relax.call_tir");
+  const Op layout_transform_op_ = Op::Get("relax.layout_transform");
 };
 
 namespace transform {
 
-Pass AlterOpImpl(const ffi::Map<ffi::String, tirx::PrimFunc>& op_impl_map,
+Pass AlterOpImpl(const ffi::Map<ffi::String, tirx::Function>& op_impl_map,
                  const ffi::Map<ffi::String, ffi::Array<IndexMap>>& op_buffer_transforms_) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     return AlterOpImplMutator(mod, op_impl_map, op_buffer_transforms_).Run();

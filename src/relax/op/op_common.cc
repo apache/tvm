@@ -27,9 +27,10 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 ffi::Array<Expr> GetCallArgs(const Call& call) {
-  static const Op& call_tir_op = Op::Get("relax.call_tir");
+  static const Op call_tir_op = Op::Get("relax.call_tir");
   ffi::Array<Expr> args;
   if (call->op.same_as(call_tir_op)) {
     args = call->args[1].as_or_throw<Tuple>()->fields;
@@ -39,23 +40,26 @@ ffi::Array<Expr> GetCallArgs(const Call& call) {
   return args;
 }
 
-void CheckNumArguments(const Call& call, const BlockBuilder& ctx) {
+void CheckNumArguments(const Call& call) {
   Op op = call->op.as_or_throw<Op>();
-  int expected_input = op->arguments.size();
-  if (static_cast<int>(call->args.size()) != expected_input) {
+  int expected_input = op->args_info.size();
+  if (op->var_args_info.has_value() ? call->args.size() < op->args_info.size()
+                                    : call->args.size() != op->args_info.size()) {
     TVM_FFI_VISIT_THROW(ValueError, call)
-        << "Operator " << op << " expects " << expected_input << " arguments"
+        << "Operator " << op << " expects " << (op->var_args_info.has_value() ? "at least " : "")
+        << expected_input << " arguments"
         << ", but was called with " << call->args.size() << " arguments";
   }
 }
 
-TensorType GetInputTensorType(const Call& call, size_t i_arg, const BlockBuilder& ctx) {
+TensorType GetInputTensorType(const Call& call, size_t i_arg) {
   Op op = call->op.as_or_throw<Op>();
 
-  TVM_FFI_ICHECK_EQ(op->arguments.size(), call->args.size())
+  TVM_FFI_ICHECK(op->var_args_info.has_value() ? call->args.size() >= op->args_info.size()
+                                               : call->args.size() == op->args_info.size())
       << "Failure caught by this check "
       << "should have previously been caught by `CheckNumArguments`";
-  TVM_FFI_ICHECK_LT(i_arg, op->arguments.size());
+  TVM_FFI_ICHECK_LT(i_arg, call->args.size());
 
   auto arg = call->args[i_arg];
   auto ty = GetType(arg);
@@ -64,26 +68,27 @@ TensorType GetInputTensorType(const Call& call, size_t i_arg, const BlockBuilder
     return tensor_ty.value();
   } else {
     TVM_FFI_VISIT_THROW(TypeError, call)
-        << "Operator " << op << " requires argument " << i_arg << " (" << op->arguments[i_arg]->name
-        << ") to be a tensor.  "
+        << "Operator " << op << " requires argument " << i_arg
+        << (i_arg < op->args_info.size() ? " (" + std::string(op->args_info[i_arg]->name) + ")"
+                                         : "")
+        << " to be a tensor.  "
         << "However, the argument " << arg << " is instead of type " << ty;
     TVM_FFI_UNREACHABLE();
   }
 }
 
-ffi::Array<TensorType> GetInputTensorType(const Call& call, const BlockBuilder& ctx) {
-  CheckNumArguments(call, ctx);
+ffi::Array<TensorType> GetInputTensorType(const Call& call) {
+  CheckNumArguments(call);
 
   Op op = call->op.as_or_throw<Op>();
   ffi::Array<TensorType> input_tensor_ty;
   for (size_t i = 0; i < call->args.size(); ++i) {
-    input_tensor_ty.push_back(GetInputTensorType(call, i, ctx));
+    input_tensor_ty.push_back(GetInputTensorType(call, i));
   }
   return input_tensor_ty;
 }
 
-ffi::Array<TensorType> GetTensorTypeFromTuple(const Call& call, const BlockBuilder& ctx,
-                                              const Expr& tup) {
+ffi::Array<TensorType> GetTensorTypeFromTuple(const Call& call, const Expr& tup) {
   const auto* tuple_ty = GetTypeAs<TupleTypeNode>(tup);
   if (tuple_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
@@ -105,7 +110,7 @@ ffi::Array<TensorType> GetTensorTypeFromTuple(const Call& call, const BlockBuild
   return tensor_ty;
 }
 
-BinaryBroadcastShapeInferResult InferBinaryBroadcastShape(arith::AnalyzerObj* analyzer,
+BinaryBroadcastShapeInferResult InferBinaryBroadcastShape(sym::AnalyzerObj* analyzer,
                                                           const ffi::Array<PrimExpr>& x1_shape,
                                                           const ffi::Array<PrimExpr>& x2_shape) {
   BinaryBroadcastShapeInferResult result;
@@ -170,8 +175,7 @@ ffi::Optional<ffi::Array<PrimExpr>> InferBinaryBroadcastShape(
   TVM_FFI_UNREACHABLE();
 }
 
-std::vector<int> NormalizeAxes(const Call& call, const BlockBuilder& ctx, int ndim,
-                               const ffi::Array<int64_t>& axes) {
+std::vector<int> NormalizeAxes(const Call& call, int ndim, const ffi::Array<int64_t>& axes) {
   TVM_FFI_ICHECK_NE(ndim, kUnknownNDim) << "The ndim is required to be known for this function.";
   std::vector<bool> appeared_dims_set;
   std::vector<int> axes_non_neg;
@@ -216,9 +220,9 @@ bool CanProveLayoutTransform(const SLayout& input_layout, const SLayout& desired
     tirx::SBijectiveLayout todesired(input_layout, desired_layout);
     ffi::Array<PrimExpr> desired_shape = todesired.ForwardShape(shape);
     ffi::Array<PrimExpr> back_shape = todesired.BackwardShape(desired_shape);
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     for (size_t i = 0; i < shape.size(); ++i) {
-      if (tirx::is_const_int(shape[i])) {
+      if (tvm::prim::IsConstInt(shape[i])) {
         if (!analyzer->CanProveEqual(shape[i], back_shape[i])) {
           can_prove = false;
           break;

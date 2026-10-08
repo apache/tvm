@@ -32,20 +32,8 @@
 namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  SourceNameNode::RegisterReflection();
-  SpanNode::RegisterReflection();
-  SequentialSpanNode::RegisterReflection();
   SourceNode::RegisterReflection();
   SourceMapObj::RegisterReflection();
-  // overrride SourceNameNode to serialization mechanism
-  refl::TypeAttrDef<SourceNameNode>()
-      .def("__data_to_json__",
-           [](const SourceNameNode* node) {
-             // simply save as the string
-             return node->name;
-           })
-      .def("__data_from_json__", SourceName::Get);
 }
 
 ffi::ObjectPtr<SourceNameNode> GetSourceNameNode(const ffi::String& name) {
@@ -72,17 +60,23 @@ SourceName SourceName::Get(const ffi::String& name) { return SourceName(GetSourc
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.SourceName", SourceName::Get);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
+  SourceNameNode::RegisterReflection();
+  // overrride SourceNameNode to serialization mechanism
+  refl::TypeAttrDef<SourceNameNode>()
+      .def("__data_to_json__",
+           [](const SourceNameNode* node) {
+             // simply save as the string
+             return node->name;
+           })
+      .def("__data_from_json__", SourceName::Get);
   refl::TypeAttrDef<SourceNameNode>().def(
       refl::type_attr::kRepr, [](SourceName sn, ffi::Function) -> ffi::String {
         std::ostringstream os;
         os << "SourceName(" << sn->name << ", " << static_cast<const void*>(sn.get()) << ")";
         return os.str();
       });
+
+  refl::GlobalDef().def("ir.SourceName", SourceName::Get);
 }
 
 Span::Span(SourceName source_name, int line, int end_line, int column, int end_column) {
@@ -93,6 +87,24 @@ Span::Span(SourceName source_name, int line, int end_line, int column, int end_c
   n->column = column;
   n->end_column = end_column;
   data_ = std::move(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  SpanNode::RegisterReflection();
+  refl::TypeAttrDef<SpanNode>().def(
+      refl::type_attr::kRepr, [](Span span, ffi::Function fn_repr) -> ffi::String {
+        std::ostringstream os;
+        os << "Span(" << fn_repr(ffi::AnyView(span->source_name)).cast<ffi::String>() << ", "
+           << span->line << ", " << span->end_line << ", " << span->column << ", "
+           << span->end_column << ")";
+        return os.str();
+      });
+
+  refl::GlobalDef().def(
+      "ir.Span", [](SourceName source_name, int line, int end_line, int column, int end_column) {
+        return Span(source_name, line, end_line, column, end_column);
+      });
 }
 
 Span Span::Merge(const Span& other) const {
@@ -148,24 +160,7 @@ SequentialSpan::SequentialSpan(std::initializer_list<Span> init) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("ir.Span",
-           [](SourceName source_name, int line, int end_line, int column, int end_column) {
-             return Span(source_name, line, end_line, column, end_column);
-           })
-      .def("ir.SequentialSpan", [](tvm::ffi::Array<Span> spans) { return SequentialSpan(spans); });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::TypeAttrDef<SpanNode>().def(
-      refl::type_attr::kRepr, [](Span span, ffi::Function fn_repr) -> ffi::String {
-        std::ostringstream os;
-        os << "Span(" << fn_repr(ffi::AnyView(span->source_name)).cast<ffi::String>() << ", "
-           << span->line << ", " << span->end_line << ", " << span->column << ", "
-           << span->end_column << ")";
-        return os.str();
-      });
+  SequentialSpanNode::RegisterReflection();
   refl::TypeAttrDef<SequentialSpanNode>().def(
       refl::type_attr::kRepr, [](SequentialSpan seq, ffi::Function fn_repr) -> ffi::String {
         // Fix typo: was "SequentailSpan", now "SequentialSpan"
@@ -181,6 +176,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         os << " ])";
         return os.str();
       });
+
+  refl::GlobalDef().def("ir.SequentialSpan",
+                        [](tvm::ffi::Array<Span> spans) { return SequentialSpan(spans); });
 }
 
 /*! \brief Construct a source from a string. */

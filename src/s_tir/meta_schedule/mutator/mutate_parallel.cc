@@ -28,7 +28,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
@@ -79,7 +78,7 @@ const SBlockRVNode* GetInstGetSBlockOutput(const Instruction& inst) {
  * \brief Analyze the parallel structure
  * \param self The schedule state
  * \param block_name The name of the root block
- * \param func_name The name of the PrimFunc
+ * \param func_name The name of the Function
  * \param limit The uplimit of the parallelism
  * \return The parallel structure
  */
@@ -101,7 +100,8 @@ std::vector<std::vector<int64_t>> AnalyzeParallel(const ScheduleState& self,
          (loop = loop_sref->StmtAs<ForNode>()) != nullptr;  //
          loop_sref = loop_sref->parent) {
       int64_t loop_extent = -1;
-      if (const auto* ext = GetLoopIntExtent(loop)) {
+      const auto* ext_imm = loop->extent.as<IntImmNode>();
+      if (auto ext = ext_imm ? ext_imm->value.as<int64_t>() : std::nullopt; ext.has_value()) {
         if (!info.non_spatial_vars.count(loop->loop_var.get())) {
           loop_extent = *ext;
         }
@@ -158,7 +158,6 @@ std::vector<int> GetNumFusedLoops(const std::vector<std::vector<int64_t>>& loop_
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace meta_schedule {
 
 using s_tir::Instruction;
@@ -213,7 +212,7 @@ struct MutateParallelNode::Candidate {
   int64_t parallel_extent;
   /*! \brief The name of the root block */
   ffi::String block_name;
-  /*! \brief The name of the PrimFunc */
+  /*! \brief The name of the Function */
   ffi::String func_name;
 };
 
@@ -250,7 +249,7 @@ bool FindParallelDecision(const Trace& trace, TRandState* rand_state,
       get_sblock_insts.at(ann_inst->inputs[0].as_or_throw<s_tir::SBlockRV>().get());
   TVM_FFI_ICHECK_EQ(get_sblock_inst->attrs.size(), 2);
   candidate->inst = ffi::GetRef<Instruction>(ann_inst);
-  candidate->parallel_extent = ann_inst->inputs[1].cast<IntImm>()->value;
+  candidate->parallel_extent = static_cast<int64_t>(ann_inst->inputs[1].cast<IntImm>()->value);
   candidate->block_name = get_sblock_inst->attrs[0].as_or_throw<ffi::String>();
   candidate->func_name = get_sblock_inst->attrs[1].as_or_throw<ffi::String>();
   return true;
