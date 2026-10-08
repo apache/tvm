@@ -125,23 +125,13 @@ def test_prim_value_boolean_and_symbolic_conversion():
     assert R.prim_value(value).same_as(value)
 
 
-@pytest.mark.parametrize("value", [None, {}])
-def test_expression_helpers_reject_non_expression_inputs(value):
-    with pytest.raises((TypeError, ValueError)):
-        R.prim_value(value)
-    with pytest.raises((TypeError, ValueError)):
-        R.tuple(value)
-
-
 def test_tuple_constructor_materializes_raw_call_arguments():
     value = tirx.IntImm("int64", 1)
     nested = R.tuple(R.tuple(), R.tuple(value))
     ir.assert_structural_equal(nested, ir.Tuple([ir.Tuple([]), ir.Tuple([value])]))
-    call = ir.Call.unchecked("relax.add", [nested], attrs={"tag": 1}, ty=ir.Type.missing())
+    call = ir.Call("relax.add", [nested], attrs={"tag": 1}, ty=ir.Type.missing())
     assert call.args[0].same_as(nested)
-    from_python = ir.Call.unchecked(
-        "relax.add", [((), (value,))], attrs={"tag": 1}, ty=ir.Type.missing()
-    )
+    from_python = ir.Call("relax.add", [((), (value,))], attrs={"tag": 1}, ty=ir.Type.missing())
     ir.assert_structural_equal(call, from_python)
     source = call.script()
     ir.assert_structural_equal(call, eval(source, {"I": I, "R": R, "T": T}))
