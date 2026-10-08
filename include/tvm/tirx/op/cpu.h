@@ -27,7 +27,8 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 
-namespace tvm::tirx {
+namespace tvm {
+namespace tirx {
 
 /*!
  * \brief Synchronize all workers in the current CPU parallel launch.
@@ -37,6 +38,7 @@ namespace tvm::tirx {
  */
 TVM_DLL const Op& cpu_parallel_barrier_op();
 
-}  // namespace tvm::tirx
+}  // namespace tirx
+}  // namespace tvm
 
 #endif  // TVM_TIRX_OP_CPU_H_

@@ -23,7 +23,8 @@
 #include <tvm/target/target.h>
 #include <tvm/tirx/stmt.h>
 
-namespace tvm::tirx {
+namespace tvm {
+namespace tirx {
 
 namespace callback {
 /*! \brief The buffers allocated by the operator. */
@@ -126,6 +127,7 @@ class DispatchContext : public ffi::ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DispatchContext, ffi::ObjectRef, DispatchContextNode);
 };
 
-}  // namespace tvm::tirx
+}  // namespace tirx
+}  // namespace tvm
 
 #endif  // TVM_TIRX_TILE_DISPATCH_H_

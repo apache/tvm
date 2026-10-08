@@ -27,7 +27,9 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 
-namespace tvm::backend::metal {
+namespace tvm {
+namespace backend {
+namespace metal {
 
 /*!
  * \brief Fill a cooperative_tensor with a given value.
@@ -72,6 +74,8 @@ TVM_DLL const Op& cooperative_tensor_store_op();
  */
 TVM_DLL const Op& cooperative_tensor_multiply_accumulate_op();
 
-}  // namespace tvm::backend::metal
+}  // namespace metal
+}  // namespace backend
+}  // namespace tvm
 
 #endif  // TVM_BACKEND_METAL_OP_H_

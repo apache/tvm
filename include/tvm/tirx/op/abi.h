@@ -28,7 +28,8 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 
-namespace tvm::tirx {
+namespace tvm {
+namespace tirx {
 
 /*!
  * \brief Call an external C function with argument and result types supplied by the caller.
@@ -219,6 +220,7 @@ TVM_DLL const Op& call_packed_lowered_op();
  */
 TVM_DLL const Op& call_cpacked_lowered_op();
 
-}  // namespace tvm::tirx
+}  // namespace tirx
+}  // namespace tvm
 
 #endif  // TVM_TIRX_OP_ABI_H_

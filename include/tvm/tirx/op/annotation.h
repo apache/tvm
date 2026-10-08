@@ -27,7 +27,8 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 
-namespace tvm::tirx {
+namespace tvm {
+namespace tirx {
 
 /*!
  * \brief Marker where a transform should replace generated kernel initialization.
@@ -42,6 +43,7 @@ TVM_DLL const Op& kernel_replace_point_op();
  */
 TVM_DLL const Op& ignore_loop_partition_op();
 
-}  // namespace tvm::tirx
+}  // namespace tirx
+}  // namespace tvm
 
 #endif  // TVM_TIRX_OP_ANNOTATION_H_

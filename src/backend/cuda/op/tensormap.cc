@@ -20,7 +20,9 @@
 #include <tvm/backend/cuda/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
-namespace tvm::backend::cuda {
+namespace tvm {
+namespace backend {
+namespace cuda {
 
 using namespace tirx;
 
@@ -65,4 +67,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 }
 
-}  // namespace tvm::backend::cuda
+}  // namespace cuda
+}  // namespace backend
+}  // namespace tvm

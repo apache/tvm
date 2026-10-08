@@ -25,7 +25,8 @@
 
 #include "op_utils.h"
 
-namespace tvm::prim {
+namespace tvm {
+namespace prim {
 
 using namespace prim::detail;
 
@@ -632,4 +633,5 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("prim._OpPow", [](PrimExpr a, PrimExpr b, Span span) { return pow(a, b, span); });
 }
 
-}  // namespace tvm::prim
+}  // namespace prim
+}  // namespace tvm

@@ -29,7 +29,8 @@
 
 #include "../../ir/prim/op_utils.h"
 
-namespace tvm::tirx {
+namespace tvm {
+namespace tirx {
 
 using namespace prim;
 using namespace prim::detail;
@@ -178,4 +179,5 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](PrimExpr a, PrimExpr b, Span span) { return logaddexp(a, b, span); });
 }
 
-}  // namespace tvm::tirx
+}  // namespace tirx
+}  // namespace tvm

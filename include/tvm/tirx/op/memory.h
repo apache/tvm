@@ -27,7 +27,8 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 
-namespace tvm::tirx {
+namespace tvm {
+namespace tirx {
 
 /*!
  * \brief Allocate a buffer: alloc_tensor(shape, dtype, scope) -> TensorType.
@@ -245,6 +246,7 @@ TVM_DLL const Op& buffer_offset_op();
  */
 TVM_DLL const Op& tensor_data_ptr_op();
 
-}  // namespace tvm::tirx
+}  // namespace tirx
+}  // namespace tvm
 
 #endif  // TVM_TIRX_OP_MEMORY_H_

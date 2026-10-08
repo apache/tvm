@@ -20,7 +20,9 @@
 #include <tvm/backend/metal/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
-namespace tvm::backend::metal {
+namespace tvm {
+namespace backend {
+namespace metal {
 
 using namespace tirx;
 
@@ -98,4 +100,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 }
 
-}  // namespace tvm::backend::metal
+}  // namespace metal
+}  // namespace backend
+}  // namespace tvm

@@ -26,7 +26,8 @@
 
 #include <tvm/ir/prim/op.h>
 
-namespace tvm::tirx {
+namespace tvm {
+namespace tirx {
 
 /*!
  * \brief Compute log(exp(a) + exp(b)).
@@ -49,6 +50,7 @@ TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(logaddexp);
  */
 TVM_DLL PrimExpr fast_erf_float_expr(PrimExpr arg, int bits);
 
-}  // namespace tvm::tirx
+}  // namespace tirx
+}  // namespace tvm
 
 #endif  // TVM_TIRX_OP_MATH_H_

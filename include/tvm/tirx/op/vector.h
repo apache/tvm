@@ -27,7 +27,8 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 
-namespace tvm::tirx {
+namespace tvm {
+namespace tirx {
 
 /*!
  * \brief Get the high level half of the vector.
@@ -63,6 +64,7 @@ TVM_DLL const Op& vectorcombine_op();
  */
 TVM_DLL const Op& get_active_lane_mask_op();
 
-}  // namespace tvm::tirx
+}  // namespace tirx
+}  // namespace tvm
 
 #endif  // TVM_TIRX_OP_VECTOR_H_

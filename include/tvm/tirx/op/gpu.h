@@ -27,7 +27,8 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 
-namespace tvm::tirx {
+namespace tvm {
+namespace tirx {
 
 /*!
  * \brief Return from a GPU thread without returning a function value.
@@ -161,6 +162,7 @@ TVM_DLL const Op& gpu_thread_allreduce_op();
  */
 TVM_DLL const Op& gpu_dp4a_op();
 
-}  // namespace tvm::tirx
+}  // namespace tirx
+}  // namespace tvm
 
 #endif  // TVM_TIRX_OP_GPU_H_

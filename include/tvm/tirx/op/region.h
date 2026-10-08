@@ -27,7 +27,8 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 
-namespace tvm::tirx {
+namespace tvm {
+namespace tirx {
 
 /*!
  * \brief Thread launch region: operands are a nonempty StringImm tag and a
@@ -62,6 +63,7 @@ TVM_DLL const Op& compute_scope_op();
  */
 TVM_DLL const Op& parallel_launch_op();
 
-}  // namespace tvm::tirx
+}  // namespace tirx
+}  // namespace tvm
 
 #endif  // TVM_TIRX_OP_REGION_H_
