@@ -821,7 +821,7 @@ class FlashAttentionLPTScheduler(BaseTileScheduler):
         :class:`FlashAttentionLinearScheduler`, while keeping the LPT + L2
         swizzle index mapping.
         """
-        if self._num_ctas is None:
+        if T.constexpr(self._num_ctas is None):
             self.linear_idx = self._total_tasks
         else:
             self.linear_idx = self.linear_idx + self._num_ctas

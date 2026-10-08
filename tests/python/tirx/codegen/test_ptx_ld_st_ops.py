@@ -83,13 +83,13 @@ def _shared_scratch_copy_kernel(num_bytes: int):
         src_buf = T.alloc_tensor((nelems,), smem_dtype, scope="shared")
         dst_buf = T.alloc_tensor((nelems,), smem_dtype, scope="shared")
         tmp = T.alloc_local((lanes,), reg_dtype)
-        if fill_offset is not None:
+        if T.constexpr(fill_offset is not None):
             if lane < nelems:
                 src_buf[lane] = T.uint32(lane + fill_offset)
-        elif fill_fp16 is not None:
+        elif T.constexpr(fill_fp16 is not None):
             if lane == 0:
                 src_buf[0] = T.float16(fill_fp16)
-        elif fill_u8 is not None:
+        elif T.constexpr(fill_u8 is not None):
             if lane == 0:
                 src_buf[0] = T.uint8(fill_u8)
         elif lane == 0:

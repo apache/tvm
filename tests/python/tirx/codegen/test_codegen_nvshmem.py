@@ -143,7 +143,7 @@ def test_codegen_nvshmem():
                 my_pe = T.nvshmem.my_pe()
                 n_pes = T.nvshmem.n_pes()
                 dst_pe = (my_pe + 1) % n_pes
-                if sig_op == "add":
+                if T.constexpr(sig_op == "add"):
                     res[0] = 1
                 T.nvshmem.barrier_all()
                 T.nvshmem.signal_op(sig_addr=res.ptr_to([0]), signal=1, sig_op=sig_op, pe=dst_pe)

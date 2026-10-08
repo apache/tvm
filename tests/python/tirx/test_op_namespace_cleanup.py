@@ -105,6 +105,36 @@ def test_builtin_expression_ops_are_not_tile_primitives():
     assert fma.op.name == "tirx.fma"
 
 
+def test_tensormap_encoding_accepts_attribute_keywords_and_defaults():
+    @T.function
+    def encode(descriptor: T.TensorMap, data: T.handle):
+        T.tensormap_encode_tiled(
+            descriptor,
+            data,
+            64,
+            32,
+            128,
+            64,
+            32,
+            1,
+            1,
+            descriptor_dtype="bfloat16",
+            rank=2,
+            swizzle=3,
+        )
+
+    (call,) = [c for c in _expr_calls(encode) if c.op.name == "tirx.tensormap_encode_tiled"]
+    assert call.op.attrs_type_key == "tirx.TensorMapEncodeTiledAttr"
+    assert str(call.attrs.descriptor_dtype) == "bfloat16"
+    assert call.attrs.rank == 2
+    assert call.attrs.swizzle == 3
+    assert call.attrs.interleave == call.attrs.l2_promotion == call.attrs.oob_fill == 0
+    assert call.attrs.force_cu_dtype == -1
+    call.validate()
+    reparsed = tvm.script.from_source(encode.script(), extra_vars={"T": T})
+    assert_structural_equal(encode, reparsed)
+
+
 def test_kernel_replace_point_is_builtin_marker_not_tile_primitive():
     assert _op_attr("tirx.tvm_kernel_replace_point", "TIRxOpCategory") == "builtin"
     assert "tirx.tile.tvm_kernel_replace_point" not in Op.list_op_names()

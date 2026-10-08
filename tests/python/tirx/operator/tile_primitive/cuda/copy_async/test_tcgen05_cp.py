@@ -173,7 +173,7 @@ def _make_cp_kernel(
             tmem = T.decl_tensor(
                 t_full_shape, dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=t_full
             )
-            if pre_zero:
+            if T.constexpr(pre_zero):
                 zero_reg = T.alloc_tensor((W32,), "uint32", scope="local")
                 for i in range(W32):
                     zero_reg[i] = T.uint32(0)
@@ -384,7 +384,7 @@ def test_cp_shape_config_routes_to_generic_planner():
     src = mod.mod.imports[0].inspect_source()
     assert "tcgen05.cp.cta_group::1.128x256b" in src
     # Generic-planner signature: descriptor template encoded at address 0...
-    assert "reinterpret_cast<void*>((uint64_t)0)" in src
+    assert "reinterpret_cast<void*>((uint64_t)0ULL)" in src
     # ...and patched per cp via the 0x3FFF address-field mask.
     assert src.count("cp_desc_ptr[0] &") == 4, f"expected 4 patched cps; src=\n{src}"
 
@@ -678,7 +678,7 @@ def test_cp_default_32x128b_instruction_sequence_unchanged():
     ]
     assert len(encode_lines) == 1, encode_lines
     # (ldo, sdo, swizzle) = (0, 8, 0), template encoded at smem address 0.
-    assert "reinterpret_cast<void*>((uint64_t)0), 0, 8, 0);" in encode_lines[0], encode_lines[0]
+    assert "reinterpret_cast<void*>((uint64_t)0ULL), 0, 8, 0);" in encode_lines[0], encode_lines[0]
 
     cp_lines = [
         line
