@@ -96,7 +96,7 @@ tirx::Function GetDLTensorField(tirx::builtin::TVMStructFieldKind field, PrimTyp
 
   tirx::Var value("value", field_ty);
 
-  tirx::Stmt body = tirx::SeqStmt(
+  tirx::SeqStmt body(
       {tirx::Bind(value, tvm::Call(field_ty, tirx::builtin::tvm_struct_get(),
                                    {dlpack_handle, IntImm::Int32(0), IntImm::Int32(field)})
                              .as_or_throw<PrimExpr>()),
@@ -266,7 +266,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
 
     tirx::Var extent("extent", field_ty);
 
-    tirx::Stmt body = tirx::SeqStmt(
+    tirx::SeqStmt body(
         {tirx::AssertStmt(0 <= axis.as_or_throw<PrimExpr>(), StringImm("RuntimeError"),
                           {StringImm("Specified axis may not be negative")}),
          tirx::Bind(ndim,
@@ -281,15 +281,14 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
              {StringImm("Specified axis may not be larger than the tensor's dimensionality")}),
          tirx::Bind(
              shape_buffer,
-             tvm::Call(shape_buffer.type(), tvm::tirx::builtin::decl_tensor(),
-                       {tvm::Call(
-                            shape_buffer.DataPointerType(), tirx::builtin::tvm_struct_get(),
+             tvm::Call(
+                 shape_buffer.type(), tvm::tirx::builtin::decl_tensor(),
+                 {tvm::Call(shape_buffer.DataPointerType(), tirx::builtin::tvm_struct_get(),
                             {dlpack_handle, IntImm::Int32(0),
                              IntImm::Int32(tirx::builtin::TVMStructFieldKind::kDLTensorShape)}),
-                        tvm::Tuple(shape_buffer->shape),
-                        tvm::DataTypeImm(shape_buffer->dtype->dtype),
-                        tvm::StringImm(shape_buffer.scope())},
-                       {})),
+                  tvm::Tuple(shape_buffer->shape), tvm::DataTypeImm(shape_buffer->dtype->dtype),
+                  tvm::StringImm(shape_buffer.scope())},
+                 {})),
          tirx::Bind(extent, tirx::MakeTensorLoad(shape_buffer, {axis.as_or_throw<PrimExpr>()})),
          tirx::Return(extent)});
 

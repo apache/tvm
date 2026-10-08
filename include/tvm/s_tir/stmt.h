@@ -103,7 +103,7 @@ class SBlockNode : public tirx::StmtNode {
  public:
   explicit SBlockNode(ffi::UnsafeInit tag) : body(tag) {}
 
-  explicit SBlockNode(tirx::Stmt body) : body(std::move(body)) {}
+  explicit SBlockNode(tirx::SeqStmt body) : body(std::move(body)) {}
 
   /*! \brief The variables of the block. */
   ffi::Array<s_tir::IterVar> iter_vars;
@@ -126,9 +126,9 @@ class SBlockNode : public tirx::StmtNode {
    *  We also provide primitives to decompose the init into a separate block during scheduling.
    *  Init field is `std::nullopt` if there is no reduction iter_vars
    */
-  ffi::Optional<tirx::Stmt> init;
+  ffi::Optional<tirx::SeqStmt> init;
   /*! \brief The body of the block. */
-  tirx::Stmt body;
+  tirx::SeqStmt body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -155,14 +155,14 @@ class SBlock : public tirx::Stmt {
  public:
   TVM_DLL explicit SBlock(
       ffi::Array<s_tir::IterVar> iter_vars, ffi::Array<TensorRegion> reads,
-      ffi::Array<TensorRegion> writes, ffi::String name_hint, tirx::Stmt body,
-      ffi::Optional<tirx::Stmt> init = std::nullopt,
+      ffi::Array<TensorRegion> writes, ffi::String name_hint, tirx::SeqStmt body,
+      ffi::Optional<tirx::SeqStmt> init = std::nullopt,
       ffi::Array<tirx::TensorVar> alloc_buffers = ffi::Array<tirx::TensorVar>(),
       ffi::Array<MatchBufferRegion> match_buffers = ffi::Array<MatchBufferRegion>(),
       ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
       Span span = Span());
 
-  TVM_DLL explicit SBlock(ffi::String name_hint, tirx::Stmt body,
+  TVM_DLL explicit SBlock(ffi::String name_hint, tirx::SeqStmt body,
                           ffi::Array<tirx::TensorVar> alloc_buffers = ffi::Array<tirx::TensorVar>(),
                           Span span = Span());
 

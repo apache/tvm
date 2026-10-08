@@ -44,7 +44,7 @@ def lower_intrin(params, stmt):
         [tvm.tirx.transform.StmtSimplify(), tvm.tirx.transform.LowerIntrin()]
     )(mod)
     func = mod["main"]
-    stmt = func.body
+    stmt = func.body[0]
     return stmt.value if lower_expr else stmt.body
 
 
@@ -191,7 +191,7 @@ def test_lower_buffer_data_access_ptr_preserves_buffer_identity():
     func = tvm.tirx.Function([buffer], tvm.tirx.Evaluate(access)).with_attr(
         "target", tvm.target.Target("llvm")
     )
-    lowered = tvm.tirx.transform.LowerIntrin()(tvm.IRModule.from_expr(func))["main"].body.value
+    lowered = tvm.tirx.transform.LowerIntrin()(tvm.IRModule.from_expr(func))["main"].body[0].value
     assert isinstance(lowered, tvm.ir.Call)
     assert lowered.op.name == "tirx.address_of"
     load = lowered.args[0]

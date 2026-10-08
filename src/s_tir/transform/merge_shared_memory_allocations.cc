@@ -492,12 +492,12 @@ class SharedMemoryRewriter : public StmtExprMutator {
       for (const TensorVar& remapped : scope.buffer_remap_order) {
         // The uint8 merged allocation intentionally supplies storage for
         // typed views; target codegen emits the required pointer cast.
-        visited_body = SeqStmt::Flatten(
-            Bind(remapped, Call(remapped.type(), tirx::builtin::decl_tensor(),
-                                {scope.merged_buffer.value().data(), tvm::Tuple(remapped->shape),
-                                 DataTypeImm(remapped->dtype->dtype), StringImm(remapped.scope())},
-                                {})),
-            visited_body);
+        visited_body = SeqStmt(
+            {Bind(remapped, Call(remapped.type(), tirx::builtin::decl_tensor(),
+                                 {scope.merged_buffer.value().data(), tvm::Tuple(remapped->shape),
+                                  DataTypeImm(remapped->dtype->dtype), StringImm(remapped.scope())},
+                                 {})),
+             visited_body});
       }
 
       in_thread_env_ = false;
@@ -519,7 +519,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
                                    DataTypeImm(scope.merged_buffer.value()->dtype->dtype),
                                    StringImm(scope.merged_buffer.value().scope())},
                                   DictAttrs(annotations)));
-      Stmt new_body = SeqStmt::Flatten(alloc_stmt, visited_body);
+      Stmt new_body = SeqStmt({alloc_stmt, visited_body});
 
       // 8. Pop the scope.
       scope_stack_.pop_back();

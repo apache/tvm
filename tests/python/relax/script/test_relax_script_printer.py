@@ -955,7 +955,7 @@ from __future__ import annotations
 class Module:
     @Ts.function
     def tir_func(x: T.Tensor((T.int64(128),), "float32"), y: T.Tensor((T.int64(128),), "float32")):
-        T.evaluate(0)
+        pass
 
     @R.function
     def foo(x: R.Tensor((128,), dtype="float32")) -> R.Tensor((128,), dtype="float32"):
@@ -980,7 +980,7 @@ from __future__ import annotations
 class Module:
     @Ts.function
     def tir_func(x: T.Tensor((T.int64(128),), "float32"), y: T.Tensor((T.int64(128),), "float32")):
-        T.evaluate(0)
+        pass
 
     @R.function
     def foo(x: R.Tensor((128,), dtype="float32")) -> R.Tensor((128,), dtype="float32"):

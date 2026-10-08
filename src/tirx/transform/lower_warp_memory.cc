@@ -382,15 +382,14 @@ class WarpAccessRewriter : public StmtExprMutator {
     TensorVar new_buf = RebuildTensorVar(op->var.as_or_throw<TensorVar>(), std::move(type));
     new_buffer_ = new_buf;
     Stmt rewritten_body = this->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
-    return SeqStmt::Flatten(
-        Bind(new_buf.var(),
-             Call(new_buf.type(), tirx::builtin::alloc_tensor(),
-                  {tvm::Tuple(new_buf->shape, buffer_call->args[0]->span),
-                   DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span),
-                   StringImm(new_buf.scope(), buffer_call->args[2]->span)},
-                  buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
-             op->span),
-        rewritten_body);
+    return SeqStmt({Bind(new_buf.var(),
+                         Call(new_buf.type(), tirx::builtin::alloc_tensor(),
+                              {tvm::Tuple(new_buf->shape, buffer_call->args[0]->span),
+                               DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span),
+                               StringImm(new_buf.scope(), buffer_call->args[2]->span)},
+                              buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
+                         op->span),
+                    rewritten_body});
   }
 
  protected:
@@ -692,7 +691,7 @@ class WarpMemoryRewriter : public StmtExprMutator {
         for (size_t j = i + 1; j < op->seq.size(); ++j) {
           remaining.push_back(op->seq[j]);
         }
-        Stmt body = remaining.empty() ? Stmt(Evaluate(0)) : SeqStmt::Flatten(remaining);
+        Stmt body = SeqStmt(remaining);
         auto rewriter = ffi::make_object<WarpAccessRewriter>(
             warp_size_, analyzer_.get(), active_bindings_, warp_index_, aliases_);
         Stmt rewritten = rewriter->Rewrite(alloc, call, body);
@@ -707,7 +706,7 @@ class WarpMemoryRewriter : public StmtExprMutator {
       }
     }
     if (!changed) return ffi::Unchanged();
-    return SeqStmt::Flatten(new_seq);
+    return SeqStmt(new_seq, op->span);
   }
 
   int warp_size_{0};

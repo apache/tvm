@@ -449,12 +449,15 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
 
   // Get the shape of the wmma accumulator
   auto [frag_shape_m, frag_shape_n] = [&]() {
-    s_tir::SBlock intrin_block = TensorIntrin::Get(state->intrin_group.init_intrin)
-                                     .value()
-                                     ->desc->body.as_or_throw<s_tir::SBlockRealize>()
-                                     ->block;
-    tirx::For loop_m = intrin_block->body.as_or_throw<tirx::For>();
-    tirx::For loop_n = loop_m->body.as_or_throw<tirx::For>();
+    tirx::Function desc = TensorIntrin::Get(state->intrin_group.init_intrin).value()->desc;
+    TVM_FFI_ICHECK(desc->body.has_value());
+    TVM_FFI_ICHECK_EQ(desc->body.value()->size(), 1);
+    s_tir::SBlock intrin_block =
+        desc->body.value()->seq[0].as_or_throw<s_tir::SBlockRealize>()->block;
+    TVM_FFI_ICHECK_EQ(intrin_block->body->size(), 1);
+    tirx::For loop_m = intrin_block->body->seq[0].as_or_throw<tirx::For>();
+    TVM_FFI_ICHECK_EQ(loop_m->body->size(), 1);
+    tirx::For loop_n = loop_m->body->seq[0].as_or_throw<tirx::For>();
     return std::make_tuple(loop_m->extent, loop_n->extent);
   }();
 

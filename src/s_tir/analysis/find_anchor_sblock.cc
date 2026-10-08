@@ -42,10 +42,13 @@ Stmt GetEnclosingLoop(const s_tir::SBlockNode* block, Stmt func_body) {
     }
 
     ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq) override {
+      if (seq->size() == 1) {
+        return Visit(seq->seq[0]);
+      }
       result = seq;
       return std::nullopt;
     }
-    const SeqStmtNode* result;
+    const SeqStmtNode* result = nullptr;
   };
 
   struct BlockFinder : public s_tir::StmtExprVisitor {

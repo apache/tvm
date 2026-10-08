@@ -49,10 +49,10 @@ def test_native_concise_scopes_unwind_with_their_parent():
         T.evaluate(bx + tx)
 
     bx, tx = variables
-    body = main.body
-    assert isinstance(body, tirx.RegionStmt) and isinstance(body.body, tirx.RegionStmt)
-    assert body.body_params[0].same_as(bx) and body.body.body_params[0].same_as(tx)
-    assert body.body.body.value.a.same_as(bx) and body.body.body.value.b.same_as(tx)
+    body = main.body[0]
+    assert isinstance(body, tirx.RegionStmt) and isinstance(body.body[0], tirx.RegionStmt)
+    assert body.body_params[0].same_as(bx) and body.body[0].body_params[0].same_as(tx)
+    assert body.body[0].body[0].value.a.same_as(bx) and body.body[0].body[0].value.b.same_as(tx)
 
 
 def test_tir_buffer_annotation():
@@ -530,11 +530,11 @@ def test_thread_return_is_distinct_from_function_return():
     def function_exit():
         return 0
 
-    assert isinstance(thread_exit.body, tirx.Evaluate)
-    assert thread_exit.body.value.op.name == "tirx.thread_return"
-    assert isinstance(function_exit.body, tirx.Return)
-    assert isinstance(function_exit.body.value, tirx.IntImm)
-    assert function_exit.body.value.value == 0
+    assert isinstance(thread_exit.body[0], tirx.Evaluate)
+    assert thread_exit.body[0].value.op.name == "tirx.thread_return"
+    assert isinstance(function_exit.body[0], tirx.Return)
+    assert isinstance(function_exit.body[0].value, tirx.IntImm)
+    assert function_exit.body[0].value.value == 0
 
 
 def test_loop_control_validation_preserves_valid_and_unchecked_ir():
@@ -544,7 +544,7 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
     invalid = tirx.Function(params=[], body=tirx.Break())
 
     # Direct construction retains the native statement for an explicit verifier pass.
-    ir.assert_structural_equal(invalid.body, tirx.Break())
+    ir.assert_structural_equal(invalid.body, tirx.SeqStmt([tirx.Break()]))
     assert not tirx.analysis.verify_well_formed(invalid, assert_mode=False)
     with pytest.raises(error.InternalError, match="requires an enclosing loop"):
         tirx.analysis.verify_well_formed(invalid)
@@ -554,8 +554,8 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
         for i in range(2):
             break
 
-    assert isinstance(valid.body, tirx.For)
-    ir.assert_structural_equal(valid.body.body, invalid.body)
+    assert isinstance(valid.body[0], tirx.For)
+    ir.assert_structural_equal(valid.body[0].body, invalid.body)
 
     @I.ir_module(check_well_formed=False, extra_vars={"invalid": invalid})
     class Unchecked:
@@ -811,7 +811,7 @@ def test_loop_var_dtype_uint32():
             A[i] = T.float32(1)
     # fmt: on
 
-    loop = func.body
+    loop = func.body[0]
     assert loop.loop_var.ty == PrimType("uint32")
     assert loop.min.ty == PrimType("uint32")
     assert loop.extent.ty == PrimType("uint32")
@@ -833,7 +833,7 @@ def test_loop_var_dtype_uint32_with_step():
             A[i] = T.float32(1)
     # fmt: on
 
-    loop = func.body
+    loop = func.body[0]
     assert loop.loop_var.ty == PrimType("uint32")
     assert loop.min.ty == PrimType("uint32")
     assert loop.extent.ty == PrimType("uint32")
@@ -851,7 +851,7 @@ def test_loop_var_dtype_uint32_all_for_kinds(for_kind):
             A[i] = T.float32(1)
     # fmt: on
 
-    assert func.body.loop_var.ty == PrimType("uint32")
+    assert func.body[0].loop_var.ty == PrimType("uint32")
     _assert_roundtrip(func)
 
 
@@ -864,9 +864,9 @@ def test_grid_loop_var_dtype_uint32():
             A[i, j] = T.float32(1)
     # fmt: on
 
-    outer = func.body
+    outer = func.body[0]
     assert outer.loop_var.ty == PrimType("uint32")
-    assert outer.body.loop_var.ty == PrimType("uint32")
+    assert outer.body[0].loop_var.ty == PrimType("uint32")
     _assert_roundtrip(func)
 
 
@@ -879,7 +879,7 @@ def test_loop_var_dtype_defaults_to_int32():
             A[i] = T.float32(1)
     # fmt: on
 
-    assert func.body.loop_var.ty == PrimType("int32")
+    assert func.body[0].loop_var.ty == PrimType("int32")
     _assert_roundtrip(func)
 
 
@@ -894,7 +894,7 @@ def test_loop_var_dtype_inferred_from_unsigned_extent():
             A[i] = T.float32(1)
     # fmt: on
 
-    assert func.body.loop_var.ty == PrimType("uint32")
+    assert func.body[0].loop_var.ty == PrimType("uint32")
     _assert_roundtrip(func)
 
 
@@ -909,7 +909,7 @@ def test_loop_var_dtype_casts_mismatched_bound():
             A[i] = T.float32(1)
     # fmt: on
 
-    loop = func.body
+    loop = func.body[0]
     assert loop.loop_var.ty == PrimType("uint32")
     assert loop.extent.ty == PrimType("uint32")
     _assert_roundtrip(func)

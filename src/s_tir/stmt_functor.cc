@@ -135,8 +135,7 @@ UnchangedOr<Stmt> StmtExprMutator::MutateBlock(tirx::StmtExprMutator* mutator, c
       mutator->Mutate(op->reads, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<TensorRegion>>>();
   auto writes = mutator->Mutate(op->writes, inplace_mode)
                     .as_or_throw<UnchangedOr<ffi::Array<TensorRegion>>>();
-  auto init =
-      mutator->Mutate(op->init, inplace_mode).as_or_throw<UnchangedOr<ffi::Optional<Stmt>>>();
+  auto init = mutator->Mutate(op->init, inplace_mode);
   auto body = mutator->Mutate(op->body, inplace_mode);
   if (iter_vars.UnchangedOrSameAs(op->iter_vars) &&
       alloc_buffers.UnchangedOrSameAs(op->alloc_buffers) && reads.UnchangedOrSameAs(op->reads) &&

@@ -41,7 +41,7 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
   std::vector<const ForNode*> loops;
   while (const ForNode* loop = body.as<ForNode>()) {
     loops.push_back(loop);
-    body = loop->body;
+    body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   int n = loops.size();
   PrimExpr extent_last1 = loops[n - 1]->extent;
@@ -128,7 +128,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   std::vector<const ForNode*> loops;
   while (const ForNode* loop = body.as<ForNode>()) {
     loops.push_back(loop);
-    body = loop->body;
+    body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   int n = loops.size();
 
@@ -225,7 +225,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   std::vector<const ForNode*> loops;
   while (const ForNode* loop = body.as<ForNode>()) {
     loops.push_back(loop);
-    body = loop->body;
+    body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   int n = loops.size();
 
@@ -371,7 +371,7 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
   std::vector<const ForNode*> loops;
   while (const ForNode* loop = body.as<ForNode>()) {
     loops.push_back(loop);
-    body = loop->body;
+    body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   int n = loops.size();
   PrimExpr extent_last1 = loops[n - 1]->extent;
@@ -441,7 +441,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
   std::vector<const ForNode*> loops;
   while (const ForNode* loop = body.as<ForNode>()) {
     loops.push_back(loop);
-    body = loop->body;
+    body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   int n = loops.size();
 

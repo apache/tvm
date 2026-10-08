@@ -490,8 +490,11 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   result_srefs.reserve(n);
   for (int i = 0; i < n; i++) {
     result_srefs.push_back(self->stmt2ref.at(new_stmt.get()));
-    const ForNode* outer_loop = TVM_TYPE_AS(new_stmt, ForNode);
-    new_stmt = outer_loop->body;
+    if (i + 1 < n) {
+      const ForNode* outer_loop = TVM_TYPE_AS(new_stmt, ForNode);
+      TVM_FFI_ICHECK_EQ(outer_loop->body->size(), 1);
+      new_stmt = outer_loop->body->seq[0];
+    }
   }
   return result_srefs;
 }
@@ -701,12 +704,13 @@ class BlockMutator : public StmtExprMutator {
   int inner_iter_var_index = -1;
 };
 
-const ffi::String get_sblock_name(Stmt loop_body) {
-  const SBlockRealizeNode* blk_realize = loop_body.as<SBlockRealizeNode>();
-  if (blk_realize == nullptr) {
-    return get_sblock_name(loop_body.as<ForNode>()->body);
+const ffi::String get_sblock_name(SeqStmt loop_body) {
+  TVM_FFI_ICHECK_EQ(loop_body->size(), 1);
+  const Stmt& child = loop_body->seq[0];
+  if (const auto* block_realize = child.as<SBlockRealizeNode>()) {
+    return block_realize->block->name_hint;
   }
-  return blk_realize->block->name_hint;
+  return get_sblock_name(child.as_or_throw<For>()->body);
 }
 
 ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref,
@@ -783,8 +787,9 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
   ffi::Array<StmtSRef> partition_srefs;
   partition_srefs.reserve(n);
   for (int i = 0; i < n; i++) {
-    StmtSRef partition_loop_sref =
-        self->stmt2ref.at(block_partitions[i].as<SBlockRealizeNode>()->block->body.get());
+    const SeqStmt& body = block_partitions[i].as<SBlockRealizeNode>()->block->body;
+    TVM_FFI_ICHECK_EQ(body->size(), 1);
+    StmtSRef partition_loop_sref = self->stmt2ref.at(body->seq[0].get());
     partition_srefs.push_back(partition_loop_sref);
   }
   return partition_srefs;
@@ -906,7 +911,8 @@ StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs) {
     lca_nest_loops.push_back(nest_loop_i_loops);
     const ForNode* outer_loop = nullptr;
     for (auto iter = nest_loop_i_loops.rbegin(); iter != nest_loop_i_loops.rend(); ++iter) {
-      if (outer_loop && !outer_loop->body.same_as(*iter)) {
+      if (outer_loop &&
+          (outer_loop->body->size() != 1 || !outer_loop->body->seq[0].same_as(*iter))) {
         throw MakeScheduleError<NotOnlyChildError>(self->mod, ffi::GetRef<For>(outer_loop), *iter);
       }
       outer_loop = (*iter).get();
@@ -969,7 +975,8 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
         throw MakeScheduleError<OuterNotInnerParent>(self->mod, ffi::GetRef<For>(outer_loop),
                                                      ffi::GetRef<For>(loop));
       }
-      if (!outer_loop->body.same_as(ffi::GetRef<For>(loop))) {
+      if (outer_loop->body->size() != 1 ||
+          !outer_loop->body->seq[0].same_as(ffi::GetRef<For>(loop))) {
         throw MakeScheduleError<NotOnlyChildError>(self->mod, ffi::GetRef<For>(outer_loop),
                                                    ffi::GetRef<For>(loop));
       }
@@ -1127,7 +1134,7 @@ std::vector<const StmtSRefNode*> GetLoopsInReorderRange(const ScheduleState& sel
     const ForNode* outer = parent_loop_sref->StmtAs<ForNode>();
     const ForNode* inner = loop_sref->StmtAs<ForNode>();
     TVM_FFI_ICHECK(outer != nullptr && inner != nullptr);
-    if (outer->body.get() != inner) {
+    if (outer->body->size() != 1 || outer->body->seq[0].get() != inner) {
       throw MakeScheduleError<LoopsNotAChainError>(
           self->mod, ffi::GetRef<For>(outer),
           LoopsNotAChainError::ProblemKind::kHaveNonSingleBranchStmt);

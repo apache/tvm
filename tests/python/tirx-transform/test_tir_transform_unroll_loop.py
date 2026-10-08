@@ -31,24 +31,24 @@ def test_unroll_loop():
                     Ab[j + 1] = Ab[i] + T.int64(1)
 
     mod = Module
-    stmt = mod["main"].body
+    stmt = mod["main"].body[0]
 
     assert isinstance(stmt, tvm.tirx.For)
 
     with tvm.transform.PassContext(config={"tirx.UnrollLoop": {"auto_max_step": 16}}):
         ret = tvm.tirx.transform.UnrollLoop()(mod)["main"].body
-        assert not isinstance(ret, tvm.tirx.For)
+        assert not any(isinstance(stmt, tvm.tirx.For) for stmt in ret)
 
     with tvm.transform.PassContext(config={"tirx.UnrollLoop": {"auto_max_step": 15}}):
         ret = tvm.tirx.transform.UnrollLoop()(mod)["main"].body
-        assert isinstance(ret, tvm.tirx.For)
+        assert isinstance(ret[0], tvm.tirx.For)
 
     with tvm.transform.PassContext(
         config={"tirx.UnrollLoop": {"auto_max_step": 16, "explicit_unroll": False}}
     ):
         ret = tvm.tirx.transform.UnrollLoop()(mod)["main"].body
-        assert isinstance(ret, tvm.tirx.For)
-        assert ret.kind == tvm.tirx.ForKind.UNROLLED
+        assert isinstance(ret[0], tvm.tirx.For)
+        assert ret[0].kind == tvm.tirx.ForKind.UNROLLED
 
     @I.ir_module
     class ModuleWithPolicy:

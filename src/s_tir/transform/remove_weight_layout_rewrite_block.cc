@@ -87,7 +87,8 @@ class RemoveLayoutRewriteBlock : public StmtExprMutator {
     TVM_FFI_ICHECK(block->match_buffers.empty());
 
     // Step 1. Checking the body is a TensorStore
-    const auto* store = block->body.as<TensorStoreNode>();
+    const auto* store =
+        block->body->size() == 1 ? block->body->seq[0].as<TensorStoreNode>() : nullptr;
     TVM_FFI_ICHECK(store);
 
     // Step 2. Checking the rhs of buffer store is a TensorLoad
@@ -101,7 +102,7 @@ class RemoveLayoutRewriteBlock : public StmtExprMutator {
     // Step 4. Set block body as no_op
     Stmt old_body = block->body;
     SBlockNode* n = block.CopyOnWrite();
-    n->body = std::move(Evaluate(0));
+    n->body = SeqStmt({});
     n->reads = {};
     n->writes = {};
 

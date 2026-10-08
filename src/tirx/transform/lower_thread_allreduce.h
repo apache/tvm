@@ -427,7 +427,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
               /*indices=*/{group_index * n_warps + floordiv(reduce_index, warp_size_)}));
         }
         PrimExpr cond = floormod(reduce_index, warp_size_) == zero_index;
-        seq.push_back(IfThenElse(cond, SeqStmt::Flatten(write_staging_buf)));
+        seq.push_back(IfThenElse(cond, SeqStmt(write_staging_buf)));
         seq.push_back(SyncThread("shared"));
 
         // 4. Load staging buffer.
@@ -457,7 +457,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
           // Update `reduce_results`, pointing to the value loaded from the shared memory buffer.
           reduce_results[i] = MakeTensorLoad(broadcast_shared_buf, {group_index});
         }
-        seq.push_back(IfThenElse(reduce_index == zero_index, SeqStmt::Flatten(write_result)));
+        seq.push_back(IfThenElse(reduce_index == zero_index, SeqStmt(write_result)));
         seq.push_back(SyncThread("shared"));
       }
 
@@ -485,7 +485,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         for (size_t i = 0; i < size; ++i) {
           stores.push_back(TensorStore(buffers[i], values[i], {0}));
         }
-        return SeqStmt::Flatten(stores);
+        return SeqStmt(stores);
       }
       // This sync is necessary because there might be incomplete read of
       // previous iteration on the same buffer.
@@ -527,7 +527,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     for (const auto& s : seq) {
       alloc_stmts.push_back(s);
     }
-    Stmt body = SeqStmt::Flatten(alloc_stmts);
+    Stmt body = SeqStmt(alloc_stmts);
 
     return body;
   }
@@ -565,7 +565,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     }
 
     if (predicate.has_value()) {
-      seq->push_back(IfThenElse(predicate.value(), SeqStmt::Flatten(load_values)));
+      seq->push_back(IfThenElse(predicate.value(), SeqStmt(load_values)));
     } else {
       seq->insert(seq->end(), load_values.begin(), load_values.end());
     }
@@ -638,9 +638,9 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       // Therefore an additional range check has to be performed to ensure the correctness.
       if (offset * 2 > reduce_extent) {
         PrimExpr cond = reduce_index + offset < reduce_extent;
-        seq->push_back(IfThenElse(cond, SeqStmt::Flatten(stores)));
+        seq->push_back(IfThenElse(cond, SeqStmt(stores)));
       } else {
-        seq->push_back(SeqStmt::Flatten(stores));
+        seq->push_back(SeqStmt(stores));
       }
     }
 
@@ -690,7 +690,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       for (size_t i = 0; i < size; ++i) {
         stores.push_back(TensorStore(shared_bufs[i], ret[i], {buf_index}));
       }
-      return SeqStmt::Flatten(stores);
+      return SeqStmt(stores);
     };
     auto freduce = [&](int offset) {
       auto ret = fload(offset);
@@ -757,16 +757,16 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         for (const auto& s : in_let_statement) {
           bind_stmts.push_back(s);
         }
-        Stmt body = SeqStmt::Flatten(bind_stmts);
+        Stmt body = SeqStmt(bind_stmts);
         in_warp_seq.push_back(body);
       }
 
-      Stmt warp_body = SeqStmt::Flatten(in_warp_seq);
+      Stmt warp_body = SeqStmt(in_warp_seq);
 
       seq.emplace_back(IfThenElse(in_warp_cond, warp_body));
       seq.emplace_back(SyncThread("shared"));
     }
-    return SeqStmt::Flatten(seq);
+    return SeqStmt(seq);
   }
   // Flatten the thread index.
   // Also return a warp number,

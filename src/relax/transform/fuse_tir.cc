@@ -574,9 +574,11 @@ class FusedTIRConstructor : public ExprVisitor {
 
     // Step 3. Check functions are all schedulable funcs. i.e. the body of func is root block
     // TODO(Siyuan): support un-schedulable functions.
-    TVM_FFI_ICHECK(function->body.as<s_tir::SBlockRealizeNode>())
+    TVM_FFI_ICHECK(function->body.has_value() && function->body.value()->size() == 1 &&
+                   function->body.value()->seq[0].as<s_tir::SBlockRealizeNode>())
         << "Only schedulable functions (whose body is the root block) can be fused";
-    const s_tir::SBlockRealize& root_realize = function->body.as_or_throw<s_tir::SBlockRealize>();
+    s_tir::SBlockRealize root_realize =
+        function->body.value()->seq[0].as_or_throw<s_tir::SBlockRealize>();
     const s_tir::SBlock& root_block = root_realize->block;
 
     // Step 4. Add all the original alloc_buffers and body to the fused function.
@@ -873,7 +875,7 @@ class FusedTIRConstructor : public ExprVisitor {
         alloc_buffers.push_back(subst->SubstituteAllocatedBuffer(buf));
       }
     }
-    tirx::Stmt body = tirx::SeqStmt::Flatten(func_info_.bodies);
+    tirx::Stmt body = tirx::SeqStmt(func_info_.bodies);
     body = ffi::make_object<tirx::SBlockNameDeduplicator>()->Mutate(body).ValueOrUnchanged(body);
 
     body = subst->Mutate(body).ValueOrUnchanged(body);
@@ -885,7 +887,7 @@ class FusedTIRConstructor : public ExprVisitor {
       }
       return param;
     });
-    tirx::Function func(params, body, VoidType(), DictAttrs(attr_map));
+    tirx::Function func(params, tirx::SeqStmt(body), VoidType(), DictAttrs(attr_map));
     // Renew function defs to prevent using the same symbolic vars in different functions
     return s_tir::RenewDefs(func);
   }

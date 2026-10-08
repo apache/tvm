@@ -131,7 +131,7 @@ UnchangedOr<Stmt> IndexDataTypeNormalizer::Mutate_(const SBlockNode* op, Inplace
       [this](const TensorRegion& buffer_region) { return VisitBufferRegion(buffer_region); });
   ffi::Array<IterVar> new_iter_vars =
       op->iter_vars.Map([this](const IterVar& iter_var) { return VisitIterVar(iter_var); });
-  ffi::Optional<Stmt> new_init = std::nullopt;
+  ffi::Optional<SeqStmt> new_init = std::nullopt;
   if (op->init.has_value()) {
     new_init = this->Mutate(op->init.value(), inplace_mode).ValueOrUnchanged(op->init.value());
   }

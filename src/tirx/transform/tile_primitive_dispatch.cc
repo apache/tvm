@@ -185,7 +185,7 @@ class ScopeIdDefRemover : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const ScopeIdDefStmtNode* op, InplaceMode inplace_mode) override {
     // Drop the def stmt by replacing with a no-op Evaluate(0). It will be
-    // flattened away by SeqStmt::Flatten elsewhere or stay as a benign
+    // removed by sequence construction or mutation, or stay as a benign
     // no-op for downstream passes.
     return Evaluate(IntImm::Int32(0));
   }
@@ -323,7 +323,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
                                     DictAttrs())));
       }
       seq.push_back(std::move(body));
-      body = SeqStmt::Flatten(seq);
+      body = SeqStmt(seq);
     }
     alloc_buffers_.clear();
 
@@ -343,7 +343,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     for (const auto& [var, value] : scope_binds) {
       bind_stmts.push_back(Bind(var, value));
     }
-    res = SeqStmt::Flatten(bind_stmts, res);
+    bind_stmts.push_back(res);
+    res = SeqStmt(bind_stmts);
 
     // Launch extents come from ScopeIdDefs, independently of whether their
     // returned Vars are named or used. Downstream codegen consumes these launch regions.
@@ -390,10 +391,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     if (post_buffer_def_stmts_.empty()) {
       return stmt;
     }
-    const auto* seq = stmt.as<SeqStmtNode>();
-    if (seq == nullptr) {
-      return stmt;
-    }
+    const auto& seq = stmt.as_or_throw<SeqStmt>();
 
     std::vector<Stmt> rebuilt;
     rebuilt.reserve(seq->seq.size() + post_buffer_def_stmts_.size());
@@ -412,7 +410,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     if (!changed) {
       return stmt;
     }
-    return SeqStmt::Flatten(rebuilt);
+    return SeqStmt(rebuilt, seq->span);
   }
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
@@ -512,7 +510,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
     std::vector<Stmt> seq{stmt};
     AppendPostBufferDefStmts(&seq, old_buffer, op->var.as_or_throw<TensorVar>());
-    return SeqStmt::Flatten(seq);
+    return SeqStmt(seq);
   }
 
   UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, InplaceMode inplace_mode) {
@@ -525,7 +523,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
     std::vector<Stmt> seq{stmt};
     AppendPostBufferDefStmts(&seq, old_buffer, op->var.as_or_throw<TensorVar>());
-    return SeqStmt::Flatten(seq);
+    return SeqStmt(seq);
   }
 
   UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final {
@@ -546,7 +544,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     bool then_case_unchanged = then_case_result.UnchangedOrSameAs(op->then_case);
     Stmt then_case = std::move(then_case_result).ValueOrUnchanged(op->then_case);
     while (pushed_ctx-- > 0) ctx_stack_.pop_back();
-    ffi::Optional<Stmt> else_case;
+    ffi::Optional<SeqStmt> else_case;
     if (op->else_case.has_value()) {
       else_case =
           Mutate(op->else_case.value(), inplace_mode).ValueOrUnchanged(op->else_case.value());

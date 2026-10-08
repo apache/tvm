@@ -339,7 +339,7 @@ def test_fma():
         ]
     )
     mod = opt(Module)
-    assert mod["test_tir_fma"].body.body.value.op.name == "tirx.call_llvm_pure_intrin"
+    assert mod["test_tir_fma"].body[0].body[0].value.op.name == "tirx.call_llvm_pure_intrin"
 
 
 if __name__ == "__main__":

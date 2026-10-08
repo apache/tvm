@@ -613,7 +613,8 @@ class AutoPadder {
      * \param op the call node
      */
     ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
-      if (const auto* eval = op->body.as<EvaluateNode>()) {
+      if (const auto* eval =
+              op->body->size() == 1 ? op->body->seq[0].as<EvaluateNode>() : nullptr) {
         if (const auto* call = eval->value.as<CallNode>()) {
           static const Op tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
           static const Op tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
@@ -761,9 +762,12 @@ class AutoCopyMutator : public StmtExprMutator {
                               block->annotations);
     SBlockNode* n = block.CopyOnWrite();
     OutputSet outputs;
+    TVM_FFI_ICHECK_EQ(n->body->size(), 1);
+    Stmt rewritten = n->body->seq[0];
     for (RewriteRule* rule : rules) {
-      n->body = rule->Apply(std::move(n->body), constraints, &outputs);
+      rewritten = rule->Apply(rewritten, constraints, &outputs);
     }
+    n->body = SeqStmt(rewritten, n->body->span);
     for (const TensorVar& buffer : outputs.alloc_tensor) {
       n->alloc_buffers.push_back(buffer);
     }

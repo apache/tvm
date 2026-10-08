@@ -86,7 +86,7 @@ def test_tir_external_dynamic_symbol_preserves_dtype():
 
     n = func.params[0].ty.shape[0]
     assert str(n.ty.dtype) == "int64"
-    assert func.body.value.same_as(n)
+    assert func.body[0].value.same_as(n)
 
 
 def test_tir_undeclared_shape_symbol_is_undefined():
@@ -112,7 +112,7 @@ def test_tir_direct_later_prim_param_reuses_shape_symbol():
         A, n = function.params
         assert A.ty.shape[0].same_as(n)
         assert str(n.ty.dtype) == "int32"
-        assert function.body.value.same_as(n)
+        assert function.body[0].value.same_as(n)
 
 
 def test_tir_return_annotation_does_not_define_symbolic_var():
@@ -208,8 +208,8 @@ def test_dynamic_module_body_identity():
     restored = tvm.script.from_source(
         source, check_well_formed=False, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
     )
-    shared = restored["first"].body.value
-    summed = restored["second"].body.value
+    shared = restored["first"].body[0].value
+    summed = restored["second"].body[0].value
     assert shared.same_as(summed.a)
     assert not shared.same_as(summed.b)
     tvm.ir.assert_structural_equal(mod, restored, map_free_vars=True)
@@ -247,4 +247,4 @@ def test_dynamic_symbols_are_fresh_and_scope_independent():
             T.evaluate(n)
 
     assert Module["first"].params[0].ty.shape[0].same_as(n)
-    assert Module["first"].body.value.same_as(n)
+    assert Module["first"].body[0].value.same_as(n)

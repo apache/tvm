@@ -192,7 +192,7 @@ def test_parallel_alloc():
     body = tvm.tirx.transform.StorageRewrite()(mod)["func1"]
 
     # With flat AllocTensor, the for body is a SeqStmt; first element is AllocTensor
-    assert _is_buffer_binding(body.body.body[0], "tirx.alloc_tensor")
+    assert _is_buffer_binding(body.body[0].body[0], "tirx.alloc_tensor")
 
     @T.function
     def func2(n: T.int32):
@@ -207,7 +207,7 @@ def test_parallel_alloc():
     body = tvm.tirx.transform.StorageRewrite()(mod)["func2"]
 
     # The launch body owns the allocation executed by each worker.
-    assert _is_buffer_binding(body.body.body.body[0], "tirx.alloc_tensor")
+    assert _is_buffer_binding(body.body[0].body[0].body[0], "tirx.alloc_tensor")
 
 
 def test_while_alloc():
@@ -247,7 +247,7 @@ def test_while_alloc():
     # The structure with DeclTensor is:
     #   parallel (i, 0, n) { DeclTensor(j, DeclTensor(A, ...)) }
     # or with Allocate+DeclTensor pairs
-    inner = body.body.body  # inside For
+    inner = body.body[0].body  # inside For
     # Skip DeclTensor nodes to find Allocate
     num_alloc = [0]
 

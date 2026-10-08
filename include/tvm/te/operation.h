@@ -358,7 +358,7 @@ class ScanOp : public Operation {
  */
 class ExternOpNode : public OperationNode {
  public:
-  explicit ExternOpNode(Stmt body) : body(std::move(body)) {}
+  explicit ExternOpNode(SeqStmt body) : body(std::move(body)) {}
   explicit ExternOpNode(ffi::UnsafeInit) : body(ffi::UnsafeInit{}) {}
 
   /*! \brief The input tensors */
@@ -368,7 +368,7 @@ class ExternOpNode : public OperationNode {
   /*! \brief Symbolic placeholder representation of outputs */
   ffi::Array<TensorVar> output_placeholders;
   /*! \brief the statement that generates the computation. */
-  Stmt body;
+  SeqStmt body;
 
   // override functions
   int num_outputs() const final;
@@ -395,7 +395,7 @@ class ExternOp : public Operation {
  public:
   TVM_DLL ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi::Any> attrs,
                    ffi::Array<Tensor> inputs, ffi::Array<TensorVar> input_placeholders,
-                   ffi::Array<TensorVar> output_placeholders, Stmt body);
+                   ffi::Array<TensorVar> output_placeholders, SeqStmt body);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExternOp, Operation, ExternOpNode);
 };

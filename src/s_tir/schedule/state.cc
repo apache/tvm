@@ -976,7 +976,28 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
   {
     int i = 0;
     const StmtSRefNode* p = src_sref.get();
+    const StmtSRefNode* child = nullptr;
     while (true) {
+      if (child != nullptr) {
+        // The sref tree omits body sequences and BlockRealize wrappers. A shared
+        // container can own a unique child, so include it in the ancestor proof.
+        const auto* loop = p->StmtAs<ForNode>();
+        const SeqStmt& body = loop ? loop->body : TVM_SREF_TO_SBLOCK(p)->body;
+        bool unique_direct_child = false;
+        if (0 <= child->seq_index && child->seq_index < static_cast<int>(body->size())) {
+          ffi::AnyView child_value = body->seq.GetArrayObj()->at(child->seq_index);
+          const auto* child_stmt = child_value.as<StmtNode>();
+          const auto* realize = child_value.as<SBlockRealizeNode>();
+          bool is_direct_child = child_stmt == child->stmt ||
+                                 (realize != nullptr && realize->block.get() == child->stmt);
+          unique_direct_child = is_direct_child && child_stmt->unique();
+        }
+        // Conditional/region bodies also lie outside the sref tree. Copy through
+        // an indirect edge so the recursive mutator checks its complete path.
+        if (!body.unique() || !body->seq.unique() || !unique_direct_child) {
+          num_copy_steps = std::max(num_copy_steps, i - 1);
+        }
+      }
       if (!p->stmt->unique()) {
         num_copy_steps = i;
       }
@@ -984,14 +1005,20 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
         break;
       }
       ++i;
+      child = p;
       p = p->parent;
     }
     // Find `g_func` and `g_var` where the `src_sref` is in
     g_func = GetRootFunction(this->mod, p->stmt, &g_var);
+    const auto* function_body = g_func->body.as<SeqStmtNode>();
+    TVM_FFI_ICHECK(function_body != nullptr && function_body->size() == 1);
     need_module_copy = num_copy_steps == i ||             //
                        !this->mod.unique() ||             //
                        !this->mod->functions.unique() ||  //
-                       !g_func->unique();
+                       !g_func->unique() ||               //
+                       !function_body->unique() ||        //
+                       !function_body->seq.unique() ||    //
+                       !function_body->seq.GetArrayObj()->at(0).as<StmtNode>()->unique();
   }
   // Loop invariant:
   //
@@ -1058,12 +1085,16 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
     // If `g_func` was unique, after the 3 lines above:
     //   `ref_new_func` points to the same unique function that `g_func` points to
     // Update the body of the function the sref belongs to Assign
-    const auto* realize = TVM_TYPE_AS(g_func->body, SBlockRealizeNode);
+    TVM_FFI_ICHECK(g_func->body.has_value());
+    TVM_FFI_ICHECK_EQ(g_func->body.value()->size(), 1);
+    const auto* realize = TVM_TYPE_AS(g_func->body.value()->seq[0], SBlockRealizeNode);
     // Make `child_tgt_stmt` the root block
     const auto* child_block = TVM_TYPE_AS(child_tgt_stmt, SBlockNode);
     ffi::ObjectPtr<SBlockRealizeNode> new_realize = ffi::make_object<SBlockRealizeNode>(*realize);
     new_realize->block = ffi::GetRef<SBlock>(child_block);
-    new_func->body = SBlockRealize(std::move(new_realize));
+    new_func->body =
+        SeqStmt({SBlockRealize(std::move(new_realize))}, g_func->body.as<SeqStmtNode>()->span);
+    SetSeqIndexInChildren(this->stmt2ref, new_func->body.value().get());
     // Finally, move the `ref_new_func` back and update `this->mod`
     new_map->at(g_var) = std::move(ref_new_func);
     this->mod = ffi::GetRef<IRModule>(new_mod);

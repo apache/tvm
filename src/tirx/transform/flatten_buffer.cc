@@ -85,12 +85,12 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
         if (pass->buffers_used_.count(old_buf.value())) {
           auto new_buf = pass->Lookup(old_buf.value()).flattened;
           if (!old_buf.value().same_as(new_buf)) {
-            body = SeqStmt::Flatten(
-                Bind(new_buf, Call(new_buf.type(), builtin::decl_tensor(),
-                                   {old_buf.value().data(), tvm::Tuple(new_buf->shape),
-                                    DataTypeImm(new_buf->dtype->dtype), StringImm(new_buf.scope())},
-                                   {})),
-                std::move(body));
+            body = SeqStmt({Bind(new_buf, Call(new_buf.type(), builtin::decl_tensor(),
+                                               {old_buf.value().data(), tvm::Tuple(new_buf->shape),
+                                                DataTypeImm(new_buf->dtype->dtype),
+                                                StringImm(new_buf.scope())},
+                                               {})),
+                            std::move(body).value()});
             body_unchanged = false;
           }
         }

@@ -108,20 +108,20 @@ def global_buffer_with_blockidx(
 def test_buffer_load_store():
     func = buffer_load_store_func
     A, B = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
-    C, D = func.body.block.alloc_buffers
+    C, D = func.body[0].block.alloc_buffers
     lca = s_tir.analysis.detect_buffer_access_lca(func)
 
     # LCA of Buffer A is root
-    root_block = func.body.block
-    assert lca[A] == func.body.block
+    root_block = func.body[0].block
+    assert lca[A] == func.body[0].block
 
     # LCA of Buffer B is the loop dominate all reduction loop
-    reduce_dom_loop = root_block.body[1].body
-    reduce_block = reduce_dom_loop.body.body.block
+    reduce_dom_loop = root_block.body[1].body[0]
+    reduce_block = reduce_dom_loop.body[0].body[0].block
     assert lca[B] == reduce_dom_loop
 
     # LCA of Buffer C is the second loop kk
-    loop_jj = reduce_block.body.body
+    loop_jj = reduce_block.body[0].body[0]
     assert lca[C] == loop_jj
 
     # LCA of Buffer D is loop jj
@@ -137,11 +137,11 @@ def test_opaque_access():
     # Cannot detect buffer A since it is define by low-level Allocate
 
     # LCA of Buffer B is root
-    root_block = func.body.block
-    assert lca[B] == func.body.block
+    root_block = func.body[0].block
+    assert lca[B] == func.body[0].block
 
     # LCA of Buffer C is the correspond block
-    assert lca[C] == root_block.body[1].body.body.block
+    assert lca[C] == root_block.body[1].body[0].body[0].block
 
 
 def test_lca_func_root():
@@ -156,9 +156,9 @@ def test_match_buffer():
     A, B = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
     lca = s_tir.analysis.detect_buffer_access_lca(func)
 
-    root_block = func.body.block
-    block = root_block.body.body.body.block
-    block_inner = block.body[0].body.body.block
+    root_block = func.body[0].block
+    block = root_block.body[0].body[0].body[0].block
+    block_inner = block.body[0].body[0].body[0].block
 
     # LCA of Buffer C is the inner block
     assert lca[A] == block_inner
@@ -172,8 +172,8 @@ def test_global_buffer_with_blockidx():
     A, B = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
     lca = s_tir.analysis.detect_buffer_access_lca(func)
 
-    root_block = func.body.block
-    blockidx_loop = root_block.body
+    root_block = func.body[0].block
+    blockidx_loop = root_block.body[0]
     # LCA of both A and B should be the loop bound to `blockIdx`
     assert lca[A] == blockidx_loop
     assert lca[B] == blockidx_loop

@@ -801,10 +801,11 @@ class BaseBlockCreator {
     Stmt block_body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
                           CreateBlockBody(has_reduce_iter), map_block_var)
                           .as_or_throw<Stmt>();
-    ffi::Optional<Stmt> block_init = CreateBlockInit(has_reduce_iter);
+    ffi::Optional<SeqStmt> block_init = CreateBlockInit(has_reduce_iter);
     if (block_init.has_value()) {
-      block_init = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(block_init.value(), map_block_var)
-                       .as_or_throw<Stmt>();
+      block_init =
+          SeqStmt(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(block_init.value(), map_block_var)
+                      .as_or_throw<Stmt>());
     }
     CreateReadWriteRegions();
 
@@ -833,7 +834,7 @@ class BaseBlockCreator {
   virtual void PreProcess() = 0;
   virtual void CreateReadWriteRegions() = 0;
 
-  Stmt CreateBlockBody(bool has_reduce_iter) {
+  SeqStmt CreateBlockBody(bool has_reduce_iter) {
     ffi::Array<Stmt> buf_stores;
     buf_stores.reserve(n_buffers_);
 
@@ -843,7 +844,7 @@ class BaseBlockCreator {
       for (int i = 0; i < n_buffers_; ++i) {
         buf_stores.push_back(TensorStore(update_buffers_[i], update_rhs_[i], update_indices_[i]));
       }
-      return n_buffers_ > 1 ? SeqStmt(buf_stores) : buf_stores[0];
+      return SeqStmt(buf_stores);
     }
 
     // Case 2. If the reduction is for single buffer, the block body is a single TensorStore.
@@ -872,7 +873,7 @@ class BaseBlockCreator {
     return SeqStmt(stmts);
   }
 
-  ffi::Optional<Stmt> CreateBlockInit(bool has_reduce_iter) {
+  ffi::Optional<SeqStmt> CreateBlockInit(bool has_reduce_iter) {
     if (!has_reduce_iter) {
       return std::nullopt;
     }
@@ -883,7 +884,7 @@ class BaseBlockCreator {
       inits.push_back(
           TensorStore(update_buffers_[i], reducer_->identity_element[i], update_indices_[i]));
     }
-    return n_buffers_ > 1 ? SeqStmt(inits) : inits[0];
+    return SeqStmt(inits);
   }
 
  public:

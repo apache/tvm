@@ -183,7 +183,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> SBlockMutate(
       mapped_alloc_buffers.UnchangedOrSameAs(self->alloc_buffers) &&
       mapped_match_buffers.UnchangedOrSameAs(self->match_buffers) &&
       mapped_annotations.UnchangedOrSameAs(self->annotations) &&
-      mapped_init.UnchangedOrSameAs(self->init) && mapped_body.UnchangedOrSameAs(self->body)) {
+      (mapped_init.IsUnchanged() || ffi::AnyView(mapped_init).same_as(self->init)) &&
+      mapped_body.UnchangedOrSameAs(self->body)) {
     return ffi::Unchanged();
   }
   ffi::ObjectPtr<SBlockNode> copy = ffi::make_object<SBlockNode>(*self);
@@ -195,7 +196,12 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> SBlockMutate(
   copy->match_buffers =
       std::move(mapped_match_buffers).ValueOrUnchanged(std::move(copy->match_buffers));
   copy->annotations = std::move(mapped_annotations).ValueOrUnchanged(std::move(copy->annotations));
-  copy->init = std::move(mapped_init).ValueOrUnchanged(std::move(copy->init));
+  if (!mapped_init.IsUnchanged()) {
+    auto replacement = std::move(mapped_init).ValueUnchecked();
+    copy->init = replacement.has_value()
+                     ? ffi::Optional<SeqStmt>(SeqStmt(std::move(replacement).value()))
+                     : std::nullopt;
+  }
   copy->body = std::move(mapped_body).ValueOrUnchanged(std::move(copy->body));
   return ffi::Any(std::move(copy));
 }
@@ -237,7 +243,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> SBlockMaybeInplaceMutat
       mapped_alloc_buffers.UnchangedOrSameAs(self->alloc_buffers) &&
       mapped_match_buffers.UnchangedOrSameAs(self->match_buffers) &&
       mapped_annotations.UnchangedOrSameAs(self->annotations) &&
-      mapped_init.UnchangedOrSameAs(self->init) && mapped_body.UnchangedOrSameAs(self->body)) {
+      (mapped_init.IsUnchanged() || ffi::AnyView(mapped_init).same_as(self->init)) &&
+      mapped_body.UnchangedOrSameAs(self->body)) {
     return ffi::Unchanged();
   }
   if (!mapped_iter_vars.IsUnchanged())
@@ -252,8 +259,13 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> SBlockMaybeInplaceMutat
   }
   if (!mapped_annotations.IsUnchanged())
     self->annotations = std::move(mapped_annotations).ValueUnchecked();
-  if (!mapped_init.IsUnchanged()) self->init = std::move(mapped_init).ValueUnchecked();
-  if (!mapped_body.IsUnchanged()) self->body = std::move(mapped_body).ValueUnchecked();
+  if (!mapped_init.IsUnchanged()) {
+    auto replacement = std::move(mapped_init).ValueUnchecked();
+    self->init = replacement.has_value()
+                     ? ffi::Optional<SeqStmt>(SeqStmt(std::move(replacement).value()))
+                     : std::nullopt;
+  }
+  if (!mapped_body.IsUnchanged()) self->body = SeqStmt(std::move(mapped_body).ValueUnchecked());
   return ffi::Unchanged();
 }
 
@@ -380,8 +392,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Block
 SBlock::SBlock(ffi::Array<IterVar> iter_vars, ffi::Array<TensorRegion> reads,
-               ffi::Array<TensorRegion> writes, ffi::String name_hint, Stmt body,
-               ffi::Optional<Stmt> init, ffi::Array<TensorVar> alloc_buffers,
+               ffi::Array<TensorRegion> writes, ffi::String name_hint, SeqStmt body,
+               ffi::Optional<SeqStmt> init, ffi::Array<TensorVar> alloc_buffers,
                ffi::Array<MatchBufferRegion> match_buffers, ffi::Map<ffi::String, Any> annotations,
                Span span)
     : tirx::Stmt(ffi::UnsafeInit{}) {
@@ -405,7 +417,7 @@ SBlock::SBlock(ffi::Array<IterVar> iter_vars, ffi::Array<TensorRegion> reads,
   data_ = std::move(node);
 }
 
-SBlock::SBlock(ffi::String name_hint, Stmt body, ffi::Array<TensorVar> alloc_buffers, Span span)
+SBlock::SBlock(ffi::String name_hint, SeqStmt body, ffi::Array<TensorVar> alloc_buffers, Span span)
     : tirx::Stmt(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<SBlockNode> node = ffi::make_object<SBlockNode>(std::move(body));
   node->iter_vars = {};
@@ -431,8 +443,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   refl::GlobalDef().def("s_tir.SBlock",
                         [](ffi::Array<IterVar> iter_vars, ffi::Array<TensorRegion> reads,
-                           ffi::Array<TensorRegion> writes, ffi::String name_hint, Stmt body,
-                           ffi::Optional<Stmt> init, ffi::Array<TensorVar> alloc_buffers,
+                           ffi::Array<TensorRegion> writes, ffi::String name_hint, SeqStmt body,
+                           ffi::Optional<SeqStmt> init, ffi::Array<TensorVar> alloc_buffers,
                            ffi::Array<MatchBufferRegion> match_buffers,
                            ffi::Map<ffi::String, Any> annotations, Span span) {
                           return SBlock(iter_vars, reads, writes, name_hint, body, init,

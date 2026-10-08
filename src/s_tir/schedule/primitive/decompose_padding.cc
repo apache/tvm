@@ -96,7 +96,8 @@ class PaddingInfoAnalyzer {
       Var block_var = block->iter_vars[i]->var;
       iter_values.insert_or_assign(block_var.get(), realize->iter_values[i]);
     }
-    const TensorStoreNode* store = block->body.as<TensorStoreNode>();
+    const TensorStoreNode* store =
+        block->body->size() == 1 ? block->body->seq[0].as<TensorStoreNode>() : nullptr;
     if (!store) {
       SetError("Block body expect a TensorStore to the write buffer");
       return false;
@@ -245,7 +246,8 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
                    }));
 
   // create block to fill const pad values
-  TensorStore store = block->body.as_or_throw<TensorStore>();
+  TVM_FFI_ICHECK_EQ(block->body->size(), 1);
+  TensorStore store = block->body->seq[0].as_or_throw<TensorStore>();
   store.CopyOnWrite()->value = info.pad_value;
   store.CopyOnWrite()->indices = store->indices.Map(rewrite_expr);
   SBlock new_block(/*iter_vars=*/new_iter_vars, /*reads=*/{}, /*writes=*/{write_region},
@@ -356,7 +358,8 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
   }
 
   // create new block realize node
-  TensorStore store = block->body.as_or_throw<TensorStore>();
+  TVM_FFI_ICHECK_EQ(block->body->size(), 1);
+  TensorStore store = block->body->seq[0].as_or_throw<TensorStore>();
   store.CopyOnWrite()->value = rewrite_expr(info.in_bound_value);
   store.CopyOnWrite()->indices = store->indices.Map(rewrite_expr);
   SBlock new_block(/*iter_vars=*/new_iter_vars, /*reads=*/reads, /*writes=*/writes,
@@ -481,8 +484,9 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
         in_bound_filling_pos = cur_loop;
       }
     } else if (!found_in_bound_filling_pos) {
-      if (!cur_loop->body->IsInstance<ForNode>() &&
-          !cur_loop->body->IsInstance<SBlockRealizeNode>()) {
+      if (cur_loop->body->size() != 1 ||
+          (!cur_loop->body->seq[0]->IsInstance<ForNode>() &&
+           !cur_loop->body->seq[0]->IsInstance<SBlockRealizeNode>())) {
         found_in_bound_filling_pos = true;
       } else {
         in_bound_filling_pos = cur_loop;
