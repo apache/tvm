@@ -130,11 +130,10 @@ class ForKind(IntEnum):
     of the loop and need to be considered in all TIR passes.
     """
 
-    SERIAL = 0
-    PARALLEL = 1
+    DEFAULT = 0  # Ordinary loop with sequential iteration semantics.
+    PARALLEL = 1  # Parallel execution, optionally with explicit thread placement.
     VECTORIZED = 2
     UNROLLED = 3
-    THREAD_BINDING = 4  # pylint: disable=invalid-name
 
 
 @tvm_ffi.register_object("tirx.For")
@@ -158,16 +157,13 @@ class For(Stmt):
     body : Stmt | Sequence[Stmt]
         The body statement.
 
-    thread_binding: Optional[str]
-        The thread this loop binds to. Only valid
-        if kind is ThreadBinding
+    annotations: Optional[Mapping[str, Object]]
+        Additional loop annotations. For parallel loops, the optional
+        ``thread_binding`` entry is a string naming the bound thread.
+        Parallel loops without this entry use CPU parallel execution.
 
     step : Expr
-        The loop step. Default to none which
-        represent one.
-
-    annotations: Optional[Mapping[str, Object]]
-        Additional annotation hints.
+        The loop step. Defaults to None, which represents one.
 
     span : Optional[Span]
         The location of the stmt in the source code.
@@ -178,7 +174,6 @@ class For(Stmt):
     extent: Expr
     kind: ForKind
     body: "SeqStmt"
-    thread_binding: str | None
     annotations: Mapping[str, Object]
     step: Expr | None
     span: Span | None
@@ -190,7 +185,6 @@ class For(Stmt):
         extent: Expr,
         kind: ForKind,
         body: Stmt | Sequence[Stmt],
-        thread_binding: str | None = None,
         annotations: Mapping[str, Object] | None = None,
         step: Expr | None = None,
         span: Span | None = None,
@@ -202,7 +196,6 @@ class For(Stmt):
             extent,
             kind,
             body,
-            thread_binding,
             annotations,
             step,
             span,

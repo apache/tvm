@@ -40,22 +40,20 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ForNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
+  bool use_thread_binding = loop->GetThreadBinding().has_value() && !loop->step.has_value();
   ffi::String method;
   switch (loop->kind) {
-    case tirx::ForKind::kSerial:
+    case tirx::ForKind::kDefault:
       method = "serial";
       break;
     case tirx::ForKind::kParallel:
-      method = "parallel";
+      method = use_thread_binding ? "thread_binding" : "parallel";
       break;
     case tirx::ForKind::kVectorized:
       method = "vectorized";
       break;
     case tirx::ForKind::kUnrolled:
       method = "unroll";
-      break;
-    case tirx::ForKind::kThreadBinding:
-      method = "thread_binding";
       break;
     default:
       TVM_FFI_THROW(TypeError) << "printer unknown loop kind";
@@ -72,14 +70,14 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
   }
   ffi::Array<ffi::String> keys;
   ffi::Array<ExprDoc> values;
-  if (loop->kind == tirx::ForKind::kThreadBinding) {
-    TVM_FFI_CHECK(loop->thread_binding.has_value(), TypeError)
+  if (use_thread_binding) {
+    TVM_FFI_CHECK(loop->GetThreadBinding().has_value(), TypeError)
         << "printer thread-binding loop lacks thread tag";
     keys.push_back("thread");
-    values.push_back(LiteralDoc::Str(loop->thread_binding.value(), std::nullopt));
+    values.push_back(LiteralDoc::Str(loop->GetThreadBinding().value(), std::nullopt));
   }
   bool unroll_option = false;
-  if (loop->kind == tirx::ForKind::kSerial && loop->annotations.size() == 1) {
+  if (loop->kind == tirx::ForKind::kDefault && loop->annotations.size() == 1) {
     const auto& [key, value] = *loop->annotations.begin();
     auto boolean = value.as<bool>();
     auto integer = value.as<int64_t>();
@@ -94,9 +92,11 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
       unroll_option = true;
     }
   }
-  if (!unroll_option && !loop->annotations.empty()) {
+  auto annotations = loop->annotations;
+  if (use_thread_binding) annotations.erase("thread_binding");
+  if (!unroll_option && !annotations.empty()) {
     std::vector<std::pair<ffi::String, ffi::Any>> sorted;
-    for (const auto& [key, value] : loop->annotations) sorted.emplace_back(key, value);
+    for (const auto& [key, value] : annotations) sorted.emplace_back(key, value);
     std::sort(sorted.begin(), sorted.end(),
               [](const auto& a, const auto& b) { return a.first < b.first; });
     ffi::Array<ExprDoc> annotation_keys;
@@ -109,8 +109,6 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
     values.push_back(DictDoc(annotation_keys, annotation_values));
   }
   if (loop->step.has_value()) {
-    TVM_FFI_CHECK(loop->kind != tirx::ForKind::kThreadBinding, TypeError)
-        << "printer thread-binding loop cannot have a step";
     keys.push_back("step");
     values.push_back(d->Translate(loop->step.value()).value());
   }
@@ -120,12 +118,11 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
   {
     IdDoc var = VarDoc(d, loop->loop_var);
     ffi::Array<ExprDoc> bounds = {min, end};
-    if (loop->kind == tirx::ForKind::kThreadBinding && prim::IsZero(loop->min) &&
-        loop->min.ty() == loop->extent.ty()) {
+    if (use_thread_binding && prim::IsZero(loop->min) && loop->min.ty() == loop->extent.ty()) {
       bounds = {end};
     }
     ExprDoc callee = NamespaceDoc("tirx")->Attr(method);
-    if (loop->kind == tirx::ForKind::kSerial && loop->annotations.empty()) {
+    if (loop->kind == tirx::ForKind::kDefault && loop->annotations.empty()) {
       callee = IdDoc("range");
       // range's step is positional. Retain even an explicit unit step because
       // it is part of the source For node, unlike an absent step.

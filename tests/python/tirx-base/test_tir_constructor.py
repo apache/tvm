@@ -306,7 +306,7 @@ def test_stmt_constructor():
     assert len(x.message_parts) == 1
     assert x.message_parts[0].value == "hellow"
 
-    x = tvm.tirx.For(tvm.tirx.Var("x", "int32"), 0, 10, tvm.tirx.ForKind.SERIAL, nop)
+    x = tvm.tirx.For(tvm.tirx.Var("x", "int32"), 0, 10, tvm.tirx.ForKind.DEFAULT, nop)
     assert isinstance(x, tvm.tirx.For)
     assert x.min.value == 0
     assert x.extent.value == 10

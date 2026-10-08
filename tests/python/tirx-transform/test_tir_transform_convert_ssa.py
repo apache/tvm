@@ -510,7 +510,7 @@ def test_reused_loop_var_in_decl_buffer_elem_offset():
         loop_var,
         0,
         128,
-        tirx.ForKind.SERIAL,
+        tirx.ForKind.DEFAULT,
         tirx.SeqStmt(
             [
                 tirx.Bind(
