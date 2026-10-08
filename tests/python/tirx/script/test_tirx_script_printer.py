@@ -829,12 +829,7 @@ def test_printer_cuda_more():
     _assert_namespace_print(
         cuda_op.cuda_atomic_cas(p, 1, 2), "p: T.handle = T.handle()\nT.cuda.atomic_cas(p, 1, 2)"
     )
-    _assert_namespace_print(
-        cuda_op.cuda_ldg(p, "float32"), 'p: T.handle = T.handle()\nT.cuda.ldg(p, "float32")'
-    )
-    _assert_namespace_print(
-        cuda_op.cuda_func_call("f", 1, source_code=""), 'T.cuda.func_call("f", 1, source_code="")'
-    )
+    _assert_namespace_print(cuda_op.cuda_func_call("f", 1, ""), 'T.cuda.func_call("f", 1, "")')
 
 
 def test_printer_cuda_low_level_warp_intrinsics_roundtrip():

@@ -80,13 +80,13 @@ class PrintTest:
         # results have to be bound, but we don't use them
         # TODO: We should allow calls whose results are not bound for side effects;
         #       it would be easy syntactic sugar to add.
-        p1 = R.print(x)
-        p2 = R.print(x, format="Number: {}")
+        p1 = R.print("", x)
+        p2 = R.print("Number: {}", x)
         t = (x, x)
-        p3 = R.print(t, format="Tuple: {}")
-        p4 = R.print(x, t)
-        p5 = R.print(x, x, format="Custom print: {} {}")
-        p6 = R.print(x, t, format="Another print: {} {}")
+        p3 = R.print("Tuple: {}", t)
+        p4 = R.print("", x, t)
+        p5 = R.print("Custom print: {} {}", x, x)
+        p6 = R.print("Another print: {} {}", x, t)
         return x
 
 

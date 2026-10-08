@@ -1021,7 +1021,7 @@ def test_print():
     class PrintMod:
         @R.function(pure=False)
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            y = R.print(x, format="x: {}")
+            y = R.print("x: {}", x)
             return x
 
     _assert_print_lines(
@@ -1036,7 +1036,7 @@ from __future__ import annotations
 class Module:
     @R.function(pure=False)
     def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-        R.print(x, format=R.str("x: {}"))
+        R.print("x: {}", x)
         return x
 """,
     )
@@ -1085,7 +1085,7 @@ def test_directly_construct_private_funcs():
     @R.function
     def baz(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
         R.func_attr({"relax.force_pure": True})
-        y: R.Tuple = R.print(format="Hi there!")
+        y: R.Tuple = R.print("Hi there!")
         z: R.Tensor((), dtype="int32") = R.add(x, x)
         return z
 
@@ -1093,7 +1093,7 @@ def test_directly_construct_private_funcs():
     @R.function(private=True)
     def quux(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
         R.func_attr({"relax.force_pure": True})
-        y: R.Tuple = R.print(format="Lol")
+        y: R.Tuple = R.print("Lol")
         z: R.Tensor((), dtype="int32") = R.multiply(x, x)
         return z
 
@@ -1123,7 +1123,7 @@ class Module:
     @R.function
     def baz(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
         R.func_attr({"relax.force_pure": True})
-        R.print(format=R.str("Hi there!"))
+        R.print("Hi there!")
         z: R.Tensor((), dtype="int32") = R.add(x, x, ty=R.Tensor((), dtype="int32"))
         return z
 
@@ -1135,7 +1135,7 @@ class Module:
     @R.function(private=True)
     def quux(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
         R.func_attr({"relax.force_pure": True})
-        R.print(format=R.str("Lol"))
+        R.print("Lol")
         z: R.Tensor((), dtype="int32") = R.multiply(x, x, ty=R.Tensor((), dtype="int32"))
         return z
 """,

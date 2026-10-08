@@ -310,7 +310,7 @@ def _make_codegen(entry: InstructionEntry):
         # is forwarded as-is.
         forwarded = [rest[at[i]] for i in range(n_operands) if i not in imm_at and i not in sunk]
         forwarded += list(rest[n_present:])
-        return cuda_func_call(helper, *forwarded, source_code=source)
+        return cuda_func_call(helper, *forwarded, source)
 
     return codegen
 

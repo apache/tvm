@@ -23,7 +23,7 @@ import tvm_ffi
 
 import tvm
 import tvm.runtime
-from tvm.ir import Attrs, Call, Op, StringImm
+from tvm.ir import Attrs, Call, Op
 from tvm.ir.attrs import make_node as _make_attrs
 from tvm.runtime import Object, ObjectConvertible
 
@@ -581,26 +581,9 @@ def relax_print(format_str: str, *format_args: tvm.Object) -> None:
         py_print(format_str.format(*val_strs))
 
 
-def print(*values: list[Expr], format: str | Expr = "") -> Expr:
-    """Print op to print the values
-
-    Parameters
-    ----------
-    values : List[Expr]
-        The values to print.
-
-    format: Union[str, Expr]
-        The format string or StringImm.
-
-    Returns
-    -------
-    result : Expr
-        A relax Call, which will print the value during runtime.
-    """
-    if isinstance(format, str):
-        format = StringImm(format)
-
-    return _ffi_api.print(values, format)  # type: ignore # pylint: disable=no-member
+def print(format: str | Expr, *values: Expr, ty=None, span=None) -> Expr:
+    """Print values using the canonical leading format-string operand."""
+    return Call("relax.print", [format, *values], ty=ty, span=span)
 
 
 @tvm.register_global_func("relax.run.assert_op")
@@ -977,24 +960,14 @@ class HintOnDeviceAttrs(Attrs):
     """Attributes used in hint_on_device operator"""
 
 
-def hint_on_device(data, dst_vdevice, memory_scope="global") -> Expr:
-    """It provides a hint specifying the device on which the input data should be executed.
-    This hint is utilized by RealizeVDevice to propagate the virtual device."
-
-    Parameters
-    ----------
-    data : Expr
-        The tensor to be copied.
-
-    dst_device : Device
-        The destination device where the data is supposed to be executed.
-
-    memory_scope: String
-       Memory scope of buffer on target device.
-
-    Returns
-    -------
-    result : Expr
-        The result.
-    """
-    return _ffi_api.hint_on_device(data, dst_vdevice, memory_scope)  # type: ignore
+def hint_on_device(
+    data, device_type, index=0, memory_scope="global", *, ty=None, span=None
+) -> Expr:
+    """Hint the device type, index and memory scope for executing ``data``."""
+    attrs = _make_attrs(
+        "relax.attrs.HintOnDeviceAttrs",
+        device_type=device_type,
+        index=index,
+        memory_scope=memory_scope,
+    )
+    return Call("relax.hint_on_device", [data], attrs=attrs, ty=ty, span=span)

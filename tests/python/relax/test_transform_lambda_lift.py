@@ -359,7 +359,7 @@ def test_impure_function():
     class Expected:
         @R.function(pure=False, private=True)
         def main_inner() -> R.Tuple:
-            y = R.print(format="Wow!")
+            y = R.print("Wow!")
             return y
 
         @R.function(pure=False)
@@ -373,7 +373,7 @@ def test_impure_function():
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             @R.function(pure=False)
             def inner() -> R.Tuple:
-                y = R.print(format="Wow!")
+                y = R.print("Wow!")
                 return y
 
             gv1 = inner()

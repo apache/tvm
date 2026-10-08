@@ -46,32 +46,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       kDocTranslate, FDocTranslate::FromNative<&IterVarDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> AsyncQueueDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                              const ffi::Object*) {
-  const auto* call =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (!CanTranslateExplicitResultCall(call) ||
-      !ffi::StructuralEqual()(call->ty, PrimType::Void())) {
-    return RawCall(d, call);
-  }
-  ffi::Array<ExprDoc> args;
-  for (const Expr& arg : call->args) {
-    args.push_back(MaterializeCallArgument(d, arg, d->Translate(arg).value()));
-  }
-  return NamespaceDoc("s_tir")
-      ->Attr(call->op.same_as(s_tir::async_commit()) ? "async_commit" : "async_wait")
-      ->Call(args);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("s_tir.async_commit")
-      .set_attr<FDocTranslate>(kOpCallDocTranslate,
-                               FDocTranslate::FromNative<&AsyncQueueDocTranslate>());
-  OpDef("s_tir.async_wait")
-      .set_attr<FDocTranslate>(kOpCallDocTranslate,
-                               FDocTranslate::FromNative<&AsyncQueueDocTranslate>());
-}
-
 }  // namespace
 
 }  // namespace details

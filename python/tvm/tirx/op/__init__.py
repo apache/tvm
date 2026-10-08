@@ -1701,3 +1701,83 @@ def __getattr__(name):
 
         return import_module(".tile", __name__)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def _make_registered_op_api(op, module_name, *, script=False):
+    """Select the existing TIRx constructor from the Op's form metadata."""
+    from tvm.ir.op import _bind_op_operands, _make_op_api
+
+    if op.get_attr("FRegionGetBodyParams") is not None:
+
+        def construct(*args, body_params=None, attrs=None, **kwargs):
+            if script:
+                from tvm.tirx.script.ir_builder.parser_protocol import region
+
+                operands = _bind_op_operands(op, args, kwargs)
+                if kwargs:
+                    if attrs is not None:
+                        raise TypeError("cannot mix attrs with attribute keywords")
+                    attrs = kwargs
+                return region(op, operands, body_params=body_params, attrs=attrs)
+            from tvm.tirx import RegionStmt
+
+            body = kwargs.pop("body")
+            result_vars = kwargs.pop("result_vars", None)
+            span = kwargs.pop("span", None)
+            operands = _bind_op_operands(op, args, kwargs)
+            if kwargs:
+                if attrs is not None:
+                    raise TypeError("cannot mix attrs with attribute keywords")
+                attrs = kwargs
+            return RegionStmt(op, operands, body_params or [], attrs, body, result_vars, span)
+    elif op.get_attr("TIRxOpCategory") == "tile_primitive":
+
+        def construct(*args, workspace=None, config=None, dispatch=None, scope=None, **kwargs):
+            from tvm.tirx import TilePrimitiveCall
+
+            operands = _bind_op_operands(op, args, kwargs)
+            if kwargs:
+                if config is not None:
+                    raise TypeError("cannot mix config with configuration keywords")
+                config = kwargs
+            call = TilePrimitiveCall(
+                *operands, op=op, workspace=workspace, config=config, dispatch=dispatch, scope=scope
+            )
+            if script:
+                from tvm.tirx.script.ir_builder.tirx import f_insert
+
+                return f_insert(call)
+            return call
+
+        if script:
+            from tvm.tirx.script.ir_builder.tirx import ScopedOp
+
+            construct = ScopedOp(construct)
+    else:
+        return _make_op_api(op, module_name)
+    construct.__name__ = op.name.rsplit(".", 1)[-1]
+    construct.__module__ = module_name
+    construct.__doc__ = op.doc or f"Construct {op.name}."
+    if op.get_attr("TScriptPrinterName") is None:
+        op.set_attr("TScriptPrinterName", op.name)
+    return construct
+
+
+def _refresh_op_api():
+    """Explicitly expose newly registered TIRx expression, region and tile Ops."""
+    import sys
+
+    from tvm.ir.op import _init_op_api
+    from tvm.tirx.op import tile
+
+    _init_op_api("tirx", __name__, factory=_make_registered_op_api, recursive=False)
+    _init_op_api("tirx.tile", tile.__name__, factory=_make_registered_op_api)
+    # The public native facade retains its handwritten conveniences.
+    public = sys.modules.get("tvm.tirx")
+    if public is not None:
+        for name, value in list(globals().items()):
+            if not name.startswith("_") and name not in vars(public):
+                setattr(public, name, value)
+
+
+_op_api_factory = _make_registered_op_api

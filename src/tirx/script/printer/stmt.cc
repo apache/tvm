@@ -77,26 +77,7 @@ ffi::Optional<ExprDoc> TileOpCallDocTranslate(DocTranslatorObj* d, ffi::AnyView 
       scope = "tile";
   }
   ffi::Array<Doc> args;
-  size_t n = stmt->args.size();
-  if (n == 2 &&
-      (stmt->op->name == "tirx.tile.exp2" || stmt->op->name == "tirx.tile.sqrt" ||
-       stmt->op->name == "tirx.tile.reciprocal") &&
-      [&]() {
-        const auto* dst = stmt->args[0].as<TensorRegionNode>();
-        const auto* src = stmt->args[1].as<TensorRegionNode>();
-        return dst && src && dst->source.same_as(src->source) &&
-               ffi::StructuralEqual()(dst->region, src->region);
-      }()) {
-    n = 1;
-  }
-  std::vector<size_t> arg_order;
-  if (stmt->op->name == "tirx.tile.reduce_negate" && n == 5) {
-    // The parser API takes reduce_op before axes; the IR stores it last.
-    arg_order = {0, 1, 4, 2, 3};
-  } else {
-    for (size_t i = 0; i < n; ++i) arg_order.push_back(i);
-  }
-  for (size_t i : arg_order) {
+  for (size_t i = 0; i < stmt->args.size(); ++i) {
     if (auto op = stmt->args[i].as<Op>()) {
       const std::string& op_name = op.value()->name;
       if (op_name.find("tirx.tile.") == 0) {
@@ -158,18 +139,6 @@ ffi::Optional<ExprDoc> TileOpCallDocTranslate(DocTranslatorObj* d, ffi::AnyView 
     dispatch = LiteralDoc::Str(stmt->dispatch.value(), std::nullopt);
   }
   auto keywords = dict(stmt->config, true);
-  if (name == "sqrt_with_scale_bias" || name == "exp_with_scale_bias" ||
-      name == "exp2_with_scale_bias" || name == "log2_with_scale_bias") {
-    ffi::Array<ExprDoc> keys{LiteralDoc::Str("scale", std::nullopt),
-                             LiteralDoc::Str("bias", std::nullopt)};
-    ffi::Array<ExprDoc> values{args[2].as_or_throw<ExprDoc>(), args[3].as_or_throw<ExprDoc>()};
-    if (keywords.has_value()) {
-      for (const auto& key : keywords.value()->keys) keys.push_back(key);
-      for (const auto& value : keywords.value()->values) values.push_back(value);
-    }
-    keywords = DictDoc(keys, values);
-    args = {args[0], args[1]};
-  }
   d->Emit(OpCallDoc(NamespaceDoc("tirx")->Attr(scope)->Attr(name), args, dict(stmt->workspace),
                     keywords, dispatch),
           ffi::GetRef<ffi::ObjectRef>(stmt));

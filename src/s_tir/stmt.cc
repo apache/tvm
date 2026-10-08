@@ -65,11 +65,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>());
   OpDef("s_tir.async_commit", "Commit asynchronous copies to a queue.")
       .signature(sig::arg<IntImm>("queue_id"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("s_tir.async_commit"))
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .set_attr<TCallEffectKind>("TCallEffectKind",
                                  static_cast<int64_t>(CallEffectKind::kUpdateState));
   OpDef("s_tir.async_wait", "Wait for committed asynchronous copies.")
       .signature(sig::arg<IntImm>("queue_id"), sig::arg<PrimExpr>("inflight_count"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("s_tir.async_wait"))
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .set_attr<TCallEffectKind>("TCallEffectKind",
                                  static_cast<int64_t>(CallEffectKind::kUpdateState));

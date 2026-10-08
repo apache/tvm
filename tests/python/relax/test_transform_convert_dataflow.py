@@ -47,19 +47,19 @@ def test_trivial():
         # too few pure ops between non-dataflow ops
         @R.function(pure=False)
         def func2(A: R.Tensor, B: R.Tensor) -> R.Tensor:
-            _ = R.print(format="Hi there!")
+            _ = R.print("Hi there!")
             y = R.add(A, B)
-            _ = R.print(y, format="Sum: {}")
+            _ = R.print("Sum: {}", y)
             x = R.multiply(y, y)
             if R.const(False):
-                _ = R.print(format="True branch")
+                _ = R.print("True branch")
                 q = R.add(x, y)
-                _ = R.print(q, format="Value of q: {}")
+                _ = R.print("Value of q: {}", q)
                 w = q
             else:
-                _ = R.print(format="False branch")
+                _ = R.print("False branch")
                 q = R.subtract(x, y)
-                _ = R.print(q, format="Value of q: {}")
+                _ = R.print("Value of q: {}", q)
                 w = q
             p = R.multiply(w, w)
             return p
@@ -103,7 +103,7 @@ def test_multiple_blocks():
             z = R.add(x, y)
             w = R.multiply(z, y)
             v = R.add(w, x)
-            _ = R.print(format="Hi mom!")
+            _ = R.print("Hi mom!")
             a = R.multiply(v, v)
             b = R.add(a, a)
             c = R.subtract(b, a)
@@ -119,7 +119,7 @@ def test_multiple_blocks():
                 w = R.multiply(z, y)
                 v = R.add(w, x)
                 R.output(v)
-            _ = R.print(format="Hi mom!")
+            _ = R.print("Hi mom!")
             with R.dataflow():
                 a = R.multiply(v, v)
                 b = R.add(a, a)
@@ -274,7 +274,7 @@ def test_impure_inner_function():
                 z = R.add(x, y)
                 w = R.multiply(x, z)
                 v = R.add(y, w)
-                _ = R.print(format="oops")
+                _ = R.print("oops")
                 a = R.multiply(v, v)
                 b = R.add(a, a)
                 c = R.multiply(a, b)
@@ -302,7 +302,7 @@ def test_impure_inner_function():
                         w = R.multiply(x, z)
                         v = R.add(y, w)
                         R.output(v)
-                    _ = R.print(format="oops")
+                    _ = R.print("oops")
                     with R.dataflow():
                         a = R.multiply(v, v)
                         b = R.add(a, a)
@@ -378,7 +378,7 @@ def test_impure_external_function():
             z = R.add(x, y)
             q = R.matmul(z, x)
             w = R.nn.relu(q)
-            _ = R.print(format="Whoa")
+            _ = R.print("Whoa")
             return w
 
         @R.function(pure=False)
@@ -397,7 +397,7 @@ def test_impure_external_function():
                 q = R.matmul(z, x)
                 w = R.nn.relu(q)
                 R.output(w)
-            _ = R.print(format="Whoa")
+            _ = R.print("Whoa")
             return w
 
         @R.function(pure=False)
@@ -542,7 +542,7 @@ def test_preserve_existing_dataflow_blocks_at_beginning():
                 A1 = R.add(A0, A0)
                 R.output(A1)
 
-            R.print(format="impure_function")
+            R.print("impure_function")
 
             # This sequence is large enough that it may be converted
             # to a DataflowBlock.
@@ -561,7 +561,7 @@ def test_preserve_existing_dataflow_blocks_at_beginning():
                 A1 = R.add(A0, A0)
                 R.output(A1)
 
-            R.print(format="impure_function")
+            R.print("impure_function")
 
             with R.dataflow():
                 B1 = R.add(B0, B0)
@@ -598,7 +598,7 @@ def test_preserve_existing_dataflow_blocks_at_end():
             B2 = R.add(B1, B1)
             B3 = R.add(B2, B2)
 
-            R.print(format="impure_function")
+            R.print("impure_function")
 
             # This DataflowBlock is below the minimum size for a new
             # block, but already exists in the input IRModule.
@@ -618,7 +618,7 @@ def test_preserve_existing_dataflow_blocks_at_end():
                 B3 = R.add(B2, B2)
                 R.output(B3)
 
-            R.print(format="impure_function")
+            R.print("impure_function")
 
             # This dataflow block should be preserved in the output.
             with R.dataflow():

@@ -1154,7 +1154,7 @@ def test_print():
     class Print:
         @R.function(pure=False)
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            y = R.print(x, format="x: {}")
+            y = R.print("x: {}", x)
             return x
 
     _check(Print)
@@ -1165,7 +1165,7 @@ def test_parse_multiple_pure_and_impure_funcs():
     class Mixture:
         @R.function(pure=False)
         def print(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            y = R.print(x, format="x: {}")
+            y = R.print("x: {}", x)
             return x
 
         @R.function(pure=False)
@@ -1190,7 +1190,7 @@ def test_function_with_void_return_type_may_be_used_as_statements():
     class Unsugared:
         @R.function(pure=False)
         def print(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            y = R.print(x, format="x: {}")
+            y = R.print("x: {}", x)
             return x
 
         @R.function(pure=False)
@@ -1202,7 +1202,7 @@ def test_function_with_void_return_type_may_be_used_as_statements():
     class Sugared:
         @R.function(pure=False)
         def print(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            R.print(x, format="x: {}")
+            R.print("x: {}", x)
             return x
 
         @R.function(pure=False)
@@ -1223,9 +1223,9 @@ def test_function_with_void_return_type_in_if_else():
             (), "int32"
         ):
             if condition:
-                y = R.print(x, format="True condition: {}")
+                y = R.print("True condition: {}", x)
             else:
-                y = R.print(x, format="False condition: {}")
+                y = R.print("False condition: {}", x)
             return x
 
     @I.ir_module
@@ -1235,9 +1235,9 @@ def test_function_with_void_return_type_in_if_else():
             (), "int32"
         ):
             if condition:
-                R.print(x, format="True condition: {}")
+                R.print("True condition: {}", x)
             else:
-                R.print(x, format="False condition: {}")
+                R.print("False condition: {}", x)
             return x
 
     _check(Sugared, Unsugared)

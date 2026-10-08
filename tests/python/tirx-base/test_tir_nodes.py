@@ -275,9 +275,9 @@ def test_isnan():
     assert str(tvm.tirx.isnan(x)) == "T.isnan(x)"
     assert str(tvm.tirx.isnan(x).ty.dtype) == "bool"
     y = tvm.tirx.Var("y", "float16")
-    assert str(tvm.tirx.isnan(y)) == 'T.isnan(T.Cast("float32", y))'
+    assert str(tvm.tirx.isnan(y)) == "T.isnan(y)"
     z = tvm.tirx.Var("z", "int32")
-    assert str(tvm.tirx.isnan(z)) == "T.bool(False)"
+    assert str(tvm.tirx.isnan(z)) == "T.isnan(z)"
     k = tvm.tirx.Var("k", "int8x2")
     assert str(tvm.tirx.isnan(k).ty.dtype) == "boolx2"
 

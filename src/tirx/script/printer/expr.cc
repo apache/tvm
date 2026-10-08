@@ -124,93 +124,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       kDocTranslate, FDocTranslate::FromNative<&IndexMapDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> CUDALdgCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                               const ffi::Object*) {
-  const auto* call =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (call->attrs.defined() || !call->ty_args.empty()) return RawCall(d, call);
-  size_t width = 0;
-  if (call->args.size() != 2) {
-    if (call->args.size() != 6 && call->args.size() != 8) return RawCall(d, call);
-    const auto* lanes = call->args.back().as<IntImmNode>();
-    width = call->args.size() - 4;
-    if (!lanes || lanes->value != static_cast<int64_t>(width) ||
-        !ffi::StructuralEqual()(lanes->ty, PrimType::Int(32)))
-      return RawCall(d, call);
-    const auto* vec = call->args[width + 2].as<StringImmNode>();
-    if (!vec || vec->value != (width == 2 ? "v2" : "v4")) return RawCall(d, call);
-  }
-  const auto* dtype = call->args[width + 1].as<StringImmNode>();
-  if (!dtype) return RawCall(d, call);
-  auto argument = [&](size_t i) {
-    return MaterializeCallArgument(d, call->args[i], d->Translate(call->args[i]).value());
-  };
-  ffi::Array<ExprDoc> args = {argument(width), LiteralDoc::Str(dtype->value, std::nullopt)};
-  ffi::Array<ffi::String> keys;
-  ffi::Array<ExprDoc> values;
-  bool omit_result = false;
-  try {
-    Call inferred(std::nullopt, call->op, call->args);
-    omit_result = ffi::StructuralEqual()(inferred->ty, call->ty);
-  } catch (const ffi::Error&) {
-    // Preserve explicit result types when inference cannot reconstruct them.
-  }
-  if (!omit_result) {
-    keys.push_back("ty");
-    values.push_back(TypeValue(d, call->ty));
-  }
-  if (width) {
-    ffi::Array<ExprDoc> destinations;
-    for (size_t i = 0; i < width; ++i) destinations.push_back(argument(i));
-    keys.push_back("dst");
-    values.push_back(TupleDoc(destinations));
-    keys.push_back("vec");
-    values.push_back(LiteralDoc::Str(width == 2 ? "v2" : "v4", std::nullopt));
-  }
-  return NamespaceDoc("tirx")->Attr("cuda")->Attr("ldg")->Call(args, keys, values);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.cuda.ldg")
-      .set_attr<FDocTranslate>(kOpCallDocTranslate,
-                               FDocTranslate::FromNative<&CUDALdgCallDocTranslate>());
-}
-
-ffi::Optional<ExprDoc> CUDAFuncCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                                const ffi::Object*) {
-  const auto* call =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  static const Op cuda_func_call = Op::Get("tirx.cuda.func_call");
-  if (!call->op.same_as(cuda_func_call) || !CanTranslateExplicitResultCall(call) ||
-      call->args.size() < 2) {
-    return RawCall(d, call);
-  }
-  const auto* name = call->args[0].as<StringImmNode>();
-  const auto* source = call->args.back().as<StringImmNode>();
-  if (!name || !source) return RawCall(d, call);
-  ExprDoc name_doc = LiteralDoc::Str(name->value, std::nullopt);
-  ExprDoc source_doc = LiteralDoc::Str(source->value, std::nullopt);
-  d->RecordOrigin(name_doc, call->args[0]);
-  d->RecordOrigin(source_doc, call->args.back());
-  ffi::Array<ExprDoc> args = {name_doc};
-  for (size_t i = 1; i + 1 < call->args.size(); ++i) {
-    args.push_back(MaterializeCallArgument(d, call->args[i], d->Translate(call->args[i]).value()));
-  }
-  ffi::Array<ffi::String> keys = {"source_code"};
-  ffi::Array<ExprDoc> values = {source_doc};
-  if (!ffi::StructuralEqual()(call->ty, PrimType::Void())) {
-    keys.push_back("return_type");
-    values.push_back(TypeValue(d, call->ty));
-  }
-  return NamespaceDoc("tirx")->Attr("cuda")->Attr("func_call")->Call(args, keys, values);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.cuda.func_call")
-      .set_attr<FDocTranslate>(kOpCallDocTranslate,
-                               FDocTranslate::FromNative<&CUDAFuncCallDocTranslate>());
-}
-
 ffi::Optional<ExprDoc> LLVMIntrinsicDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                                  const ffi::Object*) {
   const auto* call =
@@ -307,29 +220,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     OpDef(name).set_attr<FDocTranslate>(kOpCallDocTranslate,
                                         FDocTranslate::FromNative<&PointerCallDocTranslate>());
   }
-}
-
-// The isnan convenience helper folds constants and widens float16 inputs.
-ffi::Optional<ExprDoc> IsNaNDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                         const ffi::Object*) {
-  const auto* call =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  auto input_type = call->args.size() == 1 ? call->args[0]->ty.as<PrimType>() : std::nullopt;
-  if (!CanTranslateExplicitResultCall(call) || !input_type ||
-      input_type.value().IsScalableVector() ||
-      !input_type.value().MatchesCode(DLDataTypeCode::kDLFloat) ||
-      (input_type.value().bits() != 32 && input_type.value().bits() != 64) ||
-      call->args[0].as<FloatImmNode>() ||
-      !ffi::StructuralEqual()(call->ty, PrimType::Bool(input_type.value().lanes()))) {
-    return RawCall(d, call);
-  }
-  return NamespaceDoc("tirx")->Attr("isnan")->Call({d->Translate(call->args[0]).value()});
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("prim.isnan")
-      .set_attr<FDocTranslate>(kOpCallDocTranslate,
-                               FDocTranslate::FromNative<&IsNaNDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> TensorDataPtrDocTranslate(DocTranslatorObj* d, ffi::AnyView input,

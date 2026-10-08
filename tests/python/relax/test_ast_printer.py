@@ -577,7 +577,7 @@ def test_operators():
 
     @R.function(pure=False)
     def bar(x: R.Tensor):
-        return R.print(x, format="{}")
+        return R.print("{}", x)
 
     bar_str = strip_whitespace(
         dump_ast(

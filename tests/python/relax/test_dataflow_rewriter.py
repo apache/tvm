@@ -1075,11 +1075,11 @@ def test_pattern_matching_may_not_reorder_across_impure_functions():
         weights: R.Tensor([16, 16], "float32"),
         bias: R.Tensor([16], "float32"),
     ):
-        R.print(format="Start of function")
+        R.print("Start of function")
         state = R.matmul(weights, state)
-        R.print(format="After matmul, before add")
+        R.print("After matmul, before add")
         state = R.add(bias, state)
-        R.print(format="End of function")
+        R.print("End of function")
         return state
 
     expected = before
@@ -1135,10 +1135,10 @@ def test_pattern_matching_may_occur_between_impure_functions():
         weights: R.Tensor([16, 16], "float32"),
         bias: R.Tensor([16], "float32"),
     ):
-        R.print(format="Start of function")
+        R.print("Start of function")
         state = R.matmul(weights, state)
         state = R.add(bias, state)
-        R.print(format="End of function")
+        R.print("End of function")
         return state
 
     @R.function(private=True, pure=False)
@@ -1147,7 +1147,7 @@ def test_pattern_matching_may_occur_between_impure_functions():
         weights: R.Tensor([16, 16], "float32"),
         bias: R.Tensor([16], "float32"),
     ):
-        R.print(format="Start of function")
+        R.print("Start of function")
         state = R.call_pure_packed(
             "my_optimized_fma_impl",
             state,
@@ -1155,7 +1155,7 @@ def test_pattern_matching_may_occur_between_impure_functions():
             bias,
             ty_args=R.Tensor([16], "float32"),
         )
-        R.print(format="End of function")
+        R.print("End of function")
         return state
 
     after = Rewriter(before)

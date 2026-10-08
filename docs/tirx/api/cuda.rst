@@ -61,7 +61,7 @@ The current ``Tx.cuda`` surface includes:
        ``get_tmem_addr``, ``cvta_generic_to_shared``,
        ``smem_addr_from_uint64``, ``sm100_2sm_leader_smem_addr``, and ``mov_sreg``
    * - Loads, calls, and diagnostics
-     - ``ldg``, ``func_call``, ``printf``, ``trap_when_assert_failed``,
+     - ``func_call``, ``printf``, ``trap_when_assert_failed``,
        ``nano_sleep``, ``clock64``, and ``ffs_u32``
    * - Numeric conversion and packed math
      - ``half2float``, ``bfloat162float``, ``float22half2``,

@@ -81,7 +81,7 @@ def _emit_cast_vec2(dst_buf, dst_lane_indices, src_args, extras) -> Expr:
         func_name,
         T.address_of(dst_buf[tuple(dst_lane_indices[0])]),
         T.address_of(src_buf[tuple(src_lane_indices[0])]),
-        source_code=source_code,
+        source_code,
     )
 
 

@@ -40,3 +40,38 @@ def test_roundtrip_tir_namespaces_minimal():
     roundtripped = from_source(code)
     assert roundtripped.script() == code
     assert_structural_equal(func, roundtripped)
+
+
+def test_explicit_refresh_preserves_region_and_tile_forms():
+    from tvm import tirx
+    from tvm.ir import Op, register_op_attr
+    from tvm.tirx import script
+
+    region_name = "tirx.test_refresh_region"
+    register_op_attr(
+        region_name,
+        "FRegionGetBodyParams",
+        Op.get("tirx.device_entry").get_attr("FRegionGetBodyParams"),
+    )
+    Op.get(region_name).set_signature()
+    tile_name = "tirx.tile.test_refresh_tile"
+    register_op_attr(tile_name, "TIRxOpCategory", "tile_primitive")
+    Op.get(tile_name).set_signature(["dst", "src"])
+    original = T.sqrt
+    script._refresh_op_api()
+    tirx.op._refresh_op_api()
+    assert T.sqrt is original
+    assert "test_refresh_region" in T.__all__
+    assert "test_refresh_tile" in T.tile.__all__
+    native = tirx.op.test_refresh_region(body=[], body_params=[])
+    assert isinstance(native, tirx.RegionStmt)
+
+    @T.function
+    def func(A: T.Tensor((4,), "float32")):
+        with T.test_refresh_region():
+            T.tile.warp.test_refresh_tile(A[:], A[:], dispatch="example", max_inst_size=4)
+
+    assert_structural_equal(func, from_source(func.script()))
+    assert_structural_equal(func, tvm.ir.load_json(tvm.ir.save_json(func)))
+    script._refresh_op_api()
+    assert T.sqrt is original

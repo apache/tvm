@@ -1072,7 +1072,7 @@ def test_var_used_in_distinct_df_blocks():
                 v = R.add(w, x)
                 # v must remain exposed!
                 R.output(v)
-            _ = R.print(format="Hi mom!")
+            _ = R.print("Hi mom!")
             with R.dataflow():
                 a = R.multiply(v, v)
                 b = R.add(a, a)
@@ -1099,7 +1099,7 @@ def test_inner_function():
                         w = R.multiply(x, z)
                         v = R.add(y, w)
                         R.output(z, w, v)
-                    _ = R.print(format="oops")
+                    _ = R.print("oops")
                     with R.dataflow():
                         a = R.multiply(v, v)
                         b = R.add(a, a)
@@ -1133,7 +1133,7 @@ def test_inner_function():
                         w = R.multiply(x, z)
                         v = R.add(y, w)
                         R.output(v)
-                    _ = R.print(format="oops")
+                    _ = R.print("oops")
                     with R.dataflow():
                         a = R.multiply(v, v)
                         b = R.add(a, a)

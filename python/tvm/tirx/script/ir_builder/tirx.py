@@ -66,7 +66,8 @@ class ScopedOp:
         functools.update_wrapper(self, fn)
 
     def __call__(self, *args, **kwargs):
-        return self._fn(*args, scope=ExecScope("thread"), **kwargs)
+        kwargs.setdefault("scope", ExecScope("thread"))
+        return self._fn(*args, **kwargs)
 
     def _bind(self, scope: ExecScope):
         """Return a callable that emits this op at ``scope``.
@@ -214,15 +215,17 @@ def sqrt(
 def sqrt_with_scale_bias(
     dst: TensorRegion | Var,
     src: TensorRegion | Var | None = None,
+    scale: FloatImm | None = None,
+    bias: TensorRegion | Var | FloatImm | None = None,
     *,
-    scale: FloatImm,
-    bias: TensorRegion | Var | FloatImm,
     workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
 ):
     """Compute sqrt(src * scale + bias), with both operands required."""
+    if scale is None or bias is None:
+        raise TypeError("scale and bias are required")
     if src is None:
         src = dst
     if is_tensor_var(bias):
@@ -1196,15 +1199,17 @@ def exp(
 def exp_with_scale_bias(
     dst: TensorRegion | Var,
     src: TensorRegion | Var | None = None,
+    scale: FloatImm | None = None,
+    bias: TensorRegion | Var | FloatImm | None = None,
     *,
-    scale: FloatImm,
-    bias: TensorRegion | Var | FloatImm,
     workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
 ):
     """Compute exp(src * scale + bias), with both operands required."""
+    if scale is None or bias is None:
+        raise TypeError("scale and bias are required")
     if src is None:
         src = dst
     if is_tensor_var(bias):
@@ -1257,15 +1262,17 @@ def exp2(
 def exp2_with_scale_bias(
     dst: TensorRegion | Var,
     src: TensorRegion | Var | None = None,
+    scale: FloatImm | None = None,
+    bias: TensorRegion | Var | FloatImm | None = None,
     *,
-    scale: FloatImm,
-    bias: TensorRegion | Var | FloatImm,
     workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
 ):
     """Compute exp2(src * scale + bias), with both operands required."""
+    if scale is None or bias is None:
+        raise TypeError("scale and bias are required")
     if src is None:
         src = dst
     if is_tensor_var(bias):
@@ -1318,15 +1325,17 @@ def log2(
 def log2_with_scale_bias(
     dst: TensorRegion | Var,
     src: TensorRegion | Var | None = None,
+    scale: FloatImm | None = None,
+    bias: TensorRegion | Var | FloatImm | None = None,
     *,
-    scale: FloatImm,
-    bias: TensorRegion | Var | FloatImm,
     workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
 ):
     """Compute log2(src * scale + bias), with both operands required."""
+    if scale is None or bias is None:
+        raise TypeError("scale and bias are required")
     if src is None:
         src = dst
     if is_tensor_var(bias):
@@ -1651,9 +1660,9 @@ def reduce_negate(
         tirx_op.ReduceNegate(
             output,
             input,
+            reduce_op,
             reduce_axes,
             accum,
-            reduce_op,
             workspace=workspace,
             config=config,
             dispatch=dispatch,

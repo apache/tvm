@@ -46,13 +46,6 @@ bool HasRelaxCallResult(const CallNode* call, const ffi::Object* destination) {
 ffi::Optional<ExprDoc> RelaxSugarDocTranslate(DocTranslatorObj* d, const CallNode* call,
                                               const ffi::Array<ExprDoc>& args) {
   const Op& op = call->op.as_or_throw<Op>();
-  auto relax_format = [&](size_t index) -> ExprDoc {
-    if (const auto* format = call->args[index].as<StringImmNode>()) {
-      return NamespaceDoc("relax")->Attr("str")->Call(
-          {LiteralDoc::Str(format->value, std::nullopt)});
-    }
-    return args[index];
-  };
 
   if (op->name == "relax.call_py_func" && call->args.size() == 2 && !call->attrs.defined() &&
       call->ty_args.size() == 1) {
@@ -75,23 +68,6 @@ ffi::Optional<ExprDoc> RelaxSugarDocTranslate(DocTranslatorObj* d, const CallNod
     return NamespaceDoc("relax")->Attr("call_py_func")->Call(packed_args, {"out_ty"}, {output_doc});
   }
 
-  if (op->name == "relax.print" && !call->args.empty() && call->args[0].as<StringImmNode>() &&
-      !call->attrs.defined() && call->ty_args.empty()) {
-    ffi::Array<ExprDoc> positional;
-    for (size_t i = 1; i < args.size(); ++i) positional.push_back(args[i]);
-    return NamespaceDoc("relax")->Attr("print")->Call(positional, {"format"}, {relax_format(0)});
-  }
-
-  if (op->name == "relax.hint_on_device") {
-    const auto* attrs = call->attrs.as<relax::HintOnDeviceAttrs>();
-    if (!attrs || args.size() != 1 || !call->ty_args.empty()) return std::nullopt;
-    ExprDoc device = NamespaceDoc("relax")->Attr("device")->Call(
-        {LiteralDoc::Int(attrs->device_type, std::nullopt),
-         LiteralDoc::Int(attrs->index, std::nullopt)});
-    return NamespaceDoc("relax")
-        ->Attr("hint_on_device")
-        ->Call({args[0], device, LiteralDoc::Str(attrs->memory_scope, std::nullopt)});
-  }
 
   return std::nullopt;
 }
@@ -186,7 +162,7 @@ ffi::Optional<ExprDoc> RelaxSugarCallDocTranslate(DocTranslatorObj* d, ffi::AnyV
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  for (const char* name : {"relax.call_py_func", "relax.print", "relax.hint_on_device"}) {
+  for (const char* name : {"relax.call_py_func"}) {
     OpDef(name).set_attr<FDocTranslate>(kOpCallDocTranslate,
                                         FDocTranslate::FromNative<&RelaxSugarCallDocTranslate>());
   }

@@ -245,7 +245,7 @@ def test_transform_remove_purity_checking():
 
         @R.function(pure=False)
         def impure_func() -> R.Any:
-            y = R.print(format="I am impure!")
+            y = R.print("I am impure!")
             return y
 
         @R.function
@@ -264,7 +264,7 @@ def test_transform_remove_purity_checking():
         def nested_impure_func() -> R.Tensor((), "int32"):
             @R.function(pure=False)
             def nested() -> R.Any:
-                x = R.print(format="Oops!")
+                x = R.print("Oops!")
                 return x
 
             y = R.const(1, dtype="int32")
@@ -296,7 +296,7 @@ def test_transform_remove_purity_checking():
 
         @R.function(pure=False)
         def impure_func() -> R.Any:
-            y = R.print(format="I am impure!")
+            y = R.print("I am impure!")
             return y
 
         @R.function
@@ -318,7 +318,7 @@ def test_transform_remove_purity_checking():
         def nested_impure_func() -> R.Tensor((), "int32"):
             @R.function(pure=False)
             def nested() -> R.Any:
-                x = R.print(format="Oops!")
+                x = R.print("Oops!")
                 return x
 
             y = R.const(1, dtype="int32")

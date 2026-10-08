@@ -534,12 +534,14 @@ class ReduceNegate(ReduceOp):
     """
     Negate the result of a reduction operation.
 
-    reduce_negate(output, input, reduce_axes, accum, reduce_op)
+    reduce_negate(output, input, reduce_op, reduce_axes, accum)
     """
 
     op = get_tirx_op("reduce_negate")
 
-    reduce_op = ArgProperty(4)
+    reduce_op = ArgProperty(2)
+    reduce_axes = ArgProperty(3)
+    accum = ArgProperty(4)
 
 
 class PermuteLayout(TileOpCall):
@@ -572,3 +574,9 @@ class PermuteLayout(TileOpCall):
     @property
     def dsts(self) -> list[Expr]:
         return [self.dst]
+
+
+def _op_api_factory(op, module_name):
+    from tvm.tirx.op import _make_registered_op_api
+
+    return _make_registered_op_api(op, module_name)

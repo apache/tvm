@@ -76,7 +76,7 @@ Inlining raw CUDA
 -----------------
 
 For something with no intrinsic at all, inject a ``__device__`` function from a
-source string with ``Tx.cuda.func_call(name, *args, source_code=..., return_type=...)``:
+source string with ``Tx.cuda.func_call(name, *args, ..., ty=...)``:
 
 .. code-block:: python
 
@@ -91,7 +91,7 @@ source string with ``Tx.cuda.func_call(name, *args, source_code=..., return_type
         Tx.device_entry()
         bx = Tx.cta_id([1])
         tx = Tx.thread_id([256])
-        B[tx] = Tx.cuda.func_call("my_relu", A[tx], source_code=SRC, return_type="float32")
+        B[tx] = Tx.cuda.func_call("my_relu", A[tx], SRC, ty="float32")
 
 The source is emitted verbatim and the call is wired in:
 

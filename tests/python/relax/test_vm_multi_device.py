@@ -58,7 +58,7 @@ def test_multi_cpu():
         ) -> R.Tensor((2, 5), "float32"):
             with R.dataflow():
                 lv0 = R.matmul(x, y)
-                lv0 = R.hint_on_device(lv0, tvm.cpu(0))
+                lv0 = R.hint_on_device(lv0, device_type=1, index=0)
                 lv1: R.Tensor((2, 4), "float32", "llvm:1") = R.to_vdevice(lv0, "llvm:1")
                 gv = R.matmul(lv1, z)
                 R.output(gv)

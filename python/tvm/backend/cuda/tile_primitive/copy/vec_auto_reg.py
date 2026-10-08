@@ -508,8 +508,8 @@ def _ptr_off(base_ptr, off):
         "tvm_builtin_pointer_offset",
         base_ptr,
         off,
-        source_code=_POINTER_OFFSET_SRC,
-        return_type="handle",
+        _POINTER_OFFSET_SRC,
+        ty="handle",
     )
 
 

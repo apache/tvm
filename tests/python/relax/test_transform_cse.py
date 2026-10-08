@@ -242,7 +242,7 @@ def test_no_cse_across_dataflow():
                 gv1 = R.multiply(lv0, lv1)
                 R.output(gv1)
 
-            _ = R.print(format="Prevent dataflow block merging")
+            _ = R.print("Prevent dataflow block merging")
 
             with R.dataflow():
                 lv2 = R.add(x, y)
@@ -268,7 +268,7 @@ def test_no_cse_across_dataflow():
                 gv1 = R.multiply(lv0, lv0)
                 R.output(gv1)
 
-            _ = R.print(format="Prevent dataflow block merging")
+            _ = R.print("Prevent dataflow block merging")
 
             with R.dataflow():
                 # However, the later dataflow block may not be
@@ -336,8 +336,8 @@ def test_do_not_eliminate_impure():
         @R.function(pure=False)
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
             # it's a repeated subexpression but it would be wrong to deduplicate it
-            p1 = R.print(format="Message")
-            p2 = R.print(format="Message")
+            p1 = R.print("Message")
+            p2 = R.print("Message")
             a1 = R.assert_op(R.const(False), "Always fails")
             lv0 = R.add(x, y)
             lv1 = R.add(x, y)
@@ -349,8 +349,8 @@ def test_do_not_eliminate_impure():
     class Expected:
         @R.function(pure=False)
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
-            p1 = R.print(format="Message")
-            p2 = R.print(format="Message")
+            p1 = R.print("Message")
+            p2 = R.print("Message")
             a1 = R.assert_op(R.const(False), "Always fails")
             lv0 = R.add(x, y)
             lv1 = lv0
