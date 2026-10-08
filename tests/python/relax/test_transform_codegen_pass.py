@@ -391,7 +391,7 @@ def test_no_op_for_call_to_tir():
         @R.function
         def main(x: R.Tensor([4], "int64")):
             R.func_attr({"relax.force_pure": True})
-            _ = Before.shape_func(x)
+            _ = R.call_tir_packed(Before.shape_func, (x,))
             return x
 
         @Ts.function(private=True)

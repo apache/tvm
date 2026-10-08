@@ -92,11 +92,6 @@ class BlockBuilderImpl : public BlockBuilderNode {
       Type finfo = Type::Missing();
       if (!func->ty.as<MissingType>().has_value()) {
         finfo = GetType(func);
-      } else if (auto* function = func.as<tirx::FunctionNode>()) {
-        // NOTE: use a slightly different type than checked type
-        // in tirx::Function so handle can turn into Tensor.
-        // TODO(relax-team): add fine-grained tirx::Function type signature generation.
-        finfo = FuncType::OpaqueFunc(TypeFromStaticType(function->ret_type));
       } else {
         TVM_FFI_THROW(RuntimeError) << "Expect ty field to be populated";
       }
@@ -651,6 +646,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   }
 
   Expr VisitExpr_(const CallNode* op) final {
+    TVM_FFI_CHECK(op->op.as<OpNode>() || !op->op->ty.as<tvm::FuncTypeNode>(), TypeError)
+        << "Ordinary Relax calls cannot invoke a native TIRx function; "
+        << "use R.call_tir for destination passing or R.call_tir_packed for a direct result";
     Expr new_op = this->NormalizeArgument(op->op);
 
     ffi::Array<Expr> new_args =

@@ -179,8 +179,9 @@ def test_call_tir_rewrite():
     assert isinstance(s1.args[0], relax.ShapeExpr)
     tvm.ir.assert_structural_equal(s1.args[0], s0.ty_args[0].shape)
     s2 = block.bindings[1].value
-    tvm.ir.expr.GlobalVar
-    assert s2.op.name_hint == "exp"
+    assert s2.op.name == "relax.call_tir_packed"
+    assert s2.args[0].name_hint == "exp"
+    assert not s2.op.get_attr("FPurity")
 
 
 def test_call_tir_rewrite_with_interspersed_primitive_argument():
@@ -212,9 +213,11 @@ def test_call_tir_rewrite_with_interspersed_primitive_argument():
     output_buffer = bindings[0].var
     call = bindings[1].value
 
-    assert call.op.name_hint == "scale_add"
+    assert call.op.name == "relax.call_tir_packed"
+    assert call.args[0].name_hint == "scale_add"
+    assert not call.op.get_attr("FPurity")
     tvm.ir.assert_structural_equal(
-        call.args,
+        call.args[1].fields,
         [func.params[0], func.params[1], func.params[2], output_buffer],
     )
 
@@ -442,7 +445,7 @@ def test_call_tir_inplace_simple():
         @R.function
         def foo(x: R.Tensor((2, 3), "int32")) -> R.Tensor((2, 3), "int32"):
             R.func_attr({"relax.force_pure": True})
-            _ = Expected.zeros(x)
+            _ = R.call_tir_packed(Expected.zeros, (x,))
             gv0 = x
             return gv0
 
@@ -501,7 +504,7 @@ def test_call_tir_inplace_multiple_args():
             x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32"), z: R.Tensor((2, 3), "int32")
         ) -> R.Tuple(R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")):
             R.func_attr({"relax.force_pure": True})
-            _ = Expected.copy(x, y, z)
+            _ = R.call_tir_packed(Expected.copy, (x, y, z))
             gv0 = (x, y)
             return gv0
 
@@ -587,7 +590,7 @@ def test_call_tir_inplace_some_new():
                 (R.shape([2, 3]), R.dtype("int32"), R.prim_value(0), R.str("global")),
                 (R.Tensor((2, 3), dtype="int32"),),
             )
-            _ = Expected.copy(x, y, z, gv0, gv1)
+            _ = R.call_tir_packed(Expected.copy, (x, y, z, gv0, gv1))
             gv2 = (x, gv0, gv1)
             return gv2
 

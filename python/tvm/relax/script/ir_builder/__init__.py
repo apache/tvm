@@ -44,7 +44,8 @@ def _register_printer_names():
 
     def register(value, path):
         # These constructors use specialized out_ty/argument conventions.
-        if not callable(value) or path.rsplit(".", 1)[-1].startswith("call_tir"):
+        name = path.rsplit(".", 1)[-1]
+        if not callable(value) or (name.startswith("call_tir") and name != "call_tir_packed"):
             return
         try:
             op = Op.get(path)

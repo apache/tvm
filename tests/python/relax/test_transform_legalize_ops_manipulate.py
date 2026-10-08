@@ -1831,7 +1831,7 @@ def test_func_ty_of_legalized_layout_transform():
                 (R.shape([4, 4]), R.dtype("float32"), R.prim_value(0), R.str("global")),
                 (R.Tensor((4, 4), dtype="float32"),),
             )
-            cls.te_layout_transform(x, alloc)
+            R.call_tir_packed(cls.te_layout_transform, (x, alloc))
             lv = alloc
             gv = lv
             return gv

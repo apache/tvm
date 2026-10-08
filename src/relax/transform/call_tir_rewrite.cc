@@ -137,7 +137,12 @@ class CallTIRMutator : public ExprMutator {
             }
           }
         }
-        builder_->Emit(Call::Unchecked(Type::Missing(), call->args[0], args), "_");
+        Expr invocation =
+            call->op.same_as(call_dps_packed_op)
+                ? Expr(Call::Unchecked(Type::Missing(), call->args[0], args))
+                : Expr(Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir_packed"),
+                                       {call->args[0], Tuple(args)}));
+        builder_->Emit(invocation, "_");
       } else {
         if (!is_inplace) {
           args = outs;
@@ -145,7 +150,12 @@ class CallTIRMutator : public ExprMutator {
         } else {
           args.push_back(call->args[1]);
         }
-        builder_->Emit(Call::Unchecked(Type::Missing(), call->args[0], args), "_");
+        Expr invocation =
+            call->op.same_as(call_dps_packed_op)
+                ? Expr(Call::Unchecked(Type::Missing(), call->args[0], args))
+                : Expr(Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir_packed"),
+                                       {call->args[0], Tuple(args)}));
+        builder_->Emit(invocation, "_");
       }
 
       if (tuple_output_type.has_value()) {

@@ -687,7 +687,7 @@ def test_lower_memory_alloc_storage_tensor():
             )
             y = R.memory.alloc_tensor(storage, 0, R.shape([2, 3]), dtype="float32")
             # this is an impure operation, but the overall function is pure so we force purity
-            _ = cls.copy(x, y)
+            _ = R.call_tir_packed(cls.copy, (x, y))
             return y
 
         @Ts.function

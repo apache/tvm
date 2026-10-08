@@ -36,6 +36,7 @@ from .base import (
     call_py_func,
     call_tir,
     call_tir_inplace,
+    call_tir_packed,
     call_tir_with_grad,
     hint_on_device,
     invoke_closure,

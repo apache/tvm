@@ -57,6 +57,11 @@ void TypeVisitor::VisitType_(const TupleTypeNode* op) {
   }
 }
 
+void TypeVisitor::VisitType_(const tvm::FuncTypeNode* op) {
+  // Native callbacks may appear inside Relax tuples. Their signature symbols
+  // and tensor contracts belong to the native function, not the Relax scope.
+}
+
 void TypeVisitor::VisitType_(const FuncTypeNode* op) {
   if (op->params.has_value()) {
     for (Type param : op->params.value()) {
@@ -116,6 +121,11 @@ Type TypeMutator::VisitType_(const TupleTypeNode* op) {
   } else {
     return TupleType(fields, op->span);
   }
+}
+
+Type TypeMutator::VisitType_(const tvm::FuncTypeNode* op) {
+  // Relax type rewrites preserve the native callback's signature.
+  return ffi::GetRef<Type>(op);
 }
 
 Type TypeMutator::VisitType_(const FuncTypeNode* op) {

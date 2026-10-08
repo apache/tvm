@@ -25,60 +25,15 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/relax/expr.h>
-#include <tvm/relax/type.h>
-#include <tvm/s_tir/analysis.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
 
 namespace tvm {
 namespace tirx {
-using namespace tvm::prim;
-
 namespace {
-
-tvm::Type InferType(const Function& function) {
-  ffi::Array<tvm::Type> params;
-  for (const auto& param : function->params) {
-    tvm::Type param_ty = [&]() -> tvm::Type {
-      if (param->ty.as<TensorTypeNode>()) {
-        TensorVar buf = param.as_or_throw<TensorVar>();
-        relax::ShapeExpr shape(
-            buf->shape.Map([](PrimExpr dim) { return cast(PrimType::Int(64), dim); }));
-        return relax::TensorType(shape, buf->dtype);
-      }
-
-      // A pointer parameter without a buffer annotation is an opaque runtime
-      // object from Relax's perspective (for example, a DLTensor*).  Keep the
-      // same Relax-facing wildcard semantics that opaque handle parameters had
-      // before pointers became exact IR types.
-      if (param->ty.as<PointerTypeNode>()) {
-        return AnyType();
-      }
-
-      return param->ty;
-    }();
-    params.push_back(param_ty);
-  }
-
-  tvm::Type ret = [&]() -> tvm::Type {
-    if (const auto* prim = function->ret_type.as<PrimTypeNode>()) {
-      return tvm::PrimType(prim->dtype);
-    } else if (IsVoidType(function->ret_type)) {
-      return relax::TupleType(ffi::Array<tvm::Type>{});
-    } else {
-      return AnyType();
-    }
-  }();
-
-  bool purity = function->body.defined() ? s_tir::IsPureFunction(function) : false;
-
-  return relax::FuncType(params, ret, purity);
-}
 
 TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> FunctionVisit(
     ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
-  // skips: attrs (metadata), ty (derived by InferType)
+  // skips: attrs (metadata), ty (derived from the function signature)
   const FunctionNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FunctionNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
@@ -90,7 +45,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> FunctionVisit(
 
 TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: attrs (metadata), ty (derived by InferType)
+  // skips: attrs (metadata), ty (derived from the function signature)
   const FunctionNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FunctionNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Var>>, mapped_params,
@@ -115,7 +70,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMutate(
 
 TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMaybeInplaceMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: attrs (metadata), ty (derived by InferType)
+  // skips: attrs (metadata), ty (derived from the function signature)
   FunctionNode* self = const_cast<FunctionNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FunctionNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Var>>, mapped_params,
@@ -155,11 +110,9 @@ Function::Function(ffi::Array<tirx::Var> params, ffi::Optional<Stmt> body, Type 
   n->body = std::move(body);
   n->ret_type = std::move(ret_type);
   n->attrs = std::move(attrs);
-  n->ty = relax::FuncType::OpaqueFunc();
   n->span = std::move(span);
+  n->ty = n->func_type_annotation();
   data_ = std::move(n);
-
-  (*this)->ty = InferType(*this);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

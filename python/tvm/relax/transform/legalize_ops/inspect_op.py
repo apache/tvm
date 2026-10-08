@@ -92,13 +92,13 @@ def _tensor_stride_i(bb: BlockBuilder, call: Call) -> Expr:
             return stride
 
     gvar = bb.add_func(_get_tensor_stride_i, "_get_tensor_stride_i")
-    return Call(gvar, call.args)
+    return op.call_tir_packed(gvar, tuple(call.args))
 
 
 @register_legalize("relax.inspect.tensor_byte_offset")
 def _tensor_byte_offset(bb: BlockBuilder, call: Call) -> Expr:
     @Ts.function(private=True)
-    def _get_tensor_byte_offset(dlpack_handle: T.handle) -> T.int64:
+    def _get_tensor_byte_offset(dlpack_handle: T.handle) -> T.uint64:
         T.func_attr({"tirx.is_host_func": True, "tirx.is_scheduled": True})
         byte_offset: T.let[T.uint64] = T.tvm_struct_get(
             dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorByteOffset), "uint64"
@@ -106,13 +106,13 @@ def _tensor_byte_offset(bb: BlockBuilder, call: Call) -> Expr:
         return byte_offset
 
     gvar = bb.add_func(_get_tensor_byte_offset, "_get_tensor_byte_offset")
-    return Call(gvar, call.args)
+    return op.call_tir_packed(gvar, tuple(call.args))
 
 
 @register_legalize("relax.inspect.tensor_elem_offset")
 def _tensor_elem_offset(bb: BlockBuilder, call: Call) -> Expr:
     @Ts.function(private=True)
-    def _get_tensor_elem_offset(dlpack_handle: T.handle) -> T.int64:
+    def _get_tensor_elem_offset(dlpack_handle: T.handle) -> T.uint64:
         T.func_attr({"tirx.is_host_func": True, "tirx.is_scheduled": True})
         byte_offset: T.let[T.uint64] = T.tvm_struct_get(
             dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorByteOffset), "uint64"
@@ -130,7 +130,7 @@ def _tensor_elem_offset(bb: BlockBuilder, call: Call) -> Expr:
         return elem_offset
 
     gvar = bb.add_func(_get_tensor_elem_offset, "_get_tensor_elem_offset")
-    return Call(gvar, call.args)
+    return op.call_tir_packed(gvar, tuple(call.args))
 
 
 @register_legalize("relax.size")

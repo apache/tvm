@@ -257,7 +257,7 @@ def test_symbolic_compute():
                 "",
                 ty_args=[R.Tuple()],
             )
-            _ = cls.shape_func(shape_heap)
+            _ = R.call_tir_packed(cls.shape_func, (shape_heap,))
             # extra assertion on y's shape after shape computation
             _ = R.call_packed(
                 "vm.builtin.match_shape",
@@ -522,7 +522,7 @@ def test_return_match_check_with_new_expr():
                 ty_args=[R.Tuple()],
             )
 
-            _ = Expected.shape_func(shape_heap)
+            _ = R.call_tir_packed(Expected.shape_func, (shape_heap,))
 
             out = R.call_packed("flatten_matrix", x, ty_args=R.Any)
             _ = R.call_packed(

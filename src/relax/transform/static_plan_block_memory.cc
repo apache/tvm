@@ -566,6 +566,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
   void VisitExpr_(const CallNode* call) final {
     static const Op alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     static const Op call_tir_dyn_op = Op::Get("relax.vm.call_tir_dyn");
+    static const Op call_tir_packed_op = Op::Get("relax.call_tir_packed");
 
     if (call->op.same_as(alloc_tensor_op)) {
       // Create a storage token for builtin alloc_tensor.
@@ -583,13 +584,17 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     // from the arguments.
     // - Otherwise, discard the tokens used by the arguments, as there might be
     // potential external reference.
+    // A native pointer result may alias an argument, with no lifetime tracked by
+    // Relax.  Keep such inputs out of the reusable storage pool.
+    bool reusable_tirx_call = call->op.same_as(call_tir_packed_op) && !call->ty.as<AnyTypeNode>();
     if (IsFunctionGlobalVar(call->op) || call->op->IsInstance<ExternFuncNode>() ||
-        call->op.same_as(call_tir_dyn_op)) {
-      ffi::Array<Expr> args = call->op.same_as(call_tir_dyn_op)
-                                  ? call->args[1].as_or_throw<Tuple>()->fields
-                                  : call->args;
+        call->op.same_as(call_tir_dyn_op) || reusable_tirx_call) {
+      ffi::Array<Expr> args =
+          (call->op.same_as(call_tir_dyn_op) || call->op.same_as(call_tir_packed_op))
+              ? call->args[1].as_or_throw<Tuple>()->fields
+              : call->args;
       TVM_FFI_ICHECK(!block_stack_.empty());
-      for (const Expr& arg : call->args) {
+      for (const Expr& arg : args) {
         Tokens tokens = GetTokensWithAllocSiteCheck(arg, block_stack_.back());
         ForEachLeaf(tokens, [](StorageToken token) { token->ref_counter += 1; });
       }

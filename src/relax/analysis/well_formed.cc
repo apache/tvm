@@ -203,6 +203,11 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
     }
 
     if (!op->ty.as<MissingType>().has_value()) {
+      if (op->ty.as<tvm::FuncTypeNode>()) {
+        // A native callee owns its parameter symbols and tensor contracts.
+        // Explicit call bridges validate their Relax-facing use separately.
+        return;
+      }
       if (!op->ty->IsInstance<FuncTypeNode>()) {
         TVM_FFI_VISIT_THROW(TypeError, var)
             << "The ty of GlobalVar " << ffi::GetRef<Expr>(op) << " must be either FuncType.";
@@ -355,6 +360,9 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
 
   void VisitExpr_(const CallNode* call) final {
     TVM_FFI_VISIT_BEGIN();
+    TVM_FFI_CHECK(call->op.as<OpNode>() || !call->op->ty.as<tvm::FuncTypeNode>(), TypeError)
+        << "Ordinary Relax calls cannot invoke a native TIRx function; "
+        << "use R.call_tir or R.call_tir_packed";
     if (IsLeafOrTuple(call->op)) {
       const FunctionNode* prev_visited_func = cur_visited_func_;
       cur_visited_func_ = nullptr;  // do not attribute the callee to its caller
