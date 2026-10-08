@@ -433,9 +433,9 @@ ffi::Map<ffi::String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& co
  * \param info Generation context info.
  * \returns Init stmt.
  **/
-Stmt GenerateInitStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<TensorVar>& buffers,
-                      const te::ReduceNode* reduce, const ffi::Map<Var, PrimExpr>& var_map,
-                      CreateFuncInfo* info) {
+SeqStmt GenerateInitStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<TensorVar>& buffers,
+                         const te::ReduceNode* reduce, const ffi::Map<Var, PrimExpr>& var_map,
+                         CreateFuncInfo* info) {
   auto f_substitute = [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto repl = var_map.Get(var)) return ffi::Any(*std::move(repl));
     return ffi::Unchanged();
@@ -454,7 +454,7 @@ Stmt GenerateInitStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Tens
     PrimExpr identity = f_transform_and_remap(reduce->combiner->identity_element[i]);
     init_stmts.push_back(TensorStore(buffer, identity, indices));
   }
-  return SeqStmt::Flatten(init_stmts);
+  return SeqStmt(init_stmts);
 }
 
 /*!
@@ -522,7 +522,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Tens
       }();
       body_stmts.push_back(TensorStore(buffer, value, indices));
     }
-    Stmt body = SeqStmt::Flatten(body_stmts);
+    Stmt body = SeqStmt(body_stmts);
     if (n_buffers > 1) {
       // When there are multiple buffers, we wrap the body with Bind stmts.
       ffi::Array<Stmt> bind_stmts;
@@ -669,7 +669,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
 
   if (reduce) {
     PrimExpr expr_body = compute_op->body[0];
-    ffi::Optional<Stmt> init{std::nullopt};
+    ffi::Optional<SeqStmt> init{std::nullopt};
     if (reduction_init_scope == scopes.size() - 1) {
       init = GenerateInitStmt(leaf.store_indices, buffers, reduce, leaf.axes_remap, info);
     }
@@ -713,7 +713,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
                                              /*annotations=*/annotations)));
     }
   }
-  Stmt body = SeqStmt::Flatten(seq_stmt);
+  Stmt body = SeqStmt(seq_stmt);
 
   // Step 4. Generate nested parent scopes.
   for (size_t i = scopes.size(); i > 0; --i) {
@@ -722,7 +722,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
       auto block_name = info->FreshName(compute_op->name + "_l" + std::to_string(i));
       const auto& block_iters = cur.block_iters;
 
-      ffi::Optional<Stmt> init{std::nullopt};
+      ffi::Optional<SeqStmt> init{std::nullopt};
       if (reduce && i - 1 == reduction_init_scope) {
         init = GenerateInitStmt(cur.store_indices, buffers, reduce, cur.axes_remap, info);
       }
@@ -892,7 +892,7 @@ Function GenerateAndCompleteFunction(const ffi::Array<te::Tensor>& arg_list,
     TVM_FFI_ICHECK(it != info->tensor2buffers.end());
     parameters.push_back(it->second.var());
   }
-  Stmt body = SeqStmt::Flatten(root_stmts);
+  SeqStmt body(root_stmts);
   body = info->transformer->Mutate(body, InplaceMode::kAllow).ValueOrUnchanged(body);
   Function func = WithAttrs(
       Function(/*params=*/std::move(parameters),
@@ -963,7 +963,7 @@ Function GenerateAndCompleteFunction(const ffi::Array<ffi::ObjectRef>& arg_tir_v
       parameters.push_back(var.value());
     }
   }
-  Stmt body = SeqStmt::Flatten(root_stmts);
+  SeqStmt body(root_stmts);
   body = info->transformer->Mutate(body, InplaceMode::kAllow).ValueOrUnchanged(body);
   Function func = WithAttrs(
       Function(/*params=*/std::move(parameters),

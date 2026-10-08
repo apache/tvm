@@ -120,7 +120,7 @@ def test_assert_passes():
 def test_assert_passes_with_format_args():
     @R.function(pure=False)
     def func(x: R.Tensor((), "int32")):
-        _ = R.assert_op(relax.const(True), x, format="You won't see me")
+        _ = R.assert_op(relax.const(True), "You won't see me", x)
         return x
 
     run_cpu(func, tvm.runtime.tensor(np.array(1).astype("int32")))
@@ -139,7 +139,7 @@ def test_assert_fails():
 def test_assert_fails_with_message():
     @R.function(pure=False)
     def func(x: R.Tensor((), "int32")):
-        _ = R.assert_op(relax.const(False), format="I failed...")
+        _ = R.assert_op(relax.const(False), "I failed...")
         return x
 
     with pytest.raises(AssertionError, match="I failed..."):
@@ -149,7 +149,7 @@ def test_assert_fails_with_message():
 def test_assert_fails_with_args():
     @R.function(pure=False)
     def func(x: R.Tensor((), "int32")):
-        _ = R.assert_op(relax.const(False), [x, x])
+        _ = R.assert_op(relax.const(False), "", x, x)
         return x
 
     with pytest.raises(AssertionError, match="5, 5"):
@@ -159,7 +159,7 @@ def test_assert_fails_with_args():
 def test_assert_fails_with_formatted_args():
     @R.function(pure=False)
     def func(x: R.Tensor((), "int32")):
-        _ = R.assert_op(relax.const(False), x, format="Number: {}")
+        _ = R.assert_op(relax.const(False), "Number: {}", x)
         return x
 
     with pytest.raises(AssertionError, match="Number: 6"):

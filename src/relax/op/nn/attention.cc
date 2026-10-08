@@ -38,12 +38,12 @@ Expr attention(Expr query, Expr key, Expr value, ffi::Optional<Expr> bias,
   attrs->window_size = window_size;
 
   if (bias) {
-    return Call::Unchecked(Type::Missing(), Op::Get("relax.nn.attention_bias"),
-                           {std::move(query), std::move(key), std::move(value), bias.value()},
-                           Attrs(attrs), {});
+    return Call(Type::Missing(), Op::Get("relax.nn.attention_bias"),
+                {std::move(query), std::move(key), std::move(value), bias.value()}, Attrs(attrs),
+                {});
   }
-  return Call::Unchecked(Type::Missing(), Op::Get("relax.nn.attention"),
-                         {std::move(query), std::move(key), std::move(value)}, Attrs(attrs), {});
+  return Call(Type::Missing(), Op::Get("relax.nn.attention"),
+              {std::move(query), std::move(key), std::move(value)}, Attrs(attrs), {});
 }
 
 Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr seqstart_k,
@@ -54,9 +54,9 @@ Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr s
   attrs->causal_mask = causal_mask;
   attrs->window_size = window_size;
 
-  return Call::Unchecked(Type::Missing(), Op::Get("relax.nn.attention_var_len"),
-                         {query, key, value, seqstart_q, seqstart_k, max_seqlen_q, max_seqlen_k},
-                         Attrs(attrs), {});
+  return Call(Type::Missing(), Op::Get("relax.nn.attention_var_len"),
+              {query, key, value, seqstart_q, seqstart_k, max_seqlen_q, max_seqlen_k}, Attrs(attrs),
+              {});
 }
 
 void AttentionAttrs::RegisterReflection() {
@@ -64,11 +64,14 @@ void AttentionAttrs::RegisterReflection() {
   refl::ObjectDef<AttentionAttrs>()
       .def_ro(
           "scale", &AttentionAttrs::scale,
-          "The custom scale applied before the softmax. The default value is 1 / sqrt(head_dim).")
+          "The custom scale applied before the softmax. The default value is 1 / sqrt(head_dim).",
+          refl::DefaultValue(ffi::Optional<FloatImm>{}))
       .def_ro("causal_mask", &AttentionAttrs::causal_mask,
-              "The type of the causal mask, i.e. 'TopLeft' and 'BottomRight'.")
+              "The type of the causal mask, i.e. 'TopLeft' and 'BottomRight'.",
+              refl::DefaultValue(ffi::Optional<ffi::String>{}))
       .def_ro("window_size", &AttentionAttrs::window_size,
-              "The size of the window for sliding-window attention.");
+              "The size of the window for sliding-window attention.",
+              refl::DefaultValue(ffi::Optional<IntImm>{}));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

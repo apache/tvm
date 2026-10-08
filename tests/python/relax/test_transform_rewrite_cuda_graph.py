@@ -696,7 +696,7 @@ def test_transform_is_no_op_when_disabled():
         def main():
             storage = R.memory.alloc_storage(R.shape([8]), 0, "global", "float32")
             alloc3 = R.memory.alloc_tensor(storage, 0, R.shape([8]), "float32")
-            return R.tuple()
+            return ()
 
     with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
         AfterWhenEnabled = relax.transform.RewriteCUDAGraph()(Before)
@@ -715,7 +715,7 @@ def test_static_args():
             storage0 = R.memory.alloc_storage(R.shape([8]), 0, "global", "float32")
             alloc0 = R.memory.alloc_tensor(storage0, 0, R.shape([8]), "float32")
             _ = R.call_packed("dummy_func", alloc0, R.dtype("float32"), R.str("string"))
-            return R.tuple()
+            return ()
 
     @I.ir_module
     class Expected:
@@ -732,7 +732,7 @@ def test_static_args():
         def main_cuda_graph_capture(alloc0: R.Tensor((8,), dtype="float32")) -> R.Tuple:
             R.func_attr({"relax.force_pure": True})
             _: R.Any = R.call_packed("dummy_func", alloc0, R.dtype("float32"), R.str("string"))
-            gv: R.Tuple = R.tuple()
+            gv: R.Tuple = ()
             return gv
 
         @R.function(pure=False)
@@ -752,7 +752,7 @@ def test_static_args():
                 (cls.main_cuda_graph_capture, (alloc0,), R.prim_value(0)),
                 ty_args=(R.Tuple,),
             )
-            return R.tuple()
+            return ()
 
     mod = relax.transform.RewriteCUDAGraph()(Before)
     tvm.ir.assert_structural_equal(mod, Expected)
@@ -833,8 +833,8 @@ def test_dynamic_capture():
             R.func_attr({"relax.force_pure": True})
             cls = Expected
             R.call_tir_packed(cls.add_one, (alloc1, alloc2))
-            gv = R.tuple()
-            return R.tuple()
+            gv = ()
+            return ()
 
         @R.function
         def main(x: R.Tensor((m_main,), dtype="float32")) -> R.Tensor((m_main,), dtype="float32"):
@@ -889,7 +889,7 @@ def test_merge_alloc_funcs():
             alloc2 = R.memory.alloc_tensor(storage2, 0, R.shape([256]), "float32")
             alloc3 = R.memory.alloc_tensor(storage3, 0, R.shape([512]), "float32")
             R.call_packed("dummy", alloc1, alloc2, alloc3, ty_args=(R.Tuple,))
-            return R.tuple()
+            return ()
 
         @R.function
         def func2():
@@ -903,7 +903,7 @@ def test_merge_alloc_funcs():
             alloc3 = R.memory.alloc_tensor(storage3, 0, R.shape([1024]), "float32")
             alloc4 = R.memory.alloc_tensor(storage4, 0, R.shape([512]), "float32")
             R.call_packed("dummy", alloc1, alloc2, alloc3, alloc4, ty_args=(R.Tuple,))
-            return R.tuple()
+            return ()
 
     @I.ir_module
     class Expected:
@@ -956,7 +956,7 @@ def test_merge_alloc_funcs():
                 (cls.func1_cuda_graph_capture, (alloc1, alloc2, alloc3), R.prim_value(0)),
                 ty_args=(R.Tuple,),
             )
-            return R.tuple()
+            return ()
 
         @R.function(private=True)
         def func1_cuda_graph_capture(
@@ -966,8 +966,8 @@ def test_merge_alloc_funcs():
         ) -> R.Tuple:
             R.func_attr({"relax.force_pure": True})
             R.call_packed("dummy", alloc1, alloc2, alloc3, ty_args=(R.Tuple,))
-            R.tuple()
-            return R.tuple()
+            ()
+            return ()
 
         @R.function
         def func2() -> R.Tuple:
@@ -999,7 +999,7 @@ def test_merge_alloc_funcs():
                 (cls.func2_cuda_graph_capture, (alloc1, alloc2, alloc3, alloc4), R.prim_value(1)),
                 ty_args=(R.Tuple,),
             )
-            return R.tuple()
+            return ()
 
         @R.function(private=True)
         def func2_cuda_graph_capture(
@@ -1010,8 +1010,8 @@ def test_merge_alloc_funcs():
         ) -> R.Tuple:
             R.func_attr({"relax.force_pure": True})
             R.call_packed("dummy", alloc1, alloc2, alloc3, alloc4, ty_args=(R.Tuple,))
-            R.tuple()
-            return R.tuple()
+            ()
+            return ()
 
     After = relax.transform.RewriteCUDAGraph()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
@@ -1055,8 +1055,8 @@ def test_disable_capture_output():
         ) -> R.Tuple:
             R.func_attr({"relax.force_pure": True})
             R.call_packed("dummy", alloc1, alloc2, ty_args=(R.Tuple,))
-            R.tuple()
-            return R.tuple()
+            ()
+            return ()
 
         @R.function
         def main(x: R.Tensor((8,), dtype="float32")) -> R.Tuple(R.Tensor((8,), dtype="float32")):
@@ -1141,8 +1141,8 @@ def test_static_input_with_symbolic_shape():
         ) -> R.Tuple:
             R.func_attr({"relax.force_pure": True})
             R.call_packed("dummy", alloc1, w, alloc2, ty_args=(R.Tuple,))
-            R.tuple()
-            return R.tuple()
+            ()
+            return ()
 
         @R.function
         def main(x: R.Tensor((8,), dtype="float16"), w: R.Tensor((m_main,))) -> R.Tuple(

@@ -18,43 +18,29 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any
-
 from . import op as _trn_op
-
-OpWrapper = Callable[[Callable[..., Any]], Callable[..., Any]]
-
-
-def _default_op_wrapper(func: Callable[..., Any]) -> Callable[..., Any]:
-    """Create the default facade for a returned-node NKI intrinsic."""
-    from tvm.tirx.script.ir_builder.op import _op_wrapper  # pylint: disable=import-outside-toplevel
-
-    # NKI producers return a single call_intrin node and never emit separately.
-    return _op_wrapper(func)
 
 
 class NKINamespace:
     """The NKI instructions submodule."""
 
-    def __init__(self, op_wrapper: OpWrapper | None = None):
-        wrap = _default_op_wrapper if op_wrapper is None else op_wrapper
-        self.load = wrap(_trn_op.nki_load)
-        self.store = wrap(_trn_op.nki_store)
-        self.tensor_copy = wrap(_trn_op.nki_tensor_copy)
-        self.matmul = wrap(_trn_op.nki_matmul)
-        self.activation = wrap(_trn_op.nki_activation)
-        self.activation_reduce = wrap(_trn_op.nki_activation_reduce)
-        self.reciprocal = wrap(_trn_op.nki_reciprocal)
-        self.tensorreduce = wrap(_trn_op.nki_tensorreduce)
-        self.tensortensor = wrap(_trn_op.nki_tensortensor)
-        self.tensorscalar = wrap(_trn_op.nki_tensorscalar)
-        self.tensorscalar_reduce = wrap(_trn_op.nki_tensorscalar_reduce)
-        self.scalar_tensor_tensor = wrap(_trn_op.nki_scalar_tensor_tensor)
-        self.scalar_tensor_scalar = wrap(_trn_op.nki_scalar_tensor_scalar)
-        self.memset = wrap(_trn_op.nki_memset)
-        self.identity = wrap(_trn_op.nki_identity)
-        self.affine_select = wrap(_trn_op.nki_affine_select)
+    def __init__(self):
+        self.load = _trn_op.nki_load
+        self.store = _trn_op.nki_store
+        self.tensor_copy = _trn_op.nki_tensor_copy
+        self.matmul = _trn_op.nki_matmul
+        self.activation = _trn_op.nki_activation
+        self.activation_reduce = _trn_op.nki_activation_reduce
+        self.reciprocal = _trn_op.nki_reciprocal
+        self.tensorreduce = _trn_op.nki_tensorreduce
+        self.tensortensor = _trn_op.nki_tensortensor
+        self.tensorscalar = _trn_op.nki_tensorscalar
+        self.tensorscalar_reduce = _trn_op.nki_tensorscalar_reduce
+        self.scalar_tensor_tensor = _trn_op.nki_scalar_tensor_tensor
+        self.scalar_tensor_scalar = _trn_op.nki_scalar_tensor_scalar
+        self.memset = _trn_op.nki_memset
+        self.identity = _trn_op.nki_identity
+        self.affine_select = _trn_op.nki_affine_select
 
     @staticmethod
     def tensorized_instruction():
@@ -66,4 +52,4 @@ class NKINamespace:
         return region("tirx.nki.tensorized_instruction", [])
 
 
-__all__ = ["NKINamespace", "OpWrapper"]
+__all__ = ["NKINamespace"]

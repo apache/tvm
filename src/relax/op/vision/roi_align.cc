@@ -39,11 +39,15 @@ void ROIAlignAttrs::RegisterReflection() {
       .def_ro("spatial_scale", &ROIAlignAttrs::spatial_scale,
               "Ratio of input feature map height (or width) to raw image height (or width).")
       .def_ro("sample_ratio", &ROIAlignAttrs::sample_ratio,
-              "Optional sampling ratio of ROI align, using adaptive size by default.")
+              "Optional sampling ratio of ROI align, using adaptive size by default.",
+              refl::DefaultValue(-1))
       .def_ro("aligned", &ROIAlignAttrs::aligned,
-              "Whether to use the aligned ROIAlign semantics without the legacy 1-pixel clamp.")
-      .def_ro("layout", &ROIAlignAttrs::layout, "Dimension ordering of the input data.")
-      .def_ro("mode", &ROIAlignAttrs::mode, "Mode for ROI Align. Can be 'avg' or 'max'.");
+              "Whether to use the aligned ROIAlign semantics without the legacy 1-pixel clamp.",
+              refl::DefaultValue(false))
+      .def_ro("layout", &ROIAlignAttrs::layout, "Dimension ordering of the input data.",
+              refl::DefaultValue(ffi::String("NCHW")))
+      .def_ro("mode", &ROIAlignAttrs::mode, "Mode for ROI Align. Can be 'avg' or 'max'.",
+              refl::DefaultValue(ffi::String("avg")));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { ROIAlignAttrs::RegisterReflection(); }
@@ -66,7 +70,7 @@ Expr roi_align(Expr data, Expr rois, ffi::Array<int64_t> pooled_size, double spa
   attrs->mode = mode;
 
   static const Op op = Op::Get("relax.vision.roi_align");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data), std::move(rois)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(rois)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -76,6 +80,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeROIAlign(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "ROIAlign expects two arguments, while the given number of arguments is "

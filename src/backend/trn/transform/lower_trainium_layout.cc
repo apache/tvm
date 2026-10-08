@@ -79,12 +79,11 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     }
     auto new_stmt = storage_lower->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
     for (const auto& [buf, source] : param_flattened_buffers) {
-      new_stmt =
-          SeqStmt::Flatten(Bind(buf, Call(buf.type(), tirx::decl_tensor_op(),
-                                          {source.data(), tvm::Tuple(buf->shape),
-                                           DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
-                                          {})),
-                           std::move(new_stmt));
+      new_stmt = SeqStmt({Bind(buf, Call(buf.type(), tirx::decl_tensor_op(),
+                                         {source.data(), tvm::Tuple(buf->shape),
+                                          DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
+                                         {})),
+                          std::move(new_stmt)});
     }
     return std::make_pair(new_stmt, new_params);
   }

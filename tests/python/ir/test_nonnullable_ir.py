@@ -49,7 +49,7 @@ def test_optional_statement_fields_and_roundtrip():
     assert loop.step is None
     declaration = tvm.tirx.Function([], None)
     assert declaration.body is None
-    assert declaration.with_body(body).body.same_as(body)
+    assert len(declaration.with_body(body).body) == 0
     for value in [conditional, loop, declaration]:
         restored = tvm.ir.load_json(tvm.ir.save_json(value))
         tvm.ir.assert_structural_equal(value, restored, map_free_vars=True)

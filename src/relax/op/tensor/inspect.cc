@@ -95,7 +95,7 @@ tirx::Function GetDLTensorField(tirx::TVMStructFieldKind field, PrimType field_t
 
   tirx::Var value("value", field_ty);
 
-  tirx::Stmt body = tirx::SeqStmt(
+  tirx::SeqStmt body(
       {tirx::Bind(value, tvm::Call(field_ty, tirx::tvm_struct_get_op(),
                                    {dlpack_handle, IntImm::Int32(0), IntImm::Int32(field)})
                              .as_or_throw<PrimExpr>()),
@@ -114,7 +114,7 @@ Expr NormalizeToKnownPrimExpr(const BlockBuilder&, Call call) { return call; }
 
 Expr tensor_dtype_code(Expr expr) {
   static const Op op = Op::Get("relax.inspect.tensor_dtype_code");
-  return Call::Unchecked(Type::Missing(), op, {expr});
+  return Call(Type::Missing(), op, {expr});
 }
 
 Type InferTypeTensorDtypeCode(const Call& call, const BlockBuilder&) { return PrimType::UInt(8); }
@@ -126,8 +126,7 @@ Expr LegalizeTensorDtypeCode(const BlockBuilder& bb, const Call& call) {
   tirx::Function getter = GetDLTensorField(tirx::TVMStructFieldKind::kDLTensorTypeCode, field_ty);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_dtype_code");
-  return Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir_packed"),
-                         {gvar_getter, Tuple({arg})});
+  return Call(Type::Missing(), Op::Get("relax.call_tir_packed"), {gvar_getter, Tuple({arg})});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -144,7 +143,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr tensor_dtype_bits(Expr expr) {
   static const Op op = Op::Get("relax.inspect.tensor_dtype_bits");
-  return Call::Unchecked(Type::Missing(), op, {expr});
+  return Call(Type::Missing(), op, {expr});
 }
 
 Type InferTypeTensorDtypeBits(const Call& call, const BlockBuilder&) { return PrimType::UInt(8); }
@@ -156,8 +155,7 @@ Expr LegalizeTensorDtypeBits(const BlockBuilder& bb, const Call& call) {
   tirx::Function getter = GetDLTensorField(tirx::TVMStructFieldKind::kDLTensorTypeBits, field_ty);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_dtype_bits");
-  return Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir_packed"),
-                         {gvar_getter, Tuple({arg})});
+  return Call(Type::Missing(), Op::Get("relax.call_tir_packed"), {gvar_getter, Tuple({arg})});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -174,7 +172,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr tensor_dtype_lanes(Expr expr) {
   static const Op op = Op::Get("relax.inspect.tensor_dtype_lanes");
-  return Call::Unchecked(Type::Missing(), op, {expr});
+  return Call(Type::Missing(), op, {expr});
 }
 
 Type InferTypeTensorDtypeLanes(const Call& call, const BlockBuilder&) { return PrimType::UInt(16); }
@@ -186,8 +184,7 @@ Expr LegalizeTensorDtypeLanes(const BlockBuilder& bb, const Call& call) {
   tirx::Function getter = GetDLTensorField(tirx::TVMStructFieldKind::kDLTensorTypeLanes, field_ty);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_dtype_lanes");
-  return Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir_packed"),
-                         {gvar_getter, Tuple({arg})});
+  return Call(Type::Missing(), Op::Get("relax.call_tir_packed"), {gvar_getter, Tuple({arg})});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -204,7 +201,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr tensor_ndim(Expr expr) {
   static const Op op = Op::Get("relax.inspect.tensor_ndim");
-  return Call::Unchecked(Type::Missing(), op, {expr});
+  return Call(Type::Missing(), op, {expr});
 }
 
 Type InferTypeTensorNDim(const Call& call, const BlockBuilder&) { return PrimType::Int(32); }
@@ -216,8 +213,7 @@ Expr LegalizeTensorNDim(const BlockBuilder& bb, const Call& call) {
   tirx::Function getter = GetDLTensorField(tirx::TVMStructFieldKind::kDLTensorNDim, field_ty);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_ndim");
-  return Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir_packed"),
-                         {gvar_getter, Tuple({arg})});
+  return Call(Type::Missing(), Op::Get("relax.call_tir_packed"), {gvar_getter, Tuple({arg})});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -234,7 +230,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr tensor_shape_i(Expr expr) {
   static const Op op = Op::Get("relax.inspect.tensor_shape_i");
-  return Call::Unchecked(Type::Missing(), op, {expr});
+  return Call(Type::Missing(), op, {expr});
 }
 
 Type InferTypeTensorShape(const Call& call, const BlockBuilder&) {
@@ -265,7 +261,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
 
     tirx::Var extent("extent", field_ty);
 
-    tirx::Stmt body = tirx::SeqStmt(
+    tirx::SeqStmt body(
         {tirx::AssertStmt(0 <= axis.as_or_throw<PrimExpr>(), StringImm("RuntimeError"),
                           {StringImm("Specified axis may not be negative")}),
          tirx::Bind(ndim, tvm::Call(ndim->ty.as_or_throw<PrimType>(), tirx::tvm_struct_get_op(),
@@ -297,8 +293,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
   }();
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_shape_i");
-  return Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir_packed"),
-                         {gvar_getter, Tuple(call->args)});
+  return Call(Type::Missing(), Op::Get("relax.call_tir_packed"), {gvar_getter, Tuple(call->args)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -316,7 +311,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr tensor_stride_i(Expr expr) {
   static const Op op = Op::Get("relax.inspect.tensor_stride_i");
-  return Call::Unchecked(Type::Missing(), op, {expr});
+  return Call(Type::Missing(), op, {expr});
 }
 
 Type InferTypeTensorStride(const Call& call, const BlockBuilder&) {
@@ -364,7 +359,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr tensor_byte_offset(Expr expr) {
   static const Op op = Op::Get("relax.inspect.tensor_byte_offset");
-  return Call::Unchecked(Type::Missing(), op, {expr});
+  return Call(Type::Missing(), op, {expr});
 }
 
 Type InferTypeTensorByteOffset(const Call& call, const BlockBuilder&) {
@@ -396,7 +391,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr tensor_elem_offset(Expr expr) {
   static const Op op = Op::Get("relax.inspect.tensor_elem_offset");
-  return Call::Unchecked(Type::Missing(), op, {expr});
+  return Call(Type::Missing(), op, {expr});
 }
 
 Type InferTypeTensorElemOffset(const Call& call, const BlockBuilder&) {

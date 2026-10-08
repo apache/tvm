@@ -38,6 +38,14 @@ struct TakeAttrs : public AttrsNode {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TakeAttrs", TakeAttrs, AttrsNode);
 };  // struct TakeAttrs
 
+/*! \brief Attributes used in take_backward operator */
+struct TakeBackwardAttrs : public AttrsNode {
+  ffi::Optional<int64_t> axis;
+
+  static void RegisterReflection();
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TakeBackwardAttrs", TakeBackwardAttrs, AttrsNode);
+};
+
 /*! \brief Attributes used in strided_slice operator */
 struct StridedSliceAttrs : public AttrsNode {
   bool assume_inbound;

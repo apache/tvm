@@ -521,7 +521,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
     auto then_case_result = this->Mutate(op->then_case, inplace_mode);
     bool then_case_unchanged = then_case_result.UnchangedOrSameAs(op->then_case);
     Stmt then_case = std::move(then_case_result).ValueOrUnchanged(op->then_case);
-    ffi::Optional<Stmt> else_case = std::nullopt;
+    ffi::Optional<SeqStmt> else_case = std::nullopt;
     if (op->else_case) {
       int temp = max_loop_depth_;
       max_loop_depth_ = 0;
@@ -573,7 +573,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
           for (size_t j = i; j < op->seq.size(); ++j) {
             group.push_back(op->seq[j]);
           }
-          Stmt grouped = group.size() == 1 ? group[0] : SeqStmt(group);
+          Stmt grouped = SeqStmt(group, op->span);
           // before_mutation=true: InjectVTLoop will re-visit the entire group
           // with vt_loop_injected_=true, properly substituting vt_var.
           Stmt wrapped = InjectVTLoop(grouped, true);
@@ -595,8 +595,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
       new_seq.push_back(child);
     }
     if (!changed) return ffi::Unchanged();
-    if (new_seq.size() == 1) return new_seq[0];
-    return SeqStmt(new_seq);
+    return SeqStmt(new_seq, op->span);
   }
   // Allocate
   // AllocTensor
@@ -667,7 +666,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
         seq.push_back(
             ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(stmt, f_substitute).as_or_throw<Stmt>());
       }
-      return SeqStmt::Flatten(seq);
+      return SeqStmt(seq);
     } else {
       // insert a for loop
       Var idx(var_->name + ".s", var_->ty);

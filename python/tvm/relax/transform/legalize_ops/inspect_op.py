@@ -60,18 +60,18 @@ def _tensor_stride_i(bb: BlockBuilder, call: Call) -> Expr:
         T.func_attr({"tirx.is_host_func": True, "tirx.is_scheduled": True})
         assert T.int64(0) <= axis, "Specified axis may not be negative"
         ndim: T.let[T.int32] = T.tvm_struct_get(
-            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorNDim), "int32"
+            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorNDim), ty="int32"
         )
         assert axis < T.Cast("int64", ndim), (
             "Specified axis may not be larger than the tensor's dimensionality"
         )
         stride_ptr: T.let[T.handle("int64")] = T.tvm_struct_get(
-            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorStrides), T.handle("int64").ty
+            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorStrides), ty=T.handle("int64").ty
         )
 
         if T.isnullptr(stride_ptr):
             shape_ptr: T.let[T.handle("int64")] = T.tvm_struct_get(
-                dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorShape), T.handle("int64").ty
+                dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorShape), ty=T.handle("int64").ty
             )
             shape = T.decl_tensor(ndim, "int64", data=shape_ptr)
 
@@ -101,7 +101,7 @@ def _tensor_byte_offset(bb: BlockBuilder, call: Call) -> Expr:
     def _get_tensor_byte_offset(dlpack_handle: T.handle) -> T.uint64:
         T.func_attr({"tirx.is_host_func": True, "tirx.is_scheduled": True})
         byte_offset: T.let[T.uint64] = T.tvm_struct_get(
-            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorByteOffset), "uint64"
+            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorByteOffset), ty="uint64"
         )
         return byte_offset
 
@@ -115,13 +115,13 @@ def _tensor_elem_offset(bb: BlockBuilder, call: Call) -> Expr:
     def _get_tensor_elem_offset(dlpack_handle: T.handle) -> T.uint64:
         T.func_attr({"tirx.is_host_func": True, "tirx.is_scheduled": True})
         byte_offset: T.let[T.uint64] = T.tvm_struct_get(
-            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorByteOffset), "uint64"
+            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorByteOffset), ty="uint64"
         )
         scalar_bits: T.let[T.uint8] = T.tvm_struct_get(
-            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorTypeBits), "uint8"
+            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorTypeBits), ty="uint8"
         )
         lanes: T.let[T.uint16] = T.tvm_struct_get(
-            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorTypeLanes), "uint16"
+            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorTypeLanes), ty="uint16"
         )
         bytes_per_element: T.let[T.uint64] = T.ceildiv(
             scalar_bits.astype("uint64") * lanes.astype("uint64"), 8

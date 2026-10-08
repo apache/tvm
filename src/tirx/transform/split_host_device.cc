@@ -209,7 +209,7 @@ class HostDeviceSplitter : public StmtExprMutator {
     Type kernel_ret_type = Type::Missing();
     if (can_propagate_errors) {
       kernel_ret_type = PrimType::Int(32);
-      body = SeqStmt::Flatten(body, Return(success));
+      body = SeqStmt({body, Return(success)});
     } else {
       kernel_ret_type = VoidType();
     }
@@ -220,16 +220,16 @@ class HostDeviceSplitter : public StmtExprMutator {
       TVM_FFI_ICHECK(data_param.has_value())
           << "Undefined buffer " << buf.name() << " was not captured as a kernel parameter";
       TVM_FFI_ICHECK(kernel_buffer != nullptr);
-      body = SeqStmt::Flatten(
-          Bind(kernel_buffer.as_or_throw<TensorVar>(),
-               Call(kernel_buffer.as_or_throw<TensorVar>().type(), tirx::decl_tensor_op(),
-                    {data_param.value(), tvm::Tuple(kernel_buffer.as_or_throw<TensorVar>()->shape),
-                     DataTypeImm(kernel_buffer.as_or_throw<TensorVar>()->dtype->dtype),
-                     StringImm(kernel_buffer.as_or_throw<TensorVar>().scope())},
-                    {})),
-          std::move(body));
+      body = SeqStmt(
+          {Bind(kernel_buffer.as_or_throw<TensorVar>(),
+                Call(kernel_buffer.as_or_throw<TensorVar>().type(), decl_tensor_op(),
+                     {data_param.value(), tvm::Tuple(kernel_buffer.as_or_throw<TensorVar>()->shape),
+                      DataTypeImm(kernel_buffer.as_or_throw<TensorVar>()->dtype->dtype),
+                      StringImm(kernel_buffer.as_or_throw<TensorVar>().scope())},
+                     {})),
+           std::move(body)});
     }
-    Function device_func(kernel_params, body, kernel_ret_type);
+    Function device_func(kernel_params, SeqStmt(body), kernel_ret_type);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tirx::attr::kNoAlias, true},
                                                      {tirx::attr::kIsGlobalFunc, true}});
@@ -398,8 +398,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
-    if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::alloc_tensor_op()))
+    if (const auto* call = op->value.as<CallNode>(); call && call->op.same_as(alloc_tensor_op()))
       return DispatchAllocTensor(op, call);
     // Track Bind definitions so that launch extents and
     // dyn_shmem_size expressions that reference locally-bound
@@ -738,7 +737,7 @@ class DeviceKernelMutator : public StmtExprMutator {
           args.push_back(arg);
         }
         Type ret_ty = IsVoidType(node->ty) ? PrimType::Void() : node->ty;
-        return Call(ret_ty, tirx::call_extern_op(), args);
+        return Call(ret_ty, call_extern_op(), args);
       }
     }
 
@@ -788,8 +787,7 @@ class DeviceKernelMutator : public StmtExprMutator {
 
     auto attrs = ffi::make_object<CallFFIKernelAttr>();
     attrs->launch_params = dev_info.launch_params;
-    return Call(ret_ty, tirx::call_ffi_kernel_op(), call_args, Attrs(attrs))
-        .as_or_throw<PrimExpr>();
+    return Call(ret_ty, call_ffi_kernel_op(), call_args, Attrs(attrs)).as_or_throw<PrimExpr>();
   }
 
   ffi::Optional<Target> current_target_;

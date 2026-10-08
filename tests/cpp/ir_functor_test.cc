@@ -117,12 +117,12 @@ TEST(IRF, CountVar) {
 TEST(IRF, PreOrderStructuralWalk) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Stmt init =
-      IfThenElse(IntImm::Bool(true), Evaluate(IntImm::Int32(0)), Evaluate(IntImm::Int32(0)));
+  Stmt init = IfThenElse(IntImm::Bool(true), Evaluate(IntImm::Int32(2)),
+                         SeqStmt(Evaluate(IntImm::Int32(2))));
   Stmt body = Evaluate(IntImm::Int32(1));
   s_tir::SBlock block(/*iter_vars=*/{}, /*reads=*/{},
                       /*writes=*/{}, /*name_hint=*/"block", /*body=*/body,
-                      /*init=*/init);
+                      /*init=*/SeqStmt(init));
   bool init_visited = false;
   bool stopped_at_if = true;
   bool body_visited = false;
@@ -132,7 +132,7 @@ TEST(IRF, PreOrderStructuralWalk) {
   };
   auto visit_evaluate = [&](const Evaluate& eval) -> ffi::Expected<ffi::WalkResult> {
     if (const auto* int_imm = eval->value.as<IntImmNode>()) {
-      if (int_imm->value == 0) {
+      if (int_imm->value == 2) {
         stopped_at_if = false;
       } else if (int_imm->value == 1) {
         body_visited = true;
@@ -245,8 +245,8 @@ TEST(IRF, StmtVisitor) {
     s_tir::MatchBufferRegion match_buffer_region(decl_tensor({1}), buffer_region);
 
     // construct block and block_realize
-    s_tir::SBlock block = s_tir::SBlock({}, {buffer_region}, {buffer_region}, "block", body, body,
-                                        {}, {match_buffer_region});
+    s_tir::SBlock block = s_tir::SBlock({}, {buffer_region}, {buffer_region}, "block", body,
+                                        SeqStmt(body), {}, {match_buffer_region});
     Stmt block_realize = s_tir::SBlockRealize({}, IntImm::Bool(true), block);
 
     v->count = 0;
@@ -282,7 +282,7 @@ TEST(IRF, StmtExprMutator) {
   auto fmakeif = [&]() {
     auto z = x + 1;
     Stmt body = Evaluate(z);
-    return IfThenElse(x, Evaluate(0), body);
+    return IfThenElse(x, Evaluate(0), SeqStmt(body));
   };
 
   auto v = ffi::make_object<MyMutator>();
@@ -315,7 +315,9 @@ TEST(IRF, StmtExprMutator) {
   {
     ffi::Array<Stmt> arr{fmakeif()};
     arr.MutateByApply([&](Stmt s) { return v->Mutate(s).ValueOrUnchanged(std::move(s)); });
-    TVM_FFI_ICHECK(arr[0].as<IfThenElseNode>()->else_case.as<EvaluateNode>()->value.same_as(x));
+    TVM_FFI_ICHECK(
+        arr[0].as<IfThenElseNode>()->else_case.value()->seq[0].as<EvaluateNode>()->value.same_as(
+            x));
     // mutate but no content change.
     auto arr2 = arr;
     arr.MutateByApply([&](Stmt s) { return v->Mutate(s).ValueOrUnchanged(std::move(s)); });
@@ -379,8 +381,8 @@ TEST(IRF, StmtExprMutator) {
     TensorRegion buffer_region = BufferRegion(buffer, {Range::FromMinExtent(x + 1, 1)});
     s_tir::MatchBufferRegion match_buffer_region(decl_tensor({1}), buffer_region);
     // construct block and block_realize
-    s_tir::SBlock block = s_tir::SBlock({}, {buffer_region}, {buffer_region}, "block", body, body,
-                                        {}, {match_buffer_region});
+    s_tir::SBlock block = s_tir::SBlock({}, {buffer_region}, {buffer_region}, "block", body,
+                                        SeqStmt(body), {}, {match_buffer_region});
     Stmt block_realize = s_tir::SBlockRealize({}, IntImm::Bool(true), block);
     body = v->Mutate(block_realize).ValueOrUnchanged(std::move(block_realize));
     // the body should be changed
@@ -551,11 +553,9 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
           .as_or_throw<Stmt>();
   EXPECT_TRUE(ffi::StructuralEqual()(ordinary, inplace));
   for (const Stmt& result : {ordinary, inplace}) {
-    const auto* evaluate = result.as<EvaluateNode>();
-    ASSERT_NE(evaluate, nullptr);
-    const auto* value = evaluate->value.as<IntImmNode>();
-    ASSERT_NE(value, nullptr);
-    EXPECT_EQ(value->value, 0);
+    const auto* sequence = result.as<SeqStmtNode>();
+    ASSERT_NE(sequence, nullptr);
+    EXPECT_TRUE(sequence->seq.empty());
   }
 
   auto keep_last = [](const Evaluate& evaluate) -> Stmt {
@@ -570,7 +570,10 @@ TEST(IRF, StructuralMapSplicesMappedSeqStmtChild) {
                 .as_or_throw<Stmt>();
   EXPECT_TRUE(ffi::StructuralEqual()(ordinary, inplace));
   for (const Stmt& result : {ordinary, inplace}) {
-    const auto* evaluate = result.as<EvaluateNode>();
+    const auto* sequence = result.as<SeqStmtNode>();
+    ASSERT_NE(sequence, nullptr);
+    ASSERT_EQ(sequence->seq.size(), 1);
+    const auto* evaluate = sequence->seq[0].as<EvaluateNode>();
     ASSERT_NE(evaluate, nullptr);
     const auto* value = evaluate->value.as<IntImmNode>();
     ASSERT_NE(value, nullptr);

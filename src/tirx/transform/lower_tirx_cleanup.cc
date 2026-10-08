@@ -75,12 +75,11 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     }
     auto new_stmt = storage_lower->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
     for (const auto& [buf, source] : param_flattened_buffers) {
-      new_stmt =
-          SeqStmt::Flatten(Bind(buf, Call(buf.type(), tirx::decl_tensor_op(),
-                                          {source.data(), tvm::Tuple(buf->shape),
-                                           DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
-                                          {})),
-                           std::move(new_stmt));
+      new_stmt = SeqStmt({Bind(buf, Call(buf.type(), decl_tensor_op(),
+                                         {source.data(), tvm::Tuple(buf->shape),
+                                          DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
+                                         {})),
+                          std::move(new_stmt)});
     }
     return std::make_pair(new_stmt, new_params);
   }
@@ -105,7 +104,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(tirx::buffer_data_op()) && op->args.size() == 1) {
+    if (op->op.same_as(buffer_data_op()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
           var.has_value() && var.value()->ty.as<TensorTypeNode>()) {
         auto root_opt = buffer_aliases_.Get(var.value());
@@ -124,9 +123,8 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>(); call) {
-      if (call->op.same_as(tirx::alloc_tensor_op()))
-        return MutateAllocTensor(op, call, inplace_mode);
-      if (call->op.same_as(tirx::decl_tensor_op())) return MutateDeclTensor(op, call, inplace_mode);
+      if (call->op.same_as(alloc_tensor_op())) return MutateAllocTensor(op, call, inplace_mode);
+      if (call->op.same_as(decl_tensor_op())) return MutateDeclTensor(op, call, inplace_mode);
     }
     return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
@@ -164,7 +162,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
       return ffi::Unchanged();
     }
     return Bind(buffer,
-                Call(buffer.type(), tirx::decl_tensor_op(),
+                Call(buffer.type(), decl_tensor_op(),
                      {std::move(data), tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                       StringImm(buffer.scope())},
                      buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
@@ -353,7 +351,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
   void RegisterBufferAlias(TensorVar buffer, const Expr& data) {
     Var root = buffer.var();
     if (const auto* call = data.as<CallNode>();
-        call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
+        call && call->op.same_as(buffer_data_op()) && call->args.size() == 1) {
       if (auto source = call->args[0].as<Var>();
           source.has_value() && source.value()->ty.as<TensorTypeNode>()) {
         auto source_root = buffer_aliases_.Get(source.value());

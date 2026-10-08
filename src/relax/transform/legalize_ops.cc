@@ -149,8 +149,7 @@ class LegalizeMutator : public ExprMutator {
     for (auto arg : ret->args) {
       ret_args.push_back(arg);
     }
-    return Call::Unchecked(Type::Missing(), call_pure_packed_op, ret_args, ret->attrs,
-                           ret->ty_args);
+    return Call(Type::Missing(), call_pure_packed_op, ret_args, ret->attrs, ret->ty_args);
   }
 
   ffi::Optional<Target> GetTarget(const ffi::Array<Type>& types) {
@@ -337,8 +336,8 @@ class LegalizeMutator : public ExprMutator {
       // Third choice, use an explicit ffi::String replacement.  This does not require the shape
       ffi::String packed_func_name = call_packed_map[op];
       legalization_func = [packed_func_name](const BlockBuilder& bb, const Call& call) -> Expr {
-        return Call::Unchecked(Type::Missing(), ExternFunc(packed_func_name), call->args, Attrs(),
-                               {GetType(call)});
+        return Call(Type::Missing(), ExternFunc(packed_func_name), call->args, Attrs(),
+                    {GetType(call)});
       };
     } else {
       // No legalization.

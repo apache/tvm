@@ -463,7 +463,7 @@ class ThreadPartitionInserter : public StmtExprMutator {
       Stmt simplified_body = ffi::make_object<ConditionEliminator>(ps_)
                                  ->Mutate(body, InplaceMode::kDisallow)
                                  .ValueOrUnchanged(body);
-      loop.CopyOnWrite()->body = IfThenElse(cond_, simplified_body, body);
+      loop.CopyOnWrite()->body = IfThenElse(cond_, simplified_body, SeqStmt(body));
     }
     innermost_thread_scope_ = false;
     return loop;
@@ -889,7 +889,11 @@ ffi::Optional<Stmt> LoopPartitioner::TryPartition(const Stmt& stmt, Var var, Pri
         }
       }
     }
-    s = SeqStmt::Flatten(pre_stmt, mid_stmt, post_stmt);
+    ffi::Array<Stmt> partitions;
+    if (pre_stmt.has_value()) partitions.push_back(pre_stmt.value());
+    if (mid_stmt.has_value()) partitions.push_back(mid_stmt.value());
+    if (post_stmt.has_value()) partitions.push_back(post_stmt.value());
+    s = SeqStmt(partitions);
   } else {
     PrimExpr cond = IntImm::Bool(true);
     if (!analyzer_->CanProve(body_begin == min)) {

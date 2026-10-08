@@ -258,8 +258,8 @@ def test_async_copy():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             A_sh = T.alloc_tensor((128,), "float32", scope="shared.dyn")
             B_sh = T.alloc_tensor((128,), "float32", scope="shared.dyn")
-            T.s_tir.cp_async_raw("float32", A_sh.data, threadIdx_x, A.data, threadIdx_x, 512)
-            T.s_tir.cp_async_raw("float32", B_sh.data, threadIdx_x, B.data, threadIdx_x, 512)
+            T.s_tir.cp_async_raw(A_sh.data, threadIdx_x, A.data, threadIdx_x, 512, ty="float32")
+            T.s_tir.cp_async_raw(B_sh.data, threadIdx_x, B.data, threadIdx_x, 512, ty="float32")
 
     After = transform(Before)
     # The pass merges shared.dyn allocations. A_sh and B_sh are accessed
@@ -281,12 +281,12 @@ def test_async_copy():
         'scope="shared.dyn")' in script
     )
     assert (
-        'T.s_tir.cp_async_raw("float32", A_sh.data, threadIdx_x, '
-        "A.data, threadIdx_x, 512)" in script
+        "T.s_tir.cp_async_raw(A_sh.data, threadIdx_x, "
+        'A.data, threadIdx_x, 512, ty="float32")' in script
     )
     assert (
-        'T.s_tir.cp_async_raw("float32", B_sh.data, threadIdx_x, '
-        "B.data, threadIdx_x, 512)" in script
+        "T.s_tir.cp_async_raw(B_sh.data, threadIdx_x, "
+        'B.data, threadIdx_x, 512, ty="float32")' in script
     )
 
 

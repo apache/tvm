@@ -19,8 +19,8 @@
 import tvm_ffi
 
 from tvm.ir import Attrs
-
-from . import _ffi_api
+from tvm.ir import Call as _Call
+from tvm.ir.attrs import make_node as _make_attrs
 
 
 @tvm_ffi.register_object("relax.attrs.MultiboxTransformLocAttrs")
@@ -37,6 +37,9 @@ def multibox_transform_loc(
     variances=(1.0, 1.0, 1.0, 1.0),
     keep_background=True,
     apply_softmax=True,
+    *,
+    ty=None,
+    span=None,
 ):
     """SSD / TFLite-style decode: priors + offsets → boxes; prepare class scores.
 
@@ -86,13 +89,17 @@ def multibox_transform_loc(
     (ranks, dtypes, ``loc_pred.shape[1] % 4 == 0`` when known, batch match when both batch
     axes are known, etc.) still run where applicable.
     """
-    return _ffi_api.multibox_transform_loc(
-        cls_pred,
-        loc_pred,
-        anchor,
-        clip,
-        threshold,
-        variances,
-        keep_background,
-        apply_softmax,
+    return _Call(
+        "relax.vision.multibox_transform_loc",
+        [cls_pred, loc_pred, anchor],
+        attrs=_make_attrs(
+            "relax.attrs.MultiboxTransformLocAttrs",
+            clip=clip,
+            threshold=threshold,
+            variances=variances,
+            keep_background=keep_background,
+            apply_softmax=apply_softmax,
+        ),
+        ty=ty,
+        span=span,
     )

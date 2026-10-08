@@ -422,7 +422,7 @@ class Module:
         def nested(y: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
             return y
 
-        z: R.Tensor((), dtype="int32") = nested(x)
+        z: R.Tensor((), dtype="int32") = I.Call(nested, [x], ty=R.Tensor((), dtype="int32"))
         return z
 """.replace("R.", f"{relax_prefix}.")
         .replace("relax as R", f"relax as {relax_prefix}")
@@ -582,7 +582,7 @@ def func() -> T.int64:
 
     @R.function
     def float_func() -> T.float32:
-        return R.prim_value(T.float32(1.0))
+        return T.float32(1.0)
 
     float_script = float_func.script(verbose_expr=True)
     assert "R.prim_value" not in float_script
@@ -605,7 +605,7 @@ def test_primitive_bindings_roundtrip_without_prim_value_marker():
     @R.function
     def func(n: T.int64) -> T.int64:
         plus_one = n + 1
-        alias = R.prim_value(plus_one)
+        alias = plus_one
         return alias
 
     for show_all_ty in [False, True]:
@@ -955,7 +955,7 @@ from __future__ import annotations
 class Module:
     @Ts.function
     def tir_func(x: T.Tensor((T.int64(128),), "float32"), y: T.Tensor((T.int64(128),), "float32")):
-        T.evaluate(0)
+        pass
 
     @R.function
     def foo(x: R.Tensor((128,), dtype="float32")) -> R.Tensor((128,), dtype="float32"):
@@ -980,7 +980,7 @@ from __future__ import annotations
 class Module:
     @Ts.function
     def tir_func(x: T.Tensor((T.int64(128),), "float32"), y: T.Tensor((T.int64(128),), "float32")):
-        T.evaluate(0)
+        pass
 
     @R.function
     def foo(x: R.Tensor((128,), dtype="float32")) -> R.Tensor((128,), dtype="float32"):
@@ -995,7 +995,7 @@ def test_assert_op():
     class AssertOpMod:
         @R.function(pure=False)
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            y = R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
+            y = R.assert_op(R.const(False, dtype="bool"), "x: {}", x)
             return x
 
     _assert_print_lines(
@@ -1010,7 +1010,7 @@ from __future__ import annotations
 class Module:
     @R.function(pure=False)
     def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-        R.assert_op(R.const(False, "bool"), x, format=R.str("x: {}"))
+        R.assert_op(R.const(False, "bool"), "x: {}", x)
         return x
 """,
     )
@@ -1062,7 +1062,7 @@ from __future__ import annotations
 class Module:
     @R.function(private=True)
     def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-        y: R.Tensor((), dtype="int32") = R.add(x, x)
+        y: R.Tensor((), dtype="int32") = R.add(x, x, ty=R.Tensor((), dtype="int32"))
         return y
 """,
     )
@@ -1117,26 +1117,26 @@ from __future__ import annotations
 class Module:
     @R.function(private=True)
     def bar(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-        y: R.Tensor((), dtype="int32") = R.multiply(x, x)
+        y: R.Tensor((), dtype="int32") = R.multiply(x, x, ty=R.Tensor((), dtype="int32"))
         return y
 
     @R.function
     def baz(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
         R.func_attr({"relax.force_pure": True})
         R.print(format=R.str("Hi there!"))
-        z: R.Tensor((), dtype="int32") = R.add(x, x)
+        z: R.Tensor((), dtype="int32") = R.add(x, x, ty=R.Tensor((), dtype="int32"))
         return z
 
     @R.function
     def foo(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-        y: R.Tensor((), dtype="int32") = R.add(x, x)
+        y: R.Tensor((), dtype="int32") = R.add(x, x, ty=R.Tensor((), dtype="int32"))
         return y
 
     @R.function(private=True)
     def quux(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
         R.func_attr({"relax.force_pure": True})
         R.print(format=R.str("Lol"))
-        z: R.Tensor((), dtype="int32") = R.multiply(x, x)
+        z: R.Tensor((), dtype="int32") = R.multiply(x, x, ty=R.Tensor((), dtype="int32"))
         return z
 """,
     )
@@ -1242,9 +1242,9 @@ from __future__ import annotations
 @R.function
 def func(A: R.Tensor((10, 20), dtype="float32"), B: R.Tensor(dtype="float32", ndim=2)) -> R.Tensor((10, 20), dtype="float32"):
     B2 = R.match_cast(B, R.Tensor((10, 20), dtype="float32"))
-    C: R.Tensor((10, 20), dtype="float32") = R.add(A, B2)
+    C: R.Tensor((10, 20), dtype="float32") = R.add(A, B2, ty=R.Tensor((10, 20), dtype="float32"))
     D = C
-    E: R.Tensor((10, 20), dtype="float32") = R.add(D, B)
+    E: R.Tensor((10, 20), dtype="float32") = R.add(D, B, ty=R.Tensor((10, 20), dtype="float32"))
     return E""",
     )
 
@@ -1291,7 +1291,10 @@ def test_typed_add_binding_without_context_free_inference():
         return lv
 
     source = func.script()
-    assert 'lv: R.Tensor((2, 3), dtype="float32") = R.add(x, y)' in source
+    assert (
+        'lv: R.Tensor((2, 3), dtype="float32") = R.add(x, y, ty=R.Tensor((2, 3), dtype="float32"))'
+        in source
+    )
     restored = tvm.script.from_source(source, extra_vars={"I": I, "R": R})
     binding = restored.body.blocks[0].bindings[0]
     assert binding.value.op.same_as(tvm.ir.Op.get("relax.add"))

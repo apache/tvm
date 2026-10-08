@@ -765,7 +765,7 @@ def test_collect_nonnegative_expressions():
         C: R.Shape([M, N]),
         D: T.int64,
     ):
-        return R.tuple()
+        return ()
 
     M, N = list(func.params[2].ty.values)
 

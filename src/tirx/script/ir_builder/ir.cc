@@ -297,7 +297,7 @@ PrimExpr ConvertLoopBound(const PrimExpr& e, const PrimType& var_ty) {
     n->steps = {step};                                                                           \
     n->f_make_for_loop = [annotations](ffi::Array<Var> vars, ffi::Array<Range> doms,             \
                                        ffi::Array<ffi::Optional<PrimExpr>> steps,                \
-                                       tvm::tirx::Stmt body, Span span) {                        \
+                                       tvm::tirx::SeqStmt body, Span span) {                     \
       TVM_FFI_ICHECK_EQ(vars.size(), 1);                                                         \
       TVM_FFI_ICHECK_EQ(doms.size(), 1);                                                         \
       TVM_FFI_ICHECK_EQ(steps.size(), 1);                                                        \
@@ -330,7 +330,7 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
   n->steps = {std::nullopt};
   n->f_make_for_loop = [annotations, thread, dtype](ffi::Array<Var> vars, ffi::Array<Range> doms,
                                                     ffi::Array<ffi::Optional<PrimExpr>> steps,
-                                                    Stmt body, Span span) -> For {
+                                                    SeqStmt body, Span span) -> For {
     TVM_FFI_ICHECK_EQ(vars.size(), 1);
     TVM_FFI_ICHECK_EQ(doms.size(), 1);
     TVM_FFI_ICHECK(steps.size() == 1 && (!steps[0].has_value() || IsOne(*steps[0])));
@@ -368,18 +368,20 @@ ForFrame Grid(ffi::Array<ffi::Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>>
     }
   }
   n->f_make_for_loop = [](ffi::Array<Var> vars, ffi::Array<Range> doms,
-                          ffi::Array<ffi::Optional<PrimExpr>> steps, Stmt body, Span span) -> Stmt {
+                          ffi::Array<ffi::Optional<PrimExpr>> steps, SeqStmt body,
+                          Span span) -> Stmt {
     TVM_FFI_ICHECK_EQ(vars.size(), doms.size());
     TVM_FFI_ICHECK_EQ(vars.size(), steps.size());
+    Stmt result = std::move(body);
     int n = vars.size();
     for (int i = n - 1; i >= 0; --i) {
       Range dom = doms[i];
       Var var = vars[i];
-      body = For(var.as_or_throw<tvm::PrimVar>(), dom->min, dom->extent, ForKind::kSerial,
-                 std::move(body),
-                 /*thread_binding=*/std::nullopt, /*annotations=*/{}, /*step=*/steps[i], span);
+      result = For(var.as_or_throw<tvm::PrimVar>(), dom->min, dom->extent, ForKind::kSerial,
+                   SeqStmt(std::move(result)),
+                   /*thread_binding=*/std::nullopt, /*annotations=*/{}, /*step=*/steps[i], span);
     }
-    return body;
+    return result;
   };
   return ForFrame(n);
 }

@@ -395,14 +395,13 @@ def get_max_shared_memory_per_block(target: Target) -> int:
 
 
 def get_root_block(sch: Schedule, func_name: str = "main") -> SBlockRV:
-    try:
-        block = sch.mod[func_name].body.block
-    except Exception:
+    body = sch.mod[func_name].body
+    if body is None or len(body) != 1 or not isinstance(body[0], s_tir.SBlockRealize):
         raise ValueError(
             f"The function body is expected to be the root block, but got:\n"
             f"{sch.mod[func_name].body}"
         )
-    return sch.get_sblock(block.name_hint)
+    return sch.get_sblock(body[0].block.name_hint)
 
 
 def collect_block_iter_vars_used_in_access_region(

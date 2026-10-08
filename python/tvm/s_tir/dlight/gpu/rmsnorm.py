@@ -32,9 +32,9 @@ def identify_cast_or_load_block(block: SBlock) -> bool:
     if len(block.reads) != 1 or len(block.writes) != 1:
         return False
 
-    if not isinstance(block.body, TensorStore):
+    if len(block.body) != 1 or not isinstance(block.body[0], TensorStore):
         return False
-    store = block.body
+    store = block.body[0]
 
     # check types
     if isinstance(store.value, TensorLoad):
@@ -61,9 +61,9 @@ def identify_rsqrt_block(block: SBlock) -> bool:
     if len(block.reads) != 1 or len(block.writes) != 1:
         return False
 
-    if not isinstance(block.body, TensorStore):
+    if len(block.body) != 1 or not isinstance(block.body[0], TensorStore):
         return False
-    store = block.body
+    store = block.body[0]
 
     if not isinstance(store.value, Call):
         return False

@@ -38,7 +38,8 @@ namespace relax {
 void MatmulAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<MatmulAttrs>().def_ro("out_dtype", &MatmulAttrs::out_dtype,
-                                        "The data type of the output tensor");
+                                        "The data type of the output tensor",
+                                        refl::DefaultValue(ffi::Optional<DLDataType>{}));
 }
 
 void EinsumAttrs::RegisterReflection() {
@@ -59,7 +60,7 @@ Expr matmul(Expr x1, Expr x2, ffi::Optional<DLDataType> out_dtype) {
   attrs->out_dtype = out_dtype;
 
   static const Op op = Op::Get("relax.matmul");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x1), std::move(x2)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(x1), std::move(x2)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -191,7 +192,7 @@ Expr einsum(Expr operands, ffi::String subscripts) {
   attrs->subscripts = std::move(subscripts);
 
   static const Op op = Op::Get("relax.einsum");
-  return Call::Unchecked(Type::Missing(), op, {std::move(operands)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(operands)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -276,7 +277,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr outer(Expr x1, Expr x2) {
   static const Op op = Op::Get("relax.outer");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x1), std::move(x2)}, {});
+  return Call(Type::Missing(), op, {std::move(x1), std::move(x2)}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

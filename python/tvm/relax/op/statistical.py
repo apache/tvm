@@ -21,9 +21,10 @@ import tvm_ffi
 
 from tvm import DataType
 from tvm.ir import Attrs, PrimType
+from tvm.ir import Call as _Call
+from tvm.ir.attrs import make_node as _make_attrs
 
 from ..expr import Expr
-from . import _ffi_api
 
 
 def _raw_dtype(dtype):
@@ -35,7 +36,14 @@ class StatisticalAttrs(Attrs):
     """Attributes used in statistical operator"""
 
 
-def max(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -> Expr:
+def max(
+    x: Expr,
+    axis: int | list[int] | None = None,
+    keepdims: bool = False,
+    *,
+    ty=None,
+    span=None,
+) -> Expr:
     """Computes the max of tensor elements over given axes.
 
     Parameters
@@ -60,10 +68,23 @@ def max(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) ->
     """
     if isinstance(axis, int):
         axis = [axis]
-    return _ffi_api.max(x, axis, keepdims)  # type: ignore
+    return _Call(
+        "relax.max",
+        [x],
+        attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def mean(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -> Expr:
+def mean(
+    x: Expr,
+    axis: int | list[int] | None = None,
+    keepdims: bool = False,
+    *,
+    ty=None,
+    span=None,
+) -> Expr:
     """Computes the mean of tensor elements over given axes.
 
     Parameters
@@ -88,10 +109,23 @@ def mean(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -
     """
     if isinstance(axis, int):
         axis = [axis]
-    return _ffi_api.mean(x, axis, keepdims)  # type: ignore
+    return _Call(
+        "relax.mean",
+        [x],
+        attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def min(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -> Expr:
+def min(
+    x: Expr,
+    axis: int | list[int] | None = None,
+    keepdims: bool = False,
+    *,
+    ty=None,
+    span=None,
+) -> Expr:
     """Computes the min of tensor elements over given axes.
 
     Parameters
@@ -116,10 +150,23 @@ def min(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) ->
     """
     if isinstance(axis, int):
         axis = [axis]
-    return _ffi_api.min(x, axis, keepdims)  # type: ignore
+    return _Call(
+        "relax.min",
+        [x],
+        attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def prod(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -> Expr:
+def prod(
+    x: Expr,
+    axis: int | list[int] | None = None,
+    keepdims: bool = False,
+    *,
+    ty=None,
+    span=None,
+) -> Expr:
     """Computes the product of tensor elements over given axes.
 
     Parameters
@@ -144,10 +191,23 @@ def prod(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -
     """
     if isinstance(axis, int):
         axis = [axis]
-    return _ffi_api.prod(x, axis, keepdims)  # type: ignore
+    return _Call(
+        "relax.prod",
+        [x],
+        attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def std(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -> Expr:
+def std(
+    x: Expr,
+    axis: int | list[int] | None = None,
+    keepdims: bool = False,
+    *,
+    ty=None,
+    span=None,
+) -> Expr:
     """Computes the standard deviation of tensor elements over given axes.
 
     Parameters
@@ -172,10 +232,23 @@ def std(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) ->
     """
     if isinstance(axis, int):
         axis = [axis]
-    return _ffi_api.std(x, axis, keepdims)  # type: ignore
+    return _Call(
+        "relax.std",
+        [x],
+        attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def sum(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -> Expr:
+def sum(
+    x: Expr,
+    axis: int | list[int] | None = None,
+    keepdims: bool = False,
+    *,
+    ty=None,
+    span=None,
+) -> Expr:
     """Computes the sum of tensor elements over given axes.
 
     Parameters
@@ -200,7 +273,13 @@ def sum(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) ->
     """
     if isinstance(axis, int):
         axis = [axis]
-    return _ffi_api.sum(x, axis, keepdims)  # type: ignore
+    return _Call(
+        "relax.sum",
+        [x],
+        attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
 @tvm_ffi.register_object("relax.attrs.ScanopAttrs")
@@ -213,6 +292,9 @@ def cumprod(
     axis: int | None = None,
     dtype: str | DataType | None = None,
     exclusive: bool = False,
+    *,
+    ty=None,
+    span=None,
 ):
     """Numpy style cumprod op. Return the cumulative product of the elements along
     a given axis.
@@ -267,7 +349,15 @@ def cumprod(
     if exclusive is None:
         exclusive = False
 
-    return _ffi_api.cumprod(data, axis, _raw_dtype(dtype), exclusive)  # type: ignore
+    return _Call(
+        "relax.cumprod",
+        [data],
+        attrs=_make_attrs(
+            "relax.attrs.ScanopAttrs", axis=axis, dtype=_raw_dtype(dtype), exclusive=exclusive
+        ),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
 def cumsum(
@@ -275,6 +365,9 @@ def cumsum(
     axis: int | None = None,
     dtype: str | DataType | None = None,
     exclusive: bool = False,
+    *,
+    ty=None,
+    span=None,
 ):
     """Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
     a given axis.
@@ -329,10 +422,25 @@ def cumsum(
     if exclusive is None:
         exclusive = False
 
-    return _ffi_api.cumsum(data, axis, _raw_dtype(dtype), exclusive)  # type: ignore
+    return _Call(
+        "relax.cumsum",
+        [data],
+        attrs=_make_attrs(
+            "relax.attrs.ScanopAttrs", axis=axis, dtype=_raw_dtype(dtype), exclusive=exclusive
+        ),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def variance(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -> Expr:
+def variance(
+    x: Expr,
+    axis: int | list[int] | None = None,
+    keepdims: bool = False,
+    *,
+    ty=None,
+    span=None,
+) -> Expr:
     """Computes the variance of tensor elements over given axes.
 
     Parameters
@@ -357,10 +465,23 @@ def variance(x: Expr, axis: int | list[int] | None = None, keepdims: bool = Fals
     """
     if isinstance(axis, int):
         axis = [axis]
-    return _ffi_api.variance(x, axis, keepdims)  # type: ignore
+    return _Call(
+        "relax.variance",
+        [x],
+        attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def median(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -> Expr:
+def median(
+    x: Expr,
+    axis: int | list[int] | None = None,
+    keepdims: bool = False,
+    *,
+    ty=None,
+    span=None,
+) -> Expr:
     """Computes the median of tensor elements over given axes.
 
     Parameters
@@ -384,4 +505,10 @@ def median(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False)
     """
     if isinstance(axis, int):
         axis = [axis]
-    return _ffi_api.median(x, axis, keepdims)  # type: ignore
+    return _Call(
+        "relax.median",
+        [x],
+        attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
+        ty=ty,
+        span=span,
+    )  # type: ignore

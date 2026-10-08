@@ -32,28 +32,32 @@ namespace relax {
 void SoftmaxAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<SoftmaxAttrs>().def_ro("axis", &SoftmaxAttrs::axis,
-                                         "The axis to sum over when computing softmax.");
+                                         "The axis to sum over when computing softmax.",
+                                         refl::DefaultValue(-1));
 }
 
 void LeakyReluAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
-  refl::ObjectDef<LeakyReluAttrs>().def_ro("alpha", &LeakyReluAttrs::alpha,
-                                           "The slope of the negative part.");
+  refl::ObjectDef<LeakyReluAttrs>().def_ro(
+      "alpha", &LeakyReluAttrs::alpha, "The slope of the negative part.", refl::DefaultValue(0.01));
 }
 
 void SoftplusAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<SoftplusAttrs>()
       .def_ro("beta", &SoftplusAttrs::beta,
-              "Scaling factor controlling the sharpness of the Softplus transition.")
+              "Scaling factor controlling the sharpness of the Softplus transition.",
+              refl::DefaultValue(1.0))
       .def_ro("threshold", &SoftplusAttrs::threshold,
-              "Value determining when to use linear approximation for numerical stability.");
+              "Value determining when to use linear approximation for numerical stability.",
+              refl::DefaultValue(20.0));
 }
 
 void PReluAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<PReluAttrs>().def_ro("axis", &PReluAttrs::axis,
-                                       "The axis along which the alpha values are applied.");
+                                       "The axis along which the alpha values are applied.",
+                                       refl::DefaultValue(1));
 }
 
 void BatchNormAttrs::RegisterReflection() {
@@ -61,14 +65,16 @@ void BatchNormAttrs::RegisterReflection() {
   refl::ObjectDef<BatchNormAttrs>()
       .def_ro("axis", &BatchNormAttrs::axis, "The axis along which the normalization is applied.")
       .def_ro("epsilon", &BatchNormAttrs::epsilon,
-              "Small float added to variance to avoid dividing by zero")
+              "Small float added to variance to avoid dividing by zero", refl::DefaultValue(1e-05))
       .def_ro("center", &BatchNormAttrs::center,
-              "Indicating if the beta offset will be added to the normalized tensor.")
-      .def_ro("scale", &BatchNormAttrs::scale, "Indicating if the gamma scale will be multiplied.")
+              "Indicating if the beta offset will be added to the normalized tensor.",
+              refl::DefaultValue(true))
+      .def_ro("scale", &BatchNormAttrs::scale, "Indicating if the gamma scale will be multiplied.",
+              refl::DefaultValue(true))
       .def_ro("momentum", &BatchNormAttrs::momentum,
-              "The value used for the moving_mean and moving_var update.")
+              "The value used for the moving_mean and moving_var update.", refl::DefaultValue(0.1))
       .def_ro("training", &BatchNormAttrs::training,
-              "Whether we are training (i.e., not in eval mode).");
+              "Whether we are training (i.e., not in eval mode).", refl::DefaultValue(true));
 }
 
 void LayerNormAttrs::RegisterReflection() {
@@ -77,10 +83,12 @@ void LayerNormAttrs::RegisterReflection() {
       .def_ro("axes", &LayerNormAttrs::axes,
               "The axes that along which the normalization is applied.")
       .def_ro("epsilon", &LayerNormAttrs::epsilon,
-              "Small float added to variance to avoid dividing by zero")
+              "Small float added to variance to avoid dividing by zero", refl::DefaultValue(1e-05))
       .def_ro("center", &LayerNormAttrs::center,
-              "Indicating if the beta offset will be added to the normalized tensor.")
-      .def_ro("scale", &LayerNormAttrs::scale, "Indicating if the gamma scale will be multiplied.");
+              "Indicating if the beta offset will be added to the normalized tensor.",
+              refl::DefaultValue(true))
+      .def_ro("scale", &LayerNormAttrs::scale, "Indicating if the gamma scale will be multiplied.",
+              refl::DefaultValue(true));
 }
 
 void GroupNormAttrs::RegisterReflection() {
@@ -94,10 +102,12 @@ void GroupNormAttrs::RegisterReflection() {
           "axes", &GroupNormAttrs::axes,
           "The axes that along which the normalization is applied (excluding the channel axis).")
       .def_ro("epsilon", &GroupNormAttrs::epsilon,
-              "Small float added to variance to avoid dividing by zero")
+              "Small float added to variance to avoid dividing by zero", refl::DefaultValue(1e-05))
       .def_ro("center", &GroupNormAttrs::center,
-              "Indicating if the beta offset will be added to the normalized tensor.")
-      .def_ro("scale", &GroupNormAttrs::scale, "Indicating if the gamma scale will be multiplied.");
+              "Indicating if the beta offset will be added to the normalized tensor.",
+              refl::DefaultValue(true))
+      .def_ro("scale", &GroupNormAttrs::scale, "Indicating if the gamma scale will be multiplied.",
+              refl::DefaultValue(true));
 }
 
 void InstanceNormAttrs::RegisterReflection() {
@@ -108,20 +118,22 @@ void InstanceNormAttrs::RegisterReflection() {
       .def_ro("axes", &InstanceNormAttrs::axes,
               "The axes that along which the normalization is applied.")
       .def_ro("epsilon", &InstanceNormAttrs::epsilon,
-              "Small float added to variance to avoid dividing by zero")
+              "Small float added to variance to avoid dividing by zero", refl::DefaultValue(1e-05))
       .def_ro("center", &InstanceNormAttrs::center,
-              "Indicating if the beta offset will be added to the normalized tensor.")
+              "Indicating if the beta offset will be added to the normalized tensor.",
+              refl::DefaultValue(true))
       .def_ro("scale", &InstanceNormAttrs::scale,
-              "Indicating if the gamma scale will be multiplied.");
+              "Indicating if the gamma scale will be multiplied.", refl::DefaultValue(true));
 }
 
 void RMSNormAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<RMSNormAttrs>()
       .def_ro("axes", &RMSNormAttrs::axes,
-              "The axes that along which the normalization is applied.")
+              "The axes that along which the normalization is applied.",
+              refl::DefaultValue(ffi::Array<int64_t>{-1}))
       .def_ro("epsilon", &RMSNormAttrs::epsilon,
-              "Small float added to variance to avoid dividing by zero");
+              "Small float added to variance to avoid dividing by zero", refl::DefaultValue(1e-05));
 }
 
 void NLLLossAttrs::RegisterReflection() {
@@ -131,14 +143,15 @@ void NLLLossAttrs::RegisterReflection() {
               "The reduction method to apply to the output. Can be"
               "'none', 'mean' or 'sum'.",
               refl::DefaultValue("mean"))
-      .def_ro("ignore_index", &NLLLossAttrs::ignore_index, "The target value to ignore.");
+      .def_ro("ignore_index", &NLLLossAttrs::ignore_index, "The target value to ignore.",
+              refl::DefaultValue(-100));
 }
 
 void DropoutAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<DropoutAttrs>().def_ro(
       "rate", &DropoutAttrs::rate,
-      "Fraction of the input that gets dropped out during training time");
+      "Fraction of the input that gets dropped out during training time", refl::DefaultValue(0.5));
 }
 
 void PadAttrs::RegisterReflection() {
@@ -181,27 +194,27 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.nn.relu */
 Expr relu(Expr x) {
   static const Op op = Op::Get("relax.nn.relu");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
 }
 
 Expr gelu(Expr x) {
   static const Op op = Op::Get("relax.nn.gelu");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
 }
 
 Expr gelu_tanh(Expr x) {
   static const Op op = Op::Get("relax.nn.gelu_tanh");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
 }
 
 Expr selu(Expr x) {
   static const Op op = Op::Get("relax.nn.selu");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
 }
 
 Expr silu(Expr x) {
   static const Op op = Op::Get("relax.nn.silu");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -280,7 +293,7 @@ Expr leakyrelu(Expr data, double alpha) {
   auto attrs = ffi::make_object<LeakyReluAttrs>();
   attrs->alpha = alpha;
   static const Op op = Op::Get("relax.nn.leakyrelu");
-  return Call::Unchecked(Type::Missing(), op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -305,7 +318,7 @@ Expr softplus(Expr data, double beta, double threshold) {
   attrs->beta = beta;
   attrs->threshold = threshold;
   static const Op op = Op::Get("relax.nn.softplus");
-  return Call::Unchecked(Type::Missing(), op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -329,7 +342,7 @@ Expr prelu(Expr data, Expr alpha, int axis = 1) {
   auto attrs = ffi::make_object<PReluAttrs>();
   attrs->axis = axis;
   static const Op op = Op::Get("relax.nn.prelu");
-  return Call::Unchecked(Type::Missing(), op, {data, alpha}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data, alpha}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -339,6 +352,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypePRelu(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   TensorType data_ty = GetUnaryInputTensorType(call);
   if (data_ty->IsUnknownNdim()) {
     return data_ty;
@@ -396,7 +410,7 @@ Expr softmax(Expr data, int axis) {
   auto attrs = ffi::make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op op = Op::Get("relax.nn.softmax");
-  return Call::Unchecked(Type::Missing(), op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -406,6 +420,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeSoftmax(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   TensorType data_ty = GetUnaryInputTensorType(call);
   if (data_ty->IsUnknownNdim()) {
     return data_ty;
@@ -461,7 +476,7 @@ Expr log_softmax(Expr data, int axis) {
   auto attrs = ffi::make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op op = Op::Get("relax.nn.log_softmax");
-  return Call::Unchecked(Type::Missing(), op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -482,7 +497,7 @@ Expr pad(Expr data, ffi::Array<int64_t> pad_width, ffi::String pad_mode, double 
   attrs->pad_mode = std::move(pad_mode);
   attrs->pad_value = pad_value;
   static const Op op = Op::Get("relax.nn.pad");
-  return Call::Unchecked(Type::Missing(), op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -528,7 +543,7 @@ Expr pixel_shuffle(Expr data, int upscale_factor) {
   auto attrs = ffi::make_object<PixelShuffleAttrs>();
   attrs->upscale_factor = upscale_factor;
   static const Op op = Op::Get("relax.nn.pixel_shuffle");
-  return Call::Unchecked(Type::Missing(), op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -678,10 +693,10 @@ Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_
   attrs->training = training;
 
   static const Op op = Op::Get("relax.nn.batch_norm");
-  return Call::Unchecked(Type::Missing(), op,
-                         {std::move(data), std::move(gamma), std::move(beta),
-                          std::move(moving_mean), std::move(moving_var)},
-                         Attrs{attrs}, {});
+  return Call(Type::Missing(), op,
+              {std::move(data), std::move(gamma), std::move(beta), std::move(moving_mean),
+               std::move(moving_var)},
+              Attrs{attrs}, {});
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -758,8 +773,8 @@ Expr layer_norm(Expr data, Expr gamma, Expr beta, ffi::Array<int64_t> axes, doub
   attrs->scale = scale;
 
   static const Op op = Op::Get("relax.nn.layer_norm");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data), std::move(gamma), std::move(beta)},
-                         Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(gamma), std::move(beta)},
+              Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -828,8 +843,8 @@ Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_ax
   attrs->scale = scale;
 
   static const Op op = Op::Get("relax.nn.group_norm");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data), std::move(gamma), std::move(beta)},
-                         Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(gamma), std::move(beta)},
+              Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -941,8 +956,8 @@ Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis, ffi::Arra
   attrs->scale = scale;
 
   static const Op op = Op::Get("relax.nn.instance_norm");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data), std::move(gamma), std::move(beta)},
-                         Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(gamma), std::move(beta)},
+              Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1038,8 +1053,7 @@ Expr rms_norm(Expr data, Expr weight, ffi::Array<int64_t> axes, double epsilon) 
   attrs->epsilon = epsilon;
 
   static const Op op = Op::Get("relax.nn.rms_norm");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data), std::move(weight)}, Attrs{attrs},
-                         {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(weight)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1098,7 +1112,7 @@ Expr dropout(Expr data, double rate) {
   attrs->rate = rate;
 
   static const Op op = Op::Get("relax.nn.dropout");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1169,7 +1183,7 @@ Type InferTypeCrossEntropy(const Call& call, const BlockBuilder& ctx) {
 
 Expr cross_entropy_with_logits(Expr predictions, Expr labels) {
   static const Op op = Op::Get("relax.nn.cross_entropy_with_logits");
-  return Call::Unchecked(Type::Missing(), op, {std::move(predictions), std::move(labels)}, {}, {});
+  return Call(Type::Missing(), op, {std::move(predictions), std::move(labels)}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1200,12 +1214,11 @@ Expr nll_loss(Expr predictions, Expr targets, ffi::Optional<Expr> weights, ffi::
 
   static const Op op = Op::Get("relax.nn.nll_loss");
   if (weights.has_value()) {
-    return Call::Unchecked(Type::Missing(), op,
-                           {std::move(predictions), std::move(targets), weights.value()},
-                           Attrs{attrs}, {});
+    return Call(Type::Missing(), op, {std::move(predictions), std::move(targets), weights.value()},
+                Attrs{attrs}, {});
   } else {
-    return Call::Unchecked(Type::Missing(), op, {std::move(predictions), std::move(targets)},
-                           Attrs{attrs}, {});
+    return Call(Type::Missing(), op, {std::move(predictions), std::move(targets)}, Attrs{attrs},
+                {});
   }
 }
 
@@ -1419,7 +1432,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr batch_flatten(Expr data) {
   static const Op op = Op::Get("relax.nn.batch_flatten");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, {}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

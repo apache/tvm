@@ -38,7 +38,8 @@ void ROIPoolAttrs::RegisterReflection() {
       .def_ro("pooled_size", &ROIPoolAttrs::pooled_size, "Output size of roi pool.")
       .def_ro("spatial_scale", &ROIPoolAttrs::spatial_scale,
               "Ratio of input feature map height (or width) to raw image height (or width).")
-      .def_ro("layout", &ROIPoolAttrs::layout, "Dimension ordering of the input data.");
+      .def_ro("layout", &ROIPoolAttrs::layout, "Dimension ordering of the input data.",
+              refl::DefaultValue(ffi::String("NCHW")));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { ROIPoolAttrs::RegisterReflection(); }
@@ -58,7 +59,7 @@ Expr roi_pool(Expr data, Expr rois, ffi::Array<int64_t> pooled_size, double spat
   attrs->layout = layout;
 
   static const Op op = Op::Get("relax.vision.roi_pool");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data), std::move(rois)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(rois)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

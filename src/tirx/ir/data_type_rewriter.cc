@@ -407,11 +407,12 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const IfThenElseNode* op,
   is_condition_ = is_condition;
   auto then_case_result = Mutate(op->then_case, inplace_mode);
   bool then_case_unchanged = then_case_result.UnchangedOrSameAs(op->then_case);
-  Stmt then_case = std::move(then_case_result).ValueOrUnchanged(op->then_case);
-  ffi::Optional<Stmt> else_case =
-      op->else_case.has_value() ? ffi::Optional<Stmt>{Mutate(op->else_case.value(), inplace_mode)
-                                                          .ValueOrUnchanged(op->else_case.value())}
-                                : std::nullopt;
+  SeqStmt then_case = std::move(then_case_result).ValueOrUnchanged(op->then_case);
+  ffi::Optional<SeqStmt> else_case =
+      op->else_case.has_value()
+          ? ffi::Optional<SeqStmt>{Mutate(op->else_case.value(), inplace_mode)
+                                       .ValueOrUnchanged(op->else_case.value())}
+          : std::nullopt;
   if (!cond_unchanged || !then_case_unchanged || !else_case.same_as(op->else_case)) {
     IfThenElse new_stmt = ffi::GetRef<IfThenElse>(op);
     auto* n = new_stmt.CopyOnWrite();

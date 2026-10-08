@@ -42,7 +42,7 @@ def test_stmt_simplify():
     # Find the For loop in the sequence
     for_stmt = [s for s in stmts if isinstance(s, tvm.tirx.For)]
     assert len(for_stmt) == 1, f"Expected one For loop, got {len(for_stmt)}"
-    assert isinstance(for_stmt[0].body, tvm.tirx.TensorStore)
+    assert isinstance(for_stmt[0].body[0], tvm.tirx.TensorStore)
 
 
 def test_thread_extent_simplify():
@@ -66,8 +66,8 @@ def test_thread_extent_simplify():
     # The outermost For is the tx loop
     tx_loop = for_stmts[0]
     assert isinstance(tx_loop, tvm.tirx.For)  # tx loop
-    assert isinstance(tx_loop.body, tvm.tirx.For)  # ty loop
-    assert isinstance(tx_loop.body.body, tvm.tirx.TensorStore)  # The if was eliminated
+    assert isinstance(tx_loop.body[0], tvm.tirx.For)  # ty loop
+    assert isinstance(tx_loop.body[0].body[0], tvm.tirx.TensorStore)  # The if was eliminated
 
 
 def test_if_likely():
@@ -88,8 +88,8 @@ def test_if_likely():
         for_stmts = [s for s in body.seq if isinstance(s, tvm.tirx.For)]
         body = for_stmts[0] if for_stmts else body
     # Structure: For(tx) -> For(ty) -> IfThenElse
-    assert isinstance(body.body.body, tvm.tirx.IfThenElse)
-    assert not isinstance(body.body.body.then_case, tvm.tirx.IfThenElse)
+    assert isinstance(body.body[0].body[0], tvm.tirx.IfThenElse)
+    assert not isinstance(body.body[0].body[0].then_case[0], tvm.tirx.IfThenElse)
 
 
 def test_loop_body_knows_dynamic_extent_is_positive():

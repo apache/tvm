@@ -140,28 +140,28 @@ def test_address_of():
         B = T.alloc_tensor((8,))
         for i in range(8):
             B[i] = (
-                T.call_extern("deref", T.address_of(A[i]), dtype="float32")
-                + T.call_extern("deref", T.address_of(A[0]), dtype="float32")
+                T.call_extern("deref", T.address_of(A[i]), ty="float32")
+                + T.call_extern("deref", T.address_of(A[0]), ty="float32")
                 + T.float32(1)
             )
         C = T.alloc_tensor((8,))
         for i in range(8):
             C[i] = (
-                T.call_extern("deref", T.address_of(B[i]), dtype="float32")
-                + T.call_extern("deref", T.address_of(B[0]), dtype="float32")
+                T.call_extern("deref", T.address_of(B[i]), ty="float32")
+                + T.call_extern("deref", T.address_of(B[0]), ty="float32")
                 + T.float32(2)
             )
         D = T.alloc_tensor((8,))
         for i in range(8):
             D[i] = (
-                T.call_extern("deref", T.address_of(C[i]), dtype="float32")
-                + T.call_extern("deref", T.address_of(C[0]), dtype="float32")
+                T.call_extern("deref", T.address_of(C[i]), ty="float32")
+                + T.call_extern("deref", T.address_of(C[0]), ty="float32")
                 + T.float32(2)
             )
         for i in range(8):
             E[i] = (
-                T.call_extern("deref", T.address_of(D[i]), dtype="float32")
-                + T.call_extern("deref", T.address_of(D[0]), dtype="float32")
+                T.call_extern("deref", T.address_of(D[i]), ty="float32")
+                + T.call_extern("deref", T.address_of(D[0]), ty="float32")
                 + T.float32(3)
             )
 
@@ -192,7 +192,7 @@ def test_parallel_alloc():
     body = tvm.tirx.transform.StorageRewrite()(mod)["func1"]
 
     # With flat AllocTensor, the for body is a SeqStmt; first element is AllocTensor
-    assert _is_buffer_binding(body.body.body[0], "tirx.alloc_tensor")
+    assert _is_buffer_binding(body.body[0].body[0], "tirx.alloc_tensor")
 
     @T.function
     def func2(n: T.int32):
@@ -207,7 +207,7 @@ def test_parallel_alloc():
     body = tvm.tirx.transform.StorageRewrite()(mod)["func2"]
 
     # The launch body owns the allocation executed by each worker.
-    assert _is_buffer_binding(body.body.body.body[0], "tirx.alloc_tensor")
+    assert _is_buffer_binding(body.body[0].body[0].body[0], "tirx.alloc_tensor")
 
 
 def test_while_alloc():
@@ -247,7 +247,7 @@ def test_while_alloc():
     # The structure with DeclTensor is:
     #   parallel (i, 0, n) { DeclTensor(j, DeclTensor(A, ...)) }
     # or with Allocate+DeclTensor pairs
-    inner = body.body.body  # inside For
+    inner = body.body[0].body  # inside For
     # Skip DeclTensor nodes to find Allocate
     num_alloc = [0]
 
@@ -393,9 +393,7 @@ def test_decl_buffer_is_not_vectorized():
     class Before:
         @T.function
         def main() -> None:
-            A_data: T.let[T.handle("int32")] = T.call_extern(
-                "dummy_func", dtype=T.handle("int32").ty
-            )
+            A_data: T.let[T.handle("int32")] = T.call_extern("dummy_func", ty=T.handle("int32").ty)
             A = T.decl_tensor([8], "int32", data=A_data)
             A[T.ramp(0, 1, 8)] = T.broadcast(42, 8)
 
@@ -488,9 +486,9 @@ def test_decl_buffer_alias_extends_source_lifetime():
     allocations = []
     tvm_ffi.structural_walk(
         after.body,
-        lambda node: allocations.append(node)
-        if _is_buffer_binding(node, "tirx.alloc_tensor")
-        else None,
+        lambda node: (
+            allocations.append(node) if _is_buffer_binding(node, "tirx.alloc_tensor") else None
+        ),
     )
     assert len(allocations) == 2
 

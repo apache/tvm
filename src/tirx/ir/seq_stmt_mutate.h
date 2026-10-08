@@ -104,12 +104,6 @@ auto MutateSeqStmtChanged(MutateElement& mutate_element, const SeqStmtNode* self
     }
     append(element.IsUnchanged() ? self->seq[i] : std::move(element).ValueUnchecked());
   }
-  if (results.empty()) {
-    return Evaluate(0);
-  }
-  if (results.size() == 1) {
-    return std::move(results[0]);
-  }
   ffi::Array<Stmt> seq(std::make_move_iterator(results.begin()),
                        std::make_move_iterator(results.end()));
   if (inplace_mode == ffi::InplaceMode::kAllow) {
@@ -143,8 +137,6 @@ auto MutateSeqStmtRaw(MutateElement& mutate_element, const SeqStmtNode* self,
       return MutateSeqStmtChanged(mutate_element, self, i, self->seq[i], inplace_mode);
     }
   }
-  if (size == 0) return Evaluate(0);
-  if (size == 1) return self->seq[0];
   return ffi::Unchanged();
 }
 
@@ -194,8 +186,6 @@ auto MaybeInplaceMutateSeqStmtRaw(MutateElement& mutate_element, const SeqStmtNo
 
   const size_t final_size = size - delete_count + nested_extra;
   if (delete_count == 0 && nested_extra == 0 && !has_nested) {
-    if (size == 0) return Evaluate(0);
-    if (size == 1) return slots[0].cast<Stmt>();
     return ffi::Unchanged();
   }
 
@@ -223,15 +213,8 @@ auto MaybeInplaceMutateSeqStmtRaw(MutateElement& mutate_element, const SeqStmtNo
     }
     self->seq = ffi::Array<Stmt>(std::make_move_iterator(results.begin()),
                                  std::make_move_iterator(results.end()));
-    seq = self->seq.GetArrayObj();
   }
 
-  if (final_size == 0) {
-    return Evaluate(0);
-  }
-  if (final_size == 1) {
-    return seq->begin()[0].cast<Stmt>();
-  }
   return ffi::Unchanged();
 }
 

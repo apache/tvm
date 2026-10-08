@@ -754,9 +754,7 @@ class CacheLocDetector : public StmtExprVisitor {
     } else {
       info->loc_sref = scope_sref;
 
-      auto block_body = scope_sref->StmtAs<SBlockNode>()->body;
-      const auto* body = block_body.as<SeqStmtNode>();
-      info->loc_pos = body == nullptr ? 1 : body->size();
+      info->loc_pos = scope_sref->StmtAs<SBlockNode>()->body->size();
     }
   }
 
@@ -2597,7 +2595,7 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
     const ForNode* outer = loop->parent->StmtAs<ForNode>();
     const ForNode* inner = loop->StmtAs<ForNode>();
     TVM_FFI_ICHECK(outer != nullptr && inner != nullptr);
-    TVM_FFI_ICHECK(outer->body.get() == inner);
+    TVM_FFI_ICHECK(outer->body->size() == 1 && outer->body->seq[0].get() == inner);
     loop = loop->parent;
   }
 

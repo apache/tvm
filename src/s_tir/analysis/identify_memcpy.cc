@@ -59,7 +59,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
                        sym::IntSet::FromMinExtent(for_node->min, for_node->extent));
     total_loop_iterations = total_loop_iterations * for_node->extent;
 
-    stmt = for_node->body;
+    stmt = for_node->body->size() == 1 ? for_node->body->seq[0] : for_node->body;
   }
 
   TensorStore store{ffi::UnsafeInit{}};

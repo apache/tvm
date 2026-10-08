@@ -1259,7 +1259,7 @@ def test_tuple_projection_merging():
                 parts = cls.split(x)
                 left = parts[0]
                 right = parts[1]
-                repacked = R.tuple(left, right)
+                repacked = (left, right)
                 reordered_left = repacked[0]
                 reordered_right = repacked[1]
                 difference = cls.subtract(reordered_right, reordered_left)
@@ -1375,7 +1375,7 @@ def test_tuple_projection_rejects_escaping_tuple():
                 alias = parts
                 left = alias[0]
                 out = cls.relu(left)
-                result = R.tuple(alias, out)
+                result = (alias, out)
                 R.output(result)
             return result
 

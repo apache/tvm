@@ -39,7 +39,7 @@ def test_static_init():
 
             T.call_packed(
                 "test_static_callback",
-                T.call_intrin("handle", "tirx.tvm_static_handle"),
+                T.call_intrin("tirx.tvm_static_handle", ty="handle"),
                 Ab.data,
             )
 

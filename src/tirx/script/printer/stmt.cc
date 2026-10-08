@@ -51,8 +51,8 @@ ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::A
           input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
-  static const OpAttrMap<tirx::TScriptPrinterName>& names =
-      Op::GetAttrMap<tirx::TScriptPrinterName>("TScriptPrinterName");
+  static const OpAttrMap<TScriptPrinterName>& names =
+      Op::GetAttrMap<TScriptPrinterName>("TScriptPrinterName");
   TVM_FFI_CHECK(names.count(stmt->op), TypeError)
       << "printer tile primitive has no canonical script name: " << stmt->op->name;
   std::string name = names[stmt->op];
@@ -324,7 +324,7 @@ ffi::Optional<ExprDoc> IfThenElseDocTranslate(DocTranslatorObj* d, ffi::AnyView 
       << "printer statement-only node cannot fulfill a destination";
   ExprDoc condition = d->Translate(stmt->condition).value();
   ffi::Array<StmtDoc> then_body = Body(stmt->then_case, d);
-  ffi::Array<StmtDoc> else_body;
+  ffi::Optional<ffi::Array<StmtDoc>> else_body;
   if (stmt->else_case.has_value()) else_body = Body(stmt->else_case.value(), d);
   d->Emit(IfDoc(condition, then_body, else_body), ffi::GetRef<ffi::ObjectRef>(stmt));
   return std::nullopt;

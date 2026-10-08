@@ -37,13 +37,6 @@ void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc 
 bool CanTranslateExplicitResultCall(const CallNode* call);
 bool IsScalarBuffer(DocTranslatorObj* d, const Expr& source);
 ffi::Array<StmtDoc> Body(const tirx::Stmt& stmt, DocTranslatorObj* d);
-ffi::Optional<ExprDoc> TIRCallPrefixDocTranslate(DocTranslatorObj* d, const CallNode* call);
-ffi::Optional<ExprDoc> FFIKernelDocTranslate(DocTranslatorObj* d, const CallNode* call,
-                                             const Type& result_type,
-                                             const ffi::Array<ExprDoc>& args);
-ffi::Optional<ExprDoc> TIRCallDocTranslate(DocTranslatorObj* d, const CallNode* call,
-                                           const Type& result_type,
-                                           const ffi::Array<ExprDoc>& args);
 ExprDoc TensorRegionValue(DocTranslatorObj* d, const TensorRegionNode* region, bool require_region);
 ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                        const ffi::Object* destination);

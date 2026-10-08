@@ -84,7 +84,7 @@ def test_scalar_argmin_reduction_value_scope():
                 dl.gpu.GeneralReduction(),
             )(_make_scalar_argmin(length))
 
-        index_temp, value_temp = mod["main"].body.block.alloc_buffers
+        index_temp, value_temp = mod["main"].body[0].block.alloc_buffers
         assert index_temp.scope() == "global"
         assert value_temp.scope() == expected_scope
 

@@ -448,15 +448,15 @@ def test_cannot_lift_call():
     class Before:
         @T.function
         def main(B: T.Tensor((50,), "int32"), x: T.int32):
-            B[0] = T.call_extern("my_func", x, dtype="int32") + 1
-            B[1] = T.call_extern("my_func", x, dtype="int32") + 1
+            B[0] = T.call_extern("my_func", x, ty="int32") + 1
+            B[1] = T.call_extern("my_func", x, ty="int32") + 1
 
     @tvm.script.ir_module
     class Expected:
         @T.function
         def main(B: T.Tensor((50,), "int32"), x: T.int32):
-            B[0] = T.call_extern("my_func", x, dtype="int32") + 1
-            B[1] = T.call_extern("my_func", x, dtype="int32") + 1
+            B[0] = T.call_extern("my_func", x, ty="int32") + 1
+            B[1] = T.call_extern("my_func", x, ty="int32") + 1
 
     after = tvm.tirx.transform.CommonSubexprElim()(Before)
     tvm.ir.assert_structural_equal(after, Expected)

@@ -190,7 +190,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> RegionStmtMutate(
   if (!mapped_attrs.IsUnchanged()) copy->attrs = std::move(mapped_attrs).ValueUnchecked();
   if (!mapped_body_params.IsUnchanged())
     copy->body_params = std::move(mapped_body_params).ValueUnchecked();
-  if (!mapped_body.IsUnchanged()) copy->body = std::move(mapped_body).ValueUnchecked();
+  if (!mapped_body.IsUnchanged()) copy->body = SeqStmt(std::move(mapped_body).ValueUnchecked());
   if (!mapped_result_vars.IsUnchanged())
     copy->result_vars = std::move(mapped_result_vars).ValueUnchecked();
   return ffi::Any(std::move(copy));
@@ -227,7 +227,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> RegionStmtMaybeInplaceM
   if (!mapped_attrs.IsUnchanged()) copy->attrs = std::move(mapped_attrs).ValueUnchecked();
   if (!mapped_body_params.IsUnchanged())
     copy->body_params = std::move(mapped_body_params).ValueUnchecked();
-  if (!mapped_body.IsUnchanged()) copy->body = std::move(mapped_body).ValueUnchecked();
+  if (!mapped_body.IsUnchanged()) copy->body = SeqStmt(std::move(mapped_body).ValueUnchecked());
   if (!mapped_result_vars.IsUnchanged())
     copy->result_vars = std::move(mapped_result_vars).ValueUnchecked();
   return ffi::Unchanged();
@@ -358,7 +358,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> ForMaybeInplaceMutate(
   if (!mapped_loop_var.IsUnchanged()) self->loop_var = std::move(mapped_loop_var).ValueUnchecked();
   if (!mapped_min.IsUnchanged()) self->min = std::move(mapped_min).ValueUnchecked();
   if (!mapped_extent.IsUnchanged()) self->extent = std::move(mapped_extent).ValueUnchecked();
-  if (!mapped_body.IsUnchanged()) self->body = std::move(mapped_body).ValueUnchecked();
+  if (!mapped_body.IsUnchanged()) self->body = SeqStmt(std::move(mapped_body).ValueUnchecked());
   if (!mapped_thread_binding.IsUnchanged()) {
     self->thread_binding = std::move(mapped_thread_binding).ValueUnchecked();
   }
@@ -408,7 +408,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> WhileMaybeInplaceMutate
   }
   if (!mapped_condition.IsUnchanged())
     self->condition = std::move(mapped_condition).ValueUnchecked();
-  if (!mapped_body.IsUnchanged()) self->body = std::move(mapped_body).ValueUnchecked();
+  if (!mapped_body.IsUnchanged()) self->body = SeqStmt(std::move(mapped_body).ValueUnchecked());
   return ffi::Unchanged();
 }
 
@@ -531,13 +531,19 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IfThenElseMutate(
                                     mutator->MutateExpected(self->else_case));
   if (mapped_condition.UnchangedOrSameAs(self->condition) &&
       mapped_then_case.UnchangedOrSameAs(self->then_case) &&
-      mapped_else_case.UnchangedOrSameAs(self->else_case)) {
+      (mapped_else_case.IsUnchanged() || ffi::AnyView(mapped_else_case).same_as(self->else_case))) {
     return ffi::Unchanged();
   }
   ffi::ObjectPtr<IfThenElseNode> copy = ffi::make_object<IfThenElseNode>(*self);
   copy->condition = std::move(mapped_condition).ValueOrUnchanged(std::move(copy->condition));
-  copy->then_case = std::move(mapped_then_case).ValueOrUnchanged(std::move(copy->then_case));
-  copy->else_case = std::move(mapped_else_case).ValueOrUnchanged(std::move(copy->else_case));
+  if (!mapped_then_case.IsUnchanged())
+    copy->then_case = SeqStmt(std::move(mapped_then_case).ValueUnchecked());
+  if (!mapped_else_case.IsUnchanged()) {
+    auto replacement = std::move(mapped_else_case).ValueUnchecked();
+    copy->else_case = replacement.has_value()
+                          ? ffi::Optional<SeqStmt>(SeqStmt(std::move(replacement).value()))
+                          : std::nullopt;
+  }
   return ffi::Any(std::move(copy));
 }
 
@@ -556,15 +562,19 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IfThenElseMaybeInplaceM
       mutator->MutateExpected(self->else_case, ffi::InplaceMode::kAllow));
   if (mapped_condition.UnchangedOrSameAs(self->condition) &&
       mapped_then_case.UnchangedOrSameAs(self->then_case) &&
-      mapped_else_case.UnchangedOrSameAs(self->else_case)) {
+      (mapped_else_case.IsUnchanged() || ffi::AnyView(mapped_else_case).same_as(self->else_case))) {
     return ffi::Unchanged();
   }
   if (!mapped_condition.IsUnchanged())
     self->condition = std::move(mapped_condition).ValueUnchecked();
   if (!mapped_then_case.IsUnchanged())
-    self->then_case = std::move(mapped_then_case).ValueUnchecked();
-  if (!mapped_else_case.IsUnchanged())
-    self->else_case = std::move(mapped_else_case).ValueUnchecked();
+    self->then_case = SeqStmt(std::move(mapped_then_case).ValueUnchecked());
+  if (!mapped_else_case.IsUnchanged()) {
+    auto replacement = std::move(mapped_else_case).ValueUnchecked();
+    self->else_case = replacement.has_value()
+                          ? ffi::Optional<SeqStmt>(SeqStmt(std::move(replacement).value()))
+                          : std::nullopt;
+  }
   return ffi::Unchanged();
 }
 
@@ -748,7 +758,7 @@ ffi::Array<Var> GetRegionBodyParams(Op op, ffi::Array<Expr> args, DictAttrs attr
 }
 
 RegionStmt::RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, DictAttrs attrs,
-                       Stmt body, ffi::Array<Var> result_vars, Span span)
+                       SeqStmt body, ffi::Array<Var> result_vars, Span span)
     : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(op.defined() && body.defined(), ValueError)
       << "RegionStmt requires an operator and a body";
@@ -803,7 +813,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&RegionStmtMaybeInplaceMutate>());
   refl::GlobalDef().def("tirx.RegionStmt",
                         [](Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params,
-                           DictAttrs attrs, Stmt body, ffi::Array<Var> result_vars, Span span) {
+                           DictAttrs attrs, SeqStmt body, ffi::Array<Var> result_vars, Span span) {
                           return RegionStmt(op, args, body_params, attrs, body, result_vars, span);
                         });
 }
@@ -844,7 +854,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // For
-For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
+For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, SeqStmt body,
          ffi::Optional<ffi::String> thread_binding, ffi::Map<ffi::String, Any> annotations,
          ffi::Optional<PrimExpr> step, Span span)
     : Stmt(ffi::UnsafeInit{}) {
@@ -916,7 +926,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&ForMaybeInplaceMutate>());
 
   refl::GlobalDef().def("tirx.For", [](PrimVar loop_var, PrimExpr min, PrimExpr extent, int kind,
-                                       Stmt body, ffi::Optional<ffi::String> thread_binding,
+                                       SeqStmt body, ffi::Optional<ffi::String> thread_binding,
                                        ffi::Optional<ffi::Map<ffi::String, Any>> annotations,
                                        ffi::Optional<PrimExpr> step, Span span) {
     return For(loop_var, min, extent, static_cast<ForKind>(kind), body, thread_binding,
@@ -948,7 +958,7 @@ std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
 }
 
 // While
-While::While(PrimExpr condition, Stmt body, Span span) : Stmt(ffi::UnsafeInit{}) {
+While::While(PrimExpr condition, SeqStmt body, Span span) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(condition.defined());
   TVM_FFI_ICHECK(condition.ty().IsScalar());
   TVM_FFI_ICHECK(body.defined());
@@ -968,7 +978,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&WhileMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("tirx.While", [](PrimExpr condition, Stmt body, Span span) {
+  refl::GlobalDef().def("tirx.While", [](PrimExpr condition, SeqStmt body, Span span) {
     return While(condition, body, span);
   });
 }
@@ -1035,29 +1045,52 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // SeqStmt
 SeqStmt::SeqStmt(ffi::Array<Stmt> seq, Span span) : Stmt(ffi::UnsafeInit{}) {
-  bool requires_flattening = std::any_of(
-      seq.begin(), seq.end(), [](const Stmt& stmt) { return stmt->IsInstance<SeqStmtNode>(); });
-
+  bool requires_flattening = std::any_of(seq.begin(), seq.end(), [](const Stmt& stmt) {
+    return stmt.as<SeqStmtNode>() || detail::IsSeqStmtNoOp(stmt);
+  });
   if (requires_flattening) {
-    auto flattened = SeqStmt::Flatten(seq);
-    if (auto* ptr = flattened.as<SeqStmtNode>()) {
-      seq = ptr->seq;
-    } else {
-      seq = {flattened};
-    }
+    ffi::Array<Stmt> flattened;
+    auto append = [&](auto&& append, const Stmt& stmt) -> void {
+      if (const auto* nested = stmt.as<SeqStmtNode>()) {
+        for (const Stmt& child : nested->seq) append(append, child);
+      } else if (!detail::IsSeqStmtNoOp(stmt)) {
+        flattened.push_back(stmt);
+      }
+    };
+    for (const Stmt& stmt : seq) append(append, stmt);
+    seq = std::move(flattened);
   }
-
-  TVM_FFI_ICHECK_NE(seq.size(), 0) << "An empty SeqStmt is prohibited.  "
-                                   << "To write a no-op, use Evaluate(0), "
-                                   << "or the result of SeqStmt::Flatten()";
-  TVM_FFI_ICHECK_NE(seq.size(), 1) << "A SeqStmt of length 1 is prohibited.  "
-                                   << "Use the node " << seq[0] << "directly, "
-                                   << "or for dynamic usage, normalize using SeqStmt::Flatten()";
-
   auto node = ffi::make_object<SeqStmtNode>();
   node->seq = std::move(seq);
   node->span = std::move(span);
   data_ = std::move(node);
+}
+
+SeqStmt::SeqStmt(Stmt stmt, Span span) : Stmt(ffi::UnsafeInit{}) {
+  if (const auto* sequence = stmt.as<SeqStmtNode>()) {
+    if (!span.defined() || span.same_as(sequence->span)) {
+      data_ = ffi::GetObjectPtr<SeqStmtNode>(const_cast<SeqStmtNode*>(sequence));
+      return;
+    }
+    *this = SeqStmt(sequence->seq, std::move(span));
+  } else {
+    if (!span.defined()) span = stmt->span;
+    *this = SeqStmt(ffi::Array<Stmt>{std::move(stmt)}, std::move(span));
+  }
+}
+
+void SeqStmtNode::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  struct CanonicalSequence : refl::InfoTrait {
+    static int Set(void* field, const TVMFFIAny* value) {
+      TVM_FFI_SAFE_CALL_BEGIN();
+      auto seq = ffi::AnyView::CopyFromTVMFFIAny(*value).cast<ffi::Array<Stmt>>();
+      *static_cast<ffi::Array<Stmt>*>(field) = SeqStmt(std::move(seq))->seq;
+      TVM_FFI_SAFE_CALL_END();
+    }
+    void Apply(refl::FieldInfoBuilder* info) const { info->setter = reinterpret_cast<void*>(&Set); }
+  };
+  refl::ObjectDef<SeqStmtNode>().def_ro("seq", &SeqStmtNode::seq, CanonicalSequence{});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1070,13 +1103,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&SeqStmtMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("tirx.SeqStmt", [](ffi::Array<Stmt> seq, Span span) {
-    return SeqStmt(std::move(seq), span);
+  refl::GlobalDef().def("tirx.SeqStmt", [](SeqStmt seq, Span span) {
+    return SeqStmt(std::move(seq), std::move(span));
   });
 }
 
 // IfThenElse
-IfThenElse::IfThenElse(PrimExpr condition, Stmt then_case, ffi::Optional<Stmt> else_case, Span span)
+IfThenElse::IfThenElse(PrimExpr condition, SeqStmt then_case, ffi::Optional<SeqStmt> else_case,
+                       Span span)
     : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(condition.defined());
   TVM_FFI_ICHECK(then_case.defined());
@@ -1099,8 +1133,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&IfThenElseMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("tirx.IfThenElse", [](PrimExpr condition, Stmt then_case,
-                                              ffi::Optional<Stmt> else_case, Span span) {
+  refl::GlobalDef().def("tirx.IfThenElse", [](PrimExpr condition, SeqStmt then_case,
+                                              ffi::Optional<SeqStmt> else_case, Span span) {
     return IfThenElse(condition, then_case, else_case, span);
   });
 }
@@ -1239,11 +1273,9 @@ PrimExpr TypeAnnotation(PrimType dtype, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.type_annotation")
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("type_annotation"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.type_annotation"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 }
 
 }  // namespace tirx

@@ -199,7 +199,7 @@ def test_for():
 for i in range(128):
     for j in range(128):
         for k in range(128):
-            T.evaluate(0)
+            pass
 """,
     )
 
@@ -208,13 +208,13 @@ def test_assert_stmt():
     with IRBuilder() as ib:
         with TB.function():
             TB.assert_(True, "assertion")
-            TB.evaluate(TB.call_extern("int32", "after_assert"))
+            TB.evaluate(TB.call_extern("after_assert", ty="int32"))
     obj = ib.get().body
     _assert_print(
         obj,
         """
 assert T.bool(True), ("RuntimeError", ["assertion"])
-T.call_extern("int32", "after_assert")
+T.call_extern("after_assert", ty="int32")
 """,
     )
 
@@ -230,7 +230,7 @@ def test_while():
         """
 v = I.dynamic("v", dtype="int32")
 while v < 10:
-    T.evaluate(0)
+    pass
 """,
     )
 
@@ -354,7 +354,7 @@ def test_if_then_else():
         """
 v = I.dynamic("v", dtype="int32")
 if v == 1:
-    T.evaluate(0)
+    pass
 """,
     )
 
@@ -426,9 +426,9 @@ T.Cast("float64", a)
 
 def test_llvm_intrin_imm():
     a = tirx.call_llvm_intrin("int32x4", "llvm.donothing")
-    _assert_print(a, 'T.call_llvm_intrin("int32x4", "llvm.donothing")')
+    _assert_print(a, 'T.call_llvm_intrin("llvm.donothing", ty="int32x4")')
     a = tirx.call_llvm_pure_intrin("int32x4", "llvm.donothing")
-    _assert_print(a, 'T.call_llvm_pure_intrin("int32x4", "llvm.donothing")')
+    _assert_print(a, 'T.call_llvm_pure_intrin("llvm.donothing", ty="int32x4")')
 
 
 def test_binary_arith():
@@ -659,16 +659,7 @@ def test_nested_seqstmt_roundtrip():
 
 
 def nested_seqstmt():
-    """Nested SeqStmt should be normalized to flat SeqStmt
-
-    Nested SeqStmt are representable in the TIR structures, but are
-    flattened when converted to TVMScript.  Previously, this could
-    cause failures to round-trip through TVMScript, including
-    erroneous use of TVMScript's concise-scoping rules.  This was
-    resolved by normalizing nested SeqStmt in TIR, such that the use
-    of `tirx.SeqStmt` below results in a single flat `tirx.SeqStmt`
-    containing the three `tirx.Evaluate` calls.
-    """
+    """Sequence construction flattens nested input and removes no-op statements."""
     func = tvm.tirx.Function(
         params=[],
         body=tvm.tirx.SeqStmt(

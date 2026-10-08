@@ -155,7 +155,7 @@ class For(Stmt):
     kind : ForKind
         The type of the for.
 
-    body : Stmt
+    body : Stmt | Sequence[Stmt]
         The body statement.
 
     thread_binding: Optional[str]
@@ -177,7 +177,7 @@ class For(Stmt):
     min: Expr
     extent: Expr
     kind: ForKind
-    body: Stmt
+    body: "SeqStmt"
     thread_binding: str | None
     annotations: Mapping[str, Object]
     step: Expr | None
@@ -189,7 +189,7 @@ class For(Stmt):
         min: Expr,  # pylint: disable=redefined-builtin
         extent: Expr,
         kind: ForKind,
-        body: Stmt,
+        body: Stmt | Sequence[Stmt],
         thread_binding: str | None = None,
         annotations: Mapping[str, Object] | None = None,
         step: Expr | None = None,
@@ -218,7 +218,7 @@ class While(Stmt):
     condition : Expr
         The termination condition.
 
-    body : Stmt
+    body : Stmt | Sequence[Stmt]
         The body statement.
 
     span : Optional[Span]
@@ -226,10 +226,12 @@ class While(Stmt):
     """
 
     condition: Expr
-    body: Stmt
+    body: "SeqStmt"
     span: Span | None
 
-    def __init__(self, condition: Expr, body: Stmt, span: Span | None = None) -> None:
+    def __init__(
+        self, condition: Expr, body: Stmt | Sequence[Stmt], span: Span | None = None
+    ) -> None:
         self.__init_handle_by_constructor__(_ffi_api.While, condition, body, span)  # type: ignore
 
 
@@ -292,7 +294,7 @@ class RegionStmt(Stmt):
     args: list[Expr]
     body_params: list[Var]
     attrs: DictAttrs
-    body: Stmt
+    body: "SeqStmt"
     result_vars: list[Var]
     span: Span | None
 
@@ -302,7 +304,7 @@ class RegionStmt(Stmt):
         args: Sequence[Expr],
         body_params: Sequence[Var],
         attrs: DictAttrs | Mapping[str, Any] | None,
-        body: Stmt,
+        body: Stmt | Sequence[Stmt],
         result_vars: Sequence[Var] | None = None,
         span: Span | None = None,
     ) -> None:
@@ -328,8 +330,8 @@ class SeqStmt(Stmt):
 
     Parameters
     ----------
-    seq : List[Stmt]
-        The statements
+    seq : Stmt | Sequence[Stmt]
+        The statements, flattened into one sequence. Empty and singleton sequences are valid.
 
     span : Optional[Span]
         The location of the stmt in the source code.
@@ -338,7 +340,7 @@ class SeqStmt(Stmt):
     seq: list[Stmt]
     span: Span | None
 
-    def __init__(self, seq: list[Stmt], span: Span | None = None) -> None:
+    def __init__(self, seq: Stmt | Sequence[Stmt], span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.SeqStmt, seq, span)  # type: ignore
 
     def __getitem__(self, i: int):
@@ -357,10 +359,10 @@ class IfThenElse(Stmt):
     condition : Expr
         The expression
 
-    then_case : Stmt
+    then_case : Stmt | Sequence[Stmt]
         The statement to execute if condition is true.
 
-    else_case : Optional[Stmt]
+    else_case : Stmt | Sequence[Stmt] | None
         The statement to execute if condition is false.
 
     span : Optional[Span]
@@ -368,11 +370,15 @@ class IfThenElse(Stmt):
     """
 
     condition: Expr
-    then_case: Stmt
-    else_case: Stmt | None
+    then_case: SeqStmt
+    else_case: SeqStmt | None
 
     def __init__(
-        self, condition: Expr, then_case: Stmt, else_case: Stmt | None, span: Span | None = None
+        self,
+        condition: Expr,
+        then_case: Stmt | Sequence[Stmt],
+        else_case: Stmt | Sequence[Stmt] | None,
+        span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.IfThenElse,
@@ -512,16 +518,14 @@ def stmt_seq(*args: Expr | Stmt) -> SeqStmt:
 
     Returns
     -------
-    stmt : Stmt
-        The combined statement.
+    stmt : SeqStmt
+        The combined sequence.
     """
     ret = []
     for value in args:
         if not isinstance(value, Stmt):
             value = Evaluate(value)
         ret.append(value)
-    if len(ret) == 1:
-        return ret[0]
     return SeqStmt(ret)
 
 
@@ -539,10 +543,7 @@ def stmt_list(stmt: Stmt) -> list[Stmt]:
         The unpacked list of statements
     """
     if isinstance(stmt, SeqStmt):
-        res = []
-        for x in stmt:
-            res += stmt_list(x)
-        return res
+        return list(stmt.seq)
     return [stmt]
 
 

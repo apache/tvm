@@ -65,8 +65,11 @@ class ForMatcher : public TensorizeComparator {
   }
 
   bool Match(const For& top) {
-    const ForNode* pattern_top =
-        pattern_->body.as<s_tir::SBlockRealizeNode>()->block->body.as<ForNode>();
+    TVM_FFI_ICHECK(pattern_->body.has_value() && pattern_->body.value()->size() == 1)
+        << "Invalid pattern function";
+    const auto* root = pattern_->body.value()->seq[0].as<s_tir::SBlockRealizeNode>();
+    TVM_FFI_ICHECK(root && root->block->body->size() == 1) << "Invalid pattern function";
+    const ForNode* pattern_top = root->block->body->seq[0].as<ForNode>();
     TVM_FFI_ICHECK(pattern_top) << "Invalid pattern function";
     if (!Dispatch(top, ffi::GetRef<Stmt>(pattern_top))) {
       return false;
@@ -259,10 +262,12 @@ class ForMatcher : public TensorizeComparator {
     loop_stack_lhs_.push_back(ffi::GetRef<For>(op));
     loop_stack_rhs_.push_back(ffi::GetRef<For>(rhs));
     // The body of loop must be loop or BlockRealize
-    if (!op->body->IsInstance<s_tir::SBlockRealizeNode>() && !op->body->IsInstance<ForNode>()) {
+    if (op->body->size() != 1 || (!op->body->seq[0]->IsInstance<s_tir::SBlockRealizeNode>() &&
+                                  !op->body->seq[0]->IsInstance<ForNode>())) {
       return false;
     }
-    if (!rhs->body->IsInstance<s_tir::SBlockRealizeNode>() && !rhs->body->IsInstance<ForNode>()) {
+    if (rhs->body->size() != 1 || (!rhs->body->seq[0]->IsInstance<s_tir::SBlockRealizeNode>() &&
+                                   !rhs->body->seq[0]->IsInstance<ForNode>())) {
       return false;
     }
     // Build mapping between the loop vars
@@ -274,7 +279,7 @@ class ForMatcher : public TensorizeComparator {
     if (!op->annotations.empty() || !rhs->annotations.empty()) return false;
     // Match the extents of loops
     if (!Dispatch(op->extent, rhs->extent)) return false;
-    return Dispatch(op->body, rhs->body);
+    return Dispatch(op->body->seq[0], rhs->body->seq[0]);
   }
 
   bool Dispatch_(const s_tir::SBlockNode* op, const Stmt& other) final {
@@ -294,7 +299,9 @@ class ForMatcher : public TensorizeComparator {
       return false;
     }
     // The body of the block has to be TensorStore
-    if (!op->body->IsInstance<TensorStoreNode>() || !rhs->body->IsInstance<TensorStoreNode>()) {
+    if (op->body->size() != 1 || rhs->body->size() != 1 ||
+        !op->body->seq[0]->IsInstance<TensorStoreNode>() ||
+        !rhs->body->seq[0]->IsInstance<TensorStoreNode>()) {
       return false;
     }
     // Handle init block
@@ -303,7 +310,7 @@ class ForMatcher : public TensorizeComparator {
     if (op->init.has_value() && rhs->init.has_value()) {
       if (!Dispatch(op->init.value(), rhs->init.value())) return false;
     }
-    return Dispatch(op->body, rhs->body);
+    return Dispatch(op->body->seq[0], rhs->body->seq[0]);
   }
 
   bool Dispatch_(const s_tir::SBlockRealizeNode* op, const Stmt& other) final {
@@ -397,7 +404,7 @@ class ForMatcher : public TensorizeComparator {
 /*! \brief Analyze the function and match it with a list of patterns */
 class TIRPatternMatcher {
  public:
-  static ffi::Array<MatchResult> Match(ffi::Array<TIRPattern> patterns, Stmt body) {
+  static ffi::Array<MatchResult> Match(ffi::Array<TIRPattern> patterns, SeqStmt body) {
     TIRPatternMatcher matcher(patterns);
     matcher.OpMatternMatch(body);
     if (matcher.fail_) return {};
@@ -438,18 +445,8 @@ class TIRPatternMatcher {
   }
 
   // For each block in the body, try to find its corresponding pattern one by one
-  void OpMatternMatch(const Stmt& body) {
-    ffi::Array<Stmt> blocks;
-    if (body->IsInstance<ForNode>()) {
-      // {for}
-      blocks = {body};
-    } else if (const SeqStmtNode* seq = body.as<SeqStmtNode>()) {
-      blocks = seq->seq;
-    } else {
-      fail_ = true;
-      return;
-    }
-    for (const Stmt& stmt : blocks) {
+  void OpMatternMatch(const SeqStmt& body) {
+    for (const Stmt& stmt : body->seq) {
       const ForNode* loop = stmt.as<ForNode>();
       if (loop == nullptr || !BlockPatternMatch(ffi::GetRef<For>(loop))) {
         break;
@@ -570,15 +567,19 @@ class BlockRemover : public s_tir::StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
     ffi::Array<Stmt> seq;
+    bool erased_all = !op->seq.empty();
     for (const Stmt& s : op->seq) {
       Stmt new_s = Mutate(s).ValueOrUnchanged(s);
       if (erased_) {
         erased_ = false;
       } else {
+        erased_all = false;
         seq.push_back(new_s);
       }
     }
-    return SeqStmt::Flatten(seq);
+    // Let enclosing loops disappear when their only subtree was removed.
+    erased_ = erased_all;
+    return SeqStmt(seq, op->span);
   }
 
   bool erased_ = false;
@@ -601,9 +602,13 @@ std::pair<tirx::Function, ffi::Optional<tirx::Function>> SplitFunctions(
     tirx::Function func, std::vector<std::vector<int>>* arg_partition,
     ffi::Array<TIRPattern> patterns, FCodegen f_codegen) {
   // Step 1. Find the library kernel and the rest.
-  Stmt body = func->body.as<s_tir::SBlockRealizeNode>()->block->body;
-  ffi::Array<MatchResult> match_results =
-      TIRPatternMatcher::Match(patterns, func->body.as<s_tir::SBlockRealizeNode>()->block->body);
+  if (!func->body.has_value() || func->body.value()->size() != 1) {
+    return {func, std::nullopt};
+  }
+  const auto* root = func->body.value()->seq[0].as<s_tir::SBlockRealizeNode>();
+  if (root == nullptr) return {func, std::nullopt};
+  SeqStmt body = root->block->body;
+  ffi::Array<MatchResult> match_results = TIRPatternMatcher::Match(patterns, body);
   if (match_results.empty()) {
     return {func, std::nullopt};
   }
@@ -653,7 +658,7 @@ std::pair<tirx::Function, ffi::Optional<tirx::Function>> SplitFunctions(
   }
   arg_partition->push_back(arg_partition1);
   new_params1.push_back(partitioner->intermediate_buffer.value().var());
-  tirx::Function func1 = tirx::Function(new_params1, body1, func->ret_type, func->attrs);
+  tirx::Function func1 = tirx::Function(new_params1, SeqStmt(body1), func->ret_type, func->attrs);
   func1 = WithAttr(func1, kLibraryKernel, library_code);
   // Step 4. Craft the second function.
   ffi::Array<Var> new_params2;
@@ -670,7 +675,7 @@ std::pair<tirx::Function, ffi::Optional<tirx::Function>> SplitFunctions(
     }
   }
   arg_partition->push_back(arg_partition2);
-  tirx::Function func2 = tirx::Function(new_params2, body2, func->ret_type, func->attrs);
+  tirx::Function func2 = tirx::Function(new_params2, SeqStmt(body2), func->ret_type, func->attrs);
   return {func1, func2};
 }
 }  // namespace tirx

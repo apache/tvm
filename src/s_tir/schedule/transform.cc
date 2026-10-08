@@ -275,10 +275,8 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
   StmtSRefNode* sref = leaf_block_sref->parent;
   for (;; last_stmt = sref->stmt, sref = sref->parent) {
     if (const auto* loop = sref->StmtAs<ForNode>()) {
-      if (const auto* seq = loop->body.as<SeqStmtNode>()) {
-        if (seq->size() > 1) {
-          break;
-        }
+      if (loop->body->size() > 1) {
+        break;
       }
     } else {
       // Removal is not done beyond scope-level.
@@ -287,10 +285,9 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
     }
   }
   if (const auto* block = sref->StmtAs<SBlockNode>()) {
-    auto body = block->body;
-    if (const auto* seq = body.as<SeqStmtNode>()) {
+    if (block->body->size() > 1) {
       ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block);
-      auto new_seq = RemoveFromSeqStmt(ffi::GetRef<SeqStmt>(seq), ffi::GetRef<Stmt>(last_stmt));
+      auto new_seq = RemoveFromSeqStmt(block->body, ffi::GetRef<Stmt>(last_stmt));
       n->body = new_seq;
       *src_stmt = ffi::GetRef<Stmt>(block);
       *tgt_stmt = Stmt(std::move(n));
@@ -298,9 +295,9 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
     }
   }
   if (const auto* loop = sref->StmtAs<ForNode>()) {
-    if (const auto* seq = loop->body.as<SeqStmtNode>()) {
+    if (loop->body->size() > 1) {
       ffi::ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*loop);
-      n->body = RemoveFromSeqStmt(ffi::GetRef<SeqStmt>(seq), ffi::GetRef<Stmt>(last_stmt));
+      n->body = RemoveFromSeqStmt(loop->body, ffi::GetRef<Stmt>(last_stmt));
       *src_stmt = ffi::GetRef<Stmt>(loop);
       *tgt_stmt = Stmt(std::move(n));
       return;

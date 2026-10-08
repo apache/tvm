@@ -35,7 +35,7 @@ Stmt FuseNestLoops(Stmt body) {
   std::vector<const ForNode*> loops;
   while (const ForNode* loop = body.as<ForNode>()) {
     loops.push_back(loop);
-    body = loop->body;
+    body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   std::string suffix;
   int n = loops.size();
@@ -163,7 +163,7 @@ Stmt CoalescedAccess::Rewrite(const Stmt& stmt, const ConstraintSet& constraints
 ffi::Array<PrimExpr> GetMapping(const Stmt& stmt, const ConstraintSet& constraints) {
   Stmt body = stmt;
   while (const ForNode* loop = body.as<ForNode>()) {
-    body = loop->body;
+    body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   const TensorStoreNode* buf_store = TVM_TYPE_AS(body, TensorStoreNode);
   TensorRegion write_region = constraints.write_region;
@@ -192,7 +192,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   while (const ForNode* loop = body.as<ForNode>()) {
     var_range.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     loop_vars.push_back(loop->loop_var);
-    body = loop->body;
+    body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   // Step 2. Get Inverse mapping
   sym::Analyzer analyzer;

@@ -18,84 +18,103 @@
 
 from __future__ import annotations
 
+from tvm.ir import Call, Op
+from tvm.ir.op import _make_op_api
 from tvm.tirx import is_tensor_var
-from tvm.tirx.op import call_intrin
 
 
-def make_filled_simdgroup_matrix(d, index, value, col=8, row=8):
+def make_filled_simdgroup_matrix(d, index, value, col=8, row=8, *, ty=None, span=None):
     """Create a filled SIMDGroup matrix."""
 
-    return call_intrin("void", "tirx.make_filled_simdgroup_matrix", d, index, value, col, row)
+    return Call(
+        "tirx.make_filled_simdgroup_matrix",
+        [d, index, value, col, row],
+        ty=ty,
+        span=span,
+    )
 
 
-def simdgroup_load(d, index, ptr, stride, col=8, row=8, transpose_matrix=False):
+def simdgroup_load(
+    d,
+    index,
+    ptr,
+    stride,
+    col=8,
+    row=8,
+    transpose_matrix=False,
+    *,
+    ty=None,
+    span=None,
+):
     """Load data from device or threadgroup memory to simdgroup."""
 
-    return call_intrin(
-        "void",
+    return Call(
         "tirx.simdgroup_load",
-        d,
-        index,
-        ptr,
-        stride,
-        col,
-        row,
-        transpose_matrix,
+        [d, index, ptr, stride, col, row, transpose_matrix],
+        ty=ty,
+        span=span,
     )
 
 
-def simdgroup_store(d, index, ptr, stride, col=8, row=8, transpose_matrix=False):
+def simdgroup_store(
+    d,
+    index,
+    ptr,
+    stride,
+    col=8,
+    row=8,
+    transpose_matrix=False,
+    *,
+    ty=None,
+    span=None,
+):
     """Store data from simdgroup to device or threadgroup memory."""
 
-    return call_intrin(
-        "void",
+    return Call(
         "tirx.simdgroup_store",
-        d,
-        index,
-        ptr,
-        stride,
-        col,
-        row,
-        transpose_matrix,
+        [d, index, ptr, stride, col, row, transpose_matrix],
+        ty=ty,
+        span=span,
     )
 
 
-def simdgroup_multiply_accumulate(d, index_d, a, index_a, b, index_b, c, index_c):
+def simdgroup_multiply_accumulate(
+    d, index_d, a, index_a, b, index_b, c, index_c, *, ty=None, span=None
+):
     """Multiply and accumulate two matrices in simdgroup."""
 
-    return call_intrin(
-        "void",
+    return Call(
         "tirx.simdgroup_multiply_accumulate",
-        d,
-        index_d,
-        a,
-        index_a,
-        b,
-        index_b,
-        c,
-        index_c,
+        [d, index_d, a, index_a, b, index_b, c, index_c],
+        ty=ty,
+        span=span,
     )
 
 
-def simd_shuffle(var, lane):
+_simd_shuffle = _make_op_api(Op.get("tirx.metal.simd_shuffle"), __name__)
+_simd_shuffle_up = _make_op_api(Op.get("tirx.metal.simd_shuffle_up"), __name__)
+_simd_shuffle_down = _make_op_api(Op.get("tirx.metal.simd_shuffle_down"), __name__)
+
+
+def simd_shuffle(var, lane, *, ty=None, span=None):
     """Shuffle a value from the selected SIMD lane."""
     if is_tensor_var(var):
         var = var[0]
-    return call_intrin(var.ty, "tirx.metal.simd_shuffle", var, lane)
+    return _simd_shuffle(var, lane, ty=ty, span=span)
 
 
-def simd_shuffle_up(var, delta):
+def simd_shuffle_up(var, delta, *, ty=None, span=None):
     """Shuffle a value from a lower SIMD lane."""
     if is_tensor_var(var):
         var = var[0]
-    return call_intrin(var.ty, "tirx.metal.simd_shuffle_up", var, delta)
+    return _simd_shuffle_up(var, delta, ty=ty, span=span)
 
 
-def simd_shuffle_down(var, delta):
+def simd_shuffle_down(var, delta, *, ty=None, span=None):
     """Shuffle a value from a higher SIMD lane."""
     if is_tensor_var(var):
         var = var[0]
-    return call_intrin(var.ty, "tirx.metal.simd_shuffle_down", var, delta)
+    return _simd_shuffle_down(var, delta, ty=ty, span=span)
 
 
 __all__ = [

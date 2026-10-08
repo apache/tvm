@@ -49,7 +49,7 @@ class InitBlockLower : public StmtExprMutator {
     }
     Stmt init = DoLowering(block->init.value(), block->iter_vars);
     Stmt body = Mutate(block->body, inplace_mode).ValueOrUnchanged(block->body);
-    body = SeqStmt::Flatten(init, body);
+    body = SeqStmt({init, body});
     if (inplace_mode == InplaceMode::kAllow) {
       auto* writable = const_cast<SBlockNode*>(block);
       writable->init = std::nullopt;

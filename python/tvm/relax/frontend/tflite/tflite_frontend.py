@@ -8608,8 +8608,8 @@ def _build_stablehlo_rng_bit_generator_function(algorithm, state_len, out_dtype,
         if is_64bit:
             low = _u64(words[2 * write_index])
             high = _u64(words[2 * write_index + 1])
-            return T.reinterpret(out_dtype, low | (high << T.uint64(32)))
-        return T.reinterpret(out_dtype, words[write_index])
+            return T.reinterpret(low | (high << T.uint64(32)), ty=out_dtype)
+        return T.reinterpret(words[write_index], ty=out_dtype)
 
     if algorithm == "threefry":
 

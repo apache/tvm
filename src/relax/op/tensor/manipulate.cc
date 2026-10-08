@@ -44,7 +44,8 @@ void ConcatAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<ConcatAttrs>().def_ro("axis", &ConcatAttrs::axis,
                                         "The axis at which the input arrays are concatenated."
-                                        "Should lie in range `[-ndim, ndim)`.");
+                                        "Should lie in range `[-ndim, ndim)`.",
+                                        refl::DefaultValue(ffi::Optional<int64_t>{0}));
 }
 
 void ExpandDimsAttrs::RegisterReflection() {
@@ -63,13 +64,15 @@ void LayoutTransformAttrs::RegisterReflection() {
       .def_ro(
           "pad_value", &LayoutTransformAttrs::pad_value,
           "The specific value to be used to pad if the layout transform would result in implicit "
-          "padding. If not specified, the compiler is free to choose any value.");
+          "padding. If not specified, the compiler is free to choose any value.",
+          refl::DefaultValue(ffi::Optional<PrimExpr>{}));
 }
 
 void PermuteDimsAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<PermuteDimsAttrs>().def_ro(
-      "axes", &PermuteDimsAttrs::axes, "The target axes order, reverse order if not specified.");
+      "axes", &PermuteDimsAttrs::axes, "The target axes order, reverse order if not specified.",
+      refl::DefaultValue(ffi::Optional<ffi::Array<int64_t>>{}));
 }
 
 void SplitAttrs::RegisterReflection() {
@@ -77,7 +80,7 @@ void SplitAttrs::RegisterReflection() {
   refl::ObjectDef<SplitAttrs>()
       .def_ro("indices_or_sections", &SplitAttrs::indices_or_sections,
               "The input array of indices or the number of split sections.")
-      .def_ro("axis", &SplitAttrs::axis, "The axis to be splitted");
+      .def_ro("axis", &SplitAttrs::axis, "The axis to be splitted", refl::DefaultValue(0));
 }
 
 void SqueezeAttrs::RegisterReflection() {
@@ -86,7 +89,8 @@ void SqueezeAttrs::RegisterReflection() {
                                          "The axis to squeeze in the input tensor."
                                          "If `axis = None`, all axis of dimension 1 get squeezed;"
                                          "Else, the dimension in axes get squeezed."
-                                         "It is an error if an axis does not has dimension 1.");
+                                         "It is an error if an axis does not has dimension 1.",
+                                         refl::DefaultValue(ffi::Optional<ffi::Array<int64_t>>{}));
 }
 
 void StackAttrs::RegisterReflection() {
@@ -95,7 +99,8 @@ void StackAttrs::RegisterReflection() {
                                        "The axis along which to stack the input tensors. "
                                        "The axis will be inserted at this position in the output, "
                                        "so it must be in range [-ndim-1, ndim] where ndim is the "
-                                       "number of dimensions of the input tensors.");
+                                       "number of dimensions of the input tensors.",
+                                       refl::DefaultValue(ffi::Optional<int64_t>{0}));
 }
 
 void RepeatAttrs::RegisterReflection() {
@@ -105,7 +110,8 @@ void RepeatAttrs::RegisterReflection() {
       .def_ro("axis", &RepeatAttrs::axis,
               "The axis along which to repeat values. The negative numbers are interpreted "
               "counting from the backward. By default, use the flattened input array, and "
-              "return a flat output array.");
+              "return a flat output array.",
+              refl::DefaultValue(ffi::Optional<int64_t>{}));
 }
 
 void TileAttrs::RegisterReflection() {
@@ -124,8 +130,9 @@ void ReverseSequenceAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<ReverseSequenceAttrs>()
       .def_ro("seq_axis", &ReverseSequenceAttrs::seq_axis,
-              "The axis along which to reverse variable length slices.")
-      .def_ro("batch_axis", &ReverseSequenceAttrs::batch_axis, "The axis that indexes the batch.");
+              "The axis along which to reverse variable length slices.", refl::DefaultValue(1))
+      .def_ro("batch_axis", &ReverseSequenceAttrs::batch_axis, "The axis that indexes the batch.",
+              refl::DefaultValue(0));
 }
 
 void GatherElementsAttrs::RegisterReflection() {
@@ -152,7 +159,8 @@ void IndexPutAttrs::RegisterReflection() {
 void MeshgridAttrs::RegisterReflection() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<MeshgridAttrs>().def_ro("indexing", &MeshgridAttrs::indexing,
-                                          "Specifies how the grid dimensions are ordered.");
+                                          "Specifies how the grid dimensions are ordered.",
+                                          refl::DefaultValue(ffi::String("ij")));
 }
 
 void ScatterElementsAttrs::RegisterReflection() {
@@ -214,7 +222,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.broadcast_to */
 Expr broadcast_to(Expr x, Expr shape) {
   static const Op op = Op::Get("relax.broadcast_to");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x), std::move(shape)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x), std::move(shape)}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -295,7 +303,7 @@ Expr concat(Expr tensors, ffi::Optional<int64_t> axis) {
   attrs->axis = std::move(axis);
 
   static const Op op = Op::Get("relax.concat");
-  return Call::Unchecked(Type::Missing(), op, {std::move(tensors)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(tensors)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -555,7 +563,7 @@ Expr expand_dims(Expr x, ffi::Array<int64_t> axis) {
   attrs->axis = std::move(axis);
 
   static const Op op = Op::Get("relax.expand_dims");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -565,6 +573,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeExpandDims(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<ExpandDimsAttrs>();
   if (attrs->axis.empty()) {
@@ -661,7 +670,7 @@ PrimExpr ComputeShapeProduct(const ffi::Array<PrimExpr>& shape_values) {
 /* relax.flatten */
 Expr flatten(Expr x) {
   static const Op op = Op::Get("relax.flatten");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, {}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -700,7 +709,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr index_tensor(Expr first, Expr tensors) {
   static const Op op = Op::Get("relax.index_tensor");
-  return Call::Unchecked(Type::Missing(), op, {std::move(first), std::move(tensors)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(first), std::move(tensors)}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -854,7 +863,7 @@ Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimExpr> 
   attrs->pad_value = std::move(pad_value);
 
   static const Op op = Op::Get("relax.layout_transform");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -922,7 +931,7 @@ Expr permute_dims(Expr x, ffi::Optional<ffi::Array<int64_t>> axes) {
   attrs->axes = std::move(axes);
 
   static const Op op = Op::Get("relax.permute_dims");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -941,6 +950,7 @@ bool IsIdentityPermutation(const std::vector<int>& permutation) {
 
 Type InferTypePermuteDims(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   TensorType data_ty = GetUnaryInputTensorType(call);
 
   const auto* attrs = call->attrs.as<PermuteDimsAttrs>();
@@ -1143,13 +1153,14 @@ Expr ConvertNewShapeToExpr(const Expr& data,
 Expr reshape(Expr x, ffi::Variant<ffi::Array<PrimExpr>, Expr> shape) {
   Expr shape_in_expr = ConvertNewShapeToExpr(x, shape);
   static const Op op = Op::Get("relax.reshape");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x), std::move(shape_in_expr)}, Attrs(),
-                         {});
+  return Call(Type::Missing(), op, {std::move(x), std::move(shape_in_expr)}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.reshape", reshape);
+  refl::GlobalDef()
+      .def("relax.op.reshape", reshape)
+      .def("relax.op._NormalizeReshapeShape", ConvertNewShapeToExpr);
 }
 
 Type InferTypeReshape(const Call& call, const BlockBuilder& ctx) {
@@ -1234,7 +1245,7 @@ Expr split(Expr x, ffi::Variant<IntImm, ffi::Array<IntImm>> indices_or_sections,
   attrs->axis = axis;
 
   static const Op op = Op::Get("relax.split");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1374,7 +1385,7 @@ Expr squeeze(Expr x, ffi::Optional<ffi::Array<int64_t>> axis) {
   attrs->axis = std::move(axis);
 
   static const Op op = Op::Get("relax.squeeze");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1384,6 +1395,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeSqueeze(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<SqueezeAttrs>();
   if (attrs->axis.has_value() && attrs->axis.value().empty()) {
@@ -1573,7 +1585,7 @@ Expr stack(Expr tensors, ffi::Optional<int64_t> axis) {
   attrs->axis = std::move(axis);
 
   static const Op op = Op::Get("relax.stack");
-  return Call::Unchecked(Type::Missing(), op, {std::move(tensors)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(tensors)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1783,8 +1795,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.collapse_sum_like */
 Expr collapse_sum_like(Expr data, Expr collapse_target) {
   static const Op op = Op::Get("relax.collapse_sum_like");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data), std::move(collapse_target)},
-                         Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(collapse_target)}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1831,7 +1842,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.collapse_sum_to */
 Expr collapse_sum_to(Expr data, Expr shape) {
   static const Op op = Op::Get("relax.collapse_sum_to");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data), std::move(shape)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(shape)}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1887,7 +1898,7 @@ Expr repeat(Expr data, int repeats, ffi::Optional<int64_t> axis) {
   attrs->axis = std::move(axis);
 
   static const Op op = Op::Get("relax.repeat");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2011,7 +2022,7 @@ Expr tile(Expr data, ffi::Array<int64_t> repeats) {
   attrs->repeats = std::move(repeats);
 
   static const Op op = Op::Get("relax.tile");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2154,7 +2165,7 @@ Expr flip(Expr data, int64_t axis) {
   auto attrs = ffi::make_object<FlipAttrs>();
   attrs->axis = axis;
   static const Op op = Op::Get("relax.flip");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2228,8 +2239,7 @@ Expr reverse_sequence(Expr data, Expr seq_lengths, int64_t seq_axis, int64_t bat
   attrs->seq_axis = seq_axis;
   attrs->batch_axis = batch_axis;
   static const Op op = Op::Get("relax.reverse_sequence");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data), std::move(seq_lengths)},
-                         Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(seq_lengths)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2322,7 +2332,7 @@ Expr gather_elements(Expr data, Expr indices, int axis) {
   auto attrs = ffi::make_object<GatherElementsAttrs>();
   attrs->axis = axis;
   static const Op op = Op::Get("relax.gather_elements");
-  return Call::Unchecked(Type::Missing(), op, {data, indices}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data, indices}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2332,6 +2342,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeGatherElements(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   const auto* indices_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
   const auto* attrs = call->attrs.as<GatherElementsAttrs>();
@@ -2425,7 +2436,7 @@ Expr gather_nd(Expr data, Expr indices, int batch_dims) {
   auto attrs = ffi::make_object<GatherNDAttrs>();
   attrs->batch_dims = batch_dims;
   static const Op op = Op::Get("relax.gather_nd");
-  return Call::Unchecked(Type::Missing(), op, {data, indices}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data, indices}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2435,6 +2446,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeGatherND(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   const auto* indices_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
   const auto* attrs = call->attrs.as<GatherNDAttrs>();
@@ -2519,7 +2531,7 @@ Expr index_put(Expr data, Expr indices, Expr values, bool accumulate) {
   auto attrs = ffi::make_object<IndexPutAttrs>();
   attrs->accumulate = std::move(accumulate);
   static const Op op = Op::Get("relax.index_put");
-  return Call::Unchecked(Type::Missing(), op, {data, indices, values}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data, indices, values}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2671,7 +2683,7 @@ Expr meshgrid(Expr tensors, ffi::Optional<ffi::String> indexing) {
   ffi::ObjectPtr<MeshgridAttrs> attrs = ffi::make_object<MeshgridAttrs>();
   attrs->indexing = indexing;
   static const Op op = Op::Get("relax.meshgrid");
-  return Call::Unchecked(Type::Missing(), op, {std::move(tensors)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(tensors)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2779,7 +2791,7 @@ Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, ffi::Stri
   attrs->axis = std::move(axis);
   attrs->reduction = std::move(reduction);
   static const Op op = Op::Get("relax.scatter_elements");
-  return Call::Unchecked(Type::Missing(), op, {data, indices, updates}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data, indices, updates}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2923,7 +2935,7 @@ Expr scatter_nd(Expr data, Expr indices, Expr updates, ffi::String reduction) {
   auto attrs = ffi::make_object<ScatterNDAttrs>();
   attrs->reduction = std::move(reduction);
   static const Op op = Op::Get("relax.scatter_nd");
-  return Call::Unchecked(Type::Missing(), op, {data, indices, updates}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data, indices, updates}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -3101,7 +3113,7 @@ Expr slice_scatter(Expr input, Expr src, int axis, PrimExpr start, PrimExpr end,
   auto attrs = ffi::make_object<SliceScatterAttrs>();
   attrs->axis = std::move(axis);
   static const Op op = Op::Get("relax.slice_scatter");
-  return Call::Unchecked(Type::Missing(), op, {input, src, start, end, step}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {input, src, start, end, step}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -3267,7 +3279,7 @@ Expr one_hot(Expr indices, PrimExpr on_value, PrimExpr off_value, int depth, int
   TVM_FFI_ICHECK(depth > 0) << "one_hot: depth must be positive, but got " << depth;
 
   static const Op op = Op::Get("relax.one_hot");
-  return Call::Unchecked(Type::Missing(), op, {indices, on_value, off_value}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {indices, on_value, off_value}, Attrs(attrs), {});
 }  // namespace relax
 
 TVM_FFI_STATIC_INIT_BLOCK() {

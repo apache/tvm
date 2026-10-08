@@ -22,9 +22,11 @@ import tvm_ffi
 
 from tvm import DataType
 from tvm.ir import Attrs, is_prim_expr
+from tvm.ir import Call as _Call
+from tvm.ir import PrimType as _PrimType
+from tvm.ir.attrs import make_node as _make_attrs
 
 from ...expr import Expr, ShapeExpr
-from . import _ffi_api
 
 PrimExprLike = int | Expr
 SizeLike = PrimExprLike | tuple[PrimExprLike, ...]
@@ -47,6 +49,9 @@ def resize2d(
     cubic_exclude: int = 0,
     extrapolation_value: float = 0.0,
     out_dtype: str | DataType | None = None,
+    *,
+    ty=None,
+    span=None,
 ) -> Expr:
     """Image resize2d operator.
 
@@ -125,18 +130,23 @@ def resize2d(
         else:
             size = ShapeExpr(size)
 
-    return _ffi_api.resize2d(  # type: ignore
-        data,
-        size,
-        roi,
-        layout,
-        method,
-        coordinate_transformation_mode,
-        rounding_method,
-        cubic_alpha,
-        cubic_exclude,
-        extrapolation_value,
-        out_dtype,
+    return _Call(
+        "relax.image.resize2d",
+        [data, size],
+        attrs=_make_attrs(
+            "relax.attrs.Resize2DAttrs",
+            roi=roi,
+            layout=layout,
+            method=method,
+            coordinate_transformation_mode=coordinate_transformation_mode,
+            rounding_method=rounding_method,
+            cubic_alpha=cubic_alpha,
+            cubic_exclude=cubic_exclude,
+            extrapolation_value=extrapolation_value,
+            out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
+        ),
+        ty=ty,
+        span=span,
     )
 
 
@@ -152,6 +162,9 @@ def resize3d(
     cubic_exclude: int = 0,
     extrapolation_value: float = 0.0,
     out_dtype: str | DataType | None = None,
+    *,
+    ty=None,
+    span=None,
 ) -> Expr:
     """Image resize3d operator.
 
@@ -177,18 +190,23 @@ def resize3d(
         else:
             size = ShapeExpr(size)
 
-    return _ffi_api.resize3d(  # type: ignore
-        data,
-        size,
-        roi,
-        layout,
-        method,
-        coordinate_transformation_mode,
-        rounding_method,
-        cubic_alpha,
-        cubic_exclude,
-        extrapolation_value,
-        out_dtype,
+    return _Call(
+        "relax.image.resize3d",
+        [data, size],
+        attrs=_make_attrs(
+            "relax.attrs.Resize3DAttrs",
+            roi=roi,
+            layout=layout,
+            method=method,
+            coordinate_transformation_mode=coordinate_transformation_mode,
+            rounding_method=rounding_method,
+            cubic_alpha=cubic_alpha,
+            cubic_exclude=cubic_exclude,
+            extrapolation_value=extrapolation_value,
+            out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
+        ),
+        ty=ty,
+        span=span,
     )
 
 
@@ -199,6 +217,9 @@ def grid_sample(
     layout: str = "NCHW",
     padding_mode: str = "zeros",
     align_corners: bool = False,
+    *,
+    ty=None,
+    span=None,
 ) -> Expr:
     """Applies grid sampling to input feature map.
 
@@ -231,13 +252,18 @@ def grid_sample(
     result : relax.Expr
         The sampled output tensor with shape [N, C, H_out, W_out].
     """
-    return _ffi_api.grid_sample(  # type: ignore
-        data,
-        grid,
-        method,
-        layout,
-        padding_mode,
-        align_corners,
+    return _Call(
+        "relax.image.grid_sample",
+        [data, grid],
+        attrs=_make_attrs(
+            "relax.attrs.GridSampleAttrs",
+            method=method,
+            layout=layout,
+            padding_mode=padding_mode,
+            align_corners=align_corners,
+        ),
+        ty=ty,
+        span=span,
     )
 
 
@@ -245,6 +271,9 @@ def affine_grid(
     data: Expr,
     size: SizeLike,
     align_corners: bool = True,
+    *,
+    ty=None,
+    span=None,
 ) -> Expr:
     """Generate a 2D or 3D sampling grid using an affine transformation matrix.
 
@@ -278,4 +307,13 @@ def affine_grid(
     if isinstance(size, tuple | list):
         size = ShapeExpr(size)
 
-    return cast(Expr, _ffi_api.affine_grid(data, size, align_corners))
+    return cast(
+        Expr,
+        _Call(
+            "relax.image.affine_grid",
+            [data, size],
+            attrs=_make_attrs("relax.attrs.AffineGridAttrs", align_corners=align_corners),
+            ty=ty,
+            span=span,
+        ),
+    )

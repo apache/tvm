@@ -21,10 +21,12 @@ import tvm_ffi
 
 from tvm import DataType
 from tvm.ir import Attrs
+from tvm.ir import Call as _Call
+from tvm.ir import PrimType as _PrimType
+from tvm.ir.attrs import make_node as _make_attrs
 
 from ..expr import Expr
 from ..expr import Tuple as RxTuple
-from . import _ffi_api
 from .manipulate import permute_dims
 
 
@@ -33,7 +35,14 @@ class MatmulAttrs(Attrs):
     """Attributes for matmul operator"""
 
 
-def matmul(x1: Expr, x2: Expr, out_dtype: str | DataType | None = None) -> Expr:
+def matmul(
+    x1: Expr,
+    x2: Expr,
+    out_dtype: str | DataType | None = None,
+    *,
+    ty=None,
+    span=None,
+) -> Expr:
     """General matrix multiplication of two tensors, with broadcasting on batched dimensions.
 
     The semantics and output shape deduction rule is specified as
@@ -56,7 +65,16 @@ def matmul(x1: Expr, x2: Expr, out_dtype: str | DataType | None = None) -> Expr:
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.matmul(x1, x2, out_dtype)  # type: ignore
+    return _Call(
+        "relax.matmul",
+        [x1, x2],
+        attrs=_make_attrs(
+            "relax.attrs.MatmulAttrs",
+            out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
+        ),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
 def linear(
@@ -103,7 +121,7 @@ class EinsumAttrs(Attrs):
     """Attributes for einsum operator"""
 
 
-def einsum(operands, subscripts):
+def einsum(operands, subscripts, *, ty=None, span=None):
     """Evaluates the Einstein summation convention on data
 
     Parameters
@@ -122,10 +140,16 @@ def einsum(operands, subscripts):
     if isinstance(operands, list | tuple):
         operands = RxTuple(operands)
 
-    return _ffi_api.einsum(operands, subscripts)  # type: ignore
+    return _Call(
+        "relax.einsum",
+        [operands],
+        attrs=_make_attrs("relax.attrs.EinsumAttrs", subscripts=subscripts),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def outer(x1: Expr, x2: Expr) -> Expr:
+def outer(x1: Expr, x2: Expr, *, ty=None, span=None) -> Expr:
     """
     Computes the outer product of two input expressions.
 
@@ -149,4 +173,4 @@ def outer(x1: Expr, x2: Expr) -> Expr:
     result : relax.Expr
         The resulting expression representing the outer product.
     """
-    return _ffi_api.outer(x1, x2)
+    return _Call("relax.outer", [x1, x2], ty=ty, span=span)

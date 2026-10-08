@@ -70,7 +70,7 @@ class SBlockFrameNode : public TIRFrameNode {
   /*! \brief The write buffer regions of the block. */
   ffi::Optional<ffi::Array<tvm::TensorRegion>> writes;
   /*! \brief The init statement of the bolck. */
-  ffi::Optional<tvm::tirx::Stmt> init;
+  ffi::Optional<tvm::tirx::SeqStmt> init;
   /*! \brief The buffer allocated in the block. */
   ffi::Array<tvm::tirx::TensorVar> alloc_buffers;
   /*! \brief The match buffer regions. */

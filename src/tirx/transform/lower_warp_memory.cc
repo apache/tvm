@@ -112,7 +112,7 @@ const VarNode* GetTensorVar(const Expr& expr) {
     return var;
   }
   if (const auto* call = expr.as<CallNode>();
-      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
+      call && call->op.same_as(buffer_data_op()) && call->args.size() == 1) {
     return call->args[0].as<VarNode>();
   }
   return nullptr;
@@ -381,15 +381,14 @@ class WarpAccessRewriter : public StmtExprMutator {
     TensorVar new_buf = RebuildTensorVar(op->var.as_or_throw<TensorVar>(), std::move(type));
     new_buffer_ = new_buf;
     Stmt rewritten_body = this->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
-    return SeqStmt::Flatten(
-        Bind(new_buf.var(),
-             Call(new_buf.type(), tirx::alloc_tensor_op(),
-                  {tvm::Tuple(new_buf->shape, buffer_call->args[0]->span),
-                   DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span),
-                   StringImm(new_buf.scope(), buffer_call->args[2]->span)},
-                  buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
-             op->span),
-        rewritten_body);
+    return SeqStmt({Bind(new_buf.var(),
+                         Call(new_buf.type(), tirx::alloc_tensor_op(),
+                              {tvm::Tuple(new_buf->shape, buffer_call->args[0]->span),
+                               DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span),
+                               StringImm(new_buf.scope(), buffer_call->args[2]->span)},
+                              buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
+                         op->span),
+                    rewritten_body});
   }
 
  protected:
@@ -527,9 +526,8 @@ class WarpAccessRewriter : public StmtExprMutator {
       return load;
     }
 
-    PrimExpr mask =
-        Call(PrimType::UInt(32), tirx::tvm_warp_activemask_op(), {}).as_or_throw<PrimExpr>();
-    return Call(load.ty(), tirx::tvm_warp_shuffle_op(),
+    PrimExpr mask = Call(PrimType::UInt(32), tvm_warp_activemask_op(), {}).as_or_throw<PrimExpr>();
+    return Call(load.ty(), tvm_warp_shuffle_op(),
                 ffi::Array<PrimExpr>{mask, load, group, width_, warp_size_})
         .as_or_throw<PrimExpr>();
   }
@@ -683,7 +681,7 @@ class WarpMemoryRewriter : public StmtExprMutator {
     for (size_t i = 0; i < op->seq.size(); ++i) {
       const auto* alloc = op->seq[i].as<BindNode>();
       if (const auto* call = alloc ? alloc->value.as<CallNode>() : nullptr;
-          call && call->op.same_as(tirx::alloc_tensor_op()) &&
+          call && call->op.same_as(alloc_tensor_op()) &&
           call->args[2].as_or_throw<StringImm>()->value == "warp") {
         new_storage_scopes_[alloc->var] = "local";
         // Gather remaining siblings as the "body" for rewriting.
@@ -691,7 +689,7 @@ class WarpMemoryRewriter : public StmtExprMutator {
         for (size_t j = i + 1; j < op->seq.size(); ++j) {
           remaining.push_back(op->seq[j]);
         }
-        Stmt body = remaining.empty() ? Stmt(Evaluate(0)) : SeqStmt::Flatten(remaining);
+        Stmt body = SeqStmt(remaining);
         auto rewriter = ffi::make_object<WarpAccessRewriter>(
             warp_size_, analyzer_.get(), active_bindings_, warp_index_, aliases_);
         Stmt rewritten = rewriter->Rewrite(alloc, call, body);
@@ -706,7 +704,7 @@ class WarpMemoryRewriter : public StmtExprMutator {
       }
     }
     if (!changed) return ffi::Unchanged();
-    return SeqStmt::Flatten(new_seq);
+    return SeqStmt(new_seq, op->span);
   }
 
   int warp_size_{0};

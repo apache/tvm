@@ -37,9 +37,16 @@ TVM_DEFINE_CACHED_OP_GETTER(clz_op, "prim.clz")
 
 #undef TVM_DEFINE_CACHED_OP_GETTER
 
+template <size_t N>
+Type InferTypeReturnArgType(const CallNode* call) {
+  TVM_FFI_CHECK(call->args.size() > N, TypeError) << "Missing operand " << N;
+  return call->args[N]->ty;
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("prim.likely")
       .signature(sig::arg("x", "The input value."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<TCallEffectKind>("TCallEffectKind",
                                  static_cast<int64_t>(CallEffectKind::kExprAnnotation))
       .set_attr<bool>("TVectorizable", true);
@@ -48,6 +55,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("condition", "The condition."),
                  sig::arg("true_value", "The value when the condition is true."),
                  sig::arg("false_value", "The value when the condition is false."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<1>>())
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.vscale")
@@ -56,16 +64,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("prim.ceil")
       .signature(sig::arg("x", "The input value."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
       .set_attr<bool>("TVectorizable", true);
 
   OpDef("prim.log2")
       .signature(sig::arg("x", "The input value."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
       .set_attr<bool>("TVectorizable", true);
 
   OpDef("prim.clz")
       .signature(sig::arg("x", "The input value."))
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 }
 

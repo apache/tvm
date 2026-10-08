@@ -48,16 +48,16 @@ namespace tvm {
 namespace tirx {
 
 /*!
- * \brief combine the nest stmt, whose body is not defined.
- * \param nest A list of For and Bind, whose body is not defined.
+ * \brief Fill empty loop/conditional bodies and prepend statement prefixes.
+ * \param nest Loops, conditionals with empty bodies, or Bind/Assert/SeqStmt prefixes.
  * \param body body
  * \return The combined Stmt
  */
 Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body);
 
 /*!
- * \brief combine the nest stmt, whose body is not defined.
- * \param nest A list of For and Bind, whose body is not defined.
+ * \brief Fill empty loop/conditional bodies and prepend statement prefixes.
+ * \param nest Groups of loops, conditionals with empty bodies, or statement prefixes.
  * \param body body
  * \return The combined Stmt
  */

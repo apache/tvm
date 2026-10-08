@@ -274,10 +274,10 @@ def test_native_concise_scopes_unwind_with_their_parent():
         T.evaluate(bx + tx)
 
     bx, tx = variables
-    body = main.body
-    assert isinstance(body, tirx.RegionStmt) and isinstance(body.body, tirx.RegionStmt)
-    assert body.body_params[0].same_as(bx) and body.body.body_params[0].same_as(tx)
-    assert body.body.body.value.a.same_as(bx) and body.body.body.value.b.same_as(tx)
+    body = main.body[0]
+    assert isinstance(body, tirx.RegionStmt) and isinstance(body.body[0], tirx.RegionStmt)
+    assert body.body_params[0].same_as(bx) and body.body[0].body_params[0].same_as(tx)
+    assert body.body[0].body[0].value.a.same_as(bx) and body.body[0].body[0].value.b.same_as(tx)
 
 
 def test_loop_control_validation_preserves_valid_and_unchecked_ir():
@@ -286,7 +286,7 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
     from tvm.script import tirx as T
 
     invalid = tirx.Function(params=[], body=tirx.Break())
-    ir.assert_structural_equal(invalid.body, tirx.Break())
+    ir.assert_structural_equal(invalid.body, tirx.SeqStmt([tirx.Break()]))
     assert not tirx.analysis.verify_well_formed(invalid, assert_mode=False)
     with pytest.raises(error.InternalError, match="requires an enclosing loop"):
         tirx.analysis.verify_well_formed(invalid)
@@ -296,8 +296,8 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
         for i in range(2):
             break
 
-    assert isinstance(valid.body, tirx.For)
-    ir.assert_structural_equal(valid.body.body, invalid.body)
+    assert isinstance(valid.body[0], tirx.For)
+    ir.assert_structural_equal(valid.body[0].body, invalid.body)
 
     @I.ir_module(check_well_formed=False, extra_vars={"invalid": invalid})
     class Unchecked:

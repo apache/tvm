@@ -19,9 +19,10 @@
 import tvm_ffi
 
 from tvm.ir import Attrs
+from tvm.ir import Call as _Call
+from tvm.ir.attrs import make_node as _make_attrs
 
 from ..base import Expr
-from . import _ffi_api
 
 
 @tvm_ffi.register_object("relax.attrs.ROIPoolAttrs")
@@ -35,6 +36,9 @@ def roi_pool(
     pooled_size: int | tuple[int, int] | list[int],
     spatial_scale: float,
     layout: str = "NCHW",
+    *,
+    ty=None,
+    span=None,
 ):
     """ROI Pool operator.
 
@@ -63,4 +67,15 @@ def roi_pool(
     """
     if isinstance(pooled_size, int):
         pooled_size = (pooled_size, pooled_size)
-    return _ffi_api.roi_pool(data, rois, pooled_size, spatial_scale, layout)
+    return _Call(
+        "relax.vision.roi_pool",
+        [data, rois],
+        attrs=_make_attrs(
+            "relax.attrs.ROIPoolAttrs",
+            pooled_size=pooled_size,
+            spatial_scale=spatial_scale,
+            layout=layout,
+        ),
+        ty=ty,
+        span=span,
+    )

@@ -600,7 +600,6 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
 // ============================================================
 
 void TVMFFIABIBuilder::DecodeAllParams() {
-  const Stmt nop = Evaluate(0);
   int num_args = static_cast<int>(params_.size());
 
   // Phase 1: Decode each packed argument (type-check, value load, scalar bind)
@@ -689,7 +688,7 @@ void TVMFFIABIBuilder::BindCompactStrides(const TensorVar& buffer, const Var& st
                                StringImm(std::to_string(param_index)), when_calling_imm_, sig_imm_,
                                StringImm("`,\n  expected to be compact array")}));
     check = IfThenElse(prim::Not(v_strides_is_null), check);
-    asserts_.emplace_back(SeqStmt({check, Evaluate(0)}));
+    asserts_.emplace_back(SeqStmt({check}));
   }
 }
 

@@ -288,7 +288,7 @@ void RegisterCudaIntrinRules() {
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<1>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                           ffi::String("tirx.cuda.__shfl_sync"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "__shfl_sync")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
@@ -302,7 +302,7 @@ void RegisterCudaIntrinRules() {
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<1>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                           ffi::String("tirx.cuda.__shfl_up_sync"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "__shfl_up_sync")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
@@ -316,7 +316,7 @@ void RegisterCudaIntrinRules() {
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<1>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                           ffi::String("tirx.cuda.__shfl_down_sync"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "__shfl_down_sync")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
@@ -330,7 +330,7 @@ void RegisterCudaIntrinRules() {
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<1>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                           ffi::String("tirx.cuda.__shfl_xor_sync"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "__shfl_xor_sync")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
@@ -340,7 +340,7 @@ void RegisterCudaIntrinRules() {
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::UInt(32))
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                           ffi::String("tirx.cuda.__activemask"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "__activemask")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))

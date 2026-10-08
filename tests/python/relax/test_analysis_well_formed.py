@@ -152,8 +152,9 @@ def test_global_var():
     # Error: GlobalVar GlobalVar0 is not defined
     gv0 = rx.Var("gv0", R.Tensor([m, n], "float32"))
     globalvar = rx.GlobalVar("GlobalVar0")
-    call_node = rx.Call.unchecked(
+    call_node = rx.Call(
         op=tvm.ir.Op.get("relax.call_tir"),
+        ty=tvm.ir.Type.missing(),
         args=[globalvar, rx.Tuple([x]), rx.ShapeExpr([m, n])],
     )
     bindings = [rx.VarBinding(gv0, call_node)]
@@ -163,20 +164,20 @@ def test_global_var():
     assert not rx.analysis.check_well_formed(mod, check_ty=False)
 
 
-def test_unchecked_call_constructor():
+def test_provisional_call_constructor():
     op = tvm.ir.Op.get("relax.add")
     with pytest.raises(Exception, match="Call.args expected 2 arguments, got 1"):
-        tvm.ir.Call(op, [x])
+        tvm.ir.Call(op, [x]).validate()
 
-    span = tvm.ir.Span(tvm.ir.SourceName("unchecked.py"), 1, 1, 0, 1)
-    call = tvm.ir.Call.unchecked("relax.add", [x], attrs={"key": 1}, span=span)
+    span = tvm.ir.Span(tvm.ir.SourceName("provisional.py"), 1, 1, 0, 1)
+    call = tvm.ir.Call("relax.add", [x], attrs={"key": 1}, span=span)
     assert isinstance(call, tvm.ir.Call)
     assert call.op.same_as(op)
     assert isinstance(call.ty, tvm.ir.MissingType)
     assert call.span.same_as(span)
     assert isinstance(call.attrs, tvm.ir.DictAttrs)
     assert len(call.ty_args) == 0
-    assert isinstance(tvm.ir.Call.unchecked(op, [x], ty="handle").ty, tvm.ir.PointerType)
+    assert isinstance(tvm.ir.Call(op, [x], ty="handle").ty, tvm.ir.PointerType)
     with pytest.raises(TypeError, match="skip_validate"):
         tvm.ir.Call(op, [x], skip_validate=True)
 
@@ -462,8 +463,9 @@ def test_inline_function():
                         ),
                         rx.VarBinding(
                             var=y,
-                            value=rx.Call.unchecked(
+                            value=rx.Call(
                                 op=tvm.ir.Op.get("relax.call_tir"),
+                                ty=tvm.ir.Type.missing(),
                                 args=[
                                     rx.GlobalVar("GlobalVar0"),
                                     rx.Tuple([x, tirx.Function([], tirx.Evaluate(0))]),
@@ -669,7 +671,7 @@ def test_impure_in_dataflow_block():
     # The throwing form surfaces the offending impure call in its message.
     with pytest.raises(Exception) as excinfo:
         rx.analysis.well_formed(mod)
-    assert 'I.Call.unchecked("relax.print", ["{}", x], ty=R.Tuple())' in str(excinfo.value)
+    assert 'I.Call("relax.print", ["{}", x], ty=R.Tuple())' in str(excinfo.value)
 
 
 def test_well_formed_function():
@@ -740,9 +742,9 @@ def test_pass_dltensor_arg_to_tir():
             # From #include <dlpack/dlpack.h>
             kDLBfloat = T.meta_var(4)
 
-            type_code = T.tvm_struct_get(tensor, 0, kDLTensorTypeCode, dtype="uint8")
-            type_bits = T.tvm_struct_get(tensor, 0, kDLTensorTypeBits, dtype="uint8")
-            type_lanes = T.tvm_struct_get(tensor, 0, kDLTensorTypeLanes, dtype="uint16")
+            type_code = T.tvm_struct_get(tensor, 0, kDLTensorTypeCode, ty="uint8")
+            type_bits = T.tvm_struct_get(tensor, 0, kDLTensorTypeBits, ty="uint8")
+            type_lanes = T.tvm_struct_get(tensor, 0, kDLTensorTypeLanes, ty="uint16")
 
             is_bfloat16: T.bool = (
                 (type_code == kDLBfloat) and (type_bits == 16) and (type_lanes == 1)

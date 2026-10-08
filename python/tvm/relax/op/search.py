@@ -20,12 +20,13 @@
 import tvm_ffi
 
 from tvm.ir import Attrs
+from tvm.ir import Call as _Call
+from tvm.ir.attrs import make_node as _make_attrs
 
 from ..expr import Expr
-from . import _ffi_api
 
 
-def where(condition: Expr, x1: Expr, x2: Expr) -> Expr:
+def where(condition: Expr, x1: Expr, x2: Expr, *, ty=None, span=None) -> Expr:
     """Selecting elements from either the input tensors depending on the value of the
     condition.
 
@@ -52,7 +53,7 @@ def where(condition: Expr, x1: Expr, x2: Expr) -> Expr:
     result : relax.Expr
         The result tensor.
     """
-    return _ffi_api.where(condition, x1, x2)  # type: ignore
+    return _Call("relax.where", [condition, x1, x2], ty=ty, span=span)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.attrs.ArgmaxArgminAttrs")
@@ -60,7 +61,14 @@ class ArgmaxArgminAttrs(Attrs):
     """Attributes for argmax/argmin operator"""
 
 
-def argmax(x: Expr, axis: int | None = None, keepdims: bool = False) -> Expr:
+def argmax(
+    x: Expr,
+    axis: int | None = None,
+    keepdims: bool = False,
+    *,
+    ty=None,
+    span=None,
+) -> Expr:
     """Computes the argmax of tensor elements over given axis.
 
     Parameters
@@ -83,10 +91,23 @@ def argmax(x: Expr, axis: int | None = None, keepdims: bool = False) -> Expr:
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.argmax(x, axis, keepdims)  # type: ignore
+    return _Call(
+        "relax.argmax",
+        [x],
+        attrs=_make_attrs("relax.attrs.ArgmaxArgminAttrs", axis=axis, keepdims=keepdims),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def argmin(x: Expr, axis: int | None = None, keepdims: bool = False) -> Expr:
+def argmin(
+    x: Expr,
+    axis: int | None = None,
+    keepdims: bool = False,
+    *,
+    ty=None,
+    span=None,
+) -> Expr:
     """Computes the argmin of tensor elements over given axis.
 
     Parameters
@@ -109,10 +130,24 @@ def argmin(x: Expr, axis: int | None = None, keepdims: bool = False) -> Expr:
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.argmin(x, axis, keepdims)  # type: ignore
+    return _Call(
+        "relax.argmin",
+        [x],
+        attrs=_make_attrs("relax.attrs.ArgmaxArgminAttrs", axis=axis, keepdims=keepdims),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def bucketize(input_tensor, boundaries, out_int32=False, right=False):
+def bucketize(
+    input_tensor,
+    boundaries,
+    out_int32=False,
+    right=False,
+    *,
+    ty=None,
+    span=None,
+):
     """Returns the indices of the buckets to which each value in the input belongs.
 
     Parameters
@@ -134,4 +169,10 @@ def bucketize(input_tensor, boundaries, out_int32=False, right=False):
     result : relax.Expr
         The computed result with same shape as input_tensor.
     """
-    return _ffi_api.bucketize(input_tensor, boundaries, out_int32, right)
+    return _Call(
+        "relax.bucketize",
+        [input_tensor, boundaries],
+        attrs=_make_attrs("relax.attrs.BucketizeAttrs", out_int32=out_int32, right=right),
+        ty=ty,
+        span=span,
+    )

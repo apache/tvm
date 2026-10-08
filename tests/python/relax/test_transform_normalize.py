@@ -566,7 +566,7 @@ def test_remove_usage_of_void_type_variables():
     `void_var` may require a binding.
 
     This is avoided by normalizing all usage of a void-type
-    variable with an in-line `R.tuple()`.
+    variable with an in-line empty tuple.
     """
     x = relax.Var("x", R.Tuple([]))
     bindings = [
@@ -580,7 +580,7 @@ def test_remove_usage_of_void_type_variables():
     @R.function(private=True, pure=False)
     def expected():
         x = R.assert_op(R.const(True, "bool"))
-        return R.tuple()
+        return ()
 
 
 if __name__ == "__main__":

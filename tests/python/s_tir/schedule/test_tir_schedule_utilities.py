@@ -187,7 +187,7 @@ def test_tir_schedule_get_sblock():
     assert block.name_hint == "update"
     assert block_sref.stmt.same_as(block)
     assert sch.state.get_sref(block).same_as(block_sref)
-    assert block.same_as(matmul.body.block.body.body.body[1].body.block)
+    assert block.same_as(matmul.body[0].block.body[0].body[0].body[1].body[0].block)
 
 
 def test_tir_schedule_work_on():

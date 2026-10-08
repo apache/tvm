@@ -808,10 +808,9 @@ class CUDAGraphRewriter : public ExprMutator {
         TVM_FFI_ICHECK(plan->inputs.empty());
         auto gv_alloc = gv_global_alloc_.value();
         auto ret_ty = gv_alloc->ty.as_or_throw<FuncType>()->ret;
-        return Call::Unchecked(
-            Type::Missing(), call_builtin_with_ctx_op,
-            {builtin_get_cached_alloc, Tuple({gv_alloc, PrimExpr(IntImm::Int64(0))})}, Attrs(),
-            {ret_ty});
+        return Call(Type::Missing(), call_builtin_with_ctx_op,
+                    {builtin_get_cached_alloc, Tuple({gv_alloc, PrimExpr(IntImm::Int64(0))})},
+                    Attrs(), {ret_ty});
       } else {
         auto gv_func = builder_->AddFunction(
             plan->func, current_func_.value()->name_hint + "_cuda_graph_capture");
@@ -845,9 +844,8 @@ class CUDAGraphRewriter : public ExprMutator {
           // Explicitly passing it twice simplifies the handling during the capture phase.
           tuple_arg_fields.push_back(plan->propogated_tir_vars.value());
         }
-        return Call::Unchecked(Type::Missing(), call_builtin_with_ctx_op,
-                               {builtin_run_or_capture, Tuple(tuple_arg_fields)}, Attrs(),
-                               {call_ty});
+        return Call(Type::Missing(), call_builtin_with_ctx_op,
+                    {builtin_run_or_capture, Tuple(tuple_arg_fields)}, Attrs(), {call_ty});
       }
     }();
     Expr ret_value = builder_->Emit(launch_subgraph);

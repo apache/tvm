@@ -64,6 +64,52 @@ static Type InferTypeReturnArgType(const CallNode* call) {
   return call->args[N]->ty;
 }
 
+template <bool Combine>
+Type InferTypeVectorPart(const CallNode* call) {
+  TVM_FFI_CHECK_EQ(call->args.size(), Combine ? 2U : 1U, ValueError);
+  PrimType input = call->args[0]->ty.as_or_throw<PrimType>();
+  if constexpr (Combine) {
+    TVM_FFI_CHECK(ffi::StructuralEqual()(input, call->args[1]->ty), TypeError)
+        << "vectorcombine requires equal input vector types";
+  }
+  int lanes = input.IsScalableVector() ? input.VScaleFactor() : input.lanes();
+  if constexpr (!Combine) {
+    TVM_FFI_CHECK(lanes > 1 && lanes % 2 == 0, TypeError)
+        << "vector half requires an even lane count";
+  }
+  int result_lanes = Combine ? lanes * 2 : lanes / 2;
+  return input.IsScalableVector()
+             ? PrimType::ScalableVector(input.code(), input.bits(), result_lanes)
+             : input.WithLanes(result_lanes);
+}
+
+template <size_t DataIndex, int ElementIndex>
+Type InferTypePointerOffset(const CallNode* call) {
+  TVM_FFI_CHECK_GT(call->args.size(), DataIndex, ValueError);
+  Type element_type = PrimType::Void();
+  if constexpr (ElementIndex >= 0) {
+    TVM_FFI_CHECK_GT(call->args.size(), static_cast<size_t>(ElementIndex), ValueError);
+    element_type = call->args[ElementIndex]->ty;
+    if (element_type.as<MissingType>()) return Type::Missing();
+  }
+  auto pointer = call->args[DataIndex]->ty.as<PointerType>();
+  return PointerType(element_type, pointer ? pointer.value()->storage_scope : "global");
+}
+
+Type InferTypePrintBuffer(const CallNode* call) {
+  TVM_FFI_CHECK_GE(call->args.size(), 2U, ValueError);
+  return PrimType(ffi::StringToDLDataType(call->args[1].as_or_throw<StringImm>()->value));
+}
+
+Type InferTypeStackAlloca(const CallNode* call) {
+  TVM_FFI_CHECK_GE(call->args.size(), 1U, ValueError) << "Stack allocation requires a dtype name";
+  ffi::String dtype = call->args[0].as_or_throw<StringImm>()->value;
+  if (dtype == "shape") return PointerType(PrimType::Int(64));
+  if (dtype == "arg_tcode") return PointerType(PrimType::Int(32));
+  if (dtype == "tensormap") return PointerType(TensorMapType());
+  return PointerType(PrimType::Void());
+}
+
 Type InferTypeAddressOf(const CallNode* call) {
   TVM_FFI_CHECK_GE(call->args.size(), 1U, ValueError) << "Address type requires an object";
   if (const auto* load = call->args[0].as<TensorLoadNode>()) {
@@ -294,11 +340,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("x", "The input value."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.reinterpret"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("tirx.thread_return")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.thread_return"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind",
@@ -312,6 +357,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   // without this wrapper.
 
   OpDef("tirx.filter")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Bool())
       .signature(sig::arg("var", "The thread-axis variable."), sig::arg("pred", "The predicate."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.filter"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
@@ -332,6 +378,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("tirx.q_multiply_shift")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32))
       .signature(sig::arg("x", "The input value."), sig::arg("y", "The second input value."),
                  sig::arg("q", "The number of fractional bits."),
                  sig::arg("s", "The right shift amount."))
@@ -341,6 +388,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TVectorizable>("TVectorizable", true);
 
   OpDef("tirx.q_multiply_shift_per_axis")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32))
       .signature(sig::arg("x", "The input value."), sig::arg("y", "The second input value."),
                  sig::arg("ls", "The left shift amount."),
                  sig::arg("rs", "The right shift amount."),
@@ -354,6 +402,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TVectorizable>("TVectorizable", true);
 
   OpDef("tirx.isnullptr")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Bool())
       .signature(sig::arg("x", "The input value."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.isnullptr"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
@@ -367,6 +416,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("tirx.popcount")
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .signature(sig::arg("x", "The input value."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.popcount"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
@@ -374,6 +424,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TVectorizable>("TVectorizable", true);
 
   OpDef("tirx.fma")
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .signature(sig::arg("x", "The input value."), sig::arg("y", "The second input value."),
                  sig::arg("z", "The third input value."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.fma"))
@@ -385,33 +436,25 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("func_name", "The function name."), sig::var_args("args"))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.call_extern"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
-      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.call_pure_extern")
       .signature(sig::arg("func_name", "The function name."), sig::var_args("args"))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.call_pure_extern"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("tirx.call_llvm_intrin")
       .signature(sig::arg<IntExpr>("intrin_id", "The intrinsic identifier."), sig::var_args("args"))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.call_llvm_intrin"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
-      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.call_llvm_pure_intrin")
       .signature(sig::arg<IntExpr>("intrin_id", "The intrinsic identifier."), sig::var_args("args"))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.call_llvm_pure_intrin"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst))
       .set_attr<TVectorizable>("TVectorizable", true);
 
   OpDef("tirx.call_spirv_pure_glsl450")
@@ -432,6 +475,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("extent", "The extent."),
                  sig::arg<IntExpr>("rw_mask", "The read/write mask."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_access_ptr"))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypePointerOffset<1, 0>>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind",
                                  static_cast<int64_t>(CallEffectKind::kSpecialCallArg));
@@ -441,6 +485,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("byte_offset", "Offset in bytes."),
                  sig::arg("dtype", "Type annotation for pointed-to elements."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.ptr_byte_offset"))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypePointerOffset<0, 2>>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
@@ -453,6 +498,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("handle", "The handle."), sig::arg<IntExpr>("offset", "The offset."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                     ffi::String("tirx.handle_add_byte_offset"))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypePointerOffset<0, -1>>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
@@ -462,11 +508,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_struct_get"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind",
-                                 static_cast<int64_t>(CallEffectKind::kReadState))
-      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                           static_cast<int64_t>(ScriptDtypePrintLocation::kLast));
+                                 static_cast<int64_t>(CallEffectKind::kReadState));
 
   OpDef("tirx.tvm_struct_set")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32))
       .signature(sig::arg("arr", "The array."), sig::arg<IntExpr>("index", "The index."),
                  sig::arg<IntExpr>("field", "The field index."),
                  sig::arg("value", "The value to use."))
@@ -476,11 +521,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                  static_cast<int64_t>(CallEffectKind::kUpdateState));
 
   OpDef("tirx.tvm_throw_last_error")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_throw_last_error"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.tvm_stack_alloca")
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStackAlloca>())
       .signature(sig::arg("dtype_str", "The data type name."),
                  sig::arg<IntExpr>("num", "The number of entries."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_stack_alloca"))
@@ -488,12 +535,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.tvm_stack_make_shape")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PointerType(PrimType::Int(64)))
       .signature(sig::var_args<IntExpr>("args"))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_stack_make_shape"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.tvm_stack_make_array")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PointerType(PrimType::Void()))
       .signature(sig::arg("data", "The input data."), sig::arg("shape", "The shape."),
                  sig::arg("strides", "The strides."),
                  sig::arg<IntExpr>("ndim", "The number of dimensions."),
@@ -504,12 +553,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.tvm_call_packed")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32))
       .signature(sig::arg("func_name", "The function name."), sig::var_args("args"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.call_packed"));
 
   OpDef("tirx.tensormap_encode_tiled")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32))
       .signature(sig::arg("descriptor", "The descriptor."), sig::arg("data", "The input data."),
                  sig::var_args("args"))
       .set_attr<TScriptPrinterName>("TScriptPrinterName",
@@ -518,24 +569,29 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.call_ffi_kernel")
-      .signature(sig::arg("kernel", "The kernel."), sig::var_args("args"))
+      .signature(sig::arg("kernel", "The kernel."), sig::var_args("args"),
+                 sig::call_attrs<CallFFIKernelAttr>())
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.call_ffi_kernel"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.tvm_call_cpacked")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32))
       .signature(sig::arg("func_name", "The function name."), sig::var_args("args"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.call_cpacked"));
 
   OpDef("tirx.tvm_thread_invariant")
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .signature(sig::arg("cond", "The condition."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_thread_invariant"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("tirx.tvm_call_packed_lowered")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32))
       .signature(sig::arg("func_name", "The function name."),
                  sig::arg("args_stack", "The argument stack."),
                  sig::arg<IntExpr>("begin", "The start index."),
@@ -545,6 +601,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.call_packed_lowered"));
 
   OpDef("tirx.tvm_call_cpacked_lowered")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32))
       .signature(sig::arg("func_name", "The function name."),
                  sig::arg("args_stack", "The argument stack."),
                  sig::arg<IntExpr>("begin", "The start index."),
@@ -635,6 +692,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.cooperative_tensor_fill")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(sig::arg("d", "The D operand."), sig::arg<IntExpr>("index", "The index."),
                  sig::arg("value", "The value to use."),
                  sig::arg<IntExpr>("rows", "The number of rows."),
@@ -645,6 +703,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.cooperative_tensor_load")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(sig::arg("d", "The D operand."), sig::arg<IntExpr>("index", "The index."),
                  sig::arg("ptr", "The pointer."), sig::arg<IntExpr>("stride", "The stride."),
                  sig::arg<IntExpr>("rows", "The number of rows."),
@@ -660,6 +719,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.cooperative_tensor_store")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(sig::arg("d", "The D operand."), sig::arg<IntExpr>("index", "The index."),
                  sig::arg("ptr", "The pointer."), sig::arg<IntExpr>("stride", "The stride."),
                  sig::arg<IntExpr>("rows", "The number of rows."),
@@ -675,6 +735,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.cooperative_tensor_multiply_accumulate")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(
           sig::arg("d", "The D operand."), sig::arg<IntExpr>("index_d", "The D fragment index."),
           sig::arg("a", "The A operand."), sig::arg<IntExpr>("index_a", "The A fragment index."),
@@ -691,37 +752,33 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("tirx.vectorhigh")
       .signature(sig::arg("vec", "The input vector."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeVectorPart<false>>())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.vectorhigh"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("tirx.vectorlow")
       .signature(sig::arg("vec", "The input vector."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeVectorPart<false>>())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.vectorlow"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("tirx.vectorcombine")
       .signature(sig::arg("vec1", "The first input vector."),
                  sig::arg("vec2", "The second input vector."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeVectorPart<true>>())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.vectorcombine"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("tirx.dp4a")
       .signature(sig::arg("vec1", "The first input vector."),
                  sig::arg("vec2", "The second input vector."), sig::arg("acc", "The accumulator."))
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.dp4a"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("tirx.atomic_add")
       .signature(sig::arg("ptr", "The pointer."), sig::arg("value", "The value to use."))
@@ -756,6 +813,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.assume")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Bool())
       .signature(sig::arg("cond", "The condition."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.assume"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
@@ -772,6 +830,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                  static_cast<int64_t>(CallEffectKind::kEmbedInfo));
 
   OpDef("tirx.undef")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.undef"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind",
@@ -782,9 +841,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("limit", "The limit value."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.get_active_lane_mask"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("tirx.masked_load")
       .signature(sig::arg("buffer", "The buffer."), sig::arg("index", "The index."),
@@ -793,9 +850,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.masked_load"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind",
-                                 static_cast<int64_t>(CallEffectKind::kReadState))
-      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+                                 static_cast<int64_t>(CallEffectKind::kReadState));
 
   OpDef("tirx.masked_store")
       .signature(sig::arg("buffer", "The buffer."), sig::arg("value", "The value to use."),
@@ -807,12 +862,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                  static_cast<int64_t>(CallEffectKind::kUpdateState));
 
   OpDef("tirx.ignore_loop_partition")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Bool())
       .signature(sig::arg("predicate", "The predicate."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.ignore_loop_partition"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                           static_cast<int64_t>(ScriptDtypePrintLocation::kNone));
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("tirx.alloc_tensor")
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
@@ -845,6 +899,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("tirx.print_buffer")
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypePrintBuffer>())
       .signature(sig::arg("data", "The input data."), sig::arg("dtype", "The data type."),
                  sig::arg("is_string", "Whether to print as a string."),
                  sig::arg("is_scalar", "Whether to print as a scalar."),

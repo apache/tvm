@@ -36,10 +36,12 @@ void AllReduceAttrs::RegisterReflection() {
   refl::ObjectDef<AllReduceAttrs>()
       .def_ro("op_type", &AllReduceAttrs::op_type,
               "The type of reduction operation to be applied to the input data. Now only sum is "
-              "supported.")
+              "supported.",
+              refl::DefaultValue(ffi::String("sum")))
       .def_ro("in_group", &AllReduceAttrs::in_group,
               "Whether the reduction operation performs in group or globally or in group as "
-              "default.");
+              "default.",
+              refl::DefaultValue(true));
 }
 
 void AllGatherAttrs::RegisterReflection() {
@@ -50,7 +52,8 @@ void AllGatherAttrs::RegisterReflection() {
               "chunked into.")
       .def_ro("in_group", &AllGatherAttrs::in_group,
               "Whether the allgather operation performs in group or globally or in group as "
-              "default.");
+              "default.",
+              refl::DefaultValue(true));
 }
 
 void ScatterCollectiveAttrs::RegisterReflection() {
@@ -61,7 +64,8 @@ void ScatterCollectiveAttrs::RegisterReflection() {
               "chunked into.")
       .def_ro("axis", &ScatterCollectiveAttrs::axis,
               "The axis of the tensor to be scattered. The tensor will be chunked along "
-              "this axis.");
+              "this axis.",
+              refl::DefaultValue(0));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -76,7 +80,7 @@ Expr allreduce(Expr x, ffi::String op_type, bool in_group) {
   attrs->in_group = std::move(in_group);
 
   static const Op op = Op::Get("relax.ccl.allreduce");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -86,6 +90,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeAllReduce(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   TensorType input_ty = GetUnaryInputTensorType(call);
   return input_ty;
 }
@@ -107,7 +112,7 @@ Expr allgather(Expr x, int num_workers, bool in_group) {
   attrs->in_group = std::move(in_group);
 
   static const Op op = Op::Get("relax.ccl.allgather");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -144,7 +149,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.ccl.broadcast_from_worker0 */
 Expr broadcast_from_worker0(Expr x) {
   static const Op op = Op::Get("relax.ccl.broadcast_from_worker0");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, {}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -174,7 +179,7 @@ Expr scatter_from_worker0(Expr data, int num_workers, int axis) {
   attrs->axis = std::move(axis);
   static const Op op = Op::Get("relax.ccl.scatter_from_worker0");
 
-  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

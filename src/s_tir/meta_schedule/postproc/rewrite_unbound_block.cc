@@ -43,7 +43,9 @@ class UnboundBlockFinder : public StmtExprVisitor {
       BaseFunc base_func = kv.second;
       if (const auto* function = base_func.as<FunctionNode>()) {
         finder->global_var_name_ = g_var->name_hint;
-        finder->Visit(function->body.as_or_throw<SBlockRealize>()->block->body);
+        TVM_FFI_ICHECK(function->body.has_value());
+        TVM_FFI_ICHECK_EQ(function->body.value()->size(), 1);
+        finder->Visit(function->body.value()->seq[0].as_or_throw<SBlockRealize>()->block->body);
       }
     }
     return std::move(finder->blocks_);

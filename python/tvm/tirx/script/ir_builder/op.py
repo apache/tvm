@@ -32,7 +32,6 @@ from tvm import ir as _ir
 from tvm import tirx as _tir
 from tvm import tirx as tir
 from tvm.ir import Call
-from tvm.ir import register_op_attr as _register_op_attr
 from tvm.ir.prim import _ffi_api as _prim_ffi
 from tvm.ir.prim import _ffi_api as _prim_ffi_api
 from tvm.script.ir_builder import base as _base
@@ -186,29 +185,13 @@ def comm_reducer(combiner: Callable, identity: list[Expr]) -> CommReducer:
     return CommReducer(args[: num_args // 2], args[num_args // 2 :], res, identity)
 
 
-def _op_wrapper(func):
-    """Retain the normal call contract while attaching namespace printer metadata."""
+def _llvm_result_type(func):
+    """Keep symbolic intrinsic-name conversion when spelling the result as ty."""
 
     @functools.wraps(func)
-    def wrapped(*args, **kwargs):
-        return func(*args, **kwargs)
+    def wrapped(name, *args, ty, span=None):
+        return func(ty, name, *args, span=span)
 
-    wrapped.__tir_op_name__ = getattr(func, "__name__", None)
-    return wrapped
-
-
-def _dtype_forward(func):
-    @functools.wraps(func)
-    def wrapped(*args, **kwargs):
-        if "dtype" in kwargs:
-            args = (kwargs.pop("dtype"), *args)
-        return func(*args, **kwargs)
-
-    # Expose underlying tir op name for printer registration
-    try:
-        wrapped.__tir_op_name__ = getattr(func, "__name__", None)
-    except Exception:  # pragma: no cover
-        pass
     return wrapped
 
 
@@ -216,65 +199,40 @@ class WebGPUNamespace:
     """The WebGPU intrinsics submodule."""
 
     @staticmethod
-    def subgroup_shuffle(var, lane):
+    def subgroup_shuffle(var, lane, *, ty=None, span=None):
         if is_tensor_var(var):
             var = var[0]
-        return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle", var, lane)
+        return Call(
+            "tirx.webgpu.subgroup_shuffle",
+            [var, lane],
+            ty=ty,
+            span=span,
+        )
 
     @staticmethod
-    def subgroup_shuffle_up(var, delta):
+    def subgroup_shuffle_up(var, delta, *, ty=None, span=None):
         if is_tensor_var(var):
             var = var[0]
-        return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle_up", var, delta)
+        return Call(
+            "tirx.webgpu.subgroup_shuffle_up",
+            [var, delta],
+            ty=ty,
+            span=span,
+        )
 
     @staticmethod
-    def subgroup_shuffle_down(var, delta):
+    def subgroup_shuffle_down(var, delta, *, ty=None, span=None):
         if is_tensor_var(var):
             var = var[0]
-        return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle_down", var, delta)
+        return Call(
+            "tirx.webgpu.subgroup_shuffle_down",
+            [var, delta],
+            ty=ty,
+            span=span,
+        )
 
 
 webgpu = WebGPUNamespace()
-
-
-def _register_script_namespace_printer_names(ns_obj, dotted_prefix, override=False):
-    def register_printer_name(op_name, script_name):
-        try:
-            op = ir.Op.get(op_name)
-        except AttributeError:
-            return
-        if op.has_attr("TScriptPrinterName") and op.get_attr("TScriptPrinterName") == script_name:
-            return
-        _register_op_attr(op_name, "TScriptPrinterName", script_name, override=override)
-
-    def visit(ns_obj, dotted_prefix):
-        # If the namespace object itself maps to an op via __call__
-        call_op = getattr(ns_obj, "__tir_call_op_name__", None)
-        if call_op:
-            flat_name = f"tirx.{call_op}"
-            for op_name in {flat_name, _tir_op._canonical_device_intrin_name(flat_name)}:
-                register_printer_name(op_name, dotted_prefix)
-        # Walk attributes to find wrapped ops and sub-namespaces
-        for name in dir(ns_obj):
-            if name.startswith("_"):
-                continue
-            try:
-                val = getattr(ns_obj, name)
-            except Exception:
-                continue
-            # Sub-namespace: recurse
-            if hasattr(val, "__dict__") and val.__class__.__name__.endswith("Namespace"):
-                visit(val, f"{dotted_prefix}.{name}")
-                continue
-            # Wrapped op (callable with attached __tir_op_name__)
-            op_name = getattr(val, "__tir_op_name__", None)
-            if callable(val) and op_name:
-                flat_name = f"tirx.{op_name}"
-                script_name = f"{dotted_prefix}.{name}"
-                for full_op_name in {flat_name, _tir_op._canonical_device_intrin_name(flat_name)}:
-                    register_printer_name(full_op_name, script_name)
-
-    visit(ns_obj, dotted_prefix)
 
 
 _SCRIPT_NAMESPACES = {}
@@ -287,9 +245,7 @@ def _get_script_namespace(name: str) -> object:
     raise AttributeError(f"No script namespace {name!r}")
 
 
-def register_script_namespace(
-    name: str, namespace: object, override: bool = False, *, canonical_op_names: bool = False
-) -> object:
+def register_script_namespace(name: str, namespace: object) -> object:
     """Register a construction namespace and return it.
 
     Parameters
@@ -298,13 +254,6 @@ def register_script_namespace(
         Namespace name on the TIRx builder facade.
     namespace : object
         Construction namespace object.
-    override : bool, optional
-        Replace differing operator printer names if True. Existing equal names
-        are reused; other duplicates raise ValueError.
-    canonical_op_names : bool, optional
-        Publish registered Op names whose canonical attributes expose matching
-        callables. Preserve explicit printer aliases. Otherwise discover names
-        from legacy wrappers. Repeat registration to publish newly exposed Ops.
     """
     _SCRIPT_NAMESPACES[name] = namespace
     globals()[name] = namespace
@@ -326,38 +275,7 @@ def register_script_namespace(
         if isinstance(module_all, list) and name not in module_all:
             module_all.append(name)
 
-    if canonical_op_names:
-        prefix = f"tirx.{name}."
-        for op_name in _ir.Op.list_op_names():
-            if not op_name.startswith(prefix):
-                continue
-            current = namespace
-            for part in op_name[len(prefix) :].split("."):
-                current = getattr(current, part, None)
-            op = _ir.Op.get(op_name)
-            identity = getattr(current, "__tvm_op__", None)
-            if callable(current) and isinstance(identity, _ir.Op) and identity.same_as(op):
-                op.set_attr(
-                    "TScriptStandardCall",
-                    bool(getattr(current, "__tvm_standard_call__", False)),
-                    override=True,
-                )
-                if op.get_attr("TScriptPrinterName") is None:
-                    op.set_attr("TScriptPrinterName", op_name)
-    else:
-        _register_script_namespace_printer_names(namespace, f"tirx.{name}", override)
     return namespace
-
-
-def _register_tir_namespace_printer_names():
-    try:
-        _register_script_namespace_printer_names(webgpu, "tirx.webgpu")
-    except Exception:
-        # Best-effort registration; avoid import-time hard failure
-        pass
-
-
-_register_tir_namespace_printer_names()
 
 
 abs = _tir_op.abs  # pylint: disable=redefined-builtin
@@ -399,10 +317,10 @@ bitwise_or = _tir_op.bitwise_or
 bitwise_xor = _tir_op.bitwise_xor
 
 
-ceil = _tir_op.ceil
+ceil = _ir.op._make_op_api(_ir.Op.get("prim.ceil"), __name__)
 
 
-clz = _tir_op.clz
+clz = _ir.op._make_op_api(_ir.Op.get("prim.clz"), __name__)
 
 
 copysign = _tir_op.copysign
@@ -426,13 +344,13 @@ exp2 = _tir_op.exp2
 exp10 = _tir_op.exp10
 
 
-filter = _tir_op.filter  # pylint: disable=redefined-builtin
+filter = _tir_op.filter
 
 
 selector = _tir_op.selector
 
 
-floor = _tir_op.floor
+floor = _ir.op._make_op_api(_ir.Op.get("tirx.floor"), __name__)
 
 
 ceildiv = _tir_op.ceildiv
@@ -453,7 +371,7 @@ fma = _tir_op.fma
 hypot = _tir_op.hypot
 
 
-if_then_else = _tir_op.if_then_else
+if_then_else = _ir.op._make_op_api(_ir.Op.get("prim.if_then_else"), __name__)
 
 
 infinity = _tir_op.infinity
@@ -474,7 +392,7 @@ isnullptr = _tir_op.isnullptr
 ldexp = _tir_op.ldexp
 
 
-likely = _tir_op.likely
+likely = _ir.op._make_op_api(_ir.Op.get("prim.likely"), __name__)
 
 
 log = _tir_op.log
@@ -495,7 +413,7 @@ max_value = _tir_op.max_value
 min_value = _tir_op.min_value
 
 
-nearbyint = _tir_op.nearbyint
+nearbyint = _ir.op._make_op_api(_ir.Op.get("tirx.nearbyint"), __name__)
 
 
 nextafter = _tir_op.nextafter
@@ -504,7 +422,7 @@ nextafter = _tir_op.nextafter
 popcount = _tir_op.popcount
 
 
-pow = _tir_op.pow  # pylint: disable=redefined-builtin
+pow = _ir.op._make_op_api(_ir.Op.get("tirx.pow"), __name__)
 
 
 q_multiply_shift = _tir_op.q_multiply_shift
@@ -513,7 +431,7 @@ q_multiply_shift = _tir_op.q_multiply_shift
 q_multiply_shift_per_axis = _tir_op.q_multiply_shift_per_axis
 
 
-round = _tir_op.round  # pylint: disable=redefined-builtin
+round = _ir.op._make_op_api(_ir.Op.get("tirx.round"), __name__)
 
 
 rsqrt = _tir_op.rsqrt
@@ -546,7 +464,7 @@ tanh = _tir_op.tanh
 thread_return = _tir_op.thread_return
 
 
-trunc = _tir_op.trunc
+trunc = _ir.op._make_op_api(_ir.Op.get("tirx.trunc"), __name__)
 
 
 truncdiv = _tir_op.truncdiv
@@ -579,10 +497,10 @@ tvm_stack_make_array = _tir_op.tvm_stack_make_array
 call_packed = _tir_op.call_packed
 
 
-call_ffi_kernel = _tir_op.call_ffi_kernel
+call_ffi_kernel = _ir.op._make_op_api(_ir.Op.get("tirx.call_ffi_kernel"), __name__)
 
 
-tensormap_encode_tiled = _tir_op.tensormap_encode_tiled
+tensormap_encode_tiled = _ir.op._make_op_api(_ir.Op.get("tirx.tensormap_encode_tiled"), __name__)
 
 
 call_cpacked = _tir_op.call_cpacked
@@ -600,7 +518,7 @@ handle_add_byte_offset = _tir_op.handle_add_byte_offset
 tvm_struct_set = _tir_op.tvm_struct_set
 
 
-tvm_struct_get = _tir_op.tvm_struct_get
+tvm_struct_get = _ir.op._make_op_api(_ir.Op.get("tirx.tvm_struct_get"), __name__)
 
 
 tvm_thread_invariant = _tir_op.tvm_thread_invariant
@@ -677,37 +595,42 @@ vscale = _tir_op.vscale
 ignore_loop_partition = _tir_op.ignore_loop_partition
 
 
-reinterpret = _dtype_forward(_tir_op.reinterpret)
+type_annotation = _ir.op._make_op_api(_ir.Op.get("tirx.type_annotation"), __name__)
 
 
-call_extern = _dtype_forward(_tir_op.call_extern)
+reinterpret = _ir.op._make_op_api(_ir.Op.get("tirx.reinterpret"), __name__)
 
 
-call_intrin = _dtype_forward(_tir_op.call_intrin)
+call_extern = _ir.op._make_op_api(_ir.Op.get("tirx.call_extern"), __name__)
 
 
-call_llvm_intrin = _dtype_forward(_tir_op.call_llvm_intrin)
+def call_intrin(func_name, *args, ty, attrs=None, span=None):
+    """Call an intrinsic with an explicit result type."""
+    return _tir_op.call_intrin(ty, func_name, *args, attrs=attrs, span=span)
 
 
-call_llvm_pure_intrin = _dtype_forward(_tir_op.call_llvm_pure_intrin)
+call_llvm_intrin = _llvm_result_type(_tir_op.call_llvm_intrin)
 
 
-call_pure_extern = _dtype_forward(_tir_op.call_pure_extern)
+call_llvm_pure_intrin = _llvm_result_type(_tir_op.call_llvm_pure_intrin)
 
 
-vectorlow = _dtype_forward(_tir_op.vectorlow)
+call_pure_extern = _ir.op._make_op_api(_ir.Op.get("tirx.call_pure_extern"), __name__)
 
 
-vectorhigh = _dtype_forward(_tir_op.vectorhigh)
+vectorlow = _ir.op._make_op_api(_ir.Op.get("tirx.vectorlow"), __name__)
 
 
-vectorcombine = _dtype_forward(_tir_op.vectorcombine)
+vectorhigh = _ir.op._make_op_api(_ir.Op.get("tirx.vectorhigh"), __name__)
 
 
-get_active_lane_mask = _dtype_forward(_tir_op.get_active_lane_mask)
+vectorcombine = _ir.op._make_op_api(_ir.Op.get("tirx.vectorcombine"), __name__)
 
 
-masked_load = _dtype_forward(_tir_op.masked_load)
+get_active_lane_mask = _ir.op._make_op_api(_ir.Op.get("tirx.get_active_lane_mask"), __name__)
+
+
+masked_load = _ir.op._make_op_api(_ir.Op.get("tirx.masked_load"), __name__)
 
 
 masked_store = _tir_op.masked_store
@@ -722,7 +645,7 @@ broadcast = Broadcast
 ramp = Ramp
 
 
-fabs = abs
+fabs = _ir.op._make_op_api(_ir.Op.get("tirx.fabs"), __name__)
 
 
 tvm_call_packed = call_packed
@@ -1038,6 +961,7 @@ __all__ = [
     "tvm_warp_shuffle_down",
     "tvm_warp_shuffle_up",
     "tvm_warp_shuffle_xor",
+    "type_annotation",
     "undef",
     "vectorcombine",
     "vectorhigh",

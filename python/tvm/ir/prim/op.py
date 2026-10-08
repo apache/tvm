@@ -136,7 +136,7 @@ def all(*args, span=None):
     return val
 
 
-def log2(x):
+def log2(x, *, ty=None, span=None):
     """Take log2 of input x.
 
     Parameters
@@ -150,7 +150,7 @@ def log2(x):
         The result.
     """
     x = convert(x)
-    return Call("prim.log2", [x], ty=x.ty)
+    return Call("prim.log2", [x], ty=ty, span=span)
 
 
 def ceil(x, span=None):
@@ -545,7 +545,7 @@ def ceildiv(lhs, rhs, span=None):
     return _ffi_api._OpCeilDiv(lhs, rhs, span)  # type: ignore
 
 
-def vscale():
+def vscale(*, ty=None, span=None):
     """Get the target's vscale value. It will be lowered to llvm.vscale intrinsic
     (https://llvm.org/docs/LangRef.html#llvm-vscale-intrinsic)
     Returns
@@ -553,7 +553,7 @@ def vscale():
     call : Expr
         Call to the vscale intrinsic
     """
-    return Call("prim.vscale", [], ty="int32")
+    return Call("prim.vscale", [], ty=ty, span=span)
 
 
 def min(a, b, span=None):

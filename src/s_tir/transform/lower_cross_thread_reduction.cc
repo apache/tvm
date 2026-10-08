@@ -315,7 +315,7 @@ class InThreadReducerMaker : public StmtExprMutator {
     if (removed_) {
       return ffi::Unchanged();
     }
-    return SeqStmt::Flatten(stmts);
+    return SeqStmt(stmts);
   }
 
   bool removed_ = false;
@@ -383,7 +383,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
                                          /*reads=*/{},
                                          /*writes=*/it_buffer_regions.value(),
                                          /*name_hint=*/block->name_hint + "_in_thread_init",
-                                         /*body=*/n_buffers > 1 ? SeqStmt(inits) : inits[0])));
+                                         /*body=*/SeqStmt(inits))));
   }
   // Stmt 2: do in-thread reduction
   {
@@ -574,10 +574,10 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
                /*reads=*/std::move(ct_buffer_regions),
                /*writes=*/std::move(wb_regions),
                /*name_hint=*/block->name_hint + "_write_back",
-               /*body=*/n_buffers > 1 ? SeqStmt(wb_updates) : wb_updates[0])));
+               /*body=*/SeqStmt(wb_updates))));
   }
   // Final step: Wrap all the above four statements with the reduction loops bound to threadIdx
-  Stmt new_stmt = SeqStmt::Flatten(std::move(stmts));
+  Stmt new_stmt = SeqStmt(std::move(stmts));
   for (auto rit = reduction_loops.rbegin(); rit != reduction_loops.rend(); ++rit) {
     const ForNode* loop = *rit;
     if (loop->thread_binding.has_value()) {

@@ -69,7 +69,7 @@ def test_reinterpret():
         ):
             T.func_attr({"tirx.noalias": True})
             for i0 in range(1024):
-                B[i0] = T.reinterpret("float32", A[i0] + 2)
+                B[i0] = T.reinterpret(A[i0] + 2, ty="float32")
 
     def check_c():
         mhost = tvm.compile(Module, target="c")
