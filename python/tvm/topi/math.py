@@ -651,8 +651,6 @@ def clip(x, a_min, a_max):
     return te.compute(x.shape, _compute)
 
 
-@tvm.te.tag_scope(tag=tag.ELEMWISE)
-@tvm.te.tag_scope(tag=tag.BROADCAST)
 def cast(x, dtype, span=None):
     """Cast input to specified data type.
 
