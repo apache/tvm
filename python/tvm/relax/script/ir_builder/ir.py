@@ -231,7 +231,15 @@ def rewriter(rewriter_mod: IRModule | type) -> PatternMatchingRewriter:
 
 
 def tuple(*fields: Expr) -> Expr:
-    """Create a tuple expression.
+    """Create a tuple expression from already constructed expression fields.
+
+    In script bindings and returns, prefer ordinary Python tuple syntax,
+    including ``()`` and ``(value,)``, when fields are already expressions.
+    This helper materializes an IR tuple outside parser conversion contexts.
+    Numeric fields use core constructor conversion: for example, ``tuple(1)``
+    has an int32 field, whereas a script tuple literal ``(1,)`` has an int64
+    field. Use explicitly typed expressions to make either spelling equivalent.
+
     Parameters
     ----------
     *fields : Expr

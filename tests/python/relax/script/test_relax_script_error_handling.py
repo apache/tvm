@@ -386,6 +386,16 @@ def test_function_with_non_void_return_type_must_be_assigned():
             return x
 
 
+@pytest.mark.parametrize("value", [(1,), ((),), [()]])
+def test_nonempty_host_tuple_statement_is_rejected(value):
+    with pytest.raises(TypeError, match="Unsupported expression statement"):
+
+        @R.function
+        def func():
+            value
+            return ()
+
+
 def test_private_function_with_global_symbol_fail():
     with pytest.raises(ValueError):
 

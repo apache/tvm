@@ -11120,9 +11120,9 @@ def test_sequence_empty():
         def main() -> R.Tuple:
             R.func_attr({"num_input": 0})
             with R.dataflow():
-                gv: R.Tuple = R.tuple()
+                gv: R.Tuple = ()
                 R.output(gv)
-            return R.tuple()
+            return ()
 
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 

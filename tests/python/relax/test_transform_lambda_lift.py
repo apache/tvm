@@ -413,7 +413,7 @@ def test_lambda_function_with_same_name_as_global():
 
         @R.function
         def main_inner():
-            return R.tuple()
+            return ()
 
     @I.ir_module
     class Expected:
@@ -433,7 +433,7 @@ def test_lambda_function_with_same_name_as_global():
 
         @R.function
         def main_inner():
-            return R.tuple()
+            return ()
 
     after = transform.LambdaLift()(Before)
     assert_structural_equal(Expected, after)
