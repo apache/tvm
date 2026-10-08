@@ -21,10 +21,10 @@
  * \brief Attach layout_free_buffers for layout-free buffers.
  */
 
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
-#include <tvm/s_tir/transform.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -84,7 +84,22 @@ class AttrAttacher : public ExprMutator {
     tirx::Function func = WithAttr(mod_->Lookup(gv).as_or_throw<tirx::Function>(),
                                    "layout_free_buffers", layout_free_buffers);
     // Renew defs
-    func = s_tir::RenewDefs(func);
+    func = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
+               func,
+               [remap = ffi::Map<tvm::Var, tvm::Var>{}](const tvm::Var& var,
+                                                        TVMFFIDefRegionKind kind) mutable {
+                 if (auto mapped = remap.Get(var)) return mapped.value();
+                 if (kind == kTVMFFIDefRegionKindNone) return var;
+                 tvm::Var fresh(var->name, var->ty, var->span);
+                 remap.Set(var, fresh);
+                 remap.Set(fresh, fresh);
+                 return fresh;
+               },
+               [](const tirx::Function& mapped) {
+                 return tirx::Function(mapped->params, mapped->body, mapped->ret_type,
+                                       mapped->attrs, mapped->span);
+               })
+               .as_or_throw<tirx::Function>();
     // Add the updated tirx::Function in the IRModule
     // Note the blockbuilder would automatically combine the same tirx function
     // So we don't need to worry about the duplicate insertion

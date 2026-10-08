@@ -35,10 +35,9 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/unique_name_supply.h>
-#include <tvm/s_tir/stmt.h>
-#include <tvm/s_tir/transform.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -308,7 +307,23 @@ IRModule BindTarget(IRModule mod, const Target& target) {
       if (called_by_host && called_by_device) {
         // Rule 4.1: Called by both host and device
         // Bind device target to current function
-        Function host_func = s_tir::RenewDefs(function);
+        Function host_func =
+            ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
+                function,
+                [remap = ffi::Map<tvm::Var, tvm::Var>{}](const tvm::Var& var,
+                                                         TVMFFIDefRegionKind kind) mutable {
+                  if (auto mapped = remap.Get(var)) return mapped.value();
+                  if (kind == kTVMFFIDefRegionKindNone) return var;
+                  tvm::Var fresh(var->name, var->ty, var->span);
+                  remap.Set(var, fresh);
+                  remap.Set(fresh, fresh);
+                  return fresh;
+                },
+                [](const tirx::Function& mapped) {
+                  return tirx::Function(mapped->params, mapped->body, mapped->ret_type,
+                                        mapped->attrs, mapped->span);
+                })
+                .as_or_throw<tirx::Function>();
         new_mod->Update(gvar,
                         WithAttr(std::move(function), tvm::attr::kTarget, target_without_host));
 

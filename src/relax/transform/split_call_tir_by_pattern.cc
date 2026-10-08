@@ -21,6 +21,7 @@
  * \brief Transform all dataflow structure to non-dataflow version.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/op.h>
@@ -30,7 +31,6 @@
 #include <tvm/relax/type.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
-#include <tvm/s_tir/transform.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op.h>
 
@@ -760,8 +760,40 @@ class SplitMutator : public ExprMutator {
       new_call->args = {lib_func, call->args[1]};
       return Call(new_call);
     }
-    tirx::Function func1 = s_tir::RenewDefs(split_funcs.first);
-    tirx::Function func2 = s_tir::RenewDefs(split_funcs.second.value());
+    tirx::Function func1 =
+        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
+            split_funcs.first,
+            [remap = ffi::Map<tvm::Var, tvm::Var>{}](const tvm::Var& var,
+                                                     TVMFFIDefRegionKind kind) mutable {
+              if (auto mapped = remap.Get(var)) return mapped.value();
+              if (kind == kTVMFFIDefRegionKindNone) return var;
+              tvm::Var fresh(var->name, var->ty, var->span);
+              remap.Set(var, fresh);
+              remap.Set(fresh, fresh);
+              return fresh;
+            },
+            [](const tirx::Function& mapped) {
+              return tirx::Function(mapped->params, mapped->body, mapped->ret_type, mapped->attrs,
+                                    mapped->span);
+            })
+            .as_or_throw<tirx::Function>();
+    tirx::Function func2 =
+        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
+            split_funcs.second.value(),
+            [remap = ffi::Map<tvm::Var, tvm::Var>{}](const tvm::Var& var,
+                                                     TVMFFIDefRegionKind kind) mutable {
+              if (auto mapped = remap.Get(var)) return mapped.value();
+              if (kind == kTVMFFIDefRegionKindNone) return var;
+              tvm::Var fresh(var->name, var->ty, var->span);
+              remap.Set(var, fresh);
+              remap.Set(fresh, fresh);
+              return fresh;
+            },
+            [](const tirx::Function& mapped) {
+              return tirx::Function(mapped->params, mapped->body, mapped->ret_type, mapped->attrs,
+                                    mapped->span);
+            })
+            .as_or_throw<tirx::Function>();
     TVM_FFI_ICHECK(arg_partition.size() == 2);
     // emit the first call to the library kernel
     ffi::Array<Expr> args1;

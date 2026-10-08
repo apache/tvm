@@ -26,7 +26,6 @@
 #include <tvm/relax/type.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
-#include <tvm/s_tir/transform.h>
 #include <tvm/tirx/op.h>
 
 #include <unordered_map>
@@ -570,7 +569,23 @@ class FusedTIRConstructor : public ExprVisitor {
     tirx::Function function_ = mod_->Lookup(gv).as_or_throw<tirx::Function>();
 
     // Step 2. Renew all vars/buffer definitions and blocks to avoid duplication
-    tirx::Function function = s_tir::RenewDefs(function_);
+    tirx::Function function =
+        ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
+            function_,
+            [remap = ffi::Map<tvm::Var, tvm::Var>{}](const tvm::Var& var,
+                                                     TVMFFIDefRegionKind kind) mutable {
+              if (auto mapped = remap.Get(var)) return mapped.value();
+              if (kind == kTVMFFIDefRegionKindNone) return var;
+              tvm::Var fresh(var->name, var->ty, var->span);
+              remap.Set(var, fresh);
+              remap.Set(fresh, fresh);
+              return fresh;
+            },
+            [](const tirx::Function& mapped) {
+              return tirx::Function(mapped->params, mapped->body, mapped->ret_type, mapped->attrs,
+                                    mapped->span);
+            })
+            .as_or_throw<tirx::Function>();
 
     // Step 3. Check functions are all schedulable funcs. i.e. the body of func is root block
     // TODO(Siyuan): support un-schedulable functions.
@@ -889,7 +904,22 @@ class FusedTIRConstructor : public ExprVisitor {
     });
     tirx::Function func(params, tirx::SeqStmt(body), VoidType(), DictAttrs(attr_map));
     // Renew function defs to prevent using the same symbolic vars in different functions
-    return s_tir::RenewDefs(func);
+    return ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
+               func,
+               [remap = ffi::Map<tvm::Var, tvm::Var>{}](const tvm::Var& var,
+                                                        TVMFFIDefRegionKind kind) mutable {
+                 if (auto mapped = remap.Get(var)) return mapped.value();
+                 if (kind == kTVMFFIDefRegionKindNone) return var;
+                 tvm::Var fresh(var->name, var->ty, var->span);
+                 remap.Set(var, fresh);
+                 remap.Set(fresh, fresh);
+                 return fresh;
+               },
+               [](const tirx::Function& mapped) {
+                 return tirx::Function(mapped->params, mapped->body, mapped->ret_type,
+                                       mapped->attrs, mapped->span);
+               })
+        .as_or_throw<tirx::Function>();
   }
 
   /*! \brief Get DynTensor numbers from recursive Tuples. */

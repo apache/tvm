@@ -21,13 +21,13 @@
  * \file src/relax/transform/split_tir_layout_rewrite.cc
  * \brief Use for rewriting the TIRs after meta_schedule layout rewrite post process.
  */
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
-#include <tvm/s_tir/transform.h>
 
 #include <algorithm>
 #include <cstddef>
@@ -101,7 +101,22 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
     DictAttrs attrs(dict);
     tirx::Function func = tirx::Function(params, SeqStmt(body), VoidType(), attrs);
 
-    return s_tir::RenewDefs(func);
+    return ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
+               func,
+               [remap = ffi::Map<tvm::Var, tvm::Var>{}](const tvm::Var& var,
+                                                        TVMFFIDefRegionKind kind) mutable {
+                 if (auto mapped = remap.Get(var)) return mapped.value();
+                 if (kind == kTVMFFIDefRegionKindNone) return var;
+                 tvm::Var fresh(var->name, var->ty, var->span);
+                 remap.Set(var, fresh);
+                 remap.Set(fresh, fresh);
+                 return fresh;
+               },
+               [](const tirx::Function& mapped) {
+                 return tirx::Function(mapped->params, mapped->body, mapped->ret_type,
+                                       mapped->attrs, mapped->span);
+               })
+        .as_or_throw<tirx::Function>();
   }
 
   tirx::Function create_compute_func() const {
@@ -147,7 +162,22 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
     DictAttrs attrs(dict);
     tirx::Function func = tirx::Function(params, SeqStmt(body), VoidType(), attrs);
 
-    return s_tir::RenewDefs(func);
+    return ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
+               func,
+               [remap = ffi::Map<tvm::Var, tvm::Var>{}](const tvm::Var& var,
+                                                        TVMFFIDefRegionKind kind) mutable {
+                 if (auto mapped = remap.Get(var)) return mapped.value();
+                 if (kind == kTVMFFIDefRegionKindNone) return var;
+                 tvm::Var fresh(var->name, var->ty, var->span);
+                 remap.Set(var, fresh);
+                 remap.Set(fresh, fresh);
+                 return fresh;
+               },
+               [](const tirx::Function& mapped) {
+                 return tirx::Function(mapped->params, mapped->body, mapped->ret_type,
+                                       mapped->attrs, mapped->span);
+               })
+        .as_or_throw<tirx::Function>();
   }
 
   void visit_root_block(const s_tir::SBlockNode* op) {

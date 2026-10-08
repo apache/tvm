@@ -17,13 +17,13 @@
  * under the License.
  */
 
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
 #include <tvm/s_tir/analysis.h>
-#include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -116,7 +116,22 @@ class PrimExprComputeInjector : public ExprMutator {
 
     tirx::Function func(param_vars, tirx::SeqStmt(body), ret_ty,
                         DictAttrs({{tirx::attr::kIsHostFunc, true}, {tvm::attr::kSTir, true}}));
-    func = s_tir::RenewDefs(func);
+    func = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
+               func,
+               [remap = ffi::Map<tvm::Var, tvm::Var>{}](const tvm::Var& var,
+                                                        TVMFFIDefRegionKind kind) mutable {
+                 if (auto mapped = remap.Get(var)) return mapped.value();
+                 if (kind == kTVMFFIDefRegionKindNone) return var;
+                 tvm::Var fresh(var->name, var->ty, var->span);
+                 remap.Set(var, fresh);
+                 remap.Set(fresh, fresh);
+                 return fresh;
+               },
+               [](const tirx::Function& mapped) {
+                 return tirx::Function(mapped->params, mapped->body, mapped->ret_type,
+                                       mapped->attrs, mapped->span);
+               })
+               .as_or_throw<tirx::Function>();
 
     auto callee = builder_->AddFunction(func, "compute_symbolic_expr");
 
