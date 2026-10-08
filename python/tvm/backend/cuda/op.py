@@ -529,7 +529,7 @@ def _wrap_or_fold_access_ptr(ptr, offset, elem_dtype):
     Several s_tir tensor intrinsics already pass ``buffer.access_ptr(...)``
     (an ``tvm_access_ptr`` Call) for the pointer argument. Naively wrapping
     that again yields a nested ``tvm_access_ptr(... access_ptr(...) ...)``
-    whose ``args[1]`` is a Call rather than a Var, which crashes the
+    whose ``args[0]`` is a Call rather than a Var, which crashes the
     lowering rule (Downcast<Var> at intrin_rule.cc) and several s_tir
     passes that assume a raw buffer var. Detect that case and fold the
     outer offset into the inner one.
@@ -540,22 +540,20 @@ def _wrap_or_fold_access_ptr(ptr, offset, elem_dtype):
     )
     if is_access_ptr_call:
         # Inner Call already wraps the buffer var. Reuse its inner var and
-        # inner element dtype (the marker type_annotation), and add the
+        # inner access element type, and add the
         # outer offset (which is in `elem_dtype` units, same convention as
         # the inner since both come from the same buffer).
         inner_args = ptr.args
-        inner_marker = inner_args[0]
-        inner_var = inner_args[1]
-        inner_offset = inner_args[2]
-        rw_mask = inner_args[4]
-        return call_intrin(
-            ptr.ty,
+        inner_var = inner_args[0]
+        inner_offset = inner_args[1]
+        rw_mask = inner_args[3]
+        return Call(
             "tirx.tvm_access_ptr",
-            inner_marker,
-            inner_var,
-            inner_offset + offset,
-            1,
-            rw_mask,
+            [inner_var, inner_offset + offset, 1, rw_mask],
+            ty=ptr.ty,
+            attrs=ptr.attrs,
+            ty_args=ptr.ty_args,
+            span=ptr.span,
         )
     return tvm_access_ptr(elem_dtype, ptr, offset, 1, 1)
 

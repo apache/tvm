@@ -595,9 +595,6 @@ vscale = _tir_op.vscale
 ignore_loop_partition = _tir_op.ignore_loop_partition
 
 
-type_annotation = _ir.op._make_op_api(_ir.Op.get("tirx.type_annotation"), __name__)
-
-
 reinterpret = _ir.op._make_op_api(_ir.Op.get("tirx.reinterpret"), __name__)
 
 
@@ -961,7 +958,6 @@ __all__ = [
     "tvm_warp_shuffle_down",
     "tvm_warp_shuffle_up",
     "tvm_warp_shuffle_xor",
-    "type_annotation",
     "undef",
     "vectorcombine",
     "vectorhigh",

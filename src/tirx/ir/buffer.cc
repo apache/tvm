@@ -621,7 +621,7 @@ Expr TensorVar::access_ptr(int access_mask, PointerType ptr_type, int content_la
   // requested type controls its pointee, while the buffer controls its address
   // space (for example, shared or local memory).
   ptr_type = PointerType(ptr_type->element_type, self->storage_scope);
-  PrimExpr e_dtype{ffi::UnsafeInit{}};
+  PrimType access_dtype = self->dtype;
   PrimExpr extent{ffi::UnsafeInit{}};
   if (self->shape.size() == 0) {
     extent = IntImm(PrimType(self->DefaultIndexType()), 1);
@@ -635,18 +635,16 @@ Expr TensorVar::access_ptr(int access_mask, PointerType ptr_type, int content_la
   }
   PrimExpr elem_offset = self->elem_offset + offset;
   if (content_lanes > 1) {
-    e_dtype = tirx::TypeAnnotation(PrimType(self->dtype).WithLanes(content_lanes));
+    access_dtype = PrimType(self->dtype).WithLanes(content_lanes);
     extent = extent / MakeConst(self->elem_offset.ty(), content_lanes);
     elem_offset = self->elem_offset / MakeConst(self->elem_offset.ty(), content_lanes);
-  } else {
-    e_dtype = tirx::TypeAnnotation(self->dtype);
   }
 
   if (input_extent.has_value()) {
     extent = input_extent.value();
   }
-  ffi::Array<Expr> acc_args{e_dtype, data(), elem_offset, extent, IntImm::Int32(access_mask)};
-  return Call(ptr_type, tirx::tvm_access_ptr_op(), acc_args);
+  ffi::Array<Expr> acc_args{data(), elem_offset, extent, IntImm::Int32(access_mask)};
+  return Call(ptr_type, tirx::tvm_access_ptr_op(), acc_args, {}, {access_dtype});
 }
 
 TensorVar::TensorVar(ffi::String name, TensorType type, Span span)

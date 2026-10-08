@@ -324,6 +324,21 @@ ffi::Optional<ExprDoc> ConsumedPTXAddressDocTranslate(DocTranslatorObj* d, const
 
 namespace {
 
+// Pointer helpers have semantic type parameters outside the stored value arguments.
+ffi::Optional<ExprDoc> PointerCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                               const ffi::Object*) {
+  const auto* call =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
+  return RawCall(d, call);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  for (const char* name : {"tirx.tvm_access_ptr", "tirx.ptr_byte_offset"}) {
+    OpDef(name).set_attr<FDocTranslate>(kOpCallDocTranslate,
+                                        FDocTranslate::FromNative<&PointerCallDocTranslate>());
+  }
+}
+
 // The isnan convenience helper folds constants and widens float16 inputs.
 ffi::Optional<ExprDoc> IsNaNDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                          const ffi::Object*) {
