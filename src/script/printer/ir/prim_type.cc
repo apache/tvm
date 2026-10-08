@@ -117,7 +117,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       kDocTranslate, FDocTranslate::FromNative<&StringTypeDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TensorRegionTypeDocTranslate(DocTranslatorObj*, ffi::AnyView, const ffi::Object*) {
+ffi::Optional<ExprDoc> TensorRegionTypeDocTranslate(DocTranslatorObj*, ffi::AnyView,
+                                                    const ffi::Object*) {
   return NamespaceDoc("ir")->Attr("TensorRegionType")->Call({});
 }
 

@@ -204,7 +204,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::TypeAttrDef<TensorTypeNode>().def("__subscript_expr_realize__", RealizeBufferSubscript);
   refl::TypeAttrDef<TensorRegionTypeNode>().def("__subscript_expr_realize__",
-                                             RealizeBufferRegionSubscript);
+                                                RealizeBufferRegionSubscript);
 }
 
 ffi::Array<PrimExpr> SimplifyArray(sym::AnalyzerObj* ana, ffi::Array<PrimExpr> array) {
