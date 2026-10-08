@@ -18,13 +18,12 @@
 
 import tvm_ffi
 
-import tvm
-from tvm.runtime import Object, Scriptable
+from tvm.runtime import Object
 
 from . import _ffi_api
 from . import expr as _expr
-from .attrs import DictAttrs
-from .base import Node
+from .attrs import DictAttrs, make_node
+from .base import Node, Scriptable
 from .function import BaseFunc
 
 
@@ -55,7 +54,7 @@ class IRModule(Node, Scriptable):
 
         attrs = None if not attrs else attrs
         if attrs is not None:
-            attrs = tvm.ir.make_node("ir.DictAttrs", **attrs)
+            attrs = make_node("ir.DictAttrs", **attrs)
         if global_infos is None:
             global_infos = {}
         self.__init_handle_by_constructor__(
@@ -278,7 +277,7 @@ class IRModule(Node, Scriptable):
         mod : IRModule
             A new copy of the IRModule with the attribute
         """
-        if isinstance(attr_map, tvm.ir.DictAttrs):
+        if isinstance(attr_map, DictAttrs):
             attr_map = attr_map._dict()
 
         return _ffi_api.Module_WithAttrs(self, attr_map)

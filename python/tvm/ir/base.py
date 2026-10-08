@@ -26,19 +26,12 @@ from ..libinfo import __version__
 from . import _ffi_api, json_compact
 
 
+class Scriptable:
+    """Marker for display methods installed by the TVMScript owner."""
+
+
 class Node(Object):
     """Base class of all IR Nodes."""
-
-    def __repr__(self) -> str:
-        from tvm.runtime.script_printer import PrinterConfig, _script
-
-        try:
-            return _script(
-                self,
-                PrinterConfig(extra_config={"ir.comment_imports": True}),
-            )
-        except Exception:
-            return super().__repr__()
 
 
 @register_object("ir.SourceMap")
@@ -190,16 +183,13 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
     """
     first_mismatch = tvm_ffi.get_first_structural_mismatch(lhs, rhs, map_free_vars)
     if first_mismatch is not None:
-        from tvm.runtime.script_printer import (  # pylint: disable=import-outside-toplevel
-            Scriptable,
-        )
-
         lhs_path, rhs_path = first_mismatch
         # Diagnostics use the same display policy as Object.script(), including
         # dialect selection and commented imports. The unbound method also
         # accepts IR objects that do not inherit the convenience mixin.
-        lhs_script = Scriptable.script(lhs, path_to_underline=[lhs_path])
-        rhs_script = Scriptable.script(rhs, path_to_underline=[rhs_path])
+        script = getattr(Scriptable, "script", None)
+        lhs_script = script(lhs, path_to_underline=[lhs_path]) if script else repr(lhs)
+        rhs_script = script(rhs, path_to_underline=[rhs_path]) if script else repr(rhs)
         raise ValueError(
             f"StructuralEqual check failed, caused by lhs at {lhs_path}:\n"
             f"{lhs_script}\n"

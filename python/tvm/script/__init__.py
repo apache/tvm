@@ -248,3 +248,7 @@ def __getattr__(name: str) -> Any:
 from .parser import register_namespace as _register_namespace
 
 _register_namespace("script", sys.modules[__name__])
+
+
+# Install the Script-owned display methods after the shared IR types exist.
+from . import printer

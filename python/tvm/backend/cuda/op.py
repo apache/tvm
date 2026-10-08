@@ -24,10 +24,9 @@ from enum import Enum
 import tvm_ffi
 
 from tvm import tirx
-from tvm.ir import Attrs, Call, Op, StringImm
+from tvm.ir import Attrs, Call, Op, StringImm, const
 from tvm.ir.op import _init_op_api, _make_op_api
 from tvm.ir.type import PointerType, PrimType
-from tvm.runtime import const
 from tvm.tirx.op import bitwise_and, call_intrin, tvm_access_ptr
 from tvm.tirx.operator.intrinsics._common import (
     CP_ASYNC_BULK_CACHE_HINT as _CP_ASYNC_BULK_CACHE_HINT,

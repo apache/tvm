@@ -21,7 +21,7 @@ from tvm_ffi.access_path import AccessPath
 
 import tvm
 import tvm.testing
-from tvm.runtime.script_printer import PrinterConfig, _script
+from tvm.script.printer.scriptable import PrinterConfig, _script
 
 
 def test_render_invisible_path_info_defaults_to_true():

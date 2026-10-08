@@ -26,8 +26,8 @@ import tvm_ffi
 
 import tvm
 import tvm.runtime
-from tvm.ir import BaseFunc, Range, Var
-from tvm.runtime import Object, Scriptable
+from tvm.ir import BaseFunc, Range, Scriptable, Var
+from tvm.runtime import Object
 
 from ..runtime._tensor import Tensor
 from . import _ffi_api

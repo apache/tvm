@@ -37,6 +37,7 @@ from tvm.ir import (
     TensorLoad,
     TensorRegion,
     Var,
+    const,
 )
 from tvm.ir.base import Span
 from tvm.ir.prim import clz as clz
@@ -65,7 +66,6 @@ from tvm.ir.prim.op import shift_right as shift_right
 from tvm.ir.prim.op import truncdiv as truncdiv
 from tvm.ir.prim.op import truncmod as truncmod
 from tvm.ir.prim.op import vscale as vscale
-from tvm.runtime import const
 
 from .. import _ffi_api
 from ..buffer import buffer_data, is_tensor_var

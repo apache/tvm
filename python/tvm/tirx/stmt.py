@@ -33,8 +33,19 @@ from typing import Any
 
 import tvm_ffi
 
-from tvm.ir import DictAttrs, Expr, Op, Range, Span, StringImm, TensorRegion, Var, make_node
-from tvm.runtime import Object, Scriptable
+from tvm.ir import (
+    DictAttrs,
+    Expr,
+    Op,
+    Range,
+    Scriptable,
+    Span,
+    StringImm,
+    TensorRegion,
+    Var,
+    make_node,
+)
+from tvm.runtime import Object
 
 from . import _ffi_api
 from .exec_scope import ScopeIdDef
