@@ -43,14 +43,14 @@ static Type InferTypeReturnArgType(const CallNode* call) {
 // warp-level primitives. Follows implementation in intrin_rule_metal.cc
 struct WebGPUWarpIntrinsic {
   const Op operator()(PrimType t, const Op& orig_op) const {
-    if (orig_op.same_as(tirx::tvm_warp_shuffle_op())) {
+    if (orig_op.same_as(tirx::gpu_warp_shuffle_op())) {
       static const Op webgpu_subgroup_shuffle_op = Op::Get("tirx.webgpu.subgroup_shuffle");
       return webgpu_subgroup_shuffle_op;
-    } else if (orig_op.same_as(tirx::tvm_warp_shuffle_up_op())) {
+    } else if (orig_op.same_as(tirx::gpu_warp_shuffle_up_op())) {
       static const Op webgpu_subgroup_shuffle_up_op = Op::Get("tirx.webgpu.subgroup_shuffle_up");
       return webgpu_subgroup_shuffle_up_op;
     } else {
-      TVM_FFI_ICHECK(orig_op.same_as(tirx::tvm_warp_shuffle_down_op()));
+      TVM_FFI_ICHECK(orig_op.same_as(tirx::gpu_warp_shuffle_down_op()));
       static const Op webgpu_subgroup_shuffle_down_op =
           Op::Get("tirx.webgpu.subgroup_shuffle_down");
       return webgpu_subgroup_shuffle_down_op;
@@ -168,15 +168,15 @@ void RegisterWebGPUIntrinRules() {
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchFastErf);
 
   // warp-level primitives. Follows implementation in intrin_rule_metal.cc
-  OpDef("tirx.tvm_warp_shuffle")
+  OpDef("tirx.gpu_warp_shuffle")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
                                  DispatchWebGPUShuffle<WebGPUWarpIntrinsic>);
 
-  OpDef("tirx.tvm_warp_shuffle_up")
+  OpDef("tirx.gpu_warp_shuffle_up")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
                                  DispatchWebGPUShuffle<WebGPUWarpIntrinsic>);
 
-  OpDef("tirx.tvm_warp_shuffle_down")
+  OpDef("tirx.gpu_warp_shuffle_down")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
                                  DispatchWebGPUShuffle<WebGPUWarpIntrinsic>);
 

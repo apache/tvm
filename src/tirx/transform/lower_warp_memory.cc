@@ -528,8 +528,8 @@ class WarpAccessRewriter : public StmtExprMutator {
       return load;
     }
 
-    PrimExpr mask = Call(PrimType::UInt(32), tvm_warp_activemask_op(), {}).as_or_throw<PrimExpr>();
-    return Call(load.ty(), tvm_warp_shuffle_op(),
+    PrimExpr mask = Call(PrimType::UInt(32), gpu_warp_activemask_op(), {}).as_or_throw<PrimExpr>();
+    return Call(load.ty(), gpu_warp_shuffle_op(),
                 ffi::Array<PrimExpr>{mask, load, group, width_, warp_size_})
         .as_or_throw<PrimExpr>();
   }

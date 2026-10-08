@@ -481,7 +481,7 @@ Expr TVMFFIABIBuilder::LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int par
                              IntImm::Int32(tirx::kTVMFFIAnyUnionValue)};
   if (auto prim_type = arg_type.as<PrimType>()) {
     PrimType api_type = APIType(prim_type.value());
-    PrimExpr res = Call(api_type, tirx::tvm_struct_get_op(), call_args).as_or_throw<PrimExpr>();
+    PrimExpr res = Call(api_type, tirx::abi_field_get_op(), call_args).as_or_throw<PrimExpr>();
     if (api_type != prim_type.value()) {
       res = prim::Cast(prim_type.value(), res);
     }
@@ -489,7 +489,7 @@ Expr TVMFFIABIBuilder::LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int par
   }
   TVM_FFI_CHECK(arg_type.as<PointerTypeNode>(), TypeError)
       << "Packed union values must have primitive or pointer type, but got " << arg_type;
-  return Call(std::move(arg_type), tirx::tvm_struct_get_op(), call_args);
+  return Call(std::move(arg_type), tirx::abi_field_get_op(), call_args);
 }
 
 Expr TVMFFIABIBuilder::DecodeParamOpaqueHandle(int param_index, const PrimExpr& type_index) {
@@ -556,7 +556,7 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
 
   // Extract type_index from packed_args
   Var type_index(param->name + ".type_index", PrimType::Int(32));
-  init_nest_.push_back(Bind(type_index, Call(PrimType::Int(32), tirx::tvm_struct_get_op(),
+  init_nest_.push_back(Bind(type_index, Call(PrimType::Int(32), tirx::abi_field_get_op(),
                                              {v_packed_args_, IntImm::Int32(param_index),
                                               IntImm::Int32(tirx::kTVMFFIAnyTypeIndex)})
                                             .as_or_throw<PrimExpr>()));

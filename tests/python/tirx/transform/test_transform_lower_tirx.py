@@ -120,7 +120,7 @@ def test_lower_view_get():
         threadIdx_x = T.launch_thread("threadIdx.x", 32)
         blockIdx_y = T.launch_thread("blockIdx.y", 1)
         blockIdx_z = T.launch_thread("blockIdx.z", 1)
-        warp_id_in_cta: T.let[T.int32] = T.tvm_warp_shuffle(
+        warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
             T.uint32(4294967295), threadIdx_x // 32, 0, 32, 32
         )
         bx: T.let[T.int32] = blockIdx_x
@@ -173,7 +173,7 @@ def test_lower_view_get():
         threadIdx_x = T.launch_thread("threadIdx.x", 32)
         blockIdx_y = T.launch_thread("blockIdx.y", 1)
         blockIdx_z = T.launch_thread("blockIdx.z", 1)
-        warp_id_in_cta: T.let[T.int32] = T.tvm_warp_shuffle(
+        warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
             T.uint32(4294967295), threadIdx_x // 32, 0, 32, 32
         )
         bx: T.let[T.int32] = blockIdx_x
@@ -246,7 +246,7 @@ def test_lower_view_get():
         threadIdx_x = T.launch_thread("threadIdx.x", 256)
         blockIdx_y = T.launch_thread("blockIdx.y", 1)
         blockIdx_z = T.launch_thread("blockIdx.z", 1)
-        warp_id_in_cta: T.let[T.int32] = T.tvm_warp_shuffle(
+        warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
             T.uint32(4294967295), threadIdx_x // 32, 0, 32, 32
         )
         bx: T.let[T.int32] = blockIdx_x
@@ -319,7 +319,7 @@ def test_lower_view_get():
         threadIdx_x = T.launch_thread("threadIdx.x", 32)
         blockIdx_y = T.launch_thread("blockIdx.y", 1)
         blockIdx_z = T.launch_thread("blockIdx.z", 1)
-        warp_id_in_cta: T.let[T.int32] = T.tvm_warp_shuffle(
+        warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
             T.uint32(4294967295), threadIdx_x // 32, 0, 32, 32
         )
         bx: T.let[T.int32] = blockIdx_x
@@ -358,7 +358,7 @@ def test_lower_scope_id():
         threadIdx_x = T.launch_thread("threadIdx.x", 32)
         blockIdx_y = T.launch_thread("blockIdx.y", 4)
         blockIdx_z = T.launch_thread("blockIdx.z", 5)
-        warp_id_in_cta: T.let[T.int32] = T.tvm_warp_shuffle(
+        warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
             T.uint32(4294967295), threadIdx_x // 32, 0, 32, 32
         )
         bx: T.let[T.int32] = blockIdx_x
@@ -387,7 +387,7 @@ def test_lower_scope_id():
         blockIdx_x = T.launch_thread("blockIdx.x", 8)
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
         blockIdx_y = T.launch_thread("blockIdx.y", 8)
-        warp_id_in_cta: T.let[T.int32] = T.tvm_warp_shuffle(
+        warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
             T.uint32(4294967295), threadIdx_x // 32, 0, 32, 32
         )
         cbx: T.let[T.int32] = clusterCtaIdx_x
@@ -426,7 +426,7 @@ def test_lower_scope_id():
         blockIdx_x = T.launch_thread("blockIdx.x", 8)
         threadIdx_x = T.launch_thread("threadIdx.x", 384)
         blockIdx_y = T.launch_thread("blockIdx.y", 10)
-        warp_id_in_cta: T.let[T.int32] = T.tvm_warp_shuffle(
+        warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
             T.uint32(4294967295), threadIdx_x // 32, 0, 32, 32
         )
         bx: T.let[T.int32] = blockIdx_x
@@ -562,7 +562,7 @@ def test_lower_scope_id2():
         threadIdx_x = T.launch_thread("threadIdx.x", 256)
         blockIdx_y = T.launch_thread("blockIdx.y", 4)
         blockIdx_z = T.launch_thread("blockIdx.z", 5)
-        warp_id_in_cta: T.let[T.int32] = T.tvm_warp_shuffle(
+        warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
             T.uint32(4294967295), threadIdx_x // 32, 0, 32, 32
         )
         bx: T.let[T.int32] = blockIdx_x
@@ -603,7 +603,7 @@ def test_lower_scope_id3():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             blockIdx_y = T.launch_thread("blockIdx.y", 4)
             blockIdx_z = T.launch_thread("blockIdx.z", 5)
-            warp_id_in_cta: T.let[T.int32] = T.tvm_warp_shuffle(
+            warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
                 T.uint32(4294967295), threadIdx_x // 32, 0, 32, 32
             )
             bx: T.let[T.int32] = blockIdx_x
@@ -616,7 +616,7 @@ def test_lower_scope_id3():
         threadIdx_x = T.launch_thread("threadIdx.x", 256)
         blockIdx_y = T.launch_thread("blockIdx.y", 7)
         blockIdx_z = T.launch_thread("blockIdx.z", 8)
-        warp_id_in_cta: T.let[T.int32] = T.tvm_warp_shuffle(
+        warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
             T.uint32(4294967295), threadIdx_x // 32, 0, 32, 32
         )
         bx: T.let[T.int32] = blockIdx_x
@@ -661,7 +661,7 @@ def test_lower_layout():
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
         blockIdx_y = T.launch_thread("blockIdx.y", 1)
         blockIdx_z = T.launch_thread("blockIdx.z", 1)
-        warp_id_in_cta: T.let[T.int32] = T.tvm_warp_shuffle(
+        warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
             T.uint32(4294967295), threadIdx_x // 32, 0, 32, 32
         )
         bx: T.let[T.int32] = blockIdx_x
@@ -732,7 +732,7 @@ def test_lower_decl_buffer_access_ptr():
     def after():
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
-        warp_id_in_cta: T.let[T.int32] = T.tvm_warp_shuffle(
+        warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
             T.uint32(4294967295), threadIdx_x // 32, 0, 32, 32
         )
         v: T.let[T.int32] = blockIdx_x
@@ -741,7 +741,7 @@ def test_lower_decl_buffer_access_ptr():
         A = T.decl_tensor(
             (128,), "float16", data=buf.data, elem_offset=32, scope="shared.dyn", layout=None
         )
-        T.tvm_access_ptr("float16", buf.data, T.Add(32, 64), T.Sub(128, 64), 3)
+        T.access_ptr("float16", buf.data, T.Add(32, 64), T.Sub(128, 64), 3)
 
     compare(before, after, LowerTIRx)
 
@@ -759,7 +759,7 @@ def test_lower_separate_scope_id_def():
     def after():
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
-        warp_id_in_cta: T.let[T.int32] = T.tvm_warp_shuffle(
+        warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
             T.uint32(4294967295), threadIdx_x // 32, 0, 32, 32
         )
         v: T.let[T.int32] = blockIdx_x
@@ -785,7 +785,7 @@ def test_lower_uint32_scope_id_casts_at_bind():
     def after():
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
-        warp_id_in_cta: T.let[T.int32] = T.tvm_warp_shuffle(
+        warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
             T.uint32(4294967295), threadIdx_x // 32, 0, 32, 32
         )
         v: T.let[T.int32] = blockIdx_x
@@ -1133,8 +1133,11 @@ def test_lower_exec_context_selector_filter_for_elect_sync():
         LowerTIRx()(tvm.IRModule({"main": before}))
 
     assert len(seen) == 3
-    assert any("T.selector(v, T.cuda.elect_sync())" in item for item in seen)
-    assert any("T.selector(v, T.cuda.elect_sync() != T.uint32(0))" in item for item in seen)
+    assert any("T.gpu_active_thread_selector(v, T.cuda.elect_sync())" in item for item in seen)
+    assert any(
+        "T.gpu_active_thread_selector(v, T.cuda.elect_sync() != T.uint32(0))" in item
+        for item in seen
+    )
 
 
 def test_lower_cleanup_accepts_bool_elect_sync_else_path():
@@ -1193,7 +1196,7 @@ def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
     assert int(seen[0]["inter"]["laneid"][0]) == 1
     assert (
         seen[0]["inter"]["laneid"][1].script(extra_config={"tirx.prefix": "T"})
-        == "T.selector(v, T.cuda.elect_sync())"
+        == "T.gpu_active_thread_selector(v, T.cuda.elect_sync())"
     )
     assert len(seen[0]["intra"]) == 0
 
@@ -1483,7 +1486,7 @@ def test_lower_buffer_offset():
     def after():
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
-        warp_id_in_cta: T.let[T.int32] = T.tvm_warp_shuffle(
+        warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
             T.uint32(4294967295), threadIdx_x // 32, 0, 32, 32
         )
         v: T.let[T.int32] = blockIdx_x
@@ -1587,7 +1590,7 @@ def test_alloc_buffer_with_thread_axis_layout():
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
         blockIdx_y = T.launch_thread("blockIdx.y", 1)
         blockIdx_z = T.launch_thread("blockIdx.z", 1)
-        warp_id_in_cta: T.let[T.int32] = T.tvm_warp_shuffle(
+        warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
             T.uint32(4294967295), threadIdx_x // 32, 0, 32, 32
         )
         bx: T.let[T.int32] = blockIdx_x

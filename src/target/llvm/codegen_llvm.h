@@ -597,7 +597,7 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   const Op& builtin_call_pure_extern_ = tirx::call_pure_extern_op();
   const Op& builtin_call_llvm_intrin_ = tirx::call_llvm_intrin_op();
   const Op& builtin_call_llvm_pure_intrin_ = tirx::call_llvm_pure_intrin_op();
-  const Op& builtin_tvm_call_cpacked_lowered_ = tirx::tvm_call_cpacked_lowered_op();
+  const Op& builtin_tvm_call_cpacked_lowered_ = tirx::call_cpacked_lowered_op();
 
   void EmitDebugLocation();
   void EmitDebugLocation(const ffi::Optional<Span>& span);

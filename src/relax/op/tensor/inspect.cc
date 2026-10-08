@@ -97,7 +97,7 @@ tirx::Function GetDLTensorField(tirx::TVMStructFieldKind field, PrimType field_t
   tirx::Var value("value", field_ty);
 
   tirx::SeqStmt body(
-      {tirx::Bind(value, tvm::Call(field_ty, tirx::tvm_struct_get_op(),
+      {tirx::Bind(value, tvm::Call(field_ty, tirx::abi_field_get_op(),
                                    {dlpack_handle, IntImm::Int32(0), IntImm::Int32(field)})
                              .as_or_throw<PrimExpr>()),
        tirx::Return(value)});
@@ -265,7 +265,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
     tirx::SeqStmt body(
         {tirx::AssertStmt(0 <= axis.as_or_throw<PrimExpr>(), StringImm("RuntimeError"),
                           {StringImm("Specified axis may not be negative")}),
-         tirx::Bind(ndim, tvm::Call(ndim->ty.as_or_throw<PrimType>(), tirx::tvm_struct_get_op(),
+         tirx::Bind(ndim, tvm::Call(ndim->ty.as_or_throw<PrimType>(), tirx::abi_field_get_op(),
                                     {dlpack_handle, IntImm::Int32(0),
                                      IntImm::Int32(tirx::TVMStructFieldKind::kDLTensorNDim)})
                               .as_or_throw<PrimExpr>()),
@@ -276,7 +276,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
              {StringImm("Specified axis may not be larger than the tensor's dimensionality")}),
          tirx::Bind(shape_buffer,
                     tvm::Call(shape_buffer.type(), tvm::tirx::decl_tensor_op(),
-                              {tvm::Call(shape_buffer.DataPointerType(), tirx::tvm_struct_get_op(),
+                              {tvm::Call(shape_buffer.DataPointerType(), tirx::abi_field_get_op(),
                                          {dlpack_handle, IntImm::Int32(0),
                                           IntImm::Int32(tirx::TVMStructFieldKind::kDLTensorShape)}),
                                tvm::Tuple(shape_buffer->shape),

@@ -421,7 +421,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
   } else if (op->op.same_as(tirx::reinterpret_op())) {
     return builder_->MakeValue(spv::OpBitcast, builder_->GetSType(op->ty.as_or_throw<PrimType>()),
                                MakeValue(op->args[0]));
-  } else if (op->op.same_as(tirx::tvm_storage_sync_op())) {
+  } else if (op->op.same_as(tirx::gpu_storage_sync_op())) {
     return this->CreateStorageSync(op);
   } else if (op->op.same_as(prim::if_then_else_op())) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
@@ -474,12 +474,12 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
     return spirv::Value();
   }
 
-  static const Op tvm_fill_fragment_op = Op::Get("tirx.tvm_fill_fragment");
-  static const Op tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
-  static const Op tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
-  static const Op tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
+  static const Op gpu_fill_fragment_op = Op::Get("tirx.gpu_fill_fragment");
+  static const Op gpu_load_matrix_sync_op = Op::Get("tirx.gpu_load_matrix_sync");
+  static const Op gpu_mma_sync_op = Op::Get("tirx.gpu_mma_sync");
+  static const Op gpu_store_matrix_sync_op = Op::Get("tirx.gpu_store_matrix_sync");
 
-  if (op->op.same_as(tvm_fill_fragment_op)) {
+  if (op->op.same_as(gpu_fill_fragment_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 6U);
     const VarNode* buffer_node = AsBufferVarNode(op->args[0]);
     TVM_FFI_ICHECK(buffer_node && fragment_info_.count(buffer_node));
@@ -499,7 +499,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
     builder_->MakeInst(spv::OpStore, ptr, init_val, spv::MemoryAccessMaskNone);
     return spirv::Value();
 
-  } else if (op->op.same_as(tvm_load_matrix_sync_op)) {
+  } else if (op->op.same_as(gpu_load_matrix_sync_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
     const VarNode* buffer_node = AsBufferVarNode(op->args[0]);
     TVM_FFI_ICHECK(buffer_node && fragment_info_.count(buffer_node));
@@ -522,7 +522,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
                             (layout != "row_major") ? t_val : f_val);
     builder_->MakeInst(spv::OpStore, dst_ptr, loaded, spv::MemoryAccessMaskNone);
     return spirv::Value();
-  } else if (op->op.same_as(tvm_mma_sync_op)) {
+  } else if (op->op.same_as(gpu_mma_sync_op)) {
     const VarNode* buffer_d = AsBufferVarNode(op->args[0]);
     const VarNode* buffer_a = AsBufferVarNode(op->args[2]);
     const VarNode* buffer_b = AsBufferVarNode(op->args[4]);
@@ -561,7 +561,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
                                               loaded_a, loaded_b, loaded_c);
     builder_->MakeInst(spv::OpStore, ptr_d, result, spv::MemoryAccessMaskNone);
     return spirv::Value();
-  } else if (op->op.same_as(tvm_store_matrix_sync_op)) {
+  } else if (op->op.same_as(gpu_store_matrix_sync_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
     const VarNode* buffer_node = AsBufferVarNode(op->args[0]);
     TVM_FFI_ICHECK(buffer_node && fragment_info_.count(buffer_node));
@@ -595,7 +595,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
     spirv::SType ptr_type = builder_->GetPointerType(ele_stype, buffer_val.stype.storage_class);
     TVM_FFI_ICHECK(var_map_.count(buffer_node));
     return builder_->StructArrayAccess(ptr_type, var_map_[buffer_node], MakeValue(index));
-  } else if (op->op.same_as(tirx::tvm_thread_invariant_op())) {
+  } else if (op->op.same_as(tirx::gpu_thread_invariant_op())) {
     return MakeValue(op->args[0]);
   } else {
     TVM_FFI_THROW(InternalError) << "Unresolved call  " << op->op;

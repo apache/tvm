@@ -443,7 +443,7 @@ ffi::Array<PrimExpr> ScopeIdResolve::Resolve(ScopeBinding binding,
 PrimExpr ScopeIdResolve::ComputeWarpIdInCta(const LaunchParams& params) {
   PrimExpr warp_id = prim::FloorDiv(GetLinearThreadIndex(params), 32);
   PrimExpr mask = IntImm(PrimType::UInt(32), 0xffffffff);
-  return Call(warp_id.ty(), tirx::tvm_warp_shuffle_op(),
+  return Call(warp_id.ty(), tirx::gpu_warp_shuffle_op(),
               {mask, warp_id, IntImm::Int32(0), IntImm::Int32(32), IntImm::Int32(32)})
       .as_or_throw<PrimExpr>();
 }

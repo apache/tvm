@@ -473,14 +473,14 @@ class TransformedSharedToWmma:
                                             offset_factor=16,
                                         )
                                         T.evaluate(
-                                            T.tvm_load_matrix_sync(
+                                            T.gpu_load_matrix_sync(
                                                 tgt.data,
                                                 16,
                                                 16,
                                                 16,
                                                 tgt.elem_offset // 256
                                                 + tgt.elem_offset % 256 // 16,
-                                                T.tvm_access_ptr(
+                                                T.access_ptr(
                                                     "float16",
                                                     src.data,
                                                     src.elem_offset,
@@ -554,14 +554,14 @@ class TransformedWmmaToShared:
                                             offset_factor=16,
                                         )
                                         T.evaluate(
-                                            T.tvm_store_matrix_sync(
+                                            T.gpu_store_matrix_sync(
                                                 src.data,
                                                 16,
                                                 16,
                                                 16,
                                                 src.elem_offset // 256
                                                 + src.elem_offset % 256 // 16,
-                                                T.tvm_access_ptr(
+                                                T.access_ptr(
                                                     "float32",
                                                     tgt.data,
                                                     tgt.elem_offset,
@@ -624,14 +624,14 @@ class TransformedWmmaToGlobal:
                                                 scope="shared.dyn",
                                                 offset_factor=16,
                                             )
-                                            T.tvm_store_matrix_sync(
+                                            T.gpu_store_matrix_sync(
                                                 src.data,
                                                 16,
                                                 16,
                                                 16,
                                                 src.elem_offset // 256
                                                 + src.elem_offset % 256 // 16,
-                                                T.tvm_access_ptr(
+                                                T.access_ptr(
                                                     "float32",
                                                     tgt.data,
                                                     tgt.elem_offset,
@@ -828,14 +828,14 @@ class TransformedWmmaToGlobalWithFusion:
                                                 scope="shared.dyn",
                                                 offset_factor=16,
                                             )
-                                            T.tvm_store_matrix_sync(
+                                            T.gpu_store_matrix_sync(
                                                 src.data,
                                                 16,
                                                 16,
                                                 16,
                                                 src.elem_offset // 256
                                                 + src.elem_offset % 256 // 16,
-                                                T.tvm_access_ptr(
+                                                T.access_ptr(
                                                     "float32",
                                                     tgt.data,
                                                     tgt.elem_offset,

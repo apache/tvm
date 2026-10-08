@@ -223,7 +223,7 @@ class CandidateSelector final : public StmtExprVisitor {
       in_likely_ = true;
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       in_likely_ = false;
-    } else if (op->op.same_as(tirx::tvm_thread_allreduce_op())) {
+    } else if (op->op.same_as(tirx::gpu_thread_allreduce_op())) {
       // no split if the body contains allreduce.
       no_split_ = true;
       return std::nullopt;

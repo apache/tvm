@@ -221,7 +221,7 @@ def copy_vec_load_impl(
                         src_indices = T.meta_var(get_indices(fused, src_st, src_extent))
                         T.evaluate(T.ptx[f"cp.async.{'cg' if T.constexpr(cp_size == 16) else 'ca'}.shared.global"](dst.ptr_to(dst_indices), src.ptr_to(src_indices), cp_size))  # noqa: E501
             if T.constexpr(dst.scope().startswith("shared") and inst_type == CopyInstType.NORMAL):
-                T.tvm_storage_sync("shared")
+                T.gpu_storage_sync("shared")
         # fmt: on
     elif sctx.is_thread:
         # fmt: off

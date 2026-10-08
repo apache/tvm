@@ -287,7 +287,7 @@ def opaque_access(A: T.Tensor([16, 16], "float32"), B: T.Tensor([16, 16], "float
             vi, vj = Ts.axis.remap("SS", [i, j])
             Ts.reads([])
             Ts.writes([B[0:16, 0:16]])
-            T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj))
+            T.evaluate(T.gpu_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj))
 
 
 @Ts.function
@@ -326,7 +326,7 @@ def opaque_access_loop_partition(A: T.Tensor((16, 16)), B: T.Tensor((16, 16))) -
                         vi, vj = Ts.axis.remap("SS", [i, j0])
                         Ts.reads()
                         Ts.writes(B[0:16, 0:16])
-                        T.tvm_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj)
+                        T.gpu_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj)
             with Ts.sblock("B_j1_partition"):
                 Ts.reads()
                 Ts.writes()
@@ -335,7 +335,7 @@ def opaque_access_loop_partition(A: T.Tensor((16, 16)), B: T.Tensor((16, 16))) -
                         vi, vj = Ts.axis.remap("SS", [i, j1])
                         Ts.reads()
                         Ts.writes(B[0:16, 0:16])
-                        T.tvm_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj)
+                        T.gpu_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj)
 
 
 # pylint: enable=no-member,invalid-name,unused-variable

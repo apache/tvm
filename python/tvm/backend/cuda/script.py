@@ -123,6 +123,7 @@ timer_end = _cuda_op.timer_end_cuda
 timer_finalize = _cuda_op.timer_finalize_cuda
 mma_store = _ir.op._make_op_api(_ir.Op.get("tirx.mma_store"), __name__)
 mma_fill = _ir.op._make_op_api(_ir.Op.get("tirx.mma_fill"), __name__)
+bmma_sync = _cuda_op.bmma_sync
 mma_store_legacy = _cuda_op.mma_store_legacy
 mma_fill_legacy = _cuda_op.mma_fill_legacy
 atomic_add = _cuda_op.cuda_atomic_add

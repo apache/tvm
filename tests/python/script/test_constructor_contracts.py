@@ -89,7 +89,7 @@ def test_operation_dtype_keywords_match_normal_constructors():
         with pytest.raises(TypeError):
             operation(x, dtype="float32")
     vector = ir.Var("v", "int8x4")
-    ir.assert_structural_equal(T.dp4a(vector, vector), tirx.dp4a(vector, vector))
+    ir.assert_structural_equal(T.gpu_dp4a(vector, vector), tirx.gpu_dp4a(vector, vector))
 
 
 def test_normal_constructors_in_parsed_function():

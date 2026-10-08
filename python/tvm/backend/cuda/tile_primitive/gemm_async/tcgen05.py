@@ -1083,7 +1083,7 @@ def gemm_async_tcgen05_impl(op_call: TileOpCall, sctx: DispatchContext) -> Funct
     elect_pred = T.cuda.elect_sync() if warp_scope else True
 
     _SWIZZLE_TO_LAYOUT = {0: 0, 1: 6, 2: 4, 3: 2, 4: 1}
-    _krp = Evaluate(tirx_op.tvm_kernel_replace_point())
+    _krp = Evaluate(tirx_op.kernel_replace_point())
 
     def _make_lo_uniform(desc_buf):
         desc_lo = tvm.tirx.decl_tensor((1,), "uint32", name=f"{desc_buf.name}_lo", scope="local")

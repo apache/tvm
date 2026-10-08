@@ -231,7 +231,7 @@ def gpu_multinomial_from_uniform(
                 reduce_op=op_reduce_sum,
                 mask_local=None,
             )
-            if T.tvm_thread_invariant(aggregate[()] + step_aggregate[()] >= uniform_sample - eps):
+            if T.gpu_thread_invariant(aggregate[()] + step_aggregate[()] >= uniform_sample - eps):
                 block_cumsum(ty, tx, prob_gt_threshold, cumsum)
                 # Note: it should be `T.vectorized` instead of `T.unroll`
                 # However, it will cause vulkan codegen error
@@ -286,7 +286,7 @@ def gpu_multinomial_from_uniform(
                     aggregate[()] = T.Cast(prob_dtype, 0)
                     step_iter[()] = T.int32(0)
                     # at least one iteration
-                    while T.tvm_thread_invariant(
+                    while T.gpu_thread_invariant(
                         (step_iter[()] == 0 or aggregate[()] < u - eps)
                         and T.Cast(target_dtype, step_iter[()])
                         < T.Cast(target_dtype, T.ceildiv(vocab_size, block_elem))

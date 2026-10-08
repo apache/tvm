@@ -543,8 +543,8 @@ void CodeGenWebGPU::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT
       this->EndScope(else_scope);
     }
     os << result;
-  } else if (op->op.same_as(tirx::dp4a_op())) {
-    // generate `dot4I8Packed(vec1, vec2) + acc` for the builtin `dp4a`
+  } else if (op->op.same_as(tirx::gpu_dp4a_op())) {
+    // generate `dot4I8Packed(vec1, vec2) + acc` for the builtin `gpu_dp4a`
     os << "dot4I8Packed(";
     this->PrintExpr(op->args[0], os);
     os << ", ";

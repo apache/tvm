@@ -616,10 +616,10 @@ class AutoPadder {
       if (const auto* eval =
               op->body->size() == 1 ? op->body->seq[0].as<EvaluateNode>() : nullptr) {
         if (const auto* call = eval->value.as<CallNode>()) {
-          static const Op tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
-          static const Op tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
-          if (call->op.same_as(tvm_load_matrix_sync_op) ||
-              call->op.same_as(tvm_store_matrix_sync_op)) {
+          static const Op gpu_load_matrix_sync_op = Op::Get("tirx.gpu_load_matrix_sync");
+          static const Op gpu_store_matrix_sync_op = Op::Get("tirx.gpu_store_matrix_sync");
+          if (call->op.same_as(gpu_load_matrix_sync_op) ||
+              call->op.same_as(gpu_store_matrix_sync_op)) {
             for (const MatchBufferRegion& r : op->match_buffers) {
               TensorVar src_buffer = r->source->source.as_or_throw<tvm::tirx::TensorVar>();
               runtime::StorageScope scope = runtime::StorageScope::Create(src_buffer.scope());

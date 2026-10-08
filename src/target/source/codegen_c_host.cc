@@ -226,19 +226,19 @@ void CodeGenCHost::PrintGetFuncFromBackend(const std::string& func_name,
 void CodeGenCHost::PrintCallPacked(const CallNode* op) {
   const StringImmNode* func_name = op->args[0].as<StringImmNode>();
   TVM_FFI_ICHECK(func_name != nullptr)
-      << "tvm_call_[c]packed_lowered expects first argument as function name";
+      << "call_[c]packed_lowered expects first argument as function name";
   int64_t begin = static_cast<int64_t>(op->args[2].as<IntImmNode>()->value);
   int64_t end = static_cast<int64_t>(op->args[3].as<IntImmNode>()->value);
   int64_t num_args = end - begin;
   TVM_FFI_ICHECK_GE(num_args, 0);
 
   std::string packed_func_name;
-  if (op->op.same_as(tirx::tvm_call_packed_lowered_op())) {
+  if (op->op.same_as(tirx::call_packed_lowered_op())) {
     packed_func_name = GetPackedName(op);
     this->PrintGetFuncFromBackend(func_name->value, packed_func_name);
   } else {
     // directly use the original symbol
-    TVM_FFI_ICHECK(op->op.same_as(tirx::tvm_call_cpacked_lowered_op()));
+    TVM_FFI_ICHECK(op->op.same_as(tirx::call_cpacked_lowered_op()));
     packed_func_name = ffi::symbol::tvm_ffi_symbol_prefix + func_name->value;
   }
 
@@ -254,7 +254,7 @@ void CodeGenCHost::PrintCallPacked(const CallNode* op) {
   this->PrintIndent();
   this->stream << result << ".v_int64 = 0;\n";
   this->PrintIndent();
-  if (op->op.same_as(tirx::tvm_call_packed_lowered_op())) {
+  if (op->op.same_as(tirx::call_packed_lowered_op())) {
     this->stream << "if (TVMFFIFunctionCall(" << packed_func_name << ", ";
   } else {
     this->stream << "if (" << packed_func_name << "(NULL, ";
@@ -271,7 +271,7 @@ void CodeGenCHost::PrintCallPacked(const CallNode* op) {
 
 std::string CodeGenCHost::GetPackedName(const CallNode* op) {
   const StringImmNode* s = op->args[0].as<StringImmNode>();
-  TVM_FFI_ICHECK(s != nullptr) << "tvm_call_packed_lowered expects first argument as function name";
+  TVM_FFI_ICHECK(s != nullptr) << "call_packed_lowered expects first argument as function name";
   std::string func_name = s->value;
   std::string packed_func_name = func_name + "_packed";
   std::string unique_name;
@@ -287,7 +287,7 @@ std::string CodeGenCHost::GetPackedName(const CallNode* op) {
 }
 
 void CodeGenCHost::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
-  if (op->op.same_as(tirx::tvm_stack_alloca_op())) {
+  if (op->op.same_as(tirx::stack_alloca_op())) {
     std::string stack_name = name_supply_->FreshName("stack");
     const std::string& type = op->args[0].as<StringImmNode>()->value;
     const IntImmNode* num = op->args[1].as<IntImmNode>();
@@ -310,11 +310,11 @@ void CodeGenCHost::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(
     os << "((";
     PrintType(op->ty, os);
     os << ")" << stack_name << ")";
-  } else if (op->op.same_as(tirx::tvm_call_packed_lowered_op())) {
+  } else if (op->op.same_as(tirx::call_packed_lowered_op())) {
     this->PrintCallPacked(op);
-  } else if (op->op.same_as(tirx::tvm_call_cpacked_lowered_op())) {
+  } else if (op->op.same_as(tirx::call_cpacked_lowered_op())) {
     this->PrintCallPacked(op);
-  } else if (op->op.same_as(tirx::tvm_throw_last_error_op())) {
+  } else if (op->op.same_as(tirx::throw_last_error_op())) {
     this->PrintIndent();
     this->stream << "return -1;\n";
   } else {

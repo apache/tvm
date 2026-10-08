@@ -41,14 +41,14 @@ static Type InferTypeReturnArgType(const CallNode* call) {
 
 struct MetalWarpIntrinsic {
   const Op operator()(PrimType t, const Op& orig_op) const {
-    if (orig_op.same_as(tirx::tvm_warp_shuffle_op())) {
+    if (orig_op.same_as(tirx::gpu_warp_shuffle_op())) {
       static const Op metal_simd_shuffle_op = Op::Get("tirx.metal.simd_shuffle");
       return metal_simd_shuffle_op;
-    } else if (orig_op.same_as(tirx::tvm_warp_shuffle_up_op())) {
+    } else if (orig_op.same_as(tirx::gpu_warp_shuffle_up_op())) {
       static const Op metal_simd_shuffle_up_op = Op::Get("tirx.metal.simd_shuffle_up");
       return metal_simd_shuffle_up_op;
     } else {
-      TVM_FFI_ICHECK(orig_op.same_as(tirx::tvm_warp_shuffle_down_op()));
+      TVM_FFI_ICHECK(orig_op.same_as(tirx::gpu_warp_shuffle_down_op()));
       static const Op metal_simd_shuffle_down_op = Op::Get("tirx.metal.simd_shuffle_down");
       return metal_simd_shuffle_down_op;
     }
@@ -145,13 +145,13 @@ void RegisterMetalIntrinRules() {
   OpDef("prim.erf")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchFastErf);
 
-  OpDef("tirx.tvm_warp_shuffle")
+  OpDef("tirx.gpu_warp_shuffle")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchMetalShuffle<MetalWarpIntrinsic>);
 
-  OpDef("tirx.tvm_warp_shuffle_up")
+  OpDef("tirx.gpu_warp_shuffle_up")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchMetalShuffle<MetalWarpIntrinsic>);
 
-  OpDef("tirx.tvm_warp_shuffle_down")
+  OpDef("tirx.gpu_warp_shuffle_down")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchMetalShuffle<MetalWarpIntrinsic>);
 
   // Register low-level Metal device intrinsics.

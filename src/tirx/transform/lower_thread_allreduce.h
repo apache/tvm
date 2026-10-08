@@ -89,7 +89,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     Stmt stmt = DialectMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<EvaluateNode>();
     const CallNode* call = op->value.as<CallNode>();
-    if (call && call->op.same_as(tirx::tvm_thread_allreduce_op())) {
+    if (call && call->op.same_as(tirx::gpu_thread_allreduce_op())) {
       return MakeAllreduce(call);
     } else {
       return stmt;
@@ -375,7 +375,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     if (IsWarpReduction(dtypes, group_extent, reduce_extent, contiguous_reduce_extent)) {
       std::vector<PrimExpr> reduce_results;
       PrimExpr mask =
-          Call(PrimType::UInt(32), tirx::tvm_warp_activemask_op(), {}).as_or_throw<PrimExpr>();
+          Call(PrimType::UInt(32), tirx::gpu_warp_activemask_op(), {}).as_or_throw<PrimExpr>();
 
       if (reduce_extent <= warp_size_) {
         std::tie(reduce_results, new_alloc_bufs) =
@@ -391,7 +391,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
                               ->source.as_or_throw<tvm::tirx::TensorVar>();
           PrimExpr val = MakeTensorLoad(buf, {zero_index});
           TVM_FFI_ICHECK_EQ(val.ty(), dtypes[i]);
-          PrimExpr splat = WarpShuffle(tirx::tvm_warp_shuffle_op(), new_alloc_bufs.back(), val,
+          PrimExpr splat = WarpShuffle(tirx::gpu_warp_shuffle_op(), new_alloc_bufs.back(), val,
                                        reduce_extent * group_index);
           seq.push_back(TensorStore(buf, splat, {zero_index}));
         }
@@ -610,7 +610,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         //
         // The former may cause dead lock as there is a divergent
         // branch with a warp sync call inside.
-        PrimExpr other = WarpShuffle(tirx::tvm_warp_shuffle_down_op(), mask_buffer, val, offset);
+        PrimExpr other = WarpShuffle(tirx::gpu_warp_shuffle_down_op(), mask_buffer, val, offset);
         TensorVar local_buf = local_bufs[i];
         Stmt s = TensorStore(local_buf, other, zero_indices);
         seq->push_back(s);
@@ -797,7 +797,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   }
   // sync thread op.
   static Stmt SyncThread(const std::string& sync) {
-    return Evaluate(Call(PrimType::Int(32), tirx::tvm_storage_sync_op(), {StringImm(sync)})
+    return Evaluate(Call(PrimType::Int(32), tirx::gpu_storage_sync_op(), {StringImm(sync)})
                         .as_or_throw<PrimExpr>());
   }
 

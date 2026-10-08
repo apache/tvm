@@ -66,16 +66,16 @@ def test_matmul_t_buffer():
                 B_sh[threadIdx_y * 16 + threadIdx_x] = B_flat[
                     i * 16384 + threadIdx_y * 1024 + blockIdx_x * 16 + threadIdx_x
                 ]
-                T.tvm_storage_sync("shared")
+                T.gpu_storage_sync("shared")
                 for k in range(16):
                     C_local[0] = C_local[0] + T.Cast(
                         "float32",
                         A_sh[threadIdx_y * 16 + k] * B_sh[k * 16 + threadIdx_x],
                     )
-                T.tvm_storage_sync("shared")
+                T.gpu_storage_sync("shared")
 
             C_sh[threadIdx_y * 16 + threadIdx_x] = C_local[0]
-            T.tvm_storage_sync("shared.dyn")
+            T.gpu_storage_sync("shared.dyn")
 
             matmul_flat[blockIdx_y * 16384 + threadIdx_y * 1024 + blockIdx_x * 16 + threadIdx_x] = (
                 C_sh[threadIdx_y * 16 + threadIdx_x]
@@ -114,16 +114,16 @@ def test_matmul_t_buffer():
                 B_sh[threadIdx_y * 16 + threadIdx_x] = B_flat[
                     i * 16384 + threadIdx_y * 1024 + blockIdx_x * 16 + threadIdx_x
                 ]
-                T.tvm_storage_sync("shared")
+                T.gpu_storage_sync("shared")
                 for k in range(16):
                     C_local[0] = C_local[0] + T.Cast(
                         "float32",
                         A_sh[threadIdx_y * 16 + k + 256] * B_sh[k * 16 + threadIdx_x],
                     )
-                T.tvm_storage_sync("shared")
+                T.gpu_storage_sync("shared")
 
             C_sh[threadIdx_y * 16 + threadIdx_x] = C_local[0]
-            T.tvm_storage_sync("shared.dyn")
+            T.gpu_storage_sync("shared.dyn")
 
     After = transform(Before)
     script = After["main"].script()
@@ -132,7 +132,7 @@ def test_matmul_t_buffer():
     assert '"uint8"' in script
     assert '"shared.dyn"' in script
     # Verify storage sync calls preserved
-    assert "tvm_storage_sync" in script
+    assert "gpu_storage_sync" in script
     # Verify offset indexing (shared memory merged)
     assert "+ 256" in script
 
@@ -177,16 +177,16 @@ def test_matmul_decl_buffer():
                 B_sh[threadIdx_y * 16 + threadIdx_x] = B_flat[
                     i * 16384 + threadIdx_y * 1024 + blockIdx_x * 16 + threadIdx_x
                 ]
-                T.tvm_storage_sync("shared")
+                T.gpu_storage_sync("shared")
                 for k in range(16):
                     C_local[0] = C_local[0] + T.Cast(
                         "float32",
                         A_sh[threadIdx_y * 16 + k] * B_sh[k * 16 + threadIdx_x],
                     )
-                T.tvm_storage_sync("shared")
+                T.gpu_storage_sync("shared")
 
             C_sh[threadIdx_y * 16 + threadIdx_x] = C_local[0]
-            T.tvm_storage_sync("shared.dyn")
+            T.gpu_storage_sync("shared.dyn")
 
             matmul_flat[blockIdx_y * 16384 + threadIdx_y * 1024 + blockIdx_x * 16 + threadIdx_x] = (
                 C_sh[threadIdx_y * 16 + threadIdx_x]
@@ -198,7 +198,7 @@ def test_matmul_decl_buffer():
     assert "alloc_tensor((1024,)" in script
     assert '"uint8"' in script
     assert '"shared.dyn"' in script
-    assert "tvm_storage_sync" in script
+    assert "gpu_storage_sync" in script
     assert "+ 256" in script
 
 

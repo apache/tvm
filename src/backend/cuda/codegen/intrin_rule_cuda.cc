@@ -135,17 +135,17 @@ struct CUDAPopcount {
 
 struct CUDAWarpIntrinsic {
   const Op operator()(const PrimType& ty, const Op& orig_op) const {
-    if (orig_op.same_as(tirx::tvm_warp_shuffle_op())) {
+    if (orig_op.same_as(tirx::gpu_warp_shuffle_op())) {
       static const Op cuda_shfl_sync_op = Op::Get("tirx.cuda.__shfl_sync");
       return cuda_shfl_sync_op;
-    } else if (orig_op.same_as(tirx::tvm_warp_shuffle_up_op())) {
+    } else if (orig_op.same_as(tirx::gpu_warp_shuffle_up_op())) {
       static const Op cuda_shfl_up_sync_op = Op::Get("tirx.cuda.__shfl_up_sync");
       return cuda_shfl_up_sync_op;
-    } else if (orig_op.same_as(tirx::tvm_warp_shuffle_down_op())) {
+    } else if (orig_op.same_as(tirx::gpu_warp_shuffle_down_op())) {
       static const Op cuda_shfl_down_sync_op = Op::Get("tirx.cuda.__shfl_down_sync");
       return cuda_shfl_down_sync_op;
     } else {
-      TVM_FFI_ICHECK(orig_op.same_as(tirx::tvm_warp_shuffle_xor_op()));
+      TVM_FFI_ICHECK(orig_op.same_as(tirx::gpu_warp_shuffle_xor_op()));
       static const Op cuda_shfl_xor_sync_op = Op::Get("tirx.cuda.__shfl_xor_sync");
       return cuda_shfl_xor_sync_op;
     }
@@ -260,19 +260,19 @@ void RegisterCudaIntrinRules() {
   OpDef("prim.popcount")
       .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAPopcount>);
 
-  OpDef("tirx.tvm_warp_shuffle")
+  OpDef("tirx.gpu_warp_shuffle")
       .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchCUDAShuffle<CUDAWarpIntrinsic>);
 
-  OpDef("tirx.tvm_warp_shuffle_up")
+  OpDef("tirx.gpu_warp_shuffle_up")
       .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchCUDAShuffle<CUDAWarpIntrinsic>);
 
-  OpDef("tirx.tvm_warp_shuffle_down")
+  OpDef("tirx.gpu_warp_shuffle_down")
       .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchCUDAShuffle<CUDAWarpIntrinsic>);
 
-  OpDef("tirx.tvm_warp_shuffle_xor")
+  OpDef("tirx.gpu_warp_shuffle_xor")
       .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchCUDAShuffle<CUDAWarpIntrinsic>);
 
-  OpDef("tirx.tvm_warp_activemask")
+  OpDef("tirx.gpu_warp_activemask")
       .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchCUDAWarpActiveMask);
 
   OpDef("prim.fmod")

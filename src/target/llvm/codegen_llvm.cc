@@ -1366,7 +1366,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       }
     }
     return builder_->CreateCall(f, arg_value);
-  } else if (op->op.same_as(tirx::tvm_storage_sync_op())) {
+  } else if (op->op.same_as(tirx::gpu_storage_sync_op())) {
     return CreateStorageSync(op);
   } else if (op->op.same_as(tirx::address_of_op())) {
     const TensorLoadNode* load = args[0].as<TensorLoadNode>();
@@ -1468,7 +1468,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   } else if (op->op.same_as(prim::assume_op())) {
     llvm::Value* cond = MakeValue(args[0]);
     return builder_->CreateAssumption(cond);
-  } else if (op->op.same_as(tirx::tvm_thread_invariant_op())) {
+  } else if (op->op.same_as(tirx::gpu_thread_invariant_op())) {
     return MakeValue(args[0]);
   } else if (op->op.same_as(prim::vscale_op())) {
     llvm::Intrinsic::ID id = llvm::Intrinsic::vscale;

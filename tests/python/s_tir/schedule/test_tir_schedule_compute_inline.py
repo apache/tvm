@@ -570,7 +570,7 @@ def exp_exp_opaque_access_with_tvm_access_ptr_inlined(
         with Ts.sblock("compute_1"):
             i0_1 = Ts.axis.spatial(16, i0)
             # Do not put the opaque access to new write region when opaque access
-            # wrapped with a tvm_access_ptr and the access mask set to "read only"
+            # wrapped with a access_ptr and the access mask set to "read only"
             Ts.reads(lookup_table[0:1024], x[i0_1])
             Ts.writes(compute[i0_1])
             T.evaluate(lookup_table.access_ptr("r"))
@@ -1203,7 +1203,7 @@ def test_inline_block_with_init():
 
 
 def test_compute_inline_opaque_access_with_tvm_access_ptr(use_block_name):
-    """Test opaque access with tvm_access_ptr after compute inline"""
+    """Test opaque access with access_ptr after compute inline"""
     sch = tvm.s_tir.Schedule(exp_exp_opaque_access_with_tvm_access_ptr, debug_mask="all")
     compute = "compute" if use_block_name else sch.get_sblock("compute")
     sch.compute_inline(compute)

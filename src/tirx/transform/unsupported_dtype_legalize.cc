@@ -230,7 +230,7 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(tirx::tvm_thread_allreduce_op())) {
+    if (op->op.same_as(tirx::gpu_thread_allreduce_op())) {
       return LegalizeThreadAllreduce(op);
     }
     if (op->op.same_as(tirx::alloc_tensor_op()) || op->op.same_as(tirx::decl_tensor_op())) {

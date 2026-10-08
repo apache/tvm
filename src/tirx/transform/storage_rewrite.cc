@@ -633,7 +633,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                            .as_or_throw<Expr>());
         return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);
       }
-    } else if (op->op.same_as(tvm_access_ptr_op())) {
+    } else if (op->op.same_as(access_ptr_op())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
       PrimType dtype = op->ty_args[0].as_or_throw<PrimType>();
       auto buffer_var = GetBufferDataVar(op->args[0]);
@@ -1480,11 +1480,11 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
         indices.push_back(op->args[i].as_or_throw<PrimExpr>());
       }
       OnArrayAccess(dtype, buffer.get(), indices, is_load);
-    } else if (op->op.same_as(tvm_access_ptr_op())) {
+    } else if (op->op.same_as(access_ptr_op())) {
       PrimType dtype = op->ty_args[0].as_or_throw<PrimType>();
       auto buffer_var = GetBufferDataVar(op->args[0]);
       PrimExpr index = op->args[1].as_or_throw<PrimExpr>();
-      // args[0] may be a nested Call (e.g. another tvm_access_ptr) rather
+      // args[0] may be a nested Call (e.g. another access_ptr) rather
       // than a raw Var; OnArrayAccess derefs `buffer` so skip the record
       // here and let the recursive visit handle any inner buffer var.
       if (buffer_var.has_value()) {
@@ -2065,7 +2065,7 @@ class VectorTypeRewriter : public StmtExprMutator {
         return RemapBuffer(var.value().as_or_throw<TensorVar>()).data();
       }
     }
-    if (op->op.same_as(tvm_access_ptr_op())) {
+    if (op->op.same_as(access_ptr_op())) {
       auto buffer = GetBufferDataVar(op->args[0]);
       Expr expr =
           StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Expr>(op));
@@ -2097,8 +2097,7 @@ class VectorTypeRewriter : public StmtExprMutator {
                       ? info.new_buffer_var.as_or_throw<TensorVar>().data()
                       : Expr(info.new_buffer_var);
       ffi::Array<Expr> acc_args{data, index, extent, flag};
-      return Call(op->ty, tvm_access_ptr_op(), acc_args, op->attrs, {info.new_element_dtype},
-                  op->span);
+      return Call(op->ty, access_ptr_op(), acc_args, op->attrs, {info.new_element_dtype}, op->span);
 
     } else {
       return StmtExprMutator::Mutate_(op, inplace_mode);

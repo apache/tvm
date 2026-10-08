@@ -644,7 +644,7 @@ Expr TensorVar::access_ptr(int access_mask, PointerType ptr_type, int content_la
     extent = input_extent.value();
   }
   ffi::Array<Expr> acc_args{data(), elem_offset, extent, IntImm::Int32(access_mask)};
-  return Call(ptr_type, tirx::tvm_access_ptr_op(), acc_args, {}, {access_dtype});
+  return Call(ptr_type, tirx::access_ptr_op(), acc_args, {}, {access_dtype});
 }
 
 TensorVar::TensorVar(ffi::String name, TensorType type, Span span)

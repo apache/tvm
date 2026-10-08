@@ -107,7 +107,7 @@ enum TVMStructFieldKind : int {
  * - args[1]: index, The index.
  * - args[2]: field, The field index.
  */
-TVM_DLL const Op& tvm_struct_get_op();
+TVM_DLL const Op& abi_field_get_op();
 
 /*!
  * \brief Write a runtime structure field.
@@ -118,12 +118,12 @@ TVM_DLL const Op& tvm_struct_get_op();
  * - args[2]: field, The field index.
  * - args[3]: value, The value to use.
  */
-TVM_DLL const Op& tvm_struct_set_op();
+TVM_DLL const Op& abi_field_set_op();
 
 /*!
  * \brief Raise the last runtime error.
  */
-TVM_DLL const Op& tvm_throw_last_error_op();
+TVM_DLL const Op& throw_last_error_op();
 
 /*!
  * \brief Allocate stack storage for runtime values.
@@ -132,7 +132,7 @@ TVM_DLL const Op& tvm_throw_last_error_op();
  * - args[0]: dtype_str, The data type name.
  * - args[1]: num, The number of entries.
  */
-TVM_DLL const Op& tvm_stack_alloca_op();
+TVM_DLL const Op& stack_alloca_op();
 
 /*!
  * \brief Construct a stack-allocated shape tuple.
@@ -140,7 +140,7 @@ TVM_DLL const Op& tvm_stack_alloca_op();
  * Arguments, in order:
  * - args[0...]: args, trailing IntExpr operands.
  */
-TVM_DLL const Op& tvm_stack_make_shape_op();
+TVM_DLL const Op& stack_make_shape_op();
 
 /*!
  * \brief Construct a stack-allocated DLTensor.
@@ -153,7 +153,7 @@ TVM_DLL const Op& tvm_stack_make_shape_op();
  * - args[4]: arr_dtype, The array data type.
  * - args[5]: elem_offset, The element offset.
  */
-TVM_DLL const Op& tvm_stack_make_array_op();
+TVM_DLL const Op& stack_make_dltensor_op();
 
 /*!
  * \brief Invoke a runtime packed function.
@@ -162,7 +162,7 @@ TVM_DLL const Op& tvm_stack_make_array_op();
  * - args[0]: func_name, The function name.
  * - args[1...]: args, trailing Expr operands.
  */
-TVM_DLL const Op& tvm_call_packed_op();
+TVM_DLL const Op& call_packed_op();
 
 /*! \brief Launch metadata for call_ffi_kernel. */
 struct CallFFIKernelAttr : public AttrsNode {
@@ -184,7 +184,7 @@ struct CallFFIKernelAttr : public AttrsNode {
  *
  * Arguments are the kernel symbol, kernel operands, then launch values.
  * CallFFIKernelAttr::launch_params describes the launch-value suffix.
- * Host backends may consume this call directly or lower it to tvm_call_packed.
+ * Host backends may consume this call directly or lower it to call_packed.
  */
 TVM_DLL const Op& call_ffi_kernel_op();
 
@@ -195,7 +195,7 @@ TVM_DLL const Op& call_ffi_kernel_op();
  * - args[0]: func_name, The function name.
  * - args[1...]: args, trailing Expr operands.
  */
-TVM_DLL const Op& tvm_call_cpacked_op();
+TVM_DLL const Op& call_cpacked_op();
 
 /*!
  * \brief Invoke a packed function using an explicit argument stack.
@@ -206,7 +206,7 @@ TVM_DLL const Op& tvm_call_cpacked_op();
  * - args[2]: begin, The start index.
  * - args[3]: end, The end index.
  */
-TVM_DLL const Op& tvm_call_packed_lowered_op();
+TVM_DLL const Op& call_packed_lowered_op();
 
 /*!
  * \brief Invoke a C packed function using an explicit argument stack.
@@ -217,7 +217,7 @@ TVM_DLL const Op& tvm_call_packed_lowered_op();
  * - args[2]: begin, The start index.
  * - args[3]: end, The end index.
  */
-TVM_DLL const Op& tvm_call_cpacked_lowered_op();
+TVM_DLL const Op& call_cpacked_lowered_op();
 
 }  // namespace tvm::tirx
 

@@ -59,7 +59,7 @@ def buffer_opaque_access(
             for j in range(0, 16):
                 T.evaluate(A[i * 16 + j])
             for j in range(0, 16):
-                T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, T.float32(0)))
+                T.evaluate(T.gpu_fill_fragment(B.data, 16, 16, 16, 0, T.float32(0)))
 
     for i, j in T.grid(16, 16):
         with Ts.sblock():

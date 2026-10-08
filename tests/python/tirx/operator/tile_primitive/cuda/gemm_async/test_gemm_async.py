@@ -3869,9 +3869,7 @@ def test_gemm_tcgen05_hoisted_descriptor_uniformization(scope_kind, expect_unifo
     assert ("T.ptx.shfl_sync" in callback_text) == expect_uniform
     assert ("elect_sync" in impl.script()) == expect_uniform
     if expect_uniform:
-        assert callback_text.index("T.ptx.shfl_sync") < callback_text.index(
-            "tvm_kernel_replace_point"
-        )
+        assert callback_text.index("T.ptx.shfl_sync") < callback_text.index("kernel_replace_point")
 
 
 def test_gemm_tcgen05_no_swizzle_col_major_rejects_non_128B_contiguous():

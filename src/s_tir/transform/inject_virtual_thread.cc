@@ -97,7 +97,7 @@ class ExprTouched final : public StmtExprVisitor {
       for (size_t i = 1; i < op->args.size(); ++i) {
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->args[i]));
       }
-    } else if (op->op.same_as(tirx::tvm_access_ptr_op())) {
+    } else if (op->op.same_as(tirx::access_ptr_op())) {
       const auto* rw_mask = op->args[3].as<IntImmNode>();
       auto buffer = GetBufferDataVar(op->args[0]);
       if (!buffer.has_value()) {
@@ -339,7 +339,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
       }
       visit_touched_var_ = true;
       return GetRemappedBuffer(buffer.as_or_throw<TensorVar>(), it->second).data();
-    } else if (op->op.same_as(tirx::tvm_access_ptr_op())) {
+    } else if (op->op.same_as(tirx::access_ptr_op())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
       PrimType dtype = op->ty_args[0].as_or_throw<PrimType>();
       auto buffer = GetBufferDataVar(op->args[0]);

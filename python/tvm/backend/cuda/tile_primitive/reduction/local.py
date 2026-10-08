@@ -344,7 +344,7 @@ def _emit_reduction_local_view(
         @T.inline
         def inner_shuffle(v, shuffle_mask):
             dst_local[tuple(dst_idx)] = op_func(
-                v, T.tvm_warp_shuffle_xor(mask, v, shuffle_mask, 32, 32)
+                v, T.gpu_warp_shuffle_xor(mask, v, shuffle_mask, 32, 32)
             )
 
         for i in range(len(shuffle_masks)):
@@ -371,7 +371,7 @@ def _emit_reduction_local_view(
                         src_idx = T.meta_var(_get_src_local_index(spa, red))
                         dst_local[tuple(dst_idx)] = op_func(dst_local[tuple(dst_idx)], src_local[tuple(src_idx)])  # noqa: E501
                 if T.constexpr(shuffle):
-                    mask = T.tvm_warp_activemask()
+                    mask = T.gpu_warp_activemask()
                     shuffle_data(mask, dst_local, dst_idx)
                 dst_local[tuple(dst_idx)] = op_func(dst_local[tuple(dst_idx)], old_val[0])
     else:
@@ -391,7 +391,7 @@ def _emit_reduction_local_view(
                         src_idx = T.meta_var(_get_src_local_index(spa, red))
                         dst_local[tuple(dst_idx)] = op_func(dst_local[tuple(dst_idx)], src_local[tuple(src_idx)])  # noqa: E501
                 if T.constexpr(shuffle):
-                    mask = T.tvm_warp_activemask()
+                    mask = T.gpu_warp_activemask()
                     shuffle_data(mask, dst_local, dst_idx)
     # fmt: on
 

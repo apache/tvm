@@ -303,7 +303,7 @@ ffi::Optional<ExprDoc> PointerCallDocTranslate(DocTranslatorObj* d, ffi::AnyView
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  for (const char* name : {"tirx.tvm_access_ptr", "tirx.ptr_byte_offset"}) {
+  for (const char* name : {"tirx.access_ptr", "tirx.ptr_byte_offset"}) {
     OpDef(name).set_attr<FDocTranslate>(kOpCallDocTranslate,
                                         FDocTranslate::FromNative<&PointerCallDocTranslate>());
   }

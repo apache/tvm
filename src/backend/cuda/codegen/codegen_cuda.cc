@@ -1078,11 +1078,11 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     }
   }
 
-  static const Op tvm_fill_fragment_op = Op::Get("tirx.tvm_fill_fragment");
-  static const Op tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
-  static const Op tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
-  static const Op tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
-  static const Op tvm_bmma_sync_op = Op::Get("tirx.tvm_bmma_sync");
+  static const Op gpu_fill_fragment_op = Op::Get("tirx.gpu_fill_fragment");
+  static const Op gpu_load_matrix_sync_op = Op::Get("tirx.gpu_load_matrix_sync");
+  static const Op gpu_store_matrix_sync_op = Op::Get("tirx.gpu_store_matrix_sync");
+  static const Op gpu_mma_sync_op = Op::Get("tirx.gpu_mma_sync");
+  static const Op bmma_sync_op = Op::Get("tirx.cuda.bmma_sync");
   static const Op mma_store_op = Op::Get("tirx.mma_store");
   static const Op mma_fill_op = Op::Get("tirx.mma_fill");
   static const Op ptx_mma_legacy_op = Op::Get("tirx.ptx_legacy.mma");
@@ -1091,7 +1091,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
   static const Op mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
   static const Op cuda_func_call_op = Op::Get("tirx.cuda.func_call");
 
-  if (op->op.same_as(tvm_fill_fragment_op)) {
+  if (op->op.same_as(gpu_fill_fragment_op)) {
     codegen_tags_.insert("mma");
     TVM_FFI_ICHECK_EQ(op->args.size(), 6U);
     os << "nvcuda::wmma::fill_fragment(";
@@ -1101,7 +1101,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     os << "], ";
     this->PrintExpr(op->args[5], os);
     os << ")";
-  } else if (op->op.same_as(tvm_load_matrix_sync_op)) {
+  } else if (op->op.same_as(gpu_load_matrix_sync_op)) {
     codegen_tags_.insert("mma");
     TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
     os << "nvcuda::wmma::load_matrix_sync(";
@@ -1113,7 +1113,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     os << ", ";
     this->PrintExpr(op->args[6], os);
     os << ")";
-  } else if (op->op.same_as(tvm_store_matrix_sync_op)) {
+  } else if (op->op.same_as(gpu_store_matrix_sync_op)) {
     codegen_tags_.insert("mma");
     TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
     os << "nvcuda::wmma::store_matrix_sync(";
@@ -1130,7 +1130,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
       TVM_FFI_THROW(InternalError) << "Invalid parameters";
     }
     os << ")";
-  } else if (op->op.same_as(tvm_mma_sync_op)) {
+  } else if (op->op.same_as(gpu_mma_sync_op)) {
     codegen_tags_.insert("mma");
     TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
     os << "nvcuda::wmma::mma_sync(";
@@ -1140,7 +1140,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
       this->PrintExpr(op->args[i * 2 + 1], os);
       os << "]" << ((i < 3) ? ", " : ")");
     }
-  } else if (op->op.same_as(tvm_bmma_sync_op)) {
+  } else if (op->op.same_as(bmma_sync_op)) {
     codegen_tags_.insert("mma");
     TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
     os << "nvcuda::wmma::bmma_sync(";
@@ -1430,7 +1430,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
   } else if (op->op.same_as(cuda_func_call_op) ||
              (op->op.as<Op>() && op->op.as<Op>().value()->name == "tirx.cuda.func_call")) {
     print_cuda_func_call(op, os);
-  } else if (op->op.same_as(tirx::thread_return_op())) {
+  } else if (op->op.same_as(tirx::gpu_thread_return_op())) {
     os << "return";
   } else {
     CodeGenC::Dispatch_(op, os);

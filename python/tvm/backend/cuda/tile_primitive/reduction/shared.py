@@ -168,10 +168,10 @@ def _emit_reduction_shared_cta(
     def shuffle_data(thread_data):
         @T.inline
         def inner_shuffle(mask, v, shuffle_mask):
-            v[0] = op_func(v[0], T.tvm_warp_shuffle_xor(mask, v[0], shuffle_mask, group_size, 32))
+            v[0] = op_func(v[0], T.gpu_warp_shuffle_xor(mask, v[0], shuffle_mask, group_size, 32))
 
         if n_shuffles > 0:
-            mask = T.tvm_warp_activemask()
+            mask = T.gpu_warp_activemask()
             for i in range(n_shuffles):
                 inner_shuffle(mask, thread_data, 1 << i)
 

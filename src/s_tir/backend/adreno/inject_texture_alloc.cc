@@ -98,7 +98,7 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
       ffi::Array<Expr> args;
       args.push_back(StringImm(scope));
       args.push_back(IntImm::Int64(3));
-      args.push_back(Call(PointerType(PrimType::Int(64)), tirx::tvm_stack_make_shape_op(),
+      args.push_back(Call(PointerType(PrimType::Int(64)), tirx::stack_make_shape_op(),
                           {texture.width, texture.height, texture.depth}));
       args.push_back(IntImm::Int64(channel_size));
       stmt = Bind(op->var.as_or_throw<TensorVar>(),

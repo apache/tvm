@@ -211,7 +211,7 @@ bool IsThreadInvariant(const PrimExpr& cond) {
   if (auto call = cond.as<CallNode>()) {
     if (auto opt_call_op = call->op.as<Op>()) {
       auto call_op = opt_call_op.value();
-      if (call_op.same_as(tirx::tvm_thread_invariant_op())) {
+      if (call_op.same_as(tirx::gpu_thread_invariant_op())) {
         return true;
       }
     }
@@ -297,12 +297,12 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
       // Recurse without assuming the argument is a TensorLoad.
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
-  } else if (op->op.same_as(tirx::tvm_access_ptr_op())) {
+  } else if (op->op.same_as(tirx::access_ptr_op())) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
     PrimType dtype = op->ty_args[0].as_or_throw<PrimType>();
     auto buffer_var = GetBufferDataVar(op->args[0]);
     if (!buffer_var.has_value()) {
-      // args[0] is not a raw Var — e.g. a nested tvm_access_ptr or some
+      // args[0] is not a raw Var — e.g. a nested access_ptr or some
       // other PrimExpr. Recurse into sub-exprs so any inner buffer var
       // refs still get visited, but don't try to record an access entry
       // here (GetScope on a null Var would dereference a null pointer).
@@ -332,7 +332,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
       }
     }
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-  } else if (op->op.same_as(tirx::tvm_storage_sync_op())) {
+  } else if (op->op.same_as(tirx::gpu_storage_sync_op())) {
     TVM_FFI_ICHECK(allow_append_);
     const std::string& s = op->args[0].as<StringImmNode>()->value;
     if (s != "warp") {

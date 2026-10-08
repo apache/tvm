@@ -63,7 +63,7 @@ A natural native progression, each rung adding one capability:
 #. **Shared-memory reduction** — stage into ``Tx.alloc_shared``, then a
    ``cta_sync``-separated tree (shown in full below). Adds shared memory and a
    block barrier.
-#. **Warp / block reduction** — ``Tx.tvm_warp_shuffle_xor`` or ``Tx.cuda.cta_sum``
+#. **Warp / block reduction** — ``Tx.gpu_warp_shuffle_xor`` or ``Tx.cuda.cta_sum``
    to combine partial results across lanes/warps (the warp all-reduce in
    :doc:`threads_sync`).
 #. **Async pipeline** — ``Tx.ptx.cp.async_`` (or TMA ``cp.async.bulk.tensor``) with

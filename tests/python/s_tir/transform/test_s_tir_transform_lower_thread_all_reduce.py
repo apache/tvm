@@ -63,7 +63,7 @@ def test_basic():
                 reduce = T.alloc_tensor((1,), scope="local")
                 reduce_1 = T.decl_tensor(1, data=reduce.data, scope="local")
 
-                T.tvm_thread_allreduce(
+                T.gpu_thread_allreduce(
                     T.Lambda([T.float32, T.float32], lambda x, y: x + y),
                     T.float32(0),
                     A_flat[0],
@@ -80,7 +80,7 @@ def test_basic():
     assert After is not None
     # Run script roundtrip to verify it can be printed and reparsed
     After_script = After.script()
-    assert "tvm_warp_shuffle" in After_script
+    assert "gpu_warp_shuffle" in After_script
 
 
 def test_basic_with_decl_buffer():
@@ -98,7 +98,7 @@ def test_basic_with_decl_buffer():
 
                 reduce = T.decl_tensor(1, dtype="float32", scope="local")
 
-                T.tvm_thread_allreduce(
+                T.gpu_thread_allreduce(
                     T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
                     (T.float32(0),),
                     (A_flat[0],),
@@ -113,7 +113,7 @@ def test_basic_with_decl_buffer():
     assert After is not None
     assert tvm.tirx.analysis.verify_well_formed(After)
     After_script = After.script()
-    assert "tvm_warp_shuffle" in After_script
+    assert "gpu_warp_shuffle" in After_script
 
 
 def test_reduce_summation():
@@ -142,7 +142,7 @@ def test_reduce_summation():
                         normal_reduce_1[0] + A_flat[i * 128 + ko * 32 + threadIdx_x]
                     )
 
-                T.tvm_thread_allreduce(
+                T.gpu_thread_allreduce(
                     T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
                     (T.float32(0),),
                     (normal_reduce_1[0],),
@@ -156,7 +156,7 @@ def test_reduce_summation():
     After = transform(Before)
     assert After is not None
     After_script = After.script()
-    assert "tvm_warp_shuffle" in After_script
+    assert "gpu_warp_shuffle" in After_script
 
 
 def test_multi_group_reduction():
@@ -172,7 +172,7 @@ def test_multi_group_reduction():
             threadIdx_x = T.launch_thread("threadIdx.x", 32)
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
             A_1 = T.decl_tensor((1024,), data=A.data)
-            T.tvm_thread_allreduce(
+            T.gpu_thread_allreduce(
                 T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
                 (A_1[threadIdx_y * 32 + threadIdx_x],),
@@ -187,7 +187,7 @@ def test_multi_group_reduction():
     After = transform(Before)
     assert After is not None
     After_script = After.script()
-    assert "tvm_warp_shuffle" in After_script
+    assert "gpu_warp_shuffle" in After_script
 
 
 def test_multi_group_reduction_consumed_through_alias():
@@ -203,7 +203,7 @@ def test_multi_group_reduction_consumed_through_alias():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             cross_thread_B_alias = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
             A_flat = T.decl_tensor((512,), data=A.data)
-            T.tvm_thread_allreduce(
+            T.gpu_thread_allreduce(
                 T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
                 (A_flat[threadIdx_y * 128 + threadIdx_x],),
@@ -238,7 +238,7 @@ def test_multi_group_reduction_with_alias_declared_after_allreduce():
             cross_thread_B = T.alloc_tensor((1,), scope="local")
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             A_flat = T.decl_tensor((512,), data=A.data)
-            T.tvm_thread_allreduce(
+            T.gpu_thread_allreduce(
                 T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
                 (A_flat[threadIdx_y * 128 + threadIdx_x],),
@@ -275,7 +275,7 @@ def test_multi_group_mask1():
             threadIdx_x = T.launch_thread("threadIdx.x", 8)
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
             A_1 = T.decl_tensor((256,), data=A.data)
-            T.tvm_thread_allreduce(
+            T.gpu_thread_allreduce(
                 T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
                 (A_1[threadIdx_y * 8 + threadIdx_x],),
@@ -290,7 +290,7 @@ def test_multi_group_mask1():
     After = transform(Before)
     assert After is not None
     After_script = After.script()
-    assert "tvm_warp_shuffle" in After_script
+    assert "gpu_warp_shuffle" in After_script
 
 
 def test_multi_warp_reduce1():
@@ -306,7 +306,7 @@ def test_multi_warp_reduce1():
                 cross_thread_B = T.alloc_tensor((1,), scope="local")
                 cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
                 A_1 = T.decl_tensor((16384,), data=A.data)
-                T.tvm_thread_allreduce(
+                T.gpu_thread_allreduce(
                     T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                     (T.float32(0),),
                     (A_1[i * 128 + threadIdx_x],),
@@ -321,8 +321,8 @@ def test_multi_warp_reduce1():
     After = transform(Before)
     assert After is not None
     After_script = After.script()
-    assert "tvm_warp_shuffle" in After_script
-    assert "tvm_storage_sync" in After_script  # multi-warp needs shared sync
+    assert "gpu_warp_shuffle" in After_script
+    assert "gpu_storage_sync" in After_script  # multi-warp needs shared sync
 
 
 def test_multi_warp_reduce2():
@@ -337,7 +337,7 @@ def test_multi_warp_reduce2():
             cross_thread_B = T.alloc_tensor((1,), scope="local")
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
             A_1 = T.decl_tensor((1024,), data=A.data)
-            T.tvm_thread_allreduce(
+            T.gpu_thread_allreduce(
                 T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
                 (A_1[threadIdx_x],),
@@ -352,8 +352,8 @@ def test_multi_warp_reduce2():
     After = transform(Before)
     assert After is not None
     After_script = After.script()
-    assert "tvm_warp_shuffle" in After_script
-    assert "tvm_storage_sync" in After_script
+    assert "gpu_warp_shuffle" in After_script
+    assert "gpu_storage_sync" in After_script
 
 
 def test_multi_group_multi_warp_reduction():
@@ -369,7 +369,7 @@ def test_multi_group_multi_warp_reduction():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
             A_1 = T.decl_tensor((512,), data=A.data)
-            T.tvm_thread_allreduce(
+            T.gpu_thread_allreduce(
                 T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
                 (A_1[threadIdx_y * 128 + threadIdx_x],),
@@ -384,8 +384,8 @@ def test_multi_group_multi_warp_reduction():
     After = transform(Before)
     assert After is not None
     After_script = After.script()
-    assert "tvm_warp_shuffle" in After_script
-    assert "tvm_storage_sync" in After_script
+    assert "gpu_warp_shuffle" in After_script
+    assert "gpu_storage_sync" in After_script
 
 
 def test_multi_group_multi_warp_predicated_reduction():
@@ -406,7 +406,7 @@ def test_multi_group_multi_warp_predicated_reduction():
                 A_1 = T.decl_tensor((140,), data=A.data)
                 in_thread_B_1[0] = in_thread_B_1[0] + A_1[threadIdx_y * 70 + threadIdx_x]
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
-            T.tvm_thread_allreduce(
+            T.gpu_thread_allreduce(
                 T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
                 (in_thread_B_1[0],),
@@ -421,8 +421,8 @@ def test_multi_group_multi_warp_predicated_reduction():
     After = transform(Before)
     assert After is not None
     After_script = After.script()
-    assert "tvm_warp_shuffle" in After_script
-    assert "tvm_storage_sync" in After_script
+    assert "gpu_warp_shuffle" in After_script
+    assert "gpu_storage_sync" in After_script
 
 
 def test_metal_no_mask():
@@ -451,7 +451,7 @@ def test_metal_no_mask():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
             A_1 = T.decl_tensor((256,), data=A.data)
-            T.tvm_thread_allreduce(
+            T.gpu_thread_allreduce(
                 T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
                 (A_1[threadIdx_y * 128 + threadIdx_x],),
@@ -467,8 +467,8 @@ def test_metal_no_mask():
     assert After is not None
     After_script = After.script()
     # Metal does not use warp masks
-    assert "tvm_warp_shuffle_down" in After_script
-    assert "tvm_storage_sync" in After_script
+    assert "gpu_warp_shuffle_down" in After_script
+    assert "gpu_storage_sync" in After_script
 
 
 def test_webgpu_warp_reduce():
@@ -498,7 +498,7 @@ def test_webgpu_warp_reduce():
                 reduce = T.decl_tensor(1, data=reduce_data.data, scope="local")
                 reduce_alias = T.decl_tensor(1, data=reduce.data, scope="local")
 
-                T.tvm_thread_allreduce(
+                T.gpu_thread_allreduce(
                     T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
                     (T.float32(0),),
                     (A_flat[0],),
@@ -513,9 +513,9 @@ def test_webgpu_warp_reduce():
     assert After is not None
     assert tvm.tirx.analysis.verify_well_formed(After)
     After_script = After.script()
-    assert "tvm_warp_shuffle_down" in After_script
-    assert "tvm_warp_shuffle(" in After_script
-    assert "tvm_storage_sync" not in After_script
+    assert "gpu_warp_shuffle_down" in After_script
+    assert "gpu_warp_shuffle(" in After_script
+    assert "gpu_storage_sync" not in After_script
     assert "T.uint32(" not in After_script
 
 
@@ -545,7 +545,7 @@ def test_webgpu_multi_warp_reduce():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
             A_1 = T.decl_tensor((256,), data=A.data)
-            T.tvm_thread_allreduce(
+            T.gpu_thread_allreduce(
                 T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
                 (A_1[threadIdx_y * 128 + threadIdx_x],),
@@ -560,8 +560,8 @@ def test_webgpu_multi_warp_reduce():
     After = transform(Before)
     assert After is not None
     After_script = After.script()
-    assert "tvm_warp_shuffle_down" in After_script
-    assert "tvm_storage_sync" in After_script
+    assert "gpu_warp_shuffle_down" in After_script
+    assert "gpu_storage_sync" in After_script
     assert _has_volatile_alloc_buffer(After)
     assert "T.uint32(" not in After_script
 

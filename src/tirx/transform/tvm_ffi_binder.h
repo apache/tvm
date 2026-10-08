@@ -303,7 +303,7 @@ class TVMFFIABIBuilder {
   /*!
    * \brief Load an element from a shape/strides int64 array pointer.
    *
-   * Uses tvm_struct_get with kInt64ArrayElem to access ptr[index].
+   * Uses abi_field_get with kInt64ArrayElem to access ptr[index].
    *
    * \param ptr The int64 array pointer variable (from DLTensorGetFieldPtr).
    * \param index The element index to load.

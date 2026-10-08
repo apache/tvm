@@ -102,12 +102,10 @@ inline ffi::Array<Tensor> make_extern(const ffi::Array<ffi::Array<PrimExpr>>& ou
 inline Expr pack_buffer(TensorVar buf) {
   using namespace tvm::prim;
   TVM_FFI_ICHECK_GT(buf->shape.size(), 0) << "buf shape must have at least one element";
-  Expr shape =
-      Call(PointerType(PrimType::Int(64)), tvm::tirx::tvm_stack_make_shape_op(), buf->shape);
+  Expr shape = Call(PointerType(PrimType::Int(64)), tvm::tirx::stack_make_shape_op(), buf->shape);
   Expr strides;
   if (buf->strides.size() > 0) {
-    strides =
-        Call(PointerType(PrimType::Int(64)), tvm::tirx::tvm_stack_make_shape_op(), buf->strides);
+    strides = Call(PointerType(PrimType::Int(64)), tvm::tirx::stack_make_shape_op(), buf->strides);
   } else {
     strides = PrimExpr(0);
   }
@@ -117,7 +115,7 @@ inline Expr pack_buffer(TensorVar buf) {
                              IntImm::Int32(static_cast<int64_t>(buf->shape.size())),
                              MakeConst(PrimType(buf->dtype), 0),
                              buf->elem_offset};
-  return Call(PointerType::VoidPointerTy(), tvm::tirx::tvm_stack_make_array_op(), pack_args);
+  return Call(PointerType::VoidPointerTy(), tvm::tirx::stack_make_dltensor_op(), pack_args);
 }
 
 /*!
@@ -130,7 +128,7 @@ inline Expr pack_buffer(TensorVar buf) {
  * \return An expression representing the invocation
  */
 inline PrimExpr call_packed(ffi::Array<Expr> args) {
-  return Call(PrimType::Int(32), tvm::tirx::tvm_call_packed_op(), args).as_or_throw<PrimExpr>();
+  return Call(PrimType::Int(32), tvm::tirx::call_packed_op(), args).as_or_throw<PrimExpr>();
 }
 
 }  // namespace detail

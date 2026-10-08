@@ -884,8 +884,8 @@ _TMA_S2G_CACHE = "cp.async.bulk.tensor.2d.global.shared::cta.tile.bulk_group.L2:
 def test_tma_cache_policy_operand_codegen():
     @T.function
     def main(Cache: T.Tensor((1,), "uint64")):
-        A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
-        B_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
+        A_map: T.let[T.handle("tensormap")] = T.stack_alloca("tensormap", 1)
+        B_map: T.let[T.handle("tensormap")] = T.stack_alloca("tensormap", 1)
 
         T.device_entry()
         tx = T.thread_id([32])
@@ -1051,7 +1051,7 @@ def test_warp_shuffle_xor_sync():
         A_local[0] = T.float32(31 - lane_id)
         i[0] = 16
         while i[0] >= 1:
-            A_local[0] += T.tvm_warp_shuffle_xor(0xFFFFFFFF, A_local[0], i[0], 32, 32)
+            A_local[0] += T.gpu_warp_shuffle_xor(0xFFFFFFFF, A_local[0], i[0], 32, 32)
             i[0] = i[0] // 2
 
         A[lane_id] = A_local[0]

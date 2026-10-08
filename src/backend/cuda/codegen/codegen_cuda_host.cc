@@ -133,7 +133,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
   }
 
   void Dispatch_(const CallNode* op, std::ostream& os) override {
-    if (op->op.same_as(tirx::tvm_stack_alloca_op()) &&
+    if (op->op.same_as(tirx::stack_alloca_op()) &&
         op->args[0].as_or_throw<StringImm>()->value == "tensormap") {
       auto count = op->args[1].as_or_throw<IntImm>()->value.as<int64_t>();
       TVM_FFI_CHECK(count.has_value() && *count > 0, ValueError)
@@ -144,7 +144,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
       os << name;
       return;
     }
-    if (op->op.same_as(tirx::tvm_call_packed_lowered_op())) {
+    if (op->op.same_as(tirx::call_packed_lowered_op())) {
       const auto& name = op->args[0].as_or_throw<StringImm>()->value;
       if (name == "runtime.cuTensorMapEncodeTiled" || name == "runtime.cuTensorMapInit") {
         TVM_FFI_THROW(ValueError)

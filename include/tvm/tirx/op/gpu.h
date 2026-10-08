@@ -32,7 +32,7 @@ namespace tvm::tirx {
 /*!
  * \brief Return from a GPU thread without returning a function value.
  */
-TVM_DLL const Op& thread_return_op();
+TVM_DLL const Op& gpu_thread_return_op();
 
 /*!
  * \brief Return from a GPU thread without returning a function value.
@@ -40,26 +40,27 @@ TVM_DLL const Op& thread_return_op();
  * \param span The location of this operation in the source.
  * \return The thread return expression.
  */
-TVM_DLL PrimExpr thread_return(Span span = Span());
+TVM_DLL PrimExpr gpu_thread_return(Span span = Span());
 
 /*!
- * \brief Thread-set filter predicate. Used as the condition of an IfThenElse
- * to narrow the active thread set A for the then-branch. Two forms:
- *   filter(var, lo, hi)   -- range form, true iff var in [lo, hi)
- *   filter(var, cond)     -- predicate form (e.g. var == k); true iff cond
- * `var` must be a ScopeIdDef-declared Var at parse time (Verifier Rule 2).
+ * \brief Mark an opaque predicate that selects one thread on an active-set axis.
+ *
+ * Arguments, in order:
+ * - args[0]: var, The ScopeIdDef-declared thread-axis variable.
+ * - args[1]: pred, The runtime predicate used as an IfThenElse condition.
+ * Canonical thread predicates can be used directly without this wrapper.
  */
-TVM_DLL const Op& filter_op();
+TVM_DLL const Op& gpu_thread_filter_op();
 
 /*!
  * \brief Analysis-only active-thread selector.
  *
- * ``selector(var, pred)`` denotes the unique value of ``var`` in the current
+ * ``gpu_active_thread_selector(var, pred)`` denotes the unique value of ``var`` in the current
  * active domain for which ``pred`` is true. It is used only inside
  * ExecContext/DispatchContext metadata, for predicates such as
  * ``ptx.elect_sync()`` whose selected lane cannot be inferred structurally.
  */
-TVM_DLL const Op& selector_op();
+TVM_DLL const Op& gpu_active_thread_selector_op();
 
 /*!
  * \brief Mark a condition to be thread invariant.
@@ -67,7 +68,7 @@ TVM_DLL const Op& selector_op();
  * Arguments, in order:
  * - args[0]: cond, The condition.
  */
-TVM_DLL const Op& tvm_thread_invariant_op();
+TVM_DLL const Op& gpu_thread_invariant_op();
 
 /*!
  * \brief Synchronize accesses in a storage scope.
@@ -75,7 +76,7 @@ TVM_DLL const Op& tvm_thread_invariant_op();
  * Arguments, in order:
  * - args[0]: storage_scope, The storage scope.
  */
-TVM_DLL const Op& tvm_storage_sync_op();
+TVM_DLL const Op& gpu_storage_sync_op();
 
 /*!
  * \brief Read the value from a selected lane in the warp.
@@ -87,7 +88,7 @@ TVM_DLL const Op& tvm_storage_sync_op();
  * - args[3]: width, The width.
  * - args[4]: warp_size, The number of threads per warp.
  */
-TVM_DLL const Op& tvm_warp_shuffle_op();
+TVM_DLL const Op& gpu_warp_shuffle_op();
 
 /*!
  * \brief Read the value from a lower lane in the warp.
@@ -99,7 +100,7 @@ TVM_DLL const Op& tvm_warp_shuffle_op();
  * - args[3]: width, The width.
  * - args[4]: warp_size, The number of threads per warp.
  */
-TVM_DLL const Op& tvm_warp_shuffle_up_op();
+TVM_DLL const Op& gpu_warp_shuffle_up_op();
 
 /*!
  * \brief Read the value from a higher lane in the warp.
@@ -111,7 +112,7 @@ TVM_DLL const Op& tvm_warp_shuffle_up_op();
  * - args[3]: width, The width.
  * - args[4]: warp_size, The number of threads per warp.
  */
-TVM_DLL const Op& tvm_warp_shuffle_down_op();
+TVM_DLL const Op& gpu_warp_shuffle_down_op();
 
 /*!
  * \brief Read the value from the lane selected by an XOR mask.
@@ -123,17 +124,17 @@ TVM_DLL const Op& tvm_warp_shuffle_down_op();
  * - args[3]: width, The width.
  * - args[4]: warp_size, The number of threads per warp.
  */
-TVM_DLL const Op& tvm_warp_shuffle_xor_op();
+TVM_DLL const Op& gpu_warp_shuffle_xor_op();
 
 /*!
  * \brief Return the bit mask of active lanes in the warp.
  */
-TVM_DLL const Op& tvm_warp_activemask_op();
+TVM_DLL const Op& gpu_warp_activemask_op();
 
 /*!
  * \brief Cross-thread reduction with an explicit typed combiner and identities.
  *
- * void tvm_thread_allreduce(LambdaExpr combine, Expr identity, Expr values,
+ * void gpu_thread_allreduce(LambdaExpr combine, Expr identity, Expr values,
  *                           PrimExpr predicate, Expr destinations, Expr thread_axes);
  *
  * For N values, combine binds lhs[0:N] followed by rhs[0:N] and returns an
@@ -148,7 +149,7 @@ TVM_DLL const Op& tvm_warp_activemask_op();
  * Other thread indices remain fixed. The operation writes the reduced values
  * to the destination tensors and returns void.
  */
-TVM_DLL const Op& tvm_thread_allreduce_op();
+TVM_DLL const Op& gpu_thread_allreduce_op();
 
 inline ffi::Array<Expr> GetAllreduceFields(const Expr& value) {
   if (const auto* tuple = value.as<tvm::TupleNode>()) return tuple->fields;
@@ -163,7 +164,7 @@ inline ffi::Array<Expr> GetAllreduceFields(const Expr& value) {
  * - args[1]: vec2, The second input vector.
  * - args[2]: acc, The accumulator.
  */
-TVM_DLL const Op& dp4a_op();
+TVM_DLL const Op& gpu_dp4a_op();
 
 }  // namespace tvm::tirx
 

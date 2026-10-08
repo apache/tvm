@@ -63,17 +63,16 @@ from .op import call_packed_lowered, call_cpacked_lowered, register_intrin_lower
 from .op import call_packed, call_cpacked, call_intrin, call_pure_extern, call_extern
 from .op import CallFFIKernelAttr, call_ffi_kernel
 from .op import call_llvm_intrin, call_llvm_pure_intrin, all, any, min_value, max_value
-from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
-from .op import handle_add_byte_offset, tvm_struct_get, tvm_struct_set
+from .op import stack_alloca, stack_make_shape, stack_make_dltensor
+from .op import handle_add_byte_offset, abi_field_get, abi_field_set
 from .op import address_of, assume, assume_aligned, undef
-from .op import tvm_thread_allreduce, tvm_access_ptr, ptr_byte_offset
-from .op import tvm_throw_last_error, cpu_parallel_barrier
+from .op import gpu_thread_allreduce, access_ptr, ptr_byte_offset
+from .op import throw_last_error, cpu_parallel_barrier
 from .op import (
-    tvm_load_matrix_sync,
-    tvm_store_matrix_sync,
-    tvm_mma_sync,
-    tvm_bmma_sync,
-    tvm_fill_fragment,
+    gpu_load_matrix_sync,
+    gpu_store_matrix_sync,
+    gpu_mma_sync,
+    gpu_fill_fragment,
 )
 from .op import vectorlow, vectorhigh, vectorcombine
 from .op import infinity, reinterpret
@@ -88,9 +87,9 @@ from .op import likely, isnan, isnullptr, isfinite, isinf, copysign
 from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod, ceildiv, logaddexp
 from .op import min, max
 from .op import shift_left, shift_right
-from .op import TVMBackendAllocWorkspace, TVMBackendFreeWorkspace
+from .op import alloc_workspace, free_workspace
 from .op import vscale, get_active_lane_mask, get_vscale_expr
-from .op import dp4a
+from .op import gpu_dp4a
 from .op import ignore_loop_partition
 
 # TIRX-specific imports (must come before subpackage imports to avoid circular imports)

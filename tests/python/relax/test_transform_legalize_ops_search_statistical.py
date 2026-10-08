@@ -865,11 +865,11 @@ def test_median():
             with Ts.sblock("argsort_cpu"):
                 Ts.reads()
                 Ts.writes()
-                T.call_packed("tvm.contrib.sort.argsort", T.tvm_stack_make_array(data_buf.data,
-                                                                                 T.tvm_stack_make_shape(T.int64(2), T.int64(3), T.int64(4), T.int64(5)),
+                T.call_packed("tvm.contrib.sort.argsort", T.stack_make_dltensor(data_buf.data,
+                                                                                 T.stack_make_shape(T.int64(2), T.int64(3), T.int64(4), T.int64(5)),
                                                                                  0, 4, T.float32(0.0), T.int64(0)),
-                                                          T.tvm_stack_make_array(out_buf.data,
-                                                                                 T.tvm_stack_make_shape(T.int64(2), T.int64(3), T.int64(4), T.int64(5)),
+                                                          T.stack_make_dltensor(out_buf.data,
+                                                                                 T.stack_make_shape(T.int64(2), T.int64(3), T.int64(4), T.int64(5)),
                                                                                  0, 4, T.int64(0), T.int64(0)),
                                                           0, T.bool(True))
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):

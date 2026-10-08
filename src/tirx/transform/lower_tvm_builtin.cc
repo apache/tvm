@@ -79,13 +79,13 @@ class BuiltinLower : public StmtExprMutator {
 
   // NOTE: Right now, we make the following scoping requirement
   // for memory allocated by the following primitives
-  // - tvm_stack_make_array
-  // - tvm_stack_make_shape
+  // - stack_make_dltensor
+  // - stack_make_shape
   // - arg stack
   //
   // Scoping and liveness rules:
   // - Every call_packed introduce a new scope.
-  // - The memory allocated by tvm_stack_make_array/make_shape will
+  // - The memory allocated by stack_make_dltensor/make_shape will
   //   no longer become valid outside the scope (and may be reused by
   //   subsequent call_packed.
   // - TODO(tvm-team): we might consider a root scope so stack_make_shape
@@ -107,7 +107,7 @@ class BuiltinLower : public StmtExprMutator {
   //  to do full-scale liveness analysis and it does its job.
   //  Alternative approaches can also be used.
   struct StackSizes {
-    // If a tvm_stack_make_shape call has no arguments, it is still
+    // If a stack_make_shape call has no arguments, it is still
     // valid and represents a scalar shape ().  Therefore, -1 is used
     // to represent "no shape arguments exist", while 0 represents
     // "shape arguments exist, all of which are size 0".
@@ -239,9 +239,9 @@ class BuiltinLower : public StmtExprMutator {
       TVM_FFI_ICHECK_EQ(alloca_scope_.size(), scope_size)
           << "alloca_scope_ length is different before and after recursion";
       TVM_FFI_ICHECK_EQ(scope.run_sizes.shape_stack, -1)
-          << "Expect no tvm_stack_make_shape outside of CallNodes";
+          << "Expect no stack_make_shape outside of CallNodes";
       TVM_FFI_ICHECK_EQ(scope.run_sizes.array_stack, 0)
-          << "Expect no tvm_stack_make_array outside of CallNodes";
+          << "Expect no stack_make_dltensor outside of CallNodes";
     }
 
     auto prep_seq = std::move(prep_seq_stack_.back());
@@ -303,15 +303,15 @@ class BuiltinLower : public StmtExprMutator {
     TVM_FFI_ICHECK(device_type_) << "Unknown device type in current IR";
     TVM_FFI_ICHECK(device_id_) << "Unknown device id in current IR";
     Stmt throw_last_error =
-        Evaluate(Call(PrimType::Int(32), tvm_throw_last_error_op(), {}).as_or_throw<PrimExpr>());
+        Evaluate(Call(PrimType::Int(32), throw_last_error_op(), {}).as_or_throw<PrimExpr>());
 
     Stmt alloc_nullptr_check =
         IfThenElse(Call(PrimType::Bool(), isnullptr_op(), {op->var.as_or_throw<TensorVar>().data()})
                        .as_or_throw<PrimExpr>(),
                    throw_last_error);
 
-    static const Op free_workspace_op = Op::Get("tirx.TVMBackendFreeWorkspace");
-    static const Op alloc_workspace_op = Op::Get("tirx.TVMBackendAllocWorkspace");
+    static const Op free_workspace_op = Op::Get("tirx.free_workspace");
+    static const Op alloc_workspace_op = Op::Get("tirx.alloc_workspace");
     PrimExpr free_op = Call(PrimType::Int(32), free_workspace_op,
                             {prim::cast(PrimType::Int(32), device_type_.value()),
                              prim::cast(PrimType::Int(32), device_id_.value()),
@@ -445,17 +445,17 @@ class BuiltinLower : public StmtExprMutator {
       if (attr->force_cu_dtype != -1) {
         args.push_back(IntImm(PrimType::Int(32), attr->force_cu_dtype));
       }
-      Call packed(op->ty, tvm_call_packed_op(), args);
-      return MakeCallPackedGeneric(packed.get(), 0, tvm_call_packed_lowered_op());
+      Call packed(op->ty, call_packed_op(), args);
+      return MakeCallPackedGeneric(packed.get(), 0, call_packed_lowered_op());
     }
-    if (op->op.same_as(tvm_call_packed_op()) ||
+    if (op->op.same_as(call_packed_op()) ||
         (op->op.same_as(call_ffi_kernel_op()) && !preserve_ffi_kernel_)) {
-      return MakeCallPackedGeneric(op, 0, tvm_call_packed_lowered_op());
-    } else if (op->op.same_as(tvm_call_cpacked_op())) {
-      return MakeCallPackedGeneric(op, 0, tvm_call_cpacked_lowered_op());
-    } else if (op->op.same_as(tvm_stack_make_shape_op())) {
+      return MakeCallPackedGeneric(op, 0, call_packed_lowered_op());
+    } else if (op->op.same_as(call_cpacked_op())) {
+      return MakeCallPackedGeneric(op, 0, call_cpacked_lowered_op());
+    } else if (op->op.same_as(stack_make_shape_op())) {
       return MakeShape(op);
-    } else if (op->op.same_as(tvm_stack_make_array_op())) {
+    } else if (op->op.same_as(stack_make_dltensor_op())) {
       return MakeArray(op);
     } else {
       return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -659,7 +659,7 @@ class BuiltinLower : public StmtExprMutator {
     TVM_FFI_ICHECK(device_type_) << "Unknown device type in current IR";
     TVM_FFI_ICHECK(device_id_) << "Unknown device id in current IR";
     Stmt throw_last_error =
-        Evaluate(Call(PrimType::Int(32), tvm_throw_last_error_op(), {}).as_or_throw<PrimExpr>());
+        Evaluate(Call(PrimType::Int(32), throw_last_error_op(), {}).as_or_throw<PrimExpr>());
 
     const auto* dtype_node = let->var->ty.as<PointerTypeNode>()->element_type.as<PrimTypeNode>();
     TVM_FFI_ICHECK(dtype_node);
@@ -674,7 +674,7 @@ class BuiltinLower : public StmtExprMutator {
       args.push_back(call->args[i]);
     }
 
-    Call call_packed = Call(let->var->ty, tvm_call_packed_op(), args);
+    Call call_packed = Call(let->var->ty, call_packed_op(), args);
     Stmt null_check = IfThenElse(
         Call(PrimType::Bool(), isnullptr_op(), ffi::Array<Expr>{let->var}).as_or_throw<PrimExpr>(),
         throw_last_error);
@@ -682,18 +682,18 @@ class BuiltinLower : public StmtExprMutator {
     // Construct free_nd call and register in current scope.
     // The free will be emitted on scope exit, matching the old LetStmt body semantics.
     Expr storage_scope = call->args[0];
-    Call free_op = Call(PrimType::Int(32), tvm_call_packed_op(),
+    Call free_op = Call(PrimType::Int(32), call_packed_op(),
                         {GetDeviceMethodName("free_nd"), device_type_.value(), device_id_.value(),
                          storage_scope, let->var});
     Stmt free_stmt =
         IfThenElse(free_op.as_or_throw<PrimExpr>() != IntImm::Int32(0), throw_last_error);
-    // Visit the free_stmt so tvm_call_packed builtins inside it get lowered.
+    // Visit the free_stmt so call_packed builtins inside it get lowered.
     free_stmt = StmtExprMutator::Mutate(ffi::AnyView(free_stmt), InplaceMode::kDisallow)
                     .ValueOrUnchanged(free_stmt)
                     .as_or_throw<Stmt>();
     scope_.Current().pending_frees.push_back(free_stmt);
 
-    // Re-visit so tvm_call_packed in the Bind value and null_check get lowered.
+    // Re-visit so call_packed in the Bind value and null_check get lowered.
     Stmt input = SeqStmt({Bind(let->var, call_packed), null_check});
     return StmtExprMutator::Mutate(ffi::AnyView(input), InplaceMode::kDisallow)
         .ValueOrUnchanged(input)
@@ -704,7 +704,7 @@ class BuiltinLower : public StmtExprMutator {
   bool IsArrayHandle(const Expr& arg) {
     // specially set array handle.
     if (const CallNode* buf = arg.as<CallNode>()) {
-      if (buf->op.same_as(tvm_struct_get_op()) &&
+      if (buf->op.same_as(abi_field_get_op()) &&
           buf->args[2].as<IntImmNode>()->value == kDLTensorAddr) {
         return true;
       }

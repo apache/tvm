@@ -2055,7 +2055,7 @@ def _get_or_encode_descriptor(spec: TensorMapSpec, sctx: DispatchContext):
     # fmt: off
     @T.function(check_well_formed=False)
     def create_tensor_map():
-        T.bind(T.tvm_stack_alloca("tensormap", 1), var=tensor_map)
+        T.bind(T.stack_alloca("tensormap", 1), var=tensor_map)
         T.cuda.tensormap_encode_tiled(
             tensor_map,
             spec.base,
@@ -2071,7 +2071,7 @@ def _get_or_encode_descriptor(spec: TensorMapSpec, sctx: DispatchContext):
             oob_fill=spec.oob_fill,
             force_cu_dtype=spec.force_cu_dtype,
         )
-        T.tvm_kernel_replace_point()
+        T.kernel_replace_point()
     # fmt: on
 
     sctx.add_init_stmt(create_tensor_map.body, host=True)
@@ -2093,7 +2093,7 @@ def _prefetch_main_descriptor(tensor_map, key: str, sctx: DispatchContext) -> No
         if warp_id == 0:
             if T.cuda.elect_sync() != T.uint32(0):
                 T.ptx.prefetch.tensormap(T.address_of(tensor_map))
-        T.tvm_kernel_replace_point()
+        T.kernel_replace_point()
     # fmt: on
 
     sctx.add_init_stmt(prefetch_tensor_map.body)

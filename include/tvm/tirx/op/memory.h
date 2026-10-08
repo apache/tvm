@@ -121,7 +121,7 @@ TVM_DLL const Op& prefetch_op();
  * - args[3]: rw_mask, The read/write mask.
  * - ty_args[0]: The independent access element type.
  */
-TVM_DLL const Op& tvm_access_ptr_op();
+TVM_DLL const Op& access_ptr_op();
 
 /*!
  * \brief Cast a handle to a typed pointer after adding a byte offset.
@@ -136,7 +136,7 @@ TVM_DLL const Op& ptr_byte_offset_op();
 /*!
  * \brief Create a function local static handle that iniitalizes to nullptr.
  */
-TVM_DLL const Op& tvm_static_handle_op();
+TVM_DLL const Op& static_handle_op();
 
 /*!
  * \brief Add a byte offset to an opaque pointer.

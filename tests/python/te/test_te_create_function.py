@@ -255,27 +255,27 @@ def tir_extern(
         Ts.reads()
         Ts.writes()
         T.evaluate(
-            T.tvm_call_packed(
+            T.call_packed(
                 "tvm.contrib.cblas.matmul",
-                T.tvm_stack_make_array(
+                T.stack_make_dltensor(
                     A.data,
-                    T.tvm_stack_make_shape(128, 128),
+                    T.stack_make_shape(128, 128),
                     0,
                     2,
                     0.0,
                     off1,
                 ),
-                T.tvm_stack_make_array(
+                T.stack_make_dltensor(
                     B.data,
-                    T.tvm_stack_make_shape(128, 128),
+                    T.stack_make_shape(128, 128),
                     0,
                     2,
                     0.0,
                     off2,
                 ),
-                T.tvm_stack_make_array(
+                T.stack_make_dltensor(
                     C.data,
-                    T.tvm_stack_make_shape(128, 128),
+                    T.stack_make_shape(128, 128),
                     0,
                     2,
                     0.0,

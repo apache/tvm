@@ -317,7 +317,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                             batch_idx[0] = 0
                             batch_rows[0] = (q_indptr[1] - q_indptr[0]) * group_size
                             batch_tiles[0] = T.ceildiv(batch_rows[0], tile_x)
-                            while T.tvm_thread_invariant(batch_idx[0] < batch_size_plus_1 - 1):
+                            while T.gpu_thread_invariant(batch_idx[0] < batch_size_plus_1 - 1):
                                 # advance to next tile
                                 while tile_id[0] >= batch_tiles[0] and batch_idx[0] < batch_size_plus_1 - 1:
                                     tile_id[0] -= batch_tiles[0]
@@ -327,13 +327,13 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                                         batch_rows[0] = (q_indptr[b_idx + 1] - q_indptr[b_idx]) * group_size
                                         batch_tiles[0] = T.ceildiv(batch_rows[0], tile_x)
 
-                                if T.tvm_thread_invariant(batch_idx[0] < batch_size_plus_1 - 1):
+                                if T.gpu_thread_invariant(batch_idx[0] < batch_size_plus_1 - 1):
                                     b_idx: T.let[T.int32()] = batch_idx[0]
                                     LH_start: T.let[T.int32()] = tile_id[0] * tile_x
                                     q_indptr_val: T.let[T.int32] = q_indptr[b_idx]
 
                                     kv_chunk_len[0] = kv_indptr[b_idx + 1] - kv_indptr[b_idx]
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     # init states
                                     for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
@@ -346,7 +346,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                                         with Ts.sblock("O_init"):
                                             i, j = Ts.axis.remap("SS", [li, lj])
                                             O_local[i, j] = 0.0
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     # Load Q from gmem to smem
                                     for li, lj in T.grid(tile_x, tile_y):
@@ -364,7 +364,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                                                 )
                                             else:
                                                 Q_smem[i, j] = 0.0
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     for iterator in T.serial(T.ceildiv(kv_chunk_len[0], tile_z)):
                                         L_kv_start: T.let[T.int32] = iterator * tile_z
@@ -385,7 +385,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                                                 else:
                                                     K_smem[i, j] = 0.0
                                                     V_smem[i, j] = 0.0
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
 
                                         # Compute S
                                         with Ts.sblock():
@@ -395,12 +395,12 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                                                     with Ts.init():
                                                         S_local[i, j] = 0.0
                                                     S_local[i, j] += T.cast(Q_smem[i, k_axis], "float32") * T.cast(K_smem[j, k_axis], "float32") * sm_scale * math.log2(math.exp(1))
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
                                         for li, lj in T.grid(tile_x, tile_z):
                                             with Ts.sblock("S_store"):
                                                 i, j = Ts.axis.remap("SS", [li, lj])
                                                 S_smem[i, j] = S_local[i, j]
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
 
                                         # Update S, m, d
                                         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
@@ -451,7 +451,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                                                     m_smem[row] = m_new[i]
                                                     d_smem[row] = d_new[i]
                                                     m_prev_smem[row] = m_prev[i]
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
 
                                         # Update O
                                         with Ts.sblock():
@@ -824,7 +824,7 @@ def tree_attn_with_paged_kv_cache(
                             batch_idx[0] = 0
                             batch_rows[0] = (q_indptr[1] - q_indptr[0]) * group_size
                             batch_tiles[0] = T.ceildiv(batch_rows[0], tile_x)
-                            while T.tvm_thread_invariant(batch_idx[0] < batch_size):
+                            while T.gpu_thread_invariant(batch_idx[0] < batch_size):
                                 # advance to next tile
                                 while tile_id[0] >= batch_tiles[0] and batch_idx[0] < batch_size:
                                     tile_id[0] -= batch_tiles[0]
@@ -836,7 +836,7 @@ def tree_attn_with_paged_kv_cache(
                                         ) * group_size
                                         batch_tiles[0] = T.ceildiv(batch_rows[0], tile_x)
 
-                                if T.tvm_thread_invariant(batch_idx[0] < batch_size):
+                                if T.gpu_thread_invariant(batch_idx[0] < batch_size):
                                     b_idx: T.let[T.int32()] = batch_idx[0]
                                     LH_start: T.let[T.int32()] = tile_id[0] * tile_x
                                     q_indptr_val: T.let[T.int32] = q_indptr[b_idx]
@@ -854,7 +854,7 @@ def tree_attn_with_paged_kv_cache(
                                         ),
                                         0,
                                     )
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     # init states
                                     for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
@@ -867,7 +867,7 @@ def tree_attn_with_paged_kv_cache(
                                         with Ts.sblock("O_init"):
                                             i, j = Ts.axis.remap("SS", [li, lj])
                                             O_local[i, j] = 0.0
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     # Load Q from gmem to smem
                                     for li, lj in T.grid(tile_x, tile_y):
@@ -894,7 +894,7 @@ def tree_attn_with_paged_kv_cache(
                                                 )
                                             else:
                                                 Q_smem[i, j] = 0.0
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     for iterator in T.serial(T.ceildiv(kv_chunk_len[0], tile_z)):
                                         L_kv_start: T.let[T.int32] = iterator * tile_z
@@ -914,7 +914,7 @@ def tree_attn_with_paged_kv_cache(
                                                 else:
                                                     K_smem[i, j] = 0.0
 
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
                                         for lz, ly in T.grid(tile_z, tile_y):
                                             with Ts.sblock("V_load"):
                                                 i, j = Ts.axis.remap("SS", [lz, ly])
@@ -930,7 +930,7 @@ def tree_attn_with_paged_kv_cache(
                                                     ]
                                                 else:
                                                     V_smem[i, j] = 0.0
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
 
                                         # Compute S
                                         with Ts.sblock():
@@ -945,12 +945,12 @@ def tree_attn_with_paged_kv_cache(
                                                         * sm_scale
                                                         * math.log2(math.exp(1))
                                                     )
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
                                         for li, lj in T.grid(tile_x, tile_z):
                                             with Ts.sblock("S_store"):
                                                 i, j = Ts.axis.remap("SS", [li, lj])
                                                 S_smem[i, j] = S_local[i, j]
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
 
                                         # Update S, m, d
                                         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
@@ -1013,7 +1013,7 @@ def tree_attn_with_paged_kv_cache(
                                                     m_smem[row] = m_new[i]
                                                     d_smem[row] = d_new[i]
                                                     m_prev_smem[row] = m_prev[i]
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
 
                                         # Update O
                                         with Ts.sblock():

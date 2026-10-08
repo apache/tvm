@@ -92,10 +92,10 @@ group; lane 0 of each group writes the result, followed by a barrier:
 
 .. code-block:: python
 
-    mask = Tx.tvm_warp_activemask()
+    mask = Tx.gpu_warp_activemask()
     for i in range(n_shuffles):                       # n_shuffles = log2(group_size)
         thread_data[0] = op(thread_data[0],
-                            Tx.tvm_warp_shuffle_xor(mask, thread_data[0], 1 << i, group_size, 32))
+                            Tx.gpu_warp_shuffle_xor(mask, thread_data[0], 1 << i, group_size, 32))
 
 (``warp`` uses ``warp_sync``; ``warpgroup`` ``warpgroup_sync(8)``; ``cta``
 ``cta_sync``. Thread scope is instead the sequential loop of :doc:`local`.)
@@ -105,9 +105,9 @@ Generated TIRx IR
 
 .. code-block:: python
 
-    thread_data[0] = thread_data[0] + Tx.tvm_warp_shuffle_xor(Tx.tvm_warp_activemask(), thread_data[0], 1, 8, 32)
-    thread_data[0] = thread_data[0] + Tx.tvm_warp_shuffle_xor(Tx.tvm_warp_activemask(), thread_data[0], 2, 8, 32)
-    thread_data[0] = thread_data[0] + Tx.tvm_warp_shuffle_xor(Tx.tvm_warp_activemask(), thread_data[0], 4, 8, 32)
+    thread_data[0] = thread_data[0] + Tx.gpu_warp_shuffle_xor(Tx.gpu_warp_activemask(), thread_data[0], 1, 8, 32)
+    thread_data[0] = thread_data[0] + Tx.gpu_warp_shuffle_xor(Tx.gpu_warp_activemask(), thread_data[0], 2, 8, 32)
+    thread_data[0] = thread_data[0] + Tx.gpu_warp_shuffle_xor(Tx.gpu_warp_activemask(), thread_data[0], 4, 8, 32)
 
 Generated CUDA
 --------------

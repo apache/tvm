@@ -282,10 +282,10 @@ def _attention_prefill(
                             batch_idx[0] = 0
                             batch_rows[0] = (q_indptr[1] - q_indptr[0]) * group_size
                             batch_tiles[0] = T.ceildiv(batch_rows[0], tile_x)
-                            while T.tvm_thread_invariant(batch_idx[0] < batch_size):
+                            while T.gpu_thread_invariant(batch_idx[0] < batch_size):
                                 advance_tile_batch(tile_id, batch_idx, batch_tiles, batch_rows, q_indptr, batch_size)
 
-                                if T.tvm_thread_invariant(batch_idx[0] < batch_size):
+                                if T.gpu_thread_invariant(batch_idx[0] < batch_size):
                                     b_idx: T.let[T.int32] = batch_idx[0]
                                     LH_start: T.let[T.int32] = tile_id[0] * tile_x
                                     q_indptr_val: T.let[T.int32] = q_indptr[b_idx]
@@ -297,7 +297,7 @@ def _attention_prefill(
                                         _get_kv_chunk_len(cur_page_indptr_end - cur_page_indptr_begin, page_size, b_idx, length_info, sliding_window),
                                         0
                                     )
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     init_states(m_smem, d_smem, O_local, ty, tx)
 
@@ -317,7 +317,7 @@ def _attention_prefill(
                                                 )
                                             else:
                                                 Q_smem[i, j] = 0.0
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     for iterator in T.serial(T.ceildiv(kv_chunk_len[0], tile_z)):
                                         L_kv_start: T.let[T.int32] = iterator * tile_z
@@ -338,7 +338,7 @@ def _attention_prefill(
                                                     )
                                                 else:
                                                     K_smem[i, j] = 0.0
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
                                         for lz, ly in T.grid(tile_z, tile_y):
                                             with Ts.sblock("V_load"):
                                                 i, j = Ts.axis.remap("SS", [lz, ly])
@@ -352,7 +352,7 @@ def _attention_prefill(
                                                     V_smem[i, j] = pages[page_no, 1, by, page_offset, j]
                                                 else:
                                                     V_smem[i, j] = 0.0
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
 
                                         compute_s_gemm(Q_smem, K_smem, S_local, S_smem, sm_scale)
                                         softmax_update_causal(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, causal, kv_chunk_len[0], q_indptr[b_idx + 1] - q_indptr[b_idx], sliding_window_size if sliding_window else 0)
@@ -407,7 +407,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
                             b_idx: T.let[T.int32] = vbx // batch_tiles
                             tile_id: T.let[T.int32] = vbx % batch_tiles
                             LH_start: T.let[T.int32] = tile_id * tile_x
-                            T.tvm_storage_sync("shared")
+                            T.gpu_storage_sync("shared")
 
                             init_states(m_smem, d_smem, O_local, ty, tx)
 
@@ -423,7 +423,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
                                         Q_smem[i, j] = q[b_idx, cur_L, cur_H_qo, j]
                                     else:
                                         Q_smem[i, j] = 0.0
-                            T.tvm_storage_sync("shared")
+                            T.gpu_storage_sync("shared")
 
                             for iterator in T.serial(T.ceildiv(kv_len, tile_z)):
                                 L_kv_start: T.let[T.int32] = iterator * tile_z
@@ -440,7 +440,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
                                             ]
                                         else:
                                             K_smem[i, j] = 0.0
-                                T.tvm_storage_sync("shared")
+                                T.gpu_storage_sync("shared")
                                 for lz, ly in T.grid(tile_z, tile_y):
                                     with Ts.sblock("V_load"):
                                         i, j = Ts.axis.remap("SS", [lz, ly])
@@ -451,7 +451,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
                                             V_smem[i, j] = v[b_idx, L_kv_base + cur_L, by, j]
                                         else:
                                             V_smem[i, j] = 0.0
-                                T.tvm_storage_sync("shared")
+                                T.gpu_storage_sync("shared")
 
                                 compute_s_gemm(Q_smem, K_smem, S_local, S_smem, sm_scale)
                                 softmax_update_causal(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, causal, kv_len, qo_len, 0)
@@ -568,7 +568,7 @@ def _attention_sequence_prefill_with_mask(
                             valid_len: T.let[T.int32] = valid_lens[b_idx]
                             tile_id: T.let[T.int32] = vbx % batch_tiles
                             LH_start: T.let[T.int32] = tile_id * tile_x
-                            T.tvm_storage_sync("shared")
+                            T.gpu_storage_sync("shared")
 
                             init_states(m_smem, d_smem, O_local, ty, tx)
 
@@ -584,7 +584,7 @@ def _attention_sequence_prefill_with_mask(
                                         Q_smem[i, j] = q[b_idx, cur_L, cur_H_qo, j]
                                     else:
                                         Q_smem[i, j] = 0.0
-                            T.tvm_storage_sync("shared")
+                            T.gpu_storage_sync("shared")
 
                             for iterator in T.serial(T.ceildiv(kv_len, tile_z)):
                                 L_kv_start: T.let[T.int32] = iterator * tile_z
@@ -599,7 +599,7 @@ def _attention_sequence_prefill_with_mask(
                                             K_smem[i, j] = k[b_idx, L_kv_base + cur_L, by, j]
                                         else:
                                             K_smem[i, j] = 0.0
-                                T.tvm_storage_sync("shared")
+                                T.gpu_storage_sync("shared")
                                 for lz, ly in T.grid(tile_z, tile_y):
                                     with Ts.sblock("V_load"):
                                         i, j = Ts.axis.remap("SS", [lz, ly])
@@ -610,7 +610,7 @@ def _attention_sequence_prefill_with_mask(
                                             V_smem[i, j] = v[b_idx, L_kv_base + cur_L, by, j]
                                         else:
                                             V_smem[i, j] = 0.0
-                                T.tvm_storage_sync("shared")
+                                T.gpu_storage_sync("shared")
 
                                 compute_s_gemm(Q_smem, K_smem, S_local, S_smem, sm_scale)
                                 softmax_update(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, valid_len, qo_len, kv_len)
@@ -796,16 +796,16 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
                             batch_idx[0] = 0
                             batch_rows[0] = (q_indptr[1] - q_indptr[0]) * group_size
                             batch_tiles[0] = T.ceildiv(batch_rows[0], tile_x)
-                            while T.tvm_thread_invariant(batch_idx[0] < batch_size):
+                            while T.gpu_thread_invariant(batch_idx[0] < batch_size):
                                 advance_tile_batch(tile_id, batch_idx, batch_tiles, batch_rows, q_indptr, batch_size)
 
-                                if T.tvm_thread_invariant(batch_idx[0] < batch_size):
+                                if T.gpu_thread_invariant(batch_idx[0] < batch_size):
                                     b_idx: T.let[T.int32] = batch_idx[0]
                                     q_indptr_val: T.let[T.int32] = q_indptr[b_idx]
                                     LH_start: T.let[T.int32] = tile_id[0] * tile_x
 
                                     kv_chunk_len[0] = kv_indptr[b_idx + 1] - kv_indptr[b_idx]
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     init_states(m_smem, d_smem, O_local, ty, tx)
 
@@ -825,7 +825,7 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
                                                 )
                                             else:
                                                 Q_smem[i, j] = 0.0
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     for iterator in T.serial(T.ceildiv(kv_chunk_len[0], tile_z)):
                                         L_kv_start: T.let[T.int32] = iterator * tile_z
@@ -842,7 +842,7 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
                                                     )
                                                 else:
                                                     K_smem[i, j] = 0.0
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
                                         for lz, ly in T.grid(tile_z, d_v):
                                             with Ts.sblock("V_load"):
                                                 i, j = Ts.axis.remap("SS", [lz, ly])
@@ -853,7 +853,7 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
                                                     V_smem[i, j] = v[L_kv_base + cur_L, by, j]
                                                 else:
                                                     V_smem[i, j] = 0.0
-                                        T.tvm_storage_sync("shared")
+                                        T.gpu_storage_sync("shared")
 
                                         compute_s_gemm(Q_smem, K_smem, S_local, S_smem, sm_scale)
                                         softmax_update_causal(S_smem, m_smem, d_smem, m_prev_smem, m_new, m_prev, d_new, ty, tx, LH_start, L_kv_start, causal, kv_chunk_len[0], q_indptr[b_idx + 1] - q_indptr[b_idx], 0)
@@ -930,10 +930,10 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
                         batch_idx[0] = 0
                         batch_rows[0] = (q_indptr[1] - q_indptr[0]) * group_size
                         batch_tiles[0] = T.ceildiv(batch_rows[0], tile_x)
-                        while T.tvm_thread_invariant(batch_idx[0] < batch_size):
+                        while T.gpu_thread_invariant(batch_idx[0] < batch_size):
                             advance_tile_batch(tile_id, batch_idx, batch_tiles, batch_rows, q_indptr, batch_size)
 
-                            if T.tvm_thread_invariant(batch_idx[0] < batch_size):
+                            if T.gpu_thread_invariant(batch_idx[0] < batch_size):
                                 b_idx: T.let[T.int32] = batch_idx[0]
                                 LH_start: T.let[T.int32] = tile_id[0] * tile_x
                                 q_indptr_val: T.let[T.int32] = q_indptr[b_idx]
@@ -945,7 +945,7 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
                                     _get_kv_chunk_len(cur_page_indptr_end - cur_page_indptr_begin, page_size, b_idx, length_info, sliding_window),
                                     0
                                 )
-                                T.tvm_storage_sync("shared")
+                                T.gpu_storage_sync("shared")
 
                                 init_states(m_smem, d_smem, O_local, ty, tx)
 
@@ -961,7 +961,7 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
                                             Q_smem[i, j] = q[cur_L, cur_H_qo, j]
                                         else:
                                             Q_smem[i, j] = 0.0
-                                T.tvm_storage_sync("shared")
+                                T.gpu_storage_sync("shared")
 
                                 for iterator in T.serial(T.ceildiv(kv_chunk_len[0], tile_z)):
                                     L_kv_start: T.let[T.int32] = iterator * tile_z
@@ -978,7 +978,7 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
                                                 KV_smem[i, j] = pages[page_no, page_offset, j]
                                             else:
                                                 KV_smem[i, j] = 0.0
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     # MLA shares the same buffer for K and V (V = KV_smem[:, :d_latent])
                                     compute_s_gemm(Q_smem, KV_smem, S_local, S_smem, sm_scale)

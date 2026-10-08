@@ -821,7 +821,7 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
           os << "))";
         }
       }
-    } else if (op->op.same_as(tirx::tvm_struct_get_op())) {
+    } else if (op->op.same_as(tirx::abi_field_get_op())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
       os << GetStructRef(op->ty, op->args[0], op->args[1].as_or_throw<PrimExpr>(),
                          op->args[2].as<IntImmNode>()->value.as<int>().value());
@@ -891,7 +891,7 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << " != ";
       this->PrintExpr(op->args[0], os);
       os << ")";
-    } else if (op->op.same_as(tirx::tvm_thread_invariant_op())) {
+    } else if (op->op.same_as(tirx::gpu_thread_invariant_op())) {
       os << "(";
       this->PrintExpr(op->args[0], os);
       os << ")";
@@ -1479,10 +1479,10 @@ void CodeGenC::Dispatch_(const EvaluateNode* op) {
       // Alignment facts do not require a runtime statement on C-family targets.
       return;
     }
-    if (call->op.same_as(tirx::tvm_storage_sync_op())) {
+    if (call->op.same_as(tirx::gpu_storage_sync_op())) {
       this->PrintStorageSync(call);
       return;
-    } else if (call->op.same_as(tirx::tvm_struct_set_op())) {
+    } else if (call->op.same_as(tirx::abi_field_set_op())) {
       TVM_FFI_ICHECK_EQ(call->args.size(), 4);
       int kind = call->args[2].as<IntImmNode>()->value.as<int>().value();
       Type store_ty = call->args[3]->ty;

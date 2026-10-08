@@ -214,14 +214,14 @@ def _primexpr_dtype(expr):
 def _pack_buffer(buf, span=None):
     """Build intrinsics that packs the buffer."""
     shape = Call(
-        "tirx.tvm_stack_make_shape",
+        "tirx.stack_make_shape",
         buf.ty.shape,
         span=span,
         ty=PointerType(tvm.ir.PrimType("int64")),
     )
     strides = (
         Call(
-            "tirx.tvm_stack_make_shape",
+            "tirx.stack_make_shape",
             buf.ty.strides,
             span=span,
             ty=PointerType(tvm.ir.PrimType("int64")),
@@ -237,7 +237,7 @@ def _pack_buffer(buf, span=None):
         const(0, dtype=buf.ty.dtype),
         buf.ty.elem_offset,
     ]
-    return Call("tirx.tvm_stack_make_array", pack_args, span=span, ty="handle")
+    return Call("tirx.stack_make_dltensor", pack_args, span=span, ty="handle")
 
 
 def call_packed_lowered(*args, span=None, ty=None):
@@ -270,7 +270,7 @@ def call_packed_lowered(*args, span=None, ty=None):
         for x in args
     ]
     return Call(
-        "tirx.tvm_call_packed_lowered",
+        "tirx.call_packed_lowered",
         call_args,
         ty=ty,
         span=span,
@@ -304,7 +304,7 @@ def call_cpacked_lowered(*args, span=None, ty=None):
         for x in args
     ]
     return Call(
-        "tirx.tvm_call_cpacked_lowered",
+        "tirx.call_cpacked_lowered",
         call_args,
         ty=ty,
         span=span,
@@ -342,7 +342,7 @@ def call_packed(*args, span=None, ty=None):
         _pack_buffer(x) if is_tensor_var(x) else _reject_buffer_region(x, "call_packed")
         for x in args
     ]
-    return Call("tirx.tvm_call_packed", call_args, ty=ty, span=span)
+    return Call("tirx.call_packed", call_args, ty=ty, span=span)
 
 
 @tvm_ffi.register_object("tirx.CallFFIKernelAttr")
@@ -399,7 +399,7 @@ def call_cpacked(*args, span=None, ty=None):
         _pack_buffer(x) if is_tensor_var(x) else _reject_buffer_region(x, "call_cpacked")
         for x in args
     ]
-    return Call("tirx.tvm_call_cpacked", call_args, ty=ty, span=span)
+    return Call("tirx.call_cpacked", call_args, ty=ty, span=span)
 
 
 def call_intrin(dtype: str | tvm.ir.Type, func_name, *args, attrs=None, span=None):
@@ -584,7 +584,7 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     )
 
 
-def tvm_stack_alloca(dtype_str, num, *, ty=None, span=None):
+def stack_alloca(dtype_str, num, *, ty=None, span=None):
     """Return new on stack dtype[num]
 
     Parameters
@@ -600,10 +600,10 @@ def tvm_stack_alloca(dtype_str, num, *, ty=None, span=None):
     call : Expr
         The call expression.
     """
-    return call_intrin(ty, "tirx.tvm_stack_alloca", dtype_str, num, span=span)
+    return call_intrin(ty, "tirx.stack_alloca", dtype_str, num, span=span)
 
 
-def tvm_stack_make_shape(*args, ty=None, span=None):
+def stack_make_shape(*args, ty=None, span=None):
     """Allocate a shape tuple on stack, return the handle
 
     Parameters
@@ -616,10 +616,10 @@ def tvm_stack_make_shape(*args, ty=None, span=None):
     call : Expr
         The call expression.
     """
-    return call_intrin(ty, "tirx.tvm_stack_make_shape", *args, span=span)
+    return call_intrin(ty, "tirx.stack_make_shape", *args, span=span)
 
 
-def tvm_stack_make_array(
+def stack_make_dltensor(
     data,
     shape,
     strides,
@@ -662,7 +662,7 @@ def tvm_stack_make_array(
 
     return call_intrin(
         ty,
-        "tirx.tvm_stack_make_array",
+        "tirx.stack_make_dltensor",
         data,
         shape,
         strides,
@@ -713,7 +713,7 @@ def handle_add_byte_offset(handle, offset, *, ty=None, span=None):
     return call_intrin(ty, "tirx.handle_add_byte_offset", handle, offset, span=span)
 
 
-def tvm_struct_get(arr, index, field, dtype):
+def abi_field_get(arr, index, field, dtype):
     """Get struct field value in array
 
     Parameters
@@ -735,10 +735,10 @@ def tvm_struct_get(arr, index, field, dtype):
     call : Expr
         The call expression.
     """
-    return call_intrin(dtype, "tirx.tvm_struct_get", arr, index, field)
+    return call_intrin(dtype, "tirx.abi_field_get", arr, index, field)
 
 
-def tvm_struct_set(arr, index, field, value, *, ty=None, span=None):
+def abi_field_set(arr, index, field, value, *, ty=None, span=None):
     """Set value in struct field in array
 
     Parameters
@@ -760,7 +760,7 @@ def tvm_struct_set(arr, index, field, value, *, ty=None, span=None):
     call : Expr
         The call expression.
     """
-    return call_intrin(ty, "tirx.tvm_struct_set", arr, index, field, value, span=span)
+    return call_intrin(ty, "tirx.abi_field_set", arr, index, field, value, span=span)
 
 
 def _is_tensormap_var(obj: Var) -> bool:
@@ -799,7 +799,7 @@ def address_of(obj: Var | TensorLoad, span: Span | None = None, *, ty=None) -> E
         raise ValueError(f"Invalid object type: {type(obj)}")
 
 
-def tvm_thread_allreduce(
+def gpu_thread_allreduce(
     combine,
     identity,
     values,
@@ -841,7 +841,7 @@ def tvm_thread_allreduce(
 
     return call_intrin(
         ty,
-        "tirx.tvm_thread_allreduce",
+        "tirx.gpu_thread_allreduce",
         combine,
         as_operand(identity),
         as_operand(values),
@@ -852,7 +852,7 @@ def tvm_thread_allreduce(
     )
 
 
-def tvm_thread_invariant(cond, *, ty=None, span=None):
+def gpu_thread_invariant(cond, *, ty=None, span=None):
     """Mark condition as thread invariant.
 
     Parameters
@@ -866,10 +866,10 @@ def tvm_thread_invariant(cond, *, ty=None, span=None):
         The call expression.
     """
     assert tvm.ir.is_prim_expr(cond)
-    return call_intrin(ty, "tirx.tvm_thread_invariant", cond, span=span)
+    return call_intrin(ty, "tirx.gpu_thread_invariant", cond, span=span)
 
 
-def tvm_storage_sync(storage_scope, *, ty=None, span=None):
+def gpu_storage_sync(storage_scope, *, ty=None, span=None):
     """Synchronize accesses in the specified storage scope.
 
     Parameters
@@ -881,7 +881,7 @@ def tvm_storage_sync(storage_scope, *, ty=None, span=None):
     span : tvm.ir.Span, optional
         The source location.
     """
-    return call_intrin(ty, "tirx.tvm_storage_sync", storage_scope, span=span)
+    return call_intrin(ty, "tirx.gpu_storage_sync", storage_scope, span=span)
 
 
 def cpu_parallel_barrier(*, ty=None, span=None):
@@ -898,12 +898,12 @@ def cpu_parallel_barrier(*, ty=None, span=None):
     return call_intrin(ty, "tirx.cpu_parallel_barrier", span=span)
 
 
-def tvm_kernel_replace_point(*, ty=None, span=None):
+def kernel_replace_point(*, ty=None, span=None):
     """Mark where a transform should replace generated kernel initialization."""
-    return call_intrin(ty, "tirx.tvm_kernel_replace_point", span=span)
+    return call_intrin(ty, "tirx.kernel_replace_point", span=span)
 
 
-def tvm_warp_shuffle(mask, value, warp_id, width, warp_size, *, ty=None, span=None):
+def gpu_warp_shuffle(mask, value, warp_id, width, warp_size, *, ty=None, span=None):
     """Exchange value between threads inside a warp.
 
     Parameters
@@ -926,7 +926,7 @@ def tvm_warp_shuffle(mask, value, warp_id, width, warp_size, *, ty=None, span=No
     """
     return call_intrin(
         ty,
-        "tirx.tvm_warp_shuffle",
+        "tirx.gpu_warp_shuffle",
         mask,
         value,
         warp_id,
@@ -936,7 +936,7 @@ def tvm_warp_shuffle(mask, value, warp_id, width, warp_size, *, ty=None, span=No
     )
 
 
-def tvm_warp_shuffle_up(mask, value, offset, width, warp_size, *, ty=None, span=None):
+def gpu_warp_shuffle_up(mask, value, offset, width, warp_size, *, ty=None, span=None):
     """Copy value from a lane with lower (by offset) index relative to caller.
 
     Parameters
@@ -960,7 +960,7 @@ def tvm_warp_shuffle_up(mask, value, offset, width, warp_size, *, ty=None, span=
     """
     return call_intrin(
         ty,
-        "tirx.tvm_warp_shuffle_up",
+        "tirx.gpu_warp_shuffle_up",
         mask,
         value,
         offset,
@@ -970,7 +970,7 @@ def tvm_warp_shuffle_up(mask, value, offset, width, warp_size, *, ty=None, span=
     )
 
 
-def tvm_warp_shuffle_down(mask, value, offset, width, warp_size, *, ty=None, span=None):
+def gpu_warp_shuffle_down(mask, value, offset, width, warp_size, *, ty=None, span=None):
     """Copy value from a lane with higher (by offset) index relative to caller.
 
     Parameters
@@ -994,7 +994,7 @@ def tvm_warp_shuffle_down(mask, value, offset, width, warp_size, *, ty=None, spa
     """
     return call_intrin(
         ty,
-        "tirx.tvm_warp_shuffle_down",
+        "tirx.gpu_warp_shuffle_down",
         mask,
         value,
         offset,
@@ -1004,7 +1004,7 @@ def tvm_warp_shuffle_down(mask, value, offset, width, warp_size, *, ty=None, spa
     )
 
 
-def tvm_warp_shuffle_xor(mask, value, lane_mask, width, warp_size, *, ty=None, span=None):
+def gpu_warp_shuffle_xor(mask, value, lane_mask, width, warp_size, *, ty=None, span=None):
     """Copy value from a lane with index computed by `src_lane_idx ^ lane_mask`.
 
     Parameters
@@ -1027,7 +1027,7 @@ def tvm_warp_shuffle_xor(mask, value, lane_mask, width, warp_size, *, ty=None, s
     """
     return call_intrin(
         ty,
-        "tirx.tvm_warp_shuffle_xor",
+        "tirx.gpu_warp_shuffle_xor",
         mask,
         value,
         lane_mask,
@@ -1037,7 +1037,7 @@ def tvm_warp_shuffle_xor(mask, value, lane_mask, width, warp_size, *, ty=None, s
     )
 
 
-def tvm_warp_activemask(*, ty=None, span=None):
+def gpu_warp_activemask(*, ty=None, span=None):
     """Return a 32-bit mask indicates currently active threads in a calling warp.
 
     Returns
@@ -1045,10 +1045,10 @@ def tvm_warp_activemask(*, ty=None, span=None):
     call : Expr
         The call expression.
     """
-    return call_intrin(ty, "tirx.tvm_warp_activemask", span=span)
+    return call_intrin(ty, "tirx.gpu_warp_activemask", span=span)
 
 
-def tvm_access_ptr(ptype, data, offset, extent, rw_mask, *, ty=None, span=None):
+def access_ptr(ptype, data, offset, extent, rw_mask, *, ty=None, span=None):
     """Get head access address with memory access pattern info
 
     Parameters
@@ -1075,7 +1075,7 @@ def tvm_access_ptr(ptype, data, offset, extent, rw_mask, *, ty=None, span=None):
     """
     ptype = PrimType(ptype) if isinstance(ptype, str) else ptype
     return Call(
-        "tirx.tvm_access_ptr",
+        "tirx.access_ptr",
         [data, offset, extent, rw_mask],
         ty=ty,
         ty_args=[ptype],
@@ -1101,7 +1101,7 @@ def ptr_byte_offset(data, byte_offset, dtype, *, ty=None, span=None):
     )
 
 
-def tvm_throw_last_error(*, ty=None, span=None):
+def throw_last_error(*, ty=None, span=None):
     """Throw TVMGetLastError()
 
     Returns
@@ -1109,7 +1109,7 @@ def tvm_throw_last_error(*, ty=None, span=None):
     ret : Expr
         The return expression
     """
-    return call_intrin(ty, "tirx.tvm_throw_last_error", span=span)
+    return call_intrin(ty, "tirx.throw_last_error", span=span)
 
 
 def vectorlow(dtype, vec):
@@ -1169,7 +1169,7 @@ def vectorcombine(dtype, vec1, vec2):
     return call_intrin(dtype, "tirx.vectorcombine", vec1, vec2)
 
 
-def dp4a(vec1, vec2, acc=0, **kwargs):
+def gpu_dp4a(vec1, vec2, acc=0, **kwargs):
     """Dot product of two int8x4 vectors and add an optional accumulator
 
     Parameters
@@ -1188,7 +1188,7 @@ def dp4a(vec1, vec2, acc=0, **kwargs):
     call : Expr
         The call expression.
     """
-    return Call("tirx.dp4a", [vec1, vec2, acc], **kwargs)
+    return Call("tirx.gpu_dp4a", [vec1, vec2, acc], **kwargs)
 
 
 def reinterpret(dtype, value, span: Span | None = None) -> Expr:
@@ -1217,7 +1217,7 @@ def reinterpret(dtype, value, span: Span | None = None) -> Expr:
     return _ffi_api.reinterpret(dtype, value, span)  # type: ignore
 
 
-def filter(var, pred, *, span=None, ty=None):  # pylint: disable=redefined-builtin
+def gpu_thread_filter(var, pred, *, span=None, ty=None):
     """Thread-set filter escape hatch.
 
     Use this wrapper only when the predicate is *not* in the canonical
@@ -1232,21 +1232,18 @@ def filter(var, pred, *, span=None, ty=None):  # pylint: disable=redefined-built
     opaque predicate evaluates true; ``pred`` is preserved verbatim and
     evaluated at runtime.
 
-    The legacy three-argument range form ``filter(var, lo, hi)`` has been
-    removed -- write ``lo <= var and var < hi`` (or ``var == lo`` when
-    ``hi == lo + 1``) at the call site instead.
     """
-    return call_intrin(ty, "tirx.filter", var, pred, span=span)
+    return call_intrin(ty, "tirx.gpu_thread_filter", var, pred, span=span)
 
 
-def selector(var, pred, span=None, *, ty=None):
+def gpu_active_thread_selector(var, pred, span=None, *, ty=None):
     """Analysis-only active-thread selector.
 
-    ``selector(var, pred)`` denotes the unique value of ``var`` in the current
+    ``gpu_active_thread_selector(var, pred)`` denotes the unique value of ``var`` in the current
     active domain for which ``pred`` is true. It is intended for compiler
     metadata and should not survive to executable codegen.
     """
-    return call_intrin(ty, "tirx.selector", var, pred, span=span)
+    return call_intrin(ty, "tirx.gpu_active_thread_selector", var, pred, span=span)
 
 
 def isnullptr(x, span=None, *, ty=None):
@@ -1290,7 +1287,7 @@ def logaddexp(a, b, span=None):
     return _ffi_api._OpLogAddExp(a, b, span)  # type: ignore
 
 
-def TVMBackendAllocWorkspace(
+def alloc_workspace(
     device_type,
     device_id,
     nbytes,
@@ -1326,7 +1323,7 @@ def TVMBackendAllocWorkspace(
     """
     return call_intrin(
         ty,
-        "tirx.TVMBackendAllocWorkspace",
+        "tirx.alloc_workspace",
         device_type,
         device_id,
         nbytes,
@@ -1336,7 +1333,7 @@ def TVMBackendAllocWorkspace(
     )
 
 
-def TVMBackendFreeWorkspace(device_type, device_id, ptr, *, ty=None, span=None):
+def free_workspace(device_type, device_id, ptr, *, ty=None, span=None):
     """Backend function to free temporal workspace.
 
     Parameters
@@ -1357,7 +1354,7 @@ def TVMBackendFreeWorkspace(device_type, device_id, ptr, *, ty=None, span=None):
     """
     return call_intrin(
         ty,
-        "tirx.TVMBackendFreeWorkspace",
+        "tirx.free_workspace",
         device_type,
         device_id,
         ptr,
@@ -1467,7 +1464,7 @@ def ignore_loop_partition(predicate, *, ty=None, span=None) -> Expr:
     return call_intrin(ty, "tirx.ignore_loop_partition", predicate, span=span)
 
 
-def tvm_load_matrix_sync(
+def gpu_load_matrix_sync(
     fragment,
     m,
     n,
@@ -1515,7 +1512,7 @@ def tvm_load_matrix_sync(
     """
     return call_intrin(
         ty,
-        "tirx.tvm_load_matrix_sync",
+        "tirx.gpu_load_matrix_sync",
         fragment,
         m,
         n,
@@ -1528,7 +1525,7 @@ def tvm_load_matrix_sync(
     )
 
 
-def tvm_mma_sync(
+def gpu_mma_sync(
     fragment_d,
     index_d,
     fragment_a,
@@ -1576,7 +1573,7 @@ def tvm_mma_sync(
     """
     return call_intrin(
         ty,
-        "tirx.tvm_mma_sync",
+        "tirx.gpu_mma_sync",
         fragment_d,
         index_d,
         fragment_a,
@@ -1589,68 +1586,7 @@ def tvm_mma_sync(
     )
 
 
-def tvm_bmma_sync(
-    fragment_d,
-    index_d,
-    fragment_a,
-    index_a,
-    fragment_b,
-    index_b,
-    fragment_c,
-    index_c,
-    *,
-    ty=None,
-    span=None,
-):
-    """TVM intrinsic for tensor core bmma_sync operators
-
-    Parameters
-    ----------
-    fragment_d : Var
-        The bwmma fragment_d.
-
-    index_d : Expr
-        The fragment_d index.
-
-    fragment_a : Var
-        The bwmma fragment_a.
-
-    index_a : Expr
-        The fragment_a index.
-
-    fragment_b : Var
-        The bwmma fragment_b.
-
-    index_b : Expr
-        The fragment_b index.
-
-    fragment_c : Var
-        The bwmma fragment_c.
-
-    index_c : Expr
-        The fragment_c index.
-
-    Returns
-    -------
-    call : Expr
-        The call expression.
-    """
-    return call_intrin(
-        ty,
-        "tirx.tvm_bmma_sync",
-        fragment_d,
-        index_d,
-        fragment_a,
-        index_a,
-        fragment_b,
-        index_b,
-        fragment_c,
-        index_c,
-        span=span,
-    )
-
-
-def tvm_fill_fragment(fragment, m, n, k, index, value, *, ty=None, span=None):
+def gpu_fill_fragment(fragment, m, n, k, index, value, *, ty=None, span=None):
     """TVM intrinsic for tensor core fill_fragment operators
 
     Parameters
@@ -1680,7 +1616,7 @@ def tvm_fill_fragment(fragment, m, n, k, index, value, *, ty=None, span=None):
     """
     return call_intrin(
         ty,
-        "tirx.tvm_fill_fragment",
+        "tirx.gpu_fill_fragment",
         fragment,
         m,
         n,
@@ -1691,7 +1627,7 @@ def tvm_fill_fragment(fragment, m, n, k, index, value, *, ty=None, span=None):
     )
 
 
-def tvm_store_matrix_sync(
+def gpu_store_matrix_sync(
     fragment,
     m,
     n,
@@ -1739,7 +1675,7 @@ def tvm_store_matrix_sync(
     """
     return call_intrin(
         ty,
-        "tirx.tvm_store_matrix_sync",
+        "tirx.gpu_store_matrix_sync",
         fragment,
         m,
         n,
@@ -1752,9 +1688,9 @@ def tvm_store_matrix_sync(
     )
 
 
-def thread_return(*, ty=None, span=None):
+def gpu_thread_return(*, ty=None, span=None):
     """Return from the current GPU thread without a function value."""
-    return call_intrin(ty, "tirx.thread_return", span=span)
+    return call_intrin(ty, "tirx.gpu_thread_return", span=span)
 
 
 def __getattr__(name):

@@ -250,12 +250,12 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
   }
 
   Expr HandleAccessPtrAndOffset(Expr access_ptr, ffi::Optional<PrimExpr> offset = std::nullopt) {
-    // The second arg of T.tvm_access_ptr call is offset, we set it to 0 and accumulate it to
+    // The second arg of T.access_ptr call is offset, we set it to 0 and accumulate it to
     // smem_offset
     TVM_FFI_ICHECK(access_ptr->IsInstance<CallNode>())
         << "Invalid access ptr for permuted layout: " << access_ptr;
     auto access_ptr_call = access_ptr.as_or_throw<Call>();
-    TVM_FFI_ICHECK(access_ptr_call->op.same_as(tirx::tvm_access_ptr_op()))
+    TVM_FFI_ICHECK(access_ptr_call->op.same_as(tirx::access_ptr_op()))
         << "Invalid access ptr for permuted layout: " << access_ptr;
 
     auto data_var = GetBufferDataVar(access_ptr_call->args[0]);
@@ -299,7 +299,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
 
     if (call->op.same_as(ptx_ldmatrix_op)) {
       // form: T.ptx_legacy.ldmatrix(..., smem_ptr, smem_offset)
-      // smem_ptr: T.tvm_access_ptr(ptype, data, offset, extent, rw_mask)
+      // smem_ptr: T.access_ptr(ptype, data, offset, extent, rw_mask)
       Expr access_ptr = call->args[5];
       PrimExpr smem_offset = call->args[6].as_or_throw<PrimExpr>();
       auto new_access_ptr = HandleAccessPtrAndOffset(access_ptr, smem_offset);

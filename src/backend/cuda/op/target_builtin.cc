@@ -121,19 +121,7 @@ void RegisterCudaTargetBuiltins() {
   backend::cuda::TCGen05InstrDescriptorAttrs::RegisterReflection();
   backend::cuda::TCGen05InstrDescriptorBlockScaledAttrs::RegisterReflection();
 
-  OpDef("tirx.tvm_load_matrix_sync")
-      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
-      .signature(
-          sig::arg("fragment", "The matrix fragment."), sig::arg<IntExpr>("m", "The M dimension."),
-          sig::arg<IntExpr>("n", "The N dimension."), sig::arg<IntExpr>("k", "The K dimension."),
-          sig::arg<IntExpr>("index", "The index."), sig::arg("buffer_ptr", "The buffer pointer."),
-          sig::arg<IntExpr>("stride", "The stride."), sig::arg("layout", "The layout."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_load_matrix_sync"))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind",
-                                 static_cast<int64_t>(CallEffectKind::kReadState));
-
-  OpDef("tirx.tvm_mma_sync")
+  OpDef("tirx.cuda.bmma_sync")
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(sig::arg("fragment_d", "The D fragment."),
                  sig::arg<IntExpr>("index_d", "The D fragment index."),
@@ -143,42 +131,7 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg<IntExpr>("index_b", "The B fragment index."),
                  sig::arg("fragment_c", "The C fragment."),
                  sig::arg<IntExpr>("index_c", "The C fragment index."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_mma_sync"))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-  OpDef("tirx.tvm_bmma_sync")
-      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
-      .signature(sig::arg("fragment_d", "The D fragment."),
-                 sig::arg<IntExpr>("index_d", "The D fragment index."),
-                 sig::arg("fragment_a", "The A fragment."),
-                 sig::arg<IntExpr>("index_a", "The A fragment index."),
-                 sig::arg("fragment_b", "The B fragment."),
-                 sig::arg<IntExpr>("index_b", "The B fragment index."),
-                 sig::arg("fragment_c", "The C fragment."),
-                 sig::arg<IntExpr>("index_c", "The C fragment index."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_bmma_sync"))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-  OpDef("tirx.tvm_fill_fragment")
-      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
-      .signature(
-          sig::arg("fragment", "The matrix fragment."), sig::arg<IntExpr>("m", "The M dimension."),
-          sig::arg<IntExpr>("n", "The N dimension."), sig::arg<IntExpr>("k", "The K dimension."),
-          sig::arg<IntExpr>("index", "The index."), sig::arg("value", "The value to use."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_fill_fragment"))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-  OpDef("tirx.tvm_store_matrix_sync")
-      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
-      .signature(
-          sig::arg("fragment", "The matrix fragment."), sig::arg<IntExpr>("m", "The M dimension."),
-          sig::arg<IntExpr>("n", "The N dimension."), sig::arg<IntExpr>("k", "The K dimension."),
-          sig::arg<IntExpr>("index", "The index."), sig::arg("buffer_ptr", "The buffer pointer."),
-          sig::arg<IntExpr>("stride", "The stride."), sig::arg("layout", "The layout."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_store_matrix_sync"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.bmma_sync"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 

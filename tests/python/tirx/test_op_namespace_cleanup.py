@@ -136,24 +136,24 @@ def test_tensormap_encoding_accepts_attribute_keywords_and_defaults():
 
 
 def test_kernel_replace_point_is_builtin_marker_not_tile_primitive():
-    assert _op_attr("tirx.tvm_kernel_replace_point", "TIRxOpCategory") == "builtin"
-    assert "tirx.tile.tvm_kernel_replace_point" not in Op.list_op_names()
-    assert hasattr(T, "tvm_kernel_replace_point")
-    assert not hasattr(Tx, "tvm_kernel_replace_point")
+    assert _op_attr("tirx.kernel_replace_point", "TIRxOpCategory") == "builtin"
+    assert "tirx.tile.kernel_replace_point" not in Op.list_op_names()
+    assert hasattr(T, "kernel_replace_point")
+    assert not hasattr(Tx, "kernel_replace_point")
 
     @T.function(check_well_formed=False)
     def marker():
-        T.tvm_kernel_replace_point()
+        T.kernel_replace_point()
 
     calls = _expr_calls(marker)
-    assert [call.op.name for call in calls] == ["tirx.tvm_kernel_replace_point"]
+    assert [call.op.name for call in calls] == ["tirx.kernel_replace_point"]
     assert _tile_calls(marker) == []
 
     code = marker.script()
-    assert "T.tvm_kernel_replace_point()" in code
-    assert "tvm_kernel_replace_point" in code
-    assert "T.tile.tvm_kernel_replace_point" not in code
-    assert "Tx.tvm_kernel_replace_point" not in code
+    assert "T.kernel_replace_point()" in code
+    assert "kernel_replace_point" in code
+    assert "T.tile.kernel_replace_point" not in code
+    assert "Tx.kernel_replace_point" not in code
     reparsed = tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
     assert_structural_equal(marker, reparsed)
 

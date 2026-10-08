@@ -533,7 +533,7 @@ def test_crossthread_reduction1(target):
                         for m_1 in range((m + nthd - 1) // nthd):
                             if m_0 * ((m + nthd - 1) // nthd) + m_1 < m:
                                 partial[0] = partial[0] + A[i, m_0 * ((m + nthd - 1) // nthd) + m_1]
-                        T.tvm_thread_allreduce(
+                        T.gpu_thread_allreduce(
                             T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
                             (T.float32(0),),
                             (partial[0],),
@@ -612,7 +612,7 @@ def test_crossthread_reduction2(target):
                                             k1_0 * ((k1 + nthdy - 1) // nthdy) + k1_1,
                                         ]
                                     )
-                            T.tvm_thread_allreduce(
+                            T.gpu_thread_allreduce(
                                 T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
                                 (T.float32(0),),
                                 (partial[0],),
@@ -1137,10 +1137,10 @@ def test_cuda_thread_sync_inside_condition():
         A_shared = T.alloc_tensor((4, 4), "float32", scope="shared")
         for bx in T.thread_binding(1, "blockIdx.x"):
             for tx in T.thread_binding(32, "threadIdx.x"):
-                if T.tvm_thread_invariant(A[0, 0] > 1.0):
+                if T.gpu_thread_invariant(A[0, 0] > 1.0):
                     for i, j in T.grid(4, 4):
                         A_shared[i, j] = A[i, j]
-                    T.tvm_storage_sync("shared")
+                    T.gpu_storage_sync("shared")
                     for i, j in T.grid(4, 4):
                         A[i, j] = A_shared[i, j] + 1.0
 
@@ -1149,10 +1149,10 @@ def test_cuda_thread_sync_inside_condition():
         A_shared = T.alloc_tensor((4, 4), "float32", scope="shared")
         for bx in T.thread_binding(1, "blockIdx.x"):
             for tx in T.thread_binding(32, "threadIdx.x"):
-                while T.tvm_thread_invariant(A[0, 0] > 1.0):
+                while T.gpu_thread_invariant(A[0, 0] > 1.0):
                     for i, j in T.grid(4, 4):
                         A_shared[i, j] = A[i, j]
-                    T.tvm_storage_sync("shared")
+                    T.gpu_storage_sync("shared")
                     for i, j in T.grid(4, 4):
                         A[i, j] = A_shared[i, j] + 1.0
 
@@ -1181,7 +1181,7 @@ def test_cuda_tensormap():
     @T.function
     def main(A: T.Tensor((16, 16), dtype='float32', align=16)):
 
-        A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
+        A_map: T.let[T.handle("tensormap")] = T.stack_alloca("tensormap", 1)
         T.call_packed("runtime.cuTensorMapInit", A_map, "float32", 2, A.data,
                       16, 16, 64, 16, 16, 1, 1, 0, 0, 0, 0)
 
@@ -1301,7 +1301,7 @@ def test_thread_return():
             for bx in T.thread_binding(32, "blockIdx.x"):
                 for tx in T.thread_binding(32, "threadIdx.x"):
                     if bx >= 16 or tx >= 16:
-                        T.thread_return()
+                        T.gpu_thread_return()
                     B[bx, tx] = A[bx, tx]
 
     lib = tvm.compile(Module, target="cuda")

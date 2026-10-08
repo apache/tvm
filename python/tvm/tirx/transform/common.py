@@ -134,7 +134,7 @@ def seek_kernel_replace_point(stmt: Stmt, body: Stmt) -> Stmt:
 
     def replace_evaluate(op: Evaluate):
         value = op.value
-        if isinstance(value, Call) and value.op.same_as(Op.get("tirx.tvm_kernel_replace_point")):
+        if isinstance(value, Call) and value.op.same_as(Op.get("tirx.kernel_replace_point")):
             return body
         return op
 

@@ -89,15 +89,15 @@ inline PrimExpr DispatchShuffle(const PrimExpr& e) {
   // compute lane to get from
   PrimExpr width = args[3];
   PrimExpr index{ffi::UnsafeInit{}};
-  if (call->op.same_as(tirx::tvm_warp_shuffle_op())) {
+  if (call->op.same_as(tirx::gpu_warp_shuffle_op())) {
     PrimExpr src_lane = args[2];
     index = src_lane + (self & ~(width - 1));
-  } else if (call->op.same_as(tirx::tvm_warp_shuffle_up_op())) {
+  } else if (call->op.same_as(tirx::gpu_warp_shuffle_up_op())) {
     PrimExpr delta = args[2];
     index = self - delta;
     index = prim::Select(index < (self & ~(width - 1)), self, index);
   } else {
-    TVM_FFI_ICHECK(call->op.same_as(tirx::tvm_warp_shuffle_down_op()));
+    TVM_FFI_ICHECK(call->op.same_as(tirx::gpu_warp_shuffle_down_op()));
     PrimExpr delta = args[2];
     index = self + delta;
     index = prim::Select((self & (width - 1)) + delta >= width, self, index);
@@ -120,19 +120,19 @@ using tirx::FLowerIntrinsic;
 void RegisterROCMIntrinRules() {
   // dummy because we don't have the activemask
   // clang-format off
-  OpDef("tirx.tvm_warp_activemask")
+  OpDef("tirx.gpu_warp_activemask")
       .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
         PrimExpr zero = IntImm::Int32(0);
         return zero;
       });
 
-  OpDef("tirx.tvm_warp_shuffle")
+  OpDef("tirx.gpu_warp_shuffle")
       .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", DispatchShuffle);
 
-  OpDef("tirx.tvm_warp_shuffle_up")
+  OpDef("tirx.gpu_warp_shuffle_up")
       .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", DispatchShuffle);
 
-  OpDef("tirx.tvm_warp_shuffle_down")
+  OpDef("tirx.gpu_warp_shuffle_down")
       .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", DispatchShuffle);
 
   OpDef("prim.floor")

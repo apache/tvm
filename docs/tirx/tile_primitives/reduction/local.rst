@@ -110,7 +110,7 @@ run the general local-axis loop. This specialized path does not branch on the
 **General warp/warpgroup view path** (``_emit_reduction_local_view``): reduces
 the source's local reduction axes into each destination position. At warp scope,
 ``thread_reduce=True`` additionally emits explicit
-``tvm_warp_shuffle_xor`` steps using ``__activemask()``. Warpgroup scope supports
+``gpu_warp_shuffle_xor`` steps using ``__activemask()``. Warpgroup scope supports
 the local part only.
 
 Generated TIRx IR

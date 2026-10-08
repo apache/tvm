@@ -113,17 +113,17 @@ class ReturnRewriter : public StmtExprMutator {
   Stmt WriteToOut(Expr val) {
     auto info = ConvertForFFI(val);
     Stmt store_tindex =
-        tirx::Evaluate(Call(PrimType::Int(32), tirx::tvm_struct_set_op(),
+        tirx::Evaluate(Call(PrimType::Int(32), tirx::abi_field_set_op(),
                             {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::kTVMFFIAnyTypeIndex),
                              IntImm::Int32(info.type_index)})
                            .as_or_throw<PrimExpr>());
     Stmt store_zero_padding =
-        tirx::Evaluate(Call(PrimType::Int(32), tirx::tvm_struct_set_op(),
+        tirx::Evaluate(Call(PrimType::Int(32), tirx::abi_field_set_op(),
                             {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::kTVMFFIAnyZeroPadding),
                              IntImm::Int32(0)})
                            .as_or_throw<PrimExpr>());
     Stmt store_val = tirx::Evaluate(
-        Call(PrimType::Int(32), tirx::tvm_struct_set_op(),
+        Call(PrimType::Int(32), tirx::abi_field_set_op(),
              {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::kTVMFFIAnyUnionValue), info.expr})
             .as_or_throw<PrimExpr>());
     Stmt ret_zero = Return(IntImm::Int32(0));
@@ -171,7 +171,7 @@ class SubroutineCallRewriter : public StmtExprMutator {
         // push an empty handle to be compatible with current cpacked convention
         cpacked_args.push_back(tvm::tirx::ConstHandle(0));
         made_change_ = true;
-        return Call(node->ty, tirx::tvm_call_cpacked_op(), cpacked_args);
+        return Call(node->ty, tirx::call_cpacked_op(), cpacked_args);
       }
     }
 
@@ -270,7 +270,7 @@ Function MakePackedAPI(Function func) {
   // Set device context
   if (need_set_device) {
     if (runtime::DeviceAPI::NeedSetDevice(target_device_type)) {
-      Stmt set_device = Evaluate(Call(PrimType::Int(32), tirx::tvm_call_packed_op(),
+      Stmt set_device = Evaluate(Call(PrimType::Int(32), tirx::call_packed_op(),
                                       {StringImm(runtime::symbol::tvm_set_device), device_type,
                                        device_id.as_or_throw<PrimExpr>()})
                                      .as_or_throw<PrimExpr>());

@@ -100,7 +100,7 @@ inline ffi::Array<T> UpdateArray(ffi::Array<T> arr, F fupdate) {
  */
 inline Expr TVMStructGet(Type type, Var handle, int index, tirx::TVMStructFieldKind kind) {
   ffi::Array<Expr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind))};
-  return Call(std::move(type), tirx::tvm_struct_get_op(), args);
+  return Call(std::move(type), tirx::abi_field_get_op(), args);
 }
 
 inline PrimExpr TVMStructGet(PrimType type, Var handle, int index, tirx::TVMStructFieldKind kind) {
@@ -157,7 +157,7 @@ inline Call AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
 inline Stmt TVMStructSet(Var handle, int index, tirx::TVMStructFieldKind kind, Expr value) {
   ffi::Array<Expr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind)),
                            value};
-  return Evaluate(Call(PrimType::Int(32), tirx::tvm_struct_set_op(), args).as_or_throw<PrimExpr>());
+  return Evaluate(Call(PrimType::Int(32), tirx::abi_field_set_op(), args).as_or_throw<PrimExpr>());
 }
 
 /*!
@@ -216,7 +216,7 @@ inline PrimExpr ConstInt32(size_t index) {
  */
 inline Call StackAlloca(Type ret_type, std::string type, size_t num) {
   ffi::Array<Expr> args = {StringImm(type), ConstInt32(num)};
-  return Call(std::move(ret_type), tirx::tvm_stack_alloca_op(), args);
+  return Call(std::move(ret_type), tirx::stack_alloca_op(), args);
 }
 
 /*!

@@ -34,8 +34,9 @@ namespace tvm::tirx {
 using namespace prim;
 using namespace prim::detail;
 
-PrimExpr thread_return(Span span) {
-  return Call(PrimType::Void(), tirx::thread_return_op(), {}, {}, {}, span).as_or_throw<PrimExpr>();
+PrimExpr gpu_thread_return(Span span) {
+  return Call(PrimType::Void(), tirx::gpu_thread_return_op(), {}, {}, {}, span)
+      .as_or_throw<PrimExpr>();
 }
 
 PrimExpr logaddexp(PrimExpr a, PrimExpr b, Span span) {
@@ -149,30 +150,28 @@ PrimExpr reinterpret(DLDataType t, PrimExpr value, Span span) {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.TVMBackendAllocWorkspace")
+  OpDef("tirx.alloc_workspace")
       .set_attr<TFixedReturnType>("TFixedReturnType", PointerType(PrimType::Void()))
       .signature(sig::arg<IntExpr>("device_type", "The device type."),
                  sig::arg<IntExpr>("device_id", "The device index."),
                  sig::arg<IntExpr>("nbytes", "The number of bytes."),
                  sig::arg<IntExpr>("dtype_code_hint", "The data type code hint."),
                  sig::arg<IntExpr>("dtype_bits_hint", "The data type bit-width hint."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName",
-                                    ffi::String("tirx.TVMBackendAllocWorkspace"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.alloc_workspace"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendAllocWorkspace")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-  OpDef("tirx.TVMBackendFreeWorkspace")
+  OpDef("tirx.free_workspace")
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32))
       .signature(sig::arg<IntExpr>("device_type", "The device type."),
                  sig::arg<IntExpr>("device_id", "The device index."),
                  sig::arg("ptr", "The pointer."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName",
-                                    ffi::String("tirx.TVMBackendFreeWorkspace"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.free_workspace"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendFreeWorkspace")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
   ffi::reflection::GlobalDef()
-      .def("tirx.thread_return", thread_return)
+      .def("tirx.gpu_thread_return", gpu_thread_return)
       .def("tirx.reinterpret",
            [](Type dtype, Expr value, Span span) { return reinterpret(dtype, value, span); })
       .def("tirx._OpLogAddExp",

@@ -61,10 +61,10 @@ class FragmentGetter : public s_tir::StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
 
-    static const Op tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
-    static const Op tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
-    static const Op tvm_fill_fragment_op = Op::Get("tirx.tvm_fill_fragment");
-    if (op->op.same_as(tvm_load_matrix_sync_op) || op->op.same_as(tvm_store_matrix_sync_op)) {
+    static const Op gpu_load_matrix_sync_op = Op::Get("tirx.gpu_load_matrix_sync");
+    static const Op gpu_store_matrix_sync_op = Op::Get("tirx.gpu_store_matrix_sync");
+    static const Op gpu_fill_fragment_op = Op::Get("tirx.gpu_fill_fragment");
+    if (op->op.same_as(gpu_load_matrix_sync_op) || op->op.same_as(gpu_store_matrix_sync_op)) {
       // Get shape and layout information from load and store intrinsic
       TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
       const VarNode* buffer_var = GetBufferVarFromData(op->args[0]);
@@ -101,7 +101,7 @@ class FragmentGetter : public s_tir::StmtExprVisitor {
         }
         fragments[buffer_var] = info;
       }
-    } else if (op->op.same_as(tvm_fill_fragment_op)) {
+    } else if (op->op.same_as(gpu_fill_fragment_op)) {
       // Get shape information from fill intrinsic
       TVM_FFI_ICHECK_EQ(op->args.size(), 6U);
       const VarNode* buffer_var = GetBufferVarFromData(op->args[0]);
@@ -146,7 +146,7 @@ std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const
 
 namespace s_tir {
 
-// Check shape of fragment making sure it is a valid shape for tvm_mma_sync
+// Check shape of fragment making sure it is a valid shape for gpu_mma_sync
 class FragmentChecker : public s_tir::StmtExprVisitor {
  public:
   using s_tir::StmtExprVisitor::Visit_;
@@ -154,10 +154,10 @@ class FragmentChecker : public s_tir::StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
-    // Check shape when calling tvm_mma_sync
-    static const Op tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
-    static const Op tvm_bmma_sync_op = Op::Get("tirx.tvm_bmma_sync");
-    if (op->op.same_as(tvm_mma_sync_op) || op->op.same_as(tvm_bmma_sync_op)) {
+    // Check shape when calling gpu_mma_sync
+    static const Op gpu_mma_sync_op = Op::Get("tirx.gpu_mma_sync");
+    static const Op bmma_sync_op = Op::Get("tirx.cuda.bmma_sync");
+    if (op->op.same_as(gpu_mma_sync_op) || op->op.same_as(bmma_sync_op)) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
       const VarNode* buffer_var_d = GetBufferVarFromData(op->args[0]);
       const VarNode* buffer_var_a = GetBufferVarFromData(op->args[2]);
@@ -181,11 +181,11 @@ class FragmentChecker : public s_tir::StmtExprVisitor {
   bool CheckShape(const VarNode* buffer1, const VarNode* buffer2) {
     TVM_FFI_ICHECK(fragment_getter.fragments.count(buffer1))
         << "Tensorecore fragment " << buffer1->name
-        << " must be filled (with tvm_fill_fragment) or loaded (with tvm_load_matrix_sync) before "
+        << " must be filled (with gpu_fill_fragment) or loaded (with gpu_load_matrix_sync) before "
            "use.";
     TVM_FFI_ICHECK(fragment_getter.fragments.count(buffer2))
         << "Tensorecore fragment " << buffer2->name
-        << " must be filled (with tvm_fill_fragment) or loaded (with tvm_load_matrix_sync) before "
+        << " must be filled (with gpu_fill_fragment) or loaded (with gpu_load_matrix_sync) before "
            "use.";
     FragmentInfo info1 = fragment_getter.fragments.at(buffer1);
     FragmentInfo info2 = fragment_getter.fragments.at(buffer2);

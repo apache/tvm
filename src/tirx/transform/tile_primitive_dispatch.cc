@@ -251,7 +251,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
    private:
     UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
       const auto* call = op->value.as<CallNode>();
-      if (call != nullptr && call->op.same_as(tirx::tvm_kernel_replace_point_op())) {
+      if (call != nullptr && call->op.same_as(tirx::kernel_replace_point_op())) {
         return body_;
       }
       return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -534,7 +534,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     // recognizes the dominant shapes: pure conjunctions of `scopeid_var op
     // const` comparisons plus bare `ptx_elect_sync()` calls. Predicates
     // outside that grammar (e.g. linear shifts like `v - 1 < 5`, modulo
-    // equality like `v % 2 == 0`, or the legacy `tirx.filter` wrapper) fall
+    // equality like `v % 2 == 0`, or the legacy `tirx.gpu_thread_filter` wrapper) fall
     // back to the existing dispatcher, which has more permissive matching
     // paths.
     int pushed_ctx = TryPushCanonicalCtx(op->condition);
@@ -1171,12 +1171,14 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
   int PushFilterPredicateCtx(const CallNode* call) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 2)
-        << "TIRxError: tirx.filter expects (var, cond); got " << call->args.size() << " args";
+        << "TIRxError: tirx.gpu_thread_filter expects (var, cond); got " << call->args.size()
+        << " args";
     PrimExpr var = call->args[0].as_or_throw<PrimExpr>();
     PrimExpr cond = call->args[1].as_or_throw<PrimExpr>();
     auto target = ResolveScopeIdTarget(var);
     if (target && ElectSyncFinder::Contains(cond)) {
-      PrimExpr selector = Call(var.ty(), tirx::selector_op(), {var, cond}).as_or_throw<PrimExpr>();
+      PrimExpr selector = Call(var.ty(), tirx::gpu_active_thread_selector_op(), {var, cond})
+                              .as_or_throw<PrimExpr>();
       int pushed = TryPushSelectorForTarget(*target, selector) ? 1 : 0;
       return pushed + PushPredicateCtx(cond);
     }
@@ -1268,7 +1270,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   // Returns:
   //   -1   `cond` is not canonical and does not contain elect_sync -- caller
   //        should fall back to the legacy PushPredicateCtx dispatch (which
-  //        handles tirx.filter wrappers, linear shifts, modulo equality).
+  //        handles tirx.gpu_thread_filter wrappers, linear shifts, modulo equality).
   //   >= 0 number of context frames pushed on `ctx_stack_` (may be 0 if all
   //        atoms were recognized but none could be narrowed -- e.g. a range
   //        target that overlaps a fixed CTA pair axis).
@@ -1287,8 +1289,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         auto lane = FindLaneScopeVar();
         if (!lane) return -1;
         ScopeIdTarget target{ScopeBinding::kWarpThread, 0, 1};
-        PrimExpr selector = Call((*lane)->ty, tirx::selector_op(), ffi::Array<Expr>{*lane, cond})
-                                .as_or_throw<PrimExpr>();
+        PrimExpr selector =
+            Call((*lane)->ty, tirx::gpu_active_thread_selector_op(), ffi::Array<Expr>{*lane, cond})
+                .as_or_throw<PrimExpr>();
         return TryPushSelectorForTarget(target, selector) ? 1 : 0;
       }
       return -1;
@@ -1355,7 +1358,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     auto lane = FindLaneScopeVar();
     if (!lane) return false;
     ScopeIdTarget target{ScopeBinding::kWarpThread, 0, 1};
-    PrimExpr selector = Call((*lane)->ty, tirx::selector_op(),
+    PrimExpr selector = Call((*lane)->ty, tirx::gpu_active_thread_selector_op(),
                              ffi::Array<Expr>{*lane, atom.elect_sync_call.value()})
                             .as_or_throw<PrimExpr>();
     return TryPushSelectorForTarget(target, selector);
@@ -1379,7 +1382,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       return PushConjunctivePredicateCtx(pred);
     }
     if (const auto* call = pred.as<CallNode>()) {
-      if (call->op.same_as(tirx::filter_op())) {
+      if (call->op.same_as(tirx::gpu_thread_filter_op())) {
         return PushFilterPredicateCtx(call);
       }
     }
@@ -1389,7 +1392,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
   PrimExpr RewriteFilterCall(const CallNode* call) const {
     TVM_FFI_ICHECK_EQ(call->args.size(), 2)
-        << "TIRxError: tirx.filter expects (var, cond); got " << call->args.size() << " args";
+        << "TIRxError: tirx.gpu_thread_filter expects (var, cond); got " << call->args.size()
+        << " args";
     return AsBool(call->args[1].as_or_throw<PrimExpr>());
   }
 
@@ -1438,7 +1442,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       return prim::BitwiseNot(a, op->span);
     }
     if (const auto* call = pred.as<CallNode>()) {
-      if (call->op.same_as(tirx::filter_op())) {
+      if (call->op.same_as(tirx::gpu_thread_filter_op())) {
         return RewriteFilterCalls(RewriteFilterCall(call));
       }
       bool changed = false;

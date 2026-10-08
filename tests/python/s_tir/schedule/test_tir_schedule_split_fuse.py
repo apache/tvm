@@ -276,7 +276,7 @@ def opaque_access(A: T.Tensor([16, 16], "float32"), B: T.Tensor([16, 16], "float
             vi, vj = Ts.axis.remap("SS", [i, j])
             Ts.reads([])
             Ts.writes([B[0:16, 0:16]])
-            T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj))
+            T.evaluate(T.gpu_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj))
 
 
 @Ts.function
@@ -294,7 +294,7 @@ def opaque_access_fused(A: T.Tensor([16, 16]), B: T.Tensor([16, 16])) -> None:
             vj = Ts.axis.S(16, T.floormod(i_j_fused, 16))
             Ts.reads([])
             Ts.writes([B[0:16, 0:16]])
-            T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, ((vi * 16) + vj)))
+            T.evaluate(T.gpu_fill_fragment(B.data, 16, 16, 16, 0, ((vi * 16) + vj)))
 
 
 @Ts.function
@@ -312,7 +312,7 @@ def opaque_access_split(A: T.Tensor((16, 16)), B: T.Tensor((16, 16))) -> None:
             vj = Ts.axis.S(16, j0 * 4 + j1)
             Ts.reads([])
             Ts.writes([B[0:16, 0:16]])
-            T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, ((vi * 16) + vj)))
+            T.evaluate(T.gpu_fill_fragment(B.data, 16, 16, 16, 0, ((vi * 16) + vj)))
 
 
 @Ts.function

@@ -41,7 +41,7 @@ synchronization, mbarriers, reductions, and the PTX data-movement / MMA families
     Tx.cuda.cta_sync()  # initialization completes before any thread uses bar
     Tx.cuda.mbarrier_wait(bar.data, phase)
 
-A complete, runnable example — a warp all-reduce via ``Tx.tvm_warp_shuffle_xor``:
+A complete, runnable example — a warp all-reduce via ``Tx.gpu_warp_shuffle_xor``:
 
 .. code-block:: python
 
@@ -57,7 +57,7 @@ A complete, runnable example — a warp all-reduce via ``Tx.tvm_warp_shuffle_xor
         v[0] = Tx.float32(31 - lane_id)
         i[0] = 16
         while i[0] >= 1:
-            v[0] += Tx.tvm_warp_shuffle_xor(0xFFFFFFFF, v[0], i[0], 32, 32)
+            v[0] += Tx.gpu_warp_shuffle_xor(0xFFFFFFFF, v[0], i[0], 32, 32)
             i[0] = i[0] // 2
         A[lane_id] = v[0]
 
