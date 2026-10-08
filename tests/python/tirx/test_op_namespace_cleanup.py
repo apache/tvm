@@ -108,7 +108,7 @@ def test_builtin_expression_ops_are_not_tile_primitives():
 def test_tensormap_encoding_accepts_attribute_keywords_and_defaults():
     @T.function
     def encode(descriptor: T.TensorMap, data: T.handle):
-        T.tensormap_encode_tiled(
+        T.cuda.tensormap_encode_tiled(
             descriptor,
             data,
             64,
@@ -123,8 +123,8 @@ def test_tensormap_encoding_accepts_attribute_keywords_and_defaults():
             swizzle=3,
         )
 
-    (call,) = [c for c in _expr_calls(encode) if c.op.name == "tirx.tensormap_encode_tiled"]
-    assert call.op.attrs_type_key == "tirx.TensorMapEncodeTiledAttr"
+    (call,) = [c for c in _expr_calls(encode) if c.op.name == "tirx.cuda.tensormap_encode_tiled"]
+    assert call.op.attrs_type_key == "tirx.cuda.TensorMapEncodeTiledAttr"
     assert str(call.attrs.descriptor_dtype) == "bfloat16"
     assert call.attrs.rank == 2
     assert call.attrs.swizzle == 3
