@@ -909,7 +909,7 @@ def opt_conv_tensorcore_lower():
                                 16,
                                 0,
                                 T.tvm_access_ptr(
-                                    T.type_annotation(ty="float16"),
+                                    "float16",
                                     Apad_shared.data,
                                     (((ty * 3072) + (kw * 512)) + (ic_inner * 256)),
                                     256,
@@ -927,7 +927,7 @@ def opt_conv_tensorcore_lower():
                                 16,
                                 1,
                                 T.tvm_access_ptr(
-                                    T.type_annotation(ty="float16"),
+                                    "float16",
                                     Apad_shared.data,
                                     ((((ty * 3072) + (kw * 512)) + (ic_inner * 256)) + 1536),
                                     256,
@@ -945,7 +945,7 @@ def opt_conv_tensorcore_lower():
                                 16,
                                 0,
                                 T.tvm_access_ptr(
-                                    T.type_annotation(ty="float16"),
+                                    "float16",
                                     W_shared.data,
                                     (((kw * 4096) + (ic_inner * 2048)) + (tz * 1024)),
                                     256,
@@ -963,7 +963,7 @@ def opt_conv_tensorcore_lower():
                                 16,
                                 3,
                                 T.tvm_access_ptr(
-                                    T.type_annotation(ty="float16"),
+                                    "float16",
                                     W_shared.data,
                                     ((((kw * 4096) + (ic_inner * 2048)) + (tz * 1024)) + 768),
                                     256,
@@ -1005,7 +1005,7 @@ def opt_conv_tensorcore_lower():
                 16,
                 0,
                 T.tvm_access_ptr(
-                    T.type_annotation(ty="float32"),
+                    "float32",
                     Conv_1.data,
                     (
                         ((((bx * 12845056) + (ty * 3211264)) + (bz * 8192)) + (by * 2048))
@@ -1026,7 +1026,7 @@ def opt_conv_tensorcore_lower():
                 16,
                 7,
                 T.tvm_access_ptr(
-                    T.type_annotation(ty="float32"),
+                    "float32",
                     Conv_1.data,
                     (
                         (

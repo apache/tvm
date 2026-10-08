@@ -511,8 +511,7 @@ void CodeGenMetal::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(
        << PrintExpr(c) << "[" << PrintExpr(op->args[7]) << "])";
   } else if (op->op.same_as(tirx::ptr_byte_offset_op()) ||
              op->op.same_as(tirx::handle_add_byte_offset_op())) {
-    bool is_typed_offset = op->op.same_as(tirx::ptr_byte_offset_op());
-    TVM_FFI_ICHECK_EQ(op->args.size(), is_typed_offset ? 3U : 2U);
+    TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
     const auto* pointer_type = op->ty.as<PointerTypeNode>();
     TVM_FFI_ICHECK(pointer_type)
         << "Metal pointer byte offsets must have a pointer result type, but got " << op->ty;

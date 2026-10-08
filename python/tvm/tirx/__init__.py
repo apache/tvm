@@ -65,7 +65,7 @@ from .op import call_llvm_intrin, call_llvm_pure_intrin, all, any, min_value, ma
 from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
 from .op import handle_add_byte_offset, tvm_struct_get, tvm_struct_set
 from .op import address_of, assume, assume_aligned, undef
-from .op import tvm_thread_allreduce, type_annotation, tvm_access_ptr, ptr_byte_offset
+from .op import tvm_thread_allreduce, tvm_access_ptr, ptr_byte_offset
 from .op import tvm_throw_last_error, cpu_parallel_barrier
 from .op import (
     tvm_load_matrix_sync,
