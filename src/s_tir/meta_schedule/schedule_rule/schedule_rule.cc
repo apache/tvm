@@ -18,8 +18,8 @@
  */
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/target/target.h>
 #include <tvm/s_tir/tensor_intrin.h>
+#include <tvm/target/target.h>
 
 #include "../utils.h"
 
