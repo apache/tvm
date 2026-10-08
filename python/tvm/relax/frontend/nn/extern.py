@@ -17,14 +17,17 @@
 # ruff: noqa: E722
 """External modules to be linked into the exported IRModule."""
 
+import os
 import shutil
 import sys
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
+import tvm_ffi
+
 import tvm
-from tvm import tirx
+from tvm import libinfo, tirx
 from tvm.runtime import Module, load_static_library
 from tvm.support import cc as _cc
 
@@ -260,7 +263,34 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
             The TVM home directory, and it is guaranteed to have `include` and `3rdparty` as
             direct subdirectories.
         """
-        return _cc.tvm_home()
+        if os.environ.get("TVM_HOME", None):
+            tvm_path = Path(os.environ["TVM_HOME"])
+            assert tvm_path.exists(), (
+                f"Using environment variable `TVM_HOME`, but directory not found: {tvm_path!s}"
+            )
+            assert tvm_path.is_dir(), (
+                f"Using environment variable `TVM_HOME`, but it is not a directory: {tvm_path!s}"
+            )
+        else:
+            import tvm  # pylint: disable=import-outside-toplevel
+
+            tvm_path = Path(tvm.__file__).parent
+            assert tvm_path.is_dir()
+        tvm_path = tvm_path.resolve()
+        while True:
+            exists_include = (tvm_path / "include").is_dir()
+            exists_3rdparty = (tvm_path / "3rdparty").is_dir()
+            if exists_include and exists_3rdparty:
+                return tvm_path.resolve()
+            parent = tvm_path.parent
+            if parent == tvm_path:
+                raise ValueError(
+                    "Cannot detect TVM directory. "
+                    "Please explicitly specify it by setting `TVM_HOME` environment variable, "
+                    "and make sure it contains `include` and `3rdparty` as direct sub-directories."
+                )
+            tvm_path = parent
+        return tvm_path.resolve()
 
     @staticmethod
     def get_includes(tvm_pkg: list[str] | None = None) -> list[Path]:
@@ -279,7 +309,20 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
         includes : List[pathlib.Path]
             The list of include paths.
         """
-        return _cc.get_includes(tvm_pkg=tvm_pkg)
+        results = [
+            Path(libinfo.find_include_path()),
+            Path(tvm_ffi.libinfo.find_include_path()),
+            Path(tvm_ffi.libinfo.find_dlpack_include_path()),
+        ]
+        if tvm_pkg:
+            tvm_home = SourceModule.tvm_home()
+            for relative in tvm_pkg:
+                results.append(tvm_home / "3rdparty" / relative)
+        results = list(dict.fromkeys(results))
+        for path in results:
+            assert path.exists(), f"Not found: {path!s}"
+            assert path.is_dir(), f"Not a directory: {path!s}"
+        return results
 
     @staticmethod
     def get_compile_options(
@@ -304,7 +347,26 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
         compile_options : List[str]
             The list of compilation flags.
         """
-        return _cc.get_compile_options(source_format, tvm_pkg=tvm_pkg)
+        include_flags = []
+        for include_path in SourceModule.get_includes(tvm_pkg=tvm_pkg):
+            include_flags += ["-I", str(include_path)]
+        if source_format == "cpp":
+            host_flags = [
+                "-c",  # generate object file
+                "-O3",
+                "-std=c++17",
+            ]
+        elif source_format == "cu":
+            host_flags = [
+                "-c",  # generate object file
+                "-O3",
+                "-std=c++17",
+                # Enable `-fPIC` for the host compiler
+                "-Xcompiler=-fPIC",
+            ]
+        else:
+            raise ValueError(f"Invalid source format: {source_format}")
+        return include_flags + host_flags
 
     def compile(self, output_path: Path) -> None:
         """Compiles the source code in a provided directory and returns the compiled artifact."""
