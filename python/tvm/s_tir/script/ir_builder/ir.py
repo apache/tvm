@@ -17,9 +17,7 @@
 """S-TIR block construction over shared primitive operations."""
 
 import contextlib
-import inspect
 import threading
-from collections.abc import Callable
 from numbers import Integral
 from typing import Any
 
@@ -27,6 +25,7 @@ from tvm import ir
 from tvm import tirx as tir
 from tvm.ir import TensorLoad, TensorRegion, is_prim_expr
 from tvm.s_tir.iter_var import IterVar
+from tvm.s_tir.op import comm_reducer
 from tvm.script.ir_builder.base import MISSING
 from tvm.script.parser.protocol_registry import register_mutable_decl as _register_mutable_decl
 from tvm.te import CommReducer, Reduce
@@ -36,37 +35,6 @@ from tvm.tirx.script.ir_builder.ir import _get_layout, _record_meta_resource
 from tvm.tirx.script.ir_builder.parser_protocol import region
 
 from . import _ffi_api
-
-
-def comm_reducer(combiner: Callable, identity: list[Expr]) -> CommReducer:
-    """
-    Create a CommReducer from lambda inputs/outputs and the identities
-
-    Parameters
-    ----------
-    combiner : Callable
-        A binary function which takes two Expr as input to return a Expr.
-
-    identity : List[Expr]
-        A list of types of output Expr.
-
-    Returns
-    -------
-    res : CommReducer
-        The CommReducer.
-    """
-    params = inspect.signature(combiner).parameters
-    num_args = len(params)
-    args = []
-    for name, i in zip(params.keys(), identity + identity):
-        if isinstance(i, int):
-            args.append(Var(name, "int32"))
-        else:
-            args.append(Var(name, i.ty))
-    res = combiner(*args)
-    if not isinstance(res, tuple):
-        res = (res,)
-    return CommReducer(args[: num_args // 2], args[num_args // 2 :], res, identity)
 
 
 def iter_var(v: Var | str, dom: ir.Range, iter_type: str, thread_tag: str) -> IterVar:
