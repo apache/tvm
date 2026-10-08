@@ -53,7 +53,7 @@ class FunctionNode : public BaseFuncNode {
   /*! \brief The return type of the function. */
   Type ret_type = Type::Missing();
   /*! \brief The body of the function, absent for a declaration. */
-  ffi::Optional<tirx::Stmt> body;
+  ffi::Optional<tirx::SeqStmt> body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -117,7 +117,7 @@ class Function : public BaseFunc {
    *
    * \param span The location of this object in the source code.
    */
-  TVM_DLL Function(ffi::Array<tirx::Var> params, ffi::Optional<Stmt> body,
+  TVM_DLL Function(ffi::Array<tirx::Var> params, ffi::Optional<SeqStmt> body,
                    Type ret_type = VoidType(), DictAttrs attrs = DictAttrs(), Span span = Span());
 
   explicit Function(ffi::ObjectPtr<FunctionNode> node) : BaseFunc(std::move(node)) {}

@@ -198,8 +198,8 @@ def test_thread_binding_dtype():
             for j in T.thread_binding(128, "threadIdx.y"):
                 B[i, j] = A[i, j]
 
-    loop_i = func.body
-    loop_j = loop_i.body
+    loop_i = func.body[0]
+    loop_j = loop_i.body[0]
     assert loop_i.loop_var.ty.dtype == "int64"
     assert loop_j.loop_var.ty.dtype == "int32"
 
@@ -310,8 +310,8 @@ def test_launch_thread_i64():
         else:
             T.evaluate(T.int64(1))
 
-    assert func.body.body_params[0].ty.dtype == "int64"
-    assert func.body.args[1].ty.dtype == "int64"
+    assert func.body[0].body_params[0].ty.dtype == "int64"
+    assert func.body[0].args[1].ty.dtype == "int64"
 
 
 def test_block_annotation_merge():
@@ -328,7 +328,7 @@ def test_block_annotation_merge():
             Ts.sblock_attr({"key2": "block2"})
             T.evaluate(0)
 
-    assert _to_dict(func0.body.block.annotations) == {"key1": "block1", "key2": "block2"}
+    assert _to_dict(func0.body[0].block.annotations) == {"key1": "block1", "key2": "block2"}
 
     @Ts.function
     def func1():
@@ -337,7 +337,9 @@ def test_block_annotation_merge():
             Ts.sblock_attr({"key": {"key2": "block2"}})
             T.evaluate(0)
 
-    assert _to_dict(func1.body.block.annotations) == {"key": {"key1": "block1", "key2": "block2"}}
+    assert _to_dict(func1.body[0].block.annotations) == {
+        "key": {"key1": "block1", "key2": "block2"}
+    }
 
     @Ts.function
     def func2():
@@ -346,7 +348,7 @@ def test_block_annotation_merge():
             Ts.sblock_attr({"key1": "block1"})
             T.evaluate(0)
 
-    assert _to_dict(func2.body.block.annotations) == {"key1": "block1"}
+    assert _to_dict(func2.body[0].block.annotations) == {"key1": "block1"}
 
     with pytest.raises(RuntimeError):
 
@@ -467,13 +469,13 @@ def test_for_thread_binding():
     )
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body, tirx.stmt.For)
-    assert rt_func.body.kind == 4
-    assert rt_func.body.thread_binding == "threadIdx.x"
-    assert isinstance(rt_func.body.body, tirx.stmt.For)
-    assert rt_func.body.body.kind == 4
-    assert rt_func.body.body.thread_binding == "threadIdx.y"
-    assert rt_func.body.body.annotations["attr_key"] == "attr_value"
+    assert isinstance(rt_func.body[0], tirx.stmt.For)
+    assert rt_func.body[0].kind == 4
+    assert rt_func.body[0].thread_binding == "threadIdx.x"
+    assert isinstance(rt_func.body[0].body[0], tirx.stmt.For)
+    assert rt_func.body[0].body[0].kind == 4
+    assert rt_func.body[0].body[0].thread_binding == "threadIdx.y"
+    assert rt_func.body[0].body[0].annotations["attr_key"] == "attr_value"
 
 
 def while_loop():
@@ -941,7 +943,7 @@ def func():
 """,
         extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
     )
-    binding = func.body.body.seq[0]
+    binding = func.body[0].body.seq[0]
     if mutable:
         assert isinstance(binding, tvm.tirx.Bind) and isinstance(binding.value, tvm.ir.Call)
         assert binding.value.op.name == "tirx.alloc_tensor"

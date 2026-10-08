@@ -64,7 +64,7 @@ def test_ir_builder_source_span_applies_to_emitted_stmt():
             with ib.with_source_span(span):
                 T.evaluate(1)
 
-    actual = ib.get().body.span
+    actual = ib.get().body[0].span
     assert actual.source_name.name == "builder_test.py"
     assert (actual.line, actual.column, actual.end_line, actual.end_column) == (7, 5, 7, 18)
 

@@ -97,7 +97,7 @@ def test_normal_constructors_in_parsed_function():
     def function(x: ir.PrimType("float32")):
         T.evaluate(ir.Call("tirx.exp", [x], ty="float32"))
 
-    call = function.body.value
+    call = function.body[0].value
     ir.assert_structural_equal(
         call, ir.Call("tirx.exp", [function.params[0]], ty=ir.PrimType("float32"))
     )

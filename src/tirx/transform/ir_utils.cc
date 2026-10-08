@@ -52,7 +52,7 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
       body = Stmt(n);
     } else if (const auto* bind = s.as<BindNode>()) {
       // Bind has no body -- prepend it before the accumulated body in a SeqStmt.
-      body = SeqStmt::Flatten(ffi::GetRef<Stmt>(bind), body);
+      body = SeqStmt({ffi::GetRef<Stmt>(bind), body});
     } else if (const auto* ite = s.as<IfThenElseNode>()) {
       auto n = ffi::make_object<IfThenElseNode>(*ite);
       TVM_FFI_ICHECK(is_no_op(n->then_case));
@@ -60,10 +60,8 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
       n->then_case = body;
       body = Stmt(n);
     } else if (const auto* seq = s.as<SeqStmtNode>()) {
-      auto n = ffi::make_object<SeqStmtNode>(*seq);
-      TVM_FFI_ICHECK(n->size() != 0 && is_no_op(n->seq[n->size() - 1]));
-      n->seq.Set(n->size() - 1, body);
-      body = Stmt(n);
+      // A sequence nest is a prefix, followed by the accumulated body.
+      body = SeqStmt({s, body}, seq->span);
     } else if (s.as<AssertStmtNode>()) {
       body = SeqStmt({s, body});
     } else {
@@ -216,9 +214,9 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const IfThenElseNode* op, InplaceMode in
   Stmt then_case = scope_.WithNewScope([&]() -> Stmt {
     return Mutate(op->then_case, inplace_mode).ValueOrUnchanged(op->then_case);
   });
-  ffi::Optional<Stmt> else_case;
+  ffi::Optional<SeqStmt> else_case;
   if (op->else_case) {
-    else_case = scope_.WithNewScope([&]() -> Stmt {
+    else_case = scope_.WithNewScope([&]() -> SeqStmt {
       return Mutate(op->else_case.value(), inplace_mode).ValueOrUnchanged(op->else_case.value());
     });
   }

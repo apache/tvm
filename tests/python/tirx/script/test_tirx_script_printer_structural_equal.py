@@ -94,7 +94,7 @@ def test_evaluate():
     class module1:
         @T.function
         def func():
-            T.evaluate(0)
+            T.evaluate(2)
 
     @I.ir_module
     class module2:
@@ -111,12 +111,16 @@ def test_evaluate():
         .attr("functions")
         .map_item(module1.get_global_var("func"))
         .attr("body")
+        .attr("seq")
+        .array_item(0)
         .attr("value")
         .attr("value"),
         AccessPath.root()
         .attr("functions")
         .map_item(module2.get_global_var("func"))
         .attr("body")
+        .attr("seq")
+        .array_item(0)
         .attr("value")
         .attr("value"),
     )
@@ -142,6 +146,8 @@ def test_allocate():
         func2,
         AccessPath.root()
         .attr("body")
+        .attr("seq")
+        .array_item(0)
         .attr("var")
         .attr("ty")
         .attr("shape")
@@ -149,6 +155,8 @@ def test_allocate():
         .attr("value"),
         AccessPath.root()
         .attr("body")
+        .attr("seq")
+        .array_item(0)
         .attr("var")
         .attr("ty")
         .attr("shape")
@@ -176,6 +184,24 @@ def test_for():
     assert _error_message(ve.value) == _expected_result(
         func1,
         func2,
-        AccessPath.root().attr("body").attr("body").attr("body"),
-        AccessPath.root().attr("body").attr("body").attr("body"),
+        AccessPath.root()
+        .attr("body")
+        .attr("seq")
+        .array_item(0)
+        .attr("body")
+        .attr("seq")
+        .array_item(0)
+        .attr("body")
+        .attr("seq")
+        .array_item_missing(0),
+        AccessPath.root()
+        .attr("body")
+        .attr("seq")
+        .array_item(0)
+        .attr("body")
+        .attr("seq")
+        .array_item(0)
+        .attr("body")
+        .attr("seq")
+        .array_item(0),
     )

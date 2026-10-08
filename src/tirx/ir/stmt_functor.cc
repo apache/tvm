@@ -360,8 +360,7 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const ReturnNode* op, InplaceMode inp
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) {
   auto condition = Mutate(op->condition, inplace_mode);
   auto then_case = Mutate(op->then_case, inplace_mode);
-  auto else_case =
-      Mutate(op->else_case, inplace_mode).as_or_throw<UnchangedOr<ffi::Optional<Stmt>>>();
+  auto else_case = Mutate(op->else_case, inplace_mode);
   if (condition.UnchangedOrSameAs(op->condition) && then_case.UnchangedOrSameAs(op->then_case) &&
       else_case.UnchangedOrSameAs(op->else_case))
     return ffi::Unchanged();

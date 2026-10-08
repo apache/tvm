@@ -71,15 +71,15 @@ def test_simple():
 
     _check_func_signature_remap(f1, f2)
     # check root block
-    _check_block_signature_remap(f1.body.block, f2.body.block)
+    _check_block_signature_remap(f1.body[0].block, f2.body[0].block)
     # check remap of i
-    assert f1.body.block.body.loop_var != f2.body.block.body.loop_var
+    assert f1.body[0].block.body[0].loop_var != f2.body[0].block.body[0].loop_var
     # check remap of j
-    assert f1.body.block.body.body.loop_var != f2.body.block.body.body.loop_var
+    assert f1.body[0].block.body[0].body[0].loop_var != f2.body[0].block.body[0].body[0].loop_var
 
     # check inner block
     def _get_sblock(f):
-        return f.body.block.body.body.body.block
+        return f.body[0].block.body[0].body[0].body[0].block
 
     _check_block_signature_remap(_get_sblock(f1), _get_sblock(f2))
 
@@ -113,11 +113,11 @@ def test_match_buffer():
     tvm.ir.assert_structural_equal(f1, f2)
 
     _check_func_signature_remap(f1, f2)
-    _check_block_signature_remap(f1.body.block, f2.body.block)
-    assert f1.body.block.body.loop_var != f2.body.block.body.loop_var
+    _check_block_signature_remap(f1.body[0].block, f2.body[0].block)
+    assert f1.body[0].block.body[0].loop_var != f2.body[0].block.body[0].loop_var
 
     def _get_sblock(f):
-        return f.body.block
+        return f.body[0].block
 
     block1 = _get_sblock(f1)
     block2 = _get_sblock(f2)
@@ -153,7 +153,7 @@ def test_undefined_buffer():
 
     def _get_tensor_store_buffer(f):
         # SeqStmt: [AllocTensor, Evaluate, For]; For body has the TensorStore
-        return f.body.seq[2].body.buffer
+        return f.body.seq[2].body[0].buffer
 
     _check_buffer_decl(_get_tensor_store_buffer(f1), _get_tensor_store_buffer(f2))
 
@@ -195,8 +195,8 @@ def test_compound_buffer_param_shape_var():
     f2 = tvm.s_tir.renew_defs(f1)
 
     tvm.ir.assert_structural_equal(f1, f2)
-    assert not f1.body.value.same_as(f2.body.value)
-    assert f2.params[0].shape[0].a.same_as(f2.body.value)
+    assert not f1.body[0].value.same_as(f2.body[0].value)
+    assert f2.params[0].shape[0].a.same_as(f2.body[0].value)
 
 
 def test_gather():

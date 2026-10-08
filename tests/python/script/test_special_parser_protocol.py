@@ -114,5 +114,5 @@ def main(n: Script.int32):
         Script.evaluate(i)
 """
     function = entry.parse(source)
-    assert function.body.extent.same_as(function.params[0])
-    assert function.body.body.value.same_as(function.body.loop_var)
+    assert function.body[0].extent.same_as(function.params[0])
+    assert function.body[0].body[0].value.same_as(function.body[0].loop_var)

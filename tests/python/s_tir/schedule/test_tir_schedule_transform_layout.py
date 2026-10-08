@@ -297,7 +297,7 @@ def test_simplify():
                         # C[...] = B[vi // 16 + vi_o, vj // 16 + vj_o, vi % 16, vj % 16] + T.float32(1)
 
     expected = tvm.tirx.Function(
-        [param for param in ref.params if tvm.tirx.is_tensor_var(param)], ref.body.block.body
+        [param for param in ref.params if tvm.tirx.is_tensor_var(param)], ref.body[0].block.body
     )
     actual_block = sch.get(block_outer)
     actual = tvm.tirx.Function(

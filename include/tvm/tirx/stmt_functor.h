@@ -249,6 +249,22 @@ class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
         ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(Mutate(ffi::AnyView(stmt), inplace_mode)));
   }
 
+  /*! \brief Mutate a scope body without collapsing its sequence container. */
+  TVM_FFI_INLINE UnchangedOr<SeqStmt> Mutate(const SeqStmt& stmt,
+                                             InplaceMode inplace_mode = InplaceMode::kDisallow) {
+    auto result = Mutate(static_cast<const Stmt&>(stmt), inplace_mode);
+    if (result.UnchangedOrSameAs(stmt)) return ffi::Unchanged();
+    return SeqStmt(std::move(result).ValueUnchecked());
+  }
+
+  TVM_FFI_INLINE UnchangedOr<ffi::Optional<SeqStmt>> Mutate(
+      const ffi::Optional<SeqStmt>& stmt, InplaceMode inplace_mode = InplaceMode::kDisallow) {
+    if (!stmt.has_value()) return ffi::Unchanged();
+    auto result = Mutate(stmt.value(), inplace_mode);
+    if (result.IsUnchanged()) return ffi::Unchanged();
+    return ffi::Optional<SeqStmt>(std::move(result).ValueUnchecked());
+  }
+
   /*! \brief Mutate an optional statement, preserving an absent function body. */
   TVM_FFI_INLINE UnchangedOr<ffi::Optional<Stmt>> Mutate(
       const ffi::Optional<Stmt>& stmt, InplaceMode inplace_mode = InplaceMode::kDisallow) {

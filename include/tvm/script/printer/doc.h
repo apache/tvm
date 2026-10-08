@@ -863,8 +863,8 @@ class IfDocNode : public StmtDocNode {
   ExprDoc predicate{ffi::UnsafeInit()};
   /*! \brief The then branch of the if-then-else statement. */
   ffi::Array<StmtDoc> then_branch;
-  /*! \brief The else branch of the if-then-else statement. */
-  ffi::Array<StmtDoc> else_branch;
+  /*! \brief The optional else branch; an empty array represents a present empty branch. */
+  ffi::Optional<ffi::Array<StmtDoc>> else_branch;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -887,10 +887,10 @@ class IfDoc : public StmtDoc {
    * \brief Constructor of IfDoc.
    * \param predicate The predicate of the if-then-else statement.
    * \param then_branch The then branch of the if-then-else statement.
-   * \param else_branch The else branch of the if-then-else statement.
+   * \param else_branch The else branch, or nullopt when no else branch is present.
    */
   TVM_DLL explicit IfDoc(ExprDoc predicate, ffi::Array<StmtDoc> then_branch,
-                         ffi::Array<StmtDoc> else_branch);
+                         ffi::Optional<ffi::Array<StmtDoc>> else_branch);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IfDoc, StmtDoc, IfDocNode);
 };
 

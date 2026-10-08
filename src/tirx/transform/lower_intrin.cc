@@ -173,13 +173,12 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     Stmt result = std::move(mutated).ValueOrUnchanged(input).as_or_throw<Stmt>();
     for (size_t i = access_ptr_buffer_aliases_.size(); i > alias_begin; --i) {
       const auto& alias = access_ptr_buffer_aliases_[i - 1];
-      result = SeqStmt::Flatten(
-          Bind(alias.buffer,
-               Call(alias.buffer.type(), builtin::decl_tensor(),
-                    {alias.data, tvm::Tuple(alias.buffer->shape),
-                     DataTypeImm(alias.buffer->dtype->dtype), StringImm(alias.buffer.scope())},
-                    {})),
-          std::move(result));
+      result = SeqStmt({Bind(alias.buffer, Call(alias.buffer.type(), builtin::decl_tensor(),
+                                                {alias.data, tvm::Tuple(alias.buffer->shape),
+                                                 DataTypeImm(alias.buffer->dtype->dtype),
+                                                 StringImm(alias.buffer.scope())},
+                                                {})),
+                        std::move(result)});
     }
     access_ptr_buffer_aliases_.erase(access_ptr_buffer_aliases_.begin() + alias_begin,
                                      access_ptr_buffer_aliases_.end());

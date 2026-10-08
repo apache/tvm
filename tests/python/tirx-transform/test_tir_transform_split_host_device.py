@@ -59,7 +59,7 @@ def test_ssa_across_entire_module():
                     T.evaluate(i)
 
     after = tvm.tirx.transform.SplitHostDevice()(before)
-    loop_var = after["main"].body.loop_var
+    loop_var = after["main"].body[0].loop_var
     param_var = after["main_kernel"].params[0]
 
     assert not loop_var.same_as(param_var)
@@ -447,7 +447,7 @@ def test_cuda_launch_preserves_flag_metadata():
         "tirx.use_programtic_dependent_launch",
     ]
 
-    launch = after["main"].body.value
+    launch = after["main"].body[0].value
     assert isinstance(launch, tvm.ir.Call)
     assert launch.op == tvm.ir.Op.get("tirx.call_ffi_kernel")
     assert isinstance(launch.attrs, tvm.tirx.CallFFIKernelAttr)
@@ -488,7 +488,7 @@ def test_cuda_required_block_size_coexists_with_launch_bounds():
         "tirx.use_required_block_dimension",
     ]
 
-    launch = after["main"].body.value
+    launch = after["main"].body[0].value
     assert isinstance(launch, tvm.ir.Call)
     # The required-block flag reaches FunctionInfo metadata but adds no packed operand.
     assert len(launch.args) == 4
@@ -520,7 +520,7 @@ def test_cuda_launch_preserves_singleton_cluster_dimensions():
         "threadIdx.x",
     ]
 
-    launch = after["main"].body.value
+    launch = after["main"].body[0].value
     assert isinstance(launch, tvm.ir.Call)
     assert [int(arg) for arg in launch.args[-5:]] == [4, 1, 1, 1, 32]
 

@@ -244,7 +244,7 @@ def test_constexpr_specializes_nested_selector_condition():
         )
 
     specialized = k.specialize(LIMIT=4)
-    op_call = specialized.body
+    op_call = specialized.body[0]
     condition, candidate = op_call.config["src_selector"][0]
     assert isinstance(condition, tvm.tirx.LT)
     assert int(condition.b) == 4
