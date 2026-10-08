@@ -35,6 +35,14 @@ namespace tvm::tirx {
 TVM_DLL const Op& thread_return_op();
 
 /*!
+ * \brief Return from a GPU thread without returning a function value.
+ *
+ * \param span The location of this operation in the source.
+ * \return The thread return expression.
+ */
+TVM_DLL PrimExpr thread_return(Span span = Span());
+
+/*!
  * \brief Thread-set filter predicate. Used as the condition of an IfThenElse
  * to narrow the active thread set A for the then-branch. Two forms:
  *   filter(var, lo, hi)   -- range form, true iff var in [lo, hi)
@@ -142,6 +150,11 @@ TVM_DLL const Op& tvm_warp_activemask_op();
  */
 TVM_DLL const Op& tvm_thread_allreduce_op();
 
+inline ffi::Array<Expr> GetAllreduceFields(const Expr& value) {
+  if (const auto* tuple = value.as<tvm::TupleNode>()) return tuple->fields;
+  return {value};
+}
+
 /*!
  * \brief Dot product of two int8x4 vectors and add an optional accumulator.
  *
@@ -151,19 +164,6 @@ TVM_DLL const Op& tvm_thread_allreduce_op();
  * - args[2]: acc, The accumulator.
  */
 TVM_DLL const Op& dp4a_op();
-
-inline ffi::Array<Expr> GetAllreduceFields(const Expr& value) {
-  if (const auto* tuple = value.as<tvm::TupleNode>()) return tuple->fields;
-  return {value};
-}
-
-/*!
- * \brief Return from a GPU thread without returning a function value.
- *
- * \param span The location of this operation in the source.
- * \return The thread return expression.
- */
-TVM_DLL PrimExpr thread_return(Span span = Span());
 
 }  // namespace tvm::tirx
 

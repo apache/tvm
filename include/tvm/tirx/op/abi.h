@@ -30,21 +30,6 @@
 
 namespace tvm::tirx {
 
-/*! \brief Launch metadata for call_ffi_kernel. */
-struct CallFFIKernelAttr : public AttrsNode {
-  /*!
-   * \brief Ordered launch tags describing the suffix of the call arguments.
-   *
-   * The first call argument is the kernel symbol, followed by kernel operands
-   * and launch values. Flag-only tags consume no value; dynamic shared-memory
-   * bytes, when present, are last. Runtime expressions remain in Call.args.
-   */
-  ffi::Array<ffi::String> launch_params;
-
-  static void RegisterReflection();
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.CallFFIKernelAttr", CallFFIKernelAttr, AttrsNode);
-};
-
 /*!
  * \brief Call an external C function with argument and result types supplied by the caller.
  *
@@ -89,6 +74,30 @@ TVM_DLL const Op& call_llvm_pure_intrin_op();
  * - args[1...]: args, trailing PrimExpr operands.
  */
 TVM_DLL const Op& call_spirv_pure_glsl450_op();
+
+enum TVMStructFieldKind : int {
+  // DLTensor fields
+  kDLTensorAddr,
+  kDLTensorData,
+  kDLTensorShape,
+  kDLTensorStrides,
+  kDLTensorNDim,
+  kDLTensorTypeCode,
+  kDLTensorTypeBits,
+  kDLTensorTypeLanes,
+  kDLTensorByteOffset,
+  kDLTensorDeviceId,
+  kDLTensorDeviceType,
+  kDLTensorKindBound_,
+  // TVMValue field
+  kTVMValueContent,
+  kTVMFFIAnyTypeIndex,
+  kTVMFFIAnyZeroPadding,
+  kTVMFFIAnyUnionValue,
+  kTVMValueKindBound_,
+  // Generic int64 array element access: ((int64_t*)buf)[index]
+  kInt64ArrayElem,
+};
 
 /*!
  * \brief Read a runtime structure field.
@@ -155,6 +164,21 @@ TVM_DLL const Op& tvm_stack_make_array_op();
  */
 TVM_DLL const Op& tvm_call_packed_op();
 
+/*! \brief Launch metadata for call_ffi_kernel. */
+struct CallFFIKernelAttr : public AttrsNode {
+  /*!
+   * \brief Ordered launch tags describing the suffix of the call arguments.
+   *
+   * The first call argument is the kernel symbol, followed by kernel operands
+   * and launch values. Flag-only tags consume no value; dynamic shared-memory
+   * bytes, when present, are last. Runtime expressions remain in Call.args.
+   */
+  ffi::Array<ffi::String> launch_params;
+
+  static void RegisterReflection();
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.CallFFIKernelAttr", CallFFIKernelAttr, AttrsNode);
+};
+
 /*!
  * \brief Launch a kernel using the packed-function argument convention.
  *
@@ -194,30 +218,6 @@ TVM_DLL const Op& tvm_call_packed_lowered_op();
  * - args[3]: end, The end index.
  */
 TVM_DLL const Op& tvm_call_cpacked_lowered_op();
-
-enum TVMStructFieldKind : int {
-  // DLTensor fields
-  kDLTensorAddr,
-  kDLTensorData,
-  kDLTensorShape,
-  kDLTensorStrides,
-  kDLTensorNDim,
-  kDLTensorTypeCode,
-  kDLTensorTypeBits,
-  kDLTensorTypeLanes,
-  kDLTensorByteOffset,
-  kDLTensorDeviceId,
-  kDLTensorDeviceType,
-  kDLTensorKindBound_,
-  // TVMValue field
-  kTVMValueContent,
-  kTVMFFIAnyTypeIndex,
-  kTVMFFIAnyZeroPadding,
-  kTVMFFIAnyUnionValue,
-  kTVMValueKindBound_,
-  // Generic int64 array element access: ((int64_t*)buf)[index]
-  kInt64ArrayElem,
-};
 
 }  // namespace tvm::tirx
 

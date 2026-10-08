@@ -67,6 +67,24 @@ TVM_DLL const Op& decl_tensor_op();
 TVM_DLL const Op& reinterpret_op();
 
 /*!
+ * \brief perform reinterpret cast value to type.
+ *
+ * \param t the target type.
+ * \param value The value
+ * \param span The location of this operation in the source.
+ * \return The result expression.
+ * \note This function may return value if the type is the same.
+ */
+TVM_DLL PrimExpr reinterpret(PrimType t, PrimExpr value, Span span = Span());
+TVM_DLL PrimExpr reinterpret(DLDataType t, PrimExpr value, Span span = Span());
+TVM_DLL Expr reinterpret(Type target_ty, Expr value, Span span = Span());
+
+/*! \brief Construct an opaque pointer from its integer payload. */
+inline Expr ConstHandle(int64_t value, Span span = Span()) {
+  return reinterpret(PointerType::VoidPointerTy(), IntImm(PrimType::UInt(64), value, span), span);
+}
+
+/*!
  * \brief Return the address of a tensor element or addressable variable.
  *
  * Arguments, in order:
@@ -226,24 +244,6 @@ TVM_DLL const Op& buffer_offset_op();
  * lowering and code generation.
  */
 TVM_DLL const Op& tensor_data_ptr_op();
-
-/*!
- * \brief perform reinterpret cast value to type.
- *
- * \param t the target type.
- * \param value The value
- * \param span The location of this operation in the source.
- * \return The result expression.
- * \note This function may return value if the type is the same.
- */
-TVM_DLL PrimExpr reinterpret(PrimType t, PrimExpr value, Span span = Span());
-TVM_DLL PrimExpr reinterpret(DLDataType t, PrimExpr value, Span span = Span());
-TVM_DLL Expr reinterpret(Type target_ty, Expr value, Span span = Span());
-
-/*! \brief Construct an opaque pointer from its integer payload. */
-inline Expr ConstHandle(int64_t value, Span span = Span()) {
-  return reinterpret(PointerType::VoidPointerTy(), IntImm(PrimType::UInt(64), value, span), span);
-}
 
 }  // namespace tvm::tirx
 
