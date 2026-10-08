@@ -16,7 +16,7 @@
 # under the License.
 """AWS Trainium target tags."""
 
-from .registry import register_tag
+from tvm.target import register_tag
 
 
 def _register_aws_trn1_tag(name, cores):

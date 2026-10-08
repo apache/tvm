@@ -25,21 +25,5 @@ from . import arm_cpu
 from . import riscv_cpu
 from . import aws_cpu
 
-from .. import _ffi_api
-from ..target import Target
-
-# Target descriptions are available independently of backend Python services.
-_kinds = Target.list_kinds() if hasattr(_ffi_api, "ListTargetKinds") else []
-if "cuda" in _kinds:
-    from . import cuda
-if "metal" in _kinds:
-    from . import metal
-if "opencl" in _kinds or "vulkan" in _kinds:
-    from . import adreno
-if "hexagon" in _kinds:
-    from . import hexagon
-if "trn" in _kinds:
-    from . import trn
-
 # Validate all tags at import time
 registry.list_tags()

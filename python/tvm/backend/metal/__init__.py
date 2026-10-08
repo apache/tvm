@@ -23,7 +23,7 @@ from tvm_ffi.libinfo import load_lib_ctypes
 
 from tvm.base import _LOADED_LIBS
 
-_LAZY_SUBMODULES = {"op", "script"}
+_LAZY_SUBMODULES = {"op", "script", "target_tags"}
 
 
 def _detect_target_from_device(dev):
@@ -60,6 +60,7 @@ def register_backend():
     register_device_target_detector("metal", _detect_target_from_device)
     for name, namespace in script_namespaces().items():
         builder_op.register_script_namespace(name, namespace)
+    import_module(f"{__name__}.target_tags")
 
 
 def script_namespaces(**_):
@@ -86,4 +87,5 @@ __all__ = [
     "script",
     "script_namespace",
     "script_namespaces",
+    "target_tags",
 ]

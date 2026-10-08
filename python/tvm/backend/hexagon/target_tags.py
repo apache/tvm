@@ -16,7 +16,7 @@
 # under the License.
 """Qualcomm Hexagon target tags."""
 
-from .registry import register_tag
+from tvm.target import register_tag
 
 _ONE_MB = 2**20
 
