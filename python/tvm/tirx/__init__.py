@@ -24,7 +24,7 @@ tvm.script.register_dialect("tirx", "tvm.tirx.script", builder_path="tvm.tirx.sc
 
 
 from tvm.ir import Expr
-from tvm.runtime import const
+from tvm.ir import const
 
 from .buffer import (
     BufferAccessKind,

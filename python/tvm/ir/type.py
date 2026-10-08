@@ -18,10 +18,8 @@
 
 import tvm_ffi
 
-from tvm.runtime import Scriptable
-
 from . import _ffi_api
-from .base import Node
+from .base import Node, Scriptable
 
 
 @tvm_ffi.register_object("ir.Type")

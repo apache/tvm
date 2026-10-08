@@ -23,7 +23,7 @@ import tvm_ffi
 from tvm_ffi.access_path import AccessPath
 
 import tvm
-from tvm.runtime.script_printer import PrinterConfig, _script
+from tvm.script.printer.scriptable import PrinterConfig, _script
 
 
 @pytest.mark.parametrize(

@@ -19,12 +19,13 @@
 import os
 from collections.abc import Sequence
 
-from tvm_ffi import get_global_func, register_object
+from tvm_ffi import register_object
 from tvm_ffi.access_path import AccessPath
 
+from tvm.ir.base import Node, Scriptable
 from tvm.runtime import Object
 
-from . import _ffi_node_api
+from . import _ffi_api
 
 
 @register_object("script.PrinterConfig")
@@ -102,21 +103,20 @@ class PrinterConfig(Object):
         if extra_config is not None:
             cfg["extra_config"] = extra_config
         self.__init_handle_by_constructor__(
-            _ffi_node_api.PrinterConfig,
+            _ffi_api.PrinterConfig,
             cfg,  # type: ignore # pylint: disable=no-member
         )
 
 
 def _script(obj: Object, config: PrinterConfig) -> str:
-    return _ffi_node_api.TVMScriptPrinterScript(obj, config)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.Script(obj, config)  # type: ignore # pylint: disable=no-member
 
 
 def _relax_script(obj: Object, config: PrinterConfig) -> str:
-    func = get_global_func("script.printer.ReprPrintRelax")
-    return func(obj, config)
+    return _ffi_api.ReprPrintRelax(obj, config)
 
 
-class Scriptable:
+class _ScriptableMethods:
     """A base class that enables the script() and show() method."""
 
     def script(
@@ -186,42 +186,12 @@ class Scriptable:
             The TVM Script of the given TVM IR
 
         """
-        # Auto-switch to tirx (`T`/`tirx`) flavor only when explicitly
-        # printing a Function / IRModule that has no s_tir-tagged content.
-        # Free objects (Buffer, buffer-backed TensorRegion, ...) keep the default `T`/`tir`
-        # flavor -- they have no enclosing function to indicate tirx vs s_tir.
         merged_extra: dict = {}
         if extra_config is not None:
             merged_extra.update(extra_config)
         # Keep the historical interactive display header. Direct printer calls
         # retain executable imports for standalone parser round-trips.
         merged_extra.setdefault("ir.comment_imports", True)
-
-        # Only auto-switch if the caller has not already set a tirx.prefix override.
-        if "tirx.prefix" not in merged_extra:
-            from tvm.ir import IRModule  # pylint: disable=import-outside-toplevel
-            from tvm.tirx import Function  # pylint: disable=import-outside-toplevel
-
-            switch_to_tirx = False
-            if isinstance(self, Function):
-                attrs = getattr(self, "attrs", None)
-                if attrs is None or not attrs.get("s_tir", False):
-                    switch_to_tirx = True
-            elif isinstance(self, IRModule):
-                any_prim = False
-                any_s_tir = False
-                for _, base_func in self.functions.items():
-                    if isinstance(base_func, Function):
-                        any_prim = True
-                        if getattr(base_func, "attrs", None) and base_func.attrs.get(
-                            "s_tir", False
-                        ):
-                            any_s_tir = True
-                            break
-                if any_prim and not any_s_tir:
-                    switch_to_tirx = True
-            if switch_to_tirx:
-                merged_extra["tirx.prefix"] = "T"
 
         return _script(
             self,
@@ -399,3 +369,20 @@ class Scriptable:
             style=style,
             black_format=black_format,
         )
+
+
+def _repr(self) -> str:
+    try:
+        return _script(
+            self,
+            PrinterConfig(extra_config={"ir.comment_imports": True}),
+        )
+    except Exception:
+        return Object.__repr__(self)
+
+
+# The printer supplies its explicit display capability to existing IR wrappers.
+Scriptable.script = _ScriptableMethods.script
+Scriptable.show = _ScriptableMethods.show
+Scriptable._relax_script = _ScriptableMethods._relax_script
+Node.__repr__ = _repr

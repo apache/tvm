@@ -835,7 +835,7 @@ PrimExpr prim::clz(PrimExpr x, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef()
-      .def_packed("node._const",
+      .def_packed("ir._const",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
                     if (auto opt = args[0].try_cast<ffi::BigInt>(); opt.has_value()) {
                       *ret = prim::MakeConst(args[1].cast<PrimType>(), *opt, args[2].cast<Span>());

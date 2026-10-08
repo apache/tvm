@@ -26,11 +26,11 @@ import tvm.testing
 from tvm import ir, s_tir, tirx
 from tvm import tirx as tir
 from tvm.ir import Range, assert_structural_equal
-from tvm.runtime.script_printer import _script
 from tvm.script import ir as I
 from tvm.script import ir_builder as IB
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
+from tvm.script.printer.scriptable import _script
 from tvm.script.tirx import tile as Tx
 from tvm.tirx.cuda import op as cuda_op
 from tvm.tirx.script import ir_builder as TB
@@ -587,11 +587,13 @@ T.atan(T.float32(1.0))
 
 
 def test_comm_reducer():
-    obj = TB.comm_reducer(lambda x, y: x + y, identity=[TB.float32(0)])
+    from tvm.s_tir.script import ir_builder as SB
+
+    obj = SB.comm_reducer(lambda x, y: x + y, identity=[TB.float32(0)])
     _assert_print(
         obj,
         """
-T.comm_reducer(lambda x, y: x + y, [T.float32(0.0)])
+Ts.comm_reducer(lambda x, y: x + y, [T.float32(0.0)])
 """,
     )
 

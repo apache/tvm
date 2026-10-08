@@ -20,12 +20,7 @@
 from tvm_ffi import convert, Object
 from tvm_ffi._dtype import dtype as DataType, DataTypeCode
 
-# Import _ffi_node_api for its side effect of installing AsRepr as
-# tvm_ffi.core.__object_repr__.
-from . import _ffi_node_api
-
 # class exposures
-from .script_printer import Scriptable
 from .object_generic import ObjectConvertible
 from .device import Device
 from ._tensor import Tensor, tensor, empty
@@ -33,10 +28,9 @@ from .module import Module
 from .executable import Executable
 
 # function exposures
-from ._tensor import device, device_from_target, cpu, cuda, opencl, vulkan, metal
+from ._tensor import device, cpu, cuda, opencl, vulkan, metal
 from ._tensor import vpi, rocm, ext_dev, from_dlpack
 from .module import load_module, enabled, system_lib, load_static_library, num_threads
-from .object_generic import const
 from .params import (
     save_param_dict,
     load_param_dict,
