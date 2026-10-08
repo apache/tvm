@@ -26,7 +26,7 @@
 #include <tvm/relax/type.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
-#include <tvm/s_tir/transform.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
 
 #include <unordered_map>
@@ -570,7 +570,7 @@ class FusedTIRConstructor : public ExprVisitor {
     tirx::Function function_ = mod_->Lookup(gv).as_or_throw<tirx::Function>();
 
     // Step 2. Renew all vars/buffer definitions and blocks to avoid duplication
-    tirx::Function function = s_tir::RenewDefs(function_);
+    tirx::Function function = tirx::RenewDef(function_);
 
     // Step 3. Check functions are all schedulable funcs. i.e. the body of func is root block
     // TODO(Siyuan): support un-schedulable functions.
@@ -889,7 +889,7 @@ class FusedTIRConstructor : public ExprVisitor {
     });
     tirx::Function func(params, tirx::SeqStmt(body), VoidType(), DictAttrs(attr_map));
     // Renew function defs to prevent using the same symbolic vars in different functions
-    return s_tir::RenewDefs(func);
+    return tirx::RenewDef(func);
   }
 
   /*! \brief Get DynTensor numbers from recursive Tuples. */

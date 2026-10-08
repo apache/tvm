@@ -83,7 +83,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> MatchBufferRegi
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const MatchBufferRegionNode>(
           value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
-      kTVMFFIDefRegionKindSimple, [&]() { return visitor->VisitExpected(self->buffer); }));
+      kTVMFFIDefRegionKindPattern, [&]() { return visitor->VisitExpected(self->buffer); }));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->source));
   return std::nullopt;
 }
@@ -94,7 +94,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> MatchBufferRegionMutate
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const MatchBufferRegionNode>(
           value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<TensorVar>, mapped_buffer,
-                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
+                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindPattern, [&]() {
                                       return mutator->MutateExpected(self->buffer);
                                     }));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<TensorRegion>, mapped_source,
@@ -115,7 +115,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> MatchBufferRegionMaybeI
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const MatchBufferRegionNode>(
           value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<TensorVar>, mapped_buffer,
-                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
+                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindPattern, [&]() {
                                       return mutator->MutateExpected(self->buffer,
                                                                      ffi::InplaceMode::kAllow);
                                     }));

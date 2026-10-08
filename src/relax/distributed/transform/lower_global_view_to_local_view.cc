@@ -29,7 +29,7 @@
 #include <tvm/relax/op/ccl.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
-#include <tvm/s_tir/transform.h>
+#include <tvm/tirx/function.h>
 
 #include "../../../s_tir/schedule/transform.h"
 #include "utils.h"
@@ -129,7 +129,7 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
  public:
   static std::tuple<tirx::Function, std::string> DistBufferCompact(
       const std::vector<ShardingSpec>& sharding_specs, tirx::Function function) {
-    function = s_tir::RenewDefs(function);
+    function = tirx::RenewDef(function);
     auto compactor = ffi::make_object<DistributedBufferCompactor>(sharding_specs, function);
     ffi::Array<Var> new_params;
     ffi::Map<TensorVar, TensorVar> replace_buffer_map;

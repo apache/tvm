@@ -27,7 +27,7 @@
 #include <tvm/relax/transform.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
-#include <tvm/s_tir/transform.h>
+#include <tvm/tirx/function.h>
 
 #include <algorithm>
 #include <cstddef>
@@ -101,7 +101,7 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
     DictAttrs attrs(dict);
     tirx::Function func = tirx::Function(params, SeqStmt(body), VoidType(), attrs);
 
-    return s_tir::RenewDefs(func);
+    return tirx::RenewDef(func);
   }
 
   tirx::Function create_compute_func() const {
@@ -147,7 +147,7 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
     DictAttrs attrs(dict);
     tirx::Function func = tirx::Function(params, SeqStmt(body), VoidType(), attrs);
 
-    return s_tir::RenewDefs(func);
+    return tirx::RenewDef(func);
   }
 
   void visit_root_block(const s_tir::SBlockNode* op) {

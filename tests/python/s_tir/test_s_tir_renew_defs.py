@@ -66,7 +66,7 @@ def test_simple():
                 B[vi, vj] = A[vi, vj] * 2.0
 
     f1 = elementwise
-    f2 = tvm.s_tir.renew_defs(f1)
+    f2 = tvm.tirx.renew_def(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
     _check_func_signature_remap(f1, f2)
@@ -109,7 +109,7 @@ def test_match_buffer():
                     B[vi, vj] = A0[vi, vj] * 2.0
 
     f1 = func_match_buffer
-    f2 = tvm.s_tir.renew_defs(f1)
+    f2 = tvm.tirx.renew_def(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
     _check_func_signature_remap(f1, f2)
@@ -145,7 +145,7 @@ def test_undefined_buffer():
             A[i] = A[i] + T.float16(1.0)
 
     f1 = access_alloc
-    f2 = tvm.s_tir.renew_defs(f1)
+    f2 = tvm.tirx.renew_def(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
     # AllocTensor is now a flat statement in SeqStmt
@@ -168,7 +168,7 @@ def test_symbolic_func():
             B[i, j * 2 + 1] = A[i, j]
 
     f1 = symbolic_func
-    f2 = tvm.s_tir.renew_defs(f1)
+    f2 = tvm.tirx.renew_def(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
 
@@ -183,7 +183,7 @@ def test_buffer_params():
                 B[vi, vj] = A[vi * 2 + vj]
 
     f1 = main
-    f2 = tvm.s_tir.renew_defs(main)
+    f2 = tvm.tirx.renew_def(main)
     tvm.ir.assert_structural_equal(f1, f2)
     assert f1.params[1].shape[0] != f2.params[1].shape[0]
 
@@ -192,7 +192,7 @@ def test_compound_buffer_param_shape_var():
     n = tvm.tirx.Var("n", "int32")
     A = tvm.tirx.decl_tensor((tvm.tirx.max(n, 1),), layout=None)
     f1 = tvm.tirx.Function([A], tvm.tirx.Evaluate(n))
-    f2 = tvm.s_tir.renew_defs(f1)
+    f2 = tvm.tirx.renew_def(f1)
 
     tvm.ir.assert_structural_equal(f1, f2)
     assert not f1.body[0].value.same_as(f2.body[0].value)
@@ -214,7 +214,7 @@ def test_gather():
                 T_take[v_ax0, v_ax1] = A[B[v_ax0], v_ax1]
 
     f1 = take
-    f2 = tvm.s_tir.renew_defs(take)
+    f2 = tvm.tirx.renew_def(take)
     tvm.ir.assert_structural_equal(f1, f2)
 
 

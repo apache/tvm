@@ -127,6 +127,17 @@ class Function : public BaseFunc {
 };
 
 /*!
+ * \brief Renew variable definitions and remap their uses in a function.
+ *
+ * Definition regions follow the registered structural hooks. Free variables
+ * and function attributes are preserved, and the function signature is rebuilt.
+ *
+ * \param func The function to renew.
+ * \return The function with fresh variable definitions.
+ */
+TVM_DLL Function RenewDef(Function func);
+
+/*!
  * \brief Specialize parameters of Function.
  * \param func The Function to be specialized.
  * \param param_map The mapping from function params to the instance.

@@ -57,7 +57,8 @@ class MatchBufferRegionNode : public ffi::Object {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MatchBufferRegionNode>()
-        .def_ro("buffer", &MatchBufferRegionNode::buffer, refl::AttachFieldFlag::SEqHashDefSimple())
+        .def_ro("buffer", &MatchBufferRegionNode::buffer,
+                refl::AttachFieldFlag::SEqHashDefPattern())
         .def_ro("source", &MatchBufferRegionNode::source);
   }
 

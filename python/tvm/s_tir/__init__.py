@@ -45,24 +45,6 @@ if not _RUNTIME_ONLY:
     from . import dlight
 
 
-def renew_defs(func):
-    """Re-generate the definition nodes for a TIR, including VarDef, BufferDef.
-    This pass works as a simple DeepCopy to duplicate a function with different Vars and
-    Buffers but the same behavior
-
-    Parameters
-    ----------
-    func: Function
-        The input function
-
-    Returns
-    -------
-    result : Function
-        The new generated func.
-    """
-    return _ffi_api.RenewDefs(func)
-
-
 def _initialize_script_namespace():
     from . import script
 

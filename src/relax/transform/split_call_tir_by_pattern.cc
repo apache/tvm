@@ -30,8 +30,8 @@
 #include <tvm/relax/type.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
-#include <tvm/s_tir/transform.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
 
 #include "../../s_tir/schedule/ir_comparator.h"
@@ -760,8 +760,8 @@ class SplitMutator : public ExprMutator {
       new_call->args = {lib_func, call->args[1]};
       return Call(new_call);
     }
-    tirx::Function func1 = s_tir::RenewDefs(split_funcs.first);
-    tirx::Function func2 = s_tir::RenewDefs(split_funcs.second.value());
+    tirx::Function func1 = tirx::RenewDef(split_funcs.first);
+    tirx::Function func2 = tirx::RenewDef(split_funcs.second.value());
     TVM_FFI_ICHECK(arg_partition.size() == 2);
     // emit the first call to the library kernel
     ffi::Array<Expr> args1;
