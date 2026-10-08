@@ -582,7 +582,7 @@ def func() -> T.int64:
 
     @R.function
     def float_func() -> T.float32:
-        return R.prim_value(T.float32(1.0))
+        return T.float32(1.0)
 
     float_script = float_func.script(verbose_expr=True)
     assert "R.prim_value" not in float_script
@@ -605,7 +605,7 @@ def test_primitive_bindings_roundtrip_without_prim_value_marker():
     @R.function
     def func(n: T.int64) -> T.int64:
         plus_one = n + 1
-        alias = R.prim_value(plus_one)
+        alias = plus_one
         return alias
 
     for show_all_ty in [False, True]:

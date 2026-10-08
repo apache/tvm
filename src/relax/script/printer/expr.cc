@@ -34,7 +34,6 @@ ffi::Optional<ExprDoc> TupleDocTranslate(DocTranslatorObj* d, ffi::AnyView input
                                          const ffi::Object*) {
   const auto* tuple =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleNode>(input);
-  if (tuple->fields.empty()) return NamespaceDoc("relax")->Attr("tuple")->Call({});
   ffi::Array<ExprDoc> fields;
   for (const Expr& field : tuple->fields) fields.push_back(d->Translate(field).value());
   return TupleDoc(fields);

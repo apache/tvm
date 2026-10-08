@@ -867,7 +867,7 @@ def test_edge_with_call_dps_packed():
                 b = R.call_tir(cls.exp, (a,), out_ty=R.Tensor((2, 3), "float32"))
                 c = R.call_dps_packed("packed_dps", (a,), out_ty=R.Tensor((2, 3), "float32"))
                 R.output(b, c)
-            return R.tuple(b, c)
+            return (b, c)
 
         @Ts.function(private=True)
         def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):

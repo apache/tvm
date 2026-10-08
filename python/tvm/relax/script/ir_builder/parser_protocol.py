@@ -419,6 +419,8 @@ def emit_(value: Any, *, span: _Span = None) -> None:
         return None
     if value is None:
         return
+    if isinstance(value, _python.tuple) and not value:
+        value = _relax.Tuple([])
     if not isinstance(value, _relax.Expr):
         raise TypeError(f"Unsupported expression statement value: {type(value).__name__}")
     result = bind_(_base.at_(span, value), name="_", span=span)

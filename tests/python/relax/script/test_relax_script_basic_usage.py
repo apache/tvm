@@ -307,7 +307,7 @@ def test_tuple_binding():
 def test_tuple_get_item():
     @R.function
     def foo(x: R.Tensor, y: R.Tensor):
-        t1 = R.tuple(x, y)
+        t1 = (x, y)
         t2 = (x, y)
         a = t1[0]
         b = R.TupleGetItem(t2, 1)
@@ -868,7 +868,7 @@ def test_tir_expr_as_assert_condition():
 def test_empty_tuple():
     @R.function
     def foo(x: R.Tuple()):
-        y: R.Tuple() = R.tuple()
+        y: R.Tuple() = ()
         return y
 
     x = relax.Var("x", relax.TupleType([]))
@@ -1486,6 +1486,50 @@ def test_roundtrip_basic_usage(ir_generator):
         },
     )
     tvm.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
+
+
+def test_tuple_literals_preserve_expression_structure():
+    @R.function(private=True)
+    def literal(x: T.int64):
+        empty = ()
+        singleton = (x,)
+        nested = (empty, singleton)
+        return nested
+
+    @R.function(private=True)
+    def constructed(x: T.int64):
+        empty = R.tuple()
+        singleton = R.tuple(x)
+        nested = R.tuple(empty, singleton)
+        return nested
+
+    tvm.ir.assert_structural_equal(literal, constructed)
+    for show_all_ty in [False, True]:
+        source = literal.script(show_all_ty=show_all_ty)
+        assert "R.tuple" not in source
+        tvm.ir.assert_structural_equal(
+            literal, tvm.script.from_source(source, extra_vars={"I": I, "R": R, "T": T})
+        )
+
+
+def test_primitive_scalar_conversion_depends_on_context():
+    @R.function(private=True)
+    def tensor():
+        return 1
+
+    @R.function(private=True)
+    def primitive():
+        return R.prim_value(1)
+
+    @R.function(private=True)
+    def typed():
+        value: T.int32 = 1
+        return value
+
+    assert isinstance(tensor.ret_ty, relax.TensorType)
+    assert primitive.ret_ty.dtype == "int64"
+    assert typed.ret_ty.dtype == "int32"
+    _check(typed)
 
 
 if __name__ == "__main__":
