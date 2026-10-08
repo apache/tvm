@@ -70,7 +70,8 @@ def test_rocm_hidden_device_does_not_exist():
     )
 
 
-@tvm.testing.requires_rocm
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.env.has_rocm(), reason="Requires a ROCm device")
 def test_rocm_device_exists():
     assert tvm.rocm(0).exist
 
