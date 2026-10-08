@@ -72,8 +72,7 @@ from . import sym
 from . import support
 
 # Side-effect imports: register CUDA/ROCm FFI callbacks at TVM startup
-from .backend.rocm import utils as _rocm
-from .backend.cuda import nvcc as _nvcc
+from .support import rocm as _rocm, nvcc as _nvcc
 
 # Relax contain modules that are only available in compiler package
 # Do not import them if TVM is built with runtime only

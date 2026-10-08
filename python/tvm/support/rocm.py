@@ -25,7 +25,8 @@ import tvm_ffi
 
 import tvm.runtime
 import tvm.target
-from tvm.support import utils
+
+from . import utils
 
 
 def find_lld(required=True):

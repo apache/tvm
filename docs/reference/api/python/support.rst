@@ -27,14 +27,14 @@ tvm.support.cc
 .. automodule:: tvm.support.cc
     :members:
 
-tvm.backend.cuda.nvcc
-~~~~~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.backend.cuda.nvcc
+tvm.support.nvcc
+~~~~~~~~~~~~~~~~
+.. automodule:: tvm.support.nvcc
     :members:
 
-tvm.backend.rocm.utils
-~~~~~~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.backend.rocm.utils
+tvm.support.rocm
+~~~~~~~~~~~~~~~~
+.. automodule:: tvm.support.rocm
     :members:
 
 tvm.support.ndk
@@ -47,9 +47,9 @@ tvm.support.xcode
 .. automodule:: tvm.support.xcode
     :members:
 
-tvm.target.clang
-~~~~~~~~~~~~~~~~
-.. automodule:: tvm.target.clang
+tvm.support.clang
+~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.support.clang
     :members:
 
 tvm.support.emcc

@@ -21,7 +21,7 @@ import os
 import pytest
 
 import tvm.testing
-from tvm.backend.cuda import nvcc
+from tvm.support import nvcc
 
 
 def _make_cuda_root(root, triples):

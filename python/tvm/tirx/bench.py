@@ -37,8 +37,8 @@ import triton.profiler as proton
 import tvm_ffi
 
 import tvm
-from tvm.backend.cuda import nvcc
 from tvm.script import tirx as T
+from tvm.support import nvcc
 
 _DISTRIBUTED_KINETO_WARMUP_ITERATIONS = 5
 _DISTRIBUTED_KINETO_REPEAT_ITERATIONS = 30

@@ -88,8 +88,8 @@ import tvm.support.utils
 import tvm.sym
 import tvm.te
 import tvm.tirx
-from tvm.backend.cuda import nvcc
 from tvm.contrib import cudnn
+from tvm.support import nvcc
 
 SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
 IS_IN_CI = os.getenv("CI", "") == "true"

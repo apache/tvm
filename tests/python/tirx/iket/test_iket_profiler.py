@@ -347,7 +347,7 @@ def _has_packaged_nvdisasm():
 
 
 def _nvrtc_disassemble(source, tmp_path):
-    from tvm.backend.cuda.nvcc import compile_cuda
+    from tvm.support.nvcc import compile_cuda
 
     tmp_path.mkdir(parents=True, exist_ok=True)
     cubin = compile_cuda(source, target_format="cubin", arch="sm_100a", compiler="nvrtc")

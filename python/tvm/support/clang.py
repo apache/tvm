@@ -20,7 +20,8 @@
 import subprocess
 
 import tvm.target
-from tvm.support import utils
+
+from . import utils
 
 
 def find_clang(required=True):

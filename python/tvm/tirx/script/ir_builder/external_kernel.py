@@ -28,10 +28,9 @@ import tvm_ffi
 
 from tvm import __version__ as tvm_version
 from tvm import tirx
-from tvm.backend.cuda import nvcc
 from tvm.ir import Expr, PointerType, const, is_prim_expr
 from tvm.runtime import Module
-from tvm.support import cc
+from tvm.support import cc, nvcc
 
 
 class BaseKernel:  # pylint: disable=too-few-public-methods
