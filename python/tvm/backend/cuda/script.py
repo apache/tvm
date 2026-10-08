@@ -102,6 +102,9 @@ class IketNamespace:
         self.official_event = _cuda_op.cuda_iket_official_event
 
 
+TCGen05InstrDescriptorAttrs = _cuda_op.TCGen05InstrDescriptorAttrs
+TCGen05InstrDescriptorBlockScaledAttrs = _cuda_op.TCGen05InstrDescriptorBlockScaledAttrs
+
 iket = IketNamespace()
 wgmma = CudaWgmmaNamespace()
 tcgen05 = CudaTcgen05Namespace()
@@ -128,6 +131,11 @@ ldg = _cuda_op.cuda_ldg
 mov_sreg = _cuda_op.cuda_mov_sreg
 wait_until = _cuda_op.cuda_wait_until
 warp_reduce = _cuda_op.cuda_warp_reduce
+__shfl_sync = _cuda_op.__shfl_sync
+__shfl_up_sync = _cuda_op.__shfl_up_sync
+__shfl_down_sync = _cuda_op.__shfl_down_sync
+__shfl_xor_sync = _cuda_op.__shfl_xor_sync
+__activemask = _cuda_op.__activemask
 _ir.op._init_op_api("tirx.cuda", __name__)
 
 

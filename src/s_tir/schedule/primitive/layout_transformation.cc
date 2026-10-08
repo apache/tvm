@@ -54,7 +54,7 @@ using namespace tvm::tirx;
  * analyzed block has no write stages for the transformed buffer.
  * This buffer is an input and the caller is responsible for ensuring
  * that the padding contains the specified `pad_value`.  The generated
- * prologue contains `tirx::builtin::assume()` calls that will expose this
+ * prologue contains `tirx::assume_op()` calls that will expose this
  * known value during scheduling/simplification, but will be removed
  * during lowering.
  *
@@ -528,8 +528,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
         pad_value.value()->MapIndices(indices, ffi::GetRef<sym::Analyzer>(analyzer))[0];
     PrimExpr expr =
         (!padding_predicate) || (MakeTensorLoad(new_buffer, indices) == pad_value_at_index);
-    Stmt stmt =
-        Evaluate(Call(PrimType::Bool(), tirx::builtin::assume(), {expr}).as_or_throw<PrimExpr>());
+    Stmt stmt = Evaluate(Call(PrimType::Bool(), tirx::assume_op(), {expr}).as_or_throw<PrimExpr>());
 
     std::stringstream block_name;
     block_name << "buffer_" << new_buffer.name() << "_assumptions";

@@ -23,7 +23,7 @@ import tvm_ffi
 
 import tvm
 import tvm.runtime
-from tvm.ir import Call, Op, StringImm
+from tvm.ir import Attrs, Call, Op, StringImm
 from tvm.ir.attrs import make_node as _make_attrs
 from tvm.runtime import Object, ObjectConvertible
 
@@ -207,6 +207,11 @@ def call_tir_packed(gvar: GlobalVar, args: Expr, *, ty=None, span=None) -> Call:
     return Call("relax.call_tir_packed", [gvar, args], ty=ty, span=span)
 
 
+@tvm_ffi.register_object("relax.attrs.CallTIRWithGradAttrs")
+class CallTIRWithGradAttrs(Attrs):
+    """Attributes used in call_tir_with_grad operator"""
+
+
 def call_tir_with_grad(
     gvar: GlobalVar,
     args: Expr,
@@ -257,6 +262,11 @@ def call_tir_with_grad(
     return _ffi_api.call_tir_with_grad(  # type: ignore
         gvar, args, out_ty, te_grad_name, te_grad_kwargs
     )
+
+
+@tvm_ffi.register_object("relax.attrs.CallTIRInplaceAttrs")
+class CallTIRInplaceAttrs(Attrs):
+    """Attributes used in call_tir_inplace operator"""
 
 
 def call_tir_inplace(
@@ -745,6 +755,11 @@ def shape_to_tensor(expr: Expr, *, ty=None, span=None) -> Expr:
     return Call("relax.shape_to_tensor", [expr], ty=ty, span=span)  # type: ignore # pylint: disable=no-member
 
 
+@tvm_ffi.register_object("relax.attrs.CallInplacePackedAttrs")
+class CallInplacePackedAttrs(Attrs):
+    """Attributes used in call_inplace_packed operator"""
+
+
 def call_inplace_packed(
     func: str | ExternFunc | GlobalVar,
     *args: Expr,
@@ -925,6 +940,11 @@ def invoke_pure_closure(
     )  # type: ignore
 
 
+@tvm_ffi.register_object("relax.attrs.ToVDeviceAttrs")
+class ToVDeviceAttrs(Attrs):
+    """Attributes used in to_vdevice operator"""
+
+
 def to_vdevice(data, dst_vdevice, *, ty=None, span=None) -> Expr:
     """Copy data to the destination device. This
     operator helps data transferring between difference devices for
@@ -950,6 +970,11 @@ def to_vdevice(data, dst_vdevice, *, ty=None, span=None) -> Expr:
         ty=ty,
         span=span,
     )  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.HintOnDeviceAttrs")
+class HintOnDeviceAttrs(Attrs):
+    """Attributes used in hint_on_device operator"""
 
 
 def hint_on_device(data, dst_vdevice, memory_scope="global") -> Expr:

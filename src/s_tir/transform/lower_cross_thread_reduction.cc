@@ -462,7 +462,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
                /*name_hint=*/block->name_hint + "_cross_thread",
                /*body=*/
                Evaluate(Call(/*dtype=*/PrimType::Void(),
-                             /*op=*/tirx::builtin::tvm_thread_allreduce(),
+                             /*op=*/tirx::tvm_thread_allreduce_op(),
                              /*args=*/std::move(parameters))
                             .as_or_throw<PrimExpr>()))));
   }

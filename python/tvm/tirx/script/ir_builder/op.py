@@ -78,6 +78,7 @@ from tvm.tirx.expr import (
     Shuffle,
     Sub,
 )
+from tvm.tirx.op import CallFFIKernelAttr, TensorMapEncodeTiledAttr
 
 from . import _ffi_api
 from .external_kernel import call_kernel
@@ -806,6 +807,7 @@ __all__ = [
     "Broadcast",
     "Call",
     "CallEffectKind",
+    "CallFFIKernelAttr",
     "Cast",
     "CommReducer",
     "Div",
@@ -827,6 +829,7 @@ __all__ = [
     "Sub",
     "TVMBackendAllocWorkspace",
     "TVMBackendFreeWorkspace",
+    "TensorMapEncodeTiledAttr",
     "abs",
     "acos",
     "acosh",

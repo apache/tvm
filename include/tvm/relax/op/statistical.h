@@ -18,32 +18,37 @@
  */
 
 /*!
- * \file tvm/relax/attrs/sampling.h
- * \brief Attributes for sampling operators.
+ * \file tvm/relax/op/statistical.h
+ * \brief Attributes for statistical operators.
  */
-#ifndef TVM_RELAX_ATTRS_SAMPLING_H_
-#define TVM_RELAX_ATTRS_SAMPLING_H_
+#ifndef TVM_RELAX_OP_STATISTICAL_H_
+#define TVM_RELAX_OP_STATISTICAL_H_
 
 #include <tvm/relax/expr.h>
 
 namespace tvm {
 namespace relax {
 
-/*! \brief Attributes used in multinomial_from_uniform operator */
-struct MultinomialFromUniformAttrs : public AttrsNode {
-  DLDataType dtype;
+/*! \brief Attributes for statistical operators */
+struct StatisticalAttrs : public AttrsNode {
+  ffi::Optional<ffi::Array<int64_t>> axis;
+  bool keepdims;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<MultinomialFromUniformAttrs>().def_ro(
-        "dtype", &MultinomialFromUniformAttrs::dtype, "Data type of the output indices.",
-        refl::DefaultValue((DLDataType{kDLInt, 64, 1})));
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.MultinomialFromUniformAttrs",
-                                    MultinomialFromUniformAttrs, AttrsNode);
-};  // struct MultinomialFromUniformAttrs
+  static void RegisterReflection();
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.StatisticalAttrs", StatisticalAttrs, AttrsNode);
+};  // struct StatisticalAttrs
+
+/*! \brief Attributes used in scan operators like cumsum, cumprod */
+struct ScanopAttrs : public AttrsNode {
+  ffi::Optional<int64_t> axis;
+  ffi::Optional<DLDataType> dtype;
+  bool exclusive = false;
+
+  static void RegisterReflection();
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScanopAttrs", ScanopAttrs, AttrsNode);
+};  // struct ScanopAttrs
 
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_ATTRS_SAMPLING_H_
+#endif  // TVM_RELAX_OP_STATISTICAL_H_

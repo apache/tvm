@@ -24,8 +24,8 @@
 #ifndef TVM_SYM_CONSTRAINT_HELPERS_H_
 #define TVM_SYM_CONSTRAINT_HELPERS_H_
 
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/with_context.h>
 #include <tvm/sym/analyzer.h>
 

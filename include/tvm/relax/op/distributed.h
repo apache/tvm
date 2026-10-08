@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/relax/attrs/distributed.h
+ * \file tvm/relax/op/distributed.h
  * \brief Attributes for redistribute and annotate_sharding operators.
  */
-#ifndef TVM_RELAX_ATTRS_DISTRIBUTED_H_
-#define TVM_RELAX_ATTRS_DISTRIBUTED_H_
+#ifndef TVM_RELAX_OP_DISTRIBUTED_H_
+#define TVM_RELAX_OP_DISTRIBUTED_H_
 
 #include <tvm/relax/distributed/global_info.h>
 #include <tvm/relax/distributed/type.h>
@@ -36,18 +36,11 @@ struct DistributionAttrs : public AttrsNode {
   distributed::DeviceMesh device_mesh;
   distributed::Placement placement;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DistributionAttrs>()
-        .def_ro("device_mesh", &DistributionAttrs::device_mesh,
-                "The device mesh of a tensor's distribution plan")
-        .def_ro("placement", &DistributionAttrs::placement,
-                "The placement of a tensor's distribution plan");
-  }
+  static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.DistributionAttrs", DistributionAttrs, AttrsNode);
 };  // struct DistributionAttrs
 
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_ATTRS_DISTRIBUTED_H_
+#endif  // TVM_RELAX_OP_DISTRIBUTED_H_

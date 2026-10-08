@@ -18,8 +18,8 @@
  */
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ir/op.h>
-#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/distributed/type.h>
+#include <tvm/relax/op/op.h>
 
 #include <optional>
 

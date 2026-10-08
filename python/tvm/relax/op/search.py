@@ -17,6 +17,9 @@
 # pylint: disable=invalid-name
 """Search operators."""
 
+import tvm_ffi
+
+from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
 
@@ -51,6 +54,11 @@ def where(condition: Expr, x1: Expr, x2: Expr, *, ty=None, span=None) -> Expr:
         The result tensor.
     """
     return _Call("relax.where", [condition, x1, x2], ty=ty, span=span)  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.ArgmaxArgminAttrs")
+class ArgmaxArgminAttrs(Attrs):
+    """Attributes for argmax/argmin operator"""
 
 
 def argmax(

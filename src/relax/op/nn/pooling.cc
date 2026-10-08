@@ -29,6 +29,165 @@ namespace tvm {
 namespace relax {
 using namespace tvm::prim;
 
+void Pool1DAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<Pool1DAttrs>()
+      .def_ro("pool_size", &Pool1DAttrs::pool_size, "Size of the pooling windows.",
+              refl::DefaultValue(ffi::Array<int64_t>{1}))
+      .def_ro("strides", &Pool1DAttrs::strides, "Specifies the strides of the convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1}))
+      .def_ro("dilation", &Pool1DAttrs::dilation, "Specifies the dilation of the convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1}))
+      .def_ro("padding", &Pool1DAttrs::padding,
+              "If padding is non-zero, then the input is implicitly zero-padded"
+              "Padding support both symmetric and asymmetric as"
+              "one int : same padding used on all sides"
+              "two int : padding width in the order of (left, right)",
+              refl::DefaultValue(ffi::Array<int64_t>{0, 0}))
+      .def_ro(
+          "ceil_mode", &Pool1DAttrs::ceil_mode,
+          "A boolean indicating if use ceil or floor to compute the output shape. By using ceil, "
+          "every element in the input tensor will be covered by a sliding window.",
+          refl::DefaultValue(false))
+      .def_ro("count_include_pad", &Pool1DAttrs::count_include_pad,
+              "When true, will include padding to compute the average")
+      .def_ro("layout", &Pool1DAttrs::layout,
+              "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
+              "'N', 'C', 'W' stands for batch, channel, and width"
+              "dimensions respectively. Pooling is applied on the 'W' dimensions.",
+              refl::DefaultValue("NCW"))
+      .def_ro("out_layout", &Pool1DAttrs::out_layout,
+              "Dimension ordering of output data. Can be 'NCW', 'NWC', etc."
+              "'N', 'C', 'W' stands for batch, channel, and width"
+              "dimensions respectively. Pooling is applied on the 'W' dimensions.");
+}
+
+void Pool2DAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<Pool2DAttrs>()
+      .def_ro("pool_size", &Pool2DAttrs::pool_size, "Size of the pooling windows.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
+      .def_ro("strides", &Pool2DAttrs::strides, "Specifies the strides of the convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
+      .def_ro("dilation", &Pool2DAttrs::dilation, "Specifies the dilation of the convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
+      .def_ro("padding", &Pool2DAttrs::padding,
+              "If padding is non-zero, then the input is implicitly zero-padded"
+              "Padding support both symmetric and asymmetric as"
+              "one int : same padding used on all sides"
+              "two int : bottom, right will use same padding as top, left"
+              "four int : padding width in the order of (top, left, bottom, right)",
+              refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0, 0}))
+      .def_ro(
+          "ceil_mode", &Pool2DAttrs::ceil_mode,
+          "A boolean indicating if use ceil or floor to compute the output shape. By using ceil, "
+          "every element in the input tensor will be covered by a sliding window.",
+          refl::DefaultValue(false))
+      .def_ro("count_include_pad", &Pool2DAttrs::count_include_pad,
+              "When true, will include padding to compute the average", refl::DefaultValue(false))
+      .def_ro("layout", &Pool2DAttrs::layout,
+              "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
+              "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+              "dimensions respectively. Pooling is applied on the 'H' and"
+              "'W' dimensions.",
+              refl::DefaultValue(ffi::String("NCHW")))
+      .def_ro("out_layout", &Pool2DAttrs::out_layout,
+              "Dimension ordering of output data. Can be 'NCHW', 'NHWC', etc."
+              "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+              "dimensions respectively. Pooling is applied on the 'H' and"
+              "'W' dimensions.");
+}
+
+void Pool3DAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<Pool3DAttrs>()
+      .def_ro("pool_size", &Pool3DAttrs::pool_size, "Size of the pooling windows.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
+      .def_ro("strides", &Pool3DAttrs::strides, "Specifies the strides of the convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
+      .def_ro("dilation", &Pool3DAttrs::dilation, "Specifies the dilation of the convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
+      .def_ro("padding", &Pool3DAttrs::padding,
+              "If padding is non-zero, then the input is implicitly zero-padded"
+              "Padding support both symmetric and asymmetric as"
+              "one int : same padding used on all sides"
+              "three int : back, bottom, right will use same padding as front, top, left"
+              "four int : padding width in the order of (front, top, left, back, bottom, right)",
+              refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0, 0, 0, 0}))
+      .def_ro(
+          "ceil_mode", &Pool3DAttrs::ceil_mode,
+          "A boolean indicating if use ceil or floor to compute the output shape. By using ceil, "
+          "every element in the input tensor will be covered by a sliding window.",
+          refl::DefaultValue(false))
+      .def_ro("count_include_pad", &Pool3DAttrs::count_include_pad,
+              "When true, will include padding to compute the average")
+      .def_ro("layout", &Pool3DAttrs::layout,
+              "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
+              "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+              "dimensions respectively. Pooling is applied on the 'D', 'H' and"
+              "'W' dimensions.",
+              refl::DefaultValue(ffi::String("NCDHW")))
+      .def_ro("out_layout", &Pool3DAttrs::out_layout,
+              "Dimension ordering of output data. Can be 'NCDHW', 'NDHWC', etc."
+              "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+              "dimensions respectively. Pooling is applied on the 'D', 'H' and"
+              "'W' dimensions.");
+}
+
+void AdaptivePool1DAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<AdaptivePool1DAttrs>()
+      .def_ro("output_size", &AdaptivePool1DAttrs::output_size, "Output width.",
+              refl::DefaultValue(ffi::Optional<ffi::Array<int64_t>>{}))
+      .def_ro("layout", &AdaptivePool1DAttrs::layout,
+              "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
+              "'N', 'C', 'W' stands for batch, channel and width"
+              "dimensions respectively. Pooling is applied on the"
+              "'W' dimensions.",
+              refl::DefaultValue(ffi::String("NCW")))
+      .def_ro("out_layout", &AdaptivePool1DAttrs::out_layout,
+              "Dimension ordering of output data. Can be 'NCW', 'NWC', etc."
+              "'N', 'C', 'W' stands for batch, channel and width"
+              "dimensions respectively. Pooling is applied on the"
+              "'W' dimensions.");
+}
+
+void AdaptivePool2DAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<AdaptivePool2DAttrs>()
+      .def_ro("output_size", &AdaptivePool2DAttrs::output_size, "Output height and width.",
+              refl::DefaultValue(ffi::Optional<ffi::Array<int64_t>>{}))
+      .def_ro("layout", &AdaptivePool2DAttrs::layout,
+              "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
+              "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+              "dimensions respectively. Pooling is applied on the 'H' and"
+              "'W' dimensions.",
+              refl::DefaultValue(ffi::String("NCHW")))
+      .def_ro("out_layout", &AdaptivePool2DAttrs::out_layout,
+              "Dimension ordering of output data. Can be 'NCHW', 'NHWC', etc."
+              "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+              "dimensions respectively. Pooling is applied on the 'H' and"
+              "'W' dimensions.");
+}
+
+void AdaptivePool3DAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<AdaptivePool3DAttrs>()
+      .def_ro("output_size", &AdaptivePool3DAttrs::output_size, "Output depth, height and width.",
+              refl::DefaultValue(ffi::Optional<ffi::Array<int64_t>>{}))
+      .def_ro("layout", &AdaptivePool3DAttrs::layout,
+              "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
+              "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+              "dimensions respectively. Pooling is applied on 'D', 'H' and"
+              "'W' dimensions.",
+              refl::DefaultValue(ffi::String("NCDHW")))
+      .def_ro("out_layout", &AdaptivePool3DAttrs::out_layout,
+              "Dimension ordering of output data. Can be 'NCDHW', 'NDHWC', etc."
+              "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+              "dimensions respectively. Pooling is applied on 'D', 'H' and"
+              "'W' dimensions.");
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   Pool1DAttrs::RegisterReflection();
   Pool2DAttrs::RegisterReflection();

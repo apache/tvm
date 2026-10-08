@@ -57,7 +57,35 @@ from .expr import (
     Shuffle,
     Sub,
 )
-from .op import clz, convert, max_value, min_value
+from .op import (
+    all,
+    any,
+    bitwise_and,
+    bitwise_not,
+    bitwise_or,
+    bitwise_xor,
+    ceil,
+    ceildiv,
+    clz,
+    convert,
+    div,
+    floordiv,
+    floormod,
+    if_then_else,
+    indexdiv,
+    indexmod,
+    likely,
+    log2,
+    max,
+    max_value,
+    min,
+    min_value,
+    shift_left,
+    shift_right,
+    truncdiv,
+    truncmod,
+    vscale,
+)
 
 
 def expr_deep_equal(lhs: Expr, rhs: Expr) -> bool:

@@ -16,14 +16,22 @@
 # under the License.
 """Relax Neural Network (NN) operators"""
 
+import tvm_ffi
+
 from tvm import DataType, relax
 from tvm.error import InternalError as _InternalError
+from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir import PrimType as _PrimType
 from tvm.ir.attrs import make_node as _make_attrs
 from tvm.tirx import FloatImm
 
 from ...expr import Expr
+
+
+@tvm_ffi.register_object("relax.attrs.Conv1DAttrs")
+class Conv1DAttrs(Attrs):
+    """Attributes for nn.conv1d"""
 
 
 def conv1d(
@@ -142,6 +150,11 @@ def conv1d(
         ty=ty,
         span=span,
     )
+
+
+@tvm_ffi.register_object("relax.attrs.Conv2DAttrs")
+class Conv2DAttrs(Attrs):
+    """Attributes for nn.conv2d"""
 
 
 def conv2d(
@@ -264,6 +277,11 @@ def conv2d(
         ty=ty,
         span=span,
     )
+
+
+@tvm_ffi.register_object("relax.attrs.Conv3DAttrs")
+class Conv3DAttrs(Attrs):
+    """Attributes for nn.conv3d"""
 
 
 def conv3d(
@@ -394,6 +412,11 @@ def conv3d(
     )
 
 
+@tvm_ffi.register_object("relax.attrs.Conv1DTransposeAttrs")
+class Conv1DTransposeAttrs(Attrs):
+    """Attributes for nn.conv1d_transpose"""
+
+
 def conv1d_transpose(
     data: Expr,
     weight: Expr,
@@ -505,6 +528,11 @@ def conv1d_transpose(
         ty=ty,
         span=span,
     )
+
+
+@tvm_ffi.register_object("relax.attrs.Conv2DTransposeAttrs")
+class Conv2DTransposeAttrs(Attrs):
+    """Attributes for nn.conv2d_transpose"""
 
 
 def conv2d_transpose(
@@ -635,6 +663,11 @@ def conv2d_transpose(
         ty=ty,
         span=span,
     )
+
+
+@tvm_ffi.register_object("relax.attrs.Conv3DTransposeAttrs")
+class Conv3DTransposeAttrs(Attrs):
+    """Attributes for nn.conv3d_transpose"""
 
 
 def conv3d_transpose(
@@ -768,6 +801,11 @@ def conv3d_transpose(
     )
 
 
+@tvm_ffi.register_object("relax.attrs.PadAttrs")
+class PadAttrs(Attrs):
+    """Attributes used in pad operator"""
+
+
 def pad(
     data: Expr,
     pad_width: list[int] | tuple[int, ...],
@@ -815,6 +853,11 @@ def pad(
     )
 
 
+@tvm_ffi.register_object("relax.attrs.PixelShuffleAttrs")
+class PixelShuffleAttrs(Attrs):
+    """Attributes used in pixel_shuffle operator"""
+
+
 def pixel_shuffle(data: Expr, upscale_factor: int, *, ty=None, span=None):
     r"""
     Pixel Shuffle Operator
@@ -852,6 +895,11 @@ def pixel_shuffle(data: Expr, upscale_factor: int, *, ty=None, span=None):
         ty=ty,
         span=span,
     )
+
+
+@tvm_ffi.register_object("relax.attrs.Pool1DAttrs")
+class Pool1DAttrs(Attrs):
+    """Attributes for nn.max_pool1d and nn.avg_pool1d"""
 
 
 def max_pool1d(
@@ -952,6 +1000,11 @@ def max_pool1d(
         ty=ty,
         span=span,
     )
+
+
+@tvm_ffi.register_object("relax.attrs.Pool2DAttrs")
+class Pool2DAttrs(Attrs):
+    """Attributes for nn.max_pool2d"""
 
 
 def max_pool2d(
@@ -1067,6 +1120,11 @@ def max_pool2d(
         ty=ty,
         span=span,
     )
+
+
+@tvm_ffi.register_object("relax.attrs.Pool3DAttrs")
+class Pool3DAttrs(Attrs):
+    """Attributes for nn.max_pool3d and nn.avg_pool3d"""
 
 
 def max_pool3d(
@@ -1495,6 +1553,11 @@ def avg_pool3d(
     )
 
 
+@tvm_ffi.register_object("relax.attrs.AdaptivePool1DAttrs")
+class AdaptivePool1DAttrs(Attrs):
+    """Attributes for 1d adaptive pool operator"""
+
+
 def adaptive_avg_pool1d(
     data: Expr,
     output_size: int | tuple[int] | None = None,
@@ -1562,6 +1625,11 @@ def adaptive_avg_pool1d(
         ty=ty,
         span=span,
     )  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.AdaptivePool2DAttrs")
+class AdaptivePool2DAttrs(Attrs):
+    """Attributes for 2d adaptive pool operator"""
 
 
 def adaptive_avg_pool2d(
@@ -1636,6 +1704,11 @@ def adaptive_avg_pool2d(
         ty=ty,
         span=span,
     )  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.AdaptivePool3DAttrs")
+class AdaptivePool3DAttrs(Attrs):
+    """Attributes for 3d adaptive pool operator"""
 
 
 def adaptive_avg_pool3d(
@@ -1746,6 +1819,11 @@ def relu6(data: Expr) -> Expr:
         The computed result.
     """
     return relax.op.clip(data, 0, 6)
+
+
+@tvm_ffi.register_object("relax.attrs.LeakyReluAttrs")
+class LeakyReluAttrs(Attrs):
+    """Attributes used in leaky_relu operator"""
 
 
 def leakyrelu(data: Expr, alpha: float = 0.01, *, ty_args=None, ty=None, span=None) -> Expr:
@@ -1873,6 +1951,11 @@ def silu(data: Expr, *, ty_args=None, ty=None, span=None) -> Expr:
     return _Call("relax.nn.silu", [data], ty_args=ty_args, ty=ty, span=span)  # type: ignore
 
 
+@tvm_ffi.register_object("relax.attrs.SoftmaxAttrs")
+class SoftmaxAttrs(Attrs):
+    """Attributes for nn.softmax"""
+
+
 def softmax(data: Expr, axis: int = -1, *, ty=None, span=None) -> Expr:
     r"""Computes softmax.
 
@@ -1904,6 +1987,11 @@ def softmax(data: Expr, axis: int = -1, *, ty=None, span=None) -> Expr:
         ty=ty,
         span=span,
     )  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.SoftplusAttrs")
+class SoftplusAttrs(Attrs):
+    """Attributes used in softplus operator"""
 
 
 def softplus(
@@ -1980,6 +2068,11 @@ def log_softmax(data: Expr, axis: int = -1, *, ty=None, span=None) -> Expr:
     )  # type: ignore
 
 
+@tvm_ffi.register_object("relax.attrs.PReluAttrs")
+class PReluAttrs(Attrs):
+    """Attributes used in prelu operator"""
+
+
 def prelu(data: Expr, alpha: Expr, axis: int = 1, *, ty=None, span=None) -> Expr:
     r"""Parametric Rectified Linear Unit (PReLU).
 
@@ -2010,6 +2103,11 @@ def prelu(data: Expr, alpha: Expr, axis: int = 1, *, ty=None, span=None) -> Expr
         ty=ty,
         span=span,
     )
+
+
+@tvm_ffi.register_object("relax.attrs.BatchNormAttrs")
+class BatchNormAttrs(Attrs):
+    """Attributes used in batch_norm operator"""
 
 
 def batch_norm(
@@ -2142,6 +2240,11 @@ def batch_norm(
     )
 
 
+@tvm_ffi.register_object("relax.attrs.LayerNormAttrs")
+class LayerNormAttrs(Attrs):
+    """Attributes used in layer_norm operator"""
+
+
 def layer_norm(
     data: Expr,
     gamma: Expr,
@@ -2212,6 +2315,11 @@ def layer_norm(
         ty=ty,
         span=span,
     )  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.GroupNormAttrs")
+class GroupNormAttrs(Attrs):
+    """Attributes used in group_norm operator"""
 
 
 def group_norm(
@@ -2287,6 +2395,11 @@ def group_norm(
     )
 
 
+@tvm_ffi.register_object("relax.attrs.InstanceNormAttrs")
+class InstanceNormAttrs(Attrs):
+    """Attributes used in instance_norm operator"""
+
+
 def instance_norm(
     data: Expr,
     gamma: Expr,
@@ -2349,6 +2462,11 @@ def instance_norm(
     )
 
 
+@tvm_ffi.register_object("relax.attrs.RMSNormAttrs")
+class RMSNormAttrs(Attrs):
+    """Attributes used in rms_norm operator"""
+
+
 def rms_norm(
     data: Expr,
     weight: Expr,
@@ -2396,6 +2514,11 @@ def rms_norm(
         ty=ty,
         span=span,
     )  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.DropoutAttrs")
+class DropoutAttrs(Attrs):
+    """Attributes for dropout operator"""
 
 
 def dropout(data: Expr, rate: float = 0.5, *, ty=None, span=None) -> Expr:
@@ -2464,6 +2587,11 @@ def cross_entropy_with_logits(
     )  # type: ignore
 
 
+@tvm_ffi.register_object("relax.attrs.NLLLossAttrs")
+class NLLLossAttrs(Attrs):
+    """Attributes used in nll_loss operator"""
+
+
 def nll_loss(
     predictions: Expr,
     targets: Expr,
@@ -2522,6 +2650,11 @@ def nll_loss(
         ty=ty,
         span=span,
     )  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.AttentionAttrs")
+class AttentionAttrs(Attrs):
+    """Attributes used in attention operator"""
 
 
 def attention(

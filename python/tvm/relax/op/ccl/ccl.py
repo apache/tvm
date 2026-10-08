@@ -16,10 +16,18 @@
 # under the License.
 """Relax Collective Communications Library (CCL) operators"""
 
+import tvm_ffi
+
+from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
 
 from ...expr import Expr
+
+
+@tvm_ffi.register_object("relax.attrs.AllReduceAttrs")
+class AllReduceAttrs(Attrs):
+    """Attributes used in allreduce operator"""
 
 
 def allreduce(x, op_type: str = "sum", in_group: bool = True, *, ty=None, span=None):  # pylint: disable=invalid-name
@@ -54,6 +62,11 @@ def allreduce(x, op_type: str = "sum", in_group: bool = True, *, ty=None, span=N
         ty=ty,
         span=span,
     )  # type: ignore # pylint: disable=no-member
+
+
+@tvm_ffi.register_object("relax.attrs.AllGatherAttrs")
+class AllGatherAttrs(Attrs):
+    """Attributes used in allgather operator"""
 
 
 def allgather(x, num_workers: int, in_group: bool = True, *, ty=None, span=None):  # pylint: disable=invalid-name
@@ -103,6 +116,11 @@ def broadcast_from_worker0(x: Expr, *, ty=None, span=None) -> Expr:
         ty=ty,
         span=span,
     )
+
+
+@tvm_ffi.register_object("relax.attrs.ScatterCollectiveAttrs")
+class ScatterCollectiveAttrs(Attrs):
+    """Attributes used in scatter collective operators"""
 
 
 def scatter_from_worker0(x: Expr, num_workers: int, axis: int = 0, *, ty=None, span=None) -> Expr:

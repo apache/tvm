@@ -16,10 +16,18 @@
 # under the License.
 """ROI Align operator"""
 
+import tvm_ffi
+
+from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
 
 from ..base import Expr
+
+
+@tvm_ffi.register_object("relax.attrs.ROIAlignAttrs")
+class ROIAlignAttrs(Attrs):
+    """Attributes for vision.roi_align"""
 
 
 def roi_align(

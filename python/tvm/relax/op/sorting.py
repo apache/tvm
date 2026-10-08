@@ -16,11 +16,18 @@
 # under the License.
 """Sortings operators."""
 
+import tvm_ffi
+
+from tvm.ir import Attrs, GenericConst
 from tvm.ir import Call as _Call
-from tvm.ir import GenericConst
 from tvm.ir.attrs import make_node as _make_attrs
 
 from ..expr import Expr
+
+
+@tvm_ffi.register_object("relax.attrs.SortAttrs")
+class SortAttrs(Attrs):
+    """Attributes for sort operator"""
 
 
 def sort(
@@ -59,6 +66,11 @@ def sort(
         ty=ty,
         span=span,
     )  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.ArgsortAttrs")
+class ArgsortAttrs(Attrs):
+    """Attributes for argsort operator"""
 
 
 def argsort(
@@ -101,6 +113,11 @@ def argsort(
         ty=ty,
         span=span,
     )  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.TopKAttrs")
+class TopKAttrs(Attrs):
+    """Attributes for topk operators"""
 
 
 def topk(

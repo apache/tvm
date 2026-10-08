@@ -25,7 +25,7 @@
 
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ir/expr_functor.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/pattern.h>
@@ -665,7 +665,7 @@ ffi::Optional<ffi::Map<Var, Range>> ConditionalBoundsContext::TrySolveCondition(
       fvisit(op->b);
     } else if (e->IsInstance<CallNode>()) {
       Call op = e.as_or_throw<Call>();
-      if (op->op.same_as(prim::builtin::likely())) {
+      if (op->op.same_as(prim::likely_op())) {
         fvisit(op->args[0].as_or_throw<PrimExpr>());
       }
     }

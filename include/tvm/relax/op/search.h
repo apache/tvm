@@ -18,35 +18,36 @@
  */
 
 /*!
- * \file include/tvm/relax/attrs/qdq.h
- * \brief Attributes for quantize/dequantize operators.
+ * \file tvm/relax/op/search.h
+ * \brief Attributes for search operators.
  */
-#ifndef TVM_RELAX_ATTRS_QDQ_H_
-#define TVM_RELAX_ATTRS_QDQ_H_
+#ifndef TVM_RELAX_OP_SEARCH_H_
+#define TVM_RELAX_OP_SEARCH_H_
 
 #include <tvm/relax/expr.h>
 
 namespace tvm {
 namespace relax {
 
-/*! \brief Attributes for relax.quantize/relax.dequantize operator */
-struct QuantizeAttrs : public AttrsNode {
-  DLDataType out_dtype;
-  int axis;
+/*! \brief Attributes for search operators */
+struct ArgmaxArgminAttrs : public AttrsNode {
+  ffi::Optional<int64_t> axis;
+  bool keepdims;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<QuantizeAttrs>()
-        .def_ro("out_dtype", &QuantizeAttrs::out_dtype, "Output data type.")
-        .def_ro("axis", &QuantizeAttrs::axis,
-                "The output channel axis for channel wise quantization/dequantization. "
-                "Default value is -1, which corresponds to the last axis.",
-                refl::DefaultValue(-1));
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.QuantizeAttrs", QuantizeAttrs, AttrsNode);
-};  // QuantizeAttrs
+  static void RegisterReflection();
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ArgmaxArgminAttrs", ArgmaxArgminAttrs, AttrsNode);
+};  // struct ArgmaxArgminAttrs
+
+/*! \brief Attributes for bucketize operator */
+struct BucketizeAttrs : public tvm::AttrsNode {
+  bool out_int32;
+  bool right;
+
+  static void RegisterReflection();
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.BucketizeAttrs", BucketizeAttrs, AttrsNode);
+};  // struct BucketizeAttrs
 
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_ATTRS_QDQ_H_
+#endif  // TVM_RELAX_OP_SEARCH_H_

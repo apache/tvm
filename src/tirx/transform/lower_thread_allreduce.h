@@ -23,11 +23,11 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -49,7 +49,7 @@ inline ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -73,7 +73,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (!op->op.same_as(tirx::builtin::launch_thread()) ||
+    if (!op->op.same_as(tirx::launch_thread_op()) ||
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) == 0) {
       return DialectMutator::Mutate_(op, inplace_mode);
     }
@@ -87,7 +87,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     Stmt stmt = DialectMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<EvaluateNode>();
     const CallNode* call = op->value.as<CallNode>();
-    if (call && call->op.same_as(tirx::builtin::tvm_thread_allreduce())) {
+    if (call && call->op.same_as(tirx::tvm_thread_allreduce_op())) {
       return MakeAllreduce(call);
     } else {
       return stmt;
@@ -95,8 +95,8 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   }
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>(); call) {
-      if (call->op.same_as(builtin::alloc_tensor())) return MutateAllocTensor(op, inplace_mode);
-      if (call->op.same_as(builtin::decl_tensor())) return MutateDeclTensor(op, call, inplace_mode);
+      if (call->op.same_as(tirx::alloc_tensor_op())) return MutateAllocTensor(op, inplace_mode);
+      if (call->op.same_as(tirx::decl_tensor_op())) return MutateDeclTensor(op, call, inplace_mode);
     }
     return DialectMutator::Mutate_(op, inplace_mode);
   }
@@ -133,7 +133,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       annotations.CopyOnWrite()->dict.Set(tirx::attr::kVolatile, true);
     }
     return Bind(replacement.var(),
-                Call(replacement.type(), tirx::builtin::alloc_tensor(),
+                Call(replacement.type(), tirx::alloc_tensor_op(),
                      {tvm::Tuple(replacement->shape, call->args[0]->span),
                       DataTypeImm(replacement->dtype->dtype, call->args[1]->span),
                       StringImm(replacement.scope(), call->args[2]->span)},
@@ -219,7 +219,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     ffi::Array<Expr> arguments;
     for (const PrimExpr& value : lhs) arguments.push_back(value);
     for (const PrimExpr& value : rhs) arguments.push_back(value);
-    return builtin::GetAllreduceFields(combiner->Apply(arguments)).Map([](const Expr& value) {
+    return tirx::GetAllreduceFields(combiner->Apply(arguments)).Map([](const Expr& value) {
       return value.as_or_throw<PrimExpr>();
     });
   }
@@ -227,10 +227,10 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   // make allreduce.
   Stmt MakeAllreduce(const CallNode* call) {
     LambdaExpr combiner = call->args[0].as_or_throw<LambdaExpr>();
-    ffi::Array<Expr> inits = builtin::GetAllreduceFields(call->args[1]);
-    ffi::Array<Expr> inputs = builtin::GetAllreduceFields(call->args[2]);
-    ffi::Array<Expr> destinations = builtin::GetAllreduceFields(call->args[4]);
-    ffi::Array<Expr> thread_axes = builtin::GetAllreduceFields(call->args[5]);
+    ffi::Array<Expr> inits = tirx::GetAllreduceFields(call->args[1]);
+    ffi::Array<Expr> inputs = tirx::GetAllreduceFields(call->args[2]);
+    ffi::Array<Expr> destinations = tirx::GetAllreduceFields(call->args[4]);
+    ffi::Array<Expr> thread_axes = tirx::GetAllreduceFields(call->args[5]);
     size_t size = inputs.size();
     std::vector<PrimExpr> values;
     values.reserve(size);
@@ -372,8 +372,8 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     PrimExpr zero_index = IntImm(reduce_index.ty(), 0);
     if (IsWarpReduction(dtypes, group_extent, reduce_extent, contiguous_reduce_extent)) {
       std::vector<PrimExpr> reduce_results;
-      PrimExpr mask = Call(PrimType::UInt(32), tirx::builtin::tvm_warp_activemask(), {})
-                          .as_or_throw<PrimExpr>();
+      PrimExpr mask =
+          Call(PrimType::UInt(32), tirx::tvm_warp_activemask_op(), {}).as_or_throw<PrimExpr>();
 
       if (reduce_extent <= warp_size_) {
         std::tie(reduce_results, new_alloc_bufs) =
@@ -389,8 +389,8 @@ class ThreadAllreduceBuilder final : public DialectMutator {
                               ->source.as_or_throw<tvm::tirx::TensorVar>();
           PrimExpr val = MakeTensorLoad(buf, {zero_index});
           TVM_FFI_ICHECK_EQ(val.ty(), dtypes[i]);
-          PrimExpr splat = WarpShuffle(tirx::builtin::tvm_warp_shuffle(), new_alloc_bufs.back(),
-                                       val, reduce_extent * group_index);
+          PrimExpr splat = WarpShuffle(tirx::tvm_warp_shuffle_op(), new_alloc_bufs.back(), val,
+                                       reduce_extent * group_index);
           seq.push_back(TensorStore(buf, splat, {zero_index}));
         }
       } else {
@@ -519,7 +519,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     for (TensorVar buf : new_alloc_bufs) {
       alloc_stmts.push_back(Bind(
           buf.var(),
-          Call(buf.type(), tirx::builtin::alloc_tensor(),
+          Call(buf.type(), tirx::alloc_tensor_op(),
                {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
                DictAttrs())));
     }
@@ -608,8 +608,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         //
         // The former may cause dead lock as there is a divergent
         // branch with a warp sync call inside.
-        PrimExpr other =
-            WarpShuffle(tirx::builtin::tvm_warp_shuffle_down(), mask_buffer, val, offset);
+        PrimExpr other = WarpShuffle(tirx::tvm_warp_shuffle_down_op(), mask_buffer, val, offset);
         TensorVar local_buf = local_bufs[i];
         Stmt s = TensorStore(local_buf, other, zero_indices);
         seq->push_back(s);
@@ -796,7 +795,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   }
   // sync thread op.
   static Stmt SyncThread(const std::string& sync) {
-    return Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_storage_sync(), {StringImm(sync)})
+    return Evaluate(Call(PrimType::Int(32), tirx::tvm_storage_sync_op(), {StringImm(sync)})
                         .as_or_throw<PrimExpr>());
   }
 
@@ -962,8 +961,8 @@ class DeferredRemapper : public DialectMutator {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>(); call) {
-      if (call->op.same_as(builtin::alloc_tensor())) return MutateAllocTensor(op, inplace_mode);
-      if (call->op.same_as(builtin::decl_tensor())) return MutateDeclTensor(op, inplace_mode);
+      if (call->op.same_as(tirx::alloc_tensor_op())) return MutateAllocTensor(op, inplace_mode);
+      if (call->op.same_as(tirx::decl_tensor_op())) return MutateDeclTensor(op, inplace_mode);
     }
     return DialectMutator::Mutate_(op, inplace_mode);
   }
@@ -982,7 +981,7 @@ class DeferredRemapper : public DialectMutator {
           annotations.CopyOnWrite()->dict.Set(tirx::attr::kVolatile, true);
         }
         return Bind(replacement.var(),
-                    Call(replacement.type(), tirx::builtin::alloc_tensor(),
+                    Call(replacement.type(), tirx::alloc_tensor_op(),
                          {tvm::Tuple(replacement->shape, call->args[0]->span),
                           DataTypeImm(replacement->dtype->dtype, call->args[1]->span),
                           StringImm(replacement.scope(), call->args[2]->span)},
@@ -1005,7 +1004,7 @@ class DeferredRemapper : public DialectMutator {
       const CallNode* call = node->value.template as<CallNode>();
       return Bind(
           new_buf.value(),
-          Call(new_buf.value().type(), builtin::decl_tensor(),
+          Call(new_buf.value().type(), tirx::decl_tensor_op(),
                {call->args[0], tvm::Tuple(new_buf.value()->shape),
                 DataTypeImm(new_buf.value()->dtype->dtype), StringImm(new_buf.value().scope())},
                call->attrs, call->ty_args, call->span),

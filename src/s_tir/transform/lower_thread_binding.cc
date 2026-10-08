@@ -21,7 +21,7 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 namespace tvm {
 namespace s_tir {
@@ -74,9 +74,8 @@ class ThreadBindingLowerer : public StmtExprMutator {
       body = For(PrimVar("annotation", ty), IntImm(ty, 0), IntImm(ty, 1), ForKind::kSerial,
                  std::move(body), std::nullopt, std::move(annotations), std::nullopt);
     }
-    return RegionStmt(tirx::builtin::launch_thread(),
-                      {StringImm(op->thread_binding.value()), extent}, {launch_var}, DictAttrs(),
-                      std::move(body), {}, op->span);
+    return RegionStmt(tirx::launch_thread_op(), {StringImm(op->thread_binding.value()), extent},
+                      {launch_var}, DictAttrs(), std::move(body), {}, op->span);
   }
 };
 

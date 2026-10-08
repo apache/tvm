@@ -24,9 +24,8 @@
 
 #include <llvm/IR/Intrinsics.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
@@ -61,7 +60,7 @@ inline PrimExpr DispatchPureExternOCML(const PrimExpr& e) {
     new_args.push_back(arg);
   }
 
-  return Call(call_ty, tirx::builtin::call_pure_extern(), new_args).as_or_throw<PrimExpr>();
+  return Call(call_ty, tirx::call_pure_extern_op(), new_args).as_or_throw<PrimExpr>();
 }
 
 inline PrimExpr DispatchShuffle(const PrimExpr& e) {
@@ -78,25 +77,25 @@ inline PrimExpr DispatchShuffle(const PrimExpr& e) {
   PrimExpr minus_one = IntImm::Int32(-1);
   PrimExpr zero = IntImm::Int32(0);
   PrimType i32_ty = PrimType::Int(32);
-  PrimExpr lo = Call(i32_ty, tirx::builtin::call_pure_extern(),
+  PrimExpr lo = Call(i32_ty, tirx::call_pure_extern_op(),
                      ffi::Array<Expr>{StringImm("llvm.amdgcn.mbcnt.lo"), minus_one, zero})
                     .as_or_throw<PrimExpr>();
-  PrimExpr self = Call(i32_ty, tirx::builtin::call_pure_extern(),
+  PrimExpr self = Call(i32_ty, tirx::call_pure_extern_op(),
                        ffi::Array<Expr>{StringImm("llvm.amdgcn.mbcnt.hi"), minus_one, lo})
                       .as_or_throw<PrimExpr>();
 
   // compute lane to get from
   PrimExpr width = args[3];
   PrimExpr index{ffi::UnsafeInit{}};
-  if (call->op.same_as(tirx::builtin::tvm_warp_shuffle())) {
+  if (call->op.same_as(tirx::tvm_warp_shuffle_op())) {
     PrimExpr src_lane = args[2];
     index = src_lane + (self & ~(width - 1));
-  } else if (call->op.same_as(tirx::builtin::tvm_warp_shuffle_up())) {
+  } else if (call->op.same_as(tirx::tvm_warp_shuffle_up_op())) {
     PrimExpr delta = args[2];
     index = self - delta;
     index = prim::Select(index < (self & ~(width - 1)), self, index);
   } else {
-    TVM_FFI_ICHECK(call->op.same_as(tirx::builtin::tvm_warp_shuffle_down()));
+    TVM_FFI_ICHECK(call->op.same_as(tirx::tvm_warp_shuffle_down_op()));
     PrimExpr delta = args[2];
     index = self + delta;
     index = prim::Select((self & (width - 1)) + delta >= width, self, index);
@@ -104,7 +103,7 @@ inline PrimExpr DispatchShuffle(const PrimExpr& e) {
   // reinterprete var as int32
   bool is_int32 = var_ty.MatchesElementType(DLDataTypeCode::kDLInt, 32);
   PrimExpr source = is_int32 ? var : reinterpret(PrimType::Int(32), var);
-  PrimExpr res = Call(i32_ty, tirx::builtin::call_pure_extern(),
+  PrimExpr res = Call(i32_ty, tirx::call_pure_extern_op(),
                       ffi::Array<Expr>{StringImm("llvm.amdgcn.ds.bpermute"), index << 2, source})
                      .as_or_throw<PrimExpr>();
   if (!is_int32) {

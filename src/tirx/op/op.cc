@@ -26,11 +26,10 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/type.h>
@@ -71,7 +70,7 @@ Type GetType(const PrimExpr& expr) {
 
   static const Op type_annotation_op = Op::Get("tirx.type_annotation");
   if (auto* access = expr.as<CallNode>()) {
-    if (access->op.same_as(tirx::builtin::tvm_access_ptr())) {
+    if (access->op.same_as(tirx::tvm_access_ptr_op())) {
       TVM_FFI_ICHECK(access->args.size())
           << "Builtin tvm_access_ptr() may not have empty arguments";
       auto type_annotation = access->args[0].as_or_throw<Call>();
@@ -80,7 +79,7 @@ Type GetType(const PrimExpr& expr) {
           << "to be a type annotation, but found " << type_annotation->op;
       return PointerType(type_annotation->ty.as_or_throw<PrimType>());
     }
-    if (access->op.same_as(tirx::builtin::ptr_byte_offset())) {
+    if (access->op.same_as(tirx::ptr_byte_offset_op())) {
       TVM_FFI_ICHECK_EQ(access->args.size(), 3U);
       auto type_annotation = access->args[2].as_or_throw<Call>();
       TVM_FFI_ICHECK(type_annotation->op.same_as(type_annotation_op))
@@ -91,7 +90,7 @@ Type GetType(const PrimExpr& expr) {
   }
 
   if (auto* address_of = expr.as<CallNode>()) {
-    if (address_of->op.same_as(tirx::builtin::address_of())) {
+    if (address_of->op.same_as(tirx::address_of_op())) {
       TVM_FFI_ICHECK_EQ(address_of->args.size(), 1)
           << "Builtin address_of() expects a single argument, but received arguments "
           << address_of->args;
@@ -127,14 +126,13 @@ Type GetTypeFromRuntimeDataType(DLDataType dtype) {
 
 // Q-multiplication
 PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s, Span span) {
-  return Call(PrimType::Int(32, x.ty().lanes()), tirx::builtin::q_multiply_shift(), {x, y, q, s},
-              {}, {}, span)
+  return Call(PrimType::Int(32, x.ty().lanes()), tirx::q_multiply_shift_op(), {x, y, q, s}, {}, {},
+              span)
       .as_or_throw<PrimExpr>();
 }
 
 PrimExpr thread_return(Span span) {
-  return Call(PrimType::Void(), tirx::builtin::thread_return(), {}, {}, {}, span)
-      .as_or_throw<PrimExpr>();
+  return Call(PrimType::Void(), tirx::thread_return_op(), {}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -180,15 +178,14 @@ PrimExpr reinterpret(PrimType t, PrimExpr value, Span span) {
                     value_dtype.StorageBytes() == target_dtype.StorageBytes()))
         << "Reinterpret requires size match " << target_dtype << " vs " << value_dtype;
   }
-  return Call(std::move(t), tirx::builtin::reinterpret(), {value}, {}, {}, span)
-      .as_or_throw<PrimExpr>();
+  return Call(std::move(t), tirx::reinterpret_op(), {value}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 
 Expr reinterpret(Type target_ty, Expr value, Span span) {
   if (value.as<StringImmNode>()) {
     TVM_FFI_CHECK(target_ty.as<PointerTypeNode>(), TypeError)
         << "String reinterpret requires a pointer target, but got " << target_ty;
-    return Call(std::move(target_ty), tirx::builtin::reinterpret(), {std::move(value)}, {}, {},
+    return Call(std::move(target_ty), tirx::reinterpret_op(), {std::move(value)}, {}, {},
                 std::move(span));
   }
   if (auto target_dtype = target_ty.as<PrimType>()) {
@@ -218,7 +215,7 @@ Expr reinterpret(Type target_ty, Expr value, Span span) {
           << "Reinterpret source must be PrimType or PointerType, but got " << value->ty;
     }
   }
-  return Call(std::move(target_ty), tirx::builtin::reinterpret(), {std::move(value)}, {}, {},
+  return Call(std::move(target_ty), tirx::reinterpret_op(), {std::move(value)}, {}, {},
               std::move(span));
 }
 
@@ -793,7 +790,7 @@ PrimExpr PrintOpPacked(Expr data, DLDataType dtype, bool is_string, bool is_scal
   for (const auto& dim : shape) {
     args.push_back(dim);
   }
-  return Call(value_ty, tirx::builtin::print_buffer(), args).as_or_throw<PrimExpr>();
+  return Call(value_ty, tirx::print_buffer_op(), args).as_or_throw<PrimExpr>();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

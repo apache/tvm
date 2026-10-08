@@ -33,6 +33,113 @@
 namespace tvm {
 namespace relax {
 
+void Resize2DAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<Resize2DAttrs>()
+      .def_ro("roi", &Resize2DAttrs::roi,
+              "Region of Interest for coordinate transformation mode 'tf_crop_and_resize'")
+      .def_ro("layout", &Resize2DAttrs::layout,
+              "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
+              "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+              "dimensions respectively. Resize is applied on the 'H' and"
+              "'W' dimensions.",
+              refl::DefaultValue(ffi::String("NCHW")))
+      .def_ro("method", &Resize2DAttrs::method,
+              "Specify the mode to use for scaling."
+              "nearest_neighbor -  Nearest Neighbor"
+              "linear - Bilinear Interpolation"
+              "cubic - Bicubic Interpolation",
+              refl::DefaultValue(ffi::String("linear")))
+      .def_ro("coordinate_transformation_mode", &Resize2DAttrs::coordinate_transformation_mode,
+              "Describes how to transform the coordinate in the resized tensor"
+              "to the coordinate in the original tensor."
+              "Refer to the ONNX Resize operator specification for details"
+              "Available options are half_pixel, align_corners and asymmetric",
+              refl::DefaultValue(ffi::String("half_pixel")))
+      .def_ro("rounding_method", &Resize2DAttrs::rounding_method,
+              "indicates how to find the \"nearest\" pixel in nearest_neighbor method"
+              "Available options are round, floor, and ceil.",
+              refl::DefaultValue(ffi::String("round")))
+      .def_ro("cubic_alpha", &Resize2DAttrs::cubic_alpha,
+              "Spline Coefficient for Bicubic Interpolation", refl::DefaultValue(-0.75))
+      .def_ro("cubic_exclude", &Resize2DAttrs::cubic_exclude,
+              "Flag to exclude exterior of the image during bicubic interpolation",
+              refl::DefaultValue(0))
+      .def_ro("extrapolation_value", &Resize2DAttrs::extrapolation_value,
+              "Value to return when roi is outside of the image", refl::DefaultValue(0.0))
+      .def_ro(
+          "out_dtype", &Resize2DAttrs::out_dtype,
+          "The dtype of the output tensor. It it is not specified, the output will have the same "
+          "dtype as input if not specified.",
+          refl::DefaultValue(ffi::Optional<DLDataType>{}));
+}
+
+void Resize3DAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<Resize3DAttrs>()
+      .def_ro("roi", &Resize3DAttrs::roi,
+              "Region of Interest for coordinate transformation mode 'tf_crop_and_resize'")
+      .def_ro("layout", &Resize3DAttrs::layout,
+              "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
+              "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+              "dimensions respectively. Resize is applied on the 'D', 'H' and"
+              "'W' dimensions.",
+              refl::DefaultValue(ffi::String("NCDHW")))
+      .def_ro("method", &Resize3DAttrs::method,
+              "Specify the mode to use for scaling."
+              "nearest_neighbor -  Nearest Neighbor"
+              "linear - Trilinear Interpolation"
+              "cubic - Tricubic Interpolation",
+              refl::DefaultValue(ffi::String("linear")))
+      .def_ro("coordinate_transformation_mode", &Resize3DAttrs::coordinate_transformation_mode,
+              "Describes how to transform the coordinate in the resized tensor"
+              "to the coordinate in the original tensor."
+              "Refer to the ONNX Resize operator specification for details"
+              "Available options are half_pixel, align_corners and asymmetric",
+              refl::DefaultValue(ffi::String("half_pixel")))
+      .def_ro("rounding_method", &Resize3DAttrs::rounding_method,
+              "indicates how to find the \"nearest\" pixel in nearest_neighbor method"
+              "Available options are round, floor, and ceil.",
+              refl::DefaultValue(ffi::String("")))
+      .def_ro("cubic_alpha", &Resize3DAttrs::cubic_alpha,
+              "Spline Coefficient for Tricubic Interpolation", refl::DefaultValue(-0.75))
+      .def_ro("cubic_exclude", &Resize3DAttrs::cubic_exclude,
+              "Flag to exclude exterior of the image during tricubic interpolation",
+              refl::DefaultValue(0))
+      .def_ro("extrapolation_value", &Resize3DAttrs::extrapolation_value,
+              "Value to return when roi is outside of the image", refl::DefaultValue(0.0))
+      .def_ro(
+          "out_dtype", &Resize3DAttrs::out_dtype,
+          "The dtype of the output tensor. It it is not specified, the output will have the same "
+          "dtype as input if not specified.",
+          refl::DefaultValue(ffi::Optional<DLDataType>{}));
+}
+
+void GridSampleAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<GridSampleAttrs>()
+      .def_ro("method", &GridSampleAttrs::method,
+              "Interpolation method. Can be 'nearest', 'bilinear', or 'bicubic'.",
+              refl::DefaultValue(ffi::String("bilinear")))
+      .def_ro("layout", &GridSampleAttrs::layout,
+              "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc.",
+              refl::DefaultValue(ffi::String("NCHW")))
+      .def_ro("padding_mode", &GridSampleAttrs::padding_mode,
+              "Padding mode for outside grid values. Can be 'zeros', 'border', or 'reflection'.",
+              refl::DefaultValue(ffi::String("zeros")))
+      .def_ro("align_corners", &GridSampleAttrs::align_corners,
+              "If True, the corner pixels of the input and output tensors are aligned.",
+              refl::DefaultValue(false));
+}
+
+void AffineGridAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<AffineGridAttrs>().def_ro(
+      "align_corners", &AffineGridAttrs::align_corners,
+      "If True, normalized grid coordinates map to corner pixels; otherwise to pixel centers.",
+      refl::DefaultValue(true));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   Resize2DAttrs::RegisterReflection();
   Resize3DAttrs::RegisterReflection();

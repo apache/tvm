@@ -23,13 +23,12 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
 #include "../../tirx/ir/buffer_common.h"
@@ -189,8 +188,8 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
       if (auto* load = store->value.as<TensorLoadNode>()) {
         return InjectPTX(load, store);
       } else if (auto* call = store->value.as<CallNode>()) {
-        // tirx.if_then_else is a call to prim::builtin::if_then_else()
-        if (call->op.same_as(prim::builtin::if_then_else()) && call->args.size() == 3) {
+        // tirx.if_then_else is a call to prim::if_then_else_op()
+        if (call->op.same_as(prim::if_then_else_op()) && call->args.size() == 3) {
           if (auto* load = call->args[1].as<TensorLoadNode>()) {
             // Only default value of 0 is supported since 0 is the default value used by cp.async
             // ptx. @see section 9.7.8.22.3. of

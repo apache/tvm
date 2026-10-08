@@ -18,7 +18,9 @@
 
 from __future__ import annotations
 
-from tvm.ir import Call
+from tvm.ir import Call, Op
+from tvm.ir.op import _make_op_api
+from tvm.tirx import is_tensor_var
 
 
 def make_filled_simdgroup_matrix(d, index, value, col=8, row=8, *, ty=None, span=None):
@@ -89,8 +91,37 @@ def simdgroup_multiply_accumulate(
     )
 
 
+_simd_shuffle = _make_op_api(Op.get("tirx.metal.simd_shuffle"), __name__)
+_simd_shuffle_up = _make_op_api(Op.get("tirx.metal.simd_shuffle_up"), __name__)
+_simd_shuffle_down = _make_op_api(Op.get("tirx.metal.simd_shuffle_down"), __name__)
+
+
+def simd_shuffle(var, lane, *, ty=None, span=None):
+    """Shuffle a value from the selected SIMD lane."""
+    if is_tensor_var(var):
+        var = var[0]
+    return _simd_shuffle(var, lane, ty=ty, span=span)
+
+
+def simd_shuffle_up(var, delta, *, ty=None, span=None):
+    """Shuffle a value from a lower SIMD lane."""
+    if is_tensor_var(var):
+        var = var[0]
+    return _simd_shuffle_up(var, delta, ty=ty, span=span)
+
+
+def simd_shuffle_down(var, delta, *, ty=None, span=None):
+    """Shuffle a value from a higher SIMD lane."""
+    if is_tensor_var(var):
+        var = var[0]
+    return _simd_shuffle_down(var, delta, ty=ty, span=span)
+
+
 __all__ = [
     "make_filled_simdgroup_matrix",
+    "simd_shuffle",
+    "simd_shuffle_down",
+    "simd_shuffle_up",
     "simdgroup_load",
     "simdgroup_multiply_accumulate",
     "simdgroup_store",

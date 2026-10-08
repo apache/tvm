@@ -22,7 +22,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/tensor_intrin.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 #include "../../tirx/transform/ir_utils.h"
 #include "./utils.h"
@@ -148,7 +148,7 @@ UnchangedOr<Expr> ReplaceBufferMutator::Mutate_(const CallNode* op, InplaceMode 
     op = ffi::AnyView(result).as<CallNode>();
     if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
   }
-  if (!op->op.same_as(tirx::builtin::buffer_data()) || op->args.size() != 1) return result;
+  if (!op->op.same_as(tirx::buffer_data_op()) || op->args.size() != 1) return result;
   PointerType type = op->args[0].as_or_throw<TensorVar>().DataPointerType();
   if (ffi::StructuralEqual()(op->ty, type)) return result;
   if (inplace_mode == InplaceMode::kAllow) {

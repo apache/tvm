@@ -28,7 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -117,9 +117,8 @@ class TIRxOpaqueLower : public StmtExprMutator {
                  std::nullopt, FilterAnnotations(annotations), step);
     }
     if (op->kind == ForKind::kThreadBinding) {
-      return RegionStmt(tirx::builtin::launch_thread(),
-                        {StringImm(op->thread_binding.value()), extent}, {launch_var}, DictAttrs(),
-                        body, {}, op->span);
+      return RegionStmt(tirx::launch_thread_op(), {StringImm(op->thread_binding.value()), extent},
+                        {launch_var}, DictAttrs(), body, {}, op->span);
     }
     return body;
   }

@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/relax/attrs/datatype.h
+ * \file tvm/relax/op/datatype.h
  * \brief Attributes for datatype operators.
  */
-#ifndef TVM_RELAX_ATTRS_DATATYPE_H_
-#define TVM_RELAX_ATTRS_DATATYPE_H_
+#ifndef TVM_RELAX_OP_DATATYPE_H_
+#define TVM_RELAX_OP_DATATYPE_H_
 
 #include <tvm/relax/expr.h>
 
@@ -33,10 +33,7 @@ namespace relax {
 struct AstypeAttrs : public AttrsNode {
   DLDataType dtype;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AstypeAttrs>().def_ro("dtype", &AstypeAttrs::dtype, "Target data type");
-  }
+  static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AstypeAttrs", AstypeAttrs, AttrsNode);
 };  // struct AstypeAttrs.
 
@@ -44,15 +41,11 @@ struct AstypeAttrs : public AttrsNode {
 struct WrapParamAttrs : public AttrsNode {
   DLDataType dtype;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<WrapParamAttrs>().def_ro("dtype", &WrapParamAttrs::dtype, "Target data type",
-                                             refl::DefaultValue((DLDataType{kDLFloat, 32, 1})));
-  }
+  static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.WrapParamAttrs", WrapParamAttrs, AttrsNode);
 };  // struct WrapParamAttrs.
 
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_ATTRS_DATATYPE_H_
+#endif  // TVM_RELAX_OP_DATATYPE_H_

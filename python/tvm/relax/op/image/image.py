@@ -18,16 +18,23 @@
 
 from typing import cast
 
+import tvm_ffi
+
 from tvm import DataType
+from tvm.ir import Attrs, is_prim_expr
 from tvm.ir import Call as _Call
 from tvm.ir import PrimType as _PrimType
-from tvm.ir import is_prim_expr
 from tvm.ir.attrs import make_node as _make_attrs
 
 from ...expr import Expr, ShapeExpr
 
 PrimExprLike = int | Expr
 SizeLike = PrimExprLike | tuple[PrimExprLike, ...]
+
+
+@tvm_ffi.register_object("relax.attrs.Resize2DAttrs")
+class Resize2DAttrs(Attrs):
+    """Attributes used in image resize2d operator"""
 
 
 def resize2d(

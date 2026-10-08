@@ -53,7 +53,7 @@ Var GetSimdgroupBufferVar(const Expr& data) {
     return ffi::GetRef<Var>(var);
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
     const auto* buffer = call->args[0].as<VarNode>();
     TVM_FFI_ICHECK(buffer && buffer->ty.as<TensorTypeNode>())
         << "Metal simdgroup data operands expect buffer_data to project a TensorVar";
@@ -339,8 +339,8 @@ void CodeGenMetal::PrintStorageScope(const std::string& scope, std::ostream& os)
 
 void CodeGenMetal::Dispatch_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>(); call) {
-    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
-    if (call->op.same_as(tirx::builtin::decl_tensor())) return DispatchDeclTensor(op, call);
+    if (call->op.same_as(tirx::alloc_tensor_op())) return DispatchAllocTensor(op, call);
+    if (call->op.same_as(tirx::decl_tensor_op())) return DispatchDeclTensor(op, call);
   }
   // Stateful reads cannot be substituted after the underlying state changes.
   if (auto prim_value = op->value.as<PrimExpr>();
@@ -509,9 +509,9 @@ void CodeGenMetal::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(
        << PrintExpr(a) << "[" << PrintExpr(op->args[3]) << "], "  //
        << PrintExpr(b) << "[" << PrintExpr(op->args[5]) << "], "  //
        << PrintExpr(c) << "[" << PrintExpr(op->args[7]) << "])";
-  } else if (op->op.same_as(tirx::builtin::ptr_byte_offset()) ||
-             op->op.same_as(tirx::builtin::handle_add_byte_offset())) {
-    bool is_typed_offset = op->op.same_as(tirx::builtin::ptr_byte_offset());
+  } else if (op->op.same_as(tirx::ptr_byte_offset_op()) ||
+             op->op.same_as(tirx::handle_add_byte_offset_op())) {
+    bool is_typed_offset = op->op.same_as(tirx::ptr_byte_offset_op());
     TVM_FFI_ICHECK_EQ(op->args.size(), is_typed_offset ? 3U : 2U);
     const auto* pointer_type = op->ty.as<PointerTypeNode>();
     TVM_FFI_ICHECK(pointer_type)
@@ -530,7 +530,7 @@ void CodeGenMetal::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(
     os << ") + ";
     PrintExpr(op->args[1], os);
     os << "))";
-  } else if (op->op.same_as(tirx::builtin::reinterpret())) {
+  } else if (op->op.same_as(tirx::reinterpret_op())) {
     if (!op->ty.as<PrimTypeNode>() || !op->args[0]->ty.as<PrimTypeNode>()) {
       return CodeGenC::Dispatch_(op, os);
     }

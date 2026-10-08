@@ -23,13 +23,13 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/transform.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -78,7 +78,7 @@ class MemoryAccessVerifier final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (!InThreadEnv() && op->op.same_as(tirx::builtin::launch_thread()) &&
+    if (!InThreadEnv() && op->op.same_as(tirx::launch_thread_op()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
       // Launch operands execute in the enclosing environment.
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->args));
@@ -104,7 +104,7 @@ class MemoryAccessVerifier final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    if ((op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) &&
+    if ((op->op.same_as(tirx::masked_load_op()) || op->op.same_as(tirx::masked_store_op())) &&
         !op->args.empty()) {
       HandleLoadStoreToVariable(op->args[0].as_or_throw<Var>());
     }
@@ -128,7 +128,7 @@ class MemoryAccessVerifier final : public StmtExprVisitor {
       const auto& iter = defs_.find(V);
       if (iter == defs_.end()) return false;
       const CallNode* C = iter->second.as<const CallNode>();
-      if (!C || !C->op.same_as(builtin::tvm_struct_get())) return false;
+      if (!C || !C->op.same_as(tirx::tvm_struct_get_op())) return false;
       V = C->args[0].as<VarNode>();
     }
     return false;

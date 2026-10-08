@@ -30,7 +30,7 @@ from .common import register_legalize
 
 
 class TVMStructFieldKind(enum.IntEnum):
-    """Equivalent to tvm::tirx::builtin::TVMStructFieldKind
+    """Equivalent to tvm::tirx::TVMStructFieldKind
 
     This does not use `enum.auto()` to define the values, because
     `enum.auto()` starts from 1, and this must match the C++

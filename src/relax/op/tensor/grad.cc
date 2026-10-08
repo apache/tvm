@@ -38,6 +38,13 @@ Expr no_grad(Expr input) {
   return Call(Type::Missing(), op, {std::move(input)}, {}, {});
 }
 
+void TakeBackwardAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<TakeBackwardAttrs>().def_ro("axis", &TakeBackwardAttrs::axis,
+                                              "The axis over which values were selected.",
+                                              refl::DefaultValue(ffi::Optional<int64_t>{}));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.grad.no_grad", no_grad);

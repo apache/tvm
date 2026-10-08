@@ -16,8 +16,16 @@
 # under the License.
 """Non-maximum suppression operators."""
 
+import tvm_ffi
+
+from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
+
+
+@tvm_ffi.register_object("relax.attrs.AllClassNonMaximumSuppressionAttrs")
+class AllClassNonMaximumSuppressionAttrs(Attrs):
+    """Attributes for vision.all_class_non_max_suppression"""
 
 
 def all_class_non_max_suppression(
@@ -83,6 +91,11 @@ def all_class_non_max_suppression(
     )
 
 
+@tvm_ffi.register_object("relax.attrs.GetValidCountsAttrs")
+class GetValidCountsAttrs(Attrs):
+    """Attributes for vision.get_valid_counts"""
+
+
 def get_valid_counts(
     data,
     score_threshold=0,
@@ -129,6 +142,11 @@ def get_valid_counts(
         ty=ty,
         span=span,
     )
+
+
+@tvm_ffi.register_object("relax.attrs.NonMaximumSuppressionAttrs")
+class NonMaximumSuppressionAttrs(Attrs):
+    """Attributes for vision.non_max_suppression"""
 
 
 def non_max_suppression(

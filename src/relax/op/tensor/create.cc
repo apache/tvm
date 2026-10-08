@@ -37,6 +37,20 @@
 namespace tvm {
 namespace relax {
 
+void InitAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<InitAttrs>().def_ro("dtype", &InitAttrs::dtype,
+                                      "The data type of the created tensor.",
+                                      refl::DefaultValue(ffi::Optional<DLDataType>{}));
+}
+
+void TriluAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<TriluAttrs>().def_ro(
+      "k", &TriluAttrs::k,
+      "The number of diagonals above or below the main diagonal to exclude or include.");
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   InitAttrs::RegisterReflection();
   TriluAttrs::RegisterReflection();

@@ -16,11 +16,19 @@
 # under the License.
 """Relax quantize/dequantize operators"""
 
+import tvm_ffi
+
+from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir import PrimType as _PrimType
 from tvm.ir.attrs import make_node as _make_attrs
 
 from ..expr import Expr
+
+
+@tvm_ffi.register_object("relax.attrs.QuantizeAttrs")
+class QuantizeAttrs(Attrs):
+    """Attributes used in quantize/dequantize operators"""
 
 
 def quantize(

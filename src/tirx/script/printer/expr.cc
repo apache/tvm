@@ -21,11 +21,10 @@
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
-#include <tvm/tirx/attrs.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/index_map.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
-#include <tvm/tirx/tile_primitive.h>
+#include <tvm/tirx/tile_op.h>
 
 #include <algorithm>
 #include <limits>
@@ -273,8 +272,8 @@ ffi::Optional<ExprDoc> LLVMIntrinsicDocTranslate(DocTranslatorObj* d, ffi::AnyVi
     args.push_back(MaterializeCallArgument(d, call->args[i], d->Translate(call->args[i]).value()));
   }
   return NamespaceDoc("tirx")
-      ->Attr(call->op.same_as(tirx::builtin::call_llvm_intrin()) ? "call_llvm_intrin"
-                                                                 : "call_llvm_pure_intrin")
+      ->Attr(call->op.same_as(tirx::call_llvm_intrin_op()) ? "call_llvm_intrin"
+                                                           : "call_llvm_pure_intrin")
       ->Call(args, {"ty"}, {TypeValue(d, call->ty)});
 }
 

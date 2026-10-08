@@ -18,13 +18,13 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/distributed.h>
-#include <tvm/relax/attrs/linear_algebra.h>
-#include <tvm/relax/attrs/manipulate.h>
-#include <tvm/relax/attrs/nn.h>
-#include <tvm/relax/attrs/statistical.h>
 #include <tvm/relax/distributed/axis_group_graph.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/op/distributed.h>
+#include <tvm/relax/op/linear_algebra.h>
+#include <tvm/relax/op/manipulate.h>
+#include <tvm/relax/op/nn.h>
+#include <tvm/relax/op/statistical.h>
 
 #include <numeric>
 

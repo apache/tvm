@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/relax/attrs/linear_algebra.h
+ * \file tvm/relax/op/linear_algebra.h
  * \brief Attributes for linear algebra operators.
  */
-#ifndef TVM_RELAX_ATTRS_LINEAR_ALGEBRA_H_
-#define TVM_RELAX_ATTRS_LINEAR_ALGEBRA_H_
+#ifndef TVM_RELAX_OP_LINEAR_ALGEBRA_H_
+#define TVM_RELAX_OP_LINEAR_ALGEBRA_H_
 
 #include <tvm/relax/expr.h>
 
@@ -33,12 +33,7 @@ namespace relax {
 struct MatmulAttrs : public AttrsNode {
   ffi::Optional<DLDataType> out_dtype;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<MatmulAttrs>().def_ro("out_dtype", &MatmulAttrs::out_dtype,
-                                          "The data type of the output tensor",
-                                          refl::DefaultValue(ffi::Optional<DLDataType>{}));
-  }
+  static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.MatmulAttrs", MatmulAttrs, AttrsNode);
 };  // struct MatmulAttrs
 
@@ -46,15 +41,11 @@ struct MatmulAttrs : public AttrsNode {
 struct EinsumAttrs : public AttrsNode {
   ffi::String subscripts;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<EinsumAttrs>().def_ro("subscripts", &EinsumAttrs::subscripts,
-                                          "The einsum expression string");
-  }
+  static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.EinsumAttrs", EinsumAttrs, AttrsNode);
 };  // struct EinsumAttrs
 
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_ATTRS_LINEAR_ALGEBRA_H_
+#endif  // TVM_RELAX_OP_LINEAR_ALGEBRA_H_

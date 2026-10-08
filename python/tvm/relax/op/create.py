@@ -16,9 +16,11 @@
 # under the License.
 """Creation operators."""
 
+import tvm_ffi
+
 from tvm import DataType, DataTypeCode
+from tvm.ir import Attrs, PrimType, is_prim_expr
 from tvm.ir import Call as _Call
-from tvm.ir import PrimType, is_prim_expr
 from tvm.ir.attrs import make_node as _make_attrs
 
 from ..expr import Expr, ShapeExpr, prim_value
@@ -36,6 +38,11 @@ def _normalize_shape(shape):
     if not isinstance(shape, Expr) or is_prim_expr(shape):
         raise TypeError("shape must be a tuple/list or a Relax shape expression")
     return shape
+
+
+@tvm_ffi.register_object("relax.attrs.InitAttrs")
+class InitAttrs(Attrs):
+    """Attributes used in full/full_like, ones/ones_like, and zeros/zeros_like operator"""
 
 
 def full(
@@ -416,6 +423,11 @@ def hamming_window(window_size, periodic, alpha, beta, dtype, *, ty=None, span=N
         ty=ty,
         span=span,
     )
+
+
+@tvm_ffi.register_object("relax.attrs.TriluAttrs")
+class TriluAttrs(Attrs):
+    """Attributes used in tril and triu operator"""
 
 
 def tril(x: Expr, k: int | Expr = 0, *, ty=None, span=None) -> Expr:

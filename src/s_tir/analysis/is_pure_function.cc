@@ -27,7 +27,7 @@
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 #include "../ir/tir_visitor_with_path.h"
 
@@ -49,7 +49,7 @@ class PurityChecker : TIRVisitorWithPath {
 
   void Dispatch_(const BindNode* op, ffi::reflection::AccessPath path) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
       return DispatchAllocTensor(op, call, path);
     }
     return TIRVisitorWithPath::Dispatch_(op, path);

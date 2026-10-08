@@ -23,11 +23,11 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
 namespace tvm {
@@ -42,9 +42,9 @@ class UnsafeExprDetector : public tirx::ExprFunctor<bool(const Expr& n)> {
   // Because we will issue guard to make sure it is.
   bool Dispatch_(const prim::SelectNode* op) { return Dispatch(op->condition); }
   bool Dispatch_(const CallNode* op) {
-    if (op->op.same_as(prim::builtin::if_then_else())) {
+    if (op->op.same_as(prim::if_then_else_op())) {
       return Dispatch(op->args[0].as_or_throw<PrimExpr>());
-    } else if (op->op.same_as(tirx::builtin::address_of())) {
+    } else if (op->op.same_as(tirx::address_of_op())) {
       if (const auto* load = op->args[0].as<TensorLoadNode>()) {
         for (const auto& index : load->indices) {
           if (Dispatch(index)) {
@@ -138,7 +138,7 @@ class UnsafeSelectRewriter : public StmtExprMutator {
     bool cond_is_scalar_bool = cond_ty.MatchesCode(DLDataTypeCode::kDLBool) && cond_ty.IsScalar();
     if ((unsafe.Dispatch(op->true_value) || unsafe.Dispatch(op->false_value)) &&
         cond_is_scalar_bool) {
-      return Call(op->ty.as_or_throw<PrimType>(), prim::builtin::if_then_else(),
+      return Call(op->ty.as_or_throw<PrimType>(), prim::if_then_else_op(),
                   {op->condition, op->true_value, op->false_value})
           .as_or_throw<PrimExpr>();
     } else {

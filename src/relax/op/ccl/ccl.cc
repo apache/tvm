@@ -31,6 +31,43 @@ using namespace tvm::prim;
 
 /* relax.ccl.allreduce */
 
+void AllReduceAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<AllReduceAttrs>()
+      .def_ro("op_type", &AllReduceAttrs::op_type,
+              "The type of reduction operation to be applied to the input data. Now only sum is "
+              "supported.",
+              refl::DefaultValue(ffi::String("sum")))
+      .def_ro("in_group", &AllReduceAttrs::in_group,
+              "Whether the reduction operation performs in group or globally or in group as "
+              "default.",
+              refl::DefaultValue(true));
+}
+
+void AllGatherAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<AllGatherAttrs>()
+      .def_ro("num_workers", &AllGatherAttrs::num_workers,
+              "The number of workers, also the number of parts the given buffer should be "
+              "chunked into.")
+      .def_ro("in_group", &AllGatherAttrs::in_group,
+              "Whether the allgather operation performs in group or globally or in group as "
+              "default.",
+              refl::DefaultValue(true));
+}
+
+void ScatterCollectiveAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<ScatterCollectiveAttrs>()
+      .def_ro("num_workers", &ScatterCollectiveAttrs::num_workers,
+              "The number of workers, also the number of parts the given buffer should be "
+              "chunked into.")
+      .def_ro("axis", &ScatterCollectiveAttrs::axis,
+              "The axis of the tensor to be scattered. The tensor will be chunked along "
+              "this axis.",
+              refl::DefaultValue(0));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   AllReduceAttrs::RegisterReflection();
   AllGatherAttrs::RegisterReflection();

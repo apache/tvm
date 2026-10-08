@@ -16,9 +16,11 @@
 # under the License.
 """Datatype operators."""
 
+import tvm_ffi
+
 from tvm import DataType
+from tvm.ir import Attrs, PrimType
 from tvm.ir import Call as _Call
-from tvm.ir import PrimType
 from tvm.ir.attrs import make_node as _make_attrs
 
 from ..expr import Expr
@@ -26,6 +28,11 @@ from ..expr import Expr
 
 def _raw_dtype(dtype):
     return dtype.dtype if isinstance(dtype, PrimType) else dtype
+
+
+@tvm_ffi.register_object("relax.attrs.AstypeAttrs")
+class AstypeAttrs(Attrs):
+    """Attributes used in astype operator"""
 
 
 def astype(x: Expr, dtype: str | DataType | PrimType, *, ty=None, span=None) -> Expr:
@@ -51,6 +58,11 @@ def astype(x: Expr, dtype: str | DataType | PrimType, *, ty=None, span=None) -> 
         ty=ty,
         span=span,
     )  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.WrapParamAttrs")
+class WrapParamAttrs(Attrs):
+    """Attributes used in wrap_param operator"""
 
 
 def wrap_param(

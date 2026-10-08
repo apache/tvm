@@ -33,6 +33,13 @@
 namespace tvm {
 namespace relax {
 
+void MultinomialFromUniformAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<MultinomialFromUniformAttrs>().def_ro(
+      "dtype", &MultinomialFromUniformAttrs::dtype, "Data type of the output indices.",
+      refl::DefaultValue((DLDataType{kDLInt, 64, 1})));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() { MultinomialFromUniformAttrs::RegisterReflection(); }
 
 /* relax.multinomial_from_uniform */

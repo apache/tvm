@@ -25,8 +25,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
-#include <tvm/ir/prim/builtin.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -85,7 +84,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(builtin::alloc_tensor()))
+        call && call->op.same_as(tirx::alloc_tensor_op()))
       return DispatchAllocTensor(op, call);
     return StmtExprVisitor::Visit_(op);
   }
@@ -101,7 +100,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
+    if (op->op.same_as(tirx::buffer_data_op()) && op->args.size() == 1) {
       if (auto buffer = op->args[0].as<Var>()) {
         opaque_var_access_.insert(buffer.value());
       }
@@ -230,10 +229,10 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(builtin::tvm_thread_allreduce())) {
+    if (op->op.same_as(tirx::tvm_thread_allreduce_op())) {
       return LegalizeThreadAllreduce(op);
     }
-    if (op->op.same_as(builtin::alloc_tensor()) || op->op.same_as(builtin::decl_tensor())) {
+    if (op->op.same_as(tirx::alloc_tensor_op()) || op->op.same_as(tirx::decl_tensor_op())) {
       Call call = StmtExprMutator::Mutate_(op, inplace_mode)
                       .ValueOrUnchanged(ffi::GetRef<Expr>(op))
                       .as_or_throw<Call>();
@@ -246,8 +245,8 @@ class ComputeLegalizer : public StmtExprMutator {
       }
       return ReinferMutatedCallType(call, op, inplace_mode);
     }
-    if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
-      bool is_load = op->op.same_as(builtin::masked_load());
+    if (op->op.same_as(tirx::masked_load_op()) || op->op.same_as(tirx::masked_store_op())) {
+      bool is_load = op->op.same_as(tirx::masked_load_op());
       TensorVar original = op->args[0].as_or_throw<TensorVar>();
       TensorVar buffer = GetRemappedBuffer(original);
       ffi::Array<Expr> args{buffer.var()};
@@ -286,7 +285,7 @@ class ComputeLegalizer : public StmtExprMutator {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     // presertve reinterpret<bf16>() behavior.
-    if (op->op.same_as(builtin::reinterpret())) {
+    if (op->op.same_as(tirx::reinterpret_op())) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     // update normal computations to return f32 instead.
@@ -424,7 +423,7 @@ class ComputeLegalizer : public StmtExprMutator {
     };
     Expr identity = map_operand(op->args[1], promote);
     Expr values = map_operand(op->args[2], promote);
-    ffi::Array<Expr> value_fields = builtin::GetAllreduceFields(values);
+    ffi::Array<Expr> value_fields = tirx::GetAllreduceFields(values);
     ffi::Array<Var> vars;
     ffi::Array<Expr> arguments;
     for (size_t i = 0; i < combine->vars.size(); ++i) {
@@ -594,11 +593,11 @@ class StorageLegalizer : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(builtin::alloc_tensor()) || op->op.same_as(builtin::decl_tensor())) {
+    if (op->op.same_as(tirx::alloc_tensor_op()) || op->op.same_as(tirx::decl_tensor_op())) {
       Call call = StmtExprMutator::Mutate_(op, inplace_mode)
                       .ValueOrUnchanged(ffi::GetRef<Expr>(op))
                       .as_or_throw<Call>();
-      int dtype_index = op->op.same_as(builtin::alloc_tensor()) ? 1 : 2;
+      int dtype_index = op->op.same_as(tirx::alloc_tensor_op()) ? 1 : 2;
       auto dtype = call->args[dtype_index].as_or_throw<DataTypeImm>();
       if (MatchType(PrimType(dtype->value))) {
         call.CopyOnWrite()->args.Set(
@@ -607,8 +606,8 @@ class StorageLegalizer : public StmtExprMutator {
       }
       return ReinferMutatedCallType(call, op, inplace_mode);
     }
-    if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
-      bool is_load = op->op.same_as(builtin::masked_load());
+    if (op->op.same_as(tirx::masked_load_op()) || op->op.same_as(tirx::masked_store_op())) {
+      bool is_load = op->op.same_as(tirx::masked_load_op());
       TensorVar buffer = GetRemappedBuffer(op->args[0].as_or_throw<TensorVar>());
       ffi::Array<Expr> args{buffer.var()};
       ffi::Optional<PrimExpr> value;
@@ -652,7 +651,7 @@ class StorageLegalizer : public StmtExprMutator {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     // remap re-interpret so un-necessary reinterpret can be skipped.
-    if (op->op.same_as(builtin::reinterpret())) {
+    if (op->op.same_as(tirx::reinterpret_op())) {
       PrimExpr value = Mutate(op->args[0]).ValueOrUnchanged(op->args[0]).as_or_throw<PrimExpr>();
       // sometimes the input dtype can change and we can skip.
       PrimType op_dtype = op->ty.as_or_throw<PrimType>();
@@ -681,7 +680,7 @@ class StorageLegalizer : public StmtExprMutator {
     PrimType value_dtype = value.ty();
     if (!MatchType(value_dtype)) return value;
     auto* call = value.as<CallNode>();
-    if (call && call->op.same_as(builtin::reinterpret())) {
+    if (call && call->op.same_as(tirx::reinterpret_op())) {
       return reinterpret(GetStorageUIntDType(value_dtype), call->args[0].as_or_throw<PrimExpr>());
     } else {
       return value;

@@ -26,12 +26,11 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -55,10 +54,10 @@ int GetLanesOrVScaleFactor(const PrimType& ty) {
   return ty.lanes();
 }
 
-// File-local helper: true if `expr` is a call to prim::builtin::vscale().
+// File-local helper: true if `expr` is a call to prim::vscale_op().
 bool IsVScaleCall(const PrimExpr& expr) {
   if (const auto* call = expr.as<CallNode>()) {
-    return call->op.same_as(prim::builtin::vscale());
+    return call->op.same_as(prim::vscale_op());
   }
   return false;
 }
@@ -109,7 +108,7 @@ PrimType GetTextureElementType(const Expr& texture) {
 
 inline PrimExpr CreateNewLanes(bool is_scalable, int lanes_or_vscale_factor) {
   if (is_scalable) {
-    return prim::Mul(Call(PrimType::Int(32), prim::builtin::vscale(), {}).as_or_throw<PrimExpr>(),
+    return prim::Mul(Call(PrimType::Int(32), prim::vscale_op(), {}).as_or_throw<PrimExpr>(),
                      lanes_or_vscale_factor);
   } else {
     return lanes_or_vscale_factor;
@@ -234,11 +233,11 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
     Call call = StmtExprMutator::Mutate_(op, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<Expr>(op))
                     .as_or_throw<Call>();
-    if (!call->op.same_as(builtin::masked_load()) && !call->op.same_as(builtin::masked_store())) {
+    if (!call->op.same_as(tirx::masked_load_op()) && !call->op.same_as(tirx::masked_store_op())) {
       return call;
     }
 
-    bool is_load = call->op.same_as(builtin::masked_load());
+    bool is_load = call->op.same_as(tirx::masked_load_op());
     ffi::Array<PrimExpr> indices;
     for (size_t i = is_load ? 1 : 2; i + 1 < call->args.size(); ++i) {
       indices.push_back(call->args[i].as_or_throw<PrimExpr>());
@@ -282,7 +281,7 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
             ? PrimType::ScalableVector(DLDataTypeCode::kDLUInt, 1,
                                        GetLanesOrVScaleFactor(ramp->ty.as_or_throw<PrimType>()))
             : PrimType::UInt(1, GetLanesOrVScaleFactor(ramp->ty.as_or_throw<PrimType>()));
-    PrimExpr lane_mask = Call(buf_predicate_dtype, builtin::get_active_lane_mask(), {base_, limit_})
+    PrimExpr lane_mask = Call(buf_predicate_dtype, tirx::get_active_lane_mask_op(), {base_, limit_})
                              .as_or_throw<PrimExpr>();
 
     num_accesses_rewritten_ += 1;
@@ -294,7 +293,7 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
       ffi::Array<Expr> args{load->source.as_or_throw<tvm::tirx::TensorVar>().var()};
       for (const PrimExpr& index : load->indices) args.push_back(index);
       args.push_back(mask.value());
-      return Call(load->ty, builtin::masked_load(), args, {}, {}, load->span);
+      return Call(load->ty, tirx::masked_load_op(), args, {}, {}, load->span);
     }
     return load;
   }
@@ -304,7 +303,7 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
       ffi::Array<Expr> args{store->buffer.var(), store->value};
       for (const PrimExpr& index : store->indices) args.push_back(index);
       args.push_back(mask.value());
-      return Evaluate(Call(PrimType::Void(), builtin::masked_store(), args, {}, {}, store->span),
+      return Evaluate(Call(PrimType::Void(), tirx::masked_store_op(), args, {}, {}, store->span),
                       store->span);
     }
     return store;
@@ -756,7 +755,7 @@ class Vectorizer : public StmtExprMutator {
   }
   // Reinterpret expr
   PrimExpr MutateReinterpretExpr_(const CallNode* op, InplaceMode inplace_mode) {
-    TVM_FFI_ICHECK(op->op.same_as(builtin::reinterpret()));
+    TVM_FFI_ICHECK(op->op.same_as(tirx::reinterpret_op()));
     PrimExpr input = op->args[0].as_or_throw<PrimExpr>();
     PrimExpr value = this->Mutate(input).ValueOrUnchanged(input);
     if (value.same_as(op->args[0])) {
@@ -802,9 +801,9 @@ class Vectorizer : public StmtExprMutator {
       return Call(op->ty, op->op, new_args, op->attrs, {}, op->span);
     }
     PrimType ret_ty = optional_ret_ty.value();
-    if (op->op.same_as(prim::builtin::if_then_else())) {
+    if (op->op.same_as(prim::if_then_else_op())) {
       return MutateIfThenElseExpr_(op, inplace_mode);
-    } else if (op->op.same_as(builtin::texture2d_load())) {
+    } else if (op->op.same_as(tirx::texture2d_load_op())) {
       int lane = 0;
       ffi::Array<PrimExpr> fcd =
           MutateArray({op->args.back().as_or_throw<PrimExpr>()}, &lane, inplace_mode);
@@ -816,7 +815,7 @@ class Vectorizer : public StmtExprMutator {
       new_args.pop_back();
       new_args.push_back(fcd[0]);
       return Call(ret_ty.WithLanes(lane), op->op, new_args, op->attrs, {}, op->span);
-    } else if (op->op.same_as(builtin::texture2d_store())) {
+    } else if (op->op.same_as(tirx::texture2d_store_op())) {
       int lane = 0;
       // Vectorize the value to store
       ffi::Array<PrimExpr> value{op->args.back().as_or_throw<PrimExpr>()};
@@ -827,7 +826,7 @@ class Vectorizer : public StmtExprMutator {
       ffi::Array<Expr> new_args = op->args;
       new_args.Set(new_args.size() - 1, mutated_value[0]);
       return Call(ret_ty, op->op, new_args, op->attrs, {}, op->span);
-    } else if (op->op.same_as(builtin::reinterpret())) {
+    } else if (op->op.same_as(tirx::reinterpret_op())) {
       return MutateReinterpretExpr_(op, inplace_mode);
     }
     auto optional_op = op->op.as<Op>();
@@ -855,7 +854,7 @@ class Vectorizer : public StmtExprMutator {
     } else {
       int lane = 0;
       ffi::Array<Expr> new_args;
-      if (op->op.same_as(builtin::call_llvm_pure_intrin())) {
+      if (op->op.same_as(tirx::call_llvm_pure_intrin_op())) {
         // op->args[1], will give us total number of arguments to intrinsic
         ffi::Array<Expr> op_expr_args;
         for (size_t i = 1; i < op->args.size(); ++i) {

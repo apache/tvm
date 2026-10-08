@@ -30,14 +30,13 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/pattern.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -113,7 +112,7 @@ const VarNode* GetTensorVar(const Expr& expr) {
     return var;
   }
   if (const auto* call = expr.as<CallNode>();
-      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(buffer_data_op()) && call->args.size() == 1) {
     return call->args[0].as<VarNode>();
   }
   return nullptr;
@@ -176,7 +175,7 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->attrs));
     Var previous_index = warp_index_;
     auto previous_bindings = active_bindings_;
-    if (op->op.same_as(tirx::builtin::launch_thread())) {
+    if (op->op.same_as(tirx::launch_thread_op())) {
       PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
       const auto& binding = bindings_.at(var.get());
       active_bindings_.insert_or_assign(var.get(), binding);
@@ -300,7 +299,7 @@ class WarpIndexFinder : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (op->op.same_as(tirx::builtin::launch_thread())) {
+    if (op->op.same_as(tirx::launch_thread_op())) {
       WarpThreadBinding binding{op->args[0].as_or_throw<StringImm>()->value,
                                 op->args[1].as_or_throw<PrimExpr>()};
       CheckWidth(binding);
@@ -383,7 +382,7 @@ class WarpAccessRewriter : public StmtExprMutator {
     new_buffer_ = new_buf;
     Stmt rewritten_body = this->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
     return SeqStmt({Bind(new_buf.var(),
-                         Call(new_buf.type(), tirx::builtin::alloc_tensor(),
+                         Call(new_buf.type(), tirx::alloc_tensor_op(),
                               {tvm::Tuple(new_buf->shape, buffer_call->args[0]->span),
                                DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span),
                                StringImm(new_buf.scope(), buffer_call->args[2]->span)},
@@ -394,7 +393,7 @@ class WarpAccessRewriter : public StmtExprMutator {
 
  protected:
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (!op->op.same_as(tirx::builtin::launch_thread()))
+    if (!op->op.same_as(tirx::launch_thread_op()))
       return StmtExprMutator::Mutate_(op, inplace_mode);
     PrimExpr old_extent = op->args[1].as_or_throw<PrimExpr>();
     PrimExpr extent = Mutate(old_extent, inplace_mode).ValueOrUnchanged(old_extent);
@@ -527,9 +526,8 @@ class WarpAccessRewriter : public StmtExprMutator {
       return load;
     }
 
-    PrimExpr mask =
-        Call(PrimType::UInt(32), builtin::tvm_warp_activemask(), {}).as_or_throw<PrimExpr>();
-    return Call(load.ty(), builtin::tvm_warp_shuffle(),
+    PrimExpr mask = Call(PrimType::UInt(32), tvm_warp_activemask_op(), {}).as_or_throw<PrimExpr>();
+    return Call(load.ty(), tvm_warp_shuffle_op(),
                 ffi::Array<PrimExpr>{mask, load, group, width_, warp_size_})
         .as_or_throw<PrimExpr>();
   }
@@ -621,7 +619,7 @@ class BindVarBoundInfo : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (op->op.same_as(tirx::builtin::launch_thread())) {
+    if (op->op.same_as(tirx::launch_thread_op())) {
       PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
       PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
       Range dom = Range::FromMinExtent(IntImm(extent.ty(), 0), extent);
@@ -660,7 +658,7 @@ class WarpMemoryRewriter : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (!op->op.same_as(tirx::builtin::launch_thread()))
+    if (!op->op.same_as(tirx::launch_thread_op()))
       return StmtExprMutator::Mutate_(op, inplace_mode);
     PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
     auto previous_bindings = active_bindings_;
@@ -683,7 +681,7 @@ class WarpMemoryRewriter : public StmtExprMutator {
     for (size_t i = 0; i < op->seq.size(); ++i) {
       const auto* alloc = op->seq[i].as<BindNode>();
       if (const auto* call = alloc ? alloc->value.as<CallNode>() : nullptr;
-          call && call->op.same_as(builtin::alloc_tensor()) &&
+          call && call->op.same_as(alloc_tensor_op()) &&
           call->args[2].as_or_throw<StringImm>()->value == "warp") {
         new_storage_scopes_[alloc->var] = "local";
         // Gather remaining siblings as the "body" for rewriting.

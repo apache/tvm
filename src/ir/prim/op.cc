@@ -17,7 +17,6 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/op.h>
 
 #include <cmath>
@@ -63,10 +62,10 @@ TVM_FFI_INLINE bool IsFloat4Type(const PrimType& ty) {
   return ty.MatchesCode(DLDataTypeCode::kDLFloat4_e2m1fn);
 }
 
-// File-local helper: true if `expr` is a call to prim::builtin::vscale().
+// File-local helper: true if `expr` is a call to prim::vscale_op().
 bool IsVScaleCall(const PrimExpr& expr) {
   if (const auto* call = expr.as<CallNode>()) {
-    return call->op.same_as(prim::builtin::vscale());
+    return call->op.same_as(prim::vscale_op());
   }
   return false;
 }
@@ -83,7 +82,7 @@ void BroadcastToMatchLanes(PrimExpr& op_a, PrimExpr& op_b) {  // NOLINT(*)
       PrimType i32_ty = PrimType::Int(32);
       op_a = prim::Broadcast(
           op_a, prim::Mul(ty_b.VScaleFactor(),
-                          Call(i32_ty, prim::builtin::vscale(), {}).as_or_throw<PrimExpr>()));
+                          Call(i32_ty, prim::vscale_op(), {}).as_or_throw<PrimExpr>()));
     } else {
       op_a = prim::Broadcast(op_a, ty_b.lanes());
     }
@@ -330,7 +329,7 @@ PrimExpr cast(PrimType t, PrimExpr value, Span span) {
         return prim::Broadcast(
             value,
             prim::Mul(dtype.VScaleFactor(),
-                      Call(PrimType::Int(32), prim::builtin::vscale(), {}).as_or_throw<PrimExpr>()),
+                      Call(PrimType::Int(32), prim::vscale_op(), {}).as_or_throw<PrimExpr>()),
             span);
       } else {
         return prim::Broadcast(value, dtype.lanes(), span);
@@ -519,15 +518,15 @@ PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value, 
     }
   }
 
-  return Call(true_value.ty(), prim::builtin::if_then_else(), {cond, true_value, false_value}, {},
-              {}, span)
+  return Call(true_value.ty(), prim::if_then_else_op(), {cond, true_value, false_value}, {}, {},
+              span)
       .as_or_throw<PrimExpr>();
 }
 
 // likely
 PrimExpr likely(PrimExpr cond, Span span) {
   if (IsConstInt(cond)) return cond;
-  return Call(cond.ty(), prim::builtin::likely(), {cond}, {}, {}, span).as_or_throw<PrimExpr>();
+  return Call(cond.ty(), prim::likely_op(), {cond}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 
 // operator>
@@ -812,7 +811,7 @@ PrimExpr ceil(PrimExpr x, Span span) {
   }
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.ty(), std::ceil(fx->value), fx->span);
-  return Call(x.ty(), prim::builtin::ceil(), {x}, {}, {}, span).as_or_throw<PrimExpr>();
+  return Call(x.ty(), prim::ceil_op(), {x}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 
 PrimExpr log2(PrimExpr x, Span span) {
@@ -823,15 +822,15 @@ PrimExpr log2(PrimExpr x, Span span) {
                                               : PrimType::Float(32, x_ty.lanes());
     PrimExpr x_fp32 = prim::Cast(f32_ty, x, span);
     PrimExpr result_fp32 =
-        Call(f32_ty, prim::builtin::log2(), {x_fp32}, {}, {}, span).as_or_throw<PrimExpr>();
+        Call(f32_ty, prim::log2_op(), {x_fp32}, {}, {}, span).as_or_throw<PrimExpr>();
     return prim::Cast(x_ty, result_fp32, span);
   }
-  return Call(x_ty, prim::builtin::log2(), {x}, {}, {}, span).as_or_throw<PrimExpr>();
+  return Call(x_ty, prim::log2_op(), {x}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 
 PrimExpr prim::clz(PrimExpr x, Span span) {
   PrimType x_ty = x.ty();
-  return Call(x_ty, prim::builtin::clz(), {x}, {}, {}, span).as_or_throw<PrimExpr>();
+  return Call(x_ty, prim::clz_op(), {x}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

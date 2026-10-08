@@ -35,6 +35,16 @@
 namespace tvm {
 namespace relax {
 
+void QuantizeAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<QuantizeAttrs>()
+      .def_ro("out_dtype", &QuantizeAttrs::out_dtype, "Output data type.")
+      .def_ro("axis", &QuantizeAttrs::axis,
+              "The output channel axis for channel wise quantization/dequantization. "
+              "Default value is -1, which corresponds to the last axis.",
+              refl::DefaultValue(-1));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() { QuantizeAttrs::RegisterReflection(); }
 
 /* relax.quantize */

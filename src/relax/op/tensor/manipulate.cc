@@ -40,6 +40,163 @@
 namespace tvm {
 namespace relax {
 
+void ConcatAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<ConcatAttrs>().def_ro("axis", &ConcatAttrs::axis,
+                                        "The axis at which the input arrays are concatenated."
+                                        "Should lie in range `[-ndim, ndim)`.",
+                                        refl::DefaultValue(ffi::Optional<int64_t>{0}));
+}
+
+void ExpandDimsAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<ExpandDimsAttrs>().def_ro(
+      "axis", &ExpandDimsAttrs::axis,
+      "The axes at which the input array are expanded. "
+      "All values are required to lie in range `[-data.ndim - 1, data.ndim]`, "
+      "with the convention of negative indexing.");
+}
+
+void LayoutTransformAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<LayoutTransformAttrs>()
+      .def_ro("index_map", &LayoutTransformAttrs::index_map, "The layout transformation to apply.")
+      .def_ro(
+          "pad_value", &LayoutTransformAttrs::pad_value,
+          "The specific value to be used to pad if the layout transform would result in implicit "
+          "padding. If not specified, the compiler is free to choose any value.",
+          refl::DefaultValue(ffi::Optional<PrimExpr>{}));
+}
+
+void PermuteDimsAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<PermuteDimsAttrs>().def_ro(
+      "axes", &PermuteDimsAttrs::axes, "The target axes order, reverse order if not specified.",
+      refl::DefaultValue(ffi::Optional<ffi::Array<int64_t>>{}));
+}
+
+void SplitAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<SplitAttrs>()
+      .def_ro("indices_or_sections", &SplitAttrs::indices_or_sections,
+              "The input array of indices or the number of split sections.")
+      .def_ro("axis", &SplitAttrs::axis, "The axis to be splitted", refl::DefaultValue(0));
+}
+
+void SqueezeAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<SqueezeAttrs>().def_ro("axis", &SqueezeAttrs::axis,
+                                         "The axis to squeeze in the input tensor."
+                                         "If `axis = None`, all axis of dimension 1 get squeezed;"
+                                         "Else, the dimension in axes get squeezed."
+                                         "It is an error if an axis does not has dimension 1.",
+                                         refl::DefaultValue(ffi::Optional<ffi::Array<int64_t>>{}));
+}
+
+void StackAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<StackAttrs>().def_ro("axis", &StackAttrs::axis,
+                                       "The axis along which to stack the input tensors. "
+                                       "The axis will be inserted at this position in the output, "
+                                       "so it must be in range [-ndim-1, ndim] where ndim is the "
+                                       "number of dimensions of the input tensors.",
+                                       refl::DefaultValue(ffi::Optional<int64_t>{0}));
+}
+
+void RepeatAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<RepeatAttrs>()
+      .def_ro("repeats", &RepeatAttrs::repeats, "The number of repetitions.")
+      .def_ro("axis", &RepeatAttrs::axis,
+              "The axis along which to repeat values. The negative numbers are interpreted "
+              "counting from the backward. By default, use the flattened input array, and "
+              "return a flat output array.",
+              refl::DefaultValue(ffi::Optional<int64_t>{}));
+}
+
+void TileAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<TileAttrs>().def_ro("repeats", &TileAttrs::repeats,
+                                      "The number of repetitions of data along each axis.");
+}
+
+void FlipAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<FlipAttrs>().def_ro("axis", &FlipAttrs::axis,
+                                      "The axis along which to flip over.");
+}
+
+void ReverseSequenceAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<ReverseSequenceAttrs>()
+      .def_ro("seq_axis", &ReverseSequenceAttrs::seq_axis,
+              "The axis along which to reverse variable length slices.", refl::DefaultValue(1))
+      .def_ro("batch_axis", &ReverseSequenceAttrs::batch_axis, "The axis that indexes the batch.",
+              refl::DefaultValue(0));
+}
+
+void GatherElementsAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<GatherElementsAttrs>().def_ro(
+      "axis", &GatherElementsAttrs::axis, "The axis along which to index.", refl::DefaultValue(0));
+}
+
+void GatherNDAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<GatherNDAttrs>().def_ro("batch_dims", &GatherNDAttrs::batch_dims,
+                                          "The number of batch dims.", refl::DefaultValue(0));
+}
+
+void IndexPutAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<IndexPutAttrs>().def_ro("accumulate", &IndexPutAttrs::accumulate,
+                                          "Whether to accumulate (add) values rather than replace. "
+                                          "If true, performs tensor[indices] += values, "
+                                          "otherwise performs tensor[indices] = values.",
+                                          refl::DefaultValue(false));
+}
+
+void MeshgridAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<MeshgridAttrs>().def_ro("indexing", &MeshgridAttrs::indexing,
+                                          "Specifies how the grid dimensions are ordered.",
+                                          refl::DefaultValue(ffi::String("ij")));
+}
+
+void ScatterElementsAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<ScatterElementsAttrs>()
+      .def_ro("axis", &ScatterElementsAttrs::axis, "The axis over which to select values.",
+              refl::DefaultValue(0))
+      .def_ro("reduction", &ScatterElementsAttrs::reduction,
+              "Reduction mode of the scatter elements, "
+              "either \"update\", \"add\", \"mul\", \"mean\", \"min\" or \"max\".",
+              refl::DefaultValue("update"));
+}
+
+void ScatterNDAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<ScatterNDAttrs>().def_ro(
+      "reduction", &ScatterNDAttrs::reduction,
+      "Accumulation mode of the ScatterND, "
+      "either \"update\", \"add\", \"mul\", \"min\" or \"max\".",
+      refl::DefaultValue("update"));
+}
+
+void SliceScatterAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<SliceScatterAttrs>().def_ro("axis", &SliceScatterAttrs::axis,
+                                              "the dimension to insert the slice into ",
+                                              refl::DefaultValue(0));
+}
+
+void OneHotAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<OneHotAttrs>()
+      .def_ro("depth", &OneHotAttrs::depth, "Depth of the one hot dimension.")
+      .def_ro("axis", &OneHotAttrs::axis, "Axis to fill.", refl::DefaultValue(-1));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   ConcatAttrs::RegisterReflection();
   ExpandDimsAttrs::RegisterReflection();

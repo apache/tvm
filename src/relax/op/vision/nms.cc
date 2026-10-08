@@ -25,7 +25,7 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
-#include <tvm/relax/attrs/vision.h>
+#include <tvm/relax/op/vision.h>
 #include <tvm/relax/type.h>
 #include <tvm/sym/analyzer.h>
 
@@ -34,6 +34,55 @@
 
 namespace tvm {
 namespace relax {
+
+void AllClassNonMaximumSuppressionAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<AllClassNonMaximumSuppressionAttrs>().def_ro(
+      "output_format", &AllClassNonMaximumSuppressionAttrs::output_format,
+      "Output format, onnx or tensorflow. Returns outputs in a way that can be easily "
+      "consumed by each frontend.",
+      refl::DefaultValue(ffi::String("onnx")));
+}
+
+void GetValidCountsAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<GetValidCountsAttrs>()
+      .def_ro("score_threshold", &GetValidCountsAttrs::score_threshold,
+              "Lower limit of score for valid bounding boxes.", refl::DefaultValue(0))
+      .def_ro("id_index", &GetValidCountsAttrs::id_index,
+              "Index of the class categories, -1 to disable.", refl::DefaultValue(0))
+      .def_ro("score_index", &GetValidCountsAttrs::score_index,
+              "Index of the scores/confidence of boxes.", refl::DefaultValue(1));
+}
+
+void NonMaximumSuppressionAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<NonMaximumSuppressionAttrs>()
+      .def_ro("max_output_size", &NonMaximumSuppressionAttrs::max_output_size,
+              "Max number of output valid boxes, -1 for no limit.", refl::DefaultValue(-1))
+      .def_ro("iou_threshold", &NonMaximumSuppressionAttrs::iou_threshold,
+              "Non-maximum suppression IoU threshold.", refl::DefaultValue(0.5))
+      .def_ro("force_suppress", &NonMaximumSuppressionAttrs::force_suppress,
+              "Whether to suppress all detections regardless of class_id.",
+              refl::DefaultValue(false))
+      .def_ro("top_k", &NonMaximumSuppressionAttrs::top_k,
+              "Keep maximum top k detections before nms, -1 for no limit.", refl::DefaultValue(-1))
+      .def_ro("coord_start", &NonMaximumSuppressionAttrs::coord_start,
+              "Start index of the consecutive 4 coordinates.", refl::DefaultValue(2))
+      .def_ro("score_index", &NonMaximumSuppressionAttrs::score_index,
+              "Index of the scores/confidence of boxes.", refl::DefaultValue(1))
+      .def_ro("id_index", &NonMaximumSuppressionAttrs::id_index,
+              "Index of the class categories, -1 to disable.", refl::DefaultValue(0))
+      .def_ro("return_indices", &NonMaximumSuppressionAttrs::return_indices,
+              "Whether to return box indices in input data.", refl::DefaultValue(true))
+      .def_ro("invalid_to_bottom", &NonMaximumSuppressionAttrs::invalid_to_bottom,
+              "Whether to move all valid bounding boxes to the top.", refl::DefaultValue(false))
+      .def_ro("soft_nms_sigma", &NonMaximumSuppressionAttrs::soft_nms_sigma,
+              "Sigma for soft-NMS; 0.0 means standard hard NMS.", refl::DefaultValue(0.0))
+      .def_ro("score_threshold", &NonMaximumSuppressionAttrs::score_threshold,
+              "Score threshold for soft-NMS validity check; 0.0 when unused.",
+              refl::DefaultValue(0.0));
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   AllClassNonMaximumSuppressionAttrs::RegisterReflection();

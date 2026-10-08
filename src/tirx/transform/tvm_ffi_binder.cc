@@ -24,11 +24,10 @@
 #include "tvm_ffi_binder.h"
 
 #include <tvm/ffi/cast.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
 
@@ -96,7 +95,7 @@ TVMFFIABIBuilder::TVMFFIABIBuilder(const ffi::String& func_name, const ffi::Arra
 
   // Emit null-pointer check for packed args (early check)
   if (num_args > 0) {
-    EmitAssert(!Call(PrimType::Bool(), builtin::isnullptr(), ffi::Array<Expr>{v_packed_args})
+    EmitAssert(!Call(PrimType::Bool(), tirx::isnullptr_op(), ffi::Array<Expr>{v_packed_args})
                     .as_or_throw<PrimExpr>(),
                "TypeError",  //
                "args pointer is NULL", when_calling_imm_, sig_imm_, "`");
@@ -244,7 +243,7 @@ bool TVMFFIABIBuilder::BindPointer(const Var& arg, const Expr& value,
   }
 
   auto pointer_as_uint = [](const Expr& expr) {
-    return Call(PrimType::UInt(64), builtin::reinterpret(), {expr}).as_or_throw<PrimExpr>();
+    return Call(PrimType::UInt(64), tirx::reinterpret_op(), {expr}).as_or_throw<PrimExpr>();
   };
   PrimExpr prev_value = pointer_as_uint(it->second.value);
   PrimExpr current_value = pointer_as_uint(value);
@@ -478,10 +477,10 @@ void TVMFFIABIBuilder::BindBuffer(const TensorVar& arg, const TensorVar& value,
 Expr TVMFFIABIBuilder::LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int param_index,
                                                Type arg_type) {
   ffi::Array<Expr> call_args{v_packed_args, IntImm::Int32(param_index),
-                             IntImm::Int32(builtin::kTVMFFIAnyUnionValue)};
+                             IntImm::Int32(tirx::kTVMFFIAnyUnionValue)};
   if (auto prim_type = arg_type.as<PrimType>()) {
     PrimType api_type = APIType(prim_type.value());
-    PrimExpr res = Call(api_type, builtin::tvm_struct_get(), call_args).as_or_throw<PrimExpr>();
+    PrimExpr res = Call(api_type, tirx::tvm_struct_get_op(), call_args).as_or_throw<PrimExpr>();
     if (api_type != prim_type.value()) {
       res = prim::Cast(prim_type.value(), res);
     }
@@ -489,7 +488,7 @@ Expr TVMFFIABIBuilder::LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int par
   }
   TVM_FFI_CHECK(arg_type.as<PointerTypeNode>(), TypeError)
       << "Packed union values must have primitive or pointer type, but got " << arg_type;
-  return Call(std::move(arg_type), builtin::tvm_struct_get(), call_args);
+  return Call(std::move(arg_type), tirx::tvm_struct_get_op(), call_args);
 }
 
 Expr TVMFFIABIBuilder::DecodeParamOpaqueHandle(int param_index, const PrimExpr& type_index) {
@@ -507,10 +506,9 @@ Expr TVMFFIABIBuilder::DecodeParamOpaqueHandle(int param_index, const PrimExpr& 
   static_assert(sizeof(TVMFFIObject) == 24);
   Expr arg_value =
       LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, PointerType::VoidPointerTy());
-  Expr handle_from_tensor =
-      Call(PointerType::VoidPointerTy(), tirx::builtin::handle_add_byte_offset(),
-           {arg_value, IntImm::Int32(object_cell_offset)});
-  return Call(PointerType::VoidPointerTy(), prim::builtin::if_then_else(),
+  Expr handle_from_tensor = Call(PointerType::VoidPointerTy(), tirx::handle_add_byte_offset_op(),
+                                 {arg_value, IntImm::Int32(object_cell_offset)});
+  return Call(PointerType::VoidPointerTy(), prim::if_then_else_op(),
               {type_index == ffi::TypeIndex::kTVMFFITensor, handle_from_tensor, arg_value});
 }
 
@@ -557,9 +555,9 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
 
   // Extract type_index from packed_args
   Var type_index(param->name + ".type_index", PrimType::Int(32));
-  init_nest_.push_back(Bind(type_index, Call(PrimType::Int(32), builtin::tvm_struct_get(),
+  init_nest_.push_back(Bind(type_index, Call(PrimType::Int(32), tirx::tvm_struct_get_op(),
                                              {v_packed_args_, IntImm::Int32(param_index),
-                                              IntImm::Int32(builtin::kTVMFFIAnyTypeIndex)})
+                                              IntImm::Int32(tirx::kTVMFFIAnyTypeIndex)})
                                             .as_or_throw<PrimExpr>()));
 
   ffi::reflection::AccessPath param_path =
@@ -575,7 +573,7 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
 
   if (param->ty.as<PointerTypeNode>()) {
     Expr handle_value = DecodeParamOpaqueHandle(param_index, type_index.as_or_throw<PrimExpr>());
-    Expr pointer_value = Call(param->ty, builtin::reinterpret(), {handle_value});
+    Expr pointer_value = Call(param->ty, tirx::reinterpret_op(), {handle_value});
     BindPointer(param, pointer_value, param_path, true);
     return;
   }
@@ -621,14 +619,14 @@ void TVMFFIABIBuilder::DecodeAllParams() {
                                       func_name_ + "." + param->name, param_path);
       decl_buffers_.push_back(
           Bind(buffer.value(),
-               Call(buffer.value().type(), builtin::decl_tensor(),
+               Call(buffer.value().type(), tirx::decl_tensor_op(),
                     {data, tvm::Tuple(buffer.value()->shape),
                      DataTypeImm(buffer.value()->dtype->dtype), StringImm(buffer.value().scope())},
                     {})));
       PrimExpr size = IntImm(PrimType(buffer.value()->DefaultIndexType()), 1);
       for (const auto& extent : buffer.value()->shape) size *= extent;
       Stmt alignment =
-          Evaluate(Call(PrimType::Void(), builtin::assume_aligned(),
+          Evaluate(Call(PrimType::Void(), tirx::assume_aligned_op(),
                         {buffer.value(), IntImm::Int32(buffer.value()->data_alignment)}));
       // Empty tensors may have arbitrary data pointers. Their checks must not
       // be strengthened into an unconditional alignment promise.
@@ -651,7 +649,7 @@ Var TVMFFIABIBuilder::DLTensorGetFieldPtr(const Var& handle, int field_kind,
   Var ptr(var_name, pointer_type);
   init_nest_.emplace_back(Bind(
       ptr,
-      TVMStructGet(pointer_type, handle, 0, static_cast<builtin::TVMStructFieldKind>(field_kind))));
+      TVMStructGet(pointer_type, handle, 0, static_cast<tirx::TVMStructFieldKind>(field_kind))));
   return ptr;
 }
 
@@ -660,7 +658,7 @@ Var TVMFFIABIBuilder::DLTensorGetFieldPtr(const Var& handle, int field_kind,
 // ============================================================
 
 PrimExpr TVMFFIABIBuilder::LoadInt64ArrayElem(const Var& ptr, int index) {
-  return TVMStructGet(DefaultIndexPrimType(), ptr, index, builtin::kInt64ArrayElem);
+  return TVMStructGet(DefaultIndexPrimType(), ptr, index, tirx::kInt64ArrayElem);
 }
 
 // ============================================================
@@ -725,11 +723,11 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& buffer, const PrimEx
 
   // ── Section: Null pointer check ──────────────────────────────
   EmitTypeIndexCheck(
-      param_index, !Call(PrimType::Bool(), builtin::isnullptr(), {handle}).as_or_throw<PrimExpr>(),
+      param_index, !Call(PrimType::Bool(), tirx::isnullptr_op(), {handle}).as_or_throw<PrimExpr>(),
       "Tensor");
 
   // ── Section: ndim ────────────────────────────────────────────
-  PrimExpr v_ndim = TVMStructGet(tvm_ndim_type, handle, 0, builtin::kDLTensorNDim);
+  PrimExpr v_ndim = TVMStructGet(tvm_ndim_type, handle, 0, tirx::kDLTensorNDim);
   PrimExpr a_ndim = IntImm(tvm_ndim_type, static_cast<int64_t>(buffer->shape.size()));
   EmitAssert(a_ndim == v_ndim, "ValueError",  //
              "Mismatched ", buf_name, ".ndim on argument #", std::to_string(param_index),
@@ -737,14 +735,12 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& buffer, const PrimEx
 
   // ── Section: dtype ───────────────────────────────────────────
   {
-    PrimExpr code_matches =
-        TVMStructGet(PrimType::UInt(8), handle, 0, builtin::kDLTensorTypeCode) ==
-        IntImm(PrimType::UInt(8), buffer->dtype.code());
-    PrimExpr bits_matches =
-        TVMStructGet(PrimType::UInt(8), handle, 0, builtin::kDLTensorTypeBits) ==
-        IntImm(PrimType::UInt(8), buffer->dtype.bits());
+    PrimExpr code_matches = TVMStructGet(PrimType::UInt(8), handle, 0, tirx::kDLTensorTypeCode) ==
+                            IntImm(PrimType::UInt(8), buffer->dtype.code());
+    PrimExpr bits_matches = TVMStructGet(PrimType::UInt(8), handle, 0, tirx::kDLTensorTypeBits) ==
+                            IntImm(PrimType::UInt(8), buffer->dtype.bits());
     PrimExpr lanes_matches =
-        TVMStructGet(PrimType::UInt(16), handle, 0, builtin::kDLTensorTypeLanes) ==
+        TVMStructGet(PrimType::UInt(16), handle, 0, tirx::kDLTensorTypeLanes) ==
         IntImm(PrimType::UInt(16), buffer->dtype.lanes());
     PrimExpr cond = code_matches && bits_matches && lanes_matches;
     if (!(buffer->dtype == PrimType::Int(1) || buffer->dtype == PrimType::Int(4) ||
@@ -758,7 +754,7 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& buffer, const PrimEx
   }
 
   // ── Section: shape ───────────────────────────────────────────
-  Var shape_ptr = DLTensorGetFieldPtr(handle, builtin::kDLTensorShape, arg_name + "_shape");
+  Var shape_ptr = DLTensorGetFieldPtr(handle, tirx::kDLTensorShape, arg_name + "_shape");
   for (size_t k = 0; k < buffer->shape.size(); ++k) {
     if (buffer->dtype == PrimType::Int(4) || buffer->dtype == PrimType::UInt(4) ||
         buffer->dtype == PrimType::Int(1)) {
@@ -770,9 +766,9 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& buffer, const PrimEx
   }
 
   // ── Section: strides ─────────────────────────────────────────
-  Var strides_ptr = DLTensorGetFieldPtr(handle, builtin::kDLTensorStrides, arg_name + "_strides");
+  Var strides_ptr = DLTensorGetFieldPtr(handle, tirx::kDLTensorStrides, arg_name + "_strides");
   PrimExpr v_strides_is_null =
-      Call(PrimType::Bool(), builtin::isnullptr(), {strides_ptr}).as_or_throw<PrimExpr>();
+      Call(PrimType::Bool(), tirx::isnullptr_op(), {strides_ptr}).as_or_throw<PrimExpr>();
   if (buffer->strides.size() == 0) {
     BindCompactStrides(buffer, strides_ptr, v_strides_is_null, param_path);
   } else {
@@ -784,12 +780,12 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& buffer, const PrimEx
   ffi::reflection::AccessPath byte_offset_path = param_path->Attr(ffi::String("byte_offset"));
   if (const auto* const_offset = buffer->elem_offset.as<IntImmNode>()) {
     BindScalar(IntImm(PrimType::UInt(64), const_offset->value * data_bytes),
-               TVMStructGet(PrimType::UInt(64), handle, 0, builtin::kDLTensorByteOffset),
+               TVMStructGet(PrimType::UInt(64), handle, 0, tirx::kDLTensorByteOffset),
                byte_offset_path, true);
   } else {
     if (BindScalar(buffer->elem_offset,
                    cast(buffer->elem_offset.ty(),
-                        (TVMStructGet(PrimType::UInt(64), handle, 0, builtin::kDLTensorByteOffset) /
+                        (TVMStructGet(PrimType::UInt(64), handle, 0, tirx::kDLTensorByteOffset) /
                          MakeConst(PrimType::UInt(64), data_bytes))),
                    byte_offset_path, true)) {
       if (buffer->offset_factor > 1) {
@@ -814,7 +810,7 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& buffer, const PrimEx
   // ── Section: device ──────────────────────────────────────────
   {
     PrimExpr actual_device_type =
-        TVMStructGet(PrimType::Int(32), handle, 0, builtin::kDLTensorDeviceType);
+        TVMStructGet(PrimType::Int(32), handle, 0, tirx::kDLTensorDeviceType);
     // Use custom assertion for device_type to show human-readable device name
     if (const auto* const_dt = device_type_.as<IntImmNode>()) {
       PrimExpr cond = analyzer_->Simplify(IntImm::Int32(const_dt->value) == actual_device_type);
@@ -830,15 +826,15 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& buffer, const PrimEx
       BindScalar(device_type_, actual_device_type, device_type_path, true);
     }
     ffi::reflection::AccessPath device_id_path = param_path->Attr(ffi::String("device_id"));
-    BindScalar(device_id_, TVMStructGet(PrimType::Int(32), handle, 0, builtin::kDLTensorDeviceId),
+    BindScalar(device_id_, TVMStructGet(PrimType::Int(32), handle, 0, tirx::kDLTensorDeviceId),
                device_id_path, true);
   }
 
   // ── Section: data pointer ────────────────────────────────────
   {
     ffi::reflection::AccessPath data_path = param_path->Attr(ffi::String("data"));
-    Expr raw_data = TVMStructGet(PointerType::VoidPointerTy(), handle, 0, builtin::kDLTensorData);
-    Expr typed_data = Call(buffer.DataPointerType(), builtin::reinterpret(), {raw_data});
+    Expr raw_data = TVMStructGet(PointerType::VoidPointerTy(), handle, 0, tirx::kDLTensorData);
+    Expr typed_data = Call(buffer.DataPointerType(), tirx::reinterpret_op(), {raw_data});
     {
       Expr vptr = typed_data;
 
@@ -853,7 +849,7 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& buffer, const PrimEx
       // references buffer->shape which may contain forward-referenced symbolic vars.
       PrimExpr empty_alloc = cast(PrimType::Bool(), alloc_size == 0);
       PrimExpr data_non_null =
-          !Call(PrimType::Bool(), builtin::isnullptr(), {vptr}).as_or_throw<PrimExpr>();
+          !Call(PrimType::Bool(), tirx::isnullptr_op(), {vptr}).as_or_throw<PrimExpr>();
       asserts_.emplace_back(AssertStmt(
           empty_alloc || data_non_null, StringImm("ValueError"),
           ffi::Array<StringImm>({StringImm(buf_name),
@@ -865,9 +861,9 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& buffer, const PrimEx
         // Check data pointer alignment
         if (buffer->data_alignment > 1) {
           Expr handle =
-              Call(PointerType::VoidPointerTy(), builtin::reinterpret(), ffi::Array<Expr>{vptr});
+              Call(PointerType::VoidPointerTy(), tirx::reinterpret_op(), ffi::Array<Expr>{vptr});
           PrimExpr ptr_as_int =
-              Call(PrimType::UInt(64), builtin::reinterpret(), ffi::Array<Expr>{handle})
+              Call(PrimType::UInt(64), tirx::reinterpret_op(), ffi::Array<Expr>{handle})
                   .as_or_throw<PrimExpr>();
           PrimExpr align_cond =
               truncmod(ptr_as_int, IntImm(PrimType::UInt(64), buffer->data_alignment)) ==

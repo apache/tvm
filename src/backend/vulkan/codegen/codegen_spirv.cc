@@ -23,10 +23,9 @@
  */
 #include "codegen_spirv.h"
 
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
 #include <string>
@@ -64,7 +63,7 @@ const VarNode* AsBufferVarNode(const Expr& expr) {
     return var;
   }
   if (const auto* call = expr.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
     return call->args[0].as<VarNode>();
   }
   return nullptr;
@@ -400,14 +399,14 @@ spirv::Value CodeGenSPIRV::Dispatch_(const prim::LetNode* op) {
 }
 
 spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
-  TVM_FFI_ICHECK(!op->op.same_as(tirx::builtin::masked_load()))
+  TVM_FFI_ICHECK(!op->op.same_as(tirx::masked_load_op()))
       << "Predicated buffer load is not supported.";
-  TVM_FFI_ICHECK(!op->op.same_as(tirx::builtin::masked_store()))
+  TVM_FFI_ICHECK(!op->op.same_as(tirx::masked_store_op()))
       << "Predicated buffer store is not supported.";
-  if (op->op.same_as(tirx::builtin::buffer_data())) {
+  if (op->op.same_as(tirx::buffer_data_op())) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
     return MakeValue(op->args[0]);
-  } else if (op->op.same_as(tirx::builtin::call_spirv_pure_glsl450())) {
+  } else if (op->op.same_as(tirx::call_spirv_pure_glsl450_op())) {
     TVM_FFI_ICHECK_GE(op->args.size(), 2U);
     uint32_t inst_id = op->args[0].as<IntImmNode>()->value.as<uint32_t>().value();
     std::vector<spirv::Value> values;
@@ -416,12 +415,12 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
     }
     return builder_->CallGLSL450(builder_->GetSType(op->ty.as_or_throw<PrimType>()), inst_id,
                                  values);
-  } else if (op->op.same_as(tirx::builtin::reinterpret())) {
+  } else if (op->op.same_as(tirx::reinterpret_op())) {
     return builder_->MakeValue(spv::OpBitcast, builder_->GetSType(op->ty.as_or_throw<PrimType>()),
                                MakeValue(op->args[0]));
-  } else if (op->op.same_as(tirx::builtin::tvm_storage_sync())) {
+  } else if (op->op.same_as(tirx::tvm_storage_sync_op())) {
     return this->CreateStorageSync(op);
-  } else if (op->op.same_as(prim::builtin::if_then_else())) {
+  } else if (op->op.same_as(prim::if_then_else_op())) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
     spirv::Value cond = MakeValue(op->args[0]);
     spirv::Label then_label = builder_->NewLabel();
@@ -445,10 +444,10 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
     phi.SetIncoming(0, then_value, then_value_label);
     phi.SetIncoming(1, else_value, else_value_label);
     return phi;
-  } else if (op->op.same_as(tirx::builtin::popcount())) {
+  } else if (op->op.same_as(tirx::popcount_op())) {
     return builder_->MakeValue(spv::OpBitCount, builder_->GetSType(op->ty.as_or_throw<PrimType>()),
                                MakeValue(op->args[0]));
-  } else if (op->op.same_as(tirx::builtin::call_pure_extern())) {
+  } else if (op->op.same_as(tirx::call_pure_extern_op())) {
     TVM_FFI_ICHECK_GE(op->args.size(), 1U);
     const std::string& func_name = op->args[0].as<StringImmNode>()->value;
     if (func_name == "__dp4a") {
@@ -464,7 +463,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
           << AsStringImmNode(op->args[0])->value << "\"";
       return spirv::Value();
     }
-  } else if (op->op.same_as(tirx::builtin::call_extern())) {
+  } else if (op->op.same_as(tirx::call_extern_op())) {
     TVM_FFI_ICHECK_GE(op->args.size(), 1U);
     TVM_FFI_THROW(InternalError)
         << "SPIR-V shader cannot make extern calls.  Graph contains extern \""
@@ -582,7 +581,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
     builder_->MakeInst(spv::OpCooperativeMatrixStoreNV, dst_ptr, loaded, stride_val,
                        (layout != "row_major") ? t_val : f_val);
     return spirv::Value();
-  } else if (op->op.same_as(tirx::builtin::address_of())) {
+  } else if (op->op.same_as(tirx::address_of_op())) {
     const TensorLoadNode* load = op->args[0].as<TensorLoadNode>();
     Var buffer_var = load->source.as_or_throw<tvm::tirx::TensorVar>().var();
     const VarNode* buffer_node = buffer_var.get();
@@ -593,7 +592,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
     spirv::SType ptr_type = builder_->GetPointerType(ele_stype, buffer_val.stype.storage_class);
     TVM_FFI_ICHECK(var_map_.count(buffer_node));
     return builder_->StructArrayAccess(ptr_type, var_map_[buffer_node], MakeValue(index));
-  } else if (op->op.same_as(tirx::builtin::tvm_thread_invariant())) {
+  } else if (op->op.same_as(tirx::tvm_thread_invariant_op())) {
     return MakeValue(op->args[0]);
   } else {
     TVM_FFI_THROW(InternalError) << "Unresolved call  " << op->op;
@@ -986,7 +985,7 @@ void CodeGenSPIRV::DispatchDeclTensor(const BindNode* op, const CallNode* buffer
 }
 
 void CodeGenSPIRV::Dispatch_(const RegionStmtNode* op) {
-  if (op->op.same_as(tirx::builtin::launch_thread())) {
+  if (op->op.same_as(tirx::launch_thread_op())) {
     TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
                   ValueError)
         << "Virtual thread launches must be lowered before code generation";
@@ -1012,8 +1011,8 @@ void CodeGenSPIRV::Dispatch_(const AssertStmtNode* op) {
 
 void CodeGenSPIRV::Dispatch_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>(); call) {
-    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
-    if (call->op.same_as(tirx::builtin::decl_tensor())) return DispatchDeclTensor(op, call);
+    if (call->op.same_as(tirx::alloc_tensor_op())) return DispatchAllocTensor(op, call);
+    if (call->op.same_as(tirx::decl_tensor_op())) return DispatchDeclTensor(op, call);
   }
   TVM_FFI_ICHECK(!var_map_.count(op->var.get()));
   if (auto prim_type = op->var->ty.as<PrimType>()) {

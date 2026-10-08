@@ -32,6 +32,16 @@
 namespace tvm {
 namespace relax {
 
+void ROIPoolAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<ROIPoolAttrs>()
+      .def_ro("pooled_size", &ROIPoolAttrs::pooled_size, "Output size of roi pool.")
+      .def_ro("spatial_scale", &ROIPoolAttrs::spatial_scale,
+              "Ratio of input feature map height (or width) to raw image height (or width).")
+      .def_ro("layout", &ROIPoolAttrs::layout, "Dimension ordering of the input data.",
+              refl::DefaultValue(ffi::String("NCHW")));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() { ROIPoolAttrs::RegisterReflection(); }
 
 Expr roi_pool(Expr data, Expr rois, ffi::Array<int64_t> pooled_size, double spatial_scale,

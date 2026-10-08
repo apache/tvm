@@ -26,11 +26,11 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 #include <map>
 #include <unordered_set>
@@ -53,7 +53,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -126,7 +126,7 @@ class PipelineOpaqueAccessRewriter {
   Expr Rewrite(const Call& call) {
     // Intrinsic calls should be handled explicitly here as they are opaque accesses to
     // buffer.
-    static const auto& access_ptr = tirx::builtin::tvm_access_ptr();
+    static const auto& access_ptr = tirx::tvm_access_ptr_op();
     static const Op load_matrix_sync = Op::Get("tirx.tvm_load_matrix_sync");
     static const Op store_matrix_sync = Op::Get("tirx.tvm_store_matrix_sync");
     static const Op mma_sync = Op::Get("tirx.tvm_mma_sync");
@@ -812,7 +812,7 @@ class PipelineRewriter : public StmtExprMutator {
           // If the async operation that this wait_queue is waiting on is predicated, and we cannot
           // prove that the predicate is always true, the precise wait count is only valid
           // at iterations where the predicate is true;
-          auto wait_count = Call(PrimType::Int(32), prim::builtin::if_then_else(),
+          auto wait_count = Call(PrimType::Int(32), prim::if_then_else_op(),
                                  ffi::Array<PrimExpr>{state.predicate.value(),
                                                       state.pending_wait.wait_count.value(), 0})
                                 .as_or_throw<PrimExpr>();

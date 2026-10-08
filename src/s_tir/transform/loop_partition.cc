@@ -25,8 +25,8 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
@@ -35,7 +35,7 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/bound.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 #include <optional>
 #include <unordered_map>
@@ -184,7 +184,7 @@ class CandidateSelector final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+    if (op->op.same_as(tirx::launch_thread_op()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
       Var var = op->body_params[0].as_or_throw<PrimVar>();
       runtime::ThreadScope scope =
@@ -217,11 +217,11 @@ class CandidateSelector final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    if (op->op.same_as(prim::builtin::likely())) {
+    if (op->op.same_as(prim::likely_op())) {
       in_likely_ = true;
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       in_likely_ = false;
-    } else if (op->op.same_as(tirx::builtin::tvm_thread_allreduce())) {
+    } else if (op->op.same_as(tirx::tvm_thread_allreduce_op())) {
       // no split if the body contains allreduce.
       no_split_ = true;
       return std::nullopt;
@@ -301,7 +301,7 @@ class PartitionFinder : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     // handle thread_axis
-    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+    if (op->op.same_as(tirx::launch_thread_op()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
       const VarNode* var = op->body_params[0].as_or_throw<PrimVar>().get();
       PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
@@ -318,9 +318,9 @@ class PartitionFinder : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    if (op->op.same_as(prim::builtin::likely())) {
+    if (op->op.same_as(prim::likely_op())) {
       DeduceCondition(op->args[0].as_or_throw<PrimExpr>());
-    } else if (op->op.same_as(tirx::builtin::ignore_loop_partition())) {
+    } else if (op->op.same_as(tirx::ignore_loop_partition_op())) {
       return std::nullopt;
     } else {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
@@ -470,7 +470,7 @@ class ThreadPartitionInserter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+    if (op->op.same_as(tirx::launch_thread_op()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
       innermost_thread_scope_ = true;
       Stmt stmt =
@@ -541,7 +541,7 @@ class LoopPartitioner : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (!op->op.same_as(tirx::builtin::launch_thread()) ||
+    if (!op->op.same_as(tirx::launch_thread_op()) ||
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) == 0) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
@@ -938,10 +938,10 @@ class RemoveLikelyTagsAndHints : public StmtExprMutator {
   using StmtExprMutator::Mutate_;
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(prim::builtin::likely())) {
+    if (op->op.same_as(prim::likely_op())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
       return StmtExprMutator::Mutate(op->args[0]).ValueOrUnchanged(op->args[0]).as_or_throw<Expr>();
-    } else if (op->op.same_as(tirx::builtin::ignore_loop_partition())) {
+    } else if (op->op.same_as(tirx::ignore_loop_partition_op())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
       return StmtExprMutator::Mutate(op->args[0]).ValueOrUnchanged(op->args[0]).as_or_throw<Expr>();
     } else {

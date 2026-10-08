@@ -27,7 +27,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/nn.h>
+#include <tvm/relax/op/nn.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
 

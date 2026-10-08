@@ -16,8 +16,16 @@
 # under the License.
 """Multibox location transform for object detection."""
 
+import tvm_ffi
+
+from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
+
+
+@tvm_ffi.register_object("relax.attrs.MultiboxTransformLocAttrs")
+class MultiboxTransformLocAttrs(Attrs):
+    """Attributes for vision.multibox_transform_loc"""
 
 
 def multibox_transform_loc(

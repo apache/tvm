@@ -16,7 +16,10 @@
 # under the License.
 """Indexing operators."""
 
+import tvm_ffi
+
 from tvm.error import InternalError as _InternalError
+from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
 from tvm.relax.expr import Tuple as _Tuple
@@ -25,6 +28,11 @@ from ..expr import Expr
 from ..utils import convert_to_expr
 
 PrimExprLike = int | Expr
+
+
+@tvm_ffi.register_object("relax.attrs.TakeAttrs")
+class TakeAttrs(Attrs):
+    """Attributes used in take operator"""
 
 
 def take(
@@ -72,6 +80,11 @@ def take(
         ty=ty,
         span=span,
     )  # type: ignore
+
+
+@tvm_ffi.register_object("relax.attrs.StridedSliceAttrs")
+class StridedSliceAttrs(Attrs):
+    """Attributes used in strided_slice operator"""
 
 
 def strided_slice(

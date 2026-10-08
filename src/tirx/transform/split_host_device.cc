@@ -25,15 +25,13 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/transform.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/attrs.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -76,7 +74,7 @@ class DeviceRegionAnnotater : public StmtExprMutator {
                         DictAttrs({{tvm::attr::kTarget, device_target_}}), op->body,
                         op->result_vars, op->span);
     }
-    if (op->op.same_as(tirx::builtin::launch_thread())) {
+    if (op->op.same_as(tirx::launch_thread_op())) {
       return RegionStmt(device_scope, {}, {}, DictAttrs({{tvm::attr::kTarget, device_target_}}),
                         ffi::GetRef<Stmt>(op));
     }
@@ -224,7 +222,7 @@ class HostDeviceSplitter : public StmtExprMutator {
       TVM_FFI_ICHECK(kernel_buffer != nullptr);
       body = SeqStmt(
           {Bind(kernel_buffer.as_or_throw<TensorVar>(),
-                Call(kernel_buffer.as_or_throw<TensorVar>().type(), builtin::decl_tensor(),
+                Call(kernel_buffer.as_or_throw<TensorVar>().type(), decl_tensor_op(),
                      {data_param.value(), tvm::Tuple(kernel_buffer.as_or_throw<TensorVar>()->shape),
                       DataTypeImm(kernel_buffer.as_or_throw<TensorVar>()->dtype->dtype),
                       StringImm(kernel_buffer.as_or_throw<TensorVar>().scope())},
@@ -400,8 +398,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
-    if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(builtin::alloc_tensor()))
+    if (const auto* call = op->value.as<CallNode>(); call && call->op.same_as(alloc_tensor_op()))
       return DispatchAllocTensor(op, call);
     // Track Bind definitions so that launch extents and
     // dyn_shmem_size expressions that reference locally-bound
@@ -442,7 +439,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+    if (op->op.same_as(tirx::launch_thread_op()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
       ffi::String thread_tag = op->args[0].as_or_throw<StringImm>()->value;
       auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -740,7 +737,7 @@ class DeviceKernelMutator : public StmtExprMutator {
           args.push_back(arg);
         }
         Type ret_ty = IsVoidType(node->ty) ? PrimType::Void() : node->ty;
-        return Call(ret_ty, builtin::call_extern(), args);
+        return Call(ret_ty, call_extern_op(), args);
       }
     }
 
@@ -790,8 +787,7 @@ class DeviceKernelMutator : public StmtExprMutator {
 
     auto attrs = ffi::make_object<CallFFIKernelAttr>();
     attrs->launch_params = dev_info.launch_params;
-    return Call(ret_ty, builtin::call_ffi_kernel(), call_args, Attrs(attrs))
-        .as_or_throw<PrimExpr>();
+    return Call(ret_ty, call_ffi_kernel_op(), call_args, Attrs(attrs)).as_or_throw<PrimExpr>();
   }
 
   ffi::Optional<Target> current_target_;

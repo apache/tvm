@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/relax/attrs/ccl.h
+ * \file tvm/relax/op/ccl.h
  * \brief Attributes for ccl operators.
  */
-#ifndef TVM_RELAX_ATTRS_CCL_H_
-#define TVM_RELAX_ATTRS_CCL_H_
+#ifndef TVM_RELAX_OP_CCL_H_
+#define TVM_RELAX_OP_CCL_H_
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
@@ -35,18 +35,7 @@ struct AllReduceAttrs : public tvm::AttrsNode {
   ffi::String op_type;
   bool in_group;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AllReduceAttrs>()
-        .def_ro("op_type", &AllReduceAttrs::op_type,
-                "The type of reduction operation to be applied to the input data. Now only sum is "
-                "supported.",
-                refl::DefaultValue(ffi::String("sum")))
-        .def_ro("in_group", &AllReduceAttrs::in_group,
-                "Whether the reduction operation performs in group or globally or in group as "
-                "default.",
-                refl::DefaultValue(true));
-  }
+  static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllReduceAttrs", AllReduceAttrs, AttrsNode);
 };  // struct AllReduceAttrs
 
@@ -55,17 +44,7 @@ struct AllGatherAttrs : public tvm::AttrsNode {
   int num_workers;
   bool in_group;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AllGatherAttrs>()
-        .def_ro("num_workers", &AllGatherAttrs::num_workers,
-                "The number of workers, also the number of parts the given buffer should be "
-                "chunked into.")
-        .def_ro("in_group", &AllGatherAttrs::in_group,
-                "Whether the allgather operation performs in group or globally or in group as "
-                "default.",
-                refl::DefaultValue(true));
-  }
+  static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllGatherAttrs", AllGatherAttrs, AttrsNode);
 };  // struct AllGatherAttrs
 
@@ -74,17 +53,7 @@ struct ScatterCollectiveAttrs : public tvm::AttrsNode {
   int num_workers;
   int axis;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ScatterCollectiveAttrs>()
-        .def_ro("num_workers", &ScatterCollectiveAttrs::num_workers,
-                "The number of workers, also the number of parts the given buffer should be "
-                "chunked into.")
-        .def_ro("axis", &ScatterCollectiveAttrs::axis,
-                "The axis of the tensor to be scattered. The tensor will be chunked along "
-                "this axis.",
-                refl::DefaultValue(0));
-  }
+  static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScatterCollectiveAttrs", ScatterCollectiveAttrs,
                                     AttrsNode);
 };  // struct ScatterCollectiveAttrs
@@ -92,4 +61,4 @@ struct ScatterCollectiveAttrs : public tvm::AttrsNode {
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_ATTRS_CCL_H_
+#endif  // TVM_RELAX_OP_CCL_H_

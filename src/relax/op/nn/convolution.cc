@@ -34,6 +34,256 @@ namespace tvm {
 namespace relax {
 using namespace tvm::prim;
 
+void Conv1DAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<Conv1DAttrs>()
+      .def_ro("strides", &Conv1DAttrs::strides, "Specifies the strides of the convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1}))
+      .def_ro("padding", &Conv1DAttrs::padding,
+              "If padding is non-zero, then the input is implicitly zero-padded"
+              "Padding support both symmetric and asymmetric as"
+              "one int : same padding used on both sides"
+              "two int : padding width in the order of (left, right)",
+              refl::DefaultValue(ffi::Array<int64_t>{0, 0}))
+      .def_ro("dilation", &Conv1DAttrs::dilation,
+              "Specifies the dilation rate to use for dilated convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1}))
+      .def_ro("groups", &Conv1DAttrs::groups,
+              "Number of groups to split the input into for grouped convolution. The number of "
+              "input and "
+              "output channels should be divisible by the number of groups.",
+              refl::DefaultValue(1))
+      .def_ro("data_layout", &Conv1DAttrs::data_layout,
+              "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
+              "'N', 'C', 'W' stands for batch, channel, width"
+              "dimensions respectively. Convolution is applied on the 'W' dimensions.",
+              refl::DefaultValue(ffi::String("NCW")))
+      .def_ro("kernel_layout", &Conv1DAttrs::kernel_layout,
+              "Dimension ordering of weight. Can be 'OIW', 'IOW', etc."
+              "'O', 'I', 'W' stands for num_filter, input_channel, and width"
+              "dimensions respectively.",
+              refl::DefaultValue(ffi::String("OIW")))
+      .def_ro("out_layout", &Conv1DAttrs::out_layout,
+              "Dimension ordering of output. Can be 'NCW', 'NWC', etc."
+              "'N', 'C', 'W' stands for batch, channel, and width"
+              "dimensions respectively. Default to be same as input layout.")
+      .def_ro("out_dtype", &Conv1DAttrs::out_dtype,
+              "Output data type, set to explicit type under mixed precision setting",
+              refl::DefaultValue(ffi::Optional<DLDataType>{}));
+}
+
+void Conv2DAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<Conv2DAttrs>()
+      .def_ro("strides", &Conv2DAttrs::strides, "Specifies the strides of the convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
+      .def_ro("padding", &Conv2DAttrs::padding,
+              "If padding is non-zero, then the input is implicitly zero-padded"
+              "Padding support both symmetric and asymmetric as"
+              "one int : same padding used on all sides"
+              "two int : bottom, right will use same padding as top, left"
+              "four int : padding width in the order of (top, left, bottom, right)",
+              refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0, 0}))
+      .def_ro("dilation", &Conv2DAttrs::dilation,
+              "Specifies the dilation rate to use for dilated convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
+      .def_ro("groups", &Conv2DAttrs::groups,
+              "Number of groups to split the input into for grouped convolution. The number of "
+              "input and "
+              "output channels should be divisible by the number of groups.",
+              refl::DefaultValue(1))
+      .def_ro("data_layout", &Conv2DAttrs::data_layout,
+              "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
+              "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+              "dimensions respectively. Convolution is applied on the 'H' and"
+              "'W' dimensions.",
+              refl::DefaultValue(ffi::String("NCHW")))
+      .def_ro("kernel_layout", &Conv2DAttrs::kernel_layout,
+              "Dimension ordering of weight. Can be 'OIHW', 'OIHW16o16i', etc."
+              "'O', 'I', 'H', 'W' stands for num_filter, input_channel, height, and width"
+              "dimensions respectively.",
+              refl::DefaultValue(ffi::String("OIHW")))
+      .def_ro("out_layout", &Conv2DAttrs::out_layout,
+              "Dimension ordering of output. Can be 'NCHW', 'NHWC', etc."
+              "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+              "dimensions respectively. Default to be same as input layout.")
+      .def_ro("out_dtype", &Conv2DAttrs::out_dtype,
+              "Output data type, set to explicit type under mixed precision setting",
+              refl::DefaultValue(ffi::Optional<DLDataType>{}));
+}
+
+void Conv3DAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<Conv3DAttrs>()
+      .def_ro("strides", &Conv3DAttrs::strides, "Specifies the strides of the convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
+      .def_ro("padding", &Conv3DAttrs::padding,
+              "If padding is non-zero, then the input is implicitly zero-padded"
+              "Padding support both symmetric and asymmetric as"
+              "one int : same padding used on all sides"
+              "two int : bottom, right will use same padding as top, left"
+              "four int : padding width in the order of (forward, back, top, left, bottom, right)",
+              refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0, 0, 0, 0}))
+      .def_ro("dilation", &Conv3DAttrs::dilation,
+              "Specifies the dilation rate to use for dilated convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
+      .def_ro("groups", &Conv3DAttrs::groups,
+              "Number of groups to split the input into for grouped convolution. The number of "
+              "input and "
+              "output channels should be divisible by the number of groups.",
+              refl::DefaultValue(1))
+      .def_ro("data_layout", &Conv3DAttrs::data_layout,
+              "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
+              "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+              "dimensions respectively. Convolution is applied on the 'D', 'H', and"
+              "'W' dimensions.",
+              refl::DefaultValue(ffi::String("NCDHW")))
+      .def_ro(
+          "kernel_layout", &Conv3DAttrs::kernel_layout,
+          "Dimension ordering of weight. Can be 'OIDHW', 'OIDHW16o16i', etc."
+          "'O', 'I', 'D', 'H', 'W' stands for num_filter, input_channel, depth, height, and width"
+          "dimensions respectively.",
+          refl::DefaultValue(ffi::String("OIDHW")))
+      .def_ro("out_layout", &Conv3DAttrs::out_layout,
+              "Dimension ordering of output. Can be 'NCDHW', 'NDHWC', etc."
+              "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+              "dimensions respectively. Default to be same as input layout.")
+      .def_ro("out_dtype", &Conv3DAttrs::out_dtype,
+              "Output data type, set to explicit type under mixed precision setting",
+              refl::DefaultValue(ffi::Optional<DLDataType>{}));
+}
+
+void Conv1DTransposeAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<Conv1DTransposeAttrs>()
+      .def_ro("strides", &Conv1DTransposeAttrs::strides,
+              "Specifies the strides of the convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1}))
+      .def_ro("padding", &Conv1DTransposeAttrs::padding,
+              "If padding is non-zero, then the input is implicitly zero-padded"
+              "Padding support both symmetric and asymmetric as"
+              "one int : same padding used on both sides"
+              "two int : padding width in the order of (left, right)",
+              refl::DefaultValue(ffi::Array<int64_t>{0, 0}))
+      .def_ro("output_padding", &Conv1DTransposeAttrs::output_padding,
+              "Used to disambiguate the output shape.", refl::DefaultValue(ffi::Array<int64_t>{0}))
+      .def_ro("dilation", &Conv1DTransposeAttrs::dilation,
+              "Specifies the dilation rate to use for dilated convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1}))
+      .def_ro("groups", &Conv1DTransposeAttrs::groups,
+              "Number of groups to split the input into for grouped convolution. The number of "
+              "input and "
+              "output channels should be divisible by the number of groups.",
+              refl::DefaultValue(1))
+      .def_ro("data_layout", &Conv1DTransposeAttrs::data_layout,
+              "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
+              "'N', 'C', 'W' stands for batch, channel, width"
+              "dimensions respectively. Convolution is applied on the 'W' dimensions.",
+              refl::DefaultValue(ffi::String("NCW")))
+      .def_ro("kernel_layout", &Conv1DTransposeAttrs::kernel_layout,
+              "Dimension ordering of weight. Can be 'OIW', 'IOW', etc."
+              "'O', 'I', 'W' stands for num_filter, input_channel, and width"
+              "dimensions respectively.",
+              refl::DefaultValue(ffi::String("IOW")))
+      .def_ro("out_layout", &Conv1DTransposeAttrs::out_layout,
+              "Dimension ordering of output. Can be 'NCW', 'NWC', etc."
+              "'N', 'C', 'W' stands for batch, channel, and width"
+              "dimensions respectively. Default to be same as input layout.")
+      .def_ro("out_dtype", &Conv1DTransposeAttrs::out_dtype,
+              "Output data type, set to explicit type under mixed precision setting",
+              refl::DefaultValue(ffi::Optional<DLDataType>{}));
+}
+
+void Conv2DTransposeAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<Conv2DTransposeAttrs>()
+      .def_ro("strides", &Conv2DTransposeAttrs::strides,
+              "Specifies the strides of the convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
+      .def_ro("padding", &Conv2DTransposeAttrs::padding,
+              "If padding is non-zero, then the input is implicitly zero-padded"
+              "Padding support both symmetric and asymmetric as"
+              "one int : same padding used on all sides"
+              "two int : bottom, right will use same padding as top, left"
+              "four int : padding width in the order of (top, left, bottom, right)",
+              refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0, 0}))
+      .def_ro("output_padding", &Conv2DTransposeAttrs::output_padding,
+              "Used to disambiguate the output shape.",
+              refl::DefaultValue(ffi::Array<int64_t>{0, 0}))
+      .def_ro("dilation", &Conv2DTransposeAttrs::dilation,
+              "Specifies the dilation rate to use for dilated convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
+      .def_ro("groups", &Conv2DTransposeAttrs::groups,
+              "Number of groups to split the input into for grouped convolution. The number of "
+              "input and "
+              "output channels should be divisible by the number of groups.",
+              refl::DefaultValue(1))
+      .def_ro("data_layout", &Conv2DTransposeAttrs::data_layout,
+              "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
+              "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+              "dimensions respectively. Convolution is applied on the 'H' and"
+              "'W' dimensions.",
+              refl::DefaultValue(ffi::String("NCHW")))
+      .def_ro("kernel_layout", &Conv2DTransposeAttrs::kernel_layout,
+              "Dimension ordering of weight. Can be 'OIHW', 'OIHW16o16i', etc."
+              "'O', 'I', 'H', 'W' stands for num_filter, input_channel, height, and width"
+              "dimensions respectively.",
+              refl::DefaultValue(ffi::String("IOHW")))
+      .def_ro("out_layout", &Conv2DTransposeAttrs::out_layout,
+              "Dimension ordering of output. Can be 'NCHW', 'NHWC', etc."
+              "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+              "dimensions respectively. Default to be same as input layout.")
+      .def_ro("out_dtype", &Conv2DTransposeAttrs::out_dtype,
+              "Output data type, set to explicit type under mixed precision setting",
+              refl::DefaultValue(ffi::Optional<DLDataType>{}));
+}
+
+void Conv3DTransposeAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<Conv3DTransposeAttrs>()
+      .def_ro("strides", &Conv3DTransposeAttrs::strides,
+              "Specifies the strides of the convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
+      .def_ro("padding", &Conv3DTransposeAttrs::padding,
+              "If padding is non-zero, then the input is implicitly zero-padded"
+              "Padding support both symmetric and asymmetric as"
+              "one int : same padding used on all sides"
+              "three int : back/bottom/right will use same padding as front/top/left"
+              "six int : padding width in the order of (front, top, left, back, bottom, right)",
+              refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0, 0, 0, 0}))
+      .def_ro("output_padding", &Conv3DTransposeAttrs::output_padding,
+              "Used to disambiguate the output shape.",
+              refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0}))
+      .def_ro("dilation", &Conv3DTransposeAttrs::dilation,
+              "Specifies the dilation rate to use for dilated convolution.",
+              refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
+      .def_ro("groups", &Conv3DTransposeAttrs::groups,
+              "Number of groups to split the input into for grouped convolution. The number of "
+              "input and "
+              "output channels should be divisible by the number of groups.",
+              refl::DefaultValue(1))
+      .def_ro("data_layout", &Conv3DTransposeAttrs::data_layout,
+              "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
+              "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+              "dimensions respectively. Convolution is applied on the 'D', 'H', and"
+              "'W' dimensions.",
+              refl::DefaultValue(ffi::String("NCDHW")))
+      .def_ro(
+          "kernel_layout", &Conv3DTransposeAttrs::kernel_layout,
+          "Dimension ordering of weight. Can be 'IODHW', etc."
+          "'I', 'O', 'D', 'H', 'W' stands for input_channel, output_channel, depth, height, and "
+          "width"
+          "dimensions respectively.",
+          refl::DefaultValue(ffi::String("IODHW")))
+      .def_ro("out_layout", &Conv3DTransposeAttrs::out_layout,
+              "Dimension ordering of output. Can be 'NCDHW', 'NDHWC', etc."
+              "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+              "dimensions respectively. Default to be same as input layout.")
+      .def_ro("out_dtype", &Conv3DTransposeAttrs::out_dtype,
+              "Output data type, set to explicit type under mixed precision setting",
+              refl::DefaultValue(ffi::Optional<DLDataType>{}));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   Conv1DAttrs::RegisterReflection();
   Conv2DAttrs::RegisterReflection();
