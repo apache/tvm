@@ -698,7 +698,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             C.ty.elem_offset // C_s0_1 // 16 * (C_s0_1 // 16)
                                             + C.ty.elem_offset % C_s0_1 // 16,
                                             T.tvm_access_ptr(
-                                                T.type_annotation(ty="float16"),
+                                                "float16",
                                                 A_1.data,
                                                 A_1.ty.elem_offset,
                                                 A_s0_0 * 16,
@@ -755,7 +755,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             C.ty.elem_offset // C_s0_2 // 16 * (C_s0_2 // 16)
                                             + C.ty.elem_offset % C_s0_2 // 16,
                                             T.tvm_access_ptr(
-                                                T.type_annotation(ty="float16"),
+                                                "float16",
                                                 A_1.data,
                                                 A_1.ty.elem_offset,
                                                 A_s0_1 * 16,
@@ -873,7 +873,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                     A_1.ty.elem_offset // A_s0_3 // 16 * (A_s0_3 // 16)
                                     + A_1.ty.elem_offset % A_s0_3 // 16,
                                     T.tvm_access_ptr(
-                                        T.type_annotation(ty="float16"),
+                                        "float16",
                                         C.data,
                                         C.ty.elem_offset,
                                         C_s0_4 * 16,

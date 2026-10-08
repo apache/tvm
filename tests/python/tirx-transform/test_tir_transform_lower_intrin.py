@@ -142,9 +142,9 @@ def test_lower_vector_access_ptr():
     access_ptr = buffer.access_ptr(access_mask=3, offset=2, extent=4)
 
     assert access_ptr.op.name == "tirx.tvm_access_ptr"
-    assert int(access_ptr.args[2]) == 2
-    assert int(access_ptr.args[3]) == 4
-    assert int(access_ptr.args[4]) == 3
+    assert int(access_ptr.args[1]) == 2
+    assert int(access_ptr.args[2]) == 4
+    assert int(access_ptr.args[3]) == 3
 
     mod = tvm.IRModule.from_expr(
         tvm.tirx.Function([buffer], tvm.tirx.Evaluate(access_ptr)).with_attr(

@@ -47,7 +47,7 @@ from tvm.script.parser.protocol_registry import (
 from tvm.target import Target
 
 # pylint: disable=unused-import
-from tvm.tirx import Expr, IndexMap, Var, is_tensor_var, type_annotation
+from tvm.tirx import Expr, IndexMap, Var, is_tensor_var
 from tvm.tirx.exec_scope import ExecScope, ScopeIdDef
 
 # import tirx.expr for direct ir construction to pass structural_equal comparison
@@ -1758,7 +1758,6 @@ __all__ = [
     "thread_id",
     "thread_id_in_wg",
     "tmem",
-    "type_annotation",
     "u8",
     "u16",
     "u32",

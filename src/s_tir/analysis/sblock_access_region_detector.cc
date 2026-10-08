@@ -283,12 +283,12 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const CallNode* op)
     return std::nullopt;
   }
   if (op->op.same_as(tirx::tvm_access_ptr_op())) {
-    const VarNode* buffer_var = op->args[1].as<VarNode>();
-    if (const auto* data = op->args[1].as<CallNode>();
+    const VarNode* buffer_var = op->args[0].as<VarNode>();
+    if (const auto* data = op->args[0].as<CallNode>();
         data && data->op.same_as(tirx::buffer_data_op())) {
       buffer_var = data->args[0].as<VarNode>();
     }
-    const IntImmNode* access_mask = op->args[4].as<IntImmNode>();
+    const IntImmNode* access_mask = op->args[3].as<IntImmNode>();
     if (buffer_var && access_mask) {
       auto it = buffer_var_map_.find(ffi::GetRef<Var>(buffer_var));
       if (it != buffer_var_map_.end()) {

@@ -741,9 +741,7 @@ def test_lower_decl_buffer_access_ptr():
         A = T.decl_tensor(
             (128,), "float16", data=buf.data, elem_offset=32, scope="shared.dyn", layout=None
         )
-        T.tvm_access_ptr(
-            T.type_annotation(ty="float16"), buf.data, T.Add(32, 64), T.Sub(128, 64), 3
-        )
+        T.tvm_access_ptr("float16", buf.data, T.Add(32, 64), T.Sub(128, 64), 3)
 
     compare(before, after, LowerTIRx)
 

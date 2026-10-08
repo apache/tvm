@@ -103,11 +103,6 @@ def test_tir_op_tvm_thread_allreduce():
     assert expr.op.name == "tirx.tvm_thread_allreduce"
 
 
-def test_tir_op_type_annotation():
-    expr = tirx.type_annotation("int32")
-    assert expr.op.name == "tirx.type_annotation"
-
-
 def test_tir_op_tvm_access_ptr():
     buffer = tirx.decl_tensor((128), "float32")
     for ptype in ("float32", tvm.ir.PrimType("float32")):
@@ -224,9 +219,9 @@ def test_op_ptx_cp_async():
     # Raw-form layout: (dst, dst_off, src, src_off, cp_size), offsets folded.
     for access_ptr, expected_offset in zip((expr.args[0], expr.args[2]), [5, 9]):
         assert access_ptr.op.name == "tirx.tvm_access_ptr"
-        assert access_ptr.args[1].op.name == "tirx.buffer_data"
-        assert isinstance(access_ptr.args[1].args[0], tirx.Var)
-        simplified_offset = tvm.sym.Analyzer().simplify(access_ptr.args[2])
+        assert access_ptr.args[0].op.name == "tirx.buffer_data"
+        assert isinstance(access_ptr.args[0].args[0], tirx.Var)
+        simplified_offset = tvm.sym.Analyzer().simplify(access_ptr.args[1])
         assert int(simplified_offset) == expected_offset
 
 
