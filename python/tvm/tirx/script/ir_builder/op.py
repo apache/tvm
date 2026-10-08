@@ -469,6 +469,9 @@ call_packed_lowered = _tir_op.call_packed_lowered
 call_cpacked_lowered = _tir_op.call_cpacked_lowered
 
 
+tensor_data_ptr = _tir_op.tensor_data_ptr
+
+
 handle_add_byte_offset = _tir_op.handle_add_byte_offset
 
 
@@ -863,6 +866,7 @@ __all__ = [
     "sqrt",
     "tan",
     "tanh",
+    "tensor_data_ptr",
     "thread_return",
     "trunc",
     "truncdiv",

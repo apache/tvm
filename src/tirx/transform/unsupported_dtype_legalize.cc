@@ -101,7 +101,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    if (op->op.same_as(tirx::buffer_data_op()) && op->args.size() == 1) {
+    if (op->op.same_as(tirx::tensor_data_ptr_op()) && op->args.size() == 1) {
       if (auto buffer = op->args[0].as<Var>()) {
         opaque_var_access_.insert(buffer.value());
       }

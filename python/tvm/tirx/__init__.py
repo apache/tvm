@@ -29,7 +29,7 @@ from tvm.ir import const
 from .buffer import (
     BufferAccessKind,
     TensorType,
-    buffer_data,
+    tensor_data_ptr,
     buffer_data_pointer_type,
     decl_tensor,
     is_tensor_var,

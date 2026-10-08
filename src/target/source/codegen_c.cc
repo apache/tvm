@@ -717,11 +717,11 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   if (auto opt_call_op = op->op.as<Op>()) {
     auto call_op = opt_call_op.value();
 
-    if (op->op.same_as(tirx::buffer_data_op())) {
+    if (op->op.same_as(tirx::tensor_data_ptr_op())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
       const auto* buffer = op->args[0].as<VarNode>();
       TVM_FFI_ICHECK(buffer && buffer->ty.as<TensorTypeNode>())
-          << "buffer_data expects a Var with TensorType";
+          << "tensor_data_ptr expects a Var with TensorType";
       os << GetVarID(buffer);
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       TVM_FFI_ICHECK_GE(op->args.size(), 1U);
@@ -934,7 +934,7 @@ void CodeGenC::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_cal
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   const VarNode* source = data.as<VarNode>();
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
     source = call->args[0].as<VarNode>();
   }
   if (source && var_idmap_.count(source)) {

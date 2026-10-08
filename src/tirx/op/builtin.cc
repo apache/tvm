@@ -140,9 +140,9 @@ Type InferTypeMaskedLoad(const CallNode* call) {
   return MakeTensorLoad(buffer, indices).ty();
 }
 
-ffi::Expected<Type> InferTypeBufferData(const CallNode* call) noexcept try {
+ffi::Expected<Type> InferTypeTensorDataPtr(const CallNode* call) noexcept try {
   TVM_FFI_CHECK_EQ(call->args.size(), 1U, ValueError)
-      << "tirx.buffer_data expects one TensorVar argument";
+      << "tirx.tensor_data_ptr expects one TensorVar argument";
   Type inferred = call->args[0].as_or_throw<TensorVar>().DataPointerType();
   if (call->ty.same_as(inferred) || ffi::StructuralEqual()(call->ty, inferred)) return call->ty;
   return inferred;
@@ -408,7 +408,7 @@ TVM_DEFINE_CACHED_OP_GETTER(ignore_loop_partition_op, "tirx.ignore_loop_partitio
 TVM_DEFINE_CACHED_OP_GETTER(alloc_tensor_op, "tirx.alloc_tensor")
 TVM_DEFINE_CACHED_OP_GETTER(decl_tensor_op, "tirx.decl_tensor")
 TVM_DEFINE_CACHED_OP_GETTER(buffer_offset_op, "tirx.buffer_offset")
-TVM_DEFINE_CACHED_OP_GETTER(buffer_data_op, "tirx.buffer_data")
+TVM_DEFINE_CACHED_OP_GETTER(tensor_data_ptr_op, "tirx.tensor_data_ptr")
 TVM_DEFINE_CACHED_OP_GETTER(print_buffer_op, "tirx.print_buffer")
 
 // Region operations.
@@ -858,9 +858,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
-  OpDef("tirx.buffer_data")
-      .signature(sig::arg("buffer", "The buffer."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeBufferData>())
+  OpDef("tirx.tensor_data_ptr")
+      .signature(sig::arg("tensor", "The tensor variable."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeTensorDataPtr>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 

@@ -650,7 +650,9 @@ Expr TensorVar::access_ptr(int access_mask, PointerType ptr_type, int content_la
 TensorVar::TensorVar(ffi::String name, TensorType type, Span span)
     : Var(Var(std::move(name), std::move(type), std::move(span))) {}
 
-Expr TensorVar::data() const { return Call(DataPointerType(), tirx::buffer_data_op(), {var()}); }
+Expr TensorVar::data() const {
+  return Call(DataPointerType(), tirx::tensor_data_ptr_op(), {var()});
+}
 
 tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
                                           std::string name, int data_alignment, int offset_factor,

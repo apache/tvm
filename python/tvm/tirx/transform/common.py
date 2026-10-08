@@ -27,7 +27,7 @@ class BufferReplacer:
     """
     Replace tensor variables with other tensor variables.
     Tensor variables are ordinary Vars, so the same mapping also rewrites
-    ``buffer_data`` projections.
+    ``tensor_data_ptr`` projections.
     """
 
     def __init__(

@@ -63,7 +63,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -593,7 +593,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(tirx::buffer_data_op()) && op->args.size() == 1) {
+    if (op->op.same_as(tirx::tensor_data_ptr_op()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>()) {
         Var root = buffer_aliases_.Get(var.value()).value_or(var.value());
         if (auto it = alloc_map_.find(root.get()); it != alloc_map_.end()) {
@@ -2059,7 +2059,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     if (auto rewritten = RewriteMaskedCall(op)) {
       return rewritten.value();
     }
-    if (op->op.same_as(tirx::buffer_data_op()) && op->args.size() == 1) {
+    if (op->op.same_as(tirx::tensor_data_ptr_op()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
           var.has_value() && var.value()->ty.as<TensorTypeNode>()) {
         return RemapBuffer(var.value().as_or_throw<TensorVar>()).data();
@@ -2128,7 +2128,7 @@ class VectorTypeRewriter : public StmtExprMutator {
           op = ffi::AnyView(result).as<CallNode>();
           if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
         }
-        if (!op->op.same_as(tirx::buffer_data_op()) || op->args.size() != 1) return result;
+        if (!op->op.same_as(tirx::tensor_data_ptr_op()) || op->args.size() != 1) return result;
         PointerType type = op->args[0].as_or_throw<TensorVar>().DataPointerType();
         if (ffi::StructuralEqual()(op->ty, type)) return result;
         if (inplace_mode == InplaceMode::kAllow) {

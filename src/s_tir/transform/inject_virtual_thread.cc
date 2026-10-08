@@ -50,7 +50,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -331,7 +331,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
       for (const PrimExpr& index : access->indices) args.push_back(index);
       args.push_back(predicate);
       return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
-    } else if (op->op.same_as(tirx::buffer_data_op())) {
+    } else if (op->op.same_as(tirx::tensor_data_ptr_op())) {
       auto buffer = GetBufferDataVar(ffi::GetRef<Call>(op)).value();
       auto it = alloc_remap_.find(buffer.get());
       if (it == alloc_remap_.end()) {

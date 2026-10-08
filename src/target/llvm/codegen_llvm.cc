@@ -1944,7 +1944,7 @@ llvm::Value* CodeGenLLVM::Dispatch_(const CallNode* op) {
   const ffi::Array<Expr>& args = op->args;
   if (op->op.same_as(tirx::masked_load_op())) return CreateMaskedLoad(op);
   if (op->op.same_as(tirx::masked_store_op())) return CreateMaskedStore(op);
-  if (op->op.same_as(tirx::buffer_data_op())) {
+  if (op->op.same_as(tirx::tensor_data_ptr_op())) {
     TVM_FFI_ICHECK_EQ(args.size(), 1U);
     return MakeValue(args[0]);
   }
@@ -2337,7 +2337,7 @@ void CodeGenLLVM::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_
   llvm::Value* value = MakeValue(data);
   const VarNode* source = data.as<VarNode>();
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
     source = call->args[0].as<VarNode>();
   }
   if (source) {

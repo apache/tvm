@@ -104,12 +104,13 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(buffer_data_op()) && op->args.size() == 1) {
+    if (op->op.same_as(tensor_data_ptr_op()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
           var.has_value() && var.value()->ty.as<TensorTypeNode>()) {
         auto root_opt = buffer_aliases_.Get(var.value());
         TVM_FFI_ICHECK(root_opt.has_value())
-            << "buffer_data projects " << var.value()->name << ", which has no visible definition "
+            << "tensor_data_ptr projects " << var.value()->name
+            << ", which has no visible definition "
             << "(AllocTensor/DeclTensor/Function parameter) at this point";
         Var root = root_opt.value();
         if (auto mapped = VarRemapGet(root); mapped != nullptr) {
@@ -359,7 +360,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
   void RegisterBufferAlias(TensorVar buffer, const Expr& data) {
     Var root = buffer.var();
     if (const auto* call = data.as<CallNode>();
-        call && call->op.same_as(buffer_data_op()) && call->args.size() == 1) {
+        call && call->op.same_as(tensor_data_ptr_op()) && call->args.size() == 1) {
       if (auto source = call->args[0].as<Var>();
           source.has_value() && source.value()->ty.as<TensorTypeNode>()) {
         auto source_root = buffer_aliases_.Get(source.value());

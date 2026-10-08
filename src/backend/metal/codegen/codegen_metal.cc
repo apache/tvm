@@ -54,14 +54,15 @@ Var GetSimdgroupBufferVar(const Expr& data) {
     return ffi::GetRef<Var>(var);
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
     const auto* buffer = call->args[0].as<VarNode>();
     TVM_FFI_ICHECK(buffer && buffer->ty.as<TensorTypeNode>())
         << "Metal simdgroup data operands expect buffer_data to project a TensorVar";
     return ffi::GetRef<Var>(buffer);
   }
   TVM_FFI_THROW(InternalError)
-      << "Metal simdgroup data operands must be a Var or buffer_data(TensorVar), but got " << data;
+      << "Metal simdgroup data operands must be a Var or tensor_data_ptr(TensorVar), but got "
+      << data;
 }
 
 }  // namespace

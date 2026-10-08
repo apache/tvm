@@ -66,7 +66,7 @@ const VarNode* AsBufferVarNode(const Expr& expr) {
     return var;
   }
   if (const auto* call = expr.as<CallNode>();
-      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
     return call->args[0].as<VarNode>();
   }
   return nullptr;
@@ -406,7 +406,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
       << "Predicated buffer load is not supported.";
   TVM_FFI_ICHECK(!op->op.same_as(tirx::masked_store_op()))
       << "Predicated buffer store is not supported.";
-  if (op->op.same_as(tirx::buffer_data_op())) {
+  if (op->op.same_as(tirx::tensor_data_ptr_op())) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
     return MakeValue(op->args[0]);
   } else if (op->op.same_as(tirx::call_spirv_pure_glsl450_op())) {

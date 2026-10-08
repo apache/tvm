@@ -110,7 +110,7 @@ from tvm.ir.prim.op import truncmod as truncmod
 from tvm.ir.prim.op import vscale as vscale
 
 from .. import _ffi_api
-from ..buffer import buffer_data, is_tensor_var
+from ..buffer import is_tensor_var, tensor_data_ptr
 from ..expr import ExprOp, IntImm
 from ..expr import TensorLoad as _make_tensor_load
 from ..type import TensorMapType
@@ -230,7 +230,7 @@ def _pack_buffer(buf, span=None):
         else 0
     )
     pack_args = [
-        buffer_data(buf),
+        tensor_data_ptr(buf),
         shape,
         strides,
         len(buf.ty.shape),

@@ -365,7 +365,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     if (is_first_thread_attr_) {
       for (const auto& stmt : host_init_stmts_) {
         // These statements leave the kernel region for host scope, where a
-        // ``buffer_data`` projection of a device-local view cannot be
+        // ``tensor_data_ptr`` projection of a device-local view cannot be
         // resolved.  Rewrite each projection onto its storage root, which is
         // a Function parameter and therefore visible on the host.
         res = KernelReplacePointSearcher::Seek(StorageRootResolver::Apply(stmt, buffer_root_),
@@ -444,7 +444,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   /*!
    * \brief Track the storage root of a buffer variable.
    *
-   * A ``DeclTensor`` whose data is ``buffer_data(src)`` is a view over
+   * A ``DeclTensor`` whose data is ``tensor_data_ptr(src)`` is a view over
    * ``src``'s storage, so it inherits ``src``'s root; anything else owns its
    * storage.  Buffers with no definition in the body (Function parameters)
    * are absent from the map and are their own root.
@@ -454,7 +454,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     Var root = new_var;
     if (data.has_value()) {
       if (const auto* call = data.value().as<CallNode>();
-          call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
+          call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
         if (auto src = call->args[0].as<Var>();
             src.has_value() && src.value()->ty.as<TensorTypeNode>()) {
           root = StorageRootOf(src.value());
@@ -472,7 +472,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return it == buffer_root_.end() ? var : it->second;
   }
 
-  /*! \brief Rewrite ``buffer_data(view)`` onto ``buffer_data(storage root)``. */
+  /*! \brief Rewrite ``tensor_data_ptr(view)`` onto ``tensor_data_ptr(storage root)``. */
   class StorageRootResolver : public StmtExprMutator {
    public:
     using StmtExprMutator::Mutate;
@@ -488,7 +488,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         : buffer_root_(buffer_root) {}
 
     UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-      if (op->op.same_as(tirx::buffer_data_op()) && op->args.size() == 1) {
+      if (op->op.same_as(tirx::tensor_data_ptr_op()) && op->args.size() == 1) {
         if (auto var = op->args[0].as<Var>();
             var.has_value() && var.value()->ty.as<TensorTypeNode>()) {
           auto it = buffer_root_.find(var.value());

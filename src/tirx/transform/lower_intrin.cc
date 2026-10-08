@@ -74,7 +74,7 @@ static Expr LowerAccessPtr(const CallNode* call,
   }
 
   const auto* buffer_data = buffer.as<CallNode>();
-  if (buffer_data && buffer_data->op.same_as(buffer_data_op())) {
+  if (buffer_data && buffer_data->op.same_as(tensor_data_ptr_op())) {
     TVM_FFI_ICHECK_EQ(buffer_data->args.size(), 1U);
     buffer = buffer_data->args[0];
   }

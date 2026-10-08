@@ -1118,7 +1118,7 @@ class CacheReadRewriter : public StmtExprMutator {
       if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
     }
     // Cache remapping can change pointer storage scope; the base Call hook preserves its type.
-    if (!op->op.same_as(tirx::buffer_data_op()) || op->args.size() != 1) return result;
+    if (!op->op.same_as(tirx::tensor_data_ptr_op()) || op->args.size() != 1) return result;
     PointerType type = op->args[0].as_or_throw<TensorVar>().DataPointerType();
     if (ffi::StructuralEqual()(op->ty, type)) return result;
     if (inplace_mode == InplaceMode::kAllow) {
@@ -1462,7 +1462,7 @@ class CacheWriteRewriter : public StmtExprMutator {
       if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
     }
     // Cache remapping can change pointer storage scope; the base Call hook preserves its type.
-    if (!op->op.same_as(tirx::buffer_data_op()) || op->args.size() != 1) return result;
+    if (!op->op.same_as(tirx::tensor_data_ptr_op()) || op->args.size() != 1) return result;
     PointerType type = op->args[0].as_or_throw<TensorVar>().DataPointerType();
     if (ffi::StructuralEqual()(op->ty, type)) return result;
     if (inplace_mode == InplaceMode::kAllow) {

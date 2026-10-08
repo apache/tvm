@@ -72,7 +72,7 @@ def test_buffer_data_is_typed_projection():
     assert tvm.tirx.buffer_data_pointer_type(buffer) == tvm.ir.PointerType(
         tvm.ir.PrimType("bool"), "shared"
     )
-    assert buffer.data.op.name == "tirx.buffer_data"
+    assert buffer.data.op.name == "tirx.tensor_data_ptr"
     assert buffer.data.args[0].same_as(buffer)
     assert buffer.data.ty == tvm.tirx.buffer_data_pointer_type(buffer)
 
@@ -266,7 +266,7 @@ def test_buffer_flatten():
     # second buffer identity.
     assert not buf.same_as(flat)
     assert flat.data.args[0].same_as(flat)
-    assert flat.data.op.name == "tirx.buffer_data"
+    assert flat.data.op.name == "tirx.tensor_data_ptr"
     tvm.ir.assert_structural_equal(flat.ty.shape, [T.int32(16 * 32)])
 
 

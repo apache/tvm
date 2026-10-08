@@ -155,7 +155,7 @@ def test_lower_vector_access_ptr():
     assert isinstance(lowered_body, tvm.tirx.SeqStmt)
     alias = lowered_body.seq[0]
     assert _is_buffer_binding(alias, "tirx.decl_tensor")
-    assert alias.value.args[0].op.name == "tirx.buffer_data"
+    assert alias.value.args[0].op.name == "tirx.tensor_data_ptr"
     assert alias.value.args[0].args[0].same_as(buffer)
     lowered = lowered_body.seq[1].value
     assert lowered.op.name == "tirx.address_of"

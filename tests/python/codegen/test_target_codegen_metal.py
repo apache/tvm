@@ -318,7 +318,7 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
 
 
 def test_codegen_simdgroup_buffer_data():
-    """Simdgroup intrinsics should accept buffer_data projections."""
+    """Simdgroup intrinsics should accept tensor_data_ptr projections."""
 
     @I.ir_module
     class Module:

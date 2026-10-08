@@ -85,7 +85,7 @@ class HexagonBuffer {
   /*! \brief Return data pointer into the buffer
    *
    * The returned pointer is intended for use as the runtime value
-   * corresponding to the runtime value of `buffer_data(TensorVar)`.  The
+   * corresponding to the runtime value of `tensor_data_ptr(TensorVar)`.  The
    * return type depends on the dimensionality of the buffer being
    * accessed, and must be compatible with the usage defined in
    * `CodeGenHexagon::CreateBufferPtr`.

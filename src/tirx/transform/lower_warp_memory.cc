@@ -114,7 +114,7 @@ const VarNode* GetTensorVar(const Expr& expr) {
     return var;
   }
   if (const auto* call = expr.as<CallNode>();
-      call && call->op.same_as(buffer_data_op()) && call->args.size() == 1) {
+      call && call->op.same_as(tensor_data_ptr_op()) && call->args.size() == 1) {
     return call->args[0].as<VarNode>();
   }
   return nullptr;

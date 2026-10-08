@@ -188,7 +188,8 @@ ffi::Optional<ExprDoc> EvaluateDocTranslate(DocTranslatorObj* d, ffi::AnyView in
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
   ExprDoc value = d->Translate(stmt->value).value();
-  if (auto call = stmt->value.as<CallNode>(); call && !call->op.same_as(tirx::buffer_data_op())) {
+  if (auto call = stmt->value.as<CallNode>();
+      call && !call->op.same_as(tirx::tensor_data_ptr_op())) {
     d->Emit(ExprStmtDoc(value), ffi::GetRef<ffi::ObjectRef>(stmt));
   } else {
     d->Emit(ExprStmtDoc(NamespaceDoc("tirx")->Attr("evaluate")->Call({value})),

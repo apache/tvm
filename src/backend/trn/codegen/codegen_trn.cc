@@ -642,7 +642,7 @@ void CodeGenTrainium::DispatchDeclTensor(const BindNode* op, const CallNode* buf
   }
   const VarNode* data_var = data.as<VarNode>();
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
     data_var = call->args[0].as<VarNode>();
   }
   TVM_FFI_ICHECK(data_var) << "Trainium codegen expects DeclTensor data to be a buffer variable";

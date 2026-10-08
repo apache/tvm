@@ -332,8 +332,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                FDocTranslate::FromNative<&IsNaNDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> BufferDataDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                              const ffi::Object*) {
+ffi::Optional<ExprDoc> TensorDataPtrDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                 const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   if (call->attrs.defined() || !call->ty_args.empty() || call->args.size() != 1)
@@ -381,9 +381,9 @@ ffi::Optional<ExprDoc> PTXCallDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.buffer_data")
+  OpDef("tirx.tensor_data_ptr")
       .set_attr<FDocTranslate>(kOpCallDocTranslate,
-                               FDocTranslate::FromNative<&BufferDataDocTranslate>());
+                               FDocTranslate::FromNative<&TensorDataPtrDocTranslate>());
   ffi::reflection::GlobalDef().def("script.printer.PTXCallDocTranslate", []() {
     return ffi::Any(FDocTranslate::FromNative<&PTXCallDocTranslate>());
   });

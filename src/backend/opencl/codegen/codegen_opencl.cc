@@ -44,11 +44,12 @@ const VarNode* TryUnwrapTextureVar(const Expr& texture) {
   if (const auto* var = texture.as<VarNode>()) {
     return var;
   }
-  if (const auto* call = texture.as<CallNode>(); call && call->op.same_as(tirx::buffer_data_op())) {
+  if (const auto* call = texture.as<CallNode>();
+      call && call->op.same_as(tirx::tensor_data_ptr_op())) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 1U);
     const auto* buffer = call->args[0].as<VarNode>();
     TVM_FFI_ICHECK(buffer && buffer->ty.as<TensorTypeNode>())
-        << "buffer_data expects a Var with TensorType";
+        << "tensor_data_ptr expects a Var with TensorType";
     return buffer;
   }
   return nullptr;
@@ -62,7 +63,7 @@ struct TextureArgument {
 TextureArgument UnwrapTextureArgument(const Expr& texture) {
   const auto* var = TryUnwrapTextureVar(texture);
   TVM_FFI_ICHECK(var)
-      << "Texture arguments must be a pointer Var or a buffer_data(TensorVar) projection";
+      << "Texture arguments must be a pointer Var or a tensor_data_ptr(TensorVar) projection";
   const auto* pointer_type = texture->ty.as<PointerTypeNode>();
   TVM_FFI_ICHECK(pointer_type) << "Texture arguments must have PointerType";
   TVM_FFI_ICHECK(runtime::IsTextureStorage(std::string(pointer_type->storage_scope)))

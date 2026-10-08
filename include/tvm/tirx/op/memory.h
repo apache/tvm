@@ -220,11 +220,12 @@ TVM_DLL const Op& buffer_offset_op();
 /*!
  * \brief Project the physical pointer associated with a TensorVar definition.
  *
+ * Argument: tensor, the TensorVar whose physical pointer is projected.
  * The result pointer type is derived from the TensorType dtype and storage
  * scope of the sole TensorVar argument.  This operation is consumed by TIRx
  * lowering and code generation.
  */
-TVM_DLL const Op& buffer_data_op();
+TVM_DLL const Op& tensor_data_ptr_op();
 
 /*!
  * \brief perform reinterpret cast value to type.
