@@ -17,11 +17,11 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/script/ir_builder/ir.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/op.h>
 
 #include "../../../script/ir_builder/utils.h"
 #include "./utils.h"

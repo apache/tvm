@@ -19,7 +19,7 @@
 
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import Function, TilePrimitiveCall
+from tvm.tirx import Function, TileOpCall
 from tvm.tirx.op.tile import UnaryReduce
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
 
@@ -32,9 +32,9 @@ from ..unary.utils import get_const_bias_tensor, try_find_inst_unary
 from .utils import opcode_table
 
 
-def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
+def unary_reduce_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
     """Generate a TRN schedule for unary reduction operations."""
-    op = TilePrimitiveCall.downcast(op)
+    op = TileOpCall.downcast(op)
     assert isinstance(op, UnaryReduce), f"invalid operator downcast: {op}"
 
     # Extract operation components
@@ -191,5 +191,5 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function |
         )
     ],
 )
-def unary_reduce_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+def unary_reduce_trn_dispatch(op: TileOpCall, sctx: DispatchContext) -> Function:
     return unary_reduce_trn(op, sctx)

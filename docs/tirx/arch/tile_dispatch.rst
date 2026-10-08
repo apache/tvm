@@ -18,7 +18,7 @@
 Tile Primitive Dispatch
 =======================
 
-This chapter documents how unresolved ``TilePrimitiveCall`` nodes are selected
+This chapter documents how unresolved ``TileOpCall`` nodes are selected
 and lowered.  Kernel authors should start with the
 :doc:`Tile Primitives programming guide <../tile_primitives>`; extension
 authors can find the callable registration interfaces in
@@ -31,7 +31,7 @@ The authoritative operation list is the C++ registry
 (``src/tirx/op/tirx.cc``, with operations named ``tirx.tile.<name>``).  IR
 wrapper classes live in
 ``python/tvm/tirx/op/tile.py``.  Raw
-``TilePrimitiveCall`` constructors live in
+``TileOpCall`` constructors live in
 ``python/tvm/tirx/script/ir_builder/tirx.py``, while the validated authoring facade
 is in ``python/tvm/tirx/script/tile.py``.  Both Python construction surfaces
 produce the same IR node type.
@@ -53,7 +53,7 @@ Dispatch runs in the ``tirx.TilePrimitiveDispatch`` pass, the first phase of
 #. splices that ``Function`` body in place of the call and drains side-effect
    callbacks for private allocations and device or host initialization.
 
-If a ``TilePrimitiveCall`` survives lowering, the verifier reports a fatal
+If a ``TileOpCall`` survives lowering, the verifier reports a fatal
 error.
 
 Variant selection

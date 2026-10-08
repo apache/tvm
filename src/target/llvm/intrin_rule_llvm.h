@@ -31,7 +31,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/target/codegen.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/abi.h>
 
 #include "llvm_instance.h"
 

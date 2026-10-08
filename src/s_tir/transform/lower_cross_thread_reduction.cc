@@ -32,6 +32,7 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/op/gpu.h>
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/utils.h"

@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.operator.tile_primitive.common import ReduceOpType
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 from ..common import match_scope
 
@@ -46,10 +46,10 @@ def reduce_default_value_table(dtype):
 
 
 def _reduction_args(
-    op: TilePrimitiveCall,
+    op: TileOpCall,
 ) -> tuple[TensorRegion, TensorRegion, tuple[int, ...], bool, dict]:
     """Parse ReduceOp -> (dst, src, reduce_axes, accum, config)."""
-    op = TilePrimitiveCall.downcast(op)
+    op = TileOpCall.downcast(op)
     dst = op.output
     src = op.input
     reduce_axes = tuple(int(a) for a in op.reduce_axes)
@@ -59,10 +59,10 @@ def _reduction_args(
 
 
 def _match_reduction_storage_scope(
-    op: TilePrimitiveCall, sctx: DispatchContext, expected_scope: list[str]
+    op: TileOpCall, sctx: DispatchContext, expected_scope: list[str]
 ) -> tuple[bool, str | None]:
     """Check that dst and src scopes match one of the expected patterns."""
-    op = TilePrimitiveCall.downcast(op)
+    op = TileOpCall.downcast(op)
     dst_scope = op.output.source.scope()
     src_scope = op.input.source.scope()
 
@@ -216,38 +216,38 @@ def build_src_indices(spa_fused, red_fused, spatial_dims, reduce_dims, src_exten
 _REDUCE_OP_TO_STR = {ReduceOpType.SUM: "sum", ReduceOpType.MAX: "max", ReduceOpType.MIN: "min"}
 
 
-def _dtype_ok(op: TilePrimitiveCall, sctx: DispatchContext, expected_dtype: str):
-    op = TilePrimitiveCall.downcast(op)
+def _dtype_ok(op: TileOpCall, sctx: DispatchContext, expected_dtype: str):
+    op = TileOpCall.downcast(op)
     dtype = op.input.source.dtype
     ok = dtype == expected_dtype
     return (ok, None if ok else f"dtype {dtype} != {expected_dtype}")
 
 
-def _reduction_len_ok(op: TilePrimitiveCall, sctx: DispatchContext, min_len: int):
-    op = TilePrimitiveCall.downcast(op)
+def _reduction_len_ok(op: TileOpCall, sctx: DispatchContext, min_len: int):
+    op = TileOpCall.downcast(op)
     src_extent = [r.extent for r in op.input.region]
     reduction_len = functools.reduce(operator.mul, src_extent, 1)
     ok = reduction_len >= min_len
     return (ok, None if ok else f"reduction_len {reduction_len} < {min_len}")
 
 
-def _dst_len_ok(op: TilePrimitiveCall, sctx: DispatchContext, expected_len: int):
-    op = TilePrimitiveCall.downcast(op)
+def _dst_len_ok(op: TileOpCall, sctx: DispatchContext, expected_len: int):
+    op = TileOpCall.downcast(op)
     dst_extent = [r.extent for r in op.output.region]
     dst_len = functools.reduce(operator.mul, dst_extent, 1)
     ok = dst_len == expected_len
     return (ok, None if ok else f"dst_len {dst_len} != {expected_len}")
 
 
-def _src_ndim_ok(op: TilePrimitiveCall, sctx: DispatchContext, expected_ndim: int):
-    op = TilePrimitiveCall.downcast(op)
+def _src_ndim_ok(op: TileOpCall, sctx: DispatchContext, expected_ndim: int):
+    op = TileOpCall.downcast(op)
     src_extent = [r.extent for r in op.input.region]
     ok = len(src_extent) == expected_ndim
     return (ok, None if ok else f"src ndim {len(src_extent)} != {expected_ndim}")
 
 
-def _local_scope_match(op: TilePrimitiveCall, sctx: DispatchContext):
-    op = TilePrimitiveCall.downcast(op)
+def _local_scope_match(op: TileOpCall, sctx: DispatchContext):
+    op = TileOpCall.downcast(op)
     src, dst = op.input.source, op.output.source
     ok = all(
         [

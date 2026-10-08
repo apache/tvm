@@ -26,7 +26,7 @@ Tile Primitives
 Tile primitives are the dispatchable, hardware-level operations a TIRx kernel
 issues — data movement (``copy``, ``copy_async``), matrix multiply (``gemm``,
 ``gemm_async``), reductions, elementwise math, and a few fused/compose forms.
-A primitive call is recorded as an **unresolved** ``TilePrimitiveCall`` IR node;
+A primitive call is recorded as an **unresolved** ``TileOpCall`` IR node;
 the compiler later *dispatches* it — selecting a concrete lowering from the
 primitive, the execution scope, the operand layouts, the target, and an optional
 explicit hint — and replaces it with native IR (loops, address arithmetic,
@@ -100,7 +100,7 @@ introspection.
 Dispatch config
 ---------------
 
-A call is materialized as a ``TilePrimitiveCall`` node whose fields carry
+A call is materialized as a ``TileOpCall`` node whose fields carry
 everything dispatch needs (``python/tvm/tirx/tile_primitive.py``):
 
 .. list-table::

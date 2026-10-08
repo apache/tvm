@@ -20,7 +20,7 @@
 from tvm.backend.trn.layout import is_trainium_layout
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import FloatImm, Function, TilePrimitiveCall
+from tvm.tirx import FloatImm, Function, TileOpCall
 from tvm.tirx.op.tile import Select
 from tvm.tirx.operator.tile_primitive import (
     DispatchContext,
@@ -34,12 +34,12 @@ from ..dim_utils import get_ewise_dim_map
 from ..instruction_generator import InstructionGenerator
 
 
-def select_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
+def select_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
     """Generate schedule for select operation on Trainium."""
     if sctx.scope_kind != "thread":
         fail("requires thread exec_scope for TRN select")
 
-    op = TilePrimitiveCall.downcast(op)
+    op = TileOpCall.downcast(op)
     assert isinstance(op, Select), f"{op} is not a Select"
 
     # Unpack operands
@@ -142,5 +142,5 @@ def select_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
         )
     ],
 )
-def select_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+def select_trn_dispatch(op: TileOpCall, sctx: DispatchContext) -> Function:
     return select_trn(op, sctx)

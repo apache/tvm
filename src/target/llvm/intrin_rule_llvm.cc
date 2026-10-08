@@ -27,7 +27,8 @@
 #include <llvm/IR/Intrinsics.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op_attr_types.h>
 
 #include <limits>
@@ -47,19 +48,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                  DispatchLLVMIntrin<::llvm::Intrinsic::prefetch, 4>);
 
-  OpDef("tirx.exp")
+  OpDef("prim.exp")
       .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::exp, 1>);
 
-  OpDef("tirx.exp2")
+  OpDef("prim.exp2")
       .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::exp2, 1>);
 
-  OpDef("tirx.fma")
+  OpDef("prim.fma")
       .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>);
 
-  OpDef("tirx.log")
+  OpDef("prim.log")
       .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>);
 
@@ -67,15 +68,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::log2, 1>);
 
-  OpDef("tirx.log10")
+  OpDef("prim.log10")
       .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::log10, 1>);
 
-  OpDef("tirx.sqrt")
+  OpDef("prim.sqrt")
       .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::sqrt, 1>);
 
-  OpDef("tirx.floor")
+  OpDef("prim.floor")
       .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::floor, 1>);
 
@@ -83,39 +84,39 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::ceil, 1>);
 
-  OpDef("tirx.trunc")
+  OpDef("prim.trunc")
       .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::trunc, 1>);
 
-  OpDef("tirx.fabs")
+  OpDef("prim.fabs")
       .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::fabs, 1>);
 
-  OpDef("tirx.round")
+  OpDef("prim.round")
       .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>);
 
-  OpDef("tirx.nearbyint")
+  OpDef("prim.nearbyint")
       .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>);
 
-  OpDef("tirx.pow")
+  OpDef("prim.pow")
       .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::pow, 2>);
 
-  OpDef("tirx.popcount")
+  OpDef("prim.popcount")
       .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::ctpop, 1>);
 
-  OpDef("tirx.cos")
+  OpDef("prim.cos")
       .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::cos, 1>);
 
-  OpDef("tirx.sin")
+  OpDef("prim.sin")
       .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::sin, 1>);
 
-  OpDef("tirx.tanh")
+  OpDef("prim.tanh")
       .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
                                  ::tvm::codegen::intrin::DispatchNumericalStableTanh);
 }
@@ -126,7 +127,7 @@ using tirx::FLegalize;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   // clang-format off
-  OpDef("tirx.exp10")
+  OpDef("prim.exp10")
       .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
     using tvm::prim::MakeConst;
     const CallNode* call = e.as<CallNode>();
@@ -137,7 +138,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     return ret;
   });
 
-  OpDef("tirx.tan")
+  OpDef("prim.tan")
       .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
     const CallNode* call = e.as<CallNode>();
     TVM_FFI_ICHECK(call != nullptr);
@@ -146,7 +147,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     return tan_x;
   });
 
-  OpDef("tirx.asin")
+  OpDef("prim.asin")
       .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
     using namespace intrin;
     const CallNode* call = e.as<CallNode>();
@@ -154,7 +155,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     return ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
   });
 
-  OpDef("tirx.acos")
+  OpDef("prim.acos")
       .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
     using namespace intrin;
     const CallNode* call = e.as<CallNode>();
@@ -162,7 +163,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     return ::tvm::codegen::intrin::DispatchPureExtern<::tvm::codegen::intrin::FloatSuffix>(e);
   });
 
-  OpDef("tirx.atanh")
+  OpDef("prim.atanh")
       .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
     using tvm::prim::MakeConst;
     const CallNode* call = e.as<CallNode>();

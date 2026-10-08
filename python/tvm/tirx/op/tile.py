@@ -19,7 +19,7 @@
 
 from tvm.ir import Op
 from tvm.tirx import Expr
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 
 def get_tirx_op(op_name: str):
@@ -32,12 +32,12 @@ class ArgProperty:
         self.index = index
 
     def __get__(self, obj, objtype=None):
-        assert obj is not None, "TilePrimitiveCall cannot be None"
+        assert obj is not None, "TileOpCall cannot be None"
         return obj.args[self.index]
 
 
 ### Base Operator Classes ###
-class UnaryOp(TilePrimitiveCall):
+class UnaryOp(TileOpCall):
     """Base class for unary operators: unary(output, input).
 
     Unary operators take a single input tensor and produce a single output tensor.
@@ -74,7 +74,7 @@ class UnaryOpWithScaleBias(UnaryOp):
         return [self.input, self.scale, self.bias]
 
 
-class BinaryOp(TilePrimitiveCall):
+class BinaryOp(TileOpCall):
     """Base class for binary operators: binary(output, input0, input1).
 
     Binary operators take two input tensors and produce a single output tensor.
@@ -95,7 +95,7 @@ class BinaryOp(TilePrimitiveCall):
         return [self.output]
 
 
-class ReduceOp(TilePrimitiveCall):
+class ReduceOp(TileOpCall):
     """Base class for reduction operators: reduce(output, input, reduce_axes, accum).
 
     Reduction operators reduce one or more dimensions of the input tensor.
@@ -167,7 +167,7 @@ class FDiv(BinaryOp):
     op = get_tirx_op("fdiv")
 
 
-class FMA(TilePrimitiveCall):
+class FMA(TileOpCall):
     """Fused multiply-add: output = input * scale + bias.
 
     fma(output, input, scale, bias)
@@ -199,7 +199,7 @@ class Cast(UnaryOp):
     op = get_tirx_op("cast")
 
 
-class Copy(TilePrimitiveCall):
+class Copy(TileOpCall):
     """Copy all elements from src to dst.
 
     Args:
@@ -223,7 +223,7 @@ class Copy(TilePrimitiveCall):
         return [self.dst]
 
 
-class CopyAsync(TilePrimitiveCall):
+class CopyAsync(TileOpCall):
     """Copy all elements from src to dst asynchronously.
 
     Args:
@@ -247,7 +247,7 @@ class CopyAsync(TilePrimitiveCall):
         return [self.dst]
 
 
-class Gemm(TilePrimitiveCall):
+class Gemm(TileOpCall):
     """General matrix multiplication: D = A * B * alpha + C * beta.
 
     Args:
@@ -282,7 +282,7 @@ class Gemm(TilePrimitiveCall):
         return [self.output]
 
 
-class GemmAsync(TilePrimitiveCall):
+class GemmAsync(TileOpCall):
     """General matrix multiplication asynchronously.
 
     Supports two arg layouts:
@@ -432,7 +432,7 @@ class Select(BinaryOp):
 
 
 ### Compose Ops ###
-class BinaryReduce(TilePrimitiveCall):
+class BinaryReduce(TileOpCall):
     """Combine a binary operation with a reduction operation.
 
     binary_reduce(binary_output, reduce_output, binary_input1, binary_input2, binary_op, reduce_op, reduce_axes, )
@@ -459,7 +459,7 @@ class BinaryReduce(TilePrimitiveCall):
         return [self.binary_output, self.reduce_output]
 
 
-class UnaryReduce(TilePrimitiveCall):
+class UnaryReduce(TileOpCall):
     """Combine a unary operation with a reduction operation.
 
     unary_reduce(unary_output, reduce_output, unary_input, unary_op, reduce_op, reduce_axes)
@@ -498,7 +498,7 @@ class UnaryReduceWithScaleBias(UnaryReduce):
         return [self.unary_input, self.scale, self.bias]
 
 
-class BinaryChain(TilePrimitiveCall):
+class BinaryChain(TileOpCall):
     """Chain multiple binary operations together.
 
     binary_chain(output, data, operand0, operand1, op0, op1, reverse1)
@@ -542,7 +542,7 @@ class ReduceNegate(ReduceOp):
     reduce_op = ArgProperty(4)
 
 
-class PermuteLayout(TilePrimitiveCall):
+class PermuteLayout(TileOpCall):
     """Move data so the buffer's bytes are arranged under a different layout.
 
     Logical shape is preserved; only the byte placement changes. ``dst`` and

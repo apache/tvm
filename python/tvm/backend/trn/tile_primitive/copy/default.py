@@ -26,7 +26,7 @@ from tvm.tirx.operator.tile_primitive import (
     predicate,
     register_dispatch,
 )
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 from ..common import init_analyzer, nki_dim
 from ..dim_utils import get_ewise_dim_map
@@ -35,7 +35,7 @@ from ..workspace_utils import check_workspace_buffer, largest_psum_per_bank, max
 
 
 def transpose_schedule(
-    op: TilePrimitiveCall, inst_gen: InstructionGenerator, sctx: DispatchContext
+    op: TileOpCall, inst_gen: InstructionGenerator, sctx: DispatchContext
 ) -> Function | None:
     dst_region, src_region = op.args
     assert src_region.source.scope() != "trn.psum", "Transpose on psum buffer is not supported"
@@ -188,7 +188,7 @@ def transpose_schedule(
     return transpose_sbuf_output
 
 
-def copy_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
+def copy_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
     """Schedule copy operation between global and shared memory on CUDA."""
     # Basic validation checks
     if sctx.scope_kind != "thread":
@@ -303,5 +303,5 @@ def copy_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
         )
     ],
 )
-def copy_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+def copy_trn_dispatch(op: TileOpCall, sctx: DispatchContext) -> Function:
     return copy_trn(op, sctx)

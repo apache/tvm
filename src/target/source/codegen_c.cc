@@ -23,9 +23,13 @@
 #include "codegen_c.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/op/gpu.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 #include <tvm/tirx/type.h>
 
 #include <cctype>
@@ -428,12 +432,7 @@ void CodeGenC::RegisterHandleType(const VarNode* buf_var, const PrimType& t) {
 
 void CodeGenC::RegisterHandleTypeFromPointer(const tirx::Var& var, const Expr* value) {
   if (value == nullptr) return;
-  std::optional<PrimType> value_dtype = [&]() {
-    if (auto prim_value = value->as<PrimExpr>()) {
-      return tirx::GetPointerType(GetType(prim_value.value()));
-    }
-    return tirx::GetPointerType((*value)->ty);
-  }();
+  std::optional<PrimType> value_dtype = tirx::GetPointerType((*value)->ty);
   if (!value_dtype.has_value()) return;
   auto* call = value->as<CallNode>();
   if (call != nullptr && call->op.same_as(tirx::ptr_byte_offset_op())) {
@@ -735,13 +734,7 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       if (!func_name_supply_->ContainsName(func->value)) {
         ffi::Array<Type> arg_types;
         for (size_t i = 1; i < op->args.size(); i++) {
-          if (auto prim = op->args[i].as<PrimExpr>()) {
-            arg_types.push_back(GetType(prim.value()));
-          } else if (auto var = op->args[i].as<Var>()) {
-            arg_types.push_back(var.value()->ty);
-          } else {
-            arg_types.push_back(op->args[i]->ty);
-          }
+          arg_types.push_back(op->args[i]->ty);
         }
         Type ret_type = op->ty;
         this->GenerateForwardFunctionDeclarations(func->value, arg_types, ret_type);
@@ -892,7 +885,7 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       this->PrintType(target_dtype, os);
       os << " *)(&(" << rhs << ")))";
       EndScope(ssa_scope);
-    } else if (op->op.same_as(tirx::isnan_op())) {
+    } else if (op->op.same_as(prim::isnan_op())) {
       os << "(";
       this->PrintExpr(op->args[0], os);
       os << " != ";

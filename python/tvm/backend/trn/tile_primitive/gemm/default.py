@@ -31,7 +31,7 @@ from tvm.tirx.operator.tile_primitive import (
     predicate,
     register_dispatch,
 )
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 from ..common import init_analyzer
 from ..dim_utils import normalize_and_group
@@ -110,7 +110,7 @@ def get_pf_dim_from_buffer_region(
     return p_dim, f_dim
 
 
-def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
+def matmul_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
     """Schedule GEMM operation on Trainium."""
     # Basic validation checks
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
@@ -300,5 +300,5 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
         )
     ],
 )
-def gemm_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+def gemm_trn_dispatch(op: TileOpCall, sctx: DispatchContext) -> Function:
     return matmul_trn(op, sctx)

@@ -31,7 +31,9 @@
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -167,7 +169,7 @@ class SubroutineCallRewriter : public StmtExprMutator {
         }
 
         // push an empty handle to be compatible with current cpacked convention
-        cpacked_args.push_back(tvm::prim::ConstHandle(0));
+        cpacked_args.push_back(tvm::tirx::ConstHandle(0));
         made_change_ = true;
         return Call(node->ty, tirx::tvm_call_cpacked_op(), cpacked_args);
       }

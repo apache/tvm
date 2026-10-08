@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/meta_schedule/schedule/cuda/thread_bind.h>
 #include <tvm/s_tir/schedule/schedule.h>
-#include <tvm/tirx/op.h>
 
 #include <algorithm>
 #include <limits>

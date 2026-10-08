@@ -54,13 +54,14 @@ from .stmt import SeqStmt
 from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
 from .stmt import BufferRegion
 from .stmt import ScopeIdDefStmt
-from .tile_primitive import DispatchContext, TilePrimitiveCall
+from .tile_primitive import DispatchContext
+from .stmt import TileOpCall
 
 from .function import Function, IndexMap, renew_def
 
 from .op import call_packed_lowered, call_cpacked_lowered, register_intrin_lowering
 from .op import call_packed, call_cpacked, call_intrin, call_pure_extern, call_extern
-from .op import CallFFIKernelAttr, call_ffi_kernel, TensorMapEncodeTiledAttr, tensormap_encode_tiled
+from .op import CallFFIKernelAttr, call_ffi_kernel
 from .op import call_llvm_intrin, call_llvm_pure_intrin, all, any, min_value, max_value
 from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
 from .op import handle_add_byte_offset, tvm_struct_get, tvm_struct_set
@@ -86,7 +87,7 @@ from .op import trunc, abs, round, nextafter, nearbyint, power, pow, popcount, f
 from .op import likely, isnan, isnullptr, isfinite, isinf, copysign
 from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod, ceildiv, logaddexp
 from .op import min, max
-from .op import q_multiply_shift, q_multiply_shift_per_axis, shift_left, shift_right
+from .op import shift_left, shift_right
 from .op import TVMBackendAllocWorkspace, TVMBackendFreeWorkspace
 from .op import vscale, get_active_lane_mask, get_vscale_expr
 from .op import dp4a

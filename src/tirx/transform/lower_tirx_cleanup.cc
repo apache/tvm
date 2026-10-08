@@ -22,14 +22,14 @@
  * \brief Final cleanup stage for TIRx lowering.
  */
 
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
-#include <tvm/tirx/tile_op.h>
 #include <tvm/tirx/transform.h>
 
 #include <tuple>
@@ -281,18 +281,18 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     return VisitBufferAccess(std::move(load));
   }
 
-  UnchangedOr<Stmt> Mutate_(const tirx::TilePrimitiveCallNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const tirx::TileOpCallNode* op, InplaceMode inplace_mode) final {
     ffi::Array<Expr> args = op->args;
     args.MutateByApply([this](const Expr& arg) { return VisitAny(arg).as_or_throw<Expr>(); });
     if (args.same_as(op->args)) {
       return ffi::Unchanged();
     } else {
       if (inplace_mode == InplaceMode::kAllow) {
-        auto* n = const_cast<tirx::TilePrimitiveCallNode*>(op);
+        auto* n = const_cast<tirx::TileOpCallNode*>(op);
         n->args = std::move(args);
         return ffi::Unchanged();
       }
-      auto n = ffi::make_object<tirx::TilePrimitiveCallNode>(*op);
+      auto n = ffi::make_object<tirx::TileOpCallNode>(*op);
       n->args = std::move(args);
       return Stmt(n);
     }

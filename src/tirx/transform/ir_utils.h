@@ -32,7 +32,8 @@
 #include <tvm/sym/int_set.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <functional>

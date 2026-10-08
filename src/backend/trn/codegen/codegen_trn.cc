@@ -25,6 +25,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>

@@ -102,6 +102,7 @@ class IketNamespace:
         self.official_event = _cuda_op.cuda_iket_official_event
 
 
+TensorMapEncodeTiledAttr = _cuda_op.TensorMapEncodeTiledAttr
 TCGen05InstrDescriptorAttrs = _cuda_op.TCGen05InstrDescriptorAttrs
 TCGen05InstrDescriptorBlockScaledAttrs = _cuda_op.TCGen05InstrDescriptorBlockScaledAttrs
 

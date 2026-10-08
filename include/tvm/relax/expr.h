@@ -26,10 +26,10 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/tensor.h>
-#include <tvm/tirx/op.h>
 
 #include <functional>
 

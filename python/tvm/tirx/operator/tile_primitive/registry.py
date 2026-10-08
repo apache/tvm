@@ -23,18 +23,19 @@ dispatch result.
 
 from tvm_ffi import register_global_func
 
-from tvm.tirx.tile_primitive import DispatchContext, TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
+from tvm.tirx.tile_primitive import DispatchContext
 
 # Note: legacy `register_schedule` is intentionally removed.
 
 
 @register_global_func("tirx.f_op_dispatcher")
-def f_op_dispatcher(op_call: TilePrimitiveCall, sctx: DispatchContext):
+def f_op_dispatcher(op_call: TileOpCall, sctx: DispatchContext):
     """Find and return a schedule for the operator.
 
     Parameters
     ----------
-    op_call : TilePrimitiveCall
+    op_call : TileOpCall
         The operator to be scheduled
     sctx : DispatchContext
         The dispatch context

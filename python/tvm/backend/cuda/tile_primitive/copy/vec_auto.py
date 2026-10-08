@@ -20,13 +20,13 @@
 from tvm.tirx import Function
 from tvm.tirx.operator.tile_primitive.dispatcher import fail, predicate, register_dispatch
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 from .vec_auto_gmem_smem import _emit_gmem_smem, _is_gmem_smem
 from .vec_auto_reg import _emit_reg, _is_reg_copy
 
 
-def _is_vec_auto_copy(op_call: TilePrimitiveCall, sctx: DispatchContext):
+def _is_vec_auto_copy(op_call: TileOpCall, sctx: DispatchContext):
     g_ok, g_reason = _is_gmem_smem(op_call, sctx)
     if g_ok:
         return True, None
@@ -43,7 +43,7 @@ def _is_vec_auto_copy(op_call: TilePrimitiveCall, sctx: DispatchContext):
     priority=10,
     when=[predicate("vec_auto_applicable", _is_vec_auto_copy)],
 )
-def copy_schedule_vec_auto(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+def copy_schedule_vec_auto(op_call: TileOpCall, sctx: DispatchContext) -> Function:
     g_ok, g_reason = _is_gmem_smem(op_call, sctx)
     if g_ok:
         return _emit_gmem_smem(op_call, sctx)

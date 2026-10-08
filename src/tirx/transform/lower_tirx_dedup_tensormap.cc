@@ -22,9 +22,11 @@
  * \brief Deduplicate identical cuTensorMap objects created by TIRx schedules.
  */
 
+#include <tvm/backend/cuda/op.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -57,7 +59,7 @@ inline bool IsTensorMapAlloca(const BindNode* bind) {
 inline const CallNode* AsCuTensorMapEncode(const EvaluateNode* eval) {
   const CallNode* call = eval->value.as<CallNode>();
   if (!call) return nullptr;
-  if (call->op.same_as(tirx::tensormap_encode_tiled_op())) return call;
+  if (call->op.same_as(backend::cuda::tensormap_encode_tiled_op())) return call;
   if (!call->op.same_as(tirx::tvm_call_packed_op())) return nullptr;
   if (call->args.empty()) return nullptr;
   if (const auto* s = call->args[0].as<StringImmNode>()) {
@@ -69,7 +71,7 @@ inline const CallNode* AsCuTensorMapEncode(const EvaluateNode* eval) {
 // Exclude only the output pointer; retain op, attributes and all input operands
 // so descriptor dtype, forced dtype and encoding modes participate in equality.
 inline std::pair<ffi::Optional<Var>, Call> ExtractEncodeKey(const CallNode* call) {
-  size_t output_index = call->op.same_as(tirx::tensormap_encode_tiled_op()) ? 0 : 1;
+  size_t output_index = call->op.same_as(backend::cuda::tensormap_encode_tiled_op()) ? 0 : 1;
   TVM_FFI_ICHECK_GT(call->args.size(), output_index);
   ffi::Optional<Var> tensormap = call->args[output_index].as<Var>();
   ffi::Array<Expr> args;

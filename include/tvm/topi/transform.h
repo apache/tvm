@@ -25,6 +25,7 @@
 #define TVM_TOPI_TRANSFORM_H_
 
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/data_layout.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
@@ -47,7 +48,6 @@
 
 #include "tvm/ffi/dtype.h"
 #include "tvm/ir/expr.h"
-#include "tvm/tirx/op.h"
 #include "tvm/tirx/var.h"
 
 namespace tvm {

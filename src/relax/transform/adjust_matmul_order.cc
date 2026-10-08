@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr.h>
@@ -30,7 +31,6 @@
 #include <tvm/relax/op/linear_algebra.h>
 #include <tvm/relax/op/manipulate.h>
 #include <tvm/relax/transform.h>
-#include <tvm/tirx/op.h>
 
 #include <optional>
 #include <unordered_set>

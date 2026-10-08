@@ -35,7 +35,7 @@ from typing import Any
 
 from tvm.ir import TensorRegion
 from tvm.script import tirx as Tx
-from tvm.tirx import TilePrimitiveCall
+from tvm.tirx import TileOpCall
 
 from ..vec_emit.binary_f32x2 import BINARY_F32X2_IMPLS
 from . import OpSpec, Plan, SrcSpec
@@ -46,7 +46,7 @@ _COMMUTATIVE = frozenset({"add", "mul", "maximum"})
 def _parse_binary_for(op_name: str):
     """Build a ``parse(op_call) -> (Plan, msg)`` for a specific binary op."""
 
-    def parse(op: TilePrimitiveCall) -> tuple[Plan | None, str | None]:
+    def parse(op: TileOpCall) -> tuple[Plan | None, str | None]:
         _dst: TensorRegion = op.args[0]
         _src1 = op.args[1]
         _src2 = op.args[2]

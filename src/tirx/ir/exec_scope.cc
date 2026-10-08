@@ -21,7 +21,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/exec_scope.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/gpu.h>
 
 #include <queue>
 

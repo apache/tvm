@@ -117,8 +117,7 @@ from tvm.tirx import Function, Var
 from tvm.tirx.layout import ComposeLayout, TCol, TileLayout, TLane
 from tvm.tirx.layout import m as m_axis
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.stmt import Bind, Evaluate, SeqStmt
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import Bind, Evaluate, SeqStmt, TileOpCall
 
 from ..copy import _single_thread_exec
 
@@ -194,7 +193,7 @@ def _cp_lane_replica_pattern(shape: str, multicast: str):
     raise ValueError(f"unknown tcgen05.cp multicast {multicast!r}")
 
 
-def _resolve_cp_shape(op_call: TilePrimitiveCall):
+def _resolve_cp_shape(op_call: TileOpCall):
     """Resolve (shape, multicast) from an explicit ``shape=`` config."""
     shape = op_call.config["shape"].value
     multicast = op_call.config.get("multicast")
@@ -315,7 +314,7 @@ def _align_middles(t_middle, s_middle):
 # -----------------------------------------------------------------------------
 # Plan (state object)
 # -----------------------------------------------------------------------------
-def _build_plan(op_call: TilePrimitiveCall):
+def _build_plan(op_call: TileOpCall):
     """Run A..H and return a dispatch plan.
 
     Plan fields:
@@ -330,7 +329,7 @@ def _build_plan(op_call: TilePrimitiveCall):
       - t_addr_off (Expr, taddr offset of the first cp: 32-bit col
         offset plus the region row offset in the lane half-word)
     """
-    op_call = TilePrimitiveCall.downcast(op_call)
+    op_call = TileOpCall.downcast(op_call)
     if op_call.config.get("shape") is not None:
         shape, multicast = _resolve_cp_shape(op_call)
         return _plan_for_shape(op_call, shape, multicast)
@@ -351,7 +350,7 @@ def _build_plan(op_call: TilePrimitiveCall):
     )
 
 
-def _plan_for_shape(op_call: TilePrimitiveCall, shape: str, multicast: str):
+def _plan_for_shape(op_call: TileOpCall, shape: str, multicast: str):
     """Run A..I for one (shape, multicast); raises ValueError on any mismatch."""
     dst_region, src_region = op_call.args[:2]
     s_buf: Var = src_region.source
@@ -720,7 +719,7 @@ def _desc_set_addr(desc_val, addr_ptr):
     return T.bitwise_or(T.bitwise_and(desc_val, T.bitwise_not(T.uint64(0x3FFF))), start_addr)
 
 
-def _validate_smem_tmem_copy(op_call: TilePrimitiveCall, sctx: DispatchContext):
+def _validate_smem_tmem_copy(op_call: TileOpCall, sctx: DispatchContext):
     """Memory-scope envelope only; shape resolution/inference and the detailed
     layout validation raise readable ValueErrors in ``_build_plan``."""
     dst_region, src_region = op_call.args[:2]
@@ -743,7 +742,7 @@ def _validate_smem_tmem_copy(op_call: TilePrimitiveCall, sctx: DispatchContext):
 # is responsible for issuing ``tcgen05.commit`` against a barrier if they
 # need synchronization.
 # -----------------------------------------------------------------------------
-def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
+def copy_smem_tmem_impl(op_call: TileOpCall, sctx: DispatchContext) -> Function | None:
     decompress = op_call.config.get("decompress")
     if isinstance(decompress, StringImm):
         decompress = decompress.value
@@ -830,5 +829,5 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Fu
         predicate("exec_scope", _single_thread_exec),
     ],
 )
-def copy_async_schedule_smem_tmem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+def copy_async_schedule_smem_tmem(op_call: TileOpCall, sctx: DispatchContext) -> Function:
     return copy_smem_tmem_impl(op_call, sctx)

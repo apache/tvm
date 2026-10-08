@@ -30,6 +30,13 @@ class MetalNamespace:
         self.simdgroup_store = _metal_op.simdgroup_store
         self.simdgroup_multiply_accumulate = _metal_op.simdgroup_multiply_accumulate
 
+    cooperative_tensor_fill = staticmethod(_metal_op.cooperative_tensor_fill)
+    cooperative_tensor_load = staticmethod(_metal_op.cooperative_tensor_load)
+    cooperative_tensor_store = staticmethod(_metal_op.cooperative_tensor_store)
+    cooperative_tensor_multiply_accumulate = staticmethod(
+        _metal_op.cooperative_tensor_multiply_accumulate
+    )
+
     simd_shuffle = staticmethod(_metal_op.simd_shuffle)
     simd_shuffle_up = staticmethod(_metal_op.simd_shuffle_up)
     simd_shuffle_down = staticmethod(_metal_op.simd_shuffle_down)

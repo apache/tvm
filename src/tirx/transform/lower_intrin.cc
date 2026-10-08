@@ -30,7 +30,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/expr.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/transform.h>
 
 #include <limits>
@@ -158,7 +158,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
       if (Op::HasAttrMap(pattern)) {
         attr_maps_.push_back(Op::GetAttrMap<FLowerGeneral>(pattern));
         if (fma_ == nullptr) {
-          static const Op fma_op = Op::Get("tirx.fma");
+          static const Op fma_op = Op::Get("prim.fma");
           fma_ = (*attr_maps_.rbegin()).get(fma_op, nullptr);
         }
       }

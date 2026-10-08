@@ -75,7 +75,7 @@ from tvm.tirx.expr import (
     Shuffle,
     Sub,
 )
-from tvm.tirx.op import CallFFIKernelAttr, TensorMapEncodeTiledAttr
+from tvm.tirx.op import CallFFIKernelAttr
 
 from . import _ffi_api
 from .external_kernel import call_kernel
@@ -316,7 +316,7 @@ filter = _tir_op.filter
 selector = _tir_op.selector
 
 
-floor = _ir.op._make_op_api(_ir.Op.get("tirx.floor"), __name__)
+floor = _ir.op._make_op_api(_ir.Op.get("prim.floor"), __name__)
 
 
 ceildiv = _tir_op.ceildiv
@@ -379,7 +379,7 @@ max_value = _tir_op.max_value
 min_value = _tir_op.min_value
 
 
-nearbyint = _ir.op._make_op_api(_ir.Op.get("tirx.nearbyint"), __name__)
+nearbyint = _ir.op._make_op_api(_ir.Op.get("prim.nearbyint"), __name__)
 
 
 nextafter = _tir_op.nextafter
@@ -388,16 +388,10 @@ nextafter = _tir_op.nextafter
 popcount = _tir_op.popcount
 
 
-pow = _ir.op._make_op_api(_ir.Op.get("tirx.pow"), __name__)
+pow = _ir.op._make_op_api(_ir.Op.get("prim.pow"), __name__)
 
 
-q_multiply_shift = _tir_op.q_multiply_shift
-
-
-q_multiply_shift_per_axis = _tir_op.q_multiply_shift_per_axis
-
-
-round = _ir.op._make_op_api(_ir.Op.get("tirx.round"), __name__)
+round = _ir.op._make_op_api(_ir.Op.get("prim.round"), __name__)
 
 
 rsqrt = _tir_op.rsqrt
@@ -430,7 +424,7 @@ tanh = _tir_op.tanh
 thread_return = _tir_op.thread_return
 
 
-trunc = _ir.op._make_op_api(_ir.Op.get("tirx.trunc"), __name__)
+trunc = _ir.op._make_op_api(_ir.Op.get("prim.trunc"), __name__)
 
 
 truncdiv = _tir_op.truncdiv
@@ -464,9 +458,6 @@ call_packed = _tir_op.call_packed
 
 
 call_ffi_kernel = _ir.op._make_op_api(_ir.Op.get("tirx.call_ffi_kernel"), __name__)
-
-
-tensormap_encode_tiled = _ir.op._make_op_api(_ir.Op.get("tirx.tensormap_encode_tiled"), __name__)
 
 
 call_cpacked = _tir_op.call_cpacked
@@ -528,18 +519,6 @@ tvm_warp_shuffle_xor = _tir_op.tvm_warp_shuffle_xor
 
 
 tvm_warp_activemask = _tir_op.tvm_warp_activemask
-
-
-cooperative_tensor_fill = _tir_op.cooperative_tensor_fill
-
-
-cooperative_tensor_load = _tir_op.cooperative_tensor_load
-
-
-cooperative_tensor_store = _tir_op.cooperative_tensor_store
-
-
-cooperative_tensor_multiply_accumulate = _tir_op.cooperative_tensor_multiply_accumulate
 
 
 assume = _tir_op.assume
@@ -608,7 +587,7 @@ broadcast = Broadcast
 ramp = Ramp
 
 
-fabs = _ir.op._make_op_api(_ir.Op.get("tirx.fabs"), __name__)
+fabs = _ir.op._make_op_api(_ir.Op.get("prim.fabs"), __name__)
 
 
 tvm_call_packed = call_packed
@@ -790,7 +769,6 @@ __all__ = [
     "Sub",
     "TVMBackendAllocWorkspace",
     "TVMBackendFreeWorkspace",
-    "TensorMapEncodeTiledAttr",
     "abs",
     "acos",
     "acosh",
@@ -822,10 +800,6 @@ __all__ = [
     "ceil",
     "ceildiv",
     "clz",
-    "cooperative_tensor_fill",
-    "cooperative_tensor_load",
-    "cooperative_tensor_multiply_accumulate",
-    "cooperative_tensor_store",
     "copysign",
     "cos",
     "cosh",
@@ -874,8 +848,6 @@ __all__ = [
     "pow",
     "print_buffer",
     "ptr_byte_offset",
-    "q_multiply_shift",
-    "q_multiply_shift_per_axis",
     "ramp",
     "register_script_namespace",
     "reinterpret",
@@ -891,7 +863,6 @@ __all__ = [
     "sqrt",
     "tan",
     "tanh",
-    "tensormap_encode_tiled",
     "thread_return",
     "trunc",
     "truncdiv",

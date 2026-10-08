@@ -23,8 +23,11 @@
 #include "storage_access.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/gpu.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 
 #include <string>
 #include <utility>

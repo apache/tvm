@@ -481,7 +481,7 @@ class Conv2dInt8:
                 i0_7, i1_7, i2_7, i3_7 = Ts.axis.remap("SSSS", [i0_6, i1_6, i2_6, i3_6])
                 Ts.reads(T_subtract_1[i0_7, i1_7, i2_7, i3_7])
                 Ts.writes(compute[i0_7, i1_7, i2_7, i3_7])
-                compute[i0_7, i1_7, i2_7, i3_7] = T.q_multiply_shift(T_subtract_1[i0_7, i1_7, i2_7, i3_7], 1963325822, 31, 1)
+                compute[i0_7, i1_7, i2_7, i3_7] = T.Cast("int32", T.shift_right(T.Cast("int64", T_subtract_1[i0_7, i1_7, i2_7, i3_7]) * T.Cast("int64", 1963325822), (31) - (1)))
 
 @tvm.script.ir_module
 class Conv2dInt8_target:
@@ -600,7 +600,7 @@ class Conv2dInt8_target:
                 i0_7, i1_7, i2_7, i3_7 = Ts.axis.remap("SSSS", [i0_6, i1_6, i2_6, i3_6])
                 Ts.reads(T_subtract_1[i0_7, i1_7, i2_7, i3_7])
                 Ts.writes(compute_2[i0_7, i1_7, i2_7, i3_7])
-                compute_2[i0_7, i1_7, i2_7, i3_7] = T.q_multiply_shift(T_subtract_1[i0_7, i1_7, i2_7, i3_7], 1098990753, 31, 1)
+                compute_2[i0_7, i1_7, i2_7, i3_7] = T.Cast("int32", T.shift_right(T.Cast("int64", T_subtract_1[i0_7, i1_7, i2_7, i3_7]) * T.Cast("int64", 1098990753), (31) - (1)))
         for i0_8, i1_8, i2_8, i3_8 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_add_3"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_8, i1_8, i2_8, i3_8])
@@ -746,7 +746,7 @@ class Conv2dInt8_tensorcore_scheduled:
                             v1 = Ts.axis.spatial(256, ax2_0_0_ax3_0_0_fused % 8 * 32 + ax1_0 * 16 + ax1_1)
                             Ts.reads(p7[()], conv2d_nhwc_reindex_shared[v0, v1], p2[0, 0, 0, v1], p3[0, 0, 0, v1], p4[0, 0, 0, v1], p5[0, 0, 0, v1], p6[0, 0, 0, v1], p8[0], p9[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1])
                             Ts.writes(compute[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1])
-                            compute[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1] = T.max(T.min(T.Cast("uint8", T.max(T.min(T.q_multiply_shift(T.Cast("int32", T.Cast("uint8", T.max(T.min(p7[()] + T.Cast("int32", T.shift_right(T.Cast("int64", conv2d_nhwc_reindex_shared[v0, v1] - p2[0, 0, 0, v1] + p3[0, 0, 0, v1]) * p4[0, 0, 0, v1] + p5[0, 0, 0, v1], p6[0, 0, 0, v1])), 255), 0))) - p8[0], 1098990753, 31, 1) + p9[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1], 255), 0)), T.uint8(255)), T.uint8(0))
+                            compute[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1] = T.max(T.min(T.Cast("uint8", T.max(T.min(T.Cast("int32", T.shift_right(T.Cast("int64", T.Cast("int32", T.Cast("uint8", T.max(T.min(p7[()] + T.Cast("int32", T.shift_right(T.Cast("int64", conv2d_nhwc_reindex_shared[v0, v1] - p2[0, 0, 0, v1] + p3[0, 0, 0, v1]) * p4[0, 0, 0, v1] + p5[0, 0, 0, v1], p6[0, 0, 0, v1])), 255), 0))) - p8[0]) * T.Cast("int64", 1098990753), (31) - (1))) + p9[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1], 255), 0)), T.uint8(255)), T.uint8(0))
 
 @tvm.script.ir_module
 class Conv2dInt8_NCHWc:
@@ -1564,7 +1564,7 @@ class Conv2dInt8_with_predicate:
                 i0_2, i1_2, i2_2, i3_2 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 Ts.reads(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2])
                 Ts.writes(compute_1[i0_2, i1_2, i2_2, i3_2])
-                compute_1[i0_2, i1_2, i2_2, i3_2] = T.q_multiply_shift_per_axis(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2], 31, False, True)
+                compute_1[i0_2, i1_2, i2_2, i3_2] = T.Cast("int32", T.shift_right(T.shift_left(T.Cast("int64", T_add[i0_2, i1_2, i2_2, i3_2]) * T.Cast("int64", p4[i3_2]), p5[i3_2]), (31) + (p6[i3_2])))
         for i0_3, i1_3, i2_3, i3_3 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_add_1"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_3, i1_3, i2_3, i3_3])
@@ -1588,7 +1588,7 @@ class Conv2dInt8_with_predicate:
                 i0_8, i1_8, i2_8, i3_8 = Ts.axis.remap("SSSS", [i0_7, i1_7, i2_7, i3_7])
                 Ts.reads(T_subtract_1[i0_8, i1_8, i2_8, i3_8])
                 Ts.writes(compute[i0_8, i1_8, i2_8, i3_8])
-                compute[i0_8, i1_8, i2_8, i3_8] = T.q_multiply_shift(T_subtract_1[i0_8, i1_8, i2_8, i3_8], 1963325822, 31, 1)
+                compute[i0_8, i1_8, i2_8, i3_8] = T.Cast("int32", T.shift_right(T.Cast("int64", T_subtract_1[i0_8, i1_8, i2_8, i3_8]) * T.Cast("int64", 1963325822), (31) - (1)))
 
 @tvm.script.ir_module
 class Conv2dInt8_with_predicate_target:
@@ -1640,7 +1640,7 @@ class Conv2dInt8_with_predicate_target:
                 i0_2, i1_2, i2_2, i3_2 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 Ts.reads(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2])
                 Ts.writes(compute_1[i0_2, i1_2, i2_2, i3_2])
-                compute_1[i0_2, i1_2, i2_2, i3_2] = T.q_multiply_shift_per_axis(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2], 31, False, True)
+                compute_1[i0_2, i1_2, i2_2, i3_2] = T.Cast("int32", T.shift_right(T.shift_left(T.Cast("int64", T_add[i0_2, i1_2, i2_2, i3_2]) * T.Cast("int64", p4[i3_2]), p5[i3_2]), (31) + (p6[i3_2])))
         for i0_3, i1_3, i2_3, i3_3 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_add_1"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_3, i1_3, i2_3, i3_3])
@@ -1664,13 +1664,13 @@ class Conv2dInt8_with_predicate_target:
                 i0_8, i1_8, i2_8, i3_8 = Ts.axis.remap("SSSS", [i0_7, i1_7, i2_7, i3_7])
                 Ts.reads(T_subtract_1[i0_8, i1_8, i2_8, i3_8])
                 Ts.writes(compute_3[i0_8, i1_8, i2_8, i3_8])
-                compute_3[i0_8, i1_8, i2_8, i3_8] = T.q_multiply_shift(T_subtract_1[i0_8, i1_8, i2_8, i3_8], 1457846997, 31, 0)
+                compute_3[i0_8, i1_8, i2_8, i3_8] = T.Cast("int32", T.shift_right(T.Cast("int64", T_subtract_1[i0_8, i1_8, i2_8, i3_8]) * T.Cast("int64", 1457846997), (31) - (0)))
         for i0_9, i1_9, i2_9, i3_9 in T.grid(16, 56, 56, 256):
             with Ts.sblock("compute_3"):
                 i0_10, i1_10, i2_10, i3_10 = Ts.axis.remap("SSSS", [i0_9, i1_9, i2_9, i3_9])
                 Ts.reads(p9[i0_10, i1_10, i2_10, i3_10])
                 Ts.writes(compute_4[i0_10, i1_10, i2_10, i3_10])
-                compute_4[i0_10, i1_10, i2_10, i3_10] = T.q_multiply_shift(p9[i0_10, i1_10, i2_10, i3_10], 2101000910, 31, 0)
+                compute_4[i0_10, i1_10, i2_10, i3_10] = T.Cast("int32", T.shift_right(T.Cast("int64", p9[i0_10, i1_10, i2_10, i3_10]) * T.Cast("int64", 2101000910), (31) - (0)))
         for i0_11, i1_11, i2_11, i3_11 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_add_2"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_11, i1_11, i2_11, i3_11])
@@ -1793,7 +1793,7 @@ class Conv2dInt8_with_predicate_scheduled:
                             Ts.where(((ax1_0 * 4 + ax1_1) * 32 + ax1_2) * 2 + ax1_3 < 64)
                             Ts.reads(p7[()], conv2d_nhwc_reindex_shared[v0, v1], p2[0, 0, 0, v1], p3[0, 0, 0, v1], p4[v1], p5[v1], p6[v1], p8[0], p9[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1])
                             Ts.writes(compute[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1])
-                            compute[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1] = T.max(T.min(T.q_multiply_shift(T.max(T.min(p7[()] + T.q_multiply_shift_per_axis(conv2d_nhwc_reindex_shared[v0, v1] - p2[0, 0, 0, v1] + p3[0, 0, 0, v1], p4[v1], p5[v1], p6[v1], 31, T.bool(False), T.bool(True)), 255), 0) - p8[0], 1457846997, 31, 0) + T.q_multiply_shift(p9[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1], 2101000910, 31, 0), 255), 0)
+                            compute[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1] = T.max(T.min(T.Cast("int32", T.shift_right(T.Cast("int64", T.max(T.min(p7[()] + T.Cast("int32", T.shift_right(T.shift_left(T.Cast("int64", conv2d_nhwc_reindex_shared[v0, v1] - p2[0, 0, 0, v1] + p3[0, 0, 0, v1]) * T.Cast("int64", p4[v1]), p5[v1]), (31) + (p6[v1]))), 255), 0) - p8[0]) * T.Cast("int64", 1457846997), (31) - (0))) + T.Cast("int32", T.shift_right(T.Cast("int64", p9[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1]) * T.Cast("int64", 2101000910), (31) - (0))), 255), 0)
 
 # fmt: on
 def verify(anchor_mod, anchor_trace_fun, target_mod, target, ref):

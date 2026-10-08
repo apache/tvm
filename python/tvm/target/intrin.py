@@ -40,8 +40,8 @@ def _rule_float_suffix(op):
     register_intrin_lowering : The registration function for intrinsic lowering rule.
     """
     name = op.op.name
-    assert name.startswith("tirx.")
-    prefix = name[4:]
+    assert name.startswith(("tirx.", "prim."))
+    prefix = name[5:]
 
     if op.ty.dtype == "float32":
         return call_pure_extern(op.ty, f"{prefix}f", *op.args)
@@ -71,11 +71,11 @@ def _rule_float_direct(op):
     register_intrin_lowering : The registration function for intrinsic lowering rule.
     """
     if str(op.ty.dtype).startswith("float"):
-        return call_pure_extern(op.ty, op.op.name[4:], *op.args)
+        return call_pure_extern(op.ty, op.op.name[5:], *op.args)
     return None
 
 
 # opencl pattern for exp
-register_intrin_lowering("tirx.exp", target="opencl", f=_rule_float_direct, override=True)
+register_intrin_lowering("prim.exp", target="opencl", f=_rule_float_direct, override=True)
 # default pattern for exp
-register_intrin_lowering("tirx.exp", target="default", f=_rule_float_suffix, override=True)
+register_intrin_lowering("prim.exp", target="default", f=_rule_float_suffix, override=True)

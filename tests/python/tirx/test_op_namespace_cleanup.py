@@ -27,14 +27,14 @@ import tvm
 from tvm.ir import Op, assert_structural_equal
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 
 def _tile_calls(func):
     calls = []
 
     def visit(stmt):
-        if isinstance(stmt, TilePrimitiveCall):
+        if isinstance(stmt, TileOpCall):
             calls.append(stmt)
 
     tvm_ffi.structural_walk(func.body, visit)
@@ -99,10 +99,10 @@ def test_builtin_expression_ops_are_not_tile_primitives():
     assert cast.ty.dtype == "float32"
 
     sqrt = T.sqrt(y)
-    assert sqrt.op.name == "tirx.sqrt"
+    assert sqrt.op.name == "prim.sqrt"
 
     fma = T.fma(y, y, y)
-    assert fma.op.name == "tirx.fma"
+    assert fma.op.name == "prim.fma"
 
 
 def test_tensormap_encoding_accepts_attribute_keywords_and_defaults():
@@ -352,7 +352,7 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
 
 
 def test_registered_tirx_ops_have_exactly_one_category():
-    if _op_attr("tirx.sqrt", "TIRxOpCategory") is None:
+    if _op_attr("prim.sqrt", "TIRxOpCategory") is None:
         pytest.skip("TIRx op categories require a rebuilt C++ runtime")
 
     categories = {"builtin", "tile_primitive", "device_intrin"}

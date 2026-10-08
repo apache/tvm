@@ -128,7 +128,7 @@ Inside LowerTIRx
 
     LowerTIRx = Sequential([ TilePrimitiveDispatch, LowerTIRxCleanup ])
 
-- **``TilePrimitiveDispatch``** replaces every ``TilePrimitiveCall`` (``copy``,
+- **``TilePrimitiveDispatch``** replaces every ``TileOpCall`` (``copy``,
   ``gemm``, ``reduction``, …) with the body emitted by its selected backend
   dispatch — the variant-selection and codegen described in
   :doc:`tile_dispatch`.  In the same pass it removes the ``device_entry``

@@ -29,22 +29,22 @@ from tvm.tirx.operator.tile_primitive import (
     predicate,
     register_dispatch,
 )
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 from ..common import validate_copy_op
 from ..exec_scope_utils import single_thread
 from .utils import find_contiguous_region, to_tile_layout
 
 
-def _is_shared_to_shared(op_call: TilePrimitiveCall) -> bool:
+def _is_shared_to_shared(op_call: TileOpCall) -> bool:
     """Check if both src and dst are in shared memory."""
-    op_call = TilePrimitiveCall.downcast(op_call)
+    op_call = TileOpCall.downcast(op_call)
     src_scope = op_call.src.source.scope()
     dst_scope = op_call.dst.source.scope()
     return src_scope.startswith("shared") and dst_scope.startswith("shared")
 
 
-def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+def copy_dsmem_impl(op_call: TileOpCall, sctx: DispatchContext) -> Function:
     """Implement shared-to-shared cross-CTA copy using cp.async.bulk.
 
     Uses cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes
@@ -55,7 +55,7 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Functi
     analysis of both src and dst buffers. Non-contiguous dimensions are iterated
     over, emitting one cp.async.bulk instruction per contiguous chunk.
     """
-    op_call = TilePrimitiveCall.downcast(op_call)
+    op_call = TileOpCall.downcast(op_call)
 
     # Extract config
     remote_cta_id = op_call.config.get("remote_cta_id", None)
@@ -199,7 +199,7 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Functi
 # When: valid async copy at single-thread scope where both src and dst are in
 # shared memory. Used for intra-cluster DSMEM copies (shared::cta -> shared::cluster).
 #
-# Before (TilePrimitiveCall):
+# Before (TileOpCall):
 #     Tx.copy_async(
 #         dst_smem[0:128, 0:64],
 #         src_smem[0:128, 0:64],
@@ -232,5 +232,5 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Functi
         ),
     ],
 )
-def copy_async_dispatch_dsmem(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+def copy_async_dispatch_dsmem(op: TileOpCall, sctx: DispatchContext) -> Function:
     return copy_dsmem_impl(op, sctx)

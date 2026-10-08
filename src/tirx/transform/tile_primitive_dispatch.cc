@@ -19,7 +19,7 @@
 
 /*!
  * \file tile_primitive_dispatch.cc
- * \brief Lower TilePrimitiveCall nodes via registered dispatchers (also resolves ScopeIdDef
+ * \brief Lower TileOpCall nodes via registered dispatchers (also resolves ScopeIdDef
  * declarations and emits launch params).
  */
 
@@ -32,10 +32,13 @@
 #include <tvm/tirx/exec_context.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/annotation.h>
+#include <tvm/tirx/op/gpu.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
-#include <tvm/tirx/tile_op.h>
+#include <tvm/tirx/tile_dispatch.h>
 #include <tvm/tirx/transform.h>
 
 #include <optional>
@@ -199,8 +202,8 @@ class NoOpCallVerifier : public Verifier<NoOpCallVerifier> {
  private:
   using Verifier::Visit;
 
-  void Dispatch_(const tirx::TilePrimitiveCallNode* obj, ffi::reflection::AccessPath path) final {
-    Verify(false) << "TIRxError: TilePrimitiveCall at " << path
+  void Dispatch_(const tirx::TileOpCallNode* obj, ffi::reflection::AccessPath path) final {
+    Verify(false) << "TIRxError: TileOpCall at " << path
                   << " is not allowed in TIRx before lowering";
   }
 };
@@ -556,7 +559,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return IfThenElse(new_cond, then_case, else_case);
   }
 
-  UnchangedOr<Stmt> Mutate_(const tirx::TilePrimitiveCallNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const tirx::TileOpCallNode* op, InplaceMode inplace_mode) final {
     // Scope is a per-call field on the node. Derive the (inter, intra) split
     // on the spot from the current active set ``A`` (tracked through control
     // flow on ``ctx_stack_``) under this call's own ``op->scope``.
@@ -584,7 +587,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     TVM_FFI_ICHECK(f_op_dispatcher_.has_value())
         << "Internal Error: tirx.f_op_dispatcher is not registered";
     Function res =
-        f_op_dispatcher_.value()(ffi::GetRef<tirx::TilePrimitiveCall>(op), sctx).cast<Function>();
+        f_op_dispatcher_.value()(ffi::GetRef<tirx::TileOpCall>(op), sctx).cast<Function>();
     TVM_FFI_ICHECK(res.defined()) << "TIRx dispatcher did not return a Function";
     // Implementation found, handle callbacks
     if (auto bufs = sctx->callbacks.Get(tirx::callback::kPrivateAlloc)) {

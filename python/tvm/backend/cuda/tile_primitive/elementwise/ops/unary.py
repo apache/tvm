@@ -27,13 +27,13 @@ from typing import Any
 
 from tvm.ir import TensorRegion, is_prim_expr
 from tvm.script import tirx as T
-from tvm.tirx import TilePrimitiveCall
+from tvm.tirx import TileOpCall
 
 from .._common import scalar_dtype
 from . import OpSpec, Plan, SrcSpec
 
 
-def _parse_unary(op: TilePrimitiveCall) -> tuple[Plan | None, str | None]:
+def _parse_unary(op: TileOpCall) -> tuple[Plan | None, str | None]:
     """T.<unary>(dst, src[, scale, bias]) → Plan."""
     _dst: TensorRegion = op.args[0]
     _src = op.args[1]

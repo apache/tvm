@@ -78,7 +78,7 @@ def test_tir_op_isnullptr():
 def test_tir_op_call_assume():
     x = tirx.Var("x", ty="int32")
     expr = tirx.assume(cond=x)
-    assert expr.op.name == "tirx.assume"
+    assert expr.op.name == "prim.assume"
 
 
 def test_tir_op_call_undef():
@@ -123,14 +123,14 @@ def test_tir_op_tvm_throw_last_error():
 def test_tir_op_tvm_load_matrix_sync():
     buffer = tirx.decl_tensor((16, 16), "float32")
     x = tirx.Var("x", "handle")
-    expr = tirx.tvm_load_matrix_sync(buffer.data, 16, 16, 16, 0, x, 128, "row_major")
+    expr = tvm.tirx.tvm_load_matrix_sync(buffer.data, 16, 16, 16, 0, x, 128, "row_major")
     assert expr.op.name == "tirx.tvm_load_matrix_sync"
 
 
 def test_tir_op_tvm_store_matrix_sync():
     buffer = tirx.decl_tensor((16, 16), "float32")
     x = tirx.Var("x", "handle")
-    expr = tirx.tvm_store_matrix_sync(buffer.data, 16, 16, 16, 0, x, 128, "row_major")
+    expr = tvm.tirx.tvm_store_matrix_sync(buffer.data, 16, 16, 16, 0, x, 128, "row_major")
     assert expr.op.name == "tirx.tvm_store_matrix_sync"
 
 
@@ -139,7 +139,9 @@ def test_tir_op_tvm_mma_sync():
     buffer_1 = tirx.decl_tensor((16, 16), "float32")
     buffer_2 = tirx.decl_tensor((16, 16), "float32")
     buffer_3 = tirx.decl_tensor((16, 16), "float32")
-    expr = tirx.tvm_mma_sync(buffer_0.data, 0, buffer_1.data, 0, buffer_2.data, 0, buffer_3.data, 0)
+    expr = tvm.tirx.tvm_mma_sync(
+        buffer_0.data, 0, buffer_1.data, 0, buffer_2.data, 0, buffer_3.data, 0
+    )
     assert expr.op.name == "tirx.tvm_mma_sync"
 
 
@@ -148,7 +150,7 @@ def test_tir_op_tvm_bmma_sync():
     buffer_1 = tirx.decl_tensor((16, 16), "float32")
     buffer_2 = tirx.decl_tensor((16, 16), "float32")
     buffer_3 = tirx.decl_tensor((16, 16), "float32")
-    expr = tirx.tvm_bmma_sync(
+    expr = tvm.tirx.tvm_bmma_sync(
         buffer_0.data, 0, buffer_1.data, 0, buffer_2.data, 0, buffer_3.data, 0
     )
     assert expr.op.name == "tirx.tvm_bmma_sync"
@@ -156,7 +158,7 @@ def test_tir_op_tvm_bmma_sync():
 
 def test_tir_op_tvm_fill_fragment():
     buffer = tirx.decl_tensor((16, 16), "float32")
-    expr = tirx.tvm_fill_fragment(buffer.data, 16, 16, 16, 0, 0)
+    expr = tvm.tirx.tvm_fill_fragment(buffer.data, 16, 16, 16, 0, 0)
     assert expr.op.name == "tirx.tvm_fill_fragment"
 
 

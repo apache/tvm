@@ -30,7 +30,8 @@ from typing import Any
 from tvm.ir import Op
 from tvm.tirx import Function
 from tvm.tirx.operator import get_tirx_op
-from tvm.tirx.tile_primitive import DispatchContext, TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
+from tvm.tirx.tile_primitive import DispatchContext
 
 
 class DispatchFail(RuntimeError):
@@ -47,12 +48,10 @@ class Predicate:
     """
 
     name: str
-    fn: Callable[[TilePrimitiveCall, DispatchContext], Any]
+    fn: Callable[[TileOpCall, DispatchContext], Any]
     kwargs: dict[str, Any]
 
-    def evaluate(
-        self, op_call: TilePrimitiveCall, sctx: DispatchContext
-    ) -> tuple[bool, str | None]:
+    def evaluate(self, op_call: TileOpCall, sctx: DispatchContext) -> tuple[bool, str | None]:
         try:
             out = self.fn(op_call, sctx, **self.kwargs)
             if isinstance(out, tuple):
@@ -65,9 +64,7 @@ class Predicate:
             return False, f"predicate exception: {type(e).__name__}: {e}"
 
 
-def predicate(
-    name: str, fn: Callable[[TilePrimitiveCall, DispatchContext], Any], **kwargs
-) -> Predicate:
+def predicate(name: str, fn: Callable[[TileOpCall, DispatchContext], Any], **kwargs) -> Predicate:
     """Wrap a callable into a named predicate."""
 
     return Predicate(name=name, fn=fn, kwargs=kwargs)
@@ -85,7 +82,7 @@ class DispatchCase:
     priority: int
     preds: list[Predicate]
     # Impl must either return a Function or raise DispatchFail
-    impl: Callable[[TilePrimitiveCall, DispatchContext], Function]
+    impl: Callable[[TileOpCall, DispatchContext], Function]
 
 
 # Keyed by (Op, target_kind)
@@ -116,9 +113,9 @@ def register_dispatch(
 
     op = get_tirx_op(op_name)
 
-    def decorator(impl: Callable[[TilePrimitiveCall, DispatchContext], Any]):
+    def decorator(impl: Callable[[TileOpCall, DispatchContext], Any]):
         # Wrap impl to forbid returning None; require raise-or-Function
-        def wrapped_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+        def wrapped_impl(op_call: TileOpCall, sctx: DispatchContext) -> Function:
             res = impl(op_call, sctx)
             if res is None:
                 # Enforce raise-or-Function contract for schedule implementations
@@ -149,7 +146,7 @@ def list_registered_schedules() -> dict[str, dict[str, list[str]]]:
     return out
 
 
-def _format_opcall(op_call: TilePrimitiveCall) -> str:
+def _format_opcall(op_call: TileOpCall) -> str:
     """Return a readable representation of the failing opcall."""
     # Prefer TVMScript or IR text printer if available on this object
     try:
@@ -236,7 +233,7 @@ def _format_failure_table(header: str, rows: list[tuple[str, list[str]]]) -> str
     return "\n".join(lines)
 
 
-def run_dispatch(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
+def run_dispatch(op_call: TileOpCall, sctx: DispatchContext) -> Function | None:
     """Run structured dispatch.
 
     Returns a Function on success. Otherwise, raises RuntimeError with
@@ -281,7 +278,7 @@ def run_dispatch(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function 
                     msg += f" — {reason}"
                 pred_msgs.append(msg)
         if not pred_ok:
-            # Include the offending TilePrimitiveCall IR in the error cell
+            # Include the offending TileOpCall IR in the error cell
             op_str = _format_opcall(op_call)
             op_lines = [line.rstrip("\n") for line in str(op_str).splitlines()] if op_str else []
             failure_rows.append(

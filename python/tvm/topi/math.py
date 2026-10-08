@@ -21,7 +21,6 @@ import tvm
 from tvm import DataTypeCode, te
 
 from . import cpp, tag
-from .utils import get_const_tuple
 
 
 def _require_float_tensor(op_name, x):
@@ -653,95 +652,7 @@ def clip(x, a_min, a_max):
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
-def fixed_point_multiply(x, multiplier, shift):
-    """Fixed point multiplication between data and a fixed point
-    constant expressed as multiplier * 2^(-shift), where multiplier
-    is a Q-number with 31 fractional bits
-
-    Parameters
-    ----------
-    x : tvm.te.Tensor or Expr
-        Input argument.
-    multiplier : int
-        Multiplier of a fixed floating point number described as multiplier*2^(-shift).
-    shift : int
-        Shift of a fixed floating point number described as multiplier*2^(-shift).
-
-    Returns
-    -------
-    y : tvm.te.Tensor
-        The result.
-    """
-
-    def _compute(*indices):
-        value = x(*indices)
-        return tvm.tirx.q_multiply_shift(
-            value,
-            tvm.tirx.const(multiplier, "int32"),
-            tvm.tirx.const(31, "int32"),
-            tvm.tirx.const(shift, "int32"),
-        )
-
-    return te.compute(x.shape, _compute)
-
-
 @tvm.te.tag_scope(tag=tag.BROADCAST)
-def fixed_point_multiply_per_axis(
-    x: te.Tensor,
-    y: te.Tensor,
-    lshift: te.Tensor,
-    rshift: te.Tensor,
-    is_lshift_required: int,
-    is_rshift_required: int,
-    axes,
-):
-    """Fixed point multiplication between data and a fixed point constant expressed as
-    multiplier * 2^(-shift), where multiplier is a Q-number with 31 fractional bits
-
-    Parameters
-    ----------
-    x : tvm.te.Tensor
-        Input argument.
-    y : tvm.te.Tensor
-        Multiplier of a fixed floating point number described as multiplier*2^(-shift).
-    lshift : tvm.te.Tensor
-        Left shifts of a fixed floating point number described as multiplier*2^(-shift).
-    rshift : tvm.te.Tensor
-        Right shifts of a fixed floating point number described as multiplier*2^(-shift).
-    is_lshift_required : int
-        Whether we need to do left shift or not.
-    is_rshift_required : int
-        Whether we need to do right shift or not.
-
-    Returns
-    -------
-    z : tvm.te.Tensor
-        The result.
-    """
-
-    def _compute(*indices):
-        elements = []
-        for element in get_const_tuple(axes):
-            elements += [indices[element]]
-        param_indices = tuple(elements)
-
-        value = x(*indices)
-        m = y(*param_indices)
-        l_shift = lshift(*param_indices)
-        r_shift = rshift(*param_indices)
-        return tvm.tirx.q_multiply_shift_per_axis(
-            value,
-            m,
-            l_shift,
-            r_shift,
-            tvm.tirx.const(31, "int32"),
-            tvm.tirx.const(is_lshift_required, "bool"),
-            tvm.tirx.const(is_rshift_required, "bool"),
-        )
-
-    return te.compute(x.shape, _compute)
-
-
 def cast(x, dtype, span=None):
     """Cast input to specified data type.
 

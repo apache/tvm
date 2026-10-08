@@ -21,7 +21,7 @@ Mirrors copy PR-640's two-variant model: scope-pair drives the dispatch
 selection, the underlying algorithm (induced vs synthesized) follows.
 """
 
-from tvm.tirx import Function, TilePrimitiveCall
+from tvm.tirx import Function, TileOpCall
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
 
 from .ops import ALL_OPS
@@ -37,7 +37,7 @@ def _register_reg(spec) -> None:
         priority=10,
         when=[predicate(f"{spec.name}_reg", is_reg_ewise(spec))],
     )
-    def _dispatch(op: TilePrimitiveCall, sctx: DispatchContext, _spec=spec) -> Function:
+    def _dispatch(op: TileOpCall, sctx: DispatchContext, _spec=spec) -> Function:
         return emit_reg(op, _spec, sctx)
 
 
@@ -49,7 +49,7 @@ def _register_smem(spec) -> None:
         priority=10,
         when=[predicate(f"{spec.name}_smem", is_smem_ewise(spec))],
     )
-    def _dispatch(op: TilePrimitiveCall, sctx: DispatchContext, _spec=spec) -> Function:
+    def _dispatch(op: TileOpCall, sctx: DispatchContext, _spec=spec) -> Function:
         return emit_smem(op, _spec, sctx)
 
 

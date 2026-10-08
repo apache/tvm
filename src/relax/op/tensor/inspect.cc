@@ -28,7 +28,8 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/op/memory.h>
 
 #include <tuple>
 

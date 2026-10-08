@@ -35,7 +35,9 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/bound.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/annotation.h>
+#include <tvm/tirx/op/gpu.h>
+#include <tvm/tirx/op/region.h>
 
 #include <optional>
 #include <unordered_map>

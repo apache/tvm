@@ -26,7 +26,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/prim/op.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/gpu.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -657,12 +658,12 @@ class StorageLegalizer : public StmtExprMutator {
       PrimType op_dtype = op->ty.as_or_throw<PrimType>();
       if (value.ty() == op_dtype) return value;
       if (MatchType(op_dtype)) {
-        return reinterpret(GetStorageUIntDType(op_dtype), value);
+        return tirx::reinterpret(GetStorageUIntDType(op_dtype), value);
       }
       if (op->args[0].same_as(value)) {
         return ffi::GetRef<Call>(op).as_or_throw<PrimExpr>();
       } else {
-        return reinterpret(op_dtype, value);
+        return tirx::reinterpret(op_dtype, value);
       }
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -681,7 +682,8 @@ class StorageLegalizer : public StmtExprMutator {
     if (!MatchType(value_dtype)) return value;
     auto* call = value.as<CallNode>();
     if (call && call->op.same_as(tirx::reinterpret_op())) {
-      return reinterpret(GetStorageUIntDType(value_dtype), call->args[0].as_or_throw<PrimExpr>());
+      return tirx::reinterpret(GetStorageUIntDType(value_dtype),
+                               call->args[0].as_or_throw<PrimExpr>());
     } else {
       return value;
     }

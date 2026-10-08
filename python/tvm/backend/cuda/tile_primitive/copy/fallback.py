@@ -28,7 +28,7 @@ from tvm.tirx.operator.tile_primitive.dispatcher import (
     register_dispatch,
 )
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 from ._common import _TID_AXIS_FOR_SCOPE
 from .utils import _is_valid_copy
@@ -40,11 +40,11 @@ def _region_st_extent(buffer_region):
     return [r.min for r in region], [r.extent for r in region]
 
 
-def _is_scalar_copy(op_call: TilePrimitiveCall, sctx: DispatchContext):
+def _is_scalar_copy(op_call: TileOpCall, sctx: DispatchContext):
     ok, reason = _is_valid_copy(op_call, sctx)
     if not ok:
         return ok, reason
-    op_call = TilePrimitiveCall.downcast(op_call)
+    op_call = TileOpCall.downcast(op_call)
     for region in (op_call.src, op_call.dst):
         layout = region.source.layout
         if isinstance(layout, ComposeLayout):
@@ -56,8 +56,8 @@ def _is_scalar_copy(op_call: TilePrimitiveCall, sctx: DispatchContext):
     return True, None
 
 
-def _emit_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
-    op_call = TilePrimitiveCall.downcast(op_call)
+def _emit_fallback(op_call: TileOpCall, sctx: DispatchContext) -> Function:
+    op_call = TileOpCall.downcast(op_call)
     src: Var = op_call.src.source
     dst: Var = op_call.dst.source
     src_st, src_extent = _region_st_extent(op_call.src)
@@ -133,5 +133,5 @@ def _emit_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Functio
     priority=0,
     when=[predicate("scalar_copy_applicable", _is_scalar_copy)],
 )
-def copy_schedule_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+def copy_schedule_fallback(op_call: TileOpCall, sctx: DispatchContext) -> Function:
     return _emit_fallback(op_call, sctx)

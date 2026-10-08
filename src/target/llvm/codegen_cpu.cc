@@ -52,6 +52,10 @@
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/op/cpu.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 
 #include <algorithm>
 #include <memory>

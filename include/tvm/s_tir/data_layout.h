@@ -27,8 +27,8 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/iter_var.h>
-#include <tvm/tirx/op.h>
 
 #include <algorithm>
 #include <sstream>

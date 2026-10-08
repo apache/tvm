@@ -29,9 +29,9 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/layout.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/script/ir_builder/ir.h>
-#include <tvm/tirx/tile_op.h>
+#include <tvm/tirx/stmt.h>
 
 #include "./utils.h"
 
@@ -157,7 +157,7 @@ tvm::Type FuncRet(tvm::Type ret_type) {
   return ret_type;
 }
 
-void TilePrimitiveCall(tvm::tirx::TilePrimitiveCall op_call) { AddToParent(op_call); }
+void TileOpCall(tvm::tirx::TileOpCall op_call) { AddToParent(op_call); }
 
 /*!
  * \brief Validate a user-requested loop / scope-id var dtype.
@@ -659,7 +659,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.FuncName", FuncName)
       .def("script.ir_builder.tirx.FuncAttrs", FuncAttrs)
       .def("script.ir_builder.tirx.FuncRet", FuncRet)
-      .def("script.ir_builder.tirx.TilePrimitiveCall", TilePrimitiveCall)
+      .def("script.ir_builder.tirx.TileOpCall", TileOpCall)
       .def("script.ir_builder.tirx.ClusterId",
            [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent, PrimType dtype) {
              return ClusterId(extents, parent, dtype);

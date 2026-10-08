@@ -25,6 +25,7 @@
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/target/codegen.h>
+#include <tvm/tirx/op/abi.h>
 
 #include <algorithm>
 #include <string>

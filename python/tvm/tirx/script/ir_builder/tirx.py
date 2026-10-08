@@ -58,7 +58,7 @@ class ScopedOp:
     ``Tx.wg.sum(...)``, ``Tx.cta.fill(...)`` (see :class:`ScopeNamespace`).
 
     The wrapped ``fn`` must accept a keyword-only ``scope`` parameter that it
-    threads into the constructed ``TilePrimitiveCall``.
+    threads into the constructed ``TileOpCall``.
     """
 
     def __init__(self, fn):
@@ -142,7 +142,7 @@ def _wrap_elem_in_tuple(e):
     return (e,)
 
 
-f_insert = _ffi_api.TilePrimitiveCall  # pylint: disable=no-member
+f_insert = _ffi_api.TileOpCall  # pylint: disable=no-member
 
 
 @ScopedOp

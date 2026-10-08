@@ -30,7 +30,7 @@ from tvm.script import tirx as T
 from tvm.tirx import Function, Var
 from tvm.tirx.expr import IntImm as _IntImm
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 from ..layout_utils import recompose_swizzle
 from ._common import (
@@ -48,9 +48,7 @@ _GMEM_SMEM_PAIRS = [
 ]
 
 
-def _divides_thread_cnt(
-    op_call: TilePrimitiveCall, sctx: DispatchContext
-) -> tuple[bool, str | None]:
+def _divides_thread_cnt(op_call: TileOpCall, sctx: DispatchContext) -> tuple[bool, str | None]:
     """Reject copies whose region element count does not divide ``thread_cnt``.
 
     Without this guard the emit's ``[outer, T, vec]`` partition has no
@@ -59,7 +57,7 @@ def _divides_thread_cnt(
     indicate a poorly-shaped copy (e.g. 1024-thread CTA writing a 64-elem
     tail) that this dispatch refuses to paper over with a slow scalar emit.
     """
-    op_call = TilePrimitiveCall.downcast(op_call)
+    op_call = TileOpCall.downcast(op_call)
     thread_cnt = _thread_cnt(sctx)
     if thread_cnt <= 0:
         return False, f"degenerate thread_cnt={thread_cnt} (scope has empty intra)"
@@ -76,7 +74,7 @@ def _divides_thread_cnt(
     return True, None
 
 
-def _is_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> tuple[bool, str | None]:
+def _is_gmem_smem(op_call: TileOpCall, sctx: DispatchContext) -> tuple[bool, str | None]:
     if not sctx.is_target("cuda"):
         return False, "non-cuda target"
     if sctx.scope_kind not in ("thread", "warp", "warpgroup", "cta"):
@@ -93,8 +91,8 @@ def _is_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> tuple[bo
     return True, None
 
 
-def _emit_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
-    op_call = TilePrimitiveCall.downcast(op_call)
+def _emit_gmem_smem(op_call: TileOpCall, sctx: DispatchContext) -> Function:
+    op_call = TileOpCall.downcast(op_call)
     src: Var = op_call.src.source
     dst: Var = op_call.dst.source
     if src.scope() == "global":

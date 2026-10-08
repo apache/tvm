@@ -24,7 +24,8 @@
 #ifndef TVM_TIR_TRANSFORM_FORCE_NARROW_INDEX_TO_I32_H_
 #define TVM_TIR_TRANSFORM_FORCE_NARROW_INDEX_TO_I32_H_
 
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/tirx/op/memory.h>
 
 #include <utility>
 

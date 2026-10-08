@@ -43,26 +43,68 @@ from tvm.ir.base import Span
 from tvm.ir.prim import clz as clz
 from tvm.ir.prim import max_value as max_value
 from tvm.ir.prim import min_value as min_value
+from tvm.ir.prim.op import abs as abs
+from tvm.ir.prim.op import acos as acos
+from tvm.ir.prim.op import acosh as acosh
 from tvm.ir.prim.op import all as all
 from tvm.ir.prim.op import any as any
+from tvm.ir.prim.op import asin as asin
+from tvm.ir.prim.op import asinh as asinh
+from tvm.ir.prim.op import assume as assume
+from tvm.ir.prim.op import atan as atan
+from tvm.ir.prim.op import atan2 as atan2
+from tvm.ir.prim.op import atanh as atanh
 from tvm.ir.prim.op import bitwise_and as bitwise_and
 from tvm.ir.prim.op import bitwise_not as bitwise_not
 from tvm.ir.prim.op import bitwise_or as bitwise_or
 from tvm.ir.prim.op import bitwise_xor as bitwise_xor
 from tvm.ir.prim.op import ceil as ceil
 from tvm.ir.prim.op import ceildiv as ceildiv
+from tvm.ir.prim.op import copysign as copysign
+from tvm.ir.prim.op import cos as cos
+from tvm.ir.prim.op import cosh as cosh
 from tvm.ir.prim.op import div as div
+from tvm.ir.prim.op import erf as erf
+from tvm.ir.prim.op import exp as exp
+from tvm.ir.prim.op import exp2 as exp2
+from tvm.ir.prim.op import exp10 as exp10
+from tvm.ir.prim.op import floor as floor
 from tvm.ir.prim.op import floordiv as floordiv
 from tvm.ir.prim.op import floormod as floormod
+from tvm.ir.prim.op import fma as fma
+from tvm.ir.prim.op import fmod as fmod
+from tvm.ir.prim.op import hypot as hypot
 from tvm.ir.prim.op import if_then_else as if_then_else
 from tvm.ir.prim.op import indexdiv as indexdiv
 from tvm.ir.prim.op import indexmod as indexmod
+from tvm.ir.prim.op import infinity as infinity
+from tvm.ir.prim.op import isfinite as isfinite
+from tvm.ir.prim.op import isinf as isinf
+from tvm.ir.prim.op import isnan as isnan
+from tvm.ir.prim.op import ldexp as ldexp
 from tvm.ir.prim.op import likely as likely
+from tvm.ir.prim.op import log as log
+from tvm.ir.prim.op import log1p as log1p
 from tvm.ir.prim.op import log2 as log2
+from tvm.ir.prim.op import log10 as log10
 from tvm.ir.prim.op import max as max
 from tvm.ir.prim.op import min as min
+from tvm.ir.prim.op import nearbyint as nearbyint
+from tvm.ir.prim.op import nextafter as nextafter
+from tvm.ir.prim.op import popcount as popcount
+from tvm.ir.prim.op import pow as pow
+from tvm.ir.prim.op import power as power
+from tvm.ir.prim.op import round as round
+from tvm.ir.prim.op import rsqrt as rsqrt
 from tvm.ir.prim.op import shift_left as shift_left
 from tvm.ir.prim.op import shift_right as shift_right
+from tvm.ir.prim.op import sigmoid as sigmoid
+from tvm.ir.prim.op import sin as sin
+from tvm.ir.prim.op import sinh as sinh
+from tvm.ir.prim.op import sqrt as sqrt
+from tvm.ir.prim.op import tan as tan
+from tvm.ir.prim.op import tanh as tanh
+from tvm.ir.prim.op import trunc as trunc
 from tvm.ir.prim.op import truncdiv as truncdiv
 from tvm.ir.prim.op import truncmod as truncmod
 from tvm.ir.prim.op import vscale as vscale
@@ -330,63 +372,6 @@ def call_ffi_kernel(*args, launch_params, ty="int32", span=None):
     )
 
 
-@tvm_ffi.register_object("tirx.TensorMapEncodeTiledAttr")
-class TensorMapEncodeTiledAttr(tvm.ir.Attrs):
-    """Descriptor dtype and fixed options for tiled tensor-map encoding."""
-
-    def __init__(
-        self,
-        descriptor_dtype,
-        rank,
-        interleave=0,
-        swizzle=0,
-        l2_promotion=0,
-        oob_fill=0,
-        force_cu_dtype=-1,
-    ):
-        self.__init_handle_by_constructor__(
-            _ffi_api.TensorMapEncodeTiledAttr,
-            descriptor_dtype,
-            rank,
-            interleave,
-            swizzle,
-            l2_promotion,
-            oob_fill,
-            force_cu_dtype,
-        )
-
-
-def tensormap_encode_tiled(
-    *args,
-    descriptor_dtype,
-    rank,
-    interleave=0,
-    swizzle=0,
-    l2_promotion=0,
-    oob_fill=0,
-    force_cu_dtype=-1,
-    span=None,
-):
-    """Encode a tiled tensor map using runtime pointers and shape operands.
-
-    Arguments are the descriptor and data pointers, global dimensions (rank),
-    byte strides (rank - 1), box dimensions (rank), and element strides (rank).
-    The dtype describes the final descriptor units, including any promotion.
-    CUDA-host codegen encodes directly; other hosts use the runtime packed call.
-    """
-    if not 1 <= rank <= 5 or len(args) != 4 * rank + 1:
-        raise ValueError("tensormap_encode_tiled requires rank 1..5 and 4 * rank + 1 operands")
-    return Call(
-        "tirx.tensormap_encode_tiled",
-        args,
-        attrs=TensorMapEncodeTiledAttr(
-            descriptor_dtype, rank, interleave, swizzle, l2_promotion, oob_fill, force_cu_dtype
-        ),
-        ty="int32",
-        span=span,
-    )
-
-
 def call_cpacked(*args, span=None, ty=None):
     """Build expression by call an external packed function.
 
@@ -509,14 +494,6 @@ def call_extern(dtype, func_name, *args, span=None):
         span=span,
         ty=dtype,
     )
-
-
-def _require_float_arg(op_name, x):
-    x = tirx.convert(x)
-    dtype = _primexpr_dtype(x)
-    if "float" not in dtype and "bfloat" not in dtype:
-        raise TypeError(f"tirx.{op_name} only supports floating-point inputs, but got {dtype}")
-    return x
 
 
 def call_llvm_intrin(dtype, name, *args, span=None):
@@ -694,22 +671,6 @@ def tvm_stack_make_array(
         elem_offset,
         span=span,
     )
-
-
-def assume(cond=None, *, ty=None, span=None):
-    """Provide a true statement that can be used for simplifications
-
-    Parameters
-    ----------
-    cond : Expr
-       The constraint condition.
-
-    Returns
-    -------
-    call : Expr
-        The call expression.
-    """
-    return call_intrin(ty, "tirx.assume", cond, span=span)
 
 
 def assume_aligned(tensor, alignment_bytes, *, ty=None, span=None):
@@ -908,39 +869,19 @@ def tvm_thread_invariant(cond, *, ty=None, span=None):
     return call_intrin(ty, "tirx.tvm_thread_invariant", cond, span=span)
 
 
-def tvm_storage_sync(storage_scope, is_load=False, num_blocks=-1, *, dtype="void"):
-    """Perform synchronization in specified scope.
+def tvm_storage_sync(storage_scope, *, ty=None, span=None):
+    """Synchronize accesses in the specified storage scope.
 
     Parameters
     ----------
     storage_scope : str
-        The storage scope to perform synchronization.
-
-    is_load : bool or Expr or None
-        Whether to perform load synchronization. (for global sync only)
-        Set both ``is_load`` and ``num_blocks`` to None to omit these operands.
-
-    num_blocks : int or Expr or None
-        The number of blocks to synchronize. (for global sync only)
-        Set to None to omit this operand.
-
-    dtype : str or tvm.ir.Type
-        The stored result type. Defaults to void.
-
-    Returns
-    -------
-    call : Expr
-        The call expression.
+        The storage scope to synchronize.
+    ty : tvm.ir.Type or str, optional
+        The result type. Inferred as void when omitted.
+    span : tvm.ir.Span, optional
+        The source location.
     """
-    args = [storage_scope]
-    if is_load is None:
-        if num_blocks is not None:
-            raise ValueError("num_blocks must be None when is_load is omitted")
-    else:
-        args.append(is_load)
-        if num_blocks is not None:
-            args.append(num_blocks)
-    return call_intrin(dtype, "tirx.tvm_storage_sync", *args)
+    return call_intrin(ty, "tirx.tvm_storage_sync", storage_scope, span=span)
 
 
 def cpu_parallel_barrier(*, ty=None, span=None):
@@ -1211,134 +1152,6 @@ def print_buffer(
     )
 
 
-def cooperative_tensor_fill(
-    d: Var,
-    index: Expr,
-    value: Expr,
-    rows: int,
-    cols: int,
-    *,
-    ty=None,
-    span=None,
-):
-    return call_intrin(
-        ty,
-        "tirx.cooperative_tensor_fill",
-        d,
-        index,
-        value,
-        rows,
-        cols,
-        span=span,
-    )
-
-
-def cooperative_tensor_load(
-    d: Var,
-    index: Expr,
-    ptr: Expr,
-    stride: Expr,
-    rows: int,
-    cols: int,
-    transpose_matrix: bool = False,
-    mma_M: int = 0,
-    mma_N: int = 0,
-    mma_K: int = 0,
-    operand_role: int = 0,
-    *,
-    ty=None,
-    span=None,
-):
-    return call_intrin(
-        ty,
-        "tirx.cooperative_tensor_load",
-        d,
-        index,
-        ptr,
-        stride,
-        rows,
-        cols,
-        transpose_matrix,
-        mma_M,
-        mma_N,
-        mma_K,
-        operand_role,
-        span=span,
-    )
-
-
-def cooperative_tensor_store(
-    d: Expr,
-    index: Expr,
-    ptr: Expr,
-    stride: Expr,
-    rows: int,
-    cols: int,
-    transpose_matrix: bool = False,
-    mma_M: int = 0,
-    mma_N: int = 0,
-    mma_K: int = 0,
-    operand_role: int = 0,
-    *,
-    ty=None,
-    span=None,
-):
-    return call_intrin(
-        ty,
-        "tirx.cooperative_tensor_store",
-        d,
-        index,
-        ptr,
-        stride,
-        rows,
-        cols,
-        transpose_matrix,
-        mma_M,
-        mma_N,
-        mma_K,
-        operand_role,
-        span=span,
-    )
-
-
-def cooperative_tensor_multiply_accumulate(
-    d: Var,
-    index_d: Expr,
-    a: Var,
-    index_a: Expr,
-    b: Var,
-    index_b: Expr,
-    c: Var,
-    index_c: Expr,
-    M: int,
-    N: int,
-    K: int,
-    transpose_a: bool = False,
-    transpose_b: bool = False,
-    *,
-    ty=None,
-    span=None,
-):
-    return call_intrin(
-        ty,
-        "tirx.cooperative_tensor_multiply_accumulate",
-        d,
-        index_d,
-        a,
-        index_a,
-        b,
-        index_b,
-        c,
-        index_c,
-        M,
-        N,
-        K,
-        transpose_a,
-        transpose_b,
-        span=span,
-    )
-
-
 def vectorlow(dtype, vec):
     """Get the low level half of the vector
 
@@ -1418,25 +1231,6 @@ def dp4a(vec1, vec2, acc=0, **kwargs):
     return Call("tirx.dp4a", [vec1, vec2, acc], **kwargs)
 
 
-def infinity(dtype: str, span: Span | None = None) -> Any:
-    """infinity value of dtype
-
-    Parameters
-    ----------
-    dtype : str
-        The data type.
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    value : tvm.Expr
-        The infinity value of dtype.
-    """
-    return _ffi_api.infinity(dtype, span)  # type: ignore
-
-
 def reinterpret(dtype, value, span: Span | None = None) -> Expr:
     """Reinterpret a value as an exact primitive or pointer type.
 
@@ -1461,615 +1255,6 @@ def reinterpret(dtype, value, span: Span | None = None) -> Expr:
             PointerType(tvm.ir.PrimType("void")) if dtype == "handle" else tvm.ir.PrimType(dtype)
         )
     return _ffi_api.reinterpret(dtype, value, span)  # type: ignore
-
-
-def exp(x, *, ty=None, span=None):
-    """Take exponential of input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.exp", x, span=span)
-
-
-def exp2(x, *, ty=None, span=None):
-    """Calculate 2**x
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.exp2", x, span=span)
-
-
-def exp10(x, *, ty=None, span=None):
-    """Calculate 10**x
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.exp10", x, span=span)
-
-
-def fma(x, y, z, *, ty=None, span=None):
-    """Take fused multiply-add of input x, y, z.
-
-    Parameters
-    ----------
-    x : Expr
-        First input argument.
-
-    y : Expr
-        Second input argument.
-
-    z : Expr
-        Third input argument.
-
-    Returns
-    -------
-    out : Expr
-        The result of x * y + z.
-    """
-    x = tir.convert(x)
-    y = tir.convert(y)
-    z = tir.convert(z)
-    return call_intrin(ty, "tirx.fma", x, y, z, span=span)
-
-
-def erf(x, *, ty=None, span=None):
-    """Take gauss error function of the input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.erf", x, span=span)
-
-
-def tanh(x, *, ty=None, span=None):
-    """Take hyperbolic tanh of input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.tanh", x, span=span)
-
-
-def sigmoid(x, *, ty=None, span=None):
-    """Quick function to get sigmoid
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.sigmoid", x, span=span)
-
-
-def log(x, *, ty=None, span=None):
-    """Take log of input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.log", x, span=span)
-
-
-def log10(x, *, ty=None, span=None):
-    """Take log10 of input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.log10", x, span=span)
-
-
-def log1p(x, *, ty=None, span=None):
-    """Take log(x + 1) with respect to input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.log1p", x, span=span)
-
-
-def tan(x, *, ty=None, span=None):
-    """Take tan of input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = _require_float_arg("tan", x)
-    return call_intrin(ty, "tirx.tan", x, span=span)
-
-
-def cos(x, *, ty=None, span=None):
-    """Take cos of input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = _require_float_arg("cos", x)
-    return call_intrin(ty, "tirx.cos", x, span=span)
-
-
-def cosh(x, *, ty=None, span=None):
-    """Take cosh of input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.cosh", x, span=span)
-
-
-def acos(x, *, ty=None, span=None):
-    """Take acos of input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.acos", x, span=span)
-
-
-def acosh(x, *, ty=None, span=None):
-    """Take acos of input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.acosh", x, span=span)
-
-
-def sin(x, *, ty=None, span=None):
-    """Take sin of input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = _require_float_arg("sin", x)
-    return call_intrin(ty, "tirx.sin", x, span=span)
-
-
-def sinh(x, *, ty=None, span=None):
-    """Take sinh of input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.sinh", x, span=span)
-
-
-def asin(x, *, ty=None, span=None):
-    """Take asin of input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.asin", x, span=span)
-
-
-def asinh(x, *, ty=None, span=None):
-    """Take asinh of input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.asinh", x, span=span)
-
-
-def atan(x, *, ty=None, span=None):
-    """Take atan of input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.atan", x, span=span)
-
-
-def atanh(x, *, ty=None, span=None):
-    """Take atanh of input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.atanh", x, span=span)
-
-
-def atan2(x1, x2, *, ty=None, span=None):
-    """Take arctan2(x1, x2).
-
-    Parameters
-    ----------
-    x1 : Expr
-        Input argument.
-
-    x2 : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x1 = tir.convert(x1)
-    x2 = tir.convert(x2)
-    return call_intrin(ty, "tirx.atan2", x1, x2, span=span)
-
-
-def sqrt(x, *, ty=None, span=None):
-    """Take square root of input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.sqrt", x, span=span)
-
-
-def rsqrt(x, *, ty=None, span=None):
-    """Take reciprocal of square root of input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.rsqrt", x, span=span)
-
-
-def floor(x: ExprWithOp, span=None):
-    """Take floor of float input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    return _ffi_api.floor(x, span)  # type: ignore
-
-
-def trunc(x, span=None):
-    """Get truncated value of the input.
-
-    The truncated value of the scalar x is the
-    nearest integer i which is closer to zero than x is.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    return _ffi_api.trunc(x, span)  # type: ignore
-
-
-def abs(x, span=None):
-    """Get absolute value of the input element-wise.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    return _ffi_api.abs(x, span)  # type: ignore
-
-
-def round(x, span=None):
-    """Round elements of the array to the nearest integer.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    return _ffi_api.round(x, span)  # type: ignore
-
-
-def nearbyint(x, span=None):
-    """Round elements of the array to the nearest integer.
-    This intrinsic uses llvm.nearbyint instead of llvm.round
-    which is faster but will results different from te.round.
-    Notably nearbyint rounds according to the rounding mode,
-    whereas te.round (llvm.round) ignores that.
-    For differences between the two see:
-    https://en.cppreference.com/w/cpp/numeric/math/round
-    https://en.cppreference.com/w/cpp/numeric/math/nearbyint
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    return _ffi_api.nearbyint(x, span)  # type: ignore
-
-
-def nextafter(x1, x2, *, ty=None, span=None):
-    """Return the next floating-point value after x1 towards x2.
-
-    Parameters
-    ----------
-    x1 : Expr
-        Input argument.
-
-    x2 : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x1 = tir.convert(x1)
-    x2 = tir.convert(x2)
-    return call_intrin(ty, "tirx.nextafter", x1, x2, span=span)  # type: ignore
-
-
-def hypot(x1, x2, *, ty=None, span=None):
-    """Equivalent to sqrt(x1**2 + x2**2), element-wise.
-
-    Parameters
-    ----------
-    x1 : Expr
-        Input argument.
-
-    x2 : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x1 = tir.convert(x1)
-    x2 = tir.convert(x2)
-    return call_intrin(ty, "tirx.hypot", x1, x2, span=span)  # type: ignore
-
-
-def copysign(x1, x2, *, ty=None, span=None):
-    """Change the sign of x1 to that of x2, element-wise.
-
-    Parameters
-    ----------
-    x1 : Expr
-        Input argument.
-
-    x2 : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x1 = tir.convert(x1)
-    x2 = tir.convert(x2)
-    return call_intrin(ty, "tirx.copysign", x1, x2, span=span)  # type: ignore
-
-
-def ldexp(x1, x2, *, ty=None, span=None):
-    """Returns x1 * (2 ** x2).
-
-    Parameters
-    ----------
-    x1 : Expr
-        Input argument.
-
-    x2 : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x1 = tir.convert(x1)
-    x2 = tir.convert(x2)
-    return call_intrin(ty, "tirx.ldexp", x1, x2, span=span)  # type: ignore
 
 
 def filter(var, pred, *, span=None, ty=None):  # pylint: disable=redefined-builtin
@@ -2104,25 +1289,6 @@ def selector(var, pred, span=None, *, ty=None):
     return call_intrin(ty, "tirx.selector", var, pred, span=span)
 
 
-def isnan(x, span=None):
-    """Check if input value is Nan.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    return _ffi_api.isnan(x, span)  # type: ignore
-
-
 def isnullptr(x, span=None, *, ty=None):
     """Check if input value is nullptr.
 
@@ -2140,204 +1306,6 @@ def isnullptr(x, span=None, *, ty=None):
         The result.
     """
     return call_intrin(ty, "tirx.isnullptr", x, span=span)  # type: ignore
-
-
-def isfinite(x, span=None):
-    """Check if input value is finite.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    return _ffi_api.isfinite(x, span)  # type: ignore
-
-
-def isinf(x, span=None):
-    """Check if input value is infinite.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    return _ffi_api.isinf(x, span)  # type: ignore
-
-
-def power(x, y, span=None):
-    """x power y
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    y : Expr
-        The exponent
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    z : Expr
-        The result.
-    """
-    return _ffi_api._OpPow(x, y, span)  # type: ignore
-
-
-def pow(x, y, span=None):
-    """x power y
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    y : Expr
-        The exponent
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    z : Expr
-        The result.
-    """
-    return _ffi_api._OpPow(x, y, span)  # type: ignore
-
-
-def popcount(x, *, ty=None, span=None):
-    """Count the number of set bits in input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(ty, "tirx.popcount", x, span=span)
-
-
-def q_multiply_shift(x, y, q, s, *, ty=None, span=None):
-    """Execute a multiplication between two Q-numbers x and y
-    followed by a right shift s. The mathematical expression is:
-
-       out = round(x*y*2^-s)
-
-    More about Q-numbers here: https://en.wikipedia.org/wiki/Q_(number_format)
-    The rounding rule is to the nearest value, rounding half up
-    (i.e., round(x.1) = x and round (x.5) = x+1)
-
-    Parameters
-    ----------
-    x : Expr
-        First Q-number
-    y : Expr
-        Second Q-number
-    q : Expr
-        Number of fractional bits in x and y. Needs to be > 0
-    s : Expr
-        Integer shift
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    return call_intrin(ty, "tirx.q_multiply_shift", x, y, q, s, span=span)
-
-
-def q_multiply_shift_per_axis(
-    x: Expr,
-    y: Expr,
-    ls: Expr,
-    rs: Expr,
-    q: IntImm,
-    is_lshift_required: IntImm,
-    is_rshift_required: IntImm,
-    *,
-    ty=None,
-    span=None,
-):
-    """Execute a multiplication between two Q-numbers x and y
-
-    Parameters
-    ----------
-    x : Expr
-        First Q-number.
-    y : Expr
-        Second Q-number.
-    ls : Expr
-         Integer left shift.
-    rs : Expr
-         Integer right shift.
-    q : IntImm
-        Number of fractional bits in x and y. Needs to be > 0.
-    is_lshift_required : IntImm
-                         Whether we need to do left shift or not.
-    is_rshift_required : IntImm
-                         Whether we need to do right shift or not.
-
-    Returns
-    -------
-    z : Expr
-        The result.
-    """
-    return call_intrin(
-        ty,
-        "tirx.q_multiply_shift_per_axis",
-        x,
-        y,
-        ls,
-        rs,
-        q,
-        is_lshift_required,
-        is_rshift_required,
-        span=span,
-    )
-
-
-def fmod(x, y, *, ty=None, span=None):
-    """Return the remainder of x divided by y with the same sign as x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-    y : Expr
-        Input argument.
-
-    Returns
-    -------
-    z : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    y = tir.convert(y)
-    return call_intrin(ty, "tirx.fmod", x, y, span=span)
 
 
 def logaddexp(a, b, span=None):

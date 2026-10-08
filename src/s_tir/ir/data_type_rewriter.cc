@@ -19,7 +19,7 @@
 
 #include "data_type_rewriter.h"
 
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
 
 #include <functional>
 

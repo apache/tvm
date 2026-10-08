@@ -21,6 +21,7 @@
  *  Lower TVM related builtin intrinsics such as packed call.
  * \file tirx/transform/lower_tvm_builtin.cc
  */
+#include <tvm/backend/cuda/op.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -29,7 +30,9 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -426,8 +429,8 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(tensormap_encode_tiled_op()) && !preserve_ffi_kernel_) {
-      const auto* attr = op->attrs.as<TensorMapEncodeTiledAttr>();
+    if (op->op.same_as(backend::cuda::tensormap_encode_tiled_op()) && !preserve_ffi_kernel_) {
+      const auto* attr = op->attrs.as<backend::cuda::TensorMapEncodeTiledAttr>();
       TVM_FFI_CHECK(attr && attr->rank >= 1 && attr->rank <= 5 &&
                         op->args.size() == static_cast<size_t>(4 * attr->rank + 1),
                     ValueError)
@@ -514,7 +517,7 @@ class BuiltinLower : public StmtExprMutator {
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, kDLTensorShape, op->args[1]));
     Expr strides = op->args[2];
     if (auto prim_strides = strides.as<PrimExpr>(); prim_strides && IsZero(prim_strides.value())) {
-      strides = ConstHandle(0);
+      strides = tirx::ConstHandle(0);
     }
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, kDLTensorStrides, strides));
     prep_seq.emplace_back(
@@ -551,7 +554,7 @@ class BuiltinLower : public StmtExprMutator {
     int arg_type_index;
     if (arg.as<StringImmNode>()) {
       arg_type_index = ffi::TypeIndex::kTVMFFIRawStr;
-      arg = reinterpret(PointerType::VoidPointerTy(), std::move(arg));
+      arg = tirx::reinterpret(PointerType::VoidPointerTy(), std::move(arg));
     } else if (arg->ty.as<PointerTypeNode>()) {
       arg_type_index = IsArrayHandle(arg) ? ffi::TypeIndex::kTVMFFIDLTensorPtr
                                           : ffi::TypeIndex::kTVMFFIOpaquePtr;

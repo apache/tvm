@@ -103,7 +103,7 @@ program, but enter the compiler at different levels:
      - Creates TIRx statements, expressions, buffers, and control flow.
    * - Tile primitives
      - ``Tx.tile.*``
-     - Creates a ``TilePrimitiveCall`` that is replaced by a target-specific
+     - Creates a ``TileOpCall`` that is replaced by a target-specific
        implementation during tile dispatch.
    * - Backend operations
      - ``Tx.cuda.*`` and ``Tx.ptx.*``
@@ -117,7 +117,7 @@ convert the program to the separate ``tvm.tir`` object model.
 .. code-block:: text
 
    Tx.* ──────────────────────────────▶ TIRx statements and expressions ──────┐
-   Tx.tile.* ─▶ TilePrimitiveCall ─▶ target dispatch ─────────────────────────┤
+   Tx.tile.* ─▶ TileOpCall ─▶ target dispatch ─────────────────────────┤
    Tx.cuda.* / Tx.ptx.* ─────────────▶ backend calls ─────────────────────────┤
                                                                                ▼
                                              layout and scope lowering ─▶ codegen
