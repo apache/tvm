@@ -292,6 +292,22 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("ir.AnyType", [](Span span) { return AnyType(span); });
 }
 
+TensorRegionType::TensorRegionType() : Type(ffi::UnsafeInit{}) {
+  static const auto singleton = ffi::make_object<TensorRegionTypeNode>();
+  data_ = singleton;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  TensorRegionTypeNode::RegisterReflection();
+  refl::TypeAttrDef<TensorRegionTypeNode>()
+      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&TypeVisit>())
+      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&TypeMutate>())
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            ffi::FStructuralMutate::FromNative<&TypeMaybeInplaceMutate>());
+  refl::GlobalDef().def("ir.TensorRegionType", []() { return TensorRegionType(); });
+}
+
 OpaqueType::OpaqueType() : Type(ffi::UnsafeInit{}) { data_ = ffi::make_object<OpaqueTypeNode>(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

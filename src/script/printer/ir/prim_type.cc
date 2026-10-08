@@ -117,6 +117,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       kDocTranslate, FDocTranslate::FromNative<&StringTypeDocTranslate>());
 }
 
+ffi::Optional<ExprDoc> TensorRegionTypeDocTranslate(DocTranslatorObj*, ffi::AnyView,
+                                                    const ffi::Object*) {
+  return NamespaceDoc("ir")->Attr("TensorRegionType")->Call({});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<TensorRegionTypeNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&TensorRegionTypeDocTranslate>());
+}
+
 ffi::Optional<ExprDoc> TupleTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                              const ffi::Object*) {
   const auto* ty =

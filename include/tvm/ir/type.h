@@ -57,6 +57,25 @@ class AnyType : public Type {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AnyType, Type, AnyTypeNode);
 };
 
+/*! \brief The type of a multi-dimensional tensor region expression. */
+class TensorRegionTypeNode : public TypeNode {
+ public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TensorRegionTypeNode>();
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.TensorRegionType", TensorRegionTypeNode, TypeNode);
+};
+
+/*! \brief Managed reference to TensorRegionTypeNode. */
+class TensorRegionType : public Type {
+ public:
+  TVM_DLL TensorRegionType();
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorRegionType, Type, TensorRegionTypeNode);
+};
+
 /*! \brief Semantic string type; its physical representation is context dependent. */
 class StringTypeNode : public TypeNode {
  public:

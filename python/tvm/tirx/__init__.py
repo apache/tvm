@@ -52,7 +52,7 @@ from .stmt import TensorStore, RegionStmt
 
 from .stmt import SeqStmt
 from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
-from .stmt import BufferRegion, BufferRegionType
+from .stmt import BufferRegion
 from .stmt import ScopeIdDefStmt
 from .tile_primitive import DispatchContext, TilePrimitiveCall
 

@@ -69,6 +69,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterScriptRepr<RangeNode>();
   RegisterScriptRepr<StringImmNode>();
   RegisterScriptRepr<TensorLoadNode>();
+  RegisterScriptRepr<TensorRegionTypeNode>();
   RegisterScriptRepr<TupleTypeNode>();
   RegisterScriptRepr<VarNode>();
   RegisterScriptRepr<prim::AddNode>();
