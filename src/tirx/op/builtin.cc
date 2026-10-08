@@ -29,7 +29,6 @@
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/annotation.h>
 #include <tvm/tirx/op/cpu.h>
-#include <tvm/tirx/op/debug.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
@@ -99,11 +98,6 @@ Type InferTypeAccessPointer(const CallNode* call) {
   TVM_FFI_CHECK_EQ(call->args.size(), 4U, ValueError);
   auto pointer = call->args[0]->ty.as<PointerType>();
   return PointerType(call->ty_args[0], pointer ? pointer.value()->storage_scope : "global");
-}
-
-Type InferTypePrintBuffer(const CallNode* call) {
-  TVM_FFI_CHECK_GE(call->args.size(), 2U, ValueError);
-  return PrimType(ffi::StringToDLDataType(call->args[1].as_or_throw<StringImm>()->value));
 }
 
 Type InferTypeStackAlloca(const CallNode* call) {
@@ -409,7 +403,6 @@ TVM_DEFINE_CACHED_OP_GETTER(alloc_tensor_op, "tirx.alloc_tensor")
 TVM_DEFINE_CACHED_OP_GETTER(decl_tensor_op, "tirx.decl_tensor")
 TVM_DEFINE_CACHED_OP_GETTER(buffer_offset_op, "tirx.buffer_offset")
 TVM_DEFINE_CACHED_OP_GETTER(tensor_data_ptr_op, "tirx.tensor_data_ptr")
-TVM_DEFINE_CACHED_OP_GETTER(print_buffer_op, "tirx.print_buffer")
 
 // Region operations.
 TVM_DEFINE_CACHED_OP_GETTER(launch_thread_op, "tirx.launch_thread")
@@ -863,16 +856,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeTensorDataPtr>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
-
-  OpDef("tirx.print_buffer")
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypePrintBuffer>())
-      .signature(sig::arg("data", "The input data."), sig::arg("dtype", "The data type."),
-                 sig::arg("is_string", "Whether to print as a string."),
-                 sig::arg("is_scalar", "Whether to print as a scalar."),
-                 sig::arg<IntExpr>("ndim", "The number of dimensions."), sig::var_args("args"))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.print_buffer"))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   // Region operations.
   OpDef("tirx.device_entry", "Mark a device entry containing scope definitions.")

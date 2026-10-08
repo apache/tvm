@@ -442,9 +442,6 @@ ptr_byte_offset = _tir_op.ptr_byte_offset
 tvm_throw_last_error = _tir_op.tvm_throw_last_error
 
 
-print_buffer = _tir_op.print_buffer
-
-
 tvm_stack_alloca = _tir_op.tvm_stack_alloca
 
 
@@ -849,7 +846,6 @@ __all__ = [
     "nextafter",
     "popcount",
     "pow",
-    "print_buffer",
     "ptr_byte_offset",
     "ramp",
     "register_script_namespace",

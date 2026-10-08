@@ -217,7 +217,7 @@ def test_host():
                     T.ptx.mbarrier.arrive.expect_tx.shared.b64(bar.data, T.uint32(16*16*4))
                 T.cuda.mbarrier_wait(bar.data, phase[0])
                 phase[0] = phase[0] ^ 1
-                T.print_buffer(A_smem.data, "float32", False, False, 2, 16*16)
+                T.evaluate(A_smem[0, 0])
         # fmt: on
     verify(test1)
 

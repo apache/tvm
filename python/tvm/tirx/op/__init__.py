@@ -1112,46 +1112,6 @@ def tvm_throw_last_error(*, ty=None, span=None):
     return call_intrin(ty, "tirx.tvm_throw_last_error", span=span)
 
 
-def print_buffer(
-    buffer_var,
-    dtype,
-    is_string,
-    is_scalar,
-    dim_num,
-    *shape,
-    ty=None,
-    span=None,
-):
-    """Print out buffer memory during runtime."""
-    if len(shape) == 1 and isinstance(shape[0], tuple | list | tvm.ir.Array):
-        final_shape_args = list(shape[0])
-    else:
-        final_shape_args = list(shape)
-    if isinstance(dtype, tvm.ir.PrimType):
-        dtype = dtype.dtype
-    if isinstance(dtype, tvm.ir.StringImm):
-        dtype = dtype.value
-    if isinstance(is_string, IntImm):
-        is_string = is_string.value
-    if isinstance(is_scalar, IntImm):
-        is_scalar = is_scalar.value
-    if isinstance(dim_num, IntImm):
-        dim_num = dim_num.value
-    return Call(
-        "tirx.print_buffer",
-        [
-            buffer_var,
-            str(tvm.DataType(dtype)),
-            const(bool(is_string), "bool"),
-            const(bool(is_scalar), "bool"),
-            const(dim_num, "uint32"),
-            *final_shape_args,
-        ],
-        ty=ty,
-        span=span,
-    )
-
-
 def vectorlow(dtype, vec):
     """Get the low level half of the vector
 

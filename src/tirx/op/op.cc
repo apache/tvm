@@ -22,7 +22,6 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/op/abi.h>
-#include <tvm/tirx/op/debug.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/math.h>
 #include <tvm/tirx/op/memory.h>
@@ -89,52 +88,6 @@ PrimExpr fast_erf_float_expr(PrimExpr arg, int bits) {
   q = x2 * q + beta_0;
 
   return p / q;
-}
-
-bool ExtractBool(const ffi::PackedArgs& args, int index) {
-  try {
-    return args[index].cast<bool>();
-  } catch (...) {
-    // Handle IntImm case (from TIR parsing)
-    PrimExpr expr = args[index].cast<PrimExpr>();
-    if (auto int_imm = expr.as<IntImmNode>()) {
-      return int_imm->value != 0;
-    }
-    LOG(FATAL) << "Cannot extract bool from argument at index " << index;
-    return false;
-  }
-}
-
-int ExtractInt(const ffi::PackedArgs& args, int index) {
-  try {
-    return args[index].cast<int>();
-  } catch (...) {
-    // Handle IntImm case (from TIR parsing)
-    PrimExpr expr = args[index].cast<PrimExpr>();
-    if (auto int_imm = expr.as<IntImmNode>()) {
-      auto value = int_imm->value.as<int>();
-      TVM_FFI_CHECK(value.has_value(), OverflowError) << "Integer argument does not fit int";
-      return *value;
-    }
-    LOG(FATAL) << "Cannot extract int from argument at index " << index;
-    return 0;
-  }
-}
-
-PrimExpr PrintOpPacked(Expr data, DLDataType dtype, bool is_string, bool is_scalar, int dim_num,
-                       ffi::Array<PrimExpr> shape) {
-  PrimType value_ty(dtype);
-  PrimType u32_ty = PrimType::UInt(32);
-  ffi::Array<Expr> args;
-  args.push_back(data);
-  args.push_back(StringImm(ffi::DLDataTypeToString(dtype)));
-  args.push_back(IntImm::Bool(is_string));
-  args.push_back(IntImm::Bool(is_scalar));
-  args.push_back(IntImm(u32_ty, dim_num));
-  for (const auto& dim : shape) {
-    args.push_back(dim);
-  }
-  return Call(value_ty, tirx::print_buffer_op(), args).as_or_throw<PrimExpr>();
 }
 
 PrimExpr reinterpret(PrimType t, PrimExpr value, Span span) {
@@ -224,34 +177,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](Type dtype, Expr value, Span span) { return reinterpret(dtype, value, span); })
       .def("tirx._OpLogAddExp",
            [](PrimExpr a, PrimExpr b, Span span) { return logaddexp(a, b, span); });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("tirx.print_buffer", [](ffi::PackedArgs args, ffi::Any* ret) {
-    // Expected arguments:
-    // args[0]: buffer data expression
-    // args[1]: dtype (DLDataType)
-    // args[2]: is_string (bool or IntImm)
-    // args[3]: is_scalar (bool or IntImm)
-    // args[4]: dim_num (int or IntImm)
-    // args[5...]: shape dimensions (PrimExpr)
-
-    TVM_FFI_ICHECK_GE(args.size(), 5) << "print_buffer expects at least 5 arguments";
-
-    Expr buffer_data = args[0].cast<Expr>();
-    DLDataType dtype = args[1].cast<DLDataType>();
-    bool is_string = ExtractBool(args, 2);
-    bool is_scalar = ExtractBool(args, 3);
-    int dim_num = ExtractInt(args, 4);
-
-    ffi::Array<PrimExpr> shape;
-    for (int i = 5; i < args.size(); ++i) {
-      shape.push_back(args[i].cast<PrimExpr>());
-    }
-
-    *ret = PrintOpPacked(buffer_data, dtype, is_string, is_scalar, dim_num, shape);
-  });
 }
 
 }  // namespace tvm::tirx

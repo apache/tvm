@@ -50,9 +50,8 @@ compiled module.
     # the generated CUDA C source, from the compiled Executable:
     print(exe.mod.imports[0].inspect_source())
 
-Debug aids: ``Tx.print_buffer(C.data, "float32", False, False, 1, (M,))`` emits a
-runtime ``printf`` of a buffer into the kernel; ``Tx.hint("message")`` (statement
-or ``with`` block) attaches structured hints that survive a script round-trip.
+``Tx.hint("message")`` (statement or ``with`` block) attaches structured hints
+that survive a script round-trip.
 
 From simple to complex
 ----------------------
