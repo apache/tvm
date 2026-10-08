@@ -63,34 +63,33 @@ TEST(OpSignature, MetadataAndValidator) {
   EXPECT_TRUE(minimum.defined());
   EXPECT_TRUE(extended.defined());
 
-  EXPECT_THROW(Call(AnyType(), op, {ordinary}, DictAttrs(), {scalar}), ffi::Error);
-  Call too_few = Call::Unchecked(AnyType(), op, {ordinary}, DictAttrs(), {scalar});
+  EXPECT_THROW(Call(AnyType(), op, {ordinary}, DictAttrs(), {scalar}).Validate(), ffi::Error);
+  Call too_few = Call(AnyType(), op, {ordinary}, DictAttrs(), {scalar});
   EXPECT_TRUE(too_few.defined());
 
-  std::string fixed_error = ValidationError(
-      op, Call::Unchecked(AnyType(), op, {ordinary, ordinary}, DictAttrs(), {scalar}));
+  std::string fixed_error =
+      ValidationError(op, Call(AnyType(), op, {ordinary, ordinary}, DictAttrs(), {scalar}));
   EXPECT_EQ(fixed_error,
             "Op `test.op_signature.typed`: `Call.args[1]` (`index`) expected `ir.PrimExpr`, got "
             "`ir.Var[ty=ir.AnyType]`.");
-  std::string tail_error = ValidationError(
-      op, Call::Unchecked(AnyType(), op, {ordinary, index, ordinary}, DictAttrs(), {scalar}));
+  std::string tail_error =
+      ValidationError(op, Call(AnyType(), op, {ordinary, index, ordinary}, DictAttrs(), {scalar}));
   EXPECT_EQ(tail_error,
             "Op `test.op_signature.typed`: `Call.args[2]` (`rest`) expected `ir.PrimExpr`, got "
             "`ir.Var[ty=ir.AnyType]`.");
-  EXPECT_EQ(ValidationError(op, Call::Unchecked(AnyType(), op, {ordinary, index}, DictAttrs(),
-                                                {scalar, StringType()})),
+  EXPECT_EQ(ValidationError(
+                op, Call(AnyType(), op, {ordinary, index}, DictAttrs(), {scalar, StringType()})),
             "Op `test.op_signature.typed`: `Call.ty_args[1]` (`Ts`) expected `ir.PrimType`, got "
             "`ir.StringType`.");
   EXPECT_EQ(ValidationError(op, too_few),
             "Op `test.op_signature.typed`: Call.args expected at least 2 arguments, got 1");
-  EXPECT_EQ(ValidationError(op, Call::Unchecked(AnyType(), op, {ordinary, index}, DictAttrs(), {})),
+  EXPECT_EQ(ValidationError(op, Call(AnyType(), op, {ordinary, index}, DictAttrs(), {})),
             "Op `test.op_signature.typed`: Call.ty_args expected at least 1 type argument, got "
             "0");
-  EXPECT_EQ(
-      ValidationError(op, Call::Unchecked(AnyType(), op, {ordinary, index}, Attrs(), {scalar})),
-      "Op `test.op_signature.typed`: Call.attrs expected `ir.DictAttrs`, got None");
-  EXPECT_EQ(ValidationError(op, Call::Unchecked(AnyType(), op, {ordinary, index},
-                                                Attrs(ffi::make_object<AttrsNode>()), {scalar})),
+  EXPECT_EQ(ValidationError(op, Call(AnyType(), op, {ordinary, index}, Attrs(), {scalar})),
+            "Op `test.op_signature.typed`: Call.attrs expected `ir.DictAttrs`, got None");
+  EXPECT_EQ(ValidationError(op, Call(AnyType(), op, {ordinary, index},
+                                     Attrs(ffi::make_object<AttrsNode>()), {scalar})),
             "Op `test.op_signature.typed`: Call.attrs expected `ir.DictAttrs`, got `ir.Attrs`");
 
   ffi::Any non_expr(ffi::String("text"));
@@ -122,15 +121,13 @@ TEST(OpSignature, DefaultsAndRepeatedRegistration) {
   EXPECT_FALSE(op->var_ty_args_info.has_value());
   EXPECT_NO_THROW(Call(AnyType(), op, {Var("x", AnyType())}, Attrs(), {AnyType()}));
   EXPECT_NO_THROW(Call(AnyType(), op, {Var("x", AnyType())}, DictAttrs(), {AnyType()}));
-  EXPECT_EQ(
-      ValidationError(op, Call::Unchecked(AnyType(), op, {Var("x", AnyType()), Var("y", AnyType())},
-                                          Attrs(), {AnyType()})),
-      "Op `test.op_signature.defaults`: Call.args expected 1 argument, got 2");
+  EXPECT_EQ(ValidationError(op, Call(AnyType(), op, {Var("x", AnyType()), Var("y", AnyType())},
+                                     Attrs(), {AnyType()})),
+            "Op `test.op_signature.defaults`: Call.args expected 1 argument, got 2");
 
   OpDef unnamed("test.op_signature.unnamed");
   unnamed.signature(sig::arg<PrimExpr>(""));
-  EXPECT_EQ(ValidationError(unnamed.op(),
-                            Call::Unchecked(AnyType(), unnamed.op(), {Var("x", AnyType())})),
+  EXPECT_EQ(ValidationError(unnamed.op(), Call(AnyType(), unnamed.op(), {Var("x", AnyType())})),
             "Op `test.op_signature.unnamed`: `Call.args[0]` expected `ir.PrimExpr`, got "
             "`ir.Var[ty=ir.AnyType]`.");
 
@@ -181,7 +178,7 @@ TEST(OpSignature, DefaultsAndRepeatedRegistration) {
   EXPECT_EQ(manual.op()->args_info[0]->name, "value");
   Call manual_call(AnyType(), manual.op(), {Var("x", AnyType())});
   manual.op().Validate(manual_call.get());
-  EXPECT_EQ(manual_calls, 2);
+  EXPECT_EQ(manual_calls, 1);
   ffi::TypedFunction<ffi::Expected<void>(const CallNode*)> failing_hook(
       [](const CallNode*) -> ffi::Expected<void> {
         return TVM_FFI_UNEXPECTED(TypeError) << "packed validator rejected Call";

@@ -18,61 +18,74 @@
 
 from __future__ import annotations
 
-from tvm.tirx.op import call_intrin
+from tvm.ir import Call
 
 
-def make_filled_simdgroup_matrix(d, index, value, col=8, row=8):
+def make_filled_simdgroup_matrix(d, index, value, col=8, row=8, *, ty=None, span=None):
     """Create a filled SIMDGroup matrix."""
 
-    return call_intrin("void", "tirx.make_filled_simdgroup_matrix", d, index, value, col, row)
+    return Call(
+        "tirx.make_filled_simdgroup_matrix",
+        [d, index, value, col, row],
+        ty=ty,
+        span=span,
+    )
 
 
-def simdgroup_load(d, index, ptr, stride, col=8, row=8, transpose_matrix=False):
+def simdgroup_load(
+    d,
+    index,
+    ptr,
+    stride,
+    col=8,
+    row=8,
+    transpose_matrix=False,
+    *,
+    ty=None,
+    span=None,
+):
     """Load data from device or threadgroup memory to simdgroup."""
 
-    return call_intrin(
-        "void",
+    return Call(
         "tirx.simdgroup_load",
-        d,
-        index,
-        ptr,
-        stride,
-        col,
-        row,
-        transpose_matrix,
+        [d, index, ptr, stride, col, row, transpose_matrix],
+        ty=ty,
+        span=span,
     )
 
 
-def simdgroup_store(d, index, ptr, stride, col=8, row=8, transpose_matrix=False):
+def simdgroup_store(
+    d,
+    index,
+    ptr,
+    stride,
+    col=8,
+    row=8,
+    transpose_matrix=False,
+    *,
+    ty=None,
+    span=None,
+):
     """Store data from simdgroup to device or threadgroup memory."""
 
-    return call_intrin(
-        "void",
+    return Call(
         "tirx.simdgroup_store",
-        d,
-        index,
-        ptr,
-        stride,
-        col,
-        row,
-        transpose_matrix,
+        [d, index, ptr, stride, col, row, transpose_matrix],
+        ty=ty,
+        span=span,
     )
 
 
-def simdgroup_multiply_accumulate(d, index_d, a, index_a, b, index_b, c, index_c):
+def simdgroup_multiply_accumulate(
+    d, index_d, a, index_a, b, index_b, c, index_c, *, ty=None, span=None
+):
     """Multiply and accumulate two matrices in simdgroup."""
 
-    return call_intrin(
-        "void",
+    return Call(
         "tirx.simdgroup_multiply_accumulate",
-        d,
-        index_d,
-        a,
-        index_a,
-        b,
-        index_b,
-        c,
-        index_c,
+        [d, index_d, a, index_a, b, index_b, c, index_c],
+        ty=ty,
+        span=span,
     )
 
 

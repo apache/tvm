@@ -335,7 +335,7 @@ def test_conditional_index_mixed_width_branches():
     class Before:
         @T.function
         def main(A: T.Tensor((T.int64(4),), "float32"), B: T.Tensor((4,), "float32"), n: T.int64):
-            opaque_index: T.int64 = T.call_extern("opaque_index", n, dtype="int64")
+            opaque_index: T.int64 = T.call_extern("opaque_index", n, ty="int64")
             B[0] = A[T.if_then_else(n < T.int64(0), opaque_index, n)]
             B[1] = A[T.if_then_else(n < T.int64(0), n, opaque_index)]
             B[2] = A[T.Select(n < T.int64(0), opaque_index, n)]
@@ -345,7 +345,7 @@ def test_conditional_index_mixed_width_branches():
     class Expected:
         @T.function
         def main(A: T.Tensor((4,), "float32"), B: T.Tensor((4,), "float32"), n: T.int32):
-            opaque_index: T.int64 = T.call_extern("opaque_index", n, dtype="int64")
+            opaque_index: T.int64 = T.call_extern("opaque_index", n, ty="int64")
             B[0] = A[T.if_then_else(n < 0, opaque_index, T.Cast("int64", n))]
             B[1] = A[T.if_then_else(n < 0, T.Cast("int64", n), opaque_index)]
             B[2] = A[T.Select(n < 0, opaque_index, T.Cast("int64", n))]

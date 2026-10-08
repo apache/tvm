@@ -532,8 +532,8 @@ def test_gemm_tcgen05_cta_group_2(task):
         mma_mbar = T.alloc_shared([1], "uint64")
 
         ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64"), "shared"))] = T.reinterpret(
-            PointerType(PrimType("uint64"), "shared"), _mapa(tma_mbar.ptr_to([0]), 0)
-        )
+             _mapa(tma_mbar.ptr_to([0]), 0)
+        , ty=PointerType(PrimType("uint64"), "shared"))
         tma_mbar_cta_0 = T.decl_tensor([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:
@@ -703,8 +703,8 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
         mma_mbar = T.alloc_shared([1], "uint64")
 
         ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64"), "shared"))] = T.reinterpret(
-            PointerType(PrimType("uint64"), "shared"), _mapa(tma_mbar.ptr_to([0]), 0)
-        )
+             _mapa(tma_mbar.ptr_to([0]), 0)
+        , ty=PointerType(PrimType("uint64"), "shared"))
         tma_mbar_cta_0 = T.decl_tensor([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:
@@ -1242,7 +1242,7 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
         descSFA = T.alloc_tensor((1,), "uint64", scope="local")
         descSFB = T.alloc_tensor((1,), "uint64", scope="local")
 
-        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64"), "shared"))] = T.reinterpret(PointerType(PrimType("uint64"), "shared"), _mapa(tma_mbar.ptr_to([0]), 0))  # noqa: E501
+        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64"), "shared"))] = T.reinterpret( _mapa(tma_mbar.ptr_to([0]), 0), ty=PointerType(PrimType("uint64"), "shared"))  # noqa: E501
         tma_mbar_cta_0 = T.decl_tensor([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:
@@ -1623,7 +1623,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
         descSFA = T.alloc_tensor((1,), "uint64", scope="local")
         descSFB = T.alloc_tensor((1,), "uint64", scope="local")
 
-        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64"), "shared"))] = T.reinterpret(PointerType(PrimType("uint64"), "shared"), _mapa(tma_mbar.ptr_to([0]), 0))  # noqa: E501
+        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64"), "shared"))] = T.reinterpret( _mapa(tma_mbar.ptr_to([0]), 0), ty=PointerType(PrimType("uint64"), "shared"))  # noqa: E501
         tma_mbar_cta_0 = T.decl_tensor([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:

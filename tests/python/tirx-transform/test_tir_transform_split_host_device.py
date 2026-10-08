@@ -117,7 +117,7 @@ def test_split_host_device_on_cpu():
         @T.function
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
-            kernel_error_code: T.let[T.int32] = T.call_extern("int32", "main_kernel", n)
+            kernel_error_code: T.let[T.int32] = T.call_extern("main_kernel", n, ty="int32")
             assert kernel_error_code == 0, "Error executing compute kernel"
 
         @T.function
@@ -369,7 +369,7 @@ def test_buffer_used_only_through_data_projection():
         def main(A: T.Tensor((16,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             with T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")}):
-                T.evaluate(T.call_extern("consume", A.data, dtype="int32"))
+                T.evaluate(T.call_extern("consume", A.data, ty="int32"))
 
     after = tvm.tirx.transform.SplitHostDevice()(Before)
     kernel = after["main_kernel"]
@@ -713,7 +713,7 @@ def test_same_device_different_target():
         @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
-            T.call_extern("kernel", A.data, dtype="void")
+            T.call_extern("kernel", A.data, ty="void")
 
         @T.function
         def kernel(A_data: T.handle("float32")):
