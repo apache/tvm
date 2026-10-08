@@ -123,6 +123,34 @@ Function::Function(ffi::Array<tirx::Var> params, ffi::Optional<SeqStmt> body, Ty
   data_ = std::move(n);
 }
 
+Function RenewDef(Function func) {
+  // Seed original definitions so identities created by structural hooks are preserved.
+  ffi::Map<Var, Var> definition_remap;
+  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(func,
+                                                  [&](const Var& var, TVMFFIDefRegionKind kind) {
+                                                    if (kind != kTVMFFIDefRegionKindNone)
+                                                      definition_remap.Set(var, var);
+                                                    return ffi::WalkResult::Advance();
+                                                  });
+  return ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
+             func,
+             [remap = std::move(definition_remap)](const Var& var,
+                                                   TVMFFIDefRegionKind kind) mutable {
+               auto mapped = remap.Get(var);
+               if (!mapped.has_value()) return var;
+               if (!mapped.value().same_as(var)) return mapped.value();
+               if (kind == kTVMFFIDefRegionKindNone) return var;
+               Var fresh(var->name, var->ty, var->span);
+               remap.Set(var, fresh);
+               return fresh;
+             },
+             [](const Function& mapped) {
+               return Function(mapped->params, mapped->body, mapped->ret_type, mapped->attrs,
+                               mapped->span);
+             })
+      .as_or_throw<Function>();
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   FunctionNode::RegisterReflection();
@@ -137,6 +165,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "tirx.Function",
       [](ffi::Array<tirx::Var> params, ffi::Optional<SeqStmt> body, Type ret_type, DictAttrs attrs,
          Span span) { return Function(params, body, ret_type, attrs, span); });
+  refl::GlobalDef().def("tirx.RenewDef", RenewDef);
 }
 
 FuncType FunctionNode::func_type_annotation() const {
