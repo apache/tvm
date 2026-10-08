@@ -32,26 +32,26 @@ def test_call_type_and_validation_contract():
     for constructor in (ir.Call, I.Call):
         call = constructor("tirx.exp", [x], span=span)
         assert isinstance(call, I.Call)
-        assert isinstance(call.ty, ir.MissingType)
+        assert call.ty == ir.PrimType("float32")
         assert call.span.same_as(span)
         ir.assert_structural_equal(
             constructor("tirx.exp", [x], ty="float32"),
             ir.Call("tirx.exp", [x], ty=ir.PrimType("float32")),
         )
         with pytest.raises(TypeError):
-            constructor("tirx.exp", [], ty="float32")
-        provisional = constructor.unchecked("tirx.exp", [], ty="float32", span=span)
+            constructor("tirx.exp", [], ty="float32").validate()
+        provisional = constructor("tirx.exp", [], ty="float32", span=span)
         assert not provisional.args
         assert provisional.span.same_as(span)
         assert provisional.ty.dtype == "float32"
 
 
-@pytest.mark.parametrize("ty", [None, "float32", "handle"])
+@pytest.mark.parametrize("ty", [ir.Type.missing(), "float32", "handle"])
 def test_raw_call_preserves_provisional_fields(ty):
     # Invalid arguments and type arguments must survive the raw representation.
-    call = ir.Call.unchecked("tirx.exp", [], attrs={"tag": 7}, ty_args=[ir.StringType()], ty=ty)
+    call = ir.Call("tirx.exp", [], attrs={"tag": 7}, ty_args=[ir.StringType()], ty=ty)
     source = call.script()
-    assert "I.Call.unchecked(" in source
+    assert "I.Call(" in source
     restored = eval(source, {"I": I, "R": R, "T": T})
     ir.assert_structural_equal(call, restored)
 
@@ -59,7 +59,7 @@ def test_raw_call_preserves_provisional_fields(ty):
 def test_raw_call_preserves_checked_fields():
     call = ir.Call("tirx.exp", [tirx.FloatImm("float32", 0)], attrs={"tag": 7}, ty="float32")
     source = call.script()
-    assert "I.Call.unchecked(" in source
+    assert "I.Call(" in source
     ir.assert_structural_equal(call, eval(source, {"I": I, "R": R, "T": T}))
 
 

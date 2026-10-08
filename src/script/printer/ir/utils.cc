@@ -160,6 +160,33 @@ ExprDoc CallAttrsValue(DocTranslatorObj* d, const Attrs& attrs) {
 
 }  // namespace
 
+// Translate operands as IR values when a dialect offers compact expression sugar.
+ExprDoc MaterializeCallArgument(DocTranslatorObj* d, const Expr& arg, ExprDoc doc) {
+  if (const auto* tuple = arg.as<TupleNode>()) {
+    ffi::Array<ExprDoc> fields;
+    for (const Expr& field : tuple->fields) {
+      fields.push_back(MaterializeCallArgument(d, field, d->Translate(field).value()));
+    }
+    doc = NamespaceDoc("ir")->Attr("Tuple")->Call({ListDoc(fields)});
+  }
+  if (const auto* region = arg.as<TensorRegionNode>()) {
+    ffi::Array<ExprDoc> ranges;
+    for (const Range& range : region->region) {
+      ranges.push_back(
+          NamespaceDoc("ir")
+              ->Attr("Range")
+              ->Attr("from_min_extent")
+              ->Call({d->Translate(range->min).value(), d->Translate(range->extent).value()}));
+    }
+    doc = NamespaceDoc("ir")
+              ->Attr("TensorRegion")
+              ->Call({d->Translate(region->source).value(), ListDoc(ranges)}, {"ty"},
+                     {TypeValue(d, region->ty, false)});
+  }
+  d->RecordOrigin(doc, arg);
+  return doc;
+}
+
 // The explicit fallback retains every field, including typed attribute objects.
 ExprDoc RawCall(DocTranslatorObj* d, const CallNode* call,
                 ffi::Optional<ffi::Array<ExprDoc>> translated_args) {
@@ -190,10 +217,7 @@ ExprDoc RawCall(DocTranslatorObj* d, const CallNode* call,
   }
   keys.push_back("ty");
   values.push_back(TypeValue(d, call->ty));
-  return NamespaceDoc("ir")
-      ->Attr("Call")
-      ->Attr("unchecked")
-      ->Call({callee, ListDoc(args)}, keys, values);
+  return NamespaceDoc("ir")->Attr("Call")->Call({callee, ListDoc(args)}, keys, values);
 }
 
 // The query aliases the active frame; candidate classification must own a copy.

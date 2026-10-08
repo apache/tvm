@@ -277,8 +277,8 @@ def test_inferred_ty_with_output_buffer():
     tvm.ir.assert_structural_equal(func.ty, expected)
 
 
-def test_reinterpret_nop():
-    """Test builtin reinterpret op"""
+def test_reinterpret_preserves_explicit_call():
+    """The shared constructor retains operands even when result types match."""
 
     @Ts.function
     def func(A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float32")) -> None:
@@ -286,7 +286,7 @@ def test_reinterpret_nop():
         for i in T.serial(0, 32):
             with Ts.sblock():
                 vi = Ts.axis.remap("S", [i])
-                B[vi] = T.reinterpret("float32", A[vi])
+                B[vi] = T.reinterpret(A[vi], ty="float32")
 
     @Ts.function
     def expected(A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float32")) -> None:
@@ -294,7 +294,7 @@ def test_reinterpret_nop():
         for i in T.serial(0, 32):
             with Ts.sblock():
                 vi = Ts.axis.remap("S", [i])
-                B[vi] = A[vi]
+                B[vi] = I.Call("tirx.reinterpret", [A[vi]], ty="float32")
 
     tvm.ir.assert_structural_equal(func, expected)
 
@@ -510,7 +510,7 @@ def bool_argument():
 def bool_variable_annotation():
     @Ts.function
     def func() -> None:
-        a: T.let[T.bool] = T.call_extern("dummy", dtype="bool")
+        a: T.let[T.bool] = T.call_extern("dummy", ty="bool")
         T.evaluate(0)
 
     return func
@@ -866,11 +866,11 @@ def test_implicit_evaluate_assume():
 def test_implicit_evaluate_call_extern():
     @Ts.function
     def explicit(A: T.Tensor(1, "int32")):
-        T.evaluate(T.call_extern("extern_func", A.data, dtype="int32"))
+        T.evaluate(T.call_extern("extern_func", A.data, ty="int32"))
 
     @Ts.function
     def implicit(A: T.Tensor(1, "int32")):
-        T.call_extern("extern_func", A.data, dtype="int32")
+        T.call_extern("extern_func", A.data, ty="int32")
 
     assert_structural_equal_ignore_global_symbol(implicit, explicit)
 

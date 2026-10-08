@@ -1240,11 +1240,9 @@ PrimExpr TypeAnnotation(PrimType dtype, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.type_annotation")
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("type_annotation"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.type_annotation"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 }
 
 }  // namespace tirx

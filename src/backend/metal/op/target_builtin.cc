@@ -37,6 +37,7 @@ void RegisterMetalTargetBuiltins() {
   registered = true;
 
   OpDef("tirx.make_filled_simdgroup_matrix")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(sig::arg("d", "The D operand."), sig::arg<IntExpr>("index", "The index."),
                  sig::arg("value", "The value to use."),
                  sig::arg<IntExpr>("col", "The column index."),
@@ -47,6 +48,7 @@ void RegisterMetalTargetBuiltins() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.simdgroup_load")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(sig::arg("d", "The D operand."), sig::arg<IntExpr>("index", "The index."),
                  sig::arg("ptr", "The pointer."), sig::arg<IntExpr>("stride", "The stride."),
                  sig::arg<IntExpr>("col", "The column index."),
@@ -57,6 +59,7 @@ void RegisterMetalTargetBuiltins() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.simdgroup_store")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(sig::arg("d", "The D operand."), sig::arg<IntExpr>("index", "The index."),
                  sig::arg("ptr", "The pointer."), sig::arg<IntExpr>("stride", "The stride."),
                  sig::arg<IntExpr>("col", "The column index."),
@@ -67,6 +70,7 @@ void RegisterMetalTargetBuiltins() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.simdgroup_multiply_accumulate")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(
           sig::arg("d", "The D operand."), sig::arg<IntExpr>("index_d", "The D fragment index."),
           sig::arg("a", "The A operand."), sig::arg<IntExpr>("index_a", "The A fragment index."),

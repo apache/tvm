@@ -156,7 +156,7 @@ def test_get_active_lane_mask(target):
     @T.function
     def before(A: T.Tensor((30,), "int1")):
         for i in range(T.ceildiv(30, T.vscale() * 4)):
-            A[i : i + T.vscale() * 4] = T.get_active_lane_mask("uint1xvscalex4", i, 30)
+            A[i : i + T.vscale() * 4] = T.get_active_lane_mask(i, 30, ty="uint1xvscalex4")
 
     with tvm.target.Target(target):
         out = tvm.tirx.build(before)

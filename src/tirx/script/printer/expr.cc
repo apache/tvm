@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/tirx/attrs.h>
@@ -30,6 +31,8 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "../../../script/printer/ir/utils.h"
 #include "utils.h"
@@ -152,29 +155,56 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                FDocTranslate::FromNative<&StorageSyncDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> CallExternDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                              const ffi::Object*) {
+ffi::Optional<ExprDoc> CUDALdgCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                               const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (!call->op.same_as(tirx::builtin::call_extern()) || !CanTranslateExplicitResultCall(call) ||
-      call->args.empty()) {
-    return RawCall(d, call);
+  if (call->attrs.defined() || !call->ty_args.empty()) return RawCall(d, call);
+  size_t width = 0;
+  if (call->args.size() != 2) {
+    if (call->args.size() != 6 && call->args.size() != 8) return RawCall(d, call);
+    const auto* lanes = call->args.back().as<IntImmNode>();
+    width = call->args.size() - 4;
+    if (!lanes || lanes->value != static_cast<int64_t>(width) ||
+        !ffi::StructuralEqual()(lanes->ty, PrimType::Int(32)))
+      return RawCall(d, call);
+    const auto* vec = call->args[width + 2].as<StringImmNode>();
+    if (!vec || vec->value != (width == 2 ? "v2" : "v4")) return RawCall(d, call);
   }
-  const auto* name = call->args[0].as<StringImmNode>();
-  if (!name) return RawCall(d, call);
-  ExprDoc name_doc = LiteralDoc::Str(name->value, std::nullopt);
-  d->RecordOrigin(name_doc, call->args[0]);
-  ffi::Array<ExprDoc> args = {TypeValue(d, call->ty), name_doc};
-  for (size_t i = 1; i < call->args.size(); ++i) {
-    args.push_back(MaterializeCallArgument(d, call->args[i], d->Translate(call->args[i]).value()));
+  const auto* dtype = call->args[width + 1].as<StringImmNode>();
+  if (!dtype) return RawCall(d, call);
+  auto argument = [&](size_t i) {
+    return MaterializeCallArgument(d, call->args[i], d->Translate(call->args[i]).value());
+  };
+  ffi::Array<ExprDoc> args = {argument(width), LiteralDoc::Str(dtype->value, std::nullopt)};
+  ffi::Array<ffi::String> keys;
+  ffi::Array<ExprDoc> values;
+  bool omit_result = false;
+  try {
+    Call inferred(std::nullopt, call->op, call->args);
+    omit_result = ffi::StructuralEqual()(inferred->ty, call->ty);
+  } catch (const ffi::Error&) {
+    // Preserve explicit result types when inference cannot reconstruct them.
   }
-  return NamespaceDoc("tirx")->Attr("call_extern")->Call(args);
+  if (!omit_result) {
+    keys.push_back("ty");
+    values.push_back(TypeValue(d, call->ty));
+  }
+  if (width) {
+    ffi::Array<ExprDoc> destinations;
+    for (size_t i = 0; i < width; ++i) destinations.push_back(argument(i));
+    keys.push_back("dst");
+    values.push_back(TupleDoc(destinations));
+    keys.push_back("vec");
+    values.push_back(LiteralDoc::Str(width == 2 ? "v2" : "v4", std::nullopt));
+  }
+  return NamespaceDoc("tirx")->Attr("cuda")->Attr("ldg")->Call(args, keys, values);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.call_extern")
+  OpDef("tirx.cuda.ldg")
       .set_attr<FDocTranslate>(kOpCallDocTranslate,
-                               FDocTranslate::FromNative<&CallExternDocTranslate>());
+                               FDocTranslate::FromNative<&CUDALdgCallDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> CUDAFuncCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -238,14 +268,14 @@ ffi::Optional<ExprDoc> LLVMIntrinsicDocTranslate(DocTranslatorObj* d, ffi::AnyVi
   }
   ExprDoc name_doc = LiteralDoc::Str(name, std::nullopt);
   d->RecordOrigin(name_doc, call->args[0]);
-  ffi::Array<ExprDoc> args = {TypeValue(d, call->ty), name_doc};
+  ffi::Array<ExprDoc> args = {name_doc};
   for (size_t i = 1; i < call->args.size(); ++i) {
     args.push_back(MaterializeCallArgument(d, call->args[i], d->Translate(call->args[i]).value()));
   }
   return NamespaceDoc("tirx")
       ->Attr(call->op.same_as(tirx::builtin::call_llvm_intrin()) ? "call_llvm_intrin"
                                                                  : "call_llvm_pure_intrin")
-      ->Call(args);
+      ->Call(args, {"ty"}, {TypeValue(d, call->ty)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -253,39 +283,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     OpDef(name).set_attr<FDocTranslate>(kOpCallDocTranslate,
                                         FDocTranslate::FromNative<&LLVMIntrinsicDocTranslate>());
   }
-}
-
-ffi::Optional<ExprDoc> GetActiveLaneMaskDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                                     const ffi::Object*) {
-  const auto* call =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (!call->op.same_as(tirx::builtin::get_active_lane_mask()) || call->attrs.defined() ||
-      !call->ty_args.empty() || call->args.size() != 2) {
-    return RawCall(d, call);
-  }
-  auto result = call->ty.as<PrimType>();
-  if (!result ||
-      !(result.value().MatchesCode(DLDataTypeCode::kDLBool) ||
-        result.value().MatchesElementType(DLDataTypeCode::kDLUInt, 1)) ||
-      !(result.value().IsScalableVector() || result.value().IsFixedLengthVector())) {
-    return RawCall(d, call);
-  }
-  ffi::Array<ExprDoc> args = {TypeValue(d, call->ty)};
-  for (const Expr& arg : call->args) {
-    auto type = arg->ty.as<PrimType>();
-    if (!type || !type.value().IsScalar() ||
-        !type.value().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
-      return RawCall(d, call);
-    }
-    args.push_back(MaterializeCallArgument(d, arg, d->Translate(arg).value()));
-  }
-  return NamespaceDoc("tirx")->Attr("get_active_lane_mask")->Call(args);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.get_active_lane_mask")
-      .set_attr<FDocTranslate>(kOpCallDocTranslate,
-                               FDocTranslate::FromNative<&GetActiveLaneMaskDocTranslate>());
 }
 
 bool IsPTXAddressCall(const CallNode* call) {
@@ -326,194 +323,89 @@ ffi::Optional<ExprDoc> ConsumedPTXAddressDocTranslate(DocTranslatorObj* d, const
 
 }  // namespace
 
-ffi::Optional<ExprDoc> TIRCallPrefixDocTranslate(DocTranslatorObj* d, const CallNode* call) {
-  bool is_ptx = false;
-  if (auto op = call->op.as<Op>()) {
-    const std::string name = op.value()->name;
-    is_ptx = name.rfind("tirx.ptx.", 0) == 0;
-    bool descriptor = name == "tirx.cuda.tcgen05_encode_matrix_descriptor" ||
-                      name == "tirx.cuda.tcgen05_encode_instr_descriptor" ||
-                      name == "tirx.cuda.tcgen05_encode_instr_descriptor_block_scaled" ||
-                      name == "tirx.cuda.wgmma_encode_matrix_descriptor" ||
-                      name == "tirx.cuda.wgmma_noop_barrier";
-    // AddrArg is only an intermediate object consumed by a PTX instruction.
-    // A standalone address Call must remain an expression after reparsing.
-    if (IsPTXAddressCall(call) ||
-        ((is_ptx || descriptor) && !ffi::StructuralEqual()(call->ty, PrimType::Void()))) {
+namespace {
+
+// The isnan convenience helper folds constants and widens float16 inputs.
+ffi::Optional<ExprDoc> IsNaNDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                         const ffi::Object*) {
+  const auto* call =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
+  auto input_type = call->args.size() == 1 ? call->args[0]->ty.as<PrimType>() : std::nullopt;
+  if (!CanTranslateExplicitResultCall(call) || !input_type ||
+      input_type.value().IsScalableVector() ||
+      !input_type.value().MatchesCode(DLDataTypeCode::kDLFloat) ||
+      (input_type.value().bits() != 32 && input_type.value().bits() != 64) ||
+      call->args[0].as<FloatImmNode>() ||
+      !ffi::StructuralEqual()(call->ty, PrimType::Bool(input_type.value().lanes()))) {
+    return RawCall(d, call);
+  }
+  return NamespaceDoc("tirx")->Attr("isnan")->Call({d->Translate(call->args[0]).value()});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.isnan")
+      .set_attr<FDocTranslate>(kOpCallDocTranslate,
+                               FDocTranslate::FromNative<&IsNaNDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> BufferDataDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object*) {
+  const auto* call =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
+  if (call->attrs.defined() || !call->ty_args.empty() || call->args.size() != 1)
+    return RawCall(d, call);
+  try {
+    if (!ffi::StructuralEqual()(Call::ReinferType(call), call->ty)) return RawCall(d, call);
+  } catch (const ffi::Error&) {
+    return RawCall(d, call);
+  }
+  return d->Translate(call->args[0]).value()->Attr("data");
+}
+
+// PTX modifiers and operand tags use a dedicated reconstruction surface.
+// This hook is installed by the backend when each table entry is registered.
+ffi::Optional<ExprDoc> PTXCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                           const ffi::Object*) {
+  const auto* call =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
+  if (IsPTXAddressCall(call) || call->attrs.defined() || !call->ty_args.empty() ||
+      !ffi::StructuralEqual()(call->ty, PrimType::Void()))
+    return RawCall(d, call);
+  const Op& op = call->op.as_or_throw<Op>();
+  static const auto& names = Op::GetAttrMap<TScriptPrinterName>("TScriptPrinterName");
+  if (!names.count(op)) return RawCall(d, call);
+  auto can_roundtrip = ffi::Function::GetGlobal("script.printer.PTXCallCanRoundtrip");
+  if (!can_roundtrip || !(*can_roundtrip)(ffi::GetRef<Call>(call)).cast<bool>())
+    return RawCall(d, call);
+  ffi::Array<ExprDoc> args;
+  for (const Expr& arg : call->args) {
+    ExprDoc value = d->Translate(arg).value();
+    if (const auto* string = arg.as<StringImmNode>()) {
+      value = LiteralDoc::Str(string->value, std::nullopt);
+    } else if (const auto* address = arg.as<CallNode>(); address && IsPTXAddressCall(address)) {
+      auto translated = ConsumedPTXAddressDocTranslate(d, address);
+      if (!translated) return RawCall(d, call);
+      value = translated.value();
+    } else if (arg.as<IntImmNode>() && ffi::StructuralEqual()(arg->ty, PrimType::Int(32))) {
+      value = NamespaceDoc("tirx")->Attr("int32")->Call({value});
+    } else if (arg->ty.as<MissingType>() || arg.as<TensorRegionNode>()) {
       return RawCall(d, call);
     }
+    args.push_back(value);
   }
-  if (auto op = call->op.as<Op>(); op && op.value()->name == "tirx.isnan") {
-    auto input_type = call->args.size() == 1 ? call->args[0]->ty.as<PrimType>() : std::nullopt;
-    // The named helper folds constants and widens float16 operands, and its
-    // fixed-lane result constructor cannot represent scalable vectors.
-    if (!input_type || input_type.value().IsScalableVector() ||
-        !input_type.value().MatchesCode(DLDataTypeCode::kDLFloat) ||
-        (input_type.value().bits() != 32 && input_type.value().bits() != 64) ||
-        call->args[0].as<FloatImmNode>()) {
-      return RawCall(d, call);
-    }
-  }
-  if (call->op.same_as(tirx::builtin::buffer_data()) && !call->attrs.defined() &&
-      call->ty_args.empty()) {
-    TVM_FFI_CHECK(call->args.size() == 1, ValueError) << "buffer_data expects one buffer";
-    return d->Translate(call->args[0]).value()->Attr("data");
-  }
-  return std::nullopt;
+  return NamedCallCallee(names[op])->Call(args);
 }
 
-ffi::Optional<ExprDoc> FFIKernelDocTranslate(DocTranslatorObj* d, const CallNode* call,
-                                             const Type& result_type,
-                                             const ffi::Array<ExprDoc>& args) {
-  if (call->op.same_as(tirx::builtin::call_ffi_kernel())) {
-    const auto* attrs = call->attrs.as<tirx::CallFFIKernelAttr>();
-    if (!attrs || !call->ty_args.empty()) return RawCall(d, call, args);
-    ffi::Array<ExprDoc> launch_params;
-    for (const ffi::String& param : attrs->launch_params) {
-      launch_params.push_back(LiteralDoc::Str(param, std::nullopt));
-    }
-    return NamespaceDoc("tirx")
-        ->Attr("call_ffi_kernel")
-        ->Call(args, {"launch_params", "ret_ty"},
-               {ListDoc(launch_params), TypeValue(d, result_type)});
-  }
-  return std::nullopt;
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.buffer_data")
+      .set_attr<FDocTranslate>(kOpCallDocTranslate,
+                               FDocTranslate::FromNative<&BufferDataDocTranslate>());
+  ffi::reflection::GlobalDef().def("script.printer.PTXCallDocTranslate", []() {
+    return ffi::Any(FDocTranslate::FromNative<&PTXCallDocTranslate>());
+  });
 }
 
-ffi::Optional<ExprDoc> TIRCallDocTranslate(DocTranslatorObj* d, const CallNode* call,
-                                           const Type& result_type,
-                                           const ffi::Array<ExprDoc>& args) {
-  ffi::Optional<Op> op = call->op.as<Op>();
-  bool is_ptx = op && op.value()->name.find("tirx.ptx.") == 0;
-  static const auto& categories = Op::GetAttrMap<tirx::TIRxOpCategory>("TIRxOpCategory");
-  // Canonical TIRx entry points with an eligible inference hook may require
-  // an explicit dtype position. Use the inferred type for that argument.
-  if (op.has_value() && categories.count(op.value()) && !call->attrs.defined() &&
-      call->ty_args.empty()) {
-    static const OpAttrMap<tirx::TScriptPrinterName>& names =
-        Op::GetAttrMap<tirx::TScriptPrinterName>("TScriptPrinterName");
-    static const OpAttrMap<tirx::TScriptDtypePrintLocation>& dtype_locations =
-        Op::GetAttrMap<tirx::TScriptDtypePrintLocation>("TScriptDtypePrintLocation");
-    // These low-level constructors have a parser signature that differs from
-    // their stored Call argument list. Keep the lossless I.Call form until a
-    // dedicated translation covers each signature.
-    bool incompatible_signature = (op.value()->name == "tirx.cuda.ldg" && call->args.size() != 2) ||
-                                  op.value()->name == "tirx.cuda.wait_until" ||
-                                  op.value()->name == "tirx.cuda.mov_sreg";
-    // Meaningful wrappers choose their result from operands, independently of
-    // customizable inference hooks. Only use them when that choice is lossless.
-    const std::string op_name = op.value()->name;
-    int result_operand = -1;
-    if (op_name == "tirx.cuda.atomic_add" || op_name == "tirx.cuda.atomic_cas" ||
-        op_name == "tirx.cuda.__shfl_sync" || op_name == "tirx.cuda.__shfl_up_sync" ||
-        op_name == "tirx.cuda.__shfl_down_sync" || op_name == "tirx.cuda.__shfl_xor_sync") {
-      result_operand = 1;
-    } else if (op_name == "tirx.cuda.warp_reduce" || op_name == "tirx.cuda.cta_reduce") {
-      result_operand = 0;
-    }
-    if (result_operand >= 0 &&
-        (call->args.size() <= static_cast<size_t>(result_operand) ||
-         !ffi::StructuralEqual()(call->ty, call->args[result_operand]->ty))) {
-      incompatible_signature = true;
-    }
-    if (op_name == "tirx.cuda.__activemask" &&
-        !ffi::StructuralEqual()(call->ty, PrimType::UInt(32))) {
-      incompatible_signature = true;
-    }
-    if (op_name == "tirx.cuda.ldg" && call->args.size() == 2) {
-      auto dtype = call->args[1].as<StringImmNode>();
-      auto result = call->ty.as<PrimType>();
-      if (!dtype || !result || ffi::DLDataTypeToString(result.value()->dtype) != dtype->value) {
-        incompatible_signature = true;
-      }
-    }
-    // Published CUDA callables use canonical names. Late registrations without
-    // a published callable retain lossless reconstruction.
-    bool canonical_cuda = op_name.find("tirx.cuda.") == 0;
-    if (canonical_cuda) {
-      // Generated APIs validate construction; preserve provisional or invalid
-      // Calls through the explicit unchecked reconstruction surface instead.
-      try {
-        op.value().Validate(call);
-      } catch (const ffi::Error&) {
-        return RawCall(d, call);
-      }
-      if (op_name.find("tirx.cuda.__shfl") == 0 && call->args.size() > 1 &&
-          call->args[1].as<VarNode>() && call->args[1]->ty.as<tirx::TensorTypeNode>()) {
-        return RawCall(d, call);
-      }
-      if ((result_operand >= 0 || op_name == "tirx.cuda.ldg") &&
-          std::any_of(call->args.begin(), call->args.end(),
-                      [](const Expr& arg) { return arg.as<TensorRegionNode>() != nullptr; })) {
-        return RawCall(d, call);
-      }
-    }
-    if (names.count(op.value()) && !incompatible_signature) {
-      std::string name = names[op.value()];
-      if (!name.empty()) {
-        ExprDoc callee = NamedCallCallee(name);
-        ffi::Array<ExprDoc> named_args;
-        auto dtype_location = static_cast<tirx::ScriptDtypePrintLocation>(dtype_locations.get(
-            op.value(), static_cast<int64_t>(tirx::ScriptDtypePrintLocation::kNone)));
-        if (dtype_location == tirx::ScriptDtypePrintLocation::kFirst)
-          named_args.push_back(TypeValue(d, result_type));
-        for (size_t i = 0; i < call->args.size(); ++i) {
-          if (auto string = call->args[i].as<StringImmNode>()) {
-            named_args.push_back(LiteralDoc::Str(string->value, std::nullopt));
-          } else {
-            ExprDoc argument = args[i];
-            // Canonical CUDA APIs preserve structured IR operands.
-            if (op.value()->name.find("tirx.cuda.") == 0) {
-              argument = MaterializeCallArgument(d, call->args[i], argument);
-            }
-            if (const auto* address = call->args[i].as<CallNode>();
-                is_ptx && address && IsPTXAddressCall(address)) {
-              // Use the address constructor only when it preserves its operands.
-              auto translated = ConsumedPTXAddressDocTranslate(d, address);
-              if (!translated) return RawCall(d, call);
-              argument = translated.value();
-            }
-            bool reads_operand_type =
-                is_ptx ||
-                (i == 0 && (op.value()->name == "tirx.cuda.warp_reduce" ||
-                            op.value()->name == "tirx.cuda.cta_reduce" ||
-                            op.value()->name == "tirx.selector" ||
-                            op.value()->name == "tirx.webgpu.subgroup_shuffle" ||
-                            op.value()->name == "tirx.webgpu.subgroup_shuffle_up" ||
-                            op.value()->name == "tirx.webgpu.subgroup_shuffle_down" ||
-                            op.value()->name == "tirx.metal.simd_shuffle" ||
-                            op.value()->name == "tirx.metal.simd_shuffle_up" ||
-                            op.value()->name == "tirx.metal.simd_shuffle_down")) ||
-                (i == 1 && (op.value()->name == "tirx.cuda.__shfl_sync" ||
-                            op.value()->name == "tirx.cuda.__shfl_up_sync" ||
-                            op.value()->name == "tirx.cuda.__shfl_down_sync" ||
-                            op.value()->name == "tirx.cuda.__shfl_xor_sync" ||
-                            op.value()->name == "tirx.tvm_warp_shuffle" ||
-                            op.value()->name == "tirx.tvm_warp_shuffle_up" ||
-                            op.value()->name == "tirx.tvm_warp_shuffle_down" ||
-                            op.value()->name == "tirx.tvm_warp_shuffle_xor"));
-            // These constructors inspect the operand's type before converting
-            // Python values, so an int32 literal must remain an IR expression.
-            if (reads_operand_type && call->args[i].as<IntImmNode>() &&
-                ffi::StructuralEqual()(call->args[i]->ty, PrimType::Int(32))) {
-              argument = NamespaceDoc("tirx")->Attr("int32")->Call({argument});
-              d->RecordOrigin(argument, call->args[i]);
-            }
-            named_args.push_back(argument);
-          }
-        }
-        if (dtype_location == tirx::ScriptDtypePrintLocation::kLast)
-          named_args.push_back(TypeValue(d, result_type));
-        return callee->Call(named_args);
-      }
-    }
-  }
-
-  return std::nullopt;
-}
-
-namespace {}  // namespace
-
+}  // namespace
 }  // namespace details
 }  // namespace printer
 }  // namespace script

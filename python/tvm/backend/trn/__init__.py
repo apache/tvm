@@ -46,16 +46,16 @@ def register_backend():
     compilation_pipeline.register_tir_pipeline("trn", trn_pipeline.trn_pipeline)
 
 
-def script_namespace(op_wrapper=None):
+def script_namespace():
     """Return the Trainium TVMScript namespace object."""
     from .script import NKINamespace  # pylint: disable=import-outside-toplevel
 
-    return NKINamespace(op_wrapper)
+    return NKINamespace()
 
 
-def script_namespaces(op_wrapper=None, **_):
+def script_namespaces(**_):
     """Return Trainium-owned TVMScript namespaces."""
-    return {"nki": script_namespace(op_wrapper)}
+    return {"nki": script_namespace()}
 
 
 def __getattr__(name: str):

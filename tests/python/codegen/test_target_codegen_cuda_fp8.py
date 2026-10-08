@@ -107,10 +107,10 @@ def test_fp8_packing(dtype):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(2, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(32, thread="threadIdx.x"):
-                        R[i_0 * 32 + i_1] = T.reinterpret(packed_dtype, A[i_0 * 32 + i_1])
+                        R[i_0 * 32 + i_1] = T.reinterpret(A[i_0 * 32 + i_1], ty=packed_dtype)
                 for i_0 in T.thread_binding(2, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(32, thread="threadIdx.x"):
-                        B[i_0 * 32 + i_1] = T.reinterpret(native_dtype, R[i_0 * 32 + i_1])
+                        B[i_0 * 32 + i_1] = T.reinterpret(R[i_0 * 32 + i_1], ty=native_dtype)
 
         return Module
 
@@ -358,12 +358,12 @@ class BaseFP8E4M3QuantScaleOnly:
                     )
                     for k in range(group_size // 4):
                         packed[row, group * (group_size // 4) + k] = T.reinterpret(
-                            storage_dtype,
                             T.Cast(
                                 vec_quantized_dtype,
                                 A[row, T.ramp(group * group_size + k * 4, 1, 4)]
                                 / scale[row, group],
                             ),
+                            ty=storage_dtype,
                         )
 
         @T.function
@@ -375,7 +375,7 @@ class BaseFP8E4M3QuantScaleOnly:
             for row in T.thread_binding(rows, thread="blockIdx.x"):
                 for k in T.thread_binding(packed_columns, thread="threadIdx.x"):
                     output[row, T.ramp(k * 4, 1, 4)] = T.Cast(
-                        vec_model_dtype, T.reinterpret(vec_quantized_dtype, packed[row, k])
+                        vec_model_dtype, T.reinterpret(packed[row, k], ty=vec_quantized_dtype)
                     ) * T.Broadcast(scale[row, k * 4 // group_size], 4)
 
         quant_func = tvm.compile(quantize, target=target_str)

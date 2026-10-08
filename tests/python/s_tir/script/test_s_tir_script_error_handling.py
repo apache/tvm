@@ -310,7 +310,7 @@ def test_opaque_access_during_complete():
     def opaque_access_during_complete(A: T.Tensor((16, 16), "float32")) -> None:  # error
         for i, j in T.grid(16, 16):
             with Ts.sblock():
-                T.evaluate(T.call_extern("dummy_extern_function", A.data, dtype="int32"))
+                T.evaluate(T.call_extern("dummy_extern_function", A.data, ty="int32"))
 
     check_error(opaque_access_during_complete, None, ValueError)
 
@@ -561,7 +561,7 @@ def test_illegal_buffer_slice():
         with Ts.sblock("block"):
             Ts.reads([])
             Ts.writes([A[0:128:2, 0:128:3]])  # error
-            T.evaluate(T.call_extern("strided_compute", dtype=""))
+            T.evaluate(T.call_extern("strided_compute", ty=""))
 
     def access_reversed_slice(A: T.Tensor((128,), "int32")):
         # do not allow reversed slice step

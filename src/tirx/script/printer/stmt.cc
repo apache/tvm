@@ -52,8 +52,8 @@ ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::A
           input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
-  static const OpAttrMap<tirx::TScriptPrinterName>& names =
-      Op::GetAttrMap<tirx::TScriptPrinterName>("TScriptPrinterName");
+  static const OpAttrMap<TScriptPrinterName>& names =
+      Op::GetAttrMap<TScriptPrinterName>("TScriptPrinterName");
   TVM_FFI_CHECK(names.count(stmt->op), TypeError)
       << "printer tile primitive has no canonical script name: " << stmt->op->name;
   std::string name = names[stmt->op];

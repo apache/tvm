@@ -186,7 +186,7 @@ void RegisterWebGPUIntrinRules() {
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                           ffi::String("tirx.webgpu.subgroup_shuffle"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffle")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
@@ -197,7 +197,7 @@ void RegisterWebGPUIntrinRules() {
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                           ffi::String("tirx.webgpu.subgroup_shuffle_up"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffleUp")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
@@ -208,7 +208,7 @@ void RegisterWebGPUIntrinRules() {
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                           ffi::String("tirx.webgpu.subgroup_shuffle_down"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffleDown")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));

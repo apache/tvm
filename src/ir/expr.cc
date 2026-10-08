@@ -1195,52 +1195,42 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("ir.GlobalVar", [](ffi::String name) { return GlobalVar(name); });
 }
 
-// Call
-Call::Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<Type> ty_args,
-           Span span)
-    : Call(std::move(ret_ty), std::move(op), std::move(args), std::move(attrs), std::move(ty_args),
-           std::move(span), true) {}
-
-Call Call::Unchecked(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs,
-                     ffi::Array<Type> ty_args, Span span) {
-  return Call(std::move(ret_ty), std::move(op), std::move(args), std::move(attrs),
-              std::move(ty_args), std::move(span), false);
-}
-
-Call::Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<Type> ty_args,
-           Span span, bool validate)
+// Call construction intentionally does not validate: passes and raw script
+// reconstruction may need to represent provisional or invalid input exactly.
+Call::Call(ffi::Optional<Type> ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs,
+           ffi::Array<Type> ty_args, Span span)
     : Expr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(op.defined(), ValueError) << "Call expects a defined operator";
+  auto node = ffi::make_object<CallNode>(std::move(op));
+  node->ExprNode::ty = ret_ty.value_or(Type::Missing());
+  node->args = std::move(args);
+  node->attrs = std::move(attrs);
+  node->ty_args = std::move(ty_args);
+  node->span = std::move(span);
+  if (!ret_ty.has_value()) node->ExprNode::ty = ReinferType(node.get());
+  data_ = std::move(node);
+}
 
-  ffi::ObjectPtr<CallNode> n = ffi::make_object<CallNode>(op);
-  n->ExprNode::ty = std::move(ret_ty);
-  n->args = std::move(args);
-  n->attrs = std::move(attrs);
-  n->ty_args = std::move(ty_args);
-  n->span = std::move(span);
-  if (validate) {
-    if (auto opt_op = n->op.as<Op>()) opt_op.value().Validate(n.get());
-  }
-  data_ = std::move(n);
+void Call::Validate() const {
+  if (auto op = (*this)->op.as<Op>()) op.value().Validate(get());
 }
 
 Type Call::ReinferType(const CallNode* call) {
   TVM_FFI_CHECK(call != nullptr, ValueError) << "Call::ReinferType expects a defined Call";
   auto op = call->op.as<Op>();
-  TVM_FFI_CHECK(op.has_value(), ValueError) << "Call::ReinferType requires an Op callee";
+  if (!op) {
+    if (const auto* type = call->op->ty.as<FuncTypeNode>()) return type->ret_type;
+    return Type::Missing();
+  }
   if (Op::HasAttrMap("TFixedReturnType")) {
     static auto fixed_return_type = Op::GetAttrMap<TFixedReturnType>("TFixedReturnType");
     if (fixed_return_type.count(op.value())) return fixed_return_type[op.value()];
   }
-  TVM_FFI_CHECK(Op::HasAttrMap("FInferType"), ValueError)
-      << "No context-free FInferType hook is registered for " << op.value();
-  static auto infer_type = Op::GetAttrMap<FInferType>("FInferType");
-  TVM_FFI_CHECK(infer_type.count(op.value()), ValueError)
-      << "No context-free FInferType hook is registered for " << op.value();
-  Type result = infer_type[op.value()].CallExpected(call).value();
-  TVM_FFI_CHECK(!result.as<MissingType>().has_value(), InternalError)
-      << "FInferType for " << op.value() << " returned Type::Missing()";
-  return result;
+  if (Op::HasAttrMap("FInferType")) {
+    static auto infer_type = Op::GetAttrMap<FInferType>("FInferType");
+    if (infer_type.count(op.value())) return infer_type[op.value()].CallExpected(call).value();
+  }
+  return Type::Missing();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1252,14 +1242,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&CallMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.Call", [](Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs,
-                                      ffi::Array<Type> ty_args, Span span) {
+  refl::GlobalDef().def("ir.Call", [](ffi::Optional<Type> ret_ty, Expr op, ffi::Array<Expr> args,
+                                      Attrs attrs, ffi::Array<Type> ty_args, Span span) {
     return Call(ret_ty, op, args, attrs, ty_args, span);
   });
-  refl::GlobalDef().def("ir.CallUnchecked", [](Type ret_ty, Expr op, ffi::Array<Expr> args,
-                                               Attrs attrs, ffi::Array<Type> ty_args, Span span) {
-    return Call::Unchecked(ret_ty, op, args, attrs, ty_args, span);
-  });
+  refl::GlobalDef().def("ir.CallValidate", [](const Call& call) { call.Validate(); });
   refl::GlobalDef().def("ir.reinfer_type",
                         [](const Call& call) { return Call::ReinferType(call.get()); });
 }

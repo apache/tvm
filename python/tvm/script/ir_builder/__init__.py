@@ -27,6 +27,8 @@ from tvm.ir import (
     Range,
     StringImm,
     StringType,
+    TensorRegion,
+    Tuple,
     Type,
     make_node,
 )
@@ -77,6 +79,8 @@ __all__ = [
     "Range",
     "StringImm",
     "StringType",
+    "TensorRegion",
+    "Tuple",
     "Type",
     "at_",
     "check_well_formed_",

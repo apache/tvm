@@ -208,13 +208,13 @@ def test_assert_stmt():
     with IRBuilder() as ib:
         with TB.function():
             TB.assert_(True, "assertion")
-            TB.evaluate(TB.call_extern("int32", "after_assert"))
+            TB.evaluate(TB.call_extern("after_assert", ty="int32"))
     obj = ib.get().body
     _assert_print(
         obj,
         """
 assert T.bool(True), ("RuntimeError", ["assertion"])
-T.call_extern("int32", "after_assert")
+T.call_extern("after_assert", ty="int32")
 """,
     )
 
@@ -426,9 +426,9 @@ T.Cast("float64", a)
 
 def test_llvm_intrin_imm():
     a = tirx.call_llvm_intrin("int32x4", "llvm.donothing")
-    _assert_print(a, 'T.call_llvm_intrin("int32x4", "llvm.donothing")')
+    _assert_print(a, 'T.call_llvm_intrin("llvm.donothing", ty="int32x4")')
     a = tirx.call_llvm_pure_intrin("int32x4", "llvm.donothing")
-    _assert_print(a, 'T.call_llvm_pure_intrin("int32x4", "llvm.donothing")')
+    _assert_print(a, 'T.call_llvm_pure_intrin("llvm.donothing", ty="int32x4")')
 
 
 def test_binary_arith():
