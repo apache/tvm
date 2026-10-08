@@ -37,13 +37,13 @@ Expr view(Expr x, ffi::Optional<Expr> shape, ffi::Optional<Expr> dtype,
   Tuple void_expr(ffi::Array<Expr>{});
 
   static const Op op = Op::Get("relax.memory.view");
-  return Call::Unchecked(Type::Missing(), op,
-                         {
-                             x,
-                             shape.value_or(void_expr),
-                             dtype.value_or(void_expr),
-                             relative_byte_offset.value_or(void_expr),
-                         });
+  return Call(Type::Missing(), op,
+              {
+                  x,
+                  shape.value_or(void_expr),
+                  dtype.value_or(void_expr),
+                  relative_byte_offset.value_or(void_expr),
+              });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -389,8 +389,7 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
 
   ExternFunc runtime_view_func("runtime.TVMTensorCreateView", runtime_view_ty);
 
-  return Call::Unchecked(Type::Missing(), runtime_view_func,
-                         {data, shape, dtype, relative_byte_offset});
+  return Call(Type::Missing(), runtime_view_func, {data, shape, dtype, relative_byte_offset});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -407,7 +406,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr ensure_zero_offset(const Expr& x) {
   static const Op op = Op::Get("relax.memory.ensure_zero_offset");
-  return Call::Unchecked(Type::Missing(), op, {x});
+  return Call(Type::Missing(), op, {x});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -427,8 +426,7 @@ Type InferTypeEnsureZeroOffset(const CallNode* call_node) {
 
 Expr LowerBuiltinEnsureZeroOffset(const BlockBuilder& bb, const Call& call) {
   const ExternFunc builtin_ensure_zero_offset_{"vm.builtin.ensure_zero_offset"};
-  return Call::Unchecked(Type::Missing(), builtin_ensure_zero_offset_, call->args, Attrs(),
-                         {GetType(call)});
+  return Call(Type::Missing(), builtin_ensure_zero_offset_, call->args, Attrs(), {GetType(call)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

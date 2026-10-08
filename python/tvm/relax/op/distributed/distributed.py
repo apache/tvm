@@ -17,16 +17,25 @@
 # pylint: disable=redefined-builtin
 """Operators for distributed Relax."""
 
+from tvm.error import InternalError as _InternalError
 from tvm.ir import Call
+from tvm.ir.attrs import make_node
+from tvm.relax import ShapeExpr, TupleType
 from tvm.relax.distributed import DeviceMesh, DTensorType, Placement
 
 from ...expr import Expr, GlobalVar
 from ...expr import Tuple as RxTuple
 from ...utils import convert_to_expr
-from . import _ffi_api
 
 
-def annotate_sharding(input: Expr, device_mesh: DeviceMesh, placement: Placement) -> Expr:
+def annotate_sharding(
+    input: Expr,
+    device_mesh: DeviceMesh,
+    placement: Placement,
+    *,
+    ty=None,
+    span=None,
+) -> Expr:
     """Annotate sharding plan for tensor
 
     Parameters
@@ -43,10 +52,25 @@ def annotate_sharding(input: Expr, device_mesh: DeviceMesh, placement: Placement
     result : relax.Expr
       The tensor unmodified.
     """
-    return _ffi_api.annotate_sharding(input, device_mesh, placement)  # type: ignore
+    return Call(
+        "relax.dist.annotate_sharding",
+        [input],
+        attrs=make_node(
+            "relax.attrs.DistributionAttrs", device_mesh=device_mesh, placement=placement
+        ),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def redistribute(input: Expr, device_mesh: DeviceMesh, placement: Placement) -> Expr:
+def redistribute(
+    input: Expr,
+    device_mesh: DeviceMesh,
+    placement: Placement,
+    *,
+    ty=None,
+    span=None,
+) -> Expr:
     """Redistribute tensor
 
     Parameters
@@ -62,13 +86,25 @@ def redistribute(input: Expr, device_mesh: DeviceMesh, placement: Placement) -> 
     result : relax.Expr
       The tensor after redistribution.
     """
-    return _ffi_api.redistribute(input, device_mesh, placement)  # type: ignore
+    return Call(
+        "relax.dist.redistribute",
+        [input],
+        attrs=make_node(
+            "relax.attrs.DistributionAttrs", device_mesh=device_mesh, placement=placement
+        ),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
 def call_tir_local_view(
     gvar: GlobalVar,
     args: Expr,
-    out_ty: DTensorType | list[DTensorType],
+    out_ty: DTensorType | list[DTensorType] | None = None,
+    *,
+    ty_args=None,
+    ty=None,
+    span=None,
 ) -> Call:
     """
     Call a tirx.function and return the output. The function should be a worker-local function
@@ -99,13 +135,27 @@ def call_tir_local_view(
     elif isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
         args = RxTuple((args,))
 
-    if not isinstance(out_ty, list):
-        out_ty = [out_ty]
+    if out_ty is not None:
+        if ty_args is not None:
+            raise TypeError("Specify either out_ty or ty_args")
+        if not isinstance(out_ty, list):
+            out_ty = [out_ty]
+        for output in out_ty:
+            if not isinstance(output.tensor_ty.shape, ShapeExpr):
+                raise _InternalError("out_ty must have a defined ShapeExpr shape")
+        ty_args = [out_ty[0] if len(out_ty) == 1 else TupleType(out_ty)]
+    return Call(
+        "relax.dist.call_tir_local_view",
+        [gvar, args],
+        ty_args=ty_args,
+        ty=ty,
+        span=span,
+    )
 
-    return _ffi_api.call_tir_local_view(gvar, args, out_ty)  # type: ignore
 
-
-def redistribute_replica_to_shard(input: Expr, num_workers: int, axis: int) -> Expr:
+def redistribute_replica_to_shard(
+    input: Expr, num_workers: int, axis: int, *, ty=None, span=None
+) -> Expr:
     """Slice tensor into several parts along one axis,
         and each worker takes one part.
         input.ty.shape[axis] % num_workers == 0 is required.
@@ -128,4 +178,10 @@ def redistribute_replica_to_shard(input: Expr, num_workers: int, axis: int) -> E
     result : relax.Expr
       Sliced Tensor kept by each device.
     """
-    return _ffi_api.redistribute_replica_to_shard(input, num_workers, axis)
+    return Call(
+        "relax.dist.redistribute_replica_to_shard",
+        [input],
+        attrs=make_node("relax.attrs.ScatterCollectiveAttrs", num_workers=num_workers, axis=axis),
+        ty=ty,
+        span=span,
+    )

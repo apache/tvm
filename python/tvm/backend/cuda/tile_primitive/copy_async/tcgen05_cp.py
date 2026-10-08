@@ -682,7 +682,7 @@ def _get_or_create_desc(sctx, s_buf, ldo, sdo, swizzle):
 
     desc_buf = tvm.tirx.decl_tensor((1,), "uint64", name="cp_desc", scope="local")
     encode_call = T.cuda.tcgen05.encode_matrix_descriptor(
-        desc_buf.data, T.reinterpret("handle", T.uint64(0)), ldo, sdo, swizzle
+        desc_buf.data, T.reinterpret(T.uint64(0), ty="handle"), ldo, sdo, swizzle
     )
     wrap = SeqStmt(
         [

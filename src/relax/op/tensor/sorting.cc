@@ -45,7 +45,7 @@ Expr sort(Expr data, int axis, bool descending) {
   attrs->descending = std::move(descending);
 
   static const Op op = Op::Get("relax.sort");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -74,7 +74,7 @@ Expr argsort(Expr data, int axis, bool descending, ffi::Optional<DLDataType> dty
   attrs->dtype = std::move(dtype);
 
   static const Op op = Op::Get("relax.argsort");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -114,7 +114,7 @@ Expr topk(Expr data, int k, int axis, ffi::String ret_type, bool largest,
   attrs->dtype = std::move(dtype);
 
   static const Op op = Op::Get("relax.topk");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -124,6 +124,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeTopK(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   const auto* attrs = call->attrs.as<TopKAttrs>();

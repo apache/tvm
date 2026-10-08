@@ -33,7 +33,13 @@ def ptx_cp_async(A: T.Tensor((32, 128), "float16"), B: T.Tensor((32, 128), "floa
     for i in range(16):
         T.evaluate(
             T.s_tir.cp_async_raw.legacy(
-                A_shared.data, tx * 128 + 8 * i, A.data, tx * 128 + 8 * i, 16, dtype="float16"
+                A_shared.data,
+                tx * 128 + 8 * i,
+                A.data,
+                tx * 128 + 8 * i,
+                16,
+                elem_dtype="float16",
+                ty="float16",
             )
         )
     T.evaluate(T.ptx.cp.async_.commit_group())

@@ -32,10 +32,9 @@ def test_redistribute_R_to_S():
     mesh = R.device_mesh((4,), list(range(4)))
     x = relax.Var("x", R.DTensor((3, 4), "float32", device_mesh=mesh, placement="R"))
 
-    # The context-free rule sees this input and reports its own type error.
+    # Distributed placement requires the contextual builder inference rule.
     distributed_abs = relax.op.abs(x)
-    with pytest.raises(TypeError):
-        tvm.ir.reinfer_type(distributed_abs)
+    tvm.ir.assert_structural_equal(tvm.ir.reinfer_type(distributed_abs), tvm.ir.Type.missing())
     _check_inference(bb, distributed_abs, x.ty)
 
     _check_inference(

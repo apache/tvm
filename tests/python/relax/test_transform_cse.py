@@ -338,11 +338,11 @@ def test_do_not_eliminate_impure():
             # it's a repeated subexpression but it would be wrong to deduplicate it
             p1 = R.print(format="Message")
             p2 = R.print(format="Message")
-            a1 = R.assert_op(R.const(False), format="Always fails")
+            a1 = R.assert_op(R.const(False), "Always fails")
             lv0 = R.add(x, y)
             lv1 = R.add(x, y)
             gv = R.multiply(lv0, lv1)
-            a2 = R.assert_op(R.const(False), format="Always fails")
+            a2 = R.assert_op(R.const(False), "Always fails")
             return gv
 
     @I.ir_module
@@ -351,11 +351,11 @@ def test_do_not_eliminate_impure():
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
             p1 = R.print(format="Message")
             p2 = R.print(format="Message")
-            a1 = R.assert_op(R.const(False), format="Always fails")
+            a1 = R.assert_op(R.const(False), "Always fails")
             lv0 = R.add(x, y)
             lv1 = lv0
             gv = R.multiply(lv0, lv0)
-            a2 = R.assert_op(R.const(False), format="Always fails")
+            a2 = R.assert_op(R.const(False), "Always fails")
             return gv
 
     verify(Before, Expected)

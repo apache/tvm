@@ -52,6 +52,11 @@ using TFixedReturnType = Type;
 /*! \brief Infer a Call's result type from its explicit inputs without builder state. */
 using FInferType = ffi::reflection::NativeFunctionView<Type(const CallNode* call)>;
 
+/*!
+ * \brief The fully qualified TVMScript name, including its dialect namespace.
+ */
+using TScriptPrinterName = ffi::String;
+
 /*! \brief An operator argument's name and documentation. */
 class ArgumentInfoNode : public ffi::Object {
  public:
@@ -170,6 +175,7 @@ class Op : public Expr {
   TVM_DLL static Op Get(const ffi::String& op_name);
   /*! \brief List registered operator names. \return Names in unspecified order. */
   TVM_DLL static ffi::Array<ffi::String> ListNames();
+
   /*! \brief Validate a Call with this Op's callback, when one is registered. */
   TVM_FFI_INLINE void Validate(const CallNode* call) const {
     const auto& validator = get()->validator;
@@ -488,11 +494,10 @@ class OpDef {
    * Fixed descriptors require exactly one value/type argument each. A variadic
    * tail accepts zero or more trailing arguments of its category. Validation
    * throws on arity or class mismatch; it does not infer types or mutate the
-   * Call. Call construction invokes the validator unless Call::Unchecked is
-   * used. Without call_attrs<T>, Call.attrs is unconstrained. Repeated
-   * registration replaces metadata but retains any existing validator,
-   * including a generated one. Replace the callback explicitly if its
-   * executable checks must change.
+   * Call. Call::Validate invokes the validator separately from construction. Without call_attrs<T>,
+   * Call.attrs is unconstrained. Repeated registration replaces metadata but retains any existing
+   * validator, including a generated one. Replace the callback explicitly if its executable checks
+   * must change.
    *
    * \code
    * OpDef("example.op")
@@ -544,8 +549,8 @@ class OpDef {
    * can be bound with NativeFunctionView::FromNative. A borrowed packed function
    * may also be passed while it remains alive for this call. The setter retains an owning
    * copy, so the original packed function may then be destroyed.
-   * Ordinary Call construction invokes it; Call::Unchecked skips that initial
-   * check, while Relax normalization and well-formedness may validate later.
+   * Call::Validate invokes it explicitly; Relax normalization and
+   * well-formedness also validate when inputs are ready.
    * A signature installs its generated validator only if none is registered,
    * so a custom validator registered first takes precedence. Replacing a
    * generated or custom validator requires override; duplicate registration

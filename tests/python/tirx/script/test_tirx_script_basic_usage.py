@@ -213,8 +213,8 @@ def test_annotation_syntax_comprehensive():
         T.device_entry()
         smem = T.alloc_shared([128], "float16")
         ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("void")))] = T.reinterpret(
-            "handle", smem.access_ptr("rw")
-        )
+             smem.access_ptr("rw")
+        , ty="handle")
         T.evaluate(ptr)
         # fmt: on
     code = test_let_var.script()
@@ -262,7 +262,7 @@ def test_pointer_expression_assignment_uses_bind():
         T.device_entry()
         buf = T.alloc_tensor((4,), "uint32", scope="shared")
         ptr = buf.ptr_to([1])
-        T.evaluate(T.reinterpret("uint64", ptr))
+        T.evaluate(T.reinterpret( ptr, ty="uint64"))
     # fmt: on
 
     binds = []
@@ -293,7 +293,7 @@ def test_pointer_expression_rebinding_creates_distinct_native_bindings():
         buf = T.alloc_tensor((4,), "uint32", scope="shared")
         ptr = buf.ptr_to([0])
         ptr = buf.ptr_to([1])
-        T.evaluate(T.reinterpret("uint64", ptr))
+        T.evaluate(T.reinterpret( ptr, ty="uint64"))
     # fmt: on
 
     bindings, uses = [], []

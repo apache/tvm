@@ -367,11 +367,11 @@ def test_cuda_multiply_add():
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(num_thread, thread="threadIdx.x"):
                         D[i_0 * num_thread + i_1] = T.call_pure_extern(
-                            "int32",
                             "__dp4a",
                             A[i_0 * num_thread + i_1],
                             B[i_0 * num_thread + i_1],
                             C[i_0 * num_thread + i_1],
+                            ty="int32",
                         )
 
         fun = tvm.compile(Module, target="cuda")
@@ -1168,7 +1168,7 @@ def test_invalid_reinterpret():
     @T.function
     def func(A: T.Tensor((4,), "uint32"), B: T.Tensor((4,), "uint8")) -> None:
         for tx in T.thread_binding(4, "threadIdx.x"):
-            B[tx] = T.call_intrin("uint8", "tirx.reinterpret", A[tx])
+            B[tx] = T.call_intrin("tirx.reinterpret", A[tx], ty="uint8")
 
     with pytest.raises(RuntimeError):
         tvm.compile(func, target="cuda")

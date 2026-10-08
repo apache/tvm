@@ -124,7 +124,6 @@ def _shuffle_reinterpret_module(n, num_blocks, vector_length, num_elem_per_stora
                         B[i_0 * 32 * vector_length + i_1 * vector_length + i_2] = T.Shuffle(
                             [
                                 T.reinterpret(
-                                    "float4_e2m1fnx2",
                                     T.bitwise_and(
                                         T.shift_right(
                                             A[
@@ -149,6 +148,7 @@ def _shuffle_reinterpret_module(n, num_blocks, vector_length, num_elem_per_stora
                                         ),
                                         T.uint32((1 << 4 * 2) - 1),
                                     ).astype("uint8"),
+                                    ty="float4_e2m1fnx2",
                                 ).astype("float16x2")
                             ],
                             indices=[(i_0 * 32 * vector_length + i_1 * vector_length + i_2) % 2],
@@ -170,7 +170,6 @@ def _scalar_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storag
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):
                     for i_2 in T.vectorized(vector_length):
                         B[i_0 * 32 * vector_length + i_1 * vector_length + i_2] = T.reinterpret(
-                            "float4_e2m1fn",
                             T.bitwise_and(
                                 T.shift_right(
                                     A[
@@ -185,6 +184,7 @@ def _scalar_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storag
                                 ),
                                 T.uint32((1 << 4) - 1),
                             ).astype("uint8"),
+                            ty="float4_e2m1fn",
                         ).astype("float16")
 
     return Module

@@ -53,7 +53,7 @@ Expr take(Expr x, Expr indices, ffi::Optional<int64_t> axis, ffi::String mode) {
   attrs->mode = std::move(mode);
 
   static const Op op = Op::Get("relax.take");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x), std::move(indices)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(x), std::move(indices)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -63,6 +63,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeTake(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   CheckNumArguments(call);
   TensorType data_ty = GetInputTensorType(call, 0);
 
@@ -176,7 +177,7 @@ Expr strided_slice(Expr x, Expr axes, Expr begin, Expr end, ffi::Optional<Expr> 
   }
 
   static const Op op = Op::Get("relax.strided_slice");
-  auto call = Call::Unchecked(Type::Missing(), op, args, Attrs(attrs));
+  auto call = Call(Type::Missing(), op, args, Attrs(attrs));
 
   return call;
 }
@@ -505,8 +506,8 @@ Expr dynamic_strided_slice(Expr x,      //
                            Expr end,    //
                            Expr strides) {
   static const Op op = Op::Get("relax.dynamic_strided_slice");
-  return Call::Unchecked(Type::Missing(), op,
-                         {std::move(x), std::move(begin), std::move(end), std::move(strides)}, {});
+  return Call(Type::Missing(), op,
+              {std::move(x), std::move(begin), std::move(end), std::move(strides)}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -516,6 +517,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeDynStridedSlice(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   const auto* begin_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
   const auto* end_ty = GetTypeAs<TensorTypeNode>(call->args[2]);

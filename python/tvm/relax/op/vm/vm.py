@@ -16,10 +16,10 @@
 """Relax vm primitives."""
 
 from tvm.ir import Call, DataTypeImm, GenericConst, StringImm
+from tvm.ir import Call as _Call
 
 from ...expr import Expr, Tuple, prim_value
 from ...utils import convert_to_expr
-from . import _ffi_api
 
 
 def alloc_storage(
@@ -27,6 +27,9 @@ def alloc_storage(
     runtime_device_index: int | Expr,
     dtype: str | Expr,
     storage_scope: str | StringImm = "global",
+    *,
+    ty=None,
+    span=None,
 ) -> Call:
     """Construct a Call to allocate a storage with specific size,
     runtime_device_index, and dtype.
@@ -58,7 +61,12 @@ def alloc_storage(
         storage_scope = StringImm(storage_scope)
     if isinstance(runtime_device_index, int):
         runtime_device_index = prim_value(runtime_device_index)
-    return _ffi_api.alloc_storage(shape, runtime_device_index, dtype, storage_scope)  # type: ignore
+    return _Call(
+        "relax.vm.alloc_storage",
+        [shape, runtime_device_index, dtype, storage_scope],
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
 def alloc_tensor(
@@ -67,6 +75,9 @@ def alloc_tensor(
     shape: Expr,
     dtype: str | Expr,
     runtime_device_ind: int | Expr = prim_value(0),
+    *,
+    ty=None,
+    span=None,
 ) -> Call:
     """Construct a Call to allocate a tensor on a certain storage starting from the given offset.
 
@@ -100,10 +111,15 @@ def alloc_tensor(
         dtype = DataTypeImm(dtype.value if isinstance(dtype, GenericConst) else dtype)
     if isinstance(runtime_device_ind, int):
         runtime_device_ind = prim_value(runtime_device_ind)
-    return _ffi_api.alloc_tensor(storage, offset, shape, dtype, runtime_device_ind)  # type: ignore
+    return _Call(
+        "relax.vm.alloc_tensor",
+        [storage, offset, shape, dtype, runtime_device_ind],
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def kill_object(obj: Expr) -> Call:
+def kill_object(obj: Expr, *, ty=None, span=None) -> Call:
     """Construct a Call to set the register corresponding to the input object to
     null at runtime, in order to kill the input object.
 
@@ -117,10 +133,10 @@ def kill_object(obj: Expr) -> Call:
     result : Call
         CallNode that kills the input object.
     """
-    return _ffi_api.kill_object(obj)  # type: ignore
+    return _Call("relax.vm.kill_object", [obj], ty=ty, span=span)  # type: ignore
 
 
-def call_tir_dyn(func: Expr, args: Tuple) -> Call:
+def call_tir_dyn(func: Expr, args: Tuple, *, ty=None, span=None) -> Call:
     """Construct a Call to call_tir_dyn (invoke the given TIR Function)
     consisting of the input tensors and the shape of the result.
 
@@ -141,4 +157,9 @@ def call_tir_dyn(func: Expr, args: Tuple) -> Call:
     if isinstance(args, list | tuple):
         args = Tuple(args)
 
-    return _ffi_api.call_tir_dyn(func, args)  # type: ignore
+    return _Call(
+        "relax.vm.call_tir_dyn",
+        [func, args],
+        ty=ty,
+        span=span,
+    )  # type: ignore

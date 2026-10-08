@@ -52,7 +52,7 @@ Expr roi_align(Expr data, Expr rois, ffi::Array<int64_t> pooled_size, double spa
   attrs->mode = mode;
 
   static const Op op = Op::Get("relax.vision.roi_align");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data), std::move(rois)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(rois)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -62,6 +62,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeROIAlign(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "ROIAlign expects two arguments, while the given number of arguments is "

@@ -18,119 +18,181 @@
 
 from __future__ import annotations
 
-from tvm.tirx.op import call_intrin
+from tvm.ir import Call
 
 
-def nki_load(res, data):
-    return call_intrin("", "tirx.nki.load", res, data)
+def nki_load(res, data, *, ty=None, span=None):
+    return Call("tirx.nki.load", [res, data], ty=ty, span=span)
 
 
-def nki_store(res, data):
-    return call_intrin("", "tirx.nki.store", res, data)
+def nki_store(res, data, *, ty=None, span=None):
+    return Call("tirx.nki.store", [res, data], ty=ty, span=span)
 
 
-def nki_tensor_copy(res, data):
-    return call_intrin("", "tirx.nki.tensor_copy", res, data)
+def nki_tensor_copy(res, data, *, ty=None, span=None):
+    return Call("tirx.nki.tensor_copy", [res, data], ty=ty, span=span)
 
 
-def nki_matmul(res, lhs, rhs, accum=True):
-    return call_intrin("", "tirx.nki.matmul", res, lhs, rhs, accum)
+def nki_matmul(res, lhs, rhs, accum=True, *, ty=None, span=None):
+    return Call(
+        "tirx.nki.matmul",
+        [res, lhs, rhs, accum],
+        ty=ty,
+        span=span,
+    )
 
 
-def nki_activation(result, data, opcode, bias=0.0, scale=1.0):
-    return call_intrin("", "tirx.nki.activation", result, data, opcode, bias, scale)
+def nki_activation(result, data, opcode, bias=0.0, scale=1.0, *, ty=None, span=None):
+    return Call(
+        "tirx.nki.activation",
+        [result, data, opcode, bias, scale],
+        ty=ty,
+        span=span,
+    )
 
 
-def nki_reciprocal(result, data):
-    return call_intrin("", "tirx.nki.reciprocal", result, data)
+def nki_reciprocal(result, data, *, ty=None, span=None):
+    return Call(
+        "tirx.nki.reciprocal",
+        [result, data],
+        ty=ty,
+        span=span,
+    )
 
 
-def nki_tensorreduce(result, data, opcode, negate, *axes):
-    return call_intrin("", "tirx.nki.tensorreduce", result, data, opcode, negate, *axes)
+def nki_tensorreduce(result, data, opcode, negate, *axes, ty=None, span=None):
+    return Call(
+        "tirx.nki.tensorreduce",
+        [result, data, opcode, negate, *axes],
+        ty=ty,
+        span=span,
+    )
 
 
-def nki_tensortensor(result, operand0, operand1, opcode):
-    return call_intrin("", "tirx.nki.tensortensor", result, operand0, operand1, opcode)
+def nki_tensortensor(result, operand0, operand1, opcode, *, ty=None, span=None):
+    return Call(
+        "tirx.nki.tensortensor",
+        [result, operand0, operand1, opcode],
+        ty=ty,
+        span=span,
+    )
 
 
-def nki_tensorscalar(result, operand0, operand1, opcode, reverse=False):
-    return call_intrin("", "tirx.nki.tensorscalar", result, operand0, operand1, opcode, reverse)
+def nki_tensorscalar(
+    result,
+    operand0,
+    operand1,
+    opcode,
+    reverse=False,
+    *,
+    ty=None,
+    span=None,
+):
+    return Call(
+        "tirx.nki.tensorscalar",
+        [result, operand0, operand1, opcode, reverse],
+        ty=ty,
+        span=span,
+    )
 
 
-def nki_memset(result, value):
-    return call_intrin("", "tirx.nki.memset", result, value)
+def nki_memset(result, value, *, ty=None, span=None):
+    return Call("tirx.nki.memset", [result, value], ty=ty, span=span)
 
 
-def nki_activation_reduce(reduce_res, act_res, data, opcode, reduce_opcode, bias=0.0, scale=1.0):
-    return call_intrin(
-        "",
+def nki_activation_reduce(
+    reduce_res,
+    act_res,
+    data,
+    opcode,
+    reduce_opcode,
+    bias=0.0,
+    scale=1.0,
+    *,
+    ty=None,
+    span=None,
+):
+    return Call(
         "tirx.nki.activation_reduce",
-        reduce_res,
-        act_res,
-        data,
-        opcode,
-        reduce_opcode,
-        bias,
-        scale,
+        [reduce_res, act_res, data, opcode, reduce_opcode, bias, scale],
+        ty=ty,
+        span=span,
     )
 
 
 def nki_tensorscalar_reduce(
-    reduce_res, tensorscalar_res, operand0, operand1, opcode, reduce_opcode, reverse=False
+    reduce_res,
+    tensorscalar_res,
+    operand0,
+    operand1,
+    opcode,
+    reduce_opcode,
+    reverse=False,
+    *,
+    ty=None,
+    span=None,
 ):
-    return call_intrin(
-        "",
+    return Call(
         "tirx.nki.tensorscalar_reduce",
-        reduce_res,
-        tensorscalar_res,
-        operand0,
-        operand1,
-        opcode,
-        reduce_opcode,
-        reverse,
+        [reduce_res, tensorscalar_res, operand0, operand1, opcode, reduce_opcode, reverse],
+        ty=ty,
+        span=span,
     )
 
 
-def nki_identity(result, size):
-    return call_intrin("", "tirx.nki.identity", result, size)
+def nki_identity(result, size, *, ty=None, span=None):
+    return Call("tirx.nki.identity", [result, size], ty=ty, span=span)
 
 
 def nki_scalar_tensor_tensor(
-    result, data, operand0, operand1, opcode0, opcode1, reverse0=False, reverse1=False
+    result,
+    data,
+    operand0,
+    operand1,
+    opcode0,
+    opcode1,
+    reverse0=False,
+    reverse1=False,
+    *,
+    ty=None,
+    span=None,
 ):
-    return call_intrin(
-        "",
+    return Call(
         "tirx.nki.scalar_tensor_tensor",
-        result,
-        data,
-        operand0,
-        operand1,
-        opcode0,
-        opcode1,
-        reverse0,
-        reverse1,
+        [result, data, operand0, operand1, opcode0, opcode1, reverse0, reverse1],
+        ty=ty,
+        span=span,
     )
 
 
 def nki_scalar_tensor_scalar(
-    result, data, operand0, operand1, opcode0, opcode1, reverse0=False, reverse1=False
+    result,
+    data,
+    operand0,
+    operand1,
+    opcode0,
+    opcode1,
+    reverse0=False,
+    reverse1=False,
+    *,
+    ty=None,
+    span=None,
 ):
-    return call_intrin(
-        "",
+    return Call(
         "tirx.nki.scalar_tensor_scalar",
-        result,
-        data,
-        operand0,
-        operand1,
-        opcode0,
-        opcode1,
-        reverse0,
-        reverse1,
+        [result, data, operand0, operand1, opcode0, opcode1, reverse0, reverse1],
+        ty=ty,
+        span=span,
     )
 
 
-def nki_affine_select(result, pred, true_value, false_value):
-    return call_intrin("", "tirx.nki.affine_select", result, pred, true_value, false_value)
+def nki_affine_select(result, pred, true_value, false_value, *, ty=None, span=None):
+    return Call(
+        "tirx.nki.affine_select",
+        [result, pred, true_value, false_value],
+        ty=ty,
+        span=span,
+    )
 
 
 __all__ = [

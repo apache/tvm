@@ -133,7 +133,7 @@ def test_sync_shared_dyn():
         C_1_1 = T.decl_tensor((1,), data=C_1.data, scope="local")
         C_1_1[0] = B_1_1[threadIdx_x // 4 * 6 + threadIdx_x % 4]
         D_1_1 = T.decl_tensor((16,), data=D_1.data, scope="shared.dyn")
-        T.evaluate(T.call_intrin("int32", "tirx.tvm_storage_sync", "shared.dyn"))
+        T.evaluate(T.call_intrin("tirx.tvm_storage_sync", "shared.dyn", ty="int32"))
         D_1_1[threadIdx_x] = C_1_1[0]
         E_1 = T.decl_tensor((16,), data=E.data)
         E_1[threadIdx_x] = D_1_1[threadIdx_x]
@@ -211,7 +211,7 @@ def test_sync_bind():
             A_shared_1_1[ax0] = A[blockIdx_x * 512 + ax0]
         in_thread_A_temp_1_1 = T.decl_tensor((1,), data=in_thread_A_temp_1.data, scope="local")
         in_thread_A_temp_1_1[0] = T.float32(0)
-        T.evaluate(T.call_intrin("int32", "tirx.tvm_storage_sync", "shared"))
+        T.evaluate(T.call_intrin("tirx.tvm_storage_sync", "shared", ty="int32"))
         A_temp_1 = T.bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x])
         in_thread_A_temp_1_1[0] = A_temp_1
         A_temp_2 = T.bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x + 128])

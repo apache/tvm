@@ -40,10 +40,12 @@ struct AllReduceAttrs : public tvm::AttrsNode {
     refl::ObjectDef<AllReduceAttrs>()
         .def_ro("op_type", &AllReduceAttrs::op_type,
                 "The type of reduction operation to be applied to the input data. Now only sum is "
-                "supported.")
+                "supported.",
+                refl::DefaultValue(ffi::String("sum")))
         .def_ro("in_group", &AllReduceAttrs::in_group,
                 "Whether the reduction operation performs in group or globally or in group as "
-                "default.");
+                "default.",
+                refl::DefaultValue(true));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllReduceAttrs", AllReduceAttrs, AttrsNode);
 };  // struct AllReduceAttrs
@@ -61,7 +63,8 @@ struct AllGatherAttrs : public tvm::AttrsNode {
                 "chunked into.")
         .def_ro("in_group", &AllGatherAttrs::in_group,
                 "Whether the allgather operation performs in group or globally or in group as "
-                "default.");
+                "default.",
+                refl::DefaultValue(true));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllGatherAttrs", AllGatherAttrs, AttrsNode);
 };  // struct AllGatherAttrs
@@ -79,7 +82,8 @@ struct ScatterCollectiveAttrs : public tvm::AttrsNode {
                 "chunked into.")
         .def_ro("axis", &ScatterCollectiveAttrs::axis,
                 "The axis of the tensor to be scattered. The tensor will be chunked along "
-                "this axis.");
+                "this axis.",
+                refl::DefaultValue(0));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ScatterCollectiveAttrs", ScatterCollectiveAttrs,
                                     AttrsNode);

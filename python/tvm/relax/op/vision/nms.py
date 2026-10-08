@@ -16,7 +16,8 @@
 # under the License.
 """Non-maximum suppression operators."""
 
-from . import _ffi_api
+from tvm.ir import Call as _Call
+from tvm.ir.attrs import make_node as _make_attrs
 
 
 def all_class_non_max_suppression(
@@ -26,6 +27,9 @@ def all_class_non_max_suppression(
     iou_threshold,
     score_threshold,
     output_format="onnx",
+    *,
+    ty=None,
+    span=None,
 ):
     """Non-maximum suppression operator for object detection, corresponding to ONNX
     NonMaxSuppression and TensorFlow combined_non_max_suppression.
@@ -68,12 +72,26 @@ def all_class_non_max_suppression(
         So the box indices and scores for the class 0 come first in a sorted order, followed by
         the class 1 etc.
     """
-    return _ffi_api.all_class_non_max_suppression(
-        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, output_format
+    return _Call(
+        "relax.vision.all_class_non_max_suppression",
+        [boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold],
+        attrs=_make_attrs(
+            "relax.attrs.AllClassNonMaximumSuppressionAttrs", output_format=output_format
+        ),
+        ty=ty,
+        span=span,
     )
 
 
-def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
+def get_valid_counts(
+    data,
+    score_threshold=0,
+    id_index=0,
+    score_index=1,
+    *,
+    ty=None,
+    span=None,
+):
     """Get valid count of bounding boxes given a score threshold.
     Also moves valid boxes to the top of input data.
 
@@ -99,7 +117,18 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
         ``[batch_size, num_anchors, elem_length]``, and ``out_indices`` has shape
         ``[batch_size, num_anchors]``.
     """
-    return _ffi_api.get_valid_counts(data, score_threshold, id_index, score_index)
+    return _Call(
+        "relax.vision.get_valid_counts",
+        [data],
+        attrs=_make_attrs(
+            "relax.attrs.GetValidCountsAttrs",
+            score_threshold=score_threshold,
+            id_index=id_index,
+            score_index=score_index,
+        ),
+        ty=ty,
+        span=span,
+    )
 
 
 def non_max_suppression(
@@ -117,6 +146,9 @@ def non_max_suppression(
     invalid_to_bottom=False,
     soft_nms_sigma=0.0,
     score_threshold=0.0,
+    *,
+    ty=None,
+    span=None,
 ):
     """Non-maximum suppression operator for object detection.
 
@@ -186,19 +218,23 @@ def non_max_suppression(
         data.
         Otherwise returns the modified data tensor.
     """
-    return _ffi_api.non_max_suppression(
-        data,
-        valid_count,
-        indices,
-        max_output_size,
-        iou_threshold,
-        force_suppress,
-        top_k,
-        coord_start,
-        score_index,
-        id_index,
-        return_indices,
-        invalid_to_bottom,
-        soft_nms_sigma,
-        score_threshold,
+    return _Call(
+        "relax.vision.non_max_suppression",
+        [data, valid_count, indices],
+        attrs=_make_attrs(
+            "relax.attrs.NonMaximumSuppressionAttrs",
+            max_output_size=max_output_size,
+            iou_threshold=iou_threshold,
+            force_suppress=force_suppress,
+            top_k=top_k,
+            coord_start=coord_start,
+            score_index=score_index,
+            id_index=id_index,
+            return_indices=return_indices,
+            invalid_to_bottom=invalid_to_bottom,
+            soft_nms_sigma=soft_nms_sigma,
+            score_threshold=score_threshold,
+        ),
+        ty=ty,
+        span=span,
     )

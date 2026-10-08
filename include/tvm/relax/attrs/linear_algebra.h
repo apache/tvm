@@ -36,7 +36,8 @@ struct MatmulAttrs : public AttrsNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MatmulAttrs>().def_ro("out_dtype", &MatmulAttrs::out_dtype,
-                                          "The data type of the output tensor");
+                                          "The data type of the output tensor",
+                                          refl::DefaultValue(ffi::Optional<DLDataType>{}));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.MatmulAttrs", MatmulAttrs, AttrsNode);
 };  // struct MatmulAttrs

@@ -40,7 +40,8 @@ struct AllClassNonMaximumSuppressionAttrs : public AttrsNode {
     refl::ObjectDef<AllClassNonMaximumSuppressionAttrs>().def_ro(
         "output_format", &AllClassNonMaximumSuppressionAttrs::output_format,
         "Output format, onnx or tensorflow. Returns outputs in a way that can be easily "
-        "consumed by each frontend.");
+        "consumed by each frontend.",
+        refl::DefaultValue(ffi::String("onnx")));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AllClassNonMaximumSuppressionAttrs",
                                     AllClassNonMaximumSuppressionAttrs, AttrsNode);
@@ -62,11 +63,15 @@ struct ROIAlignAttrs : public AttrsNode {
         .def_ro("spatial_scale", &ROIAlignAttrs::spatial_scale,
                 "Ratio of input feature map height (or width) to raw image height (or width).")
         .def_ro("sample_ratio", &ROIAlignAttrs::sample_ratio,
-                "Optional sampling ratio of ROI align, using adaptive size by default.")
+                "Optional sampling ratio of ROI align, using adaptive size by default.",
+                refl::DefaultValue(-1))
         .def_ro("aligned", &ROIAlignAttrs::aligned,
-                "Whether to use the aligned ROIAlign semantics without the legacy 1-pixel clamp.")
-        .def_ro("layout", &ROIAlignAttrs::layout, "Dimension ordering of the input data.")
-        .def_ro("mode", &ROIAlignAttrs::mode, "Mode for ROI Align. Can be 'avg' or 'max'.");
+                "Whether to use the aligned ROIAlign semantics without the legacy 1-pixel clamp.",
+                refl::DefaultValue(false))
+        .def_ro("layout", &ROIAlignAttrs::layout, "Dimension ordering of the input data.",
+                refl::DefaultValue(ffi::String("NCHW")))
+        .def_ro("mode", &ROIAlignAttrs::mode, "Mode for ROI Align. Can be 'avg' or 'max'.",
+                refl::DefaultValue(ffi::String("avg")));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ROIAlignAttrs", ROIAlignAttrs, AttrsNode);
 };  // struct ROIAlignAttrs
@@ -83,7 +88,8 @@ struct ROIPoolAttrs : public AttrsNode {
         .def_ro("pooled_size", &ROIPoolAttrs::pooled_size, "Output size of roi pool.")
         .def_ro("spatial_scale", &ROIPoolAttrs::spatial_scale,
                 "Ratio of input feature map height (or width) to raw image height (or width).")
-        .def_ro("layout", &ROIPoolAttrs::layout, "Dimension ordering of the input data.");
+        .def_ro("layout", &ROIPoolAttrs::layout, "Dimension ordering of the input data.",
+                refl::DefaultValue(ffi::String("NCHW")));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ROIPoolAttrs", ROIPoolAttrs, AttrsNode);
 };  // struct ROIPoolAttrs
@@ -98,11 +104,11 @@ struct GetValidCountsAttrs : public AttrsNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<GetValidCountsAttrs>()
         .def_ro("score_threshold", &GetValidCountsAttrs::score_threshold,
-                "Lower limit of score for valid bounding boxes.")
+                "Lower limit of score for valid bounding boxes.", refl::DefaultValue(0))
         .def_ro("id_index", &GetValidCountsAttrs::id_index,
-                "Index of the class categories, -1 to disable.")
+                "Index of the class categories, -1 to disable.", refl::DefaultValue(0))
         .def_ro("score_index", &GetValidCountsAttrs::score_index,
-                "Index of the scores/confidence of boxes.");
+                "Index of the scores/confidence of boxes.", refl::DefaultValue(1));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GetValidCountsAttrs", GetValidCountsAttrs,
                                     AttrsNode);
@@ -126,27 +132,30 @@ struct NonMaximumSuppressionAttrs : public AttrsNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<NonMaximumSuppressionAttrs>()
         .def_ro("max_output_size", &NonMaximumSuppressionAttrs::max_output_size,
-                "Max number of output valid boxes, -1 for no limit.")
+                "Max number of output valid boxes, -1 for no limit.", refl::DefaultValue(-1))
         .def_ro("iou_threshold", &NonMaximumSuppressionAttrs::iou_threshold,
-                "Non-maximum suppression IoU threshold.")
+                "Non-maximum suppression IoU threshold.", refl::DefaultValue(0.5))
         .def_ro("force_suppress", &NonMaximumSuppressionAttrs::force_suppress,
-                "Whether to suppress all detections regardless of class_id.")
+                "Whether to suppress all detections regardless of class_id.",
+                refl::DefaultValue(false))
         .def_ro("top_k", &NonMaximumSuppressionAttrs::top_k,
-                "Keep maximum top k detections before nms, -1 for no limit.")
+                "Keep maximum top k detections before nms, -1 for no limit.",
+                refl::DefaultValue(-1))
         .def_ro("coord_start", &NonMaximumSuppressionAttrs::coord_start,
-                "Start index of the consecutive 4 coordinates.")
+                "Start index of the consecutive 4 coordinates.", refl::DefaultValue(2))
         .def_ro("score_index", &NonMaximumSuppressionAttrs::score_index,
-                "Index of the scores/confidence of boxes.")
+                "Index of the scores/confidence of boxes.", refl::DefaultValue(1))
         .def_ro("id_index", &NonMaximumSuppressionAttrs::id_index,
-                "Index of the class categories, -1 to disable.")
+                "Index of the class categories, -1 to disable.", refl::DefaultValue(0))
         .def_ro("return_indices", &NonMaximumSuppressionAttrs::return_indices,
-                "Whether to return box indices in input data.")
+                "Whether to return box indices in input data.", refl::DefaultValue(true))
         .def_ro("invalid_to_bottom", &NonMaximumSuppressionAttrs::invalid_to_bottom,
-                "Whether to move all valid bounding boxes to the top.")
+                "Whether to move all valid bounding boxes to the top.", refl::DefaultValue(false))
         .def_ro("soft_nms_sigma", &NonMaximumSuppressionAttrs::soft_nms_sigma,
-                "Sigma for soft-NMS; 0.0 means standard hard NMS.")
+                "Sigma for soft-NMS; 0.0 means standard hard NMS.", refl::DefaultValue(0.0))
         .def_ro("score_threshold", &NonMaximumSuppressionAttrs::score_threshold,
-                "Score threshold for soft-NMS validity check; 0.0 when unused.");
+                "Score threshold for soft-NMS validity check; 0.0 when unused.",
+                refl::DefaultValue(0.0));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.NonMaximumSuppressionAttrs",
                                     NonMaximumSuppressionAttrs, AttrsNode);
@@ -164,16 +173,19 @@ struct MultiboxTransformLocAttrs : public AttrsNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MultiboxTransformLocAttrs>()
         .def_ro("clip", &MultiboxTransformLocAttrs::clip,
-                "Clip decoded ymin,xmin,ymax,xmax to [0,1].")
+                "Clip decoded ymin,xmin,ymax,xmax to [0,1].", refl::DefaultValue(false))
         .def_ro("threshold", &MultiboxTransformLocAttrs::threshold,
-                "After softmax, zero scores strictly below this value.")
+                "After softmax, zero scores strictly below this value.", refl::DefaultValue(0.0))
         .def_ro("variances", &MultiboxTransformLocAttrs::variances,
                 "(x,y,w,h) scales = TFLite 1/x_scale,1/y_scale,1/w_scale,1/h_scale on "
-                "encodings. Very large w/h scales can overflow exp in decode.")
+                "encodings. Very large w/h scales can overflow exp in decode.",
+                refl::DefaultValue(ffi::Array<double>{1.0, 1.0, 1.0, 1.0}))
         .def_ro("keep_background", &MultiboxTransformLocAttrs::keep_background,
-                "If false, force output scores[:,0,:] to 0 (background class).")
+                "If false, force output scores[:,0,:] to 0 (background class).",
+                refl::DefaultValue(true))
         .def_ro("apply_softmax", &MultiboxTransformLocAttrs::apply_softmax,
-                "Whether to apply softmax to class predictions before thresholding.");
+                "Whether to apply softmax to class predictions before thresholding.",
+                refl::DefaultValue(true));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.MultiboxTransformLocAttrs",
                                     MultiboxTransformLocAttrs, AttrsNode);

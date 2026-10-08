@@ -44,7 +44,7 @@ def ptx_ldmatrix(
             0,
             A_shared.data,
             16 * (tx % 16) + 8 * (tx // 16),
-            dtype="float16",
+            ty="float16",
         )
     )
     for k in range(2):

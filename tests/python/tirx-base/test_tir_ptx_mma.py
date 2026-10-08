@@ -58,7 +58,7 @@ def gemm_mma_m8n8k4_row_col_fp64pf64fp64(
             Accum.data,
             0,
             False,
-            dtype="float64",
+            ty="float64",
         )
     )
     for mma_accum_c_id in range(2):
@@ -131,7 +131,7 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp16(
             Accum.data,
             0,
             False,
-            dtype="float16",
+            ty="float16",
         )
     )
     for mma_accum_c_id in range(8):
@@ -208,7 +208,7 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp32(
             Accum.data,
             0,
             False,
-            dtype="float32",
+            ty="float32",
         )
     )
     for mma_accum_c_id in range(8):
@@ -284,7 +284,7 @@ def gemm_mma_m8n8k16_row_col_s8s8s32(
             Accum.data,
             0,
             False,
-            dtype="int32",
+            ty="int32",
         )
     )
     for mma_accum_c_id in range(2):
@@ -355,7 +355,7 @@ def gemm_mma_m8n8k16_row_col_s8u8s32(
             Accum.data,
             0,
             False,
-            dtype="int32",
+            ty="int32",
         )
     )
     for mma_accum_c_id in range(2):
@@ -426,7 +426,7 @@ def gemm_mma_m8n8k32_row_col_s4s4s32(
             Accum.data,
             0,
             False,
-            dtype="int32",
+            ty="int32",
         )
     )
     for mma_accum_c_id in range(2):
@@ -491,7 +491,7 @@ def gemm_mma_m8n8k32_row_col_s4u4s32(
             Accum.data,
             0,
             False,
-            dtype="int32",
+            ty="int32",
         )
     )
     for mma_accum_c_id in range(2):
@@ -560,7 +560,7 @@ def gemm_mma_m16n8k8_row_col_fp16fp16fp32(
             Accum.data,
             0,
             False,
-            dtype="float32",
+            ty="float32",
         )
     )
     for mma_accum_c_id in range(4):
@@ -635,7 +635,7 @@ def gemm_mma_m16n8k16_row_col_fp16fp16fp16(
             Accum.data,
             0,
             False,
-            dtype="float16",
+            ty="float16",
         )
     )
     for mma_accum_c_id in range(4):
@@ -711,7 +711,7 @@ def gemm_mma_m16n8k16_row_col_fp16fp16fp32(
             Accum.data,
             0,
             False,
-            dtype="float32",
+            ty="float32",
         )
     )
     for mma_accum_c_id in range(4):
@@ -787,7 +787,7 @@ def gemm_mma_m16n8k16_row_col_s8s8s32(
             Accum.data,
             0,
             False,
-            dtype="int32",
+            ty="int32",
         )
     )
     for mma_accum_c_id in range(4):
@@ -863,7 +863,7 @@ def gemm_mma_m16n8k16_row_col_s8u8s32(
             Accum.data,
             0,
             False,
-            dtype="int32",
+            ty="int32",
         )
     )
     for mma_accum_c_id in range(4):
@@ -939,7 +939,7 @@ def gemm_mma_m16n8k32_row_col_s8s8s32(
             Accum.data,
             0,
             False,
-            dtype="int32",
+            ty="int32",
         )
     )
     for mma_accum_c_id in range(4):
@@ -1015,7 +1015,7 @@ def gemm_mma_m16n8k32_row_col_s8u8s32(
             Accum.data,
             0,
             False,
-            dtype="int32",
+            ty="int32",
         )
     )
     for mma_accum_c_id in range(4):
@@ -1091,7 +1091,7 @@ def gemm_mma_m16n8k64_row_col_s4s4s32(
             Accum.data,
             0,
             False,
-            dtype="int32",
+            ty="int32",
         )
     )
     for mma_accum_c_id in range(4):
@@ -1161,7 +1161,7 @@ def gemm_mma_m16n8k64_row_col_s4u4s32(
             Accum.data,
             0,
             False,
-            dtype="int32",
+            ty="int32",
         )
     )
     for mma_accum_c_id in range(4):
@@ -1232,7 +1232,7 @@ def gemm_mma_m16n8k256_row_col_b1b1s32(
             0,
             False,
             "xor",
-            dtype="int32",
+            ty="int32",
         )
     )
     for mma_accum_c_id in range(4):

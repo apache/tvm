@@ -200,9 +200,9 @@ TEST(ScalablePrimType, TestScalableIntrinCall) {
   ASSERT_EQ(call->ty.as_or_throw<tvm::PrimType>(), scalable_type);
   ASSERT_EQ(tvm::Script(call),
 #if TVM_LLVM_VERSION >= 200
-            "T.call_llvm_intrin(\"int32xvscalex4\", \"llvm.stepvector\")");
+            "T.call_llvm_intrin(\"llvm.stepvector\", ty=\"int32xvscalex4\")");
 #else
-            "T.call_llvm_intrin(\"int32xvscalex4\", \"llvm.experimental.stepvector\")");
+            "T.call_llvm_intrin(\"llvm.experimental.stepvector\", ty=\"int32xvscalex4\")");
 #endif
 }
 #endif

@@ -481,7 +481,7 @@ class TransformedSharedToWmma:
                                                 tgt.elem_offset // 256
                                                 + tgt.elem_offset % 256 // 16,
                                                 T.tvm_access_ptr(
-                                                    T.type_annotation(dtype="float16"),
+                                                    T.type_annotation(ty="float16"),
                                                     src.data,
                                                     src.elem_offset,
                                                     s1 * 16,
@@ -562,7 +562,7 @@ class TransformedWmmaToShared:
                                                 src.elem_offset // 256
                                                 + src.elem_offset % 256 // 16,
                                                 T.tvm_access_ptr(
-                                                    T.type_annotation(dtype="float32"),
+                                                    T.type_annotation(ty="float32"),
                                                     tgt.data,
                                                     tgt.elem_offset,
                                                     s1 * 16,
@@ -632,7 +632,7 @@ class TransformedWmmaToGlobal:
                                                 src.elem_offset // 256
                                                 + src.elem_offset % 256 // 16,
                                                 T.tvm_access_ptr(
-                                                    T.type_annotation("float32"),
+                                                    T.type_annotation(ty="float32"),
                                                     tgt.data,
                                                     tgt.elem_offset,
                                                     s1 * 16,
@@ -836,7 +836,7 @@ class TransformedWmmaToGlobalWithFusion:
                                                 src.elem_offset // 256
                                                 + src.elem_offset % 256 // 16,
                                                 T.tvm_access_ptr(
-                                                    T.type_annotation("float32"),
+                                                    T.type_annotation(ty="float32"),
                                                     tgt.data,
                                                     tgt.elem_offset,
                                                     s1_1 * 16,

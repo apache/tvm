@@ -206,7 +206,7 @@ def get_ldmatrix_intrin(
                         warp.elem_offset + lift(local_size) * tx,
                         shared.access_ptr("r"),
                         smem_offset(tx, s0),
-                        dtype=dtype,
+                        ty=dtype,
                     )
                 )
 
@@ -413,7 +413,7 @@ def get_mma_intrin(
                         C.data,
                         C.elem_offset + tx * lift(local_size_out),
                         False,
-                        dtype=out_dtype,
+                        ty=out_dtype,
                     )
                 )
 
@@ -432,7 +432,7 @@ def get_mma_intrin(
                         C.data,
                         C.elem_offset + tx * lift(local_size_out) + lift(local_size_out) // 2,
                         False,
-                        dtype=out_dtype,
+                        ty=out_dtype,
                     )
                 )
 
@@ -545,7 +545,7 @@ def get_mma_fill_intrin(dtype, local_size):
 
             for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
                 T.evaluate(
-                    T.cuda.mma_fill_legacy(local_size, C_warp.data, C_warp.elem_offset, dtype=dtype)
+                    T.cuda.mma_fill_legacy(local_size, C_warp.data, C_warp.elem_offset, ty=dtype)
                 )
 
     return mma_fill_desc, mma_fill_impl
@@ -606,7 +606,7 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
                             C_warp.data,
                             C_warp.elem_offset,
                             s0,
-                            dtype=dtype,
+                            ty=dtype,
                         )
                     )
 
@@ -1513,7 +1513,7 @@ def get_mma_load_intrin(
                         get_index(dst.elem_offset, d0),
                         src.access_ptr("r"),
                         get_tx_index(tx, s0),
-                        dtype=dtype,
+                        ty=dtype,
                     )
                 )
 
@@ -1608,7 +1608,7 @@ def get_mma_sync_intrin(
                     C.data,
                     get_index_C(C.elem_offset, c0),
                     False,
-                    dtype=out_dtype,
+                    ty=out_dtype,
                 )
             )
 

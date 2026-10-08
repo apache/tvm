@@ -969,16 +969,18 @@ class CallNode : public ExprNode {
  */
 class Call : public Expr {
  public:
-  TVM_DLL Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs = Attrs(),
+  /*! \brief Construct a Call, inferring only when ret_ty is absent.
+   * Construction preserves provisional IR; invoke Validate separately when needed.
+   */
+  TVM_DLL Call(ffi::Optional<Type> ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs = Attrs(),
                ffi::Array<Type> ty_args = ffi::Array<Type>(), Span span = Span());
 
-  /*! \brief Construct a provisional Call without invoking its Op validator. */
-  TVM_DLL static Call Unchecked(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs = Attrs(),
-                                ffi::Array<Type> ty_args = ffi::Array<Type>(), Span span = Span());
+  /*! \brief Check this Call against its registered operator contract. */
+  TVM_DLL void Validate() const;
   /*! \brief Recompute a result type from the Call's current explicit inputs.
    *
    * This ignores the Call's stored result type and does not mutate the Call.
-   * The operator must register TFixedReturnType or a context-free FInferType hook.
+   * Returns Missing when no deduction is available; inference errors propagate.
    * This does not invoke the operator's validator.
    */
   TVM_DLL static Type ReinferType(const CallNode* call);
@@ -987,10 +989,6 @@ class Call : public Expr {
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Call, Expr, CallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
-
- private:
-  Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<Type> ty_args,
-       Span span, bool validate);
 };
 
 /*! \brief range over one dimension */

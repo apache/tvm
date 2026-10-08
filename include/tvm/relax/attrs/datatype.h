@@ -46,7 +46,8 @@ struct WrapParamAttrs : public AttrsNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<WrapParamAttrs>().def_ro("dtype", &WrapParamAttrs::dtype, "Target data type");
+    refl::ObjectDef<WrapParamAttrs>().def_ro("dtype", &WrapParamAttrs::dtype, "Target data type",
+                                             refl::DefaultValue((DLDataType{kDLFloat, 32, 1})));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.WrapParamAttrs", WrapParamAttrs, AttrsNode);
 };  // struct WrapParamAttrs.

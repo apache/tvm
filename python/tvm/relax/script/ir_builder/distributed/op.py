@@ -73,23 +73,33 @@ def call_tir(
 
 
 def annotate_sharding(
-    value: Expr, device_mesh: py_str | DeviceMesh, placement: py_str | Placement
+    value: Expr,
+    device_mesh: py_str | DeviceMesh,
+    placement: py_str | Placement,
+    *,
+    ty=None,
+    span=None,
 ) -> Expr:
     if isinstance(device_mesh, py_str):
         device_mesh = _lookup_device_mesh(device_mesh)
     if isinstance(placement, py_str):
         placement = Placement.from_text(placement)
-    return _annotate_sharding(value, device_mesh, placement)
+    return _annotate_sharding(value, device_mesh, placement, ty=ty, span=span)
 
 
 def redistribute(
-    value: Expr, device_mesh: py_str | DeviceMesh, placement: py_str | Placement
+    value: Expr,
+    device_mesh: py_str | DeviceMesh,
+    placement: py_str | Placement,
+    *,
+    ty=None,
+    span=None,
 ) -> Expr:
     if isinstance(device_mesh, py_str):
         device_mesh = _lookup_device_mesh(device_mesh)
     if isinstance(placement, py_str):
         placement = Placement.from_text(placement)
-    return _redistribute(value, device_mesh, placement)
+    return _redistribute(value, device_mesh, placement, ty=ty, span=span)
 
 
 __all__ = [

@@ -695,12 +695,11 @@ class DefineVDevice : ExprMutator {
     }
 
     if (call->op.same_as(call_tir_op)) {
-      return builder_->Normalize(Call::Unchecked(Type::Missing(), call_tir_op,
-                                                 {gv.value(), Tuple(new_args)}, call->attrs,
-                                                 {updated_ret_ty}));
+      return builder_->Normalize(Call(Type::Missing(), call_tir_op, {gv.value(), Tuple(new_args)},
+                                      call->attrs, {updated_ret_ty}));
     } else {
       return builder_->Normalize(
-          Call::Unchecked(Type::Missing(), call->op, new_args, call->attrs, {updated_ret_ty}));
+          Call(Type::Missing(), call->op, new_args, call->attrs, {updated_ret_ty}));
     }
   }
 
@@ -736,8 +735,7 @@ class DefineVDevice : ExprMutator {
     attrs->index = vdev->vdevice_id;
     attrs->memory_scope = vdev->memory_scope;
 
-    Expr new_arg =
-        Call::Unchecked(Type::Missing(), hint_on_device_op_, {arg}, Attrs{std::move(attrs)}, {});
+    Expr new_arg = Call(Type::Missing(), hint_on_device_op_, {arg}, Attrs{std::move(attrs)}, {});
 
     return new_arg;
   }

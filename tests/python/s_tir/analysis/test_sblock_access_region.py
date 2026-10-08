@@ -52,7 +52,7 @@ def masked_access_func() -> None:
     B = Ts.sblock_alloc_buffer((16,), "float32")
     with Ts.sblock():
         mask = T.meta_var(T.Broadcast(T.bool(True), 4))
-        value = T.meta_var(T.masked_load("float32x4", A, T.Ramp(4, 1, 4), mask))
+        value = T.meta_var(T.masked_load(A, T.Ramp(4, 1, 4), mask, ty="float32x4"))
         T.masked_store(B, value, T.Ramp(8, 1, 4), mask)
 
 
@@ -116,7 +116,7 @@ def opaque_access_func() -> None:
             Ts.reads([A[v * 128 : v * 128 + 128]])
             Ts.writes([B[v * 128 : v * 128 + 128]])
             T.evaluate(
-                T.call_extern("test", B.data, v * 128, 128, A.data, v * 128, 128, dtype="float32")
+                T.call_extern("test", B.data, v * 128, 128, A.data, v * 128, 128, ty="float32")
             )
 
 

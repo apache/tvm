@@ -38,11 +38,13 @@ struct ArgmaxArgminAttrs : public AttrsNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ArgmaxArgminAttrs>()
         .def_ro("axis", &ArgmaxArgminAttrs::axis,
-                "The axis along which to perform the argmin/argmax.")
+                "The axis along which to perform the argmin/argmax.",
+                refl::DefaultValue(ffi::Optional<int64_t>{}))
         .def_ro("keepdims", &ArgmaxArgminAttrs::keepdims,
                 "If this is set to `True`, the reduced axis is left in the result as dimension "
                 "with size "
-                "one.");
+                "one.",
+                refl::DefaultValue(false));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ArgmaxArgminAttrs", ArgmaxArgminAttrs, AttrsNode);
 };  // struct ArgmaxArgminAttrs
@@ -56,9 +58,10 @@ struct BucketizeAttrs : public tvm::AttrsNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BucketizeAttrs>()
         .def_ro("out_int32", &BucketizeAttrs::out_int32,
-                "Indicate the output datatype, int32 if True, int64 otherwise.")
-        .def_ro("right", &BucketizeAttrs::right,
-                "Determines the behavior for values in boundaries");
+                "Indicate the output datatype, int32 if True, int64 otherwise.",
+                refl::DefaultValue(false))
+        .def_ro("right", &BucketizeAttrs::right, "Determines the behavior for values in boundaries",
+                refl::DefaultValue(false));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.BucketizeAttrs", BucketizeAttrs, AttrsNode);
 };  // struct BucketizeAttrs

@@ -49,9 +49,8 @@ Expr multibox_transform_loc(Expr cls_pred, Expr loc_pred, Expr anchor, bool clip
   attrs->apply_softmax = apply_softmax;
 
   static const Op op = Op::Get("relax.vision.multibox_transform_loc");
-  return Call::Unchecked(Type::Missing(), op,
-                         {std::move(cls_pred), std::move(loc_pred), std::move(anchor)},
-                         Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(cls_pred), std::move(loc_pred), std::move(anchor)},
+              Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -70,6 +69,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  */
 Type InferTypeMultiboxTransformLoc(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   if (call->args.size() != 3) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "multibox_transform_loc: expected 3 inputs (cls_pred, loc_pred, anchor), "

@@ -439,9 +439,8 @@ class VMShapeLowerMutator
     auto [code, rvalue] = MakeMatchArgs(slot->expr, false);
     ffi::Array<Expr> args = {runtime_var, shape_heap_, IntImm::Int64(static_cast<int>(code)),
                              rvalue, GetErrContext(err_ctx)};
-    builder_->Emit(
-        Call::Unchecked(Type::Missing(), builtin_match_prim_value_, args, Attrs(), {void_ty_}),
-        "_");
+    builder_->Emit(Call(Type::Missing(), builtin_match_prim_value_, args, Attrs(), {void_ty_}),
+                   "_");
     this->EmitOutstandingPrimExprCompute();
   }
 
@@ -753,8 +752,8 @@ class VMShapeLowerMutator
           WithAttr<tirx::Function>(std::move(shape_func), tvm::tirx::attr::kIsHostFunc, true);
     }
     GlobalVar shape_func_var = builder_->AddFunction(shape_func, "shape_func");
-    builder_->Emit(Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir_packed"),
-                                   {shape_func_var, Tuple({shape_heap_})}),
+    builder_->Emit(Call(Type::Missing(), Op::Get("relax.call_tir_packed"),
+                        {shape_func_var, Tuple({shape_heap_})}),
                    "_");
     return to_compute.size();
   }
@@ -796,8 +795,8 @@ class VMShapeLowerMutator
   void VisitType_(const StringTypeNode* op, Expr value, bool always_check, bool dynamic_only,
                   const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {
     if (always_check || !IsBaseOf(StringType(), GetType(value))) {
-      builder_->Emit(Call::Unchecked(Type::Missing(), ExternFunc("vm.builtin.check_string_info"),
-                                     {value, GetErrContext(err_ctx)}, Attrs(), {void_ty_}),
+      builder_->Emit(Call(Type::Missing(), ExternFunc("vm.builtin.check_string_info"),
+                          {value, GetErrContext(err_ctx)}, Attrs(), {void_ty_}),
                      "_");
     }
   }
@@ -839,9 +838,8 @@ class VMShapeLowerMutator
     }
     if (always_check || !IsBaseOf(TensorType(op->dtype, op->ndim), GetType(value))) {
       // check_tensor_info(value, ndim, dtype, err_ctx)
-      Expr dtype_arg = op->IsUnknownDtype()
-                           ? Expr(Call::Unchecked(Type::Missing(), null_value_op_, {}))
-                           : Expr(DataTypeImm(op->dtype.value()->dtype));
+      Expr dtype_arg = op->IsUnknownDtype() ? Expr(Call(Type::Missing(), null_value_op_, {}))
+                                            : Expr(DataTypeImm(op->dtype.value()->dtype));
       Call call(Type::Missing(), builtin_check_tensor_info_,
                 {value, IntImm::Int64(op->ndim), dtype_arg, GetErrContext(err_ctx)}, Attrs(),
                 {void_ty_});

@@ -125,7 +125,7 @@ class TestUnschedulableFunc(BaseCompactTest):
                 Ts.writes(C[i, 0:16])
                 B = Ts.sblock_alloc_buffer((16, 16), "float32")
                 for j in range(0, 16):
-                    T.evaluate(T.call_extern("dummy_extern_function", B.data, dtype="int32"))
+                    T.evaluate(T.call_extern("dummy_extern_function", B.data, ty="int32"))
                     B[i, j] = A[i, j] + 1.0
                 for j in range(0, 16):
                     C[i, j] = B[i, j] * 2.0
@@ -556,18 +556,14 @@ class TestAnnotatedOpaqueAccess(BaseCompactTest):
                     # no annotation, opaque access will cover full region
                     Ts.reads([])
                     Ts.writes([])
-                    T.evaluate(
-                        T.call_extern("opaque_extern_function", A.data, B.data, dtype="int32")
-                    )
+                    T.evaluate(T.call_extern("opaque_extern_function", A.data, B.data, ty="int32"))
                     B[i] = A[i]
                 with Ts.sblock():
                     # treat opaque access only access annotated regions, even if
                     # they are not compatible with actual buffer accesses.
                     Ts.reads([B[i]])
                     Ts.writes([C[i : i + 9]])
-                    T.evaluate(
-                        T.call_extern("opaque_extern_function", B.data, C.data, dtype="int32")
-                    )
+                    T.evaluate(T.call_extern("opaque_extern_function", B.data, C.data, ty="int32"))
                     C[i] = B[i]
 
     @Ts.function
@@ -580,18 +576,14 @@ class TestAnnotatedOpaqueAccess(BaseCompactTest):
                     # no annotation, opaque access will cover full region
                     Ts.reads([])
                     Ts.writes([])
-                    T.evaluate(
-                        T.call_extern("opaque_extern_function", A.data, B.data, dtype="int32")
-                    )
+                    T.evaluate(T.call_extern("opaque_extern_function", A.data, B.data, ty="int32"))
                     B[i] = A[i]
                 with Ts.sblock():
                     # treat opaque access only access annotated regions, even if
                     # they are not compatible with actual buffer accesses.
                     Ts.reads([B[i]])
                     Ts.writes([C[i : i + 9]])
-                    T.evaluate(
-                        T.call_extern("opaque_extern_function", B.data, C.data, dtype="int32")
-                    )
+                    T.evaluate(T.call_extern("opaque_extern_function", B.data, C.data, ty="int32"))
                     C[i] = B[i]
 
 
@@ -737,15 +729,15 @@ class TestNonIndexLetBinding(BaseCompactTest):
     @Ts.function
     def before():
         A = Ts.sblock_alloc_buffer((64), "float32")
-        x1: T.let[T.float16] = T.call_extern("get", dtype="float16")
-        x2: T.let[T.float32] = T.call_extern("get", dtype="float32")
-        x3: T.let[T.float64] = T.call_extern("get", dtype="float64")
-        x4: T.let[T.uint8] = T.call_extern("get", dtype="uint8")
-        x5: T.let[T.int32x16] = T.call_extern("get", dtype="int32x16")
-        x6: T.let[T.handle] = T.call_extern("get", dtype="handle")
-        x7: T.let = T.call_extern("get", dtype="")
+        x1: T.let[T.float16] = T.call_extern("get", ty="float16")
+        x2: T.let[T.float32] = T.call_extern("get", ty="float32")
+        x3: T.let[T.float64] = T.call_extern("get", ty="float64")
+        x4: T.let[T.uint8] = T.call_extern("get", ty="uint8")
+        x5: T.let[T.int32x16] = T.call_extern("get", ty="int32x16")
+        x6: T.let[T.handle] = T.call_extern("get", ty="handle")
+        x7: T.let = T.call_extern("get", ty="")
         for rk in range(64):
-            A[rk] = T.call_extern("load_ptr", x1, x2, x3, x4, x5, x6, x7, dtype="float32")
+            A[rk] = T.call_extern("load_ptr", x1, x2, x3, x4, x5, x6, x7, ty="float32")
 
     expected = before
 

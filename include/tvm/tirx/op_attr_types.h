@@ -71,41 +71,6 @@ using FLowerIntrinsic = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 using FLegalize = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
 /*!
- * \brief The fully qualified TVMScript name, including its dialect namespace.
- */
-using TScriptPrinterName = ffi::String;
-
-/*!
- * \brief The published script callable accepts the shared Op construction contract.
- *
- * Published by Python construction namespaces, not by Op definitions: a printer
- * name alone does not establish a legacy wrapper's positional/keyword contract.
- * Semantic syntax hooks retain precedence over ordinary named construction.
- */
-using TScriptStandardCall = bool;
-
-/*!
- * \brief Specifies that TVMScript printer prints the dtype as the first/last argument.
-          If not specified, dtype will not be printed.
- */
-enum class ScriptDtypePrintLocation : int {
-  /*!
-   * \brief Do not print dtype as an argument.
-   */
-  kNone = 0,
-  /*!
-   * \brief Print dtype as the first argument.
-   */
-  kFirst = 1,
-  /*!
-   * \brief FPrint dtype as the last argument.
-   */
-  kLast = 2,
-};
-
-using TScriptDtypePrintLocation = int64_t;
-
-/*!
  * \brief Broad TIRx op category.
  *
  * Expected values:

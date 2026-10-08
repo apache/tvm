@@ -28,12 +28,12 @@ while keeping the same underlying data.
 
 from collections.abc import Sequence
 
+from tvm.ir import Call as _Call
 from tvm.ir import DataTypeImm, GenericConst
-from tvm.relax import Expr, ShapeExpr
+from tvm.relax import Expr, ShapeExpr, Tuple
 from tvm.relax.expr import prim_value
 
 from ..base import null_value
-from . import _ffi_api
 
 PrimExprLike = int | Expr
 
@@ -43,6 +43,9 @@ def view(
     shape: Sequence[PrimExprLike] | Expr | None = None,
     dtype: Expr | None = None,
     relative_byte_offset: Expr | None = None,
+    *,
+    ty=None,
+    span=None,
 ) -> Expr:
     """Provide a view into an existing tensor
 
@@ -99,10 +102,20 @@ def view(
         else prim_value(relative_byte_offset)
     )
 
-    return _ffi_api.view(data, shape, dtype, relative_byte_offset)  # type: ignore
+    return _Call(
+        "relax.memory.view",
+        [
+            data,
+            Tuple([]) if shape is None else shape,
+            dtype,
+            Tuple([]) if relative_byte_offset is None else relative_byte_offset,
+        ],
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def ensure_zero_offset(data: Expr) -> Expr:
+def ensure_zero_offset(data: Expr, *, ty=None, span=None) -> Expr:
     """
     Ensure the tensor has elem_offset == 0. A copy will be made if necessary.
 
@@ -116,4 +129,9 @@ def ensure_zero_offset(data: Expr) -> Expr:
     result : relax.Expr
         The tensor with elem_offset == 0
     """
-    return _ffi_api.ensure_zero_offset(data)  # type: ignore
+    return _Call(
+        "relax.memory.ensure_zero_offset",
+        [data],
+        ty=ty,
+        span=span,
+    )  # type: ignore

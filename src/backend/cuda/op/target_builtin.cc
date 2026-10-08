@@ -43,7 +43,23 @@ void RegisterDeviceIntrinsics();
 Type InferTypeCudaLdg(const CallNode* call) {
   TVM_FFI_CHECK_GE(call->args.size(), 2U, ValueError)
       << "CUDA load type inference requires a dtype operand";
-  return PrimType(ffi::StringToDLDataType(call->args[1].as_or_throw<StringImm>()->value));
+  if (call->args.size() == 2) {
+    return PrimType(ffi::StringToDLDataType(call->args[1].as_or_throw<StringImm>()->value));
+  }
+  const auto* width = call->args.back().as<IntImmNode>();
+  TVM_FFI_CHECK(
+      width && (width->value == 2 || width->value == 4) &&
+          call->args.size() == static_cast<size_t>(static_cast<int64_t>(width->value) + 4),
+      ValueError)
+      << "Vector CUDA load requires destination pointers and a width";
+  return PrimType::Void();
+}
+
+Type InferTypeMovSreg(const CallNode* call) {
+  TVM_FFI_CHECK(!call->args.empty(), TypeError) << "mov_sreg expects a bit width";
+  const auto* bits = call->args[0].as<IntImmNode>();
+  TVM_FFI_CHECK(bits, TypeError) << "mov_sreg expects a constant bit width";
+  return PrimType::Int(static_cast<int64_t>(bits->value));
 }
 
 template <size_t N>
@@ -64,6 +80,7 @@ void RegisterCudaTargetBuiltins() {
   TCGen05InstrDescriptorBlockScaledAttrs::RegisterReflection();
 
   OpDef("tirx.tvm_load_matrix_sync")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(
           sig::arg("fragment", "The matrix fragment."), sig::arg<IntExpr>("m", "The M dimension."),
           sig::arg<IntExpr>("n", "The N dimension."), sig::arg<IntExpr>("k", "The K dimension."),
@@ -75,6 +92,7 @@ void RegisterCudaTargetBuiltins() {
                                  static_cast<int64_t>(CallEffectKind::kReadState));
 
   OpDef("tirx.tvm_mma_sync")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(sig::arg("fragment_d", "The D fragment."),
                  sig::arg<IntExpr>("index_d", "The D fragment index."),
                  sig::arg("fragment_a", "The A fragment."),
@@ -88,6 +106,7 @@ void RegisterCudaTargetBuiltins() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.tvm_bmma_sync")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(sig::arg("fragment_d", "The D fragment."),
                  sig::arg<IntExpr>("index_d", "The D fragment index."),
                  sig::arg("fragment_a", "The A fragment."),
@@ -101,6 +120,7 @@ void RegisterCudaTargetBuiltins() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.tvm_fill_fragment")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(
           sig::arg("fragment", "The matrix fragment."), sig::arg<IntExpr>("m", "The M dimension."),
           sig::arg<IntExpr>("n", "The N dimension."), sig::arg<IntExpr>("k", "The K dimension."),
@@ -110,6 +130,7 @@ void RegisterCudaTargetBuiltins() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.tvm_store_matrix_sync")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(
           sig::arg("fragment", "The matrix fragment."), sig::arg<IntExpr>("m", "The M dimension."),
           sig::arg<IntExpr>("n", "The N dimension."), sig::arg<IntExpr>("k", "The K dimension."),
@@ -145,7 +166,7 @@ void RegisterCudaTargetBuiltins() {
 
   // Raw legacy cp.async form emitted by InjectPTXAsyncCopy (and round-tripped by
   // the T.s_tir.cp_async_raw.legacy 6-arg surface). It carries the element dtype in Call.dtype
-  // and prints it dtype-first; user-issued copies go through T.ptx instead.
+  // and prints it with ty=; user-issued copies go through T.ptx instead.
   OpDef("tirx.s_tir.cp_async_raw")
       .signature(sig::arg("dst_ptr", "The destination pointer."),
                  sig::arg<IntExpr>("dst_offset", "The destination offset."),
@@ -155,9 +176,7 @@ void RegisterCudaTargetBuiltins() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("s_tir"))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.s_tir.cp_async_raw"))
-      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.s_tir.cp_async_raw"));
 
   OpDef("tirx.mma_store")
       .signature(sig::arg<IntExpr>("m", "The M dimension."),
@@ -168,9 +187,7 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg<IntExpr>("dst_stride", "The destination stride."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.mma_store"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
-      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.mma_fill")
       .signature(sig::arg<IntExpr>("local_size", "The local allocation size."),
@@ -178,9 +195,7 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg<IntExpr>("offset", "The offset."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.mma_fill"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
-      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.timer_init_cuda")
       .signature(sig::arg("profiler_buffer", "The profiler buffer."),
@@ -308,7 +323,8 @@ void RegisterDeviceIntrinsics() {
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.cta_reduce"), "cuda", CallEffectKind::kOpaque,
                           sig::arg("value"), sig::arg("op"), sig::arg<IntExpr>("num_warps"),
-                          sig::arg("scratch"));
+                          sig::arg("scratch"))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>());
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.cta_sync"), "cuda", CallEffectKind::kOpaque)
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.cvta_generic_to_shared"), "cuda",
@@ -386,7 +402,8 @@ void RegisterDeviceIntrinsics() {
                           CallEffectKind::kOpaque, sig::arg("bar"), sig::arg<IntExpr>("phase"))
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.mov_sreg"), "cuda", CallEffectKind::kPure,
-                          sig::arg<IntExpr>("bits"), sig::arg("reg_name"));
+                          sig::arg<IntExpr>("bits"), sig::arg("reg_name"))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeMovSreg>());
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.nano_sleep"), "cuda", CallEffectKind::kOpaque,
                           sig::arg<IntExpr>("time"))
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
@@ -435,7 +452,8 @@ void RegisterDeviceIntrinsics() {
                           sig::arg<IntExpr>("bits"))
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Float(32));
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.warp_reduce"), "cuda", CallEffectKind::kOpaque,
-                          sig::arg("value"), sig::arg("op"), sig::arg<IntExpr>("width"));
+                          sig::arg("value"), sig::arg("op"), sig::arg<IntExpr>("width"))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>());
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.warp_sync"), "cuda", CallEffectKind::kOpaque)
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.warpgroup_sync"), "cuda", CallEffectKind::kOpaque,

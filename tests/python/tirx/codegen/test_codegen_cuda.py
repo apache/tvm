@@ -439,8 +439,8 @@ def test_cuda_handle_uint64_reinterpret_codegen():
         T.device_entry()
         tx = T.thread_id([32])
         if tx == 0:
-            ptr: T.let = T.reinterpret("handle", A[0])
-            A[0] = T.reinterpret("uint64", ptr)
+            ptr: T.let = T.reinterpret(A[0], ty="handle")
+            A[0] = T.reinterpret(ptr, ty="uint64")
 
     src, _ = _get_source(main)
     assert "(void*)A_ptr[0]" in src
@@ -615,7 +615,7 @@ def test_megamoe_extracted_intrinsics_codegen():
             F32[3] = T.cuda.fdividef(F32[0], F32[1])
             U32[3] = T.cuda.float_as_uint(F32[1])
             T.ptx.add.rn.f32.bf16(F32[0], T.cast(U32[0], "uint16"), F32[0])
-            U64[0] = T.reinterpret("uint64", U32.data)
+            U64[0] = T.reinterpret(U32.data, ty="uint64")
             U32[0] = T.cuda.ballot_sync(T.uint32(0xFFFFFFFF), I32[0])
             I32[0] = T.cuda.ffs_u32(U32[0])
             U32[0] = T.cuda.reduce_add_sync_u32(T.uint32(0xFFFFFFFF), U32[0])
