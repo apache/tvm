@@ -17,17 +17,18 @@
 """Datatype operators."""
 
 from tvm import DataType
+from tvm.ir import Call as _Call
 from tvm.ir import PrimType
+from tvm.ir.attrs import make_node as _make_attrs
 
 from ..expr import Expr
-from . import _ffi_api
 
 
 def _raw_dtype(dtype):
     return dtype.dtype if isinstance(dtype, PrimType) else dtype
 
 
-def astype(x: Expr, dtype: str | DataType | PrimType) -> Expr:
+def astype(x: Expr, dtype: str | DataType | PrimType, *, ty=None, span=None) -> Expr:
     """Cast input tensor to the given data type.
 
     Parameters
@@ -43,10 +44,22 @@ def astype(x: Expr, dtype: str | DataType | PrimType) -> Expr:
     result : relax.Expr
         The casted result.
     """
-    return _ffi_api.astype(x, _raw_dtype(dtype))  # type: ignore
+    return _Call(
+        "relax.astype",
+        [x],
+        attrs=_make_attrs("relax.attrs.AstypeAttrs", dtype=_raw_dtype(dtype)),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def wrap_param(data: Expr, dtype: str | DataType | PrimType = "float32") -> Expr:
+def wrap_param(
+    data: Expr,
+    dtype: str | DataType | PrimType = "float32",
+    *,
+    ty=None,
+    span=None,
+) -> Expr:
     """Cast input tensor which is model param to data type if the dtype of the input data is not
     the same as the given dtype.
     Parameters
@@ -60,4 +73,10 @@ def wrap_param(data: Expr, dtype: str | DataType | PrimType = "float32") -> Expr
     result : relax.Expr
         The casted result.
     """
-    return _ffi_api.wrap_param(data, _raw_dtype(dtype))  # type: ignore
+    return _Call(
+        "relax.wrap_param",
+        [data],
+        attrs=_make_attrs("relax.attrs.WrapParamAttrs", dtype=_raw_dtype(dtype)),
+        ty=ty,
+        span=span,
+    )  # type: ignore

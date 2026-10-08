@@ -549,7 +549,7 @@ def GMMCUDATensorCore(
                                         16,
                                         C_1.elem_offset // 256 + C_1.elem_offset % 256 // 16,
                                         T.tvm_access_ptr(
-                                            T.type_annotation(dtype="float16"),
+                                            T.type_annotation(ty="float16"),
                                             A.data,
                                             A.elem_offset,
                                             s1 * 16,
@@ -602,7 +602,7 @@ def GMMCUDATensorCore(
                                         16,
                                         C_2.elem_offset // 256 + C_2.elem_offset % 256 // 16,
                                         T.tvm_access_ptr(
-                                            T.type_annotation(dtype="float16"),
+                                            T.type_annotation(ty="float16"),
                                             A_1.data,
                                             A_1.elem_offset,
                                             s1_1 * 16,
@@ -736,7 +736,7 @@ def GMMCUDATensorCore(
                                 16,
                                 A_3.elem_offset // 256 + A_3.elem_offset % 256 // 16,
                                 T.tvm_access_ptr(
-                                    T.type_annotation(dtype="float32"),
+                                    T.type_annotation(ty="float32"),
                                     C_4.data,
                                     C_4.elem_offset,
                                     s1_2 * 16,

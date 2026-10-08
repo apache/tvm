@@ -58,9 +58,9 @@ def get_indices(nth, start, extent):
 
 def smem_desc_replace_lo(desc_val, desc_lo):
     """Replace the lower address lane of a 64-bit SMEM descriptor."""
-    desc_halves = T.reinterpret("uint32x2", desc_val)
+    desc_halves = T.reinterpret(desc_val, ty="uint32x2")
     desc_hi = T.Shuffle([desc_halves], [1])
-    return T.reinterpret("uint64", T.Shuffle([T.cast(desc_lo, "uint32"), desc_hi], [0, 1]))
+    return T.reinterpret(T.Shuffle([T.cast(desc_lo, "uint32"), desc_hi], [0, 1]), ty="uint64")
 
 
 def smem_desc_add_16B_offset(desc_val, offset):
@@ -69,7 +69,7 @@ def smem_desc_add_16B_offset(desc_val, offset):
     The address lane wraps as uint32 without carrying into the descriptor's
     upper control bits.
     """
-    desc_halves = T.reinterpret("uint32x2", desc_val)
+    desc_halves = T.reinterpret(desc_val, ty="uint32x2")
     desc_lo = T.Shuffle([desc_halves], [0]) + T.cast(offset, "uint32")
     return smem_desc_replace_lo(desc_val, desc_lo)
 

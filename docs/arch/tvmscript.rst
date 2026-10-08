@@ -139,10 +139,14 @@ protocol.
 Ordinary IR constructors can be used directly in parsed source. Shared exports
 such as ``I.Call`` and ``T.Range`` use the same constructor contracts as
 ``tvm.ir.Call`` and ``tvm.ir.Range``, including keyword arguments, source spans
-and validation. ``Call(..., ty=...)`` supplies an explicit result type; omission
-leaves ``Type.missing()`` for subsequent normalization. Use ``Call.unchecked``
-explicitly for provisional calls that require later validation. Raw printed calls
-use this form with their stored result type to preserve all fields.
+and validation. ``Call(..., ty=...)`` preserves an explicit result type, including
+``Type.missing()``. Omitted or ``None`` results use available inference and retain
+``Type.missing()`` when no deduction is available; inference errors propagate.
+Construction permits provisional IR, and ``call.validate()`` checks the registered
+operator contract separately. Raw printed calls use ``I.Call`` with an explicit
+stored result type to preserve every field. Canonical named operations use the same
+``args``, ``attrs``, ``ty_args`` and ``ty`` construction contract. Concrete printer
+hooks handle representation-changing syntax; ordinary calls share one formatter.
 
 Operations likewise retain their normal argument contracts. A dtype inferred from
 operands is not an extra ``dtype`` keyword; operations with an explicit dtype

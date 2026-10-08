@@ -20,9 +20,8 @@
 from __future__ import annotations
 
 import builtins
-import functools
-import inspect
 import numbers as _numbers
+from types import SimpleNamespace as _Namespace
 from typing import Any
 
 import tvm_ffi as _ffi
@@ -32,6 +31,7 @@ from tvm import ir as _ir
 from tvm import relax as _relax
 from tvm import tirx as _tir
 from tvm.ir import StringImm
+from tvm.ir.op import _init_op_api
 from tvm.ir.prim import _ffi_api as _prim_ffi
 from tvm.relax import Call, Expr, ExternFunc
 from tvm.relax.global_info import VDevice
@@ -188,15 +188,18 @@ from tvm.relax.op import (
     zeros,
     zeros_like,
 )
-from tvm.relax.op import (
-    call_py_func as _call_py_func,
-)
+from tvm.relax.op import call_py_func as _call_py_func
+from tvm.relax.op import logical_and as _logical_and
+from tvm.relax.op import logical_not as _logical_not
+from tvm.relax.op import logical_or as _logical_or
+from tvm.relax.op import to_vdevice as _to_vdevice
 from tvm.relax.op.builtin import stop_lift_params
 from tvm.relax.type import Type
 from tvm.relax.utils import convert_to_expr
 from tvm.runtime import ObjectConvertible
 from tvm.script.ir_builder import base as _base
 
+from . import distributed as dist  # noqa: F401
 from .ir import _value, lookup_vdevice
 
 py_print = builtins.print
@@ -205,7 +208,13 @@ py_str = str
 _Span = _base.SpanEntry | _ir.Span | None
 
 
-def to_vdevice(data: Expr, dst_vdevice: py_str | VDevice) -> Expr:
+def to_vdevice(
+    data: Expr,
+    dst_vdevice: py_str | VDevice = None,
+    *,
+    ty=None,
+    span=None,
+) -> Expr:
     """Copy data to the destination device.
 
     Parameters
@@ -228,7 +237,7 @@ def to_vdevice(data: Expr, dst_vdevice: py_str | VDevice) -> Expr:
         else:
             dst_vdevice = lookup_vdevice(dst_vdevice, 0)
 
-    return tvm.relax.op.to_vdevice(data, dst_vdevice)
+    return _to_vdevice(data, dst_vdevice, ty=ty, span=span)
 
 
 def call_packed(
@@ -279,7 +288,7 @@ def call_packed(
     if kwargs or not is_default:
         attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs)
 
-    return Call.unchecked(op, args, attrs=attrs, ty_args=ty_args)
+    return Call(op, args, attrs=attrs, ty_args=ty_args)
 
 
 def call_py_func(
@@ -327,28 +336,6 @@ def call_py_func(
     return _call_py_func(func_name_imm, args, out_ty)
 
 
-def _ty_arg_wrapper(func):
-    """Normalize callable and object-convertible type arguments for operators."""
-
-    def _convert_tensor_type(args):
-        if isinstance(args, list | py_tuple):  # type: ignore
-            new_args = [_convert_tensor_type(x) for x in args]
-            return type(args)(new_args)
-        if isinstance(args, dict):
-            return {_convert_tensor_type(k): _convert_tensor_type(v) for k, v in args.items()}
-        if inspect.isfunction(args):
-            args = args()
-        if isinstance(args, ObjectConvertible):
-            args = args.asobject()
-        return args
-
-    @functools.wraps(func)
-    def wrapped(*args, **kwargs):
-        return func(*_convert_tensor_type(args), **_convert_tensor_type(kwargs))
-
-    return wrapped  # type: ignore
-
-
 def emit_with_type(
     op: str,
     args: Expr,
@@ -369,8 +356,7 @@ def emit_with_type(
     call: Call
         The created Relax Call
     """
-    builtin_call = tvm.ir.Op.get(op)
-    return Call.unchecked(builtin_call, args, attrs=None, ty_args=ty_args)
+    return Call(op, args, ty_args=ty_args)
 
 
 def _logical_pair(lhs, rhs, operation, primitive, python_operation):
@@ -381,7 +367,7 @@ def _logical_pair(lhs, rhs, operation, primitive, python_operation):
     return operation(_value(lhs), _value(rhs))
 
 
-def logical_and(*values):
+def logical_and(*values, ty_args=None, ty=None, span=None):
     """Construct conjunction of host, primitive, or tensor values.
 
     Parameters
@@ -401,15 +387,17 @@ def logical_and(*values):
     All arguments are evaluated before this call; it does not provide Python
     short-circuit evaluation of the argument expressions.
     """
+    if any(field is not None for field in (ty_args, ty, span)):
+        return _logical_and(*values, ty_args=ty_args, ty=ty, span=span)
     if not values:
         raise TypeError("logical_and requires at least one operand")
     result = values[0]
     for value in values[1:]:
-        result = _logical_pair(result, value, _relax.op.logical_and, _tir.And, lambda a, b: a and b)
+        result = _logical_pair(result, value, _logical_and, _tir.And, lambda a, b: a and b)
     return result
 
 
-def logical_or(*values):
+def logical_or(*values, ty_args=None, ty=None, span=None):
     """Construct disjunction of host, primitive, or tensor values.
 
     Parameters
@@ -429,15 +417,17 @@ def logical_or(*values):
     All arguments are evaluated before this call; it does not provide Python
     short-circuit evaluation of the argument expressions.
     """
+    if any(field is not None for field in (ty_args, ty, span)):
+        return _logical_or(*values, ty_args=ty_args, ty=ty, span=span)
     if not values:
         raise TypeError("logical_or requires at least one operand")
     result = values[0]
     for value in values[1:]:
-        result = _logical_pair(result, value, _relax.op.logical_or, _tir.Or, lambda a, b: a or b)
+        result = _logical_pair(result, value, _logical_or, _tir.Or, lambda a, b: a or b)
     return result
 
 
-def logical_not(value):
+def logical_not(value, *, ty_args=None, ty=None, span=None):
     """Negate a host, primitive, or tensor condition.
 
     Parameters
@@ -451,10 +441,12 @@ def logical_not(value):
     result : Expr or bool
         The logical negation without testing an IR expression as a Python bool.
     """
+    if any(field is not None for field in (ty_args, ty, span)):
+        return _logical_not(value, ty_args=ty_args, ty=ty, span=span)
     if _ir.is_prim_expr(value):
         return _tir.Not(value)
     if isinstance(value, _ir.Expr):
-        return _relax.op.logical_not(value)
+        return _logical_not(value)
     return not value
 
 
@@ -578,8 +570,8 @@ def ne_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
     return _prim_ffi._OpNE(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
 
 
-invoke_closure = _ty_arg_wrapper(invoke_closure)
-call_builtin_with_ctx = _ty_arg_wrapper(call_builtin_with_ctx)
+inspect = _Namespace()
+_init_op_api("relax", __name__)
 
 __all__ = [
     "abs",
@@ -658,6 +650,7 @@ __all__ = [
     "image",
     "index_put",
     "index_tensor",
+    "inspect",
     "invoke_closure",
     "invoke_pure_closure",
     "isfinite",

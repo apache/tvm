@@ -38,7 +38,8 @@ struct ConcatAttrs : public AttrsNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ConcatAttrs>().def_ro("axis", &ConcatAttrs::axis,
                                           "The axis at which the input arrays are concatenated."
-                                          "Should lie in range `[-ndim, ndim)`.");
+                                          "Should lie in range `[-ndim, ndim)`.",
+                                          refl::DefaultValue(ffi::Optional<int64_t>{0}));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ConcatAttrs", ConcatAttrs, AttrsNode);
 };  // struct ConcatAttrs
@@ -73,7 +74,8 @@ struct LayoutTransformAttrs : public AttrsNode {
         .def_ro(
             "pad_value", &LayoutTransformAttrs::pad_value,
             "The specific value to be used to pad if the layout transform would result in implicit "
-            "padding. If not specified, the compiler is free to choose any value.");
+            "padding. If not specified, the compiler is free to choose any value.",
+            refl::DefaultValue(ffi::Optional<PrimExpr>{}));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.LayoutTransformAttrs", LayoutTransformAttrs,
                                     AttrsNode);
@@ -86,7 +88,8 @@ struct PermuteDimsAttrs : public AttrsNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PermuteDimsAttrs>().def_ro(
-        "axes", &PermuteDimsAttrs::axes, "The target axes order, reverse order if not specified.");
+        "axes", &PermuteDimsAttrs::axes, "The target axes order, reverse order if not specified.",
+        refl::DefaultValue(ffi::Optional<ffi::Array<int64_t>>{}));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.PermuteDimsAttrs", PermuteDimsAttrs, AttrsNode);
 };  // struct PermuteDimsAttrs
@@ -101,7 +104,7 @@ struct SplitAttrs : public AttrsNode {
     refl::ObjectDef<SplitAttrs>()
         .def_ro("indices_or_sections", &SplitAttrs::indices_or_sections,
                 "The input array of indices or the number of split sections.")
-        .def_ro("axis", &SplitAttrs::axis, "The axis to be splitted");
+        .def_ro("axis", &SplitAttrs::axis, "The axis to be splitted", refl::DefaultValue(0));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SplitAttrs", SplitAttrs, AttrsNode);
 };  // struct SplitAttrs
@@ -112,11 +115,13 @@ struct SqueezeAttrs : public AttrsNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<SqueezeAttrs>().def_ro("axis", &SqueezeAttrs::axis,
-                                           "The axis to squeeze in the input tensor."
-                                           "If `axis = None`, all axis of dimension 1 get squeezed;"
-                                           "Else, the dimension in axes get squeezed."
-                                           "It is an error if an axis does not has dimension 1.");
+    refl::ObjectDef<SqueezeAttrs>().def_ro(
+        "axis", &SqueezeAttrs::axis,
+        "The axis to squeeze in the input tensor."
+        "If `axis = None`, all axis of dimension 1 get squeezed;"
+        "Else, the dimension in axes get squeezed."
+        "It is an error if an axis does not has dimension 1.",
+        refl::DefaultValue(ffi::Optional<ffi::Array<int64_t>>{}));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SqueezeAttrs", SqueezeAttrs, AttrsNode);
 };  // struct SqueezeAttrs
@@ -132,7 +137,8 @@ struct StackAttrs : public AttrsNode {
         "The axis along which to stack the input tensors. "
         "The axis will be inserted at this position in the output, "
         "so it must be in range [-ndim-1, ndim] where ndim is the "
-        "number of dimensions of the input tensors.");
+        "number of dimensions of the input tensors.",
+        refl::DefaultValue(ffi::Optional<int64_t>{0}));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.StackAttrs", StackAttrs, AttrsNode);
 };  // struct StackAttrs
@@ -149,7 +155,8 @@ struct RepeatAttrs : public AttrsNode {
         .def_ro("axis", &RepeatAttrs::axis,
                 "The axis along which to repeat values. The negative numbers are interpreted "
                 "counting from the backward. By default, use the flattened input array, and "
-                "return a flat output array.");
+                "return a flat output array.",
+                refl::DefaultValue(ffi::Optional<int64_t>{}));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.RepeatAttrs", RepeatAttrs, AttrsNode);
 };  // struct RepeatAttrs
@@ -187,9 +194,9 @@ struct ReverseSequenceAttrs : public AttrsNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ReverseSequenceAttrs>()
         .def_ro("seq_axis", &ReverseSequenceAttrs::seq_axis,
-                "The axis along which to reverse variable length slices.")
-        .def_ro("batch_axis", &ReverseSequenceAttrs::batch_axis,
-                "The axis that indexes the batch.");
+                "The axis along which to reverse variable length slices.", refl::DefaultValue(1))
+        .def_ro("batch_axis", &ReverseSequenceAttrs::batch_axis, "The axis that indexes the batch.",
+                refl::DefaultValue(0));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ReverseSequenceAttrs", ReverseSequenceAttrs,
                                     AttrsNode);
@@ -244,7 +251,8 @@ struct MeshgridAttrs : public AttrsNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MeshgridAttrs>().def_ro("indexing", &MeshgridAttrs::indexing,
-                                            "Specifies how the grid dimensions are ordered.");
+                                            "Specifies how the grid dimensions are ordered.",
+                                            refl::DefaultValue(ffi::String("ij")));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.MeshgridAttrs", MeshgridAttrs, AttrsNode);
 };

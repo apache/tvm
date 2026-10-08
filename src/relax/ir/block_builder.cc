@@ -658,7 +658,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       if (new_op.same_as(op->op) && new_args.same_as(op->args)) {
         return ffi::GetRef<Call>(op);
       } else {
-        return Call::Unchecked(Type::Missing(), new_op, new_args, op->attrs, op->ty_args);
+        return Call(Type::Missing(), new_op, new_args, op->attrs, op->ty_args);
       }
     }();
 

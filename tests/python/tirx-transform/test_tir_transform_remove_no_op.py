@@ -184,12 +184,12 @@ def test_keep_side_effects_of_let():
 
     @T.function(private=True)
     def before():
-        x = T.call_extern("extern_func", dtype="int32")
+        x = T.call_extern("extern_func", ty="int32")
         T.evaluate(0)
 
     @T.function(private=True)
     def expected():
-        x = T.call_extern("extern_func", dtype="int32")
+        x = T.call_extern("extern_func", ty="int32")
         T.evaluate(0)
 
     mod = tvm.IRModule.from_expr(before)

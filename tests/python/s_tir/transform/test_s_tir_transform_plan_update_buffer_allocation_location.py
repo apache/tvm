@@ -176,7 +176,7 @@ def opaque_access(A: T.Tensor([1024]), B: T.Tensor([1024])) -> None:
                         A.data,
                         (v * 128),
                         128,
-                        dtype="float32",
+                        ty="float32",
                     )
                 )
             for j in T.serial(0, 128):
@@ -201,7 +201,7 @@ def transformed_opaque_access(A: T.Tensor([1024]), B: T.Tensor([1024])) -> None:
                 Ts.writes([A_cache[v * 128 : v * 128 + 128]])
                 T.evaluate(
                     T.call_extern(
-                        "test", A_cache.data, v * 128, 128, A.data, v * 128, 128, dtype="float32"
+                        "test", A_cache.data, v * 128, 128, A.data, v * 128, 128, ty="float32"
                     )
                 )
             for j in T.serial(0, 128):
@@ -375,13 +375,13 @@ def test_dltensor_buffer_is_unlowered():
 
     @Ts.function
     def before(dlpack_handle: T.handle, axis: T.int64) -> T.int64:
-        ndim: T.int32 = T.tvm_struct_get(dlpack_handle, 0, 5, "int32")
+        ndim: T.int32 = T.tvm_struct_get(dlpack_handle, 0, 5, ty="int32")
         stride_ptr: T.let[T.handle("int64")] = T.tvm_struct_get(
-            dlpack_handle, 0, 4, dtype=T.handle("int64").ty
+            dlpack_handle, 0, 4, ty=T.handle("int64").ty
         )
         if T.isnullptr(stride_ptr):
             shape_ptr: T.let[T.handle("int64")] = T.tvm_struct_get(
-                dlpack_handle, 0, 3, dtype=T.handle("int64").ty
+                dlpack_handle, 0, 3, ty=T.handle("int64").ty
             )
             shape = T.decl_tensor(ndim, "int64", data=shape_ptr)
             product = T.decl_tensor([], "int64")

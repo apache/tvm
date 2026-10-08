@@ -91,13 +91,13 @@ class TestCallPureBuiltin(CheckPureFunction):
 class TestCallPureExtern(CheckPureFunction):
     @Ts.function
     def func():
-        T.call_pure_extern("some_pure_extern_func_name", dtype="void")
+        T.call_pure_extern("some_pure_extern_func_name", ty="void")
 
 
 class TestCallImpureExtern(CheckImpureFunction):
     @Ts.function
     def func():
-        T.call_extern("some_impure_extern_func_name", dtype="void")
+        T.call_extern("some_impure_extern_func_name", ty="void")
 
 
 if __name__ == "__main__":

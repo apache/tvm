@@ -533,7 +533,7 @@ def assert_(
     """Implements :func:`tvm.script.ir_builder.parser_protocol.assert_`."""
     if not isinstance(message, _python.str):
         raise TypeError("An assertion message must be construction-time text")
-    emit_(_base.at_(span, _op.assert_op(condition, format=message)), span=span)
+    emit_(_base.at_(span, _op.assert_op(condition, message)), span=span)
 
 
 # --------------------------------------

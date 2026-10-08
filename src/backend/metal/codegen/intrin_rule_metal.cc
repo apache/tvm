@@ -159,7 +159,7 @@ void RegisterMetalIntrinRules() {
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                           ffi::String("tirx.metal.simd_shuffle"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
@@ -170,7 +170,7 @@ void RegisterMetalIntrinRules() {
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                           ffi::String("tirx.metal.simd_shuffle_up"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle_up")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
@@ -181,7 +181,7 @@ void RegisterMetalIntrinRules() {
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                           ffi::String("tirx.metal.simd_shuffle_down"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle_down")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));

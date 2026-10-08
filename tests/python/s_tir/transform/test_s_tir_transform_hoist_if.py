@@ -77,9 +77,9 @@ def test_hoist_top_for():
             for j in T.serial(m):
                 for k in T.serial(n):
                     if T.likely(i < 2):
-                        T.evaluate(T.call_extern("int32", "dummy", m))
+                        T.evaluate(T.call_extern("dummy", m, ty="int32"))
                     else:
-                        T.evaluate(T.call_extern("int32", "dummy", n))
+                        T.evaluate(T.call_extern("dummy", n, ty="int32"))
 
     mod = tvm.IRModule.from_expr(func)
     new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
@@ -99,9 +99,9 @@ def test_hoist_multi_var_if():
             for j in T.serial(m):
                 for k in T.serial(n):
                     if T.likely(i + j < 2):
-                        T.evaluate(T.call_extern("int32", "dummy", m))
+                        T.evaluate(T.call_extern("dummy", m, ty="int32"))
                     else:
-                        T.evaluate(T.call_extern("int32", "dummy", n))
+                        T.evaluate(T.call_extern("dummy", n, ty="int32"))
 
     mod = tvm.IRModule.from_expr(func)
     new_mod = tvm.s_tir.transform.HoistIfThenElse()(mod)
@@ -124,9 +124,9 @@ def test_hoist_no_match_for():
                 data_ptr[i * 3 + j] = data_ptr[i * 3 + j] + T.float32(0.5)
                 for k in T.serial(n):
                     if T.likely(i < 2):
-                        T.evaluate(T.call_extern("int32", "dummy", m))
+                        T.evaluate(T.call_extern("dummy", m, ty="int32"))
                     else:
-                        T.evaluate(T.call_extern("int32", "dummy", n))
+                        T.evaluate(T.call_extern("dummy", n, ty="int32"))
 
     mod = tvm.IRModule.from_expr(func)
     new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
@@ -146,7 +146,7 @@ def test_no_else():
             for j in T.serial(m):
                 for k in T.serial(n):
                     if T.likely(i < 2):
-                        T.evaluate(T.call_extern("int32", "dummy", m))
+                        T.evaluate(T.call_extern("dummy", m, ty="int32"))
 
     mod = tvm.IRModule.from_expr(func)
     new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body

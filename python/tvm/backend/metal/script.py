@@ -19,37 +19,41 @@
 from __future__ import annotations
 
 from tvm.backend.metal import op as _metal_op
+from tvm.ir import Op
+from tvm.ir.op import _make_op_api
 from tvm.tirx import is_tensor_var
-from tvm.tirx import op as _tir_op
-from tvm.tirx.script.ir_builder.op import _op_wrapper
+
+_simd_shuffle = _make_op_api(Op.get("tirx.metal.simd_shuffle"), __name__)
+_simd_shuffle_up = _make_op_api(Op.get("tirx.metal.simd_shuffle_up"), __name__)
+_simd_shuffle_down = _make_op_api(Op.get("tirx.metal.simd_shuffle_down"), __name__)
 
 
 class MetalNamespace:
     """The Metal intrinsics submodule."""
 
     def __init__(self):
-        self.make_filled_simdgroup_matrix = _op_wrapper(_metal_op.make_filled_simdgroup_matrix)
-        self.simdgroup_load = _op_wrapper(_metal_op.simdgroup_load)
-        self.simdgroup_store = _op_wrapper(_metal_op.simdgroup_store)
-        self.simdgroup_multiply_accumulate = _op_wrapper(_metal_op.simdgroup_multiply_accumulate)
+        self.make_filled_simdgroup_matrix = _metal_op.make_filled_simdgroup_matrix
+        self.simdgroup_load = _metal_op.simdgroup_load
+        self.simdgroup_store = _metal_op.simdgroup_store
+        self.simdgroup_multiply_accumulate = _metal_op.simdgroup_multiply_accumulate
 
     @staticmethod
-    def simd_shuffle(var, lane):
+    def simd_shuffle(var, lane, *, ty=None, span=None):
         if is_tensor_var(var):
             var = var[0]
-        return _tir_op.call_intrin(var.ty, "tirx.metal.simd_shuffle", var, lane)
+        return _simd_shuffle(var, lane, ty=ty, span=span)
 
     @staticmethod
-    def simd_shuffle_up(var, delta):
+    def simd_shuffle_up(var, delta, *, ty=None, span=None):
         if is_tensor_var(var):
             var = var[0]
-        return _tir_op.call_intrin(var.ty, "tirx.metal.simd_shuffle_up", var, delta)
+        return _simd_shuffle_up(var, delta, ty=ty, span=span)
 
     @staticmethod
-    def simd_shuffle_down(var, delta):
+    def simd_shuffle_down(var, delta, *, ty=None, span=None):
         if is_tensor_var(var):
             var = var[0]
-        return _tir_op.call_intrin(var.ty, "tirx.metal.simd_shuffle_down", var, delta)
+        return _simd_shuffle_down(var, delta, ty=ty, span=span)
 
 
 __all__ = ["MetalNamespace"]

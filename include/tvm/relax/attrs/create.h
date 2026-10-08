@@ -36,7 +36,8 @@ struct InitAttrs : public AttrsNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<InitAttrs>().def_ro("dtype", &InitAttrs::dtype,
-                                        "The data type of the created tensor.");
+                                        "The data type of the created tensor.",
+                                        refl::DefaultValue(ffi::Optional<DLDataType>{}));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.InitAttrs", InitAttrs, AttrsNode);
 };  // struct InitAttrs

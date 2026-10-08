@@ -38,12 +38,12 @@ Expr attention(Expr query, Expr key, Expr value, ffi::Optional<Expr> bias,
   attrs->window_size = window_size;
 
   if (bias) {
-    return Call::Unchecked(Type::Missing(), Op::Get("relax.nn.attention_bias"),
-                           {std::move(query), std::move(key), std::move(value), bias.value()},
-                           Attrs(attrs), {});
+    return Call(Type::Missing(), Op::Get("relax.nn.attention_bias"),
+                {std::move(query), std::move(key), std::move(value), bias.value()}, Attrs(attrs),
+                {});
   }
-  return Call::Unchecked(Type::Missing(), Op::Get("relax.nn.attention"),
-                         {std::move(query), std::move(key), std::move(value)}, Attrs(attrs), {});
+  return Call(Type::Missing(), Op::Get("relax.nn.attention"),
+              {std::move(query), std::move(key), std::move(value)}, Attrs(attrs), {});
 }
 
 Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr seqstart_k,
@@ -54,9 +54,9 @@ Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr s
   attrs->causal_mask = causal_mask;
   attrs->window_size = window_size;
 
-  return Call::Unchecked(Type::Missing(), Op::Get("relax.nn.attention_var_len"),
-                         {query, key, value, seqstart_q, seqstart_k, max_seqlen_q, max_seqlen_k},
-                         Attrs(attrs), {});
+  return Call(Type::Missing(), Op::Get("relax.nn.attention_var_len"),
+              {query, key, value, seqstart_q, seqstart_k, max_seqlen_q, max_seqlen_k}, Attrs(attrs),
+              {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

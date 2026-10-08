@@ -50,11 +50,10 @@ Expr all_class_non_max_suppression(Expr boxes, Expr scores, Expr max_output_boxe
   attrs->output_format = output_format;
 
   static const Op op = Op::Get("relax.vision.all_class_non_max_suppression");
-  return Call::Unchecked(
-      Type::Missing(), op,
-      {std::move(boxes), std::move(scores), std::move(max_output_boxes_per_class),
-       std::move(iou_threshold), std::move(score_threshold)},
-      Attrs(attrs), {});
+  return Call(Type::Missing(), op,
+              {std::move(boxes), std::move(scores), std::move(max_output_boxes_per_class),
+               std::move(iou_threshold), std::move(score_threshold)},
+              Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -127,7 +126,7 @@ Expr get_valid_counts(Expr data, double score_threshold, int id_index, int score
   attrs->score_index = score_index;
 
   static const Op op = Op::Get("relax.vision.get_valid_counts");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -137,6 +136,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeGetValidCounts(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   if (call->args.size() != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "get_valid_counts expects 1 argument, got " << call->args.size();
@@ -214,9 +214,8 @@ Expr non_max_suppression(Expr data, Expr valid_count, Expr indices, int max_outp
   attrs->score_threshold = score_threshold;
 
   static const Op op = Op::Get("relax.vision.non_max_suppression");
-  return Call::Unchecked(Type::Missing(), op,
-                         {std::move(data), std::move(valid_count), std::move(indices)},
-                         Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(valid_count), std::move(indices)},
+              Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

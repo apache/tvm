@@ -43,32 +43,39 @@ struct Conv1DAttrs : public AttrsNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<Conv1DAttrs>()
-        .def_ro("strides", &Conv1DAttrs::strides, "Specifies the strides of the convolution.")
+        .def_ro("strides", &Conv1DAttrs::strides, "Specifies the strides of the convolution.",
+                refl::DefaultValue(ffi::Array<int64_t>{1}))
         .def_ro("padding", &Conv1DAttrs::padding,
                 "If padding is non-zero, then the input is implicitly zero-padded"
                 "Padding support both symmetric and asymmetric as"
                 "one int : same padding used on both sides"
-                "two int : padding width in the order of (left, right)")
+                "two int : padding width in the order of (left, right)",
+                refl::DefaultValue(ffi::Array<int64_t>{0, 0}))
         .def_ro("dilation", &Conv1DAttrs::dilation,
-                "Specifies the dilation rate to use for dilated convolution.")
+                "Specifies the dilation rate to use for dilated convolution.",
+                refl::DefaultValue(ffi::Array<int64_t>{1}))
         .def_ro("groups", &Conv1DAttrs::groups,
                 "Number of groups to split the input into for grouped convolution. The number of "
                 "input and "
-                "output channels should be divisible by the number of groups.")
+                "output channels should be divisible by the number of groups.",
+                refl::DefaultValue(1))
         .def_ro("data_layout", &Conv1DAttrs::data_layout,
                 "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
                 "'N', 'C', 'W' stands for batch, channel, width"
-                "dimensions respectively. Convolution is applied on the 'W' dimensions.")
+                "dimensions respectively. Convolution is applied on the 'W' dimensions.",
+                refl::DefaultValue(ffi::String("NCW")))
         .def_ro("kernel_layout", &Conv1DAttrs::kernel_layout,
                 "Dimension ordering of weight. Can be 'OIW', 'IOW', etc."
                 "'O', 'I', 'W' stands for num_filter, input_channel, and width"
-                "dimensions respectively.")
+                "dimensions respectively.",
+                refl::DefaultValue(ffi::String("OIW")))
         .def_ro("out_layout", &Conv1DAttrs::out_layout,
                 "Dimension ordering of output. Can be 'NCW', 'NWC', etc."
                 "'N', 'C', 'W' stands for batch, channel, and width"
                 "dimensions respectively. Default to be same as input layout.")
         .def_ro("out_dtype", &Conv1DAttrs::out_dtype,
-                "Output data type, set to explicit type under mixed precision setting");
+                "Output data type, set to explicit type under mixed precision setting",
+                refl::DefaultValue(ffi::Optional<DLDataType>{}));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv1DAttrs", Conv1DAttrs, AttrsNode);
 };  // struct Conv1dAttrs
@@ -87,34 +94,41 @@ struct Conv2DAttrs : public AttrsNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<Conv2DAttrs>()
-        .def_ro("strides", &Conv2DAttrs::strides, "Specifies the strides of the convolution.")
+        .def_ro("strides", &Conv2DAttrs::strides, "Specifies the strides of the convolution.",
+                refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
         .def_ro("padding", &Conv2DAttrs::padding,
                 "If padding is non-zero, then the input is implicitly zero-padded"
                 "Padding support both symmetric and asymmetric as"
                 "one int : same padding used on all sides"
                 "two int : bottom, right will use same padding as top, left"
-                "four int : padding width in the order of (top, left, bottom, right)")
+                "four int : padding width in the order of (top, left, bottom, right)",
+                refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0, 0}))
         .def_ro("dilation", &Conv2DAttrs::dilation,
-                "Specifies the dilation rate to use for dilated convolution.")
+                "Specifies the dilation rate to use for dilated convolution.",
+                refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
         .def_ro("groups", &Conv2DAttrs::groups,
                 "Number of groups to split the input into for grouped convolution. The number of "
                 "input and "
-                "output channels should be divisible by the number of groups.")
+                "output channels should be divisible by the number of groups.",
+                refl::DefaultValue(1))
         .def_ro("data_layout", &Conv2DAttrs::data_layout,
                 "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
                 "dimensions respectively. Convolution is applied on the 'H' and"
-                "'W' dimensions.")
+                "'W' dimensions.",
+                refl::DefaultValue(ffi::String("NCHW")))
         .def_ro("kernel_layout", &Conv2DAttrs::kernel_layout,
                 "Dimension ordering of weight. Can be 'OIHW', 'OIHW16o16i', etc."
                 "'O', 'I', 'H', 'W' stands for num_filter, input_channel, height, and width"
-                "dimensions respectively.")
+                "dimensions respectively.",
+                refl::DefaultValue(ffi::String("OIHW")))
         .def_ro("out_layout", &Conv2DAttrs::out_layout,
                 "Dimension ordering of output. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
                 "dimensions respectively. Default to be same as input layout.")
         .def_ro("out_dtype", &Conv2DAttrs::out_dtype,
-                "Output data type, set to explicit type under mixed precision setting");
+                "Output data type, set to explicit type under mixed precision setting",
+                refl::DefaultValue(ffi::Optional<DLDataType>{}));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv2DAttrs", Conv2DAttrs, AttrsNode);
 };  // struct Conv2dAttrs
@@ -133,36 +147,43 @@ struct Conv3DAttrs : public AttrsNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<Conv3DAttrs>()
-        .def_ro("strides", &Conv3DAttrs::strides, "Specifies the strides of the convolution.")
+        .def_ro("strides", &Conv3DAttrs::strides, "Specifies the strides of the convolution.",
+                refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
         .def_ro(
             "padding", &Conv3DAttrs::padding,
             "If padding is non-zero, then the input is implicitly zero-padded"
             "Padding support both symmetric and asymmetric as"
             "one int : same padding used on all sides"
             "two int : bottom, right will use same padding as top, left"
-            "four int : padding width in the order of (forward, back, top, left, bottom, right)")
+            "four int : padding width in the order of (forward, back, top, left, bottom, right)",
+            refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0, 0, 0, 0}))
         .def_ro("dilation", &Conv3DAttrs::dilation,
-                "Specifies the dilation rate to use for dilated convolution.")
+                "Specifies the dilation rate to use for dilated convolution.",
+                refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
         .def_ro("groups", &Conv3DAttrs::groups,
                 "Number of groups to split the input into for grouped convolution. The number of "
                 "input and "
-                "output channels should be divisible by the number of groups.")
+                "output channels should be divisible by the number of groups.",
+                refl::DefaultValue(1))
         .def_ro("data_layout", &Conv3DAttrs::data_layout,
                 "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
                 "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
                 "dimensions respectively. Convolution is applied on the 'D', 'H', and"
-                "'W' dimensions.")
+                "'W' dimensions.",
+                refl::DefaultValue(ffi::String("NCDHW")))
         .def_ro(
             "kernel_layout", &Conv3DAttrs::kernel_layout,
             "Dimension ordering of weight. Can be 'OIDHW', 'OIDHW16o16i', etc."
             "'O', 'I', 'D', 'H', 'W' stands for num_filter, input_channel, depth, height, and width"
-            "dimensions respectively.")
+            "dimensions respectively.",
+            refl::DefaultValue(ffi::String("OIDHW")))
         .def_ro("out_layout", &Conv3DAttrs::out_layout,
                 "Dimension ordering of output. Can be 'NCDHW', 'NDHWC', etc."
                 "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
                 "dimensions respectively. Default to be same as input layout.")
         .def_ro("out_dtype", &Conv3DAttrs::out_dtype,
-                "Output data type, set to explicit type under mixed precision setting");
+                "Output data type, set to explicit type under mixed precision setting",
+                refl::DefaultValue(ffi::Optional<DLDataType>{}));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv3DAttrs", Conv3DAttrs, AttrsNode);
 };  // struct Conv3dAttrs
@@ -183,34 +204,42 @@ struct Conv1DTransposeAttrs : public AttrsNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<Conv1DTransposeAttrs>()
         .def_ro("strides", &Conv1DTransposeAttrs::strides,
-                "Specifies the strides of the convolution.")
+                "Specifies the strides of the convolution.",
+                refl::DefaultValue(ffi::Array<int64_t>{1}))
         .def_ro("padding", &Conv1DTransposeAttrs::padding,
                 "If padding is non-zero, then the input is implicitly zero-padded"
                 "Padding support both symmetric and asymmetric as"
                 "one int : same padding used on both sides"
-                "two int : padding width in the order of (left, right)")
+                "two int : padding width in the order of (left, right)",
+                refl::DefaultValue(ffi::Array<int64_t>{0, 0}))
         .def_ro("output_padding", &Conv1DTransposeAttrs::output_padding,
-                "Used to disambiguate the output shape.")
+                "Used to disambiguate the output shape.",
+                refl::DefaultValue(ffi::Array<int64_t>{0}))
         .def_ro("dilation", &Conv1DTransposeAttrs::dilation,
-                "Specifies the dilation rate to use for dilated convolution.")
+                "Specifies the dilation rate to use for dilated convolution.",
+                refl::DefaultValue(ffi::Array<int64_t>{1}))
         .def_ro("groups", &Conv1DTransposeAttrs::groups,
                 "Number of groups to split the input into for grouped convolution. The number of "
                 "input and "
-                "output channels should be divisible by the number of groups.")
+                "output channels should be divisible by the number of groups.",
+                refl::DefaultValue(1))
         .def_ro("data_layout", &Conv1DTransposeAttrs::data_layout,
                 "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
                 "'N', 'C', 'W' stands for batch, channel, width"
-                "dimensions respectively. Convolution is applied on the 'W' dimensions.")
+                "dimensions respectively. Convolution is applied on the 'W' dimensions.",
+                refl::DefaultValue(ffi::String("NCW")))
         .def_ro("kernel_layout", &Conv1DTransposeAttrs::kernel_layout,
                 "Dimension ordering of weight. Can be 'OIW', 'IOW', etc."
                 "'O', 'I', 'W' stands for num_filter, input_channel, and width"
-                "dimensions respectively.")
+                "dimensions respectively.",
+                refl::DefaultValue(ffi::String("IOW")))
         .def_ro("out_layout", &Conv1DTransposeAttrs::out_layout,
                 "Dimension ordering of output. Can be 'NCW', 'NWC', etc."
                 "'N', 'C', 'W' stands for batch, channel, and width"
                 "dimensions respectively. Default to be same as input layout.")
         .def_ro("out_dtype", &Conv1DTransposeAttrs::out_dtype,
-                "Output data type, set to explicit type under mixed precision setting");
+                "Output data type, set to explicit type under mixed precision setting",
+                refl::DefaultValue(ffi::Optional<DLDataType>{}));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv1DTransposeAttrs", Conv1DTransposeAttrs,
                                     AttrsNode);
@@ -232,36 +261,44 @@ struct Conv2DTransposeAttrs : public AttrsNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<Conv2DTransposeAttrs>()
         .def_ro("strides", &Conv2DTransposeAttrs::strides,
-                "Specifies the strides of the convolution.")
+                "Specifies the strides of the convolution.",
+                refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
         .def_ro("padding", &Conv2DTransposeAttrs::padding,
                 "If padding is non-zero, then the input is implicitly zero-padded"
                 "Padding support both symmetric and asymmetric as"
                 "one int : same padding used on all sides"
                 "two int : bottom, right will use same padding as top, left"
-                "four int : padding width in the order of (top, left, bottom, right)")
+                "four int : padding width in the order of (top, left, bottom, right)",
+                refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0, 0}))
         .def_ro("output_padding", &Conv2DTransposeAttrs::output_padding,
-                "Used to disambiguate the output shape.")
+                "Used to disambiguate the output shape.",
+                refl::DefaultValue(ffi::Array<int64_t>{0, 0}))
         .def_ro("dilation", &Conv2DTransposeAttrs::dilation,
-                "Specifies the dilation rate to use for dilated convolution.")
+                "Specifies the dilation rate to use for dilated convolution.",
+                refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
         .def_ro("groups", &Conv2DTransposeAttrs::groups,
                 "Number of groups to split the input into for grouped convolution. The number of "
                 "input and "
-                "output channels should be divisible by the number of groups.")
+                "output channels should be divisible by the number of groups.",
+                refl::DefaultValue(1))
         .def_ro("data_layout", &Conv2DTransposeAttrs::data_layout,
                 "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
                 "dimensions respectively. Convolution is applied on the 'H' and"
-                "'W' dimensions.")
+                "'W' dimensions.",
+                refl::DefaultValue(ffi::String("NCHW")))
         .def_ro("kernel_layout", &Conv2DTransposeAttrs::kernel_layout,
                 "Dimension ordering of weight. Can be 'OIHW', 'OIHW16o16i', etc."
                 "'O', 'I', 'H', 'W' stands for num_filter, input_channel, height, and width"
-                "dimensions respectively.")
+                "dimensions respectively.",
+                refl::DefaultValue(ffi::String("IOHW")))
         .def_ro("out_layout", &Conv2DTransposeAttrs::out_layout,
                 "Dimension ordering of output. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
                 "dimensions respectively. Default to be same as input layout.")
         .def_ro("out_dtype", &Conv2DTransposeAttrs::out_dtype,
-                "Output data type, set to explicit type under mixed precision setting");
+                "Output data type, set to explicit type under mixed precision setting",
+                refl::DefaultValue(ffi::Optional<DLDataType>{}));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv2DTransposeAttrs", Conv2DTransposeAttrs,
                                     AttrsNode);
@@ -283,38 +320,46 @@ struct Conv3DTransposeAttrs : public AttrsNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<Conv3DTransposeAttrs>()
         .def_ro("strides", &Conv3DTransposeAttrs::strides,
-                "Specifies the strides of the convolution.")
+                "Specifies the strides of the convolution.",
+                refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
         .def_ro("padding", &Conv3DTransposeAttrs::padding,
                 "If padding is non-zero, then the input is implicitly zero-padded"
                 "Padding support both symmetric and asymmetric as"
                 "one int : same padding used on all sides"
                 "three int : back/bottom/right will use same padding as front/top/left"
-                "six int : padding width in the order of (front, top, left, back, bottom, right)")
+                "six int : padding width in the order of (front, top, left, back, bottom, right)",
+                refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0, 0, 0, 0}))
         .def_ro("output_padding", &Conv3DTransposeAttrs::output_padding,
-                "Used to disambiguate the output shape.")
+                "Used to disambiguate the output shape.",
+                refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0}))
         .def_ro("dilation", &Conv3DTransposeAttrs::dilation,
-                "Specifies the dilation rate to use for dilated convolution.")
+                "Specifies the dilation rate to use for dilated convolution.",
+                refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
         .def_ro("groups", &Conv3DTransposeAttrs::groups,
                 "Number of groups to split the input into for grouped convolution. The number of "
                 "input and "
-                "output channels should be divisible by the number of groups.")
+                "output channels should be divisible by the number of groups.",
+                refl::DefaultValue(1))
         .def_ro("data_layout", &Conv3DTransposeAttrs::data_layout,
                 "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
                 "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
                 "dimensions respectively. Convolution is applied on the 'D', 'H', and"
-                "'W' dimensions.")
+                "'W' dimensions.",
+                refl::DefaultValue(ffi::String("NCDHW")))
         .def_ro(
             "kernel_layout", &Conv3DTransposeAttrs::kernel_layout,
             "Dimension ordering of weight. Can be 'IODHW', etc."
             "'I', 'O', 'D', 'H', 'W' stands for input_channel, output_channel, depth, height, and "
             "width"
-            "dimensions respectively.")
+            "dimensions respectively.",
+            refl::DefaultValue(ffi::String("IODHW")))
         .def_ro("out_layout", &Conv3DTransposeAttrs::out_layout,
                 "Dimension ordering of output. Can be 'NCDHW', 'NDHWC', etc."
                 "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
                 "dimensions respectively. Default to be same as input layout.")
         .def_ro("out_dtype", &Conv3DTransposeAttrs::out_dtype,
-                "Output data type, set to explicit type under mixed precision setting");
+                "Output data type, set to explicit type under mixed precision setting",
+                refl::DefaultValue(ffi::Optional<DLDataType>{}));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.Conv3DTransposeAttrs", Conv3DTransposeAttrs,
                                     AttrsNode);
@@ -334,18 +379,23 @@ struct Pool1DAttrs : public AttrsNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<Pool1DAttrs>()
-        .def_ro("pool_size", &Pool1DAttrs::pool_size, "Size of the pooling windows.")
-        .def_ro("strides", &Pool1DAttrs::strides, "Specifies the strides of the convolution.")
-        .def_ro("dilation", &Pool1DAttrs::dilation, "Specifies the dilation of the convolution.")
+        .def_ro("pool_size", &Pool1DAttrs::pool_size, "Size of the pooling windows.",
+                refl::DefaultValue(ffi::Array<int64_t>{1}))
+        .def_ro("strides", &Pool1DAttrs::strides, "Specifies the strides of the convolution.",
+                refl::DefaultValue(ffi::Array<int64_t>{1}))
+        .def_ro("dilation", &Pool1DAttrs::dilation, "Specifies the dilation of the convolution.",
+                refl::DefaultValue(ffi::Array<int64_t>{1}))
         .def_ro("padding", &Pool1DAttrs::padding,
                 "If padding is non-zero, then the input is implicitly zero-padded"
                 "Padding support both symmetric and asymmetric as"
                 "one int : same padding used on all sides"
-                "two int : padding width in the order of (left, right)")
+                "two int : padding width in the order of (left, right)",
+                refl::DefaultValue(ffi::Array<int64_t>{0, 0}))
         .def_ro(
             "ceil_mode", &Pool1DAttrs::ceil_mode,
             "A boolean indicating if use ceil or floor to compute the output shape. By using ceil, "
-            "every element in the input tensor will be covered by a sliding window.")
+            "every element in the input tensor will be covered by a sliding window.",
+            refl::DefaultValue(false))
         .def_ro("count_include_pad", &Pool1DAttrs::count_include_pad,
                 "When true, will include padding to compute the average")
         .def_ro("layout", &Pool1DAttrs::layout,
@@ -375,26 +425,32 @@ struct Pool2DAttrs : public AttrsNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<Pool2DAttrs>()
-        .def_ro("pool_size", &Pool2DAttrs::pool_size, "Size of the pooling windows.")
-        .def_ro("strides", &Pool2DAttrs::strides, "Specifies the strides of the convolution.")
-        .def_ro("dilation", &Pool2DAttrs::dilation, "Specifies the dilation of the convolution.")
+        .def_ro("pool_size", &Pool2DAttrs::pool_size, "Size of the pooling windows.",
+                refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
+        .def_ro("strides", &Pool2DAttrs::strides, "Specifies the strides of the convolution.",
+                refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
+        .def_ro("dilation", &Pool2DAttrs::dilation, "Specifies the dilation of the convolution.",
+                refl::DefaultValue(ffi::Array<int64_t>{1, 1}))
         .def_ro("padding", &Pool2DAttrs::padding,
                 "If padding is non-zero, then the input is implicitly zero-padded"
                 "Padding support both symmetric and asymmetric as"
                 "one int : same padding used on all sides"
                 "two int : bottom, right will use same padding as top, left"
-                "four int : padding width in the order of (top, left, bottom, right)")
+                "four int : padding width in the order of (top, left, bottom, right)",
+                refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0, 0}))
         .def_ro(
             "ceil_mode", &Pool2DAttrs::ceil_mode,
             "A boolean indicating if use ceil or floor to compute the output shape. By using ceil, "
-            "every element in the input tensor will be covered by a sliding window.")
+            "every element in the input tensor will be covered by a sliding window.",
+            refl::DefaultValue(false))
         .def_ro("count_include_pad", &Pool2DAttrs::count_include_pad,
-                "When true, will include padding to compute the average")
+                "When true, will include padding to compute the average", refl::DefaultValue(false))
         .def_ro("layout", &Pool2DAttrs::layout,
                 "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
                 "dimensions respectively. Pooling is applied on the 'H' and"
-                "'W' dimensions.")
+                "'W' dimensions.",
+                refl::DefaultValue(ffi::String("NCHW")))
         .def_ro("out_layout", &Pool2DAttrs::out_layout,
                 "Dimension ordering of output data. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
@@ -418,26 +474,32 @@ struct Pool3DAttrs : public AttrsNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<Pool3DAttrs>()
-        .def_ro("pool_size", &Pool3DAttrs::pool_size, "Size of the pooling windows.")
-        .def_ro("strides", &Pool3DAttrs::strides, "Specifies the strides of the convolution.")
-        .def_ro("dilation", &Pool3DAttrs::dilation, "Specifies the dilation of the convolution.")
+        .def_ro("pool_size", &Pool3DAttrs::pool_size, "Size of the pooling windows.",
+                refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
+        .def_ro("strides", &Pool3DAttrs::strides, "Specifies the strides of the convolution.",
+                refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
+        .def_ro("dilation", &Pool3DAttrs::dilation, "Specifies the dilation of the convolution.",
+                refl::DefaultValue(ffi::Array<int64_t>{1, 1, 1}))
         .def_ro("padding", &Pool3DAttrs::padding,
                 "If padding is non-zero, then the input is implicitly zero-padded"
                 "Padding support both symmetric and asymmetric as"
                 "one int : same padding used on all sides"
                 "three int : back, bottom, right will use same padding as front, top, left"
-                "four int : padding width in the order of (front, top, left, back, bottom, right)")
+                "four int : padding width in the order of (front, top, left, back, bottom, right)",
+                refl::DefaultValue(ffi::Array<int64_t>{0, 0, 0, 0, 0, 0}))
         .def_ro(
             "ceil_mode", &Pool3DAttrs::ceil_mode,
             "A boolean indicating if use ceil or floor to compute the output shape. By using ceil, "
-            "every element in the input tensor will be covered by a sliding window.")
+            "every element in the input tensor will be covered by a sliding window.",
+            refl::DefaultValue(false))
         .def_ro("count_include_pad", &Pool3DAttrs::count_include_pad,
                 "When true, will include padding to compute the average")
         .def_ro("layout", &Pool3DAttrs::layout,
                 "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
                 "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
                 "dimensions respectively. Pooling is applied on the 'D', 'H' and"
-                "'W' dimensions.")
+                "'W' dimensions.",
+                refl::DefaultValue(ffi::String("NCDHW")))
         .def_ro("out_layout", &Pool3DAttrs::out_layout,
                 "Dimension ordering of output data. Can be 'NCDHW', 'NDHWC', etc."
                 "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
@@ -456,12 +518,14 @@ struct AdaptivePool1DAttrs : public AttrsNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AdaptivePool1DAttrs>()
-        .def_ro("output_size", &AdaptivePool1DAttrs::output_size, "Output width.")
+        .def_ro("output_size", &AdaptivePool1DAttrs::output_size, "Output width.",
+                refl::DefaultValue(ffi::Optional<ffi::Array<int64_t>>{}))
         .def_ro("layout", &AdaptivePool1DAttrs::layout,
                 "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
                 "'N', 'C', 'W' stands for batch, channel and width"
                 "dimensions respectively. Pooling is applied on the"
-                "'W' dimensions.")
+                "'W' dimensions.",
+                refl::DefaultValue(ffi::String("NCW")))
         .def_ro("out_layout", &AdaptivePool1DAttrs::out_layout,
                 "Dimension ordering of output data. Can be 'NCW', 'NWC', etc."
                 "'N', 'C', 'W' stands for batch, channel and width"
@@ -481,12 +545,14 @@ struct AdaptivePool2DAttrs : public AttrsNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AdaptivePool2DAttrs>()
-        .def_ro("output_size", &AdaptivePool2DAttrs::output_size, "Output height and width.")
+        .def_ro("output_size", &AdaptivePool2DAttrs::output_size, "Output height and width.",
+                refl::DefaultValue(ffi::Optional<ffi::Array<int64_t>>{}))
         .def_ro("layout", &AdaptivePool2DAttrs::layout,
                 "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
                 "dimensions respectively. Pooling is applied on the 'H' and"
-                "'W' dimensions.")
+                "'W' dimensions.",
+                refl::DefaultValue(ffi::String("NCHW")))
         .def_ro("out_layout", &AdaptivePool2DAttrs::out_layout,
                 "Dimension ordering of output data. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
@@ -506,12 +572,14 @@ struct AdaptivePool3DAttrs : public AttrsNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AdaptivePool3DAttrs>()
-        .def_ro("output_size", &AdaptivePool3DAttrs::output_size, "Output depth, height and width.")
+        .def_ro("output_size", &AdaptivePool3DAttrs::output_size, "Output depth, height and width.",
+                refl::DefaultValue(ffi::Optional<ffi::Array<int64_t>>{}))
         .def_ro("layout", &AdaptivePool3DAttrs::layout,
                 "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
                 "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
                 "dimensions respectively. Pooling is applied on 'D', 'H' and"
-                "'W' dimensions.")
+                "'W' dimensions.",
+                refl::DefaultValue(ffi::String("NCDHW")))
         .def_ro("out_layout", &AdaptivePool3DAttrs::out_layout,
                 "Dimension ordering of output data. Can be 'NCDHW', 'NDHWC', etc."
                 "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
@@ -529,7 +597,8 @@ struct SoftmaxAttrs : public AttrsNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SoftmaxAttrs>().def_ro("axis", &SoftmaxAttrs::axis,
-                                           "The axis to sum over when computing softmax.");
+                                           "The axis to sum over when computing softmax.",
+                                           refl::DefaultValue(-1));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SoftmaxAttrs", SoftmaxAttrs, AttrsNode);
 };
@@ -541,7 +610,8 @@ struct LeakyReluAttrs : public AttrsNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<LeakyReluAttrs>().def_ro("alpha", &LeakyReluAttrs::alpha,
-                                             "The slope of the negative part.");
+                                             "The slope of the negative part.",
+                                             refl::DefaultValue(0.01));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.LeakyReluAttrs", LeakyReluAttrs, AttrsNode);
 };
@@ -555,9 +625,11 @@ struct SoftplusAttrs : public AttrsNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SoftplusAttrs>()
         .def_ro("beta", &SoftplusAttrs::beta,
-                "Scaling factor controlling the sharpness of the Softplus transition.")
+                "Scaling factor controlling the sharpness of the Softplus transition.",
+                refl::DefaultValue(1.0))
         .def_ro("threshold", &SoftplusAttrs::threshold,
-                "Value determining when to use linear approximation for numerical stability.");
+                "Value determining when to use linear approximation for numerical stability.",
+                refl::DefaultValue(20.0));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.SoftplusAttrs", SoftplusAttrs, AttrsNode);
 };
@@ -569,7 +641,8 @@ struct PReluAttrs : public AttrsNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PReluAttrs>().def_ro("axis", &PReluAttrs::axis,
-                                         "The axis along which the alpha values are applied.");
+                                         "The axis along which the alpha values are applied.",
+                                         refl::DefaultValue(1));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.PReluAttrs", PReluAttrs, AttrsNode);
 };
@@ -588,15 +661,18 @@ struct BatchNormAttrs : public AttrsNode {
     refl::ObjectDef<BatchNormAttrs>()
         .def_ro("axis", &BatchNormAttrs::axis, "The axis along which the normalization is applied.")
         .def_ro("epsilon", &BatchNormAttrs::epsilon,
-                "Small float added to variance to avoid dividing by zero")
+                "Small float added to variance to avoid dividing by zero",
+                refl::DefaultValue(1e-05))
         .def_ro("center", &BatchNormAttrs::center,
-                "Indicating if the beta offset will be added to the normalized tensor.")
+                "Indicating if the beta offset will be added to the normalized tensor.",
+                refl::DefaultValue(true))
         .def_ro("scale", &BatchNormAttrs::scale,
-                "Indicating if the gamma scale will be multiplied.")
+                "Indicating if the gamma scale will be multiplied.", refl::DefaultValue(true))
         .def_ro("momentum", &BatchNormAttrs::momentum,
-                "The value used for the moving_mean and moving_var update.")
+                "The value used for the moving_mean and moving_var update.",
+                refl::DefaultValue(0.1))
         .def_ro("training", &BatchNormAttrs::training,
-                "Whether we are training (i.e., not in eval mode).");
+                "Whether we are training (i.e., not in eval mode).", refl::DefaultValue(true));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.BatchNormAttrs", BatchNormAttrs, AttrsNode);
 };  // struct BatchNormAttrs
@@ -614,11 +690,13 @@ struct LayerNormAttrs : public AttrsNode {
         .def_ro("axes", &LayerNormAttrs::axes,
                 "The axes that along which the normalization is applied.")
         .def_ro("epsilon", &LayerNormAttrs::epsilon,
-                "Small float added to variance to avoid dividing by zero")
+                "Small float added to variance to avoid dividing by zero",
+                refl::DefaultValue(1e-05))
         .def_ro("center", &LayerNormAttrs::center,
-                "Indicating if the beta offset will be added to the normalized tensor.")
+                "Indicating if the beta offset will be added to the normalized tensor.",
+                refl::DefaultValue(true))
         .def_ro("scale", &LayerNormAttrs::scale,
-                "Indicating if the gamma scale will be multiplied.");
+                "Indicating if the gamma scale will be multiplied.", refl::DefaultValue(true));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.LayerNormAttrs", LayerNormAttrs, AttrsNode);
 };  // struct LayerNormAttrs
@@ -643,11 +721,13 @@ struct GroupNormAttrs : public AttrsNode {
             "axes", &GroupNormAttrs::axes,
             "The axes that along which the normalization is applied (excluding the channel axis).")
         .def_ro("epsilon", &GroupNormAttrs::epsilon,
-                "Small float added to variance to avoid dividing by zero")
+                "Small float added to variance to avoid dividing by zero",
+                refl::DefaultValue(1e-05))
         .def_ro("center", &GroupNormAttrs::center,
-                "Indicating if the beta offset will be added to the normalized tensor.")
+                "Indicating if the beta offset will be added to the normalized tensor.",
+                refl::DefaultValue(true))
         .def_ro("scale", &GroupNormAttrs::scale,
-                "Indicating if the gamma scale will be multiplied.");
+                "Indicating if the gamma scale will be multiplied.", refl::DefaultValue(true));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.GroupNormAttrs", GroupNormAttrs, AttrsNode);
 };  // struct GroupNormAttrs
@@ -668,11 +748,13 @@ struct InstanceNormAttrs : public AttrsNode {
         .def_ro("axes", &InstanceNormAttrs::axes,
                 "The axes that along which the normalization is applied.")
         .def_ro("epsilon", &InstanceNormAttrs::epsilon,
-                "Small float added to variance to avoid dividing by zero")
+                "Small float added to variance to avoid dividing by zero",
+                refl::DefaultValue(1e-05))
         .def_ro("center", &InstanceNormAttrs::center,
-                "Indicating if the beta offset will be added to the normalized tensor.")
+                "Indicating if the beta offset will be added to the normalized tensor.",
+                refl::DefaultValue(true))
         .def_ro("scale", &InstanceNormAttrs::scale,
-                "Indicating if the gamma scale will be multiplied.");
+                "Indicating if the gamma scale will be multiplied.", refl::DefaultValue(true));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.InstanceNormAttrs", InstanceNormAttrs, AttrsNode);
 };  // struct InstanceNormAttrs
@@ -686,9 +768,11 @@ struct RMSNormAttrs : public AttrsNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RMSNormAttrs>()
         .def_ro("axes", &RMSNormAttrs::axes,
-                "The axes that along which the normalization is applied.")
+                "The axes that along which the normalization is applied.",
+                refl::DefaultValue(ffi::Array<int64_t>{-1}))
         .def_ro("epsilon", &RMSNormAttrs::epsilon,
-                "Small float added to variance to avoid dividing by zero");
+                "Small float added to variance to avoid dividing by zero",
+                refl::DefaultValue(1e-05));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.RMSNormAttrs", RMSNormAttrs, AttrsNode);
 };  // struct RMSNormAttrs
@@ -705,7 +789,8 @@ struct NLLLossAttrs : public AttrsNode {
                 "The reduction method to apply to the output. Can be"
                 "'none', 'mean' or 'sum'.",
                 refl::DefaultValue("mean"))
-        .def_ro("ignore_index", &NLLLossAttrs::ignore_index, "The target value to ignore.");
+        .def_ro("ignore_index", &NLLLossAttrs::ignore_index, "The target value to ignore.",
+                refl::DefaultValue(-100));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.NLLLossAttrs", NLLLossAttrs, AttrsNode);
 };  // struct NLLLossAttrs
@@ -718,7 +803,8 @@ struct DropoutAttrs : public AttrsNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DropoutAttrs>().def_ro(
         "rate", &DropoutAttrs::rate,
-        "Fraction of the input that gets dropped out during training time");
+        "Fraction of the input that gets dropped out during training time",
+        refl::DefaultValue(0.5));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.DropoutAttrs", DropoutAttrs, AttrsNode);
 };  // struct DropoutAttrs
@@ -734,11 +820,14 @@ struct AttentionAttrs : public AttrsNode {
     refl::ObjectDef<AttentionAttrs>()
         .def_ro(
             "scale", &AttentionAttrs::scale,
-            "The custom scale applied before the softmax. The default value is 1 / sqrt(head_dim).")
+            "The custom scale applied before the softmax. The default value is 1 / sqrt(head_dim).",
+            refl::DefaultValue(ffi::Optional<FloatImm>{}))
         .def_ro("causal_mask", &AttentionAttrs::causal_mask,
-                "The type of the causal mask, i.e. 'TopLeft' and 'BottomRight'.")
+                "The type of the causal mask, i.e. 'TopLeft' and 'BottomRight'.",
+                refl::DefaultValue(ffi::Optional<ffi::String>{}))
         .def_ro("window_size", &AttentionAttrs::window_size,
-                "The size of the window for sliding-window attention.");
+                "The size of the window for sliding-window attention.",
+                refl::DefaultValue(ffi::Optional<IntImm>{}));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.AttentionAttrs", AttentionAttrs, AttrsNode);
 };  // struct AttentionAttrs

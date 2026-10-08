@@ -275,7 +275,7 @@ def opaque_access(
                     16,
                     vi * 8 + vj,
                     T.tvm_access_ptr(
-                        T.type_annotation(dtype="float16"),
+                        T.type_annotation(ty="float16"),
                         A.data,
                         vi * 2048 + vj * 16,
                         128,
@@ -318,7 +318,7 @@ def opaque_access(
                     16,
                     vi * 8 + vj,
                     T.tvm_access_ptr(
-                        T.type_annotation(dtype="float16"),
+                        T.type_annotation(ty="float16"),
                         A0.data,
                         A0.elem_offset,
                         A0.strides[0],
@@ -428,7 +428,7 @@ def inplace_func(data_io: T.Tensor((64), "int32")):
         with Ts.sblock("ext_call"):
             Ts.reads(data_1d[:64])
             Ts.writes(data_1d[:64])
-            T.evaluate(T.call_extern("call_impl", data_1d.data, dtype=""))
+            T.evaluate(T.call_extern("call_impl", data_1d.data, ty=""))
     for i0 in T.serial(64):
         with Ts.sblock("copy_out"):
             v0 = Ts.axis.remap("S", [i0])
@@ -441,7 +441,7 @@ def inplace_call(data_io: T.Tensor((64), "int32")):
         with Ts.sblock("ext_call"):
             Ts.reads(data_io[:64])
             Ts.writes(data_io[:64])
-            T.evaluate(T.call_extern("call_impl", data_io.data, dtype=""))
+            T.evaluate(T.call_extern("call_impl", data_io.data, ty=""))
 
 
 @Ts.function
@@ -592,7 +592,7 @@ def cache_read_opaque_access(
                     16,
                     vi * 8 + vj,
                     T.tvm_access_ptr(
-                        T.type_annotation(dtype="float16"),
+                        T.type_annotation(ty="float16"),
                         A_global.data,
                         vi * 2048 + vj * 16,
                         128,
@@ -635,7 +635,7 @@ def cache_read_opaque_access(
                     16,
                     vi * 8 + vj,
                     T.tvm_access_ptr(
-                        T.type_annotation(dtype="float16"),
+                        T.type_annotation(ty="float16"),
                         A0.data,
                         A0.elem_offset,
                         A0.strides[0],
@@ -790,7 +790,7 @@ def cache_read_inplace(data_io: T.Tensor(64, "int32")) -> None:
         with Ts.sblock("ext_call"):
             Ts.reads(data_1d[0:64])
             Ts.writes(data_1d[0:64])
-            T.evaluate(T.call_extern("call_impl", data_1d.data, dtype=""))
+            T.evaluate(T.call_extern("call_impl", data_1d.data, ty=""))
     for i0 in T.serial(64):
         with Ts.sblock("copy_out"):
             v0 = Ts.axis.spatial(64, i0)
@@ -820,7 +820,7 @@ def cache_inplace_buffer(data_io: T.Tensor(64, "int32")) -> None:
         with Ts.sblock("ext_call"):
             Ts.reads(data_io_local[0:64])
             Ts.writes(data_io_local[0:64])
-            T.evaluate(T.call_extern("call_impl", data_io_local.data, dtype=""))
+            T.evaluate(T.call_extern("call_impl", data_io_local.data, ty=""))
         for ax0 in T.serial(64):
             with Ts.sblock("data_io_local"):
                 v0 = Ts.axis.spatial(64, ax0)
@@ -953,7 +953,7 @@ def cache_write_opaque_access(
                     16,
                     vi * 8 + vj,
                     T.tvm_access_ptr(
-                        T.type_annotation(dtype="float16"),
+                        T.type_annotation(ty="float16"),
                         A.data,
                         vi * 2048 + vj * 16,
                         128,
@@ -996,7 +996,7 @@ def cache_write_opaque_access(
                     16,
                     vi * 8 + vj,
                     T.tvm_access_ptr(
-                        T.type_annotation(dtype="float16"),
+                        T.type_annotation(ty="float16"),
                         A0.data,
                         A0.elem_offset,
                         A0.strides[0],

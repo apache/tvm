@@ -27,6 +27,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
+#include <tvm/relax/distributed/type.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/s_tir/data_layout.h>
 #include <tvm/sym/analyzer.h>
@@ -93,6 +94,16 @@ inline ffi::Array<TensorType> GetInputTensorType(const Call& call, const BlockBu
  * a tensor type.
  */
 inline TensorType GetUnaryInputTensorType(const Call& call) { return GetInputTensorType(call)[0]; }
+
+// Tensor-dependent context-free rules cannot infer unresolved nested expressions or
+// distributed placements. The Relax builder normalizes those inputs first.
+inline bool RequiresTensorInputNormalization(const Call& call) {
+  CheckNumArguments(call);
+  for (const Expr& arg : call->args) {
+    if (arg->ty.as<MissingTypeNode>() || arg->ty.as<distributed::DTensorTypeNode>()) return true;
+  }
+  return false;
+}
 inline TensorType GetUnaryInputTensorType(const Call& call, const BlockBuilder&) {
   return GetUnaryInputTensorType(call);
 }
@@ -188,6 +199,7 @@ std::tuple<ArgTypes...> GetArgType(const Call& call, const BlockBuilder&) {
  */
 template <bool require_float_dtype, typename FType>
 inline Type InferTypeUnary(const Call& call, FType f_compute_out_dtype) {
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   TensorType input_ty = GetUnaryInputTensorType(call);
   if (require_float_dtype && !input_ty->IsUnknownDtype() &&
       !input_ty->dtype.value().MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat)) {
@@ -276,7 +288,7 @@ Type ReturnTypeFromArgContextFree(const CallNode* call_node) {
         << op << " op has only " << n_input << "arguments, but try to get the arg with index "
         << arg_index;
   }
-  return GetType(call->args[arg_index]);
+  return call->args[arg_index]->ty;
 }
 
 /*!

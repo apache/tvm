@@ -1092,7 +1092,7 @@ def test_assert_op():
     class AssertOp:
         @R.function(pure=False)
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            y = R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
+            y = R.assert_op(R.const(False, dtype="bool"), "x: {}", x)
             return x
 
     _check(AssertOp)
@@ -1101,7 +1101,7 @@ def test_assert_op():
 def test_assert_outside_of_class():
     @R.function(pure=False)
     def func(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-        y = R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
+        y = R.assert_op(R.const(False, dtype="bool"), "x: {}", x)
         return x
 
     # this just makes sure that the machinery regarding the pure attribute parses
@@ -1115,7 +1115,7 @@ def test_impure_inner_function():
         # we will not actually call it
         @R.function(pure=False)
         def g(y: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            z = R.assert_op(R.const(False, dtype="bool"), y, format="y: {}")
+            z = R.assert_op(R.const(False, dtype="bool"), "y: {}", y)
             return y
 
         return x
@@ -1136,7 +1136,7 @@ def test_impure_inner_function_in_class():
             # we will not actually call it
             @R.function(pure=False)
             def g(y: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-                z = R.assert_op(R.const(False, dtype="bool"), y, format="y: {}")
+                z = R.assert_op(R.const(False, dtype="bool"), "y: {}", y)
                 return y
 
             return x
@@ -1170,7 +1170,7 @@ def test_parse_multiple_pure_and_impure_funcs():
 
         @R.function(pure=False)
         def assert_func(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            y = R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
+            y = R.assert_op(R.const(False, dtype="bool"), "x: {}", x)
             return x
 
         @R.function
@@ -1195,7 +1195,7 @@ def test_function_with_void_return_type_may_be_used_as_statements():
 
         @R.function(pure=False)
         def assert_func(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            y = R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
+            y = R.assert_op(R.const(False, dtype="bool"), "x: {}", x)
             return x
 
     @I.ir_module
@@ -1207,7 +1207,7 @@ def test_function_with_void_return_type_may_be_used_as_statements():
 
         @R.function(pure=False)
         def assert_func(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
+            R.assert_op(R.const(False, dtype="bool"), "x: {}", x)
             return x
 
     tvm.ir.assert_structural_equal(Unsugared, Sugared)

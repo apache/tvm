@@ -20,9 +20,9 @@
 import numpy as np  # type: ignore
 
 import tvm
+from tvm.ir import Call as _Call
 
 from ..expr import Expr, prim_value
-from . import _ffi_api
 
 
 def unique(
@@ -32,6 +32,9 @@ def unique(
     return_inverse: bool | Expr = False,
     return_counts: bool | Expr = False,
     axis: int | Expr | None = None,
+    *,
+    ty=None,
+    span=None,
 ) -> Expr:
     """Find the unique elements in a given tensor.
     In addition, it optionally returns
@@ -79,8 +82,11 @@ def unique(
         return_counts = prim_value(return_counts)
     if axis is not None and isinstance(axis, int):
         axis = prim_value(axis)
-    return _ffi_api.unique(  # type: ignore
-        x, sorted, return_index, return_inverse, return_counts, axis
+    return _Call(
+        "relax.unique",
+        [x, sorted, return_index, return_inverse, return_counts, *([] if axis is None else [axis])],
+        ty=ty,
+        span=span,
     )
 
 
@@ -179,7 +185,7 @@ def numpy_unique(
     return tuple(output_list)
 
 
-def nonzero(x: Expr) -> Expr:
+def nonzero(x: Expr, *, ty=None, span=None) -> Expr:
     """Find the indices of elements of a tensor that are non-zero.
 
     Parameters
@@ -207,7 +213,7 @@ def nonzero(x: Expr) -> Expr:
                       [1, 0]]
 
     """
-    return _ffi_api.nonzero(x)  # type: ignore
+    return _Call("relax.nonzero", [x], ty=ty, span=span)  # type: ignore
 
 
 @tvm.register_global_func("relax.run.nonzero")

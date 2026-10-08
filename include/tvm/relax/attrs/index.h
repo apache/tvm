@@ -37,12 +37,26 @@ struct TakeAttrs : public AttrsNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TakeAttrs>()
-        .def_ro("axis", &TakeAttrs::axis, "The axis over which to select values.")
+        .def_ro("axis", &TakeAttrs::axis, "The axis over which to select values.",
+                refl::DefaultValue(ffi::Optional<int64_t>{}))
         .def_ro("mode", &TakeAttrs::mode, "The mode for handling out-of-bounds indices.",
                 refl::DefaultValue("fast"));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TakeAttrs", TakeAttrs, AttrsNode);
 };  // struct TakeAttrs
+
+/*! \brief Attributes used in take_backward operator */
+struct TakeBackwardAttrs : public AttrsNode {
+  ffi::Optional<int64_t> axis;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TakeBackwardAttrs>().def_ro("axis", &TakeBackwardAttrs::axis,
+                                                "The axis over which values were selected.",
+                                                refl::DefaultValue(ffi::Optional<int64_t>{}));
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TakeBackwardAttrs", TakeBackwardAttrs, AttrsNode);
+};
 
 /*! \brief Attributes used in strided_slice operator */
 struct StridedSliceAttrs : public AttrsNode {

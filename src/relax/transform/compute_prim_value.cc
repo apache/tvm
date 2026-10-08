@@ -124,10 +124,9 @@ class PrimExprComputeInjector : public ExprMutator {
         [](const tirx::Var& tir_var) -> relax::Expr { return tir_var.as_or_throw<PrimExpr>(); }));
     const Op& bridge = Op::Get("relax.call_tir_packed");
     if (s_tir::IsPureFunction(func)) {
-      return Call::Unchecked(Type::Missing(), Op::Get("relax.call_pure_packed"),
-                             {bridge, callee, args});
+      return Call(Type::Missing(), Op::Get("relax.call_pure_packed"), {bridge, callee, args});
     }
-    return Call::Unchecked(Type::Missing(), bridge, {callee, args});
+    return Call(Type::Missing(), bridge, {callee, args});
   }
 };
 
