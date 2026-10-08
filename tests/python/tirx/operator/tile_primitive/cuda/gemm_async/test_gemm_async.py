@@ -2978,7 +2978,7 @@ def _build_smem_desc_kernel(smem_desc, weight_stationary=False, pass_descI=False
         T.cuda.mbarrier_wait(tma_mbar.ptr_to([0]), 0)
         T.cuda.cta_sync()
         if tid_in_wg == 0:
-            if pass_descI:
+            if T.constexpr(pass_descI):
                 desc_i: T.uint32
                 T.cuda.tcgen05.encode_instr_descriptor(
                     T.address_of(desc_i),  # noqa: F821

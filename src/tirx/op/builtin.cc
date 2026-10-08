@@ -37,14 +37,15 @@ void CallFFIKernelAttr::RegisterReflection() {
 }
 
 void TensorMapEncodeTiledAttr::RegisterReflection() {
+  namespace refl = ffi::reflection;
   ffi::reflection::ObjectDef<TensorMapEncodeTiledAttr>()
       .def_ro("descriptor_dtype", &TensorMapEncodeTiledAttr::descriptor_dtype)
       .def_ro("rank", &TensorMapEncodeTiledAttr::rank)
-      .def_ro("interleave", &TensorMapEncodeTiledAttr::interleave)
-      .def_ro("swizzle", &TensorMapEncodeTiledAttr::swizzle)
-      .def_ro("l2_promotion", &TensorMapEncodeTiledAttr::l2_promotion)
-      .def_ro("oob_fill", &TensorMapEncodeTiledAttr::oob_fill)
-      .def_ro("force_cu_dtype", &TensorMapEncodeTiledAttr::force_cu_dtype);
+      .def_ro("interleave", &TensorMapEncodeTiledAttr::interleave, refl::DefaultValue(0))
+      .def_ro("swizzle", &TensorMapEncodeTiledAttr::swizzle, refl::DefaultValue(0))
+      .def_ro("l2_promotion", &TensorMapEncodeTiledAttr::l2_promotion, refl::DefaultValue(0))
+      .def_ro("oob_fill", &TensorMapEncodeTiledAttr::oob_fill, refl::DefaultValue(0))
+      .def_ro("force_cu_dtype", &TensorMapEncodeTiledAttr::force_cu_dtype, refl::DefaultValue(-1));
 }
 
 ffi::Array<Var> LaunchThreadBodyParams(const CallNode* call) {
@@ -567,7 +568,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.tensormap_encode_tiled")
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32))
       .signature(sig::arg("descriptor", "The descriptor."), sig::arg("data", "The input data."),
-                 sig::var_args("args"))
+                 sig::var_args("args"), sig::call_attrs<TensorMapEncodeTiledAttr>())
       .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                     ffi::String("tirx.tensormap_encode_tiled"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))

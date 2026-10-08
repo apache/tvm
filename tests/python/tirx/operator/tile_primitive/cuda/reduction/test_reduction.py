@@ -81,24 +81,24 @@ def test_reduction_shared(
         B_smem = T.alloc_tensor(s_shape_dst, dtype, scope="shared", layout=s_layout_dst)
 
         Tx.cta.copy(A_smem[tuple(copy_slice_src)], A[tuple(copy_slice_src)])
-        if accum:
+        if T.constexpr(accum):
             Tx.cta.copy(B_smem[tuple(copy_slice_dst)], B[tuple(copy_slice_dst)])
         T.cuda.cta_sync()
-        if op_type == "sum":
+        if T.constexpr(op_type == "sum"):
             Tx.cta.sum(
                 B_smem[tuple(reduce_slice_dst)],
                 A_smem[tuple(reduce_slice_src)],
                 axes=axes,
                 accum=accum,
             )
-        elif op_type == "max":
+        elif T.constexpr(op_type == "max"):
             Tx.cta.max(
                 B_smem[tuple(reduce_slice_dst)],
                 A_smem[tuple(reduce_slice_src)],
                 axes=axes,
                 accum=accum,
             )
-        elif op_type == "min":
+        elif T.constexpr(op_type == "min"):
             Tx.cta.min(
                 B_smem[tuple(reduce_slice_dst)],
                 A_smem[tuple(reduce_slice_src)],
@@ -181,15 +181,15 @@ def test_reduction_shared_subscope(exec_scope, op_type, accum):
             A_smem = T.alloc_tensor(list(src_shape), dtype, scope="shared", layout=s_layout_src)
             B_smem = T.alloc_tensor(list(dst_shape), dtype, scope="shared", layout=s_layout_dst)
             Tx.cta.copy(A_smem, A)
-            if accum:
+            if T.constexpr(accum):
                 Tx.cta.copy(B_smem, B)
             T.cuda.cta_sync()
             if warp_id == 5:
-                if op_type == "sum":
+                if T.constexpr(op_type == "sum"):
                     Tx.warp.sum(B_smem, A_smem, axes=axes, accum=accum)
-                elif op_type == "max":
+                elif T.constexpr(op_type == "max"):
                     Tx.warp.max(B_smem, A_smem, axes=axes, accum=accum)
-                elif op_type == "min":
+                elif T.constexpr(op_type == "min"):
                     Tx.warp.min(B_smem, A_smem, axes=axes, accum=accum)
             T.cuda.cta_sync()
             Tx.cta.copy(B, B_smem)
@@ -208,15 +208,15 @@ def test_reduction_shared_subscope(exec_scope, op_type, accum):
             A_smem = T.alloc_tensor(list(src_shape), dtype, scope="shared", layout=s_layout_src)
             B_smem = T.alloc_tensor(list(dst_shape), dtype, scope="shared", layout=s_layout_dst)
             Tx.cta.copy(A_smem, A)
-            if accum:
+            if T.constexpr(accum):
                 Tx.cta.copy(B_smem, B)
             T.cuda.cta_sync()
             if wg_id == 0:
-                if op_type == "sum":
+                if T.constexpr(op_type == "sum"):
                     Tx.wg.sum(B_smem, A_smem, axes=axes, accum=accum)
-                elif op_type == "max":
+                elif T.constexpr(op_type == "max"):
                     Tx.wg.max(B_smem, A_smem, axes=axes, accum=accum)
-                elif op_type == "min":
+                elif T.constexpr(op_type == "min"):
                     Tx.wg.min(B_smem, A_smem, axes=axes, accum=accum)
             T.cuda.cta_sync()
             Tx.cta.copy(B, B_smem)
@@ -234,15 +234,15 @@ def test_reduction_shared_subscope(exec_scope, op_type, accum):
             A_smem = T.alloc_tensor(list(src_shape), dtype, scope="shared", layout=s_layout_src)
             B_smem = T.alloc_tensor(list(dst_shape), dtype, scope="shared", layout=s_layout_dst)
             Tx.cta.copy(A_smem, A)
-            if accum:
+            if T.constexpr(accum):
                 Tx.cta.copy(B_smem, B)
             T.cuda.cta_sync()
             if _tid == 65:
-                if op_type == "sum":
+                if T.constexpr(op_type == "sum"):
                     Tx.sum(B_smem, A_smem, axes=axes, accum=accum)
-                elif op_type == "max":
+                elif T.constexpr(op_type == "max"):
                     Tx.max(B_smem, A_smem, axes=axes, accum=accum)
-                elif op_type == "min":
+                elif T.constexpr(op_type == "min"):
                     Tx.min(B_smem, A_smem, axes=axes, accum=accum)
             T.cuda.cta_sync()
             Tx.cta.copy(B, B_smem)
@@ -339,16 +339,16 @@ def test_reduction_local_thread_wise(src_shape, dst_shape, axes, op_type, accum)
             idx = T.meta_var(decompose_flat(i, src_shape))
             A_local[tuple(idx)] = A[tuple(idx)]
 
-        if accum:
+        if T.constexpr(accum):
             for i in T.serial(dst_total):
                 idx = T.meta_var(decompose_flat(i, dst_shape))
                 B_local[tuple(idx)] = B[tuple(idx)]
 
-        if op_type == "sum":
+        if T.constexpr(op_type == "sum"):
             Tx.sum(B_local, A_local, axes=axes, accum=accum)
-        elif op_type == "max":
+        elif T.constexpr(op_type == "max"):
             Tx.max(B_local, A_local, axes=axes, accum=accum)
-        elif op_type == "min":
+        elif T.constexpr(op_type == "min"):
             Tx.min(B_local, A_local, axes=axes, accum=accum)
 
         for i in T.serial(dst_total):
@@ -468,31 +468,31 @@ def test_reduction_local_view_basic(inner_dims, dst_dims, axes, accum, slice_end
         for i in T.serial(src_local_total):
             idx = T.meta_var(decompose_flat(i, inner_dims))
             acc[(0, *list(idx))] = A[(lane_id, *list(idx))]
-        if accum:
+        if T.constexpr(accum):
             for i in T.serial(dst_local_total):
                 idx = T.meta_var(decompose_flat(i, dst_dims))
                 red[(0, *list(idx))] = B[(lane_id, *list(idx))]
         acc_view = acc.view(*src_shape, layout=acc_view_layout)
         red_view = red.view(*dst_shape, layout=red_view_layout)
-        if slice_end is not None:
-            if op_type == "sum":
+        if T.constexpr(slice_end is not None):
+            if T.constexpr(op_type == "sum"):
                 Tx.warp.sum(
                     red_view, acc_view[:, slice_end // 2 : slice_end], axes=axes, accum=accum
                 )
-            elif op_type == "max":
+            elif T.constexpr(op_type == "max"):
                 Tx.warp.max(
                     red_view, acc_view[:, slice_end // 2 : slice_end], axes=axes, accum=accum
                 )
-            elif op_type == "min":
+            elif T.constexpr(op_type == "min"):
                 Tx.warp.min(
                     red_view, acc_view[:, slice_end // 2 : slice_end], axes=axes, accum=accum
                 )
         else:
-            if op_type == "sum":
+            if T.constexpr(op_type == "sum"):
                 Tx.warp.sum(red_view, acc_view, axes=axes, accum=accum)
-            elif op_type == "max":
+            elif T.constexpr(op_type == "max"):
                 Tx.warp.max(red_view, acc_view, axes=axes, accum=accum)
-            elif op_type == "min":
+            elif T.constexpr(op_type == "min"):
                 Tx.warp.min(red_view, acc_view, axes=axes, accum=accum)
         for i in T.serial(dst_local_total):
             idx = T.meta_var(decompose_flat(i, dst_dims))
@@ -599,7 +599,7 @@ def test_reduction_local_view_complex(n_groups, n_warps, op_type, dtype, shuffle
                     ]
 
             # Pre-load B into red for accumulation
-        if accum:
+        if T.constexpr(accum):
             for i in T.unroll(2):
                 red[i] = B[
                     wg_id * 64 + warp_id_in_wg * 16 + i * 8 + lane_id // 4,
@@ -607,19 +607,19 @@ def test_reduction_local_view_complex(n_groups, n_warps, op_type, dtype, shuffle
                 ]
         acc_view = acc.view(*acc_shape, layout=acc_layout)
         red_view = red.view(*red_shape, layout=red_layout)
-        if op_type == "sum":
+        if T.constexpr(op_type == "sum"):
             Tx.warp.sum(red_view, acc_view, thread_reduce=shuffle, accum=accum)
-        elif op_type == "max":
+        elif T.constexpr(op_type == "max"):
             Tx.warp.max(red_view, acc_view, thread_reduce=shuffle, accum=accum)
-        elif op_type == "min":
+        elif T.constexpr(op_type == "min"):
             Tx.warp.min(red_view, acc_view, thread_reduce=shuffle, accum=accum)
             # perform an additional shuffle step if not shuffled above
-        if not shuffle:
-            if op_type == "sum":
+        if T.constexpr(not shuffle):
+            if T.constexpr(op_type == "sum"):
                 Tx.warp.sum(red_view, red_view, thread_reduce=True)
-            elif op_type == "max":
+            elif T.constexpr(op_type == "max"):
                 Tx.warp.max(red_view, red_view, thread_reduce=True)
-            elif op_type == "min":
+            elif T.constexpr(op_type == "min"):
                 Tx.warp.min(red_view, red_view, thread_reduce=True)
             # Write red into B
         for i in T.unroll(2):
@@ -698,13 +698,13 @@ def test_reduction_local_optimized_3input_maxmin(reduction_len, op_type, accum):
             A_local[i] = A[i]
 
             # Initialize B_local for accum test
-        if accum:
+        if T.constexpr(accum):
             B_local[0] = B[0]
 
             # Thread-level reduction
-        if op_type == "max":
+        if T.constexpr(op_type == "max"):
             Tx.max(B_local, A_local, accum=accum)
-        elif op_type == "min":
+        elif T.constexpr(op_type == "min"):
             Tx.min(B_local, A_local, accum=accum)
 
             # Store result to global
@@ -771,7 +771,7 @@ def test_reduction_local_optimized_packed_add_sum(reduction_len, accum):
             A_local[i] = A[i]
 
             # Initialize B_local for accum test
-        if accum:
+        if T.constexpr(accum):
             B_local[0] = B[0]
 
             # Thread-level sum reduction
@@ -845,9 +845,9 @@ def test_reduction_op_warp_shuffle(op_type, dtype):
         src_local[0] = A[lane_id]
         src_view = src_local.view(N, layout=src_layout)
         dst_view = dst_local.view(1, layout=dst_layout)
-        if op_type == "sum":
+        if T.constexpr(op_type == "sum"):
             Tx.warp.sum(dst_view, src_view)
-        elif op_type == "max":
+        elif T.constexpr(op_type == "max"):
             Tx.warp.max(dst_view, src_view)
         B[lane_id] = dst_local[0]
         # fmt: on
@@ -917,9 +917,9 @@ def test_reduction_op_warp_shuffle_multi_elem(op_type, dtype):
             src_local[i] = A[lane_id * ELEMS_PER_THREAD + i]
         src_view = src_local.view(TOTAL, layout=src_layout)
         dst_view = dst_local.view(ELEMS_PER_THREAD, layout=dst_layout)
-        if op_type == "sum":
+        if T.constexpr(op_type == "sum"):
             Tx.warp.sum(dst_view, src_view)
-        elif op_type == "max":
+        elif T.constexpr(op_type == "max"):
             Tx.warp.max(dst_view, src_view)
         for i in T.serial(ELEMS_PER_THREAD):
             B[i] = dst_local[i]
@@ -1115,7 +1115,7 @@ def test_reduction_warpgroup_wg_local_layout(op_name):
         src_local = src.local(cols)
         for i in T.serial(cols):
             src_local[i] = A[tid, i]
-        if op_name == "sum":
+        if T.constexpr(op_name == "sum"):
             Tx.wg.sum(dst, src, axes=[-1], accum=False)
         else:
             Tx.wg.max(dst, src, axes=[-1], accum=False)

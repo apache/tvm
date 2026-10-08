@@ -212,7 +212,7 @@ def _emit_packed(plan, vec_impl, vec_chunk, total, thread_cnt, sctx) -> Function
                 src_args = T.meta_var(
                     [
                         srcs[i].scalar
-                        if srcs[i].is_scalar
+                        if T.constexpr(srcs[i].is_scalar)
                         else (
                             srcs[i].buf_region.source,
                             _src_lane_indices(

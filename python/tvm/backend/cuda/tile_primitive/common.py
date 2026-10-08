@@ -209,18 +209,18 @@ def copy_vec_load_impl(
             """Implement copy operation with vectorized loads/stores."""
             for s in T.serial(0, n_elements // (tx * vec_len)):
                 for tid_x in T.thread_binding(tx, "threadIdx.x"):
-                    if inst_type == CopyInstType.NORMAL:
+                    if T.constexpr(inst_type == CopyInstType.NORMAL):
                         for vec in T.vectorized(vec_len):
                             fused = T.meta_var((s * tx + tid_x) * vec_len + vec)
                             dst_indices = T.meta_var(get_indices(fused, dst_st, dst_extent))
                             src_indices = T.meta_var(get_indices(fused, src_st, src_extent))
                             dst[tuple(dst_indices)] = src[tuple(src_indices)]
-                    elif inst_type == CopyInstType.CP_ASYNC:
+                    elif T.constexpr(inst_type == CopyInstType.CP_ASYNC):
                         fused = T.meta_var((s * tx + tid_x) * vec_len)
                         dst_indices = T.meta_var(get_indices(fused, dst_st, dst_extent))
                         src_indices = T.meta_var(get_indices(fused, src_st, src_extent))
-                        T.evaluate(T.ptx[f"cp.async.{'cg' if cp_size == 16 else 'ca'}.shared.global"](dst.ptr_to(dst_indices), src.ptr_to(src_indices), cp_size))  # noqa: E501
-            if dst.scope().startswith("shared") and inst_type == CopyInstType.NORMAL:
+                        T.evaluate(T.ptx[f"cp.async.{'cg' if T.constexpr(cp_size == 16) else 'ca'}.shared.global"](dst.ptr_to(dst_indices), src.ptr_to(src_indices), cp_size))  # noqa: E501
+            if T.constexpr(dst.scope().startswith("shared") and inst_type == CopyInstType.NORMAL):
                 T.tvm_storage_sync("shared")
         # fmt: on
     elif sctx.is_thread:
@@ -228,17 +228,17 @@ def copy_vec_load_impl(
         @T.function(check_well_formed=False)
         def impl():
             for s in T.serial(0, n_elements // (vec_len)):
-                if inst_type == CopyInstType.NORMAL:
+                if T.constexpr(inst_type == CopyInstType.NORMAL):
                     for vec in T.vectorized(vec_len):
                         fused = T.meta_var(s * vec_len + vec)
                         dst_indices = T.meta_var(get_indices(fused, dst_st, dst_extent))
                         src_indices = T.meta_var(get_indices(fused, src_st, src_extent))
                         dst[tuple(dst_indices)] = src[tuple(src_indices)]
-                elif inst_type == CopyInstType.CP_ASYNC:
+                elif T.constexpr(inst_type == CopyInstType.CP_ASYNC):
                     fused = T.meta_var(s * vec_len)
                     dst_indices = T.meta_var(get_indices(fused, dst_st, dst_extent))
                     src_indices = T.meta_var(get_indices(fused, src_st, src_extent))
-                    T.evaluate(T.ptx[f"cp.async.{'cg' if cp_size == 16 else 'ca'}.shared.global"](dst.ptr_to(dst_indices), src.ptr_to(src_indices), cp_size))  # noqa: E501
+                    T.evaluate(T.ptx[f"cp.async.{'cg' if T.constexpr(cp_size == 16) else 'ca'}.shared.global"](dst.ptr_to(dst_indices), src.ptr_to(src_indices), cp_size))  # noqa: E501
         # fmt: on
     else:
         fail(f"unsupported exec_scope {sctx.scope_kind}")

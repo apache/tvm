@@ -376,7 +376,7 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
                 r_words[r.apply(0, 0, 0, mm, i, 0, shape=apply_shape)[r_mem_axis] // 2]
                 for i in range(num)
             ]
-            if direction == "ld":
+            if T.constexpr(direction == "ld"):
                 T.ptx[ld_chain](*words, smem_ptr)
             else:
                 # stmatrix reverses ldmatrix's operand order: address first.

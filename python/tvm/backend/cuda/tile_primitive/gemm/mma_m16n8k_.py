@@ -570,7 +570,7 @@ def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Func
                 # Initialize D[m, n]: copy C (beta==1) or clear to 0 (beta==0).
                 for rM in T.unroll(n_rM):
                     for rN in T.unroll(n_rN):
-                        if use_c:
+                        if T.constexpr(use_c):
                             d_local[m, n, rM, rN] = c_local[m, n, rM, rN]
                         else:
                             d_local[m, n, rM, rN] = T.float32(0)

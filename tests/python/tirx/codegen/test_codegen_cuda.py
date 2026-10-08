@@ -1108,9 +1108,9 @@ def test_ptx_cp_async(cp_size, cache_hint, prefetch_size, predicate, fill_mode):
         for i in T.vectorized(N):
             A_shared[i] = 5.0
         T.ptx.fence.proxy.async_.shared__cta()
-        if fill_mode == "zero":
+        if T.constexpr(fill_mode == "zero"):
             T.ptx[chain](A_shared.ptr_to([0]), A.ptr_to([0]), cp_size, src_size, *cache_args)
-        elif has_pred:
+        elif T.constexpr(has_pred):
             T.ptx[chain](A_shared.ptr_to([0]), A.ptr_to([0]), cp_size, *cache_args, pred=predicate)
         else:
             T.ptx[chain](A_shared.ptr_to([0]), A.ptr_to([0]), cp_size, *cache_args)
@@ -1161,19 +1161,28 @@ def test_ptx_ldmatrix(trans, num):
         # contiguous fp16[8] buffer, so the registers land through a uint32
         # view, two fp16 elements per word.
         A_words = A_local.view("uint32")
-        if num == 1:
-            T.ptx[f"ldmatrix.sync.aligned.m8n8.x1{'.trans' if trans else ''}.shared.b16"](
+        if T.constexpr(num == 1):
+            T.ptx[
+                "ldmatrix.sync.aligned.m8n8.x1"
+                f"{'.trans' if T.constexpr(trans) else ''}.shared.b16"
+            ](
                 A_words[0],
                 A_shared.ptr_to([tx % 16, tx // 16 * 8]),
             )
-        elif num == 2:
-            T.ptx[f"ldmatrix.sync.aligned.m8n8.x2{'.trans' if trans else ''}.shared.b16"](
+        elif T.constexpr(num == 2):
+            T.ptx[
+                "ldmatrix.sync.aligned.m8n8.x2"
+                f"{'.trans' if T.constexpr(trans) else ''}.shared.b16"
+            ](
                 A_words[0],
                 A_words[1],
                 A_shared.ptr_to([tx % 16, tx // 16 * 8]),
             )
         else:
-            T.ptx[f"ldmatrix.sync.aligned.m8n8.x4{'.trans' if trans else ''}.shared.b16"](
+            T.ptx[
+                "ldmatrix.sync.aligned.m8n8.x4"
+                f"{'.trans' if T.constexpr(trans) else ''}.shared.b16"
+            ](
                 A_words[0],
                 A_words[1],
                 A_words[2],

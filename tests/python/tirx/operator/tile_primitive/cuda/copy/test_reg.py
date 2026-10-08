@@ -458,17 +458,43 @@ def test_reg_copy_linear_shared_hoists_thread_base():
         T.cuda.cta_sync()
         T.evaluate(smem[tid, 0])
 
+    dispatched = []
+
+    @tvm.instrument.pass_instrument
+    class CaptureDispatch:
+        def run_after_pass(self, mod, info):
+            if info.name == "tirx.TilePrimitiveDispatch":
+                dispatched.append(mod["main"])
+
     target = tvm.target.Target("cuda")
-    with target:
+    with target, tvm.transform.PassContext(instruments=[CaptureDispatch()]):
         ex = tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
         src = ex.mod.imports[0].inspect_source()
 
-    base_assignment = "s_base_ptr[0] ="
-    loop = "for (int f = 0; f < 8; ++f)"
-    assert base_assignment in src and loop in src
-    assert src.index(base_assignment) < src.index(loop)
-    assert "(s_base_ptr[0] + ds_ptr[0])" in src
-    assert "s_off_ptr" not in src
+    nodes = []
+    tvm_ffi.structural_walk(dispatched[0].body, nodes.append)
+    (copy_loop,) = [
+        node for node in nodes if isinstance(node, tvm.tirx.For) and int(node.extent) == 8
+    ]
+    loop_nodes = []
+    tvm_ffi.structural_walk(copy_loop.body, loop_nodes.append)
+    (pointer,) = [
+        node
+        for node in loop_nodes
+        if isinstance(node, tvm.ir.Call)
+        and node.op.name == "tirx.cuda.func_call"
+        and node.args[0].value == "tvm_builtin_pointer_offset"
+    ]
+    offset = pointer.args[2]
+    assert isinstance(offset, tvm.tirx.Add)
+    (base,) = [
+        node for node in nodes if isinstance(node, tvm.tirx.Bind) and node.var.same_as(offset.a)
+    ]
+    assert not any(isinstance(node, tvm.tirx.Bind) and node.same_as(base) for node in loop_nodes)
+    assert not any(
+        var.same_as(copy_loop.loop_var) for var in tvm.tirx.analysis.undefined_vars(base.value)
+    )
+    assert "st.shared.v4.u32" in src
 
 
 @pytest.mark.gpu
@@ -536,9 +562,7 @@ def test_reg_copy_wg_local_to_swizzled_shared_uses_structured_compose_apply():
     # (2) Structured address fingerprint: tid contributes one atom-aligned
     # add, while the bounded outer coordinate is XORed with the phase.
     s_off_lines = [
-        line
-        for line in src.splitlines()
-        if line.strip().startswith("s_off_ptr") and "[0] =" in line
+        line for line in src.splitlines() if line.strip().startswith("int s_off") and " = " in line
     ]
     assert len(s_off_lines) == 1
     assert "^" in s_off_lines[0]
@@ -603,6 +627,29 @@ def test_copy_fallback_handles_scalar_regions():
         src = ex.mod.imports[0].inspect_source()
 
     assert "dst_ptr[2] = src_ptr[0];" in src
+
+
+@pytest.mark.parametrize("swizzled", [False, True])
+def test_copy_fallback_rejects_distributed_tensors(swizzled):
+    from tvm.tirx.layout import ComposeLayout
+
+    shape = (32, 4)
+    layout = TileLayout(S[shape : (1 @ tx, 1)])
+    if swizzled:
+        layout = ComposeLayout(0, 1, 2, layout)
+
+    @T.function
+    def kernel():
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([32])
+        reg = T.alloc_tensor(shape, "float32", scope="local", layout=layout)
+        smem = T.alloc_tensor(shape, "float32", scope="shared")
+        Tx.cta.copy(smem, reg, dispatch="fallback")
+
+    with tvm.target.Target("cuda"):
+        with pytest.raises(RuntimeError, match="single-thread fallback cannot access"):
+            tvm.tirx.transform.LowerTIRx()(tvm.IRModule({"main": kernel}))
 
 
 @pytest.mark.gpu
