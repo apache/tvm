@@ -88,12 +88,12 @@ def verify(input):
 def test_prim_scalar_arg():
     @I.ir_module
     class Input:
-        @T.prim_func
+        @Ts.function
         def add_scaled(
-            A: T.Buffer((T.int64(16),), "float16"),
+            A: T.Tensor((T.int64(16),), "float16"),
             scale: T.float32,
-            C: T.Buffer((T.int64(16),), "float16"),
-            B: T.Buffer((T.int64(16),), "float16"),
+            C: T.Tensor((T.int64(16),), "float16"),
+            B: T.Tensor((T.int64(16),), "float16"),
         ):
             for i in T.serial(16):
                 B[i] = A[i] + T.Cast("float16", scale) * C[i]
@@ -116,11 +116,11 @@ def test_prim_scalar_arg():
 
     mod = tvm.relax.transform.SpecializeFunctionBasedOnCallSite()(Input)
     params = mod["add_scaled"].params
-    assert tvm.tirx.is_buffer_var(params[0])
-    assert not tvm.tirx.is_buffer_var(params[1])
+    assert tvm.tirx.is_tensor_var(params[0])
+    assert not tvm.tirx.is_tensor_var(params[1])
     tvm.ir.assert_structural_equal(params[1].ty, tvm.ir.PrimType("float32"))
-    assert tvm.tirx.is_buffer_var(params[2])
-    assert tvm.tirx.is_buffer_var(params[3])
+    assert tvm.tirx.is_tensor_var(params[2])
+    assert tvm.tirx.is_tensor_var(params[3])
 
 
 def test_single_arg_return():
