@@ -470,11 +470,11 @@ def test_for_thread_binding():
     tvm.ir.assert_structural_equal(func, rt_func)
 
     assert isinstance(rt_func.body[0], tirx.stmt.For)
-    assert rt_func.body[0].kind == 4
-    assert rt_func.body[0].thread_binding == "threadIdx.x"
+    assert rt_func.body[0].kind == tvm.tirx.ForKind.PARALLEL
+    assert rt_func.body[0].annotations.get("thread_binding") == "threadIdx.x"
     assert isinstance(rt_func.body[0].body[0], tirx.stmt.For)
-    assert rt_func.body[0].body[0].kind == 4
-    assert rt_func.body[0].body[0].thread_binding == "threadIdx.y"
+    assert rt_func.body[0].body[0].kind == tvm.tirx.ForKind.PARALLEL
+    assert rt_func.body[0].body[0].annotations.get("thread_binding") == "threadIdx.y"
     assert rt_func.body[0].body[0].annotations["attr_key"] == "attr_value"
 
 

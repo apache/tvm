@@ -129,7 +129,7 @@ def test_basic():
 
 def test_stmt():
     x = tvm.tirx.Evaluate(0)
-    tvm.tirx.For(tvm.tirx.Var("i", "int32"), 0, 1, tvm.tirx.ForKind.SERIAL, x)
+    tvm.tirx.For(tvm.tirx.Var("i", "int32"), 0, 1, tvm.tirx.ForKind.DEFAULT, x)
     tvm.tirx.For(tvm.tirx.Var("i", "int32"), 0, 1, tvm.tirx.ForKind.UNROLLED, x, step=2)
 
 

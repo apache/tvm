@@ -71,7 +71,7 @@ class TIRxOpaqueLower : public StmtExprMutator {
                     .ValueOrUnchanged(op->step);
     ffi::Any previous_remap = VarRemapGet(op->loop_var);
     PrimVar launch_var(ffi::UnsafeInit{});
-    if (op->kind == ForKind::kThreadBinding) {
+    if (op->GetThreadBinding().has_value()) {
       TVM_FFI_ICHECK(IsZero(min)) << "Thread binding must have zero minimum";
       launch_var = PrimVar(op->loop_var->name, extent.ty());
       VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), launch_var));
@@ -101,24 +101,25 @@ class TIRxOpaqueLower : public StmtExprMutator {
     VarRemapSet(op->loop_var, previous_remap);
 
     // Step 2. Create the lowered loop or launch region.
-    if (op->kind == ForKind::kThreadBinding) {
+    if (op->GetThreadBinding().has_value()) {
       // Case 1. Thread binding → RegionStmt(launch_thread)
       TVM_FFI_ICHECK(!op->annotations.count("loop_partition_hint") ||
                      op->annotations.at("loop_partition_hint") == nullptr)
           << "Run LoopPartition before opaque lowering of a thread-binding loop with "
              "loop_partition_hint";
-      TVM_FFI_ICHECK(op->thread_binding.has_value());
+      TVM_FFI_ICHECK(op->GetThreadBinding().has_value());
     } else if (IsOne(extent) && op->annotations.empty()) {
       // Case 2. Unit loop elimination
       return body;
     } else {
       // Case 3. An ordinary loop
       body = For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body),
-                 std::nullopt, FilterAnnotations(annotations), step);
+                 FilterAnnotations(annotations), step);
     }
-    if (op->kind == ForKind::kThreadBinding) {
-      return RegionStmt(tirx::launch_thread_op(), {StringImm(op->thread_binding.value()), extent},
-                        {launch_var}, DictAttrs(), body, {}, op->span);
+    if (op->GetThreadBinding().has_value()) {
+      return RegionStmt(tirx::launch_thread_op(),
+                        {StringImm(op->GetThreadBinding().value()), extent}, {launch_var},
+                        DictAttrs(), body, {}, op->span);
     }
     return body;
   }

@@ -311,8 +311,8 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
       if (!normalize_thread_bindings_ && IsZero(loop->extent)) {
         return Evaluate(0);
       }
-      if (normalize_thread_bindings_ && loop->kind == ForKind::kThreadBinding) {
-        const auto& tag = loop->thread_binding.value();
+      if (normalize_thread_bindings_ && loop->GetThreadBinding().has_value()) {
+        const auto tag = loop->GetThreadBinding().value();
         if (support::StartsWith(tag, "vthread")) {
           // Virtual axes are independent iterations and isolate hardware aliases.
           thread_bindings_.push_back(nullptr);
@@ -322,7 +322,7 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
         }
         for (auto it = thread_bindings_.rbegin(); it != thread_bindings_.rend() && *it; ++it) {
           const ForNode* outer = *it;
-          if (outer->thread_binding.value() != tag) continue;
+          if (outer->GetThreadBinding().value() != tag) continue;
           // Feature counts describe hardware work, not repeated lexical names
           // for one axis. Normalize only nested aliases in this analysis input.
           sym::Analyzer analyzer;
@@ -337,10 +337,11 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
                                  .ValueOrUnchanged(loop->annotations);
           Stmt body = Mutate(loop->body, inplace_mode).ValueOrUnchanged(loop->body);
           VarRemapSet(loop->loop_var, previous_remap);
+          annotations.erase("thread_binding");
           if (!annotations.empty()) {
             PrimType ty = loop->loop_var.ty();
-            body = For(PrimVar("annotation", ty), IntImm(ty, 0), IntImm(ty, 1), ForKind::kSerial,
-                       std::move(body), std::nullopt, std::move(annotations), std::nullopt);
+            body = For(PrimVar("annotation", ty), IntImm(ty, 0), IntImm(ty, 1), ForKind::kDefault,
+                       std::move(body), std::move(annotations), std::nullopt);
           }
           return body;
         }
@@ -350,7 +351,7 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
         return result;
       }
       if (!normalize_thread_bindings_ && IsZero(loop->min) && IsOne(loop->extent) &&
-          loop->kind == ForKind::kSerial && loop->annotations.empty()) {
+          loop->kind == ForKind::kDefault && loop->annotations.empty()) {
         VarRemapSet(loop->loop_var, MakeConst(loop->loop_var.ty(), 0.0));
         return Mutate(loop->body, inplace_mode).ValueOrUnchanged(loop->body);
       } else {
@@ -420,13 +421,13 @@ struct LoopNest {
   ForVec parallel;     // The loops whose ForKind are kParallel
   ForVec vectorize;    // The loops whose ForKind are kVectorized
   ForVec unroll;       // The loops whose ForKind are kUnrolled
-  ForVec blockIdx_x;   // The loops whose ForKind are kThreadBinding to blockIdx.x
-  ForVec blockIdx_y;   // The loops whose ForKind are kThreadBinding to blockIdx.y
-  ForVec blockIdx_z;   // The loops whose ForKind are kThreadBinding to blockIdx.z
-  ForVec threadIdx_x;  // The loops whose ForKind are kThreadBinding to threadIdx.x
-  ForVec threadIdx_y;  // The loops whose ForKind are kThreadBinding to threadIdx.y
-  ForVec threadIdx_z;  // The loops whose ForKind are kThreadBinding to threadIdx.z
-  ForVec vthread;      // The loops whose ForKind are kThreadBinding to vthread.*
+  ForVec blockIdx_x;   // The loops explicitly bound to blockIdx.x
+  ForVec blockIdx_y;   // The loops explicitly bound to blockIdx.y
+  ForVec blockIdx_z;   // The loops explicitly bound to blockIdx.z
+  ForVec threadIdx_x;  // The loops explicitly bound to threadIdx.x
+  ForVec threadIdx_y;  // The loops explicitly bound to threadIdx.y
+  ForVec threadIdx_z;  // The loops explicitly bound to threadIdx.z
+  ForVec vthread;      // The loops explicitly bound to vthread.*
 
   /*!
    * \brief Push a new loop into the loop nest
@@ -445,14 +446,14 @@ struct LoopNest {
       this->auto_unroll.push_back(*auto_unroll_attr);
     }
     ForVec* ref_loops = nullptr;
-    if (loop->kind == ForKind::kParallel) {
+    if (loop->kind == ForKind::kParallel && !loop->GetThreadBinding().has_value()) {
       ref_loops = &parallel;
     } else if (loop->kind == ForKind::kVectorized) {
       ref_loops = &vectorize;
     } else if (loop->kind == ForKind::kUnrolled) {
       ref_loops = &unroll;
-    } else if (loop->kind == ForKind::kThreadBinding) {
-      std::string thread_tag = loop->thread_binding.value();
+    } else if (loop->GetThreadBinding().has_value()) {
+      std::string thread_tag = loop->GetThreadBinding().value();
       if (thread_tag == "blockIdx.x") {
         ref_loops = &blockIdx_x;
       } else if (thread_tag == "blockIdx.y") {

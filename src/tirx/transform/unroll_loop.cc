@@ -148,9 +148,14 @@ class LoopUnroller : public StmtExprMutator {
       node->annotations.erase(attr::unroll_explicit);
       op = node;
     }
+    if (op->GetThreadBinding().has_value()) {
+      // Explicit thread placement must survive until thread-binding lowering.
+      normal_loop_depth_ += 1;
+      return result;
+    }
     int value = GetExtent(op);
     // condition for auto unroll
-    bool auto_unroll = (op->kind == ForKind::kSerial && value >= 0 && normal_loop_depth_ == 0 &&
+    bool auto_unroll = (op->kind == ForKind::kDefault && value >= 0 && normal_loop_depth_ == 0 &&
                         unroll_depth_ <= auto_max_depth_);
 
     const auto& policy = unroll_policy_.Current();

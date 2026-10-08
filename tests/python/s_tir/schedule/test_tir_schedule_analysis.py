@@ -63,7 +63,7 @@ def _make_loops(loop_vars: list[Var], extents: list[int]) -> list[For]:
             loop_var=loop_var,
             min=0,
             extent=extent,
-            kind=ForKind.SERIAL,
+            kind=ForKind.DEFAULT,
             body=Evaluate(0),
         )
         for loop_var, extent in zip(loop_vars, extents)

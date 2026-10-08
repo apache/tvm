@@ -204,7 +204,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
                              .as_or_throw<PrimExpr>();
         bool is_loop_over_axis = index.same_as(loop->loop_var) && IsConstInt(loop->min, 0) &&
                                  prim::ExprDeepEqual()(loop->extent, buffer_dim) &&
-                                 loop->kind == ForKind::kSerial;
+                                 loop->kind == ForKind::kDefault;
         if (!is_loop_over_axis) {
           return false;
         }
@@ -540,7 +540,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
       size_t i = (inverse->initial_indices.size() - 1) - rev_i;
       Var loop_var = inverse->initial_indices[i];
       PrimExpr extent = new_buffer->shape[i];
-      stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent, ForKind::kSerial, stmt);
+      stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent, ForKind::kDefault, stmt);
     }
     return ProloguePlan{stmt};
   }
@@ -574,7 +574,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
         size_t i = (inverse->initial_indices.size() - 1) - rev_i;
         Var loop_var = inverse->initial_indices[i];
         PrimExpr extent = new_buffer->shape[i];
-        stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent, ForKind::kSerial, stmt);
+        stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent, ForKind::kDefault, stmt);
       }
 
       return stmt;
@@ -634,7 +634,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
       size_t i = (inverse->initial_indices.size() - 1) - rev_i;
       Var loop_var = inverse->initial_indices[i];
       PrimExpr extent = new_buffer->shape[i];
-      stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent, ForKind::kSerial, stmt);
+      stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent, ForKind::kDefault, stmt);
     }
 
     const auto& info = write_info_.back();
@@ -1572,7 +1572,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   Stmt body = ffi::GetRef<Stmt>(new_block_realize);
   for (int i = static_cast<int>(new_loop_vars.size()) - 1; i >= 0; --i) {
     body = For(new_loop_vars[i].as_or_throw<PrimVar>(), 0, new_block_iter_range[i],
-               ForKind::kSerial, std::move(body));
+               ForKind::kDefault, std::move(body));
   }
 
   // Step 6: Do the actual replacement

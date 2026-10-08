@@ -431,9 +431,9 @@ class IfThenElse : public Stmt {
  *  in all TIR passes.
  */
 enum class ForKind : int {
-  /*! \brief default semantics -- serial execution. */
-  kSerial = 0,
-  /*! \brief Parallel execution on CPU. */
+  /*! \brief Ordinary loop with sequential iteration semantics. */
+  kDefault = 0,
+  /*! \brief Parallel execution, optionally placed by the thread_binding annotation. */
   kParallel = 1,
   /*!
    * \brief Vector SIMD loop.
@@ -442,13 +442,6 @@ enum class ForKind : int {
   kVectorized = 2,
   /*! \brief The loop body must be unrolled. */
   kUnrolled = 3,
-  /*!
-   * \brief The loop variable is bound to a thread in
-   * an environment. In the final stage of lowering,
-   * the loop is simply removed and the loop variable is
-   * mapped to the corresponding context thread.
-   */
-  kThreadBinding = 4
 };
 
 /*!
@@ -482,17 +475,11 @@ class ForNode : public StmtNode {
   /*! \brief The body of the for loop. */
   SeqStmt body;
   /*!
-   * \brief Only valid when kind == ForKind::kThreadBinding
-   * The hardware thread tag to which this loop variable is bound.
-   */
-  ffi::Optional<ffi::String> thread_binding;
-  /*!
    * \brief Additional annotations about the loop.
    *
-   *  These annotations can be used as auxiliary hint
-   *  to future transformations. An annotation should
-   *  not change the control flow semantics of the loop
-   *  and can be ignored in most passes.
+   *  The reserved thread_binding entry is a string specifying the thread tag
+   *  for a parallel loop. It determines execution placement and must be
+   *  preserved by transformations. Other entries provide auxiliary hints.
    */
   ffi::Map<ffi::String, ffi::Any> annotations;
   /*!
@@ -508,9 +495,16 @@ class ForNode : public StmtNode {
         .def_ro("extent", &ForNode::extent)
         .def_ro("kind", &ForNode::kind)
         .def_ro("body", &ForNode::body)
-        .def_ro("thread_binding", &ForNode::thread_binding)
         .def_ro("annotations", &ForNode::annotations)
         .def_ro("step", &ForNode::step);
+  }
+
+  /*! \brief Return the explicit thread placement, if present. */
+  ffi::Optional<ffi::String> GetThreadBinding() const {
+    if (auto value = annotations.Get("thread_binding")) {
+      return value->cast<ffi::String>();
+    }
+    return std::nullopt;
   }
 
   /*! \brief Check it is a loop without nontrivial loop step. */
@@ -526,7 +520,6 @@ class ForNode : public StmtNode {
 class For : public Stmt {
  public:
   TVM_DLL For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, SeqStmt body,
-              ffi::Optional<ffi::String> thread_binding = std::nullopt,
               ffi::Map<ffi::String, ffi::Any> annotations = {},
               ffi::Optional<PrimExpr> step = std::nullopt, Span span = Span());
 
@@ -741,7 +734,7 @@ TVM_DLL std::ostream& operator<<(std::ostream& os, ForKind kind);
 // inline implementations
 inline const char* ForKind2String(ForKind t) {
   switch (t) {
-    case ForKind::kSerial:
+    case ForKind::kDefault:
       return "serial";
     case ForKind::kParallel:
       return "parallel";
@@ -749,8 +742,6 @@ inline const char* ForKind2String(ForKind t) {
       return "vectorized";
     case ForKind::kUnrolled:
       return "unroll";
-    case ForKind::kThreadBinding:
-      return "thread_binding";
   }
   TVM_FFI_THROW(InternalError) << "Unknown ForKind" << t;
   TVM_FFI_UNREACHABLE();

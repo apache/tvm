@@ -100,8 +100,9 @@ class LCADetector : public s_tir::StmtExprVisitor {
     const ScopeInfo* parent_scope = ancestor_scopes_.back();
     auto* current_scope = arena_.make<ScopeInfo>(parent_scope, op, n);
 
-    if (op->thread_binding.has_value()) {
-      const runtime::ThreadScope& scope = runtime::ThreadScope::Create(op->thread_binding.value());
+    if (op->GetThreadBinding().has_value()) {
+      const runtime::ThreadScope& scope =
+          runtime::ThreadScope::Create(op->GetThreadBinding().value());
       if (scope.rank == 0) {
         blockidx_scopes_.push_back(current_scope);
       }

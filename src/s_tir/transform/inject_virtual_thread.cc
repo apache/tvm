@@ -678,7 +678,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
       stmt = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(stmt, f_substitute).as_or_throw<Stmt>();
       PrimType idx_dtype = idx->ty.as_or_throw<PrimType>();
       return For(idx.as_or_throw<PrimVar>(), IntImm(idx_dtype, 0),
-                 prim::MakeConst(idx_dtype, num_threads_), ForKind::kSerial, stmt);
+                 prim::MakeConst(idx_dtype, num_threads_), ForKind::kDefault, stmt);
     }
   }
 
@@ -737,7 +737,7 @@ class VirtualThreadInjector : public s_tir::IRMutatorWithAnalyzer {
       if (vs->has_opaque_region_) {
         // Keep unknown operations and their result definitions inside one
         // lexical loop; they have no sharing or distribution semantics.
-        return For(var, IntImm(var.ty(), 0), op->args[1].as_or_throw<PrimExpr>(), ForKind::kSerial,
+        return For(var, IntImm(var.ty(), 0), op->args[1].as_or_throw<PrimExpr>(), ForKind::kDefault,
                    op->body);
       }
       auto injector =

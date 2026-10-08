@@ -359,7 +359,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
       body = For(/*loop_var=*/loop_vars[i - 1],
                  /*min=*/0,
                  /*extent=*/info->range_map.at(iter_vars[i - 1])->extent,
-                 /*kind=*/ForKind::kSerial,
+                 /*kind=*/ForKind::kDefault,
                  /*body=*/body);
     }
     bodies.push_back(body);

@@ -311,10 +311,8 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
     Var old_loop_var = old_loop->loop_var;
     PrimVar new_loop_var = old_loop->loop_var.CopyWithSuffix("_init");
     loop_var_map.insert_or_assign(old_loop_var, new_loop_var);
-    ffi::Optional<ffi::String> opt_thread_binding = old_loop->thread_binding;
     auto new_loop = old_loop.CopyOnWrite();
     new_loop->loop_var = new_loop_var;
-    new_loop->thread_binding = opt_thread_binding;
     new_loop->body = body;
     body = ffi::GetRef<For>(new_loop);
   }
@@ -1377,7 +1375,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
     CheckReductionBlock(self, block_sref, scope_root);
   }
   const ForNode* rf_loop = TVM_SREF_TO_FOR(rf_loop_sref);
-  if (rf_loop->kind != ForKind::kSerial) {
+  if (rf_loop->kind != ForKind::kDefault) {
     throw MakeScheduleError<NotSerialLoopKindError>(self->mod, ffi::GetRef<For>(rf_loop));
   }
 

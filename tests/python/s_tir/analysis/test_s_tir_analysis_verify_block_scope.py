@@ -142,7 +142,7 @@ def test_error_undeclared_buffer_in_schedulable_tir():
 
     function = tvm.tirx.Function(
         params=[A, B_data],
-        body=tvm.tirx.For(i, 0, n, tvm.tirx.ForKind.SERIAL, block_realize),
+        body=tvm.tirx.For(i, 0, n, tvm.tirx.ForKind.DEFAULT, block_realize),
         # Note: B is NOT a function parameter, so its declaration scope is only
         # within a DeclTensor node (which we intentionally omit here).
     )

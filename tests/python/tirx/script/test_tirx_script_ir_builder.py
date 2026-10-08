@@ -57,9 +57,9 @@ def test_ir_builder_tir_for():
         loop_var=tirx.Var("", "int32"),
         min=0,
         extent=8,
-        kind=tirx.ForKind.THREAD_BINDING,
+        kind=tirx.ForKind.PARALLEL,
         body=tirx.Evaluate(0),
-        thread_binding="threadIdx.x",
+        annotations={"thread_binding": "threadIdx.x"},
     )
     unroll_expected = tirx.For(
         loop_var=tirx.Var("", "int32"),
@@ -86,7 +86,7 @@ def test_ir_builder_tir_for():
         loop_var=tirx.Var("", "int32"),
         min=0,
         extent=128,
-        kind=tirx.ForKind.SERIAL,
+        kind=tirx.ForKind.DEFAULT,
         body=parallel_expected,
     )
 
@@ -106,7 +106,7 @@ def test_ir_builder_tir_for_uint():
         loop_var=tirx.Var("", "uint32"),
         min=tirx.const(0, "uint32"),
         extent=tirx.const(128, "uint32"),
-        kind=tirx.ForKind.SERIAL,
+        kind=tirx.ForKind.DEFAULT,
         body=tirx.Evaluate(0),
     )
 
