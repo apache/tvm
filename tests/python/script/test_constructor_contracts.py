@@ -110,5 +110,53 @@ def test_normal_constructors_in_parsed_function():
     ir.assert_structural_equal(identity.params[0].ty, relax.TensorType([2], "float32"))
 
 
+@pytest.mark.parametrize("dtype,value", [("int32", 3), ("float32", 1.5), ("bool", True)])
+def test_prim_value_explicit_dtype_and_identity(dtype, value):
+    converted = R.prim_value(value, dtype=dtype)
+    assert converted.ty.dtype == dtype
+    assert R.prim_value(converted, dtype="float64").same_as(converted)
+
+
+def test_prim_value_boolean_and_symbolic_conversion():
+    assert R.prim_value(True).ty.dtype == "bool"
+    assert relax.utils.convert_to_expr(True).ty.dtype == "int64"
+    n = tirx.Var("n", "int64")
+    value = n + 1
+    assert R.prim_value(value).same_as(value)
+
+
+@pytest.mark.parametrize("value", [None, {}])
+def test_expression_helpers_reject_non_expression_inputs(value):
+    with pytest.raises((TypeError, ValueError)):
+        R.prim_value(value)
+    with pytest.raises((TypeError, ValueError)):
+        R.tuple(value)
+
+
+def test_tuple_constructor_materializes_raw_call_arguments():
+    value = tirx.IntImm("int64", 1)
+    nested = R.tuple(R.tuple(), R.tuple(value))
+    ir.assert_structural_equal(nested, ir.Tuple([ir.Tuple([]), ir.Tuple([value])]))
+    call = ir.Call.unchecked("relax.add", [nested], attrs={"tag": 1}, ty=ir.Type.missing())
+    assert call.args[0].same_as(nested)
+    from_python = ir.Call.unchecked(
+        "relax.add", [((), (value,))], attrs={"tag": 1}, ty=ir.Type.missing()
+    )
+    ir.assert_structural_equal(call, from_python)
+    source = call.script()
+    ir.assert_structural_equal(call, eval(source, {"I": I, "R": R, "T": T}))
+
+
+@pytest.mark.parametrize(
+    "value,constructor_dtype,parser_dtype",
+    [(1, "int32", "int64"), (1.0, "float32", "float64"), (True, "bool", "int64")],
+)
+def test_tuple_numeric_conversion_depends_on_context(value, constructor_dtype, parser_dtype):
+    constructed = R.tuple(value)
+    converted = relax.utils.convert_to_expr((value,))
+    assert constructed.fields[0].ty.dtype == constructor_dtype
+    assert converted.fields[0].ty.dtype == parser_dtype
+
+
 if __name__ == "__main__":
     tvm.testing.main()
