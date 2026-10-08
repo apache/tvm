@@ -45,7 +45,7 @@ class ThreadBindingLowerer : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    if (op->kind != ForKind::kThreadBinding) {
+    if (!op->GetThreadBinding().has_value()) {
       auto annotations = Mutate(op->annotations, inplace_mode)
                              .as_or_throw<UnchangedOr<ffi::Map<ffi::String, ffi::Any>>>();
       auto result = StmtExprMutator::Mutate_(op, inplace_mode);
@@ -57,7 +57,7 @@ class ThreadBindingLowerer : public StmtExprMutator {
     PrimExpr min = Mutate(op->min, inplace_mode).ValueOrUnchanged(op->min);
     PrimExpr extent = Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
     TVM_FFI_ICHECK(IsZero(min)) << "Thread binding loops must start at zero";
-    TVM_FFI_ICHECK(op->thread_binding.has_value());
+    TVM_FFI_ICHECK(op->GetThreadBinding().has_value());
     TVM_FFI_ICHECK(!op->annotations.count("loop_partition_hint") ||
                    op->annotations.at("loop_partition_hint") == nullptr)
         << "Run LoopPartition before LowerThreadBinding";
@@ -69,12 +69,13 @@ class ThreadBindingLowerer : public StmtExprMutator {
                            .ValueOrUnchanged(op->annotations);
     Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     VarRemapSet(op->loop_var, previous_remap);
+    annotations.erase("thread_binding");
     if (!annotations.empty()) {
       PrimType ty = op->loop_var.ty();
-      body = For(PrimVar("annotation", ty), IntImm(ty, 0), IntImm(ty, 1), ForKind::kSerial,
-                 std::move(body), std::nullopt, std::move(annotations), std::nullopt);
+      body = For(PrimVar("annotation", ty), IntImm(ty, 0), IntImm(ty, 1), ForKind::kDefault,
+                 std::move(body), std::move(annotations), std::nullopt);
     }
-    return RegionStmt(tirx::launch_thread_op(), {StringImm(op->thread_binding.value()), extent},
+    return RegionStmt(tirx::launch_thread_op(), {StringImm(op->GetThreadBinding().value()), extent},
                       {launch_var}, DictAttrs(), std::move(body), {}, op->span);
   }
 };

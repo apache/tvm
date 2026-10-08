@@ -78,13 +78,13 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
         /*3:*/ 16,                          //
         /*4:*/ 16,                          //
     };
-    body = For(new_loop_vars[3].as_or_throw<PrimVar>(), 0, factor[3], ForKind::kSerial,
+    body = For(new_loop_vars[3].as_or_throw<PrimVar>(), 0, factor[3], ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[2].as_or_throw<PrimVar>(), 0, factor[2], ForKind::kSerial,
+    body = For(new_loop_vars[2].as_or_throw<PrimVar>(), 0, factor[2], ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[1].as_or_throw<PrimVar>(), 0, factor[1], ForKind::kSerial,
+    body = For(new_loop_vars[1].as_or_throw<PrimVar>(), 0, factor[1], ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factor[0], ForKind::kSerial,
+    body = For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factor[0], ForKind::kDefault,
                std::move(body));
   }
   For compute_location = body.as_or_throw<For>();
@@ -409,13 +409,13 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
         /*3:*/ 8,                          //
         /*4:*/ 8,                          //
     };
-    body = For(new_loop_vars[3].as_or_throw<PrimVar>(), 0, factor[3], ForKind::kSerial,
+    body = For(new_loop_vars[3].as_or_throw<PrimVar>(), 0, factor[3], ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[2].as_or_throw<PrimVar>(), 0, factor[2], ForKind::kSerial,
+    body = For(new_loop_vars[2].as_or_throw<PrimVar>(), 0, factor[2], ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[1].as_or_throw<PrimVar>(), 0, factor[1], ForKind::kSerial,
+    body = For(new_loop_vars[1].as_or_throw<PrimVar>(), 0, factor[1], ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factor[0], ForKind::kSerial,
+    body = For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factor[0], ForKind::kDefault,
                std::move(body));
   }
   For compute_location = body.as_or_throw<For>();

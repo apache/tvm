@@ -311,7 +311,7 @@ class ScopeReconstructor : public StmtExprMutator {
       new_subtree = For(/*loop_var=*/loop_var.as_or_throw<PrimVar>(),
                         /*min=*/IntImm::Int32(0),
                         /*extent=*/loop_extent,
-                        /*ForKind=*/ForKind::kSerial,
+                        /*ForKind=*/ForKind::kDefault,
                         /*body=*/std::move(new_subtree));
     }
     ffi::Array<Stmt> subtrees = AsArray(loop_->body);

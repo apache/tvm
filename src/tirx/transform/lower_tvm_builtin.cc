@@ -374,7 +374,7 @@ class BuiltinLower : public StmtExprMutator {
     PrimExpr extent = std::move(extent_result).ValueOrUnchanged(op->extent);
     Stmt body = op->body;
 
-    if (op->kind == ForKind::kParallel) {
+    if (op->kind == ForKind::kParallel && !op->GetThreadBinding().has_value()) {
       body = this->VisitBodyAndRealizeAlloca(op->body);
     } else {
       body = scope_.WithNewScope([&]() -> Stmt {

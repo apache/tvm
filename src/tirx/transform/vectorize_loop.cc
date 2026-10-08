@@ -1166,7 +1166,7 @@ class Vectorizer : public StmtExprMutator {
     auto substituter = ffi::make_object<StmtExprMutator>();
     substituter->VarRemapSet(var_, idx);
     stmt = substituter->Mutate(stmt).ValueOrUnchanged(stmt);
-    return For(idx.as_or_throw<PrimVar>(), IntImm(var_ty, 0), var_lanes_, ForKind::kSerial, stmt);
+    return For(idx.as_or_throw<PrimVar>(), IntImm(var_ty, 0), var_lanes_, ForKind::kDefault, stmt);
   }
 
  private:
@@ -1371,9 +1371,9 @@ class LoopVectorizer : public StmtExprMutator {
     Stmt body = substituter->Mutate(op->body).ValueOrUnchanged(op->body);
     Stmt guarded_body = IfThenElse(index < fixed_extent, body, std::nullopt, op->span);
     Stmt vector_loop = For(inner, IntImm(lane_dtype, 0), scalable_lanes, ForKind::kVectorized,
-                           guarded_body, std::nullopt, op->annotations, std::nullopt, op->span);
-    Stmt loop = For(outer, zero, num_chunks, ForKind::kSerial, vector_loop, std::nullopt, {},
-                    std::nullopt, op->span);
+                           guarded_body, op->annotations, std::nullopt, op->span);
+    Stmt loop =
+        For(outer, zero, num_chunks, ForKind::kDefault, vector_loop, {}, std::nullopt, op->span);
 
     return this->Mutate(loop, InplaceMode::kDisallow).ValueOrUnchanged(loop);
   }
@@ -1393,7 +1393,7 @@ class VectorizeSkipper : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<ForNode>();
     if (op->kind == ForKind::kVectorized) {
-      return For(op->loop_var, op->min, op->extent, ForKind::kSerial, op->body);
+      return For(op->loop_var, op->min, op->extent, ForKind::kDefault, op->body);
     } else {
       return stmt;
     }

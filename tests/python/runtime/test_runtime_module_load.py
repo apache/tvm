@@ -58,7 +58,7 @@ def test_dso_module_load():
             i,
             0,
             n - 1,
-            tvm.tirx.ForKind.SERIAL,
+            tvm.tirx.ForKind.DEFAULT,
             tvm.tirx.TensorStore(Ab, tvm.tirx.TensorLoad(Ab, [i]) + 1, [i + 1]),
         )
         mod = tvm.IRModule.from_expr(

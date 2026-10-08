@@ -705,8 +705,8 @@ ffi::Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
   if (extra_relax_scope.rank != runtime::StorageRank::kGlobal) {
     for (; p; p = p->parent) {
       if (const ForNode* loop = p->StmtAs<ForNode>()) {
-        if (loop->kind == ForKind::kThreadBinding) {
-          const ffi::String& thread_tag = loop->thread_binding.value();
+        if (loop->GetThreadBinding().has_value()) {
+          const ffi::String thread_tag = loop->GetThreadBinding().value();
           if (CanRelaxStorageUnderThread(extra_relax_scope,
                                          runtime::ThreadScope::Create(thread_tag))) {
             result.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));

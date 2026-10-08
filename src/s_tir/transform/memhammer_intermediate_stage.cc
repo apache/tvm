@@ -51,7 +51,7 @@ std::pair<Stmt, ffi::Optional<For>> LiftThreadBindingLoops(Stmt stmt) {
   std::vector<const ForNode*> thread_binding_loops;
   Stmt body = stmt;
   while (const ForNode* loop = body.as<ForNode>()) {
-    if (loop->kind == ForKind::kThreadBinding) {
+    if (loop->GetThreadBinding().has_value()) {
       thread_binding_loops.push_back(loop);
     } else {
       normal_loops.push_back(loop);
@@ -275,8 +275,8 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
     body = op->then_case->seq[0];
   }
   for (const For& loop : outer_loops) {
-    if (loop->kind == ForKind::kThreadBinding) {
-      const ffi::String& thread_tag = loop->thread_binding.value();
+    if (loop->GetThreadBinding().has_value()) {
+      const ffi::String thread_tag = loop->GetThreadBinding().value();
       auto thread_scope = runtime::ThreadScope::Create(thread_tag);
       if (CanRelaxStorageUnderThread(runtime::StorageScope::Create(storage_scope), thread_scope)) {
         if (is_write_cache && thread_scope.dim_index == 0) {
@@ -430,8 +430,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
     ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*orig_loop);
     new_loop->loop_var = new_loop_vars[i];
     new_loop->body = generate_body;
-    new_loop->kind = ForKind::kSerial;
-    new_loop->thread_binding = std::nullopt;
+    new_loop->kind = ForKind::kDefault;
     new_loop->annotations = {};
     generate_body = For(new_loop);
   }

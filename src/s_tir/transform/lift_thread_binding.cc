@@ -48,7 +48,7 @@ FindLoopLCA(const Stmt& root) {
     ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
       stack.push_back(ffi::GetRef<Stmt>(op));
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-      if (op->kind == ForKind::kThreadBinding) {
+      if (op->GetThreadBinding().has_value()) {
         UpdateLCA(op);
       }
       stack.pop_back();
@@ -56,7 +56,7 @@ FindLoopLCA(const Stmt& root) {
     }
 
     void UpdateLCA(const ForNode* loop) {
-      std::string thread_tag = loop->thread_binding.value();
+      std::string thread_tag = loop->GetThreadBinding().value();
       {
         ffi::Map<ffi::String, ffi::Any>* tgt = &annotations[thread_tag];
         for (const auto& kv : loop->annotations) {
@@ -134,7 +134,7 @@ class ThreadBindingLifter : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const ForNode* _op, InplaceMode inplace_mode) final {
     For op = ffi::GetRef<For>(_op);
     bool is_kernel_root = false;
-    if (op->kind == ForKind::kThreadBinding) {
+    if (op->GetThreadBinding().has_value()) {
       if (iter_lca.empty()) {
         is_kernel_root = true;
         SetKernelRoot(_op);
@@ -146,15 +146,16 @@ class ThreadBindingLifter : public StmtExprMutator {
     Stmt body = std::move(new_op.CopyOnWrite()->body);
     if (auto it = iter_lca.find(op); it != iter_lca.end()) {
       for (const auto& [iter_var, annotation] : it->second) {
-        body =
-            For(iter_var->var, iter_var->dom->min, iter_var->dom->extent, ForKind::kThreadBinding,
-                std::move(body), iter_var->thread_tag, annotation, std::nullopt);
+        auto annotations = annotation;
+        annotations.Set("thread_binding", iter_var->thread_tag);
+        body = For(iter_var->var, iter_var->dom->min, iter_var->dom->extent, ForKind::kParallel,
+                   std::move(body), std::move(annotations), std::nullopt);
       }
     }
     if (is_kernel_root) {
       iter_lca.clear();
     }
-    if (op->kind == ForKind::kThreadBinding) {
+    if (op->GetThreadBinding().has_value()) {
       return body;
     } else {
       new_op.CopyOnWrite()->body = std::move(body);

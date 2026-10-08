@@ -127,7 +127,7 @@ void BindBlockThreadIdx(Schedule sch, SBlockRV block_rv,  //
         i_thread_idx = i;
       }
     }
-    if (loop->kind != ForKind::kSerial) {
+    if (loop->kind != ForKind::kDefault) {
       if (i_multi_child == -1) {
         i_multi_child = i;
       }

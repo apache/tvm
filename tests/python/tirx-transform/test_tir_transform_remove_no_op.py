@@ -38,17 +38,17 @@ def test_remove_no_op():
         i,
         0,
         4,
-        tvm.tirx.ForKind.SERIAL,
+        tvm.tirx.ForKind.DEFAULT,
         tvm.tirx.For(
             j,
             0,
             n,
-            tvm.tirx.ForKind.SERIAL,
+            tvm.tirx.ForKind.DEFAULT,
             tvm.tirx.For(
                 k,
                 0,
                 m,
-                tvm.tirx.ForKind.SERIAL,
+                tvm.tirx.ForKind.DEFAULT,
                 tvm.tirx.IfThenElse(
                     (i * m + j + k < n), tvm.tirx.Evaluate(m), tvm.tirx.Evaluate(n)
                 ),
@@ -68,7 +68,7 @@ def test_remove_no_op():
     assert len(ret) == 1 and ret[0] == store
 
     # remove zero extent loop
-    stmt3 = tvm.tirx.For(i, 0, 0, tvm.tirx.ForKind.SERIAL, store)
+    stmt3 = tvm.tirx.For(i, 0, 0, tvm.tirx.ForKind.DEFAULT, store)
     mod = tvm.IRModule.from_expr(tvm.tirx.Function([Ab], stmt3))
     ret = tvm.tirx.transform.RemoveNoOp()(mod)["main"].body
     assert isinstance(ret, tvm.tirx.SeqStmt) and len(ret) == 0

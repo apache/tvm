@@ -236,7 +236,7 @@ SBlock MakeReindexCacheStage(const TensorRegion& cache_region, ReindexCacheStage
     body = For(/*loop_var=*/loop_vars[i - 1],
                /*min=*/info->loop_ranges[i - 1]->min,
                /*extent=*/info->loop_ranges[i - 1]->extent,
-               /*kind=*/ForKind::kSerial,
+               /*kind=*/ForKind::kDefault,
                /*body=*/body);
   }
   info->cache_stage = std::move(body);
@@ -339,7 +339,7 @@ SBlock MakeCacheStage(const TensorRegion& cache_region, CacheStageInfo* info,
     body = For(/*loop_var=*/loop_vars[i - 1],
                /*min=*/0,
                /*extent=*/cache_region->region[i - 1]->extent,
-               /*kind=*/ForKind::kSerial,
+               /*kind=*/ForKind::kDefault,
                /*body=*/body);
   }
   info->cache_stage = std::move(body);
@@ -457,7 +457,7 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
     body = For(/*loop_var=*/loop_vars[i],
                /*min=*/new_block_iters[i]->dom->min,
                /*extent=*/new_block_iters[i]->dom->extent,
-               /*kind=*/ForKind::kSerial,
+               /*kind=*/ForKind::kDefault,
                /*body=*/std::move(body));
   }
   // Update cache info, which will be used in the later rewriting.

@@ -78,7 +78,7 @@ def check_value(expr, variables, data, fref):
         loop_var,
         tvm.tirx.const(0, "int32"),
         tvm.tirx.const(n, "int32"),
-        tvm.tirx.ForKind.SERIAL,
+        tvm.tirx.ForKind.DEFAULT,
         make_store(loop_var),
     )
 

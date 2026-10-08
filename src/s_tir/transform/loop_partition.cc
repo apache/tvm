@@ -109,8 +109,8 @@ using ExpressionSet = std::unordered_set<PrimExpr, ffi::ObjectPtrHash, ffi::Obje
 
 // Virtual threads are lowered separately and are not hardware partition scopes.
 static bool IsVirtualThread(const ForNode* op) {
-  if (op->kind != ForKind::kThreadBinding) return false;
-  const auto& tag = op->thread_binding.value();
+  if (!op->GetThreadBinding().has_value()) return false;
+  const auto tag = op->GetThreadBinding().value();
   return std::string(tag).rfind("vthread", 0) == 0;
 }
 
@@ -165,8 +165,8 @@ class CandidateSelector final : public StmtExprVisitor {
       candidates.insert(ffi::GetRef<Stmt>(op));
       return StmtExprVisitor::Visit_(op);
     }
-    if (op->kind == ForKind::kThreadBinding &&
-        runtime::ThreadScope::Create(op->thread_binding.value()).rank != 0) {
+    if (op->GetThreadBinding().has_value() &&
+        runtime::ThreadScope::Create(op->GetThreadBinding().value()).rank != 0) {
       return StmtExprVisitor::Visit_(op);
     }
     // partition const loop when sets partition_const_loop_
@@ -451,7 +451,7 @@ class ThreadPartitionInserter : public StmtExprMutator {
       : ps_(ps), cond_(cond), innermost_thread_scope_(false) {}
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    if (op->kind != ForKind::kThreadBinding || IsVirtualThread(op)) {
+    if (!op->GetThreadBinding().has_value() || IsVirtualThread(op)) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     innermost_thread_scope_ = true;
@@ -521,7 +521,7 @@ class LoopPartitioner : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     if (IsVirtualThread(op)) return StmtExprMutator::Mutate_(op, inplace_mode);
-    bool thread_scope = op->kind == ForKind::kThreadBinding;
+    bool thread_scope = op->GetThreadBinding().has_value();
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent), true);
     auto fs = ffi::GetRef<Stmt>(op);
     if (selector->candidates.count(fs)) {
@@ -531,7 +531,8 @@ class LoopPartitioner : public StmtExprMutator {
     }
 
     // Relax threadIdx ranges to avoid introducing divergent partition branches.
-    bool relax = thread_scope && runtime::ThreadScope::Create(op->thread_binding.value()).rank == 1;
+    bool relax =
+        thread_scope && runtime::ThreadScope::Create(op->GetThreadBinding().value()).rank == 1;
     auto& ranges = relax ? relax_map_ : hint_map_;
     ranges.insert({op->loop_var.get(), IntSet::Interval(op->min, op->min + op->extent - 1)});
     Stmt res = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
@@ -923,7 +924,7 @@ inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, S
     };
     return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(body, f_substitute).as_or_throw<Stmt>();
   } else {
-    TVM_FFI_ICHECK(for_node->kind != ForKind::kThreadBinding);
+    TVM_FFI_ICHECK(!for_node->GetThreadBinding().has_value());
     auto new_loop = ffi::make_object<ForNode>(*for_node);
     new_loop->min = IntImm(for_node->min.ty(), 0);
     new_loop->extent = extent;

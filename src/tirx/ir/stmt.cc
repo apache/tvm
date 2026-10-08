@@ -283,7 +283,6 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> ForVisit(
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->min));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->extent));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->body));
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->thread_binding));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->step));
   return std::nullopt;
 }
@@ -303,16 +302,11 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> ForMutate(
                                     mutator->MutateExpected(self->extent));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped_body,
                                     mutator->MutateExpected(self->body));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<ffi::String>>,
-                                    mapped_thread_binding,
-                                    mutator->MutateExpected(self->thread_binding));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<PrimExpr>>, mapped_step,
                                     mutator->MutateExpected(self->step));
   if (mapped_loop_var.UnchangedOrSameAs(self->loop_var) &&
       mapped_min.UnchangedOrSameAs(self->min) && mapped_extent.UnchangedOrSameAs(self->extent) &&
-      mapped_body.UnchangedOrSameAs(self->body) &&
-      mapped_thread_binding.UnchangedOrSameAs(self->thread_binding) &&
-      mapped_step.UnchangedOrSameAs(self->step)) {
+      mapped_body.UnchangedOrSameAs(self->body) && mapped_step.UnchangedOrSameAs(self->step)) {
     return ffi::Unchanged();
   }
   ffi::ObjectPtr<ForNode> copy = ffi::make_object<ForNode>(*self);
@@ -320,8 +314,6 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> ForMutate(
   copy->min = std::move(mapped_min).ValueOrUnchanged(std::move(copy->min));
   copy->extent = std::move(mapped_extent).ValueOrUnchanged(std::move(copy->extent));
   copy->body = std::move(mapped_body).ValueOrUnchanged(std::move(copy->body));
-  copy->thread_binding =
-      std::move(mapped_thread_binding).ValueOrUnchanged(std::move(copy->thread_binding));
   copy->step = std::move(mapped_step).ValueOrUnchanged(std::move(copy->step));
   return ffi::Any(std::move(copy));
 }
@@ -343,25 +335,17 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> ForMaybeInplaceMutate(
       mutator->MutateExpected(self->extent, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped_body,
                                     mutator->MutateExpected(self->body, ffi::InplaceMode::kAllow));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      ffi::UnchangedOr<ffi::Optional<ffi::String>>, mapped_thread_binding,
-      mutator->MutateExpected(self->thread_binding, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<PrimExpr>>, mapped_step,
                                     mutator->MutateExpected(self->step, ffi::InplaceMode::kAllow));
   if (mapped_loop_var.UnchangedOrSameAs(self->loop_var) &&
       mapped_min.UnchangedOrSameAs(self->min) && mapped_extent.UnchangedOrSameAs(self->extent) &&
-      mapped_body.UnchangedOrSameAs(self->body) &&
-      mapped_thread_binding.UnchangedOrSameAs(self->thread_binding) &&
-      mapped_step.UnchangedOrSameAs(self->step)) {
+      mapped_body.UnchangedOrSameAs(self->body) && mapped_step.UnchangedOrSameAs(self->step)) {
     return ffi::Unchanged();
   }
   if (!mapped_loop_var.IsUnchanged()) self->loop_var = std::move(mapped_loop_var).ValueUnchecked();
   if (!mapped_min.IsUnchanged()) self->min = std::move(mapped_min).ValueUnchecked();
   if (!mapped_extent.IsUnchanged()) self->extent = std::move(mapped_extent).ValueUnchecked();
   if (!mapped_body.IsUnchanged()) self->body = SeqStmt(std::move(mapped_body).ValueUnchecked());
-  if (!mapped_thread_binding.IsUnchanged()) {
-    self->thread_binding = std::move(mapped_thread_binding).ValueUnchecked();
-  }
   if (!mapped_step.IsUnchanged()) self->step = std::move(mapped_step).ValueUnchecked();
   return ffi::Unchanged();
 }
@@ -855,8 +839,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // For
 For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, SeqStmt body,
-         ffi::Optional<ffi::String> thread_binding, ffi::Map<ffi::String, Any> annotations,
-         ffi::Optional<PrimExpr> step, Span span)
+         ffi::Map<ffi::String, Any> annotations, ffi::Optional<PrimExpr> step, Span span)
     : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(loop_var.defined());
   TVM_FFI_ICHECK(min.defined());
@@ -908,8 +891,15 @@ For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, SeqStmt 
 
   ffi::ObjectPtr<ForNode> node = ffi::make_object<ForNode>(std::move(loop_var), std::move(min),
                                                            std::move(extent), std::move(body));
+  if (auto tag = annotations.Get("thread_binding")) {
+    TVM_FFI_CHECK(kind == ForKind::kParallel, ValueError)
+        << "thread_binding requires a parallel loop";
+    TVM_FFI_CHECK(tag->as<ffi::String>().has_value(), TypeError)
+        << "thread_binding annotation must be a string";
+    TVM_FFI_CHECK(!step.has_value() || IsOne(*step), ValueError)
+        << "Thread binding loops require a unit step";
+  }
   node->kind = kind;
-  node->thread_binding = std::move(thread_binding);
   node->annotations = std::move(annotations);
   node->step = std::move(step);
   node->span = std::move(span);
@@ -925,20 +915,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&ForMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("tirx.For", [](PrimVar loop_var, PrimExpr min, PrimExpr extent, int kind,
-                                       SeqStmt body, ffi::Optional<ffi::String> thread_binding,
-                                       ffi::Optional<ffi::Map<ffi::String, Any>> annotations,
-                                       ffi::Optional<PrimExpr> step, Span span) {
-    return For(loop_var, min, extent, static_cast<ForKind>(kind), body, thread_binding,
-               annotations.value_or(ffi::Map<ffi::String, Any>()), step, span);
-  });
+  refl::GlobalDef().def(
+      "tirx.For", [](PrimVar loop_var, PrimExpr min, PrimExpr extent, int kind, SeqStmt body,
+                     ffi::Optional<ffi::Map<ffi::String, Any>> annotations,
+                     ffi::Optional<PrimExpr> step, Span span) {
+        return For(loop_var, min, extent, static_cast<ForKind>(kind), body,
+                   annotations.value_or(ffi::Map<ffi::String, Any>()), step, span);
+      });
 }
 
 bool ForNode::HasTrivialStep() const { return !step.has_value() || IsOne(*step); }
 
 std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
   switch (type) {
-    case ForKind::kSerial:
+    case ForKind::kDefault:
       out << "for";
       break;
     case ForKind::kParallel:
@@ -949,9 +939,6 @@ std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
       break;
     case ForKind::kVectorized:
       out << "vectorized";
-      break;
-    case ForKind::kThreadBinding:
-      out << "launch_thread";
       break;
   }
   return out;

@@ -516,10 +516,10 @@ class AutoPadder {
     }
 
     ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
-      if (op->kind != ForKind::kThreadBinding) {
+      if (!op->GetThreadBinding().has_value()) {
         substitute_map_.Set(op->loop_var, op->min);
       } else {
-        int64_t extent = warp_thread_extent_.Get(op->thread_binding.value()).value_or(1);
+        int64_t extent = warp_thread_extent_.Get(op->GetThreadBinding().value()).value_or(1);
         var_range_.Set(op->loop_var, Range::FromMinExtent(op->min, IntImm::Int64(extent)));
       }
       if (op->kind == ForKind::kVectorized) {
@@ -530,7 +530,7 @@ class AutoPadder {
       if (op->kind == ForKind::kVectorized) {
         vector_length_ = -1;
       }
-      if (op->kind != ForKind::kThreadBinding) {
+      if (!op->GetThreadBinding().has_value()) {
         substitute_map_.erase(op->loop_var);
       }
       return std::nullopt;
@@ -831,9 +831,9 @@ class ThreadExtentCollector : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
-    if (op->thread_binding.has_value()) {
+    if (op->GetThreadBinding().has_value()) {
       if (const auto* extent = op->extent.as<IntImmNode>()) {
-        thread_extent_.Set(op->thread_binding.value(), static_cast<int64_t>(extent->value));
+        thread_extent_.Set(op->GetThreadBinding().value(), static_cast<int64_t>(extent->value));
       }
     }
     return StmtExprVisitor::Visit_(op);

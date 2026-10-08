@@ -207,19 +207,6 @@ bool TensorizeComparator::Dispatch_(const ForNode* op, const Stmt& other) {
     }
     return false;
   }
-  if (op->thread_binding.has_value() != rhs->thread_binding.has_value()) {
-    if (assert_mode_) {
-      std::ostringstream os;
-      os << "ForNode thread_bindings do not match: op->thread_binding.has_value()="
-         << op->thread_binding.has_value()
-         << " vs rhs->thread_binding.has_value()=" << rhs->thread_binding.has_value();
-      EmitError(os.str());
-    }
-    return false;
-  }
-  if (op->thread_binding.has_value() && op->thread_binding.value() != rhs->thread_binding.value()) {
-    return false;
-  }
   if (op->kind != rhs->kind) {
     if (assert_mode_) {
       std::ostringstream os;
