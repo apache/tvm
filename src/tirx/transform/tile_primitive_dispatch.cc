@@ -19,7 +19,7 @@
 
 /*!
  * \file tile_primitive_dispatch.cc
- * \brief Lower TilePrimitiveCall nodes via registered dispatchers (also resolves ScopeIdDef
+ * \brief Lower TileOpCall nodes via registered dispatchers (also resolves ScopeIdDef
  * declarations and emits launch params).
  */
 
@@ -32,10 +32,13 @@
 #include <tvm/tirx/exec_context.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/annotation.h>
+#include <tvm/tirx/op/gpu.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
-#include <tvm/tirx/tile_op.h>
+#include <tvm/tirx/tile_dispatch.h>
 #include <tvm/tirx/transform.h>
 
 #include <optional>
@@ -199,8 +202,8 @@ class NoOpCallVerifier : public Verifier<NoOpCallVerifier> {
  private:
   using Verifier::Visit;
 
-  void Dispatch_(const tirx::TilePrimitiveCallNode* obj, ffi::reflection::AccessPath path) final {
-    Verify(false) << "TIRxError: TilePrimitiveCall at " << path
+  void Dispatch_(const tirx::TileOpCallNode* obj, ffi::reflection::AccessPath path) final {
+    Verify(false) << "TIRxError: TileOpCall at " << path
                   << " is not allowed in TIRx before lowering";
   }
 };
@@ -248,7 +251,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
    private:
     UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
       const auto* call = op->value.as<CallNode>();
-      if (call != nullptr && call->op.same_as(tirx::tvm_kernel_replace_point_op())) {
+      if (call != nullptr && call->op.same_as(tirx::kernel_replace_point_op())) {
         return body_;
       }
       return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -362,7 +365,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     if (is_first_thread_attr_) {
       for (const auto& stmt : host_init_stmts_) {
         // These statements leave the kernel region for host scope, where a
-        // ``buffer_data`` projection of a device-local view cannot be
+        // ``tensor_data_ptr`` projection of a device-local view cannot be
         // resolved.  Rewrite each projection onto its storage root, which is
         // a Function parameter and therefore visible on the host.
         res = KernelReplacePointSearcher::Seek(StorageRootResolver::Apply(stmt, buffer_root_),
@@ -441,7 +444,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   /*!
    * \brief Track the storage root of a buffer variable.
    *
-   * A ``DeclTensor`` whose data is ``buffer_data(src)`` is a view over
+   * A ``DeclTensor`` whose data is ``tensor_data_ptr(src)`` is a view over
    * ``src``'s storage, so it inherits ``src``'s root; anything else owns its
    * storage.  Buffers with no definition in the body (Function parameters)
    * are absent from the map and are their own root.
@@ -451,7 +454,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     Var root = new_var;
     if (data.has_value()) {
       if (const auto* call = data.value().as<CallNode>();
-          call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
+          call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
         if (auto src = call->args[0].as<Var>();
             src.has_value() && src.value()->ty.as<TensorTypeNode>()) {
           root = StorageRootOf(src.value());
@@ -469,7 +472,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return it == buffer_root_.end() ? var : it->second;
   }
 
-  /*! \brief Rewrite ``buffer_data(view)`` onto ``buffer_data(storage root)``. */
+  /*! \brief Rewrite ``tensor_data_ptr(view)`` onto ``tensor_data_ptr(storage root)``. */
   class StorageRootResolver : public StmtExprMutator {
    public:
     using StmtExprMutator::Mutate;
@@ -485,7 +488,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         : buffer_root_(buffer_root) {}
 
     UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-      if (op->op.same_as(tirx::buffer_data_op()) && op->args.size() == 1) {
+      if (op->op.same_as(tirx::tensor_data_ptr_op()) && op->args.size() == 1) {
         if (auto var = op->args[0].as<Var>();
             var.has_value() && var.value()->ty.as<TensorTypeNode>()) {
           auto it = buffer_root_.find(var.value());
@@ -531,7 +534,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     // recognizes the dominant shapes: pure conjunctions of `scopeid_var op
     // const` comparisons plus bare `ptx_elect_sync()` calls. Predicates
     // outside that grammar (e.g. linear shifts like `v - 1 < 5`, modulo
-    // equality like `v % 2 == 0`, or the legacy `tirx.filter` wrapper) fall
+    // equality like `v % 2 == 0`, or the legacy `tirx.gpu_thread_filter` wrapper) fall
     // back to the existing dispatcher, which has more permissive matching
     // paths.
     int pushed_ctx = TryPushCanonicalCtx(op->condition);
@@ -556,7 +559,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return IfThenElse(new_cond, then_case, else_case);
   }
 
-  UnchangedOr<Stmt> Mutate_(const tirx::TilePrimitiveCallNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const tirx::TileOpCallNode* op, InplaceMode inplace_mode) final {
     // Scope is a per-call field on the node. Derive the (inter, intra) split
     // on the spot from the current active set ``A`` (tracked through control
     // flow on ``ctx_stack_``) under this call's own ``op->scope``.
@@ -584,7 +587,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     TVM_FFI_ICHECK(f_op_dispatcher_.has_value())
         << "Internal Error: tirx.f_op_dispatcher is not registered";
     Function res =
-        f_op_dispatcher_.value()(ffi::GetRef<tirx::TilePrimitiveCall>(op), sctx).cast<Function>();
+        f_op_dispatcher_.value()(ffi::GetRef<tirx::TileOpCall>(op), sctx).cast<Function>();
     TVM_FFI_ICHECK(res.defined()) << "TIRx dispatcher did not return a Function";
     // Implementation found, handle callbacks
     if (auto bufs = sctx->callbacks.Get(tirx::callback::kPrivateAlloc)) {
@@ -1168,12 +1171,14 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
   int PushFilterPredicateCtx(const CallNode* call) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 2)
-        << "TIRxError: tirx.filter expects (var, cond); got " << call->args.size() << " args";
+        << "TIRxError: tirx.gpu_thread_filter expects (var, cond); got " << call->args.size()
+        << " args";
     PrimExpr var = call->args[0].as_or_throw<PrimExpr>();
     PrimExpr cond = call->args[1].as_or_throw<PrimExpr>();
     auto target = ResolveScopeIdTarget(var);
     if (target && ElectSyncFinder::Contains(cond)) {
-      PrimExpr selector = Call(var.ty(), tirx::selector_op(), {var, cond}).as_or_throw<PrimExpr>();
+      PrimExpr selector = Call(var.ty(), tirx::gpu_active_thread_selector_op(), {var, cond})
+                              .as_or_throw<PrimExpr>();
       int pushed = TryPushSelectorForTarget(*target, selector) ? 1 : 0;
       return pushed + PushPredicateCtx(cond);
     }
@@ -1265,7 +1270,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   // Returns:
   //   -1   `cond` is not canonical and does not contain elect_sync -- caller
   //        should fall back to the legacy PushPredicateCtx dispatch (which
-  //        handles tirx.filter wrappers, linear shifts, modulo equality).
+  //        handles tirx.gpu_thread_filter wrappers, linear shifts, modulo equality).
   //   >= 0 number of context frames pushed on `ctx_stack_` (may be 0 if all
   //        atoms were recognized but none could be narrowed -- e.g. a range
   //        target that overlaps a fixed CTA pair axis).
@@ -1284,8 +1289,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         auto lane = FindLaneScopeVar();
         if (!lane) return -1;
         ScopeIdTarget target{ScopeBinding::kWarpThread, 0, 1};
-        PrimExpr selector = Call((*lane)->ty, tirx::selector_op(), ffi::Array<Expr>{*lane, cond})
-                                .as_or_throw<PrimExpr>();
+        PrimExpr selector =
+            Call((*lane)->ty, tirx::gpu_active_thread_selector_op(), ffi::Array<Expr>{*lane, cond})
+                .as_or_throw<PrimExpr>();
         return TryPushSelectorForTarget(target, selector) ? 1 : 0;
       }
       return -1;
@@ -1352,7 +1358,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     auto lane = FindLaneScopeVar();
     if (!lane) return false;
     ScopeIdTarget target{ScopeBinding::kWarpThread, 0, 1};
-    PrimExpr selector = Call((*lane)->ty, tirx::selector_op(),
+    PrimExpr selector = Call((*lane)->ty, tirx::gpu_active_thread_selector_op(),
                              ffi::Array<Expr>{*lane, atom.elect_sync_call.value()})
                             .as_or_throw<PrimExpr>();
     return TryPushSelectorForTarget(target, selector);
@@ -1376,7 +1382,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       return PushConjunctivePredicateCtx(pred);
     }
     if (const auto* call = pred.as<CallNode>()) {
-      if (call->op.same_as(tirx::filter_op())) {
+      if (call->op.same_as(tirx::gpu_thread_filter_op())) {
         return PushFilterPredicateCtx(call);
       }
     }
@@ -1386,7 +1392,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
   PrimExpr RewriteFilterCall(const CallNode* call) const {
     TVM_FFI_ICHECK_EQ(call->args.size(), 2)
-        << "TIRxError: tirx.filter expects (var, cond); got " << call->args.size() << " args";
+        << "TIRxError: tirx.gpu_thread_filter expects (var, cond); got " << call->args.size()
+        << " args";
     return AsBool(call->args[1].as_or_throw<PrimExpr>());
   }
 
@@ -1435,7 +1442,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       return prim::BitwiseNot(a, op->span);
     }
     if (const auto* call = pred.as<CallNode>()) {
-      if (call->op.same_as(tirx::filter_op())) {
+      if (call->op.same_as(tirx::gpu_thread_filter_op())) {
         return RewriteFilterCalls(RewriteFilterCall(call));
       }
       bool changed = false;

@@ -22,9 +22,10 @@
  * TIRX built-in operators.
  */
 
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/tirx/op/tile.h>
 #include <tvm/tirx/op_attr_types.h>
-#include <tvm/tirx/tile_op.h>
+#include <tvm/tirx/tile_dispatch.h>
 
 namespace tvm {
 namespace tirx {

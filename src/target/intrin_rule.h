@@ -28,7 +28,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/type.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/abi.h>
 
 #include <string>
 
@@ -70,8 +70,7 @@ inline PrimExpr DispatchPureExtern(const PrimExpr& e) {
   const OpNode* op = call->op.as<OpNode>();
   TVM_FFI_ICHECK(op != nullptr);
   std::string name = op->name;
-  TVM_FFI_ICHECK(name.substr(0, 5) == "tirx." || name == "prim.ceil" || name == "prim.log2" ||
-                 name == "prim.clz")
+  TVM_FFI_ICHECK(name.substr(0, 5) == "tirx." || name.substr(0, 5) == "prim.")
       << "Unexpected intrinsic name: " << name;
   if (dtype_from_arg) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 1U);

@@ -23,9 +23,13 @@
 #include "codegen_c.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/op/gpu.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 #include <tvm/tirx/type.h>
 
 #include <cctype>
@@ -428,12 +432,7 @@ void CodeGenC::RegisterHandleType(const VarNode* buf_var, const PrimType& t) {
 
 void CodeGenC::RegisterHandleTypeFromPointer(const tirx::Var& var, const Expr* value) {
   if (value == nullptr) return;
-  std::optional<PrimType> value_dtype = [&]() {
-    if (auto prim_value = value->as<PrimExpr>()) {
-      return tirx::GetPointerType(GetType(prim_value.value()));
-    }
-    return tirx::GetPointerType((*value)->ty);
-  }();
+  std::optional<PrimType> value_dtype = tirx::GetPointerType((*value)->ty);
   if (!value_dtype.has_value()) return;
   auto* call = value->as<CallNode>();
   if (call != nullptr && call->op.same_as(tirx::ptr_byte_offset_op())) {
@@ -718,11 +717,11 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   if (auto opt_call_op = op->op.as<Op>()) {
     auto call_op = opt_call_op.value();
 
-    if (op->op.same_as(tirx::buffer_data_op())) {
+    if (op->op.same_as(tirx::tensor_data_ptr_op())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
       const auto* buffer = op->args[0].as<VarNode>();
       TVM_FFI_ICHECK(buffer && buffer->ty.as<TensorTypeNode>())
-          << "buffer_data expects a Var with TensorType";
+          << "tensor_data_ptr expects a Var with TensorType";
       os << GetVarID(buffer);
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       TVM_FFI_ICHECK_GE(op->args.size(), 1U);
@@ -735,13 +734,7 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       if (!func_name_supply_->ContainsName(func->value)) {
         ffi::Array<Type> arg_types;
         for (size_t i = 1; i < op->args.size(); i++) {
-          if (auto prim = op->args[i].as<PrimExpr>()) {
-            arg_types.push_back(GetType(prim.value()));
-          } else if (auto var = op->args[i].as<Var>()) {
-            arg_types.push_back(var.value()->ty);
-          } else {
-            arg_types.push_back(op->args[i]->ty);
-          }
+          arg_types.push_back(op->args[i]->ty);
         }
         Type ret_type = op->ty;
         this->GenerateForwardFunctionDeclarations(func->value, arg_types, ret_type);
@@ -828,7 +821,7 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
           os << "))";
         }
       }
-    } else if (op->op.same_as(tirx::tvm_struct_get_op())) {
+    } else if (op->op.same_as(tirx::abi_field_get_op())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
       os << GetStructRef(op->ty, op->args[0], op->args[1].as_or_throw<PrimExpr>(),
                          op->args[2].as<IntImmNode>()->value.as<int>().value());
@@ -892,13 +885,13 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       this->PrintType(target_dtype, os);
       os << " *)(&(" << rhs << ")))";
       EndScope(ssa_scope);
-    } else if (op->op.same_as(tirx::isnan_op())) {
+    } else if (op->op.same_as(prim::isnan_op())) {
       os << "(";
       this->PrintExpr(op->args[0], os);
       os << " != ";
       this->PrintExpr(op->args[0], os);
       os << ")";
-    } else if (op->op.same_as(tirx::tvm_thread_invariant_op())) {
+    } else if (op->op.same_as(tirx::gpu_thread_invariant_op())) {
       os << "(";
       this->PrintExpr(op->args[0], os);
       os << ")";
@@ -941,7 +934,7 @@ void CodeGenC::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_cal
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
   const VarNode* source = data.as<VarNode>();
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
     source = call->args[0].as<VarNode>();
   }
   if (source && var_idmap_.count(source)) {
@@ -1486,10 +1479,10 @@ void CodeGenC::Dispatch_(const EvaluateNode* op) {
       // Alignment facts do not require a runtime statement on C-family targets.
       return;
     }
-    if (call->op.same_as(tirx::tvm_storage_sync_op())) {
+    if (call->op.same_as(tirx::gpu_storage_sync_op())) {
       this->PrintStorageSync(call);
       return;
-    } else if (call->op.same_as(tirx::tvm_struct_set_op())) {
+    } else if (call->op.same_as(tirx::abi_field_set_op())) {
       TVM_FFI_ICHECK_EQ(call->args.size(), 4);
       int kind = call->args[2].as<IntImmNode>()->value.as<int>().value();
       Type store_ty = call->args[3]->ty;

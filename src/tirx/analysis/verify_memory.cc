@@ -29,7 +29,9 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -123,12 +125,12 @@ class MemoryAccessVerifier final : public StmtExprVisitor {
       // Variable is from function args. Return true.
       if (V == func_->params[0].get()) return true;
 
-      // The value is expected to come from a tvm_struct_get Call.
-      // Get the first argument of tvm_struct_get, and continue.
+      // The value is expected to come from a abi_field_get Call.
+      // Get the first argument of abi_field_get, and continue.
       const auto& iter = defs_.find(V);
       if (iter == defs_.end()) return false;
       const CallNode* C = iter->second.as<const CallNode>();
-      if (!C || !C->op.same_as(tirx::tvm_struct_get_op())) return false;
+      if (!C || !C->op.same_as(tirx::abi_field_get_op())) return false;
       V = C->args[0].as<VarNode>();
     }
     return false;

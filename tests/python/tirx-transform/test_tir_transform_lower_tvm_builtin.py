@@ -52,59 +52,59 @@ def test_lower_call_packed():
             C: T.Tensor((64, 64), "float32"),
         ):
             T.func_attr({"target": tvm.target.Target("llvm")})
-            stack_ffi_any: T.let[T.handle] = T.tvm_stack_alloca("tvm_ffi_any", 4)
-            stack_array: T.let[T.handle] = T.tvm_stack_alloca("array", 3)
+            stack_ffi_any: T.let[T.handle] = T.stack_alloca("tvm_ffi_any", 4)
+            stack_array: T.let[T.handle] = T.stack_alloca("array", 3)
             stack_shape = T.decl_tensor(
-                (T.int64(6),), "int64", data=T.tvm_stack_alloca("shape", 6), layout=None
+                (T.int64(6),), "int64", data=T.stack_alloca("shape", 6), layout=None
             )
             stack_shape[0] = T.int64(64)
             stack_shape[1] = T.int64(64)
-            T.tvm_struct_set(stack_array, 0, 1, A.data)
-            T.tvm_struct_set(stack_array, 0, 2, T.address_of(stack_shape[0]))
-            T.tvm_struct_set(stack_array, 0, 3, T.reinterpret(T.uint64(0), ty="handle"))
-            T.tvm_struct_set(stack_array, 0, 4, 2)
-            T.tvm_struct_set(stack_array, 0, 5, T.uint8(2))
-            T.tvm_struct_set(stack_array, 0, 6, T.uint8(32))
-            T.tvm_struct_set(stack_array, 0, 7, T.uint16(1))
-            T.tvm_struct_set(stack_array, 0, 8, T.uint64(0))
-            T.tvm_struct_set(stack_array, 0, 9, 0)
-            T.tvm_struct_set(stack_array, 0, 10, 1)
+            T.abi_field_set(stack_array, 0, 1, A.data)
+            T.abi_field_set(stack_array, 0, 2, T.address_of(stack_shape[0]))
+            T.abi_field_set(stack_array, 0, 3, T.reinterpret(T.uint64(0), ty="handle"))
+            T.abi_field_set(stack_array, 0, 4, 2)
+            T.abi_field_set(stack_array, 0, 5, T.uint8(2))
+            T.abi_field_set(stack_array, 0, 6, T.uint8(32))
+            T.abi_field_set(stack_array, 0, 7, T.uint16(1))
+            T.abi_field_set(stack_array, 0, 8, T.uint64(0))
+            T.abi_field_set(stack_array, 0, 9, 0)
+            T.abi_field_set(stack_array, 0, 10, 1)
             stack_shape[2] = T.int64(64)
             stack_shape[3] = T.int64(64)
-            T.tvm_struct_set(stack_array, 1, 1, B.data)
-            T.tvm_struct_set(stack_array, 1, 2, T.address_of(stack_shape[2]))
-            T.tvm_struct_set(stack_array, 1, 3, T.reinterpret(T.uint64(0), ty="handle"))
-            T.tvm_struct_set(stack_array, 1, 4, 2)
-            T.tvm_struct_set(stack_array, 1, 5, T.uint8(2))
-            T.tvm_struct_set(stack_array, 1, 6, T.uint8(32))
-            T.tvm_struct_set(stack_array, 1, 7, T.uint16(1))
-            T.tvm_struct_set(stack_array, 1, 8, T.uint64(0))
-            T.tvm_struct_set(stack_array, 1, 9, 0)
-            T.tvm_struct_set(stack_array, 1, 10, 1)
+            T.abi_field_set(stack_array, 1, 1, B.data)
+            T.abi_field_set(stack_array, 1, 2, T.address_of(stack_shape[2]))
+            T.abi_field_set(stack_array, 1, 3, T.reinterpret(T.uint64(0), ty="handle"))
+            T.abi_field_set(stack_array, 1, 4, 2)
+            T.abi_field_set(stack_array, 1, 5, T.uint8(2))
+            T.abi_field_set(stack_array, 1, 6, T.uint8(32))
+            T.abi_field_set(stack_array, 1, 7, T.uint16(1))
+            T.abi_field_set(stack_array, 1, 8, T.uint64(0))
+            T.abi_field_set(stack_array, 1, 9, 0)
+            T.abi_field_set(stack_array, 1, 10, 1)
             stack_shape[4] = T.int64(64)
             stack_shape[5] = T.int64(64)
-            T.tvm_struct_set(stack_array, 2, 1, C.data)
-            T.tvm_struct_set(stack_array, 2, 2, T.address_of(stack_shape[4]))
-            T.tvm_struct_set(stack_array, 2, 3, T.reinterpret(T.uint64(0), ty="handle"))
-            T.tvm_struct_set(stack_array, 2, 4, 2)
-            T.tvm_struct_set(stack_array, 2, 5, T.uint8(2))
-            T.tvm_struct_set(stack_array, 2, 6, T.uint8(32))
-            T.tvm_struct_set(stack_array, 2, 7, T.uint16(1))
-            T.tvm_struct_set(stack_array, 2, 8, T.uint64(0))
-            T.tvm_struct_set(stack_array, 2, 9, 0)
-            T.tvm_struct_set(stack_array, 2, 10, 1)
-            T.tvm_struct_set(stack_ffi_any, 0, 13, 7)
-            T.tvm_struct_set(stack_ffi_any, 0, 14, 0)
-            T.tvm_struct_set(stack_ffi_any, 0, 15, T.tvm_struct_get(stack_array, 0, 0, ty="handle"))
-            T.tvm_struct_set(stack_ffi_any, 1, 13, 7)
-            T.tvm_struct_set(stack_ffi_any, 1, 14, 0)
-            T.tvm_struct_set(stack_ffi_any, 1, 15, T.tvm_struct_get(stack_array, 1, 0, ty="handle"))
-            T.tvm_struct_set(stack_ffi_any, 2, 13, 7)
-            T.tvm_struct_set(stack_ffi_any, 2, 14, 0)
-            T.tvm_struct_set(stack_ffi_any, 2, 15, T.tvm_struct_get(stack_array, 2, 0, ty="handle"))
-            T.tvm_struct_set(stack_ffi_any, 3, 13, 0)
-            T.tvm_struct_set(stack_ffi_any, 3, 14, 0)
-            T.tvm_struct_set(stack_ffi_any, 3, 15, T.int64(0))
+            T.abi_field_set(stack_array, 2, 1, C.data)
+            T.abi_field_set(stack_array, 2, 2, T.address_of(stack_shape[4]))
+            T.abi_field_set(stack_array, 2, 3, T.reinterpret(T.uint64(0), ty="handle"))
+            T.abi_field_set(stack_array, 2, 4, 2)
+            T.abi_field_set(stack_array, 2, 5, T.uint8(2))
+            T.abi_field_set(stack_array, 2, 6, T.uint8(32))
+            T.abi_field_set(stack_array, 2, 7, T.uint16(1))
+            T.abi_field_set(stack_array, 2, 8, T.uint64(0))
+            T.abi_field_set(stack_array, 2, 9, 0)
+            T.abi_field_set(stack_array, 2, 10, 1)
+            T.abi_field_set(stack_ffi_any, 0, 13, 7)
+            T.abi_field_set(stack_ffi_any, 0, 14, 0)
+            T.abi_field_set(stack_ffi_any, 0, 15, T.abi_field_get(stack_array, 0, 0, ty="handle"))
+            T.abi_field_set(stack_ffi_any, 1, 13, 7)
+            T.abi_field_set(stack_ffi_any, 1, 14, 0)
+            T.abi_field_set(stack_ffi_any, 1, 15, T.abi_field_get(stack_array, 1, 0, ty="handle"))
+            T.abi_field_set(stack_ffi_any, 2, 13, 7)
+            T.abi_field_set(stack_ffi_any, 2, 14, 0)
+            T.abi_field_set(stack_ffi_any, 2, 15, T.abi_field_get(stack_array, 2, 0, ty="handle"))
+            T.abi_field_set(stack_ffi_any, 3, 13, 0)
+            T.abi_field_set(stack_ffi_any, 3, 14, 0)
+            T.abi_field_set(stack_ffi_any, 3, 15, T.int64(0))
             T.call_packed_lowered("tvm.test_matmul", stack_ffi_any, 0, 3)
 
     After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
@@ -131,13 +131,13 @@ def test_lower_call_packed_raw_string(call):
         @T.function
         def main():
             T.func_attr({"target": tvm.target.Target("llvm")})
-            stack_ffi_any: T.let[T.handle] = T.tvm_stack_alloca("tvm_ffi_any", 2)
-            T.tvm_struct_set(stack_ffi_any, 0, 13, 8)
-            T.tvm_struct_set(stack_ffi_any, 0, 14, 0)
-            T.tvm_struct_set(stack_ffi_any, 0, 15, T.reinterpret("payload", ty=T.handle().ty))
-            T.tvm_struct_set(stack_ffi_any, 1, 13, 0)
-            T.tvm_struct_set(stack_ffi_any, 1, 14, 0)
-            T.tvm_struct_set(stack_ffi_any, 1, 15, T.int64(0))
+            stack_ffi_any: T.let[T.handle] = T.stack_alloca("tvm_ffi_any", 2)
+            T.abi_field_set(stack_ffi_any, 0, 13, 8)
+            T.abi_field_set(stack_ffi_any, 0, 14, 0)
+            T.abi_field_set(stack_ffi_any, 0, 15, T.reinterpret("payload", ty=T.handle().ty))
+            T.abi_field_set(stack_ffi_any, 1, 13, 0)
+            T.abi_field_set(stack_ffi_any, 1, 14, 0)
+            T.abi_field_set(stack_ffi_any, 1, 15, T.int64(0))
             T.call_packed_lowered("testing.echo", stack_ffi_any, 0, 1)
 
     After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
@@ -154,7 +154,7 @@ def test_call_packed_return_non_i32():
 
     def packed_echo(value):
         return tvm.tirx.call_intrin(
-            value.ty, tvm.ir.Op.get("tirx.tvm_call_packed"), "testing.echo", value
+            value.ty, tvm.ir.Op.get("tirx.call_packed"), "testing.echo", value
         )
 
     def build_tir():
@@ -209,7 +209,7 @@ def test_lower_device_allocate():
     unit test may be improved in the future by addressing:
 
     - TVMScript always produces "handle" dtype for
-      `T.tvm_throw_last_error`, while LowerTVMBuiltin outputs "int32"
+      `T.throw_last_error`, while LowerTVMBuiltin outputs "int32"
       dtype.
     """
 
@@ -226,9 +226,9 @@ def test_lower_device_allocate():
     After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
     # Verify the lowered module can be printed (no crash)
     script_output = After.script()
-    # Should contain TVMBackendAllocWorkspace and TVMBackendFreeWorkspace
-    assert "TVMBackendAllocWorkspace" in script_output
-    assert "TVMBackendFreeWorkspace" in script_output
+    # Should contain the canonical workspace operations
+    assert "T.alloc_workspace(" in script_output
+    assert "T.free_workspace(" in script_output
     # DeclTensor should appear as a flat statement
     assert "T.decl_tensor" in script_output
 

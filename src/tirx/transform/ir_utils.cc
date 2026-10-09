@@ -47,7 +47,7 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
     Stmt s = *ri;
     if (const auto* for_ = s.as<ForNode>()) {
       auto n = ffi::make_object<ForNode>(*for_);
-      TVM_FFI_ICHECK(is_no_op(n->body));
+      TVM_FFI_ICHECK(tirx::IsNoOp(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* bind = s.as<BindNode>()) {
@@ -55,7 +55,7 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
       body = SeqStmt({ffi::GetRef<Stmt>(bind), body});
     } else if (const auto* ite = s.as<IfThenElseNode>()) {
       auto n = ffi::make_object<IfThenElseNode>(*ite);
-      TVM_FFI_ICHECK(is_no_op(n->then_case));
+      TVM_FFI_ICHECK(tirx::IsNoOp(n->then_case));
       TVM_FFI_ICHECK(!n->else_case);
       n->then_case = body;
       body = Stmt(n);

@@ -42,11 +42,12 @@
 #include <llvm/Support/Casting.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -596,7 +597,7 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   const Op& builtin_call_pure_extern_ = tirx::call_pure_extern_op();
   const Op& builtin_call_llvm_intrin_ = tirx::call_llvm_intrin_op();
   const Op& builtin_call_llvm_pure_intrin_ = tirx::call_llvm_pure_intrin_op();
-  const Op& builtin_tvm_call_cpacked_lowered_ = tirx::tvm_call_cpacked_lowered_op();
+  const Op& builtin_tvm_call_cpacked_lowered_ = tirx::call_cpacked_lowered_op();
 
   void EmitDebugLocation();
   void EmitDebugLocation(const ffi::Optional<Span>& span);

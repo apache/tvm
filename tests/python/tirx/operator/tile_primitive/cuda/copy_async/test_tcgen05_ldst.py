@@ -295,7 +295,7 @@ def _run_roundtrip_16b(
                     T.address_of(tmem_addr), T.uint32(tmem_col_width_32b)
                 )
 
-            T.tvm_storage_sync("shared")
+            T.gpu_storage_sync("shared")
 
             tmem = T.decl_tensor(
                 (tmem_rows, stage_width_elem),
@@ -531,7 +531,7 @@ def test_tcgen05_16xnb_sub_slab_view_read(shape, rep):
                 T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
                     T.address_of(tmem_addr), T.uint32(tmem_cols)
                 )
-            T.tvm_storage_sync("shared")
+            T.gpu_storage_sync("shared")
             tmem_d = T.decl_tensor(
                 (128, tmem_cols),
                 dtype,
@@ -643,7 +643,7 @@ def test_layout_F_rejects_incompatible_atoms(atom_kind, frag_rows):
         T.thread_id([128])
         tmem_addr = T.alloc_shared([1], "uint32")
         if wg_id == 0:
-            T.tvm_storage_sync("shared")
+            T.gpu_storage_sync("shared")
             tmem = T.decl_tensor(
                 (tmem_rows, stage_width_elem),
                 "float32",
@@ -782,7 +782,7 @@ def test_datapath_B_ld_st_roundtrip(n_cols, col_offset):
                 T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
                     T.address_of(tmem_addr), T.uint32(tmem_cols)
                 )
-            T.tvm_storage_sync("shared")
+            T.gpu_storage_sync("shared")
             tmem = T.decl_tensor(
                 (64, n_cols),
                 "float32",
@@ -896,7 +896,7 @@ def _run_load_test(shape: str, rep: int, dtype: str):
                     T.address_of(tmem_addr), T.uint32(tmem_col_width_32b)
                 )
 
-            T.tvm_storage_sync("shared")
+            T.gpu_storage_sync("shared")
 
             tmem = T.decl_tensor(
                 (128, stage_width_elem),
@@ -1064,7 +1064,7 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
                     T.address_of(tmem_addr), T.uint32(tmem_col_width_32b)
                 )
 
-            T.tvm_storage_sync("shared")
+            T.gpu_storage_sync("shared")
 
             tmem = T.decl_tensor(
                 (128, stage_width_elem),
@@ -1189,7 +1189,7 @@ def test_alloc_tcgen05_frag_wrapper_compiles(shape, frag_rows, K_cols):
                 T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
                     T.address_of(tmem_addr), T.uint32(max(32, K_cols))
                 )
-            T.tvm_storage_sync("shared")
+            T.gpu_storage_sync("shared")
             tmem = T.decl_tensor(
                 (128, K_cols),
                 "float32",
@@ -1242,7 +1242,7 @@ def test_tcgen05_32x32b_float32_keeps_typed_register_operands():
                 T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
                     T.address_of(tmem_addr), T.uint32(K_cols)
                 )
-            T.tvm_storage_sync("shared")
+            T.gpu_storage_sync("shared")
             tmem = T.decl_tensor(
                 (128, K_cols),
                 "float32",
@@ -1385,7 +1385,7 @@ def _run_sliced_vs_full_load(shape, full_rep, n_chunks):
                 T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(
                     T.address_of(tmem_addr), T.uint32(tmem_col_width_32b)
                 )
-            T.tvm_storage_sync("shared")
+            T.gpu_storage_sync("shared")
             tmem = T.decl_tensor(
                 (128, stage_width_elem),
                 dtype,
@@ -1524,7 +1524,7 @@ def test_copy_tmem2reg_async(dtype, width_32b):
             if warp_id == 0:
                 T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(T.address_of(tmem_addr), T.uint32(max(32, next_power_of_2(width_32b))))  # noqa: E501
 
-            T.tvm_storage_sync("shared")
+            T.gpu_storage_sync("shared")
 
             tmem = T.decl_tensor((128, WIDTH), dtype, scope="tmem", allocated_addr=tmem_addr[0],
                                  layout=TileLayout(S[(128, WIDTH) : (1 @ TLane, 1 @ TCol)]))
@@ -1620,7 +1620,7 @@ def test_copy_tmem2reg(dtype, width_32b, offset_32b):
             if warp_id == 0:
                 T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(T.address_of(tmem_addr), T.uint32(max(32, next_power_of_2(offset_32b + width_32b))))  # noqa: E501
 
-            T.tvm_storage_sync("shared")
+            T.gpu_storage_sync("shared")
 
             tmem = T.decl_tensor((128, OFFSET + WIDTH), dtype, scope="tmem", allocated_addr=tmem_addr[0],  # noqa: E501
                                  layout=TileLayout(S[(128, OFFSET + WIDTH) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
@@ -1717,7 +1717,7 @@ def test_copy_tmem2reg_sliced_local(dtype, width_32b, local_offset_32b):
             if warp_id == 0:
                 T.ptx.tcgen05.alloc.cta_group__1.sync.aligned.shared__cta.b32(T.address_of(tmem_addr), T.uint32(max(32, next_power_of_2(width_32b))))  # noqa: E501
 
-            T.tvm_storage_sync("shared")
+            T.gpu_storage_sync("shared")
 
             tmem = T.decl_tensor((128, WIDTH), dtype, scope="tmem", allocated_addr=tmem_addr[0],
                                  layout=TileLayout(S[(128, WIDTH) : (1 @ TLane, 1 @ TCol)]))

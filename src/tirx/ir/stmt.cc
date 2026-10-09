@@ -26,7 +26,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/tirx/op/region.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
 
@@ -716,6 +717,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // RegionStmt
+ffi::Array<Var> RegionNoBodyParams(const CallNode*) { return {}; }
+
 bool IsRegionOp(const Op& op) {
   if (!Op::HasAttrMap("FRegionGetBodyParams")) return false;
   static auto get_body_params = Op::GetAttrMap<FRegionGetBodyParams>("FRegionGetBodyParams");

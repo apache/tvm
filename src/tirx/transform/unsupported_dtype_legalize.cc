@@ -26,7 +26,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/prim/op.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/gpu.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -100,7 +101,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    if (op->op.same_as(tirx::buffer_data_op()) && op->args.size() == 1) {
+    if (op->op.same_as(tirx::tensor_data_ptr_op()) && op->args.size() == 1) {
       if (auto buffer = op->args[0].as<Var>()) {
         opaque_var_access_.insert(buffer.value());
       }
@@ -229,7 +230,7 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(tirx::tvm_thread_allreduce_op())) {
+    if (op->op.same_as(tirx::gpu_thread_allreduce_op())) {
       return LegalizeThreadAllreduce(op);
     }
     if (op->op.same_as(tirx::alloc_tensor_op()) || op->op.same_as(tirx::decl_tensor_op())) {
@@ -423,7 +424,8 @@ class ComputeLegalizer : public StmtExprMutator {
     };
     Expr identity = map_operand(op->args[1], promote);
     Expr values = map_operand(op->args[2], promote);
-    ffi::Array<Expr> value_fields = tirx::GetAllreduceFields(values);
+    const auto* tuple = values.as<tvm::TupleNode>();
+    ffi::Array<Expr> value_fields = tuple ? tuple->fields : ffi::Array<Expr>{values};
     ffi::Array<Var> vars;
     ffi::Array<Expr> arguments;
     for (size_t i = 0; i < combine->vars.size(); ++i) {
@@ -657,12 +659,12 @@ class StorageLegalizer : public StmtExprMutator {
       PrimType op_dtype = op->ty.as_or_throw<PrimType>();
       if (value.ty() == op_dtype) return value;
       if (MatchType(op_dtype)) {
-        return reinterpret(GetStorageUIntDType(op_dtype), value);
+        return tirx::reinterpret(GetStorageUIntDType(op_dtype), value);
       }
       if (op->args[0].same_as(value)) {
         return ffi::GetRef<Call>(op).as_or_throw<PrimExpr>();
       } else {
-        return reinterpret(op_dtype, value);
+        return tirx::reinterpret(op_dtype, value);
       }
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -681,7 +683,8 @@ class StorageLegalizer : public StmtExprMutator {
     if (!MatchType(value_dtype)) return value;
     auto* call = value.as<CallNode>();
     if (call && call->op.same_as(tirx::reinterpret_op())) {
-      return reinterpret(GetStorageUIntDType(value_dtype), call->args[0].as_or_throw<PrimExpr>());
+      return tirx::reinterpret(GetStorageUIntDType(value_dtype),
+                               call->args[0].as_or_throw<PrimExpr>());
     } else {
       return value;
     }

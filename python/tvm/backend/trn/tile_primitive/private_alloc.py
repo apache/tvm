@@ -33,7 +33,8 @@ from tvm.tirx.op.tile import (
     UnaryReduce,
 )
 from tvm.tirx.operator.tile_primitive.registry import f_op_dispatcher
-from tvm.tirx.tile_primitive import DispatchContext, TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
+from tvm.tirx.tile_primitive import DispatchContext
 
 
 def _scalar_dtype(scalar) -> str:
@@ -48,7 +49,7 @@ def _scalar_dtype(scalar) -> str:
 
 
 def alloc_const_bias_trn(
-    op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
+    op: TileOpCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Any]:
     bias = getattr(op, "bias", FloatImm(op.dsts[0].source.ty.dtype, 0.0))
     if "const_bias" in op.workspace:
@@ -79,14 +80,14 @@ def alloc_const_bias_trn(
             for p_loop in T.serial(0, par_size, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(0, max_inst_size, annotations={nki_dim: "F"}):
                     T.evaluate(T.nki.memset(new_buffer[p_loop, f_loop], bias))
-        T.tvm_kernel_replace_point()
+        T.kernel_replace_point()
 
     buffer_dict[bias_key] = (new_buffer, const_bias_init.body)
     return {"const_bias": bias_key}
 
 
 def alloc_partial_reduce_trn(
-    op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
+    op: TileOpCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Any]:
     if "partial_reduce" in op.workspace:
         return {}
@@ -106,7 +107,7 @@ def alloc_partial_reduce_trn(
 
 
 def alloc_identity_trn(
-    op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
+    op: TileOpCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Any]:
     if "identity" in op.workspace:
         return {}
@@ -130,14 +131,14 @@ def alloc_identity_trn(
             for p_loop in T.serial(0, par_size, annotations={nki_dim: "P"}):
                 for rhs_f_loop in T.serial(0, par_size, annotations={nki_dim: "F"}):
                     T.evaluate(T.nki.identity(new_buffer[p_loop, rhs_f_loop], par_size))
-        T.tvm_kernel_replace_point()
+        T.kernel_replace_point()
 
     buffer_dict["identity"] = (new_buffer, identity_init.body)
     return {"identity": "identity"}
 
 
 def alloc_acc_psum_trn(
-    op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
+    op: TileOpCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Any]:
     if "acc_psum" in op.workspace or op.dsts[0].source.scope() == "trn.psum":
         return {}
@@ -151,7 +152,7 @@ def alloc_acc_psum_trn(
 
 
 def alloc_copy_trn(
-    op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
+    op: TileOpCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Var]:
     src_region = op.srcs[0]
     dst_region = op.dsts[0]
@@ -168,7 +169,7 @@ def alloc_copy_trn(
 
 
 def alloc_unary_reduce_trn(
-    op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
+    op: TileOpCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Var]:
     if "max_inst_size" in op.config:
         partial_reduce_dict = alloc_partial_reduce_trn(op, buffer_dict, sctx)

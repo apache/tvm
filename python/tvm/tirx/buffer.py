@@ -22,7 +22,7 @@ from numbers import Integral
 import tvm_ffi
 
 import tvm
-from tvm.ir import PointerType, PrimType, Type, Var
+from tvm.ir import Call, PointerType, PrimType, Type, Var
 from tvm.runtime import convert
 
 from . import _buffer_view, _ffi_api
@@ -508,16 +508,19 @@ def decl_tensor(
     return _ffi_api.TensorVar(name, buffer_type, span)  # type: ignore
 
 
-def buffer_data(buffer):
-    """Project the physical pointer associated with a buffer variable."""
+def tensor_data_ptr(tensor, *, ty=None, span=None):
+    """Project a tensor variable's physical pointer.
 
-    if not is_tensor_var(buffer):
-        raise TypeError("buffer_data expects a Var with TensorType")
-    return _ffi_api.TensorData(buffer)
+    The result type is inferred from its element type and storage scope.
+    ``ty`` may supply an explicit result type; ``span`` records the source location.
+    """
+    if not is_tensor_var(tensor):
+        raise TypeError("tensor_data_ptr expects a Var with TensorType")
+    return Call("tirx.tensor_data_ptr", [tensor], ty=ty, span=span)
 
 
 def buffer_data_pointer_type(buffer):
-    """Return the pointer type produced by :func:`buffer_data`."""
+    """Return the pointer type produced by :func:`tensor_data_ptr`."""
 
     if not is_tensor_var(buffer):
         raise TypeError("buffer_data_pointer_type expects a Var with TensorType")
@@ -570,11 +573,11 @@ tvm.ir.Var.dtype = property(_tensor_dtype_property)
 
 
 # Keep the established ``A.data`` TVMScript surface as syntax sugar.  Compiler
-# and builder code calls ``buffer_data(A)`` directly.
-def _buffer_data_property(value):
+# and builder code calls ``tensor_data_ptr(A)`` directly.
+def _tensor_data_property(value):
     if not is_tensor_var(value):
         raise AttributeError("data is only available on a Var with TensorType")
-    return buffer_data(value)
+    return tensor_data_ptr(value)
 
 
-tvm.ir.Var.data = property(_buffer_data_property)
+tvm.ir.Var.data = property(_tensor_data_property)

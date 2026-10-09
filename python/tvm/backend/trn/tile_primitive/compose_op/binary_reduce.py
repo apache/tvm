@@ -19,7 +19,7 @@
 
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import Function, TilePrimitiveCall
+from tvm.tirx import Function, TileOpCall
 from tvm.tirx.op.tile import BinaryReduce
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
 
@@ -31,9 +31,9 @@ from ..reduction.utils import generate_intermediate_buffer
 from .utils import opcode_table
 
 
-def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
+def binary_reduce_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
     """Generate a TRN schedule for binary reduction operations."""
-    op = TilePrimitiveCall.downcast(op)
+    op = TileOpCall.downcast(op)
     assert isinstance(op, BinaryReduce), f"invalid operator downcast: {op}"
 
     # Extract operation components
@@ -169,5 +169,5 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function 
         )
     ],
 )
-def binary_reduce_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+def binary_reduce_trn_dispatch(op: TileOpCall, sctx: DispatchContext) -> Function:
     return binary_reduce_trn(op, sctx)

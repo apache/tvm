@@ -1045,7 +1045,7 @@ def test_call_packed_returning_void():
         @T.function
         def main():
             T.Call(
-                tvm.ir.Op.get("tirx.tvm_call_packed"),
+                tvm.ir.Op.get("tirx.call_packed"),
                 ["dummy_function_name"],
                 ty="void",
             )
@@ -1057,7 +1057,7 @@ def test_call_packed_returning_void():
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_call_packed_without_string_arg():
-    """The first argument to tvm_call_packed must be a string
+    """The first argument to call_packed must be a string
 
     Even if the invalid TIR is constructed, this should throw an
     exception to exit cleanly.  Previously, use of
@@ -1069,7 +1069,7 @@ def test_call_packed_without_string_arg():
     class Module:
         @T.function
         def main(A: T.Tensor(1, "float32")):
-            T.Call(tvm.ir.Op.get("tirx.tvm_call_packed"), [A.data], ty="int32")
+            T.Call(tvm.ir.Op.get("tirx.call_packed"), [A.data], ty="int32")
 
     with pytest.raises(RuntimeError):
         built = tvm.compile(Module, target="llvm")
