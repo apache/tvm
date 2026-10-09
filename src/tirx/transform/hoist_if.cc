@@ -72,6 +72,32 @@ class IfHoister : public StmtExprMutator {
     return scopes_.WithNewScope([&] { return StmtExprMutator::Mutate_(op, inplace_mode); });
   }
 
+  // An early placement rejection does not establish whether evaluation can be
+  // omitted. Check effects separately, pruning shared nodes in this walk too.
+  static bool HasEffects(const PrimExpr& expr) {
+    static auto effects = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
+    std::unordered_set<const ExprNode*> visited;
+    auto advance = [&](const ExprNode* op) -> ffi::Expected<ffi::WalkResult> {
+      return visited.insert(op).second ? ffi::WalkResult::Advance() : ffi::WalkResult::Skip();
+    };
+    return ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+               expr,
+               [](const VarNode*) -> ffi::Expected<ffi::WalkResult> {
+                 return ffi::WalkResult::Skip();
+               },
+               [](const TypeNode*) -> ffi::Expected<ffi::WalkResult> {
+                 return ffi::WalkResult::Skip();
+               },
+               [&](const CallNode* op) -> ffi::Expected<ffi::WalkResult> {
+                 auto kind = static_cast<CallEffectKind>(
+                     effects.get(op->op, static_cast<TCallEffectKind>(CallEffectKind::kOpaque)));
+                 if (kind > CallEffectKind::kReadState) return ffi::WalkResult::Interrupt();
+                 return advance(op);
+               },
+               advance)
+        .has_value();
+  }
+
   // Purity alone does not permit evaluating a predicate before its guards or
   // before a zero-trip loop.  Check safety and loop dependencies in one walk.
   size_t FindLiftDestination(const PrimExpr& condition) const {
@@ -133,6 +159,11 @@ class IfHoister : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    // Hoisting must not suppress evaluation of an effectful loop header.
+    if (HasEffects(op->min) || HasEffects(op->extent) ||
+        (op->step && HasEffects(op->step.value()))) {
+      return scopes_.WithNewScope([&] { return StmtExprMutator::Mutate_(op, inplace_mode); });
+    }
     auto& scope = scopes_.Current();
     LoopState loop{else_depth_, {}};
     const VarNode* var = op->loop_var.get();
@@ -150,6 +181,10 @@ class IfHoister : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode) final {
     auto& scope = scopes_.Current();
+    // Moving a one-sided inner If could otherwise skip this predicate's effects.
+    if (!scope.loops.empty() && HasEffects(op->condition)) {
+      return scopes_.WithNewScope([&] { return StmtExprMutator::Mutate_(op, inplace_mode); });
+    }
     bool has_else = op->else_case.has_value();
     if (!scope.loops.empty()) {
       size_t destination = FindLiftDestination(op->condition);
