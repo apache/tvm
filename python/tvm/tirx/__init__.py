@@ -26,7 +26,7 @@ tvm.script.register_dialect("tirx", "tvm.tirx.script", builder_path="tvm.tirx.sc
 from tvm.ir import Expr
 from tvm.ir import const
 
-from .buffer import (
+from .tensor import (
     BufferAccessKind,
     TensorType,
     tensor_data_ptr,

@@ -414,7 +414,24 @@ Tensor variable APIs
 A tensor variable is an ``ir.Var`` carrying ``tirx.TensorType`` metadata
 (see *Declaring buffers* above), so most of
 its methods are *compile-time* reshapes/reinterprets that change index arithmetic
-or hand you a pointer — they emit no runtime op of their own. The common ones:
+or hand you a pointer — they emit no runtime op of their own.
+
+``TensorType.__expr_methods__`` explicitly names the Python methods available
+through an expression: ``B.view(...)`` binds the operand exactly as
+``B.ty.view(B, ...)``. ``TensorType.__expr_properties__`` maps property names
+to getters taking the type and original expression. It preserves conveniences
+such as ``B.shape``, ``B.strides``, ``B.dtype``, ``B.byte_offset``, ``B.sub`` and
+``B.data`` without modifying the shared ``Var`` class. ``B.dtype`` returns a
+runtime ``DataType``; ``B.ty.dtype`` stores a ``PrimType``.
+
+Existing expression attributes and reflected fields take precedence, followed
+by declared properties and then declared methods. Declared properties are
+read-only. Tensor methods and properties require an ordinary tensor variable;
+merely retrieving a method does not construct IR. A property getter executes
+when the property is read: for example, ``B.data`` constructs the canonical
+physical-pointer projection.
+
+The common methods and properties:
 
 .. list-table::
    :header-rows: 1
@@ -423,7 +440,7 @@ or hand you a pointer — they emit no runtime op of their own. The common ones:
    * - Method
      - What it is
    * - ``B.data``
-     - the raw data pointer (a ``Var``); prints as ``B_ptr``
+     - the physical-pointer projection (a ``Call``); lowers to ``B_ptr``
    * - ``B.ptr_to([i, j])``
      - a typed pointer to an element (``address_of``); prints as ``&B_ptr[…]``
    * - ``B.vload([i], dtype="float32x4")`` / ``B.vstore([i], v)``

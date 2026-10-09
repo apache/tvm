@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.tirx.buffer import decl_tensor
+from tvm.tirx.tensor import decl_tensor
 
 
 def test_deduce():
