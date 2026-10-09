@@ -373,39 +373,15 @@ def call_dps_packed(
     return _ffi_api.call_dps_packed(func, args, out_ty)  # type: ignore
 
 
-def call_py_func(
-    func_name: str,
-    args: Expr,
-    out_ty: TensorType | list[TensorType],
-) -> Call:
+def call_py_func(func_name: str | Expr, args: Expr, *, ty_args, ty=None, span=None) -> Call:
+    """Call a Python function using canonical operands and one output type argument.
+
+    ``func_name`` names a function in the IRModule's ``pyfuncs`` attribute.
+    ``args`` accepts an Expr or a Python tuple through shared Expr conversion.
+    ``ty_args`` contains exactly one result type, including a TupleType for
+    tuple-valued results. Omitted ``ty`` uses the registered result inference.
     """
-    Call a Python function and return the output.
-
-    Parameters
-    ----------
-    func_name : str
-        The name of the Python function to call. This should correspond to a function
-        in the IRModule's pyfuncs attribute.
-
-    args : Expr
-        The input arguments.
-
-    out_ty : Union[TensorType, List[TensorType]]
-        The type information of the call_py_func output.
-        It should be a single or a list of TensorType. Each one denotes the
-        type information of a returned tensor.
-
-    Returns
-    -------
-    ret: Call
-        A call node for the call_py_func operator.
-    """
-    args = _wrap_inline_arg_tuple(args)
-
-    if not isinstance(out_ty, list):
-        out_ty = [out_ty]
-
-    return _ffi_api.call_py_func(func_name, args, out_ty)  # type: ignore
+    return Call("relax.call_py_func", [func_name, args], ty_args=ty_args, ty=ty, span=span)
 
 
 def call_builtin_with_ctx(

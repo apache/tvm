@@ -406,6 +406,84 @@ def test_op_call_inplace_packed():
     assert (result[1].numpy() == sum).all()
 
 
+@pytest.mark.parametrize("tuple_size", [None, 0, 1, 2])
+@pytest.mark.parametrize("result_kind", ["inferred", "missing", "explicit"])
+@pytest.mark.parametrize("builder", [relax.op.call_py_func, R.call_py_func])
+def test_call_py_func_canonical_roundtrip(tuple_size, result_kind, builder):
+    tensor_type = R.Tensor((3,), "float32")
+    output_type = (
+        tensor_type if tuple_size is None else tvm.ir.TupleType([tensor_type] * tuple_size)
+    )
+    result_type = {
+        "inferred": None,
+        "missing": tvm.ir.Type.missing(),
+        "explicit": R.Tensor((3,), "float64"),
+    }[result_kind]
+    span = tvm.ir.Span(tvm.ir.SourceName("callback"), 1, 2, 3, 4)
+    x = relax.Var("x", tensor_type)
+    call = builder("callback", (x,), ty_args=[output_type], ty=result_type, span=span)
+    expected = tvm.ir.Call(
+        "relax.call_py_func", ["callback", (x,)], ty_args=[output_type], ty=result_type, span=span
+    )
+    tvm.ir.assert_structural_equal(call, expected)
+    assert call.span.same_as(span)
+    assert call.args[0].value == "callback"
+    assert len(call.args[1].fields) == 1 and call.args[1].fields[0].same_as(x)
+    tvm.ir.assert_structural_equal(call.ty_args[0], output_type)
+    tvm.ir.assert_structural_equal(call.ty, output_type if result_type is None else result_type)
+    printed = call.script()
+    assert printed.startswith("R.call_py_func(")
+    assert "ty_args=" in printed and "out_ty=" not in printed
+    reconstructed = eval(printed, {"I": I, "R": R, "T": T, "x": x})
+    tvm.ir.assert_structural_equal(call, reconstructed)
+
+
+@pytest.mark.parametrize("tuple_size", [None, 0, 1, 2])
+def test_call_py_func_function_roundtrip(tuple_size):
+    tensor_type = R.Tensor((3,), "float32")
+    output_type = (
+        tensor_type if tuple_size is None else tvm.ir.TupleType([tensor_type] * tuple_size)
+    )
+
+    @R.function
+    def func(x: R.Tensor((3,), "float32")):
+        value = R.call_py_func("callback", (x,), ty_args=[output_type])
+        return value
+
+    reconstructed = tvm.script.from_source(func.script(), extra_vars={"I": I, "R": R, "T": T})
+    tvm.ir.assert_structural_equal(func, reconstructed)
+
+
+def test_call_py_func_numpy_execution():
+    register = tvm.get_global_func("vm.builtin.register_py_func")
+    unregister = tvm.get_global_func("vm.builtin.unregister_py_func")
+
+    def numpy_pair(x):
+        data = x.numpy()
+        return tvm.runtime.tensor(np.maximum(data, 0)), tvm.runtime.tensor(-data)
+
+    register("canonical_numpy_pair", numpy_pair)
+    try:
+
+        @tvm.script.ir_module
+        class Module:
+            @R.function
+            def main(x: R.Tensor((3,), "float32")):
+                pair = R.call_py_func(
+                    "canonical_numpy_pair",
+                    (x,),
+                    ty_args=[R.Tuple(R.Tensor((3,), "float32"), R.Tensor((3,), "float32"))],
+                )
+                return pair
+
+        data = np.array([-1.0, 0.0, 1.0], dtype="float32")
+        result = run_cpu(Module, "main", tvm.runtime.tensor(data))
+        np.testing.assert_array_equal(result[0].numpy(), np.maximum(data, 0))
+        np.testing.assert_array_equal(result[1].numpy(), -data)
+    finally:
+        unregister("canonical_numpy_pair")
+
+
 def test_op_call_py_func():
     """Test R.call_py_func operator functionality."""
     import torch
@@ -454,13 +532,13 @@ def test_op_call_py_func():
     class CallPyFuncTest:
         @R.function
         def simple_call(x: R.Tensor((3,), "float32")):
-            result = R.call_py_func(R.str("torch_relu"), (x,), out_ty=R.Tensor((3,), "float32"))
+            result = R.call_py_func(R.str("torch_relu"), (x,), ty_args=[R.Tensor((3,), "float32")])
             return result
 
         @R.function
         def multiple_calls(x: R.Tensor((2,), "float32")):
-            y = R.call_py_func(R.str("torch_relu"), (x,), out_ty=R.Tensor((2,), "float32"))
-            z = R.call_py_func(R.str("torch_sigmoid"), (y,), out_ty=R.Tensor((2,), "float32"))
+            y = R.call_py_func(R.str("torch_relu"), (x,), ty_args=[R.Tensor((2,), "float32")])
+            z = R.call_py_func(R.str("torch_sigmoid"), (y,), ty_args=[R.Tensor((2,), "float32")])
             return z
 
     np.random.seed(0)

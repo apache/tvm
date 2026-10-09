@@ -43,34 +43,6 @@ bool HasRelaxCallResult(const CallNode* call, const ffi::Object* destination) {
   return var && ffi::StructuralEqual()(var->ty, call->ty);
 }
 
-ffi::Optional<ExprDoc> RelaxSugarDocTranslate(DocTranslatorObj* d, const CallNode* call,
-                                              const ffi::Array<ExprDoc>& args) {
-  const Op& op = call->op.as_or_throw<Op>();
-
-  if (op->name == "relax.call_py_func" && call->args.size() == 2 && !call->attrs.defined() &&
-      call->ty_args.size() == 1) {
-    const auto* tuple = call->args[1].as<TupleNode>();
-    if (!tuple || !call->args[0].as<StringImmNode>()) return std::nullopt;
-    const Type& output = call->ty_args[0];
-    const auto* output_tuple = output.as<TupleTypeNode>();
-    if (output_tuple && output_tuple->fields.size() == 1) return std::nullopt;
-    ffi::Array<Type> types = output_tuple ? output_tuple->fields : ffi::Array<Type>{output};
-    ffi::Array<ExprDoc> outputs;
-    for (const Type& type : types) {
-      const auto* tensor = type.as<relax::TensorTypeNode>();
-      if (!tensor || !tensor->shape.as<relax::ShapeExprNode>()) return std::nullopt;
-      outputs.push_back(d->Translate(type).value());
-    }
-    ExprDoc output_doc = output_tuple ? ExprDoc(ListDoc(outputs)) : outputs[0];
-    d->RecordOrigin(output_doc, output);
-    ffi::Array<ExprDoc> packed_args = {args[0]};
-    for (const Expr& arg : tuple->fields) packed_args.push_back(d->Translate(arg).value());
-    return NamespaceDoc("relax")->Attr("call_py_func")->Call(packed_args, {"out_ty"}, {output_doc});
-  }
-
-  return std::nullopt;
-}
-
 ffi::Optional<ExprDoc> CallTIRDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                            const ffi::Object* destination) {
   const auto* call =
@@ -144,26 +116,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                            "relax.call_dps_packed"}) {
     OpDef(name).set_attr<FDocTranslate>(kOpCallDocTranslate,
                                         FDocTranslate::FromNative<&CallTIRDocTranslate>());
-  }
-}
-
-ffi::Optional<ExprDoc> RelaxSugarCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                                  const ffi::Object* destination) {
-  const auto* call =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (HasRelaxCallResult(call, destination)) {
-    ffi::Array<ExprDoc> args;
-    for (const Expr& arg : call->args) args.push_back(d->Translate(arg).value());
-    if (auto doc = RelaxSugarDocTranslate(d, call, args)) return doc;
-    return RawCall(d, call, args);
-  }
-  return RawCall(d, call);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  for (const char* name : {"relax.call_py_func"}) {
-    OpDef(name).set_attr<FDocTranslate>(kOpCallDocTranslate,
-                                        FDocTranslate::FromNative<&RelaxSugarCallDocTranslate>());
   }
 }
 

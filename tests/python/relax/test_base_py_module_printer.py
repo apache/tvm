@@ -711,7 +711,7 @@ def test_call_py_func_with_base_py_module():
     x = Var("x", TensorType((5,), "float32"))
     y = Var("y", TensorType((5,), "float32"))
 
-    call_expr = call_py_func(StringImm("test_func"), (x, y), out_ty=R.Tensor((5,), "float32"))
+    call_expr = call_py_func(StringImm("test_func"), (x, y), ty_args=[R.Tensor((5,), "float32")])
 
     assert call_expr.op.name == "relax.call_py_func"
     assert call_expr.args[0].value == "test_func"
@@ -722,18 +722,18 @@ def test_call_py_func_with_base_py_module():
         call_py_func(
             123,
             (Var("x", TensorType((5,), "float32")),),
-            out_ty=R.Tensor((5,), "float32"),
-        )
+            ty_args=[R.Tensor((5,), "float32")],
+        ).validate()
         assert False, "Should raise type error"
     except Exception as e:
-        assert "Mismatched type" in str(e) or "Expected" in str(e)
+        assert "string literal" in str(e)
 
     # Test 3: Validation and error handling
     @R.py_module
     class ValidationTestModule(BasePyModule):
         @R.function
         def test_invalid_call(x: R.Tensor((5,), "float32")) -> R.Tensor((5,), "float32"):
-            result = R.call_py_func("non_existent_func", (x,), out_ty=R.Tensor((5,), "float32"))
+            result = R.call_py_func("non_existent_func", (x,), ty_args=[R.Tensor((5,), "float32")])
             return result
 
     device = tvm.cpu()
@@ -759,9 +759,9 @@ def test_call_py_func_with_base_py_module():
 
         @R.function
         def mixed_computation(x: R.Tensor((10,), "float32")) -> R.Tensor((10,), "float32"):
-            relu_result = R.call_py_func("torch_relu", (x,), out_ty=R.Tensor((10,), "float32"))
+            relu_result = R.call_py_func("torch_relu", (x,), ty_args=[R.Tensor((10,), "float32")])
             final_result = R.call_py_func(
-                "torch_softmax", (relu_result,), out_ty=R.Tensor((10,), "float32")
+                "torch_softmax", (relu_result,), ty_args=[R.Tensor((10,), "float32")]
             )
             return final_result
 

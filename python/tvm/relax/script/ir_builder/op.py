@@ -30,7 +30,6 @@ import tvm
 from tvm import ir as _ir
 from tvm import relax as _relax
 from tvm import tirx as _tir
-from tvm.ir import StringImm
 from tvm.ir.op import _init_op_api
 from tvm.ir.prim import _ffi_api as _prim_ffi
 from tvm.relax import Call, Expr, ExternFunc
@@ -228,7 +227,7 @@ from tvm.relax.op import (
     zeros,
     zeros_like,
 )
-from tvm.relax.op import call_py_func as _call_py_func
+from tvm.relax.op import call_py_func as call_py_func
 from tvm.relax.op import logical_and as _logical_and
 from tvm.relax.op import logical_not as _logical_not
 from tvm.relax.op import logical_or as _logical_or
@@ -329,51 +328,6 @@ def call_packed(
         attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs)
 
     return Call(op, args, attrs=attrs, ty_args=ty_args)
-
-
-def call_py_func(
-    py_func_name: py_str,
-    *args: Expr,
-    out_ty: Type | list[Type],
-) -> Call:
-    """Create a relax Call, which calls a Python function.
-
-    Parameters
-    ----------
-    py_func_name: str
-        The name of the Python function to call. This should correspond to a function
-        in the IRModule's pyfuncs attribute.
-    *args : Expr
-        The arguments.
-    out_ty: Union[Type, List[Type]]
-        The type information of the call_py_func output.
-        It should be a single or a list of TensorType. Each one denotes the
-        type information of a returned tensor.
-
-    Returns
-    -------
-    call: Call
-        The created Relax Call for call_py_func operator.
-    """
-    args = py_tuple(convert_to_expr(a) for a in args)
-    if isinstance(out_ty, py_tuple):  # type: ignore
-        out_ty = list(out_ty)
-    elif not isinstance(out_ty, list):
-        out_ty = [out_ty]
-
-    out_ty = [
-        (ty() if callable(ty) else ty.asobject() if isinstance(ty, ObjectConvertible) else ty)
-        for ty in out_ty
-    ]
-
-    # Convert string to StringImm
-    try:
-        func_name_imm = (
-            StringImm(py_func_name) if isinstance(py_func_name, py_str) else py_func_name
-        )
-    except (TypeError, ValueError, AttributeError):
-        func_name_imm = StringImm(py_func_name)
-    return _call_py_func(func_name_imm, args, out_ty)
 
 
 def emit_with_type(
