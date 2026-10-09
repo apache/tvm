@@ -19,7 +19,7 @@
 
 /*!
  * \file tirx/analysis/verify_well_formed.cc
- * \brief Check if schedulable tirx is well-formed.
+ * \brief Check if TIRx is well-formed.
  */
 
 #include "verify_well_formed.h"
