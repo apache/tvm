@@ -78,13 +78,6 @@ ffi::Optional<ExprDoc> TileOpCallDocTranslate(DocTranslatorObj* d, ffi::AnyView 
   }
   ffi::Array<Doc> args;
   for (size_t i = 0; i < stmt->args.size(); ++i) {
-    if (auto op = stmt->args[i].as<Op>()) {
-      const std::string& op_name = op.value()->name;
-      if (op_name.find("tirx.tile.") == 0) {
-        args.push_back(LiteralDoc::Str(op_name.substr(10), std::nullopt));
-        continue;
-      }
-    }
     if (const auto* region = stmt->args[i].as<TensorRegionNode>()) {
       // Tile APIs require a region even when every extent is one. Point
       // indexing would instead construct a TensorLoad and select builtin APIs.

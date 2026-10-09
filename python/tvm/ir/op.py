@@ -104,7 +104,7 @@ def _init_op_api(namespace, target_module_name=None, *, factory=None, recursive=
     ):
         raise ValueError(f"Invalid Op namespace {namespace!r}")
     target = sys.modules[target_module_name or namespace]
-    factory = factory or vars(target).get("_op_api_factory", _make_op_api)
+    factory = factory or getattr(target, "_op_api_factory", _make_op_api)
     pending = []
     existing = []
     destinations = set()
@@ -118,7 +118,7 @@ def _init_op_api(namespace, target_module_name=None, *, factory=None, recursive=
             raise ValueError(f"Op {name!r} has no Python attribute spelling")
         container = target
         for part in parts[:-1]:
-            container = vars(container).get(part)
+            container = getattr(container, part, None)
             if not isinstance(container, ModuleType | SimpleNamespace):
                 raise ValueError(f"Op {name!r} requires an existing namespace at {part!r}")
         destination = (id(container), parts[-1])
@@ -126,8 +126,13 @@ def _init_op_api(namespace, target_module_name=None, *, factory=None, recursive=
             raise ValueError(f"Op {name!r} aliases another exposure destination")
         destinations.add(destination)
         op = Op.get(name)
-        if parts[-1] in vars(container):
-            current = vars(container)[parts[-1]]
+        printer_name = op.get_attr("TScriptPrinterName")
+        if not recursive and printer_name and printer_name.rpartition(".")[0] != namespace:
+            # Immediate refresh leaves operations assigned to another namespace
+            # with that namespace's existing constructor owner.
+            continue
+        if hasattr(container, parts[-1]):
+            current = getattr(container, parts[-1])
             if not callable(current):
                 raise ValueError(f"Op {name!r} conflicts with an existing Python attribute")
             existing.append(op)
@@ -135,7 +140,7 @@ def _init_op_api(namespace, target_module_name=None, *, factory=None, recursive=
             pending.append((container, parts[-1], factory(op, target.__name__)))
     for container, name, call in pending:
         setattr(container, name, call)
-        exports = vars(container).get("__all__")
+        exports = getattr(container, "__all__", None)
         if isinstance(exports, list) and name not in exports:
             exports.append(name)
     for op in existing:

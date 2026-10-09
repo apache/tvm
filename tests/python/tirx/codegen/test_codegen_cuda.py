@@ -39,6 +39,20 @@ def _get_source(func: tvm.tirx.Function, target=None) -> tuple[str, tvm.IRModule
     return src, mod
 
 
+@pytest.mark.parametrize("dtype", ["float16", "float16x2", "float32x2", "int32x2"])
+def test_isnan_scalar_and_vector_codegen(dtype):
+    result_dtype = "boolx2" if dtype.endswith("x2") else "bool"
+
+    @T.function
+    def func(A: T.Tensor((4,), dtype), B: T.Tensor((4,), result_dtype)):
+        T.device_entry()
+        tx = T.thread_id([4])
+        B[tx] = T.isnan(A[tx])
+
+    source, _ = _get_source(func)
+    assert "!=" in source
+
+
 def _helper_source(src: str, helper_name: str) -> str:
     pattern = rf"__forceinline__ __device__ [^{{;]+ {re.escape(helper_name)}\("
     match = re.search(pattern, src)

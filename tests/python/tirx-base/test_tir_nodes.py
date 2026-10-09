@@ -438,5 +438,18 @@ def test_scalable_vec_cast():
     assert isinstance(store.value.value, tvm.tirx.expr.FloatImm)
 
 
+@pytest.mark.parametrize("dtype", ["float16", "float16x2", "float32x4", "int32", "int32x2"])
+def test_isnan_preserves_canonical_operand(dtype):
+    value = tvm.tirx.Var("value", dtype)
+    result = tvm.tirx.isnan(value)
+    assert result.op.name == "tirx.isnan"
+    assert result.args[0].same_as(value)
+    assert result.ty.dtype.lanes == value.ty.dtype.lanes
+    expected_dtype = "bool" + (dtype[dtype.index("x") :] if "x" in dtype else "")
+    assert result.ty.dtype == expected_dtype
+    for constant in (tvm.tirx.const(0, "int32"), tvm.tirx.const(float("nan"), "float16")):
+        assert tvm.tirx.isnan(constant).args[0].same_as(constant)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
