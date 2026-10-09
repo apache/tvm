@@ -75,7 +75,7 @@ def reduction_trn(
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
         fail("requires Trainium target and thread exec_scope")
 
-    op = TilePrimitiveCall.downcast(op)
+    op = TileOpCall.downcast(op)
     dst_buffer_region, src_buffer_region = op.output, op.input
     axes, accum = op.reduce_axes, op.accum
     assert not accum, "Accumulation is not supported for reduction on Trainium"
