@@ -165,6 +165,7 @@ class IfHoister : public StmtExprMutator {
       return scopes_.WithNewScope([&] { return StmtExprMutator::Mutate_(op, inplace_mode); });
     }
     auto& scope = scopes_.Current();
+    if (active_loops_++ == 0) split_in_nest_ = false;
     LoopState loop{else_depth_, {}};
     const VarNode* var = op->loop_var.get();
     scope.loop_depths[var] = scope.loops.size();
@@ -172,6 +173,7 @@ class IfHoister : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     scope.loops.pop_back();
     scope.loop_depths.erase(var);
+    --active_loops_;
     for (auto it = loop.conditions.rbegin(); it != loop.conditions.rend(); ++it) {
       // Duplicate only when an alternate branch must remain reachable.
       stmt = it->second ? If(it->first, stmt, SeqStmt(stmt)) : If(it->first, stmt);
@@ -193,7 +195,13 @@ class IfHoister : public StmtExprMutator {
         // inside the destination loop, even when this If has no else of its own.
         // Branches outside that loop remain guarded and need no extra loop copy.
         bool preserve_else = has_else || else_depth_ > scope.loops[destination]->else_depth;
-        scope.loops[destination]->conditions.emplace_back(op->condition, preserve_else);
+        auto* loop = scope.loops[destination];
+        // Each two-sided predicate doubles the enclosing loop subtree. Limit
+        // splitting to once per loop nest, even across code-motion barriers.
+        if (!preserve_else || !split_in_nest_) {
+          loop->conditions.emplace_back(op->condition, preserve_else);
+          split_in_nest_ |= preserve_else;
+        }
       }
     }
     else_depth_ += has_else;
@@ -204,6 +212,8 @@ class IfHoister : public StmtExprMutator {
 
   // Number of enclosing Ifs with an else; each loop saves its entry baseline.
   int else_depth_{0};
+  int active_loops_{0};
+  bool split_in_nest_{false};
   ScopeStack<ScopeState> scopes_;
 };
 
