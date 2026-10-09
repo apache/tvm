@@ -71,7 +71,7 @@ def neon_4x4_i8i8i32_impl(
         vec_b = B.vload([0, 0], dtype="int8x16")
 
         # TODO(masahi): Remove duplication when inlined function call is supported
-        vec_b_low = T.vectorlow(vec_b, ty="int8x8")
+        vec_b_low = T.vector_low(vec_b, ty="int8x8")
 
         multiply_low = T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.aarch64.neon.smull.v8i16"),
@@ -86,7 +86,7 @@ def neon_4x4_i8i8i32_impl(
             ty="int32x4",
         )
 
-        vec_b_high = T.vectorhigh(vec_b, ty="int8x8")
+        vec_b_high = T.vector_high(vec_b, ty="int8x8")
 
         multiply_high = T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.aarch64.neon.smull.v8i16"),

@@ -35,7 +35,7 @@ Type InferTypeVectorPart(const CallNode* call) {
   PrimType input = call->args[0]->ty.as_or_throw<PrimType>();
   if constexpr (Combine) {
     TVM_FFI_CHECK(ffi::StructuralEqual()(input, call->args[1]->ty), TypeError)
-        << "vectorcombine requires equal input vector types";
+        << "vector_combine requires equal input vector types";
   }
   int lanes = input.IsScalableVector() ? input.VScaleFactor() : input.lanes();
   if constexpr (!Combine) {
@@ -48,45 +48,45 @@ Type InferTypeVectorPart(const CallNode* call) {
              : input.WithLanes(result_lanes);
 }
 
-const Op& vectorhigh_op() {
-  static const Op op = Op::Get("tirx.vectorhigh");
+const Op& vector_high_op() {
+  static const Op op = Op::Get("tirx.vector_high");
   return op;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.vectorhigh")
+  OpDef("tirx.vector_high")
       .signature(sig::arg<PrimExpr>("vec", "The input vector."))
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeVectorPart<false>>())
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.vectorhigh"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.vector_high"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 }
 
-const Op& vectorlow_op() {
-  static const Op op = Op::Get("tirx.vectorlow");
+const Op& vector_low_op() {
+  static const Op op = Op::Get("tirx.vector_low");
   return op;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.vectorlow")
+  OpDef("tirx.vector_low")
       .signature(sig::arg<PrimExpr>("vec", "The input vector."))
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeVectorPart<false>>())
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.vectorlow"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.vector_low"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 }
 
-const Op& vectorcombine_op() {
-  static const Op op = Op::Get("tirx.vectorcombine");
+const Op& vector_combine_op() {
+  static const Op op = Op::Get("tirx.vector_combine");
   return op;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.vectorcombine")
+  OpDef("tirx.vector_combine")
       .signature(sig::arg<PrimExpr>("vec1", "The first input vector."),
                  sig::arg<PrimExpr>("vec2", "The second input vector."))
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeVectorPart<true>>())
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.vectorcombine"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.vector_combine"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 }

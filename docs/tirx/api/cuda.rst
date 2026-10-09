@@ -74,8 +74,7 @@ The current ``Tx.cuda`` surface includes:
      - ``iket.mark``, ``iket.range_start``, ``iket.range_end``,
        ``iket.range_push``, ``iket.range_pop``, ``iket.sentinel_token``,
        ``iket.official_event``, ``timer_init``, ``timer_start``, ``timer_end``,
-       ``timer_finalize``, ``mma_store``, ``mma_fill``, ``mma_store_legacy``,
-       and ``mma_fill_legacy``
+       ``timer_finalize``, ``mma_store``, and ``mma_fill``
 
 NVSHMEM namespace
 -----------------

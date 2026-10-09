@@ -110,30 +110,6 @@ void RegisterCudaTargetBuiltins() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-  // Siblings of mma_store / mma_fill that accept
-  // (ptr_var, offset) pairs. Codegen emits `ptr + offset` C-pointer
-  // arithmetic and lower_warp_memory rewrites the offset's group component
-  // to its thread-local index. Used by the s_tir tensor_intrin tensorize
-  // path so per-thread fragment offsets stay element-accurate.
-  OpDef("tirx.mma_store_legacy")
-      .signature(sig::arg<IntExpr>("m", "The M dimension."),
-                 sig::arg<IntExpr>("n", "The N dimension."),
-                 sig::arg("dst_ptr", "The destination pointer."),
-                 sig::arg("src_ptr", "The source pointer."),
-                 sig::arg<IntExpr>("src_offset", "The source offset."),
-                 sig::arg<IntExpr>("dst_stride", "The destination stride."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.mma_store_legacy"))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-  OpDef("tirx.mma_fill_legacy")
-      .signature(sig::arg<IntExpr>("local_size", "The local allocation size."),
-                 sig::arg("local_ptr", "The local pointer."),
-                 sig::arg<IntExpr>("offset", "The offset."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.mma_fill_legacy"))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
   // Raw legacy cp.async form emitted by InjectPTXAsyncCopy (and round-tripped by
   // the T.s_tir.cp_async_raw.legacy 6-arg surface). It carries the element dtype in Call.dtype
   // and prints it with ty=; user-issued copies go through T.ptx instead.
@@ -148,7 +124,7 @@ void RegisterCudaTargetBuiltins() {
       .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("s_tir"))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.s_tir.cp_async_raw"));
 
-  OpDef("tirx.mma_store")
+  OpDef("tirx.cuda.mma_store")
       .signature(sig::arg<IntExpr>("m", "The M dimension."),
                  sig::arg<IntExpr>("n", "The N dimension."),
                  sig::arg("dst_ptr", "The destination pointer."),
@@ -159,7 +135,7 @@ void RegisterCudaTargetBuiltins() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-  OpDef("tirx.mma_fill")
+  OpDef("tirx.cuda.mma_fill")
       .signature(sig::arg<IntExpr>("local_size", "The local allocation size."),
                  sig::arg("local_ptr", "The local pointer."),
                  sig::arg<IntExpr>("offset", "The offset."))
@@ -167,7 +143,7 @@ void RegisterCudaTargetBuiltins() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-  OpDef("tirx.timer_init_cuda")
+  OpDef("tirx.cuda.timer_init")
       .signature(sig::arg("profiler_buffer", "The profiler buffer."),
                  sig::arg("profiler_tag", "The profiler tag."),
                  sig::arg<IntExpr>("profiler_write_offset", "The profiler write offset."),
@@ -177,7 +153,7 @@ void RegisterCudaTargetBuiltins() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-  OpDef("tirx.timer_start_cuda")
+  OpDef("tirx.cuda.timer_start")
       .signature(sig::arg("event_type", "The event type."),
                  sig::arg("profiler_buffer", "The profiler buffer."),
                  sig::arg("profiler_tag", "The profiler tag."),
@@ -188,7 +164,7 @@ void RegisterCudaTargetBuiltins() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-  OpDef("tirx.timer_end_cuda")
+  OpDef("tirx.cuda.timer_end")
       .signature(sig::arg("event_type", "The event type."),
                  sig::arg("profiler_buffer", "The profiler buffer."),
                  sig::arg("profiler_tag", "The profiler tag."),
@@ -199,7 +175,7 @@ void RegisterCudaTargetBuiltins() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-  OpDef("tirx.timer_finalize_cuda")
+  OpDef("tirx.cuda.timer_finalize")
       .signature(sig::arg("profiler_buffer", "The profiler buffer."),
                  sig::arg("profiler_tag", "The profiler tag."),
                  sig::arg<IntExpr>("profiler_write_offset", "The profiler write offset."),
