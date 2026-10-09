@@ -293,7 +293,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     }
 
     static const Op ptx_ldmatrix_op = Op::Get("tirx.ptx_legacy.ldmatrix");
-    static const Op mma_store_op = Op::Get("tirx.mma_store_legacy");
+    static const Op mma_store_op = Op::Get("tirx.cuda.mma_store");
     if (!call->op.same_as(ptx_ldmatrix_op) && !call->op.same_as(mma_store_op)) {
       return call;
     }

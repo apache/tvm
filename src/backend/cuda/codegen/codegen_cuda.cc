@@ -1083,12 +1083,10 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     }
   }
 
-  static const Op mma_store_op = Op::Get("tirx.mma_store");
-  static const Op mma_fill_op = Op::Get("tirx.mma_fill");
+  static const Op mma_store_op = Op::Get("tirx.cuda.mma_store");
+  static const Op mma_fill_op = Op::Get("tirx.cuda.mma_fill");
   static const Op ptx_mma_legacy_op = Op::Get("tirx.ptx_legacy.mma");
   static const Op ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
-  static const Op mma_store_legacy_op = Op::Get("tirx.mma_store_legacy");
-  static const Op mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
   static const Op cuda_func_call_op = Op::Get("tirx.cuda.func_call");
 
   if (op->op.same_as(mma_store_op)) {
@@ -1204,59 +1202,6 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
       this->stream << PrintLoadMatrixAssembly(trans, num, type_str, local_ptr, local_offset,
                                               smem_ptr, smem_offset);
     }
-  } else if (op->op.same_as(mma_store_legacy_op)) {
-    // args: m, n, dst_ptr, src_ptr_var, src_offset, dst_stride
-    // (dst_ptr is typically an access_ptr Call that already encodes
-    // dst.elem_offset and the global pointer cast.)
-    int m = op->args[0].as_or_throw<IntImm>()->value.as<int>().value();
-    int n = op->args[1].as_or_throw<IntImm>()->value.as<int>().value();
-    std::string dst = this->PrintExpr(op->args[2]);
-    std::string src = this->PrintExpr(op->args[3]);
-    std::string src_offset = this->PrintExpr(op->args[4]);
-    PrimExpr stride = op->args[5].as_or_throw<PrimExpr>();
-
-    TVM_FFI_ICHECK(m == 16 && n == 16) << "Only m == 16 && n == 16 case supported for now";
-
-    const auto index_map_func =
-        tvm::ffi::Function::GetGlobal("tirx.index_map.shared_16x16_to_ldmatrix_32x8_layout");
-    TVM_FFI_ICHECK(index_map_func.has_value());
-
-    sym::Analyzer analyzer;
-    auto inverse_index_map =
-        IndexMap::FromFunc(2, *index_map_func).Inverse({Range(0, m), Range(0, n)}, analyzer);
-    auto indices_16x16 = inverse_index_map->final_indices;
-
-    class LowerFloorDivMod : public tirx::StmtExprMutator {
-     public:
-      UnchangedOr<PrimExpr> Mutate_(const prim::FloorDivNode* op, InplaceMode inplace_mode) {
-        return prim::Div(this->Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a),
-                         this->Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b));
-      }
-      UnchangedOr<PrimExpr> Mutate_(const prim::FloorModNode* op, InplaceMode inplace_mode) {
-        return prim::Mod(this->Mutate(op->a, inplace_mode).ValueOrUnchanged(op->a),
-                         this->Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b));
-      }
-    };
-
-    PrimExpr dst_expr = indices_16x16[0] * stride + indices_16x16[1];
-    auto dst_ind =
-        ffi::make_object<LowerFloorDivMod>()->Mutate(dst_expr).ValueOrUnchanged(dst_expr);
-
-    var_idmap_[inverse_index_map->initial_indices[0].get()] = "threadIdx.x";
-    var_idmap_[inverse_index_map->initial_indices[1].get()] = "local_id";
-
-    os << "for (int local_id = 0; local_id < 8; ++local_id) {\n";
-    os << dst << "[" << this->PrintExpr(dst_ind) << "] = " << src << "[" << src_offset
-       << " + local_id];\n";
-    os << "}\n";
-  } else if (op->op.same_as(mma_fill_legacy_op)) {
-    // args: local_size, local_ptr_var, offset
-    std::string num_elem = this->PrintExpr(op->args[0]);
-    std::string dst = this->PrintExpr(op->args[1]);
-    std::string dst_offset = this->PrintExpr(op->args[2]);
-    os << "for (int i = 0; i < " << num_elem << "; ++i) {\n";
-    os << dst << "[" << dst_offset << " + i] = 0.0;";
-    os << "}\n";
   } else if (op->op.same_as(tirx::reinterpret_op())) {
     // Compile-time pointer reinterpret of a literal (e.g. a tcgen05 descriptor
     // template encoded at address 0): emit C++-style reinterpret_cast<T*>(...)

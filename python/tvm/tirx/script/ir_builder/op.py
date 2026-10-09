@@ -558,13 +558,13 @@ call_llvm_pure_intrin = _llvm_result_type(_tir_op.call_llvm_pure_intrin)
 call_pure_extern = _ir.op._make_op_api(_ir.Op.get("tirx.call_pure_extern"), __name__)
 
 
-vectorlow = _ir.op._make_op_api(_ir.Op.get("tirx.vectorlow"), __name__)
+vector_low = _ir.op._make_op_api(_ir.Op.get("tirx.vector_low"), __name__)
 
 
-vectorhigh = _ir.op._make_op_api(_ir.Op.get("tirx.vectorhigh"), __name__)
+vector_high = _ir.op._make_op_api(_ir.Op.get("tirx.vector_high"), __name__)
 
 
-vectorcombine = _ir.op._make_op_api(_ir.Op.get("tirx.vectorcombine"), __name__)
+vector_combine = _ir.op._make_op_api(_ir.Op.get("tirx.vector_combine"), __name__)
 
 
 get_active_lane_mask = _ir.op._make_op_api(_ir.Op.get("tirx.get_active_lane_mask"), __name__)
@@ -862,9 +862,9 @@ __all__ = [
     "truncdiv",
     "truncmod",
     "undef",
-    "vectorcombine",
-    "vectorhigh",
-    "vectorlow",
+    "vector_combine",
+    "vector_high",
+    "vector_low",
     "vscale",
     "webgpu",
 ]

@@ -544,9 +544,7 @@ def get_mma_fill_intrin(dtype, local_size):
             Ts.writes(C_warp[0:WARP_SIZE, 0:local_size])
 
             for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
-                T.evaluate(
-                    T.cuda.mma_fill_legacy(local_size, C_warp.data, C_warp.elem_offset, ty=dtype)
-                )
+                T.evaluate(T.cuda.mma_fill(local_size, C_warp.data, C_warp.elem_offset, ty=dtype))
 
     return mma_fill_desc, mma_fill_impl
 
@@ -599,7 +597,7 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
 
                 for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
                     T.evaluate(
-                        T.cuda.mma_store_legacy(
+                        T.cuda.mma_store(
                             M_DIM,
                             N_DIM,
                             C.access_ptr("w"),

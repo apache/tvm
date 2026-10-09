@@ -203,9 +203,8 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
 
   /// Visitor implementation
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    static const Op mma_fill_op = Op::Get("tirx.mma_fill");
+    static const Op mma_fill_op = Op::Get("tirx.cuda.mma_fill");
     static const Op ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
-    static const Op mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
     if (op->op.same_as(mma_fill_op) && GetTensorVar(op->args[1]) == buffer_) {
       auto* local_size = op->args[0].as<IntImmNode>();
       TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill";
@@ -215,12 +214,8 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
       // ``... + lift(local_size) * tx`` from which the warp coefficient
       // is derived.
       UpdatePattern(op->args[4].as_or_throw<PrimExpr>());
-    } else if (op->op.same_as(mma_fill_legacy_op) && GetTensorVar(op->args[1]) == buffer_) {
-      auto* local_size = op->args[0].as<IntImmNode>();
-      TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill_legacy";
-      UpdateCoefficient(local_size->value.as<int>().value());
     }
-    // mma_store_legacy/ptx_mma_legacy only *use* the warp buffer
+    // mma_store/ptx_mma_legacy only *use* the warp buffer
     // (read+rewrite); WarpStoreCoeffFinder relies on ldmatrix/mma_fill
     // (the actual stores) for the warp coefficient.
 
@@ -430,12 +425,10 @@ class WarpAccessRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
-    static const Op mma_store_op = Op::Get("tirx.mma_store");
-    static const Op mma_fill_op = Op::Get("tirx.mma_fill");
+    static const Op mma_store_op = Op::Get("tirx.cuda.mma_store");
+    static const Op mma_fill_op = Op::Get("tirx.cuda.mma_fill");
     static const Op ptx_mma_legacy_op = Op::Get("tirx.ptx_legacy.mma");
     static const Op ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
-    static const Op mma_store_legacy_op = Op::Get("tirx.mma_store_legacy");
-    static const Op mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
     if (op->op.same_as(mma_store_op)) {
       return RewriteIndicesAt(op, {3});
     }
@@ -453,14 +446,6 @@ class WarpAccessRewriter : public StmtExprMutator {
       // Only local_ptr is a raw warp buffer Var; smem_ptr is an
       // access_ptr Call wrapping a shared-scope var.
       return RewriteIndicesAt(op, {3});
-    }
-    if (op->op.same_as(mma_store_legacy_op)) {
-      // args: m, n, dst_ptr, src_ptr, src_offset, dst_stride
-      return RewriteIndicesAt(op, {3});
-    }
-    if (op->op.same_as(mma_fill_legacy_op)) {
-      // args: local_size, local_ptr, offset
-      return RewriteIndicesAt(op, {1});
     }
 
     return StmtExprMutator::Mutate_(op, inplace_mode);
