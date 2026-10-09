@@ -215,6 +215,17 @@ def CommonSubexprElim():
     return _ffi_api.CommonSubexprElim()  # type: ignore
 
 
+def RenormalizeSplitPattern():
+    """Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RenormalizeSplitPattern()  # type: ignore
+
+
 @_ffi.register_object("tirx.transform.StmtSimplifyConfig")
 class StmtSimplifyConfig(_ffi.Object):
     """Config for stmt simplify pass"""

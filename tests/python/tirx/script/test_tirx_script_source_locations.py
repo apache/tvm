@@ -243,7 +243,7 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
     # A native view must preserve its producer name/span and declare its storage exactly once.
     from functools import wraps
 
-    from tvm import ir
+    from tvm import ir, tirx
     from tvm.script.ir_builder import base
 
     original = tirx.TensorType.view
