@@ -463,7 +463,7 @@ def test_tcgen05_cp_ld_roundtrip():
         if tx == 0:
             T.ptx.mbarrier.init.shared.b64(bar.data, T.uint32(1))
             for k in range(dtype_bits * WIDTH // 256):
-                T.cuda.tcgen05.encode_matrix_descriptor(descA.data, A_smem.access_ptr("r", offset=A_smem.elem_offset_of([0, k * 8])), ldo=ldo, sdo=sdo, swizzle=SWIZZLE)  # noqa: E501
+                T.cuda.tcgen05.encode_matrix_descriptor(descA.data, A_smem.ptr_to([0, k * 8]), ldo=ldo, sdo=sdo, swizzle=SWIZZLE)  # noqa: E501
                 T.ptx[f"tcgen05.cp.cta_group::{cta_group}.128x256b"](T.cuda.get_tmem_addr(tmem_addr, 0, k * 256 // 32), descA[0])  # noqa: E501
             T.ptx[f"tcgen05.commit.cta_group::{cta_group}.mbarrier::arrive::one.shared::cluster.b64"](bar.data)
         T.cuda.mbarrier_wait(bar.data, phase[0])

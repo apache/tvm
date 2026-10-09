@@ -100,7 +100,7 @@ void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Fu
 void CodeGenC::PrintFunctionParameters(const Function& func, std::ostream& os) {
   os << "(";
   for (size_t i = 0; i < func->params.size(); ++i) {
-    tirx::Var v = func->params[i];
+    tvm::Var v = func->params[i];
 
     if (i > 0) {
       os << ", ";
@@ -430,7 +430,7 @@ void CodeGenC::RegisterHandleType(const VarNode* buf_var, const PrimType& t) {
   }
 }
 
-void CodeGenC::RegisterHandleTypeFromPointer(const tirx::Var& var, const Expr* value) {
+void CodeGenC::RegisterHandleTypeFromPointer(const tvm::Var& var, const Expr* value) {
   if (value == nullptr) return;
   std::optional<PrimType> value_dtype = tirx::GetPointerType((*value)->ty);
   if (!value_dtype.has_value()) return;
@@ -801,7 +801,7 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
              << "))";
         }
       } else {
-        auto* var = op->args[0].as<tirx::VarNode>();
+        auto* var = op->args[0].as<tvm::VarNode>();
         TVM_FFI_ICHECK(var)
             << "Builtin address_of() expects the argument to be a TensorLoad or Var, but "
             << "received argument " << op->args[0];

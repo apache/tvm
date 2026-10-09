@@ -51,7 +51,7 @@ using sym::detail::EnterConstraintFacts;
 
 void IRMutatorWithAnalyzer::MarkBufferParamShapes(const tirx::Function& func) {
   // Mark all symbolic buffer-parameter shape values as positive.
-  for (const tirx::Var& param : func->params) {
+  for (const tvm::Var& param : func->params) {
     if (!param->ty.as<tirx::TensorTypeNode>()) {
       continue;
     }

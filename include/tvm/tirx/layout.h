@@ -28,10 +28,10 @@
 #include <tvm/ffi/enum.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/object.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/exec_scope.h>
-#include <tvm/tirx/var.h>
 
 namespace tvm {
 
@@ -73,7 +73,7 @@ class LayoutNode : public ffi::Object {
 
   /*! \brief Slice the layout with a given shape and region */
   virtual ffi::Optional<Layout> Slice(const ffi::Array<PrimExpr>& shape,
-                                      const Region& region) const = 0;
+                                      const ffi::Array<Range>& region) const = 0;
 
   /*! \brief Direct-sum on the tiling domain (unscaled composition)
    *  Given left layout A (grouped by left_shape) and this layout B (grouped by right_shape),
@@ -277,7 +277,8 @@ class TileLayoutNode : public LayoutNode {
   ffi::Array<PrimExpr> GetShardShape() const;
 
   /*! \brief Slice the layout with a given shape and region */
-  ffi::Optional<Layout> Slice(const ffi::Array<PrimExpr>& shape, const Region& region) const final;
+  ffi::Optional<Layout> Slice(const ffi::Array<PrimExpr>& shape,
+                              const ffi::Array<Range>& region) const final;
 
   /*! \brief Is the layout trivial (pure memory, identical mapping) */
   bool IsTrivial() const;
@@ -381,7 +382,8 @@ class ComposeLayoutNode : public LayoutNode {
                                         const ffi::Array<PrimExpr>& left_shape) const final;
 
   /*! \brief Slice the layout with a given shape and region */
-  ffi::Optional<Layout> Slice(const ffi::Array<PrimExpr>& shape, const Region& region) const final;
+  ffi::Optional<Layout> Slice(const ffi::Array<PrimExpr>& shape,
+                              const ffi::Array<Range>& region) const final;
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.ComposeLayout", ComposeLayoutNode, LayoutNode);
 };

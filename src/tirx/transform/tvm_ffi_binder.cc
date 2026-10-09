@@ -24,11 +24,11 @@
 #include "tvm_ffi_binder.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/memory.h>
 

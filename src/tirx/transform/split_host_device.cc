@@ -25,6 +25,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/analysis.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/transform.h>
@@ -42,7 +43,6 @@
 #include <optional>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "../analysis/var_use_def_analysis.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -146,12 +146,14 @@ class HostDeviceSplitter : public StmtExprMutator {
   Stmt SplitDeviceFunc(Stmt body, Target device_target) {
     auto [params,
           buffers_to_declare] = [&]() -> std::tuple<ffi::Array<Var>, ffi::Array<TensorVar>> {
-      auto use_def =
-          ffi::make_object<VarUseDefAnalyzer>(ffi::Array<Var>{}, /*visit_thread_extent=*/true);
-      use_def->Visit(body);
+      ffi::Array<Var> undefined = UndefinedVars(body);
+      ffi::Array<TensorVar> buffers;
+      for (const Var& var : undefined) {
+        if (auto buffer = var.as<TensorVar>()) buffers.push_back(buffer.value());
+      }
 
       // Sort first by variable type, then by variable name
-      std::vector<Var> params{use_def->undefined_.begin(), use_def->undefined_.end()};
+      std::vector<Var> params{undefined.begin(), undefined.end()};
       if (device_target->kind->name != "trn") {
         std::sort(params.begin(), params.end(), [](const Var& a, const Var& b) {
           auto sort_key = [](const Var& var) {
@@ -173,7 +175,7 @@ class HostDeviceSplitter : public StmtExprMutator {
         std::sort(params.begin(), params.end(),
                   [&](const Var& a, const Var& b) { return param_order[a] < param_order[b]; });
       }
-      return {params, use_def->undefined_buffers_};
+      return {params, buffers};
     }();
 
     // Buffer Vars are compiler-side values, not ABI values.  Thread their
