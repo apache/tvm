@@ -72,8 +72,7 @@ using tvm::tirx::TensorVar;
 TensorVar TensorDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
                      ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                      ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
-                     int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
-                     ffi::Array<PrimExpr> allocated_addr = {});
+                     int offset_factor, ffi::Optional<Layout> layout = std::nullopt);
 
 /*!
  * \brief The primitive function statement.

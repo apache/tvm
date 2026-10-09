@@ -19,6 +19,7 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
+from tvm.backend.trn.transform import TrnPrivateBufferAlloc
 from tvm.ir import assert_structural_equal as _assert_structural_equal
 from tvm.script import tirx as T
 from tvm.tirx.layout import F, P, S, TileLayout
@@ -282,7 +283,7 @@ def test_gemm_with_sbuf_output():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": gemm})
-        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
+        mod = TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
@@ -531,7 +532,7 @@ def test_gemm_guard():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": gemm})
-        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
+        mod = TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)

@@ -61,8 +61,8 @@ ffi::Optional<ExprDoc> BufferOperationDocTranslate(DocTranslatorObj* d, ffi::Any
   bool is_alloc = call->op.same_as(tirx::alloc_tensor_op());
   size_t shape_index = is_alloc ? 0 : 1;
   auto buffer = call->ty.as<tirx::TensorType>();
-  if (!buffer || call->args.size() != shape_index + 3 || !call->ty_args.empty() ||
-      call->attrs.defined() != is_alloc ||
+  if (!buffer || (call->args.size() != shape_index + 3 && !(is_alloc && call->args.size() == 4)) ||
+      !call->ty_args.empty() || call->attrs.defined() != is_alloc ||
       (call->attrs.defined() && !call->attrs.as<DictAttrsNode>())) {
     return RawCall(d, call);
   }
@@ -85,23 +85,7 @@ ffi::Optional<ExprDoc> BufferOperationDocTranslate(DocTranslatorObj* d, ffi::Any
     }
   }
   ffi::Optional<Expr> data = is_alloc ? std::nullopt : ffi::Optional<Expr>(call->args[0]);
-  if (!buffer.value()->allocated_addr.empty() &&
-      (!ffi::StructuralEqual()(buffer.value()->elem_offset,
-                               IntImm(PrimType(buffer.value()->DefaultIndexType()), 0)) ||
-       buffer.value()->offset_factor != 1 || (!is_alloc && scope->value != "tmem"))) {
-    return RawCall(d, call);
-  }
-  if (!is_alloc && scope->value == "tmem") {
-    const auto* pointer = data.value().as<CallNode>();
-    if (buffer.value()->allocated_addr.size() != 1 || !pointer ||
-        !pointer->op.same_as(tirx::reinterpret_op()) || pointer->args.size() != 1 ||
-        pointer->attrs.defined() || !pointer->ty_args.empty() ||
-        !ffi::StructuralEqual()(pointer->ty, buffer.value()->DataPointerType()) ||
-        !ffi::StructuralEqual()(pointer->args[0], buffer.value()->allocated_addr[0])) {
-      return RawCall(d, call);
-    }
-    data = std::nullopt;
-  } else if (!is_alloc) {
+  if (!is_alloc) {
     const auto* pointer = data.value()->ty.as<PointerTypeNode>();
     if (!pointer || pointer->storage_scope != scope->value) return RawCall(d, call);
   }
@@ -119,6 +103,12 @@ ffi::Optional<ExprDoc> BufferOperationDocTranslate(DocTranslatorObj* d, ffi::Any
     }
   }
   rhs->callee = NamespaceDoc("tirx")->Attr(method);
+  if (is_alloc && call->args.size() == 4) {
+    auto placement = call->args[3].as<tvm::TupleNode>();
+    if (!placement) return RawCall(d, call);
+    rhs->kwargs_keys.push_back("allocated_addr");
+    rhs->kwargs_values.push_back(AnyValue(d, placement->fields));
+  }
   if (data.has_value()) {
     rhs->kwargs_keys.insert(rhs->kwargs_keys.begin(), "data");
     rhs->kwargs_values.insert(rhs->kwargs_values.begin(), d->Translate(data.value()).value());
@@ -131,7 +121,8 @@ ffi::Optional<ExprDoc> BufferOperationDocTranslate(DocTranslatorObj* d, ffi::Any
   IdDoc lhs = VarDoc(d, var);
   AssignDoc allocation(lhs, rhs, std::nullopt);
   if (is_alloc && d->GetExtraConfig<bool>("tirx.scalar_buffer_as_mutable_var", true) &&
-      annotations.empty() && scope->value == "local" && buffer.value()->IsScalar(true)) {
+      annotations.empty() && call->args.size() == 3 && scope->value == "local" &&
+      buffer.value()->IsScalar(true)) {
     ExprDoc annotation = d->Translate(buffer.value()->dtype).value();
     // T.bool is a type annotation but has no mutable-declaration syntax.
     if (annotation.as<AttrAccessDoc>() && !buffer.value()->dtype.MatchesCode(kDLBool)) {
@@ -158,23 +149,21 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::TensorTypeNode>(input);
   bool default_offset =
       ffi::StructuralEqual()(buffer->elem_offset, IntImm(PrimType(buffer->DefaultIndexType()), 0));
-  // The buffer type constructor normalizes these fields and constrains allocated addresses.
+  // The buffer type constructor normalizes these fields.
   // Keep the explicit type constructor when that normalization would change the IR.
-  if (buffer->storage_scope.empty() || buffer->data_alignment <= 0 || buffer->offset_factor == 0 ||
-      (!buffer->allocated_addr.empty() && (!default_offset || buffer->offset_factor != 1))) {
+  if (buffer->storage_scope.empty() || buffer->data_alignment <= 0 || buffer->offset_factor == 0) {
     return NamespaceDoc("ir")
         ->Attr("make_node")
         ->Call({LiteralDoc::Str("tirx.TensorType", std::nullopt)},
                {"dtype", "storage_scope", "shape", "strides", "elem_offset", "data_alignment",
-                "offset_factor", "layout", "allocated_addr"},
+                "offset_factor", "layout"},
                {TypeValue(d, buffer->dtype, false),
                 LiteralDoc::Str(buffer->storage_scope, std::nullopt), AnyValue(d, buffer->shape),
                 AnyValue(d, buffer->strides), d->Translate(buffer->elem_offset).value(),
                 LiteralDoc::Int(buffer->data_alignment, std::nullopt),
                 LiteralDoc::Int(buffer->offset_factor, std::nullopt),
                 buffer->layout.has_value() ? d->Translate(buffer->layout.value()).value()
-                                           : LiteralDoc::None(std::nullopt),
-                AnyValue(d, buffer->allocated_addr)});
+                                           : LiteralDoc::None(std::nullopt)});
   }
   ffi::Array<ExprDoc> shape;
   for (const PrimExpr& extent : buffer->shape) shape.push_back(d->Translate(extent).value());
@@ -191,7 +180,7 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
     values.push_back(TupleDoc(strides));
   }
   // A nondefault offset_factor makes an omitted offset symbolic in the parser.
-  if (buffer->allocated_addr.empty() && (!default_offset || buffer->offset_factor != 1)) {
+  if ((!default_offset || buffer->offset_factor != 1)) {
     keys.push_back("elem_offset");
     values.push_back(d->Translate(buffer->elem_offset).value());
   }
@@ -199,7 +188,7 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
     keys.push_back("align");
     values.push_back(LiteralDoc::Int(buffer->data_alignment, std::nullopt));
   }
-  if (buffer->allocated_addr.empty() && buffer->offset_factor != 1) {
+  if (buffer->offset_factor != 1) {
     keys.push_back("offset_factor");
     values.push_back(LiteralDoc::Int(buffer->offset_factor, std::nullopt));
   }
@@ -220,14 +209,6 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
       keys.push_back("layout");
       values.push_back(LiteralDoc::None(std::nullopt));
     }
-  }
-  if (!buffer->allocated_addr.empty()) {
-    ffi::Array<ExprDoc> addresses;
-    for (const PrimExpr& address : buffer->allocated_addr) {
-      addresses.push_back(d->Translate(address).value());
-    }
-    keys.push_back("allocated_addr");
-    values.push_back(addresses.size() == 1 ? addresses[0] : ExprDoc(TupleDoc(addresses)));
   }
   return NamespaceDoc("tirx")->Attr("Tensor")->Call(
       {TupleDoc(shape), LiteralDoc::DataType(buffer->dtype->dtype, std::nullopt)}, keys, values);

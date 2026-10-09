@@ -27,7 +27,7 @@ namespace tvm {
 namespace tirx {
 
 namespace callback {
-/*! \brief The buffers allocated by the operator. */
+/*! \brief The allocation Bind statements requested by the operator. */
 constexpr const char* kPrivateAlloc = "private_alloc";
 /*! \brief The initialization statement of the operator.
  *  which will be inserted at the beginning of the kernel
@@ -93,7 +93,8 @@ class DispatchContextNode : public ffi::Object {
   }
 
   /*! \brief Add a buffer to be allocated in the kernel. */
-  void AddAllocBuffer(TensorVar buffer);
+  void AddAllocBuffer(TensorVar buffer, ffi::Array<PrimExpr> allocated_addr = {},
+                      ffi::Map<ffi::String, ffi::Any> annotations = {});
 
   /*! \brief Add an initialization statement to be inserted. */
   void AddInitStmt(Stmt stmt, bool host = false);

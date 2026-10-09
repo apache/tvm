@@ -230,7 +230,6 @@ void CodeGenTrainium::DispatchAllocTensor(const BindNode* op, const CallNode* bu
   DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
   ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
   TensorVar buffer = op->var.as_or_throw<TensorVar>();
-  DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
   TVM_FFI_ICHECK(buffer.defined());
   std::string vid = AllocVarID(buffer.get(), buffer.name() + "_ptr");
 
@@ -249,11 +248,8 @@ void CodeGenTrainium::DispatchAllocTensor(const BindNode* op, const CallNode* bu
            << ", dtype=" << dtype_str << ", buffer=";
   }
   Array<PrimExpr> addr;
-  if (auto allocated_addr = annotations->dict.Get(tirx::attr::buffer_allocated_addr)) {
-    addr = allocated_addr.value().as_or_throw<Array<PrimExpr>>();
-  } else {
-    // Fall back to the allocated address stored in the buffer type.
-    addr = buffer->allocated_addr;
+  if (buffer_call->args.size() == 4) {
+    addr = buffer_call->args[3].as_or_throw<tvm::Tuple>()->fields.as_or_throw<Array<PrimExpr>>();
   }
   if (addr.empty()) {
     stream << GetStorageScopeStr(scope) << ")\n";
