@@ -30,6 +30,8 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import relax, rpc, te, tirx, topi
+from tvm.ir import TupleType as _TupleType
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.testing import nn
 from tvm.relax.testing.vm import check_saved_func
 from tvm.script import ir as I
@@ -173,7 +175,11 @@ def test_vm_compile_stage3():
         @R.function
         def foo(x: R.Tensor((32, 16), "float32")) -> R.Tensor:
             with R.dataflow():
-                y = R.call_dps_packed("test.vm.identity", (x), R.Tensor((32, 16), dtype="float32"))
+                y = R.call_dps_packed(
+                    _ExternFunc("test.vm.identity"),
+                    (x),
+                    ty_args=[R.Tensor((32, 16), dtype="float32")],
+                )
                 R.output(y)
             return y
 
@@ -198,7 +204,11 @@ def test_vm_compile_e2e():
         def foo(x: R.Tensor(dtype="float32")) -> R.Tensor:
             with R.dataflow():
                 _ = R.match_cast(x, R.Tensor((n, m), "float32"))
-                y = R.call_dps_packed("test.vm.tile", (x), R.Tensor((n, m * 2), dtype="float32"))
+                y = R.call_dps_packed(
+                    _ExternFunc("test.vm.tile"),
+                    (x),
+                    ty_args=[R.Tensor((n, m * 2), dtype="float32")],
+                )
                 R.output(y)
             return y
 
@@ -244,7 +254,9 @@ def test_vm_compile_e2e_func_param_with_shape():
             x: R.Tensor((m_func, n_func), "float32"), w: R.Tensor((n_func, k_func), "float32")
         ) -> R.Tensor:
             cls = TestVMCompileE2E2
-            gv0 = R.call_tir(cls.tir_matmul, (x, w), R.Tensor((m_func, k_func), dtype="float32"))
+            gv0 = R.call_tir(
+                cls.tir_matmul, (x, w), ty_args=[R.Tensor((m_func, k_func), dtype="float32")]
+            )
             return gv0
 
     mod = TestVMCompileE2E2
@@ -290,8 +302,16 @@ def test_call_tir_inplace_e2e_simple():
             res = R.call_tir_inplace(
                 TestCallTIRInplaceE2ESimple.copy,
                 (x, y, z),
-                [0, 1, -1],
-                [R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")],
+                inplace_indices=[0, 1, -1],
+                ty_args=[
+                    _TupleType(
+                        [
+                            R.Tensor((2, 3), "int32"),
+                            R.Tensor((2, 3), "int32"),
+                            R.Tensor((2, 3), "int32"),
+                        ]
+                    )
+                ],
             )
             return res
 
@@ -338,7 +358,10 @@ def test_call_tir_inplace_e2e_rw():
             (2, 3), "int32"
         ):
             res = R.call_tir_inplace(
-                TestCallTIRInplaceE2ERW.inplace_add, (x, y), [0], R.Tensor((2, 3), "int32")
+                TestCallTIRInplaceE2ERW.inplace_add,
+                (x, y),
+                inplace_indices=[0],
+                ty_args=[R.Tensor((2, 3), "int32")],
             )
             return res
 
@@ -730,7 +753,9 @@ def test_sub_func_call():
         ) -> R.Tensor((32, 32), dtype="float32"):
             cls = TestVMSubFunction
             with R.dataflow():
-                gv0 = R.call_tir(cls.tir_matmul, (x, w), R.Tensor((32, 32), dtype="float32"))
+                gv0 = R.call_tir(
+                    cls.tir_matmul, (x, w), ty_args=[R.Tensor((32, 32), dtype="float32")]
+                )
                 R.output(gv0)
             return gv0
 
@@ -927,7 +952,7 @@ class TestVMSetInput:
     @R.function
     def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
         cls = TestVMSetInput
-        gv0 = R.call_tir(cls.test_vm_mul, (x, w), R.Tensor((32, 32), dtype="float32"))
+        gv0 = R.call_tir(cls.test_vm_mul, (x, w), ty_args=[R.Tensor((32, 32), dtype="float32")])
         return gv0
 
 
@@ -948,7 +973,7 @@ def test_multi_systemlib():
 
         @R.function
         def main(s: R.Shape([m])) -> R.Tensor:
-            gv0 = R.call_tir(ModA.tir_init, (), R.Tensor((m + 1,), dtype="float32"))
+            gv0 = R.call_tir(ModA.tir_init, (), ty_args=[R.Tensor((m + 1,), dtype="float32")])
             return gv0
 
     N = T.dynamic("N")
@@ -965,7 +990,7 @@ def test_multi_systemlib():
 
         @R.function
         def main(s: R.Shape([m])) -> R.Tensor:
-            gv0 = R.call_tir(ModB.tir_init, (), R.Tensor((m,), dtype="float32"))
+            gv0 = R.call_tir(ModB.tir_init, (), ty_args=[R.Tensor((m,), dtype="float32")])
             return gv0
 
     target = tvm.target.Target("llvm", host="llvm")

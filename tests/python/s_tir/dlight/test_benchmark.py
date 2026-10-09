@@ -93,12 +93,12 @@ class Module:
         R.func_attr({"tir_var_upper_bound": {"n": 2048}})
         cls = Module
         with R.dataflow():
-            lv1 = R.call_tir(cls.full1,(), out_ty=R.Tensor((1, 32, 1, _test_n), dtype="float16"))
-            lv1_1 = R.call_tir(cls.full1,(), out_ty=R.Tensor((1, 32, 1, _test_n), dtype="float16"))
-            lv1_2 = R.call_tir(cls.full1,(), out_ty=R.Tensor((1, 32, 1, _test_n), dtype="float16"))
-            lv2 = R.call_tir(cls.full2,(), out_ty=R.Tensor((1, 32, _test_n, 128), dtype="float16"))
-            lv2_1 = R.call_tir(cls.full2,(), out_ty=R.Tensor((1, 32, _test_n, 128), dtype="float16"))
-            lv3 = R.call_tir(cls.matmul1, (lv1, lv2), out_ty=R.Tensor((1, 32, 1, 128), dtype="float16"))
+            lv1 = R.call_tir(cls.full1,(), ty_args=[R.Tensor((1, 32, 1, _test_n), dtype="float16")])
+            lv1_1 = R.call_tir(cls.full1,(), ty_args=[R.Tensor((1, 32, 1, _test_n), dtype="float16")])
+            lv1_2 = R.call_tir(cls.full1,(), ty_args=[R.Tensor((1, 32, 1, _test_n), dtype="float16")])
+            lv2 = R.call_tir(cls.full2,(), ty_args=[R.Tensor((1, 32, _test_n, 128), dtype="float16")])
+            lv2_1 = R.call_tir(cls.full2,(), ty_args=[R.Tensor((1, 32, _test_n, 128), dtype="float16")])
+            lv3 = R.call_tir(cls.matmul1, (lv1, lv2), ty_args=[R.Tensor((1, 32, 1, 128), dtype="float16")])
             R.output(lv3)
         return lv3
 

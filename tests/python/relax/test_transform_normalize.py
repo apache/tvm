@@ -22,6 +22,7 @@ import tvm.script
 import tvm.testing
 from tvm import relax
 from tvm.ir.base import assert_structural_equal
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.script import relax as R
 from tvm.script import tirx as T
 
@@ -126,9 +127,15 @@ def test_normalize_no_op():
         @R.function
         def foo(x: R.Tensor((m, n), "float32")):
             with R.dataflow():
-                lv0 = R.call_dps_packed("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
+                lv0 = R.call_dps_packed(
+                    _ExternFunc("test.op.identity"),
+                    (x,),
+                    ty_args=[R.Tensor((m, n), dtype="float32")],
+                )
                 gv0 = R.call_dps_packed(
-                    "test.op.identity", (lv0,), R.Tensor((m, n), dtype="float32")
+                    _ExternFunc("test.op.identity"),
+                    (lv0,),
+                    ty_args=[R.Tensor((m, n), dtype="float32")],
                 )
                 R.output(gv0)
             return gv0

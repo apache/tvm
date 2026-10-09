@@ -99,7 +99,7 @@ def test_compile_mixed_module():
         def main(x: R.Tensor((4,), "float32")):
             cls = MyModule
             with R.dataflow():
-                y = R.call_tir(cls.add_one, [x], R.Tensor((4,), "float32"))
+                y = R.call_tir(cls.add_one, [x], ty_args=[R.Tensor((4,), "float32")])
                 return y
 
     # Test with custom pipeline

@@ -21,6 +21,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import relax
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
@@ -44,10 +45,10 @@ def test_bind_tensors():
         ) -> R.Tensor((batch, k), dtype="float32"):
             with R.dataflow():
                 lv0 = R.call_dps_packed(
-                    "test0", (x, w0), out_ty=R.Tensor((batch, n), dtype="float32")
+                    _ExternFunc("test0"), (x, w0), ty_args=[R.Tensor((batch, n), dtype="float32")]
                 )
                 out = R.call_dps_packed(
-                    "test1", (lv0, w1), out_ty=R.Tensor((batch, k), dtype="float32")
+                    _ExternFunc("test1"), (lv0, w1), ty_args=[R.Tensor((batch, k), dtype="float32")]
                 )
                 R.output(out)
             return out
@@ -68,9 +69,11 @@ def test_bind_tensors():
             w1: R.Tensor((3, 10), dtype="float32"),
         ) -> R.Tensor((1, 3), dtype="float32"):
             with R.dataflow():
-                lv0 = R.call_dps_packed("test0", (x, w0), out_ty=R.Tensor((1, n), dtype="float32"))
+                lv0 = R.call_dps_packed(
+                    _ExternFunc("test0"), (x, w0), ty_args=[R.Tensor((1, n), dtype="float32")]
+                )
                 out = R.call_dps_packed(
-                    "test1", (lv0, w1), out_ty=R.Tensor((1, 3), dtype="float32")
+                    _ExternFunc("test1"), (lv0, w1), ty_args=[R.Tensor((1, 3), dtype="float32")]
                 )
                 R.output(out)
             return out
@@ -95,8 +98,12 @@ def test_bind_shape():
             w1: R.Shape((k, 10)),
         ) -> R.Shape((batch, k)):
             with R.dataflow():
-                lv0 = R.call_dps_packed("test0", (x, w0), out_ty=R.Tensor((batch, n)))
-                out = R.call_dps_packed("test1", (lv0, w1), out_ty=R.Tensor((batch, k)))
+                lv0 = R.call_dps_packed(
+                    _ExternFunc("test0"), (x, w0), ty_args=[R.Tensor((batch, n))]
+                )
+                out = R.call_dps_packed(
+                    _ExternFunc("test1"), (lv0, w1), ty_args=[R.Tensor((batch, k))]
+                )
                 R.output(out)
             return out
 
@@ -112,8 +119,8 @@ def test_bind_shape():
         @R.function
         def main(x: R.Shape([1, m]), w0: R.Shape([m, n]), w1: R.Shape([3, 10])) -> R.Shape([1, 3]):
             with R.dataflow():
-                lv0 = R.call_dps_packed("test0", (x, w0), out_ty=R.Tensor((1, n)))
-                out = R.call_dps_packed("test1", (lv0, w1), out_ty=R.Tensor((1, 3)))
+                lv0 = R.call_dps_packed(_ExternFunc("test0"), (x, w0), ty_args=[R.Tensor((1, n))])
+                out = R.call_dps_packed(_ExternFunc("test1"), (lv0, w1), ty_args=[R.Tensor((1, 3))])
                 R.output(out)
             return out
 
@@ -138,14 +145,14 @@ def test_arith():
         ) -> R.Tensor((batch, k * m), dtype="float32"):
             with R.dataflow():
                 lv0 = R.call_dps_packed(
-                    "test0",
+                    _ExternFunc("test0"),
                     (x, w0),
-                    out_ty=R.Tensor((batch, m + n), dtype="float32"),
+                    ty_args=[R.Tensor((batch, m + n), dtype="float32")],
                 )
                 out = R.call_dps_packed(
-                    "test1",
+                    _ExternFunc("test1"),
                     (lv0, w1),
-                    out_ty=R.Tensor((batch, k + n), dtype="float32"),
+                    ty_args=[R.Tensor((batch, k + n), dtype="float32")],
                 )
                 R.output(out)
             return out
@@ -166,10 +173,10 @@ def test_arith():
         ) -> R.Tensor((1, 6), dtype="float32"):
             with R.dataflow():
                 lv0 = R.call_dps_packed(
-                    "test0", (x, w0), out_ty=R.Tensor((1, n + 3), dtype="float32")
+                    _ExternFunc("test0"), (x, w0), ty_args=[R.Tensor((1, n + 3), dtype="float32")]
                 )
                 out = R.call_dps_packed(
-                    "test1", (lv0, w1), out_ty=R.Tensor((1, n + 2), dtype="float32")
+                    _ExternFunc("test1"), (lv0, w1), ty_args=[R.Tensor((1, n + 2), dtype="float32")]
                 )
                 R.output(out)
             return out

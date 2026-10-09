@@ -25,6 +25,7 @@ import tvm
 import tvm.testing
 from tvm import ir, tirx
 from tvm import relax as rx
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.script import relax as R
 from tvm.script import tirx as T
 
@@ -708,7 +709,9 @@ def test_collect_symbolic_var_from_tensor_shape():
     x = rx.Var("x", rx.TensorType([m, m + n], "float32"))
     with bb.function("main", [x]):
         v0 = bb.match_cast(x, rx.TensorType([m, k], "float32"))
-        v1 = bb.emit(rx.call_dps_packed("test", x, rx.TensorType([p, q], "float32")))
+        v1 = bb.emit(
+            rx.call_dps_packed(_ExternFunc("test"), x, ty_args=[rx.TensorType([p, q], "float32")])
+        )
         bb.emit_func_output(rx.const(1))
     func = bb.get()["main"]
 

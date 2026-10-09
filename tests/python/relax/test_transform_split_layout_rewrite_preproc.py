@@ -17,6 +17,7 @@
 
 import tvm.testing
 from tvm import relax
+from tvm.ir import TupleType as _TupleType
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import s_tir as Ts
@@ -53,7 +54,9 @@ def test_single_buffer():
             R.func_attr({"num_input": 1})
             cls = Before
             with R.dataflow():
-                gv = R.call_tir(cls.tir_func, (x, w), out_ty=R.Tensor((224, 224), dtype="float32"))
+                gv = R.call_tir(
+                    cls.tir_func, (x, w), ty_args=[R.Tensor((224, 224), dtype="float32")]
+                )
                 R.output(gv)
             return gv
 
@@ -90,10 +93,10 @@ def test_single_buffer():
             cls = After
             with R.dataflow():
                 lv = R.call_tir(
-                    cls.tir_func_weight_prepack, (w,), out_ty=R.Tensor((4, 4, 56, 56), "float32")
+                    cls.tir_func_weight_prepack, (w,), ty_args=[R.Tensor((4, 4, 56, 56), "float32")]
                 )
                 lv1 = R.call_tir(
-                    cls.tir_func_prepacked, (x, lv), out_ty=R.Tensor((224, 224), "float32")
+                    cls.tir_func_prepacked, (x, lv), ty_args=[R.Tensor((224, 224), "float32")]
                 )
                 gv: R.Tensor((224, 224), dtype="float32") = lv1
                 R.output(gv)
@@ -145,7 +148,7 @@ def test_multiple_buffers():
             cls = Before
             with R.dataflow():
                 gv = R.call_tir(
-                    cls.tir_func, (x, w1, w2), out_ty=R.Tensor((224, 224), dtype="float32")
+                    cls.tir_func, (x, w1, w2), ty_args=[R.Tensor((224, 224), dtype="float32")]
                 )
                 R.output(gv)
             return gv
@@ -197,15 +200,19 @@ def test_multiple_buffers():
                 lv0 = R.call_tir(
                     cls.tir_func_weight_prepack,
                     (w1, w2),
-                    out_ty=[
-                        R.Tensor((4, 4, 56, 56), "float32"),
-                        R.Tensor((4, 4, 56, 56), "float32"),
+                    ty_args=[
+                        _TupleType(
+                            [
+                                R.Tensor((4, 4, 56, 56), "float32"),
+                                R.Tensor((4, 4, 56, 56), "float32"),
+                            ]
+                        )
                     ],
                 )
                 lv1 = R.call_tir(
                     cls.tir_func_prepacked,
                     (x, lv0[0], lv0[1]),
-                    out_ty=R.Tensor((224, 224), "float32"),
+                    ty_args=[R.Tensor((224, 224), "float32")],
                 )
                 gv: R.Tensor((224, 224), dtype="float32") = lv1
                 R.output(gv)
@@ -245,7 +252,9 @@ def test_attr_inheritance():
             R.func_attr({"num_input": 1})
             cls = Before
             with R.dataflow():
-                gv = R.call_tir(cls.tir_func, (x, w), out_ty=R.Tensor((224, 224), dtype="float32"))
+                gv = R.call_tir(
+                    cls.tir_func, (x, w), ty_args=[R.Tensor((224, 224), dtype="float32")]
+                )
                 R.output(gv)
             return gv
 
@@ -284,10 +293,10 @@ def test_attr_inheritance():
             cls = After
             with R.dataflow():
                 lv = R.call_tir(
-                    cls.tir_func_weight_prepack, (w,), out_ty=R.Tensor((4, 4, 56, 56), "float32")
+                    cls.tir_func_weight_prepack, (w,), ty_args=[R.Tensor((4, 4, 56, 56), "float32")]
                 )
                 lv1 = R.call_tir(
-                    cls.tir_func_prepacked, (x, lv), out_ty=R.Tensor((224, 224), "float32")
+                    cls.tir_func_prepacked, (x, lv), ty_args=[R.Tensor((224, 224), "float32")]
                 )
                 gv: R.Tensor((224, 224), dtype="float32") = lv1
                 R.output(gv)

@@ -48,7 +48,7 @@ def test_param():
             R.func_attr({"num_input": 1})
             cls = Before
             with R.dataflow():
-                gv = R.call_tir(cls.matmul, (x, y), out_ty=R.Tensor((32, 32), "float32"))
+                gv = R.call_tir(cls.matmul, (x, y), ty_args=[R.Tensor((32, 32), "float32")])
                 R.output(gv)
             return gv
 
@@ -72,7 +72,7 @@ def test_param():
             R.func_attr({"num_input": 1})
             cls = Expected
             with R.dataflow():
-                gv = R.call_tir(cls.matmul1, (x, y), out_ty=R.Tensor((32, 32), "float32"))
+                gv = R.call_tir(cls.matmul1, (x, y), ty_args=[R.Tensor((32, 32), "float32")])
                 R.output(gv)
             return gv
 
@@ -105,7 +105,7 @@ def test_const():
                 gv = R.call_tir(
                     cls.matmul,
                     (x, relax.const(const_value)),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 R.output(gv)
             return gv
@@ -133,7 +133,7 @@ def test_const():
                 gv = R.call_tir(
                     cls.matmul1,
                     (x, relax.const(const_value)),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 R.output(gv)
             return gv
@@ -169,12 +169,12 @@ def test_multiple_same_func():
                 lv1 = R.call_tir(
                     cls.matmul,
                     (x, w1),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 gv = R.call_tir(
                     cls.matmul,
                     (lv1, w2),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 R.output(gv)
             return gv
@@ -206,12 +206,12 @@ def test_multiple_same_func():
                 lv1 = R.call_tir(
                     cls.matmul1,
                     (x, w1),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 gv = R.call_tir(
                     cls.matmul1,
                     (lv1, w2),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 R.output(gv)
             return gv
@@ -247,12 +247,12 @@ def test_multiple_same_func_with_different_free_buffers():
                 lv1 = R.call_tir(
                     cls.matmul,
                     (x, w1),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 gv = R.call_tir(
                     cls.matmul,
                     (w2, lv1),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 R.output(gv)
             return gv
@@ -297,12 +297,12 @@ def test_multiple_same_func_with_different_free_buffers():
                 lv1 = R.call_tir(
                     cls.matmul1,
                     (x, w1),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 gv = R.call_tir(
                     cls.matmul2,
                     (w2, lv1),
-                    out_ty=R.Tensor((32, 32), "float32"),
+                    ty_args=[R.Tensor((32, 32), "float32")],
                 )
                 R.output(gv)
             return gv

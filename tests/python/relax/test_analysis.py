@@ -21,6 +21,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax as rx
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.analysis import (
     all_global_vars,
     all_vars,
@@ -91,9 +92,13 @@ def test_chained_remove_all_unused():
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
-                unused0 = R.call_dps_packed("my_sigmoid", (x,), R.Tensor((32, 32), dtype="float32"))
+                unused0 = R.call_dps_packed(
+                    _ExternFunc("my_sigmoid"), (x,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+                )
                 unused1 = R.call_dps_packed(
-                    "my_dps_func", (unused0,), R.Tensor((32, 32), dtype="float32")
+                    _ExternFunc("my_dps_func"),
+                    (unused0,),
+                    ty_args=[R.Tensor((32, 32), dtype="float32")],
                 )
                 R.output(lv0)
             return lv0
@@ -126,9 +131,13 @@ def test_binding_block_remove_all_unused():
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
-                unused0 = R.call_dps_packed("my_sigmoid", (x,), R.Tensor((32, 32), dtype="float32"))
+                unused0 = R.call_dps_packed(
+                    _ExternFunc("my_sigmoid"), (x,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+                )
                 unused1 = R.call_dps_packed(
-                    "my_dps_func", (unused0,), R.Tensor((32, 32), dtype="float32")
+                    _ExternFunc("my_dps_func"),
+                    (unused0,),
+                    ty_args=[R.Tensor((32, 32), dtype="float32")],
                 )
                 R.output(lv0)
             z = R.call_packed("vm.builtin.copy", lv0, ty_args=(R.Tensor((32, 32), "float32")))
@@ -161,8 +170,12 @@ def test_binding_block_remove_unused_pure_without_dataflow():
     @R.function(private=True)
     def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         lv0 = x
-        unused0 = R.call_dps_packed("my_sigmoid", (x,), R.Tensor((32, 32), dtype="float32"))
-        unused1 = R.call_dps_packed("my_dps_func", (unused0,), R.Tensor((32, 32), dtype="float32"))
+        unused0 = R.call_dps_packed(
+            _ExternFunc("my_sigmoid"), (x,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+        )
+        unused1 = R.call_dps_packed(
+            _ExternFunc("my_dps_func"), (unused0,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+        )
         return x
 
     @R.function(private=True)
@@ -321,9 +334,13 @@ def test_remove_all_unused_from_dataflow_block():
     def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         with R.dataflow():
             lv0 = x
-            unused0 = R.call_dps_packed("my_sigmoid", (x,), R.Tensor((32, 32), dtype="float32"))
+            unused0 = R.call_dps_packed(
+                _ExternFunc("my_sigmoid"), (x,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
             unused1 = R.call_dps_packed(
-                "my_dps_func", (unused0,), R.Tensor((32, 32), dtype="float32")
+                _ExternFunc("my_dps_func"),
+                (unused0,),
+                ty_args=[R.Tensor((32, 32), dtype="float32")],
             )
             R.output(lv0)
         return lv0
@@ -345,8 +362,12 @@ def test_remove_all_unused_from_binding_block():
     @R.function
     def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         lv0 = x
-        unused0 = R.call_dps_packed("my_sigmoid", (x,), R.Tensor((32, 32), dtype="float32"))
-        unused1 = R.call_dps_packed("my_dps_func", (unused0,), R.Tensor((32, 32), dtype="float32"))
+        unused0 = R.call_dps_packed(
+            _ExternFunc("my_sigmoid"), (x,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+        )
+        unused1 = R.call_dps_packed(
+            _ExternFunc("my_dps_func"), (unused0,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+        )
         return lv0
 
     @R.function
@@ -365,7 +386,9 @@ def test_retain_impure_calls_unused_in_binding_block():
     def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         lv0 = x
         unused0 = R.call_packed("my_impure_call", x, ty_args=R.Tensor((32, 32), dtype="float32"))
-        unused1 = R.call_dps_packed("my_unused_call", (lv0,), R.Tensor((32, 32), dtype="float32"))
+        unused1 = R.call_dps_packed(
+            _ExternFunc("my_unused_call"), (lv0,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+        )
         return lv0
 
     @R.function(pure=False)

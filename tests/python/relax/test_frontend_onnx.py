@@ -3704,7 +3704,7 @@ def test_clip():
                 lv2 = R.call_tir(
                     cls.maximum,
                     (input, lv1),
-                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                    ty_args=[R.Tensor((32, 64), dtype="float32")],
                 )
                 lv3: R.Tensor((), dtype="bool") = R.isnan(max)
                 lv4: R.Tensor((), dtype="float32") = R.where(
@@ -3713,7 +3713,7 @@ def test_clip():
                 lv5 = R.call_tir(
                     cls.minimum,
                     (lv2, lv4),
-                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                    ty_args=[R.Tensor((32, 64), dtype="float32")],
                 )
                 gv: R.Tensor((32, 64), dtype="float32") = lv5
                 R.output(gv)
@@ -3744,7 +3744,7 @@ def test_clip():
                 lv2 = R.call_tir(
                     cls.maximum,
                     (input, lv1),
-                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                    ty_args=[R.Tensor((32, 64), dtype="float32")],
                 )
                 gv: R.Tensor((32, 64), dtype="float32") = lv2
                 R.output(gv)
@@ -3775,7 +3775,7 @@ def test_clip():
                 lv2 = R.call_tir(
                     cls.maximum,
                     (input, lv1),
-                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                    ty_args=[R.Tensor((32, 64), dtype="float32")],
                 )
                 gv: R.Tensor((32, 64), dtype="float32") = lv2
                 R.output(gv)
@@ -3842,12 +3842,12 @@ def test_clip_v6(max, min):
                 lv = R.call_tir(
                     cls.maximum,
                     (input,),
-                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                    ty_args=[R.Tensor((32, 64), dtype="float32")],
                 )
                 lv1 = R.call_tir(
                     cls.minimum,
                     (lv,),
-                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                    ty_args=[R.Tensor((32, 64), dtype="float32")],
                 )
                 gv: R.Tensor((32, 64), dtype="float32") = lv1
                 R.output(gv)
@@ -8338,7 +8338,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8366,7 +8366,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8396,7 +8396,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.mirror_pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8425,7 +8425,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.mirror_pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8455,7 +8455,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.replicate_pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8484,7 +8484,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.replicate_pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -8515,7 +8515,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                         lv = R.call_tir(
                             cls.circular_pad,
                             (input,),
-                            out_ty=R.Tensor(out_shape, dtype="float32"),
+                            ty_args=[R.Tensor(out_shape, dtype="float32")],
                         )
                         gv: R.Tensor(out_shape, dtype="float32") = lv
                         R.output(gv)
@@ -8544,7 +8544,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
                     lv = R.call_tir(
                         cls.circular_pad,
                         (input,),
-                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                        ty_args=[R.Tensor(out_shape, dtype="float32")],
                     )
                     gv: R.Tensor(out_shape, dtype="float32") = lv
                     R.output(gv)
@@ -9084,15 +9084,17 @@ def test_tile():
                 lv = R.call_tir(
                     cls.tile,
                     (input,),
-                    out_ty=R.Tensor(
-                        (
-                            tile_input_dim_0 * 2,
-                            tile_input_dim_1,
-                            tile_input_dim_2 * 3,
-                            tile_input_dim_3 * 2,
-                        ),
-                        dtype="float32",
-                    ),
+                    ty_args=[
+                        R.Tensor(
+                            (
+                                tile_input_dim_0 * 2,
+                                tile_input_dim_1,
+                                tile_input_dim_2 * 3,
+                                tile_input_dim_3 * 2,
+                            ),
+                            dtype="float32",
+                        )
+                    ],
                 )
                 gv: R.Tensor(
                     (
@@ -9125,7 +9127,7 @@ def test_tile():
                 lv = R.call_tir(
                     cls.tile,
                     (input,),
-                    out_ty=R.Tensor((4, 3, 12, 10), dtype="float32"),
+                    ty_args=[R.Tensor((4, 3, 12, 10), dtype="float32")],
                 )
                 gv: R.Tensor((4, 3, 12, 10), dtype="float32") = lv
                 R.output(gv)
@@ -9204,7 +9206,7 @@ def test_tile_dynamic_repeats():
                         lv4 = R.call_tir(
                             cls.dyn_tile,
                             (input,),
-                            out_ty=R.Tensor((tile_dim_0, tile_dim_1), dtype="float32"),
+                            ty_args=[R.Tensor((tile_dim_0, tile_dim_1), dtype="float32")],
                         )
                         gv: R.Tensor((tile_dim_0, tile_dim_1), dtype="float32") = lv4
                         R.output(gv)
@@ -9244,7 +9246,9 @@ def test_tile_dynamic_repeats():
                         lv4 = R.call_tir(
                             cls.dyn_tile,
                             (input,),
-                            out_ty=R.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), dtype="float32"),
+                            ty_args=[
+                                R.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), dtype="float32")
+                            ],
                         )
                         gv: R.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), dtype="float32") = lv4
                         R.output(gv)
@@ -9289,10 +9293,12 @@ def test_tile_dynamic_repeats():
                         lv4 = R.call_tir(
                             cls.dyn_tile,
                             (input,),
-                            out_ty=R.Tensor(
-                                (tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3),
-                                dtype="float32",
-                            ),
+                            ty_args=[
+                                R.Tensor(
+                                    (tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3),
+                                    dtype="float32",
+                                )
+                            ],
                         )
                         gv: R.Tensor(
                             (tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3), dtype="float32"
@@ -9565,7 +9571,7 @@ def test_einsum():
             R.func_attr({"num_input": 1})
             cls = Expected
             with R.dataflow():
-                lv = R.call_tir(cls.einsum, (x,), out_ty=R.Tensor((3,), dtype="float32"))
+                lv = R.call_tir(cls.einsum, (x,), ty_args=[R.Tensor((3,), dtype="float32")])
                 gv: R.Tensor((3,), dtype="float32") = lv
                 R.output(gv)
             return gv

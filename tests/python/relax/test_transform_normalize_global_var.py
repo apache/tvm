@@ -74,7 +74,9 @@ def test_normalize_tir_function():
         def f1():
             R.func_attr({"global_symbol": "f"})
             cls = Before
-            gv: R.Tensor((), dtype="int32") = R.call_tir(cls.f, (), R.Tensor((1,), dtype="int32"))
+            gv: R.Tensor((), dtype="int32") = R.call_tir(
+                cls.f, (), ty_args=[R.Tensor((1,), dtype="int32")]
+            )
             return gv
 
     @I.ir_module
@@ -86,7 +88,7 @@ def test_normalize_tir_function():
         @R.function
         def f() -> R.Tensor((1,), dtype="int32"):
             cls = Expected
-            gv = R.call_tir(cls.f1, R.tuple(), out_ty=R.Tensor((1,), dtype="int32"))
+            gv = R.call_tir(cls.f1, R.tuple(), ty_args=[R.Tensor((1,), dtype="int32")])
             return gv
 
     After = relax.transform.NormalizeGlobalVar()(Before)

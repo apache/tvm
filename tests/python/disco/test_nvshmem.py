@@ -32,6 +32,7 @@ from tvm_ffi import Shape
 
 import tvm
 import tvm.testing
+from tvm.ir import TupleType as _TupleType
 from tvm.runtime import disco as di
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -329,10 +330,7 @@ def _kernel_compile(compile_mode):
                     my_pe = R.call_tir(
                         cls.query_pe,
                         (),
-                        out_ty=[
-                            R.Tensor((1,), "int32"),
-                            R.Tensor((1,), "int32"),
-                        ],
+                        ty_args=[_TupleType([R.Tensor((1,), "int32"), R.Tensor((1,), "int32")])],
                     )
                     R.output(my_pe)
                 return my_pe

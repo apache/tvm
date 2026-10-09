@@ -436,13 +436,13 @@ def test_disregard_functions():
         @R.function
         def a(x: R.Tensor((4, 4), "float32")) -> R.Any:
             cls = CallFunction
-            y = R.call_tir(cls.identity_identity, x, R.Tensor((4, 4), "float32"))
+            y = R.call_tir(cls.identity_identity, x, ty_args=[R.Tensor((4, 4), "float32")])
             return cls.b(y)
 
         @R.function
         def b(x: R.Tensor((4, 4), "float32")) -> R.Any:
             cls = CallFunction
-            y = R.call_tir(cls.identity_identity, x, R.Tensor((4, 4), "float32"))
+            y = R.call_tir(cls.identity_identity, x, ty_args=[R.Tensor((4, 4), "float32")])
             return cls.a(y)
 
     groups = detect_recursion(CallFunction)

@@ -71,7 +71,9 @@ def test_tir_call_source_kernel():
         @R.function
         def main(x: R.Tensor((m_main,), "float32"), y: R.Tensor((m_main,), "float32")):
             with R.dataflow():
-                output = R.call_tir(Module.add, [x, y], relax.TensorType((m_main,), "float32"))
+                output = R.call_tir(
+                    Module.add, [x, y], ty_args=[relax.TensorType((m_main,), "float32")]
+                )
                 R.output(output)
             return output
 

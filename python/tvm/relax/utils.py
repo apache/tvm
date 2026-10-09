@@ -144,7 +144,7 @@ def copy_with_new_vars(func: Function) -> Function:
 
 def gen_call_tir_inputs(
     func: Callable, *args: Any, **kwargs: Any
-) -> tuple[tirx.Function, Expr, list[TensorType]]:
+) -> tuple[tirx.Function, Expr, tvm.ir.Type]:
     """Generate the inputs for call_tir according to the te function.
     This function converts arguments from relax expression to te tensor,
     The callback func should return a te tensor or a list of te tensors.
@@ -164,9 +164,9 @@ def gen_call_tir_inputs(
 
     Returns
     -------
-    ret : Tuple[tirx.Function, Expr, List[TensorType]]
+    ret : Tuple[tirx.Function, Expr, Type]
         ret contains the inputs for call_tir, including a tirx function, args,
-        and out_ty.
+        and the single result type argument.
     """
 
     tir_var_map: dict[tvm.ir.Var, tirx.Var] = {}
@@ -372,6 +372,9 @@ def gen_call_tir_inputs(
             )
             for out in outs
         ]
+
+    if isinstance(output_ty, list):
+        output_ty = output_ty[0] if len(output_ty) == 1 else tvm.ir.TupleType(output_ty)
 
     call_tir_args.extend(
         _substitute_tir_vars(value, tir_var_inverse_map) for value in unbound_tir_vars

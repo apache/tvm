@@ -55,7 +55,9 @@ def test_basic():
         def main(
             x: R.Tensor((m_main, n_main), "float32"), w: R.Tensor((n_main, k_main), "float32")
         ) -> R.Tensor:
-            gv0 = R.call_tir(Before.tir_matmul, (x, w), R.Tensor((m_main, k_main), dtype="float32"))
+            gv0 = R.call_tir(
+                Before.tir_matmul, (x, w), ty_args=[R.Tensor((m_main, k_main), dtype="float32")]
+            )
             return gv0
 
     m_tir_matmul = T.dynamic("m")
@@ -87,7 +89,7 @@ def test_basic():
             x: R.Tensor((m_main, n_main), "float32"), w: R.Tensor((n_main, k_main), "float32")
         ) -> R.Tensor:
             gv0 = R.call_tir(
-                Expected.tir_matmul, (x, w), R.Tensor((m_main, k_main), dtype="float32")
+                Expected.tir_matmul, (x, w), ty_args=[R.Tensor((m_main, k_main), dtype="float32")]
             )
             return gv0
 
@@ -108,7 +110,7 @@ def test_system_lib_prefix():
 
         @R.function(private=True)
         def main() -> R.Tensor:
-            gv0 = R.call_tir(Before.tir_zeros, (), R.Tensor((2,), dtype="float32"))
+            gv0 = R.call_tir(Before.tir_zeros, (), ty_args=[R.Tensor((2,), dtype="float32")])
             return gv0
 
     @tvm.script.ir_module
@@ -122,7 +124,9 @@ def test_system_lib_prefix():
 
         @R.function
         def main() -> R.Tensor:
-            gv0 = R.call_tir(Expected.hello_tir_zeros, (), R.Tensor((2,), dtype="float32"))
+            gv0 = R.call_tir(
+                Expected.hello_tir_zeros, (), ty_args=[R.Tensor((2,), dtype="float32")]
+            )
             return gv0
 
     before = Before

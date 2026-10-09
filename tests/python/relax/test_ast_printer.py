@@ -24,6 +24,7 @@ import tvm
 import tvm.testing
 from tvm import relax as rx
 from tvm import tirx
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.testing import dump_ast
 from tvm.relax.testing.ast_printer import ASTPrinter
 from tvm.script import relax as R
@@ -459,7 +460,9 @@ def test_call_tir():
 
         @R.function
         def foo(x: R.Tensor((m_foo, n_foo), "float32")):
-            gv0 = R.call_tir(TestCallTIR.addone, (x,), R.Tensor((m_foo, n_foo), dtype="float32"))
+            gv0 = R.call_tir(
+                TestCallTIR.addone, (x,), ty_args=[R.Tensor((m_foo, n_foo), dtype="float32")]
+            )
             return gv0
 
     mod = TestCallTIR
@@ -513,7 +516,9 @@ def test_call_dps_packed():
 
     @R.function
     def foo(x: R.Tensor((m, n), "float32")):
-        gv0 = R.call_dps_packed("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
+        gv0 = R.call_dps_packed(
+            _ExternFunc("test.op.identity"), (x,), ty_args=[R.Tensor((m, n), dtype="float32")]
+        )
         return gv0
 
     foo_str = strip_whitespace(

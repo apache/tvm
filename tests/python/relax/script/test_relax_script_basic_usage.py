@@ -27,7 +27,9 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import IRModule, relax, tirx, topi
+from tvm.ir import TupleType as _TupleType
 from tvm.relax import DummyGlobalInfo, VDevice
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import s_tir as Ts
@@ -60,16 +62,26 @@ def test_simple_func():
     @R.function
     def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
         R.func_attr({"Primitive": True})
-        gv0 = R.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
-        gv1 = R.call_dps_packed("extern_dps_func", gv0, R.Tensor((128, 128), dtype="float32"))
+        gv0 = R.call_dps_packed(
+            _ExternFunc("extern_func"), x, ty_args=[R.Tensor((128, 128), dtype="float32")]
+        )
+        gv1 = R.call_dps_packed(
+            _ExternFunc("extern_dps_func"), gv0, ty_args=[R.Tensor((128, 128), dtype="float32")]
+        )
         return gv1
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,), attrs={"Primitive": True}):
-        y = bb.emit(relax.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32")))
+        y = bb.emit(
+            relax.call_dps_packed(
+                _ExternFunc("extern_func"), x, ty_args=[R.Tensor((128, 128), dtype="float32")]
+            )
+        )
         out = bb.emit(
-            relax.call_dps_packed("extern_dps_func", y, R.Tensor((128, 128), dtype="float32"))
+            relax.call_dps_packed(
+                _ExternFunc("extern_dps_func"), y, ty_args=[R.Tensor((128, 128), dtype="float32")]
+            )
         )
         bb.emit_func_output(out)
 
@@ -93,7 +105,7 @@ def test_simple_module():
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
             cls = TestModule
-            gv0 = R.call_tir(cls.tir_func, x, R.Tensor((128, 128), dtype="float32"))
+            gv0 = R.call_tir(cls.tir_func, x, ty_args=[R.Tensor((128, 128), dtype="float32")])
             return gv0
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
@@ -132,7 +144,7 @@ def test_module_with_attr_and_global_info():
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
             cls = TestModule
-            gv0 = R.call_tir(cls.tir_func, x, R.Tensor((128, 128), dtype="float32"))
+            gv0 = R.call_tir(cls.tir_func, x, ty_args=[R.Tensor((128, 128), dtype="float32")])
             return gv0
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
@@ -182,7 +194,7 @@ def test_global_info_vdevice():
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
             cls = TestModule
-            gv0 = R.call_tir(cls.tir_func, x, R.Tensor((128, 128), dtype="float32"))
+            gv0 = R.call_tir(cls.tir_func, x, ty_args=[R.Tensor((128, 128), dtype="float32")])
             return gv0
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
@@ -248,15 +260,27 @@ def test_relax_shape_to_tensor():
 def test_tuple_return():
     @R.function
     def foo(x: R.Tensor((4, 4), "float32")):
-        gv0 = R.call_dps_packed("extern_func_0", x, R.Tensor((4, 4), dtype="float32"))
-        gv1 = R.call_dps_packed("extern_func_1", x, R.Tensor((4, 4), dtype="float32"))
+        gv0 = R.call_dps_packed(
+            _ExternFunc("extern_func_0"), x, ty_args=[R.Tensor((4, 4), dtype="float32")]
+        )
+        gv1 = R.call_dps_packed(
+            _ExternFunc("extern_func_1"), x, ty_args=[R.Tensor((4, 4), dtype="float32")]
+        )
         return (gv0, gv1)
 
     x = relax.Var("x", R.Tensor((4, 4), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
-        gv0 = bb.emit(relax.call_dps_packed("extern_func_0", x, R.Tensor((4, 4), dtype="float32")))
-        gv1 = bb.emit(relax.call_dps_packed("extern_func_1", x, R.Tensor((4, 4), dtype="float32")))
+        gv0 = bb.emit(
+            relax.call_dps_packed(
+                _ExternFunc("extern_func_0"), x, ty_args=[R.Tensor((4, 4), dtype="float32")]
+            )
+        )
+        gv1 = bb.emit(
+            relax.call_dps_packed(
+                _ExternFunc("extern_func_1"), x, ty_args=[R.Tensor((4, 4), dtype="float32")]
+            )
+        )
         bb.emit_func_output(relax.Tuple((gv0, gv1)))
 
     _check(foo, bb.get()["foo"])
@@ -332,8 +356,12 @@ def test_dataflow_block():
     @R.function
     def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
         with R.dataflow():
-            lv0 = R.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
-            lv1 = R.call_dps_packed("extern_func", lv0, R.Tensor((128, 128), dtype="float32"))
+            lv0 = R.call_dps_packed(
+                _ExternFunc("extern_func"), x, ty_args=[R.Tensor((128, 128), dtype="float32")]
+            )
+            lv1 = R.call_dps_packed(
+                _ExternFunc("extern_func"), lv0, ty_args=[R.Tensor((128, 128), dtype="float32")]
+            )
             gv = lv1
             R.output(gv)
         return gv
@@ -343,10 +371,14 @@ def test_dataflow_block():
     with bb.function("foo", (x,)):
         with bb.dataflow():
             lv0 = bb.emit(
-                relax.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
+                relax.call_dps_packed(
+                    _ExternFunc("extern_func"), x, ty_args=[R.Tensor((128, 128), dtype="float32")]
+                )
             )
             lv1 = bb.emit(
-                relax.call_dps_packed("extern_func", lv0, R.Tensor((128, 128), dtype="float32"))
+                relax.call_dps_packed(
+                    _ExternFunc("extern_func"), lv0, ty_args=[R.Tensor((128, 128), dtype="float32")]
+                )
             )
             gv = bb.emit_output(lv1)
         bb.emit_func_output(gv)
@@ -360,20 +392,34 @@ def test_dataflow_block_advanced():
 
     @R.function
     def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
-        gv0 = R.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
-        gv1 = R.call_dps_packed("extern_func", gv0, R.Tensor((128, 128), dtype="float32"))
+        gv0 = R.call_dps_packed(
+            _ExternFunc("extern_func"), x, ty_args=[R.Tensor((128, 128), dtype="float32")]
+        )
+        gv1 = R.call_dps_packed(
+            _ExternFunc("extern_func"), gv0, ty_args=[R.Tensor((128, 128), dtype="float32")]
+        )
         with R.dataflow():
-            lv0 = R.call_dps_packed("extern_func", gv1, R.Tensor((128, 128), dtype="float32"))
+            lv0 = R.call_dps_packed(
+                _ExternFunc("extern_func"), gv1, ty_args=[R.Tensor((128, 128), dtype="float32")]
+            )
             lv1 = R.match_cast(lv0, R.Tensor((m, n), "float32"))
-            gv2 = R.call_dps_packed("extern_func", lv0, R.Tensor((128, 128), dtype="float32"))
-            gv2 = R.call_dps_packed("extern_func", gv2, R.Tensor((128, 128), dtype="float32"))
+            gv2 = R.call_dps_packed(
+                _ExternFunc("extern_func"), lv0, ty_args=[R.Tensor((128, 128), dtype="float32")]
+            )
+            gv2 = R.call_dps_packed(
+                _ExternFunc("extern_func"), gv2, ty_args=[R.Tensor((128, 128), dtype="float32")]
+            )
             gv3 = R.match_cast(gv2, R.Tensor((m, n), "float32"))
             gv3 = R.match_cast(lv0, R.Tensor((m, n), "float32"))
             gv4 = gv3
             gv5 = gv2
             R.output(gv5, gv4)
-        gv6 = R.call_dps_packed("extern_func", gv5, R.Tensor((128, 128), dtype="float32"))
-        gv7 = R.call_dps_packed("extern_func", gv6, R.Tensor((128, 128), dtype="float32"))
+        gv6 = R.call_dps_packed(
+            _ExternFunc("extern_func"), gv5, ty_args=[R.Tensor((128, 128), dtype="float32")]
+        )
+        gv7 = R.call_dps_packed(
+            _ExternFunc("extern_func"), gv6, ty_args=[R.Tensor((128, 128), dtype="float32")]
+        )
         return gv7
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
@@ -382,31 +428,45 @@ def test_dataflow_block_advanced():
     n = tirx.Var("n", ty="int64")
     with bb.function("foo", (x,)):
         gv0 = bb.emit(
-            relax.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
+            relax.call_dps_packed(
+                _ExternFunc("extern_func"), x, ty_args=[R.Tensor((128, 128), dtype="float32")]
+            )
         )
         gv1 = bb.emit(
-            relax.call_dps_packed("extern_func", gv0, R.Tensor((128, 128), dtype="float32"))
+            relax.call_dps_packed(
+                _ExternFunc("extern_func"), gv0, ty_args=[R.Tensor((128, 128), dtype="float32")]
+            )
         )
         with bb.dataflow():
             lv0 = bb.emit(
-                relax.call_dps_packed("extern_func", gv1, R.Tensor((128, 128), dtype="float32"))
+                relax.call_dps_packed(
+                    _ExternFunc("extern_func"), gv1, ty_args=[R.Tensor((128, 128), dtype="float32")]
+                )
             )
             lv1 = bb.match_cast(lv0, R.Tensor((m, n), "float32"))
             gv2 = bb.emit(
-                relax.call_dps_packed("extern_func", lv0, R.Tensor((128, 128), dtype="float32"))
+                relax.call_dps_packed(
+                    _ExternFunc("extern_func"), lv0, ty_args=[R.Tensor((128, 128), dtype="float32")]
+                )
             )
             gv21 = bb.emit(
-                relax.call_dps_packed("extern_func", gv2, R.Tensor((128, 128), dtype="float32"))
+                relax.call_dps_packed(
+                    _ExternFunc("extern_func"), gv2, ty_args=[R.Tensor((128, 128), dtype="float32")]
+                )
             )
             gv3 = bb.match_cast(gv21, R.Tensor((m, n), "float32"))
             gv31 = bb.match_cast(lv0, R.Tensor((m, n), "float32"))
             gv32 = bb.emit_output(gv31)
             gv22 = bb.emit_output(gv21)
         gv4 = bb.emit(
-            relax.call_dps_packed("extern_func", gv22, R.Tensor((128, 128), dtype="float32"))
+            relax.call_dps_packed(
+                _ExternFunc("extern_func"), gv22, ty_args=[R.Tensor((128, 128), dtype="float32")]
+            )
         )
         gv5 = bb.emit(
-            relax.call_dps_packed("extern_func", gv4, R.Tensor((128, 128), dtype="float32"))
+            relax.call_dps_packed(
+                _ExternFunc("extern_func"), gv4, ty_args=[R.Tensor((128, 128), dtype="float32")]
+            )
         )
         bb.emit_func_output(gv5)
 
@@ -429,13 +489,19 @@ def test_return_without_binding():
 def test_tensor_type_without_args():
     @R.function
     def foo(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
-        v = R.call_dps_packed("extern_relu", x, R.Tensor((32, 32), dtype="float32"))
+        v = R.call_dps_packed(
+            _ExternFunc("extern_relu"), x, ty_args=[R.Tensor((32, 32), dtype="float32")]
+        )
         return v
 
     x = relax.Var("x", R.Tensor((32, 32), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x)):
-        v = bb.emit(relax.call_dps_packed("extern_relu", x, R.Tensor((32, 32), dtype="float32")))
+        v = bb.emit(
+            relax.call_dps_packed(
+                _ExternFunc("extern_relu"), x, ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
+        )
         bb.emit_func_output(v)
 
     _check(foo, bb.get()["foo"])
@@ -592,7 +658,7 @@ def test_annotation():
 def test_call_dps_packed_empty_shape():
     @R.function
     def foo(x: R.Tensor((), "float32")):
-        z = R.call_dps_packed("scalar_add", x, R.Tensor((), dtype="float32"))
+        z = R.call_dps_packed(_ExternFunc("scalar_add"), x, ty_args=[R.Tensor((), dtype="float32")])
         return z
 
     (z_bind,) = foo.body.blocks[0].bindings
@@ -628,7 +694,7 @@ def test_call_tir_with_grad():
             out = R.call_tir_with_grad(
                 cls.identity_tir,
                 (v0,),
-                R.Tensor((54, 96), "float32"),
+                ty_args=[R.Tensor((54, 96), "float32")],
                 te_grad_name="identity_k_grad",
                 te_grad_kwargs={"k": 1.0},
             )
@@ -663,8 +729,8 @@ def test_call_tir_inplace():
             res = R.call_tir_inplace(
                 Module.copy,
                 (x, y),
-                [0, -1],
-                [R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")],
+                inplace_indices=[0, -1],
+                ty_args=[_TupleType([R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")])],
             )
             return res
 

@@ -406,6 +406,85 @@ def test_op_call_inplace_packed():
     assert (result[1].numpy() == sum).all()
 
 
+@pytest.mark.parametrize("name", ["call_tir", "call_tir_with_grad", "call_tir_inplace"])
+@pytest.mark.parametrize("tuple_result", [False, True])
+@pytest.mark.parametrize("result_kind", ["inferred", "missing", "explicit"])
+@pytest.mark.parametrize("namespace", [relax.op, R])
+def test_call_tir_canonical_roundtrip(name, tuple_result, result_kind, namespace):
+    tensor_type = R.Tensor((3,), "float32")
+    output_type = tvm.ir.TupleType([tensor_type, tensor_type]) if tuple_result else tensor_type
+    result_type = {
+        "inferred": None,
+        "missing": tvm.ir.Type.missing(),
+        "explicit": output_type,
+    }[result_kind]
+    output_count = 2 if tuple_result else 1
+    inplace = name == "call_tir_inplace"
+    params = [
+        tvm.tirx.Var(f"p{i}", T.Tensor((3,), "float32"))
+        for i in range(1 + output_count - int(inplace))
+    ]
+    func = tvm.tirx.Function(params, [tvm.tirx.Evaluate(0)], ret_type=tvm.ir.TupleType([]))
+    callee = relax.BlockBuilder().add_func(func, "callee")
+    x = relax.Var("x", tensor_type)
+    kwargs = {}
+    if name == "call_tir_with_grad":
+        kwargs = {"te_grad_name": "gradient", "te_grad_kwargs": {"scale": 2}}
+    elif inplace:
+        kwargs = {"inplace_indices": [0, -1] if tuple_result else [0]}
+    span = tvm.ir.Span(tvm.ir.SourceName("native_call"), 1, 2, 3, 4)
+    builder = getattr(namespace, name)
+    call = builder(callee, (x,), ty_args=[output_type], ty=result_type, span=span, **kwargs)
+    call.validate()
+    assert call.span.same_as(span)
+    assert call.args[0].same_as(callee)
+    assert call.args[1].fields[0].same_as(x)
+    tvm.ir.assert_structural_equal(call.ty_args[0], output_type)
+    tvm.ir.assert_structural_equal(call.ty, output_type if result_type is None else result_type)
+    # An attrs object and semantic keywords construct the same canonical Call.
+    with_attrs = builder(
+        callee, call.args[1], ty_args=[output_type], attrs=call.attrs, ty=result_type, span=span
+    )
+    tvm.ir.assert_structural_equal(call, with_attrs)
+    printed = call.script()
+    assert printed.startswith(f"R.{name}(")
+    assert "ty_args=" in printed and "out_ty=" not in printed
+    reconstructed = eval(
+        printed, {"I": I, "R": R, "T": T, "Module": SimpleNamespace(callee=callee), "x": x}
+    )
+    tvm.ir.assert_structural_equal(call, reconstructed)
+
+
+@pytest.mark.parametrize("tuple_size", [None, 0, 1, 2])
+@pytest.mark.parametrize("external", [False, True])
+@pytest.mark.parametrize("result_kind", ["inferred", "missing", "explicit"])
+def test_call_dps_packed_canonical_roundtrip(tuple_size, external, result_kind):
+    tensor_type = R.Tensor((3,), "float32")
+    output_type = (
+        tensor_type if tuple_size is None else tvm.ir.TupleType([tensor_type] * tuple_size)
+    )
+    result_type = {
+        "inferred": None,
+        "missing": tvm.ir.Type.missing(),
+        "explicit": output_type,
+    }[result_kind]
+    callee = relax.ExternFunc("packed") if external else "packed"
+    x = relax.Var("x", tensor_type)
+    span = tvm.ir.Span(tvm.ir.SourceName("packed_call"), 1, 2, 3, 4)
+    call = relax.op.call_dps_packed(callee, (x,), ty_args=[output_type], ty=result_type, span=span)
+    expected = tvm.ir.Call(
+        "relax.call_dps_packed", [callee, (x,)], ty_args=[output_type], ty=result_type, span=span
+    )
+    tvm.ir.assert_structural_equal(call, expected)
+    assert call.span.same_as(span)
+    assert isinstance(call.args[0], relax.ExternFunc if external else tvm.ir.StringImm)
+    tvm.ir.assert_structural_equal(call.ty, output_type if result_type is None else result_type)
+    printed = call.script()
+    assert printed.startswith("R.call_dps_packed(")
+    reconstructed = eval(printed, {"I": I, "R": R, "T": T, "x": x})
+    tvm.ir.assert_structural_equal(call, reconstructed)
+
+
 @pytest.mark.parametrize("tuple_size", [None, 0, 1, 2])
 @pytest.mark.parametrize("result_kind", ["inferred", "missing", "explicit"])
 @pytest.mark.parametrize("builder", [relax.op.call_py_func, R.call_py_func])

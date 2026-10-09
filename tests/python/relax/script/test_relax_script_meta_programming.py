@@ -73,7 +73,7 @@ def test_emit_te_function_attrs():
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
             cls = TestModule
-            gv0 = R.call_tir(cls.plus_one, x, R.Tensor((128, 128), dtype="float32"))
+            gv0 = R.call_tir(cls.plus_one, x, ty_args=[R.Tensor((128, 128), dtype="float32")])
             return gv0
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
@@ -182,7 +182,9 @@ def test_inline_function():
                                 C[vi, vj] = 0.0
                             C[vi, vj] += A[vi, vk] * B[vj, vk]
 
-                z = relax.call_tir(my_matmul, (x, y), R.Tensor((128, 128), dtype="float32"))
+                z = relax.call_tir(
+                    my_matmul, (x, y), ty_args=[R.Tensor((128, 128), dtype="float32")]
+                )
                 return z
 
 
@@ -352,16 +354,16 @@ def test_reused_extern_func():
     @R.function(private=True)
     def parsed(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
         func = R.ExternFunc("extern_func")
-        gv0 = R.call_dps_packed(func, x, R.Tensor((128, 128), dtype="float32"))
-        gv1 = R.call_dps_packed(func, gv0, R.Tensor((128, 128), dtype="float32"))
+        gv0 = R.call_dps_packed(func, x, ty_args=[R.Tensor((128, 128), dtype="float32")])
+        gv1 = R.call_dps_packed(func, gv0, ty_args=[R.Tensor((128, 128), dtype="float32")])
         return gv1
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("main", [x], private=True):
         func = bb.emit(relax.ExternFunc("extern_func"))
-        y = bb.emit(relax.call_dps_packed(func, x, out_ty=R.Tensor((128, 128), "float32")))
-        z = bb.emit(relax.call_dps_packed(func, y, out_ty=R.Tensor((128, 128), "float32")))
+        y = bb.emit(relax.call_dps_packed(func, x, ty_args=[R.Tensor((128, 128), "float32")]))
+        z = bb.emit(relax.call_dps_packed(func, y, ty_args=[R.Tensor((128, 128), "float32")]))
         bb.emit_func_output(z)
 
     expected = bb.get()["main"]

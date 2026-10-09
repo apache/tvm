@@ -343,7 +343,7 @@ def test_no_local_func():
 
         @R.function
         def before(c0: R.Tensor((16, 16), "float32"), x: R.Tensor(dtype="float32", ndim=2)):
-            s = R.call_tir(Before.sub, (c0, x), R.Tensor((16, 16), dtype="float32"))
+            s = R.call_tir(Before.sub, (c0, x), ty_args=[R.Tensor((16, 16), dtype="float32")])
             return s
 
     before = Before

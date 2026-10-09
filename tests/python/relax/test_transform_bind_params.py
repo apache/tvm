@@ -22,6 +22,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import relax
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.script import relax as R
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
@@ -49,7 +50,9 @@ def test_bind_params(use_np_array):
         def main(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
             (16, 16), "float32"
         ):
-            gv0 = R.call_tir(InputModule.tir_matmul, (x, w), R.Tensor((16, 16), dtype="float32"))
+            gv0 = R.call_tir(
+                InputModule.tir_matmul, (x, w), ty_args=[R.Tensor((16, 16), dtype="float32")]
+            )
             return gv0
 
     x_np = np.random.rand(16, 16).astype(np.float32)
@@ -90,10 +93,14 @@ def test_bind_params_symbolic_vars():
         ) -> R.Tensor((batch, k), dtype="float32"):
             with R.dataflow():
                 lv0 = R.call_dps_packed(
-                    "linear0", (x, w0, b0), out_ty=R.Tensor((batch, n), dtype="float32")
+                    _ExternFunc("linear0"),
+                    (x, w0, b0),
+                    ty_args=[R.Tensor((batch, n), dtype="float32")],
                 )
                 out = R.call_dps_packed(
-                    "linear1", (lv0, w1, b1), out_ty=R.Tensor((batch, k), dtype="float32")
+                    _ExternFunc("linear1"),
+                    (lv0, w1, b1),
+                    ty_args=[R.Tensor((batch, k), dtype="float32")],
                 )
                 R.output(out)
             return out

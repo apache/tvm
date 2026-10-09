@@ -350,5 +350,5 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     gvar = bb.add_func(sch.mod["main"], function_name)
     output_shape = index_map.map_shape(list(call_args[0].ty.shape))
     output_dtype = call_args[0].ty.dtype
-    output_ty = [TensorType(output_shape, output_dtype)]
-    return call_tir(gvar, call_args, output_ty)
+    output_ty = TensorType(output_shape, output_dtype)
+    return call_tir(gvar, call_args, ty_args=[output_ty])

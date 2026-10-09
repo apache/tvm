@@ -1131,7 +1131,7 @@ def test_handle_existence_of_call_tir():
             cls = Before
             with R.dataflow():
                 B = cls.fused_relax_nn_relu(A)
-                C = R.call_tir(cls.relu, (B,), out_ty=R.Tensor([10], dtype="float32"))
+                C = R.call_tir(cls.relu, (B,), ty_args=[R.Tensor([10], dtype="float32")])
                 D = cls.fused_relax_nn_gelu(C)
                 R.output(D)
             return D
@@ -1174,7 +1174,7 @@ def test_handle_existence_of_call_tir():
             cls = Expected
             with R.dataflow():
                 B = cls.fused_relax_nn_relu1_compiler_A(A)
-                C = R.call_tir(cls.relu, (B,), out_ty=R.Tensor([10], dtype="float32"))
+                C = R.call_tir(cls.relu, (B,), ty_args=[R.Tensor([10], dtype="float32")])
                 D = cls.fused_relax_nn_gelu1_compiler_A(C)
                 R.output(D)
             return D

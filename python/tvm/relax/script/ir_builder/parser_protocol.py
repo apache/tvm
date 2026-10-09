@@ -374,7 +374,7 @@ def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Call:
     if not function_name_hint:
         function_name_hint = func.__name__
     gvar = decl_function(function_name_hint, tir_func)  # type: ignore
-    return _op.call_tir(gvar, call_args, out_ty)
+    return _op.call_tir(gvar, call_args, ty_args=[out_ty])
 
 
 def emit_match_cast(value: Expr, ty: Type) -> Var:

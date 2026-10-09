@@ -20,6 +20,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.analysis import name_to_binding
 from tvm.relax.binding_rewrite import DataflowBlockRewrite
 from tvm.relax.expr import DataflowVar, Var
@@ -229,9 +230,13 @@ def test_chained_rm_all_unused():
         def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
             with R.dataflow():
                 lv0 = x
-                unused0 = R.call_dps_packed("my_sigmoid", (x,), R.Tensor((32, 32), dtype="float32"))
+                unused0 = R.call_dps_packed(
+                    _ExternFunc("my_sigmoid"), (x,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+                )
                 unused1 = R.call_dps_packed(
-                    "my_sigmoid", (unused0,), R.Tensor((32, 32), dtype="float32")
+                    _ExternFunc("my_sigmoid"),
+                    (unused0,),
+                    ty_args=[R.Tensor((32, 32), dtype="float32")],
                 )
                 R.output(lv0)
             return lv0
@@ -266,19 +271,21 @@ def test_simple_replace_all_uses():
             #   lv4
             with R.dataflow():
                 lv0: R.Tensor((32, 32), "float32") = R.call_dps_packed(
-                    "my_relu", (x,), R.Tensor((32, 32), dtype="float32")
+                    _ExternFunc("my_relu"), (x,), ty_args=[R.Tensor((32, 32), dtype="float32")]
                 )
                 lv1: R.Tensor((32, 32), "float32") = R.call_dps_packed(
-                    "my_sigmoid", (x,), R.Tensor((32, 32), dtype="float32")
+                    _ExternFunc("my_sigmoid"), (x,), ty_args=[R.Tensor((32, 32), dtype="float32")]
                 )
                 lv2: R.Tensor((32, 32), "float32") = R.call_dps_packed(
-                    "my_add", (x, lv0), R.Tensor((32, 32), dtype="float32")
+                    _ExternFunc("my_add"), (x, lv0), ty_args=[R.Tensor((32, 32), dtype="float32")]
                 )
                 lv3: R.Tensor((32, 32), "float32") = R.call_dps_packed(
-                    "my_mul", (x, lv0), R.Tensor((32, 32), dtype="float32")
+                    _ExternFunc("my_mul"), (x, lv0), ty_args=[R.Tensor((32, 32), dtype="float32")]
                 )
                 lv4: R.Tensor((32, 32), "float32") = R.call_dps_packed(
-                    "my_whatever", (lv2, lv3), R.Tensor((32, 32), dtype="float32")
+                    _ExternFunc("my_whatever"),
+                    (lv2, lv3),
+                    ty_args=[R.Tensor((32, 32), dtype="float32")],
                 )
                 R.output(lv4)
             return lv4

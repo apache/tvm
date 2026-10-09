@@ -292,7 +292,7 @@ if RUN_EXAMPLE:
             h_bias = R.call_tir(
                 cls.bias_add_tir,
                 (h, b),
-                out_ty=R.Tensor((2, 4), "float32"),
+                ty_args=[R.Tensor((2, 4), "float32")],
             )
             return R.nn.relu(h_bias)
 

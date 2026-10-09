@@ -438,7 +438,7 @@ def test_rewrite_only_introduces_private_subroutines_when_required():
 
         @R.function
         def replacement(A: R.Tensor([16], "float32")):
-            return R.call_tir(RewriteMul.subroutine_mul, [A], out_ty=R.Tensor([16], "float32"))
+            return R.call_tir(RewriteMul.subroutine_mul, [A], ty_args=[R.Tensor([16], "float32")])
 
         @Ts.function(private=True)
         def subroutine_mul(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
@@ -516,7 +516,7 @@ def test_rewrite_branches_may_reuse_subroutine_name():
 
         @R.function
         def replacement(A: R.Tensor([16], "float32")):
-            return R.call_tir(RewriteMul.subroutine, [A], out_ty=R.Tensor([16], "float32"))
+            return R.call_tir(RewriteMul.subroutine, [A], ty_args=[R.Tensor([16], "float32")])
 
         @Ts.function(private=True)
         def subroutine(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
@@ -536,7 +536,7 @@ def test_rewrite_branches_may_reuse_subroutine_name():
         @R.function
         def main(A: R.Tensor([16], "float32")):
             B = Expected.subroutine(A)
-            C = R.call_tir(Expected.subroutine_1, [B], out_ty=R.Tensor([16], "float32"))
+            C = R.call_tir(Expected.subroutine_1, [B], ty_args=[R.Tensor([16], "float32")])
             return C
 
         @R.function(private=True)

@@ -21,6 +21,7 @@ from __future__ import annotations
 import tvm
 import tvm.testing
 from tvm import relax
+from tvm.ir import TupleType as _TupleType
 from tvm.ir.module import IRModule
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
@@ -189,16 +190,24 @@ def test_single_arg_return():
                 lv = R.call_tir(
                     cls.te_layout_transform,
                     (x,),
-                    out_ty=R.Tensor(
-                        (2, 1, 26, 26, 4), dtype="float32", vdevice="opencl:0:global.texture-weight"
-                    ),
+                    ty_args=[
+                        R.Tensor(
+                            (2, 1, 26, 26, 4),
+                            dtype="float32",
+                            vdevice="opencl:0:global.texture-weight",
+                        )
+                    ],
                 )
                 lv2 = R.call_tir(
                     cls.max_pool2d_opencl,
                     (lv,),
-                    out_ty=R.Tensor(
-                        (2, 1, 13, 13, 4), dtype="float32", vdevice="opencl:0:global.texture-weight"
-                    ),
+                    ty_args=[
+                        R.Tensor(
+                            (2, 1, 13, 13, 4),
+                            dtype="float32",
+                            vdevice="opencl:0:global.texture-weight",
+                        )
+                    ],
                 )
                 lv5: R.Tensor((2, 1, 13, 13, 4), dtype="float32", vdevice="opencl:1:global") = (
                     R.to_vdevice(lv2, dst_vdevice="opencl:1:global")
@@ -206,7 +215,7 @@ def test_single_arg_return():
                 gv2 = R.call_tir(
                     cls.te_layout_transform2,
                     (lv5,),
-                    out_ty=R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global"),
+                    ty_args=[R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global")],
                 )
                 R.output(gv2)
             return gv2
@@ -291,30 +300,50 @@ def test_multi_arg_return():
                 lv = R.call_tir(
                     cls.te_layout_transform,
                     (x,),
-                    out_ty=R.Tensor(
-                        (2, 4, 28, 28, 4), dtype="float32", vdevice="opencl:0:global.texture-weight"
-                    ),
+                    ty_args=[
+                        R.Tensor(
+                            (2, 4, 28, 28, 4),
+                            dtype="float32",
+                            vdevice="opencl:0:global.texture-weight",
+                        )
+                    ],
                 )
                 lv1 = R.call_tir(
                     cls.te_layout_transform1,
                     (w,),
-                    out_ty=R.Tensor(
-                        (1, 16, 3, 3, 4), dtype="float32", vdevice="opencl:0:global.texture-weight"
-                    ),
+                    ty_args=[
+                        R.Tensor(
+                            (1, 16, 3, 3, 4),
+                            dtype="float32",
+                            vdevice="opencl:0:global.texture-weight",
+                        )
+                    ],
                 )
                 gv = R.call_tir(
                     cls.conv2d_NCHWc_OIHWo_opencl,
                     (lv, lv1),
-                    out_ty=R.Tensor(
-                        (2, 1, 26, 26, 4), dtype="float32", vdevice="opencl:0:global.texture-weight"
-                    ),
+                    ty_args=[
+                        R.Tensor(
+                            (2, 1, 26, 26, 4),
+                            dtype="float32",
+                            vdevice="opencl:0:global.texture-weight",
+                        )
+                    ],
                 )
                 lv_1 = R.call_tir(
                     cls.fused_relu_concatenate_split,
                     (gv,),
-                    out_ty=[
-                        R.Tensor((2, 1, 26, 26, 4), dtype="float32", vdevice="opencl:1:global"),
-                        R.Tensor((2, 1, 26, 26, 4), dtype="float32", vdevice="opencl:1:global"),
+                    ty_args=[
+                        _TupleType(
+                            [
+                                R.Tensor(
+                                    (2, 1, 26, 26, 4), dtype="float32", vdevice="opencl:1:global"
+                                ),
+                                R.Tensor(
+                                    (2, 1, 26, 26, 4), dtype="float32", vdevice="opencl:1:global"
+                                ),
+                            ]
+                        )
                     ],
                 )
                 lv3: R.Tensor((2, 1, 26, 26, 4), dtype="float32", vdevice="opencl:1:global") = lv_1[
@@ -323,7 +352,7 @@ def test_multi_arg_return():
                 lv4 = R.call_tir(
                     cls.te_layout_transform2,
                     (lv3,),
-                    out_ty=R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global"),
+                    ty_args=[R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global")],
                 )
                 lv5: R.Tensor((2, 1, 26, 26, 4), dtype="float32", vdevice="opencl:1:global") = lv_1[
                     1
@@ -331,7 +360,7 @@ def test_multi_arg_return():
                 lv6 = R.call_tir(
                     cls.te_layout_transform2,
                     (lv5,),
-                    out_ty=R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global"),
+                    ty_args=[R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global")],
                 )
                 gv4: R.Tuple(
                     R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global"),

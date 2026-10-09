@@ -22,6 +22,7 @@ from __future__ import annotations
 import tvm
 import tvm.testing
 from tvm import relax
+from tvm.ir import TupleType as _TupleType
 from tvm.ir import assert_structural_equal
 from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
@@ -124,16 +125,16 @@ def test_mlp():
             lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.dist.call_tir_local_view(
                 cls.matmul1,
                 (x, weight1),
-                out_ty=R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")],
             )
             lv1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.dist.call_tir_local_view(
-                cls.gelu1, (lv0,), out_ty=R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")
+                cls.gelu1, (lv0,), ty_args=[R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")]
             )
             lv2: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = lv1
             gv: R.DTensor((128, 128), "float32", "mesh[0]", "R") = R.dist.call_tir_local_view(
                 cls.matmul2,
                 (lv2, weight2),
-                out_ty=R.DTensor((128, 128), "float32", "mesh[0]", "R"),
+                ty_args=[R.DTensor((128, 128), "float32", "mesh[0]", "R")],
             )
             lv3: R.DTensor((128, 128), "float32", "mesh[0]", "R") = R.ccl.allreduce(
                 gv, op_type="sum"
@@ -165,16 +166,16 @@ def test_mlp():
             lv0 = R.call_tir(
                 MLP.get_global_var("matmul1"),
                 (gv, gv1),
-                out_ty=R.Tensor((128, 64), dtype="float32"),
+                ty_args=[R.Tensor((128, 64), dtype="float32")],
             )
             lv1 = R.call_tir(
-                MLP.get_global_var("gelu1"), (lv0,), out_ty=R.Tensor((128, 64), dtype="float32")
+                MLP.get_global_var("gelu1"), (lv0,), ty_args=[R.Tensor((128, 64), dtype="float32")]
             )
             lv2: R.Tensor((128, 64), dtype="float32") = lv1
             gv_1 = R.call_tir(
                 MLP.get_global_var("matmul2"),
                 (lv2, gv2),
-                out_ty=R.Tensor((128, 128), dtype="float32"),
+                ty_args=[R.Tensor((128, 128), dtype="float32")],
             )
             lv3: R.Tensor((128, 128), dtype="float32") = R.ccl.allreduce(gv_1, op_type="sum")
             return lv3
@@ -306,10 +307,10 @@ def test_mlp_with_tuple():
             lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.dist.call_tir_local_view(
                 cls.matmul2,
                 (x, weight1),
-                out_ty=R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
+                ty_args=[R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")],
             )
             lv1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.dist.call_tir_local_view(
-                cls.gelu1, (lv0,), out_ty=R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")
+                cls.gelu1, (lv0,), ty_args=[R.DTensor((128, 128), "float32", "mesh[0]", "S[1]")]
             )
             gv: R.Tuple(
                 R.DTensor((64, 128), "float32", "mesh[0]", "S[1]"),
@@ -317,9 +318,13 @@ def test_mlp_with_tuple():
             ) = R.dist.call_tir_local_view(
                 cls.split11,
                 (lv1,),
-                out_ty=[
-                    R.DTensor((64, 128), "float32", "mesh[0]", "S[1]"),
-                    R.DTensor((64, 128), "float32", "mesh[0]", "S[1]"),
+                ty_args=[
+                    _TupleType(
+                        [
+                            R.DTensor((64, 128), "float32", "mesh[0]", "S[1]"),
+                            R.DTensor((64, 128), "float32", "mesh[0]", "S[1]"),
+                        ]
+                    )
                 ],
             )
             lv2: R.DTensor((64, 128), "float32", "mesh[0]", "S[1]") = gv[0]
@@ -328,7 +333,7 @@ def test_mlp_with_tuple():
             gv_1: R.DTensor((64, 128), "float32", "mesh[0]", "R") = R.dist.call_tir_local_view(
                 cls.matmul11,
                 (lv3, weight2),
-                out_ty=R.DTensor((64, 128), "float32", "mesh[0]", "R"),
+                ty_args=[R.DTensor((64, 128), "float32", "mesh[0]", "R")],
             )
             lv4: R.DTensor((64, 128), "float32", "mesh[0]", "R") = R.ccl.allreduce(
                 gv_1, op_type="sum"
@@ -362,19 +367,20 @@ def test_mlp_with_tuple():
             lv0 = R.call_tir(
                 MLPWithTuple.get_global_var("matmul2"),
                 (gv, gv2),
-                out_ty=R.Tensor((128, 64), dtype="float32"),
+                ty_args=[R.Tensor((128, 64), dtype="float32")],
             )
             lv1 = R.call_tir(
                 MLPWithTuple.get_global_var("gelu1"),
                 (lv0,),
-                out_ty=R.Tensor((128, 64), dtype="float32"),
+                ty_args=[R.Tensor((128, 64), dtype="float32")],
             )
             gv_1 = R.call_tir(
                 MLPWithTuple.get_global_var("split11"),
                 (lv1,),
-                out_ty=[
-                    R.Tensor((64, 64), dtype="float32"),
-                    R.Tensor((64, 64), dtype="float32"),
+                ty_args=[
+                    _TupleType(
+                        [R.Tensor((64, 64), dtype="float32"), R.Tensor((64, 64), dtype="float32")]
+                    )
                 ],
             )
             lv2: R.Tensor((64, 64), dtype="float32") = gv_1[0]
@@ -382,7 +388,7 @@ def test_mlp_with_tuple():
             gv_1_1 = R.call_tir(
                 MLPWithTuple.get_global_var("matmul11"),
                 (lv3, gv4),
-                out_ty=R.Tensor((64, 128), dtype="float32"),
+                ty_args=[R.Tensor((64, 128), dtype="float32")],
             )
             lv4: R.Tensor((64, 128), dtype="float32") = R.ccl.allreduce(gv_1_1, op_type="sum")
             return lv4

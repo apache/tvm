@@ -22,6 +22,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import relax
+from tvm.ir import TupleType as _TupleType
 from tvm.ir.base import assert_structural_equal
 from tvm.relax.transform.transform import CanonicalizeBindings
 from tvm.script import ir as I
@@ -1441,12 +1442,16 @@ def test_call_tir_out_ty_follows_arguments_when_match_cast_is_kept():
                 p = R.call_tir(
                     cls.transpose,
                     (lv,),
-                    out_ty=[
-                        R.Tensor((1, n, m, 2, 2, 8), "float16", "llvm:1"),
-                        R.Tensor((16,), "float16", "llvm:1"),
+                    ty_args=[
+                        _TupleType(
+                            [
+                                R.Tensor((1, n, m, 2, 2, 8), "float16", "llvm:1"),
+                                R.Tensor((16,), "float16", "llvm:1"),
+                            ]
+                        )
                     ],
                 )
-                y = R.call_tir(cls.add_scalar, (w, n), out_ty=R.Tensor((1, 8), "float16"))
+                y = R.call_tir(cls.add_scalar, (w, n), ty_args=[R.Tensor((1, 8), "float16")])
                 gv = (p, y)
                 R.output(gv)
             return gv
@@ -1494,8 +1499,8 @@ def test_call_tir_out_ty_follows_arguments_through_chained_match_casts():
             with R.dataflow():
                 lv1 = R.match_cast(x, R.Tensor((a, 8), "float16"))
                 lv2 = R.match_cast(lv1, R.Tensor((b, 8), "float16"))
-                c = R.call_tir(cls.copy, (lv2,), out_ty=R.Tensor((b, 8), "float16"))
-                y = R.call_tir(cls.add_scalar, (w, n), out_ty=R.Tensor((1, 8), "float16"))
+                c = R.call_tir(cls.copy, (lv2,), ty_args=[R.Tensor((b, 8), "float16")])
+                y = R.call_tir(cls.add_scalar, (w, n), ty_args=[R.Tensor((1, 8), "float16")])
                 gv = (c, y)
                 R.output(gv)
             return gv
