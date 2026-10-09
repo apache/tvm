@@ -37,6 +37,14 @@ Parser entry points
 
 Core IR builder
 ---------------
+
+Common statement frames and construction helpers live in
+``tvm.script.ir_builder.frame`` and ``tvm.script.ir_builder.stmt``. The TIRx
+namespace re-exports them alongside its function, tensor/layout, and execution
+scope builders. Native shared statement builders live under
+``include/tvm/script/ir_builder`` and ``src/script/ir_builder``; dialect-specific
+thread-placement and tensor alias policies remain in the TIRx/S-TIR builders.
+
 .. automodule:: tvm.tirx.script.ir_builder.ir
    :members:
    :no-index:

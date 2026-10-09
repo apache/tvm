@@ -28,8 +28,8 @@ namespace script {
 namespace ir_builder {
 namespace s_tir {
 
-using tirx::AddToParent;
-using tirx::AsStmt;
+using ir::AddToParent;
+using ir::AsStmt;
 using tirx::TensorRegionFromLoad;
 
 /*!

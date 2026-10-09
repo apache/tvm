@@ -23,7 +23,7 @@
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/tensor.h>
-#include <tvm/script/ir_builder/base.h>
+#include <tvm/script/ir_builder/ir.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/script/ir_builder/frame.h>
@@ -34,6 +34,19 @@ namespace tvm {
 namespace script {
 namespace ir_builder {
 namespace tirx {
+
+using ir::Assert;
+using ir::Bind;
+using ir::Break;
+using ir::Continue;
+using ir::Else;
+using ir::Evaluate;
+using ir::Grid;
+using ir::If;
+using ir::Region;
+using ir::Return;
+using ir::Then;
+using ir::While;
 
 using tvm::Var;
 using tvm::ffi::Tuple;
@@ -203,86 +216,6 @@ ForFrame Unroll(PrimExpr start, PrimExpr stop,
 ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
                        ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt);
 /*!
- * \brief The grid For statement.
- * \param extents The extents of the iteration.
- * \param dtype The optional dtype of every loop var ("int32" or "uint32"). When omitted
- *              each loop var takes the dtype of its own extent.
- * \return The ForFrame.
- */
-ForFrame Grid(ffi::Array<Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>> extents,
-              ffi::Optional<PrimType> dtype = std::nullopt);
-
-/*!
- * \brief The assertion statement.
- * \param condition The assertion condition.
- * \param error_kind The error kind (e.g. "RuntimeError", "TypeError", "ValueError").
- * \param message_parts The error message parts (stored as separate fragments in the IR).
- * \return The AssertFrame.
- */
-AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
-                   ffi::Array<ffi::String> message_parts);
-
-/*!
- * \brief Create a Bind (variable binding).
- *
- * Emits a flat Bind statement to the current frame and returns the bound variable.
- *
- * \param value The value to be bound.
- * \param type_annotation  The type annotation of the binding.
- *                         Usually it is used for fine-grained var typing,
- *                         particularly, PointerType.
- * \param var The variable to be bound. If not specified, a new variable will be created.
- * \return The bound Var.
- */
-Var Bind(Expr value, ffi::Optional<Type> type_annotation = std::nullopt,
-         ffi::Optional<Var> var = std::nullopt);
-
-/*!
- * \brief Create a while loop.
- * \param condition The termination condition of the loop.
- * \return The result WhileFrame.
- */
-WhileFrame While(PrimExpr condition);
-
-/*!
- * \brief Create a return statement.
- * \param value The value to return.
- * \return The same statement that was added to the parent frame.
- */
-tvm::Stmt Return(Expr value);
-
-/*!
- * \brief Create a break statement.
- * \return The same statement that was added to the parent frame.
- */
-tvm::Stmt Break();
-
-/*!
- * \brief Create a continue statement.
- * \return The same statement that was added to the parent frame.
- */
-tvm::Stmt Continue();
-
-/*!
- * \brief Create an if statement.
- * \param condition The condition of if statement.
- * \return The result IfFrame.
- */
-IfFrame If(PrimExpr condition);
-
-/*!
- * \brief Create a then.
- * \return The result ThenFrame.
- */
-ThenFrame Then();
-
-/*!
- * \brief Create an else.
- * \return The result ElseFrame.
- */
-ElseFrame Else();
-
-/*!
  * \brief Declare a tensor binding or allocate its storage.
  * \param shape The type of the buffer prior to flattening.
  * \param dtype The data type in the content of the buffer.
@@ -315,17 +248,6 @@ TensorVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Flo
                       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations = std::nullopt);
 
 /*!
- * \brief Construct a result-free region with lexical body parameters.
- * \param op The region operation.
- * \param args Operands evaluated outside the region body.
- * \param body_params Existing body parameters, or omitted to generate them from the operation.
- * \param attrs Additional operation attributes.
- */
-RegionFrame Region(Op op, ffi::Array<Expr> args,
-                   ffi::Optional<ffi::Array<Var>> body_params = std::nullopt,
-                   DictAttrs attrs = DictAttrs());
-
-/*!
  * \brief Store data in a tensor destination.
  * \param dest The destination expression.
  * \param indices The indices location to be stored.
@@ -333,13 +255,6 @@ RegionFrame Region(Op op, ffi::Array<Expr> args,
  * \return The same statement that was added to the parent frame.
  */
 tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value);
-
-/*!
- * \brief Evaluate the input expression.
- * \param value The input expression to evaluate.
- * \return The same statement that was added to the parent frame.
- */
-tvm::Stmt Evaluate(Expr value);
 
 /*!
  * \brief Create a TIR var that represents a pointer
