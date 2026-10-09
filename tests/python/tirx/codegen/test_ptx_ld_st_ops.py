@@ -21,7 +21,6 @@ import pytest
 
 import tvm
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 from tvm.tirx.cuda.tile_primitive.copy._common import copy_ptx_form
 
@@ -124,7 +123,7 @@ def test_ptx_ld_st_codegen_emits_shared_asm():
         T.cuda.cta_sync()
         if tid_in_wg == 0:
             T.ptx.ld.shared.v4.u32(reg[0], reg[1], reg[2], reg[3], smem.ptr_to([0]))
-        Tx.copy(D[0:4], reg[:])
+        T.cuda.tile.st(D[0:4], reg[:])
     # fmt: on
 
     target = tvm.target.Target("cuda")

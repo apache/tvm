@@ -21,7 +21,7 @@ from tvm.ir import TensorRegion
 from tvm.tirx import Function
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import MapOpType
-from tvm.tirx.stmt import TileOpCall
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..binary import try_find_inst_nary
 from ..common import init_analyzer
@@ -30,7 +30,7 @@ from .utils import activation_map_ops, generate_unary_func, try_find_inst_unary
 
 
 def unary_with_bias_scale_trn(
-    op: TileOpCall, unary_op: MapOpType = MapOpType.SQRT, sctx: DispatchContext = None
+    op: TensorCall, unary_op: MapOpType = MapOpType.SQRT, sctx: DispatchContext = None
 ) -> Function | None:
     """Schedule unary operation with bias and scale on Trainium."""
     # Check execution environment
@@ -71,22 +71,7 @@ def unary_with_bias_scale_trn(
         _bias,
         scale,
         analyzer,
-        op.workspace,
-        op.config,
+        op.workspaces,
+        op.options,
         sctx,
     )
-
-
-# ---------------------------------------------------------------------------
-# Registration: bind each unary_with_bias_scale op name to its TRN schedule candidates.
-# ---------------------------------------------------------------------------
-from tvm.tirx.operator.tile_primitive import register_dispatch  # noqa: E402
-
-for _op_name, _op_type in {"sqrt": MapOpType.SQRT, "exp": MapOpType.EXP}.items():
-
-    @register_dispatch(_op_name, "trn", variant="unary_with_bias_scale", priority=0)
-    @register_dispatch(
-        _op_name + "_with_scale_bias", "trn", variant="unary_with_bias_scale", priority=0
-    )
-    def _unary_bs_dispatch(op, sctx, _ty=_op_type):
-        return unary_with_bias_scale_trn(op, _ty, sctx)

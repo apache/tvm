@@ -38,7 +38,6 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 from tvm.tirx.layout import ComposeLayout, S, TileLayout, laneid, tid_in_wg, tx
 
@@ -128,7 +127,7 @@ def _build_warp_kernel(num, direction, trans, swizzle=False):
                     A_smem[row, cp, t, w] = A[gr, gc]
             T.cuda.cta_sync()
             R_local = T.alloc_tensor(s_shape, "float16", scope="local", layout=r_layout)
-            Tx.warp.copy(R_local[full], A_smem[full])
+            T.cuda.tile.ldmatrix(R_local[full], A_smem[full], scope='warp')
             r_view = R_local.local()
             for t in range(num):
                 for w in range(2):
@@ -151,7 +150,7 @@ def _build_warp_kernel(num, direction, trans, swizzle=False):
                 for w in range(2):
                     gr, gc = _coord(row, cp, t, w)
                     r_view[t * 2 + w] = A[gr, gc]
-            Tx.warp.copy(A_smem[full], R_local[full])
+            T.cuda.tile.stmatrix(A_smem[full], R_local[full], scope='warp')
             T.cuda.cta_sync()
             for t in range(num):
                 for w in range(2):
@@ -199,7 +198,7 @@ def _build_warpgroup_kernel(num, direction, trans, swizzle=False):
                     A_smem[wid, row, cp, t, w] = A[gr, gc]
             T.cuda.cta_sync()
             R_local = T.alloc_tensor(s_shape, "float16", scope="local", layout=r_layout)
-            Tx.wg.copy(R_local[full], A_smem[full])
+            T.cuda.tile.ldmatrix(R_local[full], A_smem[full], scope='warpgroup')
             r_view = R_local.local()
             for t in range(num):
                 for w in range(2):
@@ -227,7 +226,7 @@ def _build_warpgroup_kernel(num, direction, trans, swizzle=False):
                 for w in range(2):
                     gr, gc = _coord(wid, row, cp, t, w)
                     r_view[t * 2 + w] = A[gr, gc]
-            Tx.wg.copy(A_smem[full], R_local[full])
+            T.cuda.tile.stmatrix(A_smem[full], R_local[full], scope='warpgroup')
             T.cuda.cta_sync()
             for t in range(num):
                 for w in range(2):
@@ -273,7 +272,7 @@ def _build_cta_kernel(num, direction, trans, swizzle=False):
                     A_smem[wid, row, cp, t, w] = A[gr, gc]
             T.cuda.cta_sync()
             R_local = T.alloc_tensor(s_shape, "float16", scope="local", layout=r_layout)
-            Tx.cta.copy(R_local[full], A_smem[full])
+            T.cuda.tile.ldmatrix(R_local[full], A_smem[full], scope='cta')
             r_view = R_local.local()
             for t in range(num):
                 for w in range(2):
@@ -299,7 +298,7 @@ def _build_cta_kernel(num, direction, trans, swizzle=False):
                 for w in range(2):
                     gr, gc = _coord(wid, row, cp, t, w)
                     r_view[t * 2 + w] = A[gr, gc]
-            Tx.cta.copy(A_smem[full], R_local[full])
+            T.cuda.tile.stmatrix(A_smem[full], R_local[full], scope='cta')
             T.cuda.cta_sync()
             for t in range(num):
                 for w in range(2):
@@ -407,7 +406,7 @@ def _build_multi_iter_kernel(outer_ext: int):
                         A_smem[a, tid // 4, c, d, tid % 4, e] = A[a, tid // 4, c, d, tid % 4, e]
         T.cuda.cta_sync()
         R_local = T.alloc_tensor(shape, "float16", scope="local", layout=r_layout)
-        Tx.warp.copy(R_local[full], A_smem[full])
+        T.cuda.tile.ldmatrix(R_local[full], A_smem[full], scope="warp")
         r_view = R_local.local()
         for a in range(outer_ext):
             for c in range(2):
@@ -483,7 +482,7 @@ def test_ldstmatrix_tcgen05_warpgroup_atom_emits_ldmatrix():
         T.lane_id([32])
         T.thread_id_in_wg([128])
         a_reg = T.alloc_tensor((m, k), "bfloat16", scope="local", layout=reg_layout)
-        Tx.wg.copy(a_reg, smem)
+        T.cuda.tile.ldmatrix(a_reg, smem, scope="warpgroup")
 
     _, src = _compile_src(kernel)
     assert "ldmatrix.sync.aligned.m8n8.x4.shared.b16" in src, (

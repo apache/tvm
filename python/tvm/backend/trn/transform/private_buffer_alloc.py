@@ -32,7 +32,7 @@ from tvm.ir import (
     Var,
 )
 from tvm.target import Target
-from tvm.tirx.stmt import TileOpCall
+from tvm.tirx.tensor_instruction import SPECS, TensorCall
 from tvm.tirx.tile_dispatch import DispatchContext
 from tvm.tirx.transform.common import seek_kernel_replace_point
 from tvm.tirx.transform.function_pass import function_pass
@@ -60,8 +60,11 @@ def _collect_private_allocations(stmt: Stmt, target: Target):
     def visit_for(op: For):
         var_range_map[op.loop_var] = Range.from_min_extent(op.min, op.extent)
 
-    def visit_op_call(op: TileOpCall):
-        # Scope is a per-call field on the node; read it directly.
+    def visit_op_call(op: Call):
+        if getattr(op.op, "name", "") not in SPECS:
+            return
+        call = op
+        op = TensorCall.decode(call)
         exec_scope = op.scope
         scope_kind = op.scope.name
         sctx = DispatchContext(
@@ -72,13 +75,12 @@ def _collect_private_allocations(stmt: Stmt, target: Target):
             alloc_only=True,
             scope_kind=scope_kind,
         )
-        op = TileOpCall.downcast(op)
-        private_buf_refs[op] = op.get_private_buffers(buffer_dict, sctx)
+        private_buf_refs[call] = op.get_private_buffers(buffer_dict, sctx)
 
     def visit(node):
         tvm_ffi.structural_walk(
             node,
-            [(RegionStmt, visit_region), (For, visit_for), (TileOpCall, visit_op_call)],
+            [(RegionStmt, visit_region), (For, visit_for), (Call, visit_op_call)],
             order="pre",
         )
 
@@ -90,7 +92,7 @@ def _inject_private_allocations(
     stmt: Stmt,
     alloc_buffers: list[Var],
     init_stmts: list[Stmt],
-    added_workspace: dict[TileOpCall, dict[str, Var]],
+    added_workspace: dict[Call, dict[str, Var]],
 ) -> Stmt:
     is_outer_block = True
 
@@ -125,16 +127,16 @@ def _inject_private_allocations(
                 )
         return op
 
-    def visit_op_call(op: TileOpCall):
+    def visit_op_call(op: Call):
         if op not in added_workspace:
             return op
-        new_workspace = dict(op.workspace)
+        new_workspace = dict(TensorCall.decode(op).workspaces)
         new_workspace.update(added_workspace[op])
-        return TileOpCall.downcast(op).with_workspace(new_workspace)
+        return TensorCall.decode(op).with_workspaces(new_workspace)
 
     return tvm_ffi.structural_map(
         stmt,
-        [(RegionStmt, visit_region), (TileOpCall, visit_op_call)],
+        [(RegionStmt, visit_region), (Call, visit_op_call)],
         order="pre",
     )
 
@@ -154,7 +156,7 @@ def private_alloc(stmt: Stmt, target: Target) -> Stmt:
 
 @function_pass(opt_level=0, name="TrnPrivateBufferAlloc")
 class TrnPrivateBufferAlloc:
-    """Generate private buffer allocations for each TileOpCall"""
+    """Generate private buffer allocations for each tensor instruction Call"""
 
     def transform_function(self, func, mod, ctx):
         target = func.attrs.get("target", None)

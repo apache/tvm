@@ -21,7 +21,6 @@ import tvm
 import tvm.testing
 from tvm.ir import assert_structural_equal as _assert_structural_equal
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import F, P, S, TileLayout
 
 target = tvm.target.Target("aws/trn1/trn1.2xlarge")
@@ -50,8 +49,6 @@ def assert_structural_equal(lhs, rhs, *args, **kwargs):
 
 opcode_map = {"sum": "add", "max": "max", "min": "min"}
 
-Tx_func_map = {"sum": Tx.sum, "max": Tx.max, "min": Tx.min}
-
 
 @pytest.mark.parametrize("op_type", ["sum", "max", "min"])
 def test_simple_reduction(op_type):
@@ -61,7 +58,6 @@ def test_simple_reduction(op_type):
     dst_layout = TileLayout(S[(128, 1) : (1 @ P, 1 @ F)])
 
     opcode = opcode_map[op_type]
-    tx_func = Tx_func_map[op_type]
 
     # fmt: off
     @T.function
@@ -69,7 +65,7 @@ def test_simple_reduction(op_type):
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        tx_func(B_sbuf, A_sbuf, axes=-1)
+        T.trn.tile.tensorreduce(B_sbuf, A_sbuf, axes=-1, reduce_op=op_type)
 
     @T.function
     def expected():
@@ -101,7 +97,7 @@ def test_reduction_with_multiple_axes():
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.sum(B_sbuf, A_sbuf, axes=(1, 2), max_inst_size=2048)
+        T.trn.tile.tensorreduce(B_sbuf, A_sbuf, axes=(1, 2), max_inst_size=2048, reduce_op='sum')
 
     @T.function
     def expected():
@@ -134,7 +130,7 @@ def test_reduction_in_loop():
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
-            Tx.sum(B_sbuf[:, i], A_sbuf[:, :, i], axes=-2)
+            T.trn.tile.tensorreduce(B_sbuf[:, i], A_sbuf[:, :, i], axes=-2, reduce_op='sum')
 
     @T.function
     def expected():
@@ -165,7 +161,7 @@ def test_reduction_two_stage():
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.sum(B_sbuf, A_sbuf, axes=(1, 3))
+        T.trn.tile.tensorreduce(B_sbuf, A_sbuf, axes=(1, 3), reduce_op='sum')
 
     @T.function
     def expected():
@@ -206,7 +202,7 @@ def test_reduction_with_guard():
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
             for j in range(4):
-                Tx.sum(B_sbuf[0: (i+1) * 128, 0], A_sbuf[0: (i+1) * 128, 0: (j+1) * 256], max_inst_size=512)  # noqa: E501
+                T.trn.tile.tensorreduce(B_sbuf[0: (i+1) * 128, 0], A_sbuf[0: (i+1) * 128, 0: (j+1) * 256], max_inst_size=512, reduce_op='sum')  # noqa: E501
 
     @T.function
     def expected():
@@ -252,7 +248,9 @@ def test_reduction_two_stage_workspace():
         intermediate_buffer = T.alloc_tensor((128, 64), scope="trn.sbuf")
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.sum(B_sbuf, A_sbuf, axes=(1, 3), workspace={"partial_reduce": intermediate_buffer})
+        T.trn.tile.tensorreduce(
+            B_sbuf, A_sbuf, axes=(1, 3), partial_reduce=intermediate_buffer, reduce_op="sum"
+        )
 
     @T.function
     def expected():

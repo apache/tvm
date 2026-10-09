@@ -25,7 +25,6 @@ import tvm.script
 import tvm.testing
 from tvm.ir import PrimType, assert_structural_equal
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 
 
 def test_roundtrip_scopeid1():
@@ -123,11 +122,27 @@ def test_roundtrip_op1():
         lane_id = T.lane_id([32])
         A_smem = T.alloc_tensor([64], dtype="float32", scope="shared")
 
-        Tx.cta.copy(A_smem, A)
+        transfer_src_125 = T.meta_var(A[tuple([slice(None) for _ in A.shape])])
+        transfer_dst_125 = T.meta_var(A_smem)
+        transfer_reg_125 = T.alloc_tensor(
+            [r.extent for r in transfer_src_125.region],
+            transfer_src_125.source.dtype,
+            scope="local",
+        )
+        T.cuda.tile.ld(transfer_reg_125, transfer_src_125, scope="cta")
+        T.cuda.tile.st(transfer_dst_125, transfer_reg_125, scope="cta")
         for i in range(10):
-            Tx.cta.fill(A_smem, T.float32(0))
-            Tx.cta.gemm(A_smem, A_smem, A_smem, A_smem)
-        Tx.cta.copy(A, A_smem)
+            T.cuda.tile.mov(A_smem, T.float32(0), scope='cta')
+            T.cuda.tile.mma_sync(A_smem, A_smem, A_smem, A_smem, scope='cta')
+        transfer_src_129 = T.meta_var(A_smem[tuple([slice(None) for _ in A_smem.shape])])
+        transfer_dst_129 = T.meta_var(A)
+        transfer_reg_129 = T.alloc_tensor(
+            [r.extent for r in transfer_src_129.region],
+            transfer_src_129.source.dtype,
+            scope="local",
+        )
+        T.cuda.tile.ld(transfer_reg_129, transfer_src_129, scope="cta")
+        T.cuda.tile.st(transfer_dst_129, transfer_reg_129, scope="cta")
         # fmt: on
 
     code = test.script()
@@ -153,10 +168,26 @@ def test_roundtrip_op2():
 
         C_local = T.alloc_tensor([128, 64], dtype="float32", scope="local")
         for k in range(4):
-            Tx.cta.copy(A_smem, A[:, k * 32 : k * 32 + 32])
-            Tx.cta.copy(B_smem, B[k * 32 : k * 32 + 32, 0:64])
-            Tx.cta.gemm(C_local, A_smem, B_smem, C_local)
-        Tx.cta.copy(C, C_local)
+            transfer_src_155 = T.meta_var(A[:, k * 32:k * 32 + 32])
+            transfer_dst_155 = T.meta_var(A_smem)
+            transfer_reg_155 = T.alloc_tensor(
+                [r.extent for r in transfer_src_155.region],
+                transfer_src_155.source.dtype,
+                scope="local",
+            )
+            T.cuda.tile.ld(transfer_reg_155, transfer_src_155, scope="cta")
+            T.cuda.tile.st(transfer_dst_155, transfer_reg_155, scope="cta")
+            transfer_src_156 = T.meta_var(B[k * 32:k * 32 + 32, 0:64])
+            transfer_dst_156 = T.meta_var(B_smem)
+            transfer_reg_156 = T.alloc_tensor(
+                [r.extent for r in transfer_src_156.region],
+                transfer_src_156.source.dtype,
+                scope="local",
+            )
+            T.cuda.tile.ld(transfer_reg_156, transfer_src_156, scope="cta")
+            T.cuda.tile.st(transfer_dst_156, transfer_reg_156, scope="cta")
+            T.cuda.tile.mma_sync(C_local, A_smem, B_smem, C_local, scope='cta')
+        T.cuda.tile.st(C, C_local, scope='cta')
         # fmt: on
 
     code = test.script()
@@ -185,18 +216,52 @@ def test_roundtrip_op3():
 
         C_local = T.alloc_tensor([128, 64], dtype="float32", scope="local")
         for i in range(NUM_STAGES - 1):
-            Tx.cta.copy(A_smem[i, :, :], A[:, i * 32 : i * 32 + 32])
-            Tx.cta.copy(B_smem[i, :, :], B[i * 32 : i * 32 + 32, :])
+            transfer_src_187 = T.meta_var(A[:, i * 32:i * 32 + 32])
+            transfer_dst_187 = T.meta_var(A_smem[i, :, :])
+            transfer_reg_187 = T.alloc_tensor(
+                [r.extent for r in transfer_src_187.region],
+                transfer_src_187.source.dtype,
+                scope="local",
+            )
+            T.cuda.tile.ld(transfer_reg_187, transfer_src_187, scope="cta")
+            T.cuda.tile.st(transfer_dst_187, transfer_reg_187, scope="cta")
+            transfer_src_188 = T.meta_var(B[i * 32:i * 32 + 32, :])
+            transfer_dst_188 = T.meta_var(B_smem[i, :, :])
+            transfer_reg_188 = T.alloc_tensor(
+                [r.extent for r in transfer_src_188.region],
+                transfer_src_188.source.dtype,
+                scope="local",
+            )
+            T.cuda.tile.ld(transfer_reg_188, transfer_src_188, scope="cta")
+            T.cuda.tile.st(transfer_dst_188, transfer_reg_188, scope="cta")
 
         for k in range(K // 32):
             copy_k = T.meta_var(k + NUM_STAGES - 1)
             gemm_stage = T.meta_var(k % NUM_STAGES)
             copy_stage = T.meta_var(copy_k % NUM_STAGES)
-            Tx.cta.copy(A_smem[copy_stage, :, :], A[:, copy_k * 32 : copy_k * 32 + 32])
-            Tx.cta.copy(B_smem[copy_stage, :, :], B[copy_k * 32 : copy_k * 32 + 32, :])
-            Tx.cta.gemm(C_local, A_smem[gemm_stage, :, :], B_smem[gemm_stage, :, :], C_local)
+            transfer_src_194 = T.meta_var(A[:, copy_k * 32:copy_k * 32 + 32])
+            transfer_dst_194 = T.meta_var(A_smem[copy_stage, :, :])
+            transfer_reg_194 = T.alloc_tensor(
+                [r.extent for r in transfer_src_194.region],
+                transfer_src_194.source.dtype,
+                scope="local",
+            )
+            T.cuda.tile.ld(transfer_reg_194, transfer_src_194, scope="cta")
+            T.cuda.tile.st(transfer_dst_194, transfer_reg_194, scope="cta")
+            transfer_src_195 = T.meta_var(B[copy_k * 32:copy_k * 32 + 32, :])
+            transfer_dst_195 = T.meta_var(B_smem[copy_stage, :, :])
+            transfer_reg_195 = T.alloc_tensor(
+                [r.extent for r in transfer_src_195.region],
+                transfer_src_195.source.dtype,
+                scope="local",
+            )
+            T.cuda.tile.ld(transfer_reg_195, transfer_src_195, scope="cta")
+            T.cuda.tile.st(transfer_dst_195, transfer_reg_195, scope="cta")
+            T.cuda.tile.mma_sync(
+                C_local, A_smem[gemm_stage, :, :], B_smem[gemm_stage, :, :], C_local, scope="cta"
+            )
 
-        Tx.cta.copy(C, C_local)
+        T.cuda.tile.st(C, C_local, scope='cta')
         # fmt: on
 
     code = test.script()
@@ -242,7 +307,7 @@ def test_roundtrip_op_call_workspace():
 
         T.device_entry()
         smem = T.alloc_tensor([10], "float32", scope="shared")
-        Tx.add(B, A, T.float32(1), workspace={"smem": smem})
+        T.trn.tile.activation(B, A, bias=1.0, const_bias=smem)
         # fmt: on
     code = test.script()
     assert from_source(code).script() == code
@@ -257,7 +322,7 @@ def test_roundtrip_op_call_config():
     ):
 
         T.device_entry()
-        Tx.add(B, A, T.float32(1), schedule="A")
+        T.cuda.tile.add(B, A, T.float32(1), rounding_mode="rz")
         # fmt: on
     code = test.script()
     assert from_source(code).script() == code
@@ -271,7 +336,7 @@ def test_predicate():
         T.device_entry()
         A = T.alloc_tensor([10, 10], "float32")
         B = T.alloc_tensor([10, 10], "float32")
-        Tx.select(B, A, 1.0, lambda i, j: i < j)
+        T.trn.tile.affine_select(B, A, 1.0, lambda i, j: i < j)
         # fmt: on
     code = test.script()
     assert from_source(code).script() == code
@@ -283,49 +348,13 @@ def test_kwargs_op_call():
     @T.function(private=True)
     def test(A: T.Tensor((10, 10), "float32"), B: T.Tensor((10, 10), "float32")):
         T.device_entry()
-        kwargs = T.meta_var({"dispatch": "tma_auto", "cta_group": 2})
-        Tx.copy_async(A[:, :], B[:, :], **kwargs)
+        kwargs = T.meta_var({"descriptor_mode": "auto", "cta_group": 2})
+        T.cuda.tile.cp_async_bulk_tensor_load(A[:, :], B[:, :], A.data, **kwargs)
         # fmt: on
     code = test.script()
     print(code)
     assert from_source(code).script() == code
     assert_structural_equal(test, from_source(code))
-
-
-def test_workspace_default_none():
-    """Regression: TIRX op IR builder functions (binary_reduce, unary_reduce,
-    binary_chain, reduce_negate) should handle workspace=None (the default)
-    without error. Previously these functions were missing the
-    ``if workspace is None: workspace = {}`` guard."""
-    from tvm.tirx import BufferRegion
-
-    A_buf = tvm.tirx.decl_tensor((128, 128), "float16", name="A")
-    B_buf = tvm.tirx.decl_tensor((128, 128), "float16", name="B")
-    C_buf = tvm.tirx.decl_tensor((128,), "float16", name="C")
-    A = BufferRegion(A_buf, [tvm.ir.Range(0, 128), tvm.ir.Range(0, 128)])
-    B = BufferRegion(B_buf, [tvm.ir.Range(0, 128), tvm.ir.Range(0, 128)])
-    C = BufferRegion(C_buf, [tvm.ir.Range(0, 128)])
-
-    # These should not crash when workspace is not provided (defaults to None)
-    from tvm.tirx.op import tile as tirx_op
-
-    op_br = tirx_op.BinaryReduce(
-        B, C, A, B, tirx_op.get_tirx_op("add"), tirx_op.get_tirx_op("max"), (-1,)
-    )
-    assert len(op_br.workspace) == 0
-
-    op_ur = tirx_op.UnaryReduce(
-        B, C, A, tirx_op.get_tirx_op("sqrt"), tirx_op.get_tirx_op("sum"), (-1,)
-    )
-    assert len(op_ur.workspace) == 0
-
-    op_bc = tirx_op.BinaryChain(
-        B, A, A, A, tirx_op.get_tirx_op("add"), tirx_op.get_tirx_op("mul"), False
-    )
-    assert len(op_bc.workspace) == 0
-
-    op_rn = tirx_op.ReduceNegate(C, A, tirx_op.get_tirx_op("sum"), (-1,), False)
-    assert len(op_rn.workspace) == 0
 
 
 def test_roundtrip_persistent_decorator():
@@ -339,7 +368,7 @@ def test_roundtrip_persistent_decorator():
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
-        Tx.cta.fill(A[0:32], T.float32(0))
+        T.cuda.tile.mov(A[0:32], T.float32(0), scope='cta')
         # fmt: on
 
     code = test.script()
@@ -360,7 +389,7 @@ def test_roundtrip_persistent_not_present():
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
-        Tx.cta.fill(A[0:32], T.float32(0))
+        T.cuda.tile.mov(A[0:32], T.float32(0), scope='cta')
         # fmt: on
 
     code = test.script()
@@ -381,9 +410,9 @@ def test_warp_role():
         warp_id = T.warp_id_in_wg([4])
         lane_id = T.lane_id([32])
         with WarpRole(warp_id, 1, regs=48):
-            Tx.cta.fill(A[0:32], T.float32(0))
+            T.cuda.tile.mov(A[0:32], T.float32(0), scope='cta')
         with WarpRole(warp_id, 0, regs=232, increase=True):
-            Tx.cta.fill(A[32:64], T.float32(1))
+            T.cuda.tile.mov(A[32:64], T.float32(1), scope='cta')
         # fmt: on
 
     code = test.script()
@@ -416,7 +445,7 @@ def test_warpgroup_role():
         warp_id_in_wg = T.warp_id_in_wg([4])
         lane_id = T.lane_id([32])
         with WarpgroupRole(wg_id, 2, regs=200, increase=True):
-            Tx.cta.fill(A[0:32], T.float32(0))
+            T.cuda.tile.mov(A[0:32], T.float32(0), scope='cta')
         # fmt: on
 
     code = test.script()

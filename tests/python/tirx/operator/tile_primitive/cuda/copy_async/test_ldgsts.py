@@ -17,13 +17,14 @@
 # pylint: disable=invalid-name, missing-function-docstring
 """Tests for the non-bulk CTA-level copy_async dispatch (vectorized load)."""
 
+import math
+
 import numpy as np
 import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 from tvm.tirx.layout import S, TileLayout
 
@@ -88,11 +89,42 @@ def test_copy_g2s_s2g_cta_vec_load(task, dtype):
         tid = T.thread_id([thread_cnt])
         A_smem = T.alloc_tensor(s_shape, dtype, scope="shared", layout=layoutS)
 
-        Tx.cta.copy_async(A_smem[tuple(r_smem)], A[tuple(r_gmem)], dispatch="ldgsts")
+        T.cuda.tile.cp_async(A_smem[tuple(r_smem)], A[tuple(r_gmem)], scope='cta')
         T.ptx.cp.async_.commit_group()
         T.ptx.cp.async_.wait_group(0)
         T.cuda.cta_sync()
-        Tx.cta.copy(B[tuple(r_gmem)], A_smem[tuple(r_smem)])
+        copy_src_1 = T.meta_var(A_smem[tuple(r_smem)])
+        copy_src_tensor_1 = T.meta_var(copy_src_1.source)
+        copy_dst_1 = T.meta_var(B[tuple(r_gmem)])
+        copy_dst_tensor_1 = T.meta_var(copy_dst_1.source)
+        for copy_step_1 in T.serial(
+            T.ceildiv(math.prod([int(r.extent) for r in copy_src_1.region]), thread_cnt)
+        ):
+            copy_index_1 = copy_step_1 * (thread_cnt) + (tid)
+            if copy_index_1 < math.prod([int(r.extent) for r in copy_src_1.region]):
+                copy_value_1 = copy_src_tensor_1[
+                    tuple(
+                        [
+                            copy_src_1.region[k].min
+                            + copy_index_1
+                            // math.prod([int(s.extent) for s in copy_src_1.region[k + 1 :]])
+                            % copy_src_1.region[k].extent
+                            for k in range(len(copy_src_1.region))
+                        ]
+                    )
+                ]
+                copy_dst_index_1 = T.meta_var(
+                    tuple(
+                        [
+                            copy_dst_1.region[k].min
+                            + copy_index_1
+                            // math.prod([int(s.extent) for s in copy_dst_1.region[k + 1 :]])
+                            % copy_dst_1.region[k].extent
+                            for k in range(len(copy_dst_1.region))
+                        ]
+                    )
+                )
+                copy_dst_tensor_1[copy_dst_index_1] = copy_value_1
         # fmt: on
 
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
@@ -128,10 +160,9 @@ def test_copy_ldgsts_predicate_zero_fill_codegen():
         tid = T.thread_id([32])
         A_smem = T.alloc_tensor((32, 16), "uint8", scope="shared", layout=TileLayout(S[32, 16]))
 
-        Tx.copy_async(
+        T.cuda.tile.cp_async(
             A_smem[tid, :],
             A[tid, :],
-            dispatch="ldgsts",
             direct=True,
             prefetch_size=128,
             predicate=tid < 16,

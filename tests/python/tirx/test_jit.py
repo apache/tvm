@@ -27,7 +27,6 @@ import pytest
 import tvm
 from tvm.ir import assert_structural_equal
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 
 
 def test_int_constexpr_specializes_loop_bound():
@@ -235,20 +234,16 @@ def test_constexpr_specializes_nested_selector_condition():
         *,
         LIMIT: T.constexpr,
     ):
-        Tx.copy_async(
-            C[:],
-            A[:],
-            dispatch="tma_explicit",
-            mbar=C.data,
-            src_selector=[(flag < LIMIT, B)],
+        T.cuda.tile.cp_async_bulk_tensor_load(
+            C[:], A[:], mbar=C.data, src_selector=[(flag < LIMIT, B)], descriptor_mode="explicit"
         )
 
     specialized = k.specialize(LIMIT=4)
-    op_call = specialized.body[0]
-    condition, candidate = op_call.config["src_selector"][0]
+    op_call = specialized.body[0].value
+    condition, candidate = op_call.args[6][0]
     assert isinstance(condition, tvm.tirx.LT)
     assert int(condition.b) == 4
-    assert candidate.same_as(specialized.params[1])
+    assert candidate.source.same_as(specialized.params[1])
 
 
 def test_optional_param_present_and_absent_ir():
