@@ -944,7 +944,7 @@ def _nms_loop(
     with T.serial(0, batch_size) as i:
         nkeep = if_then_else(tvm.tirx.all(top_k > 0, top_k < valid_count[i]), top_k, valid_count[i])
 
-        with T.if_(tvm.tirx.all(iou_threshold > te.const(0), valid_count[i] > te.const(0))):
+        with T.if_(tvm.tirx.all(iou_threshold >= te.const(0), valid_count[i] > te.const(0))):
             with T.then_():
                 num_valid_boxes_local_buf = T.alloc_tensor((1,), "int32", scope="local")
                 num_valid_boxes_local = num_valid_boxes_local_buf
