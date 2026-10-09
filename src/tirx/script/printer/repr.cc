@@ -16,22 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef SRC_S_TIR_SCRIPT_PRINTER_UTILS_H_
-#define SRC_S_TIR_SCRIPT_PRINTER_UTILS_H_
-
-#include <tvm/script/printer/doc_translator.h>
+#include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/index_map.h>
+#include <tvm/tirx/layout.h>
+#include <tvm/tirx/stmt.h>
+
+#include "../../../script/printer/utils.h"
 
 namespace tvm {
-namespace script {
-namespace printer {
-namespace details {
 
-void PrintSTirFunction(DocTranslatorObj* d, const tirx::FunctionNode* func);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  using script::printer::details::RegisterScriptRepr;
+  RegisterScriptRepr<tirx::TensorTypeNode>();
+  RegisterScriptRepr<tirx::ComposeLayoutNode>();
+  RegisterScriptRepr<tirx::ExecScopeNode>();
+  RegisterScriptRepr<tirx::IndexMapNode>();
+  RegisterScriptRepr<tirx::IterNode>();
+  RegisterScriptRepr<tirx::FunctionNode>();
+  RegisterScriptRepr<tirx::ScopeIdDefNode>();
+  RegisterScriptRepr<tirx::ScopeIdDefStmtNode>();
+  RegisterScriptRepr<tirx::TileLayoutNode>();
+}
 
-}  // namespace details
-}  // namespace printer
-}  // namespace script
 }  // namespace tvm
-
-#endif  // SRC_S_TIR_SCRIPT_PRINTER_UTILS_H_

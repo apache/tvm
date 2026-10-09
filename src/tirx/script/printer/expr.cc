@@ -40,8 +40,8 @@ namespace script {
 namespace printer {
 namespace details {
 
-ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                       const ffi::Object* destination) {
+ffi::Optional<ExprDoc> TensorVarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                             const ffi::Object* destination) {
   const auto* node =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const VarNode>(input);
   Var var = ffi::GetRef<Var>(node);
@@ -49,22 +49,8 @@ ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
   if (destination == node && d->GetImplicitDefs().count(var)) {
     // Promote before translating the type, which may refer back to this Var.
     VarDoc(d, var);
-    ffi::Optional<ExprDoc> rhs = std::nullopt;
-    ffi::Optional<ExprDoc> annotation = std::nullopt;
-    if (auto primitive = var->ty.as<PrimType>()) {
-      rhs = NamespaceDoc("ir")->Attr("dynamic")->Call(
-          {LiteralDoc::Str(var->name, std::nullopt)}, {"dtype"},
-          {LiteralDoc::DataType(primitive.value()->dtype, std::nullopt)});
-    } else if (var->ty.as<tirx::TensorTypeNode>()) {
-      rhs = NamespaceDoc("tirx")->Attr("Var")->Call(
-          {LiteralDoc::Str(var->name, std::nullopt), d->Translate(var->ty).value()});
-    } else {
-      annotation = d->Translate(var->ty).value();
-      if (var->ty.as<PointerTypeNode>()) {
-        // A module-level annotation alone does not bind a Python variable.
-        rhs = annotation.value().as<CallDoc>() ? annotation : annotation.value()->Call({});
-      }
-    }
+    ExprDoc rhs = NamespaceDoc("tirx")->Attr("Var")->Call(
+        {LiteralDoc::Str(var->name, std::nullopt), d->Translate(var->ty).value()});
     // Only this type's referenced Vars must precede its declaration.
     ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
         var->ty, [&](const Var& dependency) -> ffi::Expected<ffi::WalkResult> {
@@ -75,7 +61,7 @@ ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
           }
           return ffi::WalkResult::Skip();
         });
-    d->Emit(AssignDoc(VarDoc(d, var), rhs, annotation), var);
+    d->Emit(AssignDoc(VarDoc(d, var), rhs, std::nullopt), var);
     return std::nullopt;
   }
   // Mutable scalar syntax binds a TensorLoad; resource uses need its buffer.
@@ -84,8 +70,8 @@ ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<VarNode>().attr(kDocTranslate,
-                                               FDocTranslate::FromNative<&VarDocTranslate>());
+  ffi::reflection::TypeAttrDef<tirx::TensorTypeNode>().attr(
+      type_attr::kVarDocTranslate, FDocTranslate::FromNative<&TensorVarDocTranslate>());
 }
 
 bool CanTranslateExplicitResultCall(const CallNode* call) {
@@ -226,14 +212,21 @@ ffi::Optional<ExprDoc> TensorDataPtrDocTranslate(DocTranslatorObj* d, ffi::AnyVi
                                                  const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (call->attrs.defined() || !call->ty_args.empty() || call->args.size() != 1)
-    return RawCall(d, call);
-  try {
-    if (!ffi::StructuralEqual()(Call::ReinferType(call), call->ty)) return RawCall(d, call);
-  } catch (const ffi::Error&) {
-    return RawCall(d, call);
+  ExprDoc value = [&]() -> ExprDoc {
+    if (call->attrs.defined() || !call->ty_args.empty() || call->args.size() != 1)
+      return RawCall(d, call);
+    try {
+      if (!ffi::StructuralEqual()(Call::ReinferType(call), call->ty)) return RawCall(d, call);
+    } catch (const ffi::Error&) {
+      return RawCall(d, call);
+    }
+    return d->Translate(call->args[0]).value()->Attr("data");
+  }();
+  auto evaluated = d->GetOrCreateExtraState<ffi::Optional<Expr>>("ir.evaluate_value");
+  if (evaluated.has_value() && evaluated.value().get() == call) {
+    value = NamespaceDoc("tirx")->Attr("evaluate")->Call({value});
   }
-  return d->Translate(call->args[0]).value()->Attr("data");
+  return value;
 }
 
 // PTX modifiers and operand tags use a dedicated reconstruction surface.

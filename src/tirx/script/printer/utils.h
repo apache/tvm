@@ -36,12 +36,13 @@ void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc 
                    const ffi::String& dialect_attr);
 bool CanTranslateExplicitResultCall(const CallNode* call);
 bool IsScalarBuffer(DocTranslatorObj* d, const Expr& source);
-ffi::Array<StmtDoc> Body(const Stmt& stmt, DocTranslatorObj* d);
-ExprDoc TensorRegionValue(DocTranslatorObj* d, const TensorRegionNode* region, bool require_region);
-ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                       const ffi::Object* destination);
 
 }  // namespace details
+
+namespace type_attr {
+// S-TIR owns the syntax for marked TIRx functions when its printer is loaded.
+inline constexpr const char* kSTirFunctionDocTranslate = "__tvm_doc_translate_s_tir_function__";
+}  // namespace type_attr
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

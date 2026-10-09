@@ -19,18 +19,27 @@
 #include <tvm/ir/function.h>
 
 #include "../../../tirx/script/printer/utils.h"
-#include "utils.h"
 
 namespace tvm {
 namespace script {
 namespace printer {
 namespace details {
 
-void PrintSTirFunction(DocTranslatorObj* d, const tirx::FunctionNode* func) {
-  d->SetExtraState("tirx.buffer_default_layout_none", true);
+namespace {
+ffi::Optional<ExprDoc> STirFunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                const ffi::Object*) {
+  const auto* func =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::FunctionNode>(input);
+  ExtraStateScope<bool> layout(d, "tirx.buffer_default_layout_none", true);
   PrintFunction(d, func, NamespaceDoc("s_tir")->Attr("function"), tvm::attr::kSTir);
-  d->SetExtraState("tirx.buffer_default_layout_none", std::nullopt);
+  return std::nullopt;
 }
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<tirx::FunctionNode>().attr(
+      type_attr::kSTirFunctionDocTranslate, FDocTranslate::FromNative<&STirFunctionDocTranslate>());
+}
+}  // namespace
 
 }  // namespace details
 }  // namespace printer

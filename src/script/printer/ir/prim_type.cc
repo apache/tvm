@@ -17,8 +17,6 @@
  * under the License.
  */
 
-#include <tvm/tirx/type.h>
-
 #include <algorithm>
 #include <functional>
 #include <optional>
@@ -31,6 +29,45 @@ namespace printer {
 namespace details {
 
 namespace {
+
+ffi::Optional<ExprDoc> PointerTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                               const ffi::Object*) {
+  const auto* ty =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PointerTypeNode>(input);
+  if (auto primitive = ty->element_type.as<PrimType>()) {
+    if (primitive.value().IsVoid()) {
+      if (ty->storage_scope == "global") return NamespaceDoc("tirx")->Attr("handle");
+      return NamespaceDoc("tirx")->Attr("handle")->Call(
+          {}, {"storage_scope"}, {LiteralDoc::Str(ty->storage_scope, std::nullopt)});
+    }
+    ExprDoc element = LiteralDoc::DataType(primitive.value()->dtype, std::nullopt);
+    if (ty->storage_scope.empty()) return NamespaceDoc("tirx")->Attr("handle")->Call({element});
+    return NamespaceDoc("tirx")->Attr("handle")->Call(
+        {element, LiteralDoc::Str(ty->storage_scope, std::nullopt)});
+  }
+  static ffi::reflection::TypeAttrColumn constructors(type_attr::kPointerConstructor);
+  if (auto name = constructors[ty->element_type->type_index()].as<ffi::String>()) {
+    return NamedCallCallee(name.value())->Call({});
+  }
+  return NamespaceDoc("tirx")->Attr("handle")->Call(
+      {d->Translate(ty->element_type).value(), LiteralDoc::Str(ty->storage_scope, std::nullopt)});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<PointerTypeNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&PointerTypeDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> AnyTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                           const ffi::Object*) {
+  ExprDoc doc = NamespaceDoc("relax")->Attr("Any");
+  return IsTypeValue(d, input) ? doc->Call({}) : doc;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<AnyTypeNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&AnyTypeDocTranslate>());
+}
 
 ffi::Optional<ExprDoc> MissingTypeDocTranslate(DocTranslatorObj*, ffi::AnyView,
                                                const ffi::Object*) {
@@ -131,7 +168,10 @@ ffi::Optional<ExprDoc> TupleTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView i
                                              const ffi::Object*) {
   const auto* ty =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleTypeNode>(input);
-  if (ty->fields.empty()) return NamespaceDoc("relax")->Attr("Tuple");
+  if (ty->fields.empty()) {
+    ExprDoc doc = NamespaceDoc("relax")->Attr("Tuple");
+    return IsTypeValue(d, input) ? doc->Call({}) : doc;
+  }
   ffi::Array<ExprDoc> fields;
   for (const Type& field : ty->fields) fields.push_back(d->Translate(field).value());
   std::function<bool(const Type&)> is_primitive = [&](const Type& field) {

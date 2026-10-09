@@ -20,7 +20,6 @@
 #include <optional>
 
 #include "../../../script/printer/ir/utils.h"
-#include "../../../tirx/script/printer/utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -29,32 +28,6 @@ namespace printer {
 namespace details {
 
 namespace {
-
-ffi::Optional<ExprDoc> TupleDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                         const ffi::Object*) {
-  const auto* tuple =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleNode>(input);
-  ffi::Array<ExprDoc> fields;
-  for (const Expr& field : tuple->fields) fields.push_back(d->Translate(field).value());
-  return TupleDoc(fields);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<TupleNode>().attr(kDocTranslate,
-                                                 FDocTranslate::FromNative<&TupleDocTranslate>());
-}
-
-ffi::Optional<ExprDoc> TupleGetItemDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                                const ffi::Object*) {
-  const auto* item =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleGetItemNode>(input);
-  return d->Translate(item->tuple).value()[{LiteralDoc::Int(item->index, std::nullopt)}];
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<TupleGetItemNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TupleGetItemDocTranslate>());
-}
 
 ffi::Optional<ExprDoc> ShapeExprDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                              const ffi::Object*) {

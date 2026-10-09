@@ -19,15 +19,10 @@
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/extra/structural_equal.h>
-#include <tvm/relax/distributed/type.h>
-#include <tvm/relax/global_info.h>
 #include <tvm/runtime/tensor.h>
-#include <tvm/target/target.h>
 
 #include <algorithm>
 #include <cmath>
-#include <cstring>
-#include <limits>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -61,61 +56,11 @@ ffi::Optional<ExprDoc> GenericConstDocTranslate(DocTranslatorObj* d, ffi::AnyVie
   if (auto dtype = constant->value.as<DLDataType>()) {
     return LiteralDoc::DataType(dtype.value(), std::nullopt);
   }
-  auto tensor = constant->value.as<runtime::Tensor>();
-  if (!tensor.has_value()) return AddMetadata(d, ffi::GetRef<GenericConst>(constant));
-  const runtime::Tensor& data = tensor.value();
-  DLDataType dtype = data.DataType();
-  auto print_const = [&](ExprDoc value) -> ExprDoc {
-    if (constant->ty.as<relax::distributed::DTensorTypeNode>()) {
-      return NamespaceDoc("relax")->Attr("dist")->Attr("const")->Call(
-          {value, d->Translate(constant->ty).value()});
-    }
-    return NamespaceDoc("relax")->Attr("const")->Call(
-        {value, LiteralDoc::DataType(dtype, std::nullopt)});
-  };
-  if (data->ndim != 0) return AddMetadata(d, ffi::GetRef<GenericConst>(constant));
-  if (data->device.device_type != kDLCPU)
-    return AddMetadata(d, ffi::GetRef<GenericConst>(constant));
-  if (dtype.lanes != 1 || dtype.bits == 0 || dtype.bits > 64 || dtype.bits % 8 != 0) {
-    return AddMetadata(d, ffi::GetRef<GenericConst>(constant));
+  static ffi::reflection::TypeAttrColumn column(type_attr::kConstantDocTranslate);
+  if (auto hook = column[constant->value.type_index()]; hook != nullptr) {
+    return InvokeDocHook(hook, d, input);
   }
-  alignas(double) uint8_t scalar_bytes[sizeof(double)]{};
-  data.CopyToBytes(scalar_bytes, dtype.bits / 8);
-  auto read_scalar = [&](auto value) {
-    std::memcpy(&value, scalar_bytes, sizeof(value));
-    return value;
-  };
-  ExprDoc scalar(ffi::UnsafeInit{});
-  if (dtype == (DLDataType{kDLInt, 8, 1})) {
-    scalar = LiteralDoc::Int(read_scalar(int8_t{}), std::nullopt);
-  } else if (dtype == (DLDataType{kDLInt, 16, 1})) {
-    scalar = LiteralDoc::Int(read_scalar(int16_t{}), std::nullopt);
-  } else if (dtype == (DLDataType{kDLInt, 32, 1})) {
-    scalar = LiteralDoc::Int(read_scalar(int32_t{}), std::nullopt);
-  } else if (dtype == (DLDataType{kDLInt, 64, 1})) {
-    scalar = LiteralDoc::Int(read_scalar(int64_t{}), std::nullopt);
-  } else if (dtype == (DLDataType{kDLFloat, 16, 1})) {
-    uint16_t bits = read_scalar(uint16_t{});
-    uint16_t exponent = (bits >> 10) & 31;
-    uint16_t fraction = bits & 1023;
-    double value = exponent == 31
-                       ? (fraction ? std::numeric_limits<double>::quiet_NaN()
-                                   : std::numeric_limits<double>::infinity())
-                       : (exponent == 0 ? std::ldexp(static_cast<double>(fraction), -24)
-                                        : std::ldexp(static_cast<double>(fraction | 1024),
-                                                     static_cast<int>(exponent) - 25));
-    if (bits & 0x8000) value = -value;
-    scalar = LiteralDoc::Float(value, std::nullopt);
-  } else if (dtype == (DLDataType{kDLFloat, 32, 1})) {
-    scalar = LiteralDoc::Float(read_scalar(float{}), std::nullopt);
-  } else if (dtype == (DLDataType{kDLFloat, 64, 1})) {
-    scalar = LiteralDoc::Float(read_scalar(double{}), std::nullopt);
-  } else if (dtype == (DLDataType{kDLBool, 8, 1})) {
-    scalar = LiteralDoc::Boolean(read_scalar(uint8_t{}), std::nullopt);
-  } else {
-    return AddMetadata(d, ffi::GetRef<GenericConst>(constant));
-  }
-  return print_const(scalar);
+  return AddMetadata(d, ffi::GetRef<GenericConst>(constant));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -169,14 +114,6 @@ ExprDoc AnyValue(DocTranslatorObj* d, ffi::AnyView value) {
   if (const auto* dtype = value.as<DataTypeImmNode>()) {
     return NamespaceDoc("ir")->Attr("dtype")->Call(
         {LiteralDoc::DataType(dtype->value, std::nullopt)});
-  }
-  if (auto vdevice = value.as<relax::VDevice>()) {
-    return NamespaceDoc("relax")->Attr("vdevice")->Call(
-        {NamespaceDoc("tirx")->Attr("target")->Call(
-            {AnyValue(d, vdevice.value()->target->ToConfig())})},
-        {"vdevice_id", "memory_scope"},
-        {LiteralDoc::Int(vdevice.value()->vdevice_id, std::nullopt),
-         LiteralDoc::Str(vdevice.value()->memory_scope, std::nullopt)});
   }
   // Any-valued fields must retain IR objects; Expr-valued fields convert literals.
   if (const auto* integer = value.as<IntImmNode>()) {

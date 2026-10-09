@@ -20,9 +20,13 @@
 #include <tvm/te/operation.h>
 
 #include "../../../script/printer/ir/utils.h"
-#include "../../../tirx/script/printer/utils.h"
+#include "../../../script/printer/utils.h"
 
 namespace tvm::script::printer::details {
+TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterScriptRepr<te::CommReducerNode>();
+  RegisterScriptRepr<te::ReduceNode>();
+}
 namespace {
 ffi::Optional<ExprDoc> CommReducerDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                                const ffi::Object*) {

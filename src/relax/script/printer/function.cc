@@ -44,7 +44,10 @@ ffi::Optional<ExprDoc> FunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView in
       << "printer statement-only node cannot fulfill a destination";
   VarScope vars(d);
 
-  ffi::String name = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or("main");
+  auto binding_name = d->GetOrCreateExtraState<ffi::Optional<ffi::String>>("ir.function_name");
+  ExtraStateScope<ffi::Optional<ffi::String>> nested_name(d, "ir.function_name", std::nullopt);
+  auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+  ffi::String name = binding_name.value_or(global_symbol.value_or("main"));
   ffi::Array<AssignDoc> args;
   ffi::Array<IdDoc> param_ids;
   // A prior annotation may depend on a later scalar parameter.
@@ -106,6 +109,14 @@ ffi::Optional<ExprDoc> FunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView in
   auto body = ToStmtDocArray(docs);
   FunctionDoc function(IdDoc(name), args, {decorator}, ret_type, body);
   FinalizeFunctionDefinitions(d, signature_candidates, function);
+  if (binding_name && global_symbol && global_symbol.value() != binding_name.value()) {
+    function->body.insert(
+        function->body.begin(),
+        ExprStmtDoc(NamespaceDoc("relax")
+                        ->Attr("func_attr")
+                        ->Call({DictDoc({LiteralDoc::Str(tvm::attr::kGlobalSymbol, std::nullopt)},
+                                        {LiteralDoc::Str(global_symbol.value(), std::nullopt)})})));
+  }
   vars.Close();
   d->Emit(function, ffi::GetRef<ffi::ObjectRef>(func));
   return std::nullopt;
@@ -140,8 +151,9 @@ ffi::Optional<ExprDoc> ExternFuncDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<relax::ExternFuncNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&ExternFuncDocTranslate>());
+  ffi::reflection::TypeAttrDef<relax::ExternFuncNode>()
+      .attr(kDocTranslate, FDocTranslate::FromNative<&ExternFuncDocTranslate>())
+      .attr(type_attr::kModuleFunctionOrder, 0);
 }
 
 }  // namespace
