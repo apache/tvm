@@ -82,8 +82,7 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
       values.push_back(AnyValue(d, ty->vdevice.value()));
     }
   }
-  if (args.empty() && keys.empty() && !IsTypeValue(d, input))
-    return NamespaceDoc("relax")->Attr("Tensor");
+  if (args.empty() && keys.empty()) return NamespaceDoc("relax")->Attr("Tensor");
   return NamespaceDoc("relax")->Attr("Tensor")->Call(args, keys, values);
 }
 
@@ -111,9 +110,8 @@ ffi::Optional<ExprDoc> RelaxFuncTypeDocTranslate(DocTranslatorObj* d, ffi::AnyVi
       keys.push_back("derive_func");
       values.push_back(LiteralDoc::Str(ty->derive_func.value()->name, std::nullopt));
     }
-    return keys.empty() && !IsTypeValue(d, input)
-               ? NamespaceDoc("relax")->Attr("Callable")
-               : NamespaceDoc("relax")->Attr("Callable")->Call({}, keys, values);
+    return keys.empty() ? NamespaceDoc("relax")->Attr("Callable")
+                        : NamespaceDoc("relax")->Attr("Callable")->Call({}, keys, values);
   }
   ffi::Array<ExprDoc> params;
   for (const Type& param : ty->params.value()) params.push_back(d->Translate(param).value());

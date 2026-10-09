@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/prim/vector_expr.h>
 
@@ -29,53 +28,6 @@ namespace tvm {
 namespace script {
 namespace printer {
 namespace details {
-
-ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                       const ffi::Object* destination) {
-  const auto* node =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const VarNode>(input);
-  static ffi::reflection::TypeAttrColumn column(type_attr::kVarDocTranslate);
-  if (auto hook = column[node->ty->type_index()]; hook != nullptr) {
-    return InvokeDocHook(hook, d, input, destination);
-  }
-  Var var = ffi::GetRef<Var>(node);
-  IdDoc id = d->VarGetOrAllocId(var, false);
-  if (destination == node && d->GetImplicitDefs().count(var)) {
-    // Promote before translating the type, which may refer back to this Var.
-    VarDoc(d, var);
-    ffi::Optional<ExprDoc> rhs = std::nullopt;
-    ffi::Optional<ExprDoc> annotation = std::nullopt;
-    if (auto primitive = var->ty.as<PrimType>()) {
-      rhs = NamespaceDoc("ir")->Attr("dynamic")->Call(
-          {LiteralDoc::Str(var->name, std::nullopt)}, {"dtype"},
-          {LiteralDoc::DataType(primitive.value()->dtype, std::nullopt)});
-    } else {
-      annotation = d->Translate(var->ty).value();
-      if (var->ty.as<PointerTypeNode>()) {
-        // A module-level annotation alone does not bind a Python variable.
-        rhs = annotation.value().as<CallDoc>() ? annotation : annotation.value()->Call({});
-      }
-    }
-    // Only this type's referenced Vars must precede its declaration.
-    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-        var->ty, [&](const Var& dependency) -> ffi::Expected<ffi::WalkResult> {
-          if (d->GetImplicitDefs().count(dependency)) {
-            if (auto rhs = d->Translate(dependency, dependency)) {
-              d->Emit(AssignDoc(VarDoc(d, dependency), rhs.value(), std::nullopt), dependency);
-            }
-          }
-          return ffi::WalkResult::Skip();
-        });
-    d->Emit(AssignDoc(VarDoc(d, var), rhs, annotation), var);
-    return std::nullopt;
-  }
-  return IdDoc(id->name);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<VarNode>().attr(kDocTranslate,
-                                               FDocTranslate::FromNative<&VarDocTranslate>());
-}
 
 ffi::Optional<ExprDoc> LambdaExprDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                               const ffi::Object*) {

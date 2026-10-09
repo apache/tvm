@@ -49,25 +49,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       kDocTranslate, FDocTranslate::FromNative<&DataTypeImmDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> GenericConstDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                                const ffi::Object*) {
-  const auto* constant =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const GenericConstNode>(input);
-  if (auto dtype = constant->value.as<DLDataType>()) {
-    return LiteralDoc::DataType(dtype.value(), std::nullopt);
-  }
-  static ffi::reflection::TypeAttrColumn column(type_attr::kConstantDocTranslate);
-  if (auto hook = column[constant->value.type_index()]; hook != nullptr) {
-    return InvokeDocHook(hook, d, input);
-  }
-  return AddMetadata(d, ffi::GetRef<GenericConst>(constant));
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<GenericConstNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&GenericConstDocTranslate>());
-}
-
 }  // namespace
 
 ExprDoc AnyValue(DocTranslatorObj* d, ffi::AnyView value) {
