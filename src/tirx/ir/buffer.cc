@@ -47,11 +47,6 @@ using SubscriptSlice = ffi::Array<ffi::Variant<
     ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>>,
     PrimExpr>>;
 
-TensorVar RebuildTensorVarFromType(const TensorVar& buffer, TensorType type,
-                                   ffi::String name_suffix = "") {
-  return TensorVar(buffer.name() + name_suffix, std::move(type), buffer.span());
-}
-
 ffi::ObjectRef RealizeBufferSubscript(
     Expr value,
     ffi::Array<ffi::Variant<
