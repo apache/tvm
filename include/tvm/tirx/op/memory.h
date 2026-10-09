@@ -76,9 +76,12 @@ TVM_DLL const Op& reinterpret_op();
  * \return The result expression.
  * \note This function may return value if the type is the same.
  */
-TVM_DLL PrimExpr reinterpret(PrimType t, PrimExpr value, Span span = Span());
-TVM_DLL PrimExpr reinterpret(DLDataType t, PrimExpr value, Span span = Span());
 TVM_DLL Expr reinterpret(Type target_ty, Expr value, Span span = Span());
+
+inline PrimExpr reinterpret(PrimType t, PrimExpr value, Span span = Span()) {
+  return reinterpret(Type(std::move(t)), Expr(std::move(value)), std::move(span))
+      .as_or_throw<PrimExpr>();
+}
 
 /*! \brief Construct an opaque pointer from its integer payload. */
 inline Expr ConstHandle(int64_t value, Span span = Span()) {

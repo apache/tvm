@@ -92,22 +92,6 @@ PrimExpr fast_erf_float_expr(PrimExpr arg, int bits) {
   return p / q;
 }
 
-PrimExpr reinterpret(PrimType t, PrimExpr value, Span span) {
-  PrimType target_dtype = t;
-  PrimType value_dtype = value.ty();
-  if (value.ty() == t) return value;
-  if (!target_dtype.IsScalableVector() && !value_dtype.IsScalableVector()) {
-    int value_bits = value_dtype.bits() * value_dtype.lanes();
-    int target_bits = target_dtype.bits() * target_dtype.lanes();
-    TVM_FFI_ICHECK(value_bits == target_bits ||
-                   ((value_dtype.MatchesCode(DLDataTypeCode::kDLFloat4_e2m1fn) ||
-                     target_dtype.MatchesCode(DLDataTypeCode::kDLFloat4_e2m1fn)) &&
-                    value_dtype.StorageBytes() == target_dtype.StorageBytes()))
-        << "Reinterpret requires size match " << target_dtype << " vs " << value_dtype;
-  }
-  return Call(std::move(t), tirx::reinterpret_op(), {value}, {}, {}, span).as_or_throw<PrimExpr>();
-}
-
 Expr reinterpret(Type target_ty, Expr value, Span span) {
   if (value.as<StringImmNode>()) {
     TVM_FFI_CHECK(target_ty.as<PointerTypeNode>(), TypeError)
@@ -117,16 +101,28 @@ Expr reinterpret(Type target_ty, Expr value, Span span) {
   }
   if (auto target_dtype = target_ty.as<PrimType>()) {
     if (auto prim_value = value.as<PrimExpr>()) {
-      return reinterpret(target_dtype.value(), prim_value.value(), std::move(span));
+      PrimType target_prim = target_dtype.value();
+      PrimType value_dtype = prim_value.value().ty();
+      if (value_dtype == target_prim) return value;
+      if (!target_prim.IsScalableVector() && !value_dtype.IsScalableVector()) {
+        int value_bits = value_dtype.bits() * value_dtype.lanes();
+        int target_bits = target_prim.bits() * target_prim.lanes();
+        TVM_FFI_ICHECK(value_bits == target_bits ||
+                       ((value_dtype.MatchesCode(DLDataTypeCode::kDLFloat4_e2m1fn) ||
+                         target_prim.MatchesCode(DLDataTypeCode::kDLFloat4_e2m1fn)) &&
+                        value_dtype.StorageBytes() == target_prim.StorageBytes()))
+            << "Reinterpret requires size match " << target_prim << " vs " << value_dtype;
+      }
+    } else {
+      TVM_FFI_CHECK(value->ty.as<PointerTypeNode>(), TypeError)
+          << "Reinterpret source must be PrimType or PointerType, but got " << value->ty;
+      TVM_FFI_CHECK(
+          target_dtype.value().IsScalar() && target_dtype.value().bits() == 64 &&
+              target_dtype.value().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt),
+          TypeError)
+          << "Pointer reinterpret requires a scalar 64-bit integer target, but got "
+          << target_dtype.value();
     }
-    TVM_FFI_CHECK(value->ty.as<PointerTypeNode>(), TypeError)
-        << "Reinterpret source must be PrimType or PointerType, but got " << value->ty;
-    TVM_FFI_CHECK(
-        target_dtype.value().IsScalar() && target_dtype.value().bits() == 64 &&
-            target_dtype.value().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt),
-        TypeError)
-        << "Pointer reinterpret requires a scalar 64-bit integer target, but got "
-        << target_dtype.value();
   } else {
     TVM_FFI_CHECK(target_ty.as<PointerTypeNode>(), TypeError)
         << "Reinterpret target must be PrimType or PointerType, but got " << target_ty;
@@ -144,10 +140,6 @@ Expr reinterpret(Type target_ty, Expr value, Span span) {
   }
   return Call(std::move(target_ty), tirx::reinterpret_op(), {std::move(value)}, {}, {},
               std::move(span));
-}
-
-PrimExpr reinterpret(DLDataType t, PrimExpr value, Span span) {
-  return reinterpret(PrimType(t), std::move(value), std::move(span));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
