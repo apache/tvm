@@ -161,17 +161,6 @@ TVM_DLL const Op& handle_add_byte_offset_op();
 TVM_DLL const Op& atomic_add_op();
 
 /*!
- * \brief Create an Nd memory allocation with storage scope.
- *
- * Arguments, in order:
- * - args[0]: storage_scope, The storage scope.
- * - args[1]: ndim, The number of dimensions.
- * - args[2]: shape, The shape.
- * - args[3...]: args, trailing Expr operands.
- */
-TVM_DLL const Op& nd_mem_alloc_with_scope_op();
-
-/*!
  * \brief Assume a tensor's base address has the given constant byte alignment.
  *
  * This leaf operation carries a compiler fact, without checking or changing

@@ -21,6 +21,7 @@
  * \file inject_texture_alloc.cc
  */
 
+#include <tvm/backend/opencl/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
@@ -104,7 +105,7 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
       stmt = Bind(op->var.as_or_throw<TensorVar>(),
                   Call(op->var.as_or_throw<TensorVar>().type(), tirx::decl_tensor_op(),
                        {Call(op->var.as_or_throw<TensorVar>().DataPointerType(),
-                             tirx::nd_mem_alloc_with_scope_op(), args),
+                             tvm::backend::opencl::nd_mem_alloc_with_scope_op(), args),
                         tvm::Tuple(op->var.as_or_throw<TensorVar>()->shape),
                         DataTypeImm(op->var.as_or_throw<TensorVar>()->dtype->dtype),
                         StringImm(op->var.as_or_throw<TensorVar>().scope())},

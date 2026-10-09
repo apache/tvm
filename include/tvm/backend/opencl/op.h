@@ -19,7 +19,7 @@
 
 /*!
  * \file tvm/backend/opencl/op.h
- * \brief OpenCL-owned texture operations.
+ * \brief OpenCL-owned memory operations.
  */
 #ifndef TVM_BACKEND_OPENCL_OP_H_
 #define TVM_BACKEND_OPENCL_OP_H_
@@ -55,6 +55,17 @@ TVM_DLL const Op& texture2d_store_op();
  * - args[5]: element_index, The element index within a texture channel.
  */
 TVM_DLL const Op& texture2d_load_op();
+
+/*!
+ * \brief Create an Nd memory allocation with storage scope.
+ *
+ * Arguments, in order:
+ * - args[0]: storage_scope, The storage scope.
+ * - args[1]: ndim, The number of dimensions.
+ * - args[2]: shape, The shape.
+ * - args[3...]: args, trailing Expr operands.
+ */
+TVM_DLL const Op& nd_mem_alloc_with_scope_op();
 
 }  // namespace opencl
 }  // namespace backend

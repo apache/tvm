@@ -22,6 +22,7 @@
  * \file tirx/transform/lower_tvm_builtin.cc
  */
 #include <tvm/backend/cuda/op.h>
+#include <tvm/backend/opencl/op.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -259,7 +260,7 @@ class BuiltinLower : public StmtExprMutator {
     if (const auto* call = op->value.as<CallNode>(); call && call->op.same_as(alloc_tensor_op()))
       return MutateAllocTensor(op, inplace_mode);
     if (const CallNode* call = op->value.as<CallNode>()) {
-      if (call->op.same_as(nd_mem_alloc_with_scope_op())) {
+      if (call->op.same_as(backend::opencl::nd_mem_alloc_with_scope_op())) {
         return MakeNdMemAllocWithScope(op, call);
       }
     }

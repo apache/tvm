@@ -390,7 +390,6 @@ TVM_DEFINE_CACHED_OP_GETTER(vectorlow_op, "tirx.vectorlow")
 TVM_DEFINE_CACHED_OP_GETTER(vectorcombine_op, "tirx.vectorcombine")
 TVM_DEFINE_CACHED_OP_GETTER(gpu_dp4a_op, "tirx.gpu_dp4a")
 TVM_DEFINE_CACHED_OP_GETTER(atomic_add_op, "tirx.atomic_add")
-TVM_DEFINE_CACHED_OP_GETTER(nd_mem_alloc_with_scope_op, "tirx.nd_mem_alloc_with_scope")
 TVM_DEFINE_CACHED_OP_GETTER(assume_aligned_op, "tirx.assume_aligned")
 TVM_DEFINE_CACHED_OP_GETTER(undef_op, "tirx.undef")
 TVM_DEFINE_CACHED_OP_GETTER(get_active_lane_mask_op, "tirx.get_active_lane_mask")
@@ -793,13 +792,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("tirx.atomic_add")
       .signature(sig::arg("ptr", "The pointer."), sig::arg("value", "The value to use."))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-  OpDef("tirx.nd_mem_alloc_with_scope")
-      .signature(sig::arg("storage_scope", "The storage scope."),
-                 sig::arg<IntExpr>("ndim", "The number of dimensions."),
-                 sig::arg("shape", "The shape."), sig::var_args("args"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 

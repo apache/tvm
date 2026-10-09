@@ -36,6 +36,11 @@ const Op& texture2d_load_op() {
   return op;
 }
 
+const Op& nd_mem_alloc_with_scope_op() {
+  static const Op op = Op::Get("tirx.opencl.nd_mem_alloc_with_scope");
+  return op;
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.opencl.texture2d_store")
       .signature(sig::arg("texture", "The texture."), sig::arg<IntExpr>("x", "The input value."),
@@ -55,6 +60,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<PrimExpr>("element_index", "The element index within a texture channel."))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TVectorizable>("TVectorizable", true)
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+
+  OpDef("tirx.opencl.nd_mem_alloc_with_scope")
+      .signature(sig::arg("storage_scope", "The storage scope."),
+                 sig::arg<IntExpr>("ndim", "The number of dimensions."),
+                 sig::arg("shape", "The shape."), sig::var_args("args"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 }
 

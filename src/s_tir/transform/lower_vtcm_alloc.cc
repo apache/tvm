@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/backend/opencl/op.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -61,7 +62,8 @@ class VtcmAllocator : public StmtExprMutator {
       TensorVar buffer = op->var.as_or_throw<TensorVar>();
       return Bind(buffer,
                   Call(buffer.type(), tirx::decl_tensor_op(),
-                       {Call(buffer.DataPointerType(), tirx::nd_mem_alloc_with_scope_op(), args),
+                       {Call(buffer.DataPointerType(),
+                             tvm::backend::opencl::nd_mem_alloc_with_scope_op(), args),
                         tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                         StringImm(buffer.scope())},
                        {}, call->ty_args, call->span),
