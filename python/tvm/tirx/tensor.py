@@ -58,7 +58,6 @@ class TensorType(Type):
     data_alignment: int
     offset_factor: int
     layout: object | None
-    allocated_addr: list
 
     __expr_methods__ = (
         "access_ptr",
@@ -66,7 +65,6 @@ class TensorType(Type):
         "vstore",
         "scope",
         "get_flattened_buffer",
-        "with_allocated_addr",
         "with_dtype",
         "offset_of",
         "is_scalar",
@@ -216,11 +214,6 @@ class TensorType(Type):
         _check_tensor_receiver(self, expr)
         return _ffi_api.TensorGetFlattenedTensor(expr)  # type: ignore
 
-    def with_allocated_addr(self, expr, allocated_addr):
-        """Return a new buffer with the allocated address."""
-        _check_tensor_receiver(self, expr)
-        return _ffi_api.TensorWithAllocatedAddr(expr, allocated_addr)  # type: ignore
-
     def with_dtype(self, expr, dtype):
         """Return a new buffer with the dtype."""
         _check_tensor_receiver(self, expr)
@@ -348,7 +341,7 @@ class TensorType(Type):
         (reorder to rhs atom order) → ``view`` (merge rhs groups), so it inherits
         whatever the underlying axis machinery does: a plain (unswizzled) buffer
         collapses to a flat layout, a swizzled buffer keeps its swizzle,
-        and a tmem buffer carries ``allocated_addr`` through. It therefore does
+        and a tmem buffer retains its backing address. It therefore does
         NOT flatten a swizzle atom — the same pattern on a swizzled SMEM buffer
         vs an unswizzled TMEM buffer legitimately yields different physical
         layouts (that is the point: rearrange acts on the operand, not a string).
@@ -440,7 +433,6 @@ class TensorType(Type):
         "data_alignment": _tensor_type_field("data_alignment"),
         "offset_factor": _tensor_type_field("offset_factor"),
         "layout": _tensor_type_field("layout"),
-        "allocated_addr": _tensor_type_field("allocated_addr"),
         "data": _data,
         "dtype": _dtype,
         "byte_offset": _byte_offset,
@@ -521,7 +513,6 @@ def decl_tensor(
         data_alignment,
         offset_factor,
         layout,
-        (),
         span,
     )
     return _ffi_api.TensorVar(name, buffer_type, span)  # type: ignore

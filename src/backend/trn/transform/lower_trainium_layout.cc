@@ -111,19 +111,22 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::alloc_tensor_op())) {
       TensorVar original_buffer = op->var.as_or_throw<TensorVar>();
-      if (!original_buffer->layout.has_value()) {
+      ffi::Array<Expr> args = call->args;
+      if (args.size() == 4) {
+        args.Set(3, Mutate(args[3], inplace_mode).ValueOrUnchanged(args[3]));
+      }
+      auto buffer = original_buffer->layout.has_value()
+                        ? GetFlattenedTensor(original_buffer, /*is_alloc=*/true)
+                        : original_buffer;
+      if (buffer.same_as(original_buffer) && args.same_as(call->args)) {
         return ffi::Unchanged();
       }
-      auto buffer = GetFlattenedTensor(original_buffer, /*is_alloc=*/true);
-      if (buffer.same_as(original_buffer)) {
-        return ffi::Unchanged();
-      }
+      args.Set(0, tvm::Tuple(buffer->shape, call->args[0]->span));
+      args.Set(1, DataTypeImm(buffer->dtype->dtype, call->args[1]->span));
+      args.Set(2, StringImm(buffer.scope(), call->args[2]->span));
       return Bind(buffer.var(),
-                  Call(buffer.type(), tirx::alloc_tensor_op(),
-                       {tvm::Tuple(buffer->shape, call->args[0]->span),
-                        DataTypeImm(buffer->dtype->dtype, call->args[1]->span),
-                        StringImm(buffer.scope(), call->args[2]->span)},
-                       call->attrs, call->ty_args, call->span),
+                  Call(buffer.type(), tirx::alloc_tensor_op(), args, call->attrs, call->ty_args,
+                       call->span),
                   op->span);
     }
     if (const auto* call = op->value.as<CallNode>();

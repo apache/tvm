@@ -504,7 +504,7 @@ TensorVar TensorVar::GetFlattenedTensor() const {
     return RebuildTensorVarFromType(
         *this, TensorType(self->storage_scope, self->dtype, output_shape, {}, self->elem_offset,
                           self->data_alignment, self->offset_factor,
-                          TileLayoutNode::DefaultLayout(output_shape), self->allocated_addr));
+                          TileLayoutNode::DefaultLayout(output_shape)));
   }
 }
 
@@ -575,9 +575,9 @@ TensorVar TensorVar::MakeStrideView() const {
     strides.push_back(temp[i - 1]);
   }
   return RebuildTensorVarFromType(
-      *this, TensorType(self->storage_scope, self->dtype, self->shape, std::move(strides),
-                        self->elem_offset, self->data_alignment, self->offset_factor, self->layout,
-                        self->allocated_addr));
+      *this,
+      TensorType(self->storage_scope, self->dtype, self->shape, std::move(strides),
+                 self->elem_offset, self->data_alignment, self->offset_factor, self->layout));
 }
 
 TensorVar TensorVar::MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> extents) const {
@@ -666,20 +666,12 @@ tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType d
       name, TensorType(memory_scope, dtype, shape, {}, elem_offset, data_alignment, offset_factor));
 }
 
-TensorVar TensorVar::with_allocated_addr(ffi::Array<PrimExpr> allocated_addr) const {
-  const auto* self = operator->();
-  return RebuildTensorVarFromType(
-      *this, TensorType(self->storage_scope, self->dtype, self->shape, self->strides,
-                        self->elem_offset, self->data_alignment, self->offset_factor, self->layout,
-                        std::move(allocated_addr)));
-}
-
 TensorVar TensorVar::with_dtype(PrimType dtype) const {
   const auto* self = operator->();
   return RebuildTensorVarFromType(
-      *this, TensorType(self->storage_scope, std::move(dtype), self->shape, self->strides,
-                        self->elem_offset, self->data_alignment, self->offset_factor, self->layout,
-                        self->allocated_addr));
+      *this,
+      TensorType(self->storage_scope, std::move(dtype), self->shape, self->strides,
+                 self->elem_offset, self->data_alignment, self->offset_factor, self->layout));
 }
 
 bool TensorVar::IsScalar(bool alloc_or_decl) const { return type()->IsScalar(alloc_or_decl); }
@@ -700,7 +692,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("tirx.TensorVLoad", &TensorVar::vload)
       .def_method("tirx.TensorVStore", &TensorVar::vstore)
       .def_method("tirx.TensorStorageScope", &TensorVar::scope)
-      .def_method("tirx.TensorWithAllocatedAddr", &TensorVar::with_allocated_addr)
       .def_method("tirx.TensorWithDtype", &TensorVar::with_dtype)
       .def_method("tirx.TensorIsScalar", &TensorVar::IsScalar)
       .def_method("tirx.TensorData", &TensorVar::data)

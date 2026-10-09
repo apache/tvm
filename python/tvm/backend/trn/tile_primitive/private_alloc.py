@@ -18,7 +18,7 @@
 from typing import Any
 
 from tvm.backend.trn.tile_primitive.common import nki_dim
-from tvm.ir import Stmt
+from tvm.ir import Bind, Call, DataTypeImm, DictAttrs, Stmt, StringImm, Tuple
 from tvm.script import tirx as T
 from tvm.tirx import DispatchContext, FloatImm, IntImm, Var
 from tvm.tirx.op.tile import (
@@ -34,6 +34,22 @@ from tvm.tirx.operator.tile_primitive.registry import f_op_dispatcher
 from tvm.tirx.tensor_instruction import TensorCall
 
 
+def _allocation(buffer: Var, allocated_addr=None) -> Bind:
+    """Keep private workspace placement on its producing allocation."""
+    args = [Tuple(buffer.ty.shape), DataTypeImm(buffer.ty.dtype.dtype), StringImm(buffer.scope())]
+    if allocated_addr:
+        args.append(Tuple(allocated_addr))
+    return Bind(
+        buffer,
+        Call(
+            "tirx.alloc_tensor",
+            args,
+            attrs=DictAttrs({}),
+            ty=buffer.ty,
+        ),
+    )
+
+
 def _scalar_dtype(scalar) -> str:
     dtype = getattr(scalar, "dtype", None)
     if dtype is not None:
@@ -46,7 +62,7 @@ def _scalar_dtype(scalar) -> str:
 
 
 def alloc_const_bias_trn(
-    op: TensorCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
+    op: TensorCall, buffer_dict: dict[Any, tuple[Bind, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Any]:
     bias = getattr(op, "bias", FloatImm(op.dsts[0].source.ty.dtype, 0.0))
     if "const_bias" in op.workspaces:
@@ -59,8 +75,8 @@ def alloc_const_bias_trn(
     if isinstance(max_inst_size, int | IntImm) and int(max_inst_size) == -1:
         raise ValueError("Constant bias workspace allocation requires a finite max_inst_size")
     if bias_key in buffer_dict:
-        bias_buffer, bias_init_stmt = buffer_dict[bias_key]
-        old_shape = bias_buffer.ty.shape
+        bias_alloc, bias_init_stmt = buffer_dict[bias_key]
+        old_shape = bias_alloc.var.ty.shape
         new_shape = [max(par_size, old_shape[0]), max(max_inst_size, old_shape[1])]
         if new_shape[0] == old_shape[0] and new_shape[1] == old_shape[1]:
             return {"const_bias": bias_key}
@@ -79,12 +95,12 @@ def alloc_const_bias_trn(
                     T.evaluate(T.nki.memset(new_buffer[p_loop, f_loop], bias))
         T.kernel_replace_point()
 
-    buffer_dict[bias_key] = (new_buffer, const_bias_init.body)
+    buffer_dict[bias_key] = (_allocation(new_buffer), const_bias_init.body)
     return {"const_bias": bias_key}
 
 
 def alloc_partial_reduce_trn(
-    op: TensorCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
+    op: TensorCall, buffer_dict: dict[Any, tuple[Bind, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Any]:
     if "partial_reduce" in op.workspaces:
         return {}
@@ -92,33 +108,34 @@ def alloc_partial_reduce_trn(
     partial_reduce_buffer = None
     if DispatchContext.kPrivateAlloc not in sctx.callbacks:
         return {}
-    for buffer in sctx.callbacks[DispatchContext.kPrivateAlloc]:
-        if buffer.name == "partial_reduce":
-            partial_reduce_buffer = buffer
+    for allocation in sctx.callbacks[DispatchContext.kPrivateAlloc]:
+        if allocation.var.name == "partial_reduce":
+            partial_reduce_buffer = allocation
             break
     if partial_reduce_buffer is None:
         return {}
     # no reuse opportunity
-    buffer_dict[partial_reduce_buffer] = (partial_reduce_buffer, None)
-    return {"partial_reduce": partial_reduce_buffer}
+    buffer_dict[partial_reduce_buffer.var] = (partial_reduce_buffer, None)
+    return {"partial_reduce": partial_reduce_buffer.var}
 
 
 def alloc_acc_psum_trn(
-    op: TensorCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
+    op: TensorCall, buffer_dict: dict[Any, tuple[Bind, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Any]:
     if "acc_psum" in op.workspaces or op.dsts[0].source.scope() == "trn.psum":
         return {}
     par_size = op.dsts[0].source.ty.layout.size("P")
-    acc_psum = T.Var(
-        "acc_psum", T.Tensor((8, par_size, 512), "float32", scope="trn.psum", allocated_addr=(0, 0))
-    )
+    acc_psum = T.Var("acc_psum", T.Tensor((8, par_size, 512), "float32", scope="trn.psum"))
     # no reuse opportunity
-    buffer_dict[acc_psum] = (acc_psum, None)
+    buffer_dict[acc_psum] = (
+        _allocation(acc_psum, [IntImm("int32", 0), IntImm("int32", 0)]),
+        None,
+    )
     return {"acc_psum": acc_psum}
 
 
 def alloc_unary_reduce_trn(
-    op: TensorCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
+    op: TensorCall, buffer_dict: dict[Any, tuple[Bind, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Var]:
     if "max_inst_size" in op.options:
         partial_reduce_dict = alloc_partial_reduce_trn(op, buffer_dict, sctx)
@@ -132,23 +149,23 @@ def alloc_unary_reduce_trn(
         const_bias_buffer = None
         if DispatchContext.kPrivateAlloc not in sctx.callbacks:
             return {}
-        for buffer in sctx.callbacks[DispatchContext.kPrivateAlloc]:
-            if buffer.name == "partial_reduce":
-                partial_reduce_buffer = buffer
-            elif buffer.name == "const_bias":
-                const_bias_buffer = buffer
+        for allocation in sctx.callbacks[DispatchContext.kPrivateAlloc]:
+            if allocation.var.name == "partial_reduce":
+                partial_reduce_buffer = allocation
+            elif allocation.var.name == "const_bias":
+                const_bias_buffer = allocation
         # no reuse opportunity
         workspace_dict = {}
         if partial_reduce_buffer is not None and "partial_reduce" not in op.workspaces:
-            buffer_dict[partial_reduce_buffer] = (partial_reduce_buffer, None)
-            workspace_dict["partial_reduce"] = partial_reduce_buffer
+            buffer_dict[partial_reduce_buffer.var] = (partial_reduce_buffer, None)
+            workspace_dict["partial_reduce"] = partial_reduce_buffer.var
         if const_bias_buffer is not None and "const_bias" not in op.workspaces:
             assert len(sctx.callbacks[DispatchContext.kDeviceInitStmt]) == 1, (
                 "const_bias should have init"
             )
             init_stmt = sctx.callbacks[DispatchContext.kDeviceInitStmt][0]
-            buffer_dict[const_bias_buffer] = (const_bias_buffer, init_stmt)
-            workspace_dict["const_bias"] = const_bias_buffer
+            buffer_dict[const_bias_buffer.var] = (const_bias_buffer, init_stmt)
+            workspace_dict["const_bias"] = const_bias_buffer.var
         return workspace_dict
 
 
