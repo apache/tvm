@@ -74,7 +74,7 @@ def test_normalize_tir_function():
         def f1():
             R.func_attr({"global_symbol": "f"})
             cls = Before
-            gv: R.Tensor((), dtype="int32") = R.call_tir(
+            gv: R.Tensor((1,), dtype="int32") = R.call_tir(
                 cls.f, (), ty_args=[R.Tensor((1,), dtype="int32")]
             )
             return gv

@@ -352,11 +352,11 @@ def test_roundtrip_unary_inplace():
         # fmt: on
 
     code = test.script()
-    # Each op should appear with a single arg (no duplicate src, no trailing Nones)
-    assert 'T.warp.exp2(A[0:32])' in code, f"expected single-arg exp2, got:\n{code}"
-    assert 'T.warp.sqrt(A[32:64])' in code, f"expected single-arg sqrt, got:\n{code}"
-    assert 'T.warp.reciprocal(A[64:96])' in code, (
-        f"expected single-arg reciprocal, got:\n{code}"
+    # The one-argument convenience prints both canonical operands.
+    assert 'T.warp.exp2(A[0:32], A[0:32])' in code, f"expected both exp2 operands:\n{code}"
+    assert 'T.warp.sqrt(A[32:64], A[32:64])' in code, f"expected both sqrt operands:\n{code}"
+    assert 'T.warp.reciprocal(A[64:96], A[64:96])' in code, (
+        f"expected both reciprocal operands:\n{code}"
     )
     assert "None" not in code, f"trailing None args should be trimmed:\n{code}"
     assert from_source(code).script() == code

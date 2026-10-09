@@ -220,7 +220,7 @@ class TestDLPackIntegration:
         input_tensor = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)
 
         # Call TIR function (this will trigger DLPack conversion)
-        result = py_mod.call_tir(identity_func, [input_tensor], ty_args=[R.Tensor((3,), "float32")])
+        result = py_mod.call_tir(identity_func, [input_tensor], R.Tensor((3,), "float32"))
 
         # Verify result
         assert isinstance(result, torch.Tensor)
@@ -228,7 +228,7 @@ class TestDLPackIntegration:
 
         # Preserve the output-only call_tir path, where there are no input tensors
         # from which to infer or transfer the output.
-        result = py_mod.call_tir(constant_func, [], ty_args=[R.Tensor((2,), "float32")])
+        result = py_mod.call_tir(constant_func, [], R.Tensor((2,), "float32"))
         torch.testing.assert_close(result, torch.full((2,), 5.0))
 
     def test_dlpack_device_consistency(self):
