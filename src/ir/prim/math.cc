@@ -301,28 +301,8 @@ PrimExpr abs(PrimExpr x, Span span) {
 }
 
 PrimExpr isnan(PrimExpr x, Span span) {
-  PrimType t = PrimType::Bool(x.ty().lanes());
-  PrimType bool_ty(t);
-  if (x.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
-    return MakeConst(t, false);
-  } else if (x.ty().MatchesCode(DLDataTypeCode::kDLFloat)) {
-    const FloatImmNode* fx = x.as<FloatImmNode>();
-    if (fx) {
-      return MakeConst(t, std::isnan(fx->value), fx->span);
-    }
-    if (x.ty().bits() == 16) {
-      static const Op isnan_op = Op::Get("prim.isnan");
-      PrimType f32_ty = PrimType::Float(32, t.lanes());
-      return Call(bool_ty, isnan_op, {cast(f32_ty, std::move(x), span)}, {}, {}, span)
-          .as_or_throw<PrimExpr>();
-    } else {
-      static const Op isnan_op = Op::Get("prim.isnan");
-      return Call(bool_ty, isnan_op, {x}, {}, {}, span).as_or_throw<PrimExpr>();
-    }
-  } else {
-    TVM_FFI_THROW(InternalError) << "Data type " << x.ty()
-                                 << " not supported for isnan op. Skipping isnan op...";
-  }
+  static const Op op = Op::Get("prim.isnan");
+  return Call(std::nullopt, op, {std::move(x)}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 
 PrimExpr isinf(PrimExpr x, Span span) {

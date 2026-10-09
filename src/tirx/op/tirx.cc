@@ -325,9 +325,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("tirx.tile.reduce_negate")
       .signature(sig::arg("output", "The output."), sig::arg("input", "The input."),
+                 sig::arg("reduce_op", "The reduction operation."),
                  sig::arg("reduce_axes", "The reduction axes."),
-                 sig::arg("accum", "The accumulator."),
-                 sig::arg("reduce_op", "The reduction operation."))
+                 sig::arg("accum", "The accumulator."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tile.reduce_negate"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 

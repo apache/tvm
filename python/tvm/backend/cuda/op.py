@@ -82,24 +82,13 @@ def cuda_iket_official_event(event_id, source_code="", payload=None):
     return call_intrin("uint32", "tirx.cuda.iket_official_event", event_id, source_code)
 
 
-def cuda_func_call(func_name, *args, source_code, return_type="void"):
-    """TVM intrinsic to call a CUDA function. Source code is provided as a string.
+def cuda_func_call(func_name, *args, ty=None, span=None):
+    """Call a CUDA function with its source code as the final operand.
 
-    Parameters
-    ----------
-    func_name: str
-        The name of the CUDA function.
-
-    args: Expr
-        The arguments to the CUDA function.
-
-    source_code: str
-        The source code of the CUDA function.
-
-    return_type: str
-        The return type of the CUDA function.
+    ``args`` contains the function arguments followed by the source string.
+    ``ty`` specifies an explicit result; omitted results are void.
     """
-    return call_intrin(return_type, "tirx.cuda.func_call", func_name, *args, source_code)
+    return Call("tirx.cuda.func_call", [func_name, *args], ty=ty, span=span)
 
 
 def cuda_warp_reduce(value, op, width=32, *, ty=None, span=None):
@@ -1094,45 +1083,6 @@ def cuda_atomic_add(res_addr, value, *, ty=None, span=None):
     return Call(
         "tirx.cuda.atomic_add",
         [res_addr, value],
-        ty=ty,
-        span=span,
-    )
-
-
-def cuda_ldg(addr, dtype, *, dst=None, vec="", ty=None, span=None):
-    """TVM intrinsic to call CUDA C++ ``__ldg()``.
-
-    Parameters
-    ----------
-    addr : Expr
-        The memory address to load.
-
-    dtype : str
-        The data type of the loaded value.
-
-    dst : Expr or tuple[Expr], optional
-        Destination pointers for vector loads.
-
-    vec : str
-        CUDA vector width. Use ``"v2"`` or ``"v4"`` together with tuple/list
-        ``dst``.
-
-    Returns
-    """
-    if dst is None:
-        if vec:
-            raise ValueError("vector cuda.ldg requires dst")
-        return Call("tirx.cuda.ldg", [addr, dtype], ty=ty, span=span)
-    if vec not in ("v2", "v4"):
-        raise ValueError(f"vector cuda.ldg expects vec in {{'v2', 'v4'}}, got {vec!r}")
-    if not isinstance(dst, list | tuple):
-        raise ValueError("vector cuda.ldg requires tuple/list dst")
-    vec_len = int(vec[1:])
-    if len(dst) != vec_len:
-        raise ValueError(f"cuda.ldg dst length must match {vec}: got {len(dst)}")
-    return Call(
-        "tirx.cuda.ldg",
-        [*dst, addr, dtype, vec, vec_len],
         ty=ty,
         span=span,
     )

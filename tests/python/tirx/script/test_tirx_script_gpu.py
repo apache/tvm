@@ -324,7 +324,7 @@ def test_workspace_default_none():
     )
     assert len(op_bc.workspace) == 0
 
-    op_rn = tirx_op.ReduceNegate(C, A, (-1,), False, tirx_op.get_tirx_op("sum"))
+    op_rn = tirx_op.ReduceNegate(C, A, tirx_op.get_tirx_op("sum"), (-1,), False)
     assert len(op_rn.workspace) == 0
 
 
@@ -432,7 +432,7 @@ def test_warpgroup_role():
 
 
 def test_roundtrip_cuda_func_call_source_code():
-    """cuda_func_call with multiline source_code must print as keyword arg with
+    """cuda_func_call with a multiline trailing source operand must print with
     inline string literal, not as a metadata reference."""
 
     # fmt: off
@@ -440,7 +440,7 @@ def test_roundtrip_cuda_func_call_source_code():
     def func():
         T.device_entry()
         desc = T.alloc_local((1,), "uint64")
-        T.cuda.func_call("my_func", T.address_of(desc[0]), source_code="\n__device__ void my_func(uint64_t* p) {\n    *p = 42;\n}\n")  # noqa: E501
+        T.cuda.func_call("my_func", T.address_of(desc[0]), "\n__device__ void my_func(uint64_t* p) {\n    *p = 42;\n}\n")  # noqa: E501
         # fmt: on
 
     code = func.script()

@@ -82,21 +82,6 @@ namespace builtin {
 namespace {
 void RegisterDeviceIntrinsics();
 
-Type InferTypeCudaLdg(const CallNode* call) {
-  TVM_FFI_CHECK_GE(call->args.size(), 2U, ValueError)
-      << "CUDA load type inference requires a dtype operand";
-  if (call->args.size() == 2) {
-    return PrimType(ffi::StringToDLDataType(call->args[1].as_or_throw<StringImm>()->value));
-  }
-  const auto* width = call->args.back().as<IntImmNode>();
-  TVM_FFI_CHECK(
-      width && (width->value == 2 || width->value == 4) &&
-          call->args.size() == static_cast<size_t>(static_cast<int64_t>(width->value) + 4),
-      ValueError)
-      << "Vector CUDA load requires destination pointers and a width";
-  return PrimType::Void();
-}
-
 Type InferTypeMovSreg(const CallNode* call) {
   TVM_FFI_CHECK(!call->args.empty(), TypeError) << "mov_sreg expects a bit width";
   const auto* bits = call->args[0].as<IntImmNode>();
@@ -365,7 +350,8 @@ void RegisterDeviceIntrinsics() {
                           sig::arg("w"))
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::UInt(32));
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.func_call"), "cuda", CallEffectKind::kOpaque,
-                          sig::arg("func_name"), sig::var_args("args"));
+                          sig::arg("func_name"), sig::var_args("args"))
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.get_tmem_addr"), "cuda", CallEffectKind::kOpaque,
                           sig::arg("addr"), sig::arg<IntExpr>("row_offset"),
                           sig::arg<IntExpr>("col_offset"))
@@ -384,9 +370,6 @@ void RegisterDeviceIntrinsics() {
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.hmin2"), "cuda", CallEffectKind::kOpaque, sig::arg("a"),
                           sig::arg("b"))
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::UInt(32));
-  RegisterDeviceIntrinsic(OpDef("tirx.cuda.ldg"), "cuda", CallEffectKind::kOpaque,
-                          sig::var_args("args"))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCudaLdg>());
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.make_float2"), "cuda", CallEffectKind::kOpaque,
                           sig::arg("x"), sig::arg("y"))
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::UInt(64));
