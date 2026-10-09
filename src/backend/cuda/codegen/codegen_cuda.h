@@ -137,9 +137,6 @@ class CodeGenCUDA final : public CodeGenC {
   const std::string cuda_barrier_arrival_token_name_ = "cubar_tok";
 
   friend void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p);
-  void PrintWmmaScope(const std::string& scope, const PrimType& t, const std::string& shape,
-                      const std::string& layout, std::ostream& os);
-  int32_t GetWmmaFragmentSize(const std::string& scope, const std::string& shape, int32_t size);
 };
 
 }  // namespace codegen
