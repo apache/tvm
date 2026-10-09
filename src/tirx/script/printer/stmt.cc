@@ -77,7 +77,8 @@ ffi::Optional<ExprDoc> TensorCallDocTranslate(DocTranslatorObj* d, ffi::AnyView 
         keys.push_back(ffi::String(field->name));
         values.push_back(AnyValue(d, value));
       });
-  static const auto& names = Op::GetAttrMap<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName);
+  static const auto& names =
+      Op::GetAttrMap<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName);
   return NamedCallCallee(names[op])->Call(args, keys, values);
 }
 

@@ -254,7 +254,8 @@ class NoOpCallVerifier : public Verifier<NoOpCallVerifier> {
 
   void Dispatch_(const CallNode* call, ffi::reflection::AccessPath path) final {
     if (auto op = call->op.as<Op>()) {
-      static const auto& categories = Op::GetAttrMap<TIRxOpCategory>("TIRxOpCategory");
+      static const auto& categories =
+          Op::GetAttrMap<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory);
       auto category = categories.get(op.value(), ffi::String(""));
       Verify(category != "tile_primitive" && category != "tile_composite")
           << "Unlowered tensor instruction " << op.value()->name << " at " << path;
@@ -575,7 +576,7 @@ class TileDispatcher : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* stmt, InplaceMode inplace_mode) final {
     const auto* op = stmt->value.as<CallNode>();
     if (!op || !op->op.as<Op>()) return StmtExprMutator::Mutate_(stmt, inplace_mode);
-    static const auto& categories = Op::GetAttrMap<TIRxOpCategory>("TIRxOpCategory");
+    static const auto& categories = Op::GetAttrMap<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory);
     auto category = categories.get(op->op.as_or_throw<Op>(), ffi::String(""));
     if (category != "tile_primitive" && category != "tile_composite") {
       return StmtExprMutator::Mutate_(stmt, inplace_mode);
