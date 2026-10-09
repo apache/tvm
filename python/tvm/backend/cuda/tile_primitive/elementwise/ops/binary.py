@@ -35,7 +35,7 @@ from typing import Any
 
 from tvm.ir import TensorRegion
 from tvm.script import tirx as Tx
-from tvm.tirx import TileOpCall
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..vec_emit.binary_f32x2 import BINARY_F32X2_IMPLS
 from . import OpSpec, Plan, SrcSpec
@@ -46,7 +46,7 @@ _COMMUTATIVE = frozenset({"add", "mul", "maximum"})
 def _parse_binary_for(op_name: str):
     """Build a ``parse(op_call) -> (Plan, msg)`` for a specific binary op."""
 
-    def parse(op: TileOpCall) -> tuple[Plan | None, str | None]:
+    def parse(op: TensorCall) -> tuple[Plan | None, str | None]:
         _dst: TensorRegion = op.args[0]
         _src1 = op.args[1]
         _src2 = op.args[2]
@@ -57,7 +57,7 @@ def _parse_binary_for(op_name: str):
             return None, "both inputs are constants"
 
         # Move constant to rhs (commute if allowed; else reject).
-        if s1_scalar:
+        if s1_scalar and op_name != "fdiv":
             if op_name not in _COMMUTATIVE:
                 return None, f"non-commutative op {op_name} cannot have constant lhs"
             _src1, _src2 = _src2, _src1
@@ -65,7 +65,7 @@ def _parse_binary_for(op_name: str):
 
         # If rhs is a smaller buffer (broadcast), swap if commutative so the
         # bigger one is in src1 — keeps src1 == dst convention.
-        if not s2_scalar:
+        if not s1_scalar and not s2_scalar:
             s1_n = functools.reduce(operator.mul, [r.extent for r in _src1.region], 1)
             s2_n = functools.reduce(operator.mul, [r.extent for r in _src2.region], 1)
             if s1_n < s2_n:
@@ -73,14 +73,16 @@ def _parse_binary_for(op_name: str):
                     return None, f"non-commutative op {op_name} cannot swap to broadcast"
                 _src1, _src2 = _src2, _src1
 
-        srcs: list[SrcSpec] = [SrcSpec(buf_region=_src1)]
+        srcs: list[SrcSpec] = [
+            SrcSpec(scalar=_src1) if s1_scalar and op_name == "fdiv" else SrcSpec(buf_region=_src1)
+        ]
         if s2_scalar:
             srcs.append(SrcSpec(scalar=_src2))
         else:
             srcs.append(SrcSpec(buf_region=_src2))
 
         extras: dict[str, Any] = {}
-        rm = op.config.get("rounding_mode", None)
+        rm = op.options.get("rounding_mode", None)
         if rm is not None:
             extras["rounding_mode"] = rm.value
         return Plan(dst=_dst, srcs=srcs, extras=extras), None

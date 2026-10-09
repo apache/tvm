@@ -128,9 +128,8 @@ Inside LowerTIRx
 
     LowerTIRx = Sequential([ TilePrimitiveDispatch, LowerTIRxCleanup ])
 
-- **``TilePrimitiveDispatch``** replaces every ``TileOpCall`` (``copy``,
-  ``gemm``, ``reduction``, …) with the body emitted by its selected backend
-  dispatch — the variant-selection and codegen described in
+- **``TilePrimitiveDispatch``** replaces every tensor ``Evaluate(Call)`` with the body emitted by its
+  instruction lowerer, including delayed mathematical composites as described in
   :doc:`tile_dispatch`.  In the same pass it removes the ``device_entry``
   marker, resolves standalone scope-id definitions to ``Bind`` statements,
   and wraps the device body in the corresponding thread-extent attributes.

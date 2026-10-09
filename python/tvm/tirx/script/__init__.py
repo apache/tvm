@@ -35,7 +35,6 @@ def _initialize() -> None:
         from tvm.tirx.layout import Axis
 
         from . import ir_builder as builder
-        from . import tile
         from .jit import make_jit
 
         globals().update(
@@ -51,13 +50,9 @@ def _initialize() -> None:
                 builder, namespace_path="tirx.macro", preserve_return=False
             ),
             jit=make_jit(builder, namespace_path="tirx.jit"),
-            tile=tile,
         )
-        for name in ("cluster", "cta", "thread", "warp", "warpgroup", "wg"):
-            globals()[name] = getattr(tile, name)
         namespace = _sys.modules[__name__]
         register_namespace("tirx", namespace)
-        register_namespace("Tx", tile)
         register_namespace("Axis", Axis)
         globals()["__all__"] = sorted(name for name in globals() if not name.startswith("_"))
         _initialized = True
@@ -68,8 +63,6 @@ def _initialize() -> None:
 def __getattr__(name: str) -> _Any:
     if name == "ir_builder":
         return _importlib.import_module(__name__ + ".ir_builder")
-    if name == "tile":
-        return _importlib.import_module(__name__ + ".tile")
     if name.startswith("_") and name != "__all__":
         raise AttributeError(name)
     _initialize()

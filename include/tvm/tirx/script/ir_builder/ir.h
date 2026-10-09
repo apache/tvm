@@ -119,8 +119,6 @@ void FuncAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
  */
 Type FuncRet(Type ret_type);
 
-void TileOpCall(tvm::tirx::TileOpCall op_call);
-
 /*!
  * \brief Define a scope id. Pass `extents=std::nullopt` to defer the extent; it is
  *        inferred at LowerTIRx from the sibling ScopeIdDef closure.

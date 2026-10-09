@@ -150,8 +150,6 @@ tvm::Type FuncRet(tvm::Type ret_type) {
   return ret_type;
 }
 
-void TileOpCall(tvm::tirx::TileOpCall op_call) { AddToParent(op_call); }
-
 ffi::Array<tvm::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
                              ffi::String name, ffi::String cur, PrimType dtype) {
   ir::CheckExplicitIndexDtype(dtype);
@@ -481,7 +479,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.FuncName", FuncName)
       .def("script.ir_builder.tirx.FuncAttrs", FuncAttrs)
       .def("script.ir_builder.tirx.FuncRet", FuncRet)
-      .def("script.ir_builder.tirx.TileOpCall", TileOpCall)
       .def("script.ir_builder.tirx.ClusterId",
            [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent, PrimType dtype) {
              return ClusterId(extents, parent, dtype);

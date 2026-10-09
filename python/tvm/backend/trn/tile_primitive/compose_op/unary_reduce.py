@@ -19,9 +19,10 @@
 
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import Function, TileOpCall
+from tvm.tirx import Function
 from tvm.tirx.op.tile import UnaryReduce
-from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
+from tvm.tirx.operator.tile_primitive import DispatchContext
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..binary.utils import try_find_inst_nary
 from ..common import init_analyzer, nki_dim
@@ -32,15 +33,15 @@ from ..unary.utils import get_const_bias_tensor, try_find_inst_unary
 from .utils import opcode_table
 
 
-def unary_reduce_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
+def unary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     """Generate a TRN schedule for unary reduction operations."""
-    op = TileOpCall.downcast(op)
+    op = TensorCall.decode(op)
     assert isinstance(op, UnaryReduce), f"invalid operator downcast: {op}"
 
     # Extract operation components
     unary_output, reduce_output = op.dsts
     unary_input = op.unary_input
-    if op.op.name == "tirx.tile.unary_reduce_with_scale_bias":
+    if op.kind == "unary_reduce_with_scale_bias":
         scale, bias = op.scale, op.bias
     else:
         scale, bias = 1.0, 0.0
@@ -71,7 +72,7 @@ def unary_reduce_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
         )
 
     # Apply instruction size limits
-    inst_size_limit = op.config.get("max_inst_size", None)
+    inst_size_limit = op.options.get("max_inst_size", None)
     inst_repr.bound_inst_size(inst_size_limit, analyzer)
 
     p_var = T.Var("P", "int32")
@@ -85,7 +86,7 @@ def unary_reduce_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
     spatial_b_extent = inst_gen.fill_in_block_dim(unary_output, spatial_b_var)
     if reduction_b_extent != 1:
         intermediate_buffer = generate_intermediate_buffer(
-            reduce_output, reduction_b_extent, op.workspace, sctx
+            reduce_output, reduction_b_extent, op.workspaces, sctx
         )
     # Extract buffers and opcodes
     src, dst1, dst2 = unary_input.source, unary_output.source, reduce_output.source
@@ -97,7 +98,7 @@ def unary_reduce_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
         bias.source
         if isinstance(bias, TensorRegion)
         else get_const_bias_tensor(
-            bias, (p_size, inst_repr.size), dst1.ty.dtype, op.workspace, sctx
+            bias, (p_size, inst_repr.size), dst1.ty.dtype, op.workspaces, sctx
         )
     )
 
@@ -159,37 +160,3 @@ def unary_reduce_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
         # fmt: on
 
         return impl
-
-
-@register_dispatch(
-    "unary_reduce_with_scale_bias",
-    "trn",
-    variant="default",
-    priority=10,
-    when=[
-        predicate(
-            "exec_scope",
-            lambda op, sctx: (
-                sctx.scope_kind == "thread",
-                f"unsupported exec_scope {sctx.scope_kind}",
-            ),
-        )
-    ],
-)
-@register_dispatch(
-    "unary_reduce",
-    "trn",
-    variant="default",
-    priority=10,
-    when=[
-        predicate(
-            "exec_scope",
-            lambda op, sctx: (
-                sctx.scope_kind == "thread",
-                f"unsupported exec_scope {sctx.scope_kind}",
-            ),
-        )
-    ],
-)
-def unary_reduce_trn_dispatch(op: TileOpCall, sctx: DispatchContext) -> Function:
-    return unary_reduce_trn(op, sctx)

@@ -15,35 +15,23 @@
     specific language governing permissions and limitations
     under the License.
 
-copy_async → tmem<->local (tcgen05.ld/st)
-=========================================
+tcgen05.ld / tcgen05.st
+=======================
 
-The ``tmem<->local`` variant lowers a ``copy_async`` between **tensor memory and
-registers** through the ``tcgen05_ldst`` implementation (Blackwell
+``Tx.cuda.tile.tcgen05.ld`` and ``Tx.cuda.tile.tcgen05.st`` transfer between
+tensor memory and registers through the ``tcgen05_ldst`` implementation (Blackwell
 ``tcgen05.ld`` / ``tcgen05.st``). It is warpgroup-collective:
 the four warps cooperatively move a tensor-memory tile to/from their per-thread
-registers. One registration handles both directions — ``tmem → local`` lowers to
-``tcgen05.ld``, ``local → tmem`` to ``tcgen05.st`` — and the dispatch picks the
+registers. ``ld`` requires tensor-memory-to-local operands, while ``st``
+requires local-to-tensor-memory operands. The lowerer picks the
 widest instruction shape the register layout matches. As with the other async
-variants, completion (``tcgen05.wait.ld`` / ``tcgen05.wait.st``) is the caller's. Source:
+instructions, completion (``tcgen05.wait.ld`` / ``tcgen05.wait.st``) is the caller's. Source:
 ``python/tvm/backend/cuda/tile_primitive/copy_async/tcgen05_ldst.py``.
 
 What it accepts
 ---------------
 
-A single registration (``variant="tmem<->local"``); direction is inferred at
-lowering:
-
-.. code-block:: python
-
-    @register_dispatch("copy_async", "cuda", variant="tmem<->local", priority=10, when=[
-        predicate("validate_copy_op", _is_valid_copy),
-        predicate("exec_scope", exec_scope_ok, expected_scopes=["warpgroup"]),
-        predicate("storage_scope", _scope_allowed,
-                  allowed_pairs=[("tmem", "local"), ("local", "tmem")]),
-    ])
-    # direction inferred in copy_tmem_local_impl:
-    #   src tmem + dst local -> "tmem2local" (ld);  else "local2tmem" (st)
+The named instruction fixes the transfer direction. Both require warpgroup scope.
 
 .. list-table::
    :header-rows: 1
@@ -51,9 +39,8 @@ lowering:
 
    * - Property
      - Requirement
-   * - target / priority
-     - ``cuda`` target with ``tcgen05`` support (tested with ``sm_100a``);
-       priority ``10``
+   * - target
+     - ``cuda`` target with ``tcgen05`` support (tested with ``sm_100a``)
    * - scope
      - **warpgroup** (``exec_scope_ok(expected_scopes=["warpgroup"])``) — the four
        warps act together
@@ -70,7 +57,7 @@ lowering:
        the lower or upper 16-lane sub-slab of each warp partition
 
 Demonstration program
-----------------------
+---------------------
 
 A warpgroup round-trips a ``128×8`` ``float16`` tile registers → tmem → registers
 (the GPU smoke test ``test_copy_tmem2reg_async``; ``WIDTH = 8`` for ``width_32b=4``,
@@ -112,10 +99,10 @@ fp16):
             A_local = A_reg.view(128, WIDTH, layout=local_view)
             B_local = B_reg.view(128, WIDTH, layout=local_view)
             # ... load A into A_reg, zero B_reg, cta_sync ...
-            Tx.tile.wg.copy_async(tmem[:, :], A_local[:, :])
+            Tx.cuda.tile.tcgen05.st(tmem[:, :], A_local[:, :], scope="warpgroup")
             Tx.ptx.tcgen05.wait__st.sync.aligned()  # store (local -> tmem)
             Tx.cuda.cta_sync()
-            Tx.tile.wg.copy_async(B_local[:, :], tmem[:, :])
+            Tx.cuda.tile.tcgen05.ld(B_local[:, :], tmem[:, :], scope="warpgroup")
             Tx.ptx.tcgen05.wait__ld.sync.aligned()  # load  (tmem -> local)
             # ... write B_reg out; tcgen05.dealloc ...
 
@@ -125,7 +112,7 @@ Algorithm
 **1. Infer direction.** ``tmem → local`` is a load (``tcgen05.ld``); ``local → tmem``
 is a store (``tcgen05.st``).
 
-**2. Pick the instruction shape.** The dispatch matches the register layout against
+**2. Pick the instruction shape.** The lowerer matches the register layout against
 ``tcgen05_atom_layout`` for ``.16x64b`` / ``.16x128b`` / ``.16x256b``
 (``_match_tcgen05_atom_layout``); the matched shape sets the column factor (2/4/8
 fp32 columns) and the ``num`` count. If nothing matches, the implementation
@@ -154,12 +141,12 @@ Layout B is routed before the ordinary atom matching. Its logical
 ``(64, N)`` fragment is emitted as one physical ``.32x32b.x{N/2}``
 instruction over all 128 lanes.
 
-The dispatch emits **no** wait. When synchronization is required, the caller
+The lowerer emits **no** wait. When synchronization is required, the caller
 issues ``Tx.ptx.tcgen05.wait__ld.sync.aligned()`` or
 ``Tx.ptx.tcgen05.wait__st.sync.aligned()`` (as in the demo).
 
 Selecting the upper F sub-slab
--------------------------------
+------------------------------
 
 ``sub_slab`` is part of the tensor-memory layout rather than an option on
 ``copy_async``. This keeps physical TMEM occupation explicit and lets two
@@ -184,9 +171,9 @@ Selecting the upper F sub-slab
         layout=tmem_datapath_layout("F", 64, cols, sub_slab=1),
     )
 
-    Tx.tile.wg.copy_async(lower_frag, lower)
+    Tx.cuda.tile.tcgen05.ld(lower_frag, lower, scope="warpgroup")
     Tx.ptx.tcgen05.wait__ld.sync.aligned()
-    Tx.tile.wg.copy_async(upper_frag, upper)
+    Tx.cuda.tile.tcgen05.ld(upper_frag, upper, scope="warpgroup")
     Tx.ptx.tcgen05.wait__ld.sync.aligned()
 
 The lower view emits ``row=0`` and the upper view emits ``row=16`` for
@@ -210,11 +197,11 @@ Use the public allocation and fragment APIs together:
         (64, N), "float32", M=128, cta_group=2)
     frag = Tx.alloc_tcgen05_ldst_frag("32x32b", (64, N), "float32")
 
-    Tx.tile.wg.copy_async(frag[:, :], accumulator[:, :])
+    Tx.cuda.tile.tcgen05.ld(frag[:, :], accumulator[:, :], scope="warpgroup")
     Tx.ptx.tcgen05.wait__ld.sync.aligned()
 
     # The inverse direction emits tcgen05.st with the same physical image.
-    Tx.tile.wg.copy_async(accumulator[:, :], frag[:, :])
+    Tx.cuda.tile.tcgen05.st(accumulator[:, :], frag[:, :], scope="warpgroup")
     Tx.ptx.tcgen05.wait__st.sync.aligned()
 
 This is a single ``tcgen05.{ld,st}.32x32b.x{N/2}`` issue. ``N`` must be
@@ -260,7 +247,7 @@ How inputs change the algorithm
    * - register layout
      - matches a ``.16x64b`` / ``.16x128b`` / ``.16x256b`` atom → that shape; no
        match → ``.32x32b`` only for the compatible 128-row/Layout D form used by
-       this demo; otherwise dispatch fails
+       this demo; otherwise lowering fails
    * - column width / dtype
      - sets ``num`` (the ``.xN`` count) and the registers per thread
        (``elem_per_32b = 32 / dtype_bits``)

@@ -22,13 +22,13 @@ CUDA intrinsics like ``__float22half2_rn``."""
 from __future__ import annotations
 
 from tvm.ir import TensorRegion
-from tvm.tirx import TileOpCall
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..vec_emit.cast_vec2 import CAST_VEC2_IMPL
 from . import OpSpec, Plan, SrcSpec
 
 
-def _parse_cast(op: TileOpCall) -> tuple[Plan | None, str | None]:
+def _parse_cast(op: TensorCall) -> tuple[Plan | None, str | None]:
     _dst: TensorRegion = op.args[0]
     _src = op.args[1]
     if not isinstance(_src, TensorRegion):

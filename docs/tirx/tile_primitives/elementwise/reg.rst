@@ -18,13 +18,13 @@
 elementwise → reg
 =================
 
-The ``reg`` variant lowers an elementwise op (``sqrt``, ``exp``, ``add``,
+The register lowerer expands an elementwise instruction (``sqrt``, ``exp``, ``add``,
 ``fma``, …) when **all buffer operands use ``local`` scope**. Scalar inputs are
 also accepted where the operation's authoring API permits them. Like the copy
-:doc:`../copy/reg` ``vec_auto`` path the partition is *induced* by the operands'
+:doc:`../copy/reg` instruction the partition is *induced* by the operands'
 local-buffer layout — the thread axes are dropped, leaving each thread its
 private bundle — and the op is applied to every element in that bundle. The
-variant name describes this local-buffer path; final register allocation
+lowering path uses local operands; final register allocation
 remains a CUDA compiler decision. Source:
 ``python/tvm/backend/cuda/tile_primitive/elementwise/reg.py``.
 
@@ -54,9 +54,8 @@ What it accepts
 
    * - Property
      - Requirement
-   * - target / scope / priority
-     - ``cuda``; ``thread`` / ``warp`` / ``warpgroup`` / ``cta`` (all active);
-       priority ``10``
+   * - target / scope
+     - ``cuda``; ``thread`` / ``warp`` / ``warpgroup`` / ``cta`` (all active)
    * - operands
      - **every buffer operand** in ``local``; scalar sources are allowed by
        ``fill``, the binary ops, and ``fma``
@@ -72,7 +71,7 @@ What it accepts
        the destination region
 
 Demonstration program
-----------------------
+---------------------
 
 A warp takes the elementwise ``sqrt`` of a ``32×8`` ``float32`` local tile
 (local layout ``S[(32,8):(1@laneid,1)]`` — lane ``i`` owns row ``i``):
@@ -93,14 +92,18 @@ A warp takes the elementwise ``sqrt`` of a ``32×8`` ``float32`` local tile
         Tx.lane_id([32])
         tid = Tx.thread_id([32])
         A_smem = Tx.alloc_tensor((32, 8), "float32", scope="shared", layout=TileLayout(S[(32, 8)]))
-        Tx.tile.warp.copy(A_smem[fs], A[fs])
+        for k in Tx.serial(8):
+            value = A[tid, k]
+            A_smem[tid, k] = value
         Tx.cuda.cta_sync()
         R = Tx.alloc_tensor((32, 8), "float32", scope="local", layout=r_layout)
-        Tx.tile.warp.copy(R[fs], A_smem[fs])
-        Tx.tile.warp.sqrt(R[fs], R[fs])  # elementwise reg dispatch
-        Tx.tile.warp.copy(A_smem[fs], R[fs])
+        Tx.cuda.tile.ld(R[fs], A_smem[fs], scope="warp")
+        Tx.cuda.tile.sqrt(R[fs], R[fs], scope="warp")  # elementwise reg dispatch
+        Tx.cuda.tile.st(A_smem[fs], R[fs], scope="warp")
         Tx.cuda.cta_sync()
-        Tx.tile.warp.copy(B[fs], A_smem[fs])
+        for k in Tx.serial(8):
+            value = A_smem[tid, k]
+            B[tid, k] = value
 
 Algorithm
 ---------

@@ -15,87 +15,43 @@
     specific language governing permissions and limitations
     under the License.
 
-Tile Primitive Dispatch
-=======================
+Tensor Instruction Lowering
+===========================
 
-This chapter documents how unresolved ``TileOpCall`` nodes are selected
-and lowered.  Kernel authors should start with the
-:doc:`Tile Primitives programming guide <../tile_primitives>`; extension
-authors can find the callable registration interfaces in
-:doc:`../api/tile_dispatch`.
+Backend tensor operations are ordinary ``tvm.ir.Call`` nodes with opaque
+side effects and void return types. CUDA and Trainium register their contracts
+in ``python/tvm/backend/{cuda,trn}/tensor_instructions.py`` using the shared
+``python/tvm/tirx/tensor_instruction.py`` machinery. C++ reflected attribute
+types and the native Call validator are in ``src/tirx/op/tile.cc``.
 
-Implementation surfaces
------------------------
+``tirx.TilePrimitiveDispatch`` remains the first phase of ``LowerTIRx``.
+The pass recognizes ``Evaluate(Call)`` by the operator's ``TIRxOpCategory``:
+``tile_primitive`` or ``tile_composite``. It validates the call, resolves the
+scope against the active thread set, constructs a ``DispatchContext``, and
+invokes the instruction's registered lowerer. It replaces the Evaluate with
+the returned function body and lowers any nested tensor calls.
 
-The authoritative operation list is the C++ registry
-(``src/tirx/op/tirx.cc``, with operations named ``tirx.tile.<name>``).  IR
-wrapper classes live in
-``python/tvm/tirx/op/tile.py``.  Raw
-``TileOpCall`` constructors live in
-``python/tvm/tirx/script/ir_builder/tirx.py``, while the validated authoring facade
-is in ``python/tvm/tirx/script/tile.py``.  Both Python construction surfaces
-produce the same IR node type.
+This preserves launch parameters, inter/intra scope maps, value ranges,
+descriptor caches, host initialization, and allocation/initialization
+callbacks. Lowering occurs at a statement boundary because one instruction
+may require address preparation, layout expansion, and multiple occurrences
+of the same core instruction. A residual-call verifier rejects either
+category after expansion.
 
-Dispatch pipeline
------------------
+There is one lowerer per instruction identity. Unsupported layouts and scopes
+produce an error that includes the instruction, target, scope, and original
+cause. There is no cross-instruction priority search or forced variant bag.
 
-Dispatch runs in the ``tirx.TilePrimitiveDispatch`` pass, the first phase of
-``LowerTIRx()``, before layout and execution-scope cleanup.  The C++ mutator
-``TilePrimitiveDispatcher`` walks the IR and, for each call:
+The transient Python ``TensorCall`` view supplies semantic operand names to
+existing backend emission code. It is not a registered IR node and is never
+serialized. Its decoded options are private lowering data. Every expression
+in the original IR resides in ``Call.args``; shared traversal does not inspect
+attributes for hidden expressions.
 
-#. resolves the ``(inter, intra)`` execution split for the call's scope from the
-   active set tracked through control flow (``if wg_id == ...``, ``warp_id``,
-   and ``Tx.cuda.elect_sync()``);
-#. builds a ``DispatchContext`` carrying the target, scope, launch parameters,
-   value ranges, and encoded ``inter``/``intra`` maps plus ``scope_kind``;
-#. invokes the global FFI hook ``tirx.f_op_dispatcher`` with the call and
-   context, which returns a ``Function``;
-#. splices that ``Function`` body in place of the call and drains side-effect
-   callbacks for private allocations and device or host initialization.
+The TVMScript printer validates tensor Calls and prints canonical backend
+names, tensor regions, nested tuple operands, and static qualifiers. Parsing
+reconstructs the fixed signature. Private Trainium workspace allocation
+rewrites Call argument slots before instruction lowering.
 
-If a ``TileOpCall`` survives lowering, the verifier reports a fatal
-error.
-
-Variant selection
------------------
-
-The Python dispatcher holds a table keyed by ``(Op, target_kind)``.  Backends
-register each case with ``register_dispatch``, including its variant name,
-priority, predicates, and implementation.  ``run_dispatch(op_call, sctx)``:
-
-#. looks up the primitive and target pair;
-#. filters to ``op_call.dispatch`` when the caller explicitly requests a
-   variant;
-#. sorts candidates by descending priority and then by variant name;
-#. evaluates each candidate's predicates and runs the first implementation that
-   accepts the call; a predicate exception is recorded as a rejection reason;
-#. continues searching when an implementation raises ``DispatchFail`` or another
-   exception; and
-#. reports every rejection reason when no candidate accepts the call.  If an
-   implementation raised an unexpected exception, the final ``RuntimeError`` is
-   chained from the last such exception so its traceback is retained.
-
-Dispatch is therefore target-specific, priority-ordered, and predicate-guarded,
-with an optional ``dispatch=`` override.  Common predicates validate matching
-operand shapes and layouts or require a complete active thread group, preventing
-a partial warp or warpgroup from being lowered by an implementation that needs
-full participation.
-
-Variants by primitive
----------------------
-
-The following chapters document the registered variants, their selection
-conditions, the IR they emit, and the conditions under which they decline.
-Their URLs remain under ``tile_primitives`` for compatibility with existing
-links.
-
-.. toctree::
-   :maxdepth: 1
-
-   ../tile_primitives/copy
-   ../tile_primitives/copy_async
-   ../tile_primitives/gemm
-   ../tile_primitives/gemm_async
-   ../tile_primitives/elementwise
-   ../tile_primitives/reduction
-   ../tile_primitives/permute_layout
+See :doc:`../tile_primitives` for instruction contracts and caller-owned
+algorithms, and :doc:`../api/tile_dispatch` for registration.

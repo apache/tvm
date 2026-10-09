@@ -36,10 +36,11 @@ import operator
 
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
-from tvm.tirx import Function, TileOpCall
+from tvm.tirx import Function
 from tvm.tirx.layout import TileLayout
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.operator.tile_primitive.dispatcher import fail
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..common import get_st_extent
 from ..copy._common import _carve_tail, _verify_s_tail_contig
@@ -175,7 +176,7 @@ def _check_layout_operands_agree(plan, sctx) -> tuple[bool, str | None]:
 def is_reg_ewise(spec):
     """Predicate factory: dispatch accepted iff all operands in ``local`` scope."""
 
-    def check(op_call: TileOpCall, sctx: DispatchContext) -> tuple[bool, str | None]:
+    def check(op_call: TensorCall, sctx: DispatchContext) -> tuple[bool, str | None]:
         if not sctx.is_target("cuda"):
             return False, "non-cuda target"
         if sctx.scope_kind not in ("thread", "warp", "warpgroup", "cta"):
@@ -230,7 +231,7 @@ def _prod(it) -> int:
 # -----------------------------------------------------------------------------
 # Main entry
 # -----------------------------------------------------------------------------
-def emit_reg(op_call: TileOpCall, spec, sctx: DispatchContext) -> Function:
+def emit_reg(op_call: TensorCall, spec, sctx: DispatchContext) -> Function:
     plan, msg = spec.parse(op_call)
     if msg is not None or plan is None:
         fail(msg or "parse failed")

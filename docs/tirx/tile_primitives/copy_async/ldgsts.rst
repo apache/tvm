@@ -15,15 +15,14 @@
     specific language governing permissions and limitations
     under the License.
 
-copy_async → ldgsts
-===================
+cp_async
+========
 
-The ``ldgsts`` variant lowers ``copy_async`` for a **global → shared** transfer to
+``Tx.cuda.tile.cp_async`` lowers a global-to-shared transfer to
 the PTX ``cp.async`` (LDGSTS) instruction: each thread issues an *asynchronous*
 vectorized copy that the hardware completes in the background, so the warp can keep
-computing while the load is in flight. It reuses the exact ``[outer, threads, vec]``
-partition of the synchronous :doc:`../copy/gmem_smem` ``vec_auto`` path; the
-differences are all in *what* is emitted and *when* it completes. Source:
+computing while the load is in flight. Its layout planner constructs an
+``[outer, threads, vec]`` partition. Source:
 ``python/tvm/backend/cuda/tile_primitive/copy_async/ldgsts.py``.
 
 What it accepts
@@ -65,13 +64,11 @@ What it accepts
    * - vector width
      - ``cp.async`` only accepts cp_size ∈ {4, 8, 16} bytes, so the candidate set is
        restricted to ``_LDGSTS_VEC_BITS`` = ``{128, 64, 32}`` bits
-   * - priority
-     - ``20`` — selected for ``copy_async`` global→shared (vs the bulk/TMA variants)
 
 Configuration
 -------------
 
-``ldgsts`` reads four optional config keys. ``prefetch_size`` is ``-1`` by
+``cp_async`` takes a predicate operand and three static qualifiers. ``prefetch_size`` is ``-1`` by
 default (no qualifier), or ``64``, ``128``, or ``256`` for the corresponding
 PTX ``.L2::<N>B`` qualifier. ``predicate`` defaults to ``-1`` (unpredicated);
 with ``fill_mode="zero"``, a false predicate uses the ``src-size`` form to
@@ -84,7 +81,7 @@ integer and constructs the PTX spelling, whose table lookup accepts the
 registered qualifiers.
 
 Demonstration program
-----------------------
+---------------------
 
 A CTA (128 threads) asynchronously loads a ``128×32`` ``float16`` tile global →
 shared, then commits and waits before reading it back (from ``test_ldgsts.py``):
@@ -105,16 +102,18 @@ shared, then commits and waits before reading it back (from ``test_ldgsts.py``):
         Tx.lane_id([32])
         tid = Tx.thread_id([128])
         A_smem = Tx.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
-        Tx.tile.cta.copy_async(A_smem[full], A[full], dispatch="ldgsts")  # async global -> shared
+        Tx.cuda.tile.cp_async(A_smem[full], A[full], scope="cta")  # async global -> shared
         Tx.ptx.cp.async_.commit_group()  # caller commits ...
         Tx.ptx.cp.async_.wait_group(0)  # ... and waits
         Tx.cuda.cta_sync()
-        Tx.tile.cta.copy(B[full], A_smem[full])
+        for k in Tx.serial(32):
+            value = A_smem[tid, k]
+            B[tid, k] = value
 
 Algorithm
 ---------
 
-**1. Same partition as** :doc:`../copy/gmem_smem`. ``align_layouts_gs`` builds the
+**1. Cooperative partition.** ``align_layouts_gs`` builds the
 ``[outer, threads, vec]`` split with the global side driving the canonical order —
 but the vector candidates are clamped to ``{128, 64, 32}`` bits so the byte size is
 a legal ``cp.async`` cp_size. For ``128×32 = 4096`` ``float16`` over 128 threads the
@@ -134,7 +133,7 @@ widest legal width is ``vec = 8`` (``8 × 2 B = 16 B``), giving ``outer = 4``.
 
 Completion is the caller's responsibility
 (``Tx.ptx.cp.async_.commit_group()`` then
-``Tx.ptx.cp.async_.wait_group(0)``); the dispatch only issues the in-flight
+``Tx.ptx.cp.async_.wait_group(0)``); the lowerer only issues the in-flight
 loads.
 
 Generated TIRx IR
@@ -163,8 +162,8 @@ caller's ``wait_group``.
 How inputs change the algorithm
 -------------------------------
 
-The dtype/alignment set ``vec`` (hence ``cp_size`` and ``outer``), but unlike the
-synchronous variant the width is capped at 16 B (cp.async maximum):
+The dtype and alignment set ``vec`` (hence ``cp_size`` and ``outer``).
+The width is capped at 16 B, the cp.async maximum:
 
 .. list-table::
    :header-rows: 1
@@ -192,5 +191,5 @@ synchronous variant the width is capped at 16 B (cp.async maximum):
      - (×4)
 
 If the region can't satisfy even a 4-byte (32-bit) cp_size, ``align_layouts_gs``
-finds no candidate and the variant declines. The **direction is fixed**: a
-shared → global ``copy_async`` is never ``ldgsts`` (hardware has no store form).
+finds no candidate and lowering reports an error. The **direction is fixed**: a
+shared-to-global transfer cannot use ``cp_async`` (hardware has no store form).

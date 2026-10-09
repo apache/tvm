@@ -144,14 +144,14 @@ class _DialectRedirectFinder:
     (``from tvm.script import tirx``).  It cannot intercept deep
     statement-form imports such as::
 
-        import tvm.script.tirx.tile
+        import tvm.script.tirx.ir_builder
         import tvm.script.ir_builder.relax.ir
 
     This finder is installed on ``sys.meta_path`` to cover those cases.
     When the import machinery asks for a module whose full name starts with
     ``tvm.script.<language variant>`` (or ``tvm.script.parser.<language variant>``, etc.) and
     that language variant is in ``_DIALECT_REGISTRY``, :meth:`find_spec` imports the
-    real target module (e.g. ``tvm.tirx.script.tile``) and returns an
+    real target module (e.g. ``tvm.tirx.script.ir_builder``) and returns an
     alias spec whose loader hands back that module, so the import machinery
     registers it in ``sys.modules`` under the public alias and all subsequent
     imports and attribute walks resolve without going through the redirect

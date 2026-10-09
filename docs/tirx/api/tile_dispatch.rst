@@ -15,43 +15,26 @@
     specific language governing permissions and limitations
     under the License.
 
-Tile Dispatch Extension API
-===========================
+Tensor Instruction Registration
+===============================
 
-Raw node constructors
----------------------
+Backend authors define an ``Instruction`` with its canonical operator name,
+ordered ``Operand`` list, reflected static attribute schema, and one lowerer.
+The shared implementation is ``tvm.tirx.tensor_instruction``; CUDA and
+Trainium's ``tensor_instructions.py`` files contain the concrete contracts.
 
-``tvm.tirx.script.ir_builder.tirx`` constructs the same
-``TileOpCall`` nodes as the validated ``Tx.tile`` facade.  This surface
-is intended for parser, builder, and extension authors; kernel code should
-normally use the :doc:`tile authoring API <tile>`.  Its public builder spelling
-is ``tvm.tirx.script.ir_builder.tile``::
+Registration installs the fixed argument count, void return type, opaque
+side effects, category, printer name, and native Call validator on the Op.
+The validator also runs for directly constructed Calls and printer entry.
+Runtime expressions must be operands. New static qualifiers require a typed
+attribute field rather than an arbitrary dictionary.
 
-   from tvm.tirx.script import ir_builder as Tx_builder
+Lowerers receive a semantic view and ``DispatchContext`` and return a
+``tvm.tirx.Function`` body. They can prepare pointers/descriptors and expand
+layouts for the selected core instruction. They must report unsupported
+contracts rather than select a different instruction family.
 
-   Tx_builder.tile.copy(dst, src)
-
-Each callable tile operation has a same-name raw constructor.  The authoring
-page lists the public facade without duplicating the full operation list here.
-
-.. py:class:: ScopedOp(fn)
-
-   Internal callable wrapper that supplies a default thread scope or binds a
-   scope selected through a namespace.
-
-.. py:class:: ScopeNamespace(scope, label)
-
-   Internal resolver that binds the named execution scope to a tile operation.
-
-.. _tirx-api-dispatch-extension-points:
-
-Dispatch registration
----------------------
-
-.. automodule:: tvm.tirx.operator.tile_primitive
-   :members:
-   :imported-members:
-   :no-index:
-
-See :doc:`../arch/tile_dispatch` for the selection algorithm and the registered
-CUDA and Trainium variants.
+Named workspace operands have fixed optional slots. Declare a workspace policy
+only for instructions that own such scratch storage; do not use it to hide
+caller-owned algorithms. See :doc:`../arch/tile_dispatch` for callbacks and
+the statement replacement boundary.

@@ -29,7 +29,6 @@ from tvm import ir, tirx
 from tvm.ir import PointerType, PrimType, assert_structural_equal
 from tvm.script import ir as I
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 
 
 def test_native_concise_scopes_unwind_with_their_parent():
@@ -345,17 +344,21 @@ def test_roundtrip_unary_inplace():
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
-        Tx.warp.exp2(A[0:32])
-        Tx.warp.sqrt(A[32:64])
-        Tx.warp.reciprocal(A[64:96])
+        T.cuda.tile.ex2(A[0:32], scope='warp')
+        T.cuda.tile.sqrt(A[32:64], scope='warp')
+        T.cuda.tile.div(A[64:96], T.cast(1, A.dtype), A[64:96], scope='warp')
         # fmt: on
 
     code = test.script()
-    # The one-argument convenience prints both canonical operands.
-    assert 'T.warp.exp2(A[0:32], A[0:32])' in code, f"expected both exp2 operands:\n{code}"
-    assert 'T.warp.sqrt(A[32:64], A[32:64])' in code, f"expected both sqrt operands:\n{code}"
-    assert 'T.warp.reciprocal(A[64:96], A[64:96])' in code, (
-        f"expected both reciprocal operands:\n{code}"
+    # Each op should appear with a single arg (no duplicate src, no trailing Nones)
+    assert 'T.cuda.tile.ex2(A[0:32], A[0:32], scope="warp")' in code, (
+        f"expected single-arg exp2, got:\n{code}"
+    )
+    assert 'T.cuda.tile.sqrt(A[32:64], A[32:64], scope="warp")' in code, (
+        f"expected single-arg sqrt, got:\n{code}"
+    )
+    assert 'T.cuda.tile.div(A[64:96], T.float32(1.0), A[64:96], scope="warp")' in code, (
+        f"expected single-arg reciprocal, got:\n{code}"
     )
     assert "None" not in code, f"trailing None args should be trimmed:\n{code}"
     assert from_source(code).script() == code
@@ -375,11 +378,11 @@ def test_roundtrip_unary_different_dst_src():
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
-        Tx.warp.exp2(A[0:32], B[0:32])
+        T.cuda.tile.ex2(A[0:32], B[0:32], scope='warp')
         # fmt: on
 
     code = test.script()
-    assert 'T.warp.exp2(A[0:32], B[0:32])' in code, (
+    assert 'T.cuda.tile.ex2(A[0:32], B[0:32], scope="warp")' in code, (
         f"different dst/src should keep both:\n{code}"
     )
     assert from_source(code).script() == code
@@ -726,7 +729,7 @@ def test_roundtrip_serial_unroll_false():
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
         for _ in T.serial(10, unroll=False):
-            Tx.cta.fill(A[0:32], T.float32(0))
+            T.cuda.tile.mov(A[0:32], T.float32(0), scope='cta')
         # fmt: on
 
     code = test.script()
@@ -748,7 +751,7 @@ def test_roundtrip_serial_unroll_true():
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
         for _ in T.serial(10, unroll=True):
-            Tx.cta.fill(A[0:32], T.float32(0))
+            T.cuda.tile.mov(A[0:32], T.float32(0), scope='cta')
         # fmt: on
 
     code = test.script()
@@ -770,7 +773,7 @@ def test_roundtrip_serial_unroll_count():
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
         for _ in T.serial(10, unroll=2):
-            Tx.cta.fill(A[0:32], T.float32(0))
+            T.cuda.tile.mov(A[0:32], T.float32(0), scope='cta')
         # fmt: on
 
     code = test.script()
@@ -792,7 +795,7 @@ def test_roundtrip_serial_unroll_false_with_other_annotations():
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
         for _ in T.serial(10, annotations={"disable_unroll": True, "custom": 42}):
-            Tx.cta.fill(A[0:32], T.float32(0))
+            T.cuda.tile.mov(A[0:32], T.float32(0), scope='cta')
         # fmt: on
 
     code = test.script()

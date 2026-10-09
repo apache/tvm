@@ -19,48 +19,10 @@ import tvm
 import tvm.testing
 from tvm.ir import assert_structural_equal
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import F, P, S, TileLayout
 from tvm.tirx.trn.transform import TrnPrivateBufferAlloc
 
 target = tvm.target.Target("aws/trn1/trn1.2xlarge")
-
-
-def test_copy_transpose():
-    src_shape = [512, 512]
-    src_layout = TileLayout(S[(128, 2048) : (1 @ P, 1 @ F)])
-    dst_shape = [512, 512]
-    dst_layout = TileLayout(S[(2048, 128) : (1 @ F, 1 @ P)])
-
-    # fmt: off
-    @T.function
-    def copy() -> None:
-        T.device_entry()
-        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.copy(B_sbuf, A_sbuf)
-
-    @T.function
-    def expected():
-        T.func_attr({"global_symbol": "copy"})
-        T.device_entry()
-        identity = T.alloc_tensor((128, 128), scope="trn.sbuf")
-        acc_psum = T.alloc_tensor((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
-        with T.nki.tensorized_instruction():
-            for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
-                for rhs_f_loop in T.serial(128, annotations={"nki_dim": "F"}):
-                    T.nki.identity(identity[p_loop, rhs_f_loop], 128)
-        A_sbuf = T.alloc_tensor((512, 512), scope="trn.sbuf",
-                                layout=T.TileLayout(T.S[(128, 2048) : (1 @ P, 1@F)]))
-        B_sbuf = T.alloc_tensor((512, 512), scope="trn.sbuf",
-                                layout=T.TileLayout(T.S[(2048, 128) : (1@F, 1@P)]))
-        Tx.copy(B_sbuf[0:512, 0:512], A_sbuf[0:512, 0:512], workspace={"acc_psum": acc_psum, "identity": identity})  # noqa: E501
-
-        # fmt: on
-    with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = TrnPrivateBufferAlloc()(mod)
-        assert_structural_equal(mod["main"], expected)
 
 
 def test_normal_copy():
@@ -75,7 +37,7 @@ def test_normal_copy():
 
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.copy(A_sbuf, A)
+        T.trn.tile.load(A_sbuf, A)
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": copy})
@@ -97,7 +59,7 @@ def test_unary_with_bias_scale():
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.exp_with_scale_bias(C_sbuf, A_sbuf, bias=bias, scale=scale)
+        T.trn.tile.activation(C_sbuf, A_sbuf, bias=bias, scale=scale, opcode='exp')
 
     @T.function
     def expected():
@@ -112,7 +74,7 @@ def test_unary_with_bias_scale():
                                 layout=T.TileLayout(T.S[(128, 4096) : (1@P, 1@F)]))
         C_sbuf = T.alloc_tensor((512, 1024), scope="trn.sbuf",
                                 layout=T.TileLayout(T.S[(128, 4096) : (1@P, 1@F)]))
-        Tx.exp_with_scale_bias(C_sbuf[0:512, 0:1024], A_sbuf[0:512, 0:1024], scale=T.float32(2.0), bias=T.float32(1.0), workspace={"const_bias": const_bias})  # noqa: E501
+        T.trn.tile.activation(C_sbuf[0:512, 0:1024], A_sbuf[0:512, 0:1024], scale=T.float32(2.0), bias=T.float32(1.0), const_bias=const_bias, opcode='exp')  # noqa: E501
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": unary})
@@ -132,7 +94,7 @@ def test_reduction_two_stage():
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.sum(B_sbuf, A_sbuf, axes=(1, 3))
+        T.trn.tile.tensorreduce(B_sbuf, A_sbuf, axes=(1, 3), reduce_op='sum')
 
     @T.function
     def expected():
@@ -143,7 +105,7 @@ def test_reduction_two_stage():
                                 layout=T.TileLayout(T.S[(128, 32 * 32 * 4) : (1@P, 1@F)]))
         B_sbuf = T.alloc_tensor((128, 4), scope="trn.sbuf",
                                 layout=T.TileLayout(T.S[(128, 4) : (1@P, 1@F)]))
-        Tx.sum(B_sbuf[0:128, 0:4], A_sbuf[0:128, 0:32, 0:4, 0:32], [1, 3], False, workspace={"partial_reduce": partial_reduce})  # noqa: E501
+        T.trn.tile.tensorreduce(B_sbuf[0:128, 0:4], A_sbuf[0:128, 0:32, 0:4, 0:32], partial_reduce=partial_reduce, axes=[1, 3], reduce_op='sum')  # noqa: E501
 
         # fmt: on
     with target:
@@ -167,12 +129,13 @@ def test_gemm():
         C_sbuf = T.alloc_tensor((512, 256), "float32", scope="trn.sbuf", layout=C_layout)
         for i in range(2):
             for k in range(2):
-                Tx.gemm(
+                T.trn.tile.matmul(
                     C_sbuf[256 * i : 256 * i + 256, :],
                     A_sbuf[256 * i : 256 * i + 256, 512 * k : 512 * k + 512],
                     B_sbuf[512 * k : 512 * k + 512, :],
                     C_sbuf[256 * i : 256 * i + 256, :],
                 )
+
     @T.function
     def expected():
         T.func_attr({"global_symbol": "gemm"})
@@ -185,7 +148,7 @@ def test_gemm():
         C_sbuf = T.alloc_tensor((512, 256), scope="trn.sbuf",
                                 layout=T.TileLayout(T.S[(4, 128, 2, 128) : (256@F, 1@F, 128@F, 1@P)]))  # noqa: E501
         for i, k in T.grid(2, 2):
-            Tx.gemm(C_sbuf[256 * i:256 * i + 256, 0:256], A_sbuf[256 * i:256 * i + 256, 512 * k:512 * k + 512], B_sbuf[512 * k:512 * k + 512, 0:256], C_sbuf[256 * i:256 * i + 256, 0:256], False, False, T.float32(1.0), T.float32(0.0), workspace={"acc_psum": acc_psum})  # noqa: E501
+            T.trn.tile.matmul(C_sbuf[256 * i:256 * i + 256, 0:256], A_sbuf[256 * i:256 * i + 256, 512 * k:512 * k + 512], B_sbuf[512 * k:512 * k + 512, 0:256], C_sbuf[256 * i:256 * i + 256, 0:256], False, False, T.float32(1.0), T.float32(0.0), acc_psum=acc_psum)  # noqa: E501
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": gemm})
@@ -208,7 +171,9 @@ def test_binary_reduce_two_stage():
         A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
         B_sbuf = T.alloc_tensor(dst1_shape, "float32", scope="trn.sbuf", layout=dst1_layout)
         C_sbuf = T.alloc_tensor(reduce_dst_shape, "float32", scope="trn.sbuf", layout=reduce_dst_layout)  # noqa: E501
-        Tx.binary_reduce(B_sbuf, C_sbuf, A_sbuf, 1.0, "add", "sum", reduce_axes=(1, 2))
+        T.trn.tile.tensorscalar_reduce(
+            B_sbuf, C_sbuf, A_sbuf, 1.0, opcode="add", reduce_op="sum", axes=(1, 2)
+        )
 
     @T.function
     def expected():
@@ -221,7 +186,7 @@ def test_binary_reduce_two_stage():
                                 layout=T.TileLayout(T.S[(128, 4096, 4) : (1 @ P, 1 @ F, 4096 @ F)]))
         C_sbuf = T.alloc_tensor((512,), scope="trn.sbuf",
                                 layout=T.TileLayout(T.S[(128, 4) : (1 @ P, 1 @ F)]))
-        Tx.binary_reduce(B_sbuf[0:512, 0:1024, 0:4], C_sbuf[0:512], A_sbuf[0:512, 0:1024, 0:4], T.float32(1.0), "add", "sum", [1, 2], workspace={"partial_reduce": partial_reduce})  # noqa: E501
+        T.trn.tile.tensorscalar_reduce(B_sbuf[0:512, 0:1024, 0:4], C_sbuf[0:512], A_sbuf[0:512, 0:1024, 0:4], T.float32(1.0), partial_reduce=partial_reduce, opcode="add", reduce_op="sum", axes=[1, 2])  # noqa: E501
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": tensor_scalar_reduce})
@@ -245,7 +210,9 @@ def test_activation_reduce_two_stage():
         B = T.alloc_tensor(B_shape, dtype="float32", scope="trn.sbuf", layout=B_layout)
         C = T.alloc_tensor(C_shape, dtype="float32", scope="trn.sbuf", layout=C_layout)
         for i in range(2):
-            Tx.unary_reduce(B, C, A[i*16:i*16+16], "sqrt", "sum", reduce_axes=(0,1))
+            T.trn.tile.activation_reduce(
+                B, C, A[i * 16 : i * 16 + 16], opcode="sqrt", reduce_op="sum", axes=(0, 1)
+            )
 
     @T.function
     def expected():
@@ -264,7 +231,7 @@ def test_activation_reduce_two_stage():
         C = T.alloc_tensor((1, 128), scope="trn.sbuf",
                            layout=T.TileLayout(T.S[(1, 128) : (1@F, 1@P)]))
         for i in range(2):
-            Tx.unary_reduce(B[0:16, 0:512, 0:128], C[0, 0:128], A[i * 16:i * 16 + 16, 0:512, 0:128], "sqrt", "sum", [0, 1], workspace={"const_bias": const_bias, "partial_reduce": partial_reduce})  # noqa: E501
+            T.trn.tile.activation_reduce(B[0:16, 0:512, 0:128], C[0, 0:128], A[i * 16:i * 16 + 16, 0:512, 0:128], const_bias=const_bias, partial_reduce=partial_reduce, opcode="sqrt", reduce_op="sum", axes=[0, 1])  # noqa: E501
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": activation_reduce})
@@ -289,7 +256,7 @@ def test_partial_workspace_specify():
         B = T.alloc_tensor(B_shape, dtype="float32", scope="trn.sbuf", layout=B_layout)
         C = T.alloc_tensor(C_shape, dtype="float32", scope="trn.sbuf", layout=C_layout)
         for i in range(2):
-            Tx.unary_reduce(B, C, A[i*16:i*16+16], "sqrt", "sum", reduce_axes=(0,1), workspace={"partial_reduce": partial_reduce})  # noqa: E501
+            T.trn.tile.activation_reduce(B, C, A[i*16:i*16+16], partial_reduce=partial_reduce, opcode="sqrt", reduce_op="sum", axes=(0,1))  # noqa: E501
 
     @T.function
     def expected():
@@ -308,7 +275,7 @@ def test_partial_workspace_specify():
         C = T.alloc_tensor((1, 128), scope="trn.sbuf",
                            layout=T.TileLayout(T.S[(1, 128) : (1@F, 1@P)]))
         for i in range(2):
-            Tx.unary_reduce(B[0:16, 0:512, 0:128], C[0, 0:128], A[i * 16:i * 16 + 16, 0:512, 0:128], "sqrt", "sum", [0, 1], workspace={"const_bias": const_bias, "partial_reduce": partial_reduce})  # noqa: E501
+            T.trn.tile.activation_reduce(B[0:16, 0:512, 0:128], C[0, 0:128], A[i * 16:i * 16 + 16, 0:512, 0:128], const_bias=const_bias, partial_reduce=partial_reduce, opcode="sqrt", reduce_op="sum", axes=[0, 1])  # noqa: E501
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": activation_reduce})
@@ -329,8 +296,10 @@ def test_workspace_reuse():
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.exp_with_scale_bias(C_sbuf, A_sbuf, bias=0.0, scale=scale, max_inst_size=1024)
-        Tx.exp(C_sbuf, C_sbuf)
+        T.trn.tile.activation(
+            C_sbuf, A_sbuf, bias=0.0, scale=scale, max_inst_size=1024, opcode="exp"
+        )
+        T.trn.tile.activation(C_sbuf, C_sbuf, opcode='exp')
 
     @T.function
     def expected():
@@ -345,8 +314,10 @@ def test_workspace_reuse():
                                 layout=T.TileLayout(T.S[(128, 4096) : (1 @ P, 1 @ F)]))
         C_sbuf = T.alloc_tensor((512, 1024), scope="trn.sbuf",
                                 layout=T.TileLayout(T.S[(128, 4096) : (1 @ P, 1 @ F)]))
-        Tx.exp_with_scale_bias(C_sbuf[0:512, 0:1024], A_sbuf[0:512, 0:1024], scale=T.float32(2.0), bias=T.float32(0.0), workspace={"const_bias": const_bias}, max_inst_size=1024)  # noqa: E501
-        Tx.exp(C_sbuf[0:512, 0:1024], C_sbuf[0:512, 0:1024], workspace={"const_bias": const_bias})
+        T.trn.tile.activation(C_sbuf[0:512, 0:1024], A_sbuf[0:512, 0:1024], scale=T.float32(2.0), bias=T.float32(0.0), max_inst_size=1024, const_bias=const_bias, opcode='exp')  # noqa: E501
+        T.trn.tile.activation(
+            C_sbuf[0:512, 0:1024], C_sbuf[0:512, 0:1024], const_bias=const_bias, opcode="exp"
+        )
 
         # fmt: on
 
@@ -369,7 +340,9 @@ def test_no_rewrite_with_existing_workspace():
         intermediate_buffer = T.alloc_tensor((128, 64), scope="trn.sbuf")
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.sum(B_sbuf, A_sbuf, axes=(1, 3), workspace={"partial_reduce": intermediate_buffer})
+        T.trn.tile.tensorreduce(
+            B_sbuf, A_sbuf, axes=(1, 3), partial_reduce=intermediate_buffer, reduce_op="sum"
+        )
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": reduction})
@@ -390,7 +363,7 @@ def test_no_rewrite_with_psum_output():
         A_sbuf = T.alloc_tensor((128, 128), "float32", scope="trn.sbuf", layout=A_layout)
         B_sbuf = T.alloc_tensor((128, 128), "float32", scope="trn.sbuf", layout=B_layout)
         C_psum = T.alloc_tensor((128, 128), "float32", scope="trn.psum", layout=C_layout)
-        Tx.gemm(C_psum, A_sbuf, B_sbuf, C_psum)
+        T.trn.tile.matmul(C_psum, A_sbuf, B_sbuf, C_psum)
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": gemm})

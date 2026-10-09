@@ -21,6 +21,8 @@ from __future__ import annotations
 from tvm import ir as _ir
 from tvm.backend.cuda import op as _cuda_op
 
+from .tensor_instructions import make_namespace as _make_tensor_namespace
+
 # pylint: disable=protected-access
 
 
@@ -138,7 +140,7 @@ __shfl_down_sync = _cuda_op.__shfl_down_sync
 __shfl_xor_sync = _cuda_op.__shfl_xor_sync
 __activemask = _cuda_op.__activemask
 
-
+tile = _make_tensor_namespace()
 _ir.op._init_op_api("tirx.cuda", __name__)
 
 

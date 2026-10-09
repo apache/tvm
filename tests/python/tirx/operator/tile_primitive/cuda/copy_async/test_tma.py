@@ -16,6 +16,7 @@
 
 """Tests for the independent ``tma_auto`` and ``tma_explicit`` planners."""
 
+import math
 from dataclasses import dataclass, replace
 from functools import reduce
 from operator import mul
@@ -28,7 +29,6 @@ import tvm
 import tvm.testing
 from tvm.ir import PointerType, PrimType, Range
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.sym import Analyzer
 from tvm.testing import env
 from tvm.tirx import IntImm, Var
@@ -54,7 +54,6 @@ from tvm.tirx.cuda.tile_primitive.tma_utils import (
 )
 from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import S, TileLayout
-from tvm.tirx.op.tile import CopyAsync
 from tvm.tirx.stmt import BufferRegion
 from tvm.tirx.tile_dispatch import DispatchContext
 
@@ -223,7 +222,13 @@ def _make_op(
     else:
         dst = BufferRegion(g_buf, _ranges(g_region))
         src = BufferRegion(s_buf, _ranges(s_region))
-    op = CopyAsync(dst, src, config=config)
+    if "use_tma_reduce" in config:
+        config["reduce_op"] = config.pop("use_tma_reduce")
+        op = T.cuda.tile.cp_reduce_async_bulk_tensor(dst, src, **config)
+    elif direction == "g2s":
+        op = T.cuda.tile.cp_async_bulk_tensor_load(dst, src, **config)
+    else:
+        op = T.cuda.tile.cp_async_bulk_tensor_store(dst, src, **config)
     if sctx is None:
         target = tvm.target.Target({"kind": "cuda", "arch": target_arch})
         sctx = DispatchContext(target, ExecScope("thread"), {}, {})
@@ -355,7 +360,7 @@ def _finding(spec, rule):
 
 
 def _from_source(source):
-    return tvm.script.from_source(source, {"T": T, "Tx": Tx})
+    return tvm.script.from_source(source, {"T": T})
 
 
 def _lower_module(func, arch="sm_100a"):
@@ -1133,10 +1138,10 @@ def bind_coordinate(D: T.Tensor((33360, 6144), 'bfloat16')):
     tile_index[0] = block
     d_n: T.let = tile_index[0] * 128
     if tid == 0:
-        Tx.copy_async(
+        T.cuda.tile.cp_async_bulk_tensor_store(
             D[0:16, d_n : d_n + 128],
             D_smem[0, :, :],
-            dispatch="tma_auto",
+            descriptor_mode="auto",
         )
 """
     )
@@ -1536,8 +1541,8 @@ def rank_change(A: T.Tensor((8, 8), 'float16')):
     A_smem = T.decl_tensor((64,), "float16", dyn.data, layout=T.TileLayout(T.S[64]))
     mbar = T.decl_tensor((1,), "uint64", dyn.data, elem_offset=16)
     if tid == 0:
-        Tx.copy_async(
-            A_smem[:], A[:, :], dispatch="tma_explicit", mbar=mbar.ptr_to([0])
+        T.cuda.tile.cp_async_bulk_tensor_load(
+            A_smem[:], A[:, :], descriptor_mode="explicit", mbar=mbar.ptr_to([0])
         )
 """
     )
@@ -1566,10 +1571,10 @@ def selector_gather(
     mbar = T.decl_tensor((1,), "uint64", dyn.data, elem_offset=64)
     if tid == 0:
         T.ptx.mbarrier.init.shared.b64(mbar.ptr_to([0]), T.uint32(1))
-        Tx.copy_async(
+        T.cuda.tile.cp_async_bulk_tensor_load(
             A_smem[:, :],
             A[0:1, :],
-            dispatch="tma_explicit",
+            descriptor_mode="explicit",
             mbar=mbar.ptr_to([0]),
             gather4=[1, 2, 3, 4],
             src_selector=[(flag != 0, B_view)],
@@ -1757,30 +1762,30 @@ def _build_sparse_decode_qo_tma_regression():
         q_tail_gmem_tma = Q.sub[0, 0, :, 512:576].view(64, 2, 32).permute(1, 0, 2)
         if tid == 0:
             for q_tile in T.unroll(8):
-                Tx.copy_async(
+                T.cuda.tile.cp_async_bulk_tensor_load(
                     q_smem[:, q_tile * 64 : (q_tile + 1) * 64],
                     Q[0, 0, :, q_tile * 64 : (q_tile + 1) * 64],
-                    dispatch="tma_explicit",
                     mbar=mbar.ptr_to([0]),
                     cache_hint="evict_first",
                     tensormap_l2_promotion="L2::128B",
+                    descriptor_mode="explicit",
                 )
-            Tx.copy_async(
+            T.cuda.tile.cp_async_bulk_tensor_load(
                 q_tail_smem_tma[:, :, :],
                 q_tail_gmem_tma[:, :, :],
-                dispatch="tma_explicit",
+                descriptor_mode="explicit",
                 mbar=mbar.ptr_to([0]),
                 cache_hint="evict_first",
                 tensormap_l2_promotion="L2::128B",
             )
             for o_tile in T.unroll(8):
                 store_tile: T.let = o_tile
-                Tx.copy_async(
+                T.cuda.tile.cp_async_bulk_tensor_store(
                     O_view[0, 0, :, store_tile * 64 : (store_tile + 1) * 64],
                     o_smem[:, store_tile * 64 : (store_tile + 1) * 64],
-                    dispatch="tma_explicit",
                     cache_hint="evict_first",
                     tensormap_l2_promotion="L2::128B",
+                    descriptor_mode="explicit",
                 )
         # fmt: on
 
@@ -2015,19 +2020,50 @@ def _build_selector_gather_gpu_kernel(dtype="float16"):
         T.ptx.fence.proxy.async_.shared__cta()
         T.cuda.cta_sync()
         if tid == 0:
-            Tx.copy_async(
+            T.cuda.tile.cp_async_bulk_tensor_load(
                 A_smem[:, :],
                 A[0:1, :],
-                dispatch="tma_explicit",
                 mbar=mbar_ptr,
                 gather4=[7, 3, 19, 5],
                 src_selector=[(flag != 0, B)],
+                descriptor_mode="explicit",
             )
             T.ptx.mbarrier.arrive.expect_tx.shared.b64(mbar_ptr, T.uint32(shared_bytes))
         T.cuda.mbarrier_wait(mbar_ptr, 0)
         T.ptx.fence.proxy.async_.shared__cta()
         T.cuda.cta_sync()
-        Tx.cta.copy(Out[:, :], A_smem[:, :])
+        copy_src_1 = T.meta_var(A_smem[:, :])
+        copy_src_tensor_1 = T.meta_var(copy_src_1.source)
+        copy_dst_1 = T.meta_var(Out[:, :])
+        copy_dst_tensor_1 = T.meta_var(copy_dst_1.source)
+        for copy_step_1 in T.serial(
+            T.ceildiv(math.prod([int(r.extent) for r in copy_src_1.region]), 128)
+        ):
+            copy_index_1 = copy_step_1 * (128) + (tid)
+            if copy_index_1 < math.prod([int(r.extent) for r in copy_src_1.region]):
+                copy_value_1 = copy_src_tensor_1[
+                    tuple(
+                        [
+                            copy_src_1.region[k].min
+                            + copy_index_1
+                            // math.prod([int(s.extent) for s in copy_src_1.region[k + 1 :]])
+                            % copy_src_1.region[k].extent
+                            for k in range(len(copy_src_1.region))
+                        ]
+                    )
+                ]
+                copy_dst_index_1 = T.meta_var(
+                    tuple(
+                        [
+                            copy_dst_1.region[k].min
+                            + copy_index_1
+                            // math.prod([int(s.extent) for s in copy_dst_1.region[k + 1 :]])
+                            % copy_dst_1.region[k].extent
+                            for k in range(len(copy_dst_1.region))
+                        ]
+                    )
+                )
+                copy_dst_tensor_1[copy_dst_index_1] = copy_value_1
         # fmt: on
 
     return kernel

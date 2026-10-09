@@ -22,7 +22,7 @@ from tvm.script import tirx as T
 from tvm.tirx import Function
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import ReduceOpType
-from tvm.tirx.stmt import TileOpCall
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..common import init_analyzer, nki_dim
 from ..dim_utils import get_reduction_dim_map
@@ -59,7 +59,7 @@ def generate_intermediate_buffer(
 
 
 def reduction_trn(
-    op: TileOpCall, reduce_op: ReduceOpType, sctx: DispatchContext, negate: bool = False
+    op: TensorCall, reduce_op: ReduceOpType, sctx: DispatchContext, negate: bool = False
 ) -> Function | None:
     """Schedule reduction operation on Trainium.
 
@@ -75,7 +75,7 @@ def reduction_trn(
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
         fail("requires Trainium target and thread exec_scope")
 
-    op = TileOpCall.downcast(op)
+    op = TensorCall.decode(op)
     dst_buffer_region, src_buffer_region = op.output, op.input
     axes, accum = op.reduce_axes, op.accum
     assert not accum, "Accumulation is not supported for reduction on Trainium"
@@ -104,7 +104,7 @@ def reduction_trn(
     inst_gen = InstructionGenerator([src_buffer_region, dst_buffer_region], analyzer)
     inst_gen.link_buffer_regions(src_buffer_region, dst_buffer_region, dim_map)
     inst_repr = inst_gen.find_max_inst_size_from_one_region(src_buffer_region, axes)
-    inst_size_limit = op.config.get("max_inst_size", None)
+    inst_size_limit = op.options.get("max_inst_size", None)
     inst_repr.bound_inst_size(inst_size_limit, analyzer)
     assert analyzer.can_prove(inst_repr.size > 1), "Instruction size must be greater than 1"
 
@@ -124,7 +124,7 @@ def reduction_trn(
     # Generate intermediate buffer if needed
     if reduction_b_extent != 1:
         intermediate_buffer = generate_intermediate_buffer(
-            dst_buffer_region, reduction_b_extent, op.workspace, sctx
+            dst_buffer_region, reduction_b_extent, op.workspaces, sctx
         )
 
     # fmt: off

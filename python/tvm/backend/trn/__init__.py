@@ -55,7 +55,12 @@ def script_namespace():
 
 def script_namespaces(**_):
     """Return Trainium-owned TVMScript namespaces."""
-    return {"nki": script_namespace()}
+    from types import SimpleNamespace
+
+    from .tensor_instructions import make_namespace
+    from .tile_primitive import private_alloc  # register workspace policies
+
+    return {"nki": script_namespace(), "trn": SimpleNamespace(tile=make_namespace())}
 
 
 def __getattr__(name: str):

@@ -14,53 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TIRx operator dispatch registry.
+"""Global entry point for lowering a selected tensor instruction Call."""
 
-All operator dispatch is handled by the rich dispatcher. This module exposes
-the global entry `tirx.f_op_dispatcher` used by the C++ lowering pass to query a
-dispatch result.
-"""
+import tvm_ffi
 
-from tvm_ffi import register_global_func
-
-from tvm.tirx.stmt import TileOpCall
-from tvm.tirx.tile_dispatch import DispatchContext
-
-# Note: legacy `register_schedule` is intentionally removed.
+from .dispatcher import run_dispatch
 
 
-@register_global_func("tirx.f_op_dispatcher")
-def f_op_dispatcher(op_call: TileOpCall, sctx: DispatchContext):
-    """Find and return a schedule for the operator.
-
-    Parameters
-    ----------
-    op_call : TileOpCall
-        The operator to be scheduled
-    sctx : DispatchContext
-        The dispatch context
-
-    Returns
-    -------
-    Optional[Function]
-        The result of the operator implementation
-    """
-    assert sctx.target is not None, "Target not found"
-    (op_call.op, str(sctx.target.kind))
-
-    # Use rich dispatcher for all dispatching
-    try:
-        from .dispatcher import run_dispatch  # local import to avoid cycles
-    except Exception:  # pragma: no cover - fallback if import fails
-        run_dispatch = None  # type: ignore
-
-    if run_dispatch is not None:
-        try:
-            res = run_dispatch(op_call, sctx)
-        except Exception:
-            # propagate exceptions from dispatcher
-            raise
-        if res is not None:
-            return res
-    # Dispatcher reports errors on failure; unreachable on success
-    return None
+@tvm_ffi.register_global_func("tirx.f_op_dispatcher")
+def f_op_dispatcher(call, sctx):
+    return run_dispatch(call, sctx)

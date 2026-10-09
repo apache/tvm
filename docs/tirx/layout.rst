@@ -351,7 +351,7 @@ fragment API:
 .. code-block:: python
 
     frag = Tx.alloc_tcgen05_ldst_frag("32x32b", (64, N), "float32")
-    Tx.tile.wg.copy_async(frag[:, :], paired_accumulator[:, :])
+    Tx.cuda.tile.tcgen05.ld(frag[:, :], paired_accumulator[:, :], scope="warpgroup")
     Tx.ptx.tcgen05.wait__ld.sync.aligned()
 
 The logical ``(64, N)`` fragment is one physical ``.32x32b`` transfer over

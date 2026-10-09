@@ -15,187 +15,126 @@
     specific language governing permissions and limitations
     under the License.
 
-Tile Primitives
-===============
+Tensor Instructions
+===================
 
-.. note::
+Tensor instructions expose a backend instruction over tensors with layouts::
 
-   This page documents the tile-primitive surface and dispatch as it exists in
-   the source today; signatures and variants may change.
+    from tvm.script import tirx as T
 
-Tile primitives are the dispatchable, hardware-level operations a TIRx kernel
-issues — data movement (``copy``, ``copy_async``), matrix multiply (``gemm``,
-``gemm_async``), reductions, elementwise math, and a few fused/compose forms.
-A primitive call is recorded as an **unresolved** ``TileOpCall`` IR node;
-the compiler later *dispatches* it — selecting a concrete lowering from the
-primitive, the execution scope, the operand layouts, the target, and an optional
-explicit hint — and replaces it with native IR (loops, address arithmetic,
-synchronization, and backend intrinsics).
+    T.cuda.tile.ld(registers, global_tile, scope="warpgroup")
+    T.cuda.tile.st(shared_tile, registers, scope="warpgroup")
+    T.cuda.tile.tcgen05.mma(accumulator, shared_a, shared_b)
 
-Calling convention
-------------------
+They construct ordinary, opaque, void ``tvm.ir.Call`` expressions. A statement
+in TVMScript becomes one ``Evaluate(Call(...))``. ``T.ptx`` and ``T.nki``
+continue to expose raw instructions over scalar registers and addresses.
 
-The examples use one TIRx dialect alias and reach tile primitives through its
-``tile`` namespace::
+Each tensor instruction has a fixed operand list and typed static attributes.
+Tensors, regions, pointers, predicates, coordinates, runtime cache policies,
+accumulation controls, and optional workspace tensors are **Call arguments**.
+They participate in normal free-variable analysis, substitution, serialization,
+and traversal. Static qualifiers such as instruction shape, cache hint, and
+execution scope live in reflected attribute types.
 
-    from tvm.script import tirx as Tx
+``scope="thread"`` is the default. Use ``"warp"``, ``"warpgroup"``, ``"cta"``,
+or ``"cluster"`` only where the selected instruction supports that scope.
+Layouts and the active thread set must satisfy the instruction's contract.
+There is no generic ``copy``/``gemm`` operation or priority dispatch, and no
+``config``, ``workspace``, or ``dispatch`` keyword bag.
 
-``Tx`` is an ordinary Python module alias, not an injected language keyword.
-Under ``Tx.tile``, the next namespace prefix selects the **cooperation
-scope**:
-
-- ``Tx.tile.<name>(...)`` — unqualified, runs at **thread** scope.
-- ``Tx.tile.warp.<name>`` / ``Tx.tile.wg.<name>`` (alias
-  ``Tx.tile.warpgroup``) / ``Tx.tile.cta.<name>`` /
-  ``Tx.tile.cluster.<name>`` / ``Tx.tile.thread.<name>`` — bind a wider scope.
-
-Most primitive constructors also carry ``workspace: dict[str, Var] | None``,
-``dispatch: str | None`` (force a named lowering variant), and ``**kwargs``
-collected into a ``config`` dict that tunes the chosen lowering.  ``ScopedOp``
-fills the underlying ``scope`` argument from the namespace prefix; select a
-scope with ``Tx.tile.warp`` / ``Tx.tile.wg`` / ``Tx.tile.cta`` rather than
-passing it to the callable directly. Operands are tensor variables / ``TensorRegion``
-values, each carrying a :doc:`TileLayout <layout>` that dispatch reads.
-
-Primitive catalog
+CUDA instructions
 -----------------
 
-The C++ registry currently defines 31 operation names.  This programming guide
-groups them by purpose; the :doc:`API reference <api/tile>` lists their current
-Python callables and explains the internal ``scope`` parameter exposed by
-introspection.
+* ``ld`` and ``st`` transfer between local registers and global/shared memory.
+  Their register layout determines the participating threads. ``vec_bits``
+  selects an explicit 16-, 32-, 64-, 128-, or 256-bit thread transfer.
+  Fixed-width global loads accept ``cache``, ``l1_evict``, ``l2_evict``, and
+  ``prefetch_size`` qualifiers.
+* ``mov`` copies registers or fills a destination with a scalar. ``ldmatrix``
+  and ``stmatrix`` explicitly request matrix memory instructions.
+* ``cp_async(dst, src, predicate=-1)`` requests global-to-shared asynchronous
+  copying. ``direct=True`` requests one thread-level instruction.
+  ``fill_mode="zero"`` uses the instruction's source-size operand for zero
+  filling; it must not become a predicate that skips the instruction.
+* ``cp_async_bulk(dst, src, mbar, remote_cta_id)`` requests DSMEM copying.
+  ``dst`` and ``mbar`` refer to the executing CTA's local shared addresses;
+  lowering maps both addresses to the remote CTA before issuing the copy.
+* ``cp_async_bulk_tensor_load(dst, src, mbar, cta_mask=0,
+  mbarrier_addr=False, gather4=None, src_selector=None, cache_policy=None)``
+  requests a TMA load. ``cp_async_bulk_tensor_store(dst, src,
+  cache_policy=None)`` and ``cp_reduce_async_bulk_tensor(dst, src,
+  cache_policy=None, reduce_op=...)`` request TMA stores and reductions.
+* TMA ``descriptor_mode="auto"`` derives a legal descriptor and issue loops
+  from layouts. ``descriptor_mode="explicit"`` follows the declared global
+  tensor descriptor and issues once. Gather4 row coordinates and source
+  selectors are explicit-mode operands. ``cache_hint`` is a static string;
+  ``cache_policy`` is a separate runtime operand. They are mutually exclusive.
+* ``tcgen05.cp`` copies shared memory to TMEM. ``tcgen05.ld/st`` transfer
+  between TMEM and registers at ``scope="warpgroup"``; each warp issues its
+  own instruction. The caller supplies waits, fences, and barriers.
+* ``mma_sync`` performs register MMA. ``tcgen05.mma`` and
+  ``tcgen05.mma_block_scale`` perform asynchronous TMEM accumulation. The
+  latter requires both scale-factor tensor operands. Matrix descriptor and
+  pointer preparation remain inside lowering.
+* ``add/sub/mul/div/max``, ``cvt``, ``fma``, ``sqrt``, ``ex2``, and ``lg2``
+  expose tensor arithmetic. Reciprocal is ``div(dst, 1, src)``. Packed
+  arithmetic remains available when the operand layouts permit it.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 22 34 44
+The mathematical compositions ``compose.silu``, ``compose.exp``,
+``compose.exp_with_scale_bias``, ``compose.exp2_with_scale_bias``,
+``compose.log2_with_scale_bias``, and ``compose.sqrt_with_scale_bias`` are
+also ordinary Calls. They expand during lowering and have the distinct
+``tile_composite`` category.
 
-   * - Group
-     - Operations
-     - Purpose
-   * - Data movement
-     - ``copy``, ``copy_async``, ``permute_layout``
-     - synchronous and asynchronous transfer, or rearrangement between layouts
-   * - Matrix multiply
-     - ``gemm``, ``gemm_async``
-     - synchronous register MMA or asynchronous/backend-specific MMA, including
-       block scaling where supported
-   * - Initialization
-     - ``fill``, ``memset``, ``zero``
-     - initialize a tile or region
-   * - Unary and cast
-     - ``cast``, ``sqrt``, ``exp``, ``exp2``, ``log2``, ``reciprocal``, ``silu``
-     - per-element conversion or unary math
-   * - Binary and ternary
-     - ``add``, ``sub``, ``mul``, ``fdiv``, ``maximum``, ``minimum``, ``fma``,
-       ``select``
-     - per-element arithmetic and selection
-   * - Reductions
-     - ``sum``, ``max``, ``min``
-     - reduce selected axes, optionally accumulating into the destination
-   * - Fused and composed
-     - ``binary_reduce``, ``unary_reduce``, ``binary_chain``, ``reduce_negate``
-     - combine several primitive operations for backends that dispatch them as
-       one unit
+Trainium instructions
+---------------------
 
-Dispatch config
----------------
+``T.trn.tile`` exposes ``load``, ``store``, ``tensor_copy``, ``matmul``,
+``activation``, ``reciprocal``, ``memset``, ``tensortensor``, ``tensorscalar``,
+``tensorreduce``, and ``affine_select``. The selected binary instruction must
+match the operand layout: broadcasting along a free dimension can require
+``tensorscalar`` even when the scalar is supplied by another tensor.
 
-A call is materialized as a ``TileOpCall`` node whose fields carry
-everything dispatch needs (``python/tvm/tirx/tile_dispatch.py``):
+``scalar_tensor_scalar``, ``scalar_tensor_tensor``, ``tensorscalar_reduce``,
+and ``activation_reduce`` represent native fused instructions. Static
+``opcode``, ``op0``, ``op1``, ``reduce_op``, and ``axes`` qualifiers specify
+their arithmetic. Scale, bias, and all tensor operands remain in ``args``.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 14 22 64
+Named optional ``acc_psum``, ``const_bias``, and ``partial_reduce`` operands
+allow caller-provided workspace. The private allocation pass still allocates
+and reuses omitted workspace for the instructions that need it. In IR, an
+absent operand occupies its fixed slot as an empty ``Tuple``; TVMScript prints
+it as ``None``.
 
-   * - Field
-     - Type
-     - Meaning
-   * - ``op``
-     - ``tvm.Op``
-     - primitive identity, e.g. ``tirx.tile.copy_async``
-   * - ``args``
-     - ``Array``
-     - operands (regions / scalars), in the order shown above
-   * - ``workspace``
-     - ``Map[str, Var]``
-     - pre-allocated scratch buffers
-   * - ``config``
-     - ``Map[str, Any]``
-     - open-ended tuning bag (table below)
-   * - ``dispatch``
-     - ``Optional[str]``
-     - forced variant name; ``None`` = auto-select
-   * - ``scope``
-     - ``ExecScope``
-     - cooperation scope (default ``thread``)
+Algorithms owned by the caller
+------------------------------
 
-``config`` has **no central schema**.  Each dispatch implementation defines and
-interprets the keys it consumes.  Some implementations ignore unrelated keys,
-while others (notably the TMA variants) reject unknown keys.  Only ``dispatch``
-is interpreted generically by the dispatcher.  The current target
-implementations consume the following keys:
+CUDA reductions, layout permutation, synchronous global/shared copying, and
+scalar fallback copying are no longer tensor primitives or compositions.
+Write the loops, temporary registers, and synchronization at the call site.
+For an in-place shared-memory permutation, finish all reads into registers,
+synchronize the warp, write using the destination layout, and synchronize
+again before reusing the storage.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 28 34 38
+Trainium ``tensor_copy`` rejects partition-axis transposition. A caller using
+matrix multiplication for transposition allocates and initializes an identity
+tensor, allocates PSUM, calls ``matmul(..., transpose_A=True)``, and optionally
+calls ``tensor_copy`` to move the result back to SBUF. Copy lowering does not
+allocate an identity or select a matrix multiplication algorithm.
 
-   * - Primitive / variant
-     - Keys consumed
-     - Notes
-   * - ``copy``: ``vec_16b`` / ``vec_32b`` / ``vec_64b`` /
-       ``vec_128b`` / ``vec_256b``
-     - ``cache``, ``l1_evict``, ``l2_evict``, ``prefetch_size``
-     - Explicit, thread-scope fixed-width copies.  Cache controls require a
-       global-memory source.
-   * - ``copy_async``: ``ldgsts``
-     - ``prefetch_size``, ``predicate``, ``fill_mode``, ``direct``
-     - ``direct=True`` requires thread scope and an exact 4-, 8-, or 16-byte
-       region.
-   * - ``copy_async``: ``tma_auto`` / ``tma_explicit``
-     - ``cache_hint``, ``cta_group``, ``cta_mask``, ``mbar``,
-       ``mbarrier_addr``, ``oob``, ``prefetch_tensormap``,
-       ``tensormap_l2_promotion``, ``tma_dtype``, ``use_tma_reduce``
-     - ``tma_explicit`` additionally accepts ``gather4`` and ``src_selector``.
-       Direction-specific constraints are documented in
-       :doc:`tile_primitives/copy_async/tma`.
-   * - ``copy_async``: ``dsmem``
-     - ``remote_cta_id``, ``mbar``
-     - Both are required: the destination CTA id and its completion barrier.
-   * - ``copy_async``: ``smem->tmem``
-     - ``shape``, ``multicast``, ``cta_group``
-     - ``decompress`` is detected but currently rejected as unsupported.
-   * - ``gemm_async``: ``tcgen05``
-     - ``cta_group``, ``mma_m``, ``mma_n``, ``descI``, ``is_AB_tf32``,
-       ``weight_stationary``, ``smem_desc``
-     - ``mma_m`` and ``mma_n`` are an all-or-nothing pair.  ``descI`` is
-       accepted only by the block-scaled path.
-   * - ``sum`` / ``max`` / ``min``: ``local``
-     - ``thread_reduce``
-     - Enables the per-thread shuffle-reduction mode where supported.
-   * - binary elementwise: ``reg`` / ``smem``
-     - ``rounding_mode``
-     - Passed to packed floating-point forms that expose a rounding mode.
-   * - Trainium tile implementations
-     - ``max_inst_size``
-     - Instruction-size limit used by copy, elementwise, select, reduction,
-       and composed-op implementations.
+See :doc:`api/tile` for the constructor signatures and
+:doc:`arch/tile_dispatch` for the lowering boundary.
 
-Vector widths selected by ``vec_auto`` and ``ldgsts`` are derived internally
-from dtype, alignment, layout, and execution scope; ``vec_len`` is not a user
-configuration key.
+Instruction guides
+------------------
 
-Three dispatch inputs are **implicit**, not config keys: the **execution scope**
-(set by the namespace, then refined against the active thread set tracked through
-control flow into ``inter``/``intra`` maps and a ``scope_kind``), the **operand
-layouts** (each tensor variable's ``layout``), and the **target** (the dispatch table is
-keyed by its kind, e.g. ``"cuda"``).
+.. toctree::
+   :maxdepth: 1
 
-See also
---------
-
-- :doc:`layout` — the ``TileLayout`` model dispatch reads from operands.
-- :doc:`api/tile` — current ``Tx.tile.*`` callables and introspected signatures.
-- :doc:`arch/tile_dispatch` — dispatch selection, extension points, and the
-  target-specific variants for each primitive.
-- :doc:`overview` — execution scope, tensor layout, and tile primitive dispatch
-  as the three core constructs.
+   tile_primitives/copy
+   tile_primitives/copy_async
+   tile_primitives/elementwise
+   tile_primitives/gemm
+   tile_primitives/gemm_async
+   tile_primitives/reduction

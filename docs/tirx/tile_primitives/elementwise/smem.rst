@@ -18,10 +18,9 @@
 elementwise → smem
 ==================
 
-The ``smem`` variant lowers an elementwise op (``sqrt``, ``exp``, ``add``,
+The shared-memory lowerer expands an elementwise instruction (``sqrt``, ``exp``, ``add``,
 ``fma``, …) when **all buffer operands are in shared memory**. Scalar inputs are
-also accepted where the operation's authoring API permits them. Like the copy
-:doc:`../copy/gmem_smem` ``vec_auto`` path it *synthesizes* a
+also accepted where the instruction permits them. It synthesizes an
 ``[outer, threads, vec]``
 partition from the execution scope, then applies the op to each (vectorized)
 element. Source:
@@ -51,9 +50,8 @@ What it accepts
 
    * - Property
      - Requirement
-   * - target / scope / priority
-     - ``cuda``; ``thread`` / ``warp`` / ``warpgroup`` / ``cta`` (all active);
-       priority ``10``
+   * - target / scope
+     - ``cuda``; ``thread`` / ``warp`` / ``warpgroup`` / ``cta`` (all active)
    * - operands
      - **every buffer operand** (including the output) in ``shared*``; scalar
        sources are allowed by ``fill``, the binary ops, and ``fma``
@@ -67,7 +65,7 @@ What it accepts
        thread bound the scheduling chunk width
 
 Demonstration program
-----------------------
+---------------------
 
 A CTA takes the elementwise ``sqrt`` of a ``32×32`` ``float32`` shared tile
 (adapted from ``test_unary.py`` — here a 256-thread CTA, so the partition is one
@@ -86,11 +84,19 @@ round):
         Tx.cta_id([1])
         Tx.warp_id([8])
         Tx.lane_id([32])
-        Tx.thread_id([256])
+        tid = Tx.thread_id([256])
         A_smem = Tx.alloc_tensor((32, 32), "float32", scope="shared", layout=s_layout)
-        Tx.tile.cta.copy(A_smem[full], A[full])
-        Tx.tile.cta.sqrt(A_smem[full], A_smem[full])  # elementwise smem dispatch
-        Tx.tile.cta.copy(A[full], A_smem[full])
+        for k in Tx.serial(4):
+            index = tid + k * 256
+            value = A[index // 32, index % 32]
+            A_smem[index // 32, index % 32] = value
+        Tx.cuda.cta_sync()
+        Tx.cuda.tile.sqrt(A_smem[full], A_smem[full], scope="cta")  # elementwise smem dispatch
+        Tx.cuda.cta_sync()
+        for k in Tx.serial(4):
+            index = tid + k * 256
+            value = A_smem[index // 32, index % 32]
+            A[index // 32, index % 32] = value
 
 Algorithm
 ---------
@@ -99,7 +105,7 @@ Algorithm
 (inputs, output, the op); the predicate confirms every buffer operand is shared.
 
 **2. Synthesize the partition** from the scope's **thread count** (as
-:doc:`../copy/gmem_smem` does): split the region into ``[outer, threads, vec]``.
+the cooperative transfer planner does): split the region into ``[outer, threads, vec]``.
 The candidate width must divide the elements per thread and every operand's
 logical innermost region extent. ``_max_layout_vec`` does not inspect physical
 layout strides when choosing this width. For the dense identity layout in this

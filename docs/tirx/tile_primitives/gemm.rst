@@ -15,17 +15,17 @@
     specific language governing permissions and limitations
     under the License.
 
-gemm
-====
+mma_sync
+========
 
-``gemm`` computes ``D = alpha·A@B + beta·C`` as a fully-unrolled nest of
+``Tx.cuda.tile.mma_sync`` computes ``D = alpha·A@B + beta·C`` as a fully-unrolled nest of
 warp-collective ``mma.sync.aligned.m16n8k{16,8}`` instructions. A warp call is
 the usual form. A full warpgroup or CTA scope is also accepted; each contained
 warp executes the fragment program, and the operand thread-axis tiling determines
 whether those warps own distinct output tiles or repeat the same tile. A and B
 fragments and the C/D accumulators **all live in registers** — the caller stages
 A and B into register fragments first (typically via :doc:`copy/ldstmatrix`).
-The dispatch tiles M/N/K into ``m16n8k`` atoms and emits one ``mma`` per output
+The lowerer tiles M/N/K into ``m16n8k`` atoms and emits one ``mma`` per output
 tile, accumulating over K in place. Source:
 ``python/tvm/backend/cuda/tile_primitive/gemm/mma_m16n8k_.py``. (For the
 Blackwell async tensor-core path see :doc:`gemm_async`.)
@@ -33,25 +33,14 @@ Blackwell async tensor-core path see :doc:`gemm_async`.)
 What it accepts
 ---------------
 
-.. code-block:: python
-
-    # register_dispatch("gemm", "cuda", priority=10, when=[
-    predicate("full_active_lanes", _full_active_lanes),   # complete warp(s), un-narrowed
-    predicate("no_replica", _no_replica),                 # no broadcast axes on D/A/B/C
-    # ])
-    # in the impl:
-    for buf, name in ((D, "D"), (A, "A"), (B, "B"), (C, "C")):
-        if buf.scope() != "local":
-            fail(f"gemm mma requires {name} in register (local) scope, got {buf.scope()}")
-
 .. list-table::
    :header-rows: 1
    :widths: 22 78
 
    * - Property
      - Requirement
-   * - target / scope / priority
-     - ``cuda``; priority ``10``. The predicate has no scope-kind allowlist: it
+   * - target / scope
+     - ``cuda``. The predicate has no scope-kind allowlist: it
        requires every axis present in ``sctx.intra`` to be a complete,
        zero-offset ``laneid`` / ``wid_in_wg`` / ``warpid`` axis. This admits the
        normal warp / warpgroup / CTA call sites and rejects unrecognized axes
@@ -73,7 +62,7 @@ What it accepts
      - ``alpha == 1.0``; ``beta ∈ {0.0, 1.0}`` (0 → ``D = A@B``; 1 → ``D = A@B + C``)
 
 Demonstration program
-----------------------
+---------------------
 
 A single warp computes ``D[16,8] = A[16,16] @ B[16,8]`` in ``float16`` (f32
 accumulate) — one ``m16n8k16`` atom (from ``test_gemm_mma_m16n8k_.py``):
@@ -111,8 +100,8 @@ accumulate) — one ``m16n8k16`` atom (from ``test_gemm_mma_m16n8k_.py``):
         for s in Tx.unroll(4):
             kp, kHi = s % 2, s // 2
             B_reg[s] = B_g[2 * (lane % 4) + kp + 8 * kHi, lane // 4]
-        Tx.tile.warp.gemm(
-            D_f, A_f, B_f, D_f, transpose_A=False, transpose_B=False, alpha=1.0, beta=0.0
+        Tx.cuda.tile.mma_sync(
+            D_f, A_f, B_f, D_f, transpose_A=False, transpose_B=False, alpha=1.0, beta=0.0, scope="warp"
         )
         D_reg = D_f.local(4)  # write the 4 result regs out
         for s in Tx.unroll(4):
@@ -122,7 +111,7 @@ accumulate) — one ``m16n8k16`` atom (from ``test_gemm_mma_m16n8k_.py``):
 Algorithm
 ---------
 
-**1. Tile and fragment-group.** The dispatch slices each operand's layout to its
+**1. Tile and fragment-group.** The lowerer slices each operand's layout to its
 region and, for each candidate instruction (``m16n8k16`` then ``m16n8k8``), tries to
 group the operand sub-layouts (``D_M, D_N, A_M, A_K, B_K, B_N, C_*``) into the fixed
 m16n8k frame, anchoring A/C on D's M, B/C on D's N, and B on A's K. The first

@@ -15,11 +15,11 @@
     specific language governing permissions and limitations
     under the License.
 
-copy_async → dsmem
-==================
+cp_async_bulk: DSMEM
+====================
 
-The ``dsmem`` variant lowers a ``copy_async`` whose **source and destination are
-both shared** memory but in **different CTAs of a cluster** (distributed shared
+``Tx.cuda.tile.cp_async_bulk`` transfers a tile whose source and destination are
+both shared memory but in different CTAs of a cluster (distributed shared
 memory). A call already placed in a single-thread execution scope maps the
 destination CTA's shared
 address into its own address space (PTX ``mapa``) and issues a bulk copy
@@ -32,27 +32,14 @@ What it accepts
 
 Three predicates: a valid copy, a single-thread scope, and a shared → shared pair:
 
-.. code-block:: python
-
-    # register_dispatch(..., priority=10, when=[
-    predicate("validate_copy_op", ...),
-    predicate("single_thread",    lambda op, sctx: (single_thread(op, sctx), "expected single thread")),
-    predicate("is_shared_to_shared", lambda op, sctx: (_is_shared_to_shared(op), "not shared-to-shared")),
-    # ])
-
-    def _is_shared_to_shared(op_call):
-        src_scope = op_call.src.buffer.scope()
-        dst_scope = op_call.dst.buffer.scope()
-        return src_scope.startswith("shared") and dst_scope.startswith("shared")
-
 .. list-table::
    :header-rows: 1
    :widths: 22 78
 
    * - Property
      - Requirement
-   * - target / priority
-     - ``cuda``; priority ``10``
+   * - target
+     - ``cuda``
    * - scope
      - the call must already be in a **single-thread** scope; the caller normally
        selects that thread with control flow
@@ -61,13 +48,13 @@ Three predicates: a valid copy, a single-thread scope, and a shared → shared p
        via ``remote_cta_id``
    * - chunk size
      - the contiguous chunk must be **≥ 16 bytes and a multiple of 16**
-       (``cp.async.bulk`` requirement) — else the dispatch declines (``fail``)
+       (``cp.async.bulk`` requirement) — else lowering fails
    * - environment
      - a **cluster launch** (so a remote CTA's shared memory exists), plus a caller
        mbarrier on the destination CTA
 
 Demonstration program
-----------------------
+---------------------
 
 A 2-CTA cluster: CTA 0 stages a ``128×64`` ``float16`` tile global → its shared,
 then bulk-copies it into **CTA 1's** shared via ``dsmem``; CTA 1 waits on the
@@ -116,25 +103,28 @@ mbarrier and writes the result out (from ``test_dsmem.py``):
         Tx.cuda.cluster_sync()
         if tid == 0:
             if cbx == 0:  # source CTA
-                Tx.tile.copy(src_smem[r], A[r])  # global -> local shared
+                for row, col in Tx.grid(128, 64):
+                    value = A[row, col]
+                    src_smem[row, col] = value
                 Tx.ptx.fence.proxy.async_.shared__cta()
-                Tx.tile.copy_async(
+                Tx.cuda.tile.cp_async_bulk(
                     dst_smem[r],
                     src_smem[r],
-                    dispatch="dsmem",
                     mbar=mbar.ptr_to([0]),
                     remote_cta_id=Tx.int32(1),
                 )  # -> CTA 1
             else:  # destination CTA
                 Tx.ptx.mbarrier.arrive.expect_tx.shared.b64(mbar.ptr_to([0]), Tx.uint32(copy_bytes))
                 mbar.wait(0, 0)
-                Tx.tile.copy(B[r], dst_smem[r])  # remote shared -> global
+                for row, col in Tx.grid(128, 64):
+                    value = dst_smem[row, col]
+                    B[row, col] = value
         Tx.cuda.cluster_sync()
 
 Algorithm
 ---------
 
-**1. Find the contiguous chunk.** The dispatch slices and groups both layouts to the
+**1. Find the contiguous chunk.** The lowerer slices and groups both layouts to the
 copy region, walks inward to the longest matching contiguous stride-1 shard chain,
 and multiplies those extents into ``chunk_elements``; ``chunk_bytes`` must be ≥ 16
 and a multiple of 16 (a ``cp.async.bulk`` constraint), else it declines:
@@ -174,7 +164,7 @@ chunk's offsets each step:
                 Tx.cast(chunk_bytes, "uint32"), Tx.cast(mapped[0], "uint32"))
 
 The ``complete_tx::bytes`` form makes the hardware decrement ``remote_mbar`` by
-``chunk_bytes`` on completion; the dispatch emits no wait — the caller arms the
+``chunk_bytes`` on completion; the lowerer emits no wait — the caller arms the
 mbarrier (``arrive.expect_tx``) and waits.
 
 Generated TIRx IR
@@ -221,4 +211,4 @@ How inputs change the algorithm
      - the ``mapa`` rank — which cluster CTA receives the data
    * - incompatible layouts
      - e.g. row-major source vs column-major destination → no matching contiguous
-       chain → the dispatch declines (``fail``)
+       chain → lowering fails

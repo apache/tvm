@@ -31,7 +31,7 @@ modifier combination, operand count, and operand types while constructing one
 ``tirx.ptx.*`` IR call.  A new instruction is added by extending the table and,
 when it needs a new representation, its code-generation support.
 
-This layer is below the layout-aware ``Tx.tile.*`` primitives and does not run
+This layer is below the layout-aware ``Tx.cuda.tile.*`` / ``Tx.trn.tile.*`` primitives and does not run
 tile-primitive dispatch.
 
 Supported instruction families

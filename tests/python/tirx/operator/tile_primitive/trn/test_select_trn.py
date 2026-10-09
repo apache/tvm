@@ -21,7 +21,6 @@ import tvm
 import tvm.testing
 from tvm.ir import assert_structural_equal as _assert_structural_equal
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import F, P, S, TileLayout
 
 target = tvm.target.Target("aws/trn1/trn1.2xlarge")
@@ -60,7 +59,7 @@ def test_select():
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.select(B_sbuf, A_sbuf, 0.0, lambda i, j: i < j)
+        T.trn.tile.affine_select(B_sbuf, A_sbuf, 0.0, lambda i, j: i < j)
 
     @T.function
     def expected():
@@ -94,7 +93,7 @@ def test_select_in_loop():
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(2):
-            Tx.select(B_sbuf, A_sbuf[i*16, :, :], 0.0, lambda a, b: (i+1)* a < b)
+            T.trn.tile.affine_select(B_sbuf, A_sbuf[i*16, :, :], 0.0, lambda a, b: (i+1)* a < b)
 
     @T.function
     def expected():
@@ -127,7 +126,7 @@ def test_select_expr_affine():
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.select(B_sbuf, A_sbuf, 0.0, lambda i, j: i < j)
+        T.trn.tile.affine_select(B_sbuf, A_sbuf, 0.0, lambda i, j: i < j)
 
     @T.function
     def expected():
@@ -161,7 +160,7 @@ def test_select_with_guard():
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
             for j in range(4):
-                Tx.select(B_sbuf[0: (i+1) * 128, 0: (j+1) * 128], A_sbuf[0: (i+1) * 128, 0: (j+1) * 128], 0.0, lambda a, b: a < b)  # noqa: E501
+                T.trn.tile.affine_select(B_sbuf[0: (i+1) * 128, 0: (j+1) * 128], A_sbuf[0: (i+1) * 128, 0: (j+1) * 128], 0.0, lambda a, b: a < b)  # noqa: E501
 
     @T.function
     def expected():
