@@ -87,12 +87,12 @@ fp16):
                     Tx.address_of(tmem_addr), Tx.uint32(32)
                 )
             Tx.gpu_storage_sync("shared")
-            tmem = Tx.decl_tensor(
-                (128, WIDTH),
-                "float16",
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=TileLayout(S[(128, WIDTH) : (1 @ TLane, 1 @ TCol)]),
+            tmem = Tx.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[Tx.Tensor(
+                    (128, WIDTH), "float16", scope="tmem",
+                    layout=TileLayout(S[(128, WIDTH) : (1 @ TLane, 1 @ TCol)]),
+                )],
             )
             A_reg = Tx.alloc_local((WIDTH,), "float16")
             B_reg = Tx.alloc_local((WIDTH,), "float16")
@@ -132,7 +132,7 @@ fragment spans two 16-row slabs, so the warps issue the atom twice
     classified = _check_tmem_layout_for_atom(tmem_buf, "16x*b", frag_rows)
     datapath, sub_slab = classified if classified is not None else (None, 0)
     for slab in range(n_slabs):                 # 1 for M=64; 2 for M=128
-        op(tmem_buf.allocated_addr[0],
+        op(Tx.cast(Tx.reinterpret(tmem_buf.data, ty="uint64"), "uint32"),
            *[local_32b[reg_base + i] for i in range(regs_eff)],
            shape=shape, num=num_eff,
            row=(sub_slab + slab) * 16, col=col_off_32b)
@@ -156,19 +156,19 @@ Selecting the upper F sub-slab
 
     from tvm.tirx.layout import tmem_datapath_layout
 
-    lower = Tx.decl_tensor(
-        (64, cols),
-        "float32",
-        scope="tmem",
-        allocated_addr=tmem_addr[0],
-        layout=tmem_datapath_layout("F", 64, cols, sub_slab=0),
+    lower = Tx.cuda.decl_tmem(
+        tmem_addr[0],
+        ty_args=[Tx.Tensor(
+            (64, cols), "float32", scope="tmem",
+            layout=tmem_datapath_layout("F", 64, cols, sub_slab=0),
+        )],
     )
-    upper = Tx.decl_tensor(
-        (64, cols),
-        "float32",
-        scope="tmem",
-        allocated_addr=tmem_addr[0],
-        layout=tmem_datapath_layout("F", 64, cols, sub_slab=1),
+    upper = Tx.cuda.decl_tmem(
+        tmem_addr[0],
+        ty_args=[Tx.Tensor(
+            (64, cols), "float32", scope="tmem",
+            layout=tmem_datapath_layout("F", 64, cols, sub_slab=1),
+        )],
     )
 
     Tx.cuda.tile.tcgen05.ld(lower_frag, lower, scope="warpgroup")

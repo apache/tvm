@@ -290,7 +290,18 @@ class TMEMPool:
         if layout is None:
             assert len(shape) == 2, "TMEMPool.alloc() requires layout= for non-2D TMEM buffers"
             layout = _default_tmem_layout(shape[0], shape[1])
-        res = ir.decl_tensor(shape, dtype, scope="tmem", allocated_addr=col_start, layout=layout)
+        import tvm  # pylint: disable=import-outside-toplevel
+        from tvm.tirx.script.ir_builder.parser_protocol import (
+            bind_,  # pylint: disable=import-outside-toplevel
+        )
+
+        res = bind_(
+            tvm.ir.Call(
+                "tirx.cuda.decl_tmem",
+                [col_start],
+                ty_args=[ir.Tensor(shape, dtype, scope="tmem", layout=layout)],
+            )
+        )
         self.offset = col_end
         self.max_offset = max(self.max_offset, self.offset)
         return res

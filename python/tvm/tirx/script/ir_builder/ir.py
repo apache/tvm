@@ -220,7 +220,6 @@ def _tensor_type(
     align: int = 0,
     offset_factor: int = 0,
     layout: str | Layout | None = MISSING,
-    allocated_addr: int | tuple[int, ...] | None = None,
     *,
     span=None,
 ) -> tir.TensorType:
@@ -259,9 +258,6 @@ def _tensor_type(
         The buffer layout. "default" constructs the shape's default TileLayout;
         omission uses the enclosing dialect and scope default. None omits a layout.
 
-    allocated_addr : int or tuple of int, optional
-        Addresses assigned to the buffer allocation.
-
     Returns
     -------
     res : TensorType
@@ -272,10 +268,6 @@ def _tensor_type(
     shape = tuple(shape)
     if strides is None:
         strides = []
-    if allocated_addr is None:
-        allocated_addr = []
-    if not isinstance(allocated_addr, list | tuple):
-        allocated_addr = [allocated_addr]
     result = _ffi_api.TensorType(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
@@ -286,7 +278,6 @@ def _tensor_type(
         align,
         offset_factor,
         _get_layout(layout, shape, scope),
-        allocated_addr,
     )
     return _at(span, result)
 
@@ -526,7 +517,6 @@ def alloc_tensor(
             align=align,
             offset_factor=offset_factor,
             layout=layout,
-            allocated_addr=allocated_addr,
         ),
     )
     _record_meta_resource(buf, skip_frames=2)
@@ -546,13 +536,26 @@ def alloc_tensor(
         return v
 
     norm_annotations = {k: _normalize_ann_value(v) for k, v in (annotations or {}).items()}
+    if allocated_addr is not None:
+        if scope in ("", "global", "shared", "shared.dyn", "local"):
+            raise ValueError(f"{scope} does not support allocation placement")
+        if data is not None or elem_offset is not None or byte_offset is not None or offset_factor:
+            raise ValueError(
+                "Allocation placement cannot be combined with pointer or offset metadata"
+            )
+        addresses = allocated_addr if isinstance(allocated_addr, list | tuple) else [allocated_addr]
+        allocated_addr = [_normalize_ann_value(v) for v in addresses]
+    # Normalize the historical annotation spelling at the construction boundary.
+    if "buffer_allocated_addr" in norm_annotations:
+        if allocated_addr is not None:
+            raise ValueError("Allocation placement was specified twice")
+        allocated_addr = norm_annotations.pop("buffer_allocated_addr")
+    args = [ir.Tuple(buf.shape), ir.DataTypeImm(DataType(buf.dtype)), ir.StringImm(buf.scope())]
+    if allocated_addr is not None:
+        args.append(ir.Tuple(allocated_addr))
     allocation = ir.Call(
         "tirx.alloc_tensor",
-        [
-            ir.Tuple(buf.shape),
-            ir.DataTypeImm(DataType(buf.dtype)),
-            ir.StringImm(buf.scope()),
-        ],
+        args,
         attrs=ir.DictAttrs(norm_annotations),
         ty=buf.ty,
     )

@@ -1450,11 +1450,9 @@ def test_lower_remaps_tensor_memory_address_metadata(offset):
         T.device_entry()
         addr = T.alloc_shared((1,), "uint32")
         for i in T.serial(2):
-            tensor = T.decl_tensor(
-                (64,),
-                "float32",
-                scope="tmem",
-                allocated_addr=addr[0] + T.uint32(offset) + T.cast(i, "uint32"),
+            tensor = T.cuda.decl_tmem(
+                addr[0] + T.uint32(offset) + T.cast(i, "uint32"),
+                ty_args=[T.Tensor((64,), "float32", scope="tmem")],
             )
             T.evaluate(tensor.data)
 
@@ -1467,7 +1465,7 @@ def test_lower_remaps_tensor_memory_address_metadata(offset):
     address = next(node.var for node in bindings if node.var.scope() == "shared")
     tensor = next(node for node in bindings if node.var.scope() == "tmem")
     loads = []
-    tvm_ffi.structural_walk(tensor.var.ty.allocated_addr, (tvm.ir.TensorLoad, loads.append))
+    tvm_ffi.structural_walk(tensor.value.args[0], (tvm.ir.TensorLoad, loads.append))
     assert len(loads) == 1
     assert loads[0].source.same_as(address)
     tvm.ir.assert_structural_equal(tensor.var.ty, tensor.value.ty)

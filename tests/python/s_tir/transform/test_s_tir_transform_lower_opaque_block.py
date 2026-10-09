@@ -64,7 +64,7 @@ def transformed_elementwise_func(
         B_new = T.alloc_tensor(
             [1, 16],
             "float32",
-            annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
+            annotations={"buffer_data_alignment": 64},
         )
         for j in T.serial(0, 16):
             B_new[0, j] = A[i, j] + 1.0
@@ -104,7 +104,7 @@ def transformed_gpu_func(
         [1, 16],
         "float32",
         scope="local",
-        annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
+        annotations={"buffer_data_alignment": 64},
     )
     for j in range(0, 16):
         B[0, j] = A[i0 * 4 + i1 * 2 + i2, j] + 1.0
@@ -147,7 +147,7 @@ def transformed_symbolic_func(
         B = T.alloc_tensor(
             [m],
             "float32",
-            annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
+            annotations={"buffer_data_alignment": 64},
         )
         for j in range(0, m):
             B[j] = A[i, j] + 1.0
@@ -206,12 +206,12 @@ def transformed_multi_alloc_func(A: T.Tensor(32, "float32"), D: T.Tensor(32, "fl
         B = T.alloc_tensor(
             (32,),
             "float32",
-            annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
+            annotations={"buffer_data_alignment": 64},
         )
         C = T.alloc_tensor(
             (32,),
             "float32",
-            annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
+            annotations={"buffer_data_alignment": 64},
         )
         B[i] = A[i] + 1.0
         C[i] = A[i] + B[i]
@@ -251,7 +251,7 @@ def transformed_strided_buffer_func(
             [4, 16],
             "float32",
             strides=[17, 1],
-            annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
+            annotations={"buffer_data_alignment": 64},
         )
         for i1, j in T.grid(4, 16):
             B[i1, j] = A[i0 * 4 + i1, j] + T.float32(1)
@@ -292,7 +292,7 @@ def transformed_symbolic_strided_buffer_func(A: T.Tensor((1, n, 10240))):
             (1, padded_size, 64),
             strides=(72 * padded_size, 72, 1),
             scope="shared.dyn",
-            annotations={"buffer_allocated_addr": [], "buffer_data_alignment": 64},
+            annotations={"buffer_data_alignment": 64},
         )
         for ax0, ax1 in T.grid(96, 64):
             if i * 128 + j * 32 + ax0 < (n + 63) // 64 * 64:

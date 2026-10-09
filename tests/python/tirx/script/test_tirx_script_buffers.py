@@ -464,7 +464,7 @@ def _collect_buffers(func):
     buffers = []
 
     def visit(node):
-        if _is_buffer_binding(node, "tirx.alloc_tensor", "tirx.decl_tensor"):
+        if _is_buffer_binding(node, "tirx.alloc_tensor", "tirx.decl_tensor", "tirx.cuda.decl_tmem"):
             buffers.append(node.var)
 
     tvm_ffi.structural_walk(func.body, visit)
@@ -1328,20 +1328,20 @@ def test_buffer_sub_tmem_offset_uses_physical_columns():
     @T.function
     def func() -> None:
         T.device_entry()
-        Q = T.decl_tensor(
-            (2, 64, 288), "bfloat16", scope="tmem", allocated_addr=256,
+        Q = T.cuda.decl_tmem(256, ty_args=[T.Tensor(
+            (2, 64, 288), "bfloat16", scope="tmem",
             layout=T.TileLayout(T.S[(2, 64, 288) : (64 @ TLane, 1 @ TLane, 1 @ TCol)]),
-        )
+        )])
         Q_tail = Q.sub[:, :, 256:288]
-        F8 = T.decl_tensor(
-            (64, 128), "float8_e4m3fn", scope="tmem", allocated_addr=32,
+        F8 = T.cuda.decl_tmem(32, ty_args=[T.Tensor(
+            (64, 128), "float8_e4m3fn", scope="tmem",
             layout=T.TileLayout(T.S[(64, 128) : (1 @ TLane, 1 @ TCol)]),
-        )
+        )])
         F8_tail = F8.sub[:, 64:96]
-        F32 = T.decl_tensor(
-            (64, 128), "float32", scope="tmem", allocated_addr=64,
+        F32 = T.cuda.decl_tmem(64, ty_args=[T.Tensor(
+            (64, 128), "float32", scope="tmem",
             layout=T.TileLayout(T.S[(64, 128) : (1 @ TLane, 1 @ TCol)]),
-        )
+        )])
         F32_tail = F32.sub[:, 32:64]
         T.evaluate(Q_tail[0, 0, 0])
         T.evaluate(F8_tail[0, 0])
@@ -1349,9 +1349,15 @@ def test_buffer_sub_tmem_offset_uses_physical_columns():
         # fmt: on
 
     _, q_tail, _, f8_tail, _, f32_tail = _collect_buffers(func)
-    assert int(q_tail.allocated_addr[0]) == 384  # 256 + 256 * 16 / 32
-    assert int(f8_tail.allocated_addr[0]) == 48  # 32 + 64 * 8 / 32
-    assert int(f32_tail.allocated_addr[0]) == 96  # 64 + 32 * 32 / 32
+    bindings = []
+    tvm_ffi.structural_walk(func.body, (tvm.ir.Bind, bindings.append))
+    producers = {binding.var: binding.value for binding in bindings}
+    # Derived declarations add a dtype-scaled column offset to the source's
+    # explicit backing address projection.
+    for tensor, expected in ((q_tail, 128), (f8_tail, 16), (f32_tail, 32)):
+        address = producers[tensor].args[0]
+        assert int(address.b) == expected
+        assert isinstance(address.a, tvm.tirx.Cast)
     for buffer in (q_tail, f8_tail, f32_tail):
         assert int(buffer.layout.offset.get(TCol, 0)) == 0
 
@@ -1368,9 +1374,9 @@ def test_buffer_sub_tmem_rejects_partial_column_offset():
         @T.function
         def func() -> None:
             T.device_entry()
-            A = T.decl_tensor(
-                (64, 16), "bfloat16", scope="tmem", allocated_addr=0, layout=buf_layout,
-            )
+            A = T.cuda.decl_tmem(0, ty_args=[
+                T.Tensor((64, 16), "bfloat16", scope="tmem", layout=buf_layout),
+            ])
             _ = A.sub[:, 1:3]
             # fmt: on
 
@@ -1381,9 +1387,7 @@ def test_buffer_sub_tmem_rejects_partial_column_offset():
 
 
 def test_roundtrip_tmem_decl_buffer():
-    """DeclTensor with tmem scope: data kwarg must be suppressed, allocated_addr
-    must print as Expr (not Array), and scalar buffer index must not get
-    a .source suffix."""
+    """TMEM declarations print their address and tensor type through generic Calls."""
 
     # fmt: off
     @T.function
@@ -1392,7 +1396,9 @@ def test_roundtrip_tmem_decl_buffer():
             T.launch_thread("threadIdx.x", 128)
             addr = T.alloc_shared((1,), "uint32", layout=None)
             addr_alias = T.decl_tensor((1,), "uint32", data=addr.data, scope="shared")
-            buf = T.decl_tensor((64,), scope="tmem", layout=None, allocated_addr=addr_alias[0])
+            buf = T.cuda.decl_tmem(addr_alias[0], ty_args=[
+                T.Tensor((64,), scope="tmem", layout=None),
+            ])
     # fmt: on
 
     code = func.script()
@@ -1401,9 +1407,14 @@ def test_roundtrip_tmem_decl_buffer():
     decls = []
     tvm_ffi.structural_walk(
         func.body,
-        lambda node: decls.append(node) if _is_buffer_binding(node, "tirx.decl_tensor") else None,
+        lambda node: decls.append(node)
+        if isinstance(node, tvm.ir.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and node.value.op.name in ("tirx.decl_tensor", "tirx.cuda.decl_tmem")
+        else None,
     )
     # The shared alias has an explicit definition before the tensor-memory use.
     assert len(decls) == 2
     tmem_decl = next(decl for decl in decls if decl.var.scope() == "tmem")
-    assert tmem_decl.value.args[0].op.name == "tirx.reinterpret"
+    assert isinstance(tmem_decl.value.args[0], tvm.ir.TensorLoad)
+    assert len(tmem_decl.value.ty_args) == 1

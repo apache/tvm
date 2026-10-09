@@ -53,7 +53,7 @@ TensorVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
                       int offset_factor, ffi::Optional<Layout> layout,
                       ffi::Array<PrimExpr> allocated_addr) {
   TensorVar buffer = TensorDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
-                                offset_factor, layout, allocated_addr);
+                                offset_factor, layout);
   tvm::TensorRegion region{ffi::UnsafeInit{}};
   if (auto load = param.as<TensorLoad>()) {
     region = TensorRegionFromLoad(load.value());
@@ -68,6 +68,14 @@ TensorVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
     ffi::GetRef<tirx::TIRFrame>(alias_frame)->BindBufferRegion(buffer, region);
   } else {
     TVM_FFI_THROW(ValueError) << "match_buffer requires a frame that supports region aliases";
+  }
+  if (!allocated_addr.empty()) {
+    auto* block_frame = frame.value().as<SBlockFrameNode>();
+    TVM_FFI_CHECK(block_frame != nullptr, ValueError)
+        << "match_buffer placement requires an S-TIR block";
+    ffi::GetRef<SBlockFrame>(block_frame)
+        ->allocated_addresses.push_back(
+            ffi::Tuple<Var, ffi::Array<PrimExpr>>(buffer.var(), allocated_addr));
   }
   return buffer;
 }
@@ -203,7 +211,7 @@ TensorVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
         << "` scope, Ts.alloc_tensor does not accept `allocated_addr`";
   }
   TensorVar buffer = TensorDecl(shape, dtype, "", std::nullopt, strides, elem_offset, storage_scope,
-                                align, offset_factor, layout, allocated_addr);
+                                align, offset_factor, layout);
   IRBuilder builder = IRBuilder::Current();
   auto opt_func_frame = builder->FindFrame<tirx::FunctionFrame>();
   if (opt_func_frame.has_value()) {
@@ -218,9 +226,20 @@ TensorVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
   // IRBuilder construction used by tests), just return the buffer.
   if (ffi::Optional<SBlockFrame> block_frame = builder->FindFrame<SBlockFrame>()) {
     block_frame.value()->alloc_buffers.push_back(buffer);
+    if (!allocated_addr.empty()) {
+      block_frame.value()->allocated_addresses.push_back(
+          ffi::Tuple<Var, ffi::Array<PrimExpr>>(buffer.var(), allocated_addr));
+    }
   } else if (opt_func_frame.has_value()) {
-    ffi::GetRef<FunctionFrame>(opt_func_frame.value().as<FunctionFrameNode>())
-        ->root_alloc_buffers.push_back(buffer);
+    auto frame = ffi::GetRef<FunctionFrame>(opt_func_frame.value().as<FunctionFrameNode>());
+    frame->root_alloc_buffers.push_back(buffer);
+    if (!allocated_addr.empty()) {
+      frame->root_allocated_addresses.push_back(
+          ffi::Tuple<Var, ffi::Array<PrimExpr>>(buffer.var(), allocated_addr));
+    }
+  } else {
+    TVM_FFI_CHECK(allocated_addr.empty(), ValueError)
+        << "sblock_alloc_buffer placement requires an owning block or function";
   }
   return buffer;
 }

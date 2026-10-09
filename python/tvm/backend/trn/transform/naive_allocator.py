@@ -19,7 +19,7 @@ import functools
 
 import tvm_ffi
 
-from tvm.ir import Bind, Call, Op, Var
+from tvm.ir import Bind, Call, Op, Tuple, Var
 from tvm.tirx import IntImm
 from tvm.tirx.transform.function_pass import function_pass
 
@@ -58,7 +58,8 @@ def _get_alloc_pool_start(stmt) -> int:
         if not isinstance(op.value, Call) or op.value.op != Op.get("tirx.alloc_tensor"):
             return
         buffer = op.var
-        if len(buffer.ty.allocated_addr) == 0:
+        allocated_addr = op.value.args[3].fields if len(op.value.args) == 4 else []
+        if len(allocated_addr) == 0:
             return
         shape = op.value.args[0].fields
         dtype = op.value.args[1].value
@@ -66,7 +67,7 @@ def _get_alloc_pool_start(stmt) -> int:
         buffer_size = get_buffer_size(buffer, shape, dtype, scope)
         if buffer_size is None:
             return
-        alloc_pool_start = max(alloc_pool_start, buffer.ty.allocated_addr[-1] + buffer_size)
+        alloc_pool_start = max(alloc_pool_start, allocated_addr[-1] + buffer_size)
 
     tvm_ffi.structural_walk(stmt, (Bind, collect_alloc_buffer), order="post")
     return alloc_pool_start
@@ -74,7 +75,6 @@ def _get_alloc_pool_start(stmt) -> int:
 
 def _allocate_missing_buffers(stmt, alloc_pool_start: int):
     alloc_offset = alloc_pool_start
-    buffer_map = {}
 
     def allocate_buffer(op: Bind):
         nonlocal alloc_offset
@@ -85,30 +85,28 @@ def _allocate_missing_buffers(stmt, alloc_pool_start: int):
         dtype = op.value.args[1].value
         scope = op.value.args[2].value
         buffer_size = get_buffer_size(buffer, shape, dtype, scope)
-        if len(buffer.ty.allocated_addr) == 0 and buffer_size is not None:
-            new_buffer = buffer.with_allocated_addr([alloc_offset])
-            buffer_map[buffer] = new_buffer
+        allocated_addr = op.value.args[3].fields if len(op.value.args) == 4 else []
+        if len(allocated_addr) == 0 and buffer_size is not None:
+            args = list(op.value.args[:3])
+            args.append(Tuple([IntImm("int32", int(alloc_offset))]))
             alloc_offset += buffer_size
             return Bind(
-                new_buffer,
+                buffer,
                 Call(
                     op.value.op,
-                    op.value.args,
+                    args,
                     attrs=op.value.attrs,
                     ty_args=op.value.ty_args,
                     span=op.value.span,
-                    ty=new_buffer.ty,
+                    ty=op.value.ty,
                 ),
                 op.span,
             )
         return op
 
-    def replace_buffer(op):
-        return buffer_map.get(op, op)
-
     return tvm_ffi.structural_map(
         stmt,
-        [(Bind, allocate_buffer), (Var, replace_buffer)],
+        (Bind, allocate_buffer),
         order="pre",
     )
 

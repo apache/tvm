@@ -98,7 +98,9 @@ class DispatchContext(Object, Scriptable):
             scope_kind,
         )
 
-    def add_alloc_buffer(self, buffer: Var) -> None:
+    def add_alloc_buffer(
+        self, buffer: Var, allocated_addr=None, annotations: dict | None = None
+    ) -> None:
         """Add an allocated buffer to the dispatch context.
            Can be called only if alloc_only is True.
            The buffer will be added to the workspace of operator (the key in the workspace is the buffer name).
@@ -107,8 +109,14 @@ class DispatchContext(Object, Scriptable):
         ----------
         buffer : Var
             The buffer to be added.
+        allocated_addr : Sequence[PrimExpr], optional
+            Physical placement operands on the producing allocation call.
+        annotations : dict, optional
+            Annotations on the producing allocation call.
         """  # noqa: E501
-        _ffi_api.DispatchContextAddAllocBuffer(self, buffer)  # pylint: disable=no-member
+        _ffi_api.DispatchContextAddAllocBuffer(
+            self, buffer, allocated_addr or [], annotations or {}
+        )
 
     def add_init_stmt(self, stmt: Stmt, host: bool = False) -> None:
         """Add an initialization statement to the dispatch context.

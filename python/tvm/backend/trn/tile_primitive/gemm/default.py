@@ -253,9 +253,11 @@ def matmul_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
         assert sctx.alloc_only, "Accumulation psum buffer must be specified in workspace. Run tvm.tirx.trn.transform.TrnPrivateBufferAlloc first."  # noqa: E501
         acc_psum = T.Var(
             "acc_psum",
-            T.Tensor(acc_psum_shape, "float32", scope="trn.psum", allocated_addr=(0, 0)),
+            T.Tensor(acc_psum_shape, "float32", scope="trn.psum"),
         )
-        sctx.add_alloc_buffer(acc_psum)
+        sctx.add_alloc_buffer(
+            acc_psum, allocated_addr=[T.int32(0), T.int32(0)]
+        )
         max_psum_slots = max_psum_banks
     else:
         acc_psum = op.workspaces["acc_psum"]

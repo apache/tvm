@@ -323,12 +323,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     if (!alloc_buffers_.empty()) {
       std::vector<Stmt> seq;
       seq.reserve(alloc_buffers_.size() + 1);
-      for (const auto& buffer : alloc_buffers_) {
-        seq.push_back(
-            Bind(buffer.var(), Call(buffer.type(), tirx::alloc_tensor_op(),
-                                    {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                                     StringImm(buffer.scope())},
-                                    DictAttrs())));
+      for (const auto& allocation : alloc_buffers_) {
+        seq.push_back(allocation);
       }
       seq.push_back(std::move(body));
       body = SeqStmt(seq);
@@ -409,7 +405,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       if (const auto* bind = s.as<BindNode>()) {
         if (const auto* call = bind->value.as<CallNode>();
             call && (call->op.same_as(tirx::alloc_tensor_op()) ||
-                     call->op.same_as(tirx::decl_tensor_op()))) {
+                     (call->op.same_as(tirx::decl_tensor_op()) ||
+                      call->op.same_as(Op::Get("tirx.cuda.decl_tmem"))))) {
           changed |= AppendPostBufferDefStmts(&rebuilt, bind->var.as_or_throw<TensorVar>(),
                                               bind->var.as_or_throw<TensorVar>());
         }
@@ -424,7 +421,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>(); call) {
       if (call->op.same_as(tirx::alloc_tensor_op())) return MutateAllocTensor(op, inplace_mode);
-      if (call->op.same_as(tirx::decl_tensor_op())) return MutateDeclTensor(op, inplace_mode);
+      if ((call->op.same_as(tirx::decl_tensor_op()) ||
+           call->op.same_as(Op::Get("tirx.cuda.decl_tmem"))))
+        return MutateDeclTensor(op, inplace_mode);
     }
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     const auto* bind = stmt.as<BindNode>();
@@ -606,7 +605,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     TVM_FFI_ICHECK(res.defined()) << "TIRx dispatcher did not return a Function";
     // Implementation found, handle callbacks
     if (auto bufs = sctx->callbacks.Get(tirx::callback::kPrivateAlloc)) {
-      auto buf_list = bufs.value().as<Array<TensorVar>>().value();
+      auto buf_list = bufs.value().as<Array<Bind>>().value();
       alloc_buffers_.insert(alloc_buffers_.end(), buf_list.begin(), buf_list.end());
     }
     if (auto stmts = sctx->callbacks.Get(tirx::callback::kDeviceInitStmt)) {
@@ -1495,7 +1494,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   std::vector<std::vector<ScopeIdDef>> scope_id_defs_at_level_;
   std::vector<ExecContext> ctx_stack_;
   std::unordered_map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>> launch_params_;
-  std::vector<TensorVar> alloc_buffers_;
+  std::vector<Bind> alloc_buffers_;
   std::vector<Stmt> device_init_stmts_;
   std::vector<Stmt> host_init_stmts_;
   /*! \brief Storage root of each buffer variable defined in the body. */

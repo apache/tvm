@@ -136,7 +136,6 @@ class TensorVar : public Var {
   /*!
    * \brief Return a new buffer with the allocated address.
    */
-  TVM_DLL TensorVar with_allocated_addr(ffi::Array<PrimExpr> allocated_addr) const;
 
   /*!
    * \brief Return true if the buffer is a scalar.

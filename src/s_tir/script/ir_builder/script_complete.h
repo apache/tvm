@@ -24,6 +24,7 @@
 #ifndef TVM_S_TIR_SCRIPT_IR_BUILDER_SCRIPT_COMPLETE_H_
 #define TVM_S_TIR_SCRIPT_IR_BUILDER_SCRIPT_COMPLETE_H_
 #include <tvm/ffi/function.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -31,7 +32,8 @@ namespace tvm {
 namespace s_tir {
 
 tvm::tirx::Function ScriptComplete(tvm::tirx::Function func,
-                                   const ffi::Array<tvm::tirx::TensorVar>& root_allocates);
+                                   const ffi::Array<tvm::tirx::TensorVar>& root_allocates,
+                                   const BufferAllocatedAddresses& root_addresses = {});
 
 }  // namespace s_tir
 }  // namespace tvm

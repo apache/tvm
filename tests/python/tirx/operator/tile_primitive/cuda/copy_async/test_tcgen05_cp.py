@@ -60,9 +60,9 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.backend.cuda.tile_primitive.tma_utils import SwizzleMode, mma_shared_layout
 from tvm.script import tirx as T
 from tvm.testing import env
-from tvm.tirx.cuda.tile_primitive.tma_utils import SwizzleMode, mma_shared_layout
 from tvm.tirx.layout import ComposeLayout, R, S, TCol, TileLayout, TLane
 
 # Multicast replica lane offsets: (extent, stride) pairs on TLane. These are
@@ -201,8 +201,8 @@ def _make_cp_kernel(
                     )
                     copy_dst_tensor_2[copy_dst_index_2] = copy_value_2
             T.cuda.cta_sync()
-            tmem = T.decl_tensor(
-                t_full_shape, dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=t_full
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0], ty_args=[T.Tensor(t_full_shape, dtype, scope="tmem", layout=t_full)]
             )
             if T.constexpr(pre_zero):
                 zero_reg = T.alloc_tensor((W32,), "uint32", scope="local")
@@ -520,13 +520,13 @@ def _make_cp_kernel_cta2(s_full, s_shape, t_full, t_shape, dtype, cfg, W32, n_co
             T.ptx.tcgen05.alloc.cta_group__2.sync.aligned.shared__cta.b32(
                 T.address_of(tmem_addr), T.uint32(n_cols)
             )
-        tmem = T.decl_tensor(
-            t_shape, dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=t_full
-        )
         T.ptx.fence.mbarrier_init.release.cluster()
         T.ptx.fence.proxy.async_.shared__cta()
         T.cuda.cta_sync()
         T.cuda.cluster_sync()
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0], ty_args=[T.Tensor(t_shape, dtype, scope="tmem", layout=t_full)]
+        )
         # Pre-zero both CTAs' tmem: alloc does not clear it, and the
         # 128x256b test asserts the odd CTA stays untouched.
         zero_reg = T.alloc_tensor((W32,), "uint32", scope="local")
@@ -750,8 +750,8 @@ def test_cp_default_32x128b_instruction_sequence_unchanged():
                     )
                     copy_dst_tensor_3[copy_dst_index_3] = copy_value_3
             T.cuda.cta_sync()
-            tmem = T.decl_tensor(
-                (4, 32, 16), "uint8", scope="tmem", allocated_addr=tmem_addr[0], layout=t_full
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0], ty_args=[T.Tensor((4, 32, 16), "uint8", scope="tmem", layout=t_full)]
             )
             if tid_in_wg == 0:
                 # NOTE: no shape/multicast config — the legacy default route.
@@ -781,9 +781,10 @@ def test_cp_default_32x128b_instruction_sequence_unchanged():
     ]
     assert len(cp_lines) == 4, f"expected 4 cp calls, got {len(cp_lines)}"
     for i, (t_off, s_off) in enumerate([(0, 0), (4, 512), (8, 1024), (12, 1536)]):
-        # The tmem column is the whole first argument now: ptx takes the
-        # composed address, where the legacy helper took (addr, row, col).
-        t_tok = "[0], " if t_off == 0 else f"[0] + (uint){t_off}), "
+        # The declaration captures its base address once; each copy composes
+        # the same captured address with its physical column offset.
+        base = "reinterpret_cast<uint64_t>(tmem))"
+        t_tok = f"{base}, " if t_off == 0 else f"{base} + (uint){t_off}), "
         assert t_tok in cp_lines[i], f"cp[{i}] tmem col: want {t_tok!r} in {cp_lines[i]!r}"
         s_tok = f"+ {s_off}))"
         assert s_tok in cp_lines[i], f"cp[{i}] smem byte off: want {s_tok!r} in {cp_lines[i]!r}"
@@ -1072,12 +1073,8 @@ def _make_2d_kernel(
                     )
                     copy_dst_tensor_4[copy_dst_index_4] = copy_value_4
             T.cuda.cta_sync()
-            tmem = T.decl_tensor(
-                t_full_shape,
-                dtype,
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=t_full,
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0], ty_args=[T.Tensor(t_full_shape, dtype, scope="tmem", layout=t_full)]
             )
             if tid_in_wg == 0:
                 T.cuda.tile.tcgen05.cp(
@@ -1093,7 +1090,10 @@ def _make_2d_kernel(
                 reg = T.alloc_tensor((4,), "uint32", scope="local")
                 for i in range(4):
                     T.ptx["tcgen05.ld.sync.aligned.32x32b.x1.b32"](
-                        reg[i], T.cuda.get_tmem_addr(tmem.allocated_addr[0], 0, i)
+                        reg[i],
+                        T.cuda.get_tmem_addr(
+                            T.cast(T.reinterpret(tmem.data, ty="uint64"), "uint32"), 0, i
+                        ),
                     )
                 T.ptx.tcgen05.wait__ld.sync.aligned()
                 B_bytes = reg.view(dtype)
@@ -1164,12 +1164,8 @@ def _make_3d_4tile_kernel(s_full, t_full, s_full_shape, t_full_shape, dtype, cta
                     )
                     copy_dst_tensor_5[copy_dst_index_5] = copy_value_5
             T.cuda.cta_sync()
-            tmem = T.decl_tensor(
-                t_full_shape,
-                dtype,
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=t_full,
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0], ty_args=[T.Tensor(t_full_shape, dtype, scope="tmem", layout=t_full)]
             )
             if tid_in_wg == 0:
                 T.cuda.tile.tcgen05.cp(tmem[:, :, :], A_smem[:, :, :], cta_group=cta_group)
@@ -1183,7 +1179,10 @@ def _make_3d_4tile_kernel(s_full, t_full, s_full_shape, t_full_shape, dtype, cta
                 reg = T.alloc_tensor((4,), "uint32", scope="local")
                 for i in range(4):
                     T.ptx["tcgen05.ld.sync.aligned.32x32b.x1.b32"](
-                        reg[i], T.cuda.get_tmem_addr(tmem.allocated_addr[0], 0, i)
+                        reg[i],
+                        T.cuda.get_tmem_addr(
+                            T.cast(T.reinterpret(tmem.data, ty="uint64"), "uint32"), 0, i
+                        ),
                     )
                 T.ptx.tcgen05.wait__ld.sync.aligned()
                 B_bytes = reg.view(dtype)
@@ -1369,12 +1368,8 @@ def test_align_middle_2_to_1_nvfp4_sfb():
                     )
                     copy_dst_tensor_6[copy_dst_index_6] = copy_value_6
             T.cuda.cta_sync()
-            tmem = T.decl_tensor(
-                t_full_shape,
-                "uint8",
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=t_full,
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0], ty_args=[T.Tensor(t_full_shape, "uint8", scope="tmem", layout=t_full)]
             )
             if tid_in_wg == 0:
                 T.cuda.tile.tcgen05.cp(tmem[:, :], A_smem[:, :], cta_group=1)
@@ -1388,7 +1383,10 @@ def test_align_middle_2_to_1_nvfp4_sfb():
                 reg = T.alloc_tensor((4,), "uint32", scope="local")
                 for i in range(4):
                     T.ptx["tcgen05.ld.sync.aligned.32x32b.x1.b32"](
-                        reg[i], T.cuda.get_tmem_addr(tmem.allocated_addr[0], 0, i)
+                        reg[i],
+                        T.cuda.get_tmem_addr(
+                            T.cast(T.reinterpret(tmem.data, ty="uint64"), "uint32"), 0, i
+                        ),
                     )
                 T.ptx.tcgen05.wait__ld.sync.aligned()
                 B_bytes = reg.view("uint8")

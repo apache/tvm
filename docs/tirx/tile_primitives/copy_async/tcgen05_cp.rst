@@ -94,7 +94,7 @@ shape/layout validation happens in the planner with readable errors:
      - ``cta_group`` is ``1`` (default) or ``2`` and is forwarded to the PTX
        instruction
    * - memory pair
-     - source ``shared*`` → destination ``tmem`` (with ``allocated_addr`` set by
+     - source ``shared*`` → destination ``tmem`` (with its backing address supplied by
        a prior ``tcgen05.alloc``); both buffers carry layouts and their element
        bit widths match. Equal-width reinterpretation is allowed
    * - tmem layout
@@ -124,8 +124,13 @@ dealloc tail elided):
         Tx.ptx["tcgen05.alloc.cta_group::1.sync.aligned.shared::cta.b32"](
             Tx.address_of(tmem_addr), Tx.uint32(16))
     # ... mbarrier.init, fence, cta_sync, fill A_smem from global ...
-    tmem = Tx.decl_tensor([32, 16], "uint8", scope="tmem", allocated_addr=tmem_addr[0],
-                         layout=TileLayout(S[(32, 16) : (1 @ TLane, 1 @ TCol)] + R[4 : 32 @ TLane]))
+    tmem = Tx.cuda.decl_tmem(
+        tmem_addr[0],
+        ty_args=[Tx.Tensor(
+            [32, 16], "uint8", scope="tmem",
+            layout=TileLayout(S[(32, 16) : (1 @ TLane, 1 @ TCol)] + R[4 : 32 @ TLane]),
+        )],
+    )
     if tid_in_wg == 0:
         Tx.cuda.tile.tcgen05.cp(tmem[0:32, 0:16], A_smem[0:32, 0:16], cta_group=1)   # smem -> tmem
         # caller signals

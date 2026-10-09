@@ -18,8 +18,8 @@
 
 import pytest
 
-from tvm.tirx.cuda.lang.alloc_pool import _validate_mma_alloc_shape
-from tvm.tirx.cuda.tile_primitive.tma_utils import SwizzleMode
+from tvm.backend.cuda.lang.alloc_pool import _validate_mma_alloc_shape
+from tvm.backend.cuda.tile_primitive.tma_utils import SwizzleMode
 
 # ---------------------------------------------------------------------------
 # alloc_tcgen05_mma_AB shape validation: bad inputs raise actionable ValueError instead of

@@ -27,11 +27,15 @@
 #ifndef TVM_S_TIR_STMT_H_
 #define TVM_S_TIR_STMT_H_
 
+#include <tvm/ffi/container/tuple.h>
 #include <tvm/s_tir/iter_var.h>
 #include <tvm/tirx/stmt.h>
 
 namespace tvm {
 namespace s_tir {
+
+/*! \brief Placement entries owned by a block, traversable with their buffer references. */
+using BufferAllocatedAddresses = ffi::Array<ffi::Tuple<Var, ffi::Array<PrimExpr>>>;
 
 /*!
  * \brief Match introduces a constraint that the source buffer region can be remapped to the data
@@ -304,6 +308,9 @@ constexpr const char* meta_schedule_inline_rule = "meta_schedule.inline_rule";
 // -----------------------------------------------------------------------
 // Schedule primitive / SBlock annotations
 // -----------------------------------------------------------------------
+
+/*! \brief BufferAllocatedAddresses for block-owned allocations and match buffers. */
+constexpr const char* buffer_allocated_addr = "s_tir.buffer_allocated_addr";
 
 /*!
  * \brief Mark whether the script-completer need to fill in missing access region

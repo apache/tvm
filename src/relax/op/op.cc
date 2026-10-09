@@ -370,7 +370,7 @@ Type TIRxPackedValueType(const Type& type, bool is_result) {
           !tensor->layout.has_value() ||
           ffi::StructuralEqual()(tensor->layout.value(),
                                  tirx::TileLayoutNode::DefaultLayout(tensor->shape));
-      TVM_FFI_CHECK(default_layout && tensor->allocated_addr.empty(), TypeError)
+      TVM_FFI_CHECK(default_layout, TypeError)
           << "A Relax-to-TIRx call cannot implicitly convert tensor layout or allocated address: "
           << type;
       TVM_FFI_CHECK(tensor->storage_scope.empty() || tensor->storage_scope == "global" ||

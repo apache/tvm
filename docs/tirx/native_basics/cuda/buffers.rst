@@ -28,7 +28,7 @@ pointer with ``A.ptr_to([i, j])`` or the raw data pointer ``A.data``.
 Declaring buffers
 -----------------
 
-Two fundamental APIs create a tensor variable:
+The following APIs create a tensor variable:
 
 - ``Tx.alloc_tensor(shape, dtype, scope=..., ...)`` — **allocates new storage**
   (binds a ``tirx.alloc_tensor`` call) and returns an ``ir.Var``. ``Tx.alloc_shared`` /
@@ -36,15 +36,17 @@ Two fundamental APIs create a tensor variable:
   ``scope="local"``.
 - ``Tx.decl_tensor(shape, dtype, data=..., ...)`` — **declares a view** over an
   existing pointer ``data`` (no allocation); use it to alias or reinterpret
-  storage — a sub-region of a pool, or a tensor-memory address. With ``data=None``
-  it allocates, like ``alloc_tensor``, except in ``tmem`` scope, where
-  ``allocated_addr`` identifies externally allocated tensor memory.
+  storage — for example, a sub-region of a pool. With ``data=None`` it allocates,
+  like ``alloc_tensor``.
+- ``Tx.cuda.decl_tmem(addr, ty_args=[Tx.Tensor(...)])`` — declares a tensor over
+  externally allocated tensor memory. The address is a value operand; the tensor
+  type supplies shape, dtype, scope and layout.
 
 ``A.data`` projects the physical pointer from the tensor variable.
 ``alloc_tensor`` supplies new storage; ``decl_tensor`` with ``data`` binds an
 existing pointer expression. See :doc:`data_types`.
 
-Both share one descriptor; the parameters that matter most:
+The tensor descriptors share these parameters:
 
 .. list-table::
    :header-rows: 1
@@ -59,9 +61,9 @@ Both share one descriptor; the parameters that matter most:
    * - ``layout``
      - physical mapping (:doc:`TileLayout <../../layout>`); ``"default"`` = dense
        row-major
-   * - ``elem_offset`` / ``allocated_addr``
+   * - ``elem_offset``
      - ``elem_offset`` (or ``byte_offset``) places a *view* at an offset into
-       ``data``; ``allocated_addr`` carries a pre-assigned address (tensor memory)
+       ``data``
    * - ``align``
      - alignment of the data pointer, in bytes
 
@@ -358,12 +360,13 @@ Tensor memory
 Blackwell *tensor memory* is not a plain scratch scope: it must be explicitly
 reserved and freed with the warp-uniform ``Tx.ptx.tcgen05.alloc`` /
 ``tcgen05.dealloc`` intrinsics, and each tensor is a view into it declared with
-``Tx.decl_tensor(..., scope="tmem", allocated_addr=<address>, layout=<tmem layout>)``.
-The ``allocated_addr`` is the allocated tensor-memory base address plus any desired
-column offset. It is mandatory — the tensor-core dispatch asserts it — so
-``Tx.alloc_tensor(scope="tmem")`` (which does **not** set it) will not work. Unlike
-shared memory, tensor memory is not directly addressable: it is read and written
-only through ``tcgen05`` ``mma`` / ``ld`` / ``st`` / ``cp``.
+``Tx.cuda.decl_tmem(addr, ty_args=[Tx.Tensor(shape, dtype, scope="tmem", layout=layout)])``.
+The ``addr`` operand is the allocated tensor-memory base address plus any desired
+column offset. The declaration captures the address value when it executes, so
+synchronize allocator writes to a shared address slot before declaring tensors.
+Tensor-memory storage is reserved separately from the tensor declaration.
+Unlike shared memory, tensor memory is not directly addressable: it is read and
+written only through ``tcgen05`` ``mma`` / ``ld`` / ``st`` / ``cp``.
 
 By hand, one warp issues the allocation into a shared slot, you ``decl`` each
 tensor as a view at a column offset, and one warp frees it at the end:
@@ -374,8 +377,14 @@ tensor as a view at a column offset, and one warp frees it at the end:
     if warp_id == alloc_warp:                         # tcgen05.alloc is warp-uniform
         Tx.ptx[f"tcgen05.alloc.cta_group::{cta_group}.sync.aligned.shared::cta.b32"](
             Tx.address_of(addr), Tx.uint32(512))
-    acc = Tx.decl_tensor((CTA_M, 512), "float32", scope="tmem",
-                        allocated_addr=addr[0], layout=tmem_layout)  # allocated base
+    Tx.cuda.cta_sync()                                # publish before capturing addr[0]
+    acc = Tx.cuda.decl_tmem(
+        addr[0],
+        ty_args=[Tx.Tensor(
+            (CTA_M, 512), "float32", scope="tmem",
+            layout=tmem_layout,
+        )],
+    )
     # ... use acc as a gemm_async / copy_async operand ...
     if warp_id == alloc_warp:
         Tx.ptx[f"tcgen05.relinquish_alloc_permit.cta_group::{cta_group}.sync.aligned"]()

@@ -35,11 +35,14 @@ class FunctionFrameNode : public tirx::FunctionFrameNode {
  public:
   /*! \brief Buffers allocated in the implicit root block. */
   ffi::Array<tvm::tirx::TensorVar> root_alloc_buffers;
+  /*! \brief Placement of allocations owned by the implicit root block. */
+  tvm::s_tir::BufferAllocatedAddresses root_allocated_addresses;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<FunctionFrameNode>().def_ro("root_alloc_buffers",
-                                                &FunctionFrameNode::root_alloc_buffers);
+    refl::ObjectDef<FunctionFrameNode>()
+        .def_ro("root_alloc_buffers", &FunctionFrameNode::root_alloc_buffers)
+        .def_ro("root_allocated_addresses", &FunctionFrameNode::root_allocated_addresses);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.s_tir.FunctionFrame", FunctionFrameNode,
                                     tirx::FunctionFrameNode);
@@ -75,6 +78,8 @@ class SBlockFrameNode : public TIRFrameNode {
   ffi::Array<tvm::tirx::TensorVar> alloc_buffers;
   /*! \brief The match buffer regions. */
   ffi::Array<tvm::s_tir::MatchBufferRegion> match_buffers;
+  /*! \brief Placement attached to the block's allocations and aliases. */
+  tvm::s_tir::BufferAllocatedAddresses allocated_addresses;
   /*! \brief The annotation of the block. */
   ffi::Optional<ffi::Map<ffi::String, Any>> annotations;
   /*! \brief The corresponding values of the iter vars. */
@@ -97,6 +102,7 @@ class SBlockFrameNode : public TIRFrameNode {
         .def_ro("init", &SBlockFrameNode::init)
         .def_ro("alloc_buffers", &SBlockFrameNode::alloc_buffers)
         .def_ro("match_buffers", &SBlockFrameNode::match_buffers)
+        .def_ro("allocated_addresses", &SBlockFrameNode::allocated_addresses)
         .def_ro("annotations", &SBlockFrameNode::annotations)
         .def_ro("iter_values", &SBlockFrameNode::iter_values)
         .def_ro("predicate", &SBlockFrameNode::predicate)

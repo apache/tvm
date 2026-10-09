@@ -21,6 +21,8 @@
  * \file tirx/ir/tile_dispatch.cc
  * \brief Context for dispatching and lowering TIRx tile operations.
  */
+#include <tvm/ir/prim/op.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/tile_dispatch.h>
 
 namespace tvm {
@@ -40,9 +42,14 @@ Value getOrSetDefault(ffi::Map<ffi::String, ffi::ObjectRef>& m, const Key& key,
   return (*it).second.template as_or_throw<Value>();
 }
 
-void DispatchContextNode::AddAllocBuffer(TensorVar buffer) {
-  auto buffers = getOrSetDefault(callbacks, callback::kPrivateAlloc, ffi::Array<TensorVar>());
-  buffers.push_back(buffer);
+void DispatchContextNode::AddAllocBuffer(TensorVar buffer, ffi::Array<PrimExpr> allocated_addr,
+                                         ffi::Map<ffi::String, ffi::Any> annotations) {
+  auto buffers = getOrSetDefault(callbacks, callback::kPrivateAlloc, ffi::Array<Bind>());
+  ffi::Array<Expr> args{tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                        StringImm(buffer.scope())};
+  if (!allocated_addr.empty()) args.push_back(tvm::Tuple(allocated_addr));
+  buffers.push_back(
+      Bind(buffer.var(), Call(buffer.type(), alloc_tensor_op(), args, DictAttrs(annotations))));
   callbacks.Set(callback::kPrivateAlloc, buffers);
 }
 

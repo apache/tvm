@@ -109,6 +109,7 @@ import functools
 import operator
 
 import tvm
+from tvm.backend.cuda.op import _tmem_address
 from tvm.ir import Bind, Call, DataTypeImm, DictAttrs, Evaluate, SeqStmt, StringImm, Tuple
 from tvm.runtime import DataType
 from tvm.script import tirx as T
@@ -731,7 +732,6 @@ def _validate_smem_tmem_copy(op_call: TensorCall, sctx: DispatchContext):
         # Byte reinterpret is legal (nvfp4 stages sf as uint8, reads fp8); a
         # true width change needs decompress, rejected in copy_smem_tmem_impl.
         and DataType(src.dtype).bits == DataType(dst.dtype).bits
-        and dst.allocated_addr is not None
     )
 
 
@@ -768,7 +768,7 @@ def copy_smem_tmem_impl(op_call: TensorCall, sctx: DispatchContext) -> Function 
     cta_group = op_call.options.get("cta_group", 1)
 
     desc_buf = _get_or_create_desc(sctx, s_buf, LDO_field, SDO_field, sw)
-    t_addr = t_buf.allocated_addr
+    t_addr = [_tmem_address(t_buf)]
     s_rank = len(s_buf.shape)
 
     def _cp_desc(off_16B):

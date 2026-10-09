@@ -28,6 +28,22 @@ namespace printer {
 namespace details {
 namespace {
 
+void PrintMatchBuffer(DocTranslatorObj* d, const s_tir::MatchBufferRegionNode* match,
+                      const ffi::Array<PrimExpr>& allocated_addr = {}) {
+  ExprDoc source = d->Translate(match->source).value();
+  CallDoc rhs = d->Translate(match->buffer.var()->ty).value().as_or_throw<CallDoc>();
+  TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Tensor", TypeError)
+      << "Ts.match_buffer cannot reconstruct this nonrepresentable TensorType";
+  rhs->callee = NamespaceDoc("s_tir")->Attr("match_buffer");
+  rhs->args.insert(rhs->args.begin(), source);
+  if (!allocated_addr.empty()) {
+    rhs->kwargs_keys.push_back("allocated_addr");
+    rhs->kwargs_values.push_back(AnyValue(d, allocated_addr));
+  }
+  IdDoc lhs = VarDoc(d, match->buffer);
+  d->Emit(AssignDoc(lhs, rhs, std::nullopt), ffi::GetRef<ffi::ObjectRef>(match));
+}
+
 ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* block,
                                const s_tir::SBlockRealizeNode* realize) {
   auto docs = d->WithDocScope([&]() {
@@ -86,10 +102,17 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
     ffi::Array<ExprDoc> writes;
     for (const TensorRegion& region : block->writes) writes.push_back(d->Translate(region).value());
     d->Emit(ExprStmtDoc(NamespaceDoc("s_tir")->Attr("writes")->Call(writes)), block->writes);
-    if (!block->annotations.empty()) {
+    auto annotations = block->annotations;
+    ffi::Map<Var, ffi::Array<PrimExpr>> addresses;
+    if (auto value = annotations.Get(s_tir::attr::buffer_allocated_addr)) {
+      for (const auto& entry : value.value().cast<s_tir::BufferAllocatedAddresses>()) {
+        addresses.Set(entry.get<0>(), entry.get<1>());
+      }
+      annotations.erase(s_tir::attr::buffer_allocated_addr);
+    }
+    if (!annotations.empty()) {
       d->Emit(
-          ExprStmtDoc(
-              NamespaceDoc("s_tir")->Attr("sblock_attr")->Call({AnyValue(d, block->annotations)})),
+          ExprStmtDoc(NamespaceDoc("s_tir")->Attr("sblock_attr")->Call({AnyValue(d, annotations)})),
           block->annotations);
     }
     for (const tirx::TensorVar& buffer : block->alloc_buffers) {
@@ -97,19 +120,25 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
       TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Tensor", TypeError)
           << "Ts.sblock_alloc_buffer cannot reconstruct this nonrepresentable TensorType";
       const auto* buffer_type = buffer.var()->ty.as<tirx::TensorTypeNode>();
+      auto allocated_addr = addresses.Get(buffer.var()).value_or(ffi::Array<PrimExpr>{});
       TVM_FFI_CHECK(
-          buffer_type->allocated_addr.empty() ||
+          allocated_addr.empty() ||
               (buffer_type->storage_scope != "global" && buffer_type->storage_scope != "shared" &&
                buffer_type->storage_scope != "shared.dyn" && buffer_type->storage_scope != "local"),
           TypeError)
           << "Ts.sblock_alloc_buffer does not accept allocated_addr in "
           << buffer_type->storage_scope;
       rhs->callee = NamespaceDoc("s_tir")->Attr("sblock_alloc_buffer");
+      if (!allocated_addr.empty()) {
+        rhs->kwargs_keys.push_back("allocated_addr");
+        rhs->kwargs_values.push_back(AnyValue(d, allocated_addr));
+      }
       IdDoc lhs = VarDoc(d, buffer);
       d->Emit(AssignDoc(lhs, rhs, std::nullopt), ffi::GetRef<ffi::ObjectRef>(buffer.get()));
     }
     for (const s_tir::MatchBufferRegion& match : block->match_buffers) {
-      d->Translate(match);
+      PrintMatchBuffer(d, match.get(),
+                       addresses.Get(match->buffer.var()).value_or(ffi::Array<PrimExpr>{}));
     }
     if (block->init.has_value()) {
       d->Emit(ScopeDoc(std::nullopt, NamespaceDoc("s_tir")->Attr("init")->Call({}),
@@ -168,14 +197,7 @@ ffi::Optional<ExprDoc> MatchBufferRegionDocTranslate(DocTranslatorObj* d, ffi::A
       const s_tir::MatchBufferRegionNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
-  ExprDoc source = d->Translate(match->source).value();
-  CallDoc rhs = d->Translate(match->buffer.var()->ty).value().as_or_throw<CallDoc>();
-  TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Tensor", TypeError)
-      << "Ts.match_buffer cannot reconstruct this nonrepresentable TensorType";
-  rhs->callee = NamespaceDoc("s_tir")->Attr("match_buffer");
-  rhs->args.insert(rhs->args.begin(), source);
-  IdDoc lhs = VarDoc(d, match->buffer);
-  d->Emit(AssignDoc(lhs, rhs, std::nullopt), ffi::GetRef<ffi::ObjectRef>(match));
+  PrintMatchBuffer(d, match);
   return std::nullopt;
 }
 
