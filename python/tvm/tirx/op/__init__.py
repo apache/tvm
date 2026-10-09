@@ -1112,7 +1112,7 @@ def throw_last_error(*, ty=None, span=None):
     return call_intrin(ty, "tirx.throw_last_error", span=span)
 
 
-def vectorlow(dtype, vec):
+def vector_low(dtype, vec):
     """Get the low level half of the vector
 
     Parameters
@@ -1128,10 +1128,10 @@ def vectorlow(dtype, vec):
     call : Expr
         The call expression.
     """
-    return call_intrin(dtype, "tirx.vectorlow", vec)
+    return call_intrin(dtype, "tirx.vector_low", vec)
 
 
-def vectorhigh(dtype, vec):
+def vector_high(dtype, vec):
     """Get the high level half of the vector
 
     Parameters
@@ -1147,10 +1147,10 @@ def vectorhigh(dtype, vec):
     call : Expr
         The call expression.
     """
-    return call_intrin(dtype, "tirx.vectorhigh", vec)
+    return call_intrin(dtype, "tirx.vector_high", vec)
 
 
-def vectorcombine(dtype, vec1, vec2):
+def vector_combine(dtype, vec1, vec2):
     """Concat two vectors
 
     Parameters
@@ -1166,7 +1166,7 @@ def vectorcombine(dtype, vec1, vec2):
     call : Expr
         The call expression.
     """
-    return call_intrin(dtype, "tirx.vectorcombine", vec1, vec2)
+    return call_intrin(dtype, "tirx.vector_combine", vec1, vec2)
 
 
 def gpu_dp4a(vec1, vec2, acc=0, **kwargs):

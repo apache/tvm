@@ -36,7 +36,7 @@ namespace tirx {
  * Arguments, in order:
  * - args[0]: vec, The input vector.
  */
-TVM_DLL const Op& vectorhigh_op();
+TVM_DLL const Op& vector_high_op();
 
 /*!
  * \brief Get the low-level half of the vector.
@@ -44,7 +44,7 @@ TVM_DLL const Op& vectorhigh_op();
  * Arguments, in order:
  * - args[0]: vec, The input vector.
  */
-TVM_DLL const Op& vectorlow_op();
+TVM_DLL const Op& vector_low_op();
 
 /*!
  * \brief Concat two vectors.
@@ -53,7 +53,7 @@ TVM_DLL const Op& vectorlow_op();
  * - args[0]: vec1, The first input vector.
  * - args[1]: vec2, The second input vector.
  */
-TVM_DLL const Op& vectorcombine_op();
+TVM_DLL const Op& vector_combine_op();
 
 /*!
  * \brief Calculate a predicate mask given an upper bound (limit) and a current value (base).
