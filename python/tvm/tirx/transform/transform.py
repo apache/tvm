@@ -85,17 +85,6 @@ def StorageRewrite():
     return _ffi_api.StorageRewrite()  # type: ignore
 
 
-def InlinePrivateFunctions():
-    """Inline calls to private functions
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InlinePrivateFunctions()  # type: ignore
-
-
 def PointerValueTypeRewrite():
     """
     Rewrite the pointer content type of arguments, as well as Alloc internal to the function to use
@@ -459,7 +448,7 @@ def Filter(fcond: Callable):
     return _ffi_api.Filter(fcond)  # type: ignore
 
 
-def TilePrimitiveDispatch():
+def TileDispatch():
     """Lower TIRx tile primitive calls through the active backend dispatch table.
 
     Returns
@@ -467,7 +456,7 @@ def TilePrimitiveDispatch():
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.TilePrimitiveDispatch()  # type: ignore
+    return _ffi_api.TileDispatch()  # type: ignore
 
 
 def LowerTIRx():

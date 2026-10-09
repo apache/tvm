@@ -30,7 +30,7 @@
  *         | Call("tirx.cuda.elect_sync")
  *
  * Consumers:
- *   1. tile_primitive_dispatch routes a bare `if cond:` to atom-based
+ *   1. tile_dispatch routes a bare `if cond:` to atom-based
  *      narrowing when cond is canonical; otherwise treats it as a regular
  *      data-dependent branch (no narrowing).
  *   2. The `tirx.gpu_thread_filter(var, pred)` escape-hatch wrapper is intended for the
@@ -79,7 +79,7 @@ enum class FilterAtomKind {
  * For `kElectSync`:
  *   - `elect_sync_call`: the original `Call("tirx.cuda.elect_sync")` PrimExpr,
  *     preserved verbatim so downstream consumers (e.g. selector construction
- *     in tile_primitive_dispatch) can reuse it without re-synthesizing.
+ *     in tile_dispatch) can reuse it without re-synthesizing.
  *   - `scopeid_var`, `lo`, `hi` are unset.
  */
 struct FilterAtom {
@@ -108,7 +108,7 @@ struct CanonicalForm {
  * The classifier consults this for every variable that appears on the LHS
  * of a comparison atom. The callback abstracts over how scope ids are
  * tracked in the caller's context:
- *   - TilePrimitiveDispatcher passes a lambda that walks its
+ *   - TileDispatcher passes a lambda that walks its
  *     `scope_id_defs_at_level_` stack.
  *   - Tests may pass a simpler lambda over a fixed allow-list of vars.
  *
@@ -135,7 +135,7 @@ using ScopeIdPredicate = std::function<bool(const Var&)>;
  * Implementation notes:
  *   - Conjunction is recognized via both `tir::And` nodes and
  *     `prim.BitwiseAnd` nodes (matching existing FlattenConjuncts behavior
- *     in tile_primitive_dispatch.cc).
+ *     in tile_dispatch.cc).
  *   - Comparison atoms with `const <op> var` are mirrored so the
  *     `scopeid_var` is on the LHS of the returned atom.
  *   - `c1 == c2` (two constants), `v1 == v2` (two vars), and any other

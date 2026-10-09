@@ -55,7 +55,7 @@ PrimExpr StripCast(const PrimExpr& expr) {
 }
 
 // Recognized conjunction shapes: logical-And and bitwise-And nodes.
-// Mirrors FlattenConjuncts in tile_primitive_dispatch.cc so the classifier
+// Mirrors FlattenConjuncts in tile_dispatch.cc so the classifier
 // accepts the same set of "fully conjunctive" predicates that the existing
 // pass-internal helpers do.
 void FlattenConjuncts(const PrimExpr& pred, std::vector<PrimExpr>* out) {

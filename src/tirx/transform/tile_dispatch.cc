@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tile_primitive_dispatch.cc
+ * \file tile_dispatch.cc
  * \brief Lower tensor instruction Evaluate(Call) nodes (also resolves ScopeIdDef
  * declarations and emits launch params).
  */
@@ -214,14 +214,14 @@ class NoOpCallVerifier : public Verifier<NoOpCallVerifier> {
   }
 };
 
-class TilePrimitiveDispatcher : public StmtExprMutator {
+class TileDispatcher : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
-  explicit TilePrimitiveDispatcher(const Target& target) : target_(target) {}
+  explicit TileDispatcher(const Target& target) : target_(target) {}
 
   static Stmt LowerOpCalls(const Stmt& stmt, const Target& target) {
-    return ffi::make_object<TilePrimitiveDispatcher>(target)
+    return ffi::make_object<TileDispatcher>(target)
         ->Mutate(stmt, InplaceMode::kAllow)
         .ValueOrUnchanged(stmt);
   }
@@ -1546,18 +1546,18 @@ Target ResolveTarget(const Function& f) {
 
 namespace transform {
 
-Pass TilePrimitiveDispatch() {
+Pass TileDispatch() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     Target target = ResolveTarget(f);
     auto* n = f.CopyOnWrite();
-    n->body = TilePrimitiveDispatcher::LowerOpCalls(n->body.value(), target);
+    n->body = TileDispatcher::LowerOpCalls(n->body.value(), target);
     if (!NoOpCallVerifier::Verify(n->body.value(), false)) {
       LOG(FATAL) << "Failed to lower the TIRx program: " << f;
     }
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.TilePrimitiveDispatch");
+  return CreateFunctionPass(pass_func, 0, "tirx.TileDispatch");
 }
 
 }  // namespace transform

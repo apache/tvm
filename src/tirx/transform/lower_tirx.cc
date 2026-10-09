@@ -34,7 +34,7 @@ namespace tirx {
 namespace transform {
 
 Pass LowerTIRx() {
-  std::vector<tvm::transform::Pass> passes = {TilePrimitiveDispatch()};
+  std::vector<tvm::transform::Pass> passes = {TileDispatch()};
   if (std::getenv("TVM_PRINT_AFTER_TIRX_DISPATCH_OPS")) {
     passes.push_back(tvm::transform::PrintIR());
   }
@@ -45,7 +45,7 @@ Pass LowerTIRx() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tirx.transform.TilePrimitiveDispatch", TilePrimitiveDispatch)
+      .def("tirx.transform.TileDispatch", TileDispatch)
       .def("tirx.transform.LowerTIRxCleanup", LowerTIRxCleanup)
       .def("tirx.transform.LowerTIRx", LowerTIRx);
 }
