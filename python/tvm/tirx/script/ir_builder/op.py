@@ -434,7 +434,6 @@ truncdiv = _tir_op.truncdiv
 truncmod = _tir_op.truncmod
 
 
-access_ptr = _tir_op.access_ptr
 
 
 ptr_byte_offset = _tir_op.ptr_byte_offset
@@ -744,7 +743,6 @@ __all__ = [
     "abi_field_get",
     "abi_field_set",
     "abs",
-    "access_ptr",
     "acos",
     "acosh",
     "address_of",

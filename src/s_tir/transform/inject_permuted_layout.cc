@@ -250,75 +250,82 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
         load->span);
   }
 
-  Expr HandleAccessPtrAndOffset(Expr access_ptr, ffi::Optional<PrimExpr> offset = std::nullopt) {
-    // The second arg of T.access_ptr call is offset, we set it to 0 and accumulate it to
-    // smem_offset
-    TVM_FFI_ICHECK(access_ptr->IsInstance<CallNode>())
-        << "Invalid access ptr for permuted layout: " << access_ptr;
-    auto access_ptr_call = access_ptr.as_or_throw<Call>();
-    TVM_FFI_ICHECK(access_ptr_call->op.same_as(tirx::access_ptr_op()))
-        << "Invalid access ptr for permuted layout: " << access_ptr;
+  // Decode physical byte additions around a logical tensor address.  Keep the
+  // logical load untouched here: the intrinsic's explicit offset must be added
+  // before applying the permutation, and visiting the load first would swizzle twice.
+  TensorVar DecodePointer(Expr pointer, PrimExpr* byte_offset) {
+    if (const auto* call = pointer.as<CallNode>()) {
+      if (call->op.same_as(tirx::ptr_byte_offset_op())) {
+        *byte_offset =
+            *byte_offset +
+            Mutate(call->args[1]).ValueOrUnchanged(call->args[1]).as_or_throw<PrimExpr>();
+        return DecodePointer(call->args[0], byte_offset);
+      }
+      if (call->op.same_as(tirx::reinterpret_op())) {
+        return DecodePointer(call->args[0], byte_offset);
+      }
+      if (call->op.same_as(tirx::address_of_op())) {
+        const auto* load = call->args[0].as<TensorLoadNode>();
+        TVM_FFI_ICHECK(load) << "Expected a tensor address for permuted layout";
+        TensorVar buffer = load->source.as_or_throw<TensorVar>();
+        auto indices = Mutate(load->indices)
+                           .ValueOrUnchanged(load->indices)
+                           .as_or_throw<ffi::Array<PrimExpr>>();
+        auto flat_indices = buffer->ElemOffset(indices);
+        if (buffer->layout.has_value()) {
+          auto coordinates = buffer->layout.value()->Canonicalize()->Apply(indices, buffer->shape);
+          TVM_FFI_ICHECK_EQ(coordinates.size(), 1U);
+          flat_indices = {(*coordinates.begin()).second + buffer->elem_offset};
+        }
+        TVM_FFI_ICHECK_EQ(flat_indices.size(), 1U);
+        PrimType dtype = buffer->dtype;
+        int bytes = (dtype.bits() * dtype.lanes() + 7) / 8;
+        *byte_offset = *byte_offset + flat_indices[0] * bytes;
+        return buffer;
+      }
+    }
+    auto data_var = GetBufferDataVar(pointer);
+    TVM_FFI_ICHECK(data_var.has_value()) << "Expected a tensor pointer, received " << pointer;
+    auto it = buffer_map_.find(data_var.value());
+    TVM_FFI_ICHECK(it != buffer_map_.end()) << "Unknown tensor pointer: " << pointer;
+    return it->second;
+  }
 
-    auto data_var = GetBufferDataVar(access_ptr_call->args[0]);
-    TVM_FFI_ICHECK(data_var.has_value())
-        << "Expected a buffer data expression, but received " << access_ptr_call->args[0];
-    auto buffer_map_iter = buffer_map_.find(data_var.value());
-    TVM_FFI_ICHECK(buffer_map_iter != buffer_map_.end())
-        << "The buffer corresponding to data Var " << access_ptr_call->args[0] << " is not found";
-    int buffer_row_size = CheckAndGetBufferRowSize(buffer_map_iter->second);
-
-    PrimExpr smem_offset = access_ptr_call->args[1].as_or_throw<PrimExpr>() +
-                           (offset.has_value() ? offset.value() : 0);
-
-    // Convert offset to 2-dimension, reindex it and convert it back
-    PrimExpr row_idx = floordiv(smem_offset, buffer_row_size);
-    PrimExpr col_idx = floormod(smem_offset, buffer_row_size);
-
-    auto new_indices = PermuteIndices(row_idx, col_idx, buffer_row_size);
-    auto new_offset = analyzer_->Simplify(new_indices[0] * buffer_row_size + new_indices[1]);
-
-    auto new_access_ptr = access_ptr_call.CopyOnWrite();
-    new_access_ptr->args.Set(1, new_offset);
-    return access_ptr_call;
+  Expr PermutePointer(Expr pointer, ffi::Optional<PrimExpr> offset = std::nullopt) {
+    PrimExpr byte_offset = PrimExpr(0);
+    TensorVar buffer = DecodePointer(pointer, &byte_offset);
+    PrimType dtype = buffer->dtype;
+    int bytes = (dtype.bits() * dtype.lanes() + 7) / 8;
+    int row_size = CheckAndGetBufferRowSize(buffer);
+    PrimExpr smem_offset = floordiv(byte_offset, bytes) + offset.value_or(PrimExpr(0));
+    auto indices =
+        PermuteIndices(floordiv(smem_offset, row_size), floormod(smem_offset, row_size), row_size);
+    PrimExpr new_bytes = analyzer_->Simplify((indices[0] * row_size + indices[1]) * bytes +
+                                             floormod(byte_offset, bytes));
+    return Call(pointer->ty, tirx::ptr_byte_offset_op(), {buffer.data(), new_bytes});
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    // Rewrite from/to shared or shared.dyn to/from local
-    auto call = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
-                    .ValueOrUnchanged(ffi::GetRef<Expr>(op))
-                    .as_or_throw<Call>();
-
-    if (!permute_) {
-      return call;
-    }
-
     static const Op ptx_ldmatrix_op = Op::Get("tirx.ptx_legacy.ldmatrix");
     static const Op mma_store_op = Op::Get("tirx.cuda.mma_store");
-    if (!call->op.same_as(ptx_ldmatrix_op) && !call->op.same_as(mma_store_op)) {
-      return call;
+    if (!permute_ || (!op->op.same_as(ptx_ldmatrix_op) && !op->op.same_as(mma_store_op))) {
+      return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
     }
-
-    if (call->op.same_as(ptx_ldmatrix_op)) {
-      // form: T.ptx_legacy.ldmatrix(..., smem_ptr, smem_offset)
-      // smem_ptr: T.access_ptr(ptype, data, offset, extent, rw_mask)
-      Expr access_ptr = call->args[5];
-      PrimExpr smem_offset = call->args[6].as_or_throw<PrimExpr>();
-      auto new_access_ptr = HandleAccessPtrAndOffset(access_ptr, smem_offset);
-      auto new_call = call.CopyOnWrite();
-      new_call->args.Set(5, new_access_ptr);
-      new_call->args.Set(6, IntImm(smem_offset.ty(), 0));
-      return call;
-    } else if (call->op.same_as(mma_store_op)) {
-      // TODO(yixin): mma_store is not fully tested yet
-      // because we will directly store result to TensorVar instead of calling mma_store now
-      Expr access_ptr = call->args[2];
-      auto new_access_ptr = HandleAccessPtrAndOffset(access_ptr);
-      auto new_call = call.CopyOnWrite();
-      new_call->args.Set(2, new_access_ptr);
-      return call;
+    bool is_ldmatrix = op->op.same_as(ptx_ldmatrix_op);
+    int pointer_index = is_ldmatrix ? 5 : 2;
+    ffi::Array<Expr> args;
+    for (int i = 0; i < static_cast<int>(op->args.size()); ++i) {
+      args.push_back(i == pointer_index ? op->args[i]
+                                        : Mutate(op->args[i]).ValueOrUnchanged(op->args[i]));
+    }
+    if (is_ldmatrix) {
+      PrimExpr offset = args[6].as_or_throw<PrimExpr>();
+      args.Set(pointer_index, PermutePointer(args[pointer_index], offset));
+      args.Set(6, IntImm(offset.ty(), 0));
     } else {
-      TVM_FFI_THROW(InternalError) << "Invalid call node: " << call;
+      args.Set(pointer_index, PermutePointer(args[pointer_index]));
     }
+    return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
   }
 
   static constexpr size_t VECTORIZE_FACTOR = 8;

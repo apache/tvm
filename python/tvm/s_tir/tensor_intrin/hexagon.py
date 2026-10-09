@@ -103,10 +103,10 @@ def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
             Ts.reads(C[0:32], A[0:4], B[0:32, 0:4])
             Ts.writes(C[0:32])
 
-            A_u8x4 = A.vload([0], "uint8x4")
+            A_u8x4 = A[T.Ramp(0, 1, 4)]
             A_i32 = T.reinterpret(A_u8x4, ty="int32")
 
-            B_i8x128 = B.vload([0, 0], dtype="uint8x128")
+            B_i8x128 = B[0, T.Ramp(0, 1, 128)]
             B_i32x32 = T.reinterpret(B_i8x128, ty="int32x32")
 
             C[T.ramp(T.int32(0), 1, 32)] = T.call_llvm_pure_intrin(
@@ -146,10 +146,10 @@ def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
             Ts.reads(C[0:32], A[0:4], B[0:32, 0:4])
             Ts.writes(C[0:32])
 
-            A_u8x4 = A.vload([0], "uint8x4")
+            A_u8x4 = A[T.Ramp(0, 1, 4)]
             A_i32 = T.reinterpret(A_u8x4, ty="int32")
 
-            B_i8x128 = B.vload([0, 0], dtype="int8x128")
+            B_i8x128 = B[0, T.Ramp(0, 1, 128)]
             B_i32x32 = T.reinterpret(B_i8x128, ty="int32x32")
 
             C[T.ramp(T.int32(0), 1, 32)] = T.call_llvm_pure_intrin(
@@ -189,10 +189,10 @@ def generate_dot_product_32x2_i16i16i32(mem_scope="global"):
             Ts.reads(C[0:32], A[0:2], B[0:32, 0:2])
             Ts.writes(C[0:32])
 
-            A_i16x2 = A.vload([0], "int16x2")
+            A_i16x2 = A[T.Ramp(0, 1, 2)]
             A_i32 = T.reinterpret(A_i16x2, ty="int32")
 
-            B_i16x64 = B.vload([0, 0], dtype="int16x64")
+            B_i16x64 = B[0, T.Ramp(0, 1, 64)]
             B_i32x32 = T.reinterpret(B_i16x64, ty="int32x32")
 
             C[T.ramp(T.int32(0), 1, 32)] = T.call_llvm_pure_intrin(

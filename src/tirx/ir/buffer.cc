@@ -413,10 +413,6 @@ inline PrimExpr MergeMulMod(sym::AnalyzerObj* analyzer, const PrimExpr& base) {
   return no_opt_sum.value();
 }
 
-ffi::Array<PrimExpr> TensorVar::OffsetOf(ffi::Array<PrimExpr> input_indices) const {
-  return (*this)->ElemOffset(std::move(input_indices));
-}
-
 // The buffer offset in convention of number of elements of
 // original data ignoring number of lanes.
 // We also perform optimization to simplify the indexing expression.
@@ -454,205 +450,8 @@ ffi::Array<PrimExpr> TensorTypeNode::ElemOffset(ffi::Array<PrimExpr> input_indic
   return SimplifyArray(ana.get(), {output_index});
 }
 
-inline ffi::Array<PrimExpr> BufferOffset(const TensorTypeNode* n, ffi::Array<PrimExpr> index,
-                                         PrimType dtype) {
-  ffi::Array<PrimExpr> offsets = n->ElemOffset(index);
-  // If the TensorVar has element type with more than one lane, scale to
-  // get the offset in number of scalars.
-  if (PrimType(n->dtype).lanes() != 1) {
-    PrimExpr last_offset = offsets[offsets.size() - 1];
-    offsets.Set(offsets.size() - 1, last_offset * MakeConst(last_offset.ty(), dtype.lanes()));
-  }
-
-  // If the requested type has more than one lane, make a RampNode at
-  // that offset.
-  if (dtype.lanes() != 1) {
-    PrimExpr last_offset = offsets[offsets.size() - 1];
-    PrimExpr stride = MakeConst(last_offset.ty(), 1);
-    offsets.Set(offsets.size() - 1, prim::Ramp(last_offset, stride, dtype.lanes()));
-  }
-
-  return offsets;
-}
-
-TensorVar TensorVar::GetFlattenedTensor() const {
-  auto self = operator->();
-
-  ffi::Array<PrimExpr> output_shape{1};
-  if (self->strides.size()) {
-    // If strides are defined, the flattened extent is the span of the
-    // outermost input axis.
-    TVM_FFI_ICHECK_EQ(self->shape.size(), self->strides.size());
-    output_shape.Set(0, self->strides[0] * self->shape[0]);
-  } else {
-    // Otherwise, the flattened extent is the product of the input extents.
-    // This also flattens rank-0 tensors to a rank-1 buffer of shape [1].
-    for (size_t i = 0; i < self->shape.size(); i++) {
-      output_shape.Set(0, output_shape[0] * self->shape[i]);
-    }
-  }
-
-  if (output_shape.size() == self->shape.size() && self->strides.empty()) {
-    return *this;
-  } else {
-    // Keep `layout` in sync with `shape`. The old layout describes the
-    // pre-flatten N-D shape (e.g. `S[(16,16):(16,1)]`); after collapsing
-    // shape to 1-D, that layout no longer matches the buffer's rank and
-    // structural compares against a freshly-decl'd 1-D buffer would diff
-    // (see test_tir_transform_flatten_buffer). Reset to the default layout
-    // for the new shape so the buffer stays internally consistent.
-    return RebuildTensorVarFromType(
-        *this, TensorType(self->storage_scope, self->dtype, output_shape, {}, self->elem_offset,
-                          self->data_alignment, self->offset_factor,
-                          TileLayoutNode::DefaultLayout(output_shape)));
-  }
-}
-
-PrimExpr TensorVar::vload(ffi::Array<PrimExpr> begin, PrimType value_dtype) const {
-  const TensorTypeNode* n = operator->();
-  TVM_FFI_ICHECK(n != nullptr);
-  PrimType buffer_dtype(n->dtype);
-  int value_lanes =
-      value_dtype.IsScalableVector() ? value_dtype.VScaleFactor() : value_dtype.lanes();
-  int buffer_lanes =
-      buffer_dtype.IsScalableVector() ? buffer_dtype.VScaleFactor() : buffer_dtype.lanes();
-  TVM_FFI_ICHECK(value_dtype.WithLanes(1)->dtype == buffer_dtype.WithLanes(1)->dtype &&
-                 value_lanes % buffer_lanes == 0)
-      << "Cannot load " << value_dtype << " from buffer of " << n->dtype;
-
-  ffi::Array<PrimExpr> indices = begin;
-  PrimExpr base = indices[indices.size() - 1];
-  if (value_dtype.IsFixedLengthVector()) {
-    int factor = value_dtype.lanes() / buffer_dtype.lanes();
-    PrimType base_ty = base.ty();
-    if (factor > 1 && !base_ty.IsFixedLengthVector() && !base_ty.IsScalableVector()) {
-      indices.Set(indices.size() - 1, prim::Ramp(base, 1, factor));
-    }
-  }
-  return MakeTensorLoad(*this, indices);
-}
-
-Stmt TensorVar::vstore(ffi::Array<PrimExpr> begin, PrimExpr value) const {
-  const TensorTypeNode* n = operator->();
-  TVM_FFI_ICHECK(n != nullptr);
-  PrimType value_dtype = value.ty();
-  PrimType buffer_dtype(n->dtype);
-  int value_lanes =
-      value_dtype.IsScalableVector() ? value_dtype.VScaleFactor() : value_dtype.lanes();
-  int buffer_lanes =
-      buffer_dtype.IsScalableVector() ? buffer_dtype.VScaleFactor() : buffer_dtype.lanes();
-  TVM_FFI_ICHECK(value_dtype.WithLanes(1)->dtype == buffer_dtype.WithLanes(1)->dtype &&
-                 value_lanes % buffer_lanes == 0)
-      << "Cannot store " << value_dtype << " to buffer of " << n->dtype;
-
-  ffi::Array<PrimExpr> indices = begin;
-  PrimExpr base = indices[indices.size() - 1];
-  if (value_dtype.IsFixedLengthVector()) {
-    int factor = value_dtype.lanes() / buffer_dtype.lanes();
-    PrimType base_ty = base.ty();
-    if (factor > 1 && !base_ty.IsFixedLengthVector() && !base_ty.IsScalableVector()) {
-      indices.Set(indices.size() - 1, prim::Ramp(base, 1, factor));
-    }
-  }
-  return TensorStore(*this, indices, value);
-}
-
-ffi::String TensorVar::scope() const { return (*this)->storage_scope; }
-
-TensorVar TensorVar::MakeStrideView() const {
-  if ((*this)->strides.size() != 0) return *this;
-  if ((*this)->shape.size() == 0) return *this;
-  const TensorTypeNode* self = operator->();
-  TVM_FFI_ICHECK(self != nullptr);
-  PrimExpr acc = IntImm(PrimType(self->DefaultIndexType()), 1);
-  std::vector<PrimExpr> temp;
-  for (size_t i = self->shape.size(); i != 0; --i) {
-    temp.push_back(acc);
-    acc = acc * self->shape[i - 1];
-  }
-  ffi::Array<PrimExpr> strides;
-  for (size_t i = temp.size(); i != 0; --i) {
-    strides.push_back(temp[i - 1]);
-  }
-  return RebuildTensorVarFromType(
-      *this,
-      TensorType(self->storage_scope, self->dtype, self->shape, std::move(strides),
-                 self->elem_offset, self->data_alignment, self->offset_factor, self->layout));
-}
-
-TensorVar TensorVar::MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> extents) const {
-  const TensorTypeNode* n = operator->();
-  TVM_FFI_ICHECK(n != nullptr);
-  sym::Analyzer ana;
-  begins = SimplifyArray(ana.get(), begins);
-  ffi::Array<PrimExpr> elem_offset =
-      n->ElemOffset(begins).Map([&](const PrimExpr& expr) { return ana->Simplify(expr); });
-
-  ffi::Array<PrimExpr> strides = n->strides;
-  if (strides.size() == 0) {
-    bool can_relax = true;
-    bool need_stride = false;
-    // check if stride is needed.
-    for (size_t i = 0; i < extents.size(); ++i) {
-      if (!can_relax) {
-        if (!IsZero(begins[i]) || !IsZero(ana->Simplify(extents[i] - n->shape[i]))) {
-          need_stride = true;
-        }
-      }
-      if (!IsOne(extents[i])) can_relax = false;
-    }
-    // make stride.
-    if (need_stride) {
-      return MakeStrideView().MakeSlice(begins, extents);
-    }
-  }
-  return RebuildTensorVarFromType(
-      *this,
-      TensorType(n->storage_scope, n->dtype, extents, strides, elem_offset[0], n->data_alignment, 0,
-                 TileLayoutNode::DefaultLayout(extents)),
-      "_slice");
-}
-
-Expr TensorVar::access_ptr(int access_mask, PointerType ptr_type, int content_lanes,
-                           PrimExpr offset, ffi::Optional<PrimExpr> input_extent) const {
-  const TensorTypeNode* self = operator->();
-  TVM_FFI_ICHECK(self != nullptr);
-  // An access pointer addresses the same allocation as the buffer data.  The
-  // requested type controls its pointee, while the buffer controls its address
-  // space (for example, shared or local memory).
-  ptr_type = PointerType(ptr_type->element_type, self->storage_scope);
-  PrimType access_dtype = self->dtype;
-  PrimExpr extent{ffi::UnsafeInit{}};
-  if (self->shape.size() == 0) {
-    extent = IntImm(PrimType(self->DefaultIndexType()), 1);
-  } else if (self->strides.size() == self->shape.size()) {
-    int highest_dim = 0;
-    extent = self->strides[highest_dim] * self->shape[highest_dim] - offset;
-  } else {
-    extent = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                   IntImm::Int32(1), self->shape) -
-             offset;
-  }
-  PrimExpr elem_offset = self->elem_offset + offset;
-  if (content_lanes > 1) {
-    access_dtype = PrimType(self->dtype).WithLanes(content_lanes);
-    extent = extent / MakeConst(self->elem_offset.ty(), content_lanes);
-    elem_offset = self->elem_offset / MakeConst(self->elem_offset.ty(), content_lanes);
-  }
-
-  if (input_extent.has_value()) {
-    extent = input_extent.value();
-  }
-  ffi::Array<Expr> acc_args{data(), elem_offset, extent, IntImm::Int32(access_mask)};
-  return Call(ptr_type, tirx::access_ptr_op(), acc_args, {}, {access_dtype});
-}
-
 TensorVar::TensorVar(ffi::String name, TensorType type, Span span)
     : Var(Var(std::move(name), std::move(type), std::move(span))) {}
-
-Expr TensorVar::data() const {
-  return Call(DataPointerType(), tirx::tensor_data_ptr_op(), {var()});
-}
 
 tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
                                           std::string name, int data_alignment, int offset_factor,
@@ -666,14 +465,6 @@ tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType d
       name, TensorType(memory_scope, dtype, shape, {}, elem_offset, data_alignment, offset_factor));
 }
 
-TensorVar TensorVar::with_dtype(PrimType dtype) const {
-  const auto* self = operator->();
-  return RebuildTensorVarFromType(
-      *this,
-      TensorType(self->storage_scope, std::move(dtype), self->shape, self->strides,
-                 self->elem_offset, self->data_alignment, self->offset_factor, self->layout));
-}
-
 bool TensorVar::IsScalar(bool alloc_or_decl) const { return type()->IsScalar(alloc_or_decl); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -683,19 +474,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](ffi::String name, TensorType type, Span span) {
              return TensorVar(std::move(name), std::move(type), std::move(span));
            })
-      .def_method(
-          "tirx.TensorAccessPtr",
-          static_cast<Expr (TensorVar::*)(int, PointerType, int, PrimExpr, ffi::Optional<PrimExpr>)
-                          const>(&TensorVar::access_ptr))
-      .def_method("tirx.TensorGetFlattenedTensor", &TensorVar::GetFlattenedTensor)
-      .def_method("tirx.TensorOffsetOf", &TensorVar::OffsetOf)
-      .def_method("tirx.TensorVLoad", &TensorVar::vload)
-      .def_method("tirx.TensorVStore", &TensorVar::vstore)
       .def_method("tirx.TensorStorageScope", &TensorVar::scope)
-      .def_method("tirx.TensorWithDtype", &TensorVar::with_dtype)
       .def_method("tirx.TensorIsScalar", &TensorVar::IsScalar)
-      .def_method("tirx.TensorData", &TensorVar::data)
-      .def_method("tirx.TensorDataPointerType", &TensorVar::DataPointerType);
+      .def_method("tirx.TensorData", &TensorVar::data);
 }
 
 }  // namespace tirx

@@ -104,7 +104,7 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
       args.push_back(IntImm::Int64(channel_size));
       stmt = Bind(op->var.as_or_throw<TensorVar>(),
                   Call(op->var.as_or_throw<TensorVar>().type(), tirx::decl_tensor_op(),
-                       {Call(op->var.as_or_throw<TensorVar>().DataPointerType(),
+                       {Call(op->var.as_or_throw<TensorVar>().type()->DataPointerType(),
                              tvm::backend::opencl::nd_mem_alloc_with_scope_op(), args),
                         tvm::Tuple(op->var.as_or_throw<TensorVar>()->shape),
                         DataTypeImm(op->var.as_or_throw<TensorVar>()->dtype->dtype),

@@ -1048,57 +1048,14 @@ def gpu_warp_activemask(*, ty=None, span=None):
     return call_intrin(ty, "tirx.gpu_warp_activemask", span=span)
 
 
-def access_ptr(ptype, data, offset, extent, rw_mask, *, ty=None, span=None):
-    """Get head access address with memory access pattern info
+def ptr_byte_offset(data, byte_offset, *, ty, span=None):
+    """Return ``data + byte_offset`` with pointer type ``ty``.
 
-    Parameters
-    ----------
-    ptype : PrimType or str
-        The accessed element type. Offsets and extents are in units of this type.
-
-    data : DType*
-        The data of pointer.
-
-    offset : int
-        The offset of pointer.
-
-    extent : int
-        The extent of pointer.
-
-    rw_mask : int
-        The read write mask.
-
-    Returns
-    -------
-    call : Expr
-        The call expression.
+    ``byte_offset`` is always in bytes. ``ty`` specifies both the result
+    element type and storage scope.
     """
-    ptype = PrimType(ptype) if isinstance(ptype, str) else ptype
-    return Call(
-        "tirx.access_ptr",
-        [data, offset, extent, rw_mask],
-        ty=ty,
-        ty_args=[ptype],
-        span=span,
-    )
+    return call_intrin(ty, "tirx.ptr_byte_offset", data, byte_offset, span=span)
 
-
-def ptr_byte_offset(data, byte_offset, dtype, *, ty=None, span=None):
-    """Cast ``data + byte_offset`` to ``dtype*``.
-
-    ``byte_offset`` is always in bytes.  Use this when the source CUDA shape
-    needs an explicitly typed local pointer derived from a byte-addressed base.
-    """
-    dtype = PrimType(dtype) if isinstance(dtype, str) else dtype
-    data_type = getattr(data, "ty", None)
-    storage_scope = data_type.storage_scope if isinstance(data_type, PointerType) else "global"
-    return call_intrin(
-        PointerType(dtype, storage_scope) if ty is None else ty,
-        "tirx.ptr_byte_offset",
-        data,
-        byte_offset,
-        span=span,
-    )
 
 
 def throw_last_error(*, ty=None, span=None):

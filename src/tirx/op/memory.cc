@@ -44,17 +44,10 @@ Type InferTypePointerOffset(const CallNode* call) {
   return PointerType(element_type, pointer ? pointer.value()->storage_scope : "global");
 }
 
-Type InferTypeAccessPointer(const CallNode* call) {
-  TVM_FFI_CHECK_EQ(call->ty_args.size(), 1U, ValueError);
-  TVM_FFI_CHECK_EQ(call->args.size(), 4U, ValueError);
-  auto pointer = call->args[0]->ty.as<PointerType>();
-  return PointerType(call->ty_args[0], pointer ? pointer.value()->storage_scope : "global");
-}
-
 Type InferTypeAddressOf(const CallNode* call) {
   TVM_FFI_CHECK_GE(call->args.size(), 1U, ValueError) << "Address type requires an object";
   if (const auto* load = call->args[0].as<TensorLoadNode>()) {
-    return load->source.as_or_throw<TensorVar>().DataPointerType();
+    return load->source.as_or_throw<TensorVar>().type()->DataPointerType();
   }
   Var variable = call->args[0].as_or_throw<Var>();
   if (auto pointer = variable->ty.as<PointerType>();
@@ -79,7 +72,7 @@ Type InferTypeMaskedLoad(const CallNode* call) {
 ffi::Expected<Type> InferTypeTensorDataPtr(const CallNode* call) noexcept try {
   TVM_FFI_CHECK_EQ(call->args.size(), 1U, ValueError)
       << "tirx.tensor_data_ptr expects one TensorVar argument";
-  Type inferred = call->args[0].as_or_throw<TensorVar>().DataPointerType();
+  Type inferred = call->args[0].as_or_throw<TensorVar>().type()->DataPointerType();
   if (call->ty.same_as(inferred) || ffi::StructuralEqual()(call->ty, inferred)) return call->ty;
   return inferred;
 } catch (const ffi::Error& error) {
@@ -239,24 +232,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("cache_type", "The cache policy."))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-}
-
-const Op& access_ptr_op() {
-  static const Op op = Op::Get("tirx.access_ptr");
-  return op;
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.access_ptr")
-      .signature(sig::ty_arg<PrimType>("access_dtype", "The accessed element type."),
-                 sig::arg("data", "The input data."), sig::arg<IntExpr>("offset", "The offset."),
-                 sig::arg<IntExpr>("extent", "The extent."),
-                 sig::arg<IntExpr>("rw_mask", "The read/write mask."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.access_ptr"))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAccessPointer>())
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind",
-                                 static_cast<int64_t>(CallEffectKind::kSpecialCallArg));
 }
 
 const Op& ptr_byte_offset_op() {

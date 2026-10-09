@@ -340,7 +340,7 @@ def opaque_access_load(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None
             vi, vj = Ts.axis.remap("SS", [i, j])
             Ts.reads(B[0:128, 0:128])
             Ts.writes(C[0:128, 0:128])
-            T.evaluate(B.access_ptr("r", extent=128))
+            T.evaluate(B.ptr_to([0] * len(B.shape)))
             C[vi, vj] = B[vi, vj] + 1.0
 
 
@@ -357,8 +357,8 @@ def opaque_access_store(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> Non
             vi, vj = Ts.axis.remap("SS", [i, j])
             Ts.reads(B[0:128, 0:128])
             Ts.writes(C[0:128, 0:128])
-            T.evaluate(B.access_ptr("r", extent=128))
-            T.evaluate(C.access_ptr("w", extent=128))
+            T.evaluate(B.ptr_to([0] * len(B.shape)))
+            T.evaluate(C.ptr_to([0] * len(C.shape)))
             C[vi, vj] = B[vi, vj] + 1.0
 
 
@@ -431,8 +431,8 @@ def access_opaque_ptr_then_elemwise(A: T.Tensor([1024]), B: T.Tensor([1024])) ->
         # annotated opaque partial access
         Ts.reads(A[0:512])
         Ts.writes(A_cache[0:512])
-        T.evaluate(A.access_ptr("r", extent=512))
-        T.evaluate(A_cache.access_ptr("w", extent=512))
+        T.evaluate(A.ptr_to([0] * len(A.shape)))
+        T.evaluate(A_cache.ptr_to([0] * len(A_cache.shape)))
     for i in range(512):
         with Ts.sblock("BB"):
             vi = Ts.axis.remap("S", [i])
@@ -452,8 +452,8 @@ def access_opaque_ptr_then_elemwise_inline(
         # annotated opaque partial access should be kept
         Ts.reads(A[0:512])
         Ts.writes([A_cache[0:512]])
-        T.evaluate(A.access_ptr("r", extent=512))
-        T.evaluate(A_cache.access_ptr("w", extent=512))
+        T.evaluate(A.ptr_to([0] * len(A.shape)))
+        T.evaluate(A_cache.ptr_to([0] * len(A_cache.shape)))
     for i in T.serial(0, 512):
         with Ts.sblock("B"):
             vi = Ts.axis.spatial(512, i)
@@ -537,7 +537,7 @@ def inline_block_with_init(
 
 
 @Ts.function
-def exp_exp_opaque_access_with_tvm_access_ptr(
+def exp_exp_opaque_access_with_pointer(
     lookup_table: T.Tensor((1024,), "int8"),
     x: T.Tensor((16,), "float16"),
     compute: T.Tensor((16,), "float16"),
@@ -554,14 +554,14 @@ def exp_exp_opaque_access_with_tvm_access_ptr(
             i0_2 = Ts.axis.spatial(16, i0)
             Ts.reads(lookup_table[0:1024], compute_1[i0_2])
             Ts.writes(compute[i0_2])
-            T.evaluate(lookup_table.access_ptr("r"))
+            T.evaluate(lookup_table.ptr_to([0] * len(lookup_table.shape)))
             compute[i0_2] = T.exp(
                 compute_1[i0_2],
             )
 
 
 @Ts.function
-def exp_exp_opaque_access_with_tvm_access_ptr_inlined(
+def exp_exp_opaque_access_with_pointer_inlined(
     lookup_table: T.Tensor((1024,), "int8"),
     x: T.Tensor((16,), "float16"),
     compute: T.Tensor((16,), "float16"),
@@ -570,10 +570,10 @@ def exp_exp_opaque_access_with_tvm_access_ptr_inlined(
         with Ts.sblock("compute_1"):
             i0_1 = Ts.axis.spatial(16, i0)
             # Do not put the opaque access to new write region when opaque access
-            # wrapped with a access_ptr and the access mask set to "read only"
+            # described by the explicit read region
             Ts.reads(lookup_table[0:1024], x[i0_1])
             Ts.writes(compute[i0_1])
-            T.evaluate(lookup_table.access_ptr("r"))
+            T.evaluate(lookup_table.ptr_to([0] * len(lookup_table.shape)))
             compute[i0_1] = T.exp(
                 T.exp(x[i0_1]),
             )
@@ -1202,13 +1202,13 @@ def test_inline_block_with_init():
         sch.compute_inline(block=block)
 
 
-def test_compute_inline_opaque_access_with_tvm_access_ptr(use_block_name):
-    """Test opaque access with access_ptr after compute inline"""
-    sch = tvm.s_tir.Schedule(exp_exp_opaque_access_with_tvm_access_ptr, debug_mask="all")
+def test_compute_inline_opaque_access_with_pointer(use_block_name):
+    """Test opaque access with pointer after compute inline"""
+    sch = tvm.s_tir.Schedule(exp_exp_opaque_access_with_pointer, debug_mask="all")
     compute = "compute" if use_block_name else sch.get_sblock("compute")
     sch.compute_inline(compute)
     assert_structural_equal_ignore_global_symbol(
-        exp_exp_opaque_access_with_tvm_access_ptr_inlined, sch.mod["main"]
+        exp_exp_opaque_access_with_pointer_inlined, sch.mod["main"]
     )
 
 

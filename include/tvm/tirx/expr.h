@@ -28,6 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/type.h>
 
 #include <string>
@@ -70,68 +71,10 @@ class TensorVar : public Var {
   const Span& span() const { return get()->span; }
 
   /*! \brief Project the physical pointer established by the definition site. */
-  TVM_DLL Expr data() const;
+  Expr data() const { return Call(type()->DataPointerType(), tensor_data_ptr_op(), {var()}); }
 
-  /*!
-   * \brief Return a new buffer that is equivalent with current one
-   *  but always add stride field.
-   * \return The strided version of the buffer.
-   */
-  TVM_DLL TensorVar MakeStrideView() const;
-  /*!
-   * \brief Make a new symbolic buffer representing a slice of the buffer.
-   * \param begins The beginning position of each dimension.
-   * \param extents The extent of each dimension.
-   * \note This function will make target buffer as compact as possible.
-   *  If stride is not needed in the slice, it won't be presented
-   * \return the result buffer.
-   */
-  TVM_DLL TensorVar MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> extents) const;
-  /*!
-   * \brief Get access ptr to the entire buffer.
-   * \param access_mask The access mask
-   * \param ptr_type The type of the pointer.
-   * \param content_lanes The number of lanes for the (data) type.
-   * \param offset The offset of ptr.
-   * \param input_extent The extent of ptr.
-   */
-  TVM_DLL Expr access_ptr(int access_mask, PointerType ptr_type = PointerType::VoidPointerTy(),
-                          int content_lanes = 1, PrimExpr offset = IntImm::Int32(0),
-                          ffi::Optional<PrimExpr> input_extent = std::nullopt) const;
-  /*!
-   * \brief Create an Expr that does a vector load at begin index.
-   * \param begin The beginning index
-   * \param dtype The data type to be loaded.
-   */
-  TVM_DLL PrimExpr vload(ffi::Array<PrimExpr> begin, PrimType dtype) const;
-  /*!
-   * \brief Create a Stmt that does a vector store at begin index.
-   * \param begin The beginning index
-   * \param value The value to be stored.
-   */
-  TVM_DLL Stmt vstore(ffi::Array<PrimExpr> begin, PrimExpr value) const;
-
-  /*!
-   * \brief Get a flattened version of the buffer.
-   *
-   * If flattening changes the type, the result is a fresh TensorVar.  Callers
-   * that use it as a view over this buffer must bind the returned variable with
-   * a `Bind` of `flattened` to a `decl_tensor` Call over `this->data()`.
-   */
-  TensorVar GetFlattenedTensor() const;
-
-  /*! \brief Determine the offset in the buffer of the given index.
-   *
-   * Returns the buffer offset, in number of elements of type dtype,
-   * without adjusting for number of lanes.  (e.g. The number of
-   * float16x4 elements in a buffer of type float16x4.)
-   */
-  ffi::Array<PrimExpr> OffsetOf(ffi::Array<PrimExpr> index) const;
-
-  /*!
-   * \brief Return the storage scope associated with this buffer.
-   */
-  TVM_DLL ffi::String scope() const;
+  /*! \brief Return the storage scope associated with this buffer. */
+  ffi::String scope() const { return (*this)->storage_scope; }
 
   /*!
    * \brief Return a new buffer with the allocated address.
@@ -144,16 +87,8 @@ class TensorVar : public Var {
    */
   TVM_DLL bool IsScalar(bool alloc_or_decl = true) const;
 
-  /*!
-   * \brief Return a new buffer with the dtype.
-   */
-  TVM_DLL TensorVar with_dtype(PrimType dtype) const;
-
   /*! \return primitive element type for compiler-side uses. */
   PrimType ElementType() const { return (*this)->ElementType(); }
-
-  /*! \return type of the physical pointer projected by tensor_data_ptr. */
-  PointerType DataPointerType() const { return (*this)->DataPointerType(); }
 
   explicit TensorVar(ffi::ObjectPtr<VarNode> node) : Var(std::move(node)) {}
   explicit TensorVar(ffi::UnsafeInit tag) : Var(tag) {}

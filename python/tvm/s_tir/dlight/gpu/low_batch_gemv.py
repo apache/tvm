@@ -34,6 +34,7 @@ from ..analysis import (
     is_broadcast_epilogue,
     normalize_function,
 )
+from ..analysis.common_analysis import _buffer_region_offset
 from ..base import auto_vectorize, get_bytes, get_extent, try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
@@ -142,8 +143,7 @@ def detect_dominant_read(block: s_tir.SBlock, const_iter_vars: set[tirx.Var]) ->
             num_read_iters = len(tir_vars)
             dominant_read = buffer_region
     assert dominant_read is not None
-    (result,) = dominant_read.source.offset_of([e.min for e in dominant_read.region])
-    return result
+    return _buffer_region_offset(dominant_read)
 
 
 def normalize(

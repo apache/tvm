@@ -63,12 +63,12 @@ def neon_4x4_i8i8i32_impl(
         Ts.reads(C[0:4], A[0:4], B[0:4, 0:4])
         Ts.writes(C[0:4])
 
-        A_int8 = A.vload([0], "int8x4")
+        A_int8 = A[T.Ramp(0, 1, 4)]
         re_int32 = T.reinterpret(A_int8, ty="int32")
         vec_ai32 = T.broadcast(re_int32, 2)
         vec_a = T.reinterpret(vec_ai32, ty="int8x8")
 
-        vec_b = B.vload([0, 0], dtype="int8x16")
+        vec_b = B[0, T.Ramp(0, 1, 16)]
 
         # TODO(masahi): Remove duplication when inlined function call is supported
         vec_b_low = T.vector_low(vec_b, ty="int8x8")
@@ -115,7 +115,6 @@ def get_dotprod_intrin(in_dtype, out_dtype):
     else:  # if in_dtype == "int8"
         instr = "sdot.v4i32.v16i8"
 
-    in_dtype_x4 = f"{in_dtype}x4"
     out_dtype_x4 = f"{out_dtype}x4"
     in_dtype_x16 = f"{in_dtype}x16"
 
@@ -146,14 +145,14 @@ def get_dotprod_intrin(in_dtype, out_dtype):
             Ts.reads(C[0:4], A[0:4], B[0:4, 0:4])
             Ts.writes(C[0:4])
 
-            A_i8x4 = A.vload([0], in_dtype_x4)
+            A_i8x4 = A[T.Ramp(0, 1, 4)]
             A_i32 = T.reinterpret(A_i8x4, ty=out_dtype)
             vec_ai32 = T.broadcast(A_i32, 4)
             vec_a = T.reinterpret(vec_ai32, ty=in_dtype_x16)
 
-            vec_b = B.vload([0, 0], dtype=in_dtype_x16)
+            vec_b = B[0, T.Ramp(0, 1, 16)]
 
-            vec_c = C.vload([0], dtype=out_dtype_x4)
+            vec_c = C[T.Ramp(0, 1, 4)]
 
             C[T.ramp(T.int32(0), 1, 4)] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id(f"llvm.aarch64.neon.{instr}"),
@@ -195,7 +194,9 @@ def _create_active_lane_mask(tensor, relative_offsets, vertical_limit):
     stride = tensor.strides[0]
 
     # The base is the offset of the first value we wish to store
-    base = T.int32(tensor.offset_of([vertical_offset, horizontal_offset])[0])
+    base = T.int32(
+        tensor.elem_offset + vertical_offset * stride + horizontal_offset * tensor.strides[1]
+    )
 
     # The limit is the maximum offset in the current row of 'base' that we wish to allow values
     # to be stored. Calculating this limit is a bit tricky since we can only request offsets of
@@ -203,10 +204,7 @@ def _create_active_lane_mask(tensor, relative_offsets, vertical_limit):
     # the offset of the first value in the row of the output tensor that 'base' is in and add
     # 'stride' to it.
     limit = (
-        base
-        - T.int32(horizontal_offset)
-        - T.int32(tensor.offset_of([0, 0])[0] % stride)
-        + T.int32(stride)
+        base - T.int32(horizontal_offset) - T.int32(tensor.elem_offset % stride) + T.int32(stride)
     )
     limit = T.Min(limit, T.Cast("int32", vertical_limit) * stride)
 
@@ -292,9 +290,8 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
                         for sub_tile_idx in range(0, sub_tile_count):
                             row_offset = SVF if sub_tile_idx >= (sub_tile_count // 2) else 0
                             col_offset = SVF if sub_tile_idx % 2 else 0
-                            offset = (slice_idx + row_offset) * A.strides[0] + col_offset
 
-                            input_ptr = A.access_ptr("r", offset=offset)
+                            input_ptr = A.ptr_to([slice_idx + row_offset, col_offset])
                             sub_tile = T.int32(sub_tile_idx)
                             predicate = _create_active_lane_mask(
                                 A, (row_offset + slice_idx, col_offset), cols
@@ -315,9 +312,8 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
                         for sub_tile_idx in range(0, sub_tile_count):
                             col_offset = SVF if sub_tile_idx >= (sub_tile_count // 2) else 0
                             row_offset = SVF if sub_tile_idx % 2 else 0
-                            offset = (slice_idx + row_offset) * A_t.strides[0] + col_offset
 
-                            output_ptr = A_t.access_ptr("w", offset=offset)
+                            output_ptr = A_t.ptr_to([slice_idx + row_offset, col_offset])
                             sub_tile = T.int32(sub_tile_idx)
                             predicate = _create_active_lane_mask(
                                 A_t, (row_offset + slice_idx, col_offset), rows
@@ -420,8 +416,7 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
                     # Load rows of the input matrix
                     with T.serial(SVF // 2) as slice_idx:
                         for sub_tile_idx in range(2):
-                            offset = slice_idx * A.strides[0] + (SVF * A.strides[0] * sub_tile_idx)
-                            input_ptr = A.access_ptr("r", offset=offset)
+                            input_ptr = A.ptr_to([slice_idx + SVF * sub_tile_idx, 0])
                             T.evaluate(
                                 T.call_llvm_intrin(
                                     "llvm.aarch64.sme.ld1h.horiz",
@@ -432,7 +427,7 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
                                     ty="void",
                                 )
                             )
-                            input_ptr = A.access_ptr("r", offset=offset + (SVF // 2) * A.strides[0])
+                            input_ptr = A.ptr_to([slice_idx + SVF * sub_tile_idx + SVF // 2, 0])
                             T.evaluate(
                                 T.call_llvm_intrin(
                                     "llvm.aarch64.sme.ld1h.horiz",
@@ -447,8 +442,7 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
                     # Store columns to the output matrix
                     with T.serial(SVF // 2) as slice_idx:
                         for sub_tile_idx in range(2):
-                            offset = slice_idx * 2 * A_t.strides[0] + (SVF * sub_tile_idx)
-                            output_ptr = A_t.access_ptr("w", offset=offset)
+                            output_ptr = A_t.ptr_to([slice_idx * 2, SVF * sub_tile_idx])
                             T.evaluate(
                                 T.call_llvm_intrin(
                                     "llvm.aarch64.sme.st1w.vert",
@@ -459,7 +453,7 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
                                     ty="void",
                                 )
                             )
-                            output_ptr = A_t.access_ptr("w", offset=offset + A_t.strides[0])
+                            output_ptr = A_t.ptr_to([slice_idx * 2 + 1, SVF * sub_tile_idx])
                             T.evaluate(
                                 T.call_llvm_intrin(
                                     "llvm.aarch64.sme.st1w.vert",
@@ -692,8 +686,7 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
                         for sub_tile_idx in range(sub_tile_count):
                             vert_offset = SVF if sub_tile_idx >= (sub_tile_count // 2) else 0
                             horiz_offset = SVF if sub_tile_idx % 2 else 0
-                            local_offset = (slice_idx + vert_offset) * C.strides[0] + horiz_offset
-                            output_ptr = C.access_ptr("w", offset=local_offset, extent=SVF)
+                            output_ptr = C.ptr_to([slice_idx + vert_offset, horiz_offset])
 
                             T.evaluate(
                                 T.call_llvm_intrin(

@@ -452,7 +452,7 @@ The common methods and properties:
      - the physical-pointer projection (a ``Call``); lowers to ``B_ptr``
    * - ``B.ptr_to([i, j])``
      - a typed pointer to an element (``address_of``); prints as ``&B_ptr[…]``
-   * - ``B.vload([i], dtype="float32x4")`` / ``B.vstore([i], v)``
+   * - ``B[Tx.Ramp(i, 1, 4)]`` / ``B[Tx.Ramp(i, 1, 4)] = v``
      - a vectorized load / store; prints as ``*(float4*)(B_ptr + …)``
    * - ``B.view(*shape, layout=…)``
      - reinterpret the same storage under a new shape/layout (no copy)
@@ -461,9 +461,9 @@ The common methods and properties:
        in physical storage order by default
    * - ``B.permute(*dims)``
      - a view with axes permuted (a transposed layout)
-   * - ``B.access_ptr(mask, …)``
-     - a masked access pointer (the ``access_ptr`` builtin), for passing a
-       region to an intrinsic
+   * - ``T.ptr_byte_offset(B.data, byte_offset, ty=B.data.ty)``
+     - a typed physical pointer offset in bytes, for passing flat addresses
+       to an intrinsic
 
 **Pointers — ``ptr_to`` / ``data``.** ``ptr_to`` is how you hand an element address
 to an intrinsic or inline function; ``data`` is the base pointer:
@@ -481,12 +481,12 @@ scope. This remains true when the buffer is a typed view over a byte-addressed
 allocation pool; the pool's raw backing-pointer type does not leak through the
 element address.
 
-**Vectorized access — ``vload`` / ``vstore``.** Move several elements as one wide
+**Vectorized access — ``Ramp`` indices.** Move several elements as one wide
 transfer (see also :doc:`data_types`):
 
 .. code-block:: python
 
-    B.vstore([tx * 4], A.vload([tx * 4], dtype="float32x4"))
+    B[Tx.Ramp(tx * 4, 1, 4)] = A[Tx.Ramp(tx * 4, 1, 4)]
 
 .. code-block:: c++
 

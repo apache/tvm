@@ -26,8 +26,6 @@ from .. import TensorIntrin
 def get_dp4a_intrin(dtype_a, dtype_b, dtype_c):
     if dtype_c == "uint32":
         assert dtype_a == dtype_b == "uint8"
-    vec_type_a = "int8x4" if dtype_a == "int8" else "uint8x4"
-    vec_type_b = "int8x4" if dtype_b == "int8" else "uint8x4"
 
     @Ts.function
     def dp4a_desc(
@@ -55,8 +53,8 @@ def get_dp4a_intrin(dtype_a, dtype_b, dtype_c):
 
             C[0] += T.call_pure_extern(
                 "__dp4a",
-                A.vload([0], vec_type_a),
-                B.vload([0], vec_type_b),
+                A[T.Ramp(0, 1, 4)],
+                B[T.Ramp(0, 1, 4)],
                 T.uint32(0) if T.constexpr(dtype_c == "uint32") else T.int32(0),
                 ty=dtype_c,
             )

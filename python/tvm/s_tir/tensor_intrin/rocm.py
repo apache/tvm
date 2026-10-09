@@ -40,8 +40,8 @@ def sdot4(
 
         C[0] += T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.amdgcn.sdot4"),
-            T.reinterpret(A.vload([0], "int8x4"), ty="int32"),
-            T.reinterpret(B.vload([0], "int8x4"), ty="int32"),
+            T.reinterpret(A[T.Ramp(0, 1, 4)], ty="int32"),
+            T.reinterpret(B[T.Ramp(0, 1, 4)], ty="int32"),
             T.int32(0),
             T.bool(1),
             ty="int32",

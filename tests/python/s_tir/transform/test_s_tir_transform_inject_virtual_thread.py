@@ -50,7 +50,7 @@ def test_vthread():
                 vt_y = T.launch_thread("vthread", nthread)
                 B = T.alloc_tensor((m,), scope="shared")
                 B[i] = A_buf[i * nthread + vt_x]
-                T.evaluate(T.call_extern("Run", B.access_ptr("r"), vt_x, ty="int32"))
+                T.evaluate(T.call_extern("Run", B.ptr_to([0] * len(B.shape)), vt_x, ty="int32"))
                 C_buf[i * nthread + vt_x] = B[i] + T.float32(1)
 
     # For vthread, expected allocation is m * nthread
@@ -91,7 +91,11 @@ def test_vthread_extern():
                 B[vt_y] = T.Cast("float32", vt_y) + T.float32(1)
                 T.evaluate(
                     T.call_extern(
-                        "Run", A.access_ptr("r"), B.access_ptr("r"), C.access_ptr("rw"), ty="int32"
+                        "Run",
+                        A.ptr_to([0] * len(A.shape)),
+                        B.ptr_to([0] * len(B.shape)),
+                        C.ptr_to([0] * len(C.shape)),
+                        ty="int32",
                     )
                 )
 

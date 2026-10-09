@@ -444,7 +444,7 @@ class WarpAccessRewriter : public StmtExprMutator {
     if (op->op.same_as(ptx_ldmatrix_legacy_op)) {
       // args: trans, num, type, local_ptr, local_offset, smem_ptr_call, smem_offset
       // Only local_ptr is a raw warp buffer Var; smem_ptr is an
-      // access_ptr Call wrapping a shared-scope var.
+      // pointer expression referencing shared memory.
       return RewriteIndicesAt(op, {3});
     }
 

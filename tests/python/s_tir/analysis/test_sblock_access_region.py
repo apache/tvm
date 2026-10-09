@@ -121,16 +121,16 @@ def opaque_access_func() -> None:
 
 
 @Ts.function
-def opaque_access_with_tvm_access_ptr_func() -> None:
+def opaque_access_with_pointer_func() -> None:
     A = Ts.sblock_alloc_buffer([1024])
     B = Ts.sblock_alloc_buffer([1024])
     C = Ts.sblock_alloc_buffer([1024])
     with Ts.sblock("opaque"):
         Ts.reads(A[0:1024], C[0:1024])
         Ts.writes(B[0:1024], C[0:1024])
-        T.evaluate(A.access_ptr("r"))
-        T.evaluate(B.access_ptr("w"))
-        T.evaluate(C.access_ptr("rw"))
+        T.evaluate(A.ptr_to([0] * len(A.shape)))
+        T.evaluate(B.ptr_to([0] * len(B.shape)))
+        T.evaluate(C.ptr_to([0] * len(C.shape)))
 
 
 @Ts.function
@@ -285,19 +285,20 @@ def test_opaque_access():
         tvm.ir.assert_structural_equal(ret0[1], ret1[1])
 
 
-def test_opaque_access_with_tvm_access_ptr():
-    block = opaque_access_with_tvm_access_ptr_func.body[0].block.body[0].block
-    alloc_buffers = opaque_access_with_tvm_access_ptr_func.body[0].block.alloc_buffers
+def test_opaque_access_with_pointer():
+    block = opaque_access_with_pointer_func.body[0].block.body[0].block
+    alloc_buffers = opaque_access_with_pointer_func.body[0].block.alloc_buffers
     buffer_var_map = {buf: buf for buf in alloc_buffers}
 
-    ret0 = s_tir.analysis.get_sblock_read_write_region(block, buffer_var_map)
-    ret1 = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
-    tvm.ir.assert_structural_equal(block.reads, ret0[0])
-    tvm.ir.assert_structural_equal(block.writes, ret0[1])
-    with pytest.raises(ValueError):
-        tvm.ir.assert_structural_equal(ret0[0], ret1[0])
-    with pytest.raises(ValueError):
-        tvm.ir.assert_structural_equal(ret0[1], ret1[1])
+    reads, writes = s_tir.analysis.get_sblock_read_write_region(block, buffer_var_map)
+    direct_reads, direct_writes, opaque = s_tir.analysis.get_sblock_access_region(
+        block, buffer_var_map
+    )
+    assert not direct_reads
+    assert not direct_writes
+    assert len(opaque) == 3
+    tvm.ir.assert_structural_equal(reads, opaque)
+    tvm.ir.assert_structural_equal(writes, opaque)
 
 
 def test_decl_buffer_alias_is_not_an_opaque_access():

@@ -297,41 +297,6 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
       // Recurse without assuming the argument is a TensorLoad.
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
-  } else if (op->op.same_as(tirx::access_ptr_op())) {
-    TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
-    PrimType dtype = op->ty_args[0].as_or_throw<PrimType>();
-    auto buffer_var = GetBufferDataVar(op->args[0]);
-    if (!buffer_var.has_value()) {
-      // args[0] is not a raw Var — e.g. a nested access_ptr or some
-      // other PrimExpr. Recurse into sub-exprs so any inner buffer var
-      // refs still get visited, but don't try to record an access entry
-      // here (GetScope on a null Var would dereference a null pointer).
-      return StmtExprVisitor::Visit_(op);
-    }
-    Var buffer = ResolveBuffer(buffer_var.value());
-    PrimExpr offset = op->args[1].as_or_throw<PrimExpr>();
-    PrimExpr extent = op->args[2].as_or_throw<PrimExpr>();
-    const IntImmNode* flag = op->args[3].as<IntImmNode>();
-    StorageScope scope = GetScope(buffer_var.value());
-    // The buffer scope.
-    if (Enabled(buffer.get(), scope)) {
-      TVM_FFI_ICHECK(allow_append_);
-      AccessEntry e;
-      e.threads = env_threads();
-      e.dtype = dtype;
-      e.buffer = buffer;
-      e.touched = {sym::IntSet::FromRange(Range::FromMinExtent(offset, extent))};
-      e.scope = scope;
-      if (flag->value & 1) {
-        e.type = kRead;
-        curr_stmt_.access.emplace_back(e);
-      }
-      if (flag->value & 2) {
-        e.type = kWrite;
-        curr_stmt_.access.emplace_back(e);
-      }
-    }
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
   } else if (op->op.same_as(tirx::gpu_storage_sync_op())) {
     TVM_FFI_ICHECK(allow_append_);
     const std::string& s = op->args[0].as<StringImmNode>()->value;

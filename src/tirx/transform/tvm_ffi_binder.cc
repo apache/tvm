@@ -835,7 +835,7 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& buffer, const PrimEx
   {
     ffi::reflection::AccessPath data_path = param_path->Attr(ffi::String("data"));
     Expr raw_data = TVMStructGet(PointerType::VoidPointerTy(), handle, 0, tirx::kDLTensorData);
-    Expr typed_data = Call(buffer.DataPointerType(), tirx::reinterpret_op(), {raw_data});
+    Expr typed_data = Call(buffer.type()->DataPointerType(), tirx::reinterpret_op(), {raw_data});
     {
       Expr vptr = typed_data;
 

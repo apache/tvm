@@ -275,6 +275,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     if (op->op.same_as(tirx::address_of_op())) {
       if (const auto* load = op->args[0].as<TensorLoadNode>()) {
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(load->source));
         for (const auto& index : load->indices) {
           TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(index));
         }
@@ -666,30 +667,17 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     static const Op ptx_cp_async_op = Op::Get("tirx.s_tir.cp_async_raw");
-    if (op->op.same_as(tirx::access_ptr_op())) {
-      TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
-      DLDataType dtype = op->ty_args[0].as_or_throw<PrimType>()->dtype;
-      auto buffer_opt = GetBufferDataVar(op->args[0]);
-      if (!buffer_opt.has_value()) {
-        return StmtExprMutator::Mutate_(op, inplace_mode);
-      }
-      Var buffer = buffer_opt.value();
-      bool is_shared = buffer->ty.as<TensorTypeNode>()
-                           ? IsAppropriateSharedMemory(buffer.as_or_throw<TensorVar>())
-                           : IsAppropriateSharedMemory(buffer);
-      if (!is_shared || scope_stack_.empty() ||
+    if (op->op.same_as(tirx::tensor_data_ptr_op())) {
+      TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
+      if (!IsAppropriateSharedMemory(buffer) || scope_stack_.empty() ||
           !ResolveAllocation(buffer.get(), scope_stack_.back())) {
         return StmtExprMutator::Mutate_(op, inplace_mode);
       }
-      PrimExpr extra_offset = GetBufferOffset(buffer, dtype);
-      Expr merged_data = buffer->ty.as<TensorTypeNode>()
-                             ? GetUpdatedBuffer(buffer.as_or_throw<TensorVar>()).data()
-                             : scope_stack_.back().merged_buffer.value().data();
-
-      PrimExpr offset = Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
-      PrimExpr extent = Mutate(op->args[2]).ValueOrUnchanged(op->args[2]).as_or_throw<PrimExpr>();
-      return Call(op->ty, op->op, {merged_data, extra_offset + offset, extent, op->args[3]},
-                  op->attrs, op->ty_args, op->span);
+      // All typed views use the merged allocation base; physical pointers need
+      // the same byte displacement that logical loads/stores receive.
+      PrimExpr offset = GetBufferOffset(buffer.var(), PrimType::UInt(8)->dtype);
+      return Call(op->ty, tirx::ptr_byte_offset_op(), {GetUpdatedBuffer(buffer).data(), offset}, {},
+                  {}, op->span);
     } else if (op->op.same_as(ptx_cp_async_op)) {
       TVM_FFI_ICHECK((op->args.size() == 5U) || (op->args.size() == 6U));
       auto buffer_opt = GetBufferDataVar(op->args[0]);

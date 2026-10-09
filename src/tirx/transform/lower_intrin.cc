@@ -43,86 +43,6 @@ namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
-struct AccessPtrBufferAlias {
-  TensorVar buffer;
-  Expr data;
-};
-
-static Expr LowerAccessPtr(const CallNode* call,
-                           std::vector<AccessPtrBufferAlias>* buffer_aliases) {
-  TVM_FFI_ICHECK_EQ(call->args.size(), 4U);
-  PrimType dtype = call->ty_args[0].as_or_throw<PrimType>();
-  PrimExpr offset = call->args[1].as_or_throw<PrimExpr>();
-  TVM_FFI_ICHECK(call->ty.as<PointerTypeNode>());
-
-  // An access pointer may itself be used as the base of another access
-  // pointer.  Fold those offsets before constructing the synthetic
-  // TensorLoad so lowering never assumes that args[0] is immediately a Var.
-  Expr buffer = call->args[0];
-  while (const auto* inner = buffer.as<CallNode>()) {
-    if (!inner->op.same_as(access_ptr_op())) break;
-    TVM_FFI_ICHECK_EQ(inner->args.size(), 4U);
-    PrimType inner_dtype = inner->ty_args[0].as_or_throw<PrimType>();
-    TVM_FFI_ICHECK_EQ(inner_dtype, dtype)
-        << "Nested access_ptr calls must use the same element type";
-    PrimExpr inner_offset = inner->args[1].as_or_throw<PrimExpr>();
-    if (inner_offset.ty() != offset.ty()) {
-      inner_offset = prim::Cast(offset.ty(), inner_offset);
-    }
-    offset = inner_offset + offset;
-    buffer = inner->args[0];
-  }
-
-  const auto* buffer_data = buffer.as<CallNode>();
-  if (buffer_data && buffer_data->op.same_as(tensor_data_ptr_op())) {
-    TVM_FFI_ICHECK_EQ(buffer_data->args.size(), 1U);
-    buffer = buffer_data->args[0];
-  }
-
-  const auto* buffer_node = buffer.as<VarNode>();
-  TVM_FFI_ICHECK(buffer_node)
-      << "access_ptr expects a buffer Var or nested access_ptr as args[0], but got " << buffer;
-  Var buffer_var = ffi::GetRef<Var>(buffer_node);
-  PrimExpr scalar_extent = offset + IntImm(offset.ty(), 1);
-  if (dtype.lanes() != 1) {
-    PrimType offset_ty = offset.ty();
-    offset = offset * IntImm(offset_ty, dtype.lanes());
-    scalar_extent = offset + IntImm(offset_ty, dtype.lanes());
-    offset = prim::Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
-  }
-
-  PrimType scalar_dtype = dtype.WithLanes(1);
-  ffi::Optional<TensorVar> access_buffer;
-  ffi::String storage_scope;
-  ffi::Optional<Expr> access_data;
-  if (buffer_var->ty.as<TensorTypeNode>()) {
-    TensorVar source_buffer = buffer_var.as_or_throw<TensorVar>();
-    if (source_buffer->dtype == scalar_dtype && source_buffer->shape.size() == 1) {
-      access_buffer = source_buffer;
-    } else {
-      TVM_FFI_ICHECK_EQ(source_buffer->dtype.WithLanes(1), scalar_dtype)
-          << "access_ptr element type must match the source buffer";
-      storage_scope = source_buffer.scope();
-      access_data = source_buffer.data();
-    }
-  } else {
-    auto pointer_type = buffer_var->ty.as_or_throw<PointerType>();
-    storage_scope = pointer_type->storage_scope;
-    access_data = buffer_var;
-  }
-
-  if (!access_buffer.defined()) {
-    // TensorVar identity includes its immutable TensorType.  Bind an explicit
-    // scalar physical view instead of retyping a vector, padded, or packed source.
-    access_buffer =
-        TensorVar(buffer_var->name + "_access",
-                  TensorType(storage_scope, scalar_dtype, {scalar_extent}, {}, 0, 0, 0));
-    buffer_aliases->push_back({access_buffer.value(), access_data.value()});
-  }
-  TensorLoad buf_load = MakeTensorLoad(access_buffer.value(), {offset});
-  return Call(call->ty, address_of_op(), {buf_load});
-}
-
 class IntrinInjecter : public IRMutatorWithAnalyzer {
  public:
   using IRMutatorWithAnalyzer::Mutate;
@@ -163,31 +83,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
       }
   }
 
-  UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) final {
-    if (!input.as<StmtNode>()) return IRMutatorWithAnalyzer::Mutate(input, inplace_mode);
-    size_t alias_begin = access_ptr_buffer_aliases_.size();
-    UnchangedOr<ffi::Any> mutated = IRMutatorWithAnalyzer::Mutate(input, inplace_mode);
-    if (access_ptr_buffer_aliases_.size() == alias_begin) return mutated;
-    Stmt result = std::move(mutated).ValueOrUnchanged(input).as_or_throw<Stmt>();
-    for (size_t i = access_ptr_buffer_aliases_.size(); i > alias_begin; --i) {
-      const auto& alias = access_ptr_buffer_aliases_[i - 1];
-      result = SeqStmt({Bind(alias.buffer, Call(alias.buffer.type(), decl_tensor_op(),
-                                                {alias.data, tvm::Tuple(alias.buffer->shape),
-                                                 DataTypeImm(alias.buffer->dtype->dtype),
-                                                 StringImm(alias.buffer.scope())},
-                                                {})),
-                        std::move(result)});
-    }
-    access_ptr_buffer_aliases_.erase(access_ptr_buffer_aliases_.begin() + alias_begin,
-                                     access_ptr_buffer_aliases_.end());
-    return result;
-  }
-
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(access_ptr_op())) {
-      Expr lowered = LowerAccessPtr(op, &access_ptr_buffer_aliases_);
-      return this->Mutate(lowered, inplace_mode).ValueOrUnchanged(std::move(lowered));
-    }
     if (auto* ptr_op = op->op.as<OpNode>()) {
       Op op_ref = ffi::GetRef<Op>(ptr_op);
       Expr e = ffi::GetRef<Call>(op);
@@ -493,7 +389,6 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
   }
 
   std::vector<OpAttrMap<FLowerGeneral>> attr_maps_;
-  std::vector<AccessPtrBufferAlias> access_ptr_buffer_aliases_;
   FLowerGeneral fma_{nullptr};
   bool support_bitwise_op_{true};
 };

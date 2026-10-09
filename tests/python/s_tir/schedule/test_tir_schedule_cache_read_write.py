@@ -274,13 +274,7 @@ def opaque_access(
                     16,
                     16,
                     vi * 8 + vj,
-                    T.access_ptr(
-                        "float16",
-                        A.data,
-                        vi * 2048 + vj * 16,
-                        128,
-                        1,
-                    ),
+                    T.ptr_byte_offset(A.data, (vi * 2048 + vj * 16) * 2, ty=A.data.ty),
                     128,
                     "row_major",
                 )
@@ -317,13 +311,7 @@ def opaque_access(
                     16,
                     16,
                     vi * 8 + vj,
-                    T.access_ptr(
-                        "float16",
-                        A0.data,
-                        A0.elem_offset,
-                        A0.strides[0],
-                        1,
-                    ),
+                    A0.ptr_to([0] * len(A0.shape)),
                     128,
                     "row_major",
                 )
@@ -591,12 +579,8 @@ def cache_read_opaque_access(
                     16,
                     16,
                     vi * 8 + vj,
-                    T.access_ptr(
-                        "float16",
-                        A_global.data,
-                        vi * 2048 + vj * 16,
-                        128,
-                        1,
+                    T.ptr_byte_offset(
+                        A_global.data, (vi * 2048 + vj * 16) * 2, ty=A_global.data.ty
                     ),
                     128,
                     "row_major",
@@ -634,13 +618,7 @@ def cache_read_opaque_access(
                     16,
                     16,
                     vi * 8 + vj,
-                    T.access_ptr(
-                        "float16",
-                        A0.data,
-                        A0.elem_offset,
-                        A0.strides[0],
-                        1,
-                    ),
+                    A0.ptr_to([0] * len(A0.shape)),
                     128,
                     "row_major",
                 )
@@ -952,13 +930,7 @@ def cache_write_opaque_access(
                     16,
                     16,
                     vi * 8 + vj,
-                    T.access_ptr(
-                        "float16",
-                        A.data,
-                        vi * 2048 + vj * 16,
-                        128,
-                        1,
-                    ),
+                    T.ptr_byte_offset(A.data, (vi * 2048 + vj * 16) * 2, ty=A.data.ty),
                     128,
                     "row_major",
                 )
@@ -995,13 +967,7 @@ def cache_write_opaque_access(
                     16,
                     16,
                     vi * 8 + vj,
-                    T.access_ptr(
-                        "float16",
-                        A0.data,
-                        A0.elem_offset,
-                        A0.strides[0],
-                        1,
-                    ),
+                    A0.ptr_to([0] * len(A0.shape)),
                     128,
                     "row_major",
                 )

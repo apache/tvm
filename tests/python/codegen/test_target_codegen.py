@@ -86,15 +86,12 @@ def test_buffer_load_predicate_not_supported():
     @T.function
     def func(A: T.Tensor((8,), "float32"), B: T.Tensor((8,), "float32")):
         for i_0 in range(4):
-            B.vstore(
-                [T.Ramp(0, 2, 4)],
-                T.call_intrin(
-                    "tirx.masked_load",
-                    A,
-                    T.Ramp(i_0, 1, 4),
-                    T.Broadcast(T.bool(True), 4),
-                    ty="float32x4",
-                ),
+            B[T.Ramp(0, 2, 4)] = T.call_intrin(
+                "tirx.masked_load",
+                A,
+                T.Ramp(i_0, 1, 4),
+                T.Broadcast(T.bool(True), 4),
+                ty="float32x4",
             )
 
     err_msg = "Predicated buffer load is not supported."
@@ -120,15 +117,12 @@ def test_buffer_load_predicate_not_supported_gpu(target):
     @T.function
     def func(A: T.Tensor((8,), "float32"), B: T.Tensor((8,), "float32")):
         for i_0 in T.thread_binding(3, thread="threadIdx.x"):
-            B.vstore(
-                [T.Ramp(0, 2, 4)],
-                T.call_intrin(
-                    "tirx.masked_load",
-                    A,
-                    T.Ramp(i_0, 1, 4),
-                    T.Broadcast(T.bool(True), 4),
-                    ty="float32x4",
-                ),
+            B[T.Ramp(0, 2, 4)] = T.call_intrin(
+                "tirx.masked_load",
+                A,
+                T.Ramp(i_0, 1, 4),
+                T.Broadcast(T.bool(True), 4),
+                ty="float32x4",
             )
 
     err_msg = "Predicated buffer load is not supported."

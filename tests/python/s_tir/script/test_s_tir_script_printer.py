@@ -629,7 +629,7 @@ def test_vload_with_explicit_scalable_data_type():
 
     @Ts.function
     def main(A: TB.Tensor((128,), "float32"), B: TB.Tensor((128,), "float32")):
-        B[0 : TB.vscale() * 4] = A.vload([TB.Ramp(0, 1, TB.vscale() * 4)], dtype="float32xvscalex4")
+        B[0 : TB.vscale() * 4] = A[TB.Ramp(0, 1, TB.vscale() * 4)]
 
     expected_output = """
 from __future__ import annotations
@@ -908,12 +908,10 @@ def opt_conv_tensorcore_lower():
                                 16,
                                 16,
                                 0,
-                                T.access_ptr(
-                                    "float16",
+                                T.ptr_byte_offset(
                                     Apad_shared.data,
-                                    (((ty * 3072) + (kw * 512)) + (ic_inner * 256)),
-                                    256,
-                                    1,
+                                    (((ty * 3072) + (kw * 512)) + (ic_inner * 256)) * 2,
+                                    ty=Apad_shared.data.ty,
                                 ),
                                 16,
                                 "row_major",
@@ -926,12 +924,10 @@ def opt_conv_tensorcore_lower():
                                 16,
                                 16,
                                 1,
-                                T.access_ptr(
-                                    "float16",
+                                T.ptr_byte_offset(
                                     Apad_shared.data,
-                                    ((((ty * 3072) + (kw * 512)) + (ic_inner * 256)) + 1536),
-                                    256,
-                                    1,
+                                    ((((ty * 3072) + (kw * 512)) + (ic_inner * 256)) + 1536) * 2,
+                                    ty=Apad_shared.data.ty,
                                 ),
                                 16,
                                 "row_major",
@@ -944,12 +940,10 @@ def opt_conv_tensorcore_lower():
                                 16,
                                 16,
                                 0,
-                                T.access_ptr(
-                                    "float16",
+                                T.ptr_byte_offset(
                                     W_shared.data,
-                                    (((kw * 4096) + (ic_inner * 2048)) + (tz * 1024)),
-                                    256,
-                                    1,
+                                    (((kw * 4096) + (ic_inner * 2048)) + (tz * 1024)) * 2,
+                                    ty=W_shared.data.ty,
                                 ),
                                 16,
                                 "row_major",
@@ -962,12 +956,10 @@ def opt_conv_tensorcore_lower():
                                 16,
                                 16,
                                 3,
-                                T.access_ptr(
-                                    "float16",
+                                T.ptr_byte_offset(
                                     W_shared.data,
-                                    ((((kw * 4096) + (ic_inner * 2048)) + (tz * 1024)) + 768),
-                                    256,
-                                    1,
+                                    ((((kw * 4096) + (ic_inner * 2048)) + (tz * 1024)) + 768) * 2,
+                                    ty=W_shared.data.ty,
                                 ),
                                 16,
                                 "row_major",
@@ -1004,15 +996,14 @@ def opt_conv_tensorcore_lower():
                 16,
                 16,
                 0,
-                T.access_ptr(
-                    "float32",
+                T.ptr_byte_offset(
                     Conv_1.data,
                     (
                         ((((bx * 12845056) + (ty * 3211264)) + (bz * 8192)) + (by * 2048))
                         + (tz * 1024)
-                    ),
-                    256,
-                    2,
+                    )
+                    * 4,
+                    ty=Conv_1.data.ty,
                 ),
                 16,
                 "row_major",
@@ -1025,8 +1016,7 @@ def opt_conv_tensorcore_lower():
                 16,
                 16,
                 7,
-                T.access_ptr(
-                    "float32",
+                T.ptr_byte_offset(
                     Conv_1.data,
                     (
                         (
@@ -1034,9 +1024,9 @@ def opt_conv_tensorcore_lower():
                             + (tz * 1024)
                         )
                         + 1606400
-                    ),
-                    256,
-                    2,
+                    )
+                    * 4,
+                    ty=Conv_1.data.ty,
                 ),
                 16,
                 "row_major",

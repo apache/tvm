@@ -593,7 +593,7 @@ def test_codegen_pointer_byte_offsets_preserve_storage_scope():
                 }
             )
             shared = T.alloc_tensor((16,), "float16", scope="shared")
-            typed_alias = T.ptr_byte_offset(shared.data, 4, "float16")
+            typed_alias = T.ptr_byte_offset(shared.data, 4, ty=shared.data.ty)
             typed_buffer = T.decl_tensor((14,), "float16", data=typed_alias, scope="shared")
             void_alias = T.handle_add_byte_offset(shared.data, 8)
             void_buffer = T.decl_tensor((12,), "float16", data=void_alias, scope="shared")
@@ -621,7 +621,7 @@ def test_pointer_byte_offsets_execute_in_threadgroup_memory():
             for bx in T.thread_binding(1, thread="blockIdx.x"):
                 for tx in T.thread_binding(1, thread="threadIdx.x"):
                     shared = T.alloc_tensor((16,), "float32", scope="shared")
-                    typed_alias = T.ptr_byte_offset(shared.data, 4, "float32")
+                    typed_alias = T.ptr_byte_offset(shared.data, 4, ty=shared.data.ty)
                     typed_buffer = T.decl_tensor((15,), "float32", data=typed_alias, scope="shared")
                     void_alias = T.handle_add_byte_offset(shared.data, 8)
                     void_buffer = T.decl_tensor((14,), "float32", data=void_alias, scope="shared")

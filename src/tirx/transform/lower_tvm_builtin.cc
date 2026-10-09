@@ -196,8 +196,8 @@ class BuiltinLower : public StmtExprMutator {
                                         PrimType::Int(64), "stack_shape");
         stmt = SeqStmt({Bind(scope.stack_shape.value(),
                              Call(scope.stack_shape.value().type(), decl_tensor_op(),
-                                  {StackAlloca(scope.stack_shape.value().DataPointerType(), "shape",
-                                               scope.max_sizes.shape_stack),
+                                  {StackAlloca(scope.stack_shape.value().type()->DataPointerType(),
+                                               "shape", scope.max_sizes.shape_stack),
                                    tvm::Tuple(scope.stack_shape.value()->shape),
                                    DataTypeImm(scope.stack_shape.value()->dtype->dtype),
                                    StringImm(scope.stack_shape.value().scope())},
@@ -323,18 +323,18 @@ class BuiltinLower : public StmtExprMutator {
     // Push free to enclosing scope's pending_frees (LIFO ordering preserved).
     scope_.Current().pending_frees.push_back(free_stmt);
 
-    Stmt alloc_bind =
-        Bind(op->var.as_or_throw<TensorVar>(),
-             Call(op->var.as_or_throw<TensorVar>().type(), decl_tensor_op(),
-                  {Call(op->var.as_or_throw<TensorVar>().DataPointerType(), alloc_workspace_op,
-                        {prim::cast(PrimType::Int(32), device_type_.value()),
-                         prim::cast(PrimType::Int(32), device_id_.value()), total_bytes,
-                         IntImm::Int32(element_type.code()), IntImm::Int32(element_type.bits())}),
-                   tvm::Tuple(op->var.as_or_throw<TensorVar>()->shape),
-                   DataTypeImm(op->var.as_or_throw<TensorVar>()->dtype->dtype),
-                   StringImm(op->var.as_or_throw<TensorVar>().scope())},
-                  {}, buffer_call->ty_args, buffer_call->span),
-             op->span);
+    Stmt alloc_bind = Bind(
+        op->var.as_or_throw<TensorVar>(),
+        Call(op->var.as_or_throw<TensorVar>().type(), decl_tensor_op(),
+             {Call(op->var.as_or_throw<TensorVar>().type()->DataPointerType(), alloc_workspace_op,
+                   {prim::cast(PrimType::Int(32), device_type_.value()),
+                    prim::cast(PrimType::Int(32), device_id_.value()), total_bytes,
+                    IntImm::Int32(element_type.code()), IntImm::Int32(element_type.bits())}),
+              tvm::Tuple(op->var.as_or_throw<TensorVar>()->shape),
+              DataTypeImm(op->var.as_or_throw<TensorVar>()->dtype->dtype),
+              StringImm(op->var.as_or_throw<TensorVar>().scope())},
+             {}, buffer_call->ty_args, buffer_call->span),
+        op->span);
 
     return SeqStmt({alloc_bind, alloc_nullptr_check});
   }
@@ -499,7 +499,7 @@ class BuiltinLower : public StmtExprMutator {
     }
     PrimExpr offset = ConstInt32(stack_begin);
     TensorLoad load = MakeTensorLoad(scope.stack_shape.value(), {offset});
-    return Call(scope.stack_shape.value().DataPointerType(), address_of_op(), {load});
+    return Call(scope.stack_shape.value().type()->DataPointerType(), address_of_op(), {load});
   }
   // make array
   Expr MakeArray(const CallNode* op) {
