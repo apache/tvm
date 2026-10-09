@@ -101,7 +101,7 @@ Dispatch config
 ---------------
 
 A call is materialized as a ``TileOpCall`` node whose fields carry
-everything dispatch needs (``python/tvm/tirx/tile_primitive.py``):
+everything dispatch needs (``python/tvm/tirx/tile_dispatch.py``):
 
 .. list-table::
    :header-rows: 1

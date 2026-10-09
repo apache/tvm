@@ -24,7 +24,7 @@ dispatch result.
 from tvm_ffi import register_global_func
 
 from tvm.tirx.stmt import TileOpCall
-from tvm.tirx.tile_primitive import DispatchContext
+from tvm.tirx.tile_dispatch import DispatchContext
 
 # Note: legacy `register_schedule` is intentionally removed.
 

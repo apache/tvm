@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import builtins as _python
 from collections.abc import Sequence
-from functools import partial as _partial
 from typing import Any
 
 import tvm
@@ -36,11 +35,56 @@ import tvm
 from tvm import ir as _ir
 from tvm import tirx as _tir
 from tvm.ir import StringImm as _StringImm
-from tvm.ir import TensorRegion, Type, is_prim_expr
+from tvm.ir import is_prim_expr
 from tvm.script.ir_builder import base as _base
 from tvm.script.ir_builder.base import AlreadyEmitted
 from tvm.script.ir_builder.base import IRBuilder as _IRBuilder
-from tvm.tirx import Expr, Var
+from tvm.script.ir_builder.stmt import (
+    _enter_concise as _enter_concise,
+)
+from tvm.script.ir_builder.stmt import (
+    add_to_parent as add_to_parent,
+)
+from tvm.script.ir_builder.stmt import (
+    assert_ as assert_,
+)
+from tvm.script.ir_builder.stmt import (
+    bind as bind,
+)
+from tvm.script.ir_builder.stmt import (
+    break_ as break_,
+)
+from tvm.script.ir_builder.stmt import (
+    continue_ as continue_,
+)
+from tvm.script.ir_builder.stmt import (
+    else_ as else_,
+)
+from tvm.script.ir_builder.stmt import (
+    evaluate as evaluate,
+)
+from tvm.script.ir_builder.stmt import (
+    grid as grid,
+)
+from tvm.script.ir_builder.stmt import (
+    if_ as if_,
+)
+from tvm.script.ir_builder.stmt import (
+    region as region,
+)
+from tvm.script.ir_builder.stmt import (
+    return_ as return_,
+)
+from tvm.script.ir_builder.stmt import (
+    then_ as then_,
+)
+from tvm.script.ir_builder.stmt import (
+    unpack_ as unpack_,
+)
+from tvm.script.ir_builder.stmt import (
+    while_ as while_,
+)
+from tvm.tirx import Expr
 from tvm.tirx.expr import (
     IntImm,
 )
@@ -192,13 +236,6 @@ def _name(value: Any, name: str | None, span: _Span) -> Any:
     return _base.at_(span, value)
 
 
-def _enter_concise(frame: _base.IRBuilderFrame) -> Any:
-    # add_callback registers on the active parent before the child enters.
-    # Later statements emit into the child; parent exit closes this scope.
-    frame.add_callback(_partial(frame.__exit__, None, None, None))
-    return frame.__enter__()
-
-
 def bind_(
     value: Any = _base.MISSING,
     *,
@@ -328,15 +365,6 @@ def set_mutable_cell_(
         raise TypeError("A mutable assignment requires scalar storage")
 
 
-def unpack_(value: Any) -> Any:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.unpack_`."""
-    if isinstance(value, _ir.Tuple):
-        return _python.tuple(value.fields)
-    if isinstance(value, _ir.Expr) and isinstance(value.ty, _ir.TupleType):
-        return _python.tuple(_ir.TupleGetItem(value, i) for i in range(len(value.ty.fields)))
-    return value
-
-
 def emit_(value: Any, *, span: _Span = None) -> None:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.emit_`.
 
@@ -393,41 +421,6 @@ def setattr_(
     _python.setattr(target, name, value)
 
 
-def bind(  # pylint: disable=invalid-name
-    value: Expr,
-    type_annotation: Type | None = None,  # pylint: disable=redefined-outer-name
-    *,
-    var: Var | None = None,  # pylint: disable=redefined-outer-name
-) -> Var:
-    """Create a Bind (variable binding).
-
-    Emits a flat Bind statement to the current frame and returns the bound variable.
-
-    Parameters
-    ----------
-    value : Expr
-        The value to be bound.
-    type_annotation : Optional[Type] = None
-        The type annotation of the binding. Usually it is used for fine-grained var typing,
-        particularly, PointerType.
-    var : Optional[Var] = None
-        The variable to bind. If not specified, a new variable will be created.
-
-    Returns
-    -------
-    var : Var
-        The bound variable.
-    """
-    if type_annotation is not None:
-        # Canonical Vars are callable when they denote functions.  Here a Var is
-        # already a resolved type annotation, rather than a deferred annotation factory.
-        if callable(type_annotation) and not isinstance(type_annotation, Expr):
-            type_annotation = type_annotation()
-        if isinstance(type_annotation, _ir.Var):
-            type_annotation = type_annotation.ty
-    return _ffi_api.Bind(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
 def tensor_store(
     dest: Expr,
     indices: list[Expr | slice],
@@ -475,37 +468,6 @@ def tensor_store(
     return AlreadyEmitted(_ffi_api.TensorStore(dest, expr_indices, value))
 
 
-def evaluate(value: Expr) -> AlreadyEmitted[tvm.ir.Stmt]:
-    """Emit an evaluation and return a reference to its stored statement.
-
-    Parameters
-    ----------
-    value : Expr
-        The input expression to evaluate.
-
-    Returns
-    -------
-    result : AlreadyEmitted[Stmt]
-        A receipt containing the emitted statement, so expression-statement
-        handling does not emit it again.
-    """
-    if isinstance(value, str):
-        value = _StringImm(value)
-    if isinstance(value, bool):
-        value = IntImm("bool", value)
-    if isinstance(value, TensorRegion):
-        raise TypeError(
-            "T.evaluate does not accept TensorRegion values; "
-            "construct a TensorLoad with explicit indices"
-        )
-    return AlreadyEmitted(_ffi_api.Evaluate(value))  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def add_to_parent(stmt: tvm.ir.Stmt) -> None:
-    """Add a statement to the parent frame."""
-    _ffi_api.AddToParent(stmt)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
 # --------------------------------------
 # Special
 # --------------------------------------
@@ -515,23 +477,6 @@ def add_to_parent(stmt: tvm.ir.Stmt) -> None:
 # --------------------------------------
 # Control
 # --------------------------------------
-
-
-def if_(condition: Any, *, span: _Span = None) -> frame.IfFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.if_`."""
-    if isinstance(condition, _python.bool):
-        condition = IntImm("bool", condition)
-    return _base.at_(span, _ffi_api.If(condition))
-
-
-def then_(*, span: _Span = None) -> frame.ThenFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.then_`."""
-    return _base.at_(span, _ffi_api.Then())
-
-
-def else_(*, span: _Span = None) -> frame.ElseFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.else_`."""
-    return _base.at_(span, _ffi_api.Else())
 
 
 def for_(
@@ -550,13 +495,6 @@ def for_(
     return _base.at_(span, iterable)
 
 
-def while_(condition: Any, *, span: _Span = None) -> frame.WhileFrame:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.while_`."""
-    if isinstance(condition, _python.bool):
-        condition = IntImm("bool", condition)
-    return _base.at_(span, _ffi_api.While(condition))
-
-
 def range_(*args: Any, annotations: dict[str, Any] | None = None) -> frame.ForFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.range_`."""
     if len(args) == 1:
@@ -570,53 +508,6 @@ def range_(*args: Any, annotations: dict[str, Any] | None = None) -> frame.ForFr
     if isinstance(args[2], _python.int) and args[2] == 0:
         raise ValueError("range step cannot be zero")
     return serial(args[0], args[1], step=args[2], annotations=annotations)
-
-
-def break_(*, span: _Span = None) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.break_`.
-
-    Legality is checked on the completed function, across loop and function boundaries.
-    """
-    return _base.with_at_group_(span, lambda: _base.AlreadyEmitted(_ffi_api.Break()))
-
-
-def continue_(*, span: _Span = None) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.continue_`.
-
-    Legality is checked on the completed function, across loop and function boundaries.
-    """
-    return _base.with_at_group_(span, lambda: _base.AlreadyEmitted(_ffi_api.Continue()))
-
-
-def return_(value: Any = None, *, span: _Span = None) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.return_`."""
-    if value is None:
-        raise TypeError("A primitive function return requires an expression")
-    return _base.with_at_group_(
-        span, lambda: _base.AlreadyEmitted(_ffi_api.Return(_op._as_expr(value)))
-    )
-
-
-def assert_(
-    condition: Any,
-    message: str | tuple[str, Sequence[Any]] | Sequence[Any] = "",
-    *,
-    span: _Span = None,
-) -> None:
-    """Implements :func:`tvm.script.ir_builder.parser_protocol.assert_`."""
-    kind = "RuntimeError"
-    if isinstance(message, tuple):
-        if len(message) != 2 or not isinstance(message[0], str):
-            raise TypeError("Assertion metadata must be (error_kind, message_parts)")
-        kind, message = message
-    if isinstance(message, list | tuple):
-        message = [str(part) for part in message]
-    if not isinstance(message, list | tuple):
-        message = [message]
-    if isinstance(condition, _python.bool):
-        condition = IntImm("bool", condition)
-    with _base.at_(span, _ffi_api.Assert(condition, kind, message)):
-        pass
 
 
 def serial(
@@ -862,69 +753,6 @@ def thread_binding(
     return _ffi_api.ThreadBinding(  # type: ignore[attr-defined] # pylint: disable=no-member
         start, stop, thread, annotations
     )
-
-
-def grid(*extents: tuple[Expr | tuple[Expr, Expr]], dtype: str | None = None) -> frame.ForFrame:
-    """The grid For statement.
-
-    Parameters
-    ----------
-    extents : Tuple[Union[Expr, Tuple[Expr, Expr]]]
-        If a single Expr is provided, it is used as the extent of the iteration.
-        If a tuple of two Expr is provided, the first is the start of the iteration,
-        and the second is the extent of the iteration.
-
-    dtype : str, optional
-        The dtype of every loop variable, either ``"int32"`` or ``"uint32"``. When
-        omitted each loop variable takes the dtype of its own extent.
-
-    Returns
-    -------
-    res : frame.ForFrame
-        The ForFrame.
-    """
-    # Convert integer extents to IntImm
-    # TODO(@bohan): fix this after FFI refactor
-    imm_dtype = dtype if dtype is not None else "int32"
-    processed_extents = []
-    for extent in extents:
-        if isinstance(extent, tuple):
-            start, extent = extent
-            start = IntImm(imm_dtype, start) if isinstance(start, int) else start
-            extent = IntImm(imm_dtype, extent) if isinstance(extent, int) else extent
-            processed_extents.append((start, extent))
-        else:
-            processed_extents.append(
-                IntImm(imm_dtype, extent) if isinstance(extent, int) else extent
-            )
-    extents = tuple(processed_extents)
-    return _ffi_api.Grid(extents, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def region(
-    op: _ir.Op | str,
-    args: Sequence[Expr],
-    body_params: Sequence[Var] | None = None,
-    attrs: _ir.DictAttrs | dict[str, Any] | None = None,
-) -> frame.RegionFrame:
-    """Construct a result-free region with operation-defined body parameters.
-
-    When ``body_params`` is omitted, the operation's ``FRegionGetBodyParams``
-    hook creates fresh typed variables. Every region operation must register
-    the hook, returning an empty array for no body parameters. Missing hooks
-    reject construction even with explicit parameters. Explicit parameters must
-    match the hook's count and types and retain their identities.
-
-    Operands and attributes belong to the enclosing scope. Entering the frame
-    returns one parameter directly, or a sequence for zero or multiple parameters.
-    Result variables are supported by direct ``tvm.ir.RegionStmt`` construction;
-    outward-result script syntax is not supported.
-    """
-    if isinstance(op, str):
-        op = _ir.Op.get(op)
-    if attrs is None or isinstance(attrs, dict):
-        attrs = _ir.make_node("ir.DictAttrs", **(attrs or {}))
-    return _ffi_api.Region(op, args, body_params, attrs)
 
 
 def device_entry() -> frame.RegionFrame:

@@ -56,7 +56,7 @@ from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import S, TileLayout
 from tvm.tirx.op.tile import CopyAsync
 from tvm.tirx.stmt import BufferRegion
-from tvm.tirx.tile_primitive import DispatchContext
+from tvm.tirx.tile_dispatch import DispatchContext
 
 _TMA_OPS = {
     "tirx.ptx.cp_async_bulk_tensor_g2s_cluster",

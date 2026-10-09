@@ -23,7 +23,7 @@
  * to 2D (width, height, depth) array access
  */
 
-#include <tvm/backend/opencl/op.h>
+#include <tvm/backend/opencl/op/memory.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
