@@ -21,8 +21,8 @@
  *  Lower TVM related builtin intrinsics such as packed call.
  * \file tirx/transform/lower_tvm_builtin.cc
  */
-#include <tvm/backend/cuda/op.h>
-#include <tvm/backend/opencl/op.h>
+#include <tvm/backend/cuda/op/tensormap.h>
+#include <tvm/backend/opencl/op/memory.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>

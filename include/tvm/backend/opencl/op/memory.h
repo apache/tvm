@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/backend/opencl/op.h
+ * \file tvm/backend/opencl/op/memory.h
  * \brief OpenCL-owned memory operations.
  */
-#ifndef TVM_BACKEND_OPENCL_OP_H_
-#define TVM_BACKEND_OPENCL_OP_H_
+#ifndef TVM_BACKEND_OPENCL_OP_MEMORY_H_
+#define TVM_BACKEND_OPENCL_OP_MEMORY_H_
 
 #include <tvm/ir/op.h>
 
@@ -71,4 +71,4 @@ TVM_DLL const Op& nd_mem_alloc_with_scope_op();
 }  // namespace backend
 }  // namespace tvm
 
-#endif  // TVM_BACKEND_OPENCL_OP_H_
+#endif  // TVM_BACKEND_OPENCL_OP_MEMORY_H_

@@ -3698,7 +3698,7 @@ def _make_gemm_tcgen05_call(
     from tvm.tirx.exec_scope import ExecScope
     from tvm.tirx.op.tile import GemmAsync
     from tvm.tirx.stmt import BufferRegion
-    from tvm.tirx.tile_primitive import DispatchContext
+    from tvm.tirx.tile_dispatch import DispatchContext
 
     def full_region(buf):
         return BufferRegion(buf, [Range.from_min_extent(0, s) for s in buf.shape])
@@ -3777,7 +3777,7 @@ def test_gemm_tcgen05_preserves_block_scale_tmem_lane_bases():
     from tvm.tirx.exec_scope import ExecScope
     from tvm.tirx.op.tile import GemmAsync
     from tvm.tirx.stmt import BufferRegion
-    from tvm.tirx.tile_primitive import DispatchContext
+    from tvm.tirx.tile_dispatch import DispatchContext
 
     def full_region(buf):
         return BufferRegion(buf, [Range.from_min_extent(0, s) for s in buf.shape])

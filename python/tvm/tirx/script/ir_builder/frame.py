@@ -16,19 +16,20 @@
 # under the License.
 """IRBuilder for TIR"""
 
-from collections.abc import Sequence
-
-from tvm_ffi import Array
 from tvm_ffi import register_object as _register_object
 
-from tvm.script.ir_builder.base import IRBuilderFrame
-from tvm.tirx import Var
-
-from . import _ffi_api
+from tvm.script.ir_builder.frame import AssertFrame as AssertFrame
+from tvm.script.ir_builder.frame import ElseFrame as ElseFrame
+from tvm.script.ir_builder.frame import ForFrame as ForFrame
+from tvm.script.ir_builder.frame import IfFrame as IfFrame
+from tvm.script.ir_builder.frame import RegionFrame as RegionFrame
+from tvm.script.ir_builder.frame import StmtFrame
+from tvm.script.ir_builder.frame import ThenFrame as ThenFrame
+from tvm.script.ir_builder.frame import WhileFrame as WhileFrame
 
 
 @_register_object("script.ir_builder.tirx.TIRFrame")
-class TIRFrame(IRBuilderFrame): ...
+class TIRFrame(StmtFrame): ...
 
 
 @_register_object("script.ir_builder.tirx.FunctionFrame")
@@ -45,49 +46,3 @@ class FunctionFrame(TIRFrame):
     def params(self):
         """The native declared parameters, shared with the resumed body."""
         return self.args
-
-
-@_register_object("script.ir_builder.tirx.ForFrame")
-class ForFrame(TIRFrame):
-    def set_names(self, names: str | Sequence[str] | None) -> None:
-        """Configure final variable names before entry, preserving native identities.
-
-        A starred target expands to the remaining dimensions. Omitted names
-        preserve defaults supplied by native construction; no names are replayed
-        during entry.
-        """
-        _ffi_api.ForFrameSetNames(self, names)
-
-    def __enter__(self) -> Var | Array[Var]:  # type: ignore[override]
-        """Enter with one variable directly, or the native sequence for multiple loops."""
-        super().__enter__()
-        return self.vars[0] if len(self.vars) == 1 else self.vars
-
-
-@_register_object("script.ir_builder.tirx.AssertFrame")
-class AssertFrame(TIRFrame): ...
-
-
-@_register_object("script.ir_builder.tirx.WhileFrame")
-class WhileFrame(TIRFrame): ...
-
-
-@_register_object("script.ir_builder.tirx.IfFrame")
-class IfFrame(TIRFrame): ...
-
-
-@_register_object("script.ir_builder.tirx.ThenFrame")
-class ThenFrame(TIRFrame): ...
-
-
-@_register_object("script.ir_builder.tirx.ElseFrame")
-class ElseFrame(TIRFrame): ...
-
-
-@_register_object("script.ir_builder.tirx.RegionFrame")
-class RegionFrame(TIRFrame):
-    """A result-free region whose body parameters are lexical bindings."""
-
-    def __enter__(self) -> Var | Array[Var]:  # type: ignore[override]
-        super().__enter__()
-        return self.body_params[0] if len(self.body_params) == 1 else self.body_params

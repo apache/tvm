@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include <tvm/backend/cuda/op.h>
+#include <tvm/backend/cuda/op/tensormap.h>
 #include <tvm/tirx/op_attr_types.h>
 
 namespace tvm {
