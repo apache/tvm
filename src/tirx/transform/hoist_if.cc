@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/analysis.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -35,6 +36,38 @@
 
 namespace tvm {
 namespace tirx {
+
+// Purity alone does not permit evaluating a predicate before its guards or
+// before a zero-trip loop.  Keep potentially trapping operations in place.
+static bool CanEvaluateEarly(const PrimExpr& condition) {
+  if (SideEffect(condition) > CallEffectKind::kPure) return false;
+  auto unsafe = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+      condition, [](const PrimExpr& expr) -> ffi::Expected<ffi::WalkResult> {
+        ffi::Optional<PrimExpr> divisor;
+        if (const auto* op = expr.as<prim::DivNode>()) divisor = op->b;
+        if (const auto* op = expr.as<prim::ModNode>()) divisor = op->b;
+        if (const auto* op = expr.as<prim::FloorDivNode>()) divisor = op->b;
+        if (const auto* op = expr.as<prim::FloorModNode>()) divisor = op->b;
+        bool safe = true;
+        if (divisor.has_value()) {
+          const auto* value = divisor.value().as<IntImmNode>();
+          // Positive constant divisors exclude both zero and signed min / -1.
+          safe = value && value->value > 0;
+        }
+        if (expr.as<prim::LShiftNode>() || expr.as<prim::RShiftNode>()) safe = false;
+        if (const auto* op = expr.as<prim::CastNode>()) {
+          if (expr.ty().MatchesCode(kDLInt, kDLUInt) &&
+              !op->value.ty().MatchesCode(kDLInt, kDLUInt))
+            safe = false;
+        }
+        if (const auto* op = expr.as<CallNode>()) {
+          safe = op->op.same_as(prim::likely_op());
+        }
+        return safe ? ffi::WalkResult::Advance()
+                    : ffi::WalkResult::Interrupt(ffi::VisitInterrupt(expr));
+      });
+  return !unsafe.has_value();
+}
 
 class IfHoister : public StmtExprMutator {
  public:
@@ -62,7 +95,7 @@ class IfHoister : public StmtExprMutator {
  private:
   struct Loop {
     Var var;
-    std::vector<std::pair<PrimExpr, bool>> conditions;
+    std::vector<PrimExpr> conditions;
   };
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
@@ -71,13 +104,15 @@ class IfHoister : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     loops_.pop_back();
     for (auto it = loop.conditions.rbegin(); it != loop.conditions.rend(); ++it) {
-      stmt = it->second ? If(it->first, stmt, SeqStmt(stmt)) : If(it->first, stmt);
+      // The original If may be nested in another branch.  Keep the loop in
+      // both cases so statements in that other branch are not discarded.
+      stmt = If(*it, stmt, SeqStmt(stmt));
     }
     return stmt;
   }
 
   UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode) final {
-    if (!loops_.empty() && SideEffect(op->condition) <= CallEffectKind::kPure) {
+    if (!loops_.empty() && CanEvaluateEarly(op->condition)) {
       auto vars = UndefinedVars(op->condition);
       size_t destination = loops_.size();
       while (destination > 0) {
@@ -89,7 +124,7 @@ class IfHoister : public StmtExprMutator {
         --destination;
       }
       if (destination < loops_.size()) {
-        loops_[destination]->conditions.emplace_back(op->condition, op->else_case.has_value());
+        loops_[destination]->conditions.push_back(op->condition);
       }
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);

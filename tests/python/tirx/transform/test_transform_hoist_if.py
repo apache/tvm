@@ -181,5 +181,52 @@ def test_thread_region_boundary():
     check(Before, After)
 
 
+def test_guarded_division():
+    @T.function(private=True)
+    def Before(A: T.Tensor((4,), "int32"), n: T.int32):
+        for i in T.serial(4):
+            if i < n:
+                if 1 < 100 // n:
+                    A[i] = 1
+
+    check(Before, Before)
+
+
+def test_zero_trip_division():
+    @T.function(private=True)
+    def Before(A: T.Tensor((4,), "int32"), n: T.int32):
+        for i in T.serial(n):
+            if 1 < 100 // n:
+                A[i] = 1
+
+    check(Before, Before)
+
+
+def test_enclosing_else_is_preserved():
+    @T.function(private=True)
+    def Before(A: T.Tensor((4,), "int32"), n: T.int32):
+        for i in T.serial(4):
+            if i < 2:
+                if 0 < n:
+                    A[i] = 1
+            else:
+                A[i] = 2
+
+    @T.function(private=True)
+    def After(A: T.Tensor((4,), "int32"), n: T.int32):
+        if 0 < n:
+            for i in T.serial(4):
+                if i < 2:
+                    A[i] = 1
+                else:
+                    A[i] = 2
+        else:
+            for i in T.serial(4):
+                if not i < 2:
+                    A[i] = 2
+
+    check(Before, After)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
