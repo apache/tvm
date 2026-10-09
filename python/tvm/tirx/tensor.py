@@ -42,7 +42,13 @@ def _tensor_type_field(name):
 
 @tvm_ffi.register_object("tirx.TensorType")
 class TensorType(Type):
-    """The structural type carried by an ordinary TIRx tensor variable."""
+    """The structural type carried by an ordinary TIRx tensor variable.
+
+    Declared expression methods receive the tensor variable as ``expr`` after
+    the type receiver. Access through ``expr.method`` binds both receivers.
+    Read-only expression properties receive the same type and operand through
+    the getters in ``__expr_properties__``.
+    """
 
     dtype: PrimType
     storage_scope: str

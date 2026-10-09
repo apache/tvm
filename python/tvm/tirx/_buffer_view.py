@@ -220,7 +220,7 @@ def rearrange(buf: Var, pattern: str, /, **sizes) -> Var:
 
 
 def sub(buf: Var) -> SubIndexer:
-    """Return the indexer used by :attr:`Var.sub`."""
+    """Return the indexer used by ``expr.sub``."""
     return SubIndexer(buf)
 
 
@@ -497,7 +497,7 @@ def _view_narrow(buf: Var, dim, start, length):
 
 
 class SubIndexer:
-    """Indexer returned by :attr:`Var.sub`."""
+    """Indexer returned by ``expr.sub``."""
 
     def __init__(self, buffer: Var):
         self._buffer = buffer
