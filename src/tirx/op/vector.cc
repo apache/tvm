@@ -59,10 +59,13 @@ const Op& vector_high_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.vector_high")
       .signature(sig::arg<PrimExpr>("vec", "The input vector."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeVectorPart<false>>())
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName, ffi::String("tirx.vector_high"))
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeVectorPart<false>>())
+      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
+                                    ffi::String("tirx.vector_high"))
       .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
+                                 static_cast<int64_t>(CallEffectKind::kPure));
 }
 
 const Op& vector_low_op() {
@@ -73,10 +76,13 @@ const Op& vector_low_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.vector_low")
       .signature(sig::arg<PrimExpr>("vec", "The input vector."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeVectorPart<false>>())
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName, ffi::String("tirx.vector_low"))
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeVectorPart<false>>())
+      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
+                                    ffi::String("tirx.vector_low"))
       .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
+                                 static_cast<int64_t>(CallEffectKind::kPure));
 }
 
 const Op& vector_combine_op() {
@@ -88,10 +94,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.vector_combine")
       .signature(sig::arg<PrimExpr>("vec1", "The first input vector."),
                  sig::arg<PrimExpr>("vec2", "The second input vector."))
-      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeVectorPart<true>>())
-      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName, ffi::String("tirx.vector_combine"))
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeVectorPart<true>>())
+      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
+                                    ffi::String("tirx.vector_combine"))
       .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
-      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind, static_cast<int64_t>(CallEffectKind::kPure));
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
+                                 static_cast<int64_t>(CallEffectKind::kPure));
 }
 
 const Op& get_active_lane_mask_op() {
