@@ -445,7 +445,6 @@ TVM_DLL ffi::Error EnrichPassErrorWithContext(
     const ffi::Error& err, const IRModule& mod, ffi::String pass_name,
     ffi::Optional<GlobalVar> func = ffi::Optional<GlobalVar>(std::nullopt));
 
-
 /*!
  * \brief PassInstrumentNode forms an instrument implementation.
  * It provides API for users to register callbacks at different instrumentation points.
@@ -554,7 +553,6 @@ class PassInstrument : public ffi::ObjectRef {
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PassInstrument, ffi::ObjectRef, PassInstrumentNode);
 };
-
 
 /*!
  * \brief PassContextNode contains the information that a pass can rely on,
