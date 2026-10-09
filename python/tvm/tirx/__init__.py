@@ -65,7 +65,7 @@ from .op import (
     gpu_mma_sync,
     gpu_fill_fragment,
 )
-from .op import vectorlow, vectorhigh, vectorcombine
+from .op import vector_low, vector_high, vector_combine
 from .op import infinity, reinterpret
 from .op import exp, exp2, exp10, log, log2, log10, log1p, ldexp, clz
 from .op import sin, sinh, asin, asinh

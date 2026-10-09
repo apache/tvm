@@ -1441,15 +1441,15 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       return llvm::Constant::getNullValue(GetLLVMType(op->ty));
     }
     return builder_->CreateFCmpUNO(a, a);
-  } else if (op->op.same_as(tirx::vectorlow_op())) {
+  } else if (op->op.same_as(tirx::vector_low_op())) {
     llvm::Value* v = MakeValue(args[0]);
     int l = GetVectorNumElements(v);
     return CreateVecSlice(v, 0, l / 2);
-  } else if (op->op.same_as(tirx::vectorhigh_op())) {
+  } else if (op->op.same_as(tirx::vector_high_op())) {
     llvm::Value* v = MakeValue(args[0]);
     int l = GetVectorNumElements(v);
     return CreateVecSlice(v, l / 2, l / 2);
-  } else if (op->op.same_as(tirx::vectorcombine_op())) {
+  } else if (op->op.same_as(tirx::vector_combine_op())) {
     llvm::Value* v0 = MakeValue(args[0]);
     llvm::Value* v1 = MakeValue(args[1]);
     int num_elems = GetVectorNumElements(v0) * 2;

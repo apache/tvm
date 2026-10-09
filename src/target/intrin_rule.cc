@@ -210,23 +210,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     return one / (one + exp(-arg));
   });
 
-  OpDef("tirx.isfinite")
-      .signature(sig::arg("x", "The input value."))
-      .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-        const CallNode* call = e.as<CallNode>();
-        TVM_FFI_ICHECK(call != nullptr);
-        return isfinite(call->args[0].as_or_throw<PrimExpr>());
-      });
-
-  OpDef("tirx.isinf")
-      .signature(sig::arg("x", "The input value."))
-      .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-        const CallNode* call = e.as<CallNode>();
-        TVM_FFI_ICHECK(call != nullptr);
-        return isinf(call->args[0].as_or_throw<PrimExpr>());
-      });
   // clang-format on
 }
 

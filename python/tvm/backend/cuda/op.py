@@ -519,38 +519,13 @@ def bmma_sync(
 def mma_store(dtype, m, n, dst_ptr, src_ptr, src_offset, dst_stride):
     """Store the result of PTX MMA into a destination pointer."""
 
-    return call_intrin(dtype, "tirx.mma_store", m, n, dst_ptr, src_ptr, src_offset, dst_stride)
-
-
-_mma_store_legacy = _make_op_api(Op.get("tirx.mma_store_legacy"), __name__)
-
-
-def mma_store_legacy(m, n, dst_ptr, src_ptr, src_offset, dst_stride, *, ty=None, span=None):
-    """Store MMA registers using explicit pointer and element-offset operands."""
-    return _mma_store_legacy(
-        m,
-        n,
-        dst_ptr,
-        src_ptr,
-        src_offset,
-        dst_stride,
-        ty=ty,
-        span=span,
-    )
+    return call_intrin(dtype, "tirx.cuda.mma_store", m, n, dst_ptr, src_ptr, src_offset, dst_stride)
 
 
 def mma_fill(dtype, local_size, local_ptr, offset):
     """Zero-initialize an MMA accumulation register."""
 
-    return call_intrin(dtype, "tirx.mma_fill", local_size, local_ptr, offset)
-
-
-_mma_fill_legacy = _make_op_api(Op.get("tirx.mma_fill_legacy"), __name__)
-
-
-def mma_fill_legacy(local_size, local_ptr, offset, *, ty=None, span=None):
-    """Initialize MMA registers using an explicit element offset."""
-    return _mma_fill_legacy(local_size, local_ptr, offset, ty=ty, span=span)
+    return call_intrin(dtype, "tirx.cuda.mma_fill", local_size, local_ptr, offset)
 
 
 _PTX_TO_NUMPY_DTYPE = {
@@ -873,7 +848,7 @@ def _static_str(value):
 # shape tokens in backend/cuda/ptx/table.py.
 
 
-def timer_init_cuda(
+def timer_init(
     profiler_buffer,
     profiler_tag,
     profiler_write_offset,
@@ -910,14 +885,14 @@ def timer_init_cuda(
     """
 
     return Call(
-        "tirx.timer_init_cuda",
+        "tirx.cuda.timer_init",
         [profiler_buffer, profiler_tag, profiler_write_offset, num_groups, group_id],
         ty=ty,
         span=span,
     )
 
 
-def timer_start_cuda(
+def timer_start(
     event_type,
     profiler_buffer,
     profiler_tag,
@@ -958,7 +933,7 @@ def timer_start_cuda(
     """  # noqa: E501
 
     return Call(
-        "tirx.timer_start_cuda",
+        "tirx.cuda.timer_start",
         [
             event_type.value if isinstance(event_type, Enum) else event_type,
             profiler_buffer,
@@ -972,7 +947,7 @@ def timer_start_cuda(
     )
 
 
-def timer_end_cuda(
+def timer_end(
     event_type,
     profiler_buffer,
     profiler_tag,
@@ -1013,7 +988,7 @@ def timer_end_cuda(
     """  # noqa: E501
 
     return Call(
-        "tirx.timer_end_cuda",
+        "tirx.cuda.timer_end",
         [
             event_type.value if isinstance(event_type, Enum) else event_type,
             profiler_buffer,
@@ -1027,7 +1002,7 @@ def timer_end_cuda(
     )
 
 
-def timer_finalize_cuda(
+def timer_finalize(
     profiler_buffer,
     profiler_tag,
     profiler_write_offset,
@@ -1064,7 +1039,7 @@ def timer_finalize_cuda(
     """
 
     return Call(
-        "tirx.timer_finalize_cuda",
+        "tirx.cuda.timer_finalize",
         [profiler_buffer, profiler_tag, profiler_write_offset, profiler_write_stride, leader_cond],
         ty=ty,
         span=span,

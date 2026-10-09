@@ -200,13 +200,13 @@ def test_tir_op_mma_store():
         buffer_w.ty.elem_offset,
         x,
     )
-    assert expr.op.name == "tirx.mma_store"
+    assert expr.op.name == "tirx.cuda.mma_store"
 
 
 def test_tir_op_mma_fill():
     buffer_w = tirx.decl_tensor([16, 8], dtype="int32", scope="warp", offset_factor=1)
     expr = _cuda_op.mma_fill("int32", 8, buffer_w.data, buffer_w.ty.elem_offset)
-    assert expr.op.name == "tirx.mma_fill"
+    assert expr.op.name == "tirx.cuda.mma_fill"
 
 
 def test_op_ptx_cp_async():
@@ -227,18 +227,18 @@ def test_op_ptx_cp_async():
         assert int(simplified_offset) == expected_offset
 
 
-def test_tir_op_vectorlow():
+def test_tir_op_vector_low():
     buffer = tirx.decl_tensor((4, 4), "int8", offset_factor=1)
     vec = buffer.vload([0, 0], dtype="int8x16")
-    expr = tirx.vectorlow("int8x8", vec)
-    assert expr.op.name == "tirx.vectorlow"
+    expr = tirx.vector_low("int8x8", vec)
+    assert expr.op.name == "tirx.vector_low"
 
 
-def test_tir_op_vectorhigh():
+def test_tir_op_vector_high():
     buffer = tirx.decl_tensor((4, 4), "int8", offset_factor=1)
     vec = buffer.vload([0, 0], dtype="int8x16")
-    expr = tirx.vectorhigh("int8x8", vec)
-    assert expr.op.name == "tirx.vectorhigh"
+    expr = tirx.vector_high("int8x8", vec)
+    assert expr.op.name == "tirx.vector_high"
 
 
 def test_tir_op_dp4a():
@@ -249,11 +249,11 @@ def test_tir_op_dp4a():
     assert expr.op.name == "tirx.gpu_dp4a"
 
 
-def test_tir_op_vectorcombine():
+def test_tir_op_vector_combine():
     buffer = tirx.decl_tensor((4, 4), "int8", offset_factor=1)
     vec = buffer.vload([0, 0], dtype="int8x16")
-    expr = tirx.vectorcombine("int8x8", vec, vec)
-    assert expr.op.name == "tirx.vectorcombine"
+    expr = tirx.vector_combine("int8x8", vec, vec)
+    assert expr.op.name == "tirx.vector_combine"
 
 
 def test_tir_op_shift_left():

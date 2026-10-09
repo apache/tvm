@@ -109,9 +109,7 @@ void RegisterHexagonIntrinRules() {
       .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>);
 
-  OpDef("tirx.ctpop")
-      .signature(sig::arg("x", "The input value."))
-      .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+  OpDef("prim.popcount")
       .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::ctpop, 1>);
 
