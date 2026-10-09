@@ -35,12 +35,10 @@ from tvm.tirx.layout import (
     tcgen05_atom_layout,
     tmem_datapath_layout,
 )
-from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.stmt import TileOpCall
+from tvm.tirx.operator.tile_primitive import DispatchContext
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..common import get_st_extent
-from ..copy import _is_valid_copy, _scope_allowed
-from ..exec_scope_utils import exec_scope_ok
 
 # Per-warp fp32-column factor for each instr_shape (mirrors
 # ``_TCGEN05_COL_FACTOR_FP32`` in ``tvm.tirx.layout``; .16x64b → 2,
@@ -222,8 +220,8 @@ def _tmem_window(tmem_buf, tmem_region, atom_kind, frag_rows, analyzer):
     return width, window.offset.get(TCol, 0), lane_off // 16
 
 
-def copy_tmem_local_impl(op_call: TileOpCall, sctx: DispatchContext) -> Function | None:
-    op_call = TileOpCall.downcast(op_call)
+def copy_tmem_local_impl(op_call: TensorCall, sctx: DispatchContext) -> Function | None:
+    op_call = TensorCall.decode(op_call)
     dst_buffer_region, src_buffer_region = op_call.dst, op_call.src
     dst: Var = dst_buffer_region.source
     src: Var = src_buffer_region.source
@@ -567,28 +565,3 @@ def _emit_datapath_b_path(
         emit(tmem_buf.allocated_addr[0], 0, 0, [local_32b[i] for i in range(n_half)])
     # fmt: on
     return impl
-
-
-# === Variant: copy_async/tmem<->local (priority=10) ===
-#
-# When: one buffer is in tmem (tensor memory, Blackwell SM100+) and the other
-# is in local scope, at warpgroup exec scope.
-#
-# Emits: T.ptx.tcgen05.ld / T.ptx.tcgen05.st (async). The caller is
-# responsible for issuing the matching ``T.ptx.tcgen05.wait__ld`` /
-# ``T.ptx.tcgen05.wait__st`` when synchronization is required.
-@register_dispatch(
-    "copy_async",
-    "cuda",
-    variant="tmem<->local",
-    priority=10,
-    when=[
-        predicate("validate_copy_op", _is_valid_copy),
-        predicate("exec_scope", exec_scope_ok, expected_scopes=["warpgroup"]),
-        predicate(
-            "storage_scope", _scope_allowed, allowed_pairs=[("tmem", "local"), ("local", "tmem")]
-        ),
-    ],
-)
-def copy_async_schedule_tmem_local_async(op_call: TileOpCall, sctx: DispatchContext) -> Function:
-    return copy_tmem_local_impl(op_call, sctx)

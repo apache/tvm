@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring
+import math
+
 import numpy as np
 import pytest
 import tvm_ffi
@@ -23,7 +25,6 @@ import tvm
 import tvm.testing
 from tvm.backend.cuda.cpp.descriptors import _get_tcgen05_mma_kind
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 
 
@@ -452,7 +453,38 @@ def test_tcgen05_cp_ld_roundtrip():
                 T.address_of(tmem_addr), T.uint32(N_COLS)
             )
         T.cuda.cta_sync()
-        Tx.cta.copy(A_smem[:, :], A[:, :])
+        copy_src_1 = T.meta_var(A[:, :])
+        copy_src_tensor_1 = T.meta_var(copy_src_1.source)
+        copy_dst_1 = T.meta_var(A_smem[:, :])
+        copy_dst_tensor_1 = T.meta_var(copy_dst_1.source)
+        for copy_step_1 in T.serial(
+            T.ceildiv(math.prod([int(r.extent) for r in copy_src_1.region]), 128)
+        ):
+            copy_index_1 = copy_step_1 * (128) + (tx)
+            if copy_index_1 < math.prod([int(r.extent) for r in copy_src_1.region]):
+                copy_value_1 = copy_src_tensor_1[
+                    tuple(
+                        [
+                            copy_src_1.region[k].min
+                            + copy_index_1
+                            // math.prod([int(s.extent) for s in copy_src_1.region[k + 1 :]])
+                            % copy_src_1.region[k].extent
+                            for k in range(len(copy_src_1.region))
+                        ]
+                    )
+                ]
+                copy_dst_index_1 = T.meta_var(
+                    tuple(
+                        [
+                            copy_dst_1.region[k].min
+                            + copy_index_1
+                            // math.prod([int(s.extent) for s in copy_dst_1.region[k + 1 :]])
+                            % copy_dst_1.region[k].extent
+                            for k in range(len(copy_dst_1.region))
+                        ]
+                    )
+                )
+                copy_dst_tensor_1[copy_dst_index_1] = copy_value_1
         T.ptx.fence.proxy.async_.shared__cta()
         T.cuda.cta_sync()
         # reset RF
@@ -571,8 +603,70 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
         T.cuda.cta_sync()
         for i in range(N):
             reg[i] = 0.0
-        Tx.cta.copy(A_smem[:, :], A[:, :])
-        Tx.cta.copy(B_smem[:, :], B[:, :])
+        copy_src_2 = T.meta_var(A[:, :])
+        copy_src_tensor_2 = T.meta_var(copy_src_2.source)
+        copy_dst_2 = T.meta_var(A_smem[:, :])
+        copy_dst_tensor_2 = T.meta_var(copy_dst_2.source)
+        for copy_step_2 in T.serial(
+            T.ceildiv(math.prod([int(r.extent) for r in copy_src_2.region]), 128)
+        ):
+            copy_index_2 = copy_step_2 * (128) + (tx)
+            if copy_index_2 < math.prod([int(r.extent) for r in copy_src_2.region]):
+                copy_value_2 = copy_src_tensor_2[
+                    tuple(
+                        [
+                            copy_src_2.region[k].min
+                            + copy_index_2
+                            // math.prod([int(s.extent) for s in copy_src_2.region[k + 1 :]])
+                            % copy_src_2.region[k].extent
+                            for k in range(len(copy_src_2.region))
+                        ]
+                    )
+                ]
+                copy_dst_index_2 = T.meta_var(
+                    tuple(
+                        [
+                            copy_dst_2.region[k].min
+                            + copy_index_2
+                            // math.prod([int(s.extent) for s in copy_dst_2.region[k + 1 :]])
+                            % copy_dst_2.region[k].extent
+                            for k in range(len(copy_dst_2.region))
+                        ]
+                    )
+                )
+                copy_dst_tensor_2[copy_dst_index_2] = copy_value_2
+        copy_src_3 = T.meta_var(B[:, :])
+        copy_src_tensor_3 = T.meta_var(copy_src_3.source)
+        copy_dst_3 = T.meta_var(B_smem[:, :])
+        copy_dst_tensor_3 = T.meta_var(copy_dst_3.source)
+        for copy_step_3 in T.serial(
+            T.ceildiv(math.prod([int(r.extent) for r in copy_src_3.region]), 128)
+        ):
+            copy_index_3 = copy_step_3 * (128) + (tx)
+            if copy_index_3 < math.prod([int(r.extent) for r in copy_src_3.region]):
+                copy_value_3 = copy_src_tensor_3[
+                    tuple(
+                        [
+                            copy_src_3.region[k].min
+                            + copy_index_3
+                            // math.prod([int(s.extent) for s in copy_src_3.region[k + 1 :]])
+                            % copy_src_3.region[k].extent
+                            for k in range(len(copy_src_3.region))
+                        ]
+                    )
+                ]
+                copy_dst_index_3 = T.meta_var(
+                    tuple(
+                        [
+                            copy_dst_3.region[k].min
+                            + copy_index_3
+                            // math.prod([int(s.extent) for s in copy_dst_3.region[k + 1 :]])
+                            % copy_dst_3.region[k].extent
+                            for k in range(len(copy_dst_3.region))
+                        ]
+                    )
+                )
+                copy_dst_tensor_3[copy_dst_index_3] = copy_value_3
         T.ptx.fence.proxy.async_.shared__cta()
         T.cuda.cta_sync()
         # MMA

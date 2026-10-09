@@ -45,102 +45,49 @@ ffi::Array<StmtDoc> Body(const Stmt& stmt, DocTranslatorObj* d) {
 
 namespace {
 
-ffi::Optional<ExprDoc> TileOpCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+ExprDoc TensorOperandDoc(DocTranslatorObj* d, const Expr& value) {
+  if (const auto* region = value.as<TensorRegionNode>()) {
+    ExprDoc doc = TensorRegionValue(d, region, true);
+    d->RecordOrigin(doc, value);
+    return doc;
+  }
+  if (const auto* tuple = value.as<TupleNode>()) {
+    if (tuple->fields.empty()) return LiteralDoc::None(std::nullopt);
+    ffi::Array<ExprDoc> fields;
+    for (const auto& field : tuple->fields) fields.push_back(TensorOperandDoc(d, field));
+    return TupleDoc(fields);
+  }
+  return AnyValue(d, value);
+}
+
+ffi::Optional<ExprDoc> TensorCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                               const ffi::Object* destination) {
-  const auto* stmt =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::TileOpCallNode>(input);
-  TVM_FFI_CHECK(destination == nullptr, TypeError)
-      << "printer statement-only node cannot fulfill a destination";
-  static const OpAttrMap<TScriptPrinterName>& names =
-      Op::GetAttrMap<TScriptPrinterName>("TScriptPrinterName");
-  TVM_FFI_CHECK(names.count(stmt->op), TypeError)
-      << "printer tile primitive has no canonical script name: " << stmt->op->name;
-  std::string name = names[stmt->op];
-  TVM_FFI_CHECK(name.find("tirx.tile.") == 0, TypeError)
-      << "printer tile primitive name must be in tirx.tile namespace: " << name;
-  name.erase(0, 10);
-  ffi::String scope;
-  switch (stmt->scope->kind) {
-    case tirx::ScopeKind::kWarp:
-      scope = "warp";
-      break;
-    case tirx::ScopeKind::kWarpgroup:
-      scope = "wg";
-      break;
-    case tirx::ScopeKind::kCta:
-      scope = "cta";
-      break;
-    case tirx::ScopeKind::kCluster:
-      scope = "cluster";
-      break;
-    default:
-      scope = "tile";
-  }
-  ffi::Array<Doc> args;
-  for (size_t i = 0; i < stmt->args.size(); ++i) {
-    if (const auto* region = stmt->args[i].as<TensorRegionNode>()) {
-      // Tile APIs require a region even when every extent is one. Point
-      // indexing would instead construct a TensorLoad and select builtin APIs.
-      ExprDoc value = TensorRegionValue(d, region, true);
-      d->RecordOrigin(value, ffi::GetRef<TensorRegion>(region));
-      args.push_back(value);
-    } else {
-      args.push_back(AnyValue(d, stmt->args[i]));
-    }
-  }
-  auto dict = [&](const auto& source, bool config = false) -> ffi::Optional<DictDoc> {
-    if (source.empty()) return std::nullopt;
-    std::vector<std::pair<ffi::String, ffi::Any>> sorted;
-    for (const auto& [key, value] : source) sorted.emplace_back(key, value);
-    std::sort(sorted.begin(), sorted.end(),
-              [](const auto& a, const auto& b) { return a.first < b.first; });
-    ffi::Array<ExprDoc> keys;
-    ffi::Array<ExprDoc> values;
-    for (const auto& [key, value] : sorted) {
-      keys.push_back(LiteralDoc::Str(key, std::nullopt));
-      if (config) {
-        if (const auto* string = value.template as<StringImmNode>()) {
-          values.push_back(LiteralDoc::Str(string->value, std::nullopt));
-          continue;
-        }
-        if (const auto* integer = value.template as<IntImmNode>()) {
-          PrimType type = integer->ty.template as_or_throw<PrimType>();
-          if (type == PrimType::Bool()) {
-            values.push_back(LiteralDoc::Boolean(integer->value != 0, std::nullopt));
-            continue;
-          }
-          int bits = integer->value >= INT32_MIN && integer->value <= INT32_MAX ? 32 : 64;
-          if (type == PrimType::Int(bits)) {
-            values.push_back(LiteralDoc::Int(ffi::GetRef<IntImm>(integer), std::nullopt));
-            continue;
-          }
-        }
-        if (const auto* floating = value.template as<FloatImmNode>()) {
-          if (floating->ty.template as_or_throw<PrimType>() == PrimType::Float(32) &&
-              std::isfinite(floating->value)) {
-            values.push_back(LiteralDoc::Float(floating->value, std::nullopt));
-            continue;
-          }
-        }
-      }
-      values.push_back(AnyValue(d, value));
-    }
-    return DictDoc(keys, values);
-  };
-  ffi::Optional<ExprDoc> dispatch = std::nullopt;
-  if (stmt->dispatch.has_value()) {
-    dispatch = LiteralDoc::Str(stmt->dispatch.value(), std::nullopt);
-  }
-  auto keywords = dict(stmt->config, true);
-  d->Emit(OpCallDoc(NamespaceDoc("tirx")->Attr(scope)->Attr(name), args, dict(stmt->workspace),
-                    keywords, dispatch),
-          ffi::GetRef<ffi::ObjectRef>(stmt));
-  return std::nullopt;
+  const auto* call =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
+  const auto op = call->op.as_or_throw<Op>();
+  op.Validate(call);
+  ffi::Array<ExprDoc> args;
+  for (const auto& arg : call->args) args.push_back(TensorOperandDoc(d, arg));
+  ffi::Array<ffi::String> keys;
+  ffi::Array<ExprDoc> values;
+  ffi::reflection::ForEachFieldInfo(
+      TVMFFIGetTypeInfo(call->attrs->type_index()), [&](const TVMFFIFieldInfo* field) {
+        ffi::Any value = ffi::reflection::FieldGetter(field)(call->attrs);
+        if ((field->flags & kTVMFFIFieldFlagBitMaskHasDefault) &&
+            ffi::StructuralEqual()(
+                value, ffi::AnyView::CopyFromTVMFFIAny(field->default_value_or_factory)))
+          return;
+        keys.push_back(ffi::String(field->name));
+        values.push_back(AnyValue(d, value));
+      });
+  static const auto& names = Op::GetAttrMap<TScriptPrinterName>("TScriptPrinterName");
+  return NamedCallCallee(names[op])->Call(args, keys, values);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::TileOpCallNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TileOpCallDocTranslate>());
+  ffi::reflection::GlobalDef().def("script.printer.TensorCallDocTranslate", []() {
+    return FDocTranslate::FromNative<&TensorCallDocTranslate>();
+  });
 }
 
 ffi::Optional<ExprDoc> EvaluateDocTranslate(DocTranslatorObj* d, ffi::AnyView input,

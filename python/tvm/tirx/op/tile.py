@@ -17,14 +17,8 @@
 
 """Implementation of TIR operator."""
 
-from tvm.ir import Op
 from tvm.tirx import Expr
-from tvm.tirx.stmt import TileOpCall
-
-
-def get_tirx_op(op_name: str):
-    assert isinstance(op_name, str)
-    return Op.get("tirx.tile." + op_name)
+from tvm.tirx.tensor_instruction import TensorCall
 
 
 class ArgProperty:
@@ -32,12 +26,12 @@ class ArgProperty:
         self.index = index
 
     def __get__(self, obj, objtype=None):
-        assert obj is not None, "TileOpCall cannot be None"
+        assert obj is not None, "TensorCall cannot be None"
         return obj.args[self.index]
 
 
 ### Base Operator Classes ###
-class UnaryOp(TileOpCall):
+class UnaryOp(TensorCall):
     """Base class for unary operators: unary(output, input).
 
     Unary operators take a single input tensor and produce a single output tensor.
@@ -74,7 +68,7 @@ class UnaryOpWithScaleBias(UnaryOp):
         return [self.input, self.scale, self.bias]
 
 
-class BinaryOp(TileOpCall):
+class BinaryOp(TensorCall):
     """Base class for binary operators: binary(output, input0, input1).
 
     Binary operators take two input tensors and produce a single output tensor.
@@ -95,7 +89,7 @@ class BinaryOp(TileOpCall):
         return [self.output]
 
 
-class ReduceOp(TileOpCall):
+class ReduceOp(TensorCall):
     """Base class for reduction operators: reduce(output, input, reduce_axes, accum).
 
     Reduction operators reduce one or more dimensions of the input tensor.
@@ -121,53 +115,53 @@ class ReduceOp(TileOpCall):
 class Zero(UnaryOp):
     """Zero out all elements in src and store to dst."""
 
-    op = get_tirx_op("zero")
+    kind = "zero"
 
 
 class Sqrt(UnaryOp):
     """Compute sqrt(src) and store to dst."""
 
-    op = get_tirx_op("sqrt")
+    kind = "sqrt"
 
 
 class SqrtWithScaleBias(UnaryOpWithScaleBias):
     """Compute sqrt(src * scale + bias) and store to dst."""
 
-    op = get_tirx_op("sqrt_with_scale_bias")
+    kind = "sqrt_with_scale_bias"
 
 
 class Fill(UnaryOp):
     """Fill dst with a scalar value."""
 
-    op = get_tirx_op("fill")
+    kind = "fill"
     scalar_input = True
 
 
 class Add(BinaryOp):
     """Add src1 and src2 element-wise and store to dst."""
 
-    op = get_tirx_op("add")
+    kind = "add"
 
 
 class Sub(BinaryOp):
     """Subtract src2 from src1 element-wise and store to dst."""
 
-    op = get_tirx_op("sub")
+    kind = "sub"
 
 
 class Mul(BinaryOp):
     """Multiply src1 and src2 element-wise and store to dst."""
 
-    op = get_tirx_op("mul")
+    kind = "mul"
 
 
 class FDiv(BinaryOp):
     """Divide src1 by src2 element-wise using floating point division and store to dst."""
 
-    op = get_tirx_op("fdiv")
+    kind = "fdiv"
 
 
-class FMA(TileOpCall):
+class FMA(TensorCall):
     """Fused multiply-add: output = input * scale + bias.
 
     fma(output, input, scale, bias)
@@ -175,7 +169,7 @@ class FMA(TileOpCall):
     scale and bias can each be either a TensorRegion or an Expr scalar.
     """
 
-    op = get_tirx_op("fma")
+    kind = "fma"
 
     output = ArgProperty(0)
     input = ArgProperty(1)
@@ -196,10 +190,10 @@ class FMA(TileOpCall):
 class Cast(UnaryOp):
     """Cast src to dst."""
 
-    op = get_tirx_op("cast")
+    kind = "cast"
 
 
-class Copy(TileOpCall):
+class Copy(TensorCall):
     """Copy all elements from src to dst.
 
     Args:
@@ -207,7 +201,7 @@ class Copy(TileOpCall):
         src: Source buffer region
     """
 
-    op = get_tirx_op("copy")
+    kind = "copy"
 
     dst = ArgProperty(0)
     src = ArgProperty(1)
@@ -223,7 +217,7 @@ class Copy(TileOpCall):
         return [self.dst]
 
 
-class CopyAsync(TileOpCall):
+class CopyAsync(TensorCall):
     """Copy all elements from src to dst asynchronously.
 
     Args:
@@ -231,7 +225,7 @@ class CopyAsync(TileOpCall):
         src: Source buffer region
     """
 
-    op = get_tirx_op("copy_async")
+    kind = "copy_async"
 
     dst = ArgProperty(0)
     src = ArgProperty(1)
@@ -247,7 +241,7 @@ class CopyAsync(TileOpCall):
         return [self.dst]
 
 
-class Gemm(TileOpCall):
+class Gemm(TensorCall):
     """General matrix multiplication: D = A * B * alpha + C * beta.
 
     Args:
@@ -261,7 +255,7 @@ class Gemm(TileOpCall):
         beta: Scalar multiplier for C
     """
 
-    op = get_tirx_op("gemm")
+    kind = "gemm"
     output = ArgProperty(0)
     lhs = ArgProperty(1)
     rhs = ArgProperty(2)
@@ -282,7 +276,7 @@ class Gemm(TileOpCall):
         return [self.output]
 
 
-class GemmAsync(TileOpCall):
+class GemmAsync(TensorCall):
     """General matrix multiplication asynchronously.
 
     Supports two arg layouts:
@@ -290,7 +284,7 @@ class GemmAsync(TileOpCall):
     - Block-scaled (8 args): C, A, B, SFA, SFB, transA, transB, accum
     """
 
-    op = get_tirx_op("gemm_async")
+    kind = "gemm_async"
     output = ArgProperty(0)
     lhs = ArgProperty(1)
     rhs = ArgProperty(2)
@@ -339,86 +333,86 @@ class GemmAsync(TileOpCall):
 class Sum(ReduceOp):
     """Sum elements in src along specified axes and store in dst."""
 
-    op = get_tirx_op("sum")
+    kind = "sum"
 
 
 class Max(ReduceOp):
     """Compute maximum value in src along specified axes and store in dst."""
 
-    op = get_tirx_op("max")
+    kind = "max"
 
 
 class Min(ReduceOp):
     """Compute minimum value in src along specified axes and store in dst."""
 
-    op = get_tirx_op("min")
+    kind = "min"
 
 
 class Reciprocal(UnaryOp):
     """Compute reciprocal (1/x) for all elements in src and store to dst."""
 
-    op = get_tirx_op("reciprocal")
+    kind = "reciprocal"
 
 
 class SiLU(UnaryOp):
     """Compute SiLU (x * sigmoid(x)) for all elements in src and store to dst."""
 
-    op = get_tirx_op("silu")
+    kind = "silu"
 
 
 class Memset(UnaryOp):
     """Set all elements in dst to a specified value."""
 
-    op = get_tirx_op("memset")
+    kind = "memset"
     scalar_input = True
 
 
 class Maximum(BinaryOp):
     """Compute element-wise maximum of src1 and src2 and store to dst."""
 
-    op = get_tirx_op("maximum")
+    kind = "maximum"
 
 
 class Minimum(BinaryOp):
     """Compute element-wise minimum of src1 and src2 and store to dst."""
 
-    op = get_tirx_op("minimum")
+    kind = "minimum"
 
 
 class Exp(UnaryOp):
     """Compute exp(src) and store to dst."""
 
-    op = get_tirx_op("exp")
+    kind = "exp"
 
 
 class ExpWithScaleBias(UnaryOpWithScaleBias):
     """Compute exp(src * scale + bias) and store to dst."""
 
-    op = get_tirx_op("exp_with_scale_bias")
+    kind = "exp_with_scale_bias"
 
 
 class Exp2(UnaryOp):
     """Compute exp2(src) and store to dst."""
 
-    op = get_tirx_op("exp2")
+    kind = "exp2"
 
 
 class Exp2WithScaleBias(UnaryOpWithScaleBias):
     """Compute exp2(src * scale + bias) and store to dst."""
 
-    op = get_tirx_op("exp2_with_scale_bias")
+    kind = "exp2_with_scale_bias"
 
 
 class Log2(UnaryOp):
     """Compute log2(src) and store to dst."""
 
-    op = get_tirx_op("log2")
+    kind = "log2"
 
 
 class Log2WithScaleBias(UnaryOpWithScaleBias):
     """Compute log2(src * scale + bias) and store to dst."""
 
-    op = get_tirx_op("log2_with_scale_bias")
+    kind = "log2_with_scale_bias"
 
 
 class Select(BinaryOp):
@@ -427,18 +421,18 @@ class Select(BinaryOp):
     select(dst, src1, src2, predicate)
     """
 
-    op = get_tirx_op("select")
+    kind = "select"
     predicate = ArgProperty(3)
 
 
 ### Compose Ops ###
-class BinaryReduce(TileOpCall):
+class BinaryReduce(TensorCall):
     """Combine a binary operation with a reduction operation.
 
     binary_reduce(binary_output, reduce_output, binary_input1, binary_input2, binary_op, reduce_op, reduce_axes, )
     """  # noqa: E501
 
-    op = get_tirx_op("binary_reduce")
+    kind = "binary_reduce"
 
     binary_output = ArgProperty(0)
     reduce_output = ArgProperty(1)
@@ -459,13 +453,13 @@ class BinaryReduce(TileOpCall):
         return [self.binary_output, self.reduce_output]
 
 
-class UnaryReduce(TileOpCall):
+class UnaryReduce(TensorCall):
     """Combine a unary operation with a reduction operation.
 
     unary_reduce(unary_output, reduce_output, unary_input, unary_op, reduce_op, reduce_axes)
     """
 
-    op = get_tirx_op("unary_reduce")
+    kind = "unary_reduce"
 
     unary_output = ArgProperty(0)
     reduce_output = ArgProperty(1)
@@ -488,7 +482,7 @@ class UnaryReduce(TileOpCall):
 class UnaryReduceWithScaleBias(UnaryReduce):
     """Write unary(input * scale + bias), then reduce the unary output."""
 
-    op = get_tirx_op("unary_reduce_with_scale_bias")
+    kind = "unary_reduce_with_scale_bias"
     scale = ArgProperty(5)
     bias = ArgProperty(6)
     reduce_axes = ArgProperty(7)
@@ -498,7 +492,7 @@ class UnaryReduceWithScaleBias(UnaryReduce):
         return [self.unary_input, self.scale, self.bias]
 
 
-class BinaryChain(TileOpCall):
+class BinaryChain(TensorCall):
     """Chain multiple binary operations together.
 
     binary_chain(output, data, operand0, operand1, op0, op1, reverse1)
@@ -509,7 +503,7 @@ class BinaryChain(TileOpCall):
         output = operand1 op1 (operand0 op0 data)
     """
 
-    op = get_tirx_op("binary_chain")
+    kind = "binary_chain"
 
     output = ArgProperty(0)
     data = ArgProperty(1)
@@ -537,40 +531,6 @@ class ReduceNegate(ReduceOp):
     reduce_negate(output, input, reduce_op, reduce_axes, accum)
     """
 
-    op = get_tirx_op("reduce_negate")
+    kind = "reduce_negate"
 
-    reduce_op = ArgProperty(2)
-    reduce_axes = ArgProperty(3)
-    accum = ArgProperty(4)
-
-
-class PermuteLayout(TileOpCall):
-    """Move data so the buffer's bytes are arranged under a different layout.
-
-    Logical shape is preserved; only the byte placement changes. ``dst`` and
-    ``src`` carry their own TileLayouts; on lowering, the dispatcher reads
-    those layouts and emits a register-staged warp transpose, optionally
-    inserting a bank-conflict-avoiding XOR-swizzle on the per-lane register
-    slots.
-
-    Args: ``permute_layout(dst_region, src_region)``.
-    ``dst`` and ``src`` may alias the same underlying SMEM (in-place).
-    """
-
-    op = get_tirx_op("permute_layout")
-
-    @property
-    def dst(self) -> Expr:
-        return self.args[0]
-
-    @property
-    def src(self) -> Expr:
-        return self.args[1]
-
-    @property
-    def srcs(self) -> list[Expr]:
-        return [self.src]
-
-    @property
-    def dsts(self) -> list[Expr]:
-        return [self.dst]
+    reduce_op = ArgProperty(4)

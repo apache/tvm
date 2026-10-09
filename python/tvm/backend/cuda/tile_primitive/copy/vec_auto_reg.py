@@ -37,8 +37,8 @@ from tvm.tirx import Function, Var
 from tvm.tirx import Var as _TirVar
 from tvm.tirx.expr import IntImm as _IntImm
 from tvm.tirx.layout import ComposeLayout, Iter, TileLayout
-from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.stmt import TileOpCall
+from tvm.tirx.tensor_instruction import TensorCall
+from tvm.tirx.tile_dispatch import DispatchContext
 
 from ..layout_utils import recompose_swizzle, strip_swizzle_to_tile
 from ._common import _alignment_ok, copy_ptx_form, copy_ptx_ld_chain
@@ -90,8 +90,8 @@ def _all_threads_active(sctx: DispatchContext) -> tuple[bool, str | None]:
     return True, None
 
 
-def _r_side_layout_valid(op_call: TileOpCall, sctx: DispatchContext) -> tuple[bool, str | None]:
-    op_call = TileOpCall.downcast(op_call)
+def _r_side_layout_valid(op_call: TensorCall, sctx: DispatchContext) -> tuple[bool, str | None]:
+    op_call = TensorCall.decode(op_call)
     src: Var = op_call.src.source
     dst: Var = op_call.dst.source
     r_buf = src if src.scope() == "local" else dst
@@ -131,9 +131,9 @@ def _r_side_layout_valid(op_call: TileOpCall, sctx: DispatchContext) -> tuple[bo
     return True, None
 
 
-def _s_side_slice_ok(op_call: TileOpCall) -> tuple[bool, str | None]:
+def _s_side_slice_ok(op_call: TensorCall) -> tuple[bool, str | None]:
     """S is the non-local side (shared* or global). Slice must succeed."""
-    op_call = TileOpCall.downcast(op_call)
+    op_call = TensorCall.decode(op_call)
     src_br = op_call.src
     dst_br = op_call.dst
     s_br = dst_br if src_br.source.scope() == "local" else src_br
@@ -147,7 +147,7 @@ def _s_side_slice_ok(op_call: TileOpCall) -> tuple[bool, str | None]:
     return True, None
 
 
-def _is_reg_copy(op_call: TileOpCall, sctx: DispatchContext) -> tuple[bool, str | None]:
+def _is_reg_copy(op_call: TensorCall, sctx: DispatchContext) -> tuple[bool, str | None]:
     if not sctx.is_target("cuda"):
         return False, "non-cuda target"
     if sctx.scope_kind not in ("thread", "warp", "warpgroup", "cta"):
@@ -264,8 +264,8 @@ def _split_atoms_for_vec(atoms, vec_len):
     raise ValueError(f"tail too short for vec_len {vec_len}")
 
 
-def _align_layouts(op_call: TileOpCall, sctx: DispatchContext):
-    op_call = TileOpCall.downcast(op_call)
+def _align_layouts(op_call: TensorCall, sctx: DispatchContext):
+    op_call = TensorCall.decode(op_call)
     src_br = op_call.src
     dst_br = op_call.dst
     if src_br.source.scope() == "local":
@@ -521,8 +521,8 @@ def _outer_const_offsets(outer_atoms, flat_idx: int) -> tuple[int, int]:
     return ds, dr
 
 
-def _emit_reg(op_call: TileOpCall, sctx: DispatchContext) -> Function:
-    op_call = TileOpCall.downcast(op_call)
+def _emit_reg(op_call: TensorCall, sctx: DispatchContext) -> Function:
+    op_call = TensorCall.decode(op_call)
     src: Var = op_call.src.source
     dst: Var = op_call.dst.source
     if src.scope() == "local":

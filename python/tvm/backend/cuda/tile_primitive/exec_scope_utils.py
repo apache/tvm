@@ -21,7 +21,7 @@ from collections.abc import Callable
 from tvm.script import tirx as T
 from tvm.tirx import Function
 from tvm.tirx.operator.tile_primitive import DispatchContext
-from tvm.tirx.stmt import TileOpCall
+from tvm.tirx.tensor_instruction import TensorCall
 
 
 def macro_or_function(macro: Callable, need_macro: bool = False) -> Callable:
@@ -89,14 +89,14 @@ def thread_selector(sctx: DispatchContext, inner_impl, macro: bool = False) -> C
     raise ValueError(f"thread_selector: unsupported exec_scope {name!r}")
 
 
-def single_thread(op_call: TileOpCall, sctx: DispatchContext) -> bool:
+def single_thread(op_call: TensorCall, sctx: DispatchContext) -> bool:
     """Predicate for dispatchers that require a single-thread execution scope."""
     del op_call
     return sctx.is_thread
 
 
 def exec_scope_ok(
-    op_call: TileOpCall, sctx: DispatchContext, expected_scopes: list[str]
+    op_call: TensorCall, sctx: DispatchContext, expected_scopes: list[str]
 ) -> tuple[bool, str | None]:
     """Predicate helper: check that ``sctx.scope_kind`` is in *expected_scopes*."""
     del op_call

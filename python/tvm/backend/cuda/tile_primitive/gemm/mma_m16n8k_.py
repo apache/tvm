@@ -23,13 +23,8 @@ from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
 from tvm.tirx import Function
 from tvm.tirx.layout import TileLayout
-from tvm.tirx.operator.tile_primitive import (
-    DispatchContext,
-    fail,
-    predicate,
-    register_dispatch,
-)
-from tvm.tirx.stmt import TileOpCall
+from tvm.tirx.operator.tile_primitive import DispatchContext, fail
+from tvm.tirx.tensor_instruction import TensorCall
 
 
 @dataclass(frozen=True)
@@ -220,7 +215,7 @@ def _same_iters(a, b):
     )
 
 
-def _full_active_lanes(op: TileOpCall, sctx: DispatchContext):
+def _full_active_lanes(op: TensorCall, sctx: DispatchContext):
     """The active thread set (sctx.intra) must be complete and un-narrowed.
 
     mma.sync.aligned is collective over every active thread; an enclosing if
@@ -249,7 +244,7 @@ def _full_active_lanes(op: TileOpCall, sctx: DispatchContext):
     return True
 
 
-def _no_replica(op: TileOpCall, sctx: DispatchContext):
+def _no_replica(op: TensorCall, sctx: DispatchContext):
     """All operand layouts must have no replica (no broadcast/duplicated axes)."""
     for region, name in zip(op.args[:4], ("D", "A", "B", "C")):
         if region.source.layout.replica:
@@ -257,17 +252,7 @@ def _no_replica(op: TileOpCall, sctx: DispatchContext):
     return True
 
 
-@register_dispatch(
-    "gemm",
-    "cuda",
-    variant="mma.m16n8k*",
-    priority=10,
-    when=[
-        predicate("full_active_lanes", _full_active_lanes),
-        predicate("no_replica", _no_replica),
-    ],
-)
-def gemm_cuda_mma_dispatch(op: TileOpCall, sctx: DispatchContext) -> Function:
+def gemm_cuda_mma_dispatch(op: TensorCall, sctx: DispatchContext) -> Function:
     """``gemm`` -> warp-level ``mma.sync`` of the m16n8k* family.
 
     This is the ``"mma.m16n8k*"`` variant. It targets the m16n8k* tensor-core

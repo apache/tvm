@@ -21,7 +21,6 @@ import tvm
 import tvm.testing
 from tvm.ir import assert_structural_equal as _assert_structural_equal
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import F, P, S, TileLayout
 
 target = tvm.target.Target("aws/trn1/trn1.2xlarge")
@@ -61,7 +60,7 @@ def test_simple_gemm():
         A_sbuf = T.alloc_tensor((128, 128), "float32", scope="trn.sbuf", layout=A_layout)
         B_sbuf = T.alloc_tensor((128, 128), "float32", scope="trn.sbuf", layout=B_layout)
         C_psum = T.alloc_tensor((128, 128), "float32", scope="trn.psum", layout=C_layout)
-        Tx.gemm(C_psum, A_sbuf, B_sbuf, C_psum)
+        T.trn.tile.matmul(C_psum, A_sbuf, B_sbuf, C_psum)
 
     @T.function
     def expected():
@@ -95,7 +94,7 @@ def test_larger_gemm():
         A_sbuf = T.alloc_tensor((256, 512), "float32", scope="trn.sbuf", layout=A_layout)
         B_sbuf = T.alloc_tensor((512, 256), "float32", scope="trn.sbuf", layout=B_layout)
         C_psum = T.alloc_tensor((256, 256), "float32", scope="trn.psum", layout=C_layout)
-        Tx.gemm(C_psum, A_sbuf, B_sbuf, C_psum)
+        T.trn.tile.matmul(C_psum, A_sbuf, B_sbuf, C_psum)
 
     @T.function
     def expected():
@@ -131,7 +130,7 @@ def test_gemm_in_a_loop():
         C_psum = T.alloc_tensor((512, 256), "float32", scope="trn.psum", layout=C_layout)
         for i in range(2):
             for k in range(2):
-                Tx.gemm(
+                T.trn.tile.matmul(
                     C_psum[256 * i : 256 * i + 256, :],
                     A_sbuf[256 * i : 256 * i + 256, 512 * k : 512 * k + 512],
                     B_sbuf[512 * k : 512 * k + 512, :],
@@ -172,7 +171,7 @@ def test_gemm_with_stride():
         C_psum = T.alloc_tensor((512, 256), "float32", scope="trn.psum", layout=C_layout)
         for i in range(2):
             for k in range(2):
-                Tx.gemm(
+                T.trn.tile.matmul(
                     C_psum[256 * i : 256 * i + 256, :],
                     A_sbuf[256 * i : 256 * i + 256, :, k],
                     B_sbuf[:, k, :],
@@ -214,7 +213,7 @@ def test_gemm_swap_lhs_rhs():
         C_psum = T.alloc_tensor((512, 256), "float32", scope="trn.psum", layout=C_layout)
         for i in range(2):
             for k in range(2):
-                Tx.gemm(
+                T.trn.tile.matmul(
                     C_psum[256 * i : 256 * i + 256, :],
                     A_sbuf[256 * i : 256 * i + 256, 512 * k : 512 * k + 512],
                     B_sbuf[512 * k : 512 * k + 512, :],
@@ -255,12 +254,13 @@ def test_gemm_with_sbuf_output():
         C_sbuf = T.alloc_tensor((512, 256), "float32", scope="trn.sbuf", layout=C_layout)
         for i in range(2):
             for k in range(2):
-                Tx.gemm(
+                T.trn.tile.matmul(
                     C_sbuf[256 * i : 256 * i + 256, :],
                     A_sbuf[256 * i : 256 * i + 256, 512 * k : 512 * k + 512],
                     B_sbuf[512 * k : 512 * k + 512, :],
                     C_sbuf[256 * i : 256 * i + 256, :],
                 )
+
     @T.function
     def expected():
         T.func_attr({"global_symbol": "gemm"})
@@ -303,7 +303,7 @@ def test_gemm_different_shape():
         C_psum = T.alloc_tensor((512, 256), "float32", scope="trn.psum", layout=C_layout)
         for i in range(2):
             for k in range(2):
-                Tx.gemm(
+                T.trn.tile.matmul(
                     C_psum[256 * i : 256 * i + 256, :],
                     A_sbuf[1, 256 * i : 256 * i + 256, 512 * k : 512 * k + 512],
                     B_sbuf[512 * k : 512 * k + 512, :],
@@ -342,7 +342,7 @@ def test_gemm_too_large_f_size():
         A_sbuf = T.alloc_tensor((256, 128), "float32", scope="trn.sbuf", layout=A_layout)
         B_sbuf = T.alloc_tensor((128, 1024), "float32", scope="trn.sbuf", layout=B_layout)
         C_psum = T.alloc_tensor((256, 1024), "float32", scope="trn.psum", layout=C_layout)
-        Tx.gemm(C_psum, A_sbuf, B_sbuf, C_psum)
+        T.trn.tile.matmul(C_psum, A_sbuf, B_sbuf, C_psum)
 
     @T.function
     def expected():
@@ -379,13 +379,14 @@ def test_gemm_sbuf_output_with_workspace():
         C_psum = T.alloc_tensor((1, 128, 512), "float32", scope="trn.psum", allocated_addr=(0, 0))
         for i in range(2):
             for k in range(2):
-                Tx.gemm(
+                T.trn.tile.matmul(
                     C_sbuf[256 * i : 256 * i + 256, :],
                     A_sbuf[256 * i : 256 * i + 256, 512 * k : 512 * k + 512],
                     B_sbuf[512 * k : 512 * k + 512, :],
                     C_sbuf[256 * i : 256 * i + 256, :],
-                    workspace={"acc_psum": C_psum}
+                    acc_psum=C_psum,
                 )
+
     @T.function
     def expected():
         T.func_attr({"global_symbol": "gemm"})
@@ -427,7 +428,7 @@ def test_gemm_pf_mismatch_fail():
         C_psum = T.alloc_tensor((512, 256), "float32", scope="trn.psum", layout=C_layout)
         for i in range(2):
             for k in range(2):
-                Tx.gemm(
+                T.trn.tile.matmul(
                     C_psum[256 * i : 256 * i + 256, :],
                     A_sbuf[256 * i : 256 * i + 256, 512 * k : 512 * k + 512],
                     B_sbuf[:, 512 * k : 512 * k + 512],
@@ -455,7 +456,7 @@ def test_gemm_transpose_AB():
         C_psum = T.alloc_tensor((512, 256), "float32", scope="trn.psum", layout=C_layout)
         for i in range(2):
             for k in range(2):
-                Tx.gemm(
+                T.trn.tile.matmul(
                     C_psum[256 * i : 256 * i + 256, :],
                     A_sbuf[512 * k : 512 * k + 512, 256 * i : 256 * i + 256],
                     B_sbuf[:, 512 * k : 512 * k + 512],
@@ -500,12 +501,13 @@ def test_gemm_guard():
         for i in range(2):
             for j in range(2):
                 for k in range(2):
-                    Tx.gemm(
-                        C_sbuf[0: 256 * i, 0: 128 * (j + 1)],
-                        A_sbuf[0: 256 * i, 0: 512 * (k + 1)],
-                        B_sbuf[0: 512 * (k + 1), 0: 128 * (j + 1)],
-                        C_sbuf[0: 256 * i, 0: 128 * (j + 1)],
+                    T.trn.tile.matmul(
+                        C_sbuf[0 : 256 * i, 0 : 128 * (j + 1)],
+                        A_sbuf[0 : 256 * i, 0 : 512 * (k + 1)],
+                        B_sbuf[0 : 512 * (k + 1), 0 : 128 * (j + 1)],
+                        C_sbuf[0 : 256 * i, 0 : 128 * (j + 1)],
                     )
+
     @T.function
     def expected():
         T.func_attr({"global_symbol": "gemm"})
@@ -551,12 +553,13 @@ def test_gemm_guard2():
         for j in range(4):
             for i in range(2):
                 for k in range(2):
-                    Tx.gemm(
+                    T.trn.tile.matmul(
                         C_psum[256 * i : 256 * i + 256, :],
-                        A_sbuf[256 * i : 256 * i + 256, 512 * k : 512 * k + (j+1) * 128],
-                        B_sbuf[512 * k : 512 * k + (j+1) * 128, :],
+                        A_sbuf[256 * i : 256 * i + 256, 512 * k : 512 * k + (j + 1) * 128],
+                        B_sbuf[512 * k : 512 * k + (j + 1) * 128, :],
                         C_psum[256 * i : 256 * i + 256, :],
                     )
+
     @T.function
     def expected():
         T.func_attr({"global_symbol": "gemm"})

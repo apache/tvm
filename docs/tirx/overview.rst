@@ -102,8 +102,8 @@ program, but enter the compiler at different levels:
      - ``Tx.*``
      - Creates TIRx statements, expressions, buffers, and control flow.
    * - Tile primitives
-     - ``Tx.tile.*``
-     - Creates a ``TileOpCall`` that is replaced by a target-specific
+     - ``Tx.cuda.tile.*`` / ``Tx.trn.tile.*``
+     - Creates an ordinary void ``Call`` that is replaced by its backend instruction
        implementation during tile dispatch.
    * - Backend operations
      - ``Tx.cuda.*`` and ``Tx.ptx.*``
@@ -117,7 +117,7 @@ convert the program to the separate ``tvm.tir`` object model.
 .. code-block:: text
 
    Tx.* ──────────────────────────────▶ TIRx statements and expressions ──────┐
-   Tx.tile.* ─▶ TileOpCall ─▶ target dispatch ─────────────────────────┤
+   backend.tile.* ─▶ Evaluate(Call) ─▶ instruction lowering ─────────────────────────┤
    Tx.cuda.* / Tx.ptx.* ─────────────▶ backend calls ─────────────────────────┤
                                                                                ▼
                                              layout and scope lowering ─▶ codegen
@@ -135,8 +135,8 @@ issuing lane within each active warp. To obtain one issuer for a wider scope,
 first select one warp and then use ``elect_sync`` inside it.
 
 The primitive namespace is also part of the scope. For example,
-``Tx.tile.wg.*`` denotes warpgroup-level primitives, while an unqualified
-``Tx.tile.*`` call defaults to thread-level invocation.
+``scope="warpgroup"`` selects warpgroup cooperation; ``scope="thread"``
+is the default on backend tensor instructions.
 
 Tensor layout
 ~~~~~~~~~~~~~~

@@ -39,7 +39,7 @@ namespace tirx {
  * \brief The target execution scope kind of a tile primitive call.
  *
  * Identifies the granularity at which an op executes (the per-call
- * ``scope`` on a ``TileOpCall``, e.g. ``Tx.warp.copy(...)``).
+ * ``scope`` on tensor Call attributes, e.g. ``T.cuda.tile.ld(..., scope="warp")``).
  * Ordered from coarsest to finest; smaller integer = wider scope, so
  * ``ScopeKindHigher`` is a plain ``<``.
  */

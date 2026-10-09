@@ -20,26 +20,22 @@
 from tvm.backend.trn.layout import is_trainium_layout
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import FloatImm, Function, TileOpCall
+from tvm.tirx import FloatImm, Function
 from tvm.tirx.op.tile import Select
-from tvm.tirx.operator.tile_primitive import (
-    DispatchContext,
-    fail,
-    predicate,
-    register_dispatch,
-)
+from tvm.tirx.operator.tile_primitive import DispatchContext, fail
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..common import init_analyzer, nki_dim
 from ..dim_utils import get_ewise_dim_map
 from ..instruction_generator import InstructionGenerator
 
 
-def select_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
+def select_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     """Generate schedule for select operation on Trainium."""
     if sctx.scope_kind != "thread":
         fail("requires thread exec_scope for TRN select")
 
-    op = TileOpCall.downcast(op)
+    op = TensorCall.decode(op)
     assert isinstance(op, Select), f"{op} is not a Select"
 
     # Unpack operands
@@ -94,7 +90,7 @@ def select_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
     inst_repr = inst_gen.find_max_inst_size_from_one_region(dst)
     inst_repr = inst_gen.fit_inst_tile_to_region(inst_repr, true_value)
     inst_repr = inst_gen.restrict_inst_to_one_dim(inst_repr)
-    inst_repr.bound_inst_size(op.config.get("max_inst_size", 512), analyzer)
+    inst_repr.bound_inst_size(op.options.get("max_inst_size", 512), analyzer)
 
     p_var = T.Var("p", "int32")
     b_var = T.Var("b", "int32")
@@ -124,23 +120,3 @@ def select_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
     # fmt: on
 
     return impl
-
-
-# Rich dispatcher variant for TRN select
-@register_dispatch(
-    "select",
-    "trn",
-    variant="default",
-    priority=10,
-    when=[
-        predicate(
-            "exec_scope",
-            lambda op, sctx: (
-                sctx.scope_kind == "thread",
-                f"unsupported exec_scope {sctx.scope_kind}",
-            ),
-        )
-    ],
-)
-def select_trn_dispatch(op: TileOpCall, sctx: DispatchContext) -> Function:
-    return select_trn(op, sctx)

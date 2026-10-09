@@ -111,9 +111,6 @@ class StmtFunctor<R(const Stmt&, Args...)> {
   virtual R Dispatch_(const ScopeIdDefStmtNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  virtual R Dispatch_(const tirx::TileOpCallNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
   /*! \brief Default behavior for statement hooks not overridden by a subclass. */
   virtual R DispatchDefault_(const ffi::Object* node, Args...) {
     TVM_FFI_THROW(InternalError) << "Do not have a default for " << node->GetTypeKey();
@@ -144,7 +141,6 @@ class StmtFunctor<R(const Stmt&, Args...)> {
     SetDispatch<TSelf, SeqStmtNode>(vtable);
     SetDispatch<TSelf, EvaluateNode>(vtable);
     SetDispatch<TSelf, ScopeIdDefStmtNode>(vtable);
-    SetDispatch<TSelf, tirx::TileOpCallNode>(vtable);
   }
   /*! \brief Register an additional node hook implemented by Self. */
   template <typename Self, typename Node>
@@ -201,7 +197,6 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
   virtual ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const EvaluateNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const ScopeIdDefStmtNode* op);
-  virtual ffi::Optional<VisitInterrupt> Visit_(const TileOpCallNode* op);
 
   // Preserve TIRx operand traversal where it differs from the shared defaults.
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) override;
@@ -285,7 +280,6 @@ class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
   virtual UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const ScopeIdDefStmtNode* op, InplaceMode inplace_mode);
-  virtual UnchangedOr<Stmt> Mutate_(const TileOpCallNode* op, InplaceMode inplace_mode);
 
  protected:
   explicit StmtExprMutator(const VTable* vtable) : tvm::ExprMutator(vtable) {}

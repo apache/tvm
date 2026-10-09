@@ -116,10 +116,8 @@ from tvm.sym import Analyzer
 from tvm.tirx import Function, Var
 from tvm.tirx.layout import ComposeLayout, TCol, TileLayout, TLane
 from tvm.tirx.layout import m as m_axis
-from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.stmt import TileOpCall
-
-from ..copy import _single_thread_exec
+from tvm.tirx.operator.tile_primitive import DispatchContext
+from tvm.tirx.tensor_instruction import TensorCall
 
 # Allowed .multicast qualifiers per shape (PTX ISA 8.8 §9.7.16.9.2): "" = none,
 # 64x128b needs an explicit warpx2 pick.
@@ -193,10 +191,10 @@ def _cp_lane_replica_pattern(shape: str, multicast: str):
     raise ValueError(f"unknown tcgen05.cp multicast {multicast!r}")
 
 
-def _resolve_cp_shape(op_call: TileOpCall):
+def _resolve_cp_shape(op_call: TensorCall):
     """Resolve (shape, multicast) from an explicit ``shape=`` config."""
-    shape = op_call.config["shape"].value
-    multicast = op_call.config.get("multicast")
+    shape = op_call.options["shape"].value
+    multicast = op_call.options.get("multicast")
     if isinstance(multicast, tvm.ir.StringImm):
         multicast = multicast.value
     allowed = _CP_SHAPE_MULTICASTS.get(shape)
@@ -314,7 +312,7 @@ def _align_middles(t_middle, s_middle):
 # -----------------------------------------------------------------------------
 # Plan (state object)
 # -----------------------------------------------------------------------------
-def _build_plan(op_call: TileOpCall):
+def _build_plan(op_call: TensorCall):
     """Run A..H and return a dispatch plan.
 
     Plan fields:
@@ -329,12 +327,12 @@ def _build_plan(op_call: TileOpCall):
       - t_addr_off (Expr, taddr offset of the first cp: 32-bit col
         offset plus the region row offset in the lane half-word)
     """
-    op_call = TileOpCall.downcast(op_call)
-    if op_call.config.get("shape") is not None:
+    op_call = TensorCall.decode(op_call)
+    if op_call.options.get("shape") is not None:
         shape, multicast = _resolve_cp_shape(op_call)
         return _plan_for_shape(op_call, shape, multicast)
     # No shape config: infer from the buffer layouts.
-    multicast_cfg = op_call.config.get("multicast")
+    multicast_cfg = op_call.options.get("multicast")
     if isinstance(multicast_cfg, tvm.ir.StringImm):
         multicast_cfg = multicast_cfg.value
     errors = []
@@ -350,7 +348,7 @@ def _build_plan(op_call: TileOpCall):
     )
 
 
-def _plan_for_shape(op_call: TileOpCall, shape: str, multicast: str):
+def _plan_for_shape(op_call: TensorCall, shape: str, multicast: str):
     """Run A..I for one (shape, multicast); raises ValueError on any mismatch."""
     dst_region, src_region = op_call.args[:2]
     s_buf: Var = src_region.source
@@ -719,7 +717,7 @@ def _desc_set_addr(desc_val, addr_ptr):
     return T.bitwise_or(T.bitwise_and(desc_val, T.bitwise_not(T.uint64(0x3FFF))), start_addr)
 
 
-def _validate_smem_tmem_copy(op_call: TileOpCall, sctx: DispatchContext):
+def _validate_smem_tmem_copy(op_call: TensorCall, sctx: DispatchContext):
     """Memory-scope envelope only; shape resolution/inference and the detailed
     layout validation raise readable ValueErrors in ``_build_plan``."""
     dst_region, src_region = op_call.args[:2]
@@ -742,8 +740,8 @@ def _validate_smem_tmem_copy(op_call: TileOpCall, sctx: DispatchContext):
 # is responsible for issuing ``tcgen05.commit`` against a barrier if they
 # need synchronization.
 # -----------------------------------------------------------------------------
-def copy_smem_tmem_impl(op_call: TileOpCall, sctx: DispatchContext) -> Function | None:
-    decompress = op_call.config.get("decompress")
+def copy_smem_tmem_impl(op_call: TensorCall, sctx: DispatchContext) -> Function | None:
+    decompress = op_call.options.get("decompress")
     if isinstance(decompress, StringImm):
         decompress = decompress.value
     if decompress:
@@ -767,7 +765,7 @@ def copy_smem_tmem_impl(op_call: TileOpCall, sctx: DispatchContext) -> Function 
     # keep the legacy LDO=0 encoding. 256b atoms carry the derived field.
     LDO_field = plan["LDO_field"]
 
-    cta_group = op_call.config.get("cta_group", 1)
+    cta_group = op_call.options.get("cta_group", 1)
 
     desc_buf = _get_or_create_desc(sctx, s_buf, LDO_field, SDO_field, sw)
     t_addr = t_buf.allocated_addr
@@ -816,18 +814,3 @@ def copy_smem_tmem_impl(op_call: TileOpCall, sctx: DispatchContext) -> Function 
     # fmt: on
 
     return impl
-
-
-# === Variant: copy_async/smem->tmem (priority=10) ===
-@register_dispatch(
-    "copy_async",
-    "cuda",
-    variant="smem->tmem",
-    priority=10,
-    when=[
-        predicate("validate_smem_tmem_copy", _validate_smem_tmem_copy),
-        predicate("exec_scope", _single_thread_exec),
-    ],
-)
-def copy_async_schedule_smem_tmem(op_call: TileOpCall, sctx: DispatchContext) -> Function:
-    return copy_smem_tmem_impl(op_call, sctx)

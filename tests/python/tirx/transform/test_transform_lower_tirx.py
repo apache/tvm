@@ -25,7 +25,6 @@ import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.parser import register_namespace
 from tvm.script.parser.protocol_registry import register_mutable_decl
-from tvm.script.tirx import tile as Tx
 from tvm.tirx.function import Function
 from tvm.tirx.layout import laneid, warpid, wg_local_layout
 from tvm.tirx.transform import LowerTIRx, StmtSimplify
@@ -708,11 +707,27 @@ def test_lower_opcall_fail():
         T.warp_id([1])
         T.lane_id([32])
         A_smem = T.alloc_tensor([64], dtype="float32", scope="shared")
-        Tx.cta.copy(A[0:64], A_smem[0:64])
+        transfer_src_710 = T.meta_var(A_smem[0:64])
+        transfer_dst_710 = T.meta_var(A[0:64])
+        transfer_reg_710 = T.alloc_tensor(
+            [r.extent for r in transfer_src_710.region],
+            transfer_src_710.source.dtype,
+            scope="local",
+        )
+        T.cuda.tile.ld(transfer_reg_710, transfer_src_710, scope="cta")
+        T.cuda.tile.st(transfer_dst_710, transfer_reg_710, scope="cta")
         for i in range(10):
-            Tx.cta.fill(A_smem[0:64], T.float32(0))
-            Tx.cta.gemm(A_smem, A_smem, A_smem, A_smem)
-        Tx.cta.copy(A_smem[0:64], A[0:64])
+            T.cuda.tile.mov(A_smem[0:64], T.float32(0), scope="cta")
+            T.cuda.tile.mma_sync(A_smem, A_smem, A_smem, A_smem, scope="cta")
+        transfer_src_714 = T.meta_var(A[0:64])
+        transfer_dst_714 = T.meta_var(A_smem[0:64])
+        transfer_reg_714 = T.alloc_tensor(
+            [r.extent for r in transfer_src_714.region],
+            transfer_src_714.source.dtype,
+            scope="local",
+        )
+        T.cuda.tile.ld(transfer_reg_714, transfer_src_714, scope="cta")
+        T.cuda.tile.st(transfer_dst_714, transfer_reg_714, scope="cta")
 
     with pytest.raises(Exception):
         LowerTIRx()(tvm.IRModule({"main": test}))
@@ -798,12 +813,11 @@ def test_lower_uint32_scope_id_casts_at_bind():
 
 def test_lower_exec_context_infers_plain_predicate_for_dispatch():
     import tvm.tirx.operator.tile_primitive as _  # noqa: F401
-    from tvm.tirx.operator.tile_primitive.dispatcher import register_dispatch
 
     seen = []
     variant = "__probe_exec_context_plain_predicate__"
 
-    @register_dispatch("copy", "cuda", variant=variant, priority=10_000)
+    @_register_probe(variant)
     def _probe(op_call, sctx):
         seen.append({"scope_kind": sctx.scope_kind, "inter": sctx.inter, "intra": sctx.intra})
 
@@ -822,7 +836,7 @@ def test_lower_exec_context_infers_plain_predicate_for_dispatch():
         warp_id = T.warp_id([4])
         lane_id = T.lane_id([32])
         if (warp_id == 0) & (lane_id == 0):
-            Tx.copy(B[0:1], A[0:1], dispatch=variant)
+            getattr(T.cuda.tile, variant)(B[0:1], A[0:1])
 
     with tvm.target.Target("cuda"):
         LowerTIRx()(tvm.IRModule({"main": before}))
@@ -837,12 +851,11 @@ def test_lower_exec_context_infers_plain_predicate_for_dispatch():
 
 def test_lower_exec_context_infers_warpgroup_range_predicate_for_dispatch():
     import tvm.tirx.operator.tile_primitive as _  # noqa: F401
-    from tvm.tirx.operator.tile_primitive.dispatcher import register_dispatch
 
     seen = []
     variant = "__probe_exec_context_warpgroup_range_predicate__"
 
-    @register_dispatch("copy", "cuda", variant=variant, priority=10_000)
+    @_register_probe(variant)
     def _probe(op_call, sctx):
         seen.append({"scope_kind": sctx.scope_kind, "inter": sctx.inter, "intra": sctx.intra})
 
@@ -862,11 +875,11 @@ def test_lower_exec_context_infers_warpgroup_range_predicate_for_dispatch():
         T.warp_id_in_wg([4])
         T.lane_id([32])
         if wg_id == 0:
-            Tx.wg.copy(B[0:1], A[0:1], dispatch=variant)
+            getattr(T.cuda.tile, variant)(B[0:1], A[0:1], scope="warpgroup")
         if (0 <= wg_id) & (wg_id < 1):
-            Tx.wg.copy(B[0:1], A[0:1], dispatch=variant)
+            getattr(T.cuda.tile, variant)(B[0:1], A[0:1], scope="warpgroup")
         if (0 <= wg_id) & (wg_id < 1):
-            Tx.wg.copy(B[0:1], A[0:1], dispatch=variant)
+            getattr(T.cuda.tile, variant)(B[0:1], A[0:1], scope="warpgroup")
 
     with tvm.target.Target("cuda"):
         LowerTIRx()(tvm.IRModule({"main": before}))
@@ -882,12 +895,11 @@ def test_lower_exec_context_infers_warpgroup_range_predicate_for_dispatch():
 
 def test_lower_exec_context_tracks_cta_thread_range_predicate_for_dispatch():
     import tvm.tirx.operator.tile_primitive as _  # noqa: F401
-    from tvm.tirx.operator.tile_primitive.dispatcher import register_dispatch
 
     seen = []
     variant = "__probe_exec_context_cta_thread_range_predicate__"
 
-    @register_dispatch("copy", "cuda", variant=variant, priority=10_000)
+    @_register_probe(variant)
     def _probe(op_call, sctx):
         seen.append({"scope_kind": sctx.scope_kind, "inter": sctx.inter, "intra": sctx.intra})
 
@@ -905,7 +917,7 @@ def test_lower_exec_context_tracks_cta_thread_range_predicate_for_dispatch():
         T.cta_id([1])
         tid = T.thread_id([256])
         if (0 <= tid) & (tid < 128):
-            Tx.copy(B[0:1], A[0:1], dispatch=variant)
+            getattr(T.cuda.tile, variant)(B[0:1], A[0:1])
 
     with tvm.target.Target("cuda"):
         LowerTIRx()(tvm.IRModule({"main": before}))
@@ -920,12 +932,11 @@ def test_lower_exec_context_tracks_cta_thread_range_predicate_for_dispatch():
 
 def test_lower_exec_context_tracks_cta_thread_single_warp_range_predicate():
     import tvm.tirx.operator.tile_primitive as _  # noqa: F401
-    from tvm.tirx.operator.tile_primitive.dispatcher import register_dispatch
 
     seen = []
     variant = "__probe_exec_context_cta_thread_single_warp_range_predicate__"
 
-    @register_dispatch("copy", "cuda", variant=variant, priority=10_000)
+    @_register_probe(variant)
     def _probe(op_call, sctx):
         seen.append({"scope_kind": sctx.scope_kind, "inter": sctx.inter, "intra": sctx.intra})
 
@@ -943,7 +954,7 @@ def test_lower_exec_context_tracks_cta_thread_single_warp_range_predicate():
         T.cta_id([1])
         tid = T.thread_id([256])
         if (34 <= tid) & (tid < 40):
-            Tx.copy(B[0:1], A[0:1], dispatch=variant)
+            getattr(T.cuda.tile, variant)(B[0:1], A[0:1])
 
     with tvm.target.Target("cuda"):
         LowerTIRx()(tvm.IRModule({"main": before}))
@@ -958,12 +969,11 @@ def test_lower_exec_context_tracks_cta_thread_single_warp_range_predicate():
 
 def test_lower_exec_context_tracks_warpgroup_thread_range_predicate():
     import tvm.tirx.operator.tile_primitive as _  # noqa: F401
-    from tvm.tirx.operator.tile_primitive.dispatcher import register_dispatch
 
     seen = []
     variant = "__probe_exec_context_warpgroup_thread_range_predicate__"
 
-    @register_dispatch("copy", "cuda", variant=variant, priority=10_000)
+    @_register_probe(variant)
     def _probe(op_call, sctx):
         seen.append({"scope_kind": sctx.scope_kind, "inter": sctx.inter, "intra": sctx.intra})
 
@@ -983,7 +993,7 @@ def test_lower_exec_context_tracks_warpgroup_thread_range_predicate():
         tid_in_wg = T.thread_id_in_wg([128])
         if wg_id == 1:
             if (32 <= tid_in_wg) & (tid_in_wg < 64):
-                Tx.wg.copy(B[0:1], A[0:1], dispatch=variant)
+                getattr(T.cuda.tile, variant)(B[0:1], A[0:1], scope="warpgroup")
 
     with tvm.target.Target("cuda"):
         LowerTIRx()(tvm.IRModule({"main": before}))
@@ -998,12 +1008,11 @@ def test_lower_exec_context_tracks_warpgroup_thread_range_predicate():
 
 def test_lower_exec_context_tracks_dependent_conjunctive_predicate():
     import tvm.tirx.operator.tile_primitive as _  # noqa: F401
-    from tvm.tirx.operator.tile_primitive.dispatcher import register_dispatch
 
     seen = []
     variant = "__probe_exec_context_dependent_conjunctive_predicate__"
 
-    @register_dispatch("copy", "cuda", variant=variant, priority=10_000)
+    @_register_probe(variant)
     def _probe(op_call, sctx):
         seen.append({"scope_kind": sctx.scope_kind, "inter": sctx.inter, "intra": sctx.intra})
 
@@ -1022,7 +1031,7 @@ def test_lower_exec_context_tracks_dependent_conjunctive_predicate():
         wg_id = T.warpgroup_id([2])
         tid_in_wg = T.thread_id_in_wg([128])
         if ((32 <= tid_in_wg) & (tid_in_wg < 64)) & (wg_id == 1):
-            Tx.wg.copy(B[0:1], A[0:1], dispatch=variant)
+            getattr(T.cuda.tile, variant)(B[0:1], A[0:1], scope="warpgroup")
 
     with tvm.target.Target("cuda"):
         LowerTIRx()(tvm.IRModule({"main": before}))
@@ -1099,12 +1108,11 @@ def test_simplify_uses_floor_div_scope_predicate_as_context_fact():
 
 def test_lower_exec_context_selector_filter_for_elect_sync():
     import tvm.tirx.operator.tile_primitive as _  # noqa: F401
-    from tvm.tirx.operator.tile_primitive.dispatcher import register_dispatch
 
     seen = []
     variant = "__probe_exec_context_elect_selector__"
 
-    @register_dispatch("copy", "cuda", variant=variant, priority=10_000)
+    @_register_probe(variant)
     def _probe(op_call, sctx):
         seen.append(sctx.inter["laneid"][1].script(extra_config={"tirx.prefix": "T"}))
 
@@ -1123,11 +1131,11 @@ def test_lower_exec_context_selector_filter_for_elect_sync():
         T.warp_id([1])
         lane_id = T.lane_id([32])
         if T.cuda.elect_sync():
-            Tx.copy(B[0:1], A[0:1], dispatch=variant)
+            getattr(T.cuda.tile, variant)(B[0:1], A[0:1])
         if T.cuda.elect_sync() != 0:
-            Tx.copy(B[0:1], A[0:1], dispatch=variant)
+            getattr(T.cuda.tile, variant)(B[0:1], A[0:1])
         if T.cuda.elect_sync():
-            Tx.copy(B[0:1], A[0:1], dispatch=variant)
+            getattr(T.cuda.tile, variant)(B[0:1], A[0:1])
 
     with tvm.target.Target("cuda"):
         LowerTIRx()(tvm.IRModule({"main": before}))
@@ -1162,12 +1170,11 @@ def test_lower_cleanup_accepts_bool_elect_sync_else_path():
 
 def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
     import tvm.tirx.operator.tile_primitive as _  # noqa: F401
-    from tvm.tirx.operator.tile_primitive.dispatcher import register_dispatch
 
     seen = []
     variant = "__probe_exec_context_scope_guard_mixed__"
 
-    @register_dispatch("copy", "cuda", variant=variant, priority=10_000)
+    @_register_probe(variant)
     def _probe(op_call, sctx):
         seen.append({"inter": sctx.inter, "intra": sctx.intra})
 
@@ -1186,7 +1193,7 @@ def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
         warp_id = T.warp_id([4])
         lane_id = T.lane_id([32])
         if (warp_id == 0) & T.cuda.elect_sync():
-            Tx.copy(B[0:1], A[0:1], dispatch=variant)
+            getattr(T.cuda.tile, variant)(B[0:1], A[0:1])
 
     with tvm.target.Target("cuda"):
         LowerTIRx()(tvm.IRModule({"main": before}))
@@ -1203,12 +1210,11 @@ def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
 
 def test_lower_exec_context_tracks_factorized_cta_predicate():
     import tvm.tirx.operator.tile_primitive as _  # noqa: F401
-    from tvm.tirx.operator.tile_primitive.dispatcher import register_dispatch
 
     seen = []
     variant = "__probe_exec_context_cbx_predicate__"
 
-    @register_dispatch("copy", "cuda", variant=variant, priority=10_000)
+    @_register_probe(variant)
     def _probe(op_call, sctx):
         seen.append(sctx.inter)
 
@@ -1226,7 +1232,7 @@ def test_lower_exec_context_tracks_factorized_cta_predicate():
         cbx, cby = T.cta_id_in_cluster([2, 3])
         T.thread_id([32])
         if cbx == 0:
-            Tx.copy(B[0:1], A[0:1], dispatch=variant)
+            getattr(T.cuda.tile, variant)(B[0:1], A[0:1])
 
     with tvm.target.Target("cuda"):
         LowerTIRx()(tvm.IRModule({"main": before}))
@@ -1238,13 +1244,12 @@ def test_lower_exec_context_tracks_factorized_cta_predicate():
 
 def test_lower_exec_context_keeps_kernel_cta_predicate_out_of_cluster_active_set():
     import tvm.tirx.operator.tile_primitive as _  # noqa: F401
-    from tvm.tirx.operator.tile_primitive.dispatcher import register_dispatch
 
     seen = {}
     kernel_variant = "__probe_exec_context_kernel_cta_in_cluster__"
     cluster_variant = "__probe_exec_context_cluster_cta_in_cluster__"
 
-    @register_dispatch("copy", "cuda", variant=kernel_variant, priority=10_000)
+    @_register_probe(kernel_variant)
     def _probe_kernel(op_call, sctx):
         seen["kernel"] = sctx.inter
 
@@ -1254,7 +1259,7 @@ def test_lower_exec_context_keeps_kernel_cta_predicate_out_of_cluster_active_set
 
         return impl
 
-    @register_dispatch("copy", "cuda", variant=cluster_variant, priority=10_000)
+    @_register_probe(cluster_variant)
     def _probe_cluster(op_call, sctx):
         seen["cluster"] = sctx.inter
 
@@ -1273,9 +1278,9 @@ def test_lower_exec_context_keeps_kernel_cta_predicate_out_of_cluster_active_set
         cbx = T.cta_id_in_cluster([2])
         T.thread_id([32])
         if bx == 0:
-            Tx.copy(B[0:1], A[0:1], dispatch=kernel_variant)
+            getattr(T.cuda.tile, kernel_variant)(B[0:1], A[0:1])
         if cbx == 0:
-            Tx.copy(B[0:1], A[0:1], dispatch=cluster_variant)
+            getattr(T.cuda.tile, cluster_variant)(B[0:1], A[0:1])
 
     with tvm.target.Target("cuda"):
         LowerTIRx()(tvm.IRModule({"main": before}))
@@ -1287,12 +1292,11 @@ def test_lower_exec_context_keeps_kernel_cta_predicate_out_of_cluster_active_set
 
 def test_lower_exec_context_tracks_cta_axis_modulo_predicate():
     import tvm.tirx.operator.tile_primitive as _  # noqa: F401
-    from tvm.tirx.operator.tile_primitive.dispatcher import register_dispatch
 
     seen = []
     variant = "__probe_exec_context_cbx_modulo_predicate__"
 
-    @register_dispatch("copy", "cuda", variant=variant, priority=10_000)
+    @_register_probe(variant)
     def _probe(op_call, sctx):
         seen.append(sctx.inter)
 
@@ -1310,7 +1314,7 @@ def test_lower_exec_context_tracks_cta_axis_modulo_predicate():
         cbx, cby = T.cta_id_in_cluster([4, 2])
         T.thread_id([32])
         if cbx % 2 == 0:
-            Tx.copy(B[0:1], A[0:1], dispatch=variant)
+            getattr(T.cuda.tile, variant)(B[0:1], A[0:1])
 
     with tvm.target.Target("cuda"):
         LowerTIRx()(tvm.IRModule({"main": before}))
@@ -1322,12 +1326,11 @@ def test_lower_exec_context_tracks_cta_axis_modulo_predicate():
 
 def test_lower_exec_context_tracks_cta_id_in_pair_predicate():
     import tvm.tirx.operator.tile_primitive as _  # noqa: F401
-    from tvm.tirx.operator.tile_primitive.dispatcher import register_dispatch
 
     seen = []
     variant = "__probe_exec_context_cta_pair_predicate__"
 
-    @register_dispatch("copy", "cuda", variant=variant, priority=10_000)
+    @_register_probe(variant)
     def _probe(op_call, sctx):
         seen.append(sctx.inter)
 
@@ -1346,7 +1349,7 @@ def test_lower_exec_context_tracks_cta_id_in_pair_predicate():
         cta_id_in_pair = T.cta_id_in_pair()
         T.thread_id([32])
         if cta_id_in_pair == 0:
-            Tx.copy(B[0:1], A[0:1], dispatch=variant)
+            getattr(T.cuda.tile, variant)(B[0:1], A[0:1])
 
     with tvm.target.Target("cuda"):
         lowered = LowerTIRx()(tvm.IRModule({"main": before}))
@@ -1358,13 +1361,12 @@ def test_lower_exec_context_tracks_cta_id_in_pair_predicate():
 
 def test_lower_exec_context_tracks_two_cta_pair_predicates():
     import tvm.tirx.operator.tile_primitive as _  # noqa: F401
-    from tvm.tirx.operator.tile_primitive.dispatcher import register_dispatch
 
     seen = {}
     zero_variant = "__probe_exec_context_cta_pair_two_cta_zero__"
     one_variant = "__probe_exec_context_cta_pair_two_cta_one__"
 
-    @register_dispatch("copy", "cuda", variant=zero_variant, priority=10_000)
+    @_register_probe(zero_variant)
     def _probe_zero(op_call, sctx):
         seen["zero"] = sctx.inter
 
@@ -1374,7 +1376,7 @@ def test_lower_exec_context_tracks_two_cta_pair_predicates():
 
         return impl
 
-    @register_dispatch("copy", "cuda", variant=one_variant, priority=10_000)
+    @_register_probe(one_variant)
     def _probe_one(op_call, sctx):
         seen["one"] = sctx.inter
 
@@ -1393,9 +1395,9 @@ def test_lower_exec_context_tracks_two_cta_pair_predicates():
         cta_id_in_pair = T.cta_id_in_pair()
         T.thread_id([32])
         if cta_id_in_pair == 0:
-            Tx.copy(B[0:1], A[0:1], dispatch=zero_variant)
+            getattr(T.cuda.tile, zero_variant)(B[0:1], A[0:1])
         if cta_id_in_pair == 1:
-            Tx.copy(B[0:1], A[0:1], dispatch=one_variant)
+            getattr(T.cuda.tile, one_variant)(B[0:1], A[0:1])
 
     with tvm.target.Target("cuda"):
         LowerTIRx()(tvm.IRModule({"main": before}))
@@ -1407,12 +1409,11 @@ def test_lower_exec_context_tracks_two_cta_pair_predicates():
 
 def test_lower_exec_context_tracks_cta_id_in_pair_after_axis_predicate():
     import tvm.tirx.operator.tile_primitive as _  # noqa: F401
-    from tvm.tirx.operator.tile_primitive.dispatcher import register_dispatch
 
     seen = []
     variant = "__probe_exec_context_cta_pair_after_axis_predicate__"
 
-    @register_dispatch("copy", "cuda", variant=variant, priority=10_000)
+    @_register_probe(variant)
     def _probe(op_call, sctx):
         seen.append(sctx.inter)
 
@@ -1432,7 +1433,7 @@ def test_lower_exec_context_tracks_cta_id_in_pair_after_axis_predicate():
         T.thread_id([32])
         if cbx == 0:
             if cta_id_in_pair == 1:
-                Tx.copy(B[0:1], A[0:1], dispatch=variant)
+                getattr(T.cuda.tile, variant)(B[0:1], A[0:1])
 
     with tvm.target.Target("cuda"):
         LowerTIRx()(tvm.IRModule({"main": before}))
@@ -1677,3 +1678,21 @@ def test_lower_preferred_cluster():
     assert 'launch_thread("preferredClusterCtaIdx.y", 2)' in after_str
     assert "clusterCtaIdx_x" in after_str
     assert "clusterCtaIdx_y" in after_str
+
+
+def _register_probe(name):
+    """Register a test instruction whose lowerer inspects its execution context."""
+    from tvm.tirx.tensor_instruction import Instruction, Operand
+
+    def decorate(lower):
+        spec = Instruction(
+            "tirx.cuda.tile." + name,
+            "copy",
+            (Operand("dst", "region"), Operand("src", "region")),
+            lower=lower,
+        )
+        factory = spec.register()
+        setattr(T.cuda.tile, name, factory)
+        return lower
+
+    return decorate

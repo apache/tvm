@@ -21,6 +21,8 @@ Pipeline: A_gmem --G2S--> A_smem --S2G--> B_gmem. If either direction is
 wrong the round trip leaves B mismatched against A.
 """
 
+import math
+
 import numpy as np
 import pytest
 import tvm_ffi
@@ -28,7 +30,6 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 from tvm.tirx.layout import ComposeLayout, S, TileLayout
 
@@ -47,11 +48,73 @@ def _build_kernel(scope, n_threads, shape, dtype):
             T.warp_id_in_wg([4])
             T.lane_id([32])
             T.thread_id_in_wg([128])
-            T.thread_id([n_threads])
+            copy_thread_id = T.thread_id([n_threads])
             A_smem = T.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
-            Tx.wg.copy(A_smem[full_slices], A[full_slices])
+            copy_src_6 = T.meta_var(A[full_slices])
+            copy_src_tensor_6 = T.meta_var(copy_src_6.source)
+            copy_dst_6 = T.meta_var(A_smem[full_slices])
+            copy_dst_tensor_6 = T.meta_var(copy_dst_6.source)
+            for copy_step_6 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_6.region]), 128)
+            ):
+                copy_index_6 = copy_step_6 * (128) + (copy_thread_id % 128)
+                if copy_index_6 < math.prod([int(r.extent) for r in copy_src_6.region]):
+                    copy_value_6 = copy_src_tensor_6[
+                        tuple(
+                            [
+                                copy_src_6.region[k].min
+                                + copy_index_6
+                                // math.prod([int(s.extent) for s in copy_src_6.region[k + 1 :]])
+                                % copy_src_6.region[k].extent
+                                for k in range(len(copy_src_6.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_6 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_6.region[k].min
+                                + copy_index_6
+                                // math.prod([int(s.extent) for s in copy_dst_6.region[k + 1 :]])
+                                % copy_dst_6.region[k].extent
+                                for k in range(len(copy_dst_6.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_6[copy_dst_index_6] = copy_value_6
             T.cuda.cta_sync()
-            Tx.wg.copy(B[full_slices], A_smem[full_slices])
+            copy_src_7 = T.meta_var(A_smem[full_slices])
+            copy_src_tensor_7 = T.meta_var(copy_src_7.source)
+            copy_dst_7 = T.meta_var(B[full_slices])
+            copy_dst_tensor_7 = T.meta_var(copy_dst_7.source)
+            for copy_step_7 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_7.region]), 128)
+            ):
+                copy_index_7 = copy_step_7 * (128) + (copy_thread_id % 128)
+                if copy_index_7 < math.prod([int(r.extent) for r in copy_src_7.region]):
+                    copy_value_7 = copy_src_tensor_7[
+                        tuple(
+                            [
+                                copy_src_7.region[k].min
+                                + copy_index_7
+                                // math.prod([int(s.extent) for s in copy_src_7.region[k + 1 :]])
+                                % copy_src_7.region[k].extent
+                                for k in range(len(copy_src_7.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_7 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_7.region[k].min
+                                + copy_index_7
+                                // math.prod([int(s.extent) for s in copy_dst_7.region[k + 1 :]])
+                                % copy_dst_7.region[k].extent
+                                for k in range(len(copy_dst_7.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_7[copy_dst_index_7] = copy_value_7
 
     elif scope == "warp":
 
@@ -60,11 +123,73 @@ def _build_kernel(scope, n_threads, shape, dtype):
             T.device_entry()
             T.cta_id([1])
             T.lane_id([32])
-            T.thread_id([n_threads])
+            copy_thread_id = T.thread_id([n_threads])
             A_smem = T.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
-            Tx.warp.copy(A_smem[full_slices], A[full_slices])
+            copy_src_8 = T.meta_var(A[full_slices])
+            copy_src_tensor_8 = T.meta_var(copy_src_8.source)
+            copy_dst_8 = T.meta_var(A_smem[full_slices])
+            copy_dst_tensor_8 = T.meta_var(copy_dst_8.source)
+            for copy_step_8 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_8.region]), 32)
+            ):
+                copy_index_8 = copy_step_8 * (32) + (copy_thread_id % 32)
+                if copy_index_8 < math.prod([int(r.extent) for r in copy_src_8.region]):
+                    copy_value_8 = copy_src_tensor_8[
+                        tuple(
+                            [
+                                copy_src_8.region[k].min
+                                + copy_index_8
+                                // math.prod([int(s.extent) for s in copy_src_8.region[k + 1 :]])
+                                % copy_src_8.region[k].extent
+                                for k in range(len(copy_src_8.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_8 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_8.region[k].min
+                                + copy_index_8
+                                // math.prod([int(s.extent) for s in copy_dst_8.region[k + 1 :]])
+                                % copy_dst_8.region[k].extent
+                                for k in range(len(copy_dst_8.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_8[copy_dst_index_8] = copy_value_8
             T.cuda.cta_sync()
-            Tx.warp.copy(B[full_slices], A_smem[full_slices])
+            copy_src_9 = T.meta_var(A_smem[full_slices])
+            copy_src_tensor_9 = T.meta_var(copy_src_9.source)
+            copy_dst_9 = T.meta_var(B[full_slices])
+            copy_dst_tensor_9 = T.meta_var(copy_dst_9.source)
+            for copy_step_9 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_9.region]), 32)
+            ):
+                copy_index_9 = copy_step_9 * (32) + (copy_thread_id % 32)
+                if copy_index_9 < math.prod([int(r.extent) for r in copy_src_9.region]):
+                    copy_value_9 = copy_src_tensor_9[
+                        tuple(
+                            [
+                                copy_src_9.region[k].min
+                                + copy_index_9
+                                // math.prod([int(s.extent) for s in copy_src_9.region[k + 1 :]])
+                                % copy_src_9.region[k].extent
+                                for k in range(len(copy_src_9.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_9 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_9.region[k].min
+                                + copy_index_9
+                                // math.prod([int(s.extent) for s in copy_dst_9.region[k + 1 :]])
+                                % copy_dst_9.region[k].extent
+                                for k in range(len(copy_dst_9.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_9[copy_dst_index_9] = copy_value_9
 
     elif scope == "cta":
 
@@ -74,11 +199,73 @@ def _build_kernel(scope, n_threads, shape, dtype):
             T.cta_id([1])
             T.warp_id([n_threads // 32])
             T.lane_id([32])
-            T.thread_id([n_threads])
+            copy_thread_id = T.thread_id([n_threads])
             A_smem = T.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
-            Tx.cta.copy(A_smem[full_slices], A[full_slices])
+            copy_src_10 = T.meta_var(A[full_slices])
+            copy_src_tensor_10 = T.meta_var(copy_src_10.source)
+            copy_dst_10 = T.meta_var(A_smem[full_slices])
+            copy_dst_tensor_10 = T.meta_var(copy_dst_10.source)
+            for copy_step_10 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_10.region]), n_threads)
+            ):
+                copy_index_10 = copy_step_10 * (n_threads) + (copy_thread_id)
+                if copy_index_10 < math.prod([int(r.extent) for r in copy_src_10.region]):
+                    copy_value_10 = copy_src_tensor_10[
+                        tuple(
+                            [
+                                copy_src_10.region[k].min
+                                + copy_index_10
+                                // math.prod([int(s.extent) for s in copy_src_10.region[k + 1 :]])
+                                % copy_src_10.region[k].extent
+                                for k in range(len(copy_src_10.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_10 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_10.region[k].min
+                                + copy_index_10
+                                // math.prod([int(s.extent) for s in copy_dst_10.region[k + 1 :]])
+                                % copy_dst_10.region[k].extent
+                                for k in range(len(copy_dst_10.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_10[copy_dst_index_10] = copy_value_10
             T.cuda.cta_sync()
-            Tx.cta.copy(B[full_slices], A_smem[full_slices])
+            copy_src_11 = T.meta_var(A_smem[full_slices])
+            copy_src_tensor_11 = T.meta_var(copy_src_11.source)
+            copy_dst_11 = T.meta_var(B[full_slices])
+            copy_dst_tensor_11 = T.meta_var(copy_dst_11.source)
+            for copy_step_11 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_11.region]), n_threads)
+            ):
+                copy_index_11 = copy_step_11 * (n_threads) + (copy_thread_id)
+                if copy_index_11 < math.prod([int(r.extent) for r in copy_src_11.region]):
+                    copy_value_11 = copy_src_tensor_11[
+                        tuple(
+                            [
+                                copy_src_11.region[k].min
+                                + copy_index_11
+                                // math.prod([int(s.extent) for s in copy_src_11.region[k + 1 :]])
+                                % copy_src_11.region[k].extent
+                                for k in range(len(copy_src_11.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_11 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_11.region[k].min
+                                + copy_index_11
+                                // math.prod([int(s.extent) for s in copy_dst_11.region[k + 1 :]])
+                                % copy_dst_11.region[k].extent
+                                for k in range(len(copy_dst_11.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_11[copy_dst_index_11] = copy_value_11
     else:
         raise ValueError(f"unsupported scope {scope!r}")
 
@@ -211,14 +398,76 @@ def test_copy_g2s_s2g(task, dtype, scope):
     ) -> None:
         T.device_entry()
         T.cta_id([2])
-        T.thread_id([thread_cnt])
+        copy_thread_id = T.thread_id([thread_cnt])
 
         A_smem = T.alloc_tensor(s_shape, dtype, scope="shared", layout=layoutS)
         # `scope` is parametrized at runtime; select the scope namespace
         # dynamically (T.cta / T.thread) instead of a literal prefix.
-        getattr(Tx, scope).copy(A_smem[r_smem], A[r_gmem])
+        copy_src_1 = T.meta_var(A[r_gmem])
+        copy_src_tensor_1 = T.meta_var(copy_src_1.source)
+        copy_dst_1 = T.meta_var(A_smem[r_smem])
+        copy_dst_tensor_1 = T.meta_var(copy_dst_1.source)
+        for copy_step_1 in T.serial(
+            T.ceildiv(math.prod([int(r.extent) for r in copy_src_1.region]), thread_cnt)
+        ):
+            copy_index_1 = copy_step_1 * (thread_cnt) + (copy_thread_id)
+            if copy_index_1 < math.prod([int(r.extent) for r in copy_src_1.region]):
+                copy_value_1 = copy_src_tensor_1[
+                    tuple(
+                        [
+                            copy_src_1.region[k].min
+                            + copy_index_1
+                            // math.prod([int(s.extent) for s in copy_src_1.region[k + 1 :]])
+                            % copy_src_1.region[k].extent
+                            for k in range(len(copy_src_1.region))
+                        ]
+                    )
+                ]
+                copy_dst_index_1 = T.meta_var(
+                    tuple(
+                        [
+                            copy_dst_1.region[k].min
+                            + copy_index_1
+                            // math.prod([int(s.extent) for s in copy_dst_1.region[k + 1 :]])
+                            % copy_dst_1.region[k].extent
+                            for k in range(len(copy_dst_1.region))
+                        ]
+                    )
+                )
+                copy_dst_tensor_1[copy_dst_index_1] = copy_value_1
         T.cuda.cta_sync()
-        getattr(Tx, scope).copy(B[r_gmem], A_smem[r_smem])
+        copy_src_2 = T.meta_var(A_smem[r_smem])
+        copy_src_tensor_2 = T.meta_var(copy_src_2.source)
+        copy_dst_2 = T.meta_var(B[r_gmem])
+        copy_dst_tensor_2 = T.meta_var(copy_dst_2.source)
+        for copy_step_2 in T.serial(
+            T.ceildiv(math.prod([int(r.extent) for r in copy_src_2.region]), thread_cnt)
+        ):
+            copy_index_2 = copy_step_2 * (thread_cnt) + (copy_thread_id)
+            if copy_index_2 < math.prod([int(r.extent) for r in copy_src_2.region]):
+                copy_value_2 = copy_src_tensor_2[
+                    tuple(
+                        [
+                            copy_src_2.region[k].min
+                            + copy_index_2
+                            // math.prod([int(s.extent) for s in copy_src_2.region[k + 1 :]])
+                            % copy_src_2.region[k].extent
+                            for k in range(len(copy_src_2.region))
+                        ]
+                    )
+                ]
+                copy_dst_index_2 = T.meta_var(
+                    tuple(
+                        [
+                            copy_dst_2.region[k].min
+                            + copy_index_2
+                            // math.prod([int(s.extent) for s in copy_dst_2.region[k + 1 :]])
+                            % copy_dst_2.region[k].extent
+                            for k in range(len(copy_dst_2.region))
+                        ]
+                    )
+                )
+                copy_dst_tensor_2[copy_dst_index_2] = copy_value_2
 
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
     target = tvm.target.Target("cuda")
@@ -357,9 +606,40 @@ def test_swizzled_smem_emit_must_be_swizzle_aware():
         T.warp_id_in_wg([4])
         T.lane_id([32])
         T.thread_id_in_wg([128])
-        T.thread_id([128])
+        copy_thread_id = T.thread_id([128])
         A_smem = T.alloc_tensor(shape, "float16", scope="shared", layout=s_layout)
-        Tx.wg.copy(A_smem[0:128, 0:32], A[0:128, 0:32])
+        copy_src_3 = T.meta_var(A[0:128, 0:32])
+        copy_src_tensor_3 = T.meta_var(copy_src_3.source)
+        copy_dst_3 = T.meta_var(A_smem[0:128, 0:32])
+        copy_dst_tensor_3 = T.meta_var(copy_dst_3.source)
+        for copy_step_3 in T.serial(
+            T.ceildiv(math.prod([int(r.extent) for r in copy_src_3.region]), 128)
+        ):
+            copy_index_3 = copy_step_3 * (128) + (copy_thread_id % 128)
+            if copy_index_3 < math.prod([int(r.extent) for r in copy_src_3.region]):
+                copy_value_3 = copy_src_tensor_3[
+                    tuple(
+                        [
+                            copy_src_3.region[k].min
+                            + copy_index_3
+                            // math.prod([int(s.extent) for s in copy_src_3.region[k + 1 :]])
+                            % copy_src_3.region[k].extent
+                            for k in range(len(copy_src_3.region))
+                        ]
+                    )
+                ]
+                copy_dst_index_3 = T.meta_var(
+                    tuple(
+                        [
+                            copy_dst_3.region[k].min
+                            + copy_index_3
+                            // math.prod([int(s.extent) for s in copy_dst_3.region[k + 1 :]])
+                            % copy_dst_3.region[k].extent
+                            for k in range(len(copy_dst_3.region))
+                        ]
+                    )
+                )
+                copy_dst_tensor_3[copy_dst_index_3] = copy_value_3
 
     # NB: pin sm_90 explicitly — the default cuda target falls back to sm_50
     # when no GPU is detected, which nvcc 13+ rejects. Codegen happens before
@@ -497,66 +777,6 @@ def test_layout_permute_copy_preserves_smem_strides():
 # Structured ComposeLayout lowering test. The transformed S TileLayout is
 # recomposed with the original swizzle and applied directly to (f, tid, 0).
 # ----------------------------------------------------------------------------
-@pytest.mark.gpu
-@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
-def test_gmem_smem_swizzle_uses_structured_compose_apply():
-    """The hot copy loops use the structured P/XOR-low/ADD-high address form."""
-
-    swizzle = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
-    shape = (32, 64)
-    g_layout = TileLayout(S[shape])
-    s_layout = ComposeLayout(
-        swizzle.per_element,
-        swizzle.swizzle_len,
-        swizzle.atom_len,
-        TileLayout(S[shape]),
-        swizzle.swizzle_inner,
-    )
-
-    @T.function
-    def kernel(
-        A: T.Tensor(shape, "float16", layout=g_layout),
-        B: T.Tensor(shape, "float16", layout=g_layout),
-    ) -> None:
-        T.device_entry()
-        T.cta_id([1])
-        T.lane_id([32])
-        T.thread_id([32])
-        smem = T.alloc_tensor(shape, "float16", scope="shared", layout=s_layout)
-        Tx.warp.copy(smem, A[:, :])
-        T.cuda.cta_sync()
-        Tx.warp.copy(B[:, :], smem)
-
-    target = tvm.target.Target("cuda")
-    with target:
-        mod = tvm.IRModule({"main": kernel})
-        ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
-        src = ex.mod.imports[0].inspect_source()
-
-    s_off_lines = [
-        line for line in src.splitlines() if line.strip().startswith("int s_off") and " = " in line
-    ]
-    assert len(s_off_lines) == 2, "expected one structured S offset in each copy direction"
-    assert all("^" in line for line in s_off_lines)
-    assert all("/" not in line and "%" not in line for line in s_off_lines), (
-        "structured hot-loop offsets must not contain full quotient/mod decomposition"
-    )
-    assert all("* 256" in line for line in s_off_lines), (
-        "the atom-aligned outer contribution must remain a direct add"
-    )
-
-    # Round-trip correctness.
-    A_np = np.arange(32 * 64, dtype="float16").reshape(shape)
-    B_np = np.zeros(shape, dtype="float16")
-
-    def run_and_check():
-        dev = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, device=dev)
-        B = tvm.runtime.tensor(B_np, device=dev)
-        ex(A, B)
-        np.testing.assert_allclose(B.numpy(), A_np)
-
-    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

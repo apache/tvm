@@ -20,7 +20,7 @@
 from tvm.tirx import FloatImm, Function
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import MapOpType
-from tvm.tirx.stmt import TileOpCall
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..common import init_analyzer
 from ..instruction_generator import InstructionGenerator
@@ -32,7 +32,7 @@ from .utils import (
 )
 
 
-def unary_trn(op: TileOpCall, unary_op: MapOpType, sctx: DispatchContext) -> Function | None:
+def unary_trn(op: TensorCall, unary_op: MapOpType, sctx: DispatchContext) -> Function | None:
     """Schedule unary operation on Trainium."""
     # Check execution environment
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
@@ -71,19 +71,7 @@ def unary_trn(op: TileOpCall, unary_op: MapOpType, sctx: DispatchContext) -> Fun
         None,  # No bias
         None,  # No scale
         analyzer,
-        op.workspace,
-        op.config,
+        op.workspaces,
+        op.options,
         sctx,
     )
-
-
-# ---------------------------------------------------------------------------
-# Registration: bind each default unary op name to its TRN schedule candidates.
-# ---------------------------------------------------------------------------
-from tvm.tirx.operator.tile_primitive import register_dispatch  # noqa: E402
-
-for _op_name, _op_type in {"reciprocal": MapOpType.RECIPROCAL, "memset": MapOpType.FILL}.items():
-
-    @register_dispatch(_op_name, "trn", variant="unary", priority=0)
-    def _unary_dispatch(op, sctx, _ty=_op_type):
-        return unary_trn(op, _ty, sctx)

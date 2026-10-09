@@ -19,7 +19,7 @@
 
 /*!
  * \file tile_primitive_dispatch.cc
- * \brief Lower TileOpCall nodes via registered dispatchers (also resolves ScopeIdDef
+ * \brief Lower tensor instruction Evaluate(Call) nodes (also resolves ScopeIdDef
  * declarations and emits launch params).
  */
 
@@ -36,6 +36,7 @@
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
+#include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/tile_dispatch.h>
@@ -202,9 +203,14 @@ class NoOpCallVerifier : public Verifier<NoOpCallVerifier> {
  private:
   using Verifier::Visit;
 
-  void Dispatch_(const tirx::TileOpCallNode* obj, ffi::reflection::AccessPath path) final {
-    Verify(false) << "TIRxError: TileOpCall at " << path
-                  << " is not allowed in TIRx before lowering";
+  void Dispatch_(const CallNode* call, ffi::reflection::AccessPath path) final {
+    if (auto op = call->op.as<Op>()) {
+      static const auto& categories = Op::GetAttrMap<TIRxOpCategory>("TIRxOpCategory");
+      auto category = categories.get(op.value(), ffi::String(""));
+      Verify(category != "tile_primitive" && category != "tile_composite")
+          << "Unlowered tensor instruction " << op.value()->name << " at " << path;
+    }
+    Verifier::Dispatch_(call, path);
   }
 };
 
@@ -559,16 +565,26 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return If(new_cond, then_case, else_case);
   }
 
-  UnchangedOr<Stmt> Mutate_(const tirx::TileOpCallNode* op, InplaceMode inplace_mode) final {
-    // Scope is a per-call field on the node. Derive the (inter, intra) split
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* stmt, InplaceMode inplace_mode) final {
+    const auto* op = stmt->value.as<CallNode>();
+    if (!op || !op->op.as<Op>()) return StmtExprMutator::Mutate_(stmt, inplace_mode);
+    static const auto& categories = Op::GetAttrMap<TIRxOpCategory>("TIRxOpCategory");
+    auto category = categories.get(op->op.as_or_throw<Op>(), ffi::String(""));
+    if (category != "tile_primitive" && category != "tile_composite") {
+      return StmtExprMutator::Mutate_(stmt, inplace_mode);
+    }
+    op->op.as_or_throw<Op>().Validate(op);
+    static auto get_scope = ffi::Function::GetGlobalRequired("tirx.TensorCallScope");
+    ExecScope scope = get_scope(ffi::GetRef<Call>(op)).cast<ExecScope>();
+    // Scope is a static attribute of this Call. Derive the (inter, intra) split
     // on the spot from the current active set ``A`` (tracked through control
-    // flow on ``ctx_stack_``) under this call's own ``op->scope``.
+    // flow on ``ctx_stack_``) under this call's own scope.
     ffi::Map<ffi::String, ffi::Array<PrimExpr>> inter_map, intra_map;
-    ffi::String scope_kind = ScopeKindToString(op->scope->kind);
+    ffi::String scope_kind = ScopeKindToString(scope->kind);
     if (!ctx_stack_.empty()) {
       ExecSplit split;
       std::string err;
-      if (ScopeSwitch(ctx_stack_.back().A, op->scope->kind, &split, &err)) {
+      if (ScopeSwitch(ctx_stack_.back().A, scope->kind, &split, &err)) {
         inter_map = EncodeSplitSide(split.inter);
         intra_map = EncodeSplitSide(split.intra);
       } else {
@@ -580,14 +596,13 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         LOG(WARNING) << "ExecContext scope_switch failed: " << err;
       }
     }
-    tirx::DispatchContext sctx(target_, op->scope, launch_params_, var_range_map_,
+    tirx::DispatchContext sctx(target_, scope, launch_params_, var_range_map_,
                                /*alloc_only=*/false, /*callbacks=*/{}, shared_state_, inter_map,
                                intra_map, scope_kind);
     static auto f_op_dispatcher_ = ffi::Function::GetGlobal("tirx.f_op_dispatcher");
     TVM_FFI_ICHECK(f_op_dispatcher_.has_value())
         << "Internal Error: tirx.f_op_dispatcher is not registered";
-    Function res =
-        f_op_dispatcher_.value()(ffi::GetRef<tirx::TileOpCall>(op), sctx).cast<Function>();
+    Function res = f_op_dispatcher_.value()(ffi::GetRef<Call>(op), sctx).cast<Function>();
     TVM_FFI_ICHECK(res.defined()) << "TIRx dispatcher did not return a Function";
     // Implementation found, handle callbacks
     if (auto bufs = sctx->callbacks.Get(tirx::callback::kPrivateAlloc)) {
@@ -613,7 +628,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     shared_state_ = sctx->shared_state;
     TVM_FFI_CHECK(res->body.has_value(), ValueError)
         << "A tile primitive implementation must have a body";
-    return res->body.value();
+    return Mutate(res->body.value(), inplace_mode).ValueOrUnchanged(res->body.value());
   }
 
   // --- Scope-id resolution at kernel scope ----------------------------------

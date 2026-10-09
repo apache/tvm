@@ -27,7 +27,7 @@ to call, allowed vec widths). All the layout/partition logic lives here.
 
 from tvm import sym
 from tvm.tirx.layout import ComposeLayout, Iter, TileLayout
-from tvm.tirx.operator.tile_primitive.registry import DispatchContext
+from tvm.tirx.tile_dispatch import DispatchContext
 
 from ..layout_utils import strip_swizzle_to_tile
 

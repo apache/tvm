@@ -21,14 +21,14 @@ from tvm.script import tirx as T
 from tvm.tirx import FloatImm, Function
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import MapOpType
-from tvm.tirx.stmt import TileOpCall
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..common import init_analyzer, nki_dim
 from ..instruction_generator import InstructionGenerator
 from .utils import InstType, binary_map_ops, try_find_inst_nary
 
 
-def binary_trn(op: TileOpCall, binary_op: MapOpType, sctx: DispatchContext) -> Function | None:
+def binary_trn(op: TensorCall, binary_op: MapOpType, sctx: DispatchContext) -> Function | None:
     """Generate a binary operation schedule for Trainium."""
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
         fail("requires Trainium target and thread exec_scope")
@@ -55,7 +55,7 @@ def binary_trn(op: TileOpCall, binary_op: MapOpType, sctx: DispatchContext) -> F
     b_var = T.Var("B", "int32")
     f_var = T.Var("F", "int32")
     p_size = dst.ty.layout.size("P")
-    inst_size_limit = op.config.get("max_inst_size", 512)
+    inst_size_limit = op.options.get("max_inst_size", 512)
     inst_repr.bound_inst_size(inst_size_limit, analyzer)
     inst_gen.bind_inst_iter(_dst, p_var, p_size, 1, False)
     inst_gen.bind_inst_iter(_dst, f_var, inst_repr.size, inst_repr.stride, True)
@@ -64,7 +64,10 @@ def binary_trn(op: TileOpCall, binary_op: MapOpType, sctx: DispatchContext) -> F
     opcode = binary_map_ops[binary_op]
 
     # Select appropriate NKI function based on instruction type
-    _func = T.nki.tensortensor if inst_types[0] == InstType.TENSOR_TENSOR else T.nki.tensorscalar
+    instruction = "tensortensor" if inst_types[0] == InstType.TENSOR_TENSOR else "tensorscalar"
+    if not op.op.name.endswith("." + instruction):
+        raise ValueError(f"{op.op.name} operands require {instruction}")
+    _func = getattr(T.nki, instruction)
 
     def func(*args):
         return _func(*args, reverse[0]) if inst_types[0] == InstType.TENSOR_SCALAR else _func(*args)
@@ -103,21 +106,3 @@ def binary_trn(op: TileOpCall, binary_op: MapOpType, sctx: DispatchContext) -> F
                                 )
 
     return impl
-
-
-# ---------------------------------------------------------------------------
-# Registration: bind each binary op name to its TRN schedule candidates.
-# ---------------------------------------------------------------------------
-from tvm.tirx.operator.tile_primitive import register_dispatch  # noqa: E402
-
-for _op_name, _op_type in {
-    "add": MapOpType.ADD,
-    "sub": MapOpType.SUB,
-    "mul": MapOpType.MUL,
-    "maximum": MapOpType.MAX,
-    "minimum": MapOpType.MIN,
-}.items():
-
-    @register_dispatch(_op_name, "trn", variant="binary", priority=0)
-    def _binary_dispatch(op, sctx, _ty=_op_type):
-        return binary_trn(op, _ty, sctx)

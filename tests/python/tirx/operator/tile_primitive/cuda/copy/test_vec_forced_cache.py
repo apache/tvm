@@ -30,7 +30,6 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 
 
@@ -44,8 +43,13 @@ def _build_g2l2g_kernel(n_elements, dtype, dispatch, **copy_config):
         T.cta_id([1])
         T.thread_id([1])
         reg = T.alloc_local((n_elements,), dtype)
-        Tx.copy(reg[:], A[:], dispatch=dispatch, **copy_config)
-        Tx.copy(B[:], reg[:], dispatch=dispatch)
+        T.cuda.tile.ld(
+            reg[:],
+            A[:],
+            vec_bits=int(dispatch.removeprefix("vec_").removesuffix("b")),
+            **copy_config,
+        )
+        T.cuda.tile.st(B[:], reg[:], vec_bits=int(dispatch.removeprefix("vec_").removesuffix("b")))
 
     return kernel
 
@@ -58,9 +62,18 @@ def _build_g2s2g_kernel(n_elements, dtype, dispatch, **copy_config):
     def kernel(A: T.Tensor((n_elements,), dtype), B: T.Tensor((n_elements,), dtype)) -> None:
         T.device_entry()
         T.cta_id([1])
-        T.thread_id([1])
+        copy_thread_id = T.thread_id([1])
         smem = T.alloc_tensor((n_elements,), dtype, scope="shared")
-        Tx.copy(smem[:], A[:], dispatch=dispatch, **copy_config)
+        reg = T.alloc_local((n_elements,), dtype)
+        T.cuda.tile.ld(
+            reg[:],
+            A[:],
+            vec_bits=int(dispatch.removeprefix("vec_").removesuffix("b")),
+            **copy_config,
+        )
+        T.cuda.tile.st(
+            smem[:], reg[:], vec_bits=int(dispatch.removeprefix("vec_").removesuffix("b"))
+        )
         for i in range(n_elements):
             B[i] = smem[i]
 
@@ -153,7 +166,7 @@ def test_copy_vec_nc_rejects_non_global_src():
         T.thread_id([1])
         smem = T.alloc_tensor((4,), "float32", scope="shared")
         reg = T.alloc_local((4,), "float32")
-        Tx.copy(reg[:], smem[:], dispatch="vec_128b", cache="nc")
+        T.cuda.tile.ld(reg[:], smem[:], cache="nc", vec_bits=128)
         B[0] = reg[0]
 
     target = tvm.target.Target("cuda")

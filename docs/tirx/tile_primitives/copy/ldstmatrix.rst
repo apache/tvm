@@ -15,16 +15,16 @@
     specific language governing permissions and limitations
     under the License.
 
-copy → ldstmatrix
-=================
+ldmatrix / stmatrix
+===================
 
-The ``ldstmatrix`` variant lowers a ``copy`` between **register and shared** memory
+``Tx.cuda.tile.ldmatrix`` and ``Tx.cuda.tile.stmatrix`` transfer between register and shared memory
 to the warp-collective PTX ``ldmatrix`` / ``stmatrix`` instructions: one
 instruction moves ``num`` 8×8 16-bit matrix tiles between shared memory and the
 warp's registers, with the hardware performing the lane↔element shuffle that an
 MMA fragment needs. It only applies when the register and shared **layouts match
-the m8n8 fragment geometry**; otherwise the copy falls back to the
-:doc:`reg` path in ``vec_auto``. Source:
+the m8n8 fragment geometry**. An incompatible layout is rejected; use
+:doc:`reg` for ordinary memory instructions. Source:
 ``python/tvm/backend/cuda/tile_primitive/copy/ld_stmatrix.py``.
 
 What it accepts
@@ -49,10 +49,8 @@ The predicate is lean — scope, a valid copy, and a register↔shared pair:
                 return False, msg
         return True, None
 
-The **real** gate is the layout fit, applied during emit. Both this variant and
-``vec_auto`` are priority 10 and accept ``local ↔ shared``; ``ldstmatrix`` is
-tried first and **declines** (via ``fail(...)``) if the layouts are not ldmatrix
-fragments, leaving the :doc:`reg` path in ``vec_auto`` to handle the copy:
+The layout fit is validated during emission. The selected matrix instruction
+must match an m8n8 fragment, or lowering reports an error:
 
 .. code-block:: python
 
@@ -95,7 +93,7 @@ fragments, leaving the :doc:`reg` path in ``vec_auto`` to handle the copy:
        the contiguous eight-element shared-memory row addressed by the instruction
 
 Demonstration program
-----------------------
+---------------------
 
 A warp loads ``num = 2`` row-major matrix tiles (``M, N = 8, 16`` fp16) shared →
 register, from ``test_ld_stmatrix.py`` (register layout = the m8n8 fragment,
@@ -123,7 +121,7 @@ register, from ``test_ld_stmatrix.py`` (register layout = the m8n8 fragment,
         # ... stage A into A_smem (row = tid//4, cp = tid%4) ...
         Tx.cuda.cta_sync()
         R = Tx.alloc_tensor((8, 4, num, 2), "float16", scope="local", layout=r_layout)
-        Tx.tile.warp.copy(R[full], A_smem[full])  # shared -> register  (ldmatrix)
+        Tx.cuda.tile.ldmatrix(R[full], A_smem[full], scope="warp")  # shared -> register  (ldmatrix)
         # ... write R back out to B ...
 
 Algorithm
@@ -176,7 +174,7 @@ words:
         else:
             Tx.ptx[chain](smem_ptr, *words)   # stmatrix takes the address first
 
-(This is the one copy variant that **does** use ``Tx.unroll`` — ``m_outer`` is tiny.)
+This lowerer unrolls the small ``m_outer`` loop.
 
 Generated TIRx IR
 -----------------

@@ -15,23 +15,23 @@
     specific language governing permissions and limitations
     under the License.
 
-copy_async → smem->tmem (tcgen05.cp)
-====================================
+tcgen05.cp
+==========
 
-The ``smem->tmem`` variant lowers a ``copy_async`` from **shared memory to tensor
-memory** (Blackwell ``tmem``) through the ``tcgen05_cp`` planner, which covers every
+``Tx.cuda.tile.tcgen05.cp`` transfers from shared memory to tensor
+memory (Blackwell ``tmem``) through the ``tcgen05_cp`` planner, which covers every
 ``tcgen05.cp`` shape. A shared **matrix descriptor** names the source tile; all
 descriptor fields (ldo/sdo/swizzle) and the cp issue sequence are derived from
-the two buffer layouts. The dispatch issues only the copy; the caller signals
+the two buffer layouts. The lowerer issues only the copy; the caller signals
 completion with ``tcgen05.commit``. Source:
 ``python/tvm/backend/cuda/tile_primitive/copy_async/tcgen05_cp.py``.
 
 Shape selection
 ---------------
 
-- ``shape=`` config: forces that PTX shape (with ``multicast=`` where the shape
+- ``shape=`` qualifier: forces that PTX shape (with ``multicast=`` where the shape
   has more than one legal qualifier).
-- No ``shape`` config: the planner tries each candidate **widest atom first**
+- No ``shape`` qualifier: the planner tries each candidate **widest atom first**
   and takes the first whose plan validates against the layouts:
   ``128x256b`` → ``4x256b`` → ``128x128b`` → ``64x128b.warpx2::02_13`` →
   ``64x128b.warpx2::01_23`` → ``32x128b.warpx4``. All candidates but the
@@ -80,22 +80,14 @@ What it accepts
 Two predicates — the memory-scope envelope and a single-thread exec scope; all
 shape/layout validation happens in the planner with readable errors:
 
-.. code-block:: python
-
-    # register_dispatch(..., variant="smem->tmem", priority=10, when=[
-    predicate("validate_smem_tmem_copy", _validate_smem_tmem_copy),
-    predicate("exec_scope", _single_thread_exec),       # exec_scope == "thread"
-    # ])
-
 .. list-table::
    :header-rows: 1
    :widths: 22 78
 
    * - Property
      - Requirement
-   * - target / priority
-     - ``cuda`` target with ``tcgen05`` support (tested with ``sm_100a``);
-       priority ``10``
+   * - target
+     - ``cuda`` target with ``tcgen05`` support (tested with ``sm_100a``)
    * - scope
      - **single thread** issues the copy
    * - CTA group
@@ -113,10 +105,10 @@ shape/layout validation happens in the planner with readable errors:
        the buffer's swizzle (if any)
 
 Demonstration program
-----------------------
+---------------------
 
 A warpgroup allocates 16 tmem columns, fills a ``32×16`` ``uint8`` shared tile,
-and copies it into tmem — no shape config, the planner infers
+and copies it into tmem — no shape qualifier, the planner infers
 ``32x128b.warpx4`` from the layouts (from ``test_tcgen05_cp.py``; readback /
 dealloc tail elided):
 
@@ -135,7 +127,7 @@ dealloc tail elided):
     tmem = Tx.decl_tensor([32, 16], "uint8", scope="tmem", allocated_addr=tmem_addr[0],
                          layout=TileLayout(S[(32, 16) : (1 @ TLane, 1 @ TCol)] + R[4 : 32 @ TLane]))
     if tid_in_wg == 0:
-        Tx.tile.copy_async(tmem[0:32, 0:16], A_smem[0:32, 0:16], cta_group=1)   # smem -> tmem
+        Tx.cuda.tile.tcgen05.cp(tmem[0:32, 0:16], A_smem[0:32, 0:16], cta_group=1)   # smem -> tmem
         # caller signals
         Tx.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
             cp_mbar.ptr_to([0]))
@@ -174,7 +166,7 @@ bits, plus the lane half-word for lane-tiled atoms):
             Tx.cast(t_addr[0] + t_addr_off + t_off, "uint32"),
             smem_desc_add_16B_offset(desc_buf[0], init_off_16B + s_off))
 
-The dispatch emits **no** ``tcgen05.commit`` / ``wait`` — the caller commits
+The lowerer emits **no** ``tcgen05.commit`` / ``wait`` — the caller commits
 against an mbarrier (as in the demo).
 
 Generated CUDA

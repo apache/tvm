@@ -45,12 +45,8 @@ from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.tirx import Function, Var
 from tvm.tirx.expr import IntImm as _IntImm
-from tvm.tirx.operator.tile_primitive.dispatcher import (
-    predicate,
-    register_dispatch,
-)
-from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.stmt import TileOpCall
+from tvm.tirx.tensor_instruction import TensorCall
+from tvm.tirx.tile_dispatch import DispatchContext
 
 from ..copy._common import (
     _TID_AXIS_FOR_SCOPE,
@@ -101,12 +97,12 @@ def _config_bool(value) -> bool:
 
 
 def _divides_thread_cnt_ldgsts(
-    op_call: TileOpCall, sctx: DispatchContext
+    op_call: TensorCall, sctx: DispatchContext
 ) -> tuple[bool, str | None]:
     """Mirror of ``gmem_smem._divides_thread_cnt``: reject copies whose
     region element count doesn't divide ``thread_cnt`` (and reject
     ``thread_cnt=0`` scopes outright). See that docstring for rationale."""
-    op_call = TileOpCall.downcast(op_call)
+    op_call = TensorCall.decode(op_call)
     thread_cnt = _thread_cnt(sctx)
     if thread_cnt <= 0:
         return False, f"degenerate thread_cnt={thread_cnt} (scope has empty intra)"
@@ -123,7 +119,7 @@ def _divides_thread_cnt_ldgsts(
     return True, None
 
 
-def _is_ldgsts(op_call: TileOpCall, sctx: DispatchContext) -> tuple[bool, str | None]:
+def _is_ldgsts(op_call: TensorCall, sctx: DispatchContext) -> tuple[bool, str | None]:
     if not sctx.is_target("cuda"):
         return False, "non-cuda target"
     if sctx.scope_kind not in ("thread", "warp", "warpgroup", "cta"):
@@ -140,8 +136,8 @@ def _is_ldgsts(op_call: TileOpCall, sctx: DispatchContext) -> tuple[bool, str | 
     return True, None
 
 
-def _emit_ldgsts(op_call: TileOpCall, sctx: DispatchContext) -> Function:
-    op_call = TileOpCall.downcast(op_call)
+def _emit_ldgsts(op_call: TensorCall, sctx: DispatchContext) -> Function:
+    op_call = TensorCall.decode(op_call)
     src: Var = op_call.src.source
     dst: Var = op_call.dst.source
     # Predicate above guarantees src is global, dst is shared.
@@ -149,11 +145,11 @@ def _emit_ldgsts(op_call: TileOpCall, sctx: DispatchContext) -> Function:
     s_buf, s_br = dst, op_call.dst
 
     elem_bits = DataType(src.dtype).bits
-    prefetch_size = op_call.config.get("prefetch_size", -1)
-    predicate_expr = op_call.config.get("predicate", -1)
-    fill_mode = op_call.config.get("fill_mode", "")
+    prefetch_size = op_call.options.get("prefetch_size", -1)
+    predicate_expr = op_call.options.get("predicate", -1)
+    fill_mode = op_call.options.get("fill_mode", "")
 
-    if _config_bool(op_call.config.get("direct", False)):
+    if _config_bool(op_call.options.get("direct", False)):
         if sctx.scope_kind != "thread":
             raise ValueError("ldgsts direct=True is only valid in thread scope")
         n_elements = 1
@@ -261,12 +257,5 @@ def _emit_ldgsts(op_call: TileOpCall, sctx: DispatchContext) -> Function:
     return impl
 
 
-@register_dispatch(
-    "copy_async",
-    "cuda",
-    variant="ldgsts",
-    priority=20,
-    when=[predicate("ldgsts_applicable", _is_ldgsts)],
-)
-def copy_schedule_ldgsts(op_call: TileOpCall, sctx: DispatchContext) -> Function:
+def copy_schedule_ldgsts(op_call: TensorCall, sctx: DispatchContext) -> Function:
     return _emit_ldgsts(op_call, sctx)

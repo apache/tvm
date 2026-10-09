@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Context for dispatching and lowering TIRx tile operations.
+"""Context for lowering tensor instruction Calls.
 
 Mirrors the C++ header ``include/tvm/tirx/tile_dispatch.h``.
 """

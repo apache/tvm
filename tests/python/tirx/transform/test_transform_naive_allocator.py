@@ -19,7 +19,6 @@ import tvm
 import tvm.testing
 from tvm.ir import assert_structural_equal
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import F, P, S, TileLayout
 from tvm.tirx.trn.transform import TrnNaiveAllocator
 
@@ -36,7 +35,7 @@ def test_one_alloc():
 
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.copy(A_sbuf, A)
+        T.trn.tile.load(A_sbuf, A)
 
     @T.function
     def expected(A: T.Tensor(src_shape, 'float32', layout=src_layout)) -> None:
@@ -44,7 +43,7 @@ def test_one_alloc():
 
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout, allocated_addr=[0])  # noqa: E501
-        Tx.copy(A_sbuf, A)
+        T.trn.tile.load(A_sbuf, A)
         # fmt: on
 
     mod = tvm.IRModule({"copy": copy})
@@ -59,7 +58,7 @@ def test_two_alloc():
         T.device_entry()
         A_sbuf = T.alloc_tensor([256, 512], "float32", scope="trn.sbuf", layout="PF")
         B_sbuf = T.alloc_tensor([512, 512], "float32", scope="trn.sbuf", layout="PF")
-        Tx.copy(B_sbuf[0:256, :], A_sbuf)
+        T.trn.tile.tensor_copy(B_sbuf[0:256, :], A_sbuf)
 
     @T.function
     def expected(A_ptr: T.handle) -> None:
@@ -67,7 +66,7 @@ def test_two_alloc():
         T.device_entry()
         A_sbuf = T.alloc_tensor([256, 512], "float32", scope="trn.sbuf", layout="PF", allocated_addr=[0])  # noqa: E501
         B_sbuf = T.alloc_tensor([512, 512], "float32", scope="trn.sbuf", layout="PF", allocated_addr=[2*512*4])  # noqa: E501
-        Tx.copy(B_sbuf[0:256, :], A_sbuf)
+        T.trn.tile.tensor_copy(B_sbuf[0:256, :], A_sbuf)
         # fmt: on
 
     mod = tvm.IRModule({"copy": copy})
@@ -82,7 +81,7 @@ def test_existing_alloc():
         T.device_entry()
         A_sbuf = T.alloc_tensor([256, 512], "float32", scope="trn.sbuf", layout="PF")
         B_sbuf = T.alloc_tensor([512, 512], "float32", scope="trn.sbuf", layout="PF", allocated_addr=[1])  # noqa: E501
-        Tx.copy(B_sbuf[0:256, :], A_sbuf)
+        T.trn.tile.tensor_copy(B_sbuf[0:256, :], A_sbuf)
 
     @T.function
     def expected(A_ptr: T.handle) -> None:
@@ -90,7 +89,7 @@ def test_existing_alloc():
         T.device_entry()
         A_sbuf = T.alloc_tensor([256, 512], "float32", scope="trn.sbuf", layout="PF", allocated_addr=[4*512*4+1])  # noqa: E501
         B_sbuf = T.alloc_tensor([512, 512], "float32", scope="trn.sbuf", layout="PF", allocated_addr=[1])  # noqa: E501
-        Tx.copy(B_sbuf[0:256, :], A_sbuf)
+        T.trn.tile.tensor_copy(B_sbuf[0:256, :], A_sbuf)
         # fmt: on
 
     mod = tvm.IRModule({"copy": copy})
@@ -106,7 +105,7 @@ def test_workspace():
         A_sbuf = T.alloc_tensor([256, 512], "float32", scope="trn.sbuf", layout="PF")
         B_sbuf = T.alloc_tensor([512, 512], "float32", scope="trn.sbuf", layout="PF")
         C_sbuf = T.alloc_tensor([128, 1024], "float32", scope="trn.sbuf")
-        Tx.copy(B_sbuf[0:256, :], A_sbuf, workspace={"C": C_sbuf})
+        T.trn.tile.activation(B_sbuf[0:256, :], A_sbuf, const_bias=C_sbuf)
 
     @T.function
     def expected(A_ptr: T.handle) -> None:
@@ -115,7 +114,7 @@ def test_workspace():
         A_sbuf = T.alloc_tensor([256, 512], "float32", scope="trn.sbuf", layout="PF", allocated_addr=[0])  # noqa: E501
         B_sbuf = T.alloc_tensor([512, 512], "float32", scope="trn.sbuf", layout="PF", allocated_addr=[2*512*4])  # noqa: E501
         C_sbuf = T.alloc_tensor([128, 1024], "float32", scope="trn.sbuf", allocated_addr=[2*512*4+4*512*4])  # noqa: E501
-        Tx.copy(B_sbuf[0:256, :], A_sbuf, workspace={"C": C_sbuf})
+        T.trn.tile.activation(B_sbuf[0:256, :], A_sbuf, const_bias=C_sbuf)
         # fmt: on
 
     mod = tvm.IRModule({"copy": copy})
@@ -131,7 +130,7 @@ def test_other_scope_alloc():
         A_sbuf = T.alloc_tensor([256, 512], "float32", scope="trn.sbuf", layout="PF")
         B_sbuf = T.alloc_tensor([512, 512], "float32", scope="trn.sbuf", layout="PF")
         C_sbuf = T.alloc_tensor([8, 128, 512], "float32", scope="global")
-        Tx.copy(B_sbuf[0:256, :], A_sbuf, workspace={"C": C_sbuf})
+        T.trn.tile.activation(B_sbuf[0:256, :], A_sbuf, const_bias=C_sbuf)
 
     @T.function
     def expected(A_ptr: T.handle) -> None:
@@ -140,7 +139,7 @@ def test_other_scope_alloc():
         A_sbuf = T.alloc_tensor([256, 512], "float32", scope="trn.sbuf", layout="PF", allocated_addr=[0])  # noqa: E501
         B_sbuf = T.alloc_tensor([512, 512], "float32", scope="trn.sbuf", layout="PF", allocated_addr=[2*512*4])  # noqa: E501
         C_sbuf = T.alloc_tensor([8, 128, 512], "float32", scope="global")
-        Tx.copy(B_sbuf[0:256, :], A_sbuf, workspace={"C": C_sbuf})
+        T.trn.tile.activation(B_sbuf[0:256, :], A_sbuf, const_bias=C_sbuf)
         # fmt: on
 
     mod = tvm.IRModule({"copy": copy})
@@ -156,7 +155,7 @@ def test_buffer_views():
         A_sbuf = T.alloc_tensor([256, 512], "float32", scope="trn.sbuf", layout="PF")
         B_sbuf = T.alloc_tensor([512, 512], "float32", scope="trn.sbuf", layout="PF")
         B_view = B_sbuf.view(2, 256, 512)
-        Tx.copy(B_view[0], A_sbuf)
+        T.trn.tile.tensor_copy(B_view[0], A_sbuf)
 
     @T.function
     def expected(A_ptr: T.handle) -> None:
@@ -165,7 +164,7 @@ def test_buffer_views():
         A_sbuf = T.alloc_tensor([256, 512], "float32", scope="trn.sbuf", layout="PF", allocated_addr=[0])  # noqa: E501
         B_sbuf = T.alloc_tensor([512, 512], "float32", scope="trn.sbuf", layout="PF", allocated_addr=[2*512*4])  # noqa: E501
         B_view = B_sbuf.view(2, 256, 512)
-        Tx.copy(B_view[0], A_sbuf)
+        T.trn.tile.tensor_copy(B_view[0], A_sbuf)
         # fmt: on
 
     mod = tvm.IRModule({"copy": copy})

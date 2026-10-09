@@ -27,9 +27,9 @@ from math import prod
 from tvm.script import tirx as T
 from tvm.tirx import Function
 from tvm.tirx.layout import ComposeLayout, S, TileLayout
-from tvm.tirx.operator.tile_primitive.dispatcher import fail, predicate, register_dispatch
-from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.stmt import TileOpCall
+from tvm.tirx.operator.tile_primitive.dispatcher import fail
+from tvm.tirx.tensor_instruction import TensorCall
+from tvm.tirx.tile_dispatch import DispatchContext
 
 from ._common import (  # noqa: F401  (_carve_tail reserved for future variants)
     _carve_tail,
@@ -56,7 +56,7 @@ def _compute_r_perm(r):
     return [i for i, _ in sorted(enumerate(r.shard), key=key)]
 
 
-def _is_ldstmatrix(op_call: TileOpCall, sctx: DispatchContext) -> tuple[bool, str | None]:
+def _is_ldstmatrix(op_call: TensorCall, sctx: DispatchContext) -> tuple[bool, str | None]:
     if not sctx.is_target("cuda"):
         return False, "non-cuda target"
     if sctx.scope_kind not in ("warp", "warpgroup", "cta"):
@@ -72,8 +72,8 @@ def _is_ldstmatrix(op_call: TileOpCall, sctx: DispatchContext) -> tuple[bool, st
     return True, None
 
 
-def _emit(op_call: TileOpCall, sctx: DispatchContext) -> Function:
-    op_call = TileOpCall.downcast(op_call)
+def _emit(op_call: TensorCall, sctx: DispatchContext) -> Function:
+    op_call = TensorCall.decode(op_call)
 
     # Step 1: identify reg / smem sides and pull their tensor shape + layout.
     src_br = op_call.src
@@ -385,14 +385,7 @@ def _emit(op_call: TileOpCall, sctx: DispatchContext) -> Function:
     return impl
 
 
-@register_dispatch(
-    "copy",
-    "cuda",
-    variant="ldstmatrix",
-    priority=10,
-    when=[predicate("ldstmatrix_applicable", _is_ldstmatrix)],
-)
-def copy_schedule_ldstmatrix(op_call: TileOpCall, sctx: DispatchContext) -> Function:
+def copy_schedule_ldstmatrix(op_call: TensorCall, sctx: DispatchContext) -> Function:
     return _emit(op_call, sctx)
 
 

@@ -29,7 +29,6 @@ import tvm.testing
 from tvm.ir import TensorRegion, assert_structural_equal
 from tvm.script import ir as I
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import TCol, TLane, laneid, warpid
 
 
@@ -177,7 +176,7 @@ def test_roundtrip_allocated_addr():
         T.device_entry()
         A = T.alloc_tensor([10], "float32", scope="trn.sbuf", allocated_addr=1024)
         for i in T.serial(2):
-            Tx.memset(A[i*5:i*5+5], T.float32(0.0))
+            T.cuda.tile.mov(A[i*5:i*5+5], T.float32(0.0))
 
         # fmt: on
     code = test.script()
@@ -191,7 +190,7 @@ def test_roundtrip_implicit_buffer_region():
     def test(A: T.Tensor((10, 10, 10), 'float32', layout=T.TileLayout(T.S[10, 10, 10]))):
 
         T.device_entry()
-        Tx.memset(A[0], T.float32(0.0))
+        T.cuda.tile.mov(A[0], T.float32(0.0))
 
         # fmt: on
     code = test.script()
@@ -206,7 +205,7 @@ def test_roundtrip_alloc_under_any_scope():
         T.device_entry()
         for i in T.serial(10):
             A = T.alloc_tensor([100], "float32", scope="trn.sbuf", allocated_addr=1024)
-            Tx.memset(A[i*10:i*10+10], T.float32(0.0))
+            T.cuda.tile.mov(A[i*10:i*10+10], T.float32(0.0))
 
         # fmt: on
     code = test.script()

@@ -17,6 +17,7 @@
 # pylint: disable=missing-function-docstring
 import copy
 import functools
+import math
 import operator
 import re
 
@@ -32,7 +33,6 @@ import tvm
 import tvm.testing
 from tvm.ir.type import PointerType, PrimType
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 from tvm.tirx.cuda.tile_primitive.gemm_async import sf_tmem_layout
 from tvm.tirx.cuda.tile_primitive.tma_utils import (
@@ -274,19 +274,22 @@ def test_gemm_tcgen05_cta_group_1(task):
         )
 
         if tid_in_wg == 0:
-            tma_args = T.meta_var({"dispatch": "tma_auto", "mbar": tma_mbar.ptr_to([0])})
-            Tx.copy_async(A_smem[tuple(r_gmem_A)], A[tuple(r_gmem_A)], **tma_args)
-            Tx.copy_async(B_smem[tuple(r_gmem_B)], B[tuple(r_gmem_B)], **tma_args)
+            tma_args = T.meta_var({"descriptor_mode": "auto", "mbar": tma_mbar.ptr_to([0])})
+            T.cuda.tile.cp_async_bulk_tensor_load(
+                A_smem[tuple(r_gmem_A)], A[tuple(r_gmem_A)], **tma_args
+            )
+            T.cuda.tile.cp_async_bulk_tensor_load(
+                B_smem[tuple(r_gmem_B)], B[tuple(r_gmem_B)], **tma_args
+            )
             T.ptx.mbarrier.arrive.expect_tx.shared.b64(tma_mbar.ptr_to([0]), T.uint32(total_bytes))
         T.cuda.mbarrier_wait(tma_mbar.ptr_to([0]), 0)
         T.cuda.cta_sync()
 
         if tid_in_wg == 0:
-            Tx.gemm_async(
+            T.cuda.tile.tcgen05.mma(
                 tmem[tuple(r_tmem_C)],
                 A_smem[tuple(r_smem_A)],
                 B_smem[tuple(r_smem_B)],
-                dispatch="tcgen05",
                 mma_m=128,
                 mma_n=64,
             )
@@ -302,10 +305,10 @@ def test_gemm_tcgen05_cta_group_1(task):
             128, width, layout=TileLayout(S[(128, width) : (1 @ axis_tid_in_wg, 1)])
         )
         if wg_id == 0:
-            Tx.wg.copy_async(C_view[:, :], tmem[tuple(r_tmem_C)])
+            T.cuda.tile.tcgen05.ld(C_view[:, :], tmem[tuple(r_tmem_C)], scope='warpgroup')
             T.ptx.tcgen05.wait__ld.sync.aligned()
         T.cuda.cta_sync()
-        Tx.copy(C[tid_in_wg, C_region[1][0] : C_region[1][1]], C_reg[:])
+        T.cuda.tile.st(C[tid_in_wg, C_region[1][0] : C_region[1][1]], C_reg[:])
 
         if warp_id == 0:
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
@@ -399,9 +402,9 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
         )
 
         if tid_in_wg == 0:
-            tma_args = T.meta_var({"dispatch": "tma_auto", "mbar": tma_mbar.ptr_to([0])})
-            Tx.copy_async(A_smem[:, :], A[:, :], **tma_args)
-            Tx.copy_async(B_smem[:, :], B[:, :], **tma_args)
+            tma_args = T.meta_var({"descriptor_mode": "auto", "mbar": tma_mbar.ptr_to([0])})
+            T.cuda.tile.cp_async_bulk_tensor_load(A_smem[:, :], A[:, :], **tma_args)
+            T.cuda.tile.cp_async_bulk_tensor_load(B_smem[:, :], B[:, :], **tma_args)
             T.ptx.mbarrier.arrive.expect_tx.shared.b64(
                 tma_mbar.ptr_to([0]), T.uint32((M * K + N * K) * 2)
             )
@@ -409,7 +412,7 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
         T.cuda.cta_sync()
 
         if tid_in_wg == 0:
-            Tx.gemm_async(tmem[0:64, 0:N], A_smem[:, :], B_smem[:, :], dispatch="tcgen05")
+            T.cuda.tile.tcgen05.mma(tmem[0:64, 0:N], A_smem[:, :], B_smem[:, :])
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
                 mma_mbar.ptr_to([0])
             )
@@ -421,7 +424,7 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
         reg = T.alloc_local(32, dtype="float32")
         reg_view = reg.view(64, N, layout=tcgen05_atom_layout("16x256b", (64, N), "float32"))
         if wg_id == 0:
-            Tx.wg.copy_async(reg_view[:, :], tmem[0:64, 0:N])
+            T.cuda.tile.tcgen05.ld(reg_view[:, :], tmem[0:64, 0:N], scope='warpgroup')
             T.ptx.tcgen05.wait__ld.sync.aligned()
         T.cuda.cta_sync()
 
@@ -557,15 +560,15 @@ def test_gemm_tcgen05_cta_group_2(task):
         T.cuda.cluster_sync()
 
         tma_args = T.meta_var(
-            {"dispatch": "tma_auto", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2}
+            {"descriptor_mode": "auto", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2}
         )
         if tid_in_wg == 0:
-            Tx.copy_async(
+            T.cuda.tile.cp_async_bulk_tensor_load(
                 A_smem[tuple(r_smem_A_in)],
                 A[tuple(get_global_region(A_shape_per_cta, transA, cbx))],
                 **tma_args,
             )
-            Tx.copy_async(
+            T.cuda.tile.cp_async_bulk_tensor_load(
                 B_smem[tuple(r_smem_B_in)],
                 B[tuple(get_global_region(B_shape_per_cta, transB, cbx))],
                 **tma_args,
@@ -580,11 +583,10 @@ def test_gemm_tcgen05_cta_group_2(task):
             T.ptx.tcgen05.fence__after_thread_sync()
             T.cuda.cta_sync()
             if tid_in_wg == 0:
-                Tx.gemm_async(
+                T.cuda.tile.tcgen05.mma(
                     tmem[tuple(r_tmem_C)],
                     A_smem[tuple(r_smem_A)],
                     B_smem[tuple(r_smem_B)],
-                    dispatch="tcgen05",
                     cta_group=2,
                     mma_m=256,
                     mma_n=128,
@@ -602,13 +604,14 @@ def test_gemm_tcgen05_cta_group_2(task):
             128, width, layout=TileLayout(S[(128, width) : (1 @ axis_tid_in_wg, 1)])
         )
         if wg_id == 0:
-            Tx.wg.copy_async(
+            T.cuda.tile.tcgen05.ld(
                 C_view[:, :],
                 tmem[C_region[0][0] : C_region[0][1], C_region[1][0] : C_region[1][0] + width],
+                scope="warpgroup",
             )
             T.ptx.tcgen05.wait__ld.sync.aligned()
         T.cuda.cta_sync()
-        Tx.copy(C[cbx * 128 + tid_in_wg, C_region[1][0] : C_region[1][0] + width], C_reg[:])
+        T.cuda.tile.st(C[cbx * 128 + tid_in_wg, C_region[1][0] : C_region[1][0] + width], C_reg[:])
         T.cuda.cta_sync()
 
         if warp_id == 0:
@@ -736,16 +739,16 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
         T.cuda.cluster_sync()
 
         tma_args = T.meta_var(
-            {"dispatch": "tma_auto", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2}
+            {"descriptor_mode": "auto", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2}
         )
         if tid_in_wg == 0:
             # CTA cbx loads its portion of A and B
-            Tx.copy_async(
+            T.cuda.tile.cp_async_bulk_tensor_load(
                 A_smem[0:M_per_cta, 0:K],
                 A[cbx * M_per_cta : (cbx + 1) * M_per_cta, 0:K],
                 **tma_args,
             )
-            Tx.copy_async(
+            T.cuda.tile.cp_async_bulk_tensor_load(
                 B_smem[0:N_half, 0:K], B[cbx * N_half : (cbx + 1) * N_half, 0:K], **tma_args
             )
             if cbx == 0:
@@ -758,11 +761,10 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
             T.ptx.tcgen05.fence__after_thread_sync()
             T.cuda.cta_sync()
             if tid_in_wg == 0:
-                Tx.gemm_async(
+                T.cuda.tile.tcgen05.mma(
                     tmem[0:M_per_cta, 0:N_logical],
                     A_smem[0:M_per_cta, 0:K],
                     B_smem[0:N_half, 0:K],
-                    dispatch="tcgen05",
                     cta_group=2,
                     mma_m=128,
                     mma_n=128,
@@ -783,11 +785,11 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
             128, N_half, layout=TileLayout(S[(128, N_half) : (1 @ axis_tid_in_wg, 1)])
         )
         if wg_id == 0:
-            Tx.wg.copy_async(C_view[:, :], tmem_phys[0:128, 0:N_half])
+            T.cuda.tile.tcgen05.ld(C_view[:, :], tmem_phys[0:128, 0:N_half], scope='warpgroup')
             T.ptx.tcgen05.wait__ld.sync.aligned()
         T.cuda.cta_sync()
         n_off = (tid_in_wg // 64) * N_half
-        Tx.copy(C[cbx * M_per_cta + tid_in_wg % 64, n_off : n_off + N_half], C_reg[:])
+        T.cuda.tile.st(C[cbx * M_per_cta + tid_in_wg % 64, n_off : n_off + N_half], C_reg[:])
         T.cuda.cta_sync()
 
         if warp_id == 0:
@@ -894,13 +896,7 @@ def test_gemm_tcgen05_cta_group_2_datapath_b_readback():
             T.ptx.tcgen05.fence__after_thread_sync()
             T.cuda.cta_sync()
             if tid == 0:
-                Tx.gemm_async(
-                    tmem[:, :],
-                    A_smem[:, :],
-                    B_smem[:, :],
-                    dispatch="tcgen05",
-                    cta_group=2,
-                )
+                T.cuda.tile.tcgen05.mma(tmem[:, :], A_smem[:, :], B_smem[:, :], cta_group=2)
                 T.ptx[
                     "tcgen05.commit.cta_group::2.mbarrier::arrive::one"
                     ".shared::cluster.multicast::cluster.b64"
@@ -912,7 +908,7 @@ def test_gemm_tcgen05_cta_group_2_datapath_b_readback():
 
         frag = T.alloc_tcgen05_ldst_frag("32x32b", (m_per_cta, n_logical), c_dtype)
         if wg_id == 0:
-            Tx.wg.copy_async(frag[:, :], tmem[:, :])
+            T.cuda.tile.tcgen05.ld(frag[:, :], tmem[:, :], scope='warpgroup')
             T.ptx.tcgen05.wait__ld.sync.aligned()
         T.cuda.cta_sync()
 
@@ -1063,9 +1059,13 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
 
                 # TMA load A and B from global to shared
         if tid_in_wg == 0:
-            tma_args = T.meta_var({"dispatch": "tma_auto", "mbar": tma_mbar.ptr_to([0])})
-            Tx.copy_async(A_smem[tuple(r_gmem_A)], A[tuple(r_gmem_A)], **tma_args)
-            Tx.copy_async(B_smem[tuple(r_gmem_B)], B[tuple(r_gmem_B)], **tma_args)
+            tma_args = T.meta_var({"descriptor_mode": "auto", "mbar": tma_mbar.ptr_to([0])})
+            T.cuda.tile.cp_async_bulk_tensor_load(
+                A_smem[tuple(r_gmem_A)], A[tuple(r_gmem_A)], **tma_args
+            )
+            T.cuda.tile.cp_async_bulk_tensor_load(
+                B_smem[tuple(r_gmem_B)], B[tuple(r_gmem_B)], **tma_args
+            )
             T.ptx.mbarrier.arrive.expect_tx.shared.b64(tma_mbar.ptr_to([0]), T.uint32(total_bytes))
         T.cuda.mbarrier_wait(tma_mbar.ptr_to([0]), 0)
         T.cuda.cta_sync()
@@ -1076,8 +1076,30 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
 
                 # Transpose scale factors in shared memory
         if warp_id == 0:
-            Tx.warp.permute_layout(SFA_smem_post[:, :], SFA_smem[:, :])
-            Tx.warp.permute_layout(SFB_smem_post[:, :], SFB_smem[:, :])
+            SFA_transpose_regs = T.alloc_local((4,), "uint32")
+            # Read the entire tile before overwriting the aliased shared storage.
+            for sf_row in T.unroll(4):
+                SFA_transpose_regs[sf_row] = SFA_smem[
+                    sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32
+                ]
+            T.cuda.warp_sync()
+            for sf_row in T.unroll(4):
+                SFA_smem_post[sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32] = (
+                    SFA_transpose_regs[sf_row]
+                )
+            T.cuda.warp_sync()
+            SFB_transpose_regs = T.alloc_local((4,), "uint32")
+            # Read the entire tile before overwriting the aliased shared storage.
+            for sf_row in T.unroll(4):
+                SFB_transpose_regs[sf_row] = SFB_smem[
+                    sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32
+                ]
+            T.cuda.warp_sync()
+            for sf_row in T.unroll(4):
+                SFB_smem_post[sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32] = (
+                    SFB_transpose_regs[sf_row]
+                )
+            T.cuda.warp_sync()
         T.cuda.cta_sync()
 
                 # Copy SFA/SFB from shared to TMEM via tcgen05.cp, then issue MMA
@@ -1087,7 +1109,7 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
             T.cuda.tcgen05.encode_matrix_descriptor(descSFB.data, SFB_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
             T.ptx["tcgen05.cp.cta_group::1.32x128b.warpx4"](T.uint32(SFB_TMEM_START), descSFB[0])
 
-            Tx.gemm_async(tmem[tuple(r_tmem_C)], A_smem[tuple(r_smem_A)], B_smem[tuple(r_smem_B)], SFA=sfa_tmem[0:M, 0:sf_mma_k], SFB=sfb_tmem[0:N, 0:sf_mma_k], dispatch="tcgen05")  # noqa: E501
+            T.cuda.tile.tcgen05.mma_block_scale(tmem[tuple(r_tmem_C)], A_smem[tuple(r_smem_A)], B_smem[tuple(r_smem_B)], SFA=sfa_tmem[0:M, 0:sf_mma_k], SFB=sfb_tmem[0:N, 0:sf_mma_k])  # noqa: E501
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(mma_mbar.ptr_to([0]))
         T.cuda.mbarrier_wait(mma_mbar.ptr_to([0]), 0)
         T.cuda.cta_sync()
@@ -1097,10 +1119,10 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
         C_reg = T.alloc_local(width, dtype=C_dtype)
         C_view = C_reg.view(128, width, layout=TileLayout(S[(128, width) : (1@axis_tid_in_wg, 1)]))
         if wg_id == 0:
-            Tx.wg.copy_async(C_view[:, :], tmem[tuple(r_tmem_C)])
+            T.cuda.tile.tcgen05.ld(C_view[:, :], tmem[tuple(r_tmem_C)], scope='warpgroup')
             T.ptx.tcgen05.wait__ld.sync.aligned()
         T.cuda.cta_sync()
-        Tx.copy(C[tid_in_wg, C_region[1][0]:C_region[1][1]], C_reg[:])
+        T.cuda.tile.st(C[tid_in_wg, C_region[1][0]:C_region[1][1]], C_reg[:])
 
         if warp_id == 0:
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
@@ -1264,10 +1286,10 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
         T.cuda.cluster_sync()
 
                 # TMA load A and B (both CTAs issue with multicast)
-        tma_args = T.meta_var({"dispatch": "tma_auto", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2})  # noqa: E501
+        tma_args = T.meta_var({"descriptor_mode": "auto", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2})  # noqa: E501
         if tid_in_wg == 0:
-            Tx.copy_async(A_smem[tuple(r_smem_A_in)], A[tuple(get_global_region(A_shape_per_cta, transA, cbx))], **tma_args)  # noqa: E501
-            Tx.copy_async(B_smem[tuple(r_smem_B_in)], B[tuple(get_global_region(B_shape_per_cta, transB, cbx))], **tma_args)  # noqa: E501
+            T.cuda.tile.cp_async_bulk_tensor_load(A_smem[tuple(r_smem_A_in)], A[tuple(get_global_region(A_shape_per_cta, transA, cbx))], **tma_args)  # noqa: E501
+            T.cuda.tile.cp_async_bulk_tensor_load(B_smem[tuple(r_smem_B_in)], B[tuple(get_global_region(B_shape_per_cta, transB, cbx))], **tma_args)  # noqa: E501
             if cbx == 0:
                 T.ptx.mbarrier.arrive.expect_tx.shared.b64(
                     tma_mbar.ptr_to([0]), T.uint32(total_bytes)
@@ -1279,8 +1301,30 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
 
                 # Transpose scale factors (both CTAs)
         if warp_id == 0:
-            Tx.warp.permute_layout(SFA_smem_post[:, :], SFA_smem[:, :])
-            Tx.warp.permute_layout(SFB_smem_post[:, :], SFB_smem[:, :])
+            SFA_transpose_regs = T.alloc_local((4,), "uint32")
+            # Read the entire tile before overwriting the aliased shared storage.
+            for sf_row in T.unroll(4):
+                SFA_transpose_regs[sf_row] = SFA_smem[
+                    sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32
+                ]
+            T.cuda.warp_sync()
+            for sf_row in T.unroll(4):
+                SFA_smem_post[sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32] = (
+                    SFA_transpose_regs[sf_row]
+                )
+            T.cuda.warp_sync()
+            SFB_transpose_regs = T.alloc_local((4,), "uint32")
+            # Read the entire tile before overwriting the aliased shared storage.
+            for sf_row in T.unroll(4):
+                SFB_transpose_regs[sf_row] = SFB_smem[
+                    sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32
+                ]
+            T.cuda.warp_sync()
+            for sf_row in T.unroll(4):
+                SFB_smem_post[sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32] = (
+                    SFB_transpose_regs[sf_row]
+                )
+            T.cuda.warp_sync()
         T.cuda.cta_sync()
 
                 # Copy SFA/SFB from shared to TMEM via tcgen05.cp (both CTAs, cta_group=2)
@@ -1297,7 +1341,7 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
             T.ptx.tcgen05.fence__after_thread_sync()
             T.cuda.cta_sync()
             if tid_in_wg == 0:
-                Tx.gemm_async(tmem[tuple(r_tmem_C)], A_smem[tuple(r_smem_A)], B_smem[tuple(r_smem_B)], SFA=sfa_tmem[0:128, 0:sf_mma_k], SFB=sfb_tmem[0:128, 0:sf_mma_k], dispatch="tcgen05", cta_group=2)  # noqa: E501
+                T.cuda.tile.tcgen05.mma_block_scale(tmem[tuple(r_tmem_C)], A_smem[tuple(r_smem_A)], B_smem[tuple(r_smem_B)], SFA=sfa_tmem[0:128, 0:sf_mma_k], SFB=sfb_tmem[0:128, 0:sf_mma_k], cta_group=2)  # noqa: E501
                 T.ptx[
                     "tcgen05.commit.cta_group::2.mbarrier::arrive::one"
                     ".shared::cluster.multicast::cluster.b64"
@@ -1310,10 +1354,10 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
         C_reg = T.alloc_local(width, dtype=C_dtype)
         C_view = C_reg.view(128, width, layout=TileLayout(S[(128, width) : (1@axis_tid_in_wg, 1)]))
         if wg_id == 0:
-            Tx.wg.copy_async(C_view[:, :], tmem[C_region[0][0]:C_region[0][1], C_region[1][0]:C_region[1][0] + width])  # noqa: E501
+            T.cuda.tile.tcgen05.ld(C_view[:, :], tmem[C_region[0][0]:C_region[0][1], C_region[1][0]:C_region[1][0] + width], scope='warpgroup')  # noqa: E501
             T.ptx.tcgen05.wait__ld.sync.aligned()
         T.cuda.cta_sync()
-        Tx.copy(C[cbx * 128 + tid_in_wg, C_region[1][0]:C_region[1][0] + width], C_reg[:])
+        T.cuda.tile.st(C[cbx * 128 + tid_in_wg, C_region[1][0]:C_region[1][0] + width], C_reg[:])
         T.cuda.cta_sync()
 
         if warp_id == 0:
@@ -1460,9 +1504,9 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
 
                 # TMA load A and B as uint8
         if tid_in_wg == 0:
-            tma_args = T.meta_var({"dispatch": "tma_auto", "mbar": tma_mbar.ptr_to([0])})
-            Tx.copy_async(A_smem_packed[:, :], A_packed[:, :], **tma_args)
-            Tx.copy_async(B_smem_packed[:, :], B_packed[:, :], **tma_args)
+            tma_args = T.meta_var({"descriptor_mode": "auto", "mbar": tma_mbar.ptr_to([0])})
+            T.cuda.tile.cp_async_bulk_tensor_load(A_smem_packed[:, :], A_packed[:, :], **tma_args)
+            T.cuda.tile.cp_async_bulk_tensor_load(B_smem_packed[:, :], B_packed[:, :], **tma_args)
             T.ptx.mbarrier.arrive.expect_tx.shared.b64(tma_mbar.ptr_to([0]), T.uint32(total_bytes))
         T.cuda.mbarrier_wait(tma_mbar.ptr_to([0]), 0)
         T.cuda.cta_sync()
@@ -1473,8 +1517,30 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
 
                 # Transpose scale factors in shared memory
         if warp_id == 0:
-            Tx.warp.permute_layout(SFA_smem_post[:, :], SFA_smem[:, :])
-            Tx.warp.permute_layout(SFB_smem_post[:, :], SFB_smem[:, :])
+            SFA_transpose_regs = T.alloc_local((4,), "uint32")
+            # Read the entire tile before overwriting the aliased shared storage.
+            for sf_row in T.unroll(4):
+                SFA_transpose_regs[sf_row] = SFA_smem[
+                    sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32
+                ]
+            T.cuda.warp_sync()
+            for sf_row in T.unroll(4):
+                SFA_smem_post[sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32] = (
+                    SFA_transpose_regs[sf_row]
+                )
+            T.cuda.warp_sync()
+            SFB_transpose_regs = T.alloc_local((4,), "uint32")
+            # Read the entire tile before overwriting the aliased shared storage.
+            for sf_row in T.unroll(4):
+                SFB_transpose_regs[sf_row] = SFB_smem[
+                    sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32
+                ]
+            T.cuda.warp_sync()
+            for sf_row in T.unroll(4):
+                SFB_smem_post[sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32] = (
+                    SFB_transpose_regs[sf_row]
+                )
+            T.cuda.warp_sync()
         T.cuda.cta_sync()
 
                 # Copy SFA/SFB from shared to TMEM via tcgen05.cp, then issue MMA
@@ -1484,7 +1550,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
             T.cuda.tcgen05.encode_matrix_descriptor(descSFB.data, SFB_smem.access_ptr("r", offset=0), ldo=16, sdo=8 * 4 * F32_BYTES // F128_BYTES, swizzle=0)  # noqa: E501
             T.ptx["tcgen05.cp.cta_group::1.32x128b.warpx4"](T.uint32(SFB_TMEM_START), descSFB[0])
 
-            Tx.gemm_async(tmem[0:128, 0:N], A_smem[:, :], B_smem[:, :], SFA=sfa_tmem[0:M, 0:sf_mma_k], SFB=sfb_tmem[0:N, 0:sf_mma_k], dispatch="tcgen05")  # noqa: E501
+            T.cuda.tile.tcgen05.mma_block_scale(tmem[0:128, 0:N], A_smem[:, :], B_smem[:, :], SFA=sfa_tmem[0:M, 0:sf_mma_k], SFB=sfb_tmem[0:N, 0:sf_mma_k])  # noqa: E501
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(mma_mbar.ptr_to([0]))
         T.cuda.mbarrier_wait(mma_mbar.ptr_to([0]), 0)
         T.cuda.cta_sync()
@@ -1494,10 +1560,10 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
         C_reg = T.alloc_local(width, dtype=C_dtype)
         C_view = C_reg.view(128, width, layout=TileLayout(S[(128, width) : (1@axis_tid_in_wg, 1)]))
         if wg_id == 0:
-            Tx.wg.copy_async(C_view[:, :], tmem[0:128, 0:N])
+            T.cuda.tile.tcgen05.ld(C_view[:, :], tmem[0:128, 0:N], scope='warpgroup')
             T.ptx.tcgen05.wait__ld.sync.aligned()
         T.cuda.cta_sync()
-        Tx.copy(C[tid_in_wg, 0:N], C_reg[:])
+        T.cuda.tile.st(C[tid_in_wg, 0:N], C_reg[:])
 
         if warp_id == 0:
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
@@ -1645,10 +1711,10 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
         T.cuda.cluster_sync()
 
                 # TMA load A and B with multicast (each CTA loads its portion)
-        tma_args = T.meta_var({"dispatch": "tma_auto", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2})  # noqa: E501
+        tma_args = T.meta_var({"descriptor_mode": "auto", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2})  # noqa: E501
         if tid_in_wg == 0:
-            Tx.copy_async(A_smem_packed[:, :], A_packed[cbx * M_per_cta:(cbx + 1) * M_per_cta, :], **tma_args)  # noqa: E501
-            Tx.copy_async(B_smem_packed[:, :], B_packed[cbx * N_per_cta:(cbx + 1) * N_per_cta, :], **tma_args)  # noqa: E501
+            T.cuda.tile.cp_async_bulk_tensor_load(A_smem_packed[:, :], A_packed[cbx * M_per_cta:(cbx + 1) * M_per_cta, :], **tma_args)  # noqa: E501
+            T.cuda.tile.cp_async_bulk_tensor_load(B_smem_packed[:, :], B_packed[cbx * N_per_cta:(cbx + 1) * N_per_cta, :], **tma_args)  # noqa: E501
             if cbx == 0:
                 T.ptx.mbarrier.arrive.expect_tx.shared.b64(
                     tma_mbar.ptr_to([0]), T.uint32(total_bytes)
@@ -1660,8 +1726,30 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
 
                 # Transpose scale factors
         if warp_id == 0:
-            Tx.warp.permute_layout(SFA_smem_post[:, :], SFA_smem[:, :])
-            Tx.warp.permute_layout(SFB_smem_post[:, :], SFB_smem[:, :])
+            SFA_transpose_regs = T.alloc_local((4,), "uint32")
+            # Read the entire tile before overwriting the aliased shared storage.
+            for sf_row in T.unroll(4):
+                SFA_transpose_regs[sf_row] = SFA_smem[
+                    sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32
+                ]
+            T.cuda.warp_sync()
+            for sf_row in T.unroll(4):
+                SFA_smem_post[sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32] = (
+                    SFA_transpose_regs[sf_row]
+                )
+            T.cuda.warp_sync()
+            SFB_transpose_regs = T.alloc_local((4,), "uint32")
+            # Read the entire tile before overwriting the aliased shared storage.
+            for sf_row in T.unroll(4):
+                SFB_transpose_regs[sf_row] = SFB_smem[
+                    sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32
+                ]
+            T.cuda.warp_sync()
+            for sf_row in T.unroll(4):
+                SFB_smem_post[sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32] = (
+                    SFB_transpose_regs[sf_row]
+                )
+            T.cuda.warp_sync()
         T.cuda.cta_sync()
 
                 # Copy SFA/SFB from shared to TMEM via tcgen05.cp
@@ -1678,7 +1766,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
             T.ptx.tcgen05.fence__after_thread_sync()
             T.cuda.cta_sync()
             if tid_in_wg == 0:
-                Tx.gemm_async(tmem[0:128, 0:N_total], A_smem[:, :], B_smem[:, :], SFA=sfa_tmem[0:128, 0:sf_mma_k], SFB=sfb_tmem[0:N_total, 0:sf_mma_k], dispatch="tcgen05", cta_group=2)  # noqa: E501
+                T.cuda.tile.tcgen05.mma_block_scale(tmem[0:128, 0:N_total], A_smem[:, :], B_smem[:, :], SFA=sfa_tmem[0:128, 0:sf_mma_k], SFB=sfb_tmem[0:N_total, 0:sf_mma_k], cta_group=2)  # noqa: E501
                 T.ptx[
                     "tcgen05.commit.cta_group::2.mbarrier::arrive::one"
                     ".shared::cluster.multicast::cluster.b64"
@@ -1691,10 +1779,10 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
         C_reg = T.alloc_local(width, dtype=C_dtype)
         C_view = C_reg.view(128, width, layout=TileLayout(S[(128, width) : (1@axis_tid_in_wg, 1)]))
         if wg_id == 0:
-            Tx.wg.copy_async(C_view[:, :], tmem[0:128, 0:width])
+            T.cuda.tile.tcgen05.ld(C_view[:, :], tmem[0:128, 0:width], scope='warpgroup')
             T.ptx.tcgen05.wait__ld.sync.aligned()
         T.cuda.cta_sync()
-        Tx.copy(C[cbx * M_per_cta + tid_in_wg, 0:width], C_reg[:])
+        T.cuda.tile.st(C[cbx * M_per_cta + tid_in_wg, 0:width], C_reg[:])
         T.cuda.cta_sync()
 
         if warp_id == 0:
@@ -1846,9 +1934,9 @@ def test_gemm_block_scaled_fp8_sf_id():
 
                 # TMA load A and B from global to shared
         if tid_in_wg == 0:
-            tma_args = T.meta_var({"dispatch": "tma_auto", "mbar": tma_mbar.ptr_to([0])})
-            Tx.copy_async(A_smem[0:M, 0:K], A[0:M, 0:K], **tma_args)
-            Tx.copy_async(B_smem[0:N, 0:K], B[0:N, 0:K], **tma_args)
+            tma_args = T.meta_var({"descriptor_mode": "auto", "mbar": tma_mbar.ptr_to([0])})
+            T.cuda.tile.cp_async_bulk_tensor_load(A_smem[0:M, 0:K], A[0:M, 0:K], **tma_args)
+            T.cuda.tile.cp_async_bulk_tensor_load(B_smem[0:N, 0:K], B[0:N, 0:K], **tma_args)
             T.ptx.mbarrier.arrive.expect_tx.shared.b64(tma_mbar.ptr_to([0]), T.uint32(total_bytes))
         T.cuda.mbarrier_wait(tma_mbar.ptr_to([0]), 0)
         T.cuda.cta_sync()
@@ -1859,8 +1947,30 @@ def test_gemm_block_scaled_fp8_sf_id():
 
                 # Transpose scale factors in shared memory
         if warp_id == 0:
-            Tx.warp.permute_layout(SFA_smem_post[:, :], SFA_smem[:, :])
-            Tx.warp.permute_layout(SFB_smem_post[:, :], SFB_smem[:, :])
+            SFA_transpose_regs = T.alloc_local((4,), "uint32")
+            # Read the entire tile before overwriting the aliased shared storage.
+            for sf_row in T.unroll(4):
+                SFA_transpose_regs[sf_row] = SFA_smem[
+                    sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32
+                ]
+            T.cuda.warp_sync()
+            for sf_row in T.unroll(4):
+                SFA_smem_post[sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32] = (
+                    SFA_transpose_regs[sf_row]
+                )
+            T.cuda.warp_sync()
+            SFB_transpose_regs = T.alloc_local((4,), "uint32")
+            # Read the entire tile before overwriting the aliased shared storage.
+            for sf_row in T.unroll(4):
+                SFB_transpose_regs[sf_row] = SFB_smem[
+                    sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32
+                ]
+            T.cuda.warp_sync()
+            for sf_row in T.unroll(4):
+                SFB_smem_post[sf_row ^ ((tid_in_wg % 32) >> 3), tid_in_wg % 32] = (
+                    SFB_transpose_regs[sf_row]
+                )
+            T.cuda.warp_sync()
         T.cuda.cta_sync()
 
                 # Copy SF to TMEM, then single MMA call (schedule auto-derives sf_id per ki)
@@ -1874,7 +1984,7 @@ def test_gemm_block_scaled_fp8_sf_id():
                     # rotates sf_id=0,1,2,3 for each of the 4 ki iterations.
                     # SFA/SFB region covers all 4 ki positions (num_ki elements)
                     # so the schedule knows sf_id should rotate.
-            Tx.gemm_async(tmem[0:128, 0:N], A_smem[0:M, 0:K], B_smem[0:N, 0:K], SFA=sfa_tmem[0:M, 0:sf_mma_k * num_ki], SFB=sfb_tmem[0:N, 0:sf_mma_k * num_ki], dispatch="tcgen05")  # noqa: E501
+            T.cuda.tile.tcgen05.mma_block_scale(tmem[0:128, 0:N], A_smem[0:M, 0:K], B_smem[0:N, 0:K], SFA=sfa_tmem[0:M, 0:sf_mma_k * num_ki], SFB=sfb_tmem[0:N, 0:sf_mma_k * num_ki])  # noqa: E501
 
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(mma_mbar.ptr_to([0]))
         T.cuda.mbarrier_wait(mma_mbar.ptr_to([0]), 0)
@@ -1885,10 +1995,10 @@ def test_gemm_block_scaled_fp8_sf_id():
         C_reg = T.alloc_local(N, dtype=C_dtype)
         C_view = C_reg.view(128, N, layout=TileLayout(S[(128, N) : (1@axis_tid_in_wg, 1)]))
         if wg_id == 0:
-            Tx.wg.copy_async(C_view[:, :], tmem[0:128, 0:N])
+            T.cuda.tile.tcgen05.ld(C_view[:, :], tmem[0:128, 0:N], scope='warpgroup')
             T.ptx.tcgen05.wait__ld.sync.aligned()
         T.cuda.cta_sync()
-        Tx.copy(C[tid_in_wg, 0:N], C_reg[:])
+        T.cuda.tile.st(C[tid_in_wg, 0:N], C_reg[:])
 
         if warp_id == 0:
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
@@ -2194,21 +2304,35 @@ def test_gemm_tcgen05_arbitrary_tiles(task):
         )
 
         if tid_in_wg == 0:
-            tma_args = T.meta_var({"dispatch": "tma_auto", "mbar": tma_mbar.ptr_to([0])})
-            Tx.copy_async(A_smem[tuple(r_gmem_A)], A[tuple(r_gmem_A)], **tma_args)
-            Tx.copy_async(B_smem[tuple(r_gmem_B)], B[tuple(r_gmem_B)], **tma_args)
+            tma_args = T.meta_var({"descriptor_mode": "auto", "mbar": tma_mbar.ptr_to([0])})
+            T.cuda.tile.cp_async_bulk_tensor_load(
+                A_smem[tuple(r_gmem_A)], A[tuple(r_gmem_A)], **tma_args
+            )
+            T.cuda.tile.cp_async_bulk_tensor_load(
+                B_smem[tuple(r_gmem_B)], B[tuple(r_gmem_B)], **tma_args
+            )
             T.ptx.mbarrier.arrive.expect_tx.shared.b64(tma_mbar.ptr_to([0]), T.uint32(total_bytes))
         T.cuda.mbarrier_wait(tma_mbar.ptr_to([0]), 0)
         T.cuda.cta_sync()
 
         if tid_in_wg == 0:
-            Tx.gemm_async(
+            # Prime C with a nonzero product. The following default-accum MMA
+            # must overwrite it, regardless of the allocation's initial contents.
+            T.cuda.tile.tcgen05.mma(
                 tmem[tuple(r_tmem_C)],
                 A_smem[tuple(r_smem_A)],
                 B_smem[tuple(r_smem_B)],
                 transA=transA,
                 transB=transB,
-                dispatch="tcgen05",
+                accum=False,
+                cta_group=cta_group,
+            )
+            T.cuda.tile.tcgen05.mma(
+                tmem[tuple(r_tmem_C)],
+                A_smem[tuple(r_smem_A)],
+                B_smem[tuple(r_smem_B)],
+                transA=transA,
+                transB=transB,
                 cta_group=cta_group,
             )
             T.ptx[
@@ -2221,10 +2345,10 @@ def test_gemm_tcgen05_arbitrary_tiles(task):
         C_reg = T.alloc_local(N, dtype=C_dtype)
         C_view = C_reg.view(M, N, layout=TileLayout(S[(M, N) : (1 @ axis_tid_in_wg, 1)]))
         if wg_id == 0:
-            Tx.wg.copy_async(C_view[:, :], tmem[tuple(r_tmem_C)])
+            T.cuda.tile.tcgen05.ld(C_view[:, :], tmem[tuple(r_tmem_C)], scope='warpgroup')
             T.ptx.tcgen05.wait__ld.sync.aligned()
         T.cuda.cta_sync()
-        Tx.copy(C[tid_in_wg, C_region[1][0] : C_region[1][1]], C_reg[:])
+        T.cuda.tile.st(C[tid_in_wg, C_region[1][0] : C_region[1][1]], C_reg[:])
 
         if warp_id == 0:
             T.ptx[f"tcgen05.relinquish_alloc_permit.cta_group::{cta_group}.sync.aligned"]()
@@ -2311,13 +2435,8 @@ def test_gemm_tcgen05_no_swizzle_smem_descriptor_codegen(a_layout_kind):
             layout=C_layout,
         )
         if tid_in_wg == 0:
-            Tx.gemm_async(
-                tmem[:, :],
-                A_smem[:, :],
-                B_smem[:, :],
-                transB=True,
-                dispatch="tcgen05",
-                cta_group=2,
+            T.cuda.tile.tcgen05.mma(
+                tmem[:, :], A_smem[:, :], B_smem[:, :], transB=True, cta_group=2
             )
 
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
@@ -2377,13 +2496,7 @@ def test_gemm_tcgen05_cta_group_2_accepts_replicated_tmem_a_codegen():
             layout=A_layout,
         )
         if tid_in_wg == 0:
-            Tx.gemm_async(
-                C_tmem[:, :],
-                A_tmem[:, :],
-                B_smem[:, :],
-                dispatch="tcgen05",
-                cta_group=2,
-            )
+            T.cuda.tile.tcgen05.mma(C_tmem[:, :], A_tmem[:, :], B_smem[:, :], cta_group=2)
 
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
@@ -2439,13 +2552,7 @@ def test_gemm_tcgen05_cta_group_2_rejects_flat_tmem_a_codegen():
             layout=A_layout,
         )
         if tid_in_wg == 0:
-            Tx.gemm_async(
-                C_tmem[:, :],
-                A_tmem[:, :],
-                B_smem[:, :],
-                dispatch="tcgen05",
-                cta_group=2,
-            )
+            T.cuda.tile.tcgen05.mma(C_tmem[:, :], A_tmem[:, :], B_smem[:, :], cta_group=2)
 
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     with target:
@@ -2539,12 +2646,11 @@ def test_gemm_tcgen05_no_swizzle_col_major_a_ws_local_idesc():
         T.ptx.fence.proxy.async_.shared__cta()
         T.cuda.cta_sync()
         if tid_in_wg == 0:
-            Tx.gemm_async(
+            T.cuda.tile.tcgen05.mma(
                 tmem[:, :],
                 A_smem[:, :],
                 B_smem[:, :],
                 transB=True,
-                dispatch="tcgen05",
                 cta_group=1,
                 weight_stationary=True,
             )
@@ -2559,10 +2665,10 @@ def test_gemm_tcgen05_no_swizzle_col_major_a_ws_local_idesc():
             128, N // 2, layout=TileLayout(S[(128, N // 2) : (1 @ axis_tid_in_wg, 1)])
         )
         if wg_id == 0:
-            Tx.wg.copy_async(C_view[:, :], tmem_ldst[:, :])
+            T.cuda.tile.tcgen05.ld(C_view[:, :], tmem_ldst[:, :], scope='warpgroup')
             T.ptx.tcgen05.wait__ld.sync.aligned()
         T.cuda.cta_sync()
-        Tx.copy(C[tid_in_wg, 0 : N // 2], C_reg[:])
+        T.cuda.tile.st(C[tid_in_wg, 0 : N // 2], C_reg[:])
         if warp_id == 0:
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
             T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(tmem_addr[0], T.uint32(128))
@@ -2650,16 +2756,20 @@ def test_gemm_tcgen05_contiguous_kslice_partial_k(k_lo, k_hi):
             layout=TileLayout(S[(128, N) : (1 @ TLane, 1 @ TCol)]),
         )
         if tid_in_wg == 0:
-            tma_args = T.meta_var({"dispatch": "tma_auto", "mbar": tma_mbar.ptr_to([0])})
-            Tx.copy_async(A_smem[0:M, 0:K_alloc], A[0:M, 0:K_alloc], **tma_args)
-            Tx.copy_async(B_smem[0:N, 0:K_alloc], B[0:N, 0:K_alloc], **tma_args)
+            tma_args = T.meta_var({"descriptor_mode": "auto", "mbar": tma_mbar.ptr_to([0])})
+            T.cuda.tile.cp_async_bulk_tensor_load(
+                A_smem[0:M, 0:K_alloc], A[0:M, 0:K_alloc], **tma_args
+            )
+            T.cuda.tile.cp_async_bulk_tensor_load(
+                B_smem[0:N, 0:K_alloc], B[0:N, 0:K_alloc], **tma_args
+            )
             T.ptx.mbarrier.arrive.expect_tx.shared.b64(tma_mbar.ptr_to([0]), T.uint32(total_bytes))
         T.cuda.mbarrier_wait(tma_mbar.ptr_to([0]), 0)
         T.cuda.cta_sync()
         if tid_in_wg == 0:
             # Contiguous-axis K slice [k_lo:k_hi] -> must accumulate only that K range.
-            Tx.gemm_async(
-                tmem[0:128, 0:N], A_smem[0:M, k_lo:k_hi], B_smem[0:N, k_lo:k_hi], dispatch="tcgen05"
+            T.cuda.tile.tcgen05.mma(
+                tmem[0:128, 0:N], A_smem[0:M, k_lo:k_hi], B_smem[0:N, k_lo:k_hi]
             )
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
                 mma_mbar.ptr_to([0])
@@ -2670,10 +2780,10 @@ def test_gemm_tcgen05_contiguous_kslice_partial_k(k_lo, k_hi):
         C_reg = T.alloc_local(N, dtype="float32")
         C_view = C_reg.view(128, N, layout=TileLayout(S[(128, N) : (1 @ axis_tid_in_wg, 1)]))
         if wg_id == 0:
-            Tx.wg.copy_async(C_view[:, :], tmem[0:128, 0:N])
+            T.cuda.tile.tcgen05.ld(C_view[:, :], tmem[0:128, 0:N], scope='warpgroup')
             T.ptx.tcgen05.wait__ld.sync.aligned()
         T.cuda.cta_sync()
-        Tx.copy(C[tid_in_wg, 0:N], C_reg[:])
+        T.cuda.tile.st(C[tid_in_wg, 0:N], C_reg[:])
         if warp_id == 0:
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
             T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(tmem_addr[0], T.uint32(128))
@@ -2713,10 +2823,10 @@ def _run_dense_gemm(
     total_bytes = functools.reduce(operator.mul, A_shape, 1) * (
         tvm.runtime.DataType(A_dtype).bits // 8
     ) + functools.reduce(operator.mul, B_shape, 1) * (tvm.runtime.DataType(B_dtype).bits // 8)
-    gemm_kw = {"dispatch": "tcgen05"}
+    gemm_kw = {}
     if is_AB_tf32:
         gemm_kw["is_AB_tf32"] = True
-    b_tma_kw = {"dispatch": "tma_auto"}
+    b_tma_kw = {"descriptor_mode": "auto"}
     if tma_dtype_B is not None:
         b_tma_kw["tma_dtype"] = tma_dtype_B
 
@@ -2752,13 +2862,17 @@ def _run_dense_gemm(
             layout=TileLayout(S[(128, N) : (1 @ TLane, 1 @ TCol)]),
         )
         if tid_in_wg == 0:
-            Tx.copy_async(A_smem[:, :], A[:, :], dispatch="tma_auto", mbar=tma_mbar.ptr_to([0]))
-            Tx.copy_async(B_smem[:, :], B[:, :], mbar=tma_mbar.ptr_to([0]), **b_tma_kw)
+            T.cuda.tile.cp_async_bulk_tensor_load(
+                A_smem[:, :], A[:, :], mbar=tma_mbar.ptr_to([0]), descriptor_mode="auto"
+            )
+            T.cuda.tile.cp_async_bulk_tensor_load(
+                B_smem[:, :], B[:, :], mbar=tma_mbar.ptr_to([0]), **b_tma_kw
+            )
             T.ptx.mbarrier.arrive.expect_tx.shared.b64(tma_mbar.ptr_to([0]), T.uint32(total_bytes))
         T.cuda.mbarrier_wait(tma_mbar.ptr_to([0]), 0)
         T.cuda.cta_sync()
         if tid_in_wg == 0:
-            Tx.gemm_async(tmem[:, :], A_smem[:, :], B_smem[:, :], **gemm_kw)
+            T.cuda.tile.tcgen05.mma(tmem[:, :], A_smem[:, :], B_smem[:, :], **gemm_kw)
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
                 mma_mbar.ptr_to([0])
             )
@@ -2768,10 +2882,10 @@ def _run_dense_gemm(
         C_reg = T.alloc_local(N, dtype=C_dtype)
         C_view = C_reg.view(128, N, layout=TileLayout(S[(128, N) : (1 @ axis_tid_in_wg, 1)]))
         if wg_id == 0:
-            Tx.wg.copy_async(C_view[:, :], tmem[:, :])
+            T.cuda.tile.tcgen05.ld(C_view[:, :], tmem[:, :], scope="warpgroup")
             T.ptx.tcgen05.wait__ld.sync.aligned()
         T.cuda.cta_sync()
-        Tx.copy(C[tid_in_wg, 0:N], C_reg[:])
+        T.cuda.tile.st(C[tid_in_wg, 0:N], C_reg[:])
         if warp_id == 0:
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
             T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(tmem_addr[0], T.uint32(cols_alloc))
@@ -2836,10 +2950,10 @@ def _run_dense_gemm(
     total_bytes = functools.reduce(operator.mul, A_shape, 1) * (
         tvm.runtime.DataType(A_dtype).bits // 8
     ) + functools.reduce(operator.mul, B_shape, 1) * (tvm.runtime.DataType(B_dtype).bits // 8)
-    gemm_kw = {"dispatch": "tcgen05"}
+    gemm_kw = {}
     if is_AB_tf32:
         gemm_kw["is_AB_tf32"] = True
-    b_tma_kw = {"dispatch": "tma_auto"}
+    b_tma_kw = {"descriptor_mode": "auto"}
     if tma_dtype_B is not None:
         b_tma_kw["tma_dtype"] = tma_dtype_B
 
@@ -2875,13 +2989,17 @@ def _run_dense_gemm(
             layout=TileLayout(S[(128, N) : (1 @ TLane, 1 @ TCol)]),
         )
         if tid_in_wg == 0:
-            Tx.copy_async(A_smem[:, :], A[:, :], dispatch="tma_auto", mbar=tma_mbar.ptr_to([0]))
-            Tx.copy_async(B_smem[:, :], B[:, :], mbar=tma_mbar.ptr_to([0]), **b_tma_kw)
+            T.cuda.tile.cp_async_bulk_tensor_load(
+                A_smem[:, :], A[:, :], mbar=tma_mbar.ptr_to([0]), descriptor_mode="auto"
+            )
+            T.cuda.tile.cp_async_bulk_tensor_load(
+                B_smem[:, :], B[:, :], mbar=tma_mbar.ptr_to([0]), **b_tma_kw
+            )
             T.ptx.mbarrier.arrive.expect_tx.shared.b64(tma_mbar.ptr_to([0]), T.uint32(total_bytes))
         T.cuda.mbarrier_wait(tma_mbar.ptr_to([0]), 0)
         T.cuda.cta_sync()
         if tid_in_wg == 0:
-            Tx.gemm_async(tmem[:, :], A_smem[:, :], B_smem[:, :], **gemm_kw)
+            T.cuda.tile.tcgen05.mma(tmem[:, :], A_smem[:, :], B_smem[:, :], **gemm_kw)
             T.ptx.tcgen05.commit.cta_group__1.mbarrier__arrive__one.shared__cluster.b64(
                 mma_mbar.ptr_to([0])
             )
@@ -2891,10 +3009,10 @@ def _run_dense_gemm(
         C_reg = T.alloc_local(N, dtype=C_dtype)
         C_view = C_reg.view(128, N, layout=TileLayout(S[(128, N) : (1 @ axis_tid_in_wg, 1)]))
         if wg_id == 0:
-            Tx.wg.copy_async(C_view[:, :], tmem[:, :])
+            T.cuda.tile.tcgen05.ld(C_view[:, :], tmem[:, :], scope="warpgroup")
             T.ptx.tcgen05.wait__ld.sync.aligned()
         T.cuda.cta_sync()
-        Tx.copy(C[tid_in_wg, 0:N], C_reg[:])
+        T.cuda.tile.st(C[tid_in_wg, 0:N], C_reg[:])
         if warp_id == 0:
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
             T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(tmem_addr[0], T.uint32(cols_alloc))
@@ -2971,9 +3089,13 @@ def _build_smem_desc_kernel(smem_desc, weight_stationary=False, pass_descI=False
             layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]),
         )
         if tid_in_wg == 0:
-            tma_args = T.meta_var({"dispatch": "tma_auto", "mbar": tma_mbar.ptr_to([0])})
-            Tx.copy_async(A_smem[tuple(r_gmem_A)], A[tuple(r_gmem_A)], **tma_args)
-            Tx.copy_async(B_smem[tuple(r_gmem_B)], B[tuple(r_gmem_B)], **tma_args)
+            tma_args = T.meta_var({"descriptor_mode": "auto", "mbar": tma_mbar.ptr_to([0])})
+            T.cuda.tile.cp_async_bulk_tensor_load(
+                A_smem[tuple(r_gmem_A)], A[tuple(r_gmem_A)], **tma_args
+            )
+            T.cuda.tile.cp_async_bulk_tensor_load(
+                B_smem[tuple(r_gmem_B)], B[tuple(r_gmem_B)], **tma_args
+            )
             T.ptx.mbarrier.arrive.expect_tx.shared.b64(tma_mbar.ptr_to([0]), T.uint32(total_bytes))
         T.cuda.mbarrier_wait(tma_mbar.ptr_to([0]), 0)
         T.cuda.cta_sync()
@@ -2992,22 +3114,20 @@ def _build_smem_desc_kernel(smem_desc, weight_stationary=False, pass_descI=False
                     trans_b=False,
                     n_cta_groups=1,
                 )
-                Tx.gemm_async(
+                T.cuda.tile.tcgen05.mma(
                     tmem[tuple(r_tmem_C)],
                     A_smem[tuple(r_smem_A)],
                     B_smem[tuple(r_smem_B)],
-                    dispatch="tcgen05",
                     smem_desc=smem_desc,
                     weight_stationary=weight_stationary,
                     descI=desc_i,  # noqa: F821
                     **mma_cfg,
                 )
             else:
-                Tx.gemm_async(
+                T.cuda.tile.tcgen05.mma(
                     tmem[tuple(r_tmem_C)],
                     A_smem[tuple(r_smem_A)],
                     B_smem[tuple(r_smem_B)],
-                    dispatch="tcgen05",
                     smem_desc=smem_desc,
                     weight_stationary=weight_stationary,
                     **mma_cfg,
@@ -3023,10 +3143,10 @@ def _build_smem_desc_kernel(smem_desc, weight_stationary=False, pass_descI=False
             128, width, layout=TileLayout(S[(128, width) : (1 @ axis_tid_in_wg, 1)])
         )
         if wg_id == 0:
-            Tx.wg.copy_async(C_view[:, :], tmem[tuple(r_tmem_C)])
+            T.cuda.tile.tcgen05.ld(C_view[:, :], tmem[tuple(r_tmem_C)], scope='warpgroup')
             T.ptx.tcgen05.wait__ld.sync.aligned()
         T.cuda.cta_sync()
-        Tx.copy(C[tid_in_wg, C_region[1][0] : C_region[1][1]], C_reg[:])
+        T.cuda.tile.st(C[tid_in_wg, C_region[1][0] : C_region[1][1]], C_reg[:])
         if warp_id == 0:
             T.ptx.tcgen05.relinquish_alloc_permit.cta_group__1.sync.aligned()
             T.ptx.tcgen05.dealloc.cta_group__1.sync.aligned.b32(tmem_addr[0], T.uint32(128))
@@ -3059,7 +3179,7 @@ def _build_explicit_cta2_dense_kernel(M_per_cta, mma_m):
         B_smem = T.alloc_tensor(B_shape, "float16", scope="shared", layout=B_layout)
         C_tmem = T.decl_tensor((M_per_cta, N), "float32", scope="tmem", allocated_addr=0, layout=C_layout)  # noqa: E501
         if tid == 0:
-            Tx.gemm_async(C_tmem[:, :], A_smem[:, :], B_smem[:, :], dispatch="tcgen05", cta_group=2, mma_m=mma_m, mma_n=N)  # noqa: E501
+            T.cuda.tile.tcgen05.mma(C_tmem[:, :], A_smem[:, :], B_smem[:, :], cta_group=2, mma_m=mma_m, mma_n=N)  # noqa: E501
         # fmt: on
 
     return kernel
@@ -3089,7 +3209,7 @@ def _build_explicit_block_scaled_split_n_kernel():
         SFA_tmem = T.decl_tensor((M, 1), "float8_e8m0fnu", scope="tmem", allocated_addr=N, layout=sf_layout)  # noqa: E501
         SFB_tmem = T.decl_tensor((N, 1), "float8_e8m0fnu", scope="tmem", allocated_addr=N + 4, layout=sf_layout)  # noqa: E501
         if tid == 0:
-            Tx.gemm_async(C_tmem[:, :], A_smem[:, :], B_smem[:, :], SFA=SFA_tmem[:, :], SFB=SFB_tmem[:, :], dispatch="tcgen05", cta_group=2, mma_m=256, mma_n=64)  # noqa: E501
+            T.cuda.tile.tcgen05.mma_block_scale(C_tmem[:, :], A_smem[:, :], B_smem[:, :], SFA=SFA_tmem[:, :], SFB=SFB_tmem[:, :], cta_group=2, mma_m=256, mma_n=64)  # noqa: E501
         # fmt: on
 
     return kernel
@@ -3292,7 +3412,7 @@ def _build_cta1_m64_packed_c_kernel(weight_stationary=None, mma_config=None):
     def gemm_packed_c(B: T.Tensor((N, K), B_dtype)) -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
-        T.thread_id([128])
+        copy_thread_id = T.thread_id([128])
         tid = T.thread_id_in_wg([128])
         B_smem = T.alloc_tensor((N, K), B_dtype, scope="shared", layout=B_layout)
         tmem_addr = T.alloc_shared([1], "uint32")
@@ -3318,15 +3438,40 @@ def _build_cta1_m64_packed_c_kernel(weight_stationary=None, mma_config=None):
             layout=C_layout,
         )
         if tid == 0:
-            Tx.copy(B_smem[:, :], B[:, :])
-            Tx.gemm_async(
-                C_tmem[:, :],
-                A_tmem[:, :, :],
-                B_smem[:, :],
-                dispatch="tcgen05",
-                cta_group=1,
-                **ws_cfg,
-                **mma_cfg,
+            copy_src_1 = T.meta_var(B[:, :])
+            copy_src_tensor_1 = T.meta_var(copy_src_1.source)
+            copy_dst_1 = T.meta_var(B_smem[:, :])
+            copy_dst_tensor_1 = T.meta_var(copy_dst_1.source)
+            for copy_step_1 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_1.region]), 1)
+            ):
+                copy_index_1 = copy_step_1 * (1) + (0)
+                if copy_index_1 < math.prod([int(r.extent) for r in copy_src_1.region]):
+                    copy_value_1 = copy_src_tensor_1[
+                        tuple(
+                            [
+                                copy_src_1.region[k].min
+                                + copy_index_1
+                                // math.prod([int(s.extent) for s in copy_src_1.region[k + 1 :]])
+                                % copy_src_1.region[k].extent
+                                for k in range(len(copy_src_1.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_1 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_1.region[k].min
+                                + copy_index_1
+                                // math.prod([int(s.extent) for s in copy_dst_1.region[k + 1 :]])
+                                % copy_dst_1.region[k].extent
+                                for k in range(len(copy_dst_1.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_1[copy_dst_index_1] = copy_value_1
+            T.cuda.tile.tcgen05.mma(
+                C_tmem[:, :], A_tmem[:, :, :], B_smem[:, :], cta_group=1, **ws_cfg, **mma_cfg
             )
 
     return gemm_packed_c
@@ -3380,7 +3525,7 @@ def _build_cta1_m64_batched_c_kernel():
     def gemm_batched_c(B: T.Tensor((N, K), B_dtype)) -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
-        T.thread_id([128])
+        copy_thread_id = T.thread_id([128])
         tid = T.thread_id_in_wg([128])
         B_smem = T.alloc_tensor((N, K), B_dtype, scope="shared", layout=B_layout)
         tmem_addr = T.alloc_shared([1], "uint32")
@@ -3406,16 +3551,39 @@ def _build_cta1_m64_batched_c_kernel():
             layout=C_layout,
         )
         if tid == 0:
-            Tx.copy(B_smem[:, :], B[:, :])
-            Tx.gemm_async(
-                # No weight_stationary: the dispatch infers .ws from the
-                # batched C[2, M, N] fold layout.
-                C_tmem[:, :, :],
-                A_tmem[:, :, :],
-                B_smem[:, :],
-                dispatch="tcgen05",
-                cta_group=1,
-            )
+            copy_src_2 = T.meta_var(B[:, :])
+            copy_src_tensor_2 = T.meta_var(copy_src_2.source)
+            copy_dst_2 = T.meta_var(B_smem[:, :])
+            copy_dst_tensor_2 = T.meta_var(copy_dst_2.source)
+            for copy_step_2 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_2.region]), 1)
+            ):
+                copy_index_2 = copy_step_2 * (1) + (0)
+                if copy_index_2 < math.prod([int(r.extent) for r in copy_src_2.region]):
+                    copy_value_2 = copy_src_tensor_2[
+                        tuple(
+                            [
+                                copy_src_2.region[k].min
+                                + copy_index_2
+                                // math.prod([int(s.extent) for s in copy_src_2.region[k + 1 :]])
+                                % copy_src_2.region[k].extent
+                                for k in range(len(copy_src_2.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_2 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_2.region[k].min
+                                + copy_index_2
+                                // math.prod([int(s.extent) for s in copy_dst_2.region[k + 1 :]])
+                                % copy_dst_2.region[k].extent
+                                for k in range(len(copy_dst_2.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_2[copy_dst_index_2] = copy_value_2
+            T.cuda.tile.tcgen05.mma(C_tmem[:, :, :], A_tmem[:, :, :], B_smem[:, :], cta_group=1)
 
     return gemm_batched_c
 
@@ -3433,7 +3601,7 @@ def _build_cta1_m64_identity_c_ws_kernel():
     def gemm_identity_c(B: T.Tensor((N, K), B_dtype)) -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
-        T.thread_id([128])
+        copy_thread_id = T.thread_id([128])
         tid = T.thread_id_in_wg([128])
         B_smem = T.alloc_tensor((N, K), B_dtype, scope="shared", layout=B_layout)
         tmem_addr = T.alloc_shared([1], "uint32")
@@ -3457,14 +3625,40 @@ def _build_cta1_m64_identity_c_ws_kernel():
             layout=TileLayout(S[(M, N) : (1 @ TLane, 1 @ TCol)]),
         )
         if tid == 0:
-            Tx.copy(B_smem[:, :], B[:, :])
-            Tx.gemm_async(
-                C_tmem[:, :],
-                A_tmem[:, :],
-                B_smem[:, :],
-                dispatch="tcgen05",
-                cta_group=1,
-                weight_stationary=True,
+            copy_src_3 = T.meta_var(B[:, :])
+            copy_src_tensor_3 = T.meta_var(copy_src_3.source)
+            copy_dst_3 = T.meta_var(B_smem[:, :])
+            copy_dst_tensor_3 = T.meta_var(copy_dst_3.source)
+            for copy_step_3 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_3.region]), 1)
+            ):
+                copy_index_3 = copy_step_3 * (1) + (0)
+                if copy_index_3 < math.prod([int(r.extent) for r in copy_src_3.region]):
+                    copy_value_3 = copy_src_tensor_3[
+                        tuple(
+                            [
+                                copy_src_3.region[k].min
+                                + copy_index_3
+                                // math.prod([int(s.extent) for s in copy_src_3.region[k + 1 :]])
+                                % copy_src_3.region[k].extent
+                                for k in range(len(copy_src_3.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_3 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_3.region[k].min
+                                + copy_index_3
+                                // math.prod([int(s.extent) for s in copy_dst_3.region[k + 1 :]])
+                                % copy_dst_3.region[k].extent
+                                for k in range(len(copy_dst_3.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_3[copy_dst_index_3] = copy_value_3
+            T.cuda.tile.tcgen05.mma(
+                C_tmem[:, :], A_tmem[:, :], B_smem[:, :], cta_group=1, weight_stationary=True
             )
 
     return gemm_identity_c
@@ -3500,7 +3694,7 @@ def _build_cta1_m64_flat_a_ws_kernel():
     def gemm_flat_a(B: T.Tensor((N, K), B_dtype)) -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
-        T.thread_id([128])
+        copy_thread_id = T.thread_id([128])
         tid = T.thread_id_in_wg([128])
         B_smem = T.alloc_tensor((N, K), B_dtype, scope="shared", layout=B_layout)
         tmem_addr = T.alloc_shared([1], "uint32")
@@ -3524,14 +3718,40 @@ def _build_cta1_m64_flat_a_ws_kernel():
             layout=C_layout,
         )
         if tid == 0:
-            Tx.copy(B_smem[:, :], B[:, :])
-            Tx.gemm_async(
-                C_tmem[:, :],
-                A_tmem[:, :],
-                B_smem[:, :],
-                dispatch="tcgen05",
-                cta_group=1,
-                weight_stationary=True,
+            copy_src_4 = T.meta_var(B[:, :])
+            copy_src_tensor_4 = T.meta_var(copy_src_4.source)
+            copy_dst_4 = T.meta_var(B_smem[:, :])
+            copy_dst_tensor_4 = T.meta_var(copy_dst_4.source)
+            for copy_step_4 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_4.region]), 1)
+            ):
+                copy_index_4 = copy_step_4 * (1) + (0)
+                if copy_index_4 < math.prod([int(r.extent) for r in copy_src_4.region]):
+                    copy_value_4 = copy_src_tensor_4[
+                        tuple(
+                            [
+                                copy_src_4.region[k].min
+                                + copy_index_4
+                                // math.prod([int(s.extent) for s in copy_src_4.region[k + 1 :]])
+                                % copy_src_4.region[k].extent
+                                for k in range(len(copy_src_4.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_4 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_4.region[k].min
+                                + copy_index_4
+                                // math.prod([int(s.extent) for s in copy_dst_4.region[k + 1 :]])
+                                % copy_dst_4.region[k].extent
+                                for k in range(len(copy_dst_4.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_4[copy_dst_index_4] = copy_value_4
+            T.cuda.tile.tcgen05.mma(
+                C_tmem[:, :], A_tmem[:, :], B_smem[:, :], cta_group=1, weight_stationary=True
             )
 
     return gemm_flat_a
@@ -3567,7 +3787,7 @@ def _build_m128_batched_a_kernel():
     def gemm_m128_batched_a(B: T.Tensor((N, K), B_dtype)) -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
-        T.thread_id([128])
+        copy_thread_id = T.thread_id([128])
         tid = T.thread_id_in_wg([128])
         B_smem = T.alloc_tensor((N, K), B_dtype, scope="shared", layout=B_layout)
         tmem_addr = T.alloc_shared([1], "uint32")
@@ -3591,14 +3811,39 @@ def _build_m128_batched_a_kernel():
             layout=TileLayout(S[(M, N) : (1 @ TLane, 1 @ TCol)]),
         )
         if tid == 0:
-            Tx.copy(B_smem[:, :], B[:, :])
-            Tx.gemm_async(
-                C_tmem[:, :],
-                A_tmem[:, :, :],
-                B_smem[:, :],
-                dispatch="tcgen05",
-                cta_group=1,
-            )
+            copy_src_5 = T.meta_var(B[:, :])
+            copy_src_tensor_5 = T.meta_var(copy_src_5.source)
+            copy_dst_5 = T.meta_var(B_smem[:, :])
+            copy_dst_tensor_5 = T.meta_var(copy_dst_5.source)
+            for copy_step_5 in T.serial(
+                T.ceildiv(math.prod([int(r.extent) for r in copy_src_5.region]), 1)
+            ):
+                copy_index_5 = copy_step_5 * (1) + (0)
+                if copy_index_5 < math.prod([int(r.extent) for r in copy_src_5.region]):
+                    copy_value_5 = copy_src_tensor_5[
+                        tuple(
+                            [
+                                copy_src_5.region[k].min
+                                + copy_index_5
+                                // math.prod([int(s.extent) for s in copy_src_5.region[k + 1 :]])
+                                % copy_src_5.region[k].extent
+                                for k in range(len(copy_src_5.region))
+                            ]
+                        )
+                    ]
+                    copy_dst_index_5 = T.meta_var(
+                        tuple(
+                            [
+                                copy_dst_5.region[k].min
+                                + copy_index_5
+                                // math.prod([int(s.extent) for s in copy_dst_5.region[k + 1 :]])
+                                % copy_dst_5.region[k].extent
+                                for k in range(len(copy_dst_5.region))
+                            ]
+                        )
+                    )
+                    copy_dst_tensor_5[copy_dst_index_5] = copy_value_5
+            T.cuda.tile.tcgen05.mma(C_tmem[:, :], A_tmem[:, :, :], B_smem[:, :], cta_group=1)
 
     return gemm_m128_batched_a
 
@@ -3634,7 +3879,11 @@ def test_gemm_tcgen05_cta1_m64_accepts_batched_c_layout_ws():
 
     # identical up to the kernel entry name (gemm_batched_c vs gemm_packed_c)
     def norm(s):
-        return s.replace("gemm_batched_c", "K").replace("gemm_packed_c", "K")
+        return re.sub(
+            r"copy_(step|index|value)_\d+",
+            r"copy_\1",
+            s.replace("gemm_batched_c", "K").replace("gemm_packed_c", "K"),
+        )
 
     assert norm(batched_src) == norm(packed_src)
 
@@ -3664,7 +3913,7 @@ def test_gemm_tcgen05_cta1_m64_packed_c_infers_weight_stationary():
 
 
 # Dispatch-level regression tests: call gemm_async_tcgen05_impl directly on a
-# constructed TileOpCall to pin rejection paths without full compilation.
+# constructed tensor instruction Call to pin rejection paths without full compilation.
 
 
 def _make_gemm_tcgen05_call(
@@ -3684,7 +3933,7 @@ def _make_gemm_tcgen05_call(
     A_scope="shared.dyn",
     A_allocated_addr=0,
 ):
-    """Construct a GemmAsync TileOpCall and run the tcgen05 dispatch.
+    """Construct a tcgen05.mma Call and run its lowerer.
 
     Buffer-shape convention follows the dispatcher: transA=False -> A is
     [M, K]; transB=True -> B is [K, N], transB=False -> B is [N, K].
@@ -3696,7 +3945,6 @@ def _make_gemm_tcgen05_call(
         gemm_async_tcgen05_impl,
     )
     from tvm.tirx.exec_scope import ExecScope
-    from tvm.tirx.op.tile import GemmAsync
     from tvm.tirx.stmt import BufferRegion
     from tvm.tirx.tile_dispatch import DispatchContext
 
@@ -3713,14 +3961,14 @@ def _make_gemm_tcgen05_call(
         C_layout = TileLayout(S[(M, N) : (1 @ TLane, 1 @ TCol)])
     C_buf = tvm.tirx.decl_tensor((M, N), "float32", "C_tmem", scope="tmem", layout=C_layout)
     C_buf = C_buf.with_allocated_addr([tvm.tirx.IntImm("uint32", C_allocated_addr)])
-    call = GemmAsync(
+    call = T.cuda.tile.tcgen05.mma(
         full_region(C_buf),
         full_region(A_buf),
         full_region(B_buf),
         transA,
         transB,
         False,
-        config=dict(config or {}),
+        **dict(config or {}),
     )
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     sctx = DispatchContext(target, ExecScope(scope_kind), {}, {}, scope_kind=scope_kind)
@@ -3775,7 +4023,6 @@ def test_gemm_tcgen05_preserves_block_scale_tmem_lane_bases():
         gemm_async_tcgen05_impl,
     )
     from tvm.tirx.exec_scope import ExecScope
-    from tvm.tirx.op.tile import GemmAsync
     from tvm.tirx.stmt import BufferRegion
     from tvm.tirx.tile_dispatch import DispatchContext
 
@@ -3819,7 +4066,7 @@ def test_gemm_tcgen05_preserves_block_scale_tmem_lane_bases():
         (N, sf_per_mma), sf_dtype, "SFB_tmem", scope="tmem", layout=sfb_layout
     ).with_allocated_addr([tvm.tirx.IntImm("uint32", 320)])
 
-    call = GemmAsync(
+    call = T.cuda.tile.tcgen05.mma_block_scale(
         full_region(C),
         full_region(A),
         full_region(B),
@@ -3828,7 +4075,9 @@ def test_gemm_tcgen05_preserves_block_scale_tmem_lane_bases():
         False,
         False,
         False,
-        config={"cta_group": 1, "mma_m": M, "mma_n": N},
+        cta_group=1,
+        mma_m=M,
+        mma_n=N,
     )
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     sctx = DispatchContext(target, ExecScope("thread"), {}, {}, scope_kind="thread")

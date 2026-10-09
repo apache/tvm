@@ -28,7 +28,7 @@ from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
 from tvm.tirx import Function, Var
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
-from tvm.tirx.stmt import TileOpCall
+from tvm.tirx.tensor_instruction import TensorCall
 
 
 def next_power_of_2(x: int) -> int:
@@ -82,7 +82,7 @@ class CopyInstType(Enum):
 
 
 def validate_copy_op(
-    op_call: TileOpCall,
+    op_call: TensorCall,
     sctx: DispatchContext,  # pylint: disable=unused-argument
 ) -> bool:
     """Sanity check for copy op"""
@@ -152,7 +152,7 @@ def get_vec_len(
 
 
 def copy_vec_load_impl(
-    op_call: TileOpCall, sctx: DispatchContext, inst_type: CopyInstType
+    op_call: TensorCall, sctx: DispatchContext, inst_type: CopyInstType
 ) -> Function | None:
     """Schedule copy operation between global and local/shared memory on CUDA across a CTA/thread.
     The implementation tries to vectorize the copy operation and parallelize over
@@ -181,7 +181,7 @@ def copy_vec_load_impl(
         fail(f"unsupported exec_scope {sctx.scope_kind}")
 
     elem_size = DataType(src.dtype).bits  # in bits
-    vec_len = op_call.config.get("vec_len", None)
+    vec_len = op_call.options.get("vec_len", None)
     if vec_len is None:
         vec_len = get_vec_len(
             dst_buffer_region,
@@ -272,7 +272,7 @@ def get_thread_cnt(sctx: DispatchContext) -> int | None:
 
 
 def sm_version_ok(
-    op: TileOpCall, sctx: DispatchContext, min_version: int
+    op: TensorCall, sctx: DispatchContext, min_version: int
 ) -> tuple[bool, str | None]:
     """Check if SM version >= min_version. Usable as a dispatch predicate."""
     target_arch = sctx.target.arch if hasattr(sctx.target, "arch") else ""

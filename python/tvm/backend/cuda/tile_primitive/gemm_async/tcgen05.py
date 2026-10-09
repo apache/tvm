@@ -15,12 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Implementation of gemm_async operator dispatch for CUDA targets.
-
-Registered op: gemm_async (1 variant: "tcgen05").
-See the @register_dispatch block below for detailed documentation with
-before/after IR examples.
-"""
+"""CUDA tcgen05.mma and tcgen05.mma.block_scale tensor instruction lowering."""
 
 import functools
 import operator
@@ -53,8 +48,8 @@ from tvm.tirx.layout import (
     tmem_datapath_layout,
     tmem_mma_operand_layout,
 )
-from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.stmt import TileOpCall
+from tvm.tirx.operator.tile_primitive import DispatchContext
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ...cpp.descriptors import (
     _check_tcgen05_mma_matrix_shape,
@@ -64,7 +59,6 @@ from ...cpp.descriptors import (
     encode_instr_descriptor_dense_uint32,
 )
 from ..common import get_st_extent, smem_desc_add_16B_offset
-from ..exec_scope_utils import single_thread
 from ..layout_utils import strip_swizzle_to_tile
 from ..tma_utils import (
     SwizzleMode,
@@ -361,7 +355,7 @@ def _layout_matches_datapath_f(tmem_buf) -> bool:
         return False
 
 
-def gemm_async_tcgen05_impl(op_call: TileOpCall, sctx: DispatchContext) -> Function:
+def gemm_async_tcgen05_impl(op_call: TensorCall, sctx: DispatchContext) -> Function:
     """Schedule an asynchronous GEMM operation using tcgen05.mma (Blackwell Tensor Core).
 
     Computes C = A @ B (with optional transpose on A/B and accumulation).
@@ -371,7 +365,7 @@ def gemm_async_tcgen05_impl(op_call: TileOpCall, sctx: DispatchContext) -> Funct
     so that only one thread in the warp issues the MMA instruction.
 
     Args:
-        op_call: The TileOpCall containing:
+        op_call: The TensorCall containing:
             Regular (6 args):
             - args[0:3]: C, A, B buffer regions
             - args[3:6]: transA, transB, accum flags
@@ -398,7 +392,7 @@ def gemm_async_tcgen05_impl(op_call: TileOpCall, sctx: DispatchContext) -> Funct
         AssertionError: If shape/layout constraints are not satisfied.
     """
     warp_scope = sctx.is_warp
-    op_call = TileOpCall.downcast(op_call)
+    op_call = TensorCall.decode(op_call)
     is_block_scaled = op_call.is_block_scaled
 
     C_buffer_region: TensorRegion = op_call.output
@@ -433,10 +427,10 @@ def gemm_async_tcgen05_impl(op_call: TileOpCall, sctx: DispatchContext) -> Funct
     assert C_type == "float32", f"tcgen05 schedule expected C_type=float32, got {C_type}"
 
     # fp32/bf16 storage may still use tf32 MMA semantics via is_AB_tf32.
-    is_AB_tf32 = op_call.config.get("is_AB_tf32", False)
+    is_AB_tf32 = op_call.options.get("is_AB_tf32", False)
     # Emit the PTX ``tcgen05.mma.ws`` weight-stationary form only for kernels
     # that explicitly require that tcgen05 ABI.
-    weight_stationary = bool(op_call.config.get("weight_stationary", False))
+    weight_stationary = bool(op_call.options.get("weight_stationary", False))
     A_sem = "tf32" if is_AB_tf32 else A_type
     B_sem = "tf32" if is_AB_tf32 else B_type
 
@@ -513,13 +507,13 @@ def gemm_async_tcgen05_impl(op_call: TileOpCall, sctx: DispatchContext) -> Funct
         transA = bool(transA) if isinstance(transA, IntImm) else transA
         transB = bool(transB) if isinstance(transB, IntImm) else transB
 
-    cta_group = op_call.config.get("cta_group", 1)
+    cta_group = op_call.options.get("cta_group", 1)
     if isinstance(cta_group, IntImm):
         cta_group = cta_group.value
     assert cta_group in [1, 2], f"tcgen05 schedule expected cta_group=1 or 2, got {cta_group}"
     # descI (pre-encoded uint32 instruction descriptor): rejected on the dense
     # path (dispatcher encodes it); block-scaled callers may still pass it in.
-    descI = op_call.config.get("descI", None)
+    descI = op_call.options.get("descI", None)
     if descI is not None and not is_block_scaled:
         raise ValueError(
             "descI was removed: the dispatcher encodes the instruction descriptor itself"
@@ -890,7 +884,7 @@ def gemm_async_tcgen05_impl(op_call: TileOpCall, sctx: DispatchContext) -> Funct
         MMA_K = 16
     MMA_N_MIN = 8 if cta_group == 1 else 16  # Minimum N dimension
 
-    explicit_mma_tile = _get_explicit_mma_tile(op_call.config)
+    explicit_mma_tile = _get_explicit_mma_tile(op_call.options)
     if explicit_mma_tile is None:
         M_mma, N_mma = _choose_mma_tile(M, N, cta_group, MMA_N_MIN)
     else:
@@ -965,7 +959,7 @@ def gemm_async_tcgen05_impl(op_call: TileOpCall, sctx: DispatchContext) -> Funct
     # Packed Layout-E C (M, 2, N//2) is uniquely the cta_group::1 M=64 .ws datapath
     # (PTX §9.7.16.10.5), so .ws is inferred; weight_stationary=False on it is rejected.
     if packed_n2 and not is_2x2:
-        explicit_ws = op_call.config.get("weight_stationary")
+        explicit_ws = op_call.options.get("weight_stationary")
         if (
             isinstance(explicit_ws, IntImm)
             and str(explicit_ws.ty.dtype) == "bool"
@@ -1227,7 +1221,7 @@ def gemm_async_tcgen05_impl(op_call: TileOpCall, sctx: DispatchContext) -> Funct
 
     # smem_desc modes: "hoist" (default, encode once after alloc), "local_hoist"
     # (encode at call site, reuse via add_16B_offset), "encode"/"recompute" (per MMA).
-    smem_desc_mode = op_call.config.get("smem_desc", "hoist")
+    smem_desc_mode = op_call.options.get("smem_desc", "hoist")
     if isinstance(smem_desc_mode, tvm.ir.StringImm):
         smem_desc_mode = smem_desc_mode.value
     local_hoist = smem_desc_mode == "local_hoist"
@@ -1502,50 +1496,3 @@ def gemm_async_tcgen05_impl(op_call: TileOpCall, sctx: DispatchContext) -> Funct
     # fmt: on
 
     return impl
-
-
-# === Variant: gemm_async/tcgen05 (priority=10) ===
-#
-# When: gemm_async op at single-thread exec scope on Blackwell (SM100+).
-# Requires A in smem (with TMA-compatible swizzle layout) or tmem, B in smem, accum in tmem.
-#
-# Before (TileOpCall — regular MMA):
-#     Tx.gemm_async(C_tmem[0:64, 0:256], A_smem[0:64, 0:64], B_smem[0:256, 0:64])
-#     # A: shared float16, B: shared float16, C: tmem float32
-#
-# After (encodes instruction descriptor + calls tcgen05.mma):
-#     descI_local: uint32
-#     T.cuda.tcgen05.encode_instr_descriptor(
-#         &descI_local, C_type="f32", A_type="f16", B_type="f16",
-#         M=64, N=256, MMA_K=64, transA=False, transB=True, cta_group=1)
-#     T.ptx[mma_chain](..., descA_buf[0], descB_buf[0], descI_local, ...)
-#
-# Before (TileOpCall — block-scaled fp8 MMA):
-#     Tx.gemm_async(C_tmem, A_smem, B_smem,
-#                   scale_A=SFA_tmem, scale_B=SFB_tmem)
-#     # A/B: shared float8_e4m3, SFA/SFB: tmem float8_e8m0fnu
-#
-# After (adds scale factor descriptors):
-#     T.ptx[mma_chain](..., descA, descB, descI,
-#                        scale_A=sfA_desc, scale_B=sfB_desc)
-#
-# Scale factor layout (sf_tmem_layout) must match tcgen05 hardware requirements:
-# rows = M or N, sf_mma_k = ceil(MMA_K / sf_block_size), specific TileLayout
-# structure with direct_sum atom tiling.
-@register_dispatch(
-    "gemm_async",
-    "cuda",
-    variant="tcgen05",
-    priority=10,
-    when=[
-        predicate(
-            "single_thread_or_warp",
-            lambda op, sctx: (
-                single_thread(op, sctx) or sctx.is_warp,
-                f"unsupported exec_scope {sctx.exec_scope}, expected single thread or warp scope",
-            ),
-        )
-    ],
-)
-def gemm_async_dispatch_tcgen05(op_call: TileOpCall, sctx: DispatchContext) -> Function:
-    return gemm_async_tcgen05_impl(op_call, sctx)

@@ -31,9 +31,10 @@ codegen time. Packed-vec emit requires the innermost dim to have stride 1
 from __future__ import annotations
 
 from tvm.script import tirx as T
-from tvm.tirx import Function, TileOpCall
+from tvm.tirx import Function
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.operator.tile_primitive.dispatcher import fail
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..common import get_indices, get_st_extent, get_thread_cnt
 from ._common import (
@@ -60,7 +61,7 @@ from .vec_emit import _emit_vec
 def is_smem_ewise(spec):
     """Predicate factory: dispatch accepted iff all operands in ``shared*``."""
 
-    def check(op_call: TileOpCall, sctx: DispatchContext) -> tuple[bool, str | None]:
+    def check(op_call: TensorCall, sctx: DispatchContext) -> tuple[bool, str | None]:
         if not sctx.is_target("cuda"):
             return False, "non-cuda target"
         if sctx.scope_kind not in ("thread", "warp", "warpgroup", "cta"):
@@ -129,7 +130,7 @@ def _max_layout_vec(plan, total: int, thread_cnt: int) -> int:
 # -----------------------------------------------------------------------------
 # Main entry
 # -----------------------------------------------------------------------------
-def emit_smem(op_call: TileOpCall, spec, sctx: DispatchContext) -> Function:
+def emit_smem(op_call: TensorCall, spec, sctx: DispatchContext) -> Function:
     plan, msg = spec.parse(op_call)
     if msg is not None or plan is None:
         fail(msg or "parse failed")

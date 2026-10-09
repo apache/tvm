@@ -19,9 +19,10 @@
 
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import Function, TileOpCall
+from tvm.tirx import Function
 from tvm.tirx.op.tile import BinaryReduce
-from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
+from tvm.tirx.operator.tile_primitive import DispatchContext
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..binary.utils import InstType, try_find_inst_nary
 from ..common import init_analyzer, nki_dim
@@ -31,9 +32,9 @@ from ..reduction.utils import generate_intermediate_buffer
 from .utils import opcode_table
 
 
-def binary_reduce_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
+def binary_reduce_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     """Generate a TRN schedule for binary reduction operations."""
-    op = TileOpCall.downcast(op)
+    op = TensorCall.decode(op)
     assert isinstance(op, BinaryReduce), f"invalid operator downcast: {op}"
 
     # Extract operation components
@@ -63,7 +64,7 @@ def binary_reduce_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
     )
 
     # Apply instruction size limits
-    inst_size_limit = op.config.get("max_inst_size", None)
+    inst_size_limit = op.options.get("max_inst_size", None)
     inst_repr.bound_inst_size(inst_size_limit, analyzer)
 
     # Generate axes and validate
@@ -87,7 +88,7 @@ def binary_reduce_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
     spatial_b_extent = inst_gen.fill_in_block_dim(binary_output, spatial_b_var)
     if reduction_b_extent != 1:
         intermediate_buffer = generate_intermediate_buffer(
-            reduce_output, reduction_b_extent, op.workspace, sctx
+            reduce_output, reduction_b_extent, op.workspaces, sctx
         )
 
     # Handle source 2 (either buffer region or constant)
@@ -151,23 +152,3 @@ def binary_reduce_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
         # fmt: on
 
     return impl
-
-
-# Rich dispatcher variants for TRN compose ops
-@register_dispatch(
-    "binary_reduce",
-    "trn",
-    variant="default",
-    priority=10,
-    when=[
-        predicate(
-            "exec_scope",
-            lambda op, sctx: (
-                sctx.scope_kind == "thread",
-                f"unsupported exec_scope {sctx.scope_kind}",
-            ),
-        )
-    ],
-)
-def binary_reduce_trn_dispatch(op: TileOpCall, sctx: DispatchContext) -> Function:
-    return binary_reduce_trn(op, sctx)

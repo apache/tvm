@@ -233,26 +233,6 @@ void TIRVisitorWithPath::Dispatch_(const EvaluateNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
 }
 
-void TIRVisitorWithPath::Dispatch_(const tirx::TileOpCallNode* op, AccessPath path) {
-  std::function<void(const Expr&, AccessPath)> visit = [&](const Expr& expr, AccessPath path) {
-    if (auto buffer = expr.as<TensorVar>()) {
-      VisitBufferUse(buffer.value(), path);
-    } else if (const auto* tuple = expr.as<TupleNode>()) {
-      for (size_t i = 0; i < tuple->fields.size(); ++i) {
-        visit(tuple->fields[i], path->Attr("fields")->ArrayItem(i));
-      }
-    } else if (!expr.as<OpNode>()) {
-      Visit(expr, path);
-    }
-  };
-  for (size_t i = 0; i < op->args.size(); ++i) {
-    visit(op->args[i], path->Attr("args")->ArrayItem(i));
-  }
-  for (const auto& [key, value] : op->config) {
-    visit(value, path->Attr("config")->MapItem(key));
-  }
-}
-
 void TIRVisitorWithPath::Dispatch_(const ScopeIdDefStmtNode* op, AccessPath path) {
   // Flat stmt -- no body. Visit extents and preferred_extents (if present),
   // then push the bound Var(s) into the current scope so subsequent siblings
