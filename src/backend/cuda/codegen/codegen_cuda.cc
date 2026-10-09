@@ -1029,7 +1029,7 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
 }
 
 void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
-  if (op->op.same_as(tirx::isnan_op()) && op->ty.as_or_throw<PrimType>().lanes() > 1) {
+  if (op->op.same_as(prim::isnan_op()) && op->ty.as_or_throw<PrimType>().lanes() > 1) {
     // CUDA vector comparisons do not produce a lane-wise boolean vector.
     // Reuse the scalar comparison path for every lane, including packed half.
     PrimExpr value = op->args[0].as_or_throw<PrimExpr>();

@@ -112,7 +112,7 @@ def test_round_intrinsics_on_int():
         assert op(tvm.tirx.const(True, "bool")).value == True
         assert op(i).same_as(i)
 
-    assert tvm.tirx.isnan(tvm.tirx.const(10, "int32")).op.name == "tirx.isnan"
+    assert tvm.tirx.isnan(tvm.tirx.const(10, "int32")).op.name == "prim.isnan"
 
 
 def test_unary_intrin():

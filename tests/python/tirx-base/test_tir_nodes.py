@@ -442,7 +442,7 @@ def test_scalable_vec_cast():
 def test_isnan_preserves_canonical_operand(dtype):
     value = tvm.tirx.Var("value", dtype)
     result = tvm.tirx.isnan(value)
-    assert result.op.name == "tirx.isnan"
+    assert result.op.name == "prim.isnan"
     assert result.args[0].same_as(value)
     assert result.ty.dtype.lanes == value.ty.dtype.lanes
     expected_dtype = "bool" + (dtype[dtype.index("x") :] if "x" in dtype else "")
