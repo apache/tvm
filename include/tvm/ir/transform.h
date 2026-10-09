@@ -150,7 +150,8 @@ class PassContext : public ffi::ObjectRef {
   template <typename ValueType>
   static void RegisterConfigOption(const char* key) {
     if constexpr (std::is_base_of_v<ffi::ObjectRef, ValueType>) {
-      int32_t tindex = ffi::TypeToRuntimeTypeIndex<ValueType>::v();
+      // Static-init blocks may run before the cached runtime type index is initialized.
+      int32_t tindex = ValueType::ContainerType::_GetOrAllocRuntimeTypeIndex();
       auto type_key = ffi::TypeIndexToTypeKey(tindex);
       auto legalization = [=](ffi::Any value) -> ffi::Any {
         if (auto opt_map = value.try_cast<ffi::Map<ffi::String, ffi::Any>>()) {

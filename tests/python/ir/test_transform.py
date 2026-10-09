@@ -138,7 +138,9 @@ def test_concrete_timing_and_dump(tmp_path):
 
 
 def test_registered_configs_and_validation():
-    assert "tirx.UnrollLoop" in transform.PassContext.list_configs()
+    assert transform.PassContext.list_configs()["tirx.UnrollLoop"]["type"] == (
+        "tirx.transform.UnrollLoopConfig"
+    )
     with transform.PassContext(config={"tirx.UnrollLoop": {"auto_max_step": 3}}) as ctx:
         config = ctx.config["tirx.UnrollLoop"]
         assert config.auto_max_step == 3

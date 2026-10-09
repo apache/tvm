@@ -49,6 +49,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TEST(TransformConfig, LazyFreshReflectionDefaults) {
+  EXPECT_EQ(PassContext::ListConfigs().at("testing.transform_config").at("type"),
+            "testing.TransformConfig");
   auto ctx = PassContext::Create();
   int before = TestConfigNode::constructions;
   auto first = ctx->GetConfigOrDefault<TestConfig>("testing.transform_config");
