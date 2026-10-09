@@ -207,6 +207,13 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
       return false;
     }
 
+    // Raw pointers and differently shaped views may refer to the same storage.
+    // Their element-wise coordinates cannot prove the accesses disjoint.
+    if (prev.touched.empty() || curr.touched.empty() ||
+        prev.touched.size() != curr.touched.size()) {
+      return true;
+    }
+
     // Assumes no race between threads
     // Same index value means no conflicts
     // TODO(tqchen) more standard set based testing.

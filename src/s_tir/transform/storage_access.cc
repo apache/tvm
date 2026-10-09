@@ -42,11 +42,22 @@ namespace {
 
 ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
   if (auto var = data.as<Var>()) {
-    return var;
+    if (var.value()->ty.as<PointerTypeNode>() || var.value()->ty.as<TensorTypeNode>()) return var;
+    return std::nullopt;
   }
   if (const auto* call = data.as<CallNode>();
       call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
+  }
+  if (const auto* call = data.as<CallNode>()) {
+    if (call->op.same_as(tirx::ptr_byte_offset_op()) || call->op.same_as(tirx::reinterpret_op())) {
+      return GetBufferDataVar(call->args[0]);
+    }
+    if (call->op.same_as(tirx::address_of_op())) {
+      if (const auto* load = call->args[0].as<TensorLoadNode>()) {
+        return load->source.as<Var>();
+      }
+    }
   }
   return std::nullopt;
 }
@@ -65,6 +76,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const TensorLoadNode*
     for (const auto& index : op->indices) {
       e.touched.push_back(sym::IntSet::Vector(index));
     }
+    if (offset_aliases_.count(op->source.as_or_throw<TensorVar>().get())) e.touched.clear();
     e.type = kRead;
     e.scope = scope;
     curr_stmt_.access.emplace_back(std::move(e));
@@ -88,6 +100,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const TensorStoreNode
     for (const auto& index : op->indices) {
       e.touched.push_back(sym::IntSet::Vector(index));
     }
+    if (offset_aliases_.count(op->dest.as_or_throw<TensorVar>().get())) e.touched.clear();
     e.type = kWrite;
     e.scope = scope;
     curr_stmt_.access.emplace_back(std::move(e));
@@ -117,8 +130,16 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const EvaluateNode* o
 }
 
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BindNode* op) {
+  if (op->var->ty.as<PointerTypeNode>()) {
+    pointer_values_.insert_or_assign(op->var.get(), op->value);
+    if (HasOffsetPointer(op->value)) offset_aliases_.insert(op->var.get());
+    if (auto source = GetBufferDataVar(op->value)) {
+      buffer_aliases_.insert_or_assign(op->var.get(), ResolveBuffer(source.value()));
+    }
+  }
   if (const auto* call = op->value.as<CallNode>();
       call && call->op.same_as(tirx::decl_tensor_op())) {
+    if (HasOffsetPointer(call->args[0])) offset_aliases_.insert(op->var.get());
     if (auto source = GetBufferDataVar(call->args[0])) {
       buffer_aliases_.insert_or_assign(op->var.as_or_throw<TensorVar>().get(),
                                        ResolveBuffer(source.value()));
@@ -264,6 +285,54 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const WhileNode* op) 
   return std::nullopt;
 }
 
+bool StorageAccessVisitor::HasOffsetPointer(const Expr& value) const {
+  if (const auto* var = value.as<VarNode>()) return offset_aliases_.count(var);
+  if (const auto* call = value.as<CallNode>()) {
+    if (call->op.same_as(tirx::ptr_byte_offset_op()) || call->op.same_as(tirx::address_of_op()) ||
+        call->op.same_as(tirx::reinterpret_op()))
+      return true;
+    if (call->op.same_as(tirx::tensor_data_ptr_op())) return HasOffsetPointer(call->args[0]);
+  }
+  return false;
+}
+
+void StorageAccessVisitor::RecordOpaqueAccess(Var source) {
+  Var root = ResolveBuffer(source);
+  StorageScope scope = GetScope(root);
+  if (!Enabled(root.get(), scope)) return;
+  AccessEntry entry;
+  entry.threads = env_threads();
+  entry.buffer = root;
+  entry.scope = scope;
+  auto buffer = root.as<TensorVar>();
+  if (!buffer.has_value()) buffer = source.as<TensorVar>();
+  if (buffer.has_value()) {
+    entry.dtype = buffer.value()->dtype;
+    for (const PrimExpr& extent : buffer.value()->shape) {
+      entry.touched.push_back(sym::IntSet::FromRange(Range::FromMinExtent(0, extent)));
+    }
+  } else {
+    // Raw pointers have no shape or direction information. An empty region
+    // denotes unknown storage, which synchronization treats conservatively.
+    entry.dtype = source->ty.as_or_throw<PointerType>()->element_type.as<PrimType>().value_or(
+        PrimType::UInt(8));
+  }
+  entry.type = kRead;
+  curr_stmt_.access.push_back(entry);
+  entry.type = kWrite;
+  curr_stmt_.access.push_back(std::move(entry));
+}
+
+ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const VarNode* op) {
+  if (allow_append_ && in_opaque_call_) {
+    if (auto it = pointer_values_.find(op); it != pointer_values_.end()) {
+      return Visit(it->second);
+    }
+    if (op->ty.as<PointerTypeNode>()) RecordOpaqueAccess(ffi::GetRef<Var>(op));
+  }
+  return StmtExprVisitor::Visit_(op);
+}
+
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
   Call call = ffi::GetRef<Call>(op);
   if (allow_append_ && in_opaque_call_) {
@@ -276,26 +345,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
       }
     }
     if (buffer.has_value()) {
-      Var root = ResolveBuffer(buffer.value().var());
-      StorageScope scope = GetScope(root);
-      if (Enabled(root.get(), scope)) {
-        AccessEntry entry;
-        entry.threads = env_threads();
-        entry.buffer = root;
-        entry.dtype = buffer.value()->dtype;
-        entry.scope = scope;
-        // Without direction/extent metadata an escaping pointer may access any
-        // element.  Retain conservative synchronization using existing entries.
-        TensorVar storage =
-            root->ty.as<TensorTypeNode>() ? root.as_or_throw<TensorVar>() : buffer.value();
-        for (const PrimExpr& extent : storage->shape) {
-          entry.touched.push_back(sym::IntSet::FromRange(Range::FromMinExtent(0, extent)));
-        }
-        entry.type = kRead;
-        curr_stmt_.access.push_back(entry);
-        entry.type = kWrite;
-        curr_stmt_.access.push_back(std::move(entry));
-      }
+      RecordOpaqueAccess(buffer.value());
     }
   }
   if (op->op.same_as(tirx::masked_load_op()) || op->op.same_as(tirx::masked_store_op())) {
@@ -314,6 +364,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
       for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
         e.touched.push_back(sym::IntSet::Vector(op->args[i].as_or_throw<PrimExpr>()));
       }
+      if (offset_aliases_.count(buffer.get())) e.touched.clear();
       e.type = is_load ? kRead : kWrite;
       e.scope = scope;
       curr_stmt_.access.emplace_back(std::move(e));

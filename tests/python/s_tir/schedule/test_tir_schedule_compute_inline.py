@@ -569,10 +569,10 @@ def exp_exp_opaque_access_with_pointer_inlined(
     for i0 in T.serial(16):
         with Ts.sblock("compute_1"):
             i0_1 = Ts.axis.spatial(16, i0)
-            # Do not put the opaque access to new write region when opaque access
-            # described by the explicit read region
-            Ts.reads(lookup_table[0:1024], x[i0_1])
-            Ts.writes(compute[i0_1])
+            # Pointer operands have no direction metadata, so recomputed regions
+            # conservatively include the referenced storage in both sets.
+            Ts.reads(x[i0_1], lookup_table[0:1024])
+            Ts.writes(compute[i0_1], lookup_table[0:1024])
             T.evaluate(lookup_table.ptr_to([0] * len(lookup_table.shape)))
             compute[i0_1] = T.exp(
                 T.exp(x[i0_1]),
