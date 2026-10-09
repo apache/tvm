@@ -402,7 +402,7 @@ Pass VerifyGPUCode(ffi::Map<ffi::String, PrimExpr> constraints) {
     }
     return mod;
   };
-  return tvm::transform::CreateModulePass(pass_func, 0, "s_tir.VerifyGPUCode", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "s_tir.VerifyGPUCode");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -168,7 +168,7 @@ target = tvm.target.Target.from_device(device)
 if os.getenv("CI", "") != "true":
     trials = 2000
     with target, tempfile.TemporaryDirectory() as tmp_dir:
-        mod = tvm.ir.transform.Sequential(
+        mod = tvm.transform.Sequential(
             [
                 relax.get_pipeline("zero"),
                 relax.transform.MetaScheduleTuneTIR(work_dir=tmp_dir, max_trials_global=trials),
@@ -190,7 +190,7 @@ from tvm.s_tir import dlight as dl
 
 # Apply DLight rules
 with target:
-    mod = tvm.ir.transform.Sequential(
+    mod = tvm.transform.Sequential(
         [
             relax.get_pipeline("zero"),
             dl.ApplyDefaultSchedule(  # pylint: disable=not-callable

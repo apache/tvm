@@ -103,8 +103,7 @@ Pass UpdateVDevice(VDevice new_vdevice, int64_t index) {
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
-                          /*pass_name=*/"UpdateVDevice",
-                          /*required=*/{});
+                          /*pass_name=*/"UpdateVDevice");
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

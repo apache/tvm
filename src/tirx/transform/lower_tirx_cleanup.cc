@@ -402,7 +402,7 @@ Pass LowerTIRxCleanup() {
     n->params = std::move(params);
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.LowerTIRxCleanup", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.LowerTIRxCleanup");
 }
 
 }  // namespace transform

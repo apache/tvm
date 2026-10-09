@@ -349,7 +349,7 @@ Pass SplitLayoutRewritePreproc() {
   auto pass_func = [](IRModule mod, PassContext pc) {
     return relax::SplitLayoutRewritePreproc::Transform(mod);
   };
-  auto pass = CreateModulePass(pass_func, 0, "SplitLayoutRewritePreproc", {});
+  auto pass = CreateModulePass(pass_func, 0, "SplitLayoutRewritePreproc");
   return tvm::transform::Sequential({pass, relax::transform::DeadCodeElimination()},
                                     "SplitLayoutRewritePreproc");
 }

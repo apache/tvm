@@ -24,9 +24,9 @@ from tvm import DataType, relax, topi
 from tvm.contrib.thrust import can_use_thrust
 from tvm.ir import GlobalVar, Op
 from tvm.ir.module import IRModule
-from tvm.ir.transform import PassContext, module_pass
 from tvm.relax import expr_functor
 from tvm.target import Target
+from tvm.transform import PassContext, module_pass
 
 from .utils import BackendDispatcher
 

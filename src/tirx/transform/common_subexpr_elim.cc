@@ -891,7 +891,7 @@ Pass CommonSubexprElim() {
     }
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.CommonSubexprElim", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.CommonSubexprElim");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

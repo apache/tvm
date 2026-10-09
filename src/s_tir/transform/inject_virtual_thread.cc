@@ -766,7 +766,7 @@ Pass InjectVirtualThread() {
     n->body = s_tir::ConvertSSA(std::move(n->body).value());
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.InjectVirtualThread", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.InjectVirtualThread");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

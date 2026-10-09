@@ -261,7 +261,7 @@ Pass InferFragment() {
     n->body = s_tir::InferFragment(std::move(n->body).value());
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.InferFragment", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.InferFragment");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

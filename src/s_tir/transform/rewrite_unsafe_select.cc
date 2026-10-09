@@ -163,7 +163,7 @@ Pass RewriteUnsafeSelect() {
                   .ValueOrUnchanged(std::move(n->body));
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.RewriteUnsafeSelect", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.RewriteUnsafeSelect");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

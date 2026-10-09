@@ -198,7 +198,7 @@ Pass DeadCodeElimination(ffi::Array<ffi::String> entry_functions) {
   auto pass_func = [=](IRModule m, PassContext pc) {
     return relax::DeadCodeElimination(m, entry_functions);
   };
-  return CreateModulePass(pass_func, 1, "DeadCodeElimination", {});
+  return CreateModulePass(pass_func, 1, "DeadCodeElimination");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

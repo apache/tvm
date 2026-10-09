@@ -1062,12 +1062,12 @@ namespace transform {
 Pass MergeSharedMemoryAllocations() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
-    bool merge_static_smem = ctx->GetConfig<bool>("tirx.merge_static_smem", false).value();
+    bool merge_static_smem = ctx->GetConfig<bool>("tirx.merge_static_smem").value_or(false);
     auto* n = f.CopyOnWrite();
     n->body = s_tir::MergeSharedMemoryAllocations(std::move(n->body).value(), merge_static_smem);
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.MergeSharedMemoryAllocations", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.MergeSharedMemoryAllocations");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

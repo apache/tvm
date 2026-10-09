@@ -173,7 +173,7 @@ Pass RemoveWeightLayoutRewriteBlock(bool skip_tensor_rewrite) {
   auto pass_func = [skip_tensor_rewrite](Function f, IRModule m, PassContext ctx) {
     return WeightLayoutRewriteBlockRemover::Remove(std::move(f), skip_tensor_rewrite);
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.RemoveWeightLayoutRewriteBlock", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.RemoveWeightLayoutRewriteBlock");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

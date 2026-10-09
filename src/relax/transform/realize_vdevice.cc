@@ -417,8 +417,7 @@ Pass RealizeVDevice() {
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
-                          /*pass_name=*/"RealizeVDevice",
-                          /*required=*/{});
+                          /*pass_name=*/"RealizeVDevice");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

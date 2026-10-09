@@ -19,39 +19,11 @@
 
 /*!
  * \file tvm/ir/transform.h
+ * \brief Utilities for IR transformations.
  *
- * This file implements a pass manager. The pass manager manages a sequence
- * of IRModule -> IRModule transformation passes over a particlar unit of AST. The
- * design is largely inspired from LLVM's pass manager and modern deep learning
- * frameworks that perform tensor->tensor transformations.
- *
- * The responsibilities of a traditional compiler pass manager usually involves:
- *  - Organizing the execution order of optimization passes though not
- * necessarily in the optimal sequence.
- *  - Collecting required analysis information and keep them up-to-date.
- *  - Reducing the effort required to implement new passes for compiler
- * developers, etc.
- *
- * Similar to LLVM's pass manager, we designed the Relax pass manager to work
- * different granularity, i.e. module level, function level, and even sequential
- * passe that contains a host of passes.
- *
- * However, we also extend the functionality of the traditional pass manager
- * with the consideration of requirements/convention from deep learning
- * frameworks, such as Pytorch and Gluon, etc. Each pass in the Relax pass
- * manager performs the IRModule -> IRModule transformation. All
- * different types of passes, including the sequential-level pass object, are
- * essentially pass objects. This design, therefore, effectively provides users
- * a consistent and convenient interface, i.e. Pass, to play with. It offers a
- * means to ease the development and testing of Relax passes. For example, with
- * the pass manager, external users will be able to have custom passes correctly
- * scheduled without having to modify a single handcrafted pass order.
- *
- * In the future we need to describe constraints between passes. For example,
- * we may want to preserve dependencies between different passes and validate
- * them on the completion of a certain pass.
- *
- * We also need to store side information and import the error reporting system.
+ * Pass represents an IRModule-to-IRModule transformation.
+ * PassContext provides scoped configuration and instrumentation.
+ * Sequential applies a list of passes in order.
  */
 #ifndef TVM_IR_TRANSFORM_H_
 #define TVM_IR_TRANSFORM_H_
@@ -176,8 +148,7 @@ class PassContext : public ffi::ObjectRef {
    * \tparam ValueType The value type to be registered
    */
   template <typename ValueType>
-  static int32_t RegisterConfigOption(const char* key) {
-    // NOTE: we could further update the function later.
+  static void RegisterConfigOption(const char* key) {
     if constexpr (std::is_base_of_v<ffi::ObjectRef, ValueType>) {
       int32_t tindex = ffi::TypeToRuntimeTypeIndex<ValueType>::v();
       auto type_key = ffi::TypeIndexToTypeKey(tindex);
@@ -210,7 +181,6 @@ class PassContext : public ffi::ObjectRef {
       };
       RegisterConfigOption(key, type_str, legalization);
     }
-    return 0;
   }
 
   // accessor.
@@ -250,18 +220,6 @@ inline TConfig PassConfigWithDefaults() {
   return rv.cast<TConfig>();
 }
 
-#define TVM_PASS_CTX_CONFIG_VAR_DEF [[maybe_unused]] static uint32_t __make_PassContext_tid
-
-/*!
- * \brief Helper macro to register the object type to runtime.
- *  Makes sure that the runtime type table is correctly populated.
- *
- *  Use this macro in the cc file for each terminal class.
- */
-#define TVM_REGISTER_PASS_CONFIG_OPTION(Key, ValueType)          \
-  TVM_FFI_STR_CONCAT(TVM_PASS_CTX_CONFIG_VAR_DEF, __COUNTER__) = \
-      ::tvm::transform::PassContext::RegisterConfigOption<ValueType>(Key)
-
 /*!
  * \brief Meta data that will be used to help optimization and analysis.
  * \sa PassInfo
@@ -274,21 +232,13 @@ class PassInfoNode : public ffi::Object {
   /*! \brief The name of an optimization/analysis pass. */
   ffi::String name;
 
-  /*! \brief Boolean that tells whether this pass will be traced or not. */
-  bool traceable;
-
-  /*! \brief The passes that are required to perform the current pass. */
-  ffi::Array<ffi::String> required;
-
   PassInfoNode() = default;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PassInfoNode>()
         .def_ro("opt_level", &PassInfoNode::opt_level)
-        .def_ro("name", &PassInfoNode::name)
-        .def_ro("required", &PassInfoNode::required)
-        .def_ro("traceable", &PassInfoNode::traceable);
+        .def_ro("name", &PassInfoNode::name);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.PassInfo", PassInfoNode, ffi::Object);
 };
@@ -303,11 +253,8 @@ class PassInfo : public ffi::ObjectRef {
    * \brief Constructor
    * \param opt_level The optimization level
    * \param name Name of the pass.
-   * \param required  The passes that are required to perform the current pass.
-   * \param traceable Boolean that tells whether the pass is traceable.
    */
-  TVM_DLL PassInfo(int opt_level, ffi::String name, ffi::Array<ffi::String> required,
-                   bool traceable);
+  TVM_DLL PassInfo(int opt_level, ffi::String name);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PassInfo, ffi::ObjectRef, PassInfoNode);
 };
@@ -412,18 +359,6 @@ class SequentialNode : public PassNode {
   PassInfo Info() const override { return pass_info; }
 
   /*!
-   * \brief Resolve the pass dependency. It globs all required passes by
-   *        a given pass and executes them.
-   *
-   * \param mod The module that an optimization pass runs on.
-   *
-   * TODO(zhiics) Build a dependency graph among the passes using provided
-   * metadata, i.e. required_passes. Likely, we can have a data structure, i.e.
-   * PassInfo, to store the relevant information including the parent passes.
-   */
-  void ResolveDependency(const IRModule& mod);
-
-  /*!
    * \brief Perform optimizations on a series of passes. The aforementioned
    *        typical pass manager jobs could be done by it. This function could
    *        be overloaded to focus on different metrics, i.e. performance,
@@ -471,13 +406,11 @@ class Sequential : public Pass {
  * \param pass_func The packed function that contains the optimization.
  * \param opt_level The optimization level of the module pass.
  * \param name The name of the module pass.
- * \param required The list of the passes that the module pass is dependent on.
  *
  * \return The created module pass.
  */
 TVM_DLL Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pass_func,
-                              int opt_level, ffi::String name, ffi::Array<ffi::String> required,
-                              bool traceable = false);
+                              int opt_level, ffi::String name);
 
 /*!
  * \brief A special trace pass that prints the header and IR to LOG(INFO).
@@ -511,9 +444,6 @@ TVM_DLL ffi::Error EnrichPassErrorWithContext(
     const ffi::Error& err, const IRModule& mod, ffi::String pass_name,
     ffi::Optional<GlobalVar> func = ffi::Optional<GlobalVar>(std::nullopt));
 
-}  // namespace transform
-
-namespace instrument {
 
 /*!
  * \brief PassInstrumentNode forms an instrument implementation.
@@ -612,7 +542,7 @@ class PassInstrumentNode : public ffi::Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PassInstrumentNode>().def_ro("name", &PassInstrumentNode::name);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("instrument.PassInstrument", PassInstrumentNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("transform.PassInstrument", PassInstrumentNode, ffi::Object);
 };
 
 /*!
@@ -624,9 +554,6 @@ class PassInstrument : public ffi::ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PassInstrument, ffi::ObjectRef, PassInstrumentNode);
 };
 
-}  // namespace instrument
-
-namespace transform {
 
 /*!
  * \brief PassContextNode contains the information that a pass can rely on,
@@ -646,37 +573,40 @@ class PassContextNode : public ffi::Object {
   ffi::Map<ffi::String, Any> config;
 
   /*! \brief A list of pass instrument implementations. */
-  ffi::Array<instrument::PassInstrument> instruments;
+  ffi::Array<PassInstrument> instruments;
 
   PassContextNode() = default;
 
   /*!
-   * \brief Get a config value from the pass context.
-   *
+   * \brief Get a config value, returning an empty optional when the key is absent.
    * \param key The config key.
-   * \param default_value The default value if the key does not exist, defaults to nullptr.
-   *
-   * \return The result
-   *
-   * \tparam TOBjectRef the expected object type.
-   * \throw Error if the key exists but the value does not match TObjectRef.
+   * \tparam T The expected value type.
+   * \throw Error if the key exists but the value does not match T.
    */
-  template <typename TObjectRef>
-  ffi::Optional<TObjectRef> GetConfig(
-      const std::string& key,
-      ffi::Optional<TObjectRef> default_value = ffi::Optional<TObjectRef>(std::nullopt)) const {
-    if (!config.defined()) return default_value;
-    auto it = config.find(key);
-    if (it != config.end()) {
-      return (*it).second.as_or_throw<ffi::Optional<TObjectRef>>();
-    } else {
-      return default_value;
+  template <typename T>
+  ffi::Optional<T> GetConfig(const std::string& key) const {
+    if (config.defined()) {
+      auto it = config.find(key);
+      if (it != config.end()) {
+        return (*it).second.as_or_throw<ffi::Optional<T>>();
+      }
     }
+    return std::nullopt;
   }
-  // variant that uses TObjectRef to enable implicit conversion to default value.
-  template <typename TObjectRef>
-  ffi::Optional<TObjectRef> GetConfig(const std::string& key, TObjectRef default_value) const {
-    return GetConfig<TObjectRef>(key, ffi::Optional<TObjectRef>(default_value));
+
+  /*!
+   * \brief Get a config object, constructing reflection defaults only when absent.
+   * \param key The config key.
+   * \tparam TConfig The ObjectRef config type with reflection-defined defaults.
+   * \return The configured object, or a fresh default object for this call.
+   */
+  template <typename TConfig>
+  TConfig GetConfigOrDefault(const std::string& key) const {
+    auto config = GetConfig<TConfig>(key);
+    if (config.has_value()) {
+      return config.value();
+    }
+    return PassConfigWithDefaults<TConfig>();
   }
 
   static void RegisterReflection() {

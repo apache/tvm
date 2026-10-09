@@ -21,8 +21,8 @@ or a space for MetaSchedule tuning
 
 from tvm import s_tir, tirx
 from tvm.ir import IRModule
-from tvm.ir.transform import PassContext, module_pass
 from tvm.target import Target
+from tvm.transform import PassContext, module_pass
 
 from .schedule_rule import ScheduleRule
 

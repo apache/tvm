@@ -251,8 +251,7 @@ Pass LazyGetInput() {
   };
   return CreateFunctionPass(/*pass_function=*/pass_func,
                             /*opt_level=*/0,
-                            /*pass_name=*/"LazyGetInput",
-                            /*required=*/{});
+                            /*pass_name=*/"LazyGetInput");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -269,8 +268,7 @@ Pass LazySetOutput() {
   };
   return CreateFunctionPass(/*pass_function=*/pass_func,
                             /*opt_level=*/0,
-                            /*pass_name=*/"LazySetOutput",
-                            /*required=*/{});
+                            /*pass_name=*/"LazySetOutput");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

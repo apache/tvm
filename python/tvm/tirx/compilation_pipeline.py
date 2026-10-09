@@ -56,7 +56,7 @@ def tirx_pipeline(*, prepare_only=False):
                 tirx.transform.LowerThreadAllreduce(),
             ]
         )
-        mod = tvm.ir.transform.Sequential(passes)(mod)
+        mod = tvm.transform.Sequential(passes)(mod)
         return mod if prepare_only else finalize_tir_pipeline()(mod)
 
     return _pipeline, finalize_host_passes, finalize_device_passes
@@ -64,7 +64,7 @@ def tirx_pipeline(*, prepare_only=False):
 
 def finalize_tir_pipeline():
     """Lower module-wide calling conventions after all dialects are prepared."""
-    return tvm.ir.transform.Sequential(
+    return tvm.transform.Sequential(
         [
             tirx.transform.AnnotateEntryFunc(),
             tirx.transform.SplitHostDevice(),
@@ -82,7 +82,7 @@ def finalize_host_passes():  # pylint: disable=unused-argument
         tirx.transform.LowerTVMBuiltin(),
         tirx.transform.LowerIntrin(),
     ]
-    return tvm.ir.transform.Sequential(host_pass_list)
+    return tvm.transform.Sequential(host_pass_list)
 
 
 def finalize_device_passes():  # pylint: disable=unused-argument
@@ -92,13 +92,13 @@ def finalize_device_passes():  # pylint: disable=unused-argument
         tirx.transform.StmtSimplify(),
         tirx.transform.LowerIntrin(),
     ]
-    return tvm.ir.transform.Sequential(device_pass_list)
+    return tvm.transform.Sequential(device_pass_list)
 
 
 def finalize_device_passes_tirx():  # pylint: disable=unused-argument
     """The TIRx finalization passes for TIR backend."""
     device_pass_list = [tirx.transform.LowerIntrin()]
-    return tvm.ir.transform.Sequential(device_pass_list)
+    return tvm.transform.Sequential(device_pass_list)
 
 
 # global map of pre-built pipelines

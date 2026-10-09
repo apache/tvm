@@ -44,7 +44,9 @@ namespace relax {
 using namespace tvm::prim;
 
 constexpr const char* kLiftTransformConsumeParams = "relax.lift_transform_params.consume_params";
-TVM_REGISTER_PASS_CONFIG_OPTION(kLiftTransformConsumeParams, bool);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>(kLiftTransformConsumeParams);
+}
 
 namespace {
 struct BaseCollectInfo {
@@ -788,7 +790,7 @@ Pass PartitionTransformParams(ffi::Variant<bool, ffi::Array<ffi::String>> shared
 
     return mod;
   };
-  return tvm::transform::CreateModulePass(pass_func, 1, "PartitionTransformParams", {});
+  return tvm::transform::CreateModulePass(pass_func, 1, "PartitionTransformParams");
 }
 
 Pass LiftTransformParams(ffi::Variant<bool, ffi::Array<ffi::String>> shared_transform) {
@@ -829,7 +831,7 @@ Pass LiftTransformParams(ffi::Variant<bool, ffi::Array<ffi::String>> shared_tran
     return mod;
   };
   auto post_proc =
-      tvm::transform::CreateModulePass(post_proc_func, 1, "LiftTransformParamsPostProc", {});
+      tvm::transform::CreateModulePass(post_proc_func, 1, "LiftTransformParamsPostProc");
 
   return tvm::transform::Sequential(
       {

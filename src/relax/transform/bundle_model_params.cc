@@ -191,7 +191,7 @@ Pass BundleModelParams(ffi::Optional<ffi::String> param_tuple_name) {
     }
     return mod;
   };
-  return CreateModulePass(pass_func, 1, "BundleModelParams", {});
+  return CreateModulePass(pass_func, 1, "BundleModelParams");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

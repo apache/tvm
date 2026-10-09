@@ -335,7 +335,7 @@ Pass InjectPermutedLayout() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     return PermutedLayoutInjector::Transform(std::move(f));
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.InjectPermutedLayout", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.InjectPermutedLayout");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

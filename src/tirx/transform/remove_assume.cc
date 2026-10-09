@@ -59,7 +59,7 @@ Pass RemoveAssumeInternal() {
                   .ValueOrUnchanged(n->body);
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.RemoveAssumeInternal", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.RemoveAssumeInternal");
 }
 
 Pass RemoveAssume() {

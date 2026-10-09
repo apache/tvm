@@ -259,7 +259,7 @@ Pass LowerRuntimeBuiltin() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
     return LowerRuntimeBuiltin(f).as_or_throw<Function>();
   };
-  return CreateFunctionPass(pass_func, 0, "LowerRuntimeBuiltin", {});
+  return CreateFunctionPass(pass_func, 0, "LowerRuntimeBuiltin");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

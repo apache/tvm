@@ -81,7 +81,9 @@ class LoopPartitionConfig : public ffi::ObjectRef {
                                                 LoopPartitionConfigNode);
 };
 
-TVM_REGISTER_PASS_CONFIG_OPTION("s_tir.LoopPartition", LoopPartitionConfig);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<LoopPartitionConfig>("s_tir.LoopPartition");
+}
 
 using sym::DeduceBound;
 using sym::Intersect;
@@ -983,16 +985,13 @@ Pass LoopPartition() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
-    auto cfg = ctx->GetConfig<LoopPartitionConfig>("s_tir.LoopPartition");
-    if (!cfg.has_value()) {
-      cfg = tvm::transform::PassConfigWithDefaults<LoopPartitionConfig>();
-    }
-    n->body = s_tir::LoopPartition(std::move(n->body).value(), cfg.value()->partition_const_loop,
-                                   cfg.value()->no_unroll_loop_with_extent_one,
-                                   cfg.value()->unroll_loop_with_partition_hint_no_interval);
+    auto cfg = ctx->GetConfigOrDefault<LoopPartitionConfig>("s_tir.LoopPartition");
+    n->body = s_tir::LoopPartition(std::move(n->body).value(), cfg->partition_const_loop,
+                                   cfg->no_unroll_loop_with_extent_one,
+                                   cfg->unroll_loop_with_partition_hint_no_interval);
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.LoopPartition", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LoopPartition");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

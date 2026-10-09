@@ -900,7 +900,7 @@ Pass SplitHostDevice() {
     return LowerDeviceKernelLaunches(mod);
   };
 
-  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.SplitHostDevice", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.SplitHostDevice");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

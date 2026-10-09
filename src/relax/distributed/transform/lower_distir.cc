@@ -268,7 +268,7 @@ namespace transform {
 
 Pass LowerDistIR() {
   auto pass_func = [=](IRModule m, PassContext pc) { return DistIRSharder::LowerDistIR(m); };
-  return CreateModulePass(pass_func, 1, "LowerDistIR", {});
+  return CreateModulePass(pass_func, 1, "LowerDistIR");
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

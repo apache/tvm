@@ -106,7 +106,9 @@ using support::LinkNode;
 
 constexpr uint32_t kMaxFusedOps = 256;
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relax.FuseOps.max_depth", int64_t);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<int64_t>("relax.FuseOps.max_depth");
+}
 
 class GraphCreator : public ExprVisitor {
  public:
@@ -1547,13 +1549,13 @@ Pass FuseOps(int fuse_opt_level) {
   auto pass_func =  //
       [=](IRModule m, PassContext pc) {
         int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
-        auto max_fuse_depth = pc->GetConfig<int64_t>("relax.FuseOps.max_depth", kMaxFusedOps);
-        return relax::FuseOps(m, opt_level, static_cast<size_t>(max_fuse_depth.value()));
+        auto max_fuse_depth =
+            pc->GetConfig<int64_t>("relax.FuseOps.max_depth").value_or(kMaxFusedOps);
+        return relax::FuseOps(m, opt_level, static_cast<size_t>(max_fuse_depth));
       };
   return CreateModulePass(/*pass_function=*/pass_func,  //
                           /*opt_level=*/0,              //
-                          /*name=*/"FuseOps",           //
-                          /*required=*/{});
+                          /*name=*/"FuseOps");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1570,8 +1572,7 @@ Pass FuseOpsByPattern(const tvm::ffi::Array<FusionPattern>& patterns, bool bind_
       };
   return CreateModulePass(/*pass_function=*/pass_func,  //
                           /*opt_level=*/0,              //
-                          /*name=*/"FuseOpsByPattern",  //
-                          /*required=*/{});
+                          /*name=*/"FuseOpsByPattern");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

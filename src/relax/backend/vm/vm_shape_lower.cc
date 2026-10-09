@@ -954,7 +954,7 @@ Pass VMShapeLower(bool emit_err_ctx) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     return VMShapeLowerMutator::Lower(mod, emit_err_ctx);
   };
-  return CreateModulePass(pass_func, 0, "VMShapeLower", {});
+  return CreateModulePass(pass_func, 0, "VMShapeLower");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -100,7 +100,7 @@ Pass RemapThreadAxis(ffi::Map<ffi::String, ffi::String> thread_map) {
   auto pass_func = [thread_map](Function f, IRModule m, PassContext ctx) {
     return RemapThreadAxis(std::move(f), thread_map);
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.RemapThreadAxis", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.RemapThreadAxis");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

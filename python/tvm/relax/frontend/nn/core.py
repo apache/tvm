@@ -37,11 +37,11 @@ import numpy as np  # type: ignore
 import tvm.runtime
 from tvm import tirx
 from tvm.ir import IRModule
-from tvm.ir.transform import Pass
 from tvm.runtime import Device
 from tvm.runtime import device as as_device
 from tvm.runtime.vm import VirtualMachine
 from tvm.target import Target
+from tvm.transform import Pass
 
 from .... import relax as rx
 from ...block_builder import BlockBuilder

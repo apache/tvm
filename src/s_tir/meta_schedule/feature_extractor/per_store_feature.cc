@@ -387,7 +387,7 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
     n->body = Simplifier::Run(std::move(n->body).value(), normalize_thread_bindings);
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.SimplifyForFeatureExtraction", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.SimplifyForFeatureExtraction");
 }
 
 /*!

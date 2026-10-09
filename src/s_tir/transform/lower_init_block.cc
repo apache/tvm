@@ -93,7 +93,7 @@ Pass LowerInitBlock() {
                      .ValueOrUnchanged(std::move(fptr->body));
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.LowerInitBlock", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerInitBlock");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

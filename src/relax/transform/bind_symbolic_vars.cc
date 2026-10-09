@@ -177,7 +177,7 @@ Pass BindSymbolicVars(ffi::Map<ffi::Variant<PrimVar, ffi::String>, PrimExpr> bin
     return mod;
   };
 
-  return tvm::transform::CreateModulePass(pass_func, 1, "relax.BindSymbolicVars", {});
+  return tvm::transform::CreateModulePass(pass_func, 1, "relax.BindSymbolicVars");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

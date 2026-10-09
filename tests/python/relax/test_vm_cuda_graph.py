@@ -153,8 +153,8 @@ def test_capture_error_is_recoverable():
             D = R.add(C, C)
             return D
 
-    with target, tvm.ir.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
-        Module = tvm.ir.transform.Sequential(
+    with target, tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
+        Module = tvm.transform.Sequential(
             [
                 tvm.relax.transform.LegalizeOps(),
                 tvm.s_tir.transform.DefaultGPUSchedule(),

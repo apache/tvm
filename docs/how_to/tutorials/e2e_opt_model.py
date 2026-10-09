@@ -91,7 +91,7 @@ if not IS_IN_CI:
 # ---------------------
 # Apache TVM provides a flexible way to optimize the IRModule. Everything centered
 # around IRModule optimization can be composed with existing pipelines. Note that each
-# transformation can be combined as an optimization pipeline via ``tvm.ir.transform.Sequential``.
+# transformation can be combined as an optimization pipeline via ``tvm.transform.Sequential``.
 #
 # In this tutorial, we focus on the end-to-end optimization of the model via auto-tuning. We
 # leverage MetaSchedule to tune the model and store the tuning logs to the database. We also

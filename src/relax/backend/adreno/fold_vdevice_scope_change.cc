@@ -171,7 +171,7 @@ Pass FoldVDeviceScopeChange() {
     auto [pattern, rewriter] = CreatePatterns(consumers);
     return RewriteCall(pattern, rewriter, func);
   };
-  return CreateFunctionPass(pass_func, 1, "FoldVDeviceScopeChange", {});
+  return CreateFunctionPass(pass_func, 1, "FoldVDeviceScopeChange");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

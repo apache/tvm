@@ -90,7 +90,7 @@ class Tanh2TakeReplace(tvm.relax.PyExprMutator):
         return call_node
 
 
-@tvm.ir.transform.module_pass(opt_level=2, name="replace_tanh_take")
+@tvm.transform.module_pass(opt_level=2, name="replace_tanh_take")
 class PassReplaceWithTakeOpFunctions:
     def transform_module(self, mod, ctx):
         return Tanh2TakeReplace(mod).transform()

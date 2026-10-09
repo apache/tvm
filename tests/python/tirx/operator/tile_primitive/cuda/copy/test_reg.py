@@ -460,7 +460,7 @@ def test_reg_copy_linear_shared_hoists_thread_base():
 
     dispatched = []
 
-    @tvm.instrument.pass_instrument
+    @tvm.transform.pass_instrument
     class CaptureDispatch:
         def run_after_pass(self, mod, info):
             if info.name == "tirx.TilePrimitiveDispatch":

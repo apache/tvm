@@ -157,8 +157,7 @@ Pass SpecializeFunctionBasedOnCallSite() {
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
-                          /*pass_name=*/"SpecializeFunctionBasedOnCallSite",
-                          /*required=*/{});
+                          /*pass_name=*/"SpecializeFunctionBasedOnCallSite");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

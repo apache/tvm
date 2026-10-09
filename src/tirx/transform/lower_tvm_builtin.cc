@@ -762,7 +762,7 @@ Pass LowerTVMBuiltin() {
     }
     return func;
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.LowerTVMBuiltin", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.LowerTVMBuiltin");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

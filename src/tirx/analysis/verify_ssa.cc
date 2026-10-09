@@ -136,7 +136,7 @@ Pass VerifySSA() {
     }
     return mod;
   };
-  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.VerifySSA", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.VerifySSA");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

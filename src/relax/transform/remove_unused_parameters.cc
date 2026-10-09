@@ -252,7 +252,7 @@ Pass RemoveUnusedParameters() {
     }
     return mod;
   };
-  return CreateModulePass(pass_func, 0, "RemoveUnusedParameters", {});
+  return CreateModulePass(pass_func, 0, "RemoveUnusedParameters");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

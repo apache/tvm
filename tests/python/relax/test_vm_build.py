@@ -1255,7 +1255,7 @@ def test_relax_module_with_multiple_targets():
             C = R.add(A, B)
             return C
 
-    seq = tvm.ir.transform.Sequential(
+    seq = tvm.transform.Sequential(
         [
             tvm.relax.transform.LegalizeOps(),
             tvm.s_tir.dlight.ApplyDefaultSchedule(tvm.s_tir.dlight.gpu.Fallback()),

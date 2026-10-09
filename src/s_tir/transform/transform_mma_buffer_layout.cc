@@ -201,7 +201,7 @@ Pass TransformMmaBufferLayout() {
                   .ValueOrUnchanged(std::move(n->body));
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.TransformMmaBufferLayout", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.TransformMmaBufferLayout");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

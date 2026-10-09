@@ -123,7 +123,7 @@ def split_host_device_mods(mod: IRModule) -> tuple[IRModule, dict[Target, IRModu
 
 def codegen_build(mod: IRModule, target: Target) -> tvm.runtime.Module:
     """Build a runtime module from an IRModule and a Target."""
-    if tvm.ir.transform.PassContext.current().config.get("tirx.disable_assert", False):
+    if tvm.transform.PassContext.current().config.get("tirx.disable_assert", False):
         mod = tvm.tirx.transform.SkipAssert()(mod)
     build_f_name = "target.build." + target.kind.name
     bf = tvm.get_global_func(build_f_name)

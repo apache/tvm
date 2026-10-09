@@ -45,7 +45,7 @@ Pass AnnotateTIROpPattern() {
   auto pass_func = [=](tirx::Function f, IRModule m, PassContext ctx) {
     return AnnotateOpPattern(std::move(f));
   };
-  return tirx::transform::CreateFunctionPass(pass_func, 0, "AnnotateTIROpPattern", {});
+  return tirx::transform::CreateFunctionPass(pass_func, 0, "AnnotateTIROpPattern");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -304,7 +304,7 @@ Pass LowerTIRxDedupCuTensorMaps() {
                   .ValueOrUnchanged(n->body);
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.LowerTIRxDedupCuTensorMaps", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.LowerTIRxDedupCuTensorMaps");
 }
 
 }  // namespace transform

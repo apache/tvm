@@ -1341,7 +1341,7 @@ Pass InjectSoftwarePipeline() {
     fptr->body = s_tir::ConvertSSA(std::move(fptr->body).value());
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.InjectSoftwarePipeline", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.InjectSoftwarePipeline");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

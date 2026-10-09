@@ -184,7 +184,7 @@ Pass LiftThreadBinding() {
                      .ValueOrUnchanged(std::move(fptr->body));
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.LiftThreadBinding", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LiftThreadBinding");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -43,7 +43,9 @@ struct OpIdentityLess {
   bool operator()(const Op& lhs, const Op& rhs) const { return lhs.get() < rhs.get(); }
 };
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relax.transform.apply_legalize_ops", bool);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("relax.transform.apply_legalize_ops");
+}
 
 /*!
  * \brief Check if a given Tensor/Shape/TupleType contains shapes whose
@@ -429,8 +431,7 @@ Pass LegalizeOps(ffi::Optional<ffi::Map<ffi::String, ffi::Function>> cmap,
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
-                          /*pass_name=*/"LegalizeOps",
-                          /*required=*/{});
+                          /*pass_name=*/"LegalizeOps");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

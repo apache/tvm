@@ -31,7 +31,7 @@ Pass LowerThreadAllreduce() {
   auto pass_func = [](tirx::Function f, IRModule m, PassContext ctx) {
     return tirx::detail::LowerThreadAllreduce<s_tir::StmtExprMutator>(std::move(f));
   };
-  return tirx::transform::CreateFunctionPass(pass_func, 0, "s_tir.LowerThreadAllreduce", {});
+  return tirx::transform::CreateFunctionPass(pass_func, 0, "s_tir.LowerThreadAllreduce");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

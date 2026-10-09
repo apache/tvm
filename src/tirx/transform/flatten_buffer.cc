@@ -334,7 +334,7 @@ Pass FlattenBuffer() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     return FlattenBuffer(std::move(f));
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.FlattenBuffer", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.FlattenBuffer");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

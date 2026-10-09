@@ -102,7 +102,7 @@ Pass UpdateParamType(ffi::TypedFunction<ffi::Optional<Type>(Var)> ty_func) {
 
     return mod;
   };
-  return tvm::transform::CreateModulePass(pass_func, 1, "UpdateParamType", {});
+  return tvm::transform::CreateModulePass(pass_func, 1, "UpdateParamType");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

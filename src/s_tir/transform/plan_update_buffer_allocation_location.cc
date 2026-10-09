@@ -291,7 +291,7 @@ Pass PlanAndUpdateBufferAllocationLocation() {
     fptr->body = locator->Mutate(fptr->body).ValueOrUnchanged(fptr->body);
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.PlanAndUpdateBufferAllocationLocation", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.PlanAndUpdateBufferAllocationLocation");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

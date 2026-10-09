@@ -42,10 +42,10 @@ import tvm.testing
 from tvm import relax
 from tvm.ir import transform
 from tvm.ir.module import IRModule
-from tvm.ir.transform import PassContext
 from tvm.script import relax as R
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
+from tvm.transform import PassContext
 
 target = tvm.target.Target({"kind": "llvm", "num-cores": 16})
 

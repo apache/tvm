@@ -769,8 +769,7 @@ Pass AnnotateCustomMemoryScope(Target target) {
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
-                          /*pass_name=*/"AnnotateCustomMemoryScope",
-                          /*required=*/{});
+                          /*pass_name=*/"AnnotateCustomMemoryScope");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -106,7 +106,7 @@ def default_s_tir_pipeline(*, prepare_only=False):
                     tirx.transform.BF16StorageLegalize(),
                 ]
             )
-        mod = tvm.ir.transform.Sequential(passes)(mod)
+        mod = tvm.transform.Sequential(passes)(mod)
         return mod
 
     return _pipeline, finalize_host_passes, finalize_device_passes
@@ -118,7 +118,7 @@ def finalize_host_passes():  # pylint: disable=unused-argument
         tirx.transform.LowerTVMBuiltin(),
         tirx.transform.LowerIntrin(),
     ]
-    return tvm.ir.transform.Sequential(host_pass_list)
+    return tvm.transform.Sequential(host_pass_list)
 
 
 def finalize_device_passes():  # pylint: disable=unused-argument
@@ -128,7 +128,7 @@ def finalize_device_passes():  # pylint: disable=unused-argument
         tirx.transform.StmtSimplify(),
         tirx.transform.LowerIntrin(),
     ]
-    return tvm.ir.transform.Sequential(device_pass_list)
+    return tvm.transform.Sequential(device_pass_list)
 
 
 tir_pipeline.PIPELINE_MAP["s_tir"] = default_s_tir_pipeline

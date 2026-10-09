@@ -324,7 +324,7 @@ Pass RemoveUnusedOutputs() {
     }
     return mod;
   };
-  auto inner_pass = CreateModulePass(pass_func, 0, "RemoveUnusedOutputsInner", {});
+  auto inner_pass = CreateModulePass(pass_func, 0, "RemoveUnusedOutputsInner");
   return tvm::transform::Sequential(
       {
           inner_pass,

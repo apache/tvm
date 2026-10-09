@@ -94,7 +94,7 @@ Pass LowerVtcmAlloc() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     return s_tir::LowerVtcmAlloc(std::move(f));
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.LowerVtcmAlloc", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerVtcmAlloc");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

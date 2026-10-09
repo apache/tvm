@@ -56,7 +56,7 @@ Pass SkipAssert() {
                   .ValueOrUnchanged(n->body);
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.SkipAssert", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.SkipAssert");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

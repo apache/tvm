@@ -292,7 +292,7 @@ Pass ManifestSharedMemoryLocalStage() {
                   .ValueOrUnchanged(std::move(n->body));
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.ManifestSharedMemoryLocalStage", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.ManifestSharedMemoryLocalStage");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

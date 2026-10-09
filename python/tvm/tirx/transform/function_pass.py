@@ -22,7 +22,7 @@ from collections.abc import Callable
 
 import tvm_ffi
 
-from tvm.ir.transform import Pass, PassInfo
+from tvm.transform import Pass, PassInfo
 
 from . import _ffi_api
 
@@ -71,8 +71,6 @@ def function_pass(
     pass_func=None,
     opt_level: int | None = None,
     name: str | None = None,
-    required: list[str] | None = None,
-    traceable=False,
 ) -> Callable | FunctionPass:
     """Decorate a function pass.
 
@@ -91,9 +89,6 @@ def function_pass(
     name : Optional[str]
         The name of the function pass. The name could be empty. In this case, the
         name of the optimization function will be used as the pass name.
-
-    required : Optional[List[str]]
-        The list of passes that the function pass is dependent on.
 
     Returns
     -------
@@ -144,14 +139,10 @@ def function_pass(
     if opt_level is None:
         raise ValueError("Please provide opt_level for the function pass.")
 
-    required = required if required else []
-    if not isinstance(required, list | tuple):
-        raise TypeError("Required is expected to be the type of " + "list/tuple.")
-
     def create_function_pass(pass_arg):
         """Internal function that creates a function pass"""
         fname = name if name else pass_arg.__name__
-        info = PassInfo(opt_level, fname, required, traceable)
+        info = PassInfo(opt_level, fname)
         if inspect.isclass(pass_arg):
             return _wrap_class_function_pass(pass_arg, info)
         if not callable(pass_arg):

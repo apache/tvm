@@ -130,7 +130,7 @@ Pass InjectTextureAlloc() {
     return TextureAllocInjector::Inject(std::move(f));
   };
   return tirx::transform::CreateFunctionPass(pass_func, 0,
-                                             "s_tir.backend.adreno.InjectTextureAlloc", {});
+                                             "s_tir.backend.adreno.InjectTextureAlloc");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

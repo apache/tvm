@@ -72,7 +72,7 @@ def test_transform_fuse_transpose_matmul():
                 R.output(gv)
             return gv
 
-    after = tvm.ir.transform.Sequential(
+    after = tvm.transform.Sequential(
         [
             relax.transform.FuseTransposeMatmul(),
             relax.transform.FuseTIR(),  # Only used for remove unused primitive function
@@ -125,7 +125,7 @@ def test_transform_fuse_transpose_matmul_const():
                 R.output(gv)
             return gv
 
-    after = tvm.ir.transform.Sequential(
+    after = tvm.transform.Sequential(
         [
             relax.transform.FuseTransposeMatmul(),
             relax.transform.FuseTIR(),  # Only used for remove unused primitive function

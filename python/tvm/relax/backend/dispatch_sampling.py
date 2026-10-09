@@ -20,8 +20,8 @@
 from tvm import relax
 from tvm.ir import Op
 from tvm.ir.module import IRModule
-from tvm.ir.transform import PassContext, module_pass
 from tvm.relax import expr_functor
+from tvm.transform import PassContext, module_pass
 
 from .utils import BackendDispatcher
 

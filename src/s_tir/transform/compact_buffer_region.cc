@@ -839,7 +839,7 @@ Pass CompactBufferAllocation(bool is_strict) {
     fptr->body = BufferCompactorCompact(f, region, storage_align);
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.CompactBufferAllocation", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.CompactBufferAllocation");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

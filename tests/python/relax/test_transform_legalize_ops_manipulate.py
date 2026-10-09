@@ -1811,7 +1811,7 @@ def test_func_ty_of_legalized_layout_transform():
                 R.output(gv)
             return gv
 
-    After = tvm.ir.transform.Sequential(
+    After = tvm.transform.Sequential(
         [
             relax.transform.LegalizeOps(),
             relax.transform.ToNonDataflow(),

@@ -860,7 +860,7 @@ Pass LowerAutoCopy() {
     n->body = mutator->RewritePaddingBody(n->body.value());
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.LowerAutoCopy", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerAutoCopy");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

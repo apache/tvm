@@ -381,7 +381,7 @@ Pass ConvertSSA() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
     return ffi::make_object<tirx::IRConvertSSA>()->VisitIRModule(std::move(mod));
   };
-  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.ConvertSSA", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.ConvertSSA");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

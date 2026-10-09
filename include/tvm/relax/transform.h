@@ -49,14 +49,11 @@ using LayoutCb = ffi::TypedFunction<ffi::Map<ffi::String, ffi::Array<ffi::String
  * \param pass_func The packed function that contains the optimization.
  * \param opt_level The optimization level of the function pass.
  * \param name The name of the function pass.
- * \param required The list of the passes that the function pass is dependent on.
- * \param traceable Boolean variable whether the dataflowblock pass is traceable.
  *
  * \return The created function pass.
  */
 TVM_DLL Pass CreateFunctionPass(std::function<Function(Function, IRModule, PassContext)> pass_func,
-                                int opt_level, ffi::String name,
-                                tvm::ffi::Array<ffi::String> required, bool traceable = false);
+                                int opt_level, ffi::String name);
 
 /*!
  * \brief Create a dataflowblock pass.
@@ -64,14 +61,12 @@ TVM_DLL Pass CreateFunctionPass(std::function<Function(Function, IRModule, PassC
  * \param pass_func The packed function that contains the optimization.
  * \param opt_level The optimization level of the dataflowblock pass.
  * \param name The name of the dataflowblock pass.
- * \param required The list of the passes that the dataflowblock pass is dependent on.
- * \param traceable Boolean variable whether the dataflowblock pass is traceable.
  *
  * \return The created dataflowblock pass.
  */
 TVM_DLL Pass CreateDataflowBlockPass(
     std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func, int opt_level,
-    ffi::String name, tvm::ffi::Array<ffi::String> required, bool traceable = false);
+    ffi::String name);
 
 /*!
  * \brief Perform lambda lifting to lift functions from nested into global.

@@ -69,7 +69,9 @@
 namespace tvm {
 namespace relax {
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relax.backend.use_cuda_graph", bool);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("relax.backend.use_cuda_graph");
+}
 
 /*! \brief The rewriting plan of lifting a region for either allocation or capturing for cuda graph
  * execution
@@ -920,7 +922,7 @@ Pass RewriteCUDAGraph() {
 
         return mod;
       };
-  return CreateModulePass(pass_func, 0, "RewriteCUDAGraph", {});
+  return CreateModulePass(pass_func, 0, "RewriteCUDAGraph");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -118,7 +118,7 @@ Pass ConvertBlocksToOpaque() {
     fptr->body = OpaqueBlockConverter::Convert(f);
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.ConvertBlocksToOpaque", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.ConvertBlocksToOpaque");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

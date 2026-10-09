@@ -440,7 +440,7 @@ Pass FoldConstant() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
     return ConstantFolder::Fold(f, m);
   };
-  return CreateFunctionPass(pass_func, 0, "FoldConstant", {});
+  return CreateFunctionPass(pass_func, 0, "FoldConstant");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -165,7 +165,7 @@ Pass LowerTIRxOpaque() {
     fptr->body = TIRxOpaqueLower::Rewrite(std::move(fptr->body).value());
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.LowerTIRxOpaque", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.LowerTIRxOpaque");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

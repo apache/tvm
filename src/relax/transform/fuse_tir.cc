@@ -1164,10 +1164,9 @@ namespace transform {
 Pass FuseTIR() {
   auto pass_func =  //
       [=](IRModule m, PassContext pc) { return relax::FuseTIR(m); };
-  auto inner_pass = CreateModulePass(/*pass_function=*/pass_func,   //
-                                     /*opt_level=*/0,               //
-                                     /*pass_name=*/"FuseTIRInner",  //
-                                     /*required=*/{});
+  auto inner_pass = CreateModulePass(/*pass_function=*/pass_func,  //
+                                     /*opt_level=*/0,              //
+                                     /*pass_name=*/"FuseTIRInner");
   return tvm::transform::Sequential(
       {
           ExpandTupleArguments(),

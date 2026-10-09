@@ -46,7 +46,7 @@ def test_default_pipeline_selects_dialect(mixed):
         functions["native"] = native
     finalized_modules = []
 
-    @tvm.instrument.pass_instrument
+    @tvm.transform.pass_instrument
     class RecordFinalization:
         def run_before_pass(self, mod, info):
             if info.name == "tirx.MakePackedAPI":

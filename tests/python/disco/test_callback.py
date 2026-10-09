@@ -92,7 +92,7 @@ def test_callback():
 
             return (A, B)
 
-    pipeline = tvm.ir.transform.Sequential(
+    pipeline = tvm.transform.Sequential(
         [
             tvm.relax.transform.LegalizeOps(),
             tvm.s_tir.dlight.ApplyDefaultSchedule(tvm.s_tir.dlight.gpu.Fallback()),

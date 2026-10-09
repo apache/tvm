@@ -341,7 +341,7 @@ Pass AdjustMatmulOrder() {
     auto [pattern, rewriter] = CreatePatterns(func);
     return RewriteCall(pattern, rewriter, func);
   };
-  return CreateFunctionPass(pass_func, 1, "AdjustMatmulOrder", {});
+  return CreateFunctionPass(pass_func, 1, "AdjustMatmulOrder");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -562,10 +562,9 @@ namespace transform {
 Pass MergeCompositeFunctions() {
   auto pass_func =  //
       [=](IRModule mod, PassContext pc) { return relax::MergeCompositeFunctions(mod); };
-  return CreateModulePass(/*pass_function=*/pass_func,              //
-                          /*opt_level=*/0,                          //
-                          /*pass_name=*/"MergeCompositeFunctions",  //
-                          /*required=*/{});
+  return CreateModulePass(/*pass_function=*/pass_func,  //
+                          /*opt_level=*/0,              //
+                          /*pass_name=*/"MergeCompositeFunctions");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

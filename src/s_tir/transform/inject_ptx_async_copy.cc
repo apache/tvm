@@ -226,7 +226,7 @@ Pass InjectPTXAsyncCopy() {
     n->body = ffi::make_object<PTXAsyncCopyInjector>()->Mutate(n->body).ValueOrUnchanged(n->body);
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.InjectPTXAsyncCopy", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.InjectPTXAsyncCopy");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

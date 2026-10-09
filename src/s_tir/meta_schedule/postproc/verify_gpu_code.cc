@@ -198,7 +198,7 @@ class VerifyGPUCodeNode : public PostprocNode {
           tirx::Function f = WithAttr(ffi::GetRef<tirx::Function>(function), "global_symbol",
                                       ffi::String(g_var->name_hint));
           f = WithAttr(f, tvm::attr::kTarget, this->target_);  // Required for LowerIntrin
-          bool noalias = pass_ctx->GetConfig<bool>("tirx.noalias", true).value();
+          bool noalias = pass_ctx->GetConfig<bool>("tirx.noalias").value_or(true);
           if (noalias) {
             f = WithAttr(std::move(f), "tirx.noalias", true);
           }

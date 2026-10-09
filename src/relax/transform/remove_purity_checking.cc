@@ -88,7 +88,7 @@ Pass RemovePurityChecking() {
   auto pass_func = [=](const Function& f, IRModule mod, PassContext pc) {
     return relax::RemovePurityChecking(f);
   };
-  return CreateFunctionPass(pass_func, 0, "RemovePurityChecking", {});
+  return CreateFunctionPass(pass_func, 0, "RemovePurityChecking");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

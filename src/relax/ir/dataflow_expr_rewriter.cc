@@ -1082,7 +1082,7 @@ IRModule PatternMatchingRewriterNode::operator()(
   return mod;
 }
 tvm::transform::PassInfo PatternMatchingRewriterNode::Info() const {
-  return tvm::transform::PassInfo(0, "PatternMatchingRewriter", {}, false);
+  return tvm::transform::PassInfo(0, "PatternMatchingRewriter");
 }
 
 Function RewriteCall(const DFPattern& pat,

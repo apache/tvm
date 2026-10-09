@@ -198,7 +198,7 @@ Pass RemoveStoreUndefInternal() {
     n->body = StoreUndefRemover::Apply(std::move(n->body).value());
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.RemoveStoreUndefInternal", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.RemoveStoreUndefInternal");
 }
 
 Pass ValidateAllUndefRemoved() {
@@ -213,7 +213,7 @@ Pass ValidateAllUndefRemoved() {
         << f;
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.ValidateAllUndefRemoved", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.ValidateAllUndefRemoved");
 }
 
 Pass RemoveStoreUndef() {

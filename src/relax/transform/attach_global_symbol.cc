@@ -184,7 +184,7 @@ Pass AttachGlobalSymbol() {
     }
     return mod;
   };
-  return CreateModulePass(pass_func, 0, "AttachGlobalSymbol", {});
+  return CreateModulePass(pass_func, 0, "AttachGlobalSymbol");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
