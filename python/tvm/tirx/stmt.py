@@ -27,7 +27,7 @@ from . import _ffi_api
 from .exec_scope import ExecScope, ScopeIdDef
 
 if TYPE_CHECKING:
-    from .tile_primitive import DispatchContext
+    from .tile_dispatch import DispatchContext
 
 
 def BufferRegion(buffer: Var, region: list[Range]) -> TensorRegion:

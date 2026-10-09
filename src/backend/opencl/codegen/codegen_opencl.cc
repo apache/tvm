@@ -22,7 +22,7 @@
  */
 #include "codegen_opencl.h"
 
-#include <tvm/backend/opencl/op.h>
+#include <tvm/backend/opencl/op/memory.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/op/memory.h>

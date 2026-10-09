@@ -33,7 +33,7 @@ from tvm.ir import (
 )
 from tvm.target import Target
 from tvm.tirx.stmt import TileOpCall
-from tvm.tirx.tile_primitive import DispatchContext
+from tvm.tirx.tile_dispatch import DispatchContext
 from tvm.tirx.transform.common import seek_kernel_replace_point
 from tvm.tirx.transform.function_pass import function_pass
 

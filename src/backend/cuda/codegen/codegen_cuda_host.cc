@@ -20,7 +20,7 @@
 /*! \file codegen_cuda_host.cc
  *  \brief C host wrappers with direct CUDA kernel launches.
  */
-#include <tvm/backend/cuda/op.h>
+#include <tvm/backend/cuda/op/tensormap.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/tirx/op/abi.h>

@@ -22,7 +22,7 @@
  * \brief Lower frontend-only TIRx IKET annotations to CUDA tracing helpers.
  */
 
-#include <tvm/backend/cuda/op.h>
+#include <tvm/backend/cuda/op/iket.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/type.h>

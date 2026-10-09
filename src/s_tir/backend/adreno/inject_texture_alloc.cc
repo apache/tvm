@@ -21,7 +21,7 @@
  * \file inject_texture_alloc.cc
  */
 
-#include <tvm/backend/opencl/op.h>
+#include <tvm/backend/opencl/op/memory.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
