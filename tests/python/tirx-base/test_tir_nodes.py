@@ -264,6 +264,30 @@ def test_divide_by_zero():
             pass
 
 
+@pytest.mark.parametrize("op", [tvm.tirx.div, tvm.tirx.truncmod])
+@pytest.mark.parametrize("lhs_dtype,rhs_dtype", [("bool", "int32"), ("int32", "bool")])
+def test_reject_boolean_divide_and_modulo(op, lhs_dtype, rhs_dtype):
+    lhs = tvm.tirx.const(True if lhs_dtype == "bool" else 1, lhs_dtype)
+    rhs = tvm.tirx.const(True if rhs_dtype == "bool" else 1, rhs_dtype)
+    with pytest.raises(TypeError, match="does not support boolean"):
+        op(lhs, rhs)
+
+
+@pytest.mark.parametrize("dtype", ["float16", "float32", "float64"])
+def test_allow_floating_point_modulo(dtype):
+    lhs = tvm.tirx.const(5.5, dtype)
+    rhs = tvm.tirx.const(2.0, dtype)
+    assert tvm.tirx.truncmod(lhs, rhs).ty.dtype == dtype
+
+
+@pytest.mark.parametrize("op", [tvm.tirx.div, tvm.tirx.truncmod])
+@pytest.mark.parametrize("dtype", ["bfloat16", "float8_e4m3fn", "float8_e5m2"])
+def test_allow_nonstandard_floating_point_divide_and_modulo(op, dtype):
+    lhs = tvm.tirx.Var("lhs", dtype)
+    rhs = tvm.tirx.Var("rhs", dtype)
+    assert op(lhs, rhs).ty.dtype == dtype
+
+
 def test_infinity():
     assert str(tvm.tirx.infinity("float16")) == 'T.float16("inf")'
     assert str(tvm.tirx.infinity("float32")) == 'T.float32("inf")'
