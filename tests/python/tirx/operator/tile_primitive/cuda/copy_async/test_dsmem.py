@@ -78,7 +78,7 @@ def _count_s2c_ops(impl):
 
     tvm_ffi.structural_visit(
         impl.body,
-        [(tvm.tirx.For, visit_for), (tvm.tirx.Evaluate, visit_evaluate)],
+        [(tvm.ir.For, visit_for), (tvm.ir.Evaluate, visit_evaluate)],
     )
     return total
 

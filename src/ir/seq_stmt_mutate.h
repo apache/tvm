@@ -17,11 +17,11 @@
  * under the License.
  */
 
-#ifndef TVM_TIRX_IR_SEQ_STMT_MUTATE_H_
-#define TVM_TIRX_IR_SEQ_STMT_MUTATE_H_
+#ifndef TVM_IR_SEQ_STMT_MUTATE_H_
+#define TVM_IR_SEQ_STMT_MUTATE_H_
 
 #include <tvm/ffi/extra/structural_mutate.h>
-#include <tvm/tirx/stmt.h>
+#include <tvm/ir/stmt.h>
 
 #include <iterator>
 #include <type_traits>
@@ -29,7 +29,6 @@
 #include <vector>
 
 namespace tvm {
-namespace tirx {
 namespace detail {
 
 inline bool IsSeqStmtNoOp(ffi::AnyView stmt) {
@@ -229,7 +228,6 @@ auto MutateSeqStmt(const SeqStmtNode* self, ffi::InplaceMode inplace_mode,
 }
 
 }  // namespace detail
-}  // namespace tirx
 }  // namespace tvm
 
-#endif  // TVM_TIRX_IR_SEQ_STMT_MUTATE_H_
+#endif  // TVM_IR_SEQ_STMT_MUTATE_H_

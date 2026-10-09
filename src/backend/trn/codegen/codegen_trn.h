@@ -72,7 +72,7 @@ class CodeGenTrainium final : public CodeGenC {
   void Dispatch_(const prim::FloorDivNode* op, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const prim::FloorModNode* op, std::ostream& os) final;  // NOLINT(*)
   void DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call);
-  void Dispatch_(const IfThenElseNode* op) final;                   // NOLINT(*)
+  void Dispatch_(const IfNode* op) final;                           // NOLINT(*)
   void Dispatch_(const prim::AndNode* op, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const prim::OrNode* op, std::ostream& os) final;   // NOLINT(*)
 

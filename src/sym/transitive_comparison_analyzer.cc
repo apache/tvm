@@ -297,9 +297,9 @@ class TransitiveComparisonAnalyzer::Impl {
 
   /*! \brief Known comparisons based on scoped conditions
    *
-   * For example, the condition of an IfThenElse.  These known
+   * For example, the condition of an If.  These known
    * statements may only be used within the scope of the statement
-   * from which they were derived.  e.g. After exiting an IfThenElse,
+   * from which they were derived.  e.g. After exiting an If,
    * the condition may no longer be true.
    */
   std::vector<Comparison> scoped_knowns_;

@@ -78,7 +78,7 @@ class StmtFunctor<R(const Stmt&, Args...)> {
   virtual R Dispatch_(const RegionStmtNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  virtual R Dispatch_(const IfThenElseNode* node, Args... args) {
+  virtual R Dispatch_(const IfNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
   virtual R Dispatch_(const ForNode* node, Args... args) {
@@ -133,7 +133,7 @@ class StmtFunctor<R(const Stmt&, Args...)> {
         });
     SetDispatch<TSelf, BindNode>(vtable);
     SetDispatch<TSelf, RegionStmtNode>(vtable);
-    SetDispatch<TSelf, IfThenElseNode>(vtable);
+    SetDispatch<TSelf, IfNode>(vtable);
     SetDispatch<TSelf, ForNode>(vtable);
     SetDispatch<TSelf, WhileNode>(vtable);
     SetDispatch<TSelf, ReturnNode>(vtable);
@@ -190,7 +190,7 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
 
   virtual ffi::Optional<VisitInterrupt> Visit_(const BindNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op);
-  virtual ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op);
+  virtual ffi::Optional<VisitInterrupt> Visit_(const IfNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const ForNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const WhileNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const ReturnNode* op);
@@ -274,7 +274,7 @@ class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
 
   virtual UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode);
-  virtual UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const WhileNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const ReturnNode* op, InplaceMode inplace_mode);

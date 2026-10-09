@@ -19,8 +19,8 @@ import functools
 
 import tvm_ffi
 
-from tvm.ir import Call, Op, Var
-from tvm.tirx import Bind, IntImm
+from tvm.ir import Bind, Call, Op, Var
+from tvm.tirx import IntImm
 from tvm.tirx.transform.function_pass import function_pass
 
 

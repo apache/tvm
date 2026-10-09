@@ -18,8 +18,8 @@
 
 import tvm_ffi
 
-from tvm.ir import Call, Op, Var, is_prim_expr
-from tvm.tirx import Evaluate, Expr, Stmt, TileOpCall, decl_tensor, is_tensor_var
+from tvm.ir import Call, Evaluate, Op, Stmt, Var, is_prim_expr
+from tvm.tirx import Expr, TileOpCall, decl_tensor, is_tensor_var
 from tvm.tirx.layout import Iter, TileLayout
 
 

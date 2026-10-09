@@ -334,14 +334,16 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
 
   template <typename Node>
   Node VisitBufferAccess(Node node) {
-    TVM_FFI_ICHECK(node->buffer.defined());
-    if (target_->kind->name == "trn" && !node->buffer->layout.has_value()) {
+    TVM_FFI_ICHECK(node->dest.template as_or_throw<TensorVar>().defined());
+    if (target_->kind->name == "trn" &&
+        !node->dest.template as_or_throw<TensorVar>()->layout.has_value()) {
       return node;
     }
-    auto flattened_indices = GetSimplifiedElemOffset(node->buffer, node->indices);
-    TensorVar flattened_buffer = GetFlattenedTensor(node->buffer);
+    auto flattened_indices =
+        GetSimplifiedElemOffset(node->dest.template as_or_throw<TensorVar>(), node->indices);
+    TensorVar flattened_buffer = GetFlattenedTensor(node->dest.template as_or_throw<TensorVar>());
     auto writer = node.CopyOnWrite();
-    writer->buffer = flattened_buffer;
+    writer->dest = flattened_buffer;
     writer->indices = flattened_indices;
     return node;
   }

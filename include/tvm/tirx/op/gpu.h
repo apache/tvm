@@ -48,7 +48,7 @@ TVM_DLL PrimExpr gpu_thread_return(Span span = Span());
  *
  * Arguments, in order:
  * - args[0]: var, The ScopeIdDef-declared thread-axis variable.
- * - args[1]: pred, The runtime predicate used as an IfThenElse condition.
+ * - args[1]: pred, The runtime predicate used as an If condition.
  * Canonical thread predicates can be used directly without this wrapper.
  */
 TVM_DLL const Op& gpu_thread_filter_op();

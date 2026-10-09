@@ -25,11 +25,11 @@ import tvm
 @pytest.mark.parametrize(
     "name,args",
     [
-        ("tirx.Evaluate", (None, None)),
-        ("tirx.IfThenElse", (True, None, None, None)),
-        ("tirx.IfThenElse", (None, tvm.tirx.Evaluate(0), None, None)),
-        ("tirx.While", (True, None, None)),
-        ("tirx.SeqStmt", ([None], None)),
+        ("ir.Evaluate", (None, None)),
+        ("ir.If", (True, None, None, None)),
+        ("ir.If", (None, tvm.ir.Evaluate(0), None, None)),
+        ("ir.While", (True, None, None)),
+        ("ir.SeqStmt", ([None], None)),
         ("ir.Tuple", ([None], None)),
         ("ir.TupleGetItem", (None, 0, None)),
         ("ir.FuncType", ([], None)),
@@ -42,10 +42,10 @@ def test_required_reference_rejects_none(name, args):
 
 
 def test_optional_statement_fields_and_roundtrip():
-    body = tvm.tirx.Evaluate(0)
-    conditional = tvm.tirx.IfThenElse(True, body, None)
+    body = tvm.ir.Evaluate(0)
+    conditional = tvm.ir.If(True, body, None)
     assert conditional.else_case is None
-    loop = tvm.tirx.For(tvm.tirx.Var("i", "int32"), 0, 4, tvm.tirx.ForKind.DEFAULT, body, step=None)
+    loop = tvm.ir.For(tvm.tirx.Var("i", "int32"), 0, 4, tvm.ir.ForKind.DEFAULT, body, step=None)
     assert loop.step is None
     declaration = tvm.tirx.Function([], None)
     assert declaration.body is None
@@ -61,8 +61,8 @@ def test_offset_default_and_missing_type_remain_values():
     assert int(tensor.ty.elem_offset) == 0
     assert isinstance(tvm.ir.Type.missing(), tvm.ir.MissingType)
     # False and zero are valid primitive expressions, not absence.
-    assert int(tvm.tirx.Evaluate(False).value) == 0
-    assert int(tvm.tirx.Evaluate(0).value) == 0
+    assert int(tvm.ir.Evaluate(False).value) == 0
+    assert int(tvm.ir.Evaluate(0).value) == 0
 
 
 def test_failed_iter_map_has_absent_padding_predicate():

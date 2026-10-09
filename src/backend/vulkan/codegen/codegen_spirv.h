@@ -117,7 +117,7 @@ class CodeGenSPIRV : public tvm::ExprFunctor<spirv::Value(const Expr&)>,
   void Dispatch_(const TensorStoreNode* op) override;
   void Dispatch_(const ForNode* op) override;
   void Dispatch_(const WhileNode* op) override;
-  void Dispatch_(const IfThenElseNode* op) override;
+  void Dispatch_(const IfNode* op) override;
   void DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call);
   void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const RegionStmtNode* op) override;

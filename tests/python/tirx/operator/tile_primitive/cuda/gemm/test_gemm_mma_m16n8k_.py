@@ -375,7 +375,7 @@ def test_cuda_gemm_mma_lowers_to_mma_sync(dtype):
     the registers laid out in the fixed PTX fragment order."""
     func = _lower(_build_gemm(alpha=1.0, beta=0.0, dtype=dtype))["main"]
     calls, stores = [], []
-    structural_walk(func.body, [(tvm.ir.Call, calls.append), (tvm.tirx.TensorStore, stores.append)])
+    structural_walk(func.body, [(tvm.ir.Call, calls.append), (tvm.ir.TensorStore, stores.append)])
     mma_calls = [call for call in calls if call.op.name == "tirx.ptx.mma"]
     assert len(mma_calls) == 1
     operands = mma_calls[0].args
@@ -383,7 +383,7 @@ def test_cuda_gemm_mma_lowers_to_mma_sync(dtype):
     # beta == 0 clears the accumulator before the K loop.
     assert len(stores) == 1
     assert isinstance(stores[0].value, tvm.tirx.FloatImm) and stores[0].value.value == 0
-    assert stores[0].buffer.same_as(operands[0].source)
+    assert stores[0].dest.same_as(operands[0].source)
     # D accumulator: c_id = 2*rM + rN -> regs 0..3.
     # A and B fragments are packed two elements per b32, so the instruction
     # indexes a uint32 view: the element strides above halve into word strides.
@@ -408,15 +408,15 @@ def test_cuda_gemm_mma_accumulates_c_when_beta_one():
     """beta=1: the accumulator is initialized by copying C instead of zeroing."""
     func = _lower(_build_gemm(alpha=1.0, beta=1.0))["main"]
     calls, stores = [], []
-    structural_walk(func.body, [(tvm.ir.Call, calls.append), (tvm.tirx.TensorStore, stores.append)])
+    structural_walk(func.body, [(tvm.ir.Call, calls.append), (tvm.ir.TensorStore, stores.append)])
     mma_calls = [call for call in calls if call.op.name == "tirx.ptx.mma"]
     assert len(mma_calls) == 1
     # The init reads C into D; nothing is zeroed.
     assert len(stores) == 1
     init = stores[0]
-    assert init.buffer.same_as(mma_calls[0].args[0].source)
+    assert init.dest.same_as(mma_calls[0].args[0].source)
     assert isinstance(init.value, tvm.ir.TensorLoad)
-    assert not init.buffer.same_as(init.value.source)
+    assert not init.dest.same_as(init.value.source)
     tvm.ir.assert_structural_equal(init.indices, init.value.indices)
 
 

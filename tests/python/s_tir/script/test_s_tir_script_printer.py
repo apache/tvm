@@ -44,7 +44,7 @@ def test_function_symbolic_buffer_param_roundtrip():
     n = tirx.Var("n", "int32")
     A = tirx.decl_tensor(shape=[n + 1, n], dtype="float32", name="A", layout=None)
     func = (
-        tirx.Function(params=[A], body=tirx.Evaluate(n))
+        tirx.Function(params=[A], body=tvm.ir.Evaluate(n))
         .with_attr("global_symbol", "main")
         .with_attr("s_tir", True)
     )
@@ -65,7 +65,7 @@ def test_function_compound_buffer_shape_first_use_roundtrip():
     n = tirx.Var("n", "int32")
     A = tirx.decl_tensor(shape=[tirx.max(n, 1)], dtype="float32", name="A", layout=None)
     func = (
-        tirx.Function(params=[A], body=tirx.Evaluate(n))
+        tirx.Function(params=[A], body=tvm.ir.Evaluate(n))
         .with_attr("global_symbol", "main")
         .with_attr("s_tir", True)
     )
@@ -86,9 +86,9 @@ def test_function_symbolic_alloc_buffer_roundtrip():
     buf = tirx.decl_tensor(shape=[size], dtype="float32", name="buf", layout=None)
     func = tirx.Function(
         params=[],
-        body=tirx.SeqStmt(
+        body=tvm.ir.SeqStmt(
             [
-                tvm.tirx.Bind(
+                tvm.ir.Bind(
                     buf,
                     tvm.ir.Call(
                         "tirx.alloc_tensor",
@@ -101,7 +101,7 @@ def test_function_symbolic_alloc_buffer_roundtrip():
                         ty=buf.ty,
                     ),
                 ),
-                tirx.Evaluate(tirx.TensorLoad(buf, [0])),
+                tvm.ir.Evaluate(tirx.TensorLoad(buf, [0])),
             ]
         ),
     ).with_attr("s_tir", True)
@@ -125,7 +125,7 @@ def test_function():
         tirx.Function(
             params=[A, B],
             ret_type=None,
-            body=tirx.Evaluate(0),
+            body=tvm.ir.Evaluate(0),
         )
         .with_attr("global_symbol", "main")
         .with_attr("s_tir", True)
@@ -151,7 +151,7 @@ def test_function_buffer_data_use():
         tirx.Function(
             params=[A, B],
             ret_type=None,
-            body=tirx.Evaluate(A.data),
+            body=tvm.ir.Evaluate(A.data),
         )
         .with_attr("global_symbol", "main")
         .with_attr("s_tir", True)
@@ -179,7 +179,7 @@ def test_function_buffer_data_argument_is_scope_hint():
         tirx.Function(
             params=[A, B],
             ret_type=None,
-            body=tirx.Evaluate(0),
+            body=tvm.ir.Evaluate(0),
         )
         .with_attr("global_symbol", "main")
         .with_attr("s_tir", True)
@@ -391,7 +391,7 @@ def test_private_function():
     func = tirx.Function(
         params=[A, B],
         ret_type=None,
-        body=tirx.Evaluate(0),
+        body=tvm.ir.Evaluate(0),
     ).with_attr("s_tir", True)
     _assert_print(
         func,
@@ -538,7 +538,7 @@ def test_predicated_buffer_load_store():
         tirx.Ramp(0, 4, 4),
         tirx.Broadcast(tirx.IntImm("bool", 0), 4),
     )
-    body = tirx.Evaluate(
+    body = tvm.ir.Evaluate(
         tirx.call_intrin(
             "void",
             "tirx.masked_store",

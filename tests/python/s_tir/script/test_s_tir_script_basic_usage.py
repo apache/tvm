@@ -23,7 +23,6 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm import tirx
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm.script import from_source
 from tvm.script import ir as I
@@ -469,11 +468,11 @@ def test_for_thread_binding():
     )
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body[0], tirx.stmt.For)
-    assert rt_func.body[0].kind == tvm.tirx.ForKind.PARALLEL
+    assert isinstance(rt_func.body[0], tvm.ir.For)
+    assert rt_func.body[0].kind == tvm.ir.ForKind.PARALLEL
     assert rt_func.body[0].annotations.get("thread_binding") == "threadIdx.x"
-    assert isinstance(rt_func.body[0].body[0], tirx.stmt.For)
-    assert rt_func.body[0].body[0].kind == tvm.tirx.ForKind.PARALLEL
+    assert isinstance(rt_func.body[0].body[0], tvm.ir.For)
+    assert rt_func.body[0].body[0].kind == tvm.ir.ForKind.PARALLEL
     assert rt_func.body[0].body[0].annotations.get("thread_binding") == "threadIdx.y"
     assert rt_func.body[0].body[0].annotations["attr_key"] == "attr_value"
 
@@ -945,11 +944,11 @@ def func():
     )
     binding = func.body[0].body.seq[0]
     if mutable:
-        assert isinstance(binding, tvm.tirx.Bind) and isinstance(binding.value, tvm.ir.Call)
+        assert isinstance(binding, tvm.ir.Bind) and isinstance(binding.value, tvm.ir.Call)
         assert binding.value.op.name == "tirx.alloc_tensor"
         var_name = binding.var.name
     else:
-        assert isinstance(binding, tvm.tirx.Bind)
+        assert isinstance(binding, tvm.ir.Bind)
         var_name = binding.var.name
     assert var_name == "j"
 
@@ -1017,10 +1016,12 @@ def test_loop_jump_statement():
     jumps = []
     tvm_ffi.structural_walk(
         implicit.body,
-        lambda node: jumps.append(node) if isinstance(node, tirx.Break | tirx.Continue) else None,
+        lambda node: jumps.append(node)
+        if isinstance(node, tvm.ir.Break | tvm.ir.Continue)
+        else None,
     )
-    assert sum(isinstance(node, tirx.Break) for node in jumps) == 1
-    assert sum(isinstance(node, tirx.Continue) for node in jumps) == 1
+    assert sum(isinstance(node, tvm.ir.Break) for node in jumps) == 1
+    assert sum(isinstance(node, tvm.ir.Continue) for node in jumps) == 1
 
 
 @pytest.mark.parametrize(

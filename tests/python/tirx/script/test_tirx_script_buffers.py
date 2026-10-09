@@ -325,7 +325,7 @@ def test_buffer():
 def test_buffer_shape_repeated_var_prints_out_of_line():
     n = tvm.tirx.Var("n", "int32")
     buffer = tvm.tirx.decl_tensor((n + n,), name="A")
-    func = tvm.tirx.Function([buffer], tvm.tirx.Evaluate(0))
+    func = tvm.tirx.Function([buffer], tvm.ir.Evaluate(0))
 
     code = func.script()
     assert "def main[n: T.int32](" in code
@@ -453,7 +453,7 @@ def test_buffer_local_ir():
 
 def _is_buffer_binding(node, *op_names):
     return (
-        isinstance(node, tvm.tirx.Bind)
+        isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
         and isinstance(node.value.op, tvm.ir.Op)
         and node.value.op.name in op_names

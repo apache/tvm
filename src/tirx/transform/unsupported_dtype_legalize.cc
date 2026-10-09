@@ -379,9 +379,10 @@ class ComputeLegalizer : public StmtExprMutator {
     auto indices = Mutate(op->indices, inplace_mode)
                        .as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>()
                        .ValueOrUnchanged(op->indices);
-    TensorVar new_buf = GetRemappedBuffer(op->buffer);
+    TensorVar new_buf = GetRemappedBuffer(op->dest.as_or_throw<TensorVar>());
 
-    if (value_unchanged && indices.same_as(op->indices) && new_buf.same_as(op->buffer)) {
+    if (value_unchanged && indices.same_as(op->indices) &&
+        new_buf.same_as(op->dest.as_or_throw<TensorVar>())) {
       return ffi::Unchanged();
     } else {
       if (MatchType(new_buf->dtype)) {
@@ -394,7 +395,7 @@ class ComputeLegalizer : public StmtExprMutator {
         TVM_FFI_ICHECK(MatchType(value.ty()));
         value = DTypeConversion(value, storage_dtype);
       }
-      return TensorStore(new_buf, value, indices);
+      return TensorStore(new_buf, indices, value);
     }
   }
 
@@ -569,17 +570,18 @@ class StorageLegalizer : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     PrimExpr value =
         this->ChangeToUInt(Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value));
-    TensorVar new_buf = GetRemappedBuffer(op->buffer);
+    TensorVar new_buf = GetRemappedBuffer(op->dest.as_or_throw<TensorVar>());
     auto indices = Mutate(op->indices, inplace_mode)
                        .as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>()
                        .ValueOrUnchanged(op->indices);
-    if (new_buf.same_as(op->buffer) && indices.same_as(op->indices) && value.same_as(op->value)) {
+    if (new_buf.same_as(op->dest.as_or_throw<TensorVar>()) && indices.same_as(op->indices) &&
+        value.same_as(op->value)) {
       return ffi::Unchanged();
     } else {
       if (MatchType(op->value.ty())) {
         TVM_FFI_ICHECK(new_buf->dtype.MatchesCode(DLDataTypeCode::kDLUInt));
       }
-      return TensorStore(new_buf, value, indices);
+      return TensorStore(new_buf, indices, value);
     }
   }
 

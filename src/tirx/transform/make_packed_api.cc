@@ -60,11 +60,11 @@ class ReturnRewriter : public StmtExprMutator {
   explicit ReturnRewriter(Var ret_var) : ret_var_(ret_var) {}
 
   UnchangedOr<Stmt> Mutate_(const ForNode* node, InplaceMode inplace_mode) override {
-    if (node->kind == ForKind::kParallel && !node->GetThreadBinding().has_value())
+    if (node->kind == ForKind::kParallel && !tvm::tirx::GetThreadBinding(node).has_value())
       in_parallel_ += 1;
     Stmt ret =
         StmtExprMutator::Mutate_(node, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(node));
-    if (node->kind == ForKind::kParallel && !node->GetThreadBinding().has_value())
+    if (node->kind == ForKind::kParallel && !tvm::tirx::GetThreadBinding(node).has_value())
       in_parallel_ -= 1;
     return ret;
   }
@@ -114,16 +114,16 @@ class ReturnRewriter : public StmtExprMutator {
   Stmt WriteToOut(Expr val) {
     auto info = ConvertForFFI(val);
     Stmt store_tindex =
-        tirx::Evaluate(Call(PrimType::Int(32), tirx::abi_field_set_op(),
-                            {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::kTVMFFIAnyTypeIndex),
-                             IntImm::Int32(info.type_index)})
-                           .as_or_throw<PrimExpr>());
+        Evaluate(Call(PrimType::Int(32), tirx::abi_field_set_op(),
+                      {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::kTVMFFIAnyTypeIndex),
+                       IntImm::Int32(info.type_index)})
+                     .as_or_throw<PrimExpr>());
     Stmt store_zero_padding =
-        tirx::Evaluate(Call(PrimType::Int(32), tirx::abi_field_set_op(),
-                            {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::kTVMFFIAnyZeroPadding),
-                             IntImm::Int32(0)})
-                           .as_or_throw<PrimExpr>());
-    Stmt store_val = tirx::Evaluate(
+        Evaluate(Call(PrimType::Int(32), tirx::abi_field_set_op(),
+                      {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::kTVMFFIAnyZeroPadding),
+                       IntImm::Int32(0)})
+                     .as_or_throw<PrimExpr>());
+    Stmt store_val = Evaluate(
         Call(PrimType::Int(32), tirx::abi_field_set_op(),
              {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::kTVMFFIAnyUnionValue), info.expr})
             .as_or_throw<PrimExpr>());

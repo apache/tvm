@@ -474,7 +474,7 @@ def test_reg_copy_linear_shared_hoists_thread_base():
     nodes = []
     tvm_ffi.structural_walk(dispatched[0].body, nodes.append)
     (copy_loop,) = [
-        node for node in nodes if isinstance(node, tvm.tirx.For) and int(node.extent) == 8
+        node for node in nodes if isinstance(node, tvm.ir.For) and int(node.extent) == 8
     ]
     loop_nodes = []
     tvm_ffi.structural_walk(copy_loop.body, loop_nodes.append)
@@ -488,9 +488,9 @@ def test_reg_copy_linear_shared_hoists_thread_base():
     offset = pointer.args[2]
     assert isinstance(offset, tvm.tirx.Add)
     (base,) = [
-        node for node in nodes if isinstance(node, tvm.tirx.Bind) and node.var.same_as(offset.a)
+        node for node in nodes if isinstance(node, tvm.ir.Bind) and node.var.same_as(offset.a)
     ]
-    assert not any(isinstance(node, tvm.tirx.Bind) and node.same_as(base) for node in loop_nodes)
+    assert not any(isinstance(node, tvm.ir.Bind) and node.same_as(base) for node in loop_nodes)
     assert not any(
         var.same_as(copy_loop.loop_var) for var in tvm.tirx.analysis.undefined_vars(base.value)
     )

@@ -259,7 +259,7 @@ class OperationKind(IntEnum):
     _BinaryEnd = 27
 
     _SpecialStart = 28
-    IfThenElse = 29
+    If = 29
     _SpecialEnd = 30
 
     # pylint: enable=invalid-name

@@ -55,7 +55,7 @@ ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const BindNode* op) 
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const IfThenElseNode* op) {
+ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const IfNode* op) {
   return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->condition));
 

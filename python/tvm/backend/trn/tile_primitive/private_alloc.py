@@ -20,8 +20,9 @@ from typing import Any
 from tvm.backend.trn.tile_primitive.common import init_analyzer, nki_dim
 from tvm.backend.trn.tile_primitive.dim_utils import get_ewise_dim_map
 from tvm.backend.trn.tile_primitive.instruction_generator import InstructionGenerator
+from tvm.ir import Stmt
 from tvm.script import tirx as T
-from tvm.tirx import FloatImm, IntImm, Stmt, Var
+from tvm.tirx import FloatImm, IntImm, Var
 from tvm.tirx.op.tile import (
     BinaryReduce,
     Copy,

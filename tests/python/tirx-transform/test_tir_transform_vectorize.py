@@ -68,8 +68,8 @@ def test_vectorize_vector():
     mod = tvm.tirx.transform.VectorizeLoop()(Module)
     stmt = mod["main"].body[0]
 
-    assert isinstance(stmt, tvm.tirx.For)
-    assert not isinstance(stmt.body[0], tvm.tirx.For)
+    assert isinstance(stmt, tvm.ir.For)
+    assert not isinstance(stmt.body[0], tvm.ir.For)
     assert len(stmt.body[0].indices) == 1
     assert isinstance(stmt.body[0].indices[0], tvm.tirx.Ramp)
     assert isinstance(stmt.body[0].value, tvm.tirx.Broadcast)
@@ -246,7 +246,7 @@ def test_vectorize_with_le_cond(extent, target):
     stmt = tvm.tirx.transform.VectorizeLoop()(Module)["main"].body[0]
 
     # Check that the loop wasn't vectorised
-    assert isinstance(stmt, tvm.tirx.For)
+    assert isinstance(stmt, tvm.ir.For)
 
 
 @pytest.mark.parametrize("extent, target", [(4, simple_target), (T.vscale() * 4, sve_target)])
@@ -263,7 +263,7 @@ def test_vectorize_with_ge_cond(extent, target):
     stmt = tvm.tirx.transform.VectorizeLoop()(Module)["main"].body[0]
 
     # Check that the loop wasn't vectorised
-    assert isinstance(stmt, tvm.tirx.For)
+    assert isinstance(stmt, tvm.ir.For)
 
 
 @pytest.mark.parametrize("extent, target", [(4, simple_target), (T.vscale() * 4, sve_target)])

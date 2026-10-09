@@ -498,4 +498,4 @@ class SMEMPool:
         from tvm.backend.cuda.op import dyn_smem_bytes
         from tvm.tirx.script.ir_builder.parser_protocol import add_to_parent
 
-        add_to_parent(tvm.tirx.Evaluate(dyn_smem_bytes(tvm.tirx.IntImm("int64", resolved))))
+        add_to_parent(tvm.ir.Evaluate(dyn_smem_bytes(tvm.tirx.IntImm("int64", resolved))))

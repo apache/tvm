@@ -18,11 +18,9 @@
 
 # pylint: disable=invalid-name
 
-from tvm.ir import IRModule
+from tvm.ir import Expr, IRModule, Stmt
 from tvm.tirx.expr import Var
-from tvm.tirx.stmt import Expr
 
-from .. import Stmt
 from ..function import Function
 from . import _ffi_api
 
