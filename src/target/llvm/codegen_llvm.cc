@@ -1552,6 +1552,13 @@ llvm::Value* CodeGenLLVM::Dispatch_(const StringImmNode* op) { return GetConstSt
       } else {                                                                           \
         return builder_->Create##Op(a, b);                                               \
       }                                                                                  \
+    } else if (t.MatchesCode(DLDataTypeCode::kDLBool)) {                                 \
+      /* As in the C target, compute in int and convert back: non-zero is true. */       \
+      llvm::Type* int_ty = a->getType()->getWithNewBitWidth(32);                         \
+      llvm::Value* lhs = builder_->CreateZExt(a, int_ty);                                \
+      llvm::Value* rhs = builder_->CreateZExt(b, int_ty);                                \
+      llvm::Value* value = builder_->Create##Op(lhs, rhs);                               \
+      return builder_->CreateICmpNE(value, llvm::Constant::getNullValue(int_ty));        \
     } else {                                                                             \
       TVM_FFI_ICHECK(t.MatchesCode(DLDataTypeCode::kDLFloat));                           \
       return builder_->CreateF##Op(a, b);                                                \
