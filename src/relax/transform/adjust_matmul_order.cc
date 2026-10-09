@@ -242,6 +242,10 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       transpose_shape_last_two_dims(shape_c);
     }
 
+    // A rank-one middle operand is treated as a column vector in A @ B,
+    // but as a row vector in B @ C, so matrix associativity does not apply.
+    if (shape_b.size() < 2) return expr;
+
     // If two of the three are compile-time, group those two values
     // together, to allow them to be lifted out and pre-computed.
     if (is_compile_time(expr_a) && is_compile_time(expr_b)) {

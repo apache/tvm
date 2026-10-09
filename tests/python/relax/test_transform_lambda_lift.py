@@ -553,5 +553,22 @@ def test_symbolic_variable_defined_by_outer_func():
     assert_structural_equal(Expected, After)
 
 
+def test_closure_called_through_alias():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((2,), "float32"), y: R.Tensor((2,), "float32")):
+            @R.function
+            def inner(z: R.Tensor((2,), "float32")):
+                return R.add(z, x)
+
+            alias = inner
+            return alias(y)
+
+    after = transform.LambdaLift()(Before)
+    assert relax.analysis.check_well_formed(after, check_ty=True)
+    assert "R.invoke_pure_closure" in after.script()
+
+
 if __name__ == "__main__":
     tvm.testing.main()

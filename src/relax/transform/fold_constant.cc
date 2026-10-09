@@ -384,11 +384,28 @@ class ConstantFolder : public ExprMutator {
           TVM_FFI_ICHECK(ndarray.IsContiguous());
           TVM_FFI_ICHECK_EQ(ndarray->byte_offset, 0);
           TVM_FFI_ICHECK_EQ(ndarray->ndim, 1);
-          const int64_t* data = static_cast<const int64_t*>(ndarray->data);
           int64_t num_elems = ndarray->shape[0];
           ffi::Array<PrimExpr> shape_values;
-          for (int64_t i = 0; i < num_elems; i++) {
-            shape_values.push_back(IntImm::Int64(data[i]));
+          auto append_values = [&](const auto* data) {
+            for (int64_t i = 0; i < num_elems; i++) {
+              shape_values.push_back(IntImm::Int64(data[i]));
+            }
+          };
+          if (ndarray->dtype.code != kDLInt || ndarray->dtype.lanes != 1) {
+            return post_call;
+          }
+          switch (ndarray->dtype.bits) {
+            case 16:
+              append_values(static_cast<const int16_t*>(ndarray->data));
+              break;
+            case 32:
+              append_values(static_cast<const int32_t*>(ndarray->data));
+              break;
+            case 64:
+              append_values(static_cast<const int64_t*>(ndarray->data));
+              break;
+            default:
+              return post_call;
           }
           return ShapeExpr(shape_values);
         }
