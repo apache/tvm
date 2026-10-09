@@ -68,14 +68,14 @@ def async_copy_scope():
     return region("s_tir.async_copy_scope", [])
 
 
-def async_commit(queue_id):
+def async_commit(queue_id, *, ty=None, span=None):
     """Commit the preceding asynchronous copies to a queue."""
-    return tir.call_intrin("void", "s_tir.async_commit", queue_id)
+    return ir.Call("s_tir.async_commit", [queue_id], ty=ty, span=span)
 
 
-def async_wait(queue_id, inflight_count):
+def async_wait(queue_id, inflight_count, *, ty=None, span=None):
     """Wait until at most inflight_count committed groups remain in flight."""
-    return tir.call_intrin("void", "s_tir.async_wait", queue_id, inflight_count)
+    return ir.Call("s_tir.async_wait", [queue_id, inflight_count], ty=ty, span=span)
 
 
 def manual_sync():

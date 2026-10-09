@@ -918,7 +918,7 @@ def test_legalize_dynamic_begin_end():
             return R.call_tir(
                 expected.strided_slice,
                 (A, index),
-                out_ty=R.Tensor((1, 16), "float32"),
+                ty_args=[R.Tensor((1, 16), "float32")],
             )
 
         @Ts.function(private=True)
@@ -972,7 +972,7 @@ def test_legalize_dynamic_begin_inf_end():
         @R.function
         def main(A: R.Tensor((16, 16), dtype="float32"), B: R.Shape([index])) -> R.Tensor((T.max(16 - T.max(T.if_then_else(index < 0, index + 16, index), 0), 0), 16), dtype="float32"):
             cls = expected
-            gv = R.call_tir(cls.strided_slice, (A, index), out_ty=R.Tensor((T.max(16 - T.max(T.if_then_else(index < 0, index + 16, index), 0), 0), 16), dtype="float32"))
+            gv = R.call_tir(cls.strided_slice, (A, index), ty_args=[R.Tensor((T.max(16 - T.max(T.if_then_else(index < 0, index + 16, index), 0), 0), 16), dtype="float32")])
             return gv
     # fmt: on
 

@@ -1223,7 +1223,7 @@ def ldexp(x1, x2, *, ty=None, span=None):
     return _call_prim(ty, "prim.ldexp", x1, x2, span=span)  # type: ignore
 
 
-def isnan(x, span=None):
+def isnan(x, span=None, *, ty=None):
     """Check if input value is Nan.
 
     Parameters
@@ -1239,7 +1239,7 @@ def isnan(x, span=None):
     y : Expr
         The result.
     """
-    return _ffi_api.isnan(x, span)  # type: ignore
+    return Call("prim.isnan", [x], ty=ty, span=span)
 
 
 def isfinite(x, span=None):

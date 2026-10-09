@@ -367,7 +367,7 @@ class BlockBuilder(Object):
             function_name = func.__name__
         gvar = self.add_func(tir_func, function_name)
 
-        return call_tir(gvar, call_args, output_ty)
+        return call_tir(gvar, call_args, ty_args=[output_ty])
 
     def call_te_with_grad(
         self,
@@ -422,7 +422,13 @@ class BlockBuilder(Object):
             function_name = func.__name__
         gvar = self.add_func(tir_func, function_name)
 
-        return call_tir_with_grad(gvar, call_args, output_ty, te_grad_name, te_grad_kwargs)
+        return call_tir_with_grad(
+            gvar,
+            call_args,
+            ty_args=[output_ty],
+            te_grad_name=te_grad_name,
+            te_grad_kwargs=te_grad_kwargs,
+        )
 
     def emit_te(self, func: Callable, *args: Any, **kwargs: Any) -> Var:
         """Emit a call node according to the te function.
@@ -496,7 +502,7 @@ class BlockBuilder(Object):
                 @R.function
                 def rx_func(x: Tensor((n, m), "float32"), y: Tensor((n, m), "float32")) -> Tensor:
                     # block 0
-                    gv = relax.call_tir("te_func", (x, y), R.Tensor((128, 128), "float32"))
+                    gv = relax.call_tir(te_func, (x, y), ty_args=[R.Tensor((128, 128), "float32")])
                     return gv
 
         Example
@@ -546,7 +552,7 @@ class BlockBuilder(Object):
                 def rx_func(x: Tensor((n,), "float32"), y: Tensor(((n + 1),), "float32"))
                     -> Tensor(None, "float32", ndim=-1):
                     # block 0
-                    gv = relax.call_tir(te_func, (y, n), R.Tensor((n + 1,), "float32"))
+                    gv = relax.call_tir(te_func, (y, n), ty_args=[R.Tensor((n + 1,), "float32")])
                     return gv
         """
         name_hint = kwargs.pop("name_hint", "")

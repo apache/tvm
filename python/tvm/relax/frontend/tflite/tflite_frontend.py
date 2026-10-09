@@ -29,6 +29,8 @@ import numpy as np
 
 import tvm
 from tvm import relax, tirx
+from tvm.ir import TupleType as _TupleType
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax import op as _op
 from tvm.script import s_tir as Ts
 
@@ -2660,9 +2662,13 @@ class OperatorConverter:
         call = relax.call_tir(
             gv,
             [state_expr],
-            [
-                relax.TensorType(tuple(state_shape), "uint64"),
-                relax.TensorType(out_shape, out_dtype),
+            ty_args=[
+                _TupleType(
+                    [
+                        relax.TensorType(tuple(state_shape), "uint64"),
+                        relax.TensorType(out_shape, out_dtype),
+                    ]
+                )
             ],
         )
         return self.bb.normalize(call)
@@ -4236,9 +4242,9 @@ class OperatorConverter:
         out_shape, _ = self._get_shape_expr_from_tensor(input_tensors[0], "random_uniform_dim")
         seed, seed2 = self._get_random_options(op)
         return relax.op.call_dps_packed(
-            "tvm.contrib.random.uniform",
+            _ExternFunc("tvm.contrib.random.uniform"),
             (seed, seed2, 0.0, 1.0),
-            out_ty=relax.TensorType(out_shape, output_dtype),
+            ty_args=[relax.TensorType(out_shape, output_dtype)],
         )
 
     def convert_random_standard_normal(self, op):
@@ -4257,9 +4263,9 @@ class OperatorConverter:
         )
         seed, seed2 = self._get_random_options(op)
         return relax.op.call_dps_packed(
-            "tvm.contrib.random.normal",
+            _ExternFunc("tvm.contrib.random.normal"),
             (seed, seed2, 0.0, 1.0),
-            out_ty=relax.TensorType(out_shape, output_dtype),
+            ty_args=[relax.TensorType(out_shape, output_dtype)],
         )
 
     def convert_multinomial(self, op):
@@ -4296,9 +4302,9 @@ class OperatorConverter:
 
         seed, seed2 = self._get_random_options(op)
         uniform_sample = relax.op.call_dps_packed(
-            "tvm.contrib.random.uniform",
+            _ExternFunc("tvm.contrib.random.uniform"),
             (seed, seed2, 0.0, 1.0),
-            out_ty=relax.TensorType([output_batch, 1], "float32"),
+            ty_args=[relax.TensorType([output_batch, 1], "float32")],
         )
         sample_indices = relax.op.reshape(
             relax.op.broadcast_to(
@@ -5594,7 +5600,7 @@ class OperatorConverter:
         call = relax.call_tir(
             gv,
             [data_expr],
-            relax.TensorType(relax_output_shape, "float32"),
+            ty_args=[relax.TensorType(relax_output_shape, "float32")],
         )
         return self.bb.normalize(call)
 
@@ -6874,14 +6880,14 @@ class OperatorConverter:
         output_dtype = self.get_tensor_type_str(output_tensor.tensor.Type())
 
         out = relax.op.call_dps_packed(
-            "topi.nn.batch_to_space_nd",
+            _ExternFunc("topi.nn.batch_to_space_nd"),
             (
                 in_expr,
                 relax.ShapeExpr(block_shape),
                 relax.ShapeExpr(crop_begin),
                 relax.ShapeExpr(crop_end),
             ),
-            out_ty=relax.TensorType(output_shape, output_dtype),
+            ty_args=[relax.TensorType(output_shape, output_dtype)],
         )
 
         return out
@@ -7117,7 +7123,7 @@ class OperatorConverter:
         output_dtype = self.get_tensor_type_str(output_tensor.tensor.Type())
 
         out = relax.op.call_dps_packed(
-            "topi.nn.space_to_batch_nd",
+            _ExternFunc("topi.nn.space_to_batch_nd"),
             (
                 in_expr,
                 relax.ShapeExpr(block_shape),
@@ -7125,7 +7131,7 @@ class OperatorConverter:
                 relax.ShapeExpr(pad_after),
                 0.0,
             ),
-            out_ty=relax.TensorType(output_shape, output_dtype),
+            ty_args=[relax.TensorType(output_shape, output_dtype)],
         )
 
         return out
@@ -7218,9 +7224,9 @@ class OperatorConverter:
         output_shape_expr = relax.const(list(self.get_tensor_value(output_shape)), "int32")
 
         out = relax.op.call_dps_packed(
-            "topi.sparse_to_dense",
+            _ExternFunc("topi.sparse_to_dense"),
             (indices_expr, output_shape_expr, values_expr, default_value_expr),
-            out_ty=relax.TensorType(output_shape_val, output_dtype),
+            ty_args=[relax.TensorType(output_shape_val, output_dtype)],
         )
 
         return out
@@ -8039,7 +8045,7 @@ class OperatorConverter:
         # )
         # TFLite MATRIX_SET_DIAG only sets the main diagonal, so k1=0, k2=0
         out = relax.op.call_dps_packed(
-            "topi.matrix_set_diag",
+            _ExternFunc("topi.matrix_set_diag"),
             (
                 input_expr,
                 diagonal_expr,
@@ -8048,7 +8054,7 @@ class OperatorConverter:
                 relax.const(False),
                 relax.const(False),
             ),
-            out_ty=relax.TensorType(output_shape, output_dtype),
+            ty_args=[relax.TensorType(output_shape, output_dtype)],
         )
         return out
 
@@ -8080,7 +8086,7 @@ class OperatorConverter:
         # )
         # TFLite MATRIX_DIAG only sets the main diagonal, so k1=0, k2=0
         out = relax.op.call_dps_packed(
-            "topi.matrix_set_diag",
+            _ExternFunc("topi.matrix_set_diag"),
             (
                 zeros_expr,
                 diagonal_expr,
@@ -8089,7 +8095,7 @@ class OperatorConverter:
                 relax.const(False),
                 relax.const(False),
             ),
-            out_ty=relax.TensorType(output_shape, output_dtype),
+            ty_args=[relax.TensorType(output_shape, output_dtype)],
         )
         return out
 

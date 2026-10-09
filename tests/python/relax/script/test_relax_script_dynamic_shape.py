@@ -27,6 +27,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import IRModule, relax, tirx
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import s_tir as Ts
@@ -135,7 +136,9 @@ def test_symbolic_shape():
 
     @R.function
     def foo(x: R.Tensor((m, n), "float32")) -> R.Tensor((m, n), "float32"):
-        gv0 = R.call_dps_packed("extern_func", x, R.Tensor((m, n), dtype="float32"))
+        gv0 = R.call_dps_packed(
+            _ExternFunc("extern_func"), x, ty_args=[R.Tensor((m, n), dtype="float32")]
+        )
         return gv0
 
     m = T.dynamic("m", "int64")
@@ -143,7 +146,9 @@ def test_symbolic_shape():
 
     @R.function
     def bar(x: R.Tensor((m, n), "float32")) -> R.Tensor((m, n), "float32"):
-        gv0 = R.call_dps_packed("extern_func", x, R.Tensor((m, n), dtype="float32"))
+        gv0 = R.call_dps_packed(
+            _ExternFunc("extern_func"), x, ty_args=[R.Tensor((m, n), dtype="float32")]
+        )
         return gv0
 
     with pytest.raises(tvm.error.InternalError):
@@ -152,7 +157,9 @@ def test_symbolic_shape():
 
         @R.function
         def mismatch_dtype(x: R.Tensor((m, n), "float32")) -> R.Tensor(None, "float32", ndim=2):
-            gv0 = R.call_dps_packed("extern_func", x, R.Tensor((m, n), dtype="float32"))
+            gv0 = R.call_dps_packed(
+                _ExternFunc("extern_func"), x, ty_args=[R.Tensor((m, n), dtype="float32")]
+            )
             return gv0
 
     def _expected(name: str):
@@ -161,7 +168,9 @@ def test_symbolic_shape():
         bb = relax.BlockBuilder()
         with bb.function(name, (x,)):
             out = bb.emit(
-                relax.call_dps_packed("extern_func", x, R.Tensor((m, n), dtype="float32"))
+                relax.call_dps_packed(
+                    _ExternFunc("extern_func"), x, ty_args=[R.Tensor((m, n), dtype="float32")]
+                )
             )
             bb.emit_func_output(out)
         return bb.get()[name]
@@ -209,7 +218,7 @@ def test_call_tir_with_tir_var():
             dumb_param: R.Tensor((n,), "float32"), x: R.Tensor((n * 2,), "float32")
         ) -> R.Tensor((n * 2,), "float32"):
             cls = Module
-            y = R.call_tir(cls.copy, (x, n), R.Tensor((n * 2,), dtype="float32"))
+            y = R.call_tir(cls.copy, (x, n), ty_args=[R.Tensor((n * 2,), dtype="float32")])
             return y
 
         copy_n = T.int64()
@@ -391,7 +400,11 @@ def test_symbolic_vars_in_tensor_shape_with_definition_first():
     def bar(x: R.Tensor((m,), "float32"), y: R.Tensor((T.max(m, 20),), "float32")) -> R.Tensor(
         (T.max(m, 20) + 1,), "float32"
     ):
-        z = R.call_dps_packed("test_intrin", (x, y), R.Tensor((T.max(m, 20) + 1,), dtype="float32"))
+        z = R.call_dps_packed(
+            _ExternFunc("test_intrin"),
+            (x, y),
+            ty_args=[R.Tensor((T.max(m, 20) + 1,), dtype="float32")],
+        )
         return z
 
     m = tirx.Var("m", "int64")
@@ -401,7 +414,9 @@ def test_symbolic_vars_in_tensor_shape_with_definition_first():
     with bb.function("bar", (x, y)):
         z = bb.emit(
             relax.call_dps_packed(
-                "test_intrin", (x, y), R.Tensor((tirx.max(m, 20) + 1,), dtype="float32")
+                _ExternFunc("test_intrin"),
+                (x, y),
+                ty_args=[R.Tensor((tirx.max(m, 20) + 1,), dtype="float32")],
             )
         )
         bb.emit_func_output(z)
@@ -483,7 +498,9 @@ def test_symbolic_vars_in_shape():
 
     @R.function
     def baz(x: R.Shape((m,)), y: R.Tensor((m * 2,), "float32")):
-        z = R.call_dps_packed("test_intrin", y, R.Tensor((m * 2,), dtype="float32"))
+        z = R.call_dps_packed(
+            _ExternFunc("test_intrin"), y, ty_args=[R.Tensor((m * 2,), dtype="float32")]
+        )
         return z
 
     m = tirx.Var("m", "int64")
@@ -491,7 +508,11 @@ def test_symbolic_vars_in_shape():
     y = relax.Var("y", relax.TensorType([m * 2], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("baz", (x, y)):
-        z = bb.emit(relax.call_dps_packed("test_intrin", (y), R.Tensor((m * 2,), dtype="float32")))
+        z = bb.emit(
+            relax.call_dps_packed(
+                _ExternFunc("test_intrin"), (y), ty_args=[R.Tensor((m * 2,), dtype="float32")]
+            )
+        )
         bb.emit_func_output(z)
 
     _check(baz, bb.get()["baz"])

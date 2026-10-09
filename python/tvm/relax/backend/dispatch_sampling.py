@@ -63,7 +63,7 @@ class SamplingDispatcher(BackendDispatcher):
                 return relax.call_tir(
                     gv,
                     [prob, uniform_sample, sample_indices],
-                    out_ty=call.ty,
+                    ty_args=[call.ty],
                 )
             else:
                 cumsum_prob = relax.op.cumsum(prob, axis=1, dtype=prob_dtype.dtype, exclusive=False)
@@ -74,7 +74,7 @@ class SamplingDispatcher(BackendDispatcher):
                 return relax.call_tir(
                     gv,
                     [cumsum_prob, uniform_sample, sample_indices],
-                    out_ty=call.ty,
+                    ty_args=[call.ty],
                 )
 
         return super().visit_call_(call)

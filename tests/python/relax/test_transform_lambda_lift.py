@@ -343,7 +343,7 @@ def test_no_local_func():
 
         @R.function
         def before(c0: R.Tensor((16, 16), "float32"), x: R.Tensor(dtype="float32", ndim=2)):
-            s = R.call_tir(Before.sub, (c0, x), R.Tensor((16, 16), dtype="float32"))
+            s = R.call_tir(Before.sub, (c0, x), ty_args=[R.Tensor((16, 16), dtype="float32")])
             return s
 
     before = Before
@@ -359,7 +359,7 @@ def test_impure_function():
     class Expected:
         @R.function(pure=False, private=True)
         def main_inner() -> R.Tuple:
-            y = R.print(format="Wow!")
+            y = R.print("Wow!")
             return y
 
         @R.function(pure=False)
@@ -373,7 +373,7 @@ def test_impure_function():
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             @R.function(pure=False)
             def inner() -> R.Tuple:
-                y = R.print(format="Wow!")
+                y = R.print("Wow!")
                 return y
 
             gv1 = inner()

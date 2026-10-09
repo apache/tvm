@@ -183,7 +183,9 @@ def test_unused_relax_func():
         def main(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
             (16, 16), "float32"
         ):
-            gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
+            gv0 = R.call_tir(
+                InputModule.tir_add, (x, w), ty_args=[R.Tensor((16, 16), dtype="float32")]
+            )
             return gv0
 
     mod = InputModule
@@ -220,7 +222,9 @@ def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
         def foo(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
             (16, 16), "float32"
         ):
-            gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
+            gv0 = R.call_tir(
+                InputModule.tir_add, (x, w), ty_args=[R.Tensor((16, 16), dtype="float32")]
+            )
             return gv0
 
     mod = InputModule
@@ -261,7 +265,9 @@ def test_tracking_through_externally_exposed_func(provide_entry_func_name):
         def foo(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
             (16, 16), "float32"
         ):
-            gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
+            gv0 = R.call_tir(
+                InputModule.tir_add, (x, w), ty_args=[R.Tensor((16, 16), dtype="float32")]
+            )
             return gv0
 
         @R.function
@@ -319,7 +325,9 @@ def test_unused_relax_func_symbolic_shape():
             x: R.Tensor((m_main, n_main), "float32"), w: R.Tensor((n_main, k_main), "float32")
         ):
             gv0 = R.call_tir(
-                InputModule.tir_matmul, (x, w), R.Tensor((m_main, k_main), dtype="float32")
+                InputModule.tir_matmul,
+                (x, w),
+                ty_args=[R.Tensor((m_main, k_main), dtype="float32")],
             )
             return gv0
 
@@ -378,7 +386,7 @@ def test_preserve_indirectly_used_function():
             gv0 = R.call_tir(
                 InputModule.tir_add_tensors,
                 [x, w],
-                out_ty=R.Tensor((16, 16), "float32"),
+                ty_args=[R.Tensor((16, 16), "float32")],
             )
             return gv0
 

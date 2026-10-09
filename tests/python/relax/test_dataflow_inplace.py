@@ -22,6 +22,7 @@ import torch
 
 import tvm
 from tvm import relax, testing
+from tvm.ir import TupleType as _TupleType
 from tvm.relax import VMInstrumentReturnKind
 from tvm.relax.testing.transform import (
     dataflow_alias_analysis,
@@ -207,11 +208,13 @@ def test_alias_call_tir():
         def main(x: R.Tensor((10, 10), "int32")) -> R.Tensor((10, 10), "int32"):
             with R.dataflow():
                 cls = AliasCallTir
-                y = R.call_tir(cls.tir_id, (x,), out_ty=R.Tensor((10, 10), "int32"))
+                y = R.call_tir(cls.tir_id, (x,), ty_args=[R.Tensor((10, 10), "int32")])
                 t = R.call_tir(
                     cls.tir_id2,
                     (y,),
-                    out_ty=[R.Tensor((10, 10), "int32"), R.Tensor((10, 10), "int32")],
+                    ty_args=[
+                        _TupleType([R.Tensor((10, 10), "int32"), R.Tensor((10, 10), "int32")])
+                    ],
                 )
                 z = y
                 p = t[0]
@@ -498,34 +501,26 @@ def test_insert_inplace_calls():
                     cls.add_inplace,
                     (z, y),
                     inplace_indices=[0],
-                    out_ty=[
-                        R.Tensor((2, 3), dtype="float32"),
-                    ],
+                    ty_args=[R.Tensor((2, 3), dtype="float32")],
                 )
                 q: R.Tensor((2, 3), dtype="float32") = R.call_tir_inplace(
                     cls.multiply_inplace,
                     (a, y),
                     inplace_indices=[0],
-                    out_ty=[
-                        R.Tensor((2, 3), dtype="float32"),
-                    ],
+                    ty_args=[R.Tensor((2, 3), dtype="float32")],
                 )
                 r: R.Tensor((1, 3), dtype="float32") = R.subtract(y, y)
                 s: R.Tensor((1, 3), dtype="float32") = R.call_tir_inplace(
                     cls.subtract_inplace,
                     (r, r),
                     inplace_indices=[1],
-                    out_ty=[
-                        R.Tensor((1, 3), dtype="float32"),
-                    ],
+                    ty_args=[R.Tensor((1, 3), dtype="float32")],
                 )
                 m: R.Tensor((2, 3), dtype="float32") = R.call_tir_inplace(
                     cls.multiply_inplace,
                     (q, s),
                     inplace_indices=[0],
-                    out_ty=[
-                        R.Tensor((2, 3), dtype="float32"),
-                    ],
+                    ty_args=[R.Tensor((2, 3), dtype="float32")],
                 )
                 R.output(m)
             return m
@@ -614,13 +609,13 @@ def test_dynamic():
                 a_1 = R.call_tir_inplace(
                     cls.add_inplace,
                     (z, y),
-                    out_ty=R.Tensor((a_main, b_main), dtype="float32"),
+                    ty_args=[R.Tensor((a_main, b_main), dtype="float32")],
                     inplace_indices=[0],
                 )
                 s = R.call_tir_inplace(
                     cls.subtract_inplace,
                     (a_1, a_1),
-                    out_ty=R.Tensor((a_main, b_main), dtype="float32"),
+                    ty_args=[R.Tensor((a_main, b_main), dtype="float32")],
                     inplace_indices=[1],
                 )
                 R.output(s)

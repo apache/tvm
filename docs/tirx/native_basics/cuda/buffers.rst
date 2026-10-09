@@ -444,7 +444,7 @@ to an intrinsic or inline function; ``data`` is the base pointer:
 
 .. code-block:: python
 
-    B[tx] = Tx.cuda.func_call("ld", A.ptr_to([tx]), source_code=SRC, return_type="float32")
+    B[tx] = Tx.cuda.func_call("ld", A.ptr_to([tx]), SRC, ty="float32")
 
 .. code-block:: c++
 

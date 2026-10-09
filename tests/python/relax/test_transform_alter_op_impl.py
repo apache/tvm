@@ -18,6 +18,7 @@
 
 import tvm.testing
 from tvm import relax
+from tvm.ir import TupleType as _TupleType
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import s_tir as Ts
@@ -58,7 +59,7 @@ def test_single_output():
         @R.function
         def main(x: R.Tensor((16,), dtype="float32"), y: R.Tensor((16,), dtype="float32")) -> R.Tensor((16,), dtype="float32"):
             with R.dataflow():
-                lv = R.call_tir(Before.add, (x, y), out_ty=R.Tensor((16,), dtype="float32"))
+                lv = R.call_tir(Before.add, (x, y), ty_args=[R.Tensor((16,), dtype="float32")])
                 gv: R.Tensor((16,), dtype="float32") = lv
                 R.output(gv)
             return gv
@@ -79,7 +80,7 @@ def test_single_output():
             with R.dataflow():
                 lv: R.Tensor((4, 4), dtype="float32") = R.layout_transform(x, index_map=lambda i: (i // 4, i % 4), pad_value=None)
                 lv1: R.Tensor((4, 4), dtype="float32") = R.layout_transform(y, index_map=lambda i: (i // 4, i % 4), pad_value=None)
-                lv2 = R.call_tir(Expected.relax_add_replacement, (lv, lv1), out_ty=R.Tensor((4, 4), dtype="float32"))
+                lv2 = R.call_tir(Expected.relax_add_replacement, (lv, lv1), ty_args=[R.Tensor((4, 4), dtype="float32")])
                 lv_1: R.Tensor((16,), dtype="float32") = R.layout_transform(lv2, index_map=lambda axis0, axis1: (axis0 * 4 + axis1,), pad_value=None)
                 gv: R.Tensor((16,), dtype="float32") = lv_1
                 R.output(gv)
@@ -121,7 +122,7 @@ def test_empty_layout_changes():
         @R.function
         def main(x: R.Tensor((16,), dtype="float32")) -> R.Tensor((16,), dtype="float32"):
             with R.dataflow():
-                lv = R.call_tir(Before.mul_by_2, (x,), out_ty=R.Tensor((16,), dtype="float32"))
+                lv = R.call_tir(Before.mul_by_2, (x,), ty_args=[R.Tensor((16,), dtype="float32")])
                 gv: R.Tensor((16,), dtype="float32") = lv
                 R.output(gv)
             return gv
@@ -140,7 +141,7 @@ def test_empty_layout_changes():
         @R.function
         def main(x: R.Tensor((16,), dtype="float32")) -> R.Tensor((16,), dtype="float32"):
             with R.dataflow():
-                lv = R.call_tir(Expected.relax_mul_by_2_replacement, (x,), out_ty=R.Tensor((16,), dtype="float32"))
+                lv = R.call_tir(Expected.relax_mul_by_2_replacement, (x,), ty_args=[R.Tensor((16,), dtype="float32")])
                 gv: R.Tensor((16,), dtype="float32") = lv
                 R.output(gv)
             return gv
@@ -182,7 +183,7 @@ def test_multiple_outputs():
         @R.function
         def main(x: R.Tensor((16,), dtype="float32"), y: R.Tensor((16,), dtype="float32")) -> R.Tuple(R.Tensor((16,), dtype="float32"), R.Tensor((16,), dtype="float32")):
             with R.dataflow():
-                gv = R.call_tir(Before.some_op, (x, y), out_ty=[R.Tensor((16,), dtype="float32"), R.Tensor((16,), dtype="float32")])
+                gv = R.call_tir(Before.some_op, (x, y), ty_args=[_TupleType([R.Tensor((16,), dtype="float32"), R.Tensor((16,), dtype="float32")])])
                 R.output(gv)
             return gv
 
@@ -204,7 +205,7 @@ def test_multiple_outputs():
             with R.dataflow():
                 lv: R.Tensor((4, 4), dtype="float32") = R.layout_transform(x, index_map=lambda i: (i // 4, i % 4), pad_value=None)
                 lv1: R.Tensor((4, 4), dtype="float32") = R.layout_transform(y, index_map=lambda i: (i // 4, i % 4), pad_value=None)
-                lv2 = R.call_tir(Expected.relax_some_op_replacement, (lv, lv1), out_ty=[R.Tensor((4, 4), dtype="float32"), R.Tensor((4, 4), dtype="float32")])
+                lv2 = R.call_tir(Expected.relax_some_op_replacement, (lv, lv1), ty_args=[_TupleType([R.Tensor((4, 4), dtype="float32"), R.Tensor((4, 4), dtype="float32")])])
                 lv3: R.Tensor((4, 4), dtype="float32") = lv2[0]
                 lv4: R.Tensor((16,), dtype="float32") = R.layout_transform(lv3, index_map=lambda axis0, axis1: (axis0 * 4 + axis1,), pad_value=None)
                 lv5: R.Tensor((4, 4), dtype="float32") = lv2[1]
@@ -240,7 +241,7 @@ def test_supported_implicit_padding():
         @R.function
         def foo(x: R.Tensor((14,), dtype="float32")) -> R.Tensor((14,), dtype="float32"):
             with R.dataflow():
-                lv = R.call_tir(Before.relu, (x,), out_ty=R.Tensor((14,), dtype="float32"))
+                lv = R.call_tir(Before.relu, (x,), ty_args=[R.Tensor((14,), dtype="float32")])
                 gv: R.Tensor((14,), dtype="float32") = lv
                 R.output(gv)
             return gv
@@ -271,7 +272,7 @@ def test_supported_implicit_padding():
                 lv1 = R.call_tir(
                     Expected.relax_relu_replacement,
                     (lv,),
-                    out_ty=R.Tensor((16,), dtype="float32"),
+                    ty_args=[R.Tensor((16,), dtype="float32")],
                 )
                 lv2: R.Tensor((16,), dtype="float32") = R.layout_transform(
                     lv1,
@@ -279,7 +280,7 @@ def test_supported_implicit_padding():
                     pad_value=None,
                 )
                 lv_1 = R.call_tir(
-                    Expected.remove_pad, (lv2,), out_ty=R.Tensor((14,), dtype="float32")
+                    Expected.remove_pad, (lv2,), ty_args=[R.Tensor((14,), dtype="float32")]
                 )
                 gv: R.Tensor((14,), dtype="float32") = lv_1
                 R.output(gv)
@@ -348,9 +349,9 @@ def test_multiple_call_sites():
         @R.function
         def main(x: R.Tensor((16,), dtype="float32"), y: R.Tensor((16,), dtype="float32")) -> R.Tensor((16,), dtype="float32"):
             with R.dataflow():
-                lv0 = R.call_tir(Before.add, (x, y), out_ty=R.Tensor((16,), dtype="float32"))
+                lv0 = R.call_tir(Before.add, (x, y), ty_args=[R.Tensor((16,), dtype="float32")])
                 lv1 = R.nn.relu(lv0)
-                lv2 = R.call_tir(Before.add, (lv0, lv1), out_ty=R.Tensor((16,), dtype="float32"))
+                lv2 = R.call_tir(Before.add, (lv0, lv1), ty_args=[R.Tensor((16,), dtype="float32")])
                 gv: R.Tensor((16,), dtype="float32") = lv2
                 R.output(gv)
             return gv
@@ -372,12 +373,12 @@ def test_multiple_call_sites():
             with R.dataflow():
                 lv: R.Tensor((4, 4), dtype="float32") = R.layout_transform(x, index_map=lambda i: (i // 4, i % 4), pad_value=None)
                 lv1: R.Tensor((4, 4), dtype="float32") = R.layout_transform(y, index_map=lambda i: (i // 4, i % 4), pad_value=None)
-                lv2 = R.call_tir(Expected.relax_add_replacement, (lv, lv1), out_ty=R.Tensor((4, 4), dtype="float32"))
+                lv2 = R.call_tir(Expected.relax_add_replacement, (lv, lv1), ty_args=[R.Tensor((4, 4), dtype="float32")])
                 lv0: R.Tensor((16,), dtype="float32") = R.layout_transform(lv2, index_map=lambda axis0, axis1: (axis0 * 4 + axis1,), pad_value=None)
                 lv1_1: R.Tensor((16,), dtype="float32") = R.nn.relu(lv0)
                 lv3: R.Tensor((4, 4), dtype="float32") = R.layout_transform(lv0, index_map=lambda i: (i // 4, i % 4), pad_value=None)
                 lv4: R.Tensor((4, 4), dtype="float32") = R.layout_transform(lv1_1, index_map=lambda i: (i // 4, i % 4), pad_value=None)
-                lv5 = R.call_tir(Expected.relax_add_replacement, (lv3, lv4), out_ty=R.Tensor((4, 4), dtype="float32"))
+                lv5 = R.call_tir(Expected.relax_add_replacement, (lv3, lv4), ty_args=[R.Tensor((4, 4), dtype="float32")])
                 lv2_1: R.Tensor((16,), dtype="float32") = R.layout_transform(lv5, index_map=lambda axis0, axis1: (axis0 * 4 + axis1,), pad_value=None)
                 gv: R.Tensor((16,), dtype="float32") = lv2_1
                 R.output(gv)
@@ -431,7 +432,9 @@ def test_reshape():
         ):
             cls = Before
             with R.dataflow():
-                lv = R.call_tir(cls.reshape, (x,), out_ty=R.Tensor((850, 1, 2048), dtype="float16"))
+                lv = R.call_tir(
+                    cls.reshape, (x,), ty_args=[R.Tensor((850, 1, 2048), dtype="float16")]
+                )
                 gv: R.Tensor((850, 1, 2048), dtype="float16") = lv
                 R.output(gv)
             return gv
@@ -467,7 +470,7 @@ def test_reshape():
                 lv_1 = R.call_tir(
                     cls.relax_reshape_replacement,
                     (lv,),
-                    out_ty=R.Tensor((850, 1, 2048), dtype="float16"),
+                    ty_args=[R.Tensor((850, 1, 2048), dtype="float16")],
                 )
                 gv: R.Tensor((850, 1, 2048), dtype="float16") = lv_1
                 R.output(gv)

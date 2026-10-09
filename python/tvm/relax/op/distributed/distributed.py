@@ -17,15 +17,12 @@
 # pylint: disable=redefined-builtin
 """Operators for distributed Relax."""
 
-from tvm.error import InternalError as _InternalError
-from tvm.ir import Call
+from tvm.ir import Call, Op
 from tvm.ir.attrs import make_node
-from tvm.relax import ShapeExpr, TupleType
-from tvm.relax.distributed import DeviceMesh, DTensorType, Placement
+from tvm.ir.op import _make_op_api
+from tvm.relax.distributed import DeviceMesh, Placement
 
-from ...expr import Expr, GlobalVar
-from ...expr import Tuple as RxTuple
-from ...utils import convert_to_expr
+from ...expr import Expr
 
 
 def annotate_sharding(
@@ -97,60 +94,7 @@ def redistribute(
     )  # type: ignore
 
 
-def call_tir_local_view(
-    gvar: GlobalVar,
-    args: Expr,
-    out_ty: DTensorType | list[DTensorType] | None = None,
-    *,
-    ty_args=None,
-    ty=None,
-    span=None,
-) -> Call:
-    """
-    Call a tirx.function and return the output. The function should be a worker-local function
-    that is actually executed on each worker, instead of the unpartitioned function.
-    The output of this operator is DTensor or a tuple of DTensors.
-
-    Parameters
-    ----------
-    gvar : GlobalVar
-        The GlobalVar referring to a tirx Function.
-
-    args : Expr
-        The ordered distributed-tensor and primitive input arguments.  These
-        correspond positionally to the leading parameters of the Function.
-
-    out_ty : Union[DTensorType, List[DTensorType]]
-        The type information of the call_tir output.
-        It should be a single or a list of DTensorType. Each one denotes the
-        type information of a returned tensor.
-
-    Returns
-    -------
-    ret: Call
-        A call node for the call_tir_local_view operator.
-    """
-    if isinstance(args, tuple | list):
-        args = RxTuple([convert_to_expr(a) for a in args])
-    elif isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
-        args = RxTuple((args,))
-
-    if out_ty is not None:
-        if ty_args is not None:
-            raise TypeError("Specify either out_ty or ty_args")
-        if not isinstance(out_ty, list):
-            out_ty = [out_ty]
-        for output in out_ty:
-            if not isinstance(output.tensor_ty.shape, ShapeExpr):
-                raise _InternalError("out_ty must have a defined ShapeExpr shape")
-        ty_args = [out_ty[0] if len(out_ty) == 1 else TupleType(out_ty)]
-    return Call(
-        "relax.dist.call_tir_local_view",
-        [gvar, args],
-        ty_args=ty_args,
-        ty=ty,
-        span=span,
-    )
+call_tir_local_view = _make_op_api(Op.get("relax.dist.call_tir_local_view"), __name__)
 
 
 def redistribute_replica_to_shard(

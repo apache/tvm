@@ -742,7 +742,7 @@ def get_dequant_matmul_module(K, N):
                 lv2 = relax.call_tir(
                     cls.dequantize,
                     (weight, scale),
-                    out_ty=R.Tensor((K, N), dtype="float16"),
+                    ty_args=[R.Tensor((K, N), dtype="float16")],
                 )
                 gv: R.Tensor((1, seq_len, N), dtype="float16") = relax.op.matmul(
                     input, lv2, out_dtype="float16"
@@ -804,7 +804,7 @@ def get_dequant_vec_matmul_module(K, N):
                 lv2 = relax.call_tir(
                     cls.dequantize,
                     (weight, scale),
-                    out_ty=R.Tensor((K, vocab_size_main), dtype="float16"),
+                    ty_args=[R.Tensor((K, vocab_size_main), dtype="float16")],
                 )
                 gv: R.Tensor((1, 1, vocab_size_main), dtype="float16") = relax.op.matmul(
                     input, lv2, out_dtype="float16"

@@ -425,13 +425,13 @@ def test_to_vdevice():
 def test_hint_on_device():
     @R.function
     def foo(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-        r = R.hint_on_device(x, R.device(1, 0))
+        r = R.hint_on_device(x, device_type=1, index=0)
         return r
 
     x = relax.Var("x", R.Tensor((), "int32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
-        tensor = bb.emit(relax.op.hint_on_device(x, R.cpu()))
+        tensor = bb.emit(relax.op.hint_on_device(x, device_type=1, index=0))
         bb.emit_func_output(tensor)
 
     _check(foo, bb.get()["foo"])
@@ -440,13 +440,15 @@ def test_hint_on_device():
 def test_hint_on_device_scoped():
     @R.function
     def foo(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-        r = R.hint_on_device(x, R.device(4, 2), "global.texture")
+        r = R.hint_on_device(x, device_type=4, index=2, memory_scope="global.texture")
         return r
 
     x = relax.Var("x", R.Tensor((), "int32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
-        tensor = bb.emit(relax.op.hint_on_device(x, R.opencl(2), "global.texture"))
+        tensor = bb.emit(
+            relax.op.hint_on_device(x, device_type=4, index=2, memory_scope="global.texture")
+        )
         bb.emit_func_output(tensor)
 
     _check(foo, bb.get()["foo"])

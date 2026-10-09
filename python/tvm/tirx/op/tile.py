@@ -534,12 +534,14 @@ class ReduceNegate(ReduceOp):
     """
     Negate the result of a reduction operation.
 
-    reduce_negate(output, input, reduce_axes, accum, reduce_op)
+    reduce_negate(output, input, reduce_op, reduce_axes, accum)
     """
 
     op = get_tirx_op("reduce_negate")
 
-    reduce_op = ArgProperty(4)
+    reduce_op = ArgProperty(2)
+    reduce_axes = ArgProperty(3)
+    accum = ArgProperty(4)
 
 
 class PermuteLayout(TileOpCall):

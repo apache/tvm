@@ -137,16 +137,24 @@ def test_maxpool2d_scope_folding():
                 lv = R.call_tir(
                     cls.te_layout_transform,
                     (x,),
-                    out_ty=R.Tensor(
-                        (2, 1, 26, 26, 4), dtype="float32", vdevice="opencl:0:global.texture-weight"
-                    ),
+                    ty_args=[
+                        R.Tensor(
+                            (2, 1, 26, 26, 4),
+                            dtype="float32",
+                            vdevice="opencl:0:global.texture-weight",
+                        )
+                    ],
                 )
                 lv2 = R.call_tir(
                     cls.max_pool2d_opencl,
                     (lv,),
-                    out_ty=R.Tensor(
-                        (2, 1, 13, 13, 4), dtype="float32", vdevice="opencl:0:global.texture-weight"
-                    ),
+                    ty_args=[
+                        R.Tensor(
+                            (2, 1, 13, 13, 4),
+                            dtype="float32",
+                            vdevice="opencl:0:global.texture-weight",
+                        )
+                    ],
                 )
                 lv5: R.Tensor((2, 1, 13, 13, 4), dtype="float32", vdevice="opencl:1:global") = (
                     R.to_vdevice(lv2, dst_vdevice="opencl:1:global")
@@ -154,7 +162,7 @@ def test_maxpool2d_scope_folding():
                 gv2 = R.call_tir(
                     cls.te_layout_transform2,
                     (lv5,),
-                    out_ty=R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global"),
+                    ty_args=[R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global")],
                 )
                 R.output(gv2)
             return gv2
@@ -262,19 +270,25 @@ def test_maxpool2d_scope_folding():
                 lv = R.call_tir(
                     cls.te_layout_transform,
                     (x,),
-                    out_ty=R.Tensor(
-                        (2, 1, 26, 26, 4), dtype="float32", vdevice="opencl:0:global.texture-weight"
-                    ),
+                    ty_args=[
+                        R.Tensor(
+                            (2, 1, 26, 26, 4),
+                            dtype="float32",
+                            vdevice="opencl:0:global.texture-weight",
+                        )
+                    ],
                 )
                 lv5 = R.call_tir(
                     cls.max_pool2d_opencl,
                     (lv,),
-                    out_ty=R.Tensor((2, 1, 13, 13, 4), dtype="float32", vdevice="opencl:1:global"),
+                    ty_args=[
+                        R.Tensor((2, 1, 13, 13, 4), dtype="float32", vdevice="opencl:1:global")
+                    ],
                 )
                 gv2 = R.call_tir(
                     cls.te_layout_transform2,
                     (lv5,),
-                    out_ty=R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global"),
+                    ty_args=[R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global")],
                 )
                 R.output(gv2)
             return gv2

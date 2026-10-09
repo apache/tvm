@@ -79,7 +79,7 @@ def test_callback():
             A = R.call_tir(
                 cls.slice_A,
                 (A, rank_arg),
-                out_ty=R.Tensor([2, 4], "int32"),
+                ty_args=[R.Tensor([2, 4], "int32")],
             )
 
             B = fget_item(R.str("B"), R.prim_value(1))
@@ -87,7 +87,7 @@ def test_callback():
             B = R.call_tir(
                 cls.slice_B,
                 (B, rank_arg),
-                out_ty=R.Tensor([2, 1], "float32"),
+                ty_args=[R.Tensor([2, 1], "float32")],
             )
 
             return (A, B)

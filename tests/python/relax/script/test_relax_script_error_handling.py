@@ -27,6 +27,8 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import IRModule, relax
+from tvm.ir import TupleType as _TupleType
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import s_tir as Ts
@@ -61,7 +63,9 @@ def test_call_tir_requires_global_var():
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
             # call_tir requires a GlobalVar rather than a packed-function name.
-            gv0 = gv1 = R.call_tir("extern_func", x, R.Tensor((128, 128), dtype="float32"))
+            gv0 = gv1 = R.call_tir(
+                "extern_func", x, ty_args=[R.Tensor((128, 128), dtype="float32")]
+            )
             return gv0
 
 
@@ -107,7 +111,9 @@ def test_unexpected_tir_cast_args():
         @R.function
         def f(x: R.Tensor((m,), "float32")):
             # tirx.cast expects 2 arguments, but got 3
-            return R.call_tir("foo", (x,), R.Tensor((T.cast("int32", m, 1),), dtype="float32"))
+            return R.call_tir(
+                "foo", (x,), ty_args=[R.Tensor((T.cast("int32", m, 1),), dtype="float32")]
+            )
 
 
 def test_unexpected_tir_args():
@@ -127,7 +133,7 @@ def test_unexpected_tir_args():
             @R.function
             def foo(x: R.Tensor((m, m), "float32")):
                 # tirx.max expects 2 arguments, but got 1
-                gv = R.call_tir(tir_addone, (x,), R.Tensor((T.max(16),), dtype="float32"))  # noqa: F821
+                gv = R.call_tir(tir_addone, (x,), ty_args=[R.Tensor((T.max(16),), dtype="float32")])  # noqa: F821
                 return gv
 
     with pytest.raises(TypeError):
@@ -136,7 +142,9 @@ def test_unexpected_tir_args():
         @R.function
         def f(x: R.Tensor((m, m), "float32")):
             # call_tir expected a tirx function
-            return relax.call_tir("extern_func", (x,), R.Tensor((T.max(m),), dtype="float32"))
+            return relax.call_tir(
+                "extern_func", (x,), ty_args=[R.Tensor((T.max(m),), dtype="float32")]
+            )
 
 
 def test_func_type_annotation_fail():
@@ -203,9 +211,13 @@ def test_dataflow_binding_after_output():
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
             with R.dataflow():
-                gv = R.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
+                gv = R.call_dps_packed(
+                    _ExternFunc("extern_func"), x, ty_args=[R.Tensor((128, 128), dtype="float32")]
+                )
                 R.output(gv)
-                lv = R.call_dps_packed("extern_func", gv, R.Tensor((128, 128), dtype="float32"))
+                lv = R.call_dps_packed(
+                    _ExternFunc("extern_func"), gv, ty_args=[R.Tensor((128, 128), dtype="float32")]
+                )
             return gv
 
 
@@ -216,9 +228,13 @@ def test_dataflow_output_global_var():
 
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
-            gv0 = R.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
+            gv0 = R.call_dps_packed(
+                _ExternFunc("extern_func"), x, ty_args=[R.Tensor((128, 128), dtype="float32")]
+            )
             with R.dataflow():
-                gv1 = R.call_dps_packed("extern_func", gv0, R.Tensor((128, 128), dtype="float32"))
+                gv1 = R.call_dps_packed(
+                    _ExternFunc("extern_func"), gv0, ty_args=[R.Tensor((128, 128), dtype="float32")]
+                )
                 R.output(gv0, gv1)
             return gv1
 
@@ -231,7 +247,9 @@ def test_dataflow_multiple_output():
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
             with R.dataflow():
-                gv = R.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
+                gv = R.call_dps_packed(
+                    _ExternFunc("extern_func"), x, ty_args=[R.Tensor((128, 128), dtype="float32")]
+                )
                 R.output(gv)
                 R.output(gv)
             return gv
@@ -242,7 +260,9 @@ def test_dataflow_output_outside_dataflow_block():
 
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor(None, "float32", ndim=2):
-            gv = R.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
+            gv = R.call_dps_packed(
+                _ExternFunc("extern_func"), x, ty_args=[R.Tensor((128, 128), dtype="float32")]
+            )
             R.output(gv)
             return gv
 
@@ -275,7 +295,9 @@ def test_function_without_return():
 
         @R.function
         def foo(x: R.Tensor((128, 128), "float32")):
-            gv0 = R.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
+            gv0 = R.call_dps_packed(
+                _ExternFunc("extern_func"), x, ty_args=[R.Tensor((128, 128), dtype="float32")]
+            )
 
 
 def test_annotate_override():
@@ -311,7 +333,7 @@ def test_annotate_override():
 
 
 def test_call_tir_inplace_with_tuple_var_raises_error():
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError, match="not well-formed"):
 
         @tvm.script.ir_module
         class Module:
@@ -323,10 +345,10 @@ def test_call_tir_inplace_with_tuple_var_raises_error():
                     cls.copy,
                     # The `args` tuple must be an in-line tuple, not a
                     # reference to a tuple.  This error should be
-                    # caught and raised during parsing.
+                    # caught by script well-formedness validation.
                     args,
                     inplace_indices=[0, -1],
-                    out_ty=[R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")],
+                    ty_args=[_TupleType([R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")])],
                 )
                 return res
 

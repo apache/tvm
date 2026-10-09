@@ -27,6 +27,8 @@ import tvm_ffi
 import tvm.testing
 from tvm import relax as rx
 from tvm import tirx
+from tvm.ir import TupleType as _TupleType
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.relax.analysis import get_var2val
 from tvm.relax.dpl import *
 from tvm.script import relax as R
@@ -69,9 +71,9 @@ class Module:
     def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tuple:
         cls = Module
         with R.dataflow():
-            lv0 = R.call_tir(cls.tir_matmul, (x, w), R.Tensor((32, 32), dtype="float32"))
-            lv1 = R.call_tir(cls.tir_relu, (lv0), R.Tensor((32, 32), dtype="float32"))
-            lv2 = R.call_tir(cls.tir_zeros, [32], R.Tensor((32,), dtype="float32"))
+            lv0 = R.call_tir(cls.tir_matmul, (x, w), ty_args=[R.Tensor((32, 32), dtype="float32")])
+            lv1 = R.call_tir(cls.tir_relu, (lv0), ty_args=[R.Tensor((32, 32), dtype="float32")])
+            lv2 = R.call_tir(cls.tir_zeros, [32], ty_args=[R.Tensor((32,), dtype="float32")])
             gv = (lv1, lv2)
             R.output(gv)
         return gv
@@ -392,10 +394,18 @@ class Diamond:
             # relu  sigmoid
             #  \      /
             #    add
-            lv0 = R.call_dps_packed("extern_matmul", (x, w), R.Tensor((32, 32), dtype="float32"))
-            lv1 = R.call_dps_packed("extern_relu", (lv0,), R.Tensor((32, 32), dtype="float32"))
-            lv2 = R.call_dps_packed("extern_sigmoid", (lv0), R.Tensor((32, 32), dtype="float32"))
-            lv3 = R.call_dps_packed("extern_add", (lv1, lv2), R.Tensor((32, 32), dtype="float32"))
+            lv0 = R.call_dps_packed(
+                _ExternFunc("extern_matmul"), (x, w), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
+            lv1 = R.call_dps_packed(
+                _ExternFunc("extern_relu"), (lv0,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
+            lv2 = R.call_dps_packed(
+                _ExternFunc("extern_sigmoid"), (lv0), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
+            lv3 = R.call_dps_packed(
+                _ExternFunc("extern_add"), (lv1, lv2), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
             R.output(lv3)
         return lv3
 
@@ -454,8 +464,12 @@ class SmallDiamond:
             #  /      \
             #  \      /
             #    add
-            lv0 = R.call_dps_packed("my_relu", (x,), R.Tensor((32, 32), dtype="float32"))
-            lv1 = R.call_dps_packed("my_add", (lv0, lv0), R.Tensor((32, 32), dtype="float32"))
+            lv0 = R.call_dps_packed(
+                _ExternFunc("my_relu"), (x,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
+            lv1 = R.call_dps_packed(
+                _ExternFunc("my_add"), (lv0, lv0), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
             R.output(lv1)
         return lv1
 
@@ -468,9 +482,15 @@ class SmallParallel:
             # relu   relu
             #   \    /
             #    add
-            lv0 = R.call_dps_packed("my_relu", (x,), R.Tensor((32, 32), dtype="float32"))
-            lv1 = R.call_dps_packed("my_relu", (x,), R.Tensor((32, 32), dtype="float32"))
-            lv2 = R.call_dps_packed("my_add", (lv0, lv1), R.Tensor((32, 32), dtype="float32"))
+            lv0 = R.call_dps_packed(
+                _ExternFunc("my_relu"), (x,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
+            lv1 = R.call_dps_packed(
+                _ExternFunc("my_relu"), (x,), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
+            lv2 = R.call_dps_packed(
+                _ExternFunc("my_add"), (lv0, lv1), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
             R.output(lv2)
         return lv2
 
@@ -521,13 +541,27 @@ class CBRx2:
         #     \   /
         #     concat
         with R.dataflow():
-            lv0 = R.call_dps_packed("conv1x1", (x, w0), R.Tensor((32, 32), dtype="float32"))
-            lv1 = R.call_dps_packed("bias_add", (lv0, bias0), R.Tensor((32, 32), dtype="float32"))
-            lv2 = R.call_dps_packed("my_relu", (lv1), R.Tensor((32, 32), dtype="float32"))
-            lv3 = R.call_dps_packed("conv1x1", (x, w1), R.Tensor((32, 32), dtype="float32"))
-            lv4 = R.call_dps_packed("bias_add", (lv3, bias1), R.Tensor((32, 32), dtype="float32"))
-            lv5 = R.call_dps_packed("my_relu", (lv4), R.Tensor((32, 32), dtype="float32"))
-            lv6 = R.call_dps_packed("concat", (lv2, lv5), R.Tensor((32, 64), dtype="float32"))
+            lv0 = R.call_dps_packed(
+                _ExternFunc("conv1x1"), (x, w0), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
+            lv1 = R.call_dps_packed(
+                _ExternFunc("bias_add"), (lv0, bias0), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
+            lv2 = R.call_dps_packed(
+                _ExternFunc("my_relu"), (lv1), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
+            lv3 = R.call_dps_packed(
+                _ExternFunc("conv1x1"), (x, w1), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
+            lv4 = R.call_dps_packed(
+                _ExternFunc("bias_add"), (lv3, bias1), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
+            lv5 = R.call_dps_packed(
+                _ExternFunc("my_relu"), (lv4), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
+            lv6 = R.call_dps_packed(
+                _ExternFunc("concat"), (lv2, lv5), ty_args=[R.Tensor((32, 64), dtype="float32")]
+            )
             R.output(lv6)
         return lv6
 
@@ -595,8 +629,12 @@ def test_two_matmul():
             c: R.Tensor((48, 32), "float32"),
         ) -> R.Tensor:
             with R.dataflow():
-                lv0 = R.call_dps_packed("matmul", (a, b), R.Tensor((32, 48), dtype="float32"))
-                lv1 = R.call_dps_packed("matmul", (lv0, c), R.Tensor((32, 32), dtype="float32"))
+                lv0 = R.call_dps_packed(
+                    _ExternFunc("matmul"), (a, b), ty_args=[R.Tensor((32, 48), dtype="float32")]
+                )
+                lv1 = R.call_dps_packed(
+                    _ExternFunc("matmul"), (lv0, c), ty_args=[R.Tensor((32, 32), dtype="float32")]
+                )
                 R.output(lv1)
             return lv1
 
@@ -630,12 +668,25 @@ def test_concat_mm_split():
             c: R.Tensor((16, 32), "float32"),
         ) -> R.Tensor:
             with R.dataflow():
-                lv0 = R.call_dps_packed("my_concat", (b, c), R.Tensor((32, 32), dtype="float32"))
-                lv1 = R.call_dps_packed("my_matmul", (a, lv0), R.Tensor((32, 32), dtype="float32"))
+                lv0 = R.call_dps_packed(
+                    _ExternFunc("my_concat"), (b, c), ty_args=[R.Tensor((32, 32), dtype="float32")]
+                )
+                lv1 = R.call_dps_packed(
+                    _ExternFunc("my_matmul"),
+                    (a, lv0),
+                    ty_args=[R.Tensor((32, 32), dtype="float32")],
+                )
                 lv2 = R.call_dps_packed(
-                    "my_split",
+                    _ExternFunc("my_split"),
                     (lv1,),
-                    [R.Tensor((16, 32), dtype="float32"), R.Tensor((16, 32), dtype="float32")],
+                    ty_args=[
+                        _TupleType(
+                            [
+                                R.Tensor((16, 32), dtype="float32"),
+                                R.Tensor((16, 32), dtype="float32"),
+                            ]
+                        )
+                    ],
                 )
                 lv3 = R.TupleGetItem(lv2, 0)
                 lv4 = R.TupleGetItem(lv2, 1)
@@ -684,25 +735,39 @@ def test_self_attention():
             wv: R.Tensor((h, h), "float32"),
         ) -> R.Tensor:
             with R.dataflow():
-                fcq = R.call_dps_packed("my_fc", (x, wq), R.Tensor((b, s, n, h), dtype="float32"))
+                fcq = R.call_dps_packed(
+                    _ExternFunc("my_fc"), (x, wq), ty_args=[R.Tensor((b, s, n, h), dtype="float32")]
+                )
                 tpq = R.call_dps_packed(
-                    "my_transpose", (fcq,), R.Tensor((b, s, h, n), dtype="float32")
+                    _ExternFunc("my_transpose"),
+                    (fcq,),
+                    ty_args=[R.Tensor((b, s, h, n), dtype="float32")],
                 )
 
-                fck = R.call_dps_packed("my_fc", (x, wk), R.Tensor((b, s, n, h), dtype="float32"))
+                fck = R.call_dps_packed(
+                    _ExternFunc("my_fc"), (x, wk), ty_args=[R.Tensor((b, s, n, h), dtype="float32")]
+                )
                 tpk = R.call_dps_packed(
-                    "my_transpose", (fck,), R.Tensor((b, s, h, n), dtype="float32")
+                    _ExternFunc("my_transpose"),
+                    (fck,),
+                    ty_args=[R.Tensor((b, s, h, n), dtype="float32")],
                 )
 
                 mul = R.multiply(tpq, tpk)
                 scale = R.multiply(mul, R.const(1.1, "float32"))
                 softmax = R.call_dps_packed(
-                    "softmax", (scale,), R.Tensor((b, s, n, h), dtype="float32")
+                    _ExternFunc("softmax"),
+                    (scale,),
+                    ty_args=[R.Tensor((b, s, n, h), dtype="float32")],
                 )
 
-                fcv = R.call_dps_packed("my_fc", (x, wv), R.Tensor((b, s, n, h), dtype="float32"))
+                fcv = R.call_dps_packed(
+                    _ExternFunc("my_fc"), (x, wv), ty_args=[R.Tensor((b, s, n, h), dtype="float32")]
+                )
                 tpv = R.call_dps_packed(
-                    "my_transpose", (fcv,), R.Tensor((b, s, h, n), dtype="float32")
+                    _ExternFunc("my_transpose"),
+                    (fcv,),
+                    ty_args=[R.Tensor((b, s, h, n), dtype="float32")],
                 )
 
                 out = R.multiply(softmax, tpv)
@@ -734,28 +799,44 @@ def test_nested_diamond():
                 #          \    /
                 #           add7
                 lv0 = R.call_dps_packed(
-                    "extern_matmul", (x, w), R.Tensor((32, 32), dtype="float32")
+                    _ExternFunc("extern_matmul"),
+                    (x, w),
+                    ty_args=[R.Tensor((32, 32), dtype="float32")],
                 )
                 lv1 = R.call_dps_packed(
-                    "extern_matmul", (x, w), R.Tensor((32, 32), dtype="float32")
+                    _ExternFunc("extern_matmul"),
+                    (x, w),
+                    ty_args=[R.Tensor((32, 32), dtype="float32")],
                 )
                 lv2 = R.call_dps_packed(
-                    "extern_sigmoid", (lv0), R.Tensor((32, 32), dtype="float32")
+                    _ExternFunc("extern_sigmoid"),
+                    (lv0),
+                    ty_args=[R.Tensor((32, 32), dtype="float32")],
                 )
                 lv3 = R.call_dps_packed(
-                    "extern_sigmoid", (lv1), R.Tensor((32, 32), dtype="float32")
+                    _ExternFunc("extern_sigmoid"),
+                    (lv1),
+                    ty_args=[R.Tensor((32, 32), dtype="float32")],
                 )
                 lv4 = R.call_dps_packed(
-                    "extern_add", (lv0, lv1), R.Tensor((32, 32), dtype="float32")
+                    _ExternFunc("extern_add"),
+                    (lv0, lv1),
+                    ty_args=[R.Tensor((32, 32), dtype="float32")],
                 )
                 lv5 = R.call_dps_packed(
-                    "extern_add", (lv2, lv4), R.Tensor((32, 32), dtype="float32")
+                    _ExternFunc("extern_add"),
+                    (lv2, lv4),
+                    ty_args=[R.Tensor((32, 32), dtype="float32")],
                 )
                 lv6 = R.call_dps_packed(
-                    "extern_add", (lv3, lv4), R.Tensor((32, 32), dtype="float32")
+                    _ExternFunc("extern_add"),
+                    (lv3, lv4),
+                    ty_args=[R.Tensor((32, 32), dtype="float32")],
                 )
                 lv7 = R.call_dps_packed(
-                    "extern_add", (lv5, lv6), R.Tensor((32, 32), dtype="float32")
+                    _ExternFunc("extern_add"),
+                    (lv5, lv6),
+                    ty_args=[R.Tensor((32, 32), dtype="float32")],
                 )
                 R.output(lv7)
             return lv7
@@ -808,9 +889,15 @@ def test_incremental_solving():
     def simple_chain(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         with R.dataflow():
             # relu -> sigmoid -> neg
-            lv0 = R.call_dps_packed("extern_relu", (x), R.Tensor((32, 32), dtype="float32"))
-            lv1 = R.call_dps_packed("extern_sigmoid", (lv0), R.Tensor((32, 32), dtype="float32"))
-            lv2 = R.call_dps_packed("extern_neg", (lv1), R.Tensor((32, 32), dtype="float32"))
+            lv0 = R.call_dps_packed(
+                _ExternFunc("extern_relu"), (x), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
+            lv1 = R.call_dps_packed(
+                _ExternFunc("extern_sigmoid"), (lv0), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
+            lv2 = R.call_dps_packed(
+                _ExternFunc("extern_neg"), (lv1), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
             R.output(lv2)
         return lv2
 
@@ -837,8 +924,12 @@ def test_incremental_solving_counter():
     def simple_chain(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
         with R.dataflow():
             # sigmoid -> neg
-            lv0 = R.call_dps_packed("extern_sigmoid", (x), R.Tensor((32, 32), dtype="float32"))
-            lv1 = R.call_dps_packed("extern_neg", (lv0), R.Tensor((32, 32), dtype="float32"))
+            lv0 = R.call_dps_packed(
+                _ExternFunc("extern_sigmoid"), (x), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
+            lv1 = R.call_dps_packed(
+                _ExternFunc("extern_neg"), (lv0), ty_args=[R.Tensor((32, 32), dtype="float32")]
+            )
             R.output(lv1)
         return lv1
 

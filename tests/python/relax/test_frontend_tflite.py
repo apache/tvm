@@ -1,6 +1,8 @@
 # ruff: noqa: E402
 import pytest
 
+from tvm.relax import ExternFunc as _ExternFunc
+
 pytest.importorskip("tensorflow", reason="tensorflow not available")
 
 # Licensed to the Apache Software Foundation (ASF) under one
@@ -1142,14 +1144,16 @@ def test_random_uniform_dynamic_shape():
                     lv2, R.Shape([random_uniform_dim_0, random_uniform_dim_1])
                 )
                 gv = R.call_dps_packed(
-                    "tvm.contrib.random.uniform",
+                    _ExternFunc("tvm.contrib.random.uniform"),
                     (
                         R.prim_value(7),
                         R.prim_value(11),
                         R.prim_value(T.float64(0.0)),
                         R.prim_value(T.float64(1.0)),
                     ),
-                    out_ty=R.Tensor((random_uniform_dim_0, random_uniform_dim_1), dtype="float32"),
+                    ty_args=[
+                        R.Tensor((random_uniform_dim_0, random_uniform_dim_1), dtype="float32")
+                    ],
                 )
                 R.output(gv)
             return gv
@@ -1189,17 +1193,19 @@ def test_random_standard_normal_dynamic_shape():
                     )
                 )
                 gv = R.call_dps_packed(
-                    "tvm.contrib.random.normal",
+                    _ExternFunc("tvm.contrib.random.normal"),
                     (
                         R.prim_value(3),
                         R.prim_value(5),
                         R.prim_value(T.float64(0.0)),
                         R.prim_value(T.float64(1.0)),
                     ),
-                    out_ty=R.Tensor(
-                        (random_standard_normal_dim_0, random_standard_normal_dim_1),
-                        dtype="float32",
-                    ),
+                    ty_args=[
+                        R.Tensor(
+                            (random_standard_normal_dim_0, random_standard_normal_dim_1),
+                            dtype="float32",
+                        )
+                    ],
                 )
                 R.output(gv)
             return gv
@@ -1252,14 +1258,14 @@ def test_multinomial_dynamic_num_samples():
                 )
                 lv5: R.Tensor((2, 3), dtype="float32") = R.nn.softmax(logits, axis=-1)
                 lv6 = R.call_dps_packed(
-                    "tvm.contrib.random.uniform",
+                    _ExternFunc("tvm.contrib.random.uniform"),
                     (
                         R.prim_value(13),
                         R.prim_value(17),
                         R.prim_value(T.float64(0.0)),
                         R.prim_value(T.float64(1.0)),
                     ),
-                    out_ty=R.Tensor((2 * multinomial_num_samples, 1), dtype="float32"),
+                    ty_args=[R.Tensor((2 * multinomial_num_samples, 1), dtype="float32")],
                 )
                 lv7: R.Tensor((2,), dtype="int64") = R.arange(
                     R.prim_value(0), R.prim_value(2), R.prim_value(1), dtype="int64"
@@ -4205,7 +4211,7 @@ def test_space_to_batch_nd(input_shape, block_shape, paddings, expected_out_shap
                 R.func_attr({"num_input": 1})
                 with R.dataflow():
                     gv = R.call_dps_packed(
-                        "topi.nn.space_to_batch_nd",
+                        _ExternFunc("topi.nn.space_to_batch_nd"),
                         (
                             x,
                             R.shape([2, 2]),
@@ -4213,7 +4219,7 @@ def test_space_to_batch_nd(input_shape, block_shape, paddings, expected_out_shap
                             R.shape([0, 0]),
                             R.prim_value(T.float64(0.0)),
                         ),
-                        out_ty=R.Tensor((4, 1, 1, 1), dtype="float32"),
+                        ty_args=[R.Tensor((4, 1, 1, 1), dtype="float32")],
                     )
                     R.output(gv)
                 return gv
@@ -4231,7 +4237,7 @@ def test_space_to_batch_nd(input_shape, block_shape, paddings, expected_out_shap
                 R.func_attr({"num_input": 1})
                 with R.dataflow():
                     gv = R.call_dps_packed(
-                        "topi.nn.space_to_batch_nd",
+                        _ExternFunc("topi.nn.space_to_batch_nd"),
                         (
                             x,
                             R.shape([2, 2]),
@@ -4239,7 +4245,7 @@ def test_space_to_batch_nd(input_shape, block_shape, paddings, expected_out_shap
                             R.shape([0, 0]),
                             R.prim_value(T.float64(0.0)),
                         ),
-                        out_ty=R.Tensor((4, 1, 2, 1), dtype="float32"),
+                        ty_args=[R.Tensor((4, 1, 2, 1), dtype="float32")],
                     )
                     R.output(gv)
                 return gv
@@ -4279,9 +4285,9 @@ def test_batch_to_space_nd(input_shape, block_shape, crops, expected_out_shape):
                 R.func_attr({"num_input": 1})
                 with R.dataflow():
                     gv = R.call_dps_packed(
-                        "topi.nn.batch_to_space_nd",
+                        _ExternFunc("topi.nn.batch_to_space_nd"),
                         (x, R.shape([2, 2]), R.shape([0, 0]), R.shape([0, 0])),
-                        out_ty=R.Tensor((1, 2, 2, 1), dtype="float32"),
+                        ty_args=[R.Tensor((1, 2, 2, 1), dtype="float32")],
                     )
                     R.output(gv)
                 return gv
@@ -4299,9 +4305,9 @@ def test_batch_to_space_nd(input_shape, block_shape, crops, expected_out_shape):
                 R.func_attr({"num_input": 1})
                 with R.dataflow():
                     gv = R.call_dps_packed(
-                        "topi.nn.batch_to_space_nd",
+                        _ExternFunc("topi.nn.batch_to_space_nd"),
                         (x, R.shape([2, 2]), R.shape([0, 1]), R.shape([0, 0])),
-                        out_ty=R.Tensor((1, 2, 3, 1), dtype="float32"),
+                        ty_args=[R.Tensor((1, 2, 3, 1), dtype="float32")],
                     )
                     R.output(gv)
                 return gv
@@ -4575,7 +4581,7 @@ def test_matrix_diag():
             with R.dataflow():
                 lv: R.Tensor((3, 3), dtype="float32") = R.zeros(R.shape([3, 3]), dtype="float32")
                 gv = R.call_dps_packed(
-                    "topi.matrix_set_diag",
+                    _ExternFunc("topi.matrix_set_diag"),
                     (
                         lv,
                         diagonal,
@@ -4584,7 +4590,7 @@ def test_matrix_diag():
                         R.const(False, "bool"),
                         R.const(False, "bool"),
                     ),
-                    out_ty=R.Tensor((3, 3), dtype="float32"),
+                    ty_args=[R.Tensor((3, 3), dtype="float32")],
                 )
                 R.output(gv)
             return gv
@@ -4615,7 +4621,7 @@ def test_matrix_set_diag():
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 gv = R.call_dps_packed(
-                    "topi.matrix_set_diag",
+                    _ExternFunc("topi.matrix_set_diag"),
                     (
                         input,
                         diagonal,
@@ -4624,7 +4630,7 @@ def test_matrix_set_diag():
                         R.const(False, "bool"),
                         R.const(False, "bool"),
                     ),
-                    out_ty=R.Tensor((3, 3), dtype="float32"),
+                    ty_args=[R.Tensor((3, 3), dtype="float32")],
                 )
                 R.output(gv)
             return gv
@@ -4663,9 +4669,9 @@ def test_sparse_to_dense():
             R.func_attr({"num_input": 3})
             with R.dataflow():
                 gv = R.call_dps_packed(
-                    "topi.sparse_to_dense",
+                    _ExternFunc("topi.sparse_to_dense"),
                     (indices, R.const([3], "int32"), values, default_value),
-                    out_ty=R.Tensor((3,), dtype="float32"),
+                    ty_args=[R.Tensor((3,), dtype="float32")],
                 )
                 R.output(gv)
             return gv

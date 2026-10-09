@@ -721,7 +721,7 @@ def test_ignore_call_tir():
                 relu1 = R.call_tir(
                     Conv2dReLUCallTIR.relu,
                     (conv1,),
-                    R.Tensor((1, 64, 56, 56), "float32"),
+                    ty_args=[R.Tensor((1, 64, 56, 56), "float32")],
                 )
                 R.output(relu1)
 
@@ -770,7 +770,7 @@ def test_ignore_call_tir():
                 relu1 = R.call_tir(
                     cls.relu,
                     (lv,),
-                    out_ty=R.Tensor((1, 64, 56, 56), dtype="float32"),
+                    ty_args=[R.Tensor((1, 64, 56, 56), dtype="float32")],
                 )
                 R.output(relu1)
             return relu1

@@ -81,9 +81,14 @@ def test_call_tir_dtensor():
             gv0 = R.dist.call_tir(
                 TestModule.tir_func,
                 x,
-                R.DTensor(
-                    shape=(128, 128), dtype="float32", device_mesh="mesh[0]", placement="S[0], R"
-                ),
+                ty_args=[
+                    R.DTensor(
+                        shape=(128, 128),
+                        dtype="float32",
+                        device_mesh="mesh[0]",
+                        placement="S[0], R",
+                    )
+                ],
             )
             return gv0
 
@@ -144,9 +149,14 @@ def test_explicit_device_id():
             gv0 = R.dist.call_tir(
                 TestModule.tir_func,
                 x,
-                R.DTensor(
-                    shape=(128, 128), dtype="float32", device_mesh="mesh[0]", placement="S[0], R"
-                ),
+                ty_args=[
+                    R.DTensor(
+                        shape=(128, 128),
+                        dtype="float32",
+                        device_mesh="mesh[0]",
+                        placement="S[0], R",
+                    )
+                ],
             )
             return gv0
 
@@ -184,9 +194,14 @@ def test_constant():
             gv0 = R.dist.call_tir(
                 TestModule.tir_func,
                 x,
-                R.DTensor(
-                    shape=(128, 128), dtype="float32", device_mesh="mesh[0]", placement="S[0], R"
-                ),
+                ty_args=[
+                    R.DTensor(
+                        shape=(128, 128),
+                        dtype="float32",
+                        device_mesh="mesh[0]",
+                        placement="S[0], R",
+                    )
+                ],
             )
             gv1 = R.add(gv0, R.dist.const(1.0, ty=R.DTensor((), "float32", "mesh[0]", "R, R")))
             return gv1

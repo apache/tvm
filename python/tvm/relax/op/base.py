@@ -23,14 +23,14 @@ import tvm_ffi
 
 import tvm
 import tvm.runtime
-from tvm.ir import Attrs, Call, Op, StringImm
+from tvm.ir import Attrs, Call, Op
 from tvm.ir.attrs import make_node as _make_attrs
+from tvm.ir.op import _make_op_api
 from tvm.runtime import Object, ObjectConvertible
 
 from ..expr import Expr, ExternFunc, GlobalVar, Var
-from ..type import TensorType, Type
+from ..type import Type
 from ..utils import convert_to_expr
-from . import _ffi_api
 
 py_print = print  # pylint: disable=invalid-name
 
@@ -96,39 +96,20 @@ def _wrap_inline_arg_tuple(args) -> Expr:
         return args
 
 
-def call_tir(
-    gvar: GlobalVar,
-    args: Expr,
-    out_ty: TensorType | list[TensorType],
-) -> Call:
+_call_tir = _make_op_api(Op.get("relax.call_tir"), __name__)
+
+
+def call_tir(func, args, *, ty_args, attrs=None, ty=None, span=None, **kwargs) -> Call:
+    """Call a destination-passing TIR function and allocate its output tensors.
+
+    ``func`` is the function's GlobalVar and ``args`` contains its ordered inputs.
+    ``ty_args`` contains one output type: a TensorType or a TupleType of tensor
+    results. Omitted ``ty`` uses the registered result inference; explicit types
+    and spans are forwarded unchanged.
     """
-    Call a tirx.function and return the output.
-
-    Parameters
-    ----------
-    gvar : GlobalVar
-        The GlobalVar referring to a tirx Function.
-
-    args : Expr
-        The ordered tensor and primitive input arguments.  These correspond
-        positionally to the leading parameters of the Function.
-
-    out_ty : Union[TensorType, List[TensorType]]
-        The type information of the call_tir output.
-        It should be a single or a list of TensorType. Each one denotes the
-        type information of a returned tensor.
-
-    Returns
-    -------
-    ret: Call
-        A call node for the call_tir operator.
-    """
-    args = _wrap_inline_arg_tuple(args)
-
-    if not isinstance(out_ty, list):
-        out_ty = [out_ty]
-
-    return _ffi_api.call_tir(gvar, args, out_ty)  # type: ignore
+    return _call_tir(
+        func, _wrap_inline_arg_tuple(args), ty_args=ty_args, attrs=attrs, ty=ty, span=span, **kwargs
+    )
 
 
 def call_tir_packed(gvar: GlobalVar, args: Expr, *, ty=None, span=None) -> Call:
@@ -212,55 +193,21 @@ class CallTIRWithGradAttrs(Attrs):
     """Attributes used in call_tir_with_grad operator"""
 
 
-def call_tir_with_grad(
-    gvar: GlobalVar,
-    args: Expr,
-    out_ty: TensorType | list[TensorType],
-    te_grad_name: str,
-    te_grad_kwargs: dict[str, Object] | None = None,
-) -> Call:
+_call_tir_with_grad = _make_op_api(Op.get("relax.call_tir_with_grad"), __name__)
+
+
+def call_tir_with_grad(func, args, *, ty_args, attrs=None, ty=None, span=None, **kwargs) -> Call:
+    """Call a TIR function with a registered TE gradient rule.
+
+    ``ty_args`` contains the single output type, including a TupleType for
+    multiple results. The ``te_grad_name`` and optional ``te_grad_kwargs``
+    attribute keywords select the rule used by the Gradient pass. Attributes
+    may instead be supplied through ``attrs``.
     """
-    Call a tirx.function and return the output. This intrinsic will bind a te gradient function
-    (refered by te_grad_name) to the call_tir_with_grad node. The te gradient function will be
-    called by the Gradient pass.
-
-    Parameters
-    ----------
-    gvar : GlobalVar
-        The GlobalVar referring to a tirx Function.
-
-    args : Expr
-        The ordered tensor and primitive input arguments.  These correspond
-        positionally to the leading parameters of the Function.
-
-    out_ty : Union[TensorType, List[TensorType]]
-        The type information of the call_tir_with_grad output.
-        It should be a single or a list of TensorType. Each one denotes the
-        type information of a returned tensor.
-
-    te_grad_name : str
-        The registered name of the te gradient function associated with the call_tir_with_grad
-        node. Must be provided as a keyword argument.
-
-    te_grad_kwargs : Dict[str, Object], optional
-        The keyword arguments passed to the te gradient function.
-        Optionally provided as a keyword argument. Default: {}.
-
-    Returns
-    -------
-    ret: Call
-        A call node for the call_tir_with_grad operator.
-    """
-    args = _wrap_inline_arg_tuple(args)
-
-    if not isinstance(out_ty, list):
-        out_ty = [out_ty]
-
-    if te_grad_kwargs is None:
-        te_grad_kwargs = {}
-
-    return _ffi_api.call_tir_with_grad(  # type: ignore
-        gvar, args, out_ty, te_grad_name, te_grad_kwargs
+    if attrs is None and kwargs.get("te_grad_kwargs") is None:
+        kwargs["te_grad_kwargs"] = {}
+    return _call_tir_with_grad(
+        func, _wrap_inline_arg_tuple(args), ty_args=ty_args, attrs=attrs, ty=ty, span=span, **kwargs
     )
 
 
@@ -269,143 +216,58 @@ class CallTIRInplaceAttrs(Attrs):
     """Attributes used in call_tir_inplace operator"""
 
 
-def call_tir_inplace(
-    gvar: GlobalVar,
-    args: Expr,
-    inplace_indices: int | list[int],
-    out_ty: TensorType | list[TensorType],
-) -> Call:
+_call_tir_inplace = _make_op_api(Op.get("relax.call_tir_inplace"), __name__)
+
+
+def call_tir_inplace(func, args, *, ty_args, attrs=None, ty=None, span=None, **kwargs) -> Call:
+    """Call a TIR function whose selected outputs alias its input tensors.
+
+    ``ty_args`` contains one output type. In the ``inplace_indices`` attribute,
+    entry ``i >= 0`` makes the corresponding output alias input ``i``; ``-1``
+    allocates a fresh output. At least one output must alias an input.
+
+    Although classified as pure, this operation mutates the selected inputs.
+    Only use it after proving there are no live uses or aliases that could
+    observe those mutations. Direct construction is intended for testing;
+    optimization passes normally establish these preconditions.
     """
-    Call a TIR Function and return the result, doing the specified computations in-place
-    (based on the `inplace_indices` argument; outputs will alias the inputs
-    selected by in-place indices).
-
-    Warning: This operator is considered pure by the type system but actually mutates
-    the arguments specified by `inplace_indices`. This operator should not be used directly,
-    but rather should be inserted by passes that have checked whether it is safe to perform
-    operations in-place (i.e., none of the arguments specified as an output is aliased or is
-    live after calling call_tir_inplace).
-
-    Direct calls to this operator should be done for testing purposes only.
-
-    Parameters
-    ----------
-    gvar : GlobalVar
-        The GlobalVar referring to a TIR Function.
-
-    args : Expr
-        The ordered tensor and primitive input arguments.  These correspond
-        positionally to the leading parameters of the Function.
-
-    inplace_indices : Union[int, List[int]]
-        Specify which arguments should be used for in-place computations.
-        If `inplace_indices` is a single integer, it will be made into a singleton list.
-        Suppose `inplace_indices[i] = j`, where `j >= 0`. Then the `i`th output
-        will be an alias of `args[j]`.
-        If `inplace_indices[i] = -1`, then the `i`th output will be a freshly allocated tensor.
-        At least one member of `inplace_indices` must not be -1.
-
-    out_ty : Union[TensorType, List[TensorType]]
-        The type information of the call_tir_inplace output.
-        It should be a single `TensorType` or a list of `TensorType`.
-        Each one denotes the type information of a returned tensor.
-        If a list of `TensorType` is given, the result will be a tuple of `TensorType`.
-
-    Returns
-    -------
-    ret: Call
-        A call node for the call_tir operator.
-    """
-    args = _wrap_inline_arg_tuple(args)
-
-    if inplace_indices is not None and not isinstance(inplace_indices, list):
-        inplace_indices = [inplace_indices]
-
-    if not isinstance(out_ty, list):
-        out_ty = [out_ty]
-
-    return _ffi_api.call_tir_inplace(  # type: ignore
-        gvar,
-        args,
-        inplace_indices,
-        out_ty,
+    # Keep the existing scalar-index convenience at the Python boundary.
+    if isinstance(kwargs.get("inplace_indices"), int):
+        kwargs["inplace_indices"] = [kwargs["inplace_indices"]]
+    return _call_tir_inplace(
+        func, _wrap_inline_arg_tuple(args), ty_args=ty_args, attrs=attrs, ty=ty, span=span, **kwargs
     )
 
 
-def call_dps_packed(
-    func: str | Expr,
-    args: Expr,
-    out_ty: TensorType | list[TensorType],
-) -> Call:
-    """
-    Call a destination-passing-style packed function and return the output.
+_call_dps_packed = _make_op_api(Op.get("relax.call_dps_packed"), __name__)
 
-    Note: The called function is assumed to be _pure_ (other than modifying the designated
-    output arguments). If the function _does_ result in other side effects, then the compiler
-    may end up removing, reordering, or repeating those effects--no guarantees can be made.
 
-    Parameters
-    ----------
-    func : Union[str, Expr]
-        The destination-passing-style function, can be ExternFunc.
+def call_dps_packed(func, args, *, ty_args, attrs=None, ty=None, span=None, **kwargs) -> Call:
+    """Call a destination-passing packed function and allocate its outputs.
 
-    args : Expr
-        The input arguments.
+    Python string callees become ExternFunc; explicit Expr callees retain
+    their identity. ``ty_args`` contains one output type, including a TupleType
+    for multiple results.
 
-    out_ty : Union[TensorType, List[TensorType]]
-        The type information of the call_dps_packed output.
-        It should be a single or a list of TensorType. Each one denotes the
-        type information of a returned tensor.
-
-    Returns
-    -------
-    ret: Call
-        A call node for the call_dps_packed operator.
+    The function must be pure apart from writing its designated outputs.
+    Other effects may be removed, reordered or repeated by the compiler.
     """
     if isinstance(func, str):
         func = ExternFunc(func)
-
-    args = _wrap_inline_arg_tuple(args)
-
-    if not isinstance(out_ty, list):
-        out_ty = [out_ty]
-
-    return _ffi_api.call_dps_packed(func, args, out_ty)  # type: ignore
+    return _call_dps_packed(
+        func, _wrap_inline_arg_tuple(args), ty_args=ty_args, attrs=attrs, ty=ty, span=span, **kwargs
+    )
 
 
-def call_py_func(
-    func_name: str,
-    args: Expr,
-    out_ty: TensorType | list[TensorType],
-) -> Call:
+def call_py_func(func_name: str | Expr, args: Expr, *, ty_args, ty=None, span=None) -> Call:
+    """Call a Python function using canonical operands and one output type argument.
+
+    ``func_name`` names a function in the IRModule's ``pyfuncs`` attribute.
+    ``args`` accepts an Expr or a Python tuple through shared Expr conversion.
+    ``ty_args`` contains exactly one result type, including a TupleType for
+    tuple-valued results. Omitted ``ty`` uses the registered result inference.
     """
-    Call a Python function and return the output.
-
-    Parameters
-    ----------
-    func_name : str
-        The name of the Python function to call. This should correspond to a function
-        in the IRModule's pyfuncs attribute.
-
-    args : Expr
-        The input arguments.
-
-    out_ty : Union[TensorType, List[TensorType]]
-        The type information of the call_py_func output.
-        It should be a single or a list of TensorType. Each one denotes the
-        type information of a returned tensor.
-
-    Returns
-    -------
-    ret: Call
-        A call node for the call_py_func operator.
-    """
-    args = _wrap_inline_arg_tuple(args)
-
-    if not isinstance(out_ty, list):
-        out_ty = [out_ty]
-
-    return _ffi_api.call_py_func(func_name, args, out_ty)  # type: ignore
+    return Call("relax.call_py_func", [func_name, args], ty_args=ty_args, ty=ty, span=span)
 
 
 def call_builtin_with_ctx(
@@ -562,14 +424,14 @@ def relax_print(format_str: str, *format_args: tvm.Object) -> None:
     If the format string is empty, simply prints.
 
     Call from TVM script like this:
-    `relax.print(value1, value2, ..., valueN, format=format_str)`
+    `relax.print(format_str, value1, value2, ..., valueN)`
     or
-    `relax.print(value1, value2, ..., valueN) # format_str defaults to ""`
+    `relax.print("", value1, value2, ..., valueN)`
 
     Parameters
     ----------
     format_str: str
-        The last argument is a Python-style format string for printing the value
+        The first argument is a Python-style format string for printing the values
 
     format_args: List[Object]
         The values to print.
@@ -581,26 +443,9 @@ def relax_print(format_str: str, *format_args: tvm.Object) -> None:
         py_print(format_str.format(*val_strs))
 
 
-def print(*values: list[Expr], format: str | Expr = "") -> Expr:
-    """Print op to print the values
-
-    Parameters
-    ----------
-    values : List[Expr]
-        The values to print.
-
-    format: Union[str, Expr]
-        The format string or StringImm.
-
-    Returns
-    -------
-    result : Expr
-        A relax Call, which will print the value during runtime.
-    """
-    if isinstance(format, str):
-        format = StringImm(format)
-
-    return _ffi_api.print(values, format)  # type: ignore # pylint: disable=no-member
+def print(format: str | Expr, *values: Expr, ty=None, span=None) -> Expr:
+    """Print values using the canonical leading format-string operand."""
+    return Call("relax.print", [format, *values], ty=ty, span=span)
 
 
 @tvm.register_global_func("relax.run.assert_op")
@@ -977,24 +822,14 @@ class HintOnDeviceAttrs(Attrs):
     """Attributes used in hint_on_device operator"""
 
 
-def hint_on_device(data, dst_vdevice, memory_scope="global") -> Expr:
-    """It provides a hint specifying the device on which the input data should be executed.
-    This hint is utilized by RealizeVDevice to propagate the virtual device."
-
-    Parameters
-    ----------
-    data : Expr
-        The tensor to be copied.
-
-    dst_device : Device
-        The destination device where the data is supposed to be executed.
-
-    memory_scope: String
-       Memory scope of buffer on target device.
-
-    Returns
-    -------
-    result : Expr
-        The result.
-    """
-    return _ffi_api.hint_on_device(data, dst_vdevice, memory_scope)  # type: ignore
+def hint_on_device(
+    data, device_type, index=0, memory_scope="global", *, ty=None, span=None
+) -> Expr:
+    """Hint the device type, index and memory scope for executing ``data``."""
+    attrs = _make_attrs(
+        "relax.attrs.HintOnDeviceAttrs",
+        device_type=device_type,
+        index=index,
+        memory_scope=memory_scope,
+    )
+    return Call("relax.hint_on_device", [data], attrs=attrs, ty=ty, span=span)

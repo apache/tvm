@@ -2091,11 +2091,12 @@ def tensor_ir_op(
     else:
         out_ty = [x._expr.ty for x in out]
 
+    out_ty = out_ty[0] if len(out_ty) == 1 else tvm.ir.TupleType(out_ty)
     bb = BlockBuilder.current()
     global_var = bb.add_func(func, name_hint)
 
     return wrap_nested(
-        bb.emit(rx.call_tir(global_var, call_tir_args, out_ty)),
+        bb.emit(rx.call_tir(global_var, call_tir_args, ty_args=[out_ty])),
         name=name_hint,
     )
 
@@ -2160,11 +2161,16 @@ def tensor_ir_inplace_op(
     else:
         out_ty = [x._expr.ty for x in out]
 
+    out_ty = out_ty[0] if len(out_ty) == 1 else tvm.ir.TupleType(out_ty)
     bb = BlockBuilder.current()
     global_var = bb.add_func(func, name_hint)
 
     return wrap_nested(
-        bb.emit(rx.call_tir_inplace(global_var, call_tir_args, inplace_indices, out_ty)),
+        bb.emit(
+            rx.call_tir_inplace(
+                global_var, call_tir_args, inplace_indices=inplace_indices, ty_args=[out_ty]
+            )
+        ),
         name=name_hint,
     )
 
@@ -2214,9 +2220,9 @@ def extern(
     rx_outputs_ty = _convert(out, "dummy").ty
     return wrap_nested(
         _op.call_dps_packed(
-            name,
+            rx.ExternFunc(name),
             args=rx_inputs,
-            out_ty=rx_outputs_ty,
+            ty_args=[rx_outputs_ty],
         ),
         name,
     )  # type: ignore

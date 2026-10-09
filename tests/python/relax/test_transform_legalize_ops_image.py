@@ -38,7 +38,7 @@ def test_image_resize2d():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 8, 8, 3), "float32")) -> R.Tensor((2, 16, 16, 3), "float32"):
-            gv = R.call_tir(Expected.resize2d, (x,), R.Tensor((2, 16, 16, 3), dtype="float32"))
+            gv = R.call_tir(Expected.resize2d, (x,), ty_args=[R.Tensor((2, 16, 16, 3), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -89,7 +89,7 @@ def test_image_resize2d_symbolic():
     class Expected:
         @R.function
         def main(dumb_param: R.Tensor((oh_main, ow_main)), x: R.Tensor((n_main, c_main, h_main, w_main, 16), "float32")) -> R.Tensor((n_main, c_main, oh_main, ow_main, 16), "float32"):
-            gv = R.call_tir(Expected.resize2d, (x,), R.Tensor((n_main, c_main, oh_main, ow_main, 16), dtype="float32"))
+            gv = R.call_tir(Expected.resize2d, (x,), ty_args=[R.Tensor((n_main, c_main, oh_main, ow_main, 16), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -121,7 +121,7 @@ def test_image_affine_grid():
     class Expected:
         @R.function
         def main(theta: R.Tensor((2, 2, 3), "float32")) -> R.Tensor((2, 2, 16, 16), "float32"):
-            gv = R.call_tir(Expected.affine_grid, (theta,), R.Tensor((2, 2, 16, 16), dtype="float32"))
+            gv = R.call_tir(Expected.affine_grid, (theta,), ty_args=[R.Tensor((2, 2, 16, 16), dtype="float32")])
             return gv
 
         @Ts.function(private=True)

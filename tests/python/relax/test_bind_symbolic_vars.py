@@ -18,6 +18,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.relax import ExternFunc as _ExternFunc
 from tvm.script import relax as R
 from tvm.script import tirx as T
 
@@ -192,14 +193,14 @@ def test_bind_symbolic_vars_in_tensor_shape():
 
     @R.function(private=True)
     def before(A: R.Tensor([M, N])):
-        B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([2 * M * N]))
+        B = R.call_dps_packed(_ExternFunc("dummy_func"), [A], ty_args=[R.Tensor([2 * M * N])])
         return B
 
     M = T.dynamic("M")
 
     @R.function(private=True)
     def expected(A: R.Tensor([M, 16])):
-        B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([M * 32]))
+        B = R.call_dps_packed(_ExternFunc("dummy_func"), [A], ty_args=[R.Tensor([M * 32])])
         return B
 
     after = before.bind_symbolic_vars({"N": 16})
@@ -214,14 +215,14 @@ def test_bind_symbolic_vars_in_shape_expr():
 
     @R.function(private=True)
     def before(A: R.Tensor([M * N]), x: R.Shape([M, N])):
-        B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([2 * M * N]))
+        B = R.call_dps_packed(_ExternFunc("dummy_func"), [A], ty_args=[R.Tensor([2 * M * N])])
         return B
 
     M = T.dynamic("M")
 
     @R.function(private=True)
     def expected(A: R.Tensor([M * 16]), x: R.Shape([M, 16])):
-        B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([M * 32]))
+        B = R.call_dps_packed(_ExternFunc("dummy_func"), [A], ty_args=[R.Tensor([M * 32])])
         return B
 
     after = before.bind_symbolic_vars({"N": 16})

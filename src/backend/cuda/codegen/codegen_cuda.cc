@@ -1029,6 +1029,13 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
 }
 
 void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
+  if (op->op.same_as(prim::isnan_op()) && op->ty.as_or_throw<PrimType>().lanes() > 1) {
+    // CUDA vector comparisons do not produce a lane-wise boolean vector.
+    // Reuse the scalar comparison path for every lane, including packed half.
+    PrimExpr value = op->args[0].as_or_throw<PrimExpr>();
+    PrintVecBinaryOp("!=", op->ty.as_or_throw<PrimType>(), value, value, os);
+    return;
+  }
   if (auto opt_call_opt = op->op.as<Op>()) {
     Op call_op = opt_call_opt.value();
     // This is only for backward compatibility with __shfl_{up/down}.

@@ -132,14 +132,12 @@ def device_intrinsic(
         source_code = (
             f"\n{prefix}__forceinline__ __device__ {ret_type} {name}{sig} {{\n{body_str}\n}}\n"
         )
-        kwargs = {"source_code": source_code}
+        kwargs = {}
         if tvm_return_type is not None:
-            kwargs["return_type"] = (
-                tvm_return_type(*args) if callable(tvm_return_type) else tvm_return_type
-            )
+            kwargs["ty"] = tvm_return_type(*args) if callable(tvm_return_type) else tvm_return_type
         elif ret_type != "void":
-            kwargs["return_type"] = _C_TO_TVM_DTYPE.get(ret_type, ret_type)
-        result = cuda_func_call(name, *forward, **kwargs)
+            kwargs["ty"] = _C_TO_TVM_DTYPE.get(ret_type, ret_type)
+        result = cuda_func_call(name, *forward, source_code, **kwargs)
         return (result, list(extra_deps)) if extra_deps else result
 
     codegen.__name__ = f"codegen_{op_name}"

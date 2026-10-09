@@ -40,7 +40,7 @@ def test_add():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "float32"):
-            gv = R.call_tir(Expected.add, (x, y), R.Tensor((4, 3, 2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.add, (x, y), ty_args=[R.Tensor((4, 3, 2, 3), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -71,7 +71,7 @@ def test_add_with_arg0_constant_scalar():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.add, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.add, (x,), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -102,7 +102,7 @@ def test_add_with_arg1_constant_scalar():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.add, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.add, (x,), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -147,7 +147,7 @@ def test_add_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "float32"):
-            gv = R.call_tir(Expected.add, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"))
+            gv = R.call_tir(Expected.add, (x, y), ty_args=[R.Tensor((a_main, b_main, c_main, d_main), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -185,7 +185,7 @@ def test_add_primvalue():
             y: T.float32,
         ):
             cls = Expected
-            gv = R.call_tir(cls.add, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
+            gv = R.call_tir(cls.add, (x, y), ty_args=[R.Tensor([64, 32, 16], dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -217,7 +217,7 @@ def test_divide():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "float32"):
-            gv = R.call_tir(Expected.divide, (x, y), R.Tensor((4, 3, 2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.divide, (x, y), ty_args=[R.Tensor((4, 3, 2, 3), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -248,7 +248,7 @@ def test_divide_with_arg0_constant_scalar():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.divide, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.divide, (x,), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -279,7 +279,7 @@ def test_divide_with_arg1_constant_scalar():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.divide, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.divide, (x,), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -324,7 +324,7 @@ def test_divide_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "float32"):
-            gv = R.call_tir(Expected.divide, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"))
+            gv = R.call_tir(Expected.divide, (x, y), ty_args=[R.Tensor((a_main, b_main, c_main, d_main), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -362,7 +362,7 @@ def test_divide_primvalue():
             y: T.float32,
         ):
             cls = Expected
-            gv = R.call_tir(cls.divide, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
+            gv = R.call_tir(cls.divide, (x, y), ty_args=[R.Tensor([64, 32, 16], dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -394,7 +394,7 @@ def test_floor_divide():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "float32"):
-            gv = R.call_tir(Expected.floor_divide, (x, y), R.Tensor((4, 3, 2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.floor_divide, (x, y), ty_args=[R.Tensor((4, 3, 2, 3), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -425,7 +425,7 @@ def test_floor_divide_with_arg0_constant_scalar():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.floor_divide, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.floor_divide, (x,), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -456,7 +456,7 @@ def test_floor_divide_with_arg1_constant_scalar():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.floor_divide, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.floor_divide, (x,), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -501,7 +501,7 @@ def test_floor_divide_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "float32"):
-            gv = R.call_tir(Expected.floor_divide, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"))
+            gv = R.call_tir(Expected.floor_divide, (x, y), ty_args=[R.Tensor((a_main, b_main, c_main, d_main), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -539,7 +539,9 @@ def test_floordiv_primvalue():
             y: T.float32,
         ):
             cls = Expected
-            gv = R.call_tir(cls.floor_divide, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
+            gv = R.call_tir(
+                cls.floor_divide, (x, y), ty_args=[R.Tensor([64, 32, 16], dtype="float32")]
+            )
             return gv
 
         @Ts.function(private=True)
@@ -571,7 +573,7 @@ def test_multiply():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "float32"):
-            gv = R.call_tir(Expected.multiply, (x, y), R.Tensor((4, 3, 2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.multiply, (x, y), ty_args=[R.Tensor((4, 3, 2, 3), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -616,7 +618,7 @@ def test_multiply_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "float32"):
-            gv = R.call_tir(Expected.multiply, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"))
+            gv = R.call_tir(Expected.multiply, (x, y), ty_args=[R.Tensor((a_main, b_main, c_main, d_main), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -654,7 +656,7 @@ def test_multiply_primvalue():
             y: T.float32,
         ):
             cls = Expected
-            gv = R.call_tir(cls.multiply, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
+            gv = R.call_tir(cls.multiply, (x, y), ty_args=[R.Tensor([64, 32, 16], dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -697,7 +699,7 @@ def test_power():
 
         @R.function
         def main(x: R.Tensor((1, 2, 3), dtype="float32"), y: R.Tensor((4, 3, 2, 1), dtype="float32")) -> R.Tensor((4, 3, 2, 3), dtype="float32"):
-            gv = R.call_tir(Expected.power, (x, y), out_ty=R.Tensor((4, 3, 2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.power, (x, y), ty_args=[R.Tensor((4, 3, 2, 3), dtype="float32")])
             return gv
 
     # fmt: on
@@ -745,7 +747,7 @@ def test_power_symbolic():
 
         @R.function
         def main(x: R.Tensor((1, c_main, d_main), dtype="float32"), y: R.Tensor((a_main, b_main, c_main, 1), dtype="float32")) -> R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"):
-            gv = R.call_tir(Expected.power, (x, y), out_ty=R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"))
+            gv = R.call_tir(Expected.power, (x, y), ty_args=[R.Tensor((a_main, b_main, c_main, d_main), dtype="float32")])
             return gv
     # fmt: on
 
@@ -772,7 +774,7 @@ def test_power_primvalue():
             y: T.float32,
         ):
             cls = Expected
-            gv = R.call_tir(cls.power, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
+            gv = R.call_tir(cls.power, (x, y), ty_args=[R.Tensor([64, 32, 16], dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -815,7 +817,7 @@ def test_atan2():
 
         @R.function
         def main(x: R.Tensor((1, 2, 3), dtype="float32"), y: R.Tensor((4, 3, 2, 1), dtype="float32")) -> R.Tensor((4, 3, 2, 3), dtype="float32"):
-            gv = R.call_tir(Expected.atan2, (x, y), out_ty=R.Tensor((4, 3, 2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.atan2, (x, y), ty_args=[R.Tensor((4, 3, 2, 3), dtype="float32")])
             return gv
 
     # fmt: on
@@ -862,7 +864,7 @@ def test_atan2_symbolic():
 
         @R.function
         def main(x: R.Tensor((1, c_main, d_main), dtype="float32"), y: R.Tensor((a_main, b_main, c_main, 1), dtype="float32")) -> R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"):
-            gv = R.call_tir(Expected.atan2, (x, y), out_ty=R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"))
+            gv = R.call_tir(Expected.atan2, (x, y), ty_args=[R.Tensor((a_main, b_main, c_main, d_main), dtype="float32")])
             return gv
     # fmt: on
 
@@ -889,7 +891,7 @@ def test_atan2_primvalue():
             y: T.float32,
         ):
             cls = Expected
-            gv = R.call_tir(cls.atan2, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
+            gv = R.call_tir(cls.atan2, (x, y), ty_args=[R.Tensor([64, 32, 16], dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -921,7 +923,7 @@ def test_subtract():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "float32"):
-            gv = R.call_tir(Expected.subtract, (x, y), R.Tensor((4, 3, 2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.subtract, (x, y), ty_args=[R.Tensor((4, 3, 2, 3), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -966,7 +968,7 @@ def test_subtract_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "float32"):
-            gv = R.call_tir(Expected.subtract, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"))
+            gv = R.call_tir(Expected.subtract, (x, y), ty_args=[R.Tensor((a_main, b_main, c_main, d_main), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -1004,7 +1006,7 @@ def test_subtract_primvalue():
             y: T.float32,
         ):
             cls = Expected
-            gv = R.call_tir(cls.subtract, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
+            gv = R.call_tir(cls.subtract, (x, y), ty_args=[R.Tensor([64, 32, 16], dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -1039,7 +1041,7 @@ def test_equal():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "bool"):
-            gv = R.call_tir(Expected.equal, (x, y), R.Tensor((4, 3, 2, 3), dtype="bool"))
+            gv = R.call_tir(Expected.equal, (x, y), ty_args=[R.Tensor((4, 3, 2, 3), dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1070,7 +1072,7 @@ def test_equal_with_arg0_constant_scalar():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "bool"):
-            gv = R.call_tir(Expected.equal, (x,), R.Tensor((2, 3), dtype="bool"))
+            gv = R.call_tir(Expected.equal, (x,), ty_args=[R.Tensor((2, 3), dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1101,7 +1103,7 @@ def test_equal_with_arg1_constant_scalar():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "bool"):
-            gv = R.call_tir(Expected.equal, (x,), R.Tensor((2, 3), dtype="bool"))
+            gv = R.call_tir(Expected.equal, (x,), ty_args=[R.Tensor((2, 3), dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1146,7 +1148,7 @@ def test_equal_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "bool"):
-            gv = R.call_tir(Expected.equal, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="bool"))
+            gv = R.call_tir(Expected.equal, (x, y), ty_args=[R.Tensor((a_main, b_main, c_main, d_main), dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1184,7 +1186,7 @@ def test_equal_primvalue():
             y: T.float32,
         ):
             cls = Expected
-            gv = R.call_tir(cls.equal, (x, y), R.Tensor([64, 32, 16], dtype="bool"))
+            gv = R.call_tir(cls.equal, (x, y), ty_args=[R.Tensor([64, 32, 16], dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1216,7 +1218,7 @@ def test_greater():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "bool"):
-            gv = R.call_tir(Expected.greater, (x, y), R.Tensor((4, 3, 2, 3), dtype="bool"))
+            gv = R.call_tir(Expected.greater, (x, y), ty_args=[R.Tensor((4, 3, 2, 3), dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1247,7 +1249,7 @@ def test_greater_with_arg0_constant_scalar():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "bool"):
-            gv = R.call_tir(Expected.greater, (x,), R.Tensor((2, 3), dtype="bool"))
+            gv = R.call_tir(Expected.greater, (x,), ty_args=[R.Tensor((2, 3), dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1278,7 +1280,7 @@ def test_greater_with_arg1_constant_scalar():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "bool"):
-            gv = R.call_tir(Expected.greater, (x,), R.Tensor((2, 3), dtype="bool"))
+            gv = R.call_tir(Expected.greater, (x,), ty_args=[R.Tensor((2, 3), dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1323,7 +1325,7 @@ def test_greater_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "bool"):
-            gv = R.call_tir(Expected.greater, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="bool"))
+            gv = R.call_tir(Expected.greater, (x, y), ty_args=[R.Tensor((a_main, b_main, c_main, d_main), dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1361,7 +1363,7 @@ def test_greater_primvalue():
             y: T.float32,
         ):
             cls = Expected
-            gv = R.call_tir(cls.greater, (x, y), R.Tensor([64, 32, 16], dtype="bool"))
+            gv = R.call_tir(cls.greater, (x, y), ty_args=[R.Tensor([64, 32, 16], dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1393,7 +1395,7 @@ def test_greater_equal():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "bool"):
-            gv = R.call_tir(Expected.greater_equal, (x, y), R.Tensor((4, 3, 2, 3), dtype="bool"))
+            gv = R.call_tir(Expected.greater_equal, (x, y), ty_args=[R.Tensor((4, 3, 2, 3), dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1438,7 +1440,7 @@ def test_greater_equal_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "bool"):
-            gv = R.call_tir(Expected.greater_equal, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="bool"))
+            gv = R.call_tir(Expected.greater_equal, (x, y), ty_args=[R.Tensor((a_main, b_main, c_main, d_main), dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1476,7 +1478,9 @@ def test_greater_equal_primvalue():
             y: T.float32,
         ):
             cls = Expected
-            gv = R.call_tir(cls.greater_equal, (x, y), R.Tensor([64, 32, 16], dtype="bool"))
+            gv = R.call_tir(
+                cls.greater_equal, (x, y), ty_args=[R.Tensor([64, 32, 16], dtype="bool")]
+            )
             return gv
 
         @Ts.function(private=True)
@@ -1508,7 +1512,7 @@ def test_less():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "bool"):
-            gv = R.call_tir(Expected.less, (x, y), R.Tensor((4, 3, 2, 3), dtype="bool"))
+            gv = R.call_tir(Expected.less, (x, y), ty_args=[R.Tensor((4, 3, 2, 3), dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1553,7 +1557,7 @@ def test_less_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "bool"):
-            gv = R.call_tir(Expected.less, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="bool"))
+            gv = R.call_tir(Expected.less, (x, y), ty_args=[R.Tensor((a_main, b_main, c_main, d_main), dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1591,7 +1595,7 @@ def test_less_primvalue():
             y: T.float32,
         ):
             cls = Expected
-            gv = R.call_tir(cls.less, (x, y), R.Tensor([64, 32, 16], dtype="bool"))
+            gv = R.call_tir(cls.less, (x, y), ty_args=[R.Tensor([64, 32, 16], dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1623,7 +1627,7 @@ def test_less_equal():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "bool"):
-            gv = R.call_tir(Expected.less_equal, (x, y), R.Tensor((4, 3, 2, 3), dtype="bool"))
+            gv = R.call_tir(Expected.less_equal, (x, y), ty_args=[R.Tensor((4, 3, 2, 3), dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1654,7 +1658,7 @@ def test_less_equal_with_arg0_constant_scalar():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "bool"):
-            gv = R.call_tir(Expected.less_equal, (x,), R.Tensor((2, 3), dtype="bool"))
+            gv = R.call_tir(Expected.less_equal, (x,), ty_args=[R.Tensor((2, 3), dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1685,7 +1689,7 @@ def test_less_equal_with_arg1_constant_scalar():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "bool"):
-            gv = R.call_tir(Expected.less_equal, (x,), R.Tensor((2, 3), dtype="bool"))
+            gv = R.call_tir(Expected.less_equal, (x,), ty_args=[R.Tensor((2, 3), dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1730,7 +1734,7 @@ def test_less_equal_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "bool"):
-            gv = R.call_tir(Expected.less_equal, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="bool"))
+            gv = R.call_tir(Expected.less_equal, (x, y), ty_args=[R.Tensor((a_main, b_main, c_main, d_main), dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1768,7 +1772,7 @@ def test_less_equal_primvalue():
             y: T.float32,
         ):
             cls = Expected
-            gv = R.call_tir(cls.less_equal, (x, y), R.Tensor([64, 32, 16], dtype="bool"))
+            gv = R.call_tir(cls.less_equal, (x, y), ty_args=[R.Tensor([64, 32, 16], dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1800,7 +1804,7 @@ def test_not_equal():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "bool"):
-            gv = R.call_tir(Expected.not_equal, (x, y), R.Tensor((4, 3, 2, 3), dtype="bool"))
+            gv = R.call_tir(Expected.not_equal, (x, y), ty_args=[R.Tensor((4, 3, 2, 3), dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1845,7 +1849,7 @@ def test_not_equal_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "bool"):
-            gv = R.call_tir(Expected.not_equal, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="bool"))
+            gv = R.call_tir(Expected.not_equal, (x, y), ty_args=[R.Tensor((a_main, b_main, c_main, d_main), dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1883,7 +1887,7 @@ def test_not_equal_primvalue():
             y: T.float32,
         ):
             cls = Expected
-            gv = R.call_tir(cls.not_equal, (x, y), R.Tensor([64, 32, 16], dtype="bool"))
+            gv = R.call_tir(cls.not_equal, (x, y), ty_args=[R.Tensor([64, 32, 16], dtype="bool")])
             return gv
 
         @Ts.function(private=True)
@@ -1915,7 +1919,7 @@ def test_maximum():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "float32"):
-            gv = R.call_tir(Expected.maximum, (x, y), R.Tensor((4, 3, 2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.maximum, (x, y), ty_args=[R.Tensor((4, 3, 2, 3), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -1946,7 +1950,7 @@ def test_maximum_with_arg0_constant_scalar():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.maximum, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.maximum, (x,), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -1977,7 +1981,7 @@ def test_maximum_with_arg1_constant_scalar():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.maximum, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.maximum, (x,), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -2022,7 +2026,7 @@ def test_maximum_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "float32"):
-            gv = R.call_tir(Expected.maximum, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"))
+            gv = R.call_tir(Expected.maximum, (x, y), ty_args=[R.Tensor((a_main, b_main, c_main, d_main), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -2060,7 +2064,7 @@ def test_max_primvalue():
             y: T.float32,
         ):
             cls = Expected
-            gv = R.call_tir(cls.maximum, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
+            gv = R.call_tir(cls.maximum, (x, y), ty_args=[R.Tensor([64, 32, 16], dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -2092,7 +2096,7 @@ def test_minimum():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, 2, 3), "float32"), y: R.Tensor((4, 3, 2, 1), "float32")) -> R.Tensor((4, 3, 2, 3), "float32"):
-            gv = R.call_tir(Expected.minimum, (x, y), R.Tensor((4, 3, 2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.minimum, (x, y), ty_args=[R.Tensor((4, 3, 2, 3), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -2123,7 +2127,7 @@ def test_minimum_with_arg0_constant_scalar():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.minimum, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.minimum, (x,), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -2154,7 +2158,7 @@ def test_minimum_with_arg1_constant_scalar():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.minimum, (x,), R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.minimum, (x,), ty_args=[R.Tensor((2, 3), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -2199,7 +2203,7 @@ def test_minimum_symbolic():
     class Expected:
         @R.function
         def main(x: R.Tensor((1, c_main, d_main), "float32"), y: R.Tensor((a_main, b_main, c_main, 1), "float32")) -> R.Tensor((a_main, b_main, c_main, d_main), "float32"):
-            gv = R.call_tir(Expected.minimum, (x, y), R.Tensor((a_main, b_main, c_main, d_main), dtype="float32"))
+            gv = R.call_tir(Expected.minimum, (x, y), ty_args=[R.Tensor((a_main, b_main, c_main, d_main), dtype="float32")])
             return gv
 
         @Ts.function(private=True)
@@ -2237,7 +2241,7 @@ def test_min_primvalue():
             y: T.float32,
         ):
             cls = Expected
-            gv = R.call_tir(cls.minimum, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
+            gv = R.call_tir(cls.minimum, (x, y), ty_args=[R.Tensor([64, 32, 16], dtype="float32")])
             return gv
 
         @Ts.function(private=True)

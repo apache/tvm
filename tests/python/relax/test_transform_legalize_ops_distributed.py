@@ -55,7 +55,7 @@ def test_redistribute_replica_to_shard():
             cls = Expected
             gv: R.Shape(ndim=-1) = R.call_pure_packed("runtime.disco.worker_id", ty_args=(R.Shape(ndim=-1),))
             gv1: R.Shape([worker_id]) = R.match_cast(gv, R.Shape([worker_id]))
-            gv0 = R.call_tir(cls.strided_slice, (x, worker_id), out_ty=R.Tensor((10, 5), dtype="float32"))
+            gv0 = R.call_tir(cls.strided_slice, (x, worker_id), ty_args=[R.Tensor((10, 5), dtype="float32")])
             return gv0
     # fmt: on
 

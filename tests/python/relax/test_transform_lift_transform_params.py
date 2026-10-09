@@ -57,7 +57,9 @@ def test_basic(consume_params):
             cls = Before
             with R.dataflow():
                 w1_transformed = R.call_tir(
-                    cls.transform_layout_IOHW_to_OIHW, w1, R.Tensor((16, 3, 3, 3), "float32")
+                    cls.transform_layout_IOHW_to_OIHW,
+                    w1,
+                    ty_args=[R.Tensor((16, 3, 3, 3), "float32")],
                 )
                 conv1 = R.nn.conv2d(
                     x, w1_transformed, padding=(1, 1), data_layout="NCHW", kernel_layout="OIHW"
@@ -129,7 +131,7 @@ def test_basic(consume_params):
                 lv2 = R.call_tir(
                     cls.transform_layout_IOHW_to_OIHW,
                     (lv1,),
-                    out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                    ty_args=[R.Tensor((16, 3, 3, 3), dtype="float32")],
                 )
                 lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
                 gv: R.Tuple(
@@ -206,7 +208,7 @@ def test_basic(consume_params):
                 lv2 = R.call_tir(
                     cls.transform_layout_IOHW_to_OIHW,
                     (lv1,),
-                    out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
+                    ty_args=[R.Tensor((16, 3, 3, 3), dtype="float32")],
                 )
                 lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
                 _2: R.Tuple = R.call_pure_packed(
@@ -1458,7 +1460,7 @@ def test_symbolic_var_2():
             cls = Before
             with R.dataflow():
                 zeros = R.call_tir(
-                    cls.zeros, R.tuple(), out_ty=R.Tensor((n_main, n_main), dtype="float32")
+                    cls.zeros, R.tuple(), ty_args=[R.Tensor((n_main, n_main), dtype="float32")]
                 )
                 R.output()
             return shape
@@ -1491,7 +1493,7 @@ def test_symbolic_var_2():
             cls = Expected
             with R.dataflow():
                 zeros = R.call_tir(
-                    cls.zeros, R.tuple(), out_ty=R.Tensor((n_main, n_main), dtype="float32")
+                    cls.zeros, R.tuple(), ty_args=[R.Tensor((n_main, n_main), dtype="float32")]
                 )
                 R.output()
             return shape
@@ -1518,12 +1520,12 @@ def test_symbolic_var_from_shape():
                 B_slice = R.call_tir(
                     cls.slice,
                     [B, slice_index],
-                    out_ty=R.Tensor([16], dtype="int32"),
+                    ty_args=[R.Tensor([16], dtype="int32")],
                 )
                 A_slice = R.call_tir(
                     cls.slice,
                     [A, slice_index],
-                    out_ty=R.Tensor([16], dtype="int32"),
+                    ty_args=[R.Tensor([16], dtype="int32")],
                 )
                 A_scale = R.multiply(A_slice, B_slice)
                 R.output(A_scale)
@@ -1558,7 +1560,7 @@ def test_symbolic_var_from_shape():
                 A_slice = R.call_tir(
                     cls.slice,
                     [A, slice_index_main],
-                    out_ty=R.Tensor([16], dtype="int32"),
+                    ty_args=[R.Tensor([16], dtype="int32")],
                 )
                 A_scale = R.multiply(A_slice, B_slice)
                 R.output(A_scale)
@@ -1578,7 +1580,7 @@ def test_symbolic_var_from_shape():
                 B_slice = R.call_tir(
                     cls.slice,
                     [B, slice_index_main_transform_params],
-                    out_ty=R.Tensor([16], dtype="int32"),
+                    ty_args=[R.Tensor([16], dtype="int32")],
                 )
                 output = (R.ShapeExpr([slice_index_main_transform_params]), B_slice)
                 R.output(output)
