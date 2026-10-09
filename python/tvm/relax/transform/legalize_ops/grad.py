@@ -180,7 +180,7 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
             with IRBuilder() as ib:
                 # Init loop (zero-fill output buffer)
                 with T.serial(fused_shape) as i:
-                    T.tensor_store(out, tirx.const(0, dtype=x_ptr.dtype), T.tensor_indices(out, i))
+                    T.tensor_store(out, T.tensor_indices(out, i), tirx.const(0, dtype=x_ptr.dtype))
 
                 # Accumulation loop
                 if axis is not None:
@@ -212,17 +212,17 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
                             )
                             T.tensor_store(
                                 out,
+                                T.tensor_indices(out, out_idx),
                                 out[T.tensor_indices(out, out_idx)]
                                 + grad[T.tensor_indices(grad, grad_idx)],
-                                T.tensor_indices(out, out_idx),
                             )
                 else:
                     with T.serial(indices_len) as loop_l:
                         T.tensor_store(
                             out,
+                            T.tensor_indices(out, (idx[T.tensor_indices(idx, loop_l)])),
                             out[T.tensor_indices(out, (idx[T.tensor_indices(idx, loop_l)]))]
                             + grad[T.tensor_indices(grad, loop_l)],
-                            T.tensor_indices(out, (idx[T.tensor_indices(idx, loop_l)])),
                         )
 
                 return ib.get()

@@ -1251,7 +1251,7 @@ void PythonDocPrinter::PrintTypedDoc(const OperationDoc& doc) {
     PrintChildExprConservatively(doc->operands[1], doc);
   } else if (doc->kind == OpKind::kIfThenElse) {
     TVM_FFI_CHECK_EQ(doc->operands.size(), 3, ValueError)
-        << "IfThenElse requires 3 operands, but got " << doc->operands.size();
+        << "If requires 3 operands, but got " << doc->operands.size();
     PrintChildExpr(doc->operands[1], doc);
     output_ << " if ";
     PrintChildExprConservatively(doc->operands[0], doc);

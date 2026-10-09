@@ -41,7 +41,7 @@ namespace tirx {
 class TIRFrameNode : public IRBuilderFrameNode {
  public:
   /*! \brief The Stmt within in this frame. */
-  ffi::Array<tvm::tirx::Stmt> stmts;
+  ffi::Array<tvm::Stmt> stmts;
 
   /*! \brief Bind a view in frames that support region aliases. */
   virtual void BindBufferRegion(tvm::tirx::TensorVar buffer, tvm::TensorRegion region);
@@ -152,9 +152,9 @@ class ForFrameNode : public TIRFrameNode {
    * \param loop_body The loop body
    * \return A stmt, the loop nest
    */
-  using FMakeForLoop = ffi::TypedFunction<tvm::tirx::Stmt(
+  using FMakeForLoop = ffi::TypedFunction<tvm::Stmt(
       ffi::Array<tvm::Var> loop_vars, ffi::Array<Range> loop_extents,
-      ffi::Array<ffi::Optional<PrimExpr>> loop_steps, tvm::tirx::SeqStmt loop_body, Span span)>;
+      ffi::Array<ffi::Optional<PrimExpr>> loop_steps, tvm::SeqStmt loop_body, Span span)>;
   /*! \brief The loop variable. */
   ffi::Array<tvm::Var> vars;
   /*! \brief The domains of iteration. */
@@ -346,9 +346,9 @@ class IfFrameNode : public TIRFrameNode {
   /*! \brief The condition of the if statement. */
   PrimExpr condition;
   /*! \brief The statements in the true branch. */
-  ffi::Optional<ffi::Array<tvm::tirx::Stmt>> then_stmts;
+  ffi::Optional<ffi::Array<tvm::Stmt>> then_stmts;
   /*! \brief The stetements in the false branch. */
-  ffi::Optional<ffi::Array<tvm::tirx::Stmt>> else_stmts;
+  ffi::Optional<ffi::Array<tvm::Stmt>> else_stmts;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

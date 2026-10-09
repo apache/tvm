@@ -728,17 +728,17 @@ class VMShapeLowerMutator
       return ffi::Unchanged();
     };
 
-    ffi::Array<tirx::Stmt> seq;
+    ffi::Array<tvm::Stmt> seq;
     for (PrimExprSlot* slot : to_compute) {
       TVM_FFI_ICHECK(!slot->value_computed);
       slot->value_computed = true;
       PrimExpr value = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(slot->expr, f_substitute)
                            .as_or_throw<PrimExpr>();
       seq.push_back(
-          tirx::TensorStore(buffer, value, {IntImm(tvm::PrimType(ShapeDType()), slot->index)}));
+          tvm::TensorStore(buffer, {IntImm(tvm::PrimType(ShapeDType()), slot->index)}, value));
     }
 
-    tirx::SeqStmt body(seq);
+    tvm::SeqStmt body(seq);
     ffi::Array<tvm::Var> params{buffer.var()};
     Type ret_type = VoidType();
 

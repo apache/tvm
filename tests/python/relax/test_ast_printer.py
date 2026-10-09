@@ -638,7 +638,7 @@ def test_if():
     assert isinstance(body, rx.SeqExpr)
     body_str = strip_whitespace(dump_ast(body))
     # we expect both branches to be seq exprs
-    assert "If" in body_str
+    assert "IfExpr" in body_str
     assert "true_branch=SeqExpr(" in body_str
     assert "false_branch=SeqExpr(" in body_str
 

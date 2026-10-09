@@ -191,7 +191,7 @@ class FlopEstimator : private tvm::ExprFunctor<TResult(const Expr& n)>,
     return result;
   }
 
-  TResult Dispatch_(const IfThenElseNode* branch) override {
+  TResult Dispatch_(const IfNode* branch) override {
     TResult cond = Dispatch(branch->condition);
     if (branch->else_case) {
       cond += Dispatch(branch->then_case).MaxWith(Dispatch(branch->else_case.value()));

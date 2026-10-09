@@ -19,6 +19,20 @@
 import json
 
 _PRIM_TYPE_KEY_RENAMES = {
+    "tirx.AssertStmt": "ir.AssertStmt",
+    "tirx.Bind": "ir.Bind",
+    "tirx.Break": "ir.Break",
+    "tirx.Continue": "ir.Continue",
+    "tirx.Evaluate": "ir.Evaluate",
+    "tirx.For": "ir.For",
+    "tirx.RegionStmt": "ir.RegionStmt",
+    "tirx.Return": "ir.Return",
+    "tirx.SeqStmt": "ir.SeqStmt",
+    "tirx.Stmt": "ir.Stmt",
+    "tirx.TensorStore": "ir.TensorStore",
+    "tirx.While": "ir.While",
+    "tirx.IfThenElse": "ir.If",
+    "relax.expr.If": "relax.expr.IfExpr",
     "arith.Analyzer": "sym.Analyzer",
     "arith.CanonicalExpr": "sym.CanonicalExpr",
     "arith.ConstIntBound": "sym.ConstIntBound",
@@ -142,6 +156,10 @@ def upgrade_json(json_str):
     nodes = data.get("nodes", [])
     tensor_region_type = None
     for node in nodes:
+        if node.get("type") in ("tirx.TensorStore", "ir.TensorStore"):
+            fields = node.get("data", {})
+            if "buffer" in fields and "dest" not in fields:
+                fields["dest"] = fields.pop("buffer")
         if node.get("type") == "tirx.BufferRegion":
             fields = node.get("data")
             if not isinstance(fields, dict) or "buffer" not in fields:

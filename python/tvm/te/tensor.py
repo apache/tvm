@@ -19,10 +19,9 @@
 # pylint: disable=invalid-name
 import tvm_ffi
 
-from tvm.ir import OpaqueExpr, const, is_prim_expr
+from tvm.ir import OpaqueExpr, SeqStmt, const, is_prim_expr
 from tvm.runtime import Object, ObjectConvertible
 from tvm.tirx import expr as _expr
-from tvm.tirx.stmt import SeqStmt
 
 from . import _ffi_api, _te_tensor_overload
 

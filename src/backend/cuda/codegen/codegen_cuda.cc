@@ -372,7 +372,7 @@ std::string CodeGenCUDA::Finish() {
   return CodeGenC::Finish();
 }
 
-void CodeGenCUDA::Dispatch_(const tirx::ForNode* op) {
+void CodeGenCUDA::Dispatch_(const ForNode* op) {
   // Materialize the loop bounds before emitting an unroll pragma.  PrintExpr
   // may introduce temporaries (for example, for a Select expression).  CUDA
   // requires #pragma unroll to immediately precede the loop it controls; if
@@ -385,7 +385,7 @@ void CodeGenCUDA::Dispatch_(const tirx::ForNode* op) {
   if (op->annotations.count("disable_unroll")) {
     PrintIndent();
     stream << "#pragma unroll 1\n";
-  } else if (op->kind == tirx::ForKind::kUnrolled) {
+  } else if (op->kind == ForKind::kUnrolled) {
     PrintIndent();
     stream << "#pragma unroll\n";
   } else if (auto it = op->annotations.find("pragma_unroll"); it != op->annotations.end()) {

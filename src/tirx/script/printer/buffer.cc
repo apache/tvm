@@ -308,13 +308,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 ffi::Optional<ExprDoc> TensorStoreDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                                const ffi::Object* destination) {
   const auto* store =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::TensorStoreNode>(
-          input);
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorStoreNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
-  bool scalar = IsScalarBuffer(d, store->buffer);
-  ExprDoc buffer = scalar ? ExprDoc(VarDoc(d, store->buffer.as<Var>().value(), false))
-                          : d->Translate(store->buffer).value();
+  auto tensor_var = store->dest.as<tvm::tirx::TensorVar>();
+  bool scalar = tensor_var.has_value() && IsScalarBuffer(d, tensor_var.value());
+  ExprDoc buffer = scalar ? ExprDoc(VarDoc(d, store->dest.as<Var>().value(), false))
+                          : d->Translate(store->dest).value();
   ExprDoc value = d->Translate(store->value).value();
   ExprDoc lhs = scalar ? buffer : ExprDoc(IndexDoc(buffer, TensorIndices(d, store->indices, true)));
   d->Emit(AssignDoc(lhs, value, std::nullopt), ffi::GetRef<ffi::ObjectRef>(store));
@@ -322,7 +322,7 @@ ffi::Optional<ExprDoc> TensorStoreDocTranslate(DocTranslatorObj* d, ffi::AnyView
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::TensorStoreNode>().attr(
+  ffi::reflection::TypeAttrDef<TensorStoreNode>().attr(
       kDocTranslate, FDocTranslate::FromNative<&TensorStoreDocTranslate>());
 }
 

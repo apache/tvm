@@ -72,7 +72,7 @@ def test_plain_render_without_path_mapping():
 
 
 def test_redirected_repr_translation_failure():
-    value = tvm.tirx.For(tvm.tirx.Var("i", "int32"), 0, 1, 99, tvm.tirx.Evaluate(0))
+    value = tvm.ir.For(tvm.tirx.Var("i", "int32"), 0, 1, 99, tvm.ir.Evaluate(0))
     with pytest.raises(TypeError, match="unknown loop kind"):
         value.script()
     assert re.fullmatch(r"tirx\.For\((?:0x)?[0-9a-fA-F]+\)", repr(value))

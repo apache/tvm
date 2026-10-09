@@ -43,7 +43,7 @@ def query_cancel_first_ctaid_x(first_ctaid_x, handle, *, use_ld_acquire=True):
         response, handle
     )
     T.ptx.clusterlaunchcontrol.query_cancel.is_canceled.pred.b128(canceled, response)
-    T.tensor_store(first_ctaid_x.source, T.uint32(0xFFFFFFFF), first_ctaid_x.indices)
+    T.tensor_store(first_ctaid_x.source, first_ctaid_x.indices, T.uint32(0xFFFFFFFF))
     T.ptx.clusterlaunchcontrol.query_cancel.get_first_ctaid__x.b32.b128(
         first_ctaid_x, response, pred=canceled
     )

@@ -93,7 +93,7 @@ bool ParseWarpExecutionAnn(const Schedule& sch, const Instruction& inst) {
 
 size_t GetMaxUsedDtypeBytes(SBlock block) {
   size_t max_bytes = 1;
-  auto visit_store = [&](const tirx::TensorStore& store) -> ffi::Expected<ffi::WalkResult> {
+  auto visit_store = [&](const TensorStore& store) -> ffi::Expected<ffi::WalkResult> {
     max_bytes = std::max(max_bytes, store->value.ty().StorageBytes());
     return ffi::WalkResult::Advance();
   };

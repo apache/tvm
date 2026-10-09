@@ -26,7 +26,17 @@ import functools
 import operator
 
 import tvm
-from tvm.ir import Call, DataTypeImm, DictAttrs, StringImm, TensorRegion, Tuple
+from tvm.ir import (
+    Bind,
+    Call,
+    DataTypeImm,
+    DictAttrs,
+    Evaluate,
+    SeqStmt,
+    StringImm,
+    TensorRegion,
+    Tuple,
+)
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
@@ -44,7 +54,7 @@ from tvm.tirx.layout import (
     tmem_mma_operand_layout,
 )
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.stmt import Bind, Evaluate, SeqStmt, TileOpCall
+from tvm.tirx.stmt import TileOpCall
 
 from ...cpp.descriptors import (
     _check_tcgen05_mma_matrix_shape,

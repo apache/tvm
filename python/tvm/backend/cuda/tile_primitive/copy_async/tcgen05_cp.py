@@ -109,7 +109,7 @@ import functools
 import operator
 
 import tvm
-from tvm.ir import Call, DataTypeImm, DictAttrs, StringImm, Tuple
+from tvm.ir import Bind, Call, DataTypeImm, DictAttrs, Evaluate, SeqStmt, StringImm, Tuple
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
@@ -117,7 +117,7 @@ from tvm.tirx import Function, Var
 from tvm.tirx.layout import ComposeLayout, TCol, TileLayout, TLane
 from tvm.tirx.layout import m as m_axis
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.stmt import Bind, Evaluate, SeqStmt, TileOpCall
+from tvm.tirx.stmt import TileOpCall
 
 from ..copy import _single_thread_exec
 

@@ -48,7 +48,7 @@ FindLoopLCA(const Stmt& root) {
     ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
       stack.push_back(ffi::GetRef<Stmt>(op));
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-      if (op->GetThreadBinding().has_value()) {
+      if (tvm::tirx::GetThreadBinding(op).has_value()) {
         UpdateLCA(op);
       }
       stack.pop_back();
@@ -56,7 +56,7 @@ FindLoopLCA(const Stmt& root) {
     }
 
     void UpdateLCA(const ForNode* loop) {
-      std::string thread_tag = loop->GetThreadBinding().value();
+      std::string thread_tag = tvm::tirx::GetThreadBinding(loop).value();
       {
         ffi::Map<ffi::String, ffi::Any>* tgt = &annotations[thread_tag];
         for (const auto& kv : loop->annotations) {
@@ -134,7 +134,7 @@ class ThreadBindingLifter : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const ForNode* _op, InplaceMode inplace_mode) final {
     For op = ffi::GetRef<For>(_op);
     bool is_kernel_root = false;
-    if (op->GetThreadBinding().has_value()) {
+    if (tvm::tirx::GetThreadBinding(op).has_value()) {
       if (iter_lca.empty()) {
         is_kernel_root = true;
         SetKernelRoot(_op);
@@ -155,7 +155,7 @@ class ThreadBindingLifter : public StmtExprMutator {
     if (is_kernel_root) {
       iter_lca.clear();
     }
-    if (op->GetThreadBinding().has_value()) {
+    if (tvm::tirx::GetThreadBinding(op).has_value()) {
       return body;
     } else {
       new_op.CopyOnWrite()->body = std::move(body);

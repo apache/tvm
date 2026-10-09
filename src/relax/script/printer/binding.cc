@@ -135,7 +135,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 ffi::Optional<ExprDoc> IfDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                       const ffi::Object* destination) {
   const auto* branch =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::IfNode>(input);
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::IfExprNode>(input);
   // A value context needs a usable expression after the conditional.  A
   // destination supplied by a binding is completed directly on both arms.
   ffi::Optional<Var> temporary = std::nullopt;
@@ -145,7 +145,7 @@ ffi::Optional<ExprDoc> IfDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
     destination = temporary.value().get();
   }
   TVM_FFI_CHECK(destination->IsInstance<VarNode>(), TypeError)
-      << "printer Relax If destination must be a Var";
+      << "printer Relax IfExpr destination must be a Var";
   Var var = ffi::GetRef<Var>(static_cast<const VarNode*>(destination));
   ffi::Optional<IdDoc> lhs = VarDoc(d, var);
   ffi::Optional<ExprDoc> annotation = std::nullopt;
@@ -158,8 +158,8 @@ ffi::Optional<ExprDoc> IfDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<relax::IfNode>().attr(kDocTranslate,
-                                                     FDocTranslate::FromNative<&IfDocTranslate>());
+  ffi::reflection::TypeAttrDef<relax::IfExprNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&IfDocTranslate>());
 }
 
 }  // namespace

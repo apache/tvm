@@ -76,7 +76,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     // Step 2. Transform the `predicate` to if-then-else
     Stmt body = new_block->body;
     if (!IsOne(predicate)) {
-      body = IfThenElse(predicate, std::move(body));
+      body = If(predicate, std::move(body));
     }
     // Step 3. Handle allocations in reverse order
     for (size_t i = new_block->alloc_buffers.size(); i > 0; --i) {
@@ -112,7 +112,7 @@ class OpaqueBlockLower : public StmtExprMutator {
                     .as_or_throw<UnchangedOr<ffi::Optional<PrimExpr>>>()
                     .ValueOrUnchanged(op->step);
     auto previous_remap = VarRemapGet(op->loop_var);
-    if (!op->GetThreadBinding().has_value() && IsOne(extent) && op->annotations.empty()) {
+    if (!tvm::tirx::GetThreadBinding(op).has_value() && IsOne(extent) && op->annotations.empty()) {
       // handling unit loop
       VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), min));
     }
@@ -138,7 +138,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     VarRemapSet(op->loop_var, previous_remap);
 
     // Step 2. Keep thread-binding loops until LowerThreadBinding.
-    if (!op->GetThreadBinding().has_value() && IsOne(extent) && op->annotations.empty() &&
+    if (!tvm::tirx::GetThreadBinding(op).has_value() && IsOne(extent) && op->annotations.empty() &&
         !op->annotations.count(s_tir::attr::irregular_loop_mark)) {
       return body;
     }

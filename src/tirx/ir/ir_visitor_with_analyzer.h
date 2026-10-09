@@ -44,7 +44,7 @@ class IRVisitorWithAnalyzer : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op);
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op);
-  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op);
+  ffi::Optional<VisitInterrupt> Visit_(const IfNode* op);
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op);
   ffi::Optional<VisitInterrupt> Visit_(const AssertStmtNode* op);
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op);

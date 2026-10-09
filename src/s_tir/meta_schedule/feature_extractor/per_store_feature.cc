@@ -311,8 +311,8 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
       if (!normalize_thread_bindings_ && IsZero(loop->extent)) {
         return Evaluate(0);
       }
-      if (normalize_thread_bindings_ && loop->GetThreadBinding().has_value()) {
-        const auto tag = loop->GetThreadBinding().value();
+      if (normalize_thread_bindings_ && tvm::tirx::GetThreadBinding(loop).has_value()) {
+        const auto tag = tvm::tirx::GetThreadBinding(loop).value();
         if (support::StartsWith(tag, "vthread")) {
           // Virtual axes are independent iterations and isolate hardware aliases.
           thread_bindings_.push_back(nullptr);
@@ -322,7 +322,7 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
         }
         for (auto it = thread_bindings_.rbegin(); it != thread_bindings_.rend() && *it; ++it) {
           const ForNode* outer = *it;
-          if (outer->GetThreadBinding().value() != tag) continue;
+          if (tvm::tirx::GetThreadBinding(outer).value() != tag) continue;
           // Feature counts describe hardware work, not repeated lexical names
           // for one axis. Normalize only nested aliases in this analysis input.
           sym::Analyzer analyzer;
@@ -446,14 +446,14 @@ struct LoopNest {
       this->auto_unroll.push_back(*auto_unroll_attr);
     }
     ForVec* ref_loops = nullptr;
-    if (loop->kind == ForKind::kParallel && !loop->GetThreadBinding().has_value()) {
+    if (loop->kind == ForKind::kParallel && !tvm::tirx::GetThreadBinding(loop).has_value()) {
       ref_loops = &parallel;
     } else if (loop->kind == ForKind::kVectorized) {
       ref_loops = &vectorize;
     } else if (loop->kind == ForKind::kUnrolled) {
       ref_loops = &unroll;
-    } else if (loop->GetThreadBinding().has_value()) {
-      std::string thread_tag = loop->GetThreadBinding().value();
+    } else if (tvm::tirx::GetThreadBinding(loop).has_value()) {
+      std::string thread_tag = tvm::tirx::GetThreadBinding(loop).value();
       if (thread_tag == "blockIdx.x") {
         ref_loops = &blockIdx_x;
       } else if (thread_tag == "blockIdx.y") {
@@ -890,7 +890,7 @@ void Feature::Init(const TensorStoreNode* store, int n_loops) {
   };
   std::unordered_map<TensorVar, Info, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_info;
   {
-    Info& info = buffer_info[store->buffer];
+    Info& info = buffer_info[store->dest.as_or_throw<TensorVar>()];
     info.access_type = AccessType::kWrite;
     info.multi_indices.push_back({store->indices.begin(), store->indices.end()});
   }
@@ -1450,7 +1450,7 @@ class PerStoreFeatureCollector : public StmtExprVisitor {
     if (store->value->IsInstance<IntImmNode>() || store->value->IsInstance<FloatImmNode>()) {
       return std::nullopt;
     }
-    const VarNode* buffer = store->buffer.get();
+    const VarNode* buffer = store->dest.as_or_throw<TensorVar>().get();
     Feature& feature = buffer_features_[buffer];
     if (feature.buffer == nullptr) {
       feature.buffer = buffer;

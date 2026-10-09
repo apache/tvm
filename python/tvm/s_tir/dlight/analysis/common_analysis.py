@@ -26,6 +26,7 @@ from typing import Literal
 import tvm_ffi
 from tvm_ffi import get_global_func
 
+import tvm
 from tvm import ir, s_tir, tirx
 from tvm.ir import TensorRegion
 from tvm.s_tir import Schedule
@@ -83,7 +84,7 @@ class BufferInfo:
     buf_region: TensorRegion
     shape: tuple[int]
     assoc_lps: list[s_tir.schedule.LoopRV | None]
-    assoc_lps_info: list[tirx.For | None]
+    assoc_lps_info: list[tvm.ir.For | None]
 
     def __init__(
         self,

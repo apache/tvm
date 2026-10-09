@@ -34,8 +34,8 @@ def test_decl_buffer_data_is_use():
     data_ptr = tirx.Var("buf_data", PointerType(PrimType("float32")))
     buf = tirx.decl_tensor((n,), "float32", "buf", data=data_ptr)
 
-    body = tirx.Evaluate(tirx.TensorLoad(buf, [0]))
-    decl = tirx.Bind(
+    body = tvm.ir.Evaluate(tirx.TensorLoad(buf, [0]))
+    decl = tvm.ir.Bind(
         buf,
         tvm.ir.Call(
             "tirx.decl_tensor",
@@ -48,7 +48,7 @@ def test_decl_buffer_data_is_use():
             ty=buf.ty,
         ),
     )
-    stmt = tirx.SeqStmt([decl, body])
+    stmt = tvm.ir.SeqStmt([decl, body])
 
     undef = tvm.tirx.analysis.undefined_vars(stmt, [])
     undef_names = {v.name for v in undef}
@@ -69,8 +69,8 @@ def test_decl_buffer_elem_offset_is_use():
     elem_off = tirx.Var("buf_elem_offset", "int32")
     buf = tirx.decl_tensor((n,), "float32", "buf", data=data_ptr, elem_offset=elem_off)
 
-    body = tirx.Evaluate(tirx.TensorLoad(buf, [0]))
-    decl = tirx.Bind(
+    body = tvm.ir.Evaluate(tirx.TensorLoad(buf, [0]))
+    decl = tvm.ir.Bind(
         buf,
         tvm.ir.Call(
             "tirx.decl_tensor",
@@ -83,7 +83,7 @@ def test_decl_buffer_elem_offset_is_use():
             ty=buf.ty,
         ),
     )
-    stmt = tirx.SeqStmt([decl, body])
+    stmt = tvm.ir.SeqStmt([decl, body])
 
     undef = tvm.tirx.analysis.undefined_vars(stmt, [])
     undef_names = {v.name for v in undef}
@@ -102,8 +102,8 @@ def test_alloc_buffer_data_is_def():
     n = tirx.Var("n", "int32")
     buf = tirx.decl_tensor((n,), "float32", "buf")
 
-    body = tirx.Evaluate(tirx.TensorLoad(buf, [0]))
-    alloc = tvm.tirx.Bind(
+    body = tvm.ir.Evaluate(tirx.TensorLoad(buf, [0]))
+    alloc = tvm.ir.Bind(
         buf,
         tvm.ir.Call(
             "tirx.alloc_tensor",
@@ -116,7 +116,7 @@ def test_alloc_buffer_data_is_def():
             ty=buf.ty,
         ),
     )
-    stmt = tirx.SeqStmt([alloc, body])
+    stmt = tvm.ir.SeqStmt([alloc, body])
 
     undef = tvm.tirx.analysis.undefined_vars(stmt, [])
     undef_names = {v.name for v in undef}
@@ -129,7 +129,7 @@ def test_alloc_buffer_data_is_def():
 def test_buffer_data_projection_is_buffer_use():
     """An opaque data projection must retain the TensorVar identity."""
     buf = tirx.decl_tensor((16,), "float32", "buf")
-    stmt = tirx.Evaluate(buf.data)
+    stmt = tvm.ir.Evaluate(buf.data)
 
     undef = tvm.tirx.analysis.undefined_vars(stmt, [])
     assert len(undef) == 1

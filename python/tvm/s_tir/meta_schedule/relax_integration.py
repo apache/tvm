@@ -19,6 +19,8 @@
 import warnings
 from typing import TYPE_CHECKING, Union
 
+import tvm
+
 # isort: off
 from typing import Literal
 
@@ -410,7 +412,6 @@ def compile_relax(
         The built runtime module or vm VMExecutable for the given relax workload.
     """
     # pylint: disable=import-outside-toplevel
-    import tvm
     from tvm import relax
     from tvm.relax import build as relax_build
     from tvm.relax import pipeline as relax_pipeline_mod

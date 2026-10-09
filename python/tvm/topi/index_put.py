@@ -96,7 +96,7 @@ def index_put(data, indices, values, accumulate=False):
 
         with IRBuilder() as ib:
             with T.parallel(0, full_range) as i:
-                T.tensor_store(out, data[T.tensor_indices(data, i)], T.tensor_indices(out, i))
+                T.tensor_store(out, T.tensor_indices(out, i), data[T.tensor_indices(data, i)])
 
             with T.parallel(0, index_len) as k:
                 # Decompose k into multi-dimensional broadcast index
@@ -140,13 +140,13 @@ def index_put(data, indices, values, accumulate=False):
             return ib.get()
 
     def update_func(dst_ptr, dst_index, update):
-        T.tensor_store(dst_ptr, update, T.tensor_indices(dst_ptr, dst_index))
+        T.tensor_store(dst_ptr, T.tensor_indices(dst_ptr, dst_index), update)
 
     def add_func(dst_ptr, dst_index, update):
         T.tensor_store(
             dst_ptr,
-            dst_ptr[T.tensor_indices(dst_ptr, dst_index)] + (update),
             T.tensor_indices(dst_ptr, dst_index),
+            dst_ptr[T.tensor_indices(dst_ptr, dst_index)] + (update),
         )
 
     reduce_func = add_func if accumulate else update_func

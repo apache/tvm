@@ -249,19 +249,19 @@ WhileFrame While(PrimExpr condition);
  * \param value The value to return.
  * \return The same statement that was added to the parent frame.
  */
-tvm::tirx::Stmt Return(Expr value);
+tvm::Stmt Return(Expr value);
 
 /*!
  * \brief Create a break statement.
  * \return The same statement that was added to the parent frame.
  */
-tvm::tirx::Stmt Break();
+tvm::Stmt Break();
 
 /*!
  * \brief Create a continue statement.
  * \return The same statement that was added to the parent frame.
  */
-tvm::tirx::Stmt Continue();
+tvm::Stmt Continue();
 
 /*!
  * \brief Create an if statement.
@@ -326,20 +326,20 @@ RegionFrame Region(Op op, ffi::Array<Expr> args,
                    DictAttrs attrs = DictAttrs());
 
 /*!
- * \brief Store data in a buffer.
- * \param buffer The buffer.
- * \param value The value to be stored.
+ * \brief Store data in a tensor destination.
+ * \param dest The destination expression.
  * \param indices The indices location to be stored.
+ * \param value The value to be stored.
  * \return The same statement that was added to the parent frame.
  */
-tvm::tirx::Stmt TensorStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices);
+tvm::Stmt TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value);
 
 /*!
  * \brief Evaluate the input expression.
  * \param value The input expression to evaluate.
  * \return The same statement that was added to the parent frame.
  */
-tvm::tirx::Stmt Evaluate(Expr value);
+tvm::Stmt Evaluate(Expr value);
 
 /*!
  * \brief Create a TIR var that represents a pointer

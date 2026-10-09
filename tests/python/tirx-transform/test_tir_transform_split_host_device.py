@@ -28,7 +28,7 @@ from tvm.script import tirx as T
 
 def _is_buffer_binding(node, *op_names):
     return (
-        isinstance(node, tvm.tirx.Bind)
+        isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
         and isinstance(node.value.op, tvm.ir.Op)
         and node.value.op.name in op_names
@@ -141,12 +141,12 @@ def test_device_kernel_nonzero_return_is_rejected():
 
     device_target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     target = tvm.target.Target(device_target, host="llvm")
-    body = tvm.tirx.RegionStmt(
+    body = tvm.ir.RegionStmt(
         tvm.ir.Op.get("tirx.device_scope"),
         [],
         [],
         tvm.ir.DictAttrs({"target": device_target}),
-        tvm.tirx.Return(tvm.tirx.IntImm("int32", 1)),
+        tvm.ir.Return(tvm.tirx.IntImm("int32", 1)),
     )
     func = tvm.tirx.Function([], body)
     func = func.with_attr("global_symbol", "main")

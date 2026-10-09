@@ -890,7 +890,7 @@ def test_if():
     a = relax.Var("a", relax.TensorType([], "bool"))
     b = relax.Var("b", relax.TensorType([1, 2, 3], "float32"))
     c = relax.Var("c", relax.TensorType([1, 2, 3], "float32"))
-    obj = relax.If(
+    obj = relax.IfExpr(
         a,
         relax.SeqExpr([], b),
         relax.SeqExpr([], c),

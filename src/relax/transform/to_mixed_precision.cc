@@ -251,7 +251,7 @@ class DTypeDecisionCollector : public ExprVisitor {
     }
   }
 
-  void VisitExpr_(const IfNode* op) final {
+  void VisitExpr_(const IfExprNode* op) final {
     this->VisitSpan(op->span);
     this->VisitExpr(op->true_branch);
     this->VisitExpr(op->false_branch);

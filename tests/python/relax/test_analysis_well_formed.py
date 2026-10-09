@@ -287,7 +287,7 @@ def test_if():
     false_blocks = [rx.BindingBlock(false_bindings)]
     false_seq_expr = rx.SeqExpr(false_blocks, false_blocks[-1].bindings[-1].var)
     # build If node
-    if_node = rx.If(cond=cond, true_branch=true_seq_expr, false_branch=false_seq_expr)
+    if_node = rx.IfExpr(cond=cond, true_branch=true_seq_expr, false_branch=false_seq_expr)
     gv1 = rx.Var("gv1", R.Tensor([m, n], "float32"))
     # try to call v_in_if defined in the true/false branch
     bindings = [rx.VarBinding(gv0, if_node), rx.VarBinding(gv1, v_in_if)]
@@ -299,7 +299,7 @@ def test_if():
 
 def test_if_non_seq_body():
     # Error: If node has a body that is not a seq node
-    if_node = rx.If(cond=cond, true_branch=x, false_branch=x)
+    if_node = rx.IfExpr(cond=cond, true_branch=x, false_branch=x)
     blocks = [
         rx.BindingBlock(
             [
@@ -316,7 +316,7 @@ def test_if_non_seq_body():
 
     # on the other hand, if they're wrapped in a seq node, it's fine
     seq = rx.SeqExpr([], x)
-    new_if_node = rx.If(cond=cond, true_branch=seq, false_branch=seq)
+    new_if_node = rx.IfExpr(cond=cond, true_branch=seq, false_branch=seq)
     new_blocks = [
         rx.BindingBlock(
             [
@@ -338,7 +338,7 @@ def test_if_complex_condition():
     # Error: If condition must be a leaf expression
     cond_tuple = rx.Tuple([cond])
     cond_idx = rx.TupleGetItem(cond_tuple, 0)
-    if_node = rx.If(cond_idx, rx.SeqExpr([], x), rx.SeqExpr([], x))
+    if_node = rx.IfExpr(cond_idx, rx.SeqExpr([], x), rx.SeqExpr([], x))
     blocks = [
         rx.BindingBlock(
             [
@@ -354,7 +354,7 @@ def test_if_complex_condition():
     assert not rx.analysis.check_well_formed(mod, check_ty=False)
 
     cond_var = rx.Var("q", R.Tensor([], "bool"))
-    new_if = rx.If(cond_var, rx.SeqExpr([], x), rx.SeqExpr([], x))
+    new_if = rx.IfExpr(cond_var, rx.SeqExpr([], x), rx.SeqExpr([], x))
     blocks = [
         rx.BindingBlock(
             [
@@ -459,7 +459,7 @@ def test_inline_function():
                     [
                         rx.VarBinding(
                             var=x,
-                            value=tirx.Function([], tirx.Evaluate(0)),
+                            value=tirx.Function([], tvm.ir.Evaluate(0)),
                         ),
                         rx.VarBinding(
                             var=y,
@@ -468,7 +468,7 @@ def test_inline_function():
                                 ty=tvm.ir.Type.missing(),
                                 args=[
                                     rx.GlobalVar("GlobalVar0"),
-                                    rx.Tuple([x, tirx.Function([], tirx.Evaluate(0))]),
+                                    rx.Tuple([x, tirx.Function([], tvm.ir.Evaluate(0))]),
                                     rx.ShapeExpr([]),
                                 ],
                             ),
@@ -601,7 +601,7 @@ def test_conditional_in_dataflow_block():
     # error: not allowed to have a conditional inside a dataflow block
     x = rx.Var("x", rx.TensorType([], dtype="int32"))
     y = rx.Var("y", rx.TensorType([], dtype="int32"))
-    block = rx.DataflowBlock([rx.VarBinding(y, rx.If(rx.const(True, dtype="bool"), x, x))])
+    block = rx.DataflowBlock([rx.VarBinding(y, rx.IfExpr(rx.const(True, dtype="bool"), x, x))])
     func = rx.Function([x], rx.SeqExpr([block], y), R.Tensor((), dtype="int32")).with_attr(
         "global_symbol", "foo"
     )

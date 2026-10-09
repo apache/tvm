@@ -453,7 +453,7 @@ SeqStmt GenerateInitStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<T
   for (int i = 0; i < n_buffers; ++i) {
     const TensorVar& buffer = buffers[i];
     PrimExpr identity = f_transform_and_remap(reduce->combiner->identity_element[i]);
-    init_stmts.push_back(TensorStore(buffer, identity, indices));
+    init_stmts.push_back(TensorStore(buffer, indices, identity));
   }
   return SeqStmt(init_stmts);
 }
@@ -521,7 +521,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Tens
         PrimExpr combined = reduce->combiner.get()->operator()(lhs, rhs)[i];
         return f_transform_and_remap(combined);
       }();
-      body_stmts.push_back(TensorStore(buffer, value, indices));
+      body_stmts.push_back(TensorStore(buffer, indices, value));
     }
     Stmt body = SeqStmt(body_stmts);
     if (n_buffers > 1) {
@@ -539,7 +539,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Tens
     // Case 2. Data parallel compute
     TVM_FFI_ICHECK_EQ(buffers.size(), 1);
     const PrimExpr& compute_body = f_transform_and_remap(expr_body);
-    return TensorStore(buffers[0], analyzer->Simplify(compute_body), indices);
+    return TensorStore(buffers[0], indices, analyzer->Simplify(compute_body));
   }
 }
 

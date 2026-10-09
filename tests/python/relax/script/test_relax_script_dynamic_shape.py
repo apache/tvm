@@ -242,7 +242,7 @@ def test_call_tir_with_tir_var():
 
 
 def test_if_branch_with_match_cast():
-    """The last branch of a relax::If node may be a MatchCast
+    """The last branch of a relax::IfExpr node may be a MatchCast
 
     This is a regression test.  In previous implementations, using
     R.match_cast as the last binding would cause a segfault while
@@ -267,7 +267,7 @@ def test_if_branch_with_match_cast():
     assert B_var.name == "B"
 
     if_then_else = B_binding.value
-    assert isinstance(if_then_else, relax.If)
+    assert isinstance(if_then_else, relax.IfExpr)
     assert isinstance(if_then_else.true_branch, relax.SeqExpr)
     assert isinstance(if_then_else.false_branch, relax.SeqExpr)
 
@@ -558,7 +558,7 @@ def test_conditional_may_use_symbolic_variables_from_function_scope():
     """Symbolic variables from function scope may be used in branch
 
     This is a regression test.  In earlier implementations, the
-    branches of `relax::If` were normalized with
+    branches of `relax::IfExpr` were normalized with
     `EraseToWellDefinedInScope`, using a fresh variable scope.  While
     this had the intended behavior of preventing variables defined in
     a single branch from being usable outside of the conditional, it

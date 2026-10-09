@@ -101,7 +101,7 @@ void FunctionFrameNode::ExitWithScope() {
   }
   TVM_FFI_CHECK(!is_declaration || stmts.empty(), ValueError)
       << "A function declaration cannot contain body statements";
-  ffi::Optional<tvm::tirx::SeqStmt> body = std::nullopt;
+  ffi::Optional<tvm::SeqStmt> body = std::nullopt;
   if (!is_declaration) body = AsStmt(stmts);
   tvm::tirx::Function func(
       /*params=*/args,
@@ -198,44 +198,43 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 void AssertFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   if (stmts.empty()) {
-    AddToParent(tvm::tirx::AssertStmt(condition, error_kind, message_parts, source_span),
-                source_span);
+    AddToParent(tvm::AssertStmt(condition, error_kind, message_parts, source_span), source_span);
   } else {
-    ffi::Array<tvm::tirx::Stmt> seq;
-    seq.push_back(tvm::tirx::AssertStmt(condition, error_kind, message_parts, source_span));
+    ffi::Array<tvm::Stmt> seq;
+    seq.push_back(tvm::AssertStmt(condition, error_kind, message_parts, source_span));
     for (const auto& stmt : stmts) {
       seq.push_back(stmt);
     }
-    AddToParent(tvm::tirx::SeqStmt(seq, source_span), source_span);
+    AddToParent(tvm::SeqStmt(seq, source_span), source_span);
   }
 }
 
 void RegionFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  AddToParent(tvm::tirx::RegionStmt(op, args, body_params, attrs, AsStmt(stmts), {}, source_span),
+  AddToParent(tvm::RegionStmt(op, args, body_params, attrs, AsStmt(stmts), {}, source_span),
               source_span);
 }
 
 void WhileFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  AddToParent(tvm::tirx::While(condition, AsStmt(stmts), source_span), source_span);
+  AddToParent(tvm::While(condition, AsStmt(stmts), source_span), source_span);
 }
 
 void IfFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   if (!stmts.empty()) {
     TVM_FFI_THROW(InternalError)
-        << "stmt within IfThenElse frame should be either in ThenFrame or ElseFrame";
+        << "stmt within If frame should be either in ThenFrame or ElseFrame";
   }
   if (!then_stmts.has_value()) {
-    TVM_FFI_THROW(InternalError) << "IfThenElse frame should have at least one then branch";
+    TVM_FFI_THROW(InternalError) << "If frame should have at least one then branch";
   }
-  AddToParent(tvm::tirx::IfThenElse(condition, AsStmt(then_stmts.value()),
-                                    else_stmts.has_value() ? ffi::Optional<tvm::tirx::SeqStmt>(
-                                                                 AsStmt(else_stmts.value()))
-                                                           : std::nullopt,
-                                    source_span),
-              source_span);
+  AddToParent(
+      tvm::If(condition, AsStmt(then_stmts.value()),
+              else_stmts.has_value() ? ffi::Optional<tvm::SeqStmt>(AsStmt(else_stmts.value()))
+                                     : std::nullopt,
+              source_span),
+      source_span);
 }
 
 void ThenFrameNode::EnterWithScope() {

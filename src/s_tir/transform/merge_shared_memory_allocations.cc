@@ -154,7 +154,7 @@ class AllocateCollector : public StmtExprVisitor {
 // Used for liveness analysis.
 // "linear" means fitting a complex access pattern into an array of StmtEntry
 //
-// Define "scope" as the body of For/thread_launch/IfThenElse
+// Define "scope" as the body of For/thread_launch/If
 // Composite scopes(loop/thread_launch/IfThen) is represented by three StmtEntry:
 // before_scope -> scope_body -> after_scope
 //
@@ -202,7 +202,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
     }
     // Add write access.
-    const VarNode* buf = ResolveAlias(op->buffer.get());
+    const VarNode* buf = ResolveAlias(op->dest.as_or_throw<TensorVar>().get());
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.buffer.defined()) {
       TVM_FFI_ICHECK_LT(it->second.level, scope_.size());
@@ -340,7 +340,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) final { return VisitNewScope(op); }
+  ffi::Optional<VisitInterrupt> Visit_(const IfNode* op) final { return VisitNewScope(op); }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final { return VisitNewScope(op); }
 
@@ -606,19 +606,19 @@ class SharedMemoryRewriter : public StmtExprMutator {
     return VisitBufferAccess(std::move(node));
   }
 
-  template <typename Node>
-  Node VisitBufferAccess(Node node) {
-    if (IsAppropriateSharedMemory(node->buffer) && !scope_stack_.empty() &&
-        ResolveAllocation(node->buffer.get(), scope_stack_.back())) {
+  TensorStore VisitBufferAccess(TensorStore node) {
+    TensorVar buffer = node->dest.as_or_throw<TensorVar>();
+    if (IsAppropriateSharedMemory(buffer) && !scope_stack_.empty() &&
+        ResolveAllocation(buffer.get(), scope_stack_.back())) {
       TVM_FFI_ICHECK_EQ(node->indices.size(), 1)
           << "MergeSharedMemoryAllocations expects flat memory buffers, "
           << "and is to be run after "
           << "FlattenBuffer";
-      ffi::Array<PrimExpr> indices = {
-          node->indices[0] + this->GetBufferOffset(node->buffer.var(), node->buffer->dtype->dtype)};
+      ffi::Array<PrimExpr> indices = {node->indices[0] +
+                                      this->GetBufferOffset(buffer.var(), buffer->dtype->dtype)};
 
       auto writer = node.CopyOnWrite();
-      writer->buffer = GetUpdatedBuffer(node->buffer);
+      writer->dest = GetUpdatedBuffer(buffer);
       writer->indices = indices;
     }
 

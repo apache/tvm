@@ -244,9 +244,9 @@ ffi::Optional<VisitInterrupt> ComputationsDoneBy::Visit(ffi::AnyView expr_value)
 }
 
 /*!
- * \brief The method which overrides the specific treatment for an IfThenElseNode
+ * \brief The method which overrides the specific treatment for an IfNode
  */
-ffi::Optional<VisitInterrupt> ComputationsDoneBy::Visit_(const IfThenElseNode* op) {
+ffi::Optional<VisitInterrupt> ComputationsDoneBy::Visit_(const IfNode* op) {
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->condition));
   ComputationTable computations_done_by_cond = table_of_computations_;
   table_of_computations_.clear();

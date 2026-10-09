@@ -33,10 +33,10 @@
 #include <string>
 
 namespace tvm {
-namespace tirx {
-
-// forward declare Stmt
+// forward declare shared statement.
 class Stmt;
+
+namespace tirx {
 
 /*!
  * \brief Checked zero-state view over an ordinary VarNode with TensorType.

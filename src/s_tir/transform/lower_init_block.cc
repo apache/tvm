@@ -79,7 +79,7 @@ class InitBlockLower : public StmtExprMutator {
     for (size_t i = 1; i < conditions.size(); ++i) {
       cond = logical_and(cond, conditions[i]);
     }
-    return IfThenElse(cond, init);
+    return If(cond, init);
   }
 };
 

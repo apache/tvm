@@ -53,7 +53,7 @@ class NormalizeMutator : public ExprMutatorBase {
     }
   }
 
-  Expr VisitExpr_(const IfNode* op) final {
+  Expr VisitExpr_(const IfExprNode* op) final {
     Expr guard = this->VisitExpr(op->cond);
     Expr true_b = this->VisitWithNewScope(op->true_branch);
     Expr false_b = this->VisitWithNewScope(op->false_branch);
@@ -61,7 +61,7 @@ class NormalizeMutator : public ExprMutatorBase {
         op->false_branch.same_as(false_b)) {
       return ffi::GetRef<Expr>(op);
     } else {
-      return If(guard, true_b, false_b, op->span);
+      return IfExpr(guard, true_b, false_b, op->span);
     }
   }
 

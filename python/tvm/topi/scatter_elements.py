@@ -106,7 +106,7 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
         # Copy initial input data to output
         with IRBuilder() as ib:
             with T.parallel(0, full_range) as i:
-                T.tensor_store(out, data[T.tensor_indices(data, i)], T.tensor_indices(out, i))
+                T.tensor_store(out, T.tensor_indices(out, i), data[T.tensor_indices(data, i)])
 
             with T.parallel(0, ind_before_axis_range * ind_after_axis_range) as fused:
                 i = fused // ind_after_axis_range
@@ -126,41 +126,41 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
             return ib.get()
 
     def update_func(dst_ptr, dst_index, update):
-        T.tensor_store(dst_ptr, update, T.tensor_indices(dst_ptr, dst_index))
+        T.tensor_store(dst_ptr, T.tensor_indices(dst_ptr, dst_index), update)
 
     def add_func(dst_ptr, dst_index, update):
         T.tensor_store(
             dst_ptr,
-            dst_ptr[T.tensor_indices(dst_ptr, dst_index)] + (update),
             T.tensor_indices(dst_ptr, dst_index),
+            dst_ptr[T.tensor_indices(dst_ptr, dst_index)] + (update),
         )
 
     def mul_func(dst_ptr, dst_index, update):
         T.tensor_store(
             dst_ptr,
-            dst_ptr[T.tensor_indices(dst_ptr, dst_index)] * (update),
             T.tensor_indices(dst_ptr, dst_index),
+            dst_ptr[T.tensor_indices(dst_ptr, dst_index)] * (update),
         )
 
     def mean_func(dst_ptr, dst_index, update):
         T.tensor_store(
             dst_ptr,
-            (dst_ptr[T.tensor_indices(dst_ptr, dst_index)] + update) / 2,
             T.tensor_indices(dst_ptr, dst_index),
+            (dst_ptr[T.tensor_indices(dst_ptr, dst_index)] + update) / 2,
         )
 
     def min_func(dst_ptr, dst_index, update):
         T.tensor_store(
             dst_ptr,
-            tirx.min(dst_ptr[T.tensor_indices(dst_ptr, dst_index)], update),
             T.tensor_indices(dst_ptr, dst_index),
+            tirx.min(dst_ptr[T.tensor_indices(dst_ptr, dst_index)], update),
         )
 
     def max_func(dst_ptr, dst_index, update):
         T.tensor_store(
             dst_ptr,
-            tirx.max(dst_ptr[T.tensor_indices(dst_ptr, dst_index)], update),
             T.tensor_indices(dst_ptr, dst_index),
+            tirx.max(dst_ptr[T.tensor_indices(dst_ptr, dst_index)], update),
         )
 
     reduce_func = None

@@ -90,7 +90,7 @@ def test_decl_buffer_physical_data_binding():
     buffer = tvm.tirx.decl_tensor((8,), "float32")
     data = tvm.tirx.Var("data", buffer.data.ty)
 
-    decl = tvm.tirx.Bind(
+    decl = tvm.ir.Bind(
         buffer,
         tvm.ir.Call(
             "tirx.decl_tensor",

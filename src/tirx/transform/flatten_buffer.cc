@@ -246,7 +246,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
       n->value = std::move(value).ValueOrUnchanged(op->value);
       n->indices = std::move(indices).ValueOrUnchanged(op->indices);
     }
-    return VisitBufferAccess(std::move(store), op->buffer);
+    return VisitBufferAccess(std::move(store), op->dest.as_or_throw<TensorVar>());
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
@@ -298,13 +298,13 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
 
   template <typename Node>
   Node VisitBufferAccess(Node node, const TensorVar& original_buffer) {
-    TVM_FFI_ICHECK(node->buffer.defined());
+    TVM_FFI_ICHECK(node->dest.template as_or_throw<TensorVar>().defined());
     buffers_used_.insert(original_buffer);
     const FlatInfo& info = Lookup(original_buffer);
     auto flattened_indices = FoldIndices(info, node->indices);
 
     auto writer = node.CopyOnWrite();
-    writer->buffer = info.flattened;
+    writer->dest = info.flattened;
     writer->indices = flattened_indices;
     return node;
   }

@@ -96,7 +96,7 @@ class ComputationsDoneBy : public s_tir::StmtExprVisitor {
  protected:
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView expr) override;
 
-  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const IfNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const WhileNode* op) override;
 

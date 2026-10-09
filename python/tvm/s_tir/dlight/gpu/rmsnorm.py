@@ -19,10 +19,9 @@
 
 import tvm
 from tvm import tirx
-from tvm.ir import Call, TensorLoad
+from tvm.ir import Call, TensorLoad, TensorStore
 from tvm.s_tir import SBlock
 from tvm.target import Target
-from tvm.tirx import TensorStore
 from tvm.tirx.expr import Cast
 
 from ..base import ScheduleRule

@@ -217,12 +217,12 @@ class FunctionInliner : public StmtExprMutator {
 
   UnchangedOr<Expr> Mutate_(const CallNode* call, InplaceMode inplace_mode) override {
     // Because the current implementation inlines a subroutine inserts
-    // the `tirx::Stmt` body at the point of use, replacement must
-    // occur in a context where a `tirx::Stmt` can be returned. Support
+    // the `Stmt` body at the point of use, replacement must
+    // occur in a context where a `Stmt` can be returned. Support
     // of subroutines that are called within an expression
     // (e.g. Replacing func in `Buf[0] = func(1) + func(2)`) would
     // require hoisting preprocessing done in the subroutine to the
-    // parent `tirx::Stmt`.
+    // parent `Stmt`.
     //
     // See `TestInlineCallOccurringInExpression` in
     // `test_tir_inline_private_functions.py` for a test of this

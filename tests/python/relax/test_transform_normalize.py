@@ -56,7 +56,7 @@ def test_normalize_function():
 def test_normalize_if():
     cond = relax.Var("cond", R.Tensor([], "bool"))
     x = relax.Var("x", R.Tensor([1], "float32"))
-    # TODO(relax-team): add type and shape inference for IfNode
+    # TODO(relax-team): add type and shape inference for IfExprNode
     y = relax.Var("y")
 
     # Note: the parser automatically normalize the IR written in TVMScript,
@@ -69,7 +69,7 @@ def test_normalize_if():
                     [
                         relax.VarBinding(
                             y,
-                            relax.If(
+                            relax.IfExpr(
                                 cond,
                                 relax.op.multiply(relax.op.add(x, x), relax.op.add(x, x)),
                                 relax.op.add(relax.op.multiply(x, x), relax.op.multiply(x, x)),
@@ -198,7 +198,7 @@ def test_normalize_if_branches():
     cond = relax.Var("cond", R.Tensor([], "bool"))
     plus = relax.op.add(x, y)
     mult = relax.op.multiply(x, y)
-    if_node = relax.If(cond, plus, mult)
+    if_node = relax.IfExpr(cond, plus, mult)
     seq = relax.SeqExpr([relax.BindingBlock([relax.VarBinding(z, if_node)])], z)
     f = relax.Function(
         [cond, x, y],
@@ -230,7 +230,7 @@ def test_normalize_if_branches():
 def test_normalize_if_condition():
     cond = relax.Var("cond", R.Tensor([], "bool"))
     x = relax.Var("x", R.Tensor([1], "float32"))
-    # TODO(relax-team): add type and shape inference for IfNode
+    # TODO(relax-team): add type and shape inference for IfExprNode
     y = relax.Var("y")
 
     # The condition is wrapped in a tuple and then indexed
@@ -242,7 +242,7 @@ def test_normalize_if_condition():
                     [
                         relax.VarBinding(
                             y,
-                            relax.If(
+                            relax.IfExpr(
                                 relax.TupleGetItem(relax.Tuple([cond]), 0),
                                 relax.op.add(x, x),
                                 relax.op.multiply(x, x),

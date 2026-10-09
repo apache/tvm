@@ -737,17 +737,17 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     return seq_expr;
   }
 
-  Expr VisitExpr_(const IfNode* op) final {
+  Expr VisitExpr_(const IfExprNode* op) final {
     Expr new_cond = this->NormalizeArgument(op->cond);
     Expr new_true = this->VisitWithNewScope(op->true_branch);
     Expr new_false = this->VisitWithNewScope(op->false_branch);
 
-    If if_node = [&]() -> If {
+    IfExpr if_node = [&]() -> IfExpr {
       if (new_cond.same_as(op->cond) && new_true.same_as(op->true_branch) &&
           new_false.same_as(op->false_branch)) {
-        return ffi::GetRef<If>(op);
+        return ffi::GetRef<IfExpr>(op);
       } else {
-        return If(new_cond, new_true, new_false, op->span);
+        return IfExpr(new_cond, new_true, new_false, op->span);
       }
     }();
     if (if_node->ty.as<MissingType>().has_value()) {

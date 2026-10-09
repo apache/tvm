@@ -138,7 +138,7 @@ class BlockReadWriteDetector : public s_tir::StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override;
-  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const IfNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockRealizeNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) override;
@@ -216,7 +216,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const ForNode* op) 
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const IfThenElseNode* op) {
+ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const IfNode* op) {
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->condition));
   {
     // Visit then branch
@@ -355,7 +355,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const TensorStoreNo
     }
     relaxed_region.push_back(sym::EvalSet(sym::IntSet::Vector(remapped_index), dom_map_));
   }
-  Update(&writes_buffers_, &write_regions_, op->buffer, relaxed_region);
+  Update(&writes_buffers_, &write_regions_, op->dest.as_or_throw<TensorVar>(), relaxed_region);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
   for (const auto& index : op->indices) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));

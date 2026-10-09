@@ -100,11 +100,11 @@ class MatchBufferRegion : public ffi::ObjectRef {
  *
  * \endcode
  */
-class SBlockNode : public tirx::StmtNode {
+class SBlockNode : public StmtNode {
  public:
   explicit SBlockNode(ffi::UnsafeInit tag) : body(tag) {}
 
-  explicit SBlockNode(tirx::SeqStmt body) : body(std::move(body)) {}
+  explicit SBlockNode(SeqStmt body) : body(std::move(body)) {}
 
   /*! \brief The variables of the block. */
   ffi::Array<s_tir::IterVar> iter_vars;
@@ -127,9 +127,9 @@ class SBlockNode : public tirx::StmtNode {
    *  We also provide primitives to decompose the init into a separate block during scheduling.
    *  Init field is `std::nullopt` if there is no reduction iter_vars
    */
-  ffi::Optional<tirx::SeqStmt> init;
+  ffi::Optional<SeqStmt> init;
   /*! \brief The body of the block. */
-  tirx::SeqStmt body;
+  SeqStmt body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -145,38 +145,38 @@ class SBlockNode : public tirx::StmtNode {
         .def_ro("init", &SBlockNode::init)
         .def_ro("body", &SBlockNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.SBlock", SBlockNode, tirx::StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.SBlock", SBlockNode, StmtNode);
 };
 
 /*!
  * \brief Managed reference to SBlockNode.
  * \sa SBlockNode
  */
-class SBlock : public tirx::Stmt {
+class SBlock : public Stmt {
  public:
   TVM_DLL explicit SBlock(
       ffi::Array<s_tir::IterVar> iter_vars, ffi::Array<TensorRegion> reads,
-      ffi::Array<TensorRegion> writes, ffi::String name_hint, tirx::SeqStmt body,
-      ffi::Optional<tirx::SeqStmt> init = std::nullopt,
+      ffi::Array<TensorRegion> writes, ffi::String name_hint, SeqStmt body,
+      ffi::Optional<SeqStmt> init = std::nullopt,
       ffi::Array<tirx::TensorVar> alloc_buffers = ffi::Array<tirx::TensorVar>(),
       ffi::Array<MatchBufferRegion> match_buffers = ffi::Array<MatchBufferRegion>(),
       ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
       Span span = Span());
 
-  TVM_DLL explicit SBlock(ffi::String name_hint, tirx::SeqStmt body,
+  TVM_DLL explicit SBlock(ffi::String name_hint, SeqStmt body,
                           ffi::Array<tirx::TensorVar> alloc_buffers = ffi::Array<tirx::TensorVar>(),
                           Span span = Span());
 
-  explicit SBlock(ffi::ObjectPtr<SBlockNode> node) : tirx::Stmt(std::move(node)) {}
+  explicit SBlock(ffi::ObjectPtr<SBlockNode> node) : Stmt(std::move(node)) {}
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlock, tirx::Stmt, SBlockNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlock, Stmt, SBlockNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SBlockNode);
 };
 
 /*!
  * \brief A block realization node represents execution of the block at the binding values.
  */
-class SBlockRealizeNode : public tirx::StmtNode {
+class SBlockRealizeNode : public StmtNode {
  public:
   explicit SBlockRealizeNode(ffi::UnsafeInit tag) : predicate(tag), block(tag) {}
 
@@ -200,21 +200,21 @@ class SBlockRealizeNode : public tirx::StmtNode {
         .def_ro("predicate", &SBlockRealizeNode::predicate)
         .def_ro("block", &SBlockRealizeNode::block);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.SBlockRealize", SBlockRealizeNode, tirx::StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.SBlockRealize", SBlockRealizeNode, StmtNode);
 };
 
 /*!
  * \brief Managed reference to BlockRealizeNode
  * \sa BlockRealizeNode
  */
-class SBlockRealize : public tirx::Stmt {
+class SBlockRealize : public Stmt {
  public:
   TVM_DLL explicit SBlockRealize(ffi::Array<PrimExpr> iter_values, PrimExpr predicate, SBlock block,
                                  Span span = Span());
 
-  explicit SBlockRealize(ffi::ObjectPtr<SBlockRealizeNode> node) : tirx::Stmt(std::move(node)) {}
+  explicit SBlockRealize(ffi::ObjectPtr<SBlockRealizeNode> node) : Stmt(std::move(node)) {}
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockRealize, tirx::Stmt, SBlockRealizeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockRealize, Stmt, SBlockRealizeNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SBlockRealizeNode);
 };
 

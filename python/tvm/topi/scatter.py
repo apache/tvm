@@ -118,7 +118,7 @@ def scatter_nd(data, indices, updates, mode):
 
         with IRBuilder() as ib:
             with T.serial(0, fused_shape) as i:
-                T.tensor_store(out, data[T.tensor_indices(data, i)], T.tensor_indices(out, i))
+                T.tensor_store(out, T.tensor_indices(out, i), data[T.tensor_indices(data, i)])
 
             with T.serial(0, fused_indices_dimension) as i:
                 with T.parallel(0, fused_updates_dimension) as j:
@@ -136,40 +136,40 @@ def scatter_nd(data, indices, updates, mode):
                     if mode == "update":
                         T.tensor_store(
                             out,
-                            updates[T.tensor_indices(updates, i * fused_updates_dimension + j)],
                             T.tensor_indices(out, index),
+                            updates[T.tensor_indices(updates, i * fused_updates_dimension + j)],
                         )
                     elif mode == "add":
                         T.tensor_store(
                             out,
+                            T.tensor_indices(out, index),
                             out[T.tensor_indices(out, index)]
                             + (updates[T.tensor_indices(updates, i * fused_updates_dimension + j)]),
-                            T.tensor_indices(out, index),
                         )
                     elif mode == "mul":
                         T.tensor_store(
                             out,
+                            T.tensor_indices(out, index),
                             out[T.tensor_indices(out, index)]
                             * (updates[T.tensor_indices(updates, i * fused_updates_dimension + j)]),
-                            T.tensor_indices(out, index),
                         )
                     elif mode == "min":
                         T.tensor_store(
                             out,
+                            T.tensor_indices(out, index),
                             tirx.min(
                                 out[T.tensor_indices(out, index)],
                                 updates[T.tensor_indices(updates, i * fused_updates_dimension + j)],
                             ),
-                            T.tensor_indices(out, index),
                         )
                     elif mode == "max":
                         T.tensor_store(
                             out,
+                            T.tensor_indices(out, index),
                             tirx.max(
                                 out[T.tensor_indices(out, index)],
                                 updates[T.tensor_indices(updates, i * fused_updates_dimension + j)],
                             ),
-                            T.tensor_indices(out, index),
                         )
                     else:
                         raise NotImplementedError(

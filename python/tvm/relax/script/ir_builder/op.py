@@ -538,7 +538,7 @@ def if_then_else_(condition: Any, true_value: Any, false_value: Any) -> Any:
         for value in (true_value, false_value)
     ):
         return _tir.if_then_else(condition, true_value, false_value)
-    return _relax.If(condition, _value(true_value), _value(false_value))
+    return _relax.IfExpr(condition, _value(true_value), _value(false_value))
 
 
 def and_(*values: Any) -> Any:

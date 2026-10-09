@@ -56,7 +56,7 @@
  *
  * Scope tree
  * ----------
- * Each For, IfThenElse (each branch), While, and RegionStmt body creates a new
+ * Each For, If (each branch), While, and RegionStmt body creates a new
  * scope. The scope tree enables computing the Lowest Common Ancestor (LCA) of
  * all scopes where an expression occurs, which determines the correct insertion
  * point — the narrowest scope that dominates all uses.
@@ -167,7 +167,7 @@ class CSEPlanner : public StmtExprVisitor {
    * \brief One node in the scope tree.
    *
    * The scope tree mirrors the nesting structure of the TIR program.
-   * Each scope-creating statement (For, IfThenElse branch, While, RegionStmt)
+   * Each scope-creating statement (For, If branch, While, RegionStmt)
    * gets its own ScopeEntry. The root scope (depth 0) represents the function
    * body itself.
    */
@@ -581,14 +581,14 @@ class CSEPlanner : public StmtExprVisitor {
   }
 
   /*!
-   * \brief IfThenElse creates separate scopes for then/else branches.
+   * \brief If creates separate scopes for then/else branches.
    *
    * The condition is visited in the parent scope (so expressions shared
    * between the condition and a branch can be hoisted above the If).
    * Each branch gets its own scope so that expressions appearing in only
    * one branch are not hoisted above the If.
    */
-  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) override {
+  ffi::Optional<VisitInterrupt> Visit_(const IfNode* op) override {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->condition));
     int saved = current_scope_;
     Stmt stmt = ffi::GetRef<Stmt>(op);

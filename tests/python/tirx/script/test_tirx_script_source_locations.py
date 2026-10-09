@@ -207,7 +207,7 @@ def test_statement_receipts_keep_emitted_nodes_and_spans():
 
 def test_native_bind_keeps_returned_and_stored_variable_identity():
     # Aliases of an explicitly produced native variable must not rename, respan or bind it again.
-    from tvm import ir, tirx
+    from tvm import ir
 
     span = ir.Span(ir.SourceName("producer.py"), 7, 7, 2, 19)
     produced = ir.Var("producer_name", "int32", span)
@@ -233,7 +233,7 @@ def test_native_bind_keeps_returned_and_stored_variable_identity():
         T.evaluate(called)
 
     binding, use = main.body.seq
-    assert isinstance(binding, tirx.Bind) and isinstance(use, tirx.Evaluate)
+    assert isinstance(binding, tvm.ir.Bind) and isinstance(use, tvm.ir.Evaluate)
     assert binding.var.same_as(produced) and use.value.same_as(produced)
     assert len(observed) == 3 and len(calls) == 2
     assert calls[0].same_as(main.params[0]) and calls[1].same_as(produced)
@@ -243,7 +243,7 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
     # A native view must preserve its producer name/span and declare its storage exactly once.
     from functools import wraps
 
-    from tvm import ir, tirx
+    from tvm import ir
     from tvm.script.ir_builder import base
 
     original = ir.Var.view
@@ -284,9 +284,9 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
         item.same_as(value) and location.same_as(produced_span) for item, location in observed
     )
     nodes = list(main.body.seq)
-    assert len(nodes) == 3 and isinstance(nodes[0], tirx.Bind)
-    assert isinstance(nodes[1], tirx.TensorStore) and isinstance(nodes[2], tirx.Bind)
-    assert nodes[0].var.same_as(value) and nodes[1].buffer.same_as(value)
+    assert len(nodes) == 3 and isinstance(nodes[0], tvm.ir.Bind)
+    assert isinstance(nodes[1], tvm.ir.TensorStore) and isinstance(nodes[2], tvm.ir.Bind)
+    assert nodes[0].var.same_as(value) and nodes[1].dest.same_as(value)
     assert nodes[2].var.same_as(produced[1][0])
     ir.assert_structural_equal(nodes[0].value.args[0], captured.data)
     ir.assert_structural_equal(nodes[2].value.args[0], captured.data)
@@ -339,7 +339,7 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
     assert observed[1] is holder and holder.resource.same_as(buffer)
     assert all(buffer.span.same_as(span) for span in resource_spans)
     binding = main.body[0]
-    assert isinstance(binding, tirx.Bind) and binding.value.same_as(projection)
+    assert isinstance(binding, tvm.ir.Bind) and binding.value.same_as(projection)
     assert binding.var.name == "bound"
     assert tirx.is_tensor_var(binding.var)
     assert not isinstance(projection, ir.Var)

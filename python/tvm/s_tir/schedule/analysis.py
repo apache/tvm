@@ -18,11 +18,10 @@
 
 import tvm_ffi
 
-from tvm.ir import Var
+from tvm.ir import For, Var
 from tvm.runtime import Object
 from tvm.tirx.expr import Expr
 from tvm.tirx.function import Function, IndexMap
-from tvm.tirx.stmt import For
 
 from . import _ffi_api
 from .schedule import SBlockRV, Schedule

@@ -241,7 +241,7 @@ def extern(
 
              **Returns**
 
-             - **stmt** (:any:`tvm.tirx.Stmt` or a sequence of statements) -
+             - **stmt** (:any:`tvm.ir.Stmt` or a sequence of statements) -
                The body that carries out array computation.
 
     name: str, optional
@@ -341,8 +341,8 @@ def extern(
             )
     body = fcompute(input_placeholders, output_placeholders)
     if tvm.ir.is_prim_expr(body):
-        body = tvm.tirx.Evaluate(body)
-    if not isinstance(body, tvm.tirx.Stmt | list | tuple | Array):
+        body = tvm.ir.Evaluate(body)
+    if not isinstance(body, tvm.ir.Stmt | list | tuple | Array):
         raise ValueError(
             f"Function '{fcompute.__name__}' should return Expr, Stmt, or a sequence of Stmt, "
             "but it returned "

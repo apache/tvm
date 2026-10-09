@@ -43,15 +43,7 @@ from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
 from .expr import Select, TensorLoad, Ramp, Broadcast, Shuffle
 from .expr import CallEffectKind, Let
 
-from .stmt import Stmt, Bind, AssertStmt, ForKind, For, While, Return, Break, Continue
 
-# Legacy alias: LetStmt was folded into the body-less Bind statement.
-LetStmt = Bind
-
-from .stmt import TensorStore, RegionStmt
-
-from .stmt import SeqStmt
-from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
 from .stmt import BufferRegion
 from .stmt import ScopeIdDefStmt
 from .tile_primitive import DispatchContext

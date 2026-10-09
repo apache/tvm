@@ -215,7 +215,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     // Index conversion needs the original logical layout after the parent remaps the buffer.
-    TensorVar logical_buffer = op->buffer;
+    TensorVar logical_buffer = op->dest.as_or_throw<TensorVar>();
     TensorStore store = StmtExprMutator::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                             .as_or_throw<TensorStore>();
@@ -224,7 +224,8 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     store = VisitBufferAccess(store, logical_buffer);
 
     if (store_returns_bool) {
-      TVM_FFI_ICHECK_EQ(store->buffer->dtype->dtype, (DLDataType{kDLInt, 8, 1}))
+      TVM_FFI_ICHECK_EQ(store->dest.as_or_throw<TensorVar>()->dtype->dtype,
+                        (DLDataType{kDLInt, 8, 1}))
           << "Expected int8 backing array for boolean tensor";
       auto writer = store.CopyOnWrite();
       writer->value = tvm::prim::cast(PrimType::Int(8), store->value);
@@ -309,7 +310,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     auto flattened_indices = GetSimplifiedElemOffset(logical_buffer, node->indices);
     TensorVar flattened_buffer = GetFlattenedTensor(logical_buffer);
     auto writer = node.CopyOnWrite();
-    writer->buffer = flattened_buffer;
+    writer->dest = flattened_buffer;
     writer->indices = flattened_indices;
     return node;
   }

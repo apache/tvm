@@ -2897,7 +2897,7 @@ class OperatorConverter:
 
         if_bb = relax.BlockBuilder()
         with if_bb.function(if_name, params=params, private=True):
-            result = relax.If(
+            result = relax.IfExpr(
                 cond,
                 relax.Call(then_func, branch_args),
                 relax.Call(else_func, branch_args),
@@ -2939,7 +2939,7 @@ class OperatorConverter:
             next_args = self._bind_call_outputs(next_state, loop_var_count)
             true_branch = relax.Call(loop_gv, next_args)
             false_branch = self._make_tuple_or_single(params)
-            result = relax.If(cond, true_branch, false_branch)
+            result = relax.IfExpr(cond, true_branch, false_branch)
             loop_bb.emit_func_output(result)
         loop_func = loop_bb.get()[loop_name]
         module_builder.update_func(loop_gv, loop_func)

@@ -57,7 +57,7 @@ class RelaxFrame : public IRBuilderFrame {
 };
 
 /*! \brief The base ir_builder frame for frames with SeqExpr
-           i.e. Functions, If branches
+           i.e. Functions, IfExpr branches
   */
 class SeqExprFrameNode : public RelaxFrameNode {
  public:

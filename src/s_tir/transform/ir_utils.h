@@ -31,7 +31,7 @@ namespace tvm {
 namespace s_tir {
 
 /*! \brief Convert a schedulable statement or module to SSA form. */
-tirx::Stmt ConvertSSA(tirx::Stmt stmt);
+Stmt ConvertSSA(Stmt stmt);
 IRModule ConvertSSA(IRModule mod);
 
 /*!
@@ -60,7 +60,7 @@ using StorageAlignAnnotation = ffi::Array<StorageAlignTuple>;
  * \return The result dict from buffer var to storage align annotations.
  */
 std::unordered_map<tvm::Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(
-    const tirx::Stmt& body);
+    const Stmt& body);
 
 }  // namespace s_tir
 }  // namespace tvm

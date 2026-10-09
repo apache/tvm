@@ -165,7 +165,7 @@ class CommonSubexprEliminator : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const IfNode* op) override {
+  Expr VisitExpr_(const IfExprNode* op) override {
     Expr cond = VisitExpr(op->cond);
     Expr true_branch = VisitWithInnerScope(op->true_branch);
     Expr false_branch = VisitWithInnerScope(op->false_branch);
@@ -173,7 +173,7 @@ class CommonSubexprEliminator : public ExprMutator {
         op->false_branch.same_as(false_branch) && VisitAndCheckTypeFieldUnchanged(op->ty)) {
       return ffi::GetRef<Expr>(op);
     } else {
-      return If(cond, true_branch, false_branch, op->span);
+      return IfExpr(cond, true_branch, false_branch, op->span);
     }
   }
 

@@ -25,7 +25,7 @@ from tvm.ir import IRModule, TensorRegion
 from tvm.tirx.expr import Var
 from tvm.s_tir import SBlock
 
-from tvm.tirx import Stmt
+from tvm.ir import Stmt
 from tvm.tirx.function import Function
 from . import _ffi_api
 

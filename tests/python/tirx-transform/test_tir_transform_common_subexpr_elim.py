@@ -235,7 +235,7 @@ def test_deterministic():
     expression = x
     for add in inc1 + inc2:
         expression = expression + add
-    body = tvm.tirx.SeqStmt([tvm.tirx.Bind(result, expression), tvm.tirx.Evaluate(result)])
+    body = tvm.ir.SeqStmt([tvm.ir.Bind(result, expression), tvm.ir.Evaluate(result)])
     mod = tvm.IRModule.from_expr(tvm.tirx.Function([x], body))
 
     initial_hash = None
@@ -591,12 +591,12 @@ def test_let_body_no_extraction():
     let_expr = tvm.tirx.Let(x, tvm.tirx.IntImm("int32", 1), (x + y) + (x + y))
     buf = tvm.tirx.decl_tensor((10,), "int32", name="B")
     i = tvm.tirx.Var("i", "int32")
-    store = tvm.tirx.TensorStore(buf, let_expr, [i])
-    loop = tvm.tirx.For(
+    store = tvm.ir.TensorStore(buf, [i], let_expr)
+    loop = tvm.ir.For(
         i,
         tvm.tirx.const(0, "int32"),
         tvm.tirx.const(10, "int32"),
-        tvm.tirx.ForKind.DEFAULT,
+        tvm.ir.ForKind.DEFAULT,
         store,
     )
     func = tvm.tirx.Function([buf, y], loop)
@@ -621,12 +621,12 @@ def test_let_value_cse():
     let_expr = tvm.tirx.Let(x, y + z, x + 1)
     buf = tvm.tirx.decl_tensor((10,), "int32", name="B")
     i = tvm.tirx.Var("i", "int32")
-    store = tvm.tirx.TensorStore(buf, (y + z) + let_expr, [i])
-    loop = tvm.tirx.For(
+    store = tvm.ir.TensorStore(buf, [i], (y + z) + let_expr)
+    loop = tvm.ir.For(
         i,
         tvm.tirx.const(0, "int32"),
         tvm.tirx.const(10, "int32"),
-        tvm.tirx.ForKind.DEFAULT,
+        tvm.ir.ForKind.DEFAULT,
         store,
     )
     func = tvm.tirx.Function([buf, y, z], loop)
@@ -654,12 +654,12 @@ def test_nested_let_no_extraction():
     )
     buf = tvm.tirx.decl_tensor((10,), "int32", name="B")
     i = tvm.tirx.Var("i", "int32")
-    store = tvm.tirx.TensorStore(buf, nested_let, [i])
-    loop = tvm.tirx.For(
+    store = tvm.ir.TensorStore(buf, [i], nested_let)
+    loop = tvm.ir.For(
         i,
         tvm.tirx.const(0, "int32"),
         tvm.tirx.const(10, "int32"),
-        tvm.tirx.ForKind.DEFAULT,
+        tvm.ir.ForKind.DEFAULT,
         store,
     )
     func = tvm.tirx.Function([buf, z], loop)
@@ -697,12 +697,12 @@ def test_let_floordiv_pattern():
         tvm.tirx.TensorLoad(buf_a, [i]),
         tvm.tirx.Let(y, tvm.tirx.TensorLoad(buf_b, [i]), outer_let),
     )
-    store = tvm.tirx.TensorStore(buf_c, full_expr, [i])
-    loop = tvm.tirx.For(
+    store = tvm.ir.TensorStore(buf_c, [i], full_expr)
+    loop = tvm.ir.For(
         i,
         tvm.tirx.const(0, "int32"),
         tvm.tirx.const(10, "int32"),
-        tvm.tirx.ForKind.DEFAULT,
+        tvm.ir.ForKind.DEFAULT,
         store,
     )
     func = tvm.tirx.Function([buf_a, buf_b, buf_c], loop)
@@ -766,10 +766,10 @@ def test_shared_subtree_stays_ssa():
 
     f = Payload["main"]
     shared = f.body  # one Stmt object, placed at two positions below
-    func = f.with_body(tvm.tirx.SeqStmt([shared, shared]))
+    func = f.with_body(tvm.ir.SeqStmt([shared, shared]))
     after = tvm.tirx.transform.CommonSubexprElim()(tvm.IRModule({"main": func}))["main"]
 
-    binds = [s for s in after.body if isinstance(s, tvm.tirx.Bind)]
+    binds = [s for s in after.body if isinstance(s, tvm.ir.Bind)]
     assert len(binds) == 6, after.script()  # (i1+i2, *2, *3) per occurrence
     bound_vars = [b.var for b in binds]
     for i, va in enumerate(bound_vars):

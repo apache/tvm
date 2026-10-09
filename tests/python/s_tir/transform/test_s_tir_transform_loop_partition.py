@@ -47,7 +47,7 @@ def test_multi_loop():
     mod = tvm.s_tir.transform.LoopPartition()(mod)
     stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert not any(collect_visit(stmt[0].body[0], lambda x: isinstance(x, tvm.tirx.IfThenElse)))
+    assert not any(collect_visit(stmt[0].body[0], lambda x: isinstance(x, tvm.ir.If)))
 
 
 def test_multi_if():
@@ -69,7 +69,7 @@ def test_multi_if():
     mod = tvm.s_tir.transform.LoopPartition()(mod)
     stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert not any(collect_visit(stmt[0].body[0], lambda x: isinstance(x, tvm.tirx.IfThenElse)))
+    assert not any(collect_visit(stmt[0].body[0], lambda x: isinstance(x, tvm.ir.If)))
 
 
 def test_condition():
@@ -113,7 +113,7 @@ def test_everything_during_deduction():
     mod = tvm.s_tir.transform.LoopPartition()(mod)
     stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert isinstance(stmt[0].body[0].body[0], tvm.tirx.IfThenElse)
+    assert isinstance(stmt[0].body[0].body[0], tvm.ir.If)
 
 
 def test_oneD_pool():
@@ -143,7 +143,7 @@ def test_oneD_pool():
         mod = tvm.s_tir.transform.LoopPartition()(mod)
         stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tirx.IfThenElse)))
+    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.ir.If)))
 
 
 def test_cce_loop_1():
@@ -164,7 +164,7 @@ def test_cce_loop_1():
         mod = tvm.s_tir.transform.LoopPartition()(mod)
         stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tirx.IfThenElse)))
+    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.ir.If)))
 
 
 def test_cce_loop_2():
@@ -185,7 +185,7 @@ def test_cce_loop_2():
         mod = tvm.s_tir.transform.LoopPartition()(mod)
         stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tirx.IfThenElse)))
+    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.ir.If)))
 
 
 def test_cce_loop_3():
@@ -206,7 +206,7 @@ def test_cce_loop_3():
         mod = tvm.s_tir.transform.LoopPartition()(mod)
         stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tirx.IfThenElse)))
+    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.ir.If)))
 
 
 @Ts.function

@@ -105,7 +105,7 @@ class CuTensorMapDedupAnalyzer : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const IfNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->condition));
     canonical_list_.emplace_back(std::vector<std::pair<Call, Var>>());
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->then_case));
@@ -220,7 +220,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) {
+  UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode) {
     auto condition_result = Mutate(op->condition, inplace_mode);
     bool condition_unchanged = condition_result.UnchangedOrSameAs(op->condition);
     PrimExpr condition = std::move(condition_result).ValueOrUnchanged(op->condition);
@@ -240,13 +240,13 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
       return ffi::Unchanged();
     } else {
       if (inplace_mode == InplaceMode::kAllow) {
-        auto* n = const_cast<IfThenElseNode*>(op);
+        auto* n = const_cast<IfNode*>(op);
         n->condition = std::move(condition);
         n->then_case = std::move(then_case);
         n->else_case = std::move(else_case);
         return ffi::Unchanged();
       }
-      auto n = ffi::make_object<IfThenElseNode>(*op);
+      auto n = ffi::make_object<IfNode>(*op);
       n->condition = std::move(condition);
       n->then_case = std::move(then_case);
       n->else_case = std::move(else_case);

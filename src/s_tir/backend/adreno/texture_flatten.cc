@@ -97,10 +97,10 @@ class TextureFlattener : public TextureLoweringBase {
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<TensorStoreNode>();
-    std::string storage_scope = GetStorageScope(op->buffer);
+    std::string storage_scope = GetStorageScope(op->dest.as_or_throw<TensorVar>());
     // Lower to two dimensional access
     if (IsTextureStorage(storage_scope)) {
-      ffi::Array<Expr> args = GetTextureAccessArgs(op, op->buffer);
+      ffi::Array<Expr> args = GetTextureAccessArgs(op, op->dest.as_or_throw<TensorVar>());
       args.push_back(op->value);
       stmt = Evaluate(Call(args[0]->ty, tvm::backend::opencl::texture2d_store_op(), args));
     }

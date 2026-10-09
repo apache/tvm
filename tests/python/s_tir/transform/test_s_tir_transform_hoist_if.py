@@ -40,16 +40,16 @@ def verify_structure(stmt, expected_struct):
 
     def _visit(op):
         key = op
-        if isinstance(op, tvm.tirx.IfThenElse):
+        if isinstance(op, tvm.ir.If):
             global var_list
             tvm_ffi.structural_walk(op.condition, _extract_vars)
-            val = [(op.then_case, op.else_case), ("tirx.IfThenElse", tuple(var_list))]
+            val = [(op.then_case, op.else_case), ("ir.If", tuple(var_list))]
             var_list.clear()
-        elif isinstance(op, tvm.tirx.For):
-            val = [(op.body,), ("tirx.For", op.loop_var.name)]
-        elif isinstance(op, tvm.tirx.RegionStmt):
+        elif isinstance(op, tvm.ir.For):
+            val = [(op.body,), ("ir.For", op.loop_var.name)]
+        elif isinstance(op, tvm.ir.RegionStmt):
             assert op.op.name == "tirx.launch_thread"
-            val = [(op.body,), ("tirx.RegionStmt", op.op.name, int(op.args[1]))]
+            val = [(op.body,), ("ir.RegionStmt", op.op.name, int(op.args[1]))]
         else:
             return
         node_dict[key] = val
@@ -70,7 +70,7 @@ def verify_structure(stmt, expected_struct):
 
 
 def _opaque_eval(var):
-    return tvm.tirx.Evaluate(tvm.tirx.call_extern("int32", "dummy", var))
+    return tvm.ir.Evaluate(tvm.tirx.call_extern("int32", "dummy", var))
 
 
 def test_hoist_top_for():
@@ -87,10 +87,10 @@ def test_hoist_top_for():
     mod = tvm.IRModule.from_expr(func)
     new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
     expected_struct = {
-        ("tirx.For", "k"): (None,),
-        ("tirx.For", "j"): (("tirx.For", "k"),),
-        ("tirx.IfThenElse", ("i",)): (("tirx.For", "j"), ("tirx.For", "j")),
-        ("tirx.For", "i"): (("tirx.IfThenElse", ("i",)),),
+        ("ir.For", "k"): (None,),
+        ("ir.For", "j"): (("ir.For", "k"),),
+        ("ir.If", ("i",)): (("ir.For", "j"), ("ir.For", "j")),
+        ("ir.For", "i"): (("ir.If", ("i",)),),
     }
     verify_structure(new_stmt, expected_struct)
 
@@ -110,10 +110,10 @@ def test_hoist_multi_var_if():
     new_mod = tvm.s_tir.transform.HoistIfThenElse()(mod)
     new_stmt = new_mod["main"].body
     expected_struct = {
-        ("tirx.For", "k"): (None,),
-        ("tirx.IfThenElse", ("i", "j")): (("tirx.For", "k"), ("tirx.For", "k")),
-        ("tirx.For", "j"): (("tirx.IfThenElse", ("i", "j")),),
-        ("tirx.For", "i"): (("tirx.For", "j"),),
+        ("ir.For", "k"): (None,),
+        ("ir.If", ("i", "j")): (("ir.For", "k"), ("ir.For", "k")),
+        ("ir.For", "j"): (("ir.If", ("i", "j")),),
+        ("ir.For", "i"): (("ir.For", "j"),),
     }
     verify_structure(new_stmt, expected_struct)
 
@@ -134,10 +134,10 @@ def test_hoist_no_match_for():
     mod = tvm.IRModule.from_expr(func)
     new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
     expected_struct = {
-        ("tirx.For", "k"): (None,),
-        ("tirx.IfThenElse", ("i",)): (("tirx.For", "k"), ("tirx.For", "k")),
-        ("tirx.For", "j"): (None,),
-        ("tirx.For", "i"): (("tirx.For", "j"),),
+        ("ir.For", "k"): (None,),
+        ("ir.If", ("i",)): (("ir.For", "k"), ("ir.For", "k")),
+        ("ir.For", "j"): (None,),
+        ("ir.For", "i"): (("ir.For", "j"),),
     }
     verify_structure(new_stmt, expected_struct)
 
@@ -154,10 +154,10 @@ def test_no_else():
     mod = tvm.IRModule.from_expr(func)
     new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
     expected_struct = {
-        ("tirx.For", "k"): (None,),
-        ("tirx.For", "j"): (("tirx.For", "k"),),
-        ("tirx.IfThenElse", ("i",)): (("tirx.For", "j"), None),
-        ("tirx.For", "i"): (("tirx.IfThenElse", ("i",)),),
+        ("ir.For", "k"): (None,),
+        ("ir.For", "j"): (("ir.For", "k"),),
+        ("ir.If", ("i",)): (("ir.For", "j"), None),
+        ("ir.For", "i"): (("ir.If", ("i",)),),
     }
     verify_structure(new_stmt, expected_struct)
 
@@ -185,14 +185,12 @@ def test_thread_launch():
     mod = tvm.IRModule.from_expr(func)
     new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
     expected_struct = {
-        ("tirx.For", "k"): (None,),
-        ("tirx.IfThenElse", ("i", "j")): (("tirx.For", "k"), ("tirx.For", "k")),
-        ("tirx.For", "j"): (("tirx.IfThenElse", ("i", "j")),),
-        ("tirx.For", "i"): (("tirx.For", "j"),),
-        ("tirx.RegionStmt", "tirx.launch_thread", 64): (("tirx.For", "i"),),
-        ("tirx.RegionStmt", "tirx.launch_thread", 32): (
-            ("tirx.RegionStmt", "tirx.launch_thread", 64),
-        ),
+        ("ir.For", "k"): (None,),
+        ("ir.If", ("i", "j")): (("ir.For", "k"), ("ir.For", "k")),
+        ("ir.For", "j"): (("ir.If", ("i", "j")),),
+        ("ir.For", "i"): (("ir.For", "j"),),
+        ("ir.RegionStmt", "tirx.launch_thread", 64): (("ir.For", "i"),),
+        ("ir.RegionStmt", "tirx.launch_thread", 32): (("ir.RegionStmt", "tirx.launch_thread", 64),),
     }
     verify_structure(new_stmt, expected_struct)
 
@@ -219,12 +217,12 @@ def test_nested_for():
     mod = tvm.IRModule.from_expr(func)
     new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
     expected_struct = {
-        ("tirx.For", "l"): (None,),
-        ("tirx.For", "k"): (("tirx.For", "l"),),
-        ("tirx.IfThenElse", ("i", "j")): (("tirx.For", "k"), ("tirx.For", "k")),
-        ("tirx.For", "j"): (None,),
-        ("tirx.IfThenElse", ("i",)): (("tirx.For", "j"), None),
-        ("tirx.For", "i"): (("tirx.IfThenElse", ("i",)),),
+        ("ir.For", "l"): (None,),
+        ("ir.For", "k"): (("ir.For", "l"),),
+        ("ir.If", ("i", "j")): (("ir.For", "k"), ("ir.For", "k")),
+        ("ir.For", "j"): (None,),
+        ("ir.If", ("i",)): (("ir.For", "j"), None),
+        ("ir.For", "i"): (("ir.If", ("i",)),),
     }
     verify_structure(new_stmt, expected_struct)
 
@@ -261,17 +259,17 @@ def test_if_block():
     new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
     # Updated expected_struct with renamed second nest variables
     expected_struct = {
-        ("tirx.IfThenElse", ("i", "j")): (None, None),
-        ("tirx.IfThenElse", ("j",)): (None, None),
-        ("tirx.For", "l"): (None,),
-        ("tirx.For", "k"): (("tirx.For", "l"),),
-        ("tirx.For", "j"): (None,),
-        ("tirx.IfThenElse", ("i",)): (("tirx.For", "j"), None),
-        ("tirx.For", "i"): (("tirx.IfThenElse", ("i",)),),
-        ("tirx.For", "k2"): (None,),
-        ("tirx.For", "j2"): (("tirx.For", "k2"),),
-        ("tirx.For", "i2"): (("tirx.For", "j2"),),
-        ("tirx.IfThenElse", ("n",)): (("tirx.For", "i2"), None),
+        ("ir.If", ("i", "j")): (None, None),
+        ("ir.If", ("j",)): (None, None),
+        ("ir.For", "l"): (None,),
+        ("ir.For", "k"): (("ir.For", "l"),),
+        ("ir.For", "j"): (None,),
+        ("ir.If", ("i",)): (("ir.For", "j"), None),
+        ("ir.For", "i"): (("ir.If", ("i",)),),
+        ("ir.For", "k2"): (None,),
+        ("ir.For", "j2"): (("ir.For", "k2"),),
+        ("ir.For", "i2"): (("ir.For", "j2"),),
+        ("ir.If", ("n",)): (("ir.For", "i2"), None),
     }
     verify_structure(new_stmt, expected_struct)
 
@@ -293,11 +291,11 @@ def test_multi_if():
     new_mod = tvm.s_tir.transform.HoistIfThenElse()(mod)
     new_stmt = new_mod["main"].body
     expected_struct = {
-        ("tirx.For", "k"): (None,),
-        ("tirx.IfThenElse", ("j",)): (("tirx.For", "k"), None),
-        ("tirx.For", "j"): (("tirx.IfThenElse", ("j",)),),
-        ("tirx.IfThenElse", ("i",)): (("tirx.For", "j"), None),
-        ("tirx.For", "i"): (("tirx.IfThenElse", ("i",)),),
+        ("ir.For", "k"): (None,),
+        ("ir.If", ("j",)): (("ir.For", "k"), None),
+        ("ir.For", "j"): (("ir.If", ("j",)),),
+        ("ir.If", ("i",)): (("ir.For", "j"), None),
+        ("ir.For", "i"): (("ir.If", ("i",)),),
     }
     verify_structure(new_stmt, expected_struct)
 

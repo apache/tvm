@@ -1669,7 +1669,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         return gv
 
     def _cond(self, node: fx.Node) -> relax.Expr:
-        """Convert torch.ops.higher_order.cond to relax.If.
+        """Convert torch.ops.higher_order.cond to relax.IfExpr.
 
         FX graph structure:
             %pred = call_function[target=aten.gt.Scalar](...)
@@ -1703,11 +1703,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         false_gv = self._import_branch_subgraph(false_graph, operands, "cond_false_branch")
 
         # Build the If expression.
-        # true/false branches of relax.If are SeqExpr bodies, so we construct
+        # true/false branches of relax.IfExpr are SeqExpr bodies, so we construct
         # the call expressions that will be the body of each branch.
         true_call = relax.Call(true_gv, operands)
         false_call = relax.Call(false_gv, operands)
-        if_expr = relax.If(pred, true_call, false_call)
+        if_expr = relax.IfExpr(pred, true_call, false_call)
         return self.block_builder.emit(if_expr, name_hint="cond_result")
 
     ########## Others ##########
@@ -2273,7 +2273,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         self._check_unsupported_func_type(nodes)
 
         # Assertions have side effects, including when they occur in a cond branch.
-        # Neither these effects nor relax.If may appear inside a dataflow region.
+        # Neither these effects nor relax.IfExpr may appear inside a dataflow region.
         is_pure = not self._has_assert_async(exported_program.graph_module)
         use_dataflow = is_pure and not self._has_cond_op(nodes)
 

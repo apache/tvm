@@ -499,14 +499,14 @@ def test_conditional_inequality_access_regions(case):
     variables, domains, condition, expected = cases[case]
     inside = tirx.decl_tensor([256] * len(variables), name="inside")
     outside = tirx.decl_tensor([256] * len(variables), name="outside")
-    body = tirx.SeqStmt(
+    body = tvm.ir.SeqStmt(
         [
-            tirx.IfThenElse(condition, tirx.Evaluate(inside[tuple(variables)]), None),
-            tirx.Evaluate(outside[tuple(variables)]),
+            tvm.ir.If(condition, tvm.ir.Evaluate(inside[tuple(variables)]), None),
+            tvm.ir.Evaluate(outside[tuple(variables)]),
         ]
     )
     for var, (minimum, extent) in reversed(list(zip(variables, domains))):
-        body = tirx.For(var, minimum, extent, tirx.ForKind.DEFAULT, body)
+        body = tvm.ir.For(var, minimum, extent, tvm.ir.ForKind.DEFAULT, body)
     block = s_tir.SBlock([], [], [], "conditional", body)
     # Unbounded access sets conservatively cover the whole buffer.
     outside_expected = [(0, 256)] if case == "unbounded" else domains

@@ -640,7 +640,9 @@ bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const Ten
 }
 
 // Comparator for TensorStoreNode and TensorLoadNode
-inline TensorVar GetBufferAccessBuffer(const TensorStoreNode* op) { return op->buffer; }
+inline TensorVar GetBufferAccessBuffer(const TensorStoreNode* op) {
+  return op->dest.as_or_throw<TensorVar>();
+}
 inline TensorVar GetBufferAccessBuffer(const TensorLoadNode* op) {
   return op->source.as_or_throw<tvm::tirx::TensorVar>();
 }

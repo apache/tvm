@@ -93,11 +93,11 @@ def _emit_fallback(op_call: TileOpCall, sctx: DispatchContext) -> Function:
             return coord
 
         if not copy_extents:
-            T.tensor_store(dst_buf, src_buf[tuple(src_st)], dst_st)
+            T.tensor_store(dst_buf, dst_st, src_buf[tuple(src_st)])
             return
 
         with T.grid(*copy_extents) as lvs:
-            T.tensor_store(dst_buf, src_buf[tuple(_src_coord(lvs))], _dst_coord(lvs))
+            T.tensor_store(dst_buf, _dst_coord(lvs), src_buf[tuple(_src_coord(lvs))])
 
     scope_kind = sctx.scope_kind
 

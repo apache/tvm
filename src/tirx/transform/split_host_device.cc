@@ -48,11 +48,20 @@
 namespace tvm {
 namespace tirx {
 
+namespace {
+void ValidateDeviceScopeRegion(const RegionStmtNode* region) {
+  TVM_FFI_CHECK(region->result_vars.empty(), ValueError)
+      << region->op->name << " expects no results";
+}
+}  // namespace
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.device_scope", "Internal host/device splitting boundary.")
       .signature(sig::call_attrs<DictAttrsNode>())
       .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
+      .set_attr<FRegionValidate>("FRegionValidate",
+                                 FRegionValidate::FromNative<&ValidateDeviceScopeRegion>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
 }
 

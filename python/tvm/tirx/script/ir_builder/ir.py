@@ -24,6 +24,7 @@ from collections.abc import Callable
 from numbers import Integral
 from typing import TYPE_CHECKING, Any, TypeVar
 
+import tvm
 from tvm import ir as _ir
 from tvm.script.ir_builder.base import annotation_constructor as _annotation_constructor
 from tvm.script.ir_builder.base import at as _at
@@ -555,7 +556,7 @@ def alloc_tensor(
         attrs=ir.DictAttrs(norm_annotations),
         ty=buf.ty,
     )
-    _ffi_api.AddToParent(tir.Bind(buf, allocation))
+    _ffi_api.AddToParent(tvm.ir.Bind(buf, allocation))
     return buf
 
 

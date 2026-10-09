@@ -101,9 +101,9 @@ class LCADetector : public s_tir::StmtExprVisitor {
     const ScopeInfo* parent_scope = ancestor_scopes_.back();
     auto* current_scope = arena_.make<ScopeInfo>(parent_scope, op, n);
 
-    if (op->GetThreadBinding().has_value()) {
+    if (tvm::tirx::GetThreadBinding(op).has_value()) {
       const runtime::ThreadScope& scope =
-          runtime::ThreadScope::Create(op->GetThreadBinding().value());
+          runtime::ThreadScope::Create(tvm::tirx::GetThreadBinding(op).value());
       if (scope.rank == 0) {
         blockidx_scopes_.push_back(current_scope);
       }
@@ -296,7 +296,7 @@ class LCADetector : public s_tir::StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
-    UpdateBufferLCA(op->buffer.get(), ancestor_scopes_.back());
+    UpdateBufferLCA(op->dest.as_or_throw<TensorVar>().get(), ancestor_scopes_.back());
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
     for (const auto& index : op->indices) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));

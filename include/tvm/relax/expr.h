@@ -321,13 +321,13 @@ class SeqExpr : public Expr {
  *
  * \note This is similar to C's ternary operator.
  */
-class IfNode : public ExprNode {
+class IfExprNode : public ExprNode {
  public:
-  explicit IfNode(Expr cond, SeqExpr true_branch, SeqExpr false_branch)
+  explicit IfExprNode(Expr cond, SeqExpr true_branch, SeqExpr false_branch)
       : cond(std::move(cond)),
         true_branch(std::move(true_branch)),
         false_branch(std::move(false_branch)) {}
-  explicit IfNode(ffi::UnsafeInit)
+  explicit IfExprNode(ffi::UnsafeInit)
       : cond(ffi::UnsafeInit{}), true_branch(ffi::UnsafeInit{}), false_branch(ffi::UnsafeInit{}) {}
 
   /*! \brief The condition. */
@@ -339,17 +339,17 @@ class IfNode : public ExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<IfNode>()
-        .def_ro("cond", &IfNode::cond)
-        .def_ro("true_branch", &IfNode::true_branch)
-        .def_ro("false_branch", &IfNode::false_branch);
+    refl::ObjectDef<IfExprNode>()
+        .def_ro("cond", &IfExprNode::cond)
+        .def_ro("true_branch", &IfExprNode::true_branch)
+        .def_ro("false_branch", &IfExprNode::false_branch);
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.If", IfNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.IfExpr", IfExprNode, ExprNode);
 };
 
-class If : public Expr {
+class IfExpr : public Expr {
  public:
   /*!
    * \brief The constructor
@@ -368,12 +368,12 @@ class If : public Expr {
    *
    * \param span The source span of the expression.
    */
-  TVM_DLL If(Expr cond, Expr true_branch, Expr false_branch, Span span = Span());
+  TVM_DLL IfExpr(Expr cond, Expr true_branch, Expr false_branch, Span span = Span());
 
-  explicit If(ffi::ObjectPtr<IfNode> node) : Expr(std::move(node)) {}
+  explicit IfExpr(ffi::ObjectPtr<IfExprNode> node) : Expr(std::move(node)) {}
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(If, Expr, IfNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(IfNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IfExpr, Expr, IfExprNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(IfExprNode);
 };
 
 /*! \brief A Relax function. */

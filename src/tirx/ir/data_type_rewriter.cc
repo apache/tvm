@@ -346,9 +346,9 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const TensorStoreNode* op,
                                                  InplaceMode inplace_mode) {
   TensorStore store = ffi::GetRef<TensorStore>(op);
 
-  TensorVar new_buffer = Mutate(op->buffer, inplace_mode)
+  TensorVar new_buffer = Mutate(op->dest.as_or_throw<TensorVar>(), inplace_mode)
                              .as_or_throw<UnchangedOr<TensorVar>>()
-                             .ValueOrUnchanged(op->buffer);
+                             .ValueOrUnchanged(op->dest.as_or_throw<TensorVar>());
   auto value_result = this->Mutate(op->value, inplace_mode);
   bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
   auto value = std::move(value_result).ValueOrUnchanged(op->value);
@@ -359,9 +359,10 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const TensorStoreNode* op,
   }
   auto indices = VisitIndices(op->indices, inplace_mode);
 
-  if (!new_buffer.same_as(op->buffer) || !value_unchanged || !indices.same_as(op->indices)) {
+  if (!new_buffer.same_as(op->dest.as_or_throw<TensorVar>()) || !value_unchanged ||
+      !indices.same_as(op->indices)) {
     auto writer = store.CopyOnWrite();
-    writer->buffer = new_buffer;
+    writer->dest = new_buffer;
     writer->value = value;
     writer->indices = indices;
   }
@@ -396,8 +397,7 @@ ffi::Array<PrimExpr> IndexDataTypeRewriter::VisitIndices(const ffi::Array<PrimEx
   return result;
 }
 
-UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const IfThenElseNode* op,
-                                                 InplaceMode inplace_mode) {
+UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const IfNode* op, InplaceMode inplace_mode) {
   bool is_condition = is_condition_;
   is_condition_ = true;
   auto cond_result = Mutate(op->condition, inplace_mode);
@@ -413,7 +413,7 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const IfThenElseNode* op,
                                        .ValueOrUnchanged(op->else_case.value())}
           : std::nullopt;
   if (!cond_unchanged || !then_case_unchanged || !else_case.same_as(op->else_case)) {
-    IfThenElse new_stmt = ffi::GetRef<IfThenElse>(op);
+    If new_stmt = ffi::GetRef<If>(op);
     auto* n = new_stmt.CopyOnWrite();
     n->condition = std::move(cond);
     n->then_case = std::move(then_case);

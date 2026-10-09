@@ -57,12 +57,14 @@ class IntermediateStageRewriter {
   std::tuple<TensorVar, TensorVar, SBlock, Stmt> Rewrite(const SBlockNode* block) {
     const TensorStoreNode* store =
         block->body->size() == 1 ? block->body->seq[0].as<TensorStoreNode>() : nullptr;
-    TVM_FFI_CHECK(store != nullptr && runtime::StorageScope::Create(store->buffer.scope()).rank ==
-                                          runtime::StorageRank::kShared,
-                  ValueError)
+    TVM_FFI_CHECK(
+        store != nullptr &&
+            runtime::StorageScope::Create(store->dest.as_or_throw<TensorVar>().scope()).rank ==
+                runtime::StorageRank::kShared,
+        ValueError)
         << "Expect the body of the block to be TensorStore to shared memory.";
 
-    const TensorVar& target_buffer = store->buffer;
+    const TensorVar& target_buffer = store->dest.as_or_throw<TensorVar>();
 
     // Step 0: Collect relaxed loops
     std::vector<const ForNode*> relaxed_loops = CollectRelaxedOuterLoops(block, target_buffer);
@@ -130,7 +132,7 @@ class IntermediateStageRewriter {
                       ffi::Array<PrimExpr> local_stage_indices,
                       std::vector<const ForNode*> relaxed_loops, const TensorStoreNode* store) {
     // Step 0: Create the body of the local stage, which is TensorStore to the intermediate buffer.
-    Stmt local_stage = TensorStore(new_buffer, store->value, local_stage_indices);
+    Stmt local_stage = TensorStore(new_buffer, local_stage_indices, store->value);
 
     // Step 1: Make block and block realize
     TensorRegion write_buffer_region = BufferRegionFromPoint(new_buffer, local_stage_indices);

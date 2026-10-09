@@ -739,7 +739,7 @@ ffi::Array<TensorVar> CreateRFactorBuffers(const ffi::Array<TensorStore>& buf_st
   ffi::Array<TensorVar> rf_buffers;
   rf_buffers.reserve(buf_stores.size());
   for (const TensorStore& buf_store : buf_stores) {
-    TensorVar buffer = buf_store->buffer;
+    TensorVar buffer = buf_store->dest.as_or_throw<TensorVar>();
     ffi::Array<PrimExpr> rf_shape = buffer->shape;
     rf_shape.insert(rf_shape.begin() + factor_axis, rf_loop->extent);
 
@@ -841,7 +841,7 @@ class BaseBlockCreator {
     // buffers.
     if (!has_reduce_iter) {
       for (int i = 0; i < n_buffers_; ++i) {
-        buf_stores.push_back(TensorStore(update_buffers_[i], update_rhs_[i], update_indices_[i]));
+        buf_stores.push_back(TensorStore(update_buffers_[i], update_indices_[i], update_rhs_[i]));
       }
       return SeqStmt(buf_stores);
     }
@@ -849,7 +849,7 @@ class BaseBlockCreator {
     // Case 2. If the reduction is for single buffer, the block body is a single TensorStore.
     ffi::Array<PrimExpr> stored_values = (*reducer_.get())(update_lhs_, update_rhs_);
     if (n_buffers_ == 1) {
-      return TensorStore(update_buffers_[0], stored_values[0], update_indices_[0]);
+      return TensorStore(update_buffers_[0], update_indices_[0], stored_values[0]);
     }
 
     // Case 3. In case the reduction is for multiple buffers, we should create the reduction with
@@ -860,11 +860,11 @@ class BaseBlockCreator {
       Var var("v_" + update_buffers_[i].name(), stored_values[i].ty());
       let_vars.push_back(var);
       buf_stores.push_back(
-          TensorStore(update_buffers_[i], var.as_or_throw<PrimExpr>(), update_indices_[i]));
+          TensorStore(update_buffers_[i], update_indices_[i], var.as_or_throw<PrimExpr>()));
     }
     ffi::Array<Stmt> stmts;
     for (int i = 0; i < n_buffers_; ++i) {
-      stmts.push_back(tirx::Bind(let_vars[i], stored_values[i]));
+      stmts.push_back(tvm::Bind(let_vars[i], stored_values[i]));
     }
     for (const auto& store : buf_stores) {
       stmts.push_back(store);
@@ -881,7 +881,7 @@ class BaseBlockCreator {
     inits.reserve(n_buffers_);
     for (int i = 0; i < n_buffers_; ++i) {
       inits.push_back(
-          TensorStore(update_buffers_[i], reducer_->identity_element[i], update_indices_[i]));
+          TensorStore(update_buffers_[i], update_indices_[i], reducer_->identity_element[i]));
     }
     return SeqStmt(inits);
   }
@@ -1047,7 +1047,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
   void CreateReadWriteRegions() final {
     ffi::Map<TensorVar, TensorVar> buffer_map;
     for (int i = 0; i < n_buffers_; ++i) {
-      buffer_map.Set(old_reduction_updates_[i]->buffer, rf_buffers_[i]);
+      buffer_map.Set(old_reduction_updates_[i]->dest.as_or_throw<TensorVar>(), rf_buffers_[i]);
     }
     const SBlock& old_block = old_block_realize_->block;
     auto map_block_var = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
@@ -1158,7 +1158,7 @@ class WriteBackBlockCreator : public BaseBlockCreator {
     };
     for (int i = 0; i < n_buffers_; ++i) {
       PrimExpr rhs = MakeTensorLoad(rf_buffers_[i], rf_buf_access_indices_);
-      update_buffers_.push_back(old_reduction_updates_[i]->buffer);
+      update_buffers_.push_back(old_reduction_updates_[i]->dest.as_or_throw<TensorVar>());
       update_indices_.push_back(old_reduction_updates_[i]->indices);
       update_lhs_.push_back(
           ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(combiner_lhs_[i], map_block_var)
@@ -1417,8 +1417,8 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
 
   // Step 6. Check whether `factor_axis` is in a correct range, and convert it to non-negative if it
   // is negative.
-  factor_axis =
-      FactorAxisOutOfRangeError::CheckAndUpdate(self->mod, updates[0]->buffer, factor_axis);
+  factor_axis = FactorAxisOutOfRangeError::CheckAndUpdate(
+      self->mod, updates[0]->dest.as_or_throw<TensorVar>(), factor_axis);
 
   // *****************************************************
   // *                 IR Manipulation                   *

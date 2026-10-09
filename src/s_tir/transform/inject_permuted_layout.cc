@@ -214,17 +214,18 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
                      .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                      .as_or_throw<TensorStore>();
 
-    if (!permute_ || store->buffer->shape.size() < 2) {
+    if (!permute_ || store->dest.as_or_throw<TensorVar>()->shape.size() < 2) {
       return store;
     }
 
-    auto scope = StorageScope::Create(store->buffer.scope());
+    auto scope = StorageScope::Create(store->dest.as_or_throw<TensorVar>().scope());
     if (scope.rank != StorageRank::kShared) {
       return store;
     }
 
     auto store_node = store.CopyOnWrite();
-    store_node->indices = HandleTensorIndices(store_node->buffer, store_node->indices);
+    store_node->indices =
+        HandleTensorIndices(store_node->dest.as_or_throw<TensorVar>(), store_node->indices);
     return store;
   }
 

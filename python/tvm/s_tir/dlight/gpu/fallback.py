@@ -19,6 +19,7 @@
 
 import tvm_ffi
 
+import tvm
 from tvm import s_tir, tirx
 from tvm.target import Target
 
@@ -28,41 +29,41 @@ from ..base import try_inline
 from .base import GPUScheduleRule
 
 
-def _has_internal_thread_env(stmt: tirx.Stmt) -> bool:
+def _has_internal_thread_env(stmt: tvm.ir.Stmt) -> bool:
     """Check whether a statement already launches GPU threads internally,
     e.g. via `T.launch_thread` regions or nested
     thread-bound loops. Such blocks manage their own thread environment
     and must not be wrapped in an additional thread binding."""
     found = False
 
-    def visit_region(node: tirx.RegionStmt):
+    def visit_region(node: tvm.ir.RegionStmt):
         nonlocal found
         if node.op.name == "tirx.launch_thread":
             found = True
 
-    def visit_for(node: tirx.For):
+    def visit_for(node: tvm.ir.For):
         nonlocal found
         if node.annotations.get("thread_binding") is not None:
             found = True
 
     tvm_ffi.structural_walk(
         stmt,
-        [(tirx.RegionStmt, visit_region), (tirx.For, visit_for)],
+        [(tvm.ir.RegionStmt, visit_region), (tvm.ir.For, visit_for)],
         order="post",
     )
     return found
 
 
-def _has_zero_extent_loop(stmt: tirx.Stmt) -> bool:
+def _has_zero_extent_loop(stmt: tvm.ir.Stmt) -> bool:
     """Check whether a statement contains a statically empty loop."""
     found = False
 
-    def visit_for(node: tirx.For):
+    def visit_for(node: tvm.ir.For):
         nonlocal found
         if isinstance(node.extent, tirx.IntImm) and node.extent.value == 0:
             found = True
 
-    tvm_ffi.structural_walk(stmt, (tirx.For, visit_for), order="post")
+    tvm_ffi.structural_walk(stmt, (tvm.ir.For, visit_for), order="post")
     return found
 
 
