@@ -272,11 +272,8 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
                            .ValueOrUnchanged(load->indices)
                            .as_or_throw<ffi::Array<PrimExpr>>();
         auto flat_indices = buffer->ElemOffset(indices);
-        if (buffer->layout.has_value()) {
-          auto coordinates = buffer->layout.value()->Canonicalize()->Apply(indices, buffer->shape);
-          TVM_FFI_ICHECK_EQ(coordinates.size(), 1U);
-          flat_indices = {(*coordinates.begin()).second + buffer->elem_offset};
-        }
+        // S-TIR flattening uses ElemOffset, including explicit strides and the
+        // element offset, even when the tensor carries a default layout.
         TVM_FFI_ICHECK_EQ(flat_indices.size(), 1U);
         PrimType dtype = buffer->dtype;
         int bytes = (dtype.bits() * dtype.lanes() + 7) / 8;
