@@ -16,7 +16,7 @@
 # under the License.
 """Tests for the CUDA synchronous ``gemm`` (mma.sync) tensor-core dispatch.
 
-The dispatch lowers ``tirx.tile.gemm`` over pure-register fragments to warp-level
+The dispatch lowers ``tirx.cuda.tile.mma_sync`` over pure-register fragments to warp-level
 ``mma.sync.aligned.m16n8k16/k8`` for bf16/f16 inputs with f32 accumulation.
 
 The fragment layouts below are the standard m16n8 register maps (PTX ISA
@@ -38,10 +38,8 @@ from tvm_ffi import structural_walk
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 from tvm.tirx.layout import S, TileLayout, laneid
-from tvm.tirx.operator.tile_primitive import list_registered_schedules
 
 # Single-tile m16n8k8 fragment layouts -- the smallest unit everything else is
 # built from. A is 16x8, B is 8x8 as [K, N], D/C is 16x8 (the accumulator does
@@ -115,7 +113,9 @@ def _build_tiled(Mt, Nt, Kt, kinst, *, beta=0.0, dtype="float16", store=False):
             B = T.alloc_tensor((K, N), dtype, scope="local", layout=Bl)
             C = T.alloc_tensor((M, N), "float32", scope="local", layout=Dl)
             D = T.alloc_tensor((M, N), "float32", scope="local", layout=Dl)
-            Tx.warp.gemm(D, A, B, C, transpose_A=False, transpose_B=False, alpha=1.0, beta=beta)
+            T.cuda.tile.mma_sync(
+                D, A, B, C, transpose_A=False, transpose_B=False, alpha=1.0, beta=beta, scope="warp"
+            )
 
         return gemm
 
@@ -129,7 +129,9 @@ def _build_tiled(Mt, Nt, Kt, kinst, *, beta=0.0, dtype="float16", store=False):
         B = T.alloc_tensor((K, N), dtype, scope="local", layout=Bl)
         C = T.alloc_tensor((M, N), "float32", scope="local", layout=Dl)
         D = T.alloc_tensor((M, N), "float32", scope="local", layout=Dl)
-        Tx.warp.gemm(D, A, B, C, transpose_A=False, transpose_B=False, alpha=1.0, beta=beta)
+        T.cuda.tile.mma_sync(
+            D, A, B, C, transpose_A=False, transpose_B=False, alpha=1.0, beta=beta, scope="warp"
+        )
         # Decode D's per-thread registers (c = ((mt*Nt + nt)*2 + rM)*2 + rN)
         # back to logical (M, N) and store, exercising the whole tiling.
         D_reg = D.local(Mt * Nt * 4)
@@ -155,7 +157,9 @@ def _build_gemm(alpha=1.0, beta=0.0, dtype="bfloat16"):
         C = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
         A = T.alloc_tensor((16, 16), dtype, scope="local", layout=A_FRAG)
         B = T.alloc_tensor((16, 8), dtype, scope="local", layout=B_FRAG)
-        Tx.warp.gemm(D, A, B, C, transpose_A=False, transpose_B=False, alpha=alpha, beta=beta)
+        T.cuda.tile.mma_sync(
+            D, A, B, C, transpose_A=False, transpose_B=False, alpha=alpha, beta=beta, scope="warp"
+        )
 
     return gemm_min
 
@@ -179,7 +183,7 @@ def _build_transpose(transpose_A, transpose_B, *, store=False):
             B = T.alloc_tensor(B_shape, "float16", scope="local", layout=Bl)
             C = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
             D = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
-            Tx.warp.gemm(
+            T.cuda.tile.mma_sync(
                 D,
                 A,
                 B,
@@ -188,6 +192,7 @@ def _build_transpose(transpose_A, transpose_B, *, store=False):
                 transpose_B=transpose_B,
                 alpha=1.0,
                 beta=0.0,
+                scope="warp",
             )
 
         return gemm
@@ -202,7 +207,7 @@ def _build_transpose(transpose_A, transpose_B, *, store=False):
         B = T.alloc_tensor(B_shape, "float16", scope="local", layout=Bl)
         C = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
         D = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
-        Tx.warp.gemm(
+        T.cuda.tile.mma_sync(
             D,
             A,
             B,
@@ -211,6 +216,7 @@ def _build_transpose(transpose_A, transpose_B, *, store=False):
             transpose_B=transpose_B,
             alpha=1.0,
             beta=0.0,
+            scope="warp",
         )
         D_reg = D.local(4)
         for c in T.unroll(4):
@@ -231,7 +237,9 @@ def _build_dtypes(a_dtype, b_dtype, c_dtype, d_dtype):
         C = T.alloc_tensor((16, 8), c_dtype, scope="local", layout=D_FRAG)
         A = T.alloc_tensor((16, 16), a_dtype, scope="local", layout=A_FRAG)
         B = T.alloc_tensor((16, 8), b_dtype, scope="local", layout=B_FRAG)
-        Tx.warp.gemm(D, A, B, C, transpose_A=False, transpose_B=False, alpha=1.0, beta=0.0)
+        T.cuda.tile.mma_sync(
+            D, A, B, C, transpose_A=False, transpose_B=False, alpha=1.0, beta=0.0, scope="warp"
+        )
 
     return gemm_min
 
@@ -285,7 +293,17 @@ def _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype):
                 C_reg[mt, nt, rM, rN] = C_g[
                     mt * 16 + lane // 4 + 8 * rM, nt * 8 + 2 * (lane % 4) + rN
                 ]
-        Tx.warp.gemm(D_f, A_f, B_f, C_f, transpose_A=False, transpose_B=False, alpha=1.0, beta=beta)
+        T.cuda.tile.mma_sync(
+            D_f,
+            A_f,
+            B_f,
+            C_f,
+            transpose_A=False,
+            transpose_B=False,
+            alpha=1.0,
+            beta=beta,
+            scope="warp",
+        )
         D_reg = D_f.local(Mt, Nt, 2, 2)
         for mt, nt, rM, rN in T.grid(Mt, Nt, 2, 2):
             D_g[mt * 16 + lane // 4 + 8 * rM, nt * 8 + 2 * (lane % 4) + rN] = D_reg[mt, nt, rM, rN]
@@ -335,7 +353,7 @@ def _build_transpose_numeric(transpose_A, transpose_B, dtype="float16"):
         else:
             for kHi, kp in T.grid(2, 2):
                 B_reg[kHi, kp] = B_g[2 * (lane % 4) + kp + 8 * kHi, lane // 4]
-        Tx.warp.gemm(
+        T.cuda.tile.mma_sync(
             D_f,
             A_f,
             B_f,
@@ -344,6 +362,7 @@ def _build_transpose_numeric(transpose_A, transpose_B, dtype="float16"):
             transpose_B=transpose_B,
             alpha=1.0,
             beta=0.0,
+            scope="warp",
         )
         D_reg = D_f.local(2, 2)
         for rM, rN in T.grid(2, 2):
@@ -357,15 +376,10 @@ def _lower(func):
         return tvm.tirx.transform.LowerTIRx()(tvm.IRModule({"main": func}))
 
 
-def test_cuda_gemm_mma_variant_is_registered():
-    # Importing tvm.tirx registers all per-target schedule variants. The new
-    # synchronous CUDA mma path must show up for ("gemm", "cuda"). The registry
-    # keys ops by their full name (``op.name`` == "tirx.tile.gemm").
-    schedules = list_registered_schedules()
-    cuda_gemm = schedules.get("tirx.tile.gemm", {}).get("cuda", [])
-    assert "mma.m16n8k*" in cuda_gemm, (
-        f"mma.m16n8k* not registered; tirx.tile.gemm schedules = {schedules.get('tirx.tile.gemm')}"
-    )
+def test_cuda_mma_sync_is_a_registered_instruction():
+    op = tvm.ir.Op.get("tirx.cuda.tile.mma_sync")
+    assert op.get_attr("TIRxOpCategory") == "tile_primitive"
+    assert op.get_attr("TCallEffectKind") == 3
 
 
 @pytest.mark.parametrize("dtype", ["bfloat16", "float16"])
@@ -422,13 +436,13 @@ def test_cuda_gemm_mma_accumulates_c_when_beta_one():
 
 def test_cuda_gemm_mma_rejects_nonunit_alpha():
     """alpha != 1 is unsupported (ptx mma has no scale); dispatch must fail."""
-    with pytest.raises(RuntimeError, match="dispatch failed"):
+    with pytest.raises(RuntimeError, match="Tensor instruction lowering failed"):
         _lower(_build_gemm(alpha=2.0, beta=0.0))
 
 
 def test_cuda_gemm_mma_rejects_fractional_beta():
     """beta must be 0 or 1 (mma only accumulates 1*C); other values must fail."""
-    with pytest.raises(RuntimeError, match="dispatch failed"):
+    with pytest.raises(RuntimeError, match="Tensor instruction lowering failed"):
         _lower(_build_gemm(alpha=1.0, beta=0.5))
 
 
@@ -481,7 +495,17 @@ def test_cuda_gemm_mma_numerical(dtype):
             kp = s % 2
             kHi = s // 2
             B_reg[s] = B_g[2 * (lane % 4) + kp + 8 * kHi, lane // 4]
-        Tx.warp.gemm(D_f, A_f, B_f, D_f, transpose_A=False, transpose_B=False, alpha=1.0, beta=0.0)
+        T.cuda.tile.mma_sync(
+            D_f,
+            A_f,
+            B_f,
+            D_f,
+            transpose_A=False,
+            transpose_B=False,
+            alpha=1.0,
+            beta=0.0,
+            scope="warp",
+        )
         D_reg = D_f.local(4)
         for s in T.unroll(4):
             rN = s % 2
@@ -706,7 +730,7 @@ def test_cuda_gemm_mma_codegen_transpose(transpose_A, transpose_B):
 def test_cuda_gemm_mma_rejects_unsupported_dtype(a, b, c, d):
     """The table holds only (bf16|f16, same, f32, f32); any other dtype
     signature must decline rather than emit a wrong mma."""
-    with pytest.raises(RuntimeError, match="dispatch failed"):
+    with pytest.raises(RuntimeError, match="Tensor instruction lowering failed"):
         _lower(_build_dtypes(a, b, c, d))
 
 

@@ -34,8 +34,6 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.script.ir_builder.base import AlreadyEmitted
 from tvm.script.parser.inspect_source import Source
-from tvm.script.tirx import tile as Tx
-from tvm.tirx.stmt import TileOpCall
 
 
 def test_parser_attaches_span_to_direct_call():
@@ -157,12 +155,17 @@ def test_parser_attaches_span_to_tile_primitive_call():
     @_capture_source(sources)
     def tile_call():
         A = T.alloc_tensor((16,), "float32")
-        Tx.memset(A[0:16], T.float32(0))
+        T.cuda.tile.mov(A[0:16], T.float32(0))
 
     source = sources[0]
     call_ast = source.as_ast().body[0].body[-1].value
     func = tile_call
-    call = _find_ir_node(func, lambda node: isinstance(node, TileOpCall))
+    call = _find_ir_node(
+        func,
+        lambda node: isinstance(node, tvm.ir.Call)
+        and isinstance(node.op, tvm.ir.Op)
+        and node.op.name == "tirx.cuda.tile.mov",
+    )
 
     assert _span_range(call.span) == _span_range(source.to_span(call_ast))
 
@@ -243,10 +246,10 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
     # A native view must preserve its producer name/span and declare its storage exactly once.
     from functools import wraps
 
-    from tvm import ir, tirx
+    from tvm import ir
     from tvm.script.ir_builder import base
 
-    original = tirx.TensorType.view
+    original = tvm.tirx.TensorType.view
     seen, produced, observed = [], [], []
     span = ir.Span(ir.SourceName("producer.py"), 7, 7, 2, 19)
 
@@ -264,7 +267,7 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
     def observe(value):
         observed.append((value, value.span))
 
-    monkeypatch.setattr(tirx.TensorType, "view", view)
+    monkeypatch.setattr(tvm.tirx.TensorType, "view", view)
 
     @T.function
     def main(A: T.Tensor((4, 4), "float32")):

@@ -31,7 +31,6 @@ from tvm.script import ir_builder as IB
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.printer.scriptable import _script
-from tvm.script.tirx import tile as Tx
 from tvm.tirx.cuda import op as cuda_op
 from tvm.tirx.script import ir_builder as TB
 from tvm.tirx.trn import op as trn_op
@@ -680,7 +679,7 @@ def test_print_kwargs_schedule_op_full_code():
     @T.function
     def test():
         A = T.alloc_tensor((16,), "float32")
-        Tx.memset(A[0:16], T.float32(1.25), dispatch="v10", bar=7, foo=42)
+        T.cuda.tile.mov(A[0:16], T.float32(1.25), scope="warp")
     # fmt: on
 
     expected = (
@@ -689,7 +688,7 @@ def test_print_kwargs_schedule_op_full_code():
         "@T.function\n"
         "def test():\n"
         '    A = T.alloc_tensor((16,), "float32", layout="default")\n'
-        '    T.tile.memset(A[0:16], T.float32(1.25), dispatch="v10", bar=7, foo=42)'
+        '    T.cuda.tile.mov(A[0:16], T.float32(1.25), scope="warp")'
     )
     code = test.script()
     assert code == expected

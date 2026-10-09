@@ -306,24 +306,6 @@ class LoopControlVerifier : public Verifier<LoopControlVerifier<PathVisitor>, Pa
 };
 
 template <typename PathVisitor>
-class ExecScopeVerifier : public Verifier<ExecScopeVerifier<PathVisitor>, PathVisitor> {
-  using Verifier = tirx::Verifier<ExecScopeVerifier<PathVisitor>, PathVisitor>;
-
- public:
-  using Verifier::Verifier;
-  using Verifier::Verify;
-
- private:
-  using Verifier::Visit;
-
-  void Dispatch_(const tirx::TileOpCallNode* op, ffi::reflection::AccessPath path) override {
-    static const auto& category_map = Op::GetAttrMap<tirx::TIRxOpCategory>("TIRxOpCategory");
-    Verify(category_map.get(op->op, ffi::String("")) == "tile_primitive")
-        << "TIRxError: TileOpCall at " << path << " has non-tile op " << op->op;
-  }
-};
-
-template <typename PathVisitor>
 class ScopeIdVerifier : public Verifier<ScopeIdVerifier<PathVisitor>, PathVisitor> {
   using Verifier = tirx::Verifier<ScopeIdVerifier<PathVisitor>, PathVisitor>;
 
@@ -398,7 +380,6 @@ bool VerifyWellFormedCommon(const NodeRef& node, bool assert_mode) {
          UndefinedBufferVerifier<PathVisitor>::Verify(node, assert_mode) &&
          TensorLoadTypeVerifier<PathVisitor>::Verify(node, assert_mode) &&
          LoopControlVerifier<PathVisitor>::Verify(node, assert_mode) &&
-         ExecScopeVerifier<PathVisitor>::Verify(node, assert_mode) &&
          ScopeIdVerifier<PathVisitor>::Verify(node, assert_mode);
 }
 }  // namespace tirx

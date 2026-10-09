@@ -47,7 +47,6 @@ from .expr import CallEffectKind, Let
 from .stmt import BufferRegion
 from .stmt import ScopeIdDefStmt
 from .tile_dispatch import DispatchContext
-from .stmt import TileOpCall
 
 from .function import Function, IndexMap, renew_def
 

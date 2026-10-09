@@ -21,7 +21,6 @@ import tvm
 import tvm.testing
 from tvm.ir import assert_structural_equal as _assert_structural_equal
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import F, P, S, TileLayout
 
 target = tvm.target.Target("aws/trn1/trn1.2xlarge")
@@ -48,9 +47,6 @@ def assert_structural_equal(lhs, rhs, *args, **kwargs):
     _assert_structural_equal(lhs, rhs, *args, **kwargs)
 
 
-Tx_func_map = {"add": Tx.add, "sub": Tx.sub, "mul": Tx.mul, "min": Tx.minimum, "max": Tx.maximum}
-
-
 @pytest.mark.parametrize("op_type", ["add", "sub", "mul", "min", "max"])
 @pytest.mark.parametrize(
     "operands_type",
@@ -63,6 +59,9 @@ Tx_func_map = {"add": Tx.add, "sub": Tx.sub, "mul": Tx.mul, "min": Tx.minimum, "
     ],
 )
 def test_simple_binary(op_type, operands_type):
+    instruction = (
+        T.trn.tile.tensortensor if operands_type == "region_region" else T.trn.tile.tensorscalar
+    )
     const = T.float32(3.0)
     src1_shape = [128, 512] if operands_type != "region_broadcast_lhs" else [128, 1]
     src1_layout = TileLayout(S[src1_shape : (1 @ P, 1 @ F)])
@@ -70,7 +69,6 @@ def test_simple_binary(op_type, operands_type):
     src2_layout = TileLayout(S[src2_shape : (1 @ P, 1 @ F)])
     dst_shape = [128, 512]
     dst_layout = TileLayout(S[(128, 512) : (1 @ P, 1 @ F)])
-    Tx_func = Tx_func_map[op_type]
 
     # fmt: off
     @T.function
@@ -82,11 +80,11 @@ def test_simple_binary(op_type, operands_type):
         if T.constexpr(
             operands_type == "region_region" or operands_type.startswith("region_broadcast")
         ):
-            Tx_func(C_sbuf, A_sbuf, B_sbuf)
+            instruction(C_sbuf, A_sbuf, B_sbuf, opcode=op_type)
         elif T.constexpr(operands_type == "const_region"):
-            Tx_func(C_sbuf, const, A_sbuf)
+            instruction(C_sbuf, const, A_sbuf, opcode=op_type)
         elif T.constexpr(operands_type == "region_const"):
-            Tx_func(C_sbuf, A_sbuf, const)
+            instruction(C_sbuf, A_sbuf, const, opcode=op_type)
 
     @T.function
     def expected():
@@ -127,6 +125,11 @@ def test_simple_binary(op_type, operands_type):
     ],
 )
 def test_binary_complex(op_type, operands_type):
+    instruction = (
+        T.trn.tile.tensortensor
+        if operands_type in {"region_region", "region_broadcast_rhs"}
+        else T.trn.tile.tensorscalar
+    )
     src1_shape = [1024, 512] if operands_type != "region_broadcast_lhs" else [1024, 4]
     src1_layout_data_iter = (128, 4096) if operands_type != "region_broadcast_lhs" else (128, 32)
     src1_layout = TileLayout(S[src1_layout_data_iter : (1 @ P, 1 @ F)])
@@ -137,7 +140,6 @@ def test_binary_complex(op_type, operands_type):
     dst_shape = [512, 512]
     dst_layout = TileLayout(S[(128, 2048) : (1 @ P, 1 @ F)])
     const = T.float32(3.0)
-    Tx_func = Tx_func_map[op_type]
 
     src1_view_shape = [128, 8, 512]
     src2_view_shape = [128, 4, 512] if operands_type != "region_broadcast_rhs" else [128, 1, 512]
@@ -159,15 +161,30 @@ def test_binary_complex(op_type, operands_type):
         C_sbuf_view = C_sbuf.view(*dst_view_shape)
         for i in range(4):
             if T.constexpr(operands_type == "region_region"):
-                Tx_func(C_sbuf_view[:, i, :], A_sbuf_view[:, i * 2, :], B_sbuf_view[:, i, :])
+                instruction(
+                    C_sbuf_view[:, i, :],
+                    A_sbuf_view[:, i * 2, :],
+                    B_sbuf_view[:, i, :],
+                    opcode=op_type,
+                )
             elif T.constexpr(operands_type == "region_const"):
-                Tx_func(C_sbuf_view[:, i, :], A_sbuf_view[:, i * 2, :], const)
+                instruction(C_sbuf_view[:, i, :], A_sbuf_view[:, i * 2, :], const, opcode=op_type)
             elif T.constexpr(operands_type == "const_region"):
-                Tx_func(C_sbuf_view[:, i, :], const, A_sbuf_view[:, i * 2, :])
+                instruction(C_sbuf_view[:, i, :], const, A_sbuf_view[:, i * 2, :], opcode=op_type)
             elif T.constexpr(operands_type == "region_broadcast_rhs"):
-                Tx_func(C_sbuf_view[:, i, :], A_sbuf_view[:, i * 2, :], B_sbuf_view[:, 0, :])
+                instruction(
+                    C_sbuf_view[:, i, :],
+                    A_sbuf_view[:, i * 2, :],
+                    B_sbuf_view[:, 0, :],
+                    opcode=op_type,
+                )
             elif T.constexpr(operands_type == "region_broadcast_lhs"):
-                Tx_func(C_sbuf_view[:, i, :, :], A_sbuf_view[:, i*2,:, :], B_sbuf_view[:, i, :, :])
+                instruction(
+                    C_sbuf_view[:, i, :, :],
+                    A_sbuf_view[:, i * 2, :, :],
+                    B_sbuf_view[:, i, :, :],
+                    opcode=op_type,
+                )
 
     f_extent = 128 if operands_type == "region_broadcast_lhs" else 512
     b_extent = 4 if operands_type == "region_broadcast_lhs" else 1
@@ -219,7 +236,7 @@ def test_binary_broadcast1():
         A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
         B_sbuf = T.alloc_tensor(src2_shape, "float32", scope="trn.sbuf", layout=src2_layout)
         C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.add(C_sbuf, A_sbuf, B_sbuf)
+        T.trn.tile.tensorscalar(C_sbuf, A_sbuf, B_sbuf, opcode='add')
 
     @T.function
     def expected():
@@ -255,7 +272,7 @@ def test_binary_broadcast2():
         A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
         B_sbuf = T.alloc_tensor(src2_shape, "float32", scope="trn.sbuf", layout=src2_layout)
         C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.add(C_sbuf, A_sbuf, B_sbuf)
+        T.trn.tile.tensortensor(C_sbuf, A_sbuf, B_sbuf, opcode='add')
 
     @T.function
     def expected():
@@ -291,7 +308,7 @@ def test_binary_broadcast3():
         A_sbuf = T.alloc_tensor(src1_shape, "float32", scope="trn.sbuf", layout=src1_layout)
         B_sbuf = T.alloc_tensor(src2_shape, "float32", scope="trn.sbuf", layout=src2_layout)
         C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.add(C_sbuf, A_sbuf, B_sbuf[0])
+        T.trn.tile.tensortensor(C_sbuf, A_sbuf, B_sbuf[0], opcode='add')
 
     @T.function
     def expected():
@@ -328,7 +345,12 @@ def test_binary_with_guard():
         B_sbuf = T.alloc_tensor(src2_shape, "float32", scope="trn.sbuf", layout=src2_layout)
         C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for j in range(4):
-            Tx.add(C_sbuf[:, :, 0:j*128], A_sbuf[:, :, 0:j*128], B_sbuf[:, 0:j*128])
+            T.trn.tile.tensortensor(
+                C_sbuf[:, :, 0 : j * 128],
+                A_sbuf[:, :, 0 : j * 128],
+                B_sbuf[:, 0 : j * 128],
+                opcode="add",
+            )
 
     @T.function
     def expected():

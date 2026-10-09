@@ -573,7 +573,7 @@ def test_megamoe_extracted_intrinsics_codegen():
         "movmatrix.sync.aligned.m8n8.trans.b16",
         "stmatrix.sync.aligned.m16n8.x1.trans.shared.b8",
         "ld.global.f32",
-        "reinterpret_cast<const float*>",
+        "tvm_builtin_ptx_ld_global_f32(F32_ptr[2], F32_ptr);",
         "__fdividef",
         "add.rn.f32.bf16",
         "__uint_as_float",

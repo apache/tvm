@@ -21,7 +21,6 @@ import tvm
 import tvm.testing
 from tvm.ir import assert_structural_equal as _assert_structural_equal
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import F, P, S, TileLayout
 
 target = tvm.target.Target("aws/trn1/trn1.2xlarge")
@@ -48,16 +47,12 @@ def assert_structural_equal(lhs, rhs, *args, **kwargs):
     _assert_structural_equal(lhs, rhs, *args, **kwargs)
 
 
-Tx_func_map = {"reciprocal": Tx.reciprocal, "sqrt": Tx.sqrt, "memset": Tx.memset, "exp": Tx.exp}
-
-
 @pytest.mark.parametrize("op_type", ["reciprocal", "memset"])
 def test_simple_unary(op_type):
     src_shape = [128, 512]
     src_layout = T.TileLayout(T.S[(128, 512) : (1 @ P, 1 @ F)])
     dst_shape = [128, 512]
     dst_layout = T.TileLayout(T.S[(128, 512) : (1 @ P, 1 @ F)])
-    tx_func = Tx_func_map[op_type]
 
     # fmt: off
     @T.function
@@ -66,9 +61,9 @@ def test_simple_unary(op_type):
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         if T.constexpr(op_type == "memset"):
-            tx_func(B_sbuf, T.float32(0.0))
+            getattr(T.trn.tile, op_type)(B_sbuf, T.float32(0.0))
         else:
-            tx_func(B_sbuf, A_sbuf)
+            getattr(T.trn.tile, op_type)(B_sbuf, A_sbuf)
 
     @T.function
     def expected():
@@ -99,8 +94,6 @@ def test_unary_in_a_loop(op_type):
     dst_shape = [512, 512]
     dst_layout = T.TileLayout(T.S[(128, 2048) : (1 @ P, 1 @ F)])
 
-    Tx_func = Tx_func_map[op_type]
-
     # fmt: off
     @T.function
     def unary() -> None:
@@ -111,9 +104,9 @@ def test_unary_in_a_loop(op_type):
         B_sbuf_view = B_sbuf.view(128, 4, 512)
         for i in range(4):
             if T.constexpr(op_type == "memset"):
-                Tx_func(B_sbuf_view[:, i, :], T.float32(0.0))
+                getattr(T.trn.tile, op_type)(B_sbuf_view[:, i, :], T.float32(0.0))
             else:
-                Tx_func(B_sbuf_view[:, i, :], A_sbuf_view[:, i * 2, :])
+                getattr(T.trn.tile, op_type)(B_sbuf_view[:, i, :], A_sbuf_view[:, i * 2, :])
 
     @T.function
     def expected():
@@ -146,7 +139,7 @@ def test_unary_complex1():
     def unary() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.memset(A_sbuf, T.float32(0.0))
+        T.trn.tile.memset(A_sbuf, T.float32(0.0))
 
     @T.function
     def expected():
@@ -173,7 +166,6 @@ def test_unary_with_bias_scale(op_type):
     bias_shape = [512, 1]
     bias_layout = TileLayout(S[(128, 4) : (1 @ P, 1 @ F)])
     scale = T.float32(2.0)
-    tx_func = getattr(Tx, op_type + "_with_scale_bias")
 
     # fmt: off
     @T.function
@@ -182,7 +174,7 @@ def test_unary_with_bias_scale(op_type):
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(bias_shape, "float32", scope="trn.sbuf", layout=bias_layout)
         C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        tx_func(C_sbuf, A_sbuf, bias=B_sbuf, scale=scale)
+        T.trn.tile.activation(C_sbuf, A_sbuf, bias=B_sbuf, scale=scale, opcode=op_type)
 
     @T.function
     def expected():
@@ -210,7 +202,6 @@ def test_unary_with_bias_scale_2(op_type):
     dst_layout = src_layout
     bias = T.float32(1.0)
     scale = T.float32(2.0)
-    tx_func = getattr(Tx, op_type + "_with_scale_bias")
 
     # fmt: off
     @T.function
@@ -218,7 +209,7 @@ def test_unary_with_bias_scale_2(op_type):
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        tx_func(C_sbuf, A_sbuf, bias=bias, scale=scale)
+        T.trn.tile.activation(C_sbuf, A_sbuf, bias=bias, scale=scale, opcode=op_type)
 
     @T.function
     def expected():
@@ -261,7 +252,7 @@ def test_unary_with_guard():
         C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
             for j in range(4):
-                Tx.sqrt_with_scale_bias(C_sbuf[0: (i+1) * 128, 0: (j+1)*256], A_sbuf[0: (i+1) * 128, 0: (j+1)*256], bias=B_sbuf[0: (i+1) * 128, 0], scale=scale)  # noqa: E501
+                T.trn.tile.activation(C_sbuf[0: (i+1) * 128, 0: (j+1)*256], A_sbuf[0: (i+1) * 128, 0: (j+1)*256], bias=B_sbuf[0: (i+1) * 128, 0], scale=scale, opcode='sqrt')  # noqa: E501
 
     @T.function
     def expected():

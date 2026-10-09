@@ -22,6 +22,7 @@ files need should live in a shared module, not be duplicated.
 """
 
 import functools
+import math
 
 import numpy as np
 import pytest
@@ -30,13 +31,11 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 from tvm.tirx import IntImm, Var
 from tvm.tirx.cuda.tile_primitive.copy_async.dsmem import copy_dsmem_impl
 from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import S, TileLayout
-from tvm.tirx.op.tile import CopyAsync
 from tvm.tirx.operator.tile_primitive.dispatcher import DispatchFail
 from tvm.tirx.tile_dispatch import DispatchContext
 
@@ -50,7 +49,9 @@ def _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout):
     dst_buf = tvm.tirx.decl_tensor(shape, dtype, "B", scope="shared.dyn", layout=dst_layout)
     ranges = [Range.from_min_extent(0, s) for s in shape]
     config = {"mbar": Var("mbar", "handle"), "remote_cta_id": IntImm("int32", 1)}
-    op_call = CopyAsync(BufferRegion(dst_buf, ranges), BufferRegion(src_buf, ranges), config=config)
+    op_call = T.cuda.tile.cp_async_bulk(
+        BufferRegion(dst_buf, ranges), BufferRegion(src_buf, ranges), **config
+    )
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
     sctx = DispatchContext(target, ExecScope("thread"), {}, {})
     return copy_dsmem_impl(op_call, sctx)
@@ -188,20 +189,88 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
 
         if tid == 0:
             if cbx == 0:
-                Tx.copy(src_smem[r], A[r])
+                copy_src_1 = T.meta_var(A[r])
+                copy_src_tensor_1 = T.meta_var(copy_src_1.source)
+                copy_dst_1 = T.meta_var(src_smem[r])
+                copy_dst_tensor_1 = T.meta_var(copy_dst_1.source)
+                for copy_step_1 in T.serial(
+                    T.ceildiv(math.prod([int(r.extent) for r in copy_src_1.region]), 1)
+                ):
+                    copy_index_1 = copy_step_1 * (1) + (0)
+                    if copy_index_1 < math.prod([int(r.extent) for r in copy_src_1.region]):
+                        copy_value_1 = copy_src_tensor_1[
+                            tuple(
+                                [
+                                    copy_src_1.region[k].min
+                                    + copy_index_1
+                                    // math.prod(
+                                        [int(s.extent) for s in copy_src_1.region[k + 1 :]]
+                                    )
+                                    % copy_src_1.region[k].extent
+                                    for k in range(len(copy_src_1.region))
+                                ]
+                            )
+                        ]
+                        copy_dst_index_1 = T.meta_var(
+                            tuple(
+                                [
+                                    copy_dst_1.region[k].min
+                                    + copy_index_1
+                                    // math.prod(
+                                        [int(s.extent) for s in copy_dst_1.region[k + 1 :]]
+                                    )
+                                    % copy_dst_1.region[k].extent
+                                    for k in range(len(copy_dst_1.region))
+                                ]
+                            )
+                        )
+                        copy_dst_tensor_1[copy_dst_index_1] = copy_value_1
                 T.ptx.fence.proxy.async_.shared__cta()
 
-                Tx.copy_async(
-                    dst_smem[r], src_smem[r],
-                    dispatch="dsmem",
-                    mbar=mbar.ptr_to([0]),
-                    remote_cta_id=T.int32(1),
+                T.cuda.tile.cp_async_bulk(
+                    dst_smem[r], src_smem[r], mbar=mbar.ptr_to([0]), remote_cta_id=T.int32(1)
                 )
             else:
                 T.ptx.mbarrier.arrive.expect_tx.shared.b64(mbar.ptr_to([0]), T.uint32(copy_bytes))
                 mbar.wait(0, 0)
 
-                Tx.copy(B[r], dst_smem[r])
+                copy_src_2 = T.meta_var(dst_smem[r])
+
+                copy_src_tensor_2 = T.meta_var(copy_src_2.source)
+                copy_dst_2 = T.meta_var(B[r])
+                copy_dst_tensor_2 = T.meta_var(copy_dst_2.source)
+                for copy_step_2 in T.serial(
+                    T.ceildiv(math.prod([int(r.extent) for r in copy_src_2.region]), 1)
+                ):
+                    copy_index_2 = copy_step_2 * (1) + (0)
+                    if copy_index_2 < math.prod([int(r.extent) for r in copy_src_2.region]):
+                        copy_value_2 = copy_src_tensor_2[
+                            tuple(
+                                [
+                                    copy_src_2.region[k].min
+                                    + copy_index_2
+                                    // math.prod(
+                                        [int(s.extent) for s in copy_src_2.region[k + 1 :]]
+                                    )
+                                    % copy_src_2.region[k].extent
+                                    for k in range(len(copy_src_2.region))
+                                ]
+                            )
+                        ]
+                        copy_dst_index_2 = T.meta_var(
+                            tuple(
+                                [
+                                    copy_dst_2.region[k].min
+                                    + copy_index_2
+                                    // math.prod(
+                                        [int(s.extent) for s in copy_dst_2.region[k + 1 :]]
+                                    )
+                                    % copy_dst_2.region[k].extent
+                                    for k in range(len(copy_dst_2.region))
+                                ]
+                            )
+                        )
+                        copy_dst_tensor_2[copy_dst_index_2] = copy_value_2
         # fmt: on
 
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
@@ -238,10 +307,10 @@ def test_dsmem_dispatch_missing_config():
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
     sctx = DispatchContext(target, ExecScope("thread"), {}, {})
 
-    with pytest.raises(DispatchFail, match="remote_cta_id"):
-        copy_dsmem_impl(CopyAsync(br, br, config={"mbar": Var("m", "handle")}), sctx)
-    with pytest.raises(DispatchFail, match="mbar"):
-        copy_dsmem_impl(CopyAsync(br, br, config={"remote_cta_id": IntImm("int32", 1)}), sctx)
+    with pytest.raises(TypeError, match="remote_cta_id"):
+        T.cuda.tile.cp_async_bulk(br, br, mbar=Var("m", "handle"))
+    with pytest.raises(TypeError, match="mbar"):
+        T.cuda.tile.cp_async_bulk(br, br, remote_cta_id=IntImm("int32", 1))
 
 
 if __name__ == "__main__":

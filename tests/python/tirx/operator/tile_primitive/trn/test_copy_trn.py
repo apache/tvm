@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
 import tvm_ffi
 
 import tvm
 import tvm.testing
 from tvm.ir import assert_structural_equal as _assert_structural_equal
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import F, P, S, TileLayout
 
 target = tvm.target.Target("aws/trn1/trn1.2xlarge")
@@ -58,7 +58,7 @@ def test_simple_copy():
     def copy(A: T.Tensor(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.copy(A_sbuf, A)
+        T.trn.tile.load(A_sbuf, A)
 
     @T.function
     def expected(A: T.Tensor((128, 512), layout=None)):
@@ -89,7 +89,7 @@ def test_simple_copy_2():
     def copy(A: T.Tensor(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.copy(A_sbuf, A)
+        T.trn.tile.load(A_sbuf, A)
 
     @T.function
     def expected(A: T.Tensor((128, 512), layout=None)):
@@ -120,7 +120,7 @@ def test_copy_in_a_loop():
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
-            Tx.copy(A_sbuf[i * 128 : i * 128 + 128, :], A[i * 128 : i * 128 + 128, :])
+            T.trn.tile.load(A_sbuf[i * 128 : i * 128 + 128, :], A[i * 128 : i * 128 + 128, :])
 
     @T.function
     def expected(A: T.Tensor((512, 512), layout=None)):
@@ -155,7 +155,7 @@ def test_copy_in_a_loop_2():
         A_sbuf_view = A_sbuf.view(128, 4, 512)
         A_view = A.view(128, 4, 512)
         for i in range(4):
-            Tx.copy(A_sbuf_view[:, i, :], A_view[:, i, :])
+            T.trn.tile.load(A_sbuf_view[:, i, :], A_view[:, i, :])
 
     @T.function
     def expected(A: T.Tensor((512, 512), layout=None)):
@@ -181,99 +181,6 @@ def test_copy_in_a_loop_2():
         assert_structural_equal(mod["main"], expected)
 
 
-def test_copy_transpose():
-    src_shape = [512, 512]
-    src_layout = TileLayout(S[(128, 2048) : (1 @ P, 1 @ F)])
-    dst_shape = [512, 512]
-    dst_layout = TileLayout(S[(2048, 128) : (1 @ F, 1 @ P)])
-
-    # fmt: off
-    @T.function
-    def copy() -> None:
-        T.device_entry()
-        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.copy(B_sbuf, A_sbuf)
-
-    @T.function
-    def expected():
-        T.func_attr({"global_symbol": "copy"})
-        identity = T.alloc_tensor((128, 128), scope="trn.sbuf")
-        acc_psum = T.alloc_tensor((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
-        with T.nki.tensorized_instruction():
-            for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
-                for rhs_f_loop in T.serial(128, annotations={"nki_dim": "F"}):
-                    T.nki.identity(identity[p_loop, rhs_f_loop], 128)
-        A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
-        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
-        for b_loop in range(16):
-            for extend_b_loop in range(1):
-                T.nki.tensorized_instruction()
-                for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
-                    for lhs_f_loop in T.serial(128, annotations={"nki_dim": "lhs_F"}):
-                        for rhs_f_loop in T.serial(128, annotations={"nki_dim": "rhs_F"}):
-                            T.nki.matmul(acc_psum[b_loop % 8, lhs_f_loop, rhs_f_loop], A_sbuf[p_loop, b_loop * 128 + lhs_f_loop], identity[p_loop, rhs_f_loop], T.bool(True))  # noqa: E501
-            T.nki.tensorized_instruction()
-            for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
-                for f_loop in T.serial(128, annotations={"nki_dim": "F"}):
-                    T.nki.tensor_copy(B_sbuf[p_loop, f_loop * 16 + b_loop], acc_psum[b_loop % 8, p_loop, f_loop])  # noqa: E501
-            # fmt: on
-
-    with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
-        mod = tvm.tirx.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.StmtSimplify()(mod)
-        assert_structural_equal(mod["main"], expected)
-
-
-def test_copy_transpose_2():
-    src_shape = [65536]
-    src_layout = TileLayout(S[(128, 512) : (1 @ P, 1 @ F)])
-    dst_shape = [4, 65536]
-    dst_layout = TileLayout(S[(4, 128, 128, 4) : (4 @ F, 16 @ F, 1 @ P, 1 @ F)])
-
-    # fmt: off
-    @T.function
-    def copy() -> None:
-        T.device_entry()
-        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        for i in range(4):
-            Tx.copy(B_sbuf[i, :], A_sbuf)
-
-    @T.function
-    def expected():
-        T.func_attr({"global_symbol": "copy"})
-        identity = T.alloc_tensor((128, 128), scope="trn.sbuf")
-        acc_psum = T.alloc_tensor((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
-        with T.nki.tensorized_instruction():
-            for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
-                for rhs_f_loop in T.serial(128, annotations={"nki_dim": "F"}):
-                    T.nki.identity(identity[p_loop, rhs_f_loop], 128)
-        A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
-        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
-        for i in range(4):
-            for b_loop in range(4):
-                for extend_b_loop in range(1):
-                    T.nki.tensorized_instruction()
-                    for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
-                        for lhs_f_loop in T.serial(128, annotations={"nki_dim": "lhs_F"}):
-                            for rhs_f_loop in T.serial(128, annotations={"nki_dim": "rhs_F"}):
-                                T.nki.matmul(acc_psum[b_loop, lhs_f_loop, rhs_f_loop], A_sbuf[p_loop, lhs_f_loop * 4 + b_loop], identity[p_loop, rhs_f_loop], T.bool(True))  # noqa: E501
-                T.nki.tensorized_instruction()
-                for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
-                    for f_loop in T.serial(128, annotations={"nki_dim": "F"}):
-                        T.nki.tensor_copy(B_sbuf[p_loop, f_loop * 16 + i * 4 + b_loop], acc_psum[b_loop, p_loop, f_loop])  # noqa: E501
-            # fmt: on
-    with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
-        mod = tvm.tirx.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.StmtSimplify()(mod)
-        assert_structural_equal(mod["main"], expected)
-
-
 def test_copy_different_f():
     src_shape = [512, 64]
     src_layout = TileLayout(S[(4, 128, 4, 4, 4) : (64 @ F, 1 @ P, 16 @ F, 4 @ F, 1 @ F)])
@@ -285,7 +192,7 @@ def test_copy_different_f():
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.copy(B_sbuf, A_sbuf)
+        T.trn.tile.tensor_copy(B_sbuf, A_sbuf)
 
     @T.function
     def expected():
@@ -322,7 +229,7 @@ def test_copy_different_shape():
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         B_sbuf_view = B_sbuf.view(512, 4)
-        Tx.copy(B_sbuf_view, A_sbuf[:, 0:4])
+        T.trn.tile.tensor_copy(B_sbuf_view, A_sbuf[:, 0:4])
 
     @T.function
     def expected():
@@ -356,7 +263,7 @@ def test_copy_irregular_shape():
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
-            Tx.copy(A[:, i * 512 : i * 512 + 512], A_sbuf)
+            T.trn.tile.store(A[:, i * 512 : i * 512 + 512], A_sbuf)
 
     @T.function
     def expected(A: T.Tensor((128, 10000), layout=None)):
@@ -389,7 +296,7 @@ def test_copy_different_shape_dim():
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(32):
-            Tx.copy(A_sbuf, A[i, :, :])
+            T.trn.tile.load(A_sbuf, A[i, :, :])
 
     @T.function
     def expected(A: T.Tensor((32, 128, 512), layout=None)):
@@ -420,7 +327,7 @@ def test_copy_with_offset():
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(2):
-            Tx.copy(A_sbuf[i * 256 : i * 256 + 256, :], A)
+            T.trn.tile.load(A_sbuf[i * 256 : i * 256 + 256, :], A)
 
     @T.function
     def expected(A: T.Tensor((256, 512), layout=None)):
@@ -454,7 +361,7 @@ def test_large_dma_copy():
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
-            Tx.copy(A_sbuf[i * 128 : i * 128 + 128, :], A[i * 128 : i * 128 + 128, :])
+            T.trn.tile.load(A_sbuf[i * 128 : i * 128 + 128, :], A[i * 128 : i * 128 + 128, :])
 
     @T.function
     def expected(A: T.Tensor((512, 4096), layout=None)):
@@ -489,7 +396,9 @@ def test_copy_with_inst_size_limit():
         B_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
-            Tx.copy(A_sbuf[i * 128 : i * 128 + 128, :], B_sbuf[i * 128 : i * 128 + 128, :])
+            T.trn.tile.tensor_copy(
+                A_sbuf[i * 128 : i * 128 + 128, :], B_sbuf[i * 128 : i * 128 + 128, :]
+            )
 
     @T.function
     def expected(A_ptr: T.handle):
@@ -523,7 +432,7 @@ def test_copy_with_complex_index():
 
         T.device_entry()
         A_sbuf = T.alloc_tensor(A_sbuf_shape, "float32", scope="trn.sbuf", layout=A_sbuf_layout)
-        Tx.copy(A_sbuf[1, 0:2048, 0:1024], A[2048: 4096, 3072:4096])
+        T.trn.tile.load(A_sbuf[1, 0:2048, 0:1024], A[2048: 4096, 3072:4096])
 
     @T.function
     def expected(A: T.Tensor((4096, 4096), layout=None)):
@@ -555,7 +464,7 @@ def test_copy_with_complex_index_2():
 
         T.device_entry()
         A_sbuf = T.alloc_tensor(A_sbuf_shape, "float32", scope="trn.sbuf", layout=A_sbuf_layout)
-        Tx.copy(A_sbuf[2048: 4096, 3072:4096], A[1, 0:2048, 0:1024])
+        T.trn.tile.load(A_sbuf[2048: 4096, 3072:4096], A[1, 0:2048, 0:1024])
 
     @T.function
     def expected(A: T.Tensor((2, 2048, 1024), layout=None)):
@@ -576,55 +485,6 @@ def test_copy_with_complex_index_2():
         assert_structural_equal(mod["main"], expected)
 
 
-def test_copy_transpose_with_workspace():
-    src_shape = [512, 512]
-    src_layout = TileLayout(S[(128, 2048) : (1 @ P, 1 @ F)])
-    dst_shape = [512, 512]
-    dst_layout = TileLayout(S[(2048, 128) : (1 @ F, 1 @ P)])
-
-    # fmt: off
-    @T.function
-    def copy() -> None:
-        T.device_entry()
-        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        identity = T.alloc_tensor((128, 128), "float32", scope="trn.sbuf")
-        acc_psum = T.alloc_tensor((1, 128, 512), "float32", scope="trn.psum", allocated_addr=(0, 0))
-        with T.nki.tensorized_instruction():
-            for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
-                for rhs_f_loop in T.serial(0, 128, annotations={"nki_dim":"F"}):
-                    T.nki.identity(identity[p_loop, rhs_f_loop], 128)
-        Tx.copy(B_sbuf, A_sbuf, workspace={"identity": identity, "acc_psum": acc_psum})
-
-    @T.function
-    def expected():
-        T.func_attr({"global_symbol": "copy"})
-        A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
-        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
-        identity = T.alloc_tensor((128, 128), scope="trn.sbuf")
-        acc_psum = T.alloc_tensor((1, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
-        with T.nki.tensorized_instruction():
-            for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
-                for rhs_f_loop in T.serial(128, annotations={"nki_dim": "F"}):
-                    T.nki.identity(identity[p_loop, rhs_f_loop], 128)
-        for b_loop in range(16):
-            for extend_b_loop in range(1):
-                T.nki.tensorized_instruction()
-                for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
-                    for lhs_f_loop in T.serial(128, annotations={"nki_dim": "lhs_F"}):
-                        for rhs_f_loop in T.serial(128, annotations={"nki_dim": "rhs_F"}):
-                            T.nki.matmul(acc_psum[0, lhs_f_loop, extend_b_loop * 128 + rhs_f_loop], A_sbuf[p_loop, b_loop * 128 + lhs_f_loop], identity[p_loop, rhs_f_loop], T.bool(True))  # noqa: E501
-            T.nki.tensorized_instruction()
-            for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
-                for f_loop in T.serial(128, annotations={"nki_dim": "F"}):
-                    T.nki.tensor_copy(B_sbuf[p_loop, f_loop * 16 + b_loop], acc_psum[0, p_loop, f_loop])  # noqa: E501
-            # fmt: on
-    with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.tirx.transform.LowerTIRx()(mod)
-        assert_structural_equal(mod["main"], expected)
-
-
 def test_copy_with_guard():
     src_shape = [512, 512]
     src_layout = T.TileLayout(T.S[(4, 128, 512) : (512 * 128, 512, 1)])
@@ -639,7 +499,7 @@ def test_copy_with_guard():
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for j in range(4):
             for i in range(4):
-                Tx.copy(A_sbuf[i * 128 : i * 128 + 128, 0:128*j], A[i * 128 : i * 128 + 128, 0:128*j])  # noqa: E501
+                T.trn.tile.load(A_sbuf[i * 128 : i * 128 + 128, 0:128*j], A[i * 128 : i * 128 + 128, 0:128*j])  # noqa: E501
 
     @T.function
     def expected(A: T.Tensor((512, 512), layout=None)):
@@ -675,7 +535,7 @@ def test_copy_with_guard_2():
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for j in range(4):
             for i in range(4):
-                Tx.copy(A_sbuf[0:128*j, 0:128*i], A[0:128*j, 0:128*i])
+                T.trn.tile.load(A_sbuf[0:128*j, 0:128*i], A[0:128*j, 0:128*i])
 
     @T.function
     def expected(A: T.Tensor((512, 512), layout=None)):
@@ -697,55 +557,6 @@ def test_copy_with_guard_2():
         assert_structural_equal(mod["main"], expected)
 
 
-def test_copy_transpose_with_guard():
-    src_shape = [512, 512]
-    src_layout = TileLayout(S[(4, 128, 512) : (512 @ F, 1 @ P, 1 @ F)])
-    dst_shape = [512, 512]
-    dst_layout = TileLayout(S[(2048, 128) : (1 @ F, 1 @ P)])
-
-    # fmt: off
-    @T.function
-    def copy() -> None:
-        T.device_entry()
-        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        for i in range(4):
-            for j in range(4):
-                Tx.copy(B_sbuf[i * 128 : i * 128 + 128, 0:128*j], A_sbuf[i * 128 : i * 128 + 128, 0:128*j])  # noqa: E501
-
-    @T.function
-    def expected():
-        T.func_attr({"global_symbol": "copy"})
-        identity = T.alloc_tensor((128, 128), scope="trn.sbuf")
-        acc_psum = T.alloc_tensor((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
-        with T.nki.tensorized_instruction():
-            for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
-                for rhs_f_loop in T.serial(128, annotations={"nki_dim": "F"}):
-                    T.nki.identity(identity[p_loop, rhs_f_loop], 128)
-        A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
-        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
-        for i, j, b_loop in T.grid(4, 4, 3):
-            for extend_b_loop in range(1):
-                T.nki.tensorized_instruction()
-                for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
-                    for lhs_f_loop in T.serial(128, annotations={"nki_dim": "lhs_F"}):
-                        for rhs_f_loop in T.serial(128, annotations={"nki_dim": "rhs_F"}):
-                            if b_loop - j < 0:
-                                T.nki.matmul(acc_psum[b_loop, lhs_f_loop, rhs_f_loop], A_sbuf[p_loop, i * 512 + b_loop * 128 + lhs_f_loop], identity[p_loop, rhs_f_loop], T.bool(True))  # noqa: E501
-            T.nki.tensorized_instruction()
-            for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
-                for f_loop in T.serial(128, annotations={"nki_dim": "F"}):
-                    if b_loop - j < 0:
-                        T.nki.tensor_copy(B_sbuf[p_loop, i * 512 + f_loop * 4 + b_loop], acc_psum[b_loop, p_loop, f_loop])  # noqa: E501
-            # fmt: on
-    with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
-        mod = tvm.tirx.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.StmtSimplify()(mod)
-        assert_structural_equal(mod["main"], expected)
-
-
 def test_copy_with_specified_max_inst_size():
     src_shape = [128, 512]
     src_layout = "PF"
@@ -758,7 +569,7 @@ def test_copy_with_specified_max_inst_size():
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.copy(A_sbuf, B_sbuf, max_inst_size=128)
+        T.trn.tile.tensor_copy(A_sbuf, B_sbuf, max_inst_size=128)
 
     @T.function
     def expected(A_ptr: T.handle):
@@ -777,46 +588,76 @@ def test_copy_with_specified_max_inst_size():
         assert_structural_equal(mod["main"], expected)
 
 
-def test_copy_transpose_with_extended_f():
-    # fmt: off
-    @T.function
-    def copy(A_ptr: T.handle) -> None:
-        T.device_entry()
-        A_sbuf = T.alloc_tensor((128, 2048), "float32", scope="trn.sbuf", layout="PF")
-        B_sbuf = T.alloc_tensor((128, 2048), "float32", scope="trn.sbuf", layout="FP")
-        Tx.copy(B_sbuf, A_sbuf)
-
-    @T.function
-    def expected(A_ptr: T.handle):
-        T.func_attr({"global_symbol": "copy"})
-        identity = T.alloc_tensor((128, 128), scope="trn.sbuf")
-        acc_psum = T.alloc_tensor((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
-        with T.nki.tensorized_instruction():
-            for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
-                for rhs_f_loop in T.serial(128, annotations={"nki_dim": "F"}):
-                    T.nki.identity(identity[p_loop, rhs_f_loop], 128)
-        A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
-        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
-        for b_loop in range(4):
-            for extend_b_loop in range(4):
-                T.nki.tensorized_instruction()
-                for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
-                    for lhs_f_loop in T.serial(128, annotations={"nki_dim": "lhs_F"}):
-                        for rhs_f_loop in T.serial(128, annotations={"nki_dim": "rhs_F"}):
-                            T.nki.matmul(acc_psum[b_loop, lhs_f_loop, extend_b_loop * 128 + rhs_f_loop], A_sbuf[p_loop, b_loop * 512 + extend_b_loop * 128 + lhs_f_loop], identity[p_loop, rhs_f_loop], T.bool(True))  # noqa: E501
-            T.nki.tensorized_instruction()
-            for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
-                for f_loop in T.serial(512, annotations={"nki_dim": "F"}):
-                    T.nki.tensor_copy(B_sbuf[p_loop, b_loop * 512 + f_loop], acc_psum[b_loop, p_loop, f_loop])  # noqa: E501
-
-            # fmt: on
-    with target:
-        mod = tvm.IRModule({"main": copy})
-        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
-        mod = tvm.tirx.transform.LowerTIRx()(mod)
-        mod = tvm.tirx.transform.StmtSimplify()(mod)
-        assert_structural_equal(mod["main"], expected)
-
-
 if __name__ == "__main__":
     tvm.testing.main()
+
+
+@pytest.mark.parametrize("columns", [128, 256])
+@pytest.mark.parametrize("copy_to_sbuf", [False, True])
+def test_explicit_transpose_prepares_identity_and_psum(columns, copy_to_sbuf):
+    """The caller owns the transpose algorithm, including its temporary tensors."""
+    layout = TileLayout(S[(128, columns) : (1 @ P, 1 @ F)])
+    square = TileLayout(S[(128, 128) : (1 @ P, 1 @ F)])
+
+    @T.function
+    def transpose():
+        T.device_entry()
+        source = T.alloc_tensor((128, columns), "float32", scope="trn.sbuf", layout=layout)
+        identity = T.alloc_tensor((128, 128), "float32", scope="trn.sbuf", layout=square)
+        accumulator = T.alloc_tensor(
+            (128, 128), "float32", scope="trn.psum", layout=square, allocated_addr=[0, 0]
+        )
+        result = T.alloc_tensor(
+            (columns, 128),
+            "float32",
+            scope="trn.sbuf",
+            layout=TileLayout(S[(columns // 128, 128, 128) : (128 @ F, 1 @ P, 1 @ F)]),
+        )
+        with T.nki.tensorized_instruction():
+            for p in T.serial(128, annotations={"nki_dim": "P"}):
+                for f in T.serial(128, annotations={"nki_dim": "F"}):
+                    T.nki.identity(identity[p, f], 128)
+        for block in range(columns // 128):
+            T.trn.tile.matmul(
+                accumulator, source[:, block * 128 : (block + 1) * 128], identity, transpose_A=True
+            )
+            if T.constexpr(copy_to_sbuf):
+                T.trn.tile.tensor_copy(result[block * 128 : (block + 1) * 128, :], accumulator)
+
+    mod = tvm.IRModule({"main": transpose})
+    with target:
+        allocated = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
+        # No hidden identity or PSUM workspace is needed by either instruction.
+        _assert_structural_equal(mod, allocated)
+        lowered = tvm.tirx.transform.LowerTIRx()(allocated)
+    names = []
+    tvm_ffi.structural_walk(
+        lowered,
+        (tvm.ir.Call, lambda n: names.append(n.op.name) if isinstance(n.op, tvm.ir.Op) else None),
+    )
+    assert "tirx.nki.identity" in names
+    assert "tirx.nki.matmul" in names
+    assert ("tirx.nki.tensor_copy" in names) == copy_to_sbuf
+    assert not any(".tile." in name for name in names)
+
+
+def test_tensor_copy_rejects_partition_transpose():
+    @T.function
+    def copy():
+        T.device_entry()
+        a = T.alloc_tensor(
+            (128, 128),
+            "float32",
+            scope="trn.sbuf",
+            layout=TileLayout(S[(128, 128) : (1 @ P, 1 @ F)]),
+        )
+        b = T.alloc_tensor(
+            (128, 128),
+            "float32",
+            scope="trn.sbuf",
+            layout=TileLayout(S[(128, 128) : (1 @ F, 1 @ P)]),
+        )
+        T.trn.tile.tensor_copy(b, a)
+
+    with target, pytest.raises(RuntimeError, match="identity|transpose"):
+        tvm.tirx.transform.LowerTIRx()(tvm.IRModule({"main": copy}))

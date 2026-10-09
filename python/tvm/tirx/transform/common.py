@@ -18,8 +18,8 @@
 
 import tvm_ffi
 
-from tvm.ir import Call, Evaluate, Op, Stmt, Var, is_prim_expr
-from tvm.tirx import Expr, TileOpCall, decl_tensor, is_tensor_var
+from tvm.ir import Call, Evaluate, Op, Stmt, Var
+from tvm.tirx import Expr, decl_tensor, is_tensor_var
 from tvm.tirx.layout import Iter, TileLayout
 
 
@@ -45,24 +45,9 @@ class BufferReplacer:
                 return self._mutate_buffer(op)
             return self.var_map.get(op, op)
 
-        def replace_op_call(op: TileOpCall):
-            new_workspace = {key: self._mutate_buffer(value) for key, value in op.workspace.items()}
-            new_config = {
-                key: self._replace_expr(value) if is_prim_expr(value) else value
-                for key, value in op.config.items()
-            }
-            return TileOpCall(
-                *op.args,
-                op=op.op,
-                workspace=new_workspace,
-                config=new_config,
-                dispatch=op.dispatch,
-                scope=op.scope,
-            )
-
         return tvm_ffi.structural_map(
             node,
-            [(TileOpCall, replace_op_call), (Var, replace_var)],
+            (Var, replace_var),
             order="post",
         )
 

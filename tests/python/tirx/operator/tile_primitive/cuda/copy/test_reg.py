@@ -35,7 +35,6 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 from tvm.tirx.layout import S, TileLayout, laneid, tid_in_wg, tx
 
@@ -82,11 +81,11 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
                     A_smem[tid, kk] = T.cast(tid * 100 + kk + 1, dtype)
                 T.cuda.cta_sync()
                 R_local = T.alloc_tensor(shape, dtype, scope="local", layout=r_layout)
-                Tx.wg.copy(R_local[full_slices], A_smem[full_slices])
+                T.cuda.tile.ld(R_local[full_slices], A_smem[full_slices], scope="warpgroup")
                 for kk in range(k):
                     A_smem[tid, kk] = T.cast(0, dtype)
                 T.cuda.cta_sync()
-                Tx.wg.copy(A_smem[full_slices], R_local[full_slices])
+                T.cuda.tile.st(A_smem[full_slices], R_local[full_slices], scope="warpgroup")
                 T.cuda.cta_sync()
                 for kk in range(k):
                     B[tid, kk] = A_smem[tid, kk]
@@ -104,11 +103,11 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
                     A_smem[tid, kk] = T.cast(tid * 100 + kk + 1, dtype)
                 T.cuda.cta_sync()
                 R_local = T.alloc_tensor(shape, dtype, scope="local", layout=r_layout)
-                Tx.warp.copy(R_local[full_slices], A_smem[full_slices])
+                T.cuda.tile.ld(R_local[full_slices], A_smem[full_slices], scope="warp")
                 for kk in range(k):
                     A_smem[tid, kk] = T.cast(0, dtype)
                 T.cuda.cta_sync()
-                Tx.warp.copy(A_smem[full_slices], R_local[full_slices])
+                T.cuda.tile.st(A_smem[full_slices], R_local[full_slices], scope="warp")
                 T.cuda.cta_sync()
                 for kk in range(k):
                     B[tid, kk] = A_smem[tid, kk]
@@ -127,11 +126,11 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
                     A_smem[tid, kk] = T.cast(tid * 100 + kk + 1, dtype)
                 T.cuda.cta_sync()
                 R_local = T.alloc_tensor(shape, dtype, scope="local", layout=r_layout)
-                Tx.cta.copy(R_local[full_slices], A_smem[full_slices])
+                T.cuda.tile.ld(R_local[full_slices], A_smem[full_slices], scope="cta")
                 for kk in range(k):
                     A_smem[tid, kk] = T.cast(0, dtype)
                 T.cuda.cta_sync()
-                Tx.cta.copy(A_smem[full_slices], R_local[full_slices])
+                T.cuda.tile.st(A_smem[full_slices], R_local[full_slices], scope="cta")
                 T.cuda.cta_sync()
                 for kk in range(k):
                     B[tid, kk] = A_smem[tid, kk]
@@ -154,11 +153,11 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
                     A[tid, kk] = T.cast(tid * 100 + kk + 1, dtype)
                 T.cuda.cta_sync()
                 R_local = T.alloc_tensor(shape, dtype, scope="local", layout=r_layout)
-                Tx.wg.copy(R_local[full_slices], A[full_slices])
+                T.cuda.tile.ld(R_local[full_slices], A[full_slices], scope="warpgroup")
                 for kk in range(k):
                     A[tid, kk] = T.cast(0, dtype)
                 T.cuda.cta_sync()
-                Tx.wg.copy(A[full_slices], R_local[full_slices])
+                T.cuda.tile.st(A[full_slices], R_local[full_slices], scope="warpgroup")
                 T.cuda.cta_sync()
                 for kk in range(k):
                     B[tid, kk] = A[tid, kk]
@@ -175,11 +174,11 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
                     A[tid, kk] = T.cast(tid * 100 + kk + 1, dtype)
                 T.cuda.cta_sync()
                 R_local = T.alloc_tensor(shape, dtype, scope="local", layout=r_layout)
-                Tx.warp.copy(R_local[full_slices], A[full_slices])
+                T.cuda.tile.ld(R_local[full_slices], A[full_slices], scope="warp")
                 for kk in range(k):
                     A[tid, kk] = T.cast(0, dtype)
                 T.cuda.cta_sync()
-                Tx.warp.copy(A[full_slices], R_local[full_slices])
+                T.cuda.tile.st(A[full_slices], R_local[full_slices], scope="warp")
                 T.cuda.cta_sync()
                 for kk in range(k):
                     B[tid, kk] = A[tid, kk]
@@ -197,11 +196,11 @@ def _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope):
                     A[tid, kk] = T.cast(tid * 100 + kk + 1, dtype)
                 T.cuda.cta_sync()
                 R_local = T.alloc_tensor(shape, dtype, scope="local", layout=r_layout)
-                Tx.cta.copy(R_local[full_slices], A[full_slices])
+                T.cuda.tile.ld(R_local[full_slices], A[full_slices], scope="cta")
                 for kk in range(k):
                     A[tid, kk] = T.cast(0, dtype)
                 T.cuda.cta_sync()
-                Tx.cta.copy(A[full_slices], R_local[full_slices])
+                T.cuda.tile.st(A[full_slices], R_local[full_slices], scope="cta")
                 T.cuda.cta_sync()
                 for kk in range(k):
                     B[tid, kk] = A[tid, kk]
@@ -284,8 +283,8 @@ def test_reg_roundtrip_gapped_permuted_storage():
         T.lane_id([32])
         T.thread_id([32])
         reg = T.alloc_tensor(shape, "float32", scope="local", layout=r_layout)
-        Tx.warp.copy(reg, A, dispatch="vec_auto")
-        Tx.warp.copy(B, reg, dispatch="vec_auto")
+        T.cuda.tile.ld(reg, A, scope='warp')
+        T.cuda.tile.st(B, reg, scope='warp')
         # fmt: on
 
     target = tvm.target.Target("cuda")
@@ -351,8 +350,8 @@ def test_copy_g2l_l2g_vec_load(task, dtype):
         T.cta_id([2])
         T.thread_id([thread_cnt])
         A_local = T.alloc_tensor(l_shape, dtype, scope="local", layout=layoutLocal)
-        Tx.copy(A_local[r_lmem], A[r_gmem])
-        Tx.copy(B[r_gmem], A_local[r_lmem])
+        T.cuda.tile.ld(A_local[r_lmem], A[r_gmem])
+        T.cuda.tile.st(B[r_gmem], A_local[r_lmem])
 
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
     target = tvm.target.Target("cuda")
@@ -389,7 +388,7 @@ def _nc_strided_reg_copy(src: T.Tensor((1024,), "int32")) -> None:
     if tid == 0:
         # view as (blk, row, warp, j); pick warp=1 -> [4,4]:(16,1)
         blk = src.view(1024 // 64, 4, 4, 4).sub[0, :, 1, :]
-        Tx.copy(dst[:, :], blk[:, :], cache="nc")
+        T.cuda.tile.ld(dst[:, :], blk[:, :], cache="nc")
         for i in T.unroll(4):
             for j in T.unroll(4):
                 T.evaluate(dst[i, j])
@@ -403,7 +402,7 @@ def _plain_strided_reg_copy(src: T.Tensor((1024,), "int32")) -> None:
     dst = T.alloc_local((4, 4), "int32")
     if tid == 0:
         blk = src.view(1024 // 64, 4, 4, 4).sub[0, :, 1, :]
-        Tx.copy(dst[:, :], blk[:, :])
+        T.cuda.tile.ld(dst[:, :], blk[:, :])
         for i in T.unroll(4):
             for j in T.unroll(4):
                 T.evaluate(dst[i, j])
@@ -454,7 +453,7 @@ def test_reg_copy_linear_shared_hoists_thread_base():
         reg_local = reg.local(width)
         for i in T.serial(width):
             reg_local[i] = A[tid, i]
-        Tx.wg.copy(smem, reg)
+        T.cuda.tile.st(smem, reg, scope="warpgroup")
         T.cuda.cta_sync()
         T.evaluate(smem[tid, 0])
 
@@ -540,7 +539,7 @@ def test_reg_copy_wg_local_to_swizzled_shared_uses_structured_compose_apply():
         reg_local = reg.local(EPI_N)
         for i in T.serial(EPI_N):
             reg_local[i] = A[tid, i]
-        Tx.wg.copy(smem, reg)
+        T.cuda.tile.st(smem, reg, scope="warpgroup")
         T.cuda.cta_sync()
         for i in T.serial(EPI_N):
             B[tid, i] = smem[tid, i]
@@ -608,7 +607,7 @@ def test_ptx_st_from_src_f32_vector_preserves_values():
     np.testing.assert_equal(out.numpy(), np.array([1, 2, 3, 4], dtype="float32"))
 
 
-def test_copy_fallback_handles_scalar_regions():
+def test_mov_handles_scalar_regions():
     @T.function
     def kernel(B: T.Tensor((1,), "float32")) -> None:
         T.device_entry()
@@ -617,7 +616,7 @@ def test_copy_fallback_handles_scalar_regions():
         src = T.alloc_local((1,), "float32")
         dst = T.alloc_local((4,), "float32")
         src[0] = T.cast(7, "float32")
-        Tx.copy(dst[2:3], src[:])
+        T.cuda.tile.mov(dst[2:3], src[:])
         B[0] = dst[2]
 
     target = tvm.target.Target("cuda")
@@ -627,29 +626,6 @@ def test_copy_fallback_handles_scalar_regions():
         src = ex.mod.imports[0].inspect_source()
 
     assert "dst_ptr[2] = src_ptr[0];" in src
-
-
-@pytest.mark.parametrize("swizzled", [False, True])
-def test_copy_fallback_rejects_distributed_tensors(swizzled):
-    from tvm.tirx.layout import ComposeLayout
-
-    shape = (32, 4)
-    layout = TileLayout(S[shape : (1 @ tx, 1)])
-    if swizzled:
-        layout = ComposeLayout(0, 1, 2, layout)
-
-    @T.function
-    def kernel():
-        T.device_entry()
-        T.cta_id([1])
-        T.thread_id([32])
-        reg = T.alloc_tensor(shape, "float32", scope="local", layout=layout)
-        smem = T.alloc_tensor(shape, "float32", scope="shared")
-        Tx.cta.copy(smem, reg, dispatch="fallback")
-
-    with tvm.target.Target("cuda"):
-        with pytest.raises(RuntimeError, match="single-thread fallback cannot access"):
-            tvm.tirx.transform.LowerTIRx()(tvm.IRModule({"main": kernel}))
 
 
 @pytest.mark.gpu
@@ -674,9 +650,13 @@ def test_copy_forced_vec_width_codegen(variant, dtype, n_elements, expected_st, 
         out = T.alloc_local((n_elements,), dtype)
         for i in range(n_elements):
             reg[i] = T.cast(i + 1, dtype)
-        Tx.copy(smem[:], reg[:], dispatch=variant)
+        T.cuda.tile.st(
+            smem[:], reg[:], vec_bits=int(variant.removeprefix("vec_").removesuffix("b"))
+        )
         T.cuda.cta_sync()
-        Tx.copy(out[:], smem[:], dispatch=variant)
+        T.cuda.tile.ld(
+            out[:], smem[:], vec_bits=int(variant.removeprefix("vec_").removesuffix("b"))
+        )
         for i in range(n_elements):
             B[i] = out[i]
 
@@ -715,9 +695,9 @@ def test_copy_forced_vec_dynamic_swizzled_shared_uses_vector_ptx():
             reg[i] = T.cast(tid * 16 + i + 1, "float32")
         row: T.let = tid % 64
         col: T.let = (tid // 64) * 4
-        Tx.copy(smem[row, col : col + 4], reg[:], dispatch="vec_128b")
+        T.cuda.tile.st(smem[row, col : col + 4], reg[:], vec_bits=128)
         T.cuda.cta_sync()
-        Tx.copy(out[:], smem[row, col : col + 4], dispatch="vec_128b")
+        T.cuda.tile.ld(out[:], smem[row, col : col + 4], vec_bits=128)
         for i in range(4):
             B[tid, i] = out[i]
 
@@ -751,9 +731,9 @@ def test_copy_explicit_vec_auto_uses_auto_family():
         out = T.alloc_tensor((4,), "float32", scope="local", layout=TileLayout(S[4]))
         for i in range(4):
             reg[i] = T.cast(i + 1, "float32")
-        Tx.copy(smem[:], reg[:], dispatch="vec_auto")
+        T.cuda.tile.st(smem[:], reg[:])
         T.cuda.cta_sync()
-        Tx.copy(out[:], smem[:], dispatch="vec_auto")
+        T.cuda.tile.ld(out[:], smem[:])
         for i in range(4):
             B[i] = out[i]
 
@@ -770,27 +750,6 @@ def test_copy_explicit_vec_auto_uses_auto_family():
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
-@pytest.mark.parametrize("dispatch", ["reg", "gmem_smem"])
-def test_copy_old_dispatch_names_are_not_registered(dispatch):
-    @T.function
-    def kernel(B: T.Tensor((4,), "float32")) -> None:
-        T.device_entry()
-        T.cta_id([1])
-        T.thread_id([1])
-        smem = T.alloc_tensor((4,), "float32", scope="shared")
-        reg = T.alloc_local((4,), "float32")
-        Tx.copy(smem[:], reg[:], dispatch=dispatch)
-        B[0] = T.cast(0, "float32")
-
-    target = tvm.target.Target("cuda")
-    with target:
-        mod = tvm.IRModule({"main": kernel})
-        with pytest.raises(RuntimeError, match=f"no variant named '{dispatch}' is registered"):
-            tvm.compile(mod, target=target, tir_pipeline="tirx")
-
-
-@pytest.mark.gpu
-@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_copy_forced_vec_rejects_size_mismatch():
     @T.function
     def kernel(B: T.Tensor((4,), "float32")) -> None:
@@ -799,7 +758,7 @@ def test_copy_forced_vec_rejects_size_mismatch():
         T.thread_id([1])
         smem = T.alloc_tensor((4,), "float32", scope="shared")
         reg = T.alloc_local((4,), "float32")
-        Tx.copy(smem[:], reg[:], dispatch="vec_64b")
+        T.cuda.tile.st(smem[:], reg[:], vec_bits=64)
         B[0] = T.cast(0, "float32")
 
     target = tvm.target.Target("cuda")
@@ -820,7 +779,7 @@ def test_copy_forced_vec_rejects_non_thread_scope():
         T.thread_id([32])
         smem = T.alloc_tensor((4,), "float32", scope="shared")
         reg = T.alloc_tensor((4,), "float32", scope="local", layout=TileLayout(S[4]))
-        Tx.warp.copy(smem[:], reg[:], dispatch="vec_128b")
+        T.cuda.tile.st(smem[:], reg[:], vec_bits=128, scope="warp")
         B[0] = T.cast(0, "float32")
 
     target = tvm.target.Target("cuda")
@@ -1019,7 +978,7 @@ def _build_tcgen05_d_epilogue_deposit():
         T.warp_id_in_wg([4])
         T.lane_id([32])
         T.thread_id_in_wg([128])
-        Tx.wg.copy(smem_cd_mma[sl_m, sl_n], d_reg[sl_m, sl_n])
+        T.cuda.tile.st(smem_cd_mma[sl_m, sl_n], d_reg[sl_m, sl_n], scope="warpgroup")
 
     return deposit
 
@@ -1138,9 +1097,9 @@ def _build_tcgen05_d_epilogue_deposit_roundtrip():
         for r in T.serial(regs_per_thread):
             row, col = _tcgen05_16x256b_row_col(tid_wg, lane, T.cast(r, "int32"))
             reg_in[r] = A[row, col]
-        Tx.wg.copy(smem_cd_mma[sl_m, sl_n], d_reg[sl_m, sl_n])
+        T.cuda.tile.st(smem_cd_mma[sl_m, sl_n], d_reg[sl_m, sl_n], scope="warpgroup")
         T.cuda.cta_sync()
-        Tx.wg.copy(d_reg_out[sl_m, sl_n], smem_cd_mma[sl_m, sl_n])
+        T.cuda.tile.ld(d_reg_out[sl_m, sl_n], smem_cd_mma[sl_m, sl_n], scope="warpgroup")
         for r in T.serial(regs_per_thread):
             row, col = _tcgen05_16x256b_row_col(tid_wg, lane, T.cast(r, "int32"))
             B[row, col] = reg_out[r]

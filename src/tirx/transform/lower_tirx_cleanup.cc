@@ -282,23 +282,6 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     return VisitBufferAccess(std::move(load));
   }
 
-  UnchangedOr<Stmt> Mutate_(const tirx::TileOpCallNode* op, InplaceMode inplace_mode) final {
-    ffi::Array<Expr> args = op->args;
-    args.MutateByApply([this](const Expr& arg) { return VisitAny(arg).as_or_throw<Expr>(); });
-    if (args.same_as(op->args)) {
-      return ffi::Unchanged();
-    } else {
-      if (inplace_mode == InplaceMode::kAllow) {
-        auto* n = const_cast<tirx::TileOpCallNode*>(op);
-        n->args = std::move(args);
-        return ffi::Unchanged();
-      }
-      auto n = ffi::make_object<tirx::TileOpCallNode>(*op);
-      n->args = std::move(args);
-      return Stmt(n);
-    }
-  }
-
   ffi::Array<PrimExpr> GetSimplifiedElemOffset(const TensorVar& buffer,
                                                const ffi::Array<PrimExpr>& indices) {
     if (buffer->layout.has_value()) {

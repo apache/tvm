@@ -56,7 +56,6 @@ void StmtExprVisitor::InitVTable(VTable* vtable) {
   SetDispatch<StmtExprVisitor, SeqStmtNode>(vtable);
   SetDispatch<StmtExprVisitor, EvaluateNode>(vtable);
   SetDispatch<StmtExprVisitor, ScopeIdDefStmtNode>(vtable);
-  SetDispatch<StmtExprVisitor, TileOpCallNode>(vtable);
 }
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const VarNode* op) {
@@ -212,16 +211,6 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const ScopeIdDefStmtNode* 
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const TileOpCallNode* op) {
-  for (const Expr& arg : op->args) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(arg));
-  }
-  for (const auto& [key, value] : op->config) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(value));
-  }
-  return std::nullopt;
-}
-
 void StmtExprMutator::InitVTable(VTable* vtable) {
   tvm::ExprMutator::InitVTable(vtable);
   SetDispatch<StmtExprMutator, BindNode>(vtable);
@@ -237,7 +226,6 @@ void StmtExprMutator::InitVTable(VTable* vtable) {
   SetDispatch<StmtExprMutator, SeqStmtNode>(vtable);
   SetDispatch<StmtExprMutator, EvaluateNode>(vtable);
   SetDispatch<StmtExprMutator, ScopeIdDefStmtNode>(vtable);
-  SetDispatch<StmtExprMutator, TileOpCallNode>(vtable);
 }
 
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
@@ -462,25 +450,6 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const ScopeIdDefStmtNode* op, Inplace
   }
   auto copy = ffi::make_object<ScopeIdDefStmtNode>(*op);
   copy->def = std::move(def);
-  return Stmt(std::move(copy));
-}
-
-UnchangedOr<Stmt> StmtExprMutator::Mutate_(const TileOpCallNode* op, InplaceMode inplace_mode) {
-  auto args = Mutate(op->args, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Expr>>>();
-  auto config =
-      Mutate(op->config, inplace_mode).as_or_throw<UnchangedOr<ffi::Map<ffi::String, Expr>>>();
-  if (args.UnchangedOrSameAs(op->args) && config.UnchangedOrSameAs(op->config)) {
-    return ffi::Unchanged();
-  }
-  if (inplace_mode == InplaceMode::kAllow) {
-    auto* writable = const_cast<TileOpCallNode*>(op);
-    if (!args.IsUnchanged()) writable->args = std::move(args).ValueUnchecked();
-    if (!config.IsUnchanged()) writable->config = std::move(config).ValueUnchecked();
-    return ffi::Unchanged();
-  }
-  auto copy = ffi::make_object<TileOpCallNode>(*op);
-  if (!args.IsUnchanged()) copy->args = std::move(args).ValueUnchecked();
-  if (!config.IsUnchanged()) copy->config = std::move(config).ValueUnchecked();
   return Stmt(std::move(copy));
 }
 

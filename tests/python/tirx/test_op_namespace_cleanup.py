@@ -26,15 +26,17 @@ import tvm_ffi
 import tvm
 from tvm.ir import Op, assert_structural_equal
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
-from tvm.tirx.stmt import TileOpCall
 
 
 def _tile_calls(func):
     calls = []
 
     def visit(stmt):
-        if isinstance(stmt, TileOpCall):
+        if (
+            isinstance(stmt, tvm.ir.Call)
+            and isinstance(stmt.op, Op)
+            and stmt.op.get_attr("TIRxOpCategory") in {"tile_primitive", "tile_composite"}
+        ):
             calls.append(stmt)
 
     tvm_ffi.structural_walk(func.body, visit)
@@ -63,31 +65,6 @@ def _has_path(root, path):
             return False
         cur = getattr(cur, part)
     return True
-
-
-def test_tx_is_tile_shorthand_only():
-    assert T.tile is Tx
-    assert T.tile.copy is Tx.copy
-    assert not hasattr(T, "copy")
-    assert not hasattr(Tx, "SMEMPool")
-    assert not hasattr(Tx, "ScopedOp")
-    assert not hasattr(Tx, "meta_class")
-    assert T.cast is not Tx.cast
-    assert T.sqrt is not Tx.sqrt
-
-
-def test_tx_rejects_expression_overloads():
-    x = tvm.tirx.Var("x", "float32")
-    y = tvm.tirx.Var("y", "int32")
-
-    with pytest.raises(TypeError, match="tile-only"):
-        Tx.sqrt(x)
-    with pytest.raises(TypeError, match="tile-only"):
-        T.tile.sqrt(x)
-    with pytest.raises(TypeError, match="tile-only"):
-        Tx.cast(y, "float32")
-    with pytest.raises(TypeError, match="tile-only"):
-        T.tile.cast(y, "float32")
 
 
 def test_builtin_expression_ops_are_not_tile_primitives():
@@ -139,7 +116,7 @@ def test_kernel_replace_point_is_builtin_marker_not_tile_primitive():
     assert _op_attr("tirx.kernel_replace_point", "TIRxOpCategory") == "builtin"
     assert "tirx.tile.kernel_replace_point" not in Op.list_op_names()
     assert hasattr(T, "kernel_replace_point")
-    assert not hasattr(Tx, "kernel_replace_point")
+    assert not hasattr(T.cuda.tile, "kernel_replace_point")
 
     @T.function(check_well_formed=False)
     def marker():
@@ -156,24 +133,6 @@ def test_kernel_replace_point_is_builtin_marker_not_tile_primitive():
     assert "Tx.kernel_replace_point" not in code
     reparsed = tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
     assert_structural_equal(marker, reparsed)
-
-
-def test_tile_shorthand_and_scoped_aliases_use_tile_ops():
-    @T.function(check_well_formed=False)
-    def tile_aliases(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
-        T.tile.copy(A[0:16], B[0:16])
-        Tx.cast(A[0:16], B[0:16])
-        T.cta.cast(A[0:16], B[0:16])
-        Tx.cta.sqrt(A[0:16], B[0:16])
-
-    calls = _tile_calls(tile_aliases)
-    assert [call.op.name for call in calls] == [
-        "tirx.tile.copy",
-        "tirx.tile.cast",
-        "tirx.tile.cast",
-        "tirx.tile.sqrt",
-    ]
-    assert [call.scope.name for call in calls] == ["thread", "thread", "cta", "cta"]
 
 
 def test_device_intrinsic_namespaces_are_canonical_and_classified():
@@ -355,7 +314,7 @@ def test_registered_tirx_ops_have_exactly_one_category():
     if _op_attr("prim.sqrt", "TIRxOpCategory") is None:
         pytest.skip("TIRx op categories require a rebuilt C++ runtime")
 
-    categories = {"builtin", "tile_primitive", "device_intrin"}
+    categories = {"builtin", "tile_primitive", "tile_composite", "device_intrin"}
     device_namespaces = {
         "cuda",
         "ptx",
@@ -407,8 +366,8 @@ def test_registered_tirx_ops_have_exactly_one_category():
         if op_name in flat_tile_only_names:
             lingering_flat_tile.append(op_name)
 
-        if category == "tile_primitive":
-            if not op_name.startswith("tirx.tile."):
+        if category in {"tile_primitive", "tile_composite"}:
+            if not op_name.startswith(("tirx.cuda.tile.", "tirx.trn.tile.")):
                 lingering_flat_tile.append(op_name)
             assert device_namespace is None, op_name
         elif category == "device_intrin":
@@ -424,3 +383,14 @@ def test_registered_tirx_ops_have_exactly_one_category():
     assert not missing
     assert not invalid
     assert not lingering_flat_tile
+
+
+def test_generic_tile_namespace_and_stmt_are_removed():
+    assert not hasattr(T, "tile")
+    assert not hasattr(tvm.tirx, "TilePrimitiveCall")
+    assert not hasattr(tvm.tirx, "TileOpCall")
+    assert not any(name.startswith("tirx.tile.") for name in Op.list_op_names())
+    for name in ("copy", "copy_async", "sum", "min", "permute_layout"):
+        assert not hasattr(T.cuda.tile, name)
+    for name in ("reduce_sum", "reduce_max", "reduce_min", "permute_layout", "copy_scalar"):
+        assert not hasattr(T.cuda.tile.compose, name)

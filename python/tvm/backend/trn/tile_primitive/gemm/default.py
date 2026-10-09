@@ -25,13 +25,8 @@ from tvm.ir import TensorRegion, assert_structural_equal
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
 from tvm.tirx import Function
-from tvm.tirx.operator.tile_primitive import (
-    DispatchContext,
-    fail,
-    predicate,
-    register_dispatch,
-)
-from tvm.tirx.stmt import TileOpCall
+from tvm.tirx.operator.tile_primitive import DispatchContext, fail
+from tvm.tirx.tensor_instruction import TensorCall
 
 from ..common import init_analyzer
 from ..dim_utils import normalize_and_group
@@ -110,7 +105,7 @@ def get_pf_dim_from_buffer_region(
     return p_dim, f_dim
 
 
-def matmul_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
+def matmul_trn(op: TensorCall, sctx: DispatchContext) -> Function | None:
     """Schedule GEMM operation on Trainium."""
     # Basic validation checks
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
@@ -254,7 +249,7 @@ def matmul_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
     # and a matmul fusion pass can help infer the pattern
 
     acc_psum_shape = (max_psum_banks, p_size, largest_psum_per_bank)
-    if "acc_psum" not in op.workspace:
+    if "acc_psum" not in op.workspaces:
         assert sctx.alloc_only, "Accumulation psum buffer must be specified in workspace. Run tvm.tirx.trn.transform.TrnPrivateBufferAlloc first."  # noqa: E501
         acc_psum = T.Var(
             "acc_psum",
@@ -263,7 +258,7 @@ def matmul_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
         sctx.add_alloc_buffer(acc_psum)
         max_psum_slots = max_psum_banks
     else:
-        acc_psum = op.workspace["acc_psum"]
+        acc_psum = op.workspaces["acc_psum"]
         check_workspace_buffer(acc_psum, (p_size, largest_psum_per_bank), "trn.psum")
         max_psum_slots = acc_psum.ty.shape[0]
 
@@ -282,23 +277,3 @@ def matmul_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
                             T.evaluate(T.nki.tensor_copy(C[acc_indices], acc_psum[(lhs_b_loop * rhs_b_extent + rhs_b_loop) % max_psum_slots, lhs_f_loop, rhs_f_loop]))  # noqa: E501
     # fmt: on
     return impl_C_sbuf
-
-
-# Rich dispatcher variant for TRN gemm
-@register_dispatch(
-    "gemm",
-    "trn",
-    variant="default",
-    priority=10,
-    when=[
-        predicate(
-            "exec_scope",
-            lambda op, sctx: (
-                sctx.scope_kind == "thread",
-                f"unsupported exec_scope {sctx.scope_kind}",
-            ),
-        )
-    ],
-)
-def gemm_trn_dispatch(op: TileOpCall, sctx: DispatchContext) -> Function:
-    return matmul_trn(op, sctx)
