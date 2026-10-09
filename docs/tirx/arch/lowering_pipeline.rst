@@ -126,9 +126,9 @@ Inside LowerTIRx
 
 .. code-block:: text
 
-    LowerTIRx = Sequential([ TilePrimitiveDispatch, LowerTIRxCleanup ])
+    LowerTIRx = Sequential([ TileDispatch, LowerTIRxCleanup ])
 
-- **``TilePrimitiveDispatch``** replaces every tensor ``Evaluate(Call)`` with the body emitted by its
+- **``TileDispatch``** replaces every tensor ``Evaluate(Call)`` with the body emitted by its
   instruction lowerer, including delayed mathematical composites as described in
   :doc:`tile_dispatch`.  In the same pass it removes the ``device_entry``
   marker, resolves standalone scope-id definitions to ``Bind`` statements,

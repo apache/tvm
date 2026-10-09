@@ -155,18 +155,6 @@ TVM_DLL Pass LowerThreadAllreduce();
 TVM_DLL Pass MakePackedAPI();
 
 /*!
- * \brief Remap the thread axis
- *
- *  This can be used to get equivalent program which uses
- *  threadIdx.y in place of threadIdx.x by passing
- *  {"threadIdx.x": "threadIdx.y"}
- *
- *
- * \return The pass.
- */
-TVM_DLL Pass RemapThreadAxis(ffi::Map<ffi::String, ffi::String> axis_map);
-
-/*!
  * \brief Annotate, split, and lower host/device functions.
  *
  * This pass first annotates device regions within host functions,
@@ -268,13 +256,6 @@ TVM_DLL Pass BF16StorageLegalize();
 TVM_DLL Pass FP8StorageLegalize();
 
 /*!
- * \brief Inline calls to private functions
- *
- * \return The pass.
- */
-TVM_DLL Pass InlinePrivateFunctions();
-
-/*!
  * \brief Rewrite the pointer content type of arguments,
  *  as well as Alloc internal to the function to use
  *  the most frequently accessed type for load/store
@@ -297,14 +278,6 @@ TVM_DLL Pass FlattenBuffer();
  * \return The pass.
  */
 TVM_DLL Pass CommonSubexprElim();
-
-/*!
- * \brief This is the unified static memory planner pass that will
- * plan for memory intra- and inter- Functions together. The pass
- * requires all the function to be Functions including the main.
- * \return The pass.
- */
-TVM_DLL Pass UnifiedStaticMemoryPlanner();
 
 /*!
  * \brief Annotate a Function with a given target.
@@ -332,7 +305,7 @@ TVM_DLL Pass Filter(ffi::TypedFunction<bool(Function)> fcond);
  * launch_thread RegionStmts wrapping the dispatched body.
  * \return The pass.
  */
-TVM_DLL Pass TilePrimitiveDispatch();
+TVM_DLL Pass TileDispatch();
 
 /*!
  * \brief Finalize TIRx lowering by applying layout rewriters and cleanup passes.
