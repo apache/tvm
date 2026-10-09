@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/ir/scope_stack.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -49,38 +50,32 @@ class IfHoister : public StmtExprMutator {
     if (input.as<StmtNode>() && !input.as<ForNode>() && !input.as<IfNode>() &&
         !input.as<SeqStmtNode>()) {
       // Bindings, regions and unknown statements have no code-motion contract.
-      return MutateLocally([&] { return StmtExprMutator::Mutate(input, inplace_mode); });
+      return scopes_.WithNewScope([&] { return StmtExprMutator::Mutate(input, inplace_mode); });
     }
     return StmtExprMutator::Mutate(input, inplace_mode);
   }
 
  private:
-  struct Loop {
+  struct LoopState {
     int else_depth;
     std::vector<std::pair<PrimExpr, bool>> conditions;
   };
 
-  // Sibling statements and region boundaries isolate both placement contexts.
-  template <typename F>
-  auto MutateLocally(F mutate) -> decltype(mutate()) {
-    auto outer_loops = std::move(loops_);
-    auto outer_depths = std::move(loop_depths_);
-    loops_.clear();
-    loop_depths_.clear();
-    auto result = mutate();
-    loops_ = std::move(outer_loops);
-    loop_depths_ = std::move(outer_depths);
-    return result;
-  }
+  struct ScopeState {
+    std::vector<LoopState*> loops;
+    std::unordered_map<const VarNode*, size_t> loop_depths;
+  };
 
   UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
+    // Sibling statements isolate loop placement; a singleton stays transparent.
     if (op->seq.size() == 1) return StmtExprMutator::Mutate_(op, inplace_mode);
-    return MutateLocally([&] { return StmtExprMutator::Mutate_(op, inplace_mode); });
+    return scopes_.WithNewScope([&] { return StmtExprMutator::Mutate_(op, inplace_mode); });
   }
 
   // Purity alone does not permit evaluating a predicate before its guards or
   // before a zero-trip loop.  Check safety and loop dependencies in one walk.
-  size_t FindDestination(const PrimExpr& condition) const {
+  size_t FindLiftDestination(const PrimExpr& condition) const {
+    const auto& scope = scopes_.Current();
     size_t destination = 0;
     std::unordered_set<const ExprNode*> visited;
     auto advance = [&](const ExprNode* op) -> ffi::Expected<ffi::WalkResult> {
@@ -97,10 +92,10 @@ class IfHoister : public StmtExprMutator {
     auto blocked = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
         condition,
         [&](const VarNode* op) -> ffi::Expected<ffi::WalkResult> {
-          auto it = loop_depths_.find(op);
-          if (it != loop_depths_.end()) destination = std::max(destination, it->second + 1);
+          auto it = scope.loop_depths.find(op);
+          if (it != scope.loop_depths.end()) destination = std::max(destination, it->second + 1);
           // An innermost-loop dependency already rules out every destination.
-          if (destination == loops_.size()) return ffi::WalkResult::Interrupt();
+          if (destination == scope.loops.size()) return ffi::WalkResult::Interrupt();
           // Variable types describe metadata, not evaluated predicate dependencies.
           return ffi::WalkResult::Skip();
         },
@@ -134,23 +129,18 @@ class IfHoister : public StmtExprMutator {
           return advance(op);
         },
         advance);
-    return blocked.has_value() ? loops_.size() : destination;
+    return blocked.has_value() ? scope.loops.size() : destination;
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    Loop loop{else_depth_, {}};
+    auto& scope = scopes_.Current();
+    LoopState loop{else_depth_, {}};
     const VarNode* var = op->loop_var.get();
-    auto it = loop_depths_.find(var);
-    size_t previous_depth = it == loop_depths_.end() ? loops_.size() : it->second;
-    loop_depths_[var] = loops_.size();
-    loops_.push_back(&loop);
+    scope.loop_depths[var] = scope.loops.size();
+    scope.loops.push_back(&loop);
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    loops_.pop_back();
-    if (previous_depth == loops_.size()) {
-      loop_depths_.erase(var);
-    } else {
-      loop_depths_[var] = previous_depth;
-    }
+    scope.loops.pop_back();
+    scope.loop_depths.erase(var);
     for (auto it = loop.conditions.rbegin(); it != loop.conditions.rend(); ++it) {
       // Duplicate only when an alternate branch must remain reachable.
       stmt = it->second ? If(it->first, stmt, SeqStmt(stmt)) : If(it->first, stmt);
@@ -159,15 +149,16 @@ class IfHoister : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode) final {
+    auto& scope = scopes_.Current();
     bool has_else = op->else_case.has_value();
-    if (!loops_.empty()) {
-      size_t destination = FindDestination(op->condition);
-      if (destination < loops_.size()) {
+    if (!scope.loops.empty()) {
+      size_t destination = FindLiftDestination(op->condition);
+      if (destination < scope.loops.size()) {
         // A false predicate must still execute an enclosing alternate branch
         // inside the destination loop, even when this If has no else of its own.
         // Branches outside that loop remain guarded and need no extra loop copy.
-        bool preserve_else = has_else || else_depth_ > loops_[destination]->else_depth;
-        loops_[destination]->conditions.emplace_back(op->condition, preserve_else);
+        bool preserve_else = has_else || else_depth_ > scope.loops[destination]->else_depth;
+        scope.loops[destination]->conditions.emplace_back(op->condition, preserve_else);
       }
     }
     else_depth_ += has_else;
@@ -178,8 +169,7 @@ class IfHoister : public StmtExprMutator {
 
   // Number of enclosing Ifs with an else; each loop saves its entry baseline.
   int else_depth_{0};
-  std::vector<Loop*> loops_;
-  std::unordered_map<const VarNode*, size_t> loop_depths_;
+  ScopeStack<ScopeState> scopes_;
 };
 
 namespace transform {
