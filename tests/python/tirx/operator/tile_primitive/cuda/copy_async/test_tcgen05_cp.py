@@ -781,9 +781,10 @@ def test_cp_default_32x128b_instruction_sequence_unchanged():
     ]
     assert len(cp_lines) == 4, f"expected 4 cp calls, got {len(cp_lines)}"
     for i, (t_off, s_off) in enumerate([(0, 0), (4, 512), (8, 1024), (12, 1536)]):
-        # The tmem column is the whole first argument now: ptx takes the
-        # composed address, where the legacy helper took (addr, row, col).
-        t_tok = "[0], " if t_off == 0 else f"[0] + (uint){t_off}), "
+        # The declaration captures its base address once; each copy composes
+        # the same captured address with its physical column offset.
+        base = "reinterpret_cast<uint64_t>(tmem))"
+        t_tok = f"{base}, " if t_off == 0 else f"{base} + (uint){t_off}), "
         assert t_tok in cp_lines[i], f"cp[{i}] tmem col: want {t_tok!r} in {cp_lines[i]!r}"
         s_tok = f"+ {s_off}))"
         assert s_tok in cp_lines[i], f"cp[{i}] smem byte off: want {s_tok!r} in {cp_lines[i]!r}"

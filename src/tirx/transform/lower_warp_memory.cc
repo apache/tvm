@@ -384,6 +384,9 @@ class WarpAccessRewriter : public StmtExprMutator {
     new_buffer_ = new_buf;
     Stmt rewritten_body = this->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
     ffi::Array<Expr> args = buffer_call->args;
+    if (args.size() == 4) {
+      args.Set(3, Mutate(args[3], InplaceMode::kDisallow).ValueOrUnchanged(args[3]));
+    }
     args.Set(0, tvm::Tuple(new_buf->shape, buffer_call->args[0]->span));
     args.Set(1, DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span));
     args.Set(2, StringImm(new_buf.scope(), buffer_call->args[2]->span));

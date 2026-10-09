@@ -122,33 +122,16 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<PrimExpr> Mutate_(const prim::CastNode* op, InplaceMode inplace_mode) final {
-    // A local TMEM producer exposes the encoded address directly.  Parameters and
-    // pointer-backed aliases retain the ordinary pointer projection conversion.
-    if (op->ty == PrimType::UInt(32)) {
-      const auto* integer = op->value.as<CallNode>();
-      if (integer && integer->op.same_as(reinterpret_op()) && integer->args.size() == 1 &&
-          integer->ty == PrimType::UInt(64)) {
-        const auto* pointer = integer->args[0].as<CallNode>();
-        if (pointer && pointer->op.same_as(tensor_data_ptr_op()) && pointer->args.size() == 1) {
-          if (auto var = pointer->args[0].as<Var>()) {
-            if (auto definition = def_site_.Get(var.value())) {
-              const auto* producer = definition.value()->value.as<CallNode>();
-              if (producer && producer->op.same_as(Op::Get("tirx.cuda.decl_tmem"))) {
-                PrimExpr address = producer->args[0].as_or_throw<PrimExpr>();
-                address = Mutate(address, InplaceMode::kDisallow).ValueOrUnchanged(address);
-                return prim::Cast(PrimType::UInt(32), address);
-              }
-            }
-          }
-        }
-      }
-    }
-    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
-  }
-
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
-    def_site_.Set(op->var, ffi::GetRef<Bind>(op));
+    if (auto source = op->value.as<TensorVar>(); source.has_value()) {
+      auto buffer = op->var.as_or_throw<TensorVar>();
+      Call declaration(buffer.type(), decl_tensor_op(),
+                       {source.value().data(), tvm::Tuple(buffer->shape),
+                        DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())});
+      Bind binding(op->var, declaration, op->span);
+      return MutateDeclTensor(binding.get(), declaration.get(), inplace_mode)
+          .ValueOrUnchanged(binding);
+    }
     if (const auto* call = op->value.as<CallNode>(); call) {
       if (call->op.same_as(alloc_tensor_op())) return MutateAllocTensor(op, call, inplace_mode);
       if (call->op.same_as(decl_tensor_op())) return MutateDeclTensor(op, call, inplace_mode);
@@ -391,7 +374,6 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
 
   /*! \brief Physical roots of buffer aliases, flattened at each declaration. */
   ffi::Map<Var, Var> buffer_aliases_;
-  ffi::Map<Var, Bind> def_site_;
   const Target& target_;
 };
 

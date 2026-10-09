@@ -141,7 +141,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     entry.num_physical_dimensions = shape->fields.size();
     alloc_info_[buf] = entry;
 
-    return StmtExprVisitor::Visit_(op);
+    return VisitBindingValue(op);
   }
 
   ffi::Optional<VisitInterrupt> DispatchDeclTensor(const BindNode* op,
@@ -264,6 +264,10 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       if (call->op.same_as(tirx::alloc_tensor_op())) return DispatchAllocTensor(op, call);
       if (call->op.same_as(tirx::decl_tensor_op())) return DispatchDeclTensor(op, call);
     }
+    return VisitBindingValue(op);
+  }
+
+  ffi::Optional<VisitInterrupt> VisitBindingValue(const BindNode* op) {
     scope_.push_back(StmtEntry());
     // visit subexpr (the value may contain TensorLoad)
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
@@ -707,6 +711,11 @@ class StoragePlanRewriter : public StmtExprMutator {
 
   UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* buffer_call,
                                       InplaceMode inplace_mode) {
+    // Placement is evaluated at the allocation's original definition site.
+    // Preserve that binding while remapping any storage reads in its operands.
+    if (buffer_call->args.size() == 4) {
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    }
     // AllocTensor combines allocation and buffer declaration.
     // Storage rewrite may merge this allocation with others.
     if (auto it = alloc_map_.find(op->var.get()); it != alloc_map_.end()) {
@@ -855,7 +864,9 @@ class StoragePlanRewriter : public StmtExprMutator {
           TVM_FFI_ICHECK_EQ(e->allocs.size(), 1U);
           TVM_FFI_ICHECK(e->merged_children.empty());
           e->alloc_var = e->allocs[0]->var;
-          e->alloc_nest.push_back(ffi::GetRef<Bind>(e->allocs[0]));
+          if (e->allocs[0]->value.as_or_throw<Call>()->args.size() != 4) {
+            e->alloc_nest.push_back(ffi::GetRef<Bind>(e->allocs[0]));
+          }
           continue;
         }
         // already merged
@@ -2009,10 +2020,13 @@ class VectorTypeRewriter : public StmtExprMutator {
   UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* buffer_call,
                                       InplaceMode inplace_mode) {
     TensorVar new_buf = RemapBuffer(op->var.as_or_throw<TensorVar>());
-    if (new_buf.same_as(op->var.as_or_throw<TensorVar>())) {
+    ffi::Array<Expr> args = buffer_call->args;
+    if (args.size() == 4) {
+      args.Set(3, Mutate(args[3], inplace_mode).ValueOrUnchanged(args[3]));
+    }
+    if (new_buf.same_as(op->var.as_or_throw<TensorVar>()) && args.same_as(buffer_call->args)) {
       return ffi::Unchanged();
     }
-    ffi::Array<Expr> args = buffer_call->args;
     args.Set(0, tvm::Tuple(new_buf->shape, buffer_call->args[0]->span));
     args.Set(1, DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span));
     args.Set(2, StringImm(new_buf.scope(), buffer_call->args[2]->span));

@@ -196,10 +196,14 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
   UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* buffer_call,
                                       InplaceMode inplace_mode) {
     const FlatInfo& info = Define(op->var.as_or_throw<TensorVar>());
-    if (info.flattened.same_as(op->var.as_or_throw<TensorVar>())) {
+    ffi::Array<Expr> args = buffer_call->args;
+    if (args.size() == 4) {
+      args.Set(3, Mutate(args[3], inplace_mode).ValueOrUnchanged(args[3]));
+    }
+    if (info.flattened.same_as(op->var.as_or_throw<TensorVar>()) &&
+        args.same_as(buffer_call->args)) {
       return ffi::Unchanged();
     }
-    ffi::Array<Expr> args = buffer_call->args;
     args.Set(0, tvm::Tuple(info.flattened->shape, buffer_call->args[0]->span));
     args.Set(1, DataTypeImm(info.flattened->dtype->dtype, buffer_call->args[1]->span));
     args.Set(2, StringImm(info.flattened.scope(), buffer_call->args[2]->span));
