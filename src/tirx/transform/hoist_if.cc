@@ -95,23 +95,24 @@ class IfHoister : public StmtExprMutator {
  private:
   struct Loop {
     Var var;
-    std::vector<PrimExpr> conditions;
+    int else_depth;
+    std::vector<std::pair<PrimExpr, bool>> conditions;
   };
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    Loop loop{op->loop_var, {}};
+    Loop loop{op->loop_var, else_depth_, {}};
     loops_.push_back(&loop);
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     loops_.pop_back();
     for (auto it = loop.conditions.rbegin(); it != loop.conditions.rend(); ++it) {
-      // The original If may be nested in another branch.  Keep the loop in
-      // both cases so statements in that other branch are not discarded.
-      stmt = If(*it, stmt, SeqStmt(stmt));
+      // Duplicate only when an alternate branch must remain reachable.
+      stmt = it->second ? If(it->first, stmt, SeqStmt(stmt)) : If(it->first, stmt);
     }
     return stmt;
   }
 
   UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode) final {
+    bool has_else = op->else_case.has_value();
     if (!loops_.empty() && CanEvaluateEarly(op->condition)) {
       auto vars = UndefinedVars(op->condition);
       size_t destination = loops_.size();
@@ -124,12 +125,19 @@ class IfHoister : public StmtExprMutator {
         --destination;
       }
       if (destination < loops_.size()) {
-        loops_[destination]->conditions.push_back(op->condition);
+        // A no-else If can still have siblings in an enclosing alternate
+        // branch.  Branches outside the destination loop do not require a copy.
+        bool preserve_else = has_else || else_depth_ > loops_[destination]->else_depth;
+        loops_[destination]->conditions.emplace_back(op->condition, preserve_else);
       }
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    else_depth_ += has_else;
+    auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+    else_depth_ -= has_else;
+    return result;
   }
 
+  int else_depth_{0};
   std::vector<Loop*> loops_;
 };
 

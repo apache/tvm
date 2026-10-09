@@ -88,6 +88,10 @@ def test_nested_conditions():
                     for j in T.serial(4):
                         A[i, j] = 1
 
+    # One-sided conditions must not clone the loop before cleanup: a chain of
+    # such conditions would otherwise produce exponentially many loop copies.
+    inserted = tvm.tirx.transform.HoistIf().passes[0](tvm.IRModule({"main": Before}))
+    assert inserted["main"].body[0].else_case is None
     check(Before, After)
 
 
