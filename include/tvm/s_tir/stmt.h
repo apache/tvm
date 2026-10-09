@@ -309,7 +309,7 @@ constexpr const char* kMetaScheduleInlineRule = "meta_schedule.inline_rule";
 // -----------------------------------------------------------------------
 
 /*! \brief BufferAllocatedAddresses for block-owned allocations and match buffers. */
-constexpr const char* buffer_allocated_addr = "s_tir.buffer_allocated_addr";
+constexpr const char* kBufferAllocatedAddr = "s_tir.buffer_allocated_addr";
 
 /*!
  * \brief Mark whether the script-completer need to fill in missing access region

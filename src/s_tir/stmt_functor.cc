@@ -64,7 +64,7 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBlock(tirx::StmtExprVisitor*
         kTVMFFIDefRegionKindSimple, [&]() { return visitor->Visit(match_buffer_region->buffer); }));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(match_buffer_region->source));
   }
-  if (auto addresses = op->annotations.Get(attr::buffer_allocated_addr)) {
+  if (auto addresses = op->annotations.Get(tvm::s_tir::attr::kBufferAllocatedAddr)) {
     // The owner reference identifies the allocation; it is not a data access.
     for (const auto& entry : addresses.value().cast<BufferAllocatedAddresses>()) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(entry.get<1>()));
@@ -138,10 +138,10 @@ UnchangedOr<Stmt> StmtExprMutator::MutateBlock(tirx::StmtExprMutator* mutator, c
   auto match_buffers = mutator->Mutate(op->match_buffers, inplace_mode)
                            .as_or_throw<UnchangedOr<ffi::Array<MatchBufferRegion>>>();
   auto annotations = op->annotations;
-  if (auto addresses = annotations.Get(attr::buffer_allocated_addr)) {
+  if (auto addresses = annotations.Get(tvm::s_tir::attr::kBufferAllocatedAddr)) {
     auto updated = mutator->Mutate(addresses.value(), InplaceMode::kDisallow);
     if (!updated.IsUnchanged()) {
-      annotations.Set(attr::buffer_allocated_addr, std::move(updated).ValueUnchecked());
+      annotations.Set(tvm::s_tir::attr::kBufferAllocatedAddr, std::move(updated).ValueUnchecked());
     }
   }
   auto reads =

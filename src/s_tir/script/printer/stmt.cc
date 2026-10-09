@@ -105,11 +105,11 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
     d->Emit(ExprStmtDoc(NamespaceDoc("s_tir")->Attr("writes")->Call(writes)), block->writes);
     auto annotations = block->annotations;
     ffi::Map<Var, ffi::Array<PrimExpr>> addresses;
-    if (auto value = annotations.Get(s_tir::attr::buffer_allocated_addr)) {
+    if (auto value = annotations.Get(tvm::s_tir::attr::kBufferAllocatedAddr)) {
       for (const auto& entry : value.value().cast<s_tir::BufferAllocatedAddresses>()) {
         addresses.Set(entry.get<0>(), entry.get<1>());
       }
-      annotations.erase(s_tir::attr::buffer_allocated_addr);
+      annotations.erase(tvm::s_tir::attr::kBufferAllocatedAddr);
     }
     if (!annotations.empty()) {
       d->Emit(

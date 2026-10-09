@@ -81,7 +81,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     }
     // Step 3. Handle allocations in reverse order
     ffi::Map<Var, ffi::Array<PrimExpr>> addresses;
-    if (auto value = new_block->annotations.Get(s_tir::attr::buffer_allocated_addr)) {
+    if (auto value = new_block->annotations.Get(tvm::s_tir::attr::kBufferAllocatedAddr)) {
       for (const auto& entry : value.value().cast<BufferAllocatedAddresses>()) {
         addresses.Set(entry.get<0>(), entry.get<1>());
       }
