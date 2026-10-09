@@ -707,14 +707,14 @@ Pass CanonicalizeTIRVariables() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
     return CanonicalizeTIRVariables(f).as_or_throw<Function>();
   };
-  return CreateFunctionPass(pass_func, 1, "CanonicalizeTIRVariables", {});
+  return CreateFunctionPass(pass_func, 1, "CanonicalizeTIRVariables");
 }
 
 Pass CanonicalizeRelaxBindings() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
     return CanonicalizeBindings(f).as_or_throw<Function>();
   };
-  return CreateFunctionPass(pass_func, 1, "CanonicalizeRelaxBindings", {});
+  return CreateFunctionPass(pass_func, 1, "CanonicalizeRelaxBindings");
 }
 
 Pass CanonicalizeBindings() {

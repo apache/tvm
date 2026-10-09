@@ -70,7 +70,9 @@ class RemoveNoOpConfig : public ffi::ObjectRef {
 
 TVM_FFI_STATIC_INIT_BLOCK() { RemoveNoOpConfigNode::RegisterReflection(); }
 
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.RemoveNoOp", RemoveNoOpConfig);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<RemoveNoOpConfig>("tirx.RemoveNoOp");
+}
 
 // Mark the statement of each stage.
 class NoOpRemover : public IRMutatorWithAnalyzer {
@@ -251,9 +253,7 @@ namespace transform {
 Pass RemoveNoOp() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
-    RemoveNoOpConfig config =
-        ctx->GetConfig<RemoveNoOpConfig>("tirx.RemoveNoOp")
-            .value_or(tvm::transform::PassConfigWithDefaults<RemoveNoOpConfig>());
+    RemoveNoOpConfig config = ctx->GetConfigOrDefault<RemoveNoOpConfig>("tirx.RemoveNoOp");
 
     sym::Analyzer analyzer;
     analyzer->rewrite_simplify.SetMaximumRewriteSteps(config->max_simplification_steps);
@@ -267,7 +267,7 @@ Pass RemoveNoOp() {
     }
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.RemoveNoOp", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.RemoveNoOp");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

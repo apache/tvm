@@ -190,7 +190,7 @@ Pass LowerOpaqueBlock() {
     fptr->body = OpaqueBlockLower::Rewrite(std::move(fptr->body).value());
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.LowerOpaqueBlock", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerOpaqueBlock");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

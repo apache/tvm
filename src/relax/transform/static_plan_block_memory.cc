@@ -1079,7 +1079,7 @@ Pass StaticPlanBlockMemory() {
   auto pass_func = [=](IRModule m, PassContext pc) {
     return relax::StaticPlanBlockMemory(std::move(m));
   };
-  return CreateModulePass(pass_func, /*opt_level=*/0, "StaticPlanBlockMemory", {});
+  return CreateModulePass(pass_func, /*opt_level=*/0, "StaticPlanBlockMemory");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

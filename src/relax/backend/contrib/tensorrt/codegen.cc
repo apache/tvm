@@ -97,7 +97,10 @@ class TensorRTCompilerConfig : public ffi::ObjectRef {
 
 TVM_FFI_STATIC_INIT_BLOCK() { TensorRTCompilerConfigNode::RegisterReflection(); }
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relax.ext.tensorrt.options", TensorRTCompilerConfig);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<TensorRTCompilerConfig>(
+      "relax.ext.tensorrt.options");
+}
 
 using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
 using JSONGraphNodeEntry = tvm::runtime::json::JSONGraphNodeEntry;
@@ -298,19 +301,15 @@ class TensorRTJSONSerializer : public JSONSerializer {
 
   static void SaveGlobalAttributes(std::shared_ptr<JSONGraphNode> node) {
     auto ctx = transform::PassContext::Current();
-    auto cfg = ctx->GetConfig<TensorRTCompilerConfig>("relax.ext.tensorrt.options");
-    if (!cfg.has_value()) {
-      cfg = transform::PassConfigWithDefaults<TensorRTCompilerConfig>();
-    }
-    TVM_FFI_ICHECK_EQ(cfg.value()->tensorrt_version.size(), 3);
-    ffi::Array<int64_t> tensorrt_version = {cfg.value()->tensorrt_version[0],
-                                            cfg.value()->tensorrt_version[1],
-                                            cfg.value()->tensorrt_version[2]};
+    auto cfg = ctx->GetConfigOrDefault<TensorRTCompilerConfig>("relax.ext.tensorrt.options");
+    TVM_FFI_ICHECK_EQ(cfg->tensorrt_version.size(), 3);
+    ffi::Array<int64_t> tensorrt_version = {cfg->tensorrt_version[0], cfg->tensorrt_version[1],
+                                            cfg->tensorrt_version[2]};
     node->SetAttr("tensorrt_version", std::move(tensorrt_version));
-    node->SetAttr("use_implicit_batch", static_cast<int64_t>(cfg.value()->use_implicit_batch));
-    node->SetAttr("max_workspace_size", static_cast<int64_t>(cfg.value()->max_workspace_size));
-    node->SetAttr("use_fp16", static_cast<int64_t>(cfg.value()->use_fp16));
-    node->SetAttr("use_uint8", static_cast<int64_t>(cfg.value()->use_uint8));
+    node->SetAttr("use_implicit_batch", static_cast<int64_t>(cfg->use_implicit_batch));
+    node->SetAttr("max_workspace_size", static_cast<int64_t>(cfg->max_workspace_size));
+    node->SetAttr("use_fp16", static_cast<int64_t>(cfg->use_fp16));
+    node->SetAttr("use_uint8", static_cast<int64_t>(cfg->use_uint8));
   }
 
  private:

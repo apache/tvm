@@ -93,11 +93,10 @@ namespace transform {
 Pass StmtSimplify() {
   auto pass_func = [](Function func, IRModule, tvm::transform::PassContext ctx) {
     sym::Analyzer analyzer;
-    auto config = ctx->GetConfig<tirx::StmtSimplifyConfig>("tirx.StmtSimplify")
-                      .value_or(tvm::transform::PassConfigWithDefaults<tirx::StmtSimplifyConfig>());
+    auto config = ctx->GetConfigOrDefault<tirx::StmtSimplifyConfig>("tirx.StmtSimplify");
     return ffi::make_object<s_tir::StmtSimplifier>(analyzer, config)->Run(std::move(func));
   };
-  return tirx::transform::CreateFunctionPass(pass_func, 0, "s_tir.StmtSimplify", {});
+  return tirx::transform::CreateFunctionPass(pass_func, 0, "s_tir.StmtSimplify");
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::GlobalDef().def("s_tir.transform.StmtSimplify", StmtSimplify);

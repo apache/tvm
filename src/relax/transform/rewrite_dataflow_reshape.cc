@@ -165,7 +165,7 @@ Pass RewriteDataflowReshape() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
     return RewriteDataflowReshape(f, m).as_or_throw<Function>();
   };
-  return CreateFunctionPass(pass_func, 0, "RewriteDataflowReshape", {});
+  return CreateFunctionPass(pass_func, 0, "RewriteDataflowReshape");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

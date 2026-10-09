@@ -103,7 +103,7 @@ namespace transform {
 
 Pass AttachAttrLayoutFreeBuffers() {
   auto pass_func = [=](IRModule mod, PassContext pc) { return AttrAttacher::Transform(mod); };
-  auto pass = CreateModulePass(pass_func, 0, "_AttachAttrLayoutFreeBuffers", {});
+  auto pass = CreateModulePass(pass_func, 0, "_AttachAttrLayoutFreeBuffers");
   // Apply DeadCodeElimination to remove unused tirx::Function
   return tvm::transform::Sequential({pass, DeadCodeElimination()}, "AttachAttrLayoutFreeBuffers");
 }

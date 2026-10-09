@@ -29,10 +29,10 @@ from typing import Literal
 from tvm_ffi import get_global_func, register_global_func
 
 from tvm.ir import IRModule
-from tvm.ir.transform import PassContext
 from tvm.runtime import Tensor
 from tvm.target import Target
 from tvm.tirx.expr import IntImm
+from tvm.transform import PassContext
 
 from .builder import Builder
 from .cost_model import CostModel

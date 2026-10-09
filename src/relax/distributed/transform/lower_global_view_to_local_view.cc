@@ -447,7 +447,7 @@ namespace transform {
 
 Pass LowerGlobalViewToLocalView() {
   auto pass_func = [=](IRModule m, PassContext pc) { return LowerTIRToLocalView(m).Lower(); };
-  return CreateModulePass(pass_func, 1, "LowerGlobalViewToLocalView", {});
+  return CreateModulePass(pass_func, 1, "LowerGlobalViewToLocalView");
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

@@ -185,7 +185,7 @@ int64_t GetVTCMCapacity(Target target, const tvm::transform::PassContext& pass_c
     auto value = target->GetAttr<int64_t>("vtcm-capacity").value();
     if (value > 0) return value;
   }
-  return pass_ctx->GetConfig<int64_t>("tirx.vtcm_capacity", 0).value();
+  return pass_ctx->GetConfig<int64_t>("tirx.vtcm_capacity").value_or(0);
 }
 
 ffi::Array<tvm::transform::Pass> GetVTCMCompactionPasses() {
@@ -241,7 +241,7 @@ Pass VerifyVTCMLimit(ffi::Optional<Target> default_target) {
     }
     return mod;
   };
-  return tvm::transform::CreateModulePass(pass_func, 0, "s_tir.VerifyVTCMLimit", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "s_tir.VerifyVTCMLimit");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

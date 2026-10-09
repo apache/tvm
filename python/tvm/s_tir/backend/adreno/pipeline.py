@@ -106,7 +106,7 @@ def default_tir_pipeline(*, prepare_only=False):
                     tirx.transform.BF16StorageLegalize(),
                 ]
             )
-        mod = tvm.ir.transform.Sequential(passes)(mod)
+        mod = tvm.transform.Sequential(passes)(mod)
         return mod
 
     return _pipeline, tir_pipeline.finalize_host_passes, tir_pipeline.finalize_device_passes

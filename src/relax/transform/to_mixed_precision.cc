@@ -622,7 +622,7 @@ Pass ToMixedPrecision(DLDataType out_dtype,
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
     return ToMixedPrecision(f, out_dtype, fp16_input_names).as_or_throw<Function>();
   };
-  return CreateFunctionPass(pass_func, 0, "ToMixedPrecision", {});
+  return CreateFunctionPass(pass_func, 0, "ToMixedPrecision");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -31,7 +31,7 @@ from tvm.script import tirx as T
 
 
 def _run_pass_compare_output(Before, Expected):
-    After = tvm.ir.transform.Sequential(
+    After = tvm.transform.Sequential(
         [
             OptimizeLayoutTransform(),
             DeadCodeElimination(),

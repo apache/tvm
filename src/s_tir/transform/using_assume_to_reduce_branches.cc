@@ -408,7 +408,7 @@ Pass UseAssumeToReduceBranches() {
     }
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.UseAssumeToReduceBranches", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.UseAssumeToReduceBranches");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -238,10 +238,9 @@ Pass DefaultGPUSchedule() {
         }
         return MarkScheduled(sch->mod());
       };
-  return tvm::transform::CreateModulePass(/*pass_function=*/pass_func,         //
-                                          /*opt_level=*/0,                     //
-                                          /*pass_name=*/"DefaultGPUSchedule",  //
-                                          /*required=*/{});
+  return tvm::transform::CreateModulePass(/*pass_function=*/pass_func,  //
+                                          /*opt_level=*/0,              //
+                                          /*pass_name=*/"DefaultGPUSchedule");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

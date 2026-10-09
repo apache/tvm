@@ -202,7 +202,7 @@ namespace transform {
 Pass AllocateWorkspace() {
   auto pass_func = [=](IRModule m, PassContext pc) { return relax::WorkspaceProvider(m).Run(); };
 
-  return CreateModulePass(pass_func, 0, "AllocateWorkspace", {});
+  return CreateModulePass(pass_func, 0, "AllocateWorkspace");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

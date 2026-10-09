@@ -477,7 +477,7 @@ def test_tirx_pipelines_immediately_lower_iket(module_name, factory_name):
     factory = getattr(importlib.import_module(module_name), factory_name)
     visited = []
 
-    @tvm.instrument.pass_instrument
+    @tvm.transform.pass_instrument
     class RecordPasses:
         def run_before_pass(self, mod, info):
             visited.append(("before", info.name))

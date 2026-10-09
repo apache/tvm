@@ -616,7 +616,7 @@ Pass PropagateSharding() {
   auto pass_func = [=](IRModule m, PassContext pc) {
     return DistributedIRBuilder(m).BuildDistributedIR();
   };
-  return CreateModulePass(pass_func, 1, "PropagateSharding", {});
+  return CreateModulePass(pass_func, 1, "PropagateSharding");
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

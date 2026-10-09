@@ -428,7 +428,7 @@ def test_call_tir_tuple_arg():
     # normalization of those expressions may produce additional
     # variables bindings.  This test case should be agnostic to those
     # additional bindings, so DCE is applied after CSE.
-    After = tvm.ir.transform.Sequential(
+    After = tvm.transform.Sequential(
         [
             EliminateCommonSubexpr(),
             tvm.relax.transform.DeadCodeElimination(),

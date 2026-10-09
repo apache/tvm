@@ -150,7 +150,7 @@ Pass BindParams(ffi::String func_name, ffi::Map<Any, ffi::ObjectRef> params) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     return BindParam(std::move(mod), func_name, params);
   };
-  return CreateModulePass(pass_func, 0, "BindParams", {});
+  return CreateModulePass(pass_func, 0, "BindParams");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

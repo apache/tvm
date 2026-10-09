@@ -14,8 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI APIs for tvm.instrument"""
+# isort: skip_file
+# pylint: disable=unused-import
+"""Utilities for IR transformations."""
 
-import tvm_ffi
-
-tvm_ffi.init_ffi_api("instrument", __name__)
+from .core import (
+    ModulePass,
+    Pass,
+    PassContext,
+    PassInfo,
+    PassInstrument,
+    PrintIR,
+    Sequential,
+    module_pass,
+    pass_instrument,
+)
+from . import instrument

@@ -231,7 +231,7 @@ Pass RunCodegen(
   auto pass_func = [=](IRModule m, PassContext pc) {
     return relax::CodeGenRunner(m).Run(target_options, entry_functions);
   };
-  return CreateModulePass(pass_func, 0, "RunCodegen", {});
+  return CreateModulePass(pass_func, 0, "RunCodegen");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

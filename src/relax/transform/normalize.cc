@@ -278,7 +278,7 @@ Pass Normalize() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
     return Normalize(f).as_or_throw<Function>();
   };
-  return CreateFunctionPass(pass_func, 1, "Normalize", {});
+  return CreateFunctionPass(pass_func, 1, "Normalize");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -292,8 +292,7 @@ Pass NormalizeGlobalVar() {
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
-                          /*pass_name=*/"NormalizeGlobalVar",
-                          /*required=*/{});
+                          /*pass_name=*/"NormalizeGlobalVar");
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

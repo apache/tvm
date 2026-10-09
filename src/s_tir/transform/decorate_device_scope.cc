@@ -44,7 +44,7 @@ Pass DecorateDeviceScope() {
     n->body = DecorateDeviceScopeImpl(std::move(n->body).value());
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.DecorateDeviceScope", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.DecorateDeviceScope");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

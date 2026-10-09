@@ -79,7 +79,7 @@ IRModule ConvertSSA(IRModule mod) {
 namespace transform {
 Pass ConvertSSA() {
   auto pass_func = [](IRModule mod, PassContext ctx) { return s_tir::ConvertSSA(std::move(mod)); };
-  return tvm::transform::CreateModulePass(pass_func, 0, "s_tir.ConvertSSA", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "s_tir.ConvertSSA");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

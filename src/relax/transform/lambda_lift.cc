@@ -497,7 +497,7 @@ namespace transform {
 
 Pass LambdaLift() {
   auto pass_func = [=](IRModule mod, PassContext pc) { return relax::LambdaLifter(mod).Lift(); };
-  return tvm::transform::CreateModulePass(pass_func, 1, "LambdaLift", {});
+  return tvm::transform::CreateModulePass(pass_func, 1, "LambdaLift");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

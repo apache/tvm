@@ -22,7 +22,7 @@ import tvm.ir
 from . import _ffi_api
 
 
-def PropagateSharding() -> tvm.ir.transform.Pass:
+def PropagateSharding() -> tvm.transform.Pass:
     """Propagate sharding information.
 
     Returns
@@ -33,7 +33,7 @@ def PropagateSharding() -> tvm.ir.transform.Pass:
     return _ffi_api.PropagateSharding()  # type: ignore
 
 
-def LowerGlobalViewToLocalView() -> tvm.ir.transform.Pass:
+def LowerGlobalViewToLocalView() -> tvm.transform.Pass:
     """Lower global view TIR to local view
 
     Returns
@@ -44,7 +44,7 @@ def LowerGlobalViewToLocalView() -> tvm.ir.transform.Pass:
     return _ffi_api.LowerGlobalViewToLocalView()  # type: ignore
 
 
-def LegalizeRedistribute() -> tvm.ir.transform.Pass:
+def LegalizeRedistribute() -> tvm.transform.Pass:
     """Legalize redistribute op to ccl op.
     S->R: R.ccl.allgather
     R->S: R.dist.redistribute_replica_to_shard
@@ -57,7 +57,7 @@ def LegalizeRedistribute() -> tvm.ir.transform.Pass:
     return _ffi_api.LegalizeRedistribute()  # type: ignore
 
 
-def LowerDistIR() -> tvm.ir.transform.Pass:
+def LowerDistIR() -> tvm.transform.Pass:
     """Lower DistIR to Relax
 
     Returns

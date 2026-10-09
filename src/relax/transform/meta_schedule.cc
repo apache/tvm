@@ -148,7 +148,7 @@ Pass MetaScheduleApplyDatabase(ffi::Optional<ffi::String> work_dir, bool enable_
                     {},           // map
                     mod->attrs);  // attrs);
   };
-  return CreateModulePass(pass_func, 0, "MetaScheduleApplyDatabase", {});
+  return CreateModulePass(pass_func, 0, "MetaScheduleApplyDatabase");
 }
 
 Pass MetaScheduleTuneIRMod(ffi::Map<ffi::String, runtime::Tensor> params, ffi::String work_dir,
@@ -162,9 +162,7 @@ Pass MetaScheduleTuneIRMod(ffi::Map<ffi::String, runtime::Tensor> params, ffi::S
         .TuneIRMod(m, ctx);
   };
   return CreateModulePass(/*pass function*/ pass_func, /*opt level*/ 0,
-                          /*pass name*/ "MetaScheduleTuneIRModule",
-                          /*required*/ {},
-                          /*traceable*/ true);
+                          /*pass name*/ "MetaScheduleTuneIRModule");
 }
 
 Pass MetaScheduleTuneTIR(ffi::String work_dir, int64_t max_trials_global) {
@@ -176,9 +174,7 @@ Pass MetaScheduleTuneTIR(ffi::String work_dir, int64_t max_trials_global) {
             .TuneTIR(f, ctx);
       };
   return tirx::transform::CreateFunctionPass(/*pass function*/ pass_func, /*opt level*/ 0,
-                                             /*pass name*/ "MetaScheduleTuneTIR",
-                                             /*required*/ {},
-                                             /*traceable*/ true);
+                                             /*pass name*/ "MetaScheduleTuneTIR");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

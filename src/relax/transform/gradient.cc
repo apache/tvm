@@ -804,8 +804,7 @@ Pass Gradient(ffi::String func_name, ffi::Optional<ffi::Array<Var>> require_grad
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
-                          /*pass_name=*/"Gradient",
-                          /*required=*/{});
+                          /*pass_name=*/"Gradient");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

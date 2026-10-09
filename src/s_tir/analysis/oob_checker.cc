@@ -123,7 +123,7 @@ tvm::transform::Pass OOBChecker() {
     }
     return func;
   };
-  return tirx::transform::CreateFunctionPass(pass_func, 0, "s_tir.analysis.OOBChecker", {});
+  return tirx::transform::CreateFunctionPass(pass_func, 0, "s_tir.analysis.OOBChecker");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

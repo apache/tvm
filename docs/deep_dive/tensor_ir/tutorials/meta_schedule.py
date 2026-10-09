@@ -129,7 +129,7 @@ target = tvm.target.Target.from_device(device)
 
 if os.getenv("CI", "") != "true":
     with target, tempfile.TemporaryDirectory() as tmp_dir:
-        tuned_mod = tvm.ir.transform.Sequential(
+        tuned_mod = tvm.transform.Sequential(
             [
                 relax.get_pipeline("zero"),
                 relax.transform.MetaScheduleTuneTIR(
@@ -173,7 +173,7 @@ for i, task in enumerate(tasks):
 # .. code-block:: python
 #
 #     with target:
-#         mod = tvm.ir.transform.Sequential([
+#         mod = tvm.transform.Sequential([
 #             relax.transform.MetaScheduleTuneIRMod(
 #                 params={},
 #                 work_dir="./tuning_logs",

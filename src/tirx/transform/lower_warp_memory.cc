@@ -732,7 +732,7 @@ Pass LowerWarpMemory() {
                   .ValueOrUnchanged(stmt);
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.LowerWarpMemory", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.LowerWarpMemory");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

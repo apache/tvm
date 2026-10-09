@@ -219,8 +219,7 @@ Pass AppendLoss(ffi::String func_name, Function loss_function, int num_backbone_
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
-                          /*pass_name=*/"AppendLoss",
-                          /*required=*/{});
+                          /*pass_name=*/"AppendLoss");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

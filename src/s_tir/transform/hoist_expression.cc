@@ -107,7 +107,10 @@ class HoistExpressionConfig : public ffi::ObjectRef {
 
 TVM_FFI_STATIC_INIT_BLOCK() { HoistExpressionConfigNode::RegisterReflection(); }
 
-TVM_REGISTER_PASS_CONFIG_OPTION("s_tir.HoistExpression", HoistExpressionConfig);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<HoistExpressionConfig>(
+      "s_tir.HoistExpression");
+}
 
 struct HoistIfThenElseConfigNode : public ffi::Object {
   bool support_block_scope_hoisting;
@@ -130,7 +133,10 @@ class HoistIfThenElseConfig : public ffi::ObjectRef {
 
 TVM_FFI_STATIC_INIT_BLOCK() { HoistIfThenElseConfigNode::RegisterReflection(); }
 
-TVM_REGISTER_PASS_CONFIG_OPTION("s_tir.HoistIfThenElse", HoistIfThenElseConfig);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<HoistIfThenElseConfig>(
+      "s_tir.HoistIfThenElse");
+}
 
 class HoistInfoCollector : public StmtExprVisitor {
  public:
@@ -590,15 +596,11 @@ Pass HoistExpression() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
-    auto cfg = ctx->GetConfig<HoistExpressionConfig>("s_tir.HoistExpression");
-
-    if (!cfg.has_value()) {
-      cfg = tvm::transform::PassConfigWithDefaults<HoistExpressionConfig>();
-    }
-    n->body = ExpressionHoister::Hoist(std::move(n->body).value(), cfg.value());
+    auto cfg = ctx->GetConfigOrDefault<HoistExpressionConfig>("s_tir.HoistExpression");
+    n->body = ExpressionHoister::Hoist(std::move(n->body).value(), cfg);
     return f;
   };
-  auto insertion_pass = CreateFunctionPass(pass_func, 0, "s_tir.InsertHoistedExpression", {});
+  auto insertion_pass = CreateFunctionPass(pass_func, 0, "s_tir.InsertHoistedExpression");
 
   return tvm::transform::Sequential(
       {
@@ -618,7 +620,7 @@ static Pass HoistIfThenElseImpl() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
-    auto cfg = ctx->GetConfig<HoistIfThenElseConfig>("s_tir.HoistIfThenElse");
+    auto cfg = ctx->GetConfigOrDefault<HoistIfThenElseConfig>("s_tir.HoistIfThenElse");
     auto flag = f->GetAttr<int64_t>("tirx.HoistIfThenElseExprWithBlock");
     if (flag && flag.value() == 1) {
       HoistExpressionConfig config(static_cast<int>(HoistedConditionals::kUsingBlockVar) |
@@ -627,18 +629,15 @@ static Pass HoistIfThenElseImpl() {
       n->body = ExpressionHoister::Hoist(std::move(n->body).value(), config);
       return f;
     }
-    if (!cfg.has_value()) {
-      cfg = tvm::transform::PassConfigWithDefaults<HoistIfThenElseConfig>();
-    }
-    int block_var = static_cast<int>(cfg.value()->support_block_scope_hoisting
-                                         ? HoistedConditionals::kUsingBlockVar
-                                         : HoistedConditionals::kNone);
+    int block_var =
+        static_cast<int>(cfg->support_block_scope_hoisting ? HoistedConditionals::kUsingBlockVar
+                                                           : HoistedConditionals::kNone);
     HoistExpressionConfig config(block_var | static_cast<int>(HoistedConditionals::kIfElseStmt),
                                  static_cast<int>(HoistedLetBindings::kNone));
     n->body = ExpressionHoister::Hoist(std::move(n->body).value(), config);
     return f;
   };
-  auto insertion_pass = CreateFunctionPass(pass_func, 0, "s_tir.InsertHoistIfThenElse", {});
+  auto insertion_pass = CreateFunctionPass(pass_func, 0, "s_tir.InsertHoistIfThenElse");
   return tvm::transform::Sequential(
       {
           insertion_pass,
@@ -657,7 +656,7 @@ static Pass HoistIfThenElseBasicImpl() {
     n->body = ExpressionHoister::Hoist(std::move(n->body).value(), config);
     return f;
   };
-  auto insertion_pass = CreateFunctionPass(pass_func, 0, "s_tir.InsertHoistIfThenElseBasic", {});
+  auto insertion_pass = CreateFunctionPass(pass_func, 0, "s_tir.InsertHoistIfThenElseBasic");
   return tvm::transform::Sequential(
       {
           insertion_pass,

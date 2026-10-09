@@ -45,14 +45,14 @@ def trn_pipeline():
             tirx.transform.SplitHostDevice(),
             tirx.transform.MakePackedAPI(),
         ]
-        return tvm.ir.transform.Sequential(passes)(mod)
+        return tvm.transform.Sequential(passes)(mod)
 
     return _pipeline, finalize_host_passes, finalize_device_passes_trn
 
 
 def finalize_device_passes_trn():  # pylint: disable=unused-argument
     """The finalization passes for the Trainium backend."""
-    return tvm.ir.transform.Sequential([tirx.transform.StmtSimplify()])
+    return tvm.transform.Sequential([tirx.transform.StmtSimplify()])
 
 
 __all__ = ["finalize_device_passes_trn", "trn_pipeline"]

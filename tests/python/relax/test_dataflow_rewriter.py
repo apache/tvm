@@ -195,7 +195,7 @@ def test_rewriter_may_be_applied_to_ir_module():
 
 
 def test_rewriter_may_be_used_as_ir_transform():
-    """A rewriter may be used as a tvm.ir.transform.Pass"""
+    """A rewriter may be used as a tvm.transform.Pass"""
 
     @R.rewriter
     class Rewriter:
@@ -225,7 +225,7 @@ def test_rewriter_may_be_used_as_ir_transform():
             )
             return out
 
-    After = tvm.ir.transform.Sequential([Rewriter])(Before)
+    After = tvm.transform.Sequential([Rewriter])(Before)
     tvm.ir.assert_structural_equal(Expected, After)
 
 

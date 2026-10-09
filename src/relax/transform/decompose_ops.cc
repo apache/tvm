@@ -271,7 +271,7 @@ Pass ApplyDecomposeToFunction(Pass pass, ffi::String func_name) {
   };
 
   std::string pass_name = "ApplyDecomposeTo" + std::string(func_name);
-  return CreateModulePass(pass_func, 0, pass_name, {});
+  return CreateModulePass(pass_func, 0, pass_name);
 }
 
 }  // namespace
@@ -283,8 +283,7 @@ Pass MutateOpsForTraining() {
   };
   return CreateFunctionPass(/*pass_function=*/pass_func,
                             /*opt_level=*/0,
-                            /*pass_name=*/"MutateOpsForTraining",
-                            /*required=*/{});
+                            /*pass_name=*/"MutateOpsForTraining");
 }
 
 Pass DecomposeOps() {
@@ -294,8 +293,7 @@ Pass DecomposeOps() {
   };
   return CreateFunctionPass(/*pass_function=*/pass_func,
                             /*opt_level=*/0,
-                            /*pass_name=*/"DecomposeOps",
-                            /*required=*/{});
+                            /*pass_name=*/"DecomposeOps");
 }
 
 Pass DecomposeOpsForInference(ffi::Optional<ffi::String> func_name) {

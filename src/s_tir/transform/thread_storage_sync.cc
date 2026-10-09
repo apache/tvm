@@ -395,7 +395,7 @@ Pass ThreadSync(ffi::String storage_scope) {
     n->body = s_tir::ThreadSync(std::move(n->body).value(), storage_scope);
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.ThreadSync", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.ThreadSync");
 }
 
 Pass LowerSynchronization() {
@@ -409,7 +409,7 @@ Pass LowerSynchronization() {
                   .ValueOrUnchanged(n->body.value());
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.LowerSynchronization", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerSynchronization");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

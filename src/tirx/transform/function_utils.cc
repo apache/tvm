@@ -66,7 +66,7 @@ transform::Pass AnnotateEntryFunc() {
     // Default fallback, no annotations may be inferred.
     return mod;
   };
-  return tvm::transform::CreateModulePass(fpass, 0, "tirx.AnnotateEntryFunc", {});
+  return tvm::transform::CreateModulePass(fpass, 0, "tirx.AnnotateEntryFunc");
 }
 
 transform::Pass Filter(ffi::TypedFunction<bool(Function)> fcond) {
@@ -78,7 +78,7 @@ transform::Pass Filter(ffi::TypedFunction<bool(Function)> fcond) {
       return std::nullopt;
     }
   };
-  return tirx::transform::CreateFunctionPass(fpass, 0, "tirx.Filter", {});
+  return tirx::transform::CreateFunctionPass(fpass, 0, "tirx.Filter");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

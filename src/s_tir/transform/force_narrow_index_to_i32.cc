@@ -65,7 +65,7 @@ Pass ForceNarrowIndexToInt32() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     return Int32DTypeNarrower::RewriteDataType(std::move(f));
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.ForceNarrowIndexToInt32", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.ForceNarrowIndexToInt32");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

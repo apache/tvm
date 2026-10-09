@@ -167,7 +167,7 @@ Pass ExpandTupleArguments() {
     }
     return mod;
   };
-  auto inner_pass = CreateModulePass(pass_func, 0, "ExpandTupleArgumentsInner", {});
+  auto inner_pass = CreateModulePass(pass_func, 0, "ExpandTupleArgumentsInner");
 
   return tvm::transform::Sequential(
       {

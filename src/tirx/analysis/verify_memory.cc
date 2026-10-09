@@ -228,7 +228,7 @@ Pass VerifyMemory() {
     }
     return mod;
   };
-  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.VerifyMemory", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.VerifyMemory");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

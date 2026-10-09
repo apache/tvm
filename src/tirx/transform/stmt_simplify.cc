@@ -81,11 +81,13 @@ static StmtSimplifyConfig MakeDefaultStmtSimplifyConfig() {
 
 TVM_FFI_STATIC_INIT_BLOCK() { StmtSimplifyConfigNode::RegisterReflection(); }
 
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.StmtSimplify", StmtSimplifyConfig);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<StmtSimplifyConfig>("tirx.StmtSimplify");
+}
 
 Function StmtSimplifier::Apply(Function func, const sym::Analyzer& analyzer,
                                ffi::Optional<StmtSimplifyConfig> config_opt) {
-  auto config = config_opt.value_or(MakeDefaultStmtSimplifyConfig());
+  auto config = config_opt.has_value() ? config_opt.value() : MakeDefaultStmtSimplifyConfig();
 
   auto simplifier = ffi::make_object<StmtSimplifier>(analyzer, config);
   return simplifier->Run(std::move(func));
@@ -264,11 +266,11 @@ namespace transform {
 Pass StmtSimplify() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     sym::Analyzer analyzer;
-    auto cfg = ctx->GetConfig<StmtSimplifyConfig>("tirx.StmtSimplify");
+    auto cfg = ctx->GetConfigOrDefault<StmtSimplifyConfig>("tirx.StmtSimplify");
 
     return StmtSimplifier::Apply(f, analyzer, cfg);
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.StmtSimplify", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.StmtSimplify");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

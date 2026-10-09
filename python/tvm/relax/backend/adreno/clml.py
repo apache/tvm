@@ -19,7 +19,6 @@
 
 import tvm
 from tvm import IRModule, relax, tirx
-from tvm.ir.transform import PassContext, module_pass
 from tvm.relax import transform
 from tvm.relax.dpl.pattern import (
     GlobalVarPattern,
@@ -32,6 +31,7 @@ from tvm.relax.dpl.pattern import (
 from tvm.relax.expr import TupleGetItem, VarBinding
 from tvm.relax.expr_functor import PyExprMutator, mutator
 from tvm.relax.transform import PatternCheckContext
+from tvm.transform import PassContext, module_pass
 
 from ..pattern_registry import register_patterns
 

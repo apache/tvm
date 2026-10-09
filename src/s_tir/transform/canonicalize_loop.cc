@@ -95,7 +95,7 @@ Pass CanonicalizeLoop() {
                      .ValueOrUnchanged(std::move(fptr->body));
     return func;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.CanonicalizeLoop", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.CanonicalizeLoop");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

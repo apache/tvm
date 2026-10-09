@@ -182,8 +182,7 @@ Pass TextureFlatten() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     return TextureFlattenHandler(std::move(f));
   };
-  return tirx::transform::CreateFunctionPass(pass_func, 0, "s_tir.backend.adreno.TextureFlatten",
-                                             {});
+  return tirx::transform::CreateFunctionPass(pass_func, 0, "s_tir.backend.adreno.TextureFlatten");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

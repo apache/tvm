@@ -62,7 +62,10 @@ class OpenCLMLCompilerConfig : public ffi::ObjectRef {
 
 TVM_FFI_STATIC_INIT_BLOCK() { OpenCLMLCompilerConfigNode::RegisterReflection(); }
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relax.ext.clml.options", OpenCLMLCompilerConfig);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<OpenCLMLCompilerConfig>(
+      "relax.ext.clml.options");
+}
 
 using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
 using JSONGraphNodeEntry = tvm::runtime::json::JSONGraphNodeEntry;
@@ -265,11 +268,8 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
 
   static void SaveGlobalAttributes(std::shared_ptr<JSONGraphNode> node) {
     auto ctx = transform::PassContext::Current();
-    auto cfg = ctx->GetConfig<OpenCLMLCompilerConfig>("relax.ext.clml.options");
-    if (!cfg.has_value()) {
-      cfg = transform::PassConfigWithDefaults<OpenCLMLCompilerConfig>();
-    }
-    node->SetAttr("clml_version", static_cast<int64_t>(cfg.value()->clml_version->value));
+    auto cfg = ctx->GetConfigOrDefault<OpenCLMLCompilerConfig>("relax.ext.clml.options");
+    node->SetAttr("clml_version", static_cast<int64_t>(cfg->clml_version->value));
   }
 
  private:

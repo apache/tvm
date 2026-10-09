@@ -306,7 +306,7 @@ Pass InlinePrivateFunctions() {
 
     return mod;
   };
-  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.InlinePrivateFunctions", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.InlinePrivateFunctions");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

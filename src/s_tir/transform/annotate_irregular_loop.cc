@@ -98,7 +98,7 @@ Pass AnnotateIrregularLoop() {
     return func;
   };
 
-  return CreateFunctionPass(pass_func, 0, "s_tir.AnnotateIrregularLoop", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.AnnotateIrregularLoop");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

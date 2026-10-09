@@ -327,7 +327,7 @@ Pass LowerMatchBuffer() {
                      .ValueOrUnchanged(std::move(fptr->body));
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.LowerMatchBuffer", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerMatchBuffer");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

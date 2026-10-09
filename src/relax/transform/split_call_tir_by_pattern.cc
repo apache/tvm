@@ -801,10 +801,9 @@ namespace transform {
 Pass SplitCallTIRByPattern(ffi::Array<TIRPattern> patterns, FCodegen fcodegen) {
   auto pass_func =  //
       [=](IRModule m, PassContext pc) { return SplitMutator::Transform(m, patterns, fcodegen); };
-  return CreateModulePass(/*pass_function=*/pass_func,            //
-                          /*opt_level=*/0,                        //
-                          /*pass_name=*/"SplitCallTIRByPattern",  //
-                          /*required=*/{});
+  return CreateModulePass(/*pass_function=*/pass_func,  //
+                          /*opt_level=*/0,              //
+                          /*pass_name=*/"SplitCallTIRByPattern");
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

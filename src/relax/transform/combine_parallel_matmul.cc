@@ -389,10 +389,9 @@ Pass CombineParallelMatmul(FCheck check) {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
     return relax::CombineParallelMatmul(f, check);
   };
-  return CreateFunctionPass(/*pass_function=*/pass_func,            //
-                            /*opt_level=*/0,                        //
-                            /*pass_name=*/"CombineParallelMatmul",  //
-                            /*required=*/{});
+  return CreateFunctionPass(/*pass_function=*/pass_func,  //
+                            /*opt_level=*/0,              //
+                            /*pass_name=*/"CombineParallelMatmul");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

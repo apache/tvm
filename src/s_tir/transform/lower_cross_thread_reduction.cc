@@ -1004,7 +1004,7 @@ Pass LowerCrossThreadReduction() {
                      .ValueOrUnchanged(fptr->body);
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.LowerCrossThreadReduction", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerCrossThreadReduction");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

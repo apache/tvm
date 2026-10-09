@@ -1006,7 +1006,7 @@ tvm::transform::Pass DataflowUseInplaceCalls() {
         ModuleInplaceTransformer transformer(mod);
         return transformer.Transform();
       },
-      0, "DataflowInsertInPlaceCalls", {}, false);
+      0, "DataflowInsertInPlaceCalls");
 }
 
 ffi::Array<ffi::Array<InplaceOpportunity>> DataflowInplaceAnalysis(const DataflowBlock& block,

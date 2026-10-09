@@ -151,7 +151,7 @@ Pass ReorderTakeAfterMatmul() {
     auto [pattern, rewriter] = CreatePatterns();
     return RewriteCall(pattern, rewriter, func);
   };
-  return CreateFunctionPass(pass_func, 1, "ReorderTakeAfterMatmul", {});
+  return CreateFunctionPass(pass_func, 1, "ReorderTakeAfterMatmul");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

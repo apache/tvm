@@ -37,7 +37,9 @@ namespace tvm {
 namespace relax {
 namespace transform {
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relax.fallback_device_type", IntImm);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<IntImm>("relax.fallback_device_type");
+}
 
 class FunctionPass;
 
@@ -150,9 +152,8 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
 }
 
 Pass CreateFunctionPass(std::function<Function(Function, IRModule, PassContext)> pass_func,
-                        int opt_level, ffi::String name, tvm::ffi::Array<ffi::String> required,
-                        bool traceable) {
-  PassInfo pass_info = PassInfo(opt_level, name, required, traceable);
+                        int opt_level, ffi::String name) {
+  PassInfo pass_info = PassInfo(opt_level, name);
   return FunctionPass(std::move(pass_func), pass_info);
 }
 
@@ -334,8 +335,8 @@ IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass
 
 Pass CreateDataflowBlockPass(
     std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func, int opt_level,
-    ffi::String name, tvm::ffi::Array<ffi::String> required, bool traceable) {
-  PassInfo pass_info = PassInfo(opt_level, name, required, traceable);
+    ffi::String name) {
+  PassInfo pass_info = PassInfo(opt_level, name);
   return DataflowBlockPass(std::move(pass_func), pass_info);
 }
 

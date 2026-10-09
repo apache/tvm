@@ -156,7 +156,7 @@ Pass ComputePrimValue() {
 
     return mod;
   };
-  return CreateModulePass(pass_func, 0, "ComputePrimValue", {});
+  return CreateModulePass(pass_func, 0, "ComputePrimValue");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

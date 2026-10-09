@@ -35,7 +35,7 @@ def LowerTrainiumLayout():
 
 def LowerTIRx():
     """Lower TIRx tile primitive calls for the Trainium backend."""
-    return tvm.ir.transform.Sequential(
+    return tvm.transform.Sequential(
         [tirx.transform.TilePrimitiveDispatch(), LowerTrainiumLayout()],
         name="tirx.backend.trn.LowerTIRx",
     )

@@ -19,11 +19,11 @@
 
 import tvm
 from tvm import relax
-from tvm.ir.instrument import PrintAfterAll, PrintBeforeAll
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
+from tvm.transform.instrument import PrintAfterAll, PrintBeforeAll
 
 # pylint: disable=invalid-name,missing-function-docstring,no-value-for-parameter
 

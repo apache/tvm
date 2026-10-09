@@ -54,7 +54,7 @@ Pass ForceNarrowIndexToInt32() {
   auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     return ForceNarrowIndexToInt32(f);
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.NarrowDataType", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.NarrowDataType");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

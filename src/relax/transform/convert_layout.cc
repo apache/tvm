@@ -359,7 +359,7 @@ Pass ConvertLayout(ffi::Map<ffi::String, ffi::Array<ffi::String>> desired_layout
       [=](DataflowBlock df_block, IRModule m, PassContext pc) {
         return ConvertLayoutPass(df_block, desired_layouts, layout_cb);
       };
-  return CreateDataflowBlockPass(pass_func, 0, "ConvertLayout", {});
+  return CreateDataflowBlockPass(pass_func, 0, "ConvertLayout");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

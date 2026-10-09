@@ -380,8 +380,7 @@ Pass AlterOpImpl(const ffi::Map<ffi::String, tirx::Function>& op_impl_map,
   };
   return CreateModulePass(/*pass_function=*/pass_func,  //
                           /*opt_level=*/0,              //
-                          /*pass_name=*/"AlterOpImpl",  //
-                          /*required=*/{});
+                          /*pass_name=*/"AlterOpImpl");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

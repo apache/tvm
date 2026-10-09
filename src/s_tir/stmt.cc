@@ -54,6 +54,8 @@ const Op& manual_sync() {
   return op;
 }
 
+static ffi::Array<Var> RegionNoBodyParams(const CallNode*) { return {}; }
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("s_tir.async_copy_scope", "Mark eligible copies for asynchronous lowering.")
       .signature()

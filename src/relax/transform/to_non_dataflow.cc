@@ -59,7 +59,7 @@ Pass ToNonDataflow() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
     return ToNonDataflow(f).as_or_throw<Function>();
   };
-  return CreateFunctionPass(pass_func, 0, "ToNonDataflow", {});
+  return CreateFunctionPass(pass_func, 0, "ToNonDataflow");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
