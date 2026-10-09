@@ -557,6 +557,10 @@ def test_gemm_tcgen05_cta_group_2(task):
             T.ptx.tcgen05.alloc.cta_group__2.sync.aligned.shared__cta.b32(
                 T.address_of(tmem_addr), T.uint32(cols_alloc)
             )
+        T.ptx.fence.mbarrier_init.release.cluster()
+        T.ptx.fence.proxy.async_.shared__cta()
+        T.cuda.cta_sync()
+        T.cuda.cluster_sync()
         tmem = T.cuda.decl_tmem(
             tmem_addr[0],
             ty_args=[T.Tensor(
@@ -566,10 +570,6 @@ def test_gemm_tcgen05_cta_group_2(task):
                 layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]),
             )],
         )
-        T.ptx.fence.mbarrier_init.release.cluster()
-        T.ptx.fence.proxy.async_.shared__cta()
-        T.cuda.cta_sync()
-        T.cuda.cluster_sync()
 
         tma_args = T.meta_var(
             {"descriptor_mode": "auto", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2}
@@ -730,6 +730,10 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
             T.ptx.tcgen05.alloc.cta_group__2.sync.aligned.shared__cta.b32(
                 T.address_of(tmem_addr), T.uint32(cols_alloc)
             )
+        T.ptx.fence.mbarrier_init.release.cluster()
+        T.ptx.fence.proxy.async_.shared__cta()
+        T.cuda.cta_sync()
+        T.cuda.cluster_sync()
         tmem = T.cuda.decl_tmem(
             tmem_addr[0],
             ty_args=[T.Tensor(
@@ -749,10 +753,6 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
                 layout=TileLayout(S[(128, N_half) : (1 @ TLane, 1 @ TCol)]),
             )],
         )
-        T.ptx.fence.mbarrier_init.release.cluster()
-        T.ptx.fence.proxy.async_.shared__cta()
-        T.cuda.cta_sync()
-        T.cuda.cluster_sync()
 
         tma_args = T.meta_var(
             {"descriptor_mode": "auto", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2}
@@ -1293,15 +1293,15 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
             T.ptx.tcgen05.alloc.cta_group__2.sync.aligned.shared__cta.b32(
                 T.address_of(tmem_addr), T.uint32(cols_alloc)
             )
+        T.ptx.fence.mbarrier_init.release.cluster()
+        T.ptx.fence.proxy.async_.shared__cta()
+        T.cuda.cta_sync()
+        T.cuda.cluster_sync()
         tmem = T.cuda.decl_tmem(tmem_addr[0], ty_args=[T.Tensor((128, C_shape[1]), C_dtype, scope="tmem", layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))])  # noqa: E501
 
         sfa_tmem = T.cuda.decl_tmem(SFA_TMEM_START, ty_args=[T.Tensor((128, sf_mma_k), SF_dtype, scope="tmem", layout=sf_layout)])  # noqa: E501
         sfb_tmem = T.cuda.decl_tmem(SFB_TMEM_START, ty_args=[T.Tensor((128, sf_mma_k), SF_dtype, scope="tmem", layout=sf_layout)])  # noqa: E501
 
-        T.ptx.fence.mbarrier_init.release.cluster()
-        T.ptx.fence.proxy.async_.shared__cta()
-        T.cuda.cta_sync()
-        T.cuda.cluster_sync()
 
                 # TMA load A and B (both CTAs issue with multicast)
         tma_args = T.meta_var({"descriptor_mode": "auto", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2})  # noqa: E501
@@ -1718,15 +1718,15 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
             T.ptx.tcgen05.alloc.cta_group__2.sync.aligned.shared__cta.b32(
                 T.address_of(tmem_addr), T.uint32(cols_alloc)
             )
+        T.ptx.fence.mbarrier_init.release.cluster()
+        T.ptx.fence.proxy.async_.shared__cta()
+        T.cuda.cta_sync()
+        T.cuda.cluster_sync()
         tmem = T.cuda.decl_tmem(tmem_addr[0], ty_args=[T.Tensor((128, C_shape[1]), C_dtype, scope="tmem", layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))])  # noqa: E501
 
         sfa_tmem = T.cuda.decl_tmem(SFA_TMEM_START, ty_args=[T.Tensor((M_per_cta, sf_mma_k), SF_dtype, scope="tmem", layout=sfa_layout)])  # noqa: E501
         sfb_tmem = T.cuda.decl_tmem(SFB_TMEM_START, ty_args=[T.Tensor((N_total, sf_mma_k), SF_dtype, scope="tmem", layout=sfb_layout)])  # noqa: E501
 
-        T.ptx.fence.mbarrier_init.release.cluster()
-        T.ptx.fence.proxy.async_.shared__cta()
-        T.cuda.cta_sync()
-        T.cuda.cluster_sync()
 
                 # TMA load A and B with multicast (each CTA loads its portion)
         tma_args = T.meta_var({"descriptor_mode": "auto", "mbar": tma_mbar_cta_0.ptr_to([0]), "cta_group": 2})  # noqa: E501
@@ -3520,7 +3520,10 @@ def test_gemm_tcgen05_cta1_m64_accepts_packed_c_layout_ws():
 
     src = mod.mod.imports[0].inspect_source()
     assert "tcgen05.mma.ws.cta_group::1.kind::f16" in src
-    assert "tvm_builtin_ptx_tcgen05_mma_ws_ts_mma_ws_cta_group__1_kind__f16((uint)400," in src
+    assert (
+        "tvm_builtin_ptx_tcgen05_mma_ws_ts_mma_ws_cta_group__1_kind__f16("
+        "((uint)reinterpret_cast<uint64_t>(C_tmem)),"
+    ) in src
     assert "get_tmem_addr(400, 0, 0)" not in src
     assert "get_tmem_addr(400, 0, 64)" not in src
 

@@ -362,10 +362,11 @@ reserved and freed with the warp-uniform ``Tx.ptx.tcgen05.alloc`` /
 ``tcgen05.dealloc`` intrinsics, and each tensor is a view into it declared with
 ``Tx.cuda.decl_tmem(addr, ty_args=[Tx.Tensor(shape, dtype, scope="tmem", layout=layout)])``.
 The ``addr`` operand is the allocated tensor-memory base address plus any desired
-column offset. The declaration requires this address; tensor-memory storage is
-reserved separately from the tensor declaration. Unlike shared memory, tensor
-memory is not directly addressable: it is read and written
-only through ``tcgen05`` ``mma`` / ``ld`` / ``st`` / ``cp``.
+column offset. The declaration captures the address value when it executes, so
+synchronize allocator writes to a shared address slot before declaring tensors.
+Tensor-memory storage is reserved separately from the tensor declaration.
+Unlike shared memory, tensor memory is not directly addressable: it is read and
+written only through ``tcgen05`` ``mma`` / ``ld`` / ``st`` / ``cp``.
 
 By hand, one warp issues the allocation into a shared slot, you ``decl`` each
 tensor as a view at a column offset, and one warp frees it at the end:
@@ -376,6 +377,7 @@ tensor as a view at a column offset, and one warp frees it at the end:
     if warp_id == alloc_warp:                         # tcgen05.alloc is warp-uniform
         Tx.ptx[f"tcgen05.alloc.cta_group::{cta_group}.sync.aligned.shared::cta.b32"](
             Tx.address_of(addr), Tx.uint32(512))
+    Tx.cuda.cta_sync()                                # publish before capturing addr[0]
     acc = Tx.cuda.decl_tmem(
         addr[0],
         ty_args=[Tx.Tensor(

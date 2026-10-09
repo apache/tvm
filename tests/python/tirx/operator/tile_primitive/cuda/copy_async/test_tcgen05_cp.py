@@ -520,13 +520,13 @@ def _make_cp_kernel_cta2(s_full, s_shape, t_full, t_shape, dtype, cfg, W32, n_co
             T.ptx.tcgen05.alloc.cta_group__2.sync.aligned.shared__cta.b32(
                 T.address_of(tmem_addr), T.uint32(n_cols)
             )
-        tmem = T.cuda.decl_tmem(
-            tmem_addr[0], ty_args=[T.Tensor(t_shape, dtype, scope="tmem", layout=t_full)]
-        )
         T.ptx.fence.mbarrier_init.release.cluster()
         T.ptx.fence.proxy.async_.shared__cta()
         T.cuda.cta_sync()
         T.cuda.cluster_sync()
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0], ty_args=[T.Tensor(t_shape, dtype, scope="tmem", layout=t_full)]
+        )
         # Pre-zero both CTAs' tmem: alloc does not clear it, and the
         # 128x256b test asserts the odd CTA stays untouched.
         zero_reg = T.alloc_tensor((W32,), "uint32", scope="local")

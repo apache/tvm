@@ -1363,8 +1363,8 @@ def test_tcgen05_ldst_constant_tmem_address_is_uint32():
     ]
     assert ld_lines
     assert st_lines
-    assert "(uint)0" in ld_lines[0]
-    assert "(uint)0" in st_lines[0]
+    assert "(uint)reinterpret_cast<uint64_t>(tmem)" in ld_lines[0]
+    assert "(uint)reinterpret_cast<uint64_t>(tmem)" in st_lines[0]
 
 
 # --------------------------------------------------------------------------
