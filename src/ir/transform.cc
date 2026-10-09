@@ -582,13 +582,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("transform.Sequential", [](ffi::PackedArgs args, ffi::Any* ret) {
-    auto passes = args[0].cast<tvm::ffi::Array<Pass>>();
-    int opt_level = args[1].cast<int>();
-    std::string name = args[2].cast<std::string>();
-    PassInfo pass_info = PassInfo(opt_level, name);
-    *ret = Sequential(passes, pass_info);
-  });
+  refl::GlobalDef().def("transform.Sequential",
+                        [](ffi::Array<Pass> passes, int opt_level, ffi::String name) {
+                          return Sequential(passes, PassInfo(opt_level, name));
+                        });
 }
 
 // Pattern A (RM): auto-default repr from reflection for SequentialNode.
