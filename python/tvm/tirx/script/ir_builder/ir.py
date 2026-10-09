@@ -543,9 +543,7 @@ def alloc_tensor(
             raise ValueError(
                 "Allocation placement cannot be combined with pointer or offset metadata"
             )
-        addresses = (
-            allocated_addr if isinstance(allocated_addr, list | tuple) else [allocated_addr]
-        )
+        addresses = allocated_addr if isinstance(allocated_addr, list | tuple) else [allocated_addr]
         allocated_addr = [_normalize_ann_value(v) for v in addresses]
     # Normalize the historical annotation spelling at the construction boundary.
     if "buffer_allocated_addr" in norm_annotations:

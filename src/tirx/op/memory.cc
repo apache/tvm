@@ -384,7 +384,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.alloc_tensor")
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeBuffer<0>>())
-      .set_validator(ffi::reflection::NativeFunctionView<void(const CallNode*)>::FromNative<&ValidateAllocTensor>())
+      .set_validator(ffi::reflection::NativeFunctionView<void(
+                         const CallNode*)>::FromNative<&ValidateAllocTensor>())
       .add_arg("shape", "The tuple of buffer extents.")
       .add_arg("dtype", "The buffer data type.")
       .add_arg("scope", "The storage scope.")

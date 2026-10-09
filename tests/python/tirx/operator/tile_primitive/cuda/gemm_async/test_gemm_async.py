@@ -31,7 +31,6 @@ except ImportError:
 
 import tvm
 import tvm.testing
-from tvm.ir.type import PointerType, PrimType
 from tvm.backend.cuda.tile_primitive.gemm_async import sf_tmem_layout
 from tvm.backend.cuda.tile_primitive.tma_utils import (
     SwizzleMode,
@@ -41,7 +40,6 @@ from tvm.backend.cuda.tile_primitive.tma_utils import (
 )
 from tvm.ir.type import PointerType, PrimType
 from tvm.script import tirx as T
-from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 from tvm.tirx.layout import (
     R,
