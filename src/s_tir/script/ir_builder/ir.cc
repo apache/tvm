@@ -28,7 +28,7 @@ namespace script {
 namespace ir_builder {
 namespace s_tir {
 
-using tirx::ForFrameNode;
+using ir::ForFrameNode;
 using tirx::TensorDecl;
 using tvm::s_tir::IterVar;
 using tvm::s_tir::IterVarType;
@@ -62,9 +62,13 @@ TensorVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
   } else {
     TVM_FFI_THROW(ValueError) << "Unexpected type for MatchBuffer";
   }
-  auto frame = IRBuilder::Current()->GetLastFrame<tirx::TIRFrame>();
+  auto frame = IRBuilder::Current()->GetLastFrame<ir::StmtFrame>();
   TVM_FFI_CHECK(frame.has_value(), ValueError) << "match_buffer requires a statement frame";
-  frame.value()->BindBufferRegion(buffer, region);
+  if (auto* alias_frame = frame.value().as<tirx::TIRFrameNode>()) {
+    ffi::GetRef<tirx::TIRFrame>(alias_frame)->BindBufferRegion(buffer, region);
+  } else {
+    TVM_FFI_THROW(ValueError) << "match_buffer requires a frame that supports region aliases";
+  }
   return buffer;
 }
 

@@ -98,6 +98,12 @@ TVM_DLL Pass UnrollLoop();
 TVM_DLL Pass RemoveNoOp();
 
 /*!
+ * \brief Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv()).
+ * \return The pass.
+ */
+TVM_DLL Pass RenormalizeSplitPattern();
+
+/*!
  * \brief Run statement-level arithmetic simplifications on the TIR Function.
  *
  * \return The pass.

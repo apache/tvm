@@ -64,7 +64,7 @@ def default_tir_pipeline(*, prepare_only=False):
             [
                 s_tir.transform.HoistIfThenElse(),
                 tirx.transform.UnrollLoop(),
-                s_tir.transform.RenormalizeSplitPattern(),
+                tirx.transform.RenormalizeSplitPattern(),
                 s_tir.transform.StmtSimplify(),
                 tirx.transform.RemoveNoOp(),
                 s_tir.transform.RewriteUnsafeSelect(),

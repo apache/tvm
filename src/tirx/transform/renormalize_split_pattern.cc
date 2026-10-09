@@ -24,18 +24,14 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
-#include <tvm/s_tir/analysis.h>
-#include <tvm/s_tir/stmt_functor.h>
-#include <tvm/s_tir/transform.h>
-#include <tvm/tirx/analysis.h>
 #include <tvm/tirx/stmt.h>
+#include <tvm/tirx/transform.h>
 
-#include "../../s_tir/ir/ir_mutator_with_analyzer.h"
 #include "../../sym/pattern_match.h"
+#include "../ir/ir_mutator_with_analyzer.h"
 
 namespace tvm {
-namespace s_tir {
-using namespace tvm::tirx;
+namespace tirx {
 
 using namespace sym;
 
@@ -170,7 +166,8 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     // Pattern var match IntImm
     PVar<IntImm> c1, c2;
     // x < c2 <=> x/c2 < 1 <=> floor(x / c2) < 1
-    TRY_RECURSIVE_REWRITE_IF(x < c2, floordiv(x, c2) < 1, c2.Eval()->value > 0);  // NOLINT
+    TRY_RECURSIVE_REWRITE_IF(x < c2, floordiv(x, c2) < 1,
+                             c2.Eval()->value > 0 && !x.Eval().as<VarNode>());  // NOLINT
     return ret;
   }
 
@@ -224,15 +221,15 @@ Pass RenormalizeSplitPattern() {
                   .ValueOrUnchanged(std::move(n->body));
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "s_tir.RenormalizeSplitPattern");
+  return CreateFunctionPass(pass_func, 0, "tirx.RenormalizeSplitPattern");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("s_tir.transform.RenormalizeSplitPattern", RenormalizeSplitPattern);
+  refl::GlobalDef().def("tirx.transform.RenormalizeSplitPattern", RenormalizeSplitPattern);
 }
 
 }  // namespace transform
 
-}  // namespace s_tir
+}  // namespace tirx
 }  // namespace tvm

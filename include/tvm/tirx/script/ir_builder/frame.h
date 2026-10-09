@@ -33,24 +33,37 @@ namespace script {
 namespace ir_builder {
 namespace tirx {
 
+// Retain dialect imports as aliases of the shared canonical frames.
+using ir::AssertFrame;
+using ir::AssertFrameNode;
+using ir::ElseFrame;
+using ir::ElseFrameNode;
+using ir::ForFrame;
+using ir::ForFrameNode;
+using ir::IfFrame;
+using ir::IfFrameNode;
+using ir::RegionFrame;
+using ir::RegionFrameNode;
+using ir::ThenFrame;
+using ir::ThenFrameNode;
+using ir::WhileFrame;
+using ir::WhileFrameNode;
+
 /*!
- * \brief A base frame that represents the TIR fame with body of statements.
+ * \brief A statement frame with dialect-specific tensor alias policy.
  *
  * \sa TIRFrame
  */
-class TIRFrameNode : public IRBuilderFrameNode {
+class TIRFrameNode : public ir::StmtFrameNode {
  public:
-  /*! \brief The Stmt within in this frame. */
-  ffi::Array<tvm::Stmt> stmts;
-
   /*! \brief Bind a view in frames that support region aliases. */
   virtual void BindBufferRegion(tvm::tirx::TensorVar buffer, tvm::TensorRegion region);
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TIRFrameNode>().def_ro("stmts", &TIRFrameNode::stmts);
+    refl::ObjectDef<TIRFrameNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.tirx.TIRFrame", TIRFrameNode, IRBuilderFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.tirx.TIRFrame", TIRFrameNode, ir::StmtFrameNode);
 };
 
 /*!
@@ -58,13 +71,13 @@ class TIRFrameNode : public IRBuilderFrameNode {
  *
  * \sa TIRFrameNode
  */
-class TIRFrame : public IRBuilderFrame {
+class TIRFrame : public ir::StmtFrame {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TIRFrame, IRBuilderFrame, TIRFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TIRFrame, ir::StmtFrame, TIRFrameNode);
 
  protected:
   TIRFrame() = default;
-  explicit TIRFrame(ffi::ObjectPtr<TIRFrameNode> data) : IRBuilderFrame(data) {}
+  explicit TIRFrame(ffi::ObjectPtr<TIRFrameNode> data) : ir::StmtFrame(data) {}
 };
 
 /*!
@@ -136,329 +149,6 @@ class FunctionFrame : public TIRFrame {
     data_ = std::move(data);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionFrame, TIRFrame, FunctionFrameNode);
-};
-
-/*!
- * \brief A frame that represents the for loop.
- *
- * \sa ForFrame
- */
-class ForFrameNode : public TIRFrameNode {
- public:
-  /*!
-   * \brief Functions that generate loop nests.
-   * \param loop_vars The loop variables, from outer to inner
-   * \param loop_extents The loop extents that correspond to loop variables
-   * \param loop_body The loop body
-   * \return A stmt, the loop nest
-   */
-  using FMakeForLoop = ffi::TypedFunction<tvm::Stmt(
-      ffi::Array<tvm::Var> loop_vars, ffi::Array<Range> loop_extents,
-      ffi::Array<ffi::Optional<PrimExpr>> loop_steps, tvm::SeqStmt loop_body, Span span)>;
-  /*! \brief The loop variable. */
-  ffi::Array<tvm::Var> vars;
-  /*! \brief The domains of iteration. */
-  ffi::Array<Range> doms;
-  /*! \brief The optional steps of iteration. */
-  ffi::Array<ffi::Optional<PrimExpr>> steps;
-  /*! \brief The for loop generating function. */
-  FMakeForLoop f_make_for_loop;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ForFrameNode>()
-        .def_ro("vars", &ForFrameNode::vars)
-        .def_ro("doms", &ForFrameNode::doms);
-    // `f_make_for_loop` is not registered as it's not visited.
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ForFrame", ForFrameNode, TIRFrameNode);
-
- public:
-  /*! \brief Apply source target names before entry, preserving variable identity. */
-  void SetNames(ffi::Optional<ffi::Variant<ffi::String, ffi::Array<ffi::String>>> names);
-  /*! \brief Construct the loop nest with this frame's stored source location. */
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to ForFrameNode.
- *
- * \sa ForFrameNode
- */
-class ForFrame : public TIRFrame {
- public:
-  explicit ForFrame(ffi::ObjectPtr<ForFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ForFrame, TIRFrame, ForFrameNode);
-};
-
-/*!
- * \brief A frame that represents the assert statement. Proceeds if the condition is true,
- * otherwise aborts with the message.
- *
- * \sa AssertFrame
- */
-class AssertFrameNode : public TIRFrameNode {
- public:
-  explicit AssertFrameNode(ffi::UnsafeInit tag) : condition(tag), error_kind(tag) {}
-
-  AssertFrameNode(PrimExpr condition, tvm::StringImm error_kind)
-      : condition(std::move(condition)), error_kind(std::move(error_kind)) {}
-
-  /*! \brief The PrimExpr to test. */
-  PrimExpr condition;
-  /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
-  tvm::StringImm error_kind;
-  /*! \brief Error message fragments, concatenated at runtime when assertion fails. */
-  ffi::Array<tvm::StringImm> message_parts;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AssertFrameNode>()
-        .def_ro("condition", &AssertFrameNode::condition)
-        .def_ro("error_kind", &AssertFrameNode::error_kind)
-        .def_ro("message_parts", &AssertFrameNode::message_parts);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.AssertFrame", AssertFrameNode,
-                                    TIRFrameNode);
-
- public:
-  /*!
-   * \brief The method called when exiting RAII scope.
-   * \sa tvm::support::With
-   */
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to AssertFrameNode.
- *
- * \sa AssertFrameNode
- */
-class AssertFrame : public TIRFrame {
- public:
-  explicit AssertFrame(ffi::ObjectPtr<AssertFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AssertFrame, TIRFrame, AssertFrameNode);
-};
-
-/*!
- * \brief A result-free region with lexical body parameters.
- * \sa RegionFrame
- */
-class RegionFrameNode : public TIRFrameNode {
- public:
-  explicit RegionFrameNode(ffi::UnsafeInit tag) : op(tag) {}
-  explicit RegionFrameNode(Op op) : op(std::move(op)) {}
-
-  /*! \brief The operation represented by this region. */
-  Op op;
-  /*! \brief Operands evaluated in the enclosing scope. */
-  ffi::Array<Expr> args;
-  /*! \brief Variables defined at entry to the region body. */
-  ffi::Array<Var> body_params;
-  /*! \brief Additional operation attributes. */
-  DictAttrs attrs;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RegionFrameNode>()
-        .def_ro("op", &RegionFrameNode::op)
-        .def_ro("args", &RegionFrameNode::args)
-        .def_ro("body_params", &RegionFrameNode::body_params)
-        .def_ro("attrs", &RegionFrameNode::attrs);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.RegionFrame", RegionFrameNode,
-                                    TIRFrameNode);
-
-  /*! \brief Construct the region and add it to the enclosing builder frame. */
-  void ExitWithScope() final;
-};
-
-/*! \brief Managed reference to RegionFrameNode. */
-class RegionFrame : public TIRFrame {
- public:
-  explicit RegionFrame(ffi::ObjectPtr<RegionFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RegionFrame, TIRFrame, RegionFrameNode);
-};
-
-/*!
- * \brief A frame that represents while loop.
- *
- * \sa WhileFrame
- */
-class WhileFrameNode : public TIRFrameNode {
- public:
-  explicit WhileFrameNode(ffi::UnsafeInit tag) : condition(tag) {}
-
-  explicit WhileFrameNode(PrimExpr condition) : condition(std::move(condition)) {}
-
-  /*! \brief The termination condition of while. */
-  PrimExpr condition;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<WhileFrameNode>().def_ro("condition", &WhileFrameNode::condition);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.WhileFrame", WhileFrameNode,
-                                    TIRFrameNode);
-
- public:
-  /*!
-   * \brief The method called when exiting RAII scope.
-   * \sa tvm::support::With
-   */
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to WhileFrameNode.
- *
- * \sa WhileFrameNode
- */
-class WhileFrame : public TIRFrame {
- public:
-  explicit WhileFrame(ffi::ObjectPtr<WhileFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(WhileFrame, TIRFrame, WhileFrameNode);
-};
-
-/*!
- * \brief A frame that represents if statement.
- *
- * \sa IfFrame
- */
-class IfFrameNode : public TIRFrameNode {
- public:
-  explicit IfFrameNode(ffi::UnsafeInit tag) : condition(tag) {}
-
-  explicit IfFrameNode(PrimExpr condition) : condition(std::move(condition)) {}
-
-  /*! \brief The condition of the if statement. */
-  PrimExpr condition;
-  /*! \brief The statements in the true branch. */
-  ffi::Optional<ffi::Array<tvm::Stmt>> then_stmts;
-  /*! \brief The stetements in the false branch. */
-  ffi::Optional<ffi::Array<tvm::Stmt>> else_stmts;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<IfFrameNode>()
-        .def_ro("condition", &IfFrameNode::condition)
-        .def_ro("then_stmts", &IfFrameNode::then_stmts)
-        .def_ro("else_stmts", &IfFrameNode::else_stmts);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.IfFrame", IfFrameNode, TIRFrameNode);
-
- public:
-  /*!
-   * \brief The method called when exiting RAII scope.
-   * \sa tvm::support::With
-   */
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to IfFrameNode.
- *
- * \sa IfFrameNode
- */
-class IfFrame : public TIRFrame {
- public:
-  explicit IfFrame(ffi::ObjectPtr<IfFrameNode> data) : TIRFrame(data) {
-    TVM_FFI_ICHECK(data != nullptr);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IfFrame, TIRFrame, IfFrameNode);
-};
-
-/*!
- * \brief A frame that represents then.
- *
- * \sa ThenFrame
- */
-class ThenFrameNode : public TIRFrameNode {
- public:
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ThenFrameNode>();
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ThenFrame", ThenFrameNode,
-                                    TIRFrameNode);
-
- public:
-  /*!
-   * \brief The method called when entering RAII scope.
-   * \sa tvm::support::With
-   */
-  void EnterWithScope() final;
-  /*!
-   * \brief The method called when exiting RAII scope.
-   * \sa tvm::support::With
-   */
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to ThenFrameNode.
- *
- * \sa ThenFrameNode
- */
-class ThenFrame : public TIRFrame {
- public:
-  explicit ThenFrame(ffi::ObjectPtr<ThenFrameNode> data) : TIRFrame(data) {
-    TVM_FFI_ICHECK(data != nullptr);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ThenFrame, TIRFrame, ThenFrameNode);
-};
-
-/*!
- * \brief A frame that represents else.
- *
- * \sa ElseFrame
- */
-class ElseFrameNode : public TIRFrameNode {
- public:
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ElseFrameNode>();
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.ElseFrame", ElseFrameNode,
-                                    TIRFrameNode);
-
- public:
-  /*!
-   * \brief The method called when entering RAII scope.
-   * \sa tvm::support::With
-   */
-  void EnterWithScope() final;
-  /*!
-   * \brief The method called when exiting RAII scope.
-   * \sa tvm::support::With
-   */
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to ElseFrameNode.
- *
- * \sa ElseFrameNode
- */
-class ElseFrame : public TIRFrame {
- public:
-  explicit ElseFrame(ffi::ObjectPtr<ElseFrameNode> data) : TIRFrame(data) {
-    TVM_FFI_ICHECK(data != nullptr);
-  }
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ElseFrame, TIRFrame, ElseFrameNode);
 };
 
 }  // namespace tirx

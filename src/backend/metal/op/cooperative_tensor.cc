@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include <tvm/backend/metal/op.h>
+#include <tvm/backend/metal/op/cooperative_tensor.h>
 #include <tvm/tirx/op_attr_types.h>
 
 namespace tvm {
@@ -30,18 +30,7 @@ const Op& cooperative_tensor_fill_op() {
   static const Op op = Op::Get("tirx.metal.cooperative_tensor_fill");
   return op;
 }
-const Op& cooperative_tensor_load_op() {
-  static const Op op = Op::Get("tirx.metal.cooperative_tensor_load");
-  return op;
-}
-const Op& cooperative_tensor_store_op() {
-  static const Op op = Op::Get("tirx.metal.cooperative_tensor_store");
-  return op;
-}
-const Op& cooperative_tensor_multiply_accumulate_op() {
-  static const Op op = Op::Get("tirx.metal.cooperative_tensor_multiply_accumulate");
-  return op;
-}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.metal.cooperative_tensor_fill")
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
@@ -53,6 +42,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                     ffi::String("tirx.metal.cooperative_tensor_fill"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+}
+
+const Op& cooperative_tensor_load_op() {
+  static const Op op = Op::Get("tirx.metal.cooperative_tensor_load");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.metal.cooperative_tensor_load")
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(sig::arg("d", "The D operand."), sig::arg<IntExpr>("index", "The index."),
@@ -68,6 +65,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                     ffi::String("tirx.metal.cooperative_tensor_load"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+}
+
+const Op& cooperative_tensor_store_op() {
+  static const Op op = Op::Get("tirx.metal.cooperative_tensor_store");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.metal.cooperative_tensor_store")
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(sig::arg("d", "The D operand."), sig::arg<IntExpr>("index", "The index."),
@@ -83,6 +88,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                     ffi::String("tirx.metal.cooperative_tensor_store"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+}
+
+const Op& cooperative_tensor_multiply_accumulate_op() {
+  static const Op op = Op::Get("tirx.metal.cooperative_tensor_multiply_accumulate");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.metal.cooperative_tensor_multiply_accumulate")
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(

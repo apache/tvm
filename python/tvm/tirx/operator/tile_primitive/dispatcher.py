@@ -31,7 +31,7 @@ from tvm.ir import Op
 from tvm.tirx import Function
 from tvm.tirx.operator import get_tirx_op
 from tvm.tirx.stmt import TileOpCall
-from tvm.tirx.tile_primitive import DispatchContext
+from tvm.tirx.tile_dispatch import DispatchContext
 
 
 class DispatchFail(RuntimeError):
