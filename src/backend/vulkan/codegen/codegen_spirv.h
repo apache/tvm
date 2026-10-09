@@ -50,10 +50,10 @@ using namespace tirx;
 /*!
  * \brief Code generator into SPIRV
  */
-class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
+class CodeGenSPIRV : public tvm::ExprFunctor<spirv::Value(const Expr&)>,
                      public StmtFunctor<void(const Stmt&)> {
  public:
-  using tirx::ExprFunctor<spirv::Value(const Expr&)>::Dispatch;
+  using tvm::ExprFunctor<spirv::Value(const Expr&)>::Dispatch;
   using StmtFunctor::Dispatch;
 
   /*!
@@ -129,7 +129,7 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
  protected:
   /*! \brief Storage information for a buffer */
   struct StorageInfo {
-    /*! \brief The name of the tirx::Var for the buffer
+    /*! \brief The name of the tvm::Var for the buffer
      *
      * Used for error messages.
      */

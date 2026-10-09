@@ -378,27 +378,6 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
   const Target& target_;
 };
 
-class BufferOffsetRemover : public StmtExprMutator {
- public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
-  static Stmt Remove(const Stmt& stmt) {
-    return ffi::make_object<BufferOffsetRemover>()
-        ->Mutate(stmt, InplaceMode::kAllow)
-        .ValueOrUnchanged(stmt);
-  }
-
- private:
-  UnchangedOr<Expr> Mutate_(const CallNode* call, InplaceMode inplace_mode) final {
-    if (call->op.same_as(tirx::buffer_offset_op())) {
-      auto buffer_load = call->args[0].as_or_throw<TensorLoad>();
-      TVM_FFI_ICHECK_EQ(buffer_load->indices.size(), 1) << "Expected a single index";
-      return buffer_load->indices[0];
-    }
-    return StmtExprMutator::Mutate_(call, inplace_mode);
-  }
-};
-
 namespace {
 Target ResolveTarget(const Function& f) {
   auto target = f->GetAttr<Target>(tvm::attr::kTarget);
@@ -419,7 +398,6 @@ Pass LowerTIRxCleanup() {
     auto [body, params] = LayoutApplier::Flatten(n->body.value(), n->params, target);
     n->body = std::move(body);
     n->params = std::move(params);
-    n->body = BufferOffsetRemover::Remove(n->body.value());
     return f;
   };
   return CreateFunctionPass(pass_func, 0, "tirx.LowerTIRxCleanup", {});

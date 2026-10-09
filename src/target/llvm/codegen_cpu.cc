@@ -49,6 +49,7 @@
 #include <llvm/Transforms/Utils/ModuleUtils.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/analysis.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
@@ -550,7 +551,7 @@ void CodeGenCPU::CreateComputeScope(const RegionStmtNode* op) {
   // - Make sure the generated compute function is clearly separately(though it can get inlined)
   // - Set noalias on all the pointer arguments, some of them are loaded from ffi::PackedArgs.
   //   This is easier than set the alias scope manually.
-  ffi::Array<Var> vargs = tirx::UndefinedVars(op->body, {});
+  ffi::Array<Var> vargs = tvm::UndefinedVars(op->body, {});
   std::vector<llvm::Value*> arg_values;
   std::vector<llvm::Type*> arg_types;
   for (Var v : vargs) {
@@ -663,7 +664,7 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task, std::strin
   SetTargetAttributes(f);
 
   // allocate and setup the closure, call the closure.
-  ffi::Array<Var> vfields = tirx::UndefinedVars(body, {});
+  ffi::Array<Var> vfields = tvm::UndefinedVars(body, {});
   uint64_t nbytes;
   TypedPointer cdata = PackClosureData(vfields, &nbytes, "closure_" + name);
   auto launch_callee = llvm::FunctionCallee(ftype_tvm_parallel_launch_, RuntimeTVMParallelLaunch());

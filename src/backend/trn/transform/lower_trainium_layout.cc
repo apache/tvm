@@ -325,23 +325,6 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
   }
 };
 
-class TrainiumBufferOffsetRemover : public StmtExprMutator {
- public:
-  static Stmt Remove(const Stmt& stmt) {
-    return ffi::make_object<TrainiumBufferOffsetRemover>()->Mutate(stmt).ValueOrUnchanged(stmt);
-  }
-
- private:
-  UnchangedOr<Expr> Mutate_(const CallNode* call, InplaceMode inplace_mode) final {
-    if (call->op.same_as(tirx::buffer_offset_op())) {
-      auto buffer_load = call->args[0].as_or_throw<TensorLoad>();
-      TVM_FFI_ICHECK_EQ(buffer_load->indices.size(), 1) << "Expected a single index";
-      return buffer_load->indices[0];
-    }
-    return StmtExprMutator::Mutate_(call, inplace_mode);
-  }
-};
-
 namespace transform {
 
 Pass LowerTrainiumLayout() {
@@ -351,7 +334,6 @@ Pass LowerTrainiumLayout() {
     auto [body, params] = TrainiumLayoutApplier::Lower(n->body.value(), n->params);
     n->body = std::move(body);
     n->params = std::move(params);
-    n->body = TrainiumBufferOffsetRemover::Remove(n->body.value());
     return f;
   };
   return CreateFunctionPass(pass_func, 0, "tirx.backend.trn.LowerTrainiumLayout", {});

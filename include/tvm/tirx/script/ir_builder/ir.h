@@ -35,13 +35,13 @@ namespace script {
 namespace ir_builder {
 namespace tirx {
 
+using tvm::Var;
 using tvm::ffi::Tuple;
 using tvm::ffi::Variant;
 using tvm::runtime::Tensor;
 using tvm::tirx::ExecScope;
 using tvm::tirx::Layout;
 using tvm::tirx::TensorVar;
-using tvm::tirx::Var;
 
 /*!
  * \brief The buffer declaration function.
@@ -118,27 +118,26 @@ void TileOpCall(tvm::tirx::TileOpCall op_call);
  * \param dtype The dtype of the introduced scope id vars ("int32" or "uint32").
  * \return The introduced scope id vars.
  */
-ffi::Array<tvm::tirx::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                                   ffi::String name, ffi::String cur,
-                                   PrimType dtype = PrimType::Int(32));
+ffi::Array<tvm::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                             ffi::String name, ffi::String cur, PrimType dtype = PrimType::Int(32));
 
-ffi::Array<tvm::tirx::Var> ClusterId(ffi::Optional<ffi::Array<PrimExpr>> extents,
-                                     ffi::String parent, PrimType dtype = PrimType::Int(32));
+ffi::Array<tvm::Var> ClusterId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                               PrimType dtype = PrimType::Int(32));
 
-ffi::Array<tvm::tirx::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                                 ffi::Optional<ffi::Array<PrimExpr>> preferred = std::nullopt,
+ffi::Array<tvm::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                           ffi::Optional<ffi::Array<PrimExpr>> preferred = std::nullopt,
+                           PrimType dtype = PrimType::Int(32));
+
+ffi::Array<tvm::Var> CtaIdInPair(PrimType dtype = PrimType::Int(32));
+
+ffi::Array<tvm::Var> WarpgroupId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
                                  PrimType dtype = PrimType::Int(32));
 
-ffi::Array<tvm::tirx::Var> CtaIdInPair(PrimType dtype = PrimType::Int(32));
+ffi::Array<tvm::Var> WarpId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                            PrimType dtype = PrimType::Int(32));
 
-ffi::Array<tvm::tirx::Var> WarpgroupId(ffi::Optional<ffi::Array<PrimExpr>> extents,
-                                       ffi::String parent, PrimType dtype = PrimType::Int(32));
-
-ffi::Array<tvm::tirx::Var> WarpId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                                  PrimType dtype = PrimType::Int(32));
-
-ffi::Array<tvm::tirx::Var> ThreadId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                                    PrimType dtype = PrimType::Int(32));
+ffi::Array<tvm::Var> ThreadId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                              PrimType dtype = PrimType::Int(32));
 
 /*!
  * \brief The serial For statement.
@@ -356,16 +355,16 @@ inline Var Handle(ffi::Optional<PrimType> dtype = std::nullopt,
                   ffi::String storage_scope = "global") {
   Type type_annotation = dtype.has_value() ? Type(PointerType(dtype.value(), storage_scope))
                                            : Type(PointerType::VoidPointerTy(storage_scope));
-  return tvm::tirx::Var("", type_annotation);
+  return tvm::Var("", type_annotation);
 }
 
-inline Var TensorMap() { return tvm::tirx::Var("", PointerType(tvm::tirx::TensorMapType())); }
+inline Var TensorMap() { return tvm::Var("", PointerType(tvm::tirx::TensorMapType())); }
 
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                      \
-  inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt) {        \
-    PrimType dtype = DType;                                                      \
-    return expr.has_value() ? tvm::prim::cast(dtype, expr.value())               \
-                            : tvm::tirx::Var("", dtype).as_or_throw<PrimExpr>(); \
+#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                \
+  inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt) {  \
+    PrimType dtype = DType;                                                \
+    return expr.has_value() ? tvm::prim::cast(dtype, expr.value())         \
+                            : tvm::Var("", dtype).as_or_throw<PrimExpr>(); \
   }
 
 #define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(DType, Code)                         \

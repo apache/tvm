@@ -233,48 +233,6 @@ class _TensorMethods:
         """Get the byte offset of the buffer."""
         return self.ty.elem_offset * tvm.DataType(self.ty.dtype).bits // 8
 
-    def elem_offset_of(self, indices, inner=True):
-        """Get the element offset of the buffer at the given indices.
-        Note that indices subject to buffer's layout mapping.
-
-        Parameters
-        ----------
-        indices : Union[Expr, List[Expr]]
-            The indices of the element in the original buffer.
-
-        inner : bool, optional
-            If False, the offset is relative to the original buffer.
-            Default is True.
-
-        Returns
-        -------
-        offset: Expr
-            The element offset of the buffer at the given indices.
-        """
-        if inner:
-            return _ffi_api.TensorOffsetOfp(self, indices)
-        return self.ty.elem_offset + _ffi_api.TensorOffsetOfp(self, indices)
-
-    def byte_offset_of(self, indices, inner=True):
-        """Get the byte offset of the buffer at the given indices.
-        Note that indices subject to buffer's layout mapping.
-
-        Parameters
-        ----------
-        indices : Union[Expr, List[Expr]]
-            The indices of the element in the original buffer.
-
-        inner : bool, optional
-            If False, the offset is relative to the original buffer.
-            Default is True.
-
-        Returns
-        -------
-        offset: Expr
-            The byte offset of the buffer at the given indices.
-        """
-        return self.elem_offset_of(indices, inner) * tvm.DataType(self.ty.dtype).bits // 8
-
     def is_scalar(self, alloc_or_decl=True):
         """Check if the buffer is a scalar.
 

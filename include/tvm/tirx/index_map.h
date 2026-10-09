@@ -29,7 +29,6 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/tensor.h>
-#include <tvm/tirx/var.h>
 
 #include <utility>
 

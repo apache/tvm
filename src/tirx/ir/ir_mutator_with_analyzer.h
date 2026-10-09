@@ -109,10 +109,10 @@ class IRMutatorWithAnalyzer : public StmtExprMutator {
     for (const auto& [var, _] : iter_vars_) {
       iter_var_nodes.insert(var.get());
     }
-    auto f_use_itervar = [&iter_var_nodes](const tirx::VarNode* v) {
+    auto f_use_itervar = [&iter_var_nodes](const tvm::VarNode* v) {
       return iter_var_nodes.count(v);
     };
-    auto walkfn = [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+    auto walkfn = [&](const tvm::Var& var) -> ffi::Expected<ffi::WalkResult> {
       return f_use_itervar(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
                                       : ffi::WalkResult::Advance();
     };

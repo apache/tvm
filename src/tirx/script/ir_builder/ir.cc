@@ -169,8 +169,8 @@ void CheckExplicitIndexDtype(const PrimType& dtype) {
       << "ValueError: dtype of a loop/scope-id var must be \"int32\" or \"uint32\", got " << dtype;
 }
 
-ffi::Array<tvm::tirx::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                                   ffi::String name, ffi::String cur, PrimType dtype) {
+ffi::Array<tvm::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                             ffi::String name, ffi::String cur, PrimType dtype) {
   CheckExplicitIndexDtype(dtype);
   // Determine the number of Vars to introduce. Deferred form (extents=None)
   // is always 1-axis; the verifier closure fills the extent at LowerTIRx.
@@ -179,7 +179,7 @@ ffi::Array<tvm::tirx::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, 
     TVM_FFI_ICHECK_EQ(n_vars, 1) << "ValueError: " << cur << " scope only supports 1D extents, got "
                                  << n_vars << "D";
   }
-  ffi::Array<tvm::tirx::Var> scope_ids;
+  ffi::Array<tvm::Var> scope_ids;
   for (size_t i = 0; i < n_vars; ++i) {
     scope_ids.push_back(tvm::PrimVar("", dtype));
   }
@@ -187,19 +187,19 @@ ffi::Array<tvm::tirx::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, 
   // The def is visible to all subsequent stmts within the same enclosing
   // scope (Function body, RegionStmt body, ExecScope body, etc.).
   tvm::tirx::ScopeIdDef def(
-      scope_ids.Map([](tvm::tirx::Var var) { return var.as_or_throw<tvm::PrimVar>(); }), extents,
+      scope_ids.Map([](tvm::Var var) { return var.as_or_throw<tvm::PrimVar>(); }), extents,
       tvm::tirx::StringPairToScopeBinding(parent, cur));
   AddToParent(tvm::tirx::ScopeIdDefStmt(def));
   return scope_ids;
 }
 
-ffi::Array<tvm::tirx::Var> ClusterId(ffi::Optional<ffi::Array<PrimExpr>> extents,
-                                     ffi::String parent, PrimType dtype) {
+ffi::Array<tvm::Var> ClusterId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                               PrimType dtype) {
   return ScopeId(extents, parent, "T.cluster_id", "cluster", dtype);
 }
 
-ffi::Array<tvm::tirx::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                                 ffi::Optional<ffi::Array<PrimExpr>> preferred, PrimType dtype) {
+ffi::Array<tvm::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                           ffi::Optional<ffi::Array<PrimExpr>> preferred, PrimType dtype) {
   if (preferred.has_value()) {
     CheckExplicitIndexDtype(dtype);
     TVM_FFI_ICHECK(parent == "cluster")
@@ -207,12 +207,12 @@ ffi::Array<tvm::tirx::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ff
         << "\"";
     TVM_FFI_ICHECK(extents.has_value())
         << "ValueError: preferred=... requires explicit extents (deferred form is incompatible)";
-    ffi::Array<tvm::tirx::Var> scope_ids;
+    ffi::Array<tvm::Var> scope_ids;
     for (size_t i = 0; i < extents.value().size(); ++i) {
       scope_ids.push_back(tvm::PrimVar("", dtype));
     }
     tvm::tirx::ScopeIdDef def(
-        scope_ids.Map([](tvm::tirx::Var var) { return var.as_or_throw<tvm::PrimVar>(); }), extents,
+        scope_ids.Map([](tvm::Var var) { return var.as_or_throw<tvm::PrimVar>(); }), extents,
         tvm::tirx::StringPairToScopeBinding(parent, "cta"), preferred);
     AddToParent(tvm::tirx::ScopeIdDefStmt(def));
     return scope_ids;
@@ -220,28 +220,28 @@ ffi::Array<tvm::tirx::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ff
   return ScopeId(extents, parent, "T.cta_id", "cta", dtype);
 }
 
-ffi::Array<tvm::tirx::Var> CtaIdInPair(PrimType dtype) {
+ffi::Array<tvm::Var> CtaIdInPair(PrimType dtype) {
   CheckExplicitIndexDtype(dtype);
-  ffi::Array<tvm::tirx::Var> scope_ids{tvm::PrimVar("", dtype)};
+  ffi::Array<tvm::Var> scope_ids{tvm::PrimVar("", dtype)};
   tvm::tirx::ScopeIdDef def(
-      scope_ids.Map([](tvm::tirx::Var var) { return var.as_or_throw<tvm::PrimVar>(); }),
+      scope_ids.Map([](tvm::Var var) { return var.as_or_throw<tvm::PrimVar>(); }),
       ffi::Array<PrimExpr>{IntImm::Int32(2)}, tvm::tirx::ScopeBinding::kClusterCtaPair);
   AddToParent(tvm::tirx::ScopeIdDefStmt(def));
   return scope_ids;
 }
 
-ffi::Array<tvm::tirx::Var> WarpgroupId(ffi::Optional<ffi::Array<PrimExpr>> extents,
-                                       ffi::String parent, PrimType dtype) {
+ffi::Array<tvm::Var> WarpgroupId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                                 PrimType dtype) {
   return ScopeId(extents, parent, "T.warpgroup_id", "warpgroup", dtype);
 }
 
-ffi::Array<tvm::tirx::Var> WarpId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                                  PrimType dtype) {
+ffi::Array<tvm::Var> WarpId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                            PrimType dtype) {
   return ScopeId(extents, parent, "T.warp_id", "warp", dtype);
 }
 
-ffi::Array<tvm::tirx::Var> ThreadId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                                    PrimType dtype) {
+ffi::Array<tvm::Var> ThreadId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+                              PrimType dtype) {
   return ScopeId(extents, parent, "T.thread_id", "thread", dtype);
 }
 
@@ -619,7 +619,7 @@ tvm::tirx::Stmt Evaluate(Expr value) {
 
 Var Ptr(PrimType dtype, ffi::String storage_scope = "global") {
   PointerType type_annotation(dtype, storage_scope);
-  return tvm::tirx::Var("", type_annotation);
+  return tvm::Var("", type_annotation);
 }
 
 using tvm::script::ir_builder::details::Namer;
