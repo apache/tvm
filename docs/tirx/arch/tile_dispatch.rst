@@ -24,7 +24,7 @@ in ``python/tvm/backend/{cuda,trn}/tensor_instructions.py`` using the shared
 ``python/tvm/tirx/tensor_instruction.py`` machinery. C++ reflected attribute
 types and the native Call validator are in ``src/tirx/op/tile.cc``.
 
-``tirx.TilePrimitiveDispatch`` remains the first phase of ``LowerTIRx``.
+``tirx.TileDispatch`` remains the first phase of ``LowerTIRx``.
 The pass recognizes ``Evaluate(Call)`` by the operator's ``TIRxOpCategory``:
 ``tile_primitive`` or ``tile_composite``. It validates the call, resolves the
 scope against the active thread set, constructs a ``DispatchContext``, and

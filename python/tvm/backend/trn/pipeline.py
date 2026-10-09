@@ -32,7 +32,7 @@ def trn_pipeline():
         passes = [
             trn_transform.TrnPrivateBufferAlloc(),
             trn_transform.TrnNaiveAllocator(),
-            tirx.transform.TilePrimitiveDispatch(),
+            tirx.transform.TileDispatch(),
             trn_transform.LowerTrainiumLayout(),
             tvm.s_tir.transform.DecorateDeviceScope(),
             tirx.transform.StmtSimplify(),

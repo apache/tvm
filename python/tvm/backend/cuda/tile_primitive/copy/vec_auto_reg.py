@@ -364,9 +364,9 @@ def _axis_decl(axis_name: str, sctx: DispatchContext):
     """Declare the runtime Var for one thread axis (called inside impl body).
 
     Each scope_id declarator emits a ``ScopeIdDef`` stmt at the current
-    builder frame. ``TilePrimitiveDispatch`` re-gathers + resolves all
+    builder frame. ``TileDispatch`` re-gathers + resolves all
     ScopeIdDefs after dispatch (see ``ResolveAllScopeBinds`` in
-    ``tile_primitive_dispatch.cc``), so dispatch-introduced vars are bound
+    ``tile_dispatch.cc``), so dispatch-introduced vars are bound
     alongside kernel-declared ones.
 
     Extents are deferred: the kernel header is expected to declare the full
