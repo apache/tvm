@@ -330,7 +330,7 @@ TVM_DLL Type TypeLCA(const Type& lhs, const Type& rhs, const sym::Analyzer& ana)
  * \param ty The type object to be analyzed.
  * \return The list of TIR variables that appear in the input type.
  */
-TVM_DLL ffi::Array<tirx::Var> TIRVarsInType(const Type& ty);
+TVM_DLL ffi::Array<tvm::Var> TIRVarsInType(const Type& ty);
 
 /*!
  * \brief Get the TIR variables that appear in the input type.
@@ -344,7 +344,7 @@ TVM_DLL ffi::Array<tirx::Var> TIRVarsInType(const Type& ty);
  *   deduplicated, each TIR variable will appear at most once, and in
  *   order of occurrence.
  */
-TVM_DLL ffi::Array<tirx::Var> DefinableTIRVarsInType(const Type& ty);
+TVM_DLL ffi::Array<tvm::Var> DefinableTIRVarsInType(const Type& ty);
 
 /*! \brief Collect expressions whose usage requires them to be non-negative
  *
@@ -365,7 +365,7 @@ TVM_DLL ffi::Array<PrimExpr> CollectNonNegativeExpressions(const Type& ty);
  * \param expr The relax expression (e.g. a Function) to be analyzed.
  * \return The list of TIR variables that are defined in the input function.
  */
-TVM_DLL ffi::Array<tirx::Var> DefinedSymbolicVars(const Expr& expr);
+TVM_DLL ffi::Array<tvm::Var> DefinedSymbolicVars(const Expr& expr);
 
 /*!
  * \brief Get the TIR variables that are used but not defined in the input function.
@@ -373,7 +373,7 @@ TVM_DLL ffi::Array<tirx::Var> DefinedSymbolicVars(const Expr& expr);
  * \param expr The relax expression (e.g. a Function) to be analyzed.
  * \return The list of TIR variables that are used but not defined in the input function.
  */
-TVM_DLL ffi::Array<tirx::Var> FreeSymbolicVars(const Expr& expr);
+TVM_DLL ffi::Array<tvm::Var> FreeSymbolicVars(const Expr& expr);
 //-----------------------------------
 // General IR analysis
 //-----------------------------------

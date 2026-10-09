@@ -228,7 +228,7 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
         PrimExpr curr_index = curr_intset.PointValue();
         has_same_index = prim::ExprDeepEqual()(prev_index, curr_index);
         if (thread_index_var != nullptr) {
-          auto f_uses_thread_index = [=](const tvm::tirx::VarNode* parameter) {
+          auto f_uses_thread_index = [=](const tvm::VarNode* parameter) {
             return parameter == thread_index_var;
           };
           auto walkfn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {

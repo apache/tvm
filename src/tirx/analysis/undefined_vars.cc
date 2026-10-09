@@ -18,29 +18,20 @@
  */
 
 /*!
- * \file tvm/tirx/var.h
- * \brief Variables in the TIR.
+ * \file undefined_vars.cc
+ * \brief TIRx entry point for shared structural variable analysis.
  */
-#ifndef TVM_TIR_VAR_H_
-#define TVM_TIR_VAR_H_
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/analysis.h>
 
-#include <tvm/ffi/dtype.h>
-#include <tvm/ir/cow.h>
-#include <tvm/ir/expr.h>
-#include <tvm/ir/type.h>
+namespace tvm::tirx {
 
-#include <utility>
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tirx.analysis.UndefinedVars",
+                        [](ffi::AnyView object, const ffi::Array<Var>& defs) {
+                          return tvm::UndefinedVars(object, defs);
+                        });
+}
 
-namespace tvm {
-namespace tirx {
-
-using VarNode = tvm::VarNode;
-using Var = tvm::Var;
-
-using Region = ffi::Array<Range>;
-
-}  // namespace tirx
-
-}  // namespace tvm
-
-#endif  // TVM_TIR_VAR_H_
+}  // namespace tvm::tirx

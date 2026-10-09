@@ -25,6 +25,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/analysis.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/device_api.h>

@@ -36,7 +36,6 @@
 #include "tvm/ir/expr.h"
 #include "tvm/ir/prim/expr.h"
 #include "tvm/tirx/stmt.h"
-#include "tvm/tirx/var.h"
 
 namespace tvm {
 namespace tirx {

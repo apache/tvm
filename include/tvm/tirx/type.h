@@ -106,13 +106,10 @@ class TensorTypeNode : public TypeNode {
     refl::ObjectDef<TensorTypeNode>()
         .def_ro("dtype", &TensorTypeNode::dtype)
         .def_ro("storage_scope", &TensorTypeNode::storage_scope)
-        // TODO(tqchen): use SEqHashDefSimple after the next pypi tvm-ffi release
-        .def_ro("shape", &TensorTypeNode::shape, refl::AttachFieldFlag::SEqHashDefPattern())
-        // TODO(tqchen): use SEqHashDefSimple after the next pypi tvm-ffi release
-        .def_ro("strides", &TensorTypeNode::strides, refl::AttachFieldFlag::SEqHashDefPattern())
-        // TODO(tqchen): use SEqHashDefSimple after the next pypi tvm-ffi release
+        .def_ro("shape", &TensorTypeNode::shape, refl::AttachFieldFlag::SEqHashDefSimple())
+        .def_ro("strides", &TensorTypeNode::strides, refl::AttachFieldFlag::SEqHashDefSimple())
         .def_ro("elem_offset", &TensorTypeNode::elem_offset,
-                refl::AttachFieldFlag::SEqHashDefPattern())
+                refl::AttachFieldFlag::SEqHashDefSimple())
         .def_ro("data_alignment", &TensorTypeNode::data_alignment)
         .def_ro("offset_factor", &TensorTypeNode::offset_factor)
         .def_ro("layout", &TensorTypeNode::layout)

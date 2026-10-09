@@ -340,7 +340,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
     return analyzer->Simplify(
         ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(e, f_substitute).as_or_throw<PrimExpr>());
   };
-  auto rewrite_region = [rewrite_expr](const Region& region) {
+  auto rewrite_region = [rewrite_expr](const ffi::Array<Range>& region) {
     return region.Map([rewrite_expr](const Range& r) {
       return Range::FromMinExtent(rewrite_expr(r->min), rewrite_expr(r->extent));
     });

@@ -86,14 +86,14 @@ std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
   // symbolic variables.  We still want to remove the relax variable
   // to reduce computational steps in the parent, but we need to
   // provide the symbolic variables the other steps.
-  auto defined_tir_params = [&]() -> PSet<tirx::Var> {
+  auto defined_tir_params = [&]() -> PSet<tvm::Var> {
     auto param_ty = TupleType(params.Map([](const auto& var) { return GetType(var); }));
     auto arr = DefinableTIRVarsInType(param_ty);
     return {arr.begin(), arr.end()};
   }();
 
   // Use an array to define the order of the symbolic variables
-  ffi::Array<tirx::Var> free_tir_vars;
+  ffi::Array<tvm::Var> free_tir_vars;
   for (const auto& tir_var : FreeSymbolicVars(func->body)) {
     if (!defined_tir_params.count(tir_var)) {
       free_tir_vars.push_back(tir_var);

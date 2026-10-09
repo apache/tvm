@@ -36,7 +36,7 @@
 #include <utility>
 #include <vector>
 
-#include "tvm/tirx/var.h"
+#include "tvm/ir/expr.h"
 
 namespace tvm {
 namespace tirx {

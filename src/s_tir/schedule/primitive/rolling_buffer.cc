@@ -58,7 +58,7 @@ TensorRegion GetRelaxedBufferRegion(const SBlockRealize& realize, const TensorRe
     return Range::FromMinExtent(min, extent);
   });
   ffi::Array<sym::IntSet> relaxed_intsets = sym::EvalSet(mapped_region, dom_map);
-  Region relaxed_region;
+  ffi::Array<Range> relaxed_region;
   relaxed_region.reserve(relaxed_intsets.size());
   for (size_t i = 0; i < relaxed_intsets.size(); ++i) {
     relaxed_region.push_back(relaxed_intsets[i].CoverRange(Range::FromMinExtent(
@@ -182,7 +182,7 @@ class RollingBufferInfoCollector {
  private:
   bool MatchRollingBuffer(const StmtSRef& block_sref, const TensorRegion& buffer_region) {
     const TensorVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::TensorVar>();
-    const Region& region = buffer_region->region;
+    const ffi::Array<Range>& region = buffer_region->region;
 
     std::vector<ffi::Optional<Var>> bound_iter_vars;
     std::vector<int> bound_overlaps;

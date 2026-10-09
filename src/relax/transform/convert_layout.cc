@@ -98,17 +98,17 @@ class LayoutConvertMutator : public ExprMutator {
     tirx::SBijectiveLayout todesired(src_layout, desired_layout);
     ffi::Optional<IndexMap> inverse_index_map;
 
-    ffi::Array<tvm::tirx::Var> initial_indices;
+    ffi::Array<tvm::Var> initial_indices;
     ffi::Array<PrimExpr> initial_indices_expr;
     initial_indices.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
-      auto var = tvm::tirx::Var("i" + std::to_string(i), PrimType::Int(32));
+      auto var = tvm::Var("i" + std::to_string(i), PrimType::Int(32));
       initial_indices.push_back(var);
       initial_indices_expr.push_back(var.as_or_throw<PrimExpr>());
     }
     ffi::Array<PrimExpr> desired_shape = todesired.ForwardIndex(initial_indices_expr);
     return IndexMap(
-        initial_indices.Map([](tvm::tirx::Var var) { return var.as_or_throw<tvm::PrimVar>(); }),
+        initial_indices.Map([](tvm::Var var) { return var.as_or_throw<tvm::PrimVar>(); }),
         desired_shape, std::move(inverse_index_map));
   }
 

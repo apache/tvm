@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/analysis.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
@@ -110,7 +111,7 @@ class PrimExprComputeInjector : public ExprMutator {
     }
 
     tvm::PrimType ret_ty = node.ty();
-    auto param_vars = tirx::UndefinedVars(node);
+    auto param_vars = tvm::UndefinedVars(node);
     tirx::Stmt body = tirx::Return(node);
 
     tirx::Function func(param_vars, tirx::SeqStmt(body), ret_ty,
@@ -120,7 +121,7 @@ class PrimExprComputeInjector : public ExprMutator {
     auto callee = builder_->AddFunction(func, "compute_symbolic_expr");
 
     Tuple args(param_vars.Map(
-        [](const tirx::Var& tir_var) -> relax::Expr { return tir_var.as_or_throw<PrimExpr>(); }));
+        [](const tvm::Var& tir_var) -> relax::Expr { return tir_var.as_or_throw<PrimExpr>(); }));
     const Op& bridge = Op::Get("relax.call_tir_packed");
     if (s_tir::IsPureFunction(func)) {
       return Call(Type::Missing(), Op::Get("relax.call_pure_packed"), {bridge, callee, args});

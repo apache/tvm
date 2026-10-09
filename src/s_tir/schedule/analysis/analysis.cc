@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/analysis.h>
 #include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
 
@@ -1754,7 +1755,7 @@ struct TensorIntrinDescInfo {
   /*! \brief The loops of the description function, in the order from outer loops to inner ones. */
   std::vector<const tirx::ForNode*> desc_loops;
   /*! \brief The loop variables. */
-  std::unordered_set<const tirx::VarNode*> desc_loop_vars;
+  std::unordered_set<const tvm::VarNode*> desc_loop_vars;
 };
 
 /*!
@@ -1804,7 +1805,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
   const tirx::StmtSRef& scope_sref = GetScopeRoot(self, block_sref, false);
   TVM_SREF_TO_SBLOCK(scope_sref);
   std::vector<const tirx::ForNode*> block_loops;
-  std::unordered_set<const tirx::VarNode*> block_loop_vars;
+  std::unordered_set<const tvm::VarNode*> block_loop_vars;
   {
     for (const tirx::StmtSRefNode* loop_sref = block_sref->parent;; loop_sref = loop_sref->parent) {
       const auto* loop = loop_sref->StmtAs<tirx::ForNode>();

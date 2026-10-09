@@ -36,7 +36,6 @@
 #include <unordered_map>
 
 #include "../../sym/const_fold.h"
-#include "../analysis/var_use_def_analysis.h"
 #include "../ir/ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 

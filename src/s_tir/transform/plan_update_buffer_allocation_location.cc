@@ -23,12 +23,12 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/var.h>
 
 #include "../../tirx/transform/ir_utils.h"
 

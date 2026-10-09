@@ -509,7 +509,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
                                // frag_shape_m and frag_shape_n are structural bindings that cannot
                                // not be automatically captured until c++20
                                [&, frag_shape_m = frag_shape_m,
-                                frag_shape_n = frag_shape_n](const ffi::Array<tirx::Var>& indices) {
+                                frag_shape_n = frag_shape_n](const ffi::Array<tvm::Var>& indices) {
                                  ffi::Array<PrimExpr> result;
                                  result.reserve(indices.size() + 4);
                                  for (int i = 0; i < num_higher_dims; ++i) {

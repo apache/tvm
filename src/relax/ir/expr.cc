@@ -676,7 +676,7 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty
     // used if they were defined by the function's parameters.
     auto f_var_map = [&] {
       auto tir_vars = DefinableTIRVarsInType(TupleType(params.Map(GetType)));
-      std::unordered_set<tirx::Var> lookup(tir_vars.begin(), tir_vars.end());
+      std::unordered_set<tvm::Var> lookup(tir_vars.begin(), tir_vars.end());
       return [lookup = std::move(lookup)](const Var& var) -> ffi::Optional<Expr> {
         if (auto prim_var = var.as<PrimVar>(); prim_var && lookup.count(prim_var.value())) {
           return prim_var.value().as_or_throw<PrimExpr>();

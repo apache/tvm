@@ -28,9 +28,9 @@
 
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/string.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt_functor.h>  // For the class s_tir::StmtExprVisitor
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt.h>
 
 #include <unordered_map>

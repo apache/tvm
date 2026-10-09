@@ -60,7 +60,7 @@ inline ffi::Map<ffi::String, runtime::FunctionInfo> ExtractFuncInfo(const IRModu
       } else {
         TVM_FFI_THROW(InternalError) << "Unsupported Function parameter type " << param_type;
       }
-      auto is_tensormap = [](const tirx::Var& var) -> bool {
+      auto is_tensormap = [](const tvm::Var& var) -> bool {
         const auto* type = var->ty.as<PointerTypeNode>();
         if (type == nullptr) {
           return false;

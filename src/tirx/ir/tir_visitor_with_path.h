@@ -25,10 +25,10 @@
 #define TVM_TIRX_IR_TIR_VISITOR_WITH_PATH_H_
 
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -119,7 +119,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   virtual void EnterDef(const GlobalVar& var, ffi::reflection::AccessPath path) {}
   virtual void ExitDef(const GlobalVar& var, ffi::reflection::AccessPath path) {}
 
-  // Called when entering/exiting the scope of a tirx::Var definition.
+  // Called when entering/exiting the scope of a tvm::Var definition.
   virtual void EnterDef(const Var& var, ffi::reflection::AccessPath path) {}
   virtual void ExitDef(const Var& var, ffi::reflection::AccessPath path) {}
 

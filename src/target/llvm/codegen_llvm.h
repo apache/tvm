@@ -92,10 +92,10 @@ using namespace tirx;
 /*!
  * \brief A base class to generate a LLVM.
  */
-class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
+class CodeGenLLVM : public tvm::ExprFunctor<llvm::Value*(const Expr&)>,
                     public StmtFunctor<void(const Stmt&)> {
  public:
-  using tirx::ExprFunctor<llvm::Value*(const Expr&)>::Dispatch;
+  using tvm::ExprFunctor<llvm::Value*(const Expr&)>::Dispatch;
   using StmtFunctor::Dispatch;
 
   CodeGenLLVM();           // Do not make it default here.

@@ -67,6 +67,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -74,7 +75,6 @@
 #include <tvm/relax/type_functor.h>
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <sstream>

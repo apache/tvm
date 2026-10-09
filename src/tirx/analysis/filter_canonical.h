@@ -42,8 +42,8 @@
 #ifndef TVM_TIRX_ANALYSIS_FILTER_CANONICAL_H_
 #define TVM_TIRX_ANALYSIS_FILTER_CANONICAL_H_
 
+#include <tvm/ir/expr.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/var.h>
 
 #include <cstdint>
 #include <functional>

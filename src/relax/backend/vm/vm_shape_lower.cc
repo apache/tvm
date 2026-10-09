@@ -23,6 +23,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/analysis.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/relax/analysis.h>
@@ -129,7 +130,7 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
   }
 
   void MarkLive(const PrimExpr& expr) {
-    for (const Var& var : tirx::UndefinedVars(expr)) MarkLive(var);
+    for (const Var& var : tvm::UndefinedVars(expr)) MarkLive(var);
   }
 
   void MarkLive(const Var& var) {
@@ -169,7 +170,7 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
       slot_map_->emplace(expr, slot.get());
       slot_vec_->emplace_back(std::move(slot));
     }
-    for (tirx::Var var : tirx::UndefinedVars(expr)) {
+    for (tvm::Var var : tvm::UndefinedVars(expr)) {
       if (!var.same_as(expr)) {
         CollectPrimExprSlot(var.as_or_throw<PrimExpr>());
       }
@@ -448,8 +449,8 @@ class VMShapeLowerMutator
   void PopulateSlotInfo() {
     for (auto& kv : slot_map_) {
       auto* slot = kv.second;
-      if (!slot->expr.as<tirx::VarNode>()) {
-        ffi::Array<tirx::Var> dep_vars = tirx::UndefinedVars(slot->expr);
+      if (!slot->expr.as<tvm::VarNode>()) {
+        ffi::Array<tvm::Var> dep_vars = tvm::UndefinedVars(slot->expr);
         for (auto var : dep_vars) {
           auto it = slot_map_.find(var.as_or_throw<PrimExpr>());
           TVM_FFI_ICHECK(it != slot_map_.end())
@@ -608,7 +609,7 @@ class VMShapeLowerMutator
 
     // the value is not yet computed
     TVM_FFI_ICHECK(!require_value_computed) << "PrimExpr " << expr << " is not computed";
-    if (expr.as<tirx::VarNode>()) {
+    if (expr.as<tvm::VarNode>()) {
       // It is a var we will populate it in this round.
 
       slot->value_computed = true;
@@ -714,15 +715,15 @@ class VMShapeLowerMutator
     ffi::Array<PrimExpr> buffer_shape{heap_size_};
     tirx::TensorVar buffer = tirx::decl_tensor(buffer_shape, PrimType(ShapeDType()), "H", "global");
 
-    ffi::Map<tirx::Var, PrimExpr> var_map;
+    ffi::Map<tvm::Var, PrimExpr> var_map;
     for (const auto& [expr, slot] : slot_map_) {
-      if (auto var = expr.as<tirx::Var>()) {
+      if (auto var = expr.as<tvm::Var>()) {
         var_map.Set(var.value(), tirx::MakeTensorLoad(
                                      buffer, {IntImm(tvm::PrimType(ShapeDType()), slot->index)}));
       }
     }
     auto f_substitute =
-        [&var_map](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        [&var_map](const tvm::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       if (auto repl = var_map.Get(var)) return ffi::Any(*std::move(repl));
       return ffi::Unchanged();
     };
@@ -738,7 +739,7 @@ class VMShapeLowerMutator
     }
 
     tirx::SeqStmt body(seq);
-    ffi::Array<tirx::Var> params{buffer.var()};
+    ffi::Array<tvm::Var> params{buffer.var()};
     Type ret_type = VoidType();
 
     // TODO(relax-team): Consider attach the target attribute to

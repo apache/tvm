@@ -108,10 +108,10 @@ TVM_DLL Pass StmtSimplify();
 /*!
  * \brief Convert an IRModule to be SSA form.
  *
- * This pass handles cases where the same tirx::Var appears in
+ * This pass handles cases where the same tvm::Var appears in
  * multiple functions within the same module.  For example, after
  * extracting a fragment from one function into another, where the
- * same `tirx::Var` may be defined both as within the body of the
+ * same `tvm::Var` may be defined both as within the body of the
  * original function, and as a parameter within the hoisted function.
  *
  * \return The pass.

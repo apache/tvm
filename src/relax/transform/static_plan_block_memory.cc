@@ -428,7 +428,7 @@ class StorageAllocatorBaseVisitor : public ExprVisitor {
  * \param dom_map The domain map of the TIR variables.
  */
 void SetTIRVarRangeConstraints(Function func, sym::AnalyzerObj* ana,
-                               ffi::Map<tirx::Var, sym::IntSet>* dom_map) {
+                               ffi::Map<tvm::Var, sym::IntSet>* dom_map) {
   // Use the attribute-annotated TIR var bounds as the TIR var values for
   // memory planning.
   // NOTE: we only apply the annotated bounds to the TIR variables that
@@ -455,8 +455,8 @@ void SetTIRVarRangeConstraints(Function func, sym::AnalyzerObj* ana,
   for (const ffi::String& var_name : non_negative_var_attr_raw) {
     non_negative_var_attr.insert(var_name);
   }
-  ffi::Array<tirx::Var> var_in_signature = TIRVarsInType(GetType(func));
-  for (const tirx::Var& tir_var : var_in_signature) {
+  ffi::Array<tvm::Var> var_in_signature = TIRVarsInType(GetType(func));
+  for (const tvm::Var& tir_var : var_in_signature) {
     auto it_upper = var_upper_bound_attr.find(tir_var->name);
     auto it_lower = var_lower_bound_attr.find(tir_var->name);
 
@@ -488,7 +488,7 @@ void SetTIRVarRangeConstraints(Function func, sym::AnalyzerObj* ana,
  * cannot be determined, we keep the dimension unchanged.
  */
 ffi::Array<PrimExpr> GetUpperBoundShape(ffi::Array<PrimExpr> shape, sym::AnalyzerObj* ana,
-                                        const ffi::Map<tirx::Var, sym::IntSet>& dom_map) {
+                                        const ffi::Map<tvm::Var, sym::IntSet>& dom_map) {
   // Use the upper bounds of TIR vars as their values.
   ffi::Array<PrimExpr> upper_bounded_shape;
   upper_bounded_shape.reserve(shape.size());
@@ -753,7 +753,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
   /*! \brief The arithmetic analyzer. */
   sym::AnalyzerObj* analyzer_;
   /*! \brief The domain map of dynamic TIR variables for analysis. */
-  ffi::Map<tirx::Var, sym::IntSet> dom_map_;
+  ffi::Map<tvm::Var, sym::IntSet> dom_map_;
   /*! \brief The mapping from each token to the binding block where it is created. */
   std::unordered_map<const StorageTokenNode*, const BindingBlockNode*> token2block_;
   /*! \brief The mapping from each token to the Exprs that are using this token. */
@@ -1043,7 +1043,7 @@ class StorageAllocationRewriter : public ExprMutator {
   /*! \brief The arithmetic analyzer. */
   sym::Analyzer ana_;
   /*! \brief The domain map of dynamic TIR variables for analysis. */
-  ffi::Map<tirx::Var, sym::IntSet> dom_map_;
+  ffi::Map<tvm::Var, sym::IntSet> dom_map_;
   /*! \brief A boolean indicating whether to plan dynamic-shape function output tensors. */
   bool plan_dynamic_output_;
   /*!

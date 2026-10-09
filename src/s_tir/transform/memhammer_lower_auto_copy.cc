@@ -624,7 +624,7 @@ class AutoPadder {
               TensorVar src_buffer = r->source->source.as_or_throw<tvm::tirx::TensorVar>();
               runtime::StorageScope scope = runtime::StorageScope::Create(src_buffer.scope());
               if (scope.rank == runtime::StorageRank::kShared) {
-                Region region = r->source->region;
+                ffi::Array<Range> region = r->source->region;
                 ffi::Array<PrimExpr> indices;
                 for (int i = 0; i < static_cast<int>(region.size()); i++) {
                   PrimVar var("region" + std::to_string(i));

@@ -145,7 +145,7 @@ ffi::Optional<TileLayout> SlicePerGroup(TileLayout layout, PrimExpr begin, PrimE
 }
 
 ffi::Optional<Layout> TileLayoutNode::Slice(const Array<PrimExpr>& shape,
-                                            const Region& region) const {
+                                            const ffi::Array<Range>& region) const {
   sym::Analyzer analyzer;
   // Canonicalize the whole layout first so scope fusion (e.g. wid_in_wg+laneid
   // -> tid_in_wg) runs globally; otherwise grouping can split sibling thread
@@ -184,7 +184,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.TileLayoutSlice",
                         [](const TileLayout& layout, Array<PrimExpr> shape,
-                           Region region) -> ffi::Optional<TileLayout> {
+                           ffi::Array<Range> region) -> ffi::Optional<TileLayout> {
                           auto result = layout->Slice(shape, region);
                           if (!result.has_value()) return std::nullopt;
                           return result.value().as<TileLayout>();

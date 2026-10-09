@@ -19,9 +19,9 @@
 #ifndef SRC_TIRX_SCRIPT_PRINTER_UTILS_H_
 #define SRC_TIRX_SCRIPT_PRINTER_UTILS_H_
 
+#include <tvm/ir/expr.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/var.h>
 
 #include <optional>
 

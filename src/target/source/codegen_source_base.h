@@ -25,11 +25,11 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 #define TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 
+#include <tvm/ir/expr.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/target/codegen.h>
-#include <tvm/tirx/var.h>
 
 #include <functional>
 #include <string>
@@ -84,20 +84,20 @@ class CodeGenSourceBase {
    * \param v The variable.
    * \return the variable name.
    */
-  std::string AllocVarID(const tirx::VarNode* v);
+  std::string AllocVarID(const tvm::VarNode* v);
   /*!
    * \brief Allocate a variable name using an explicit diagnostic hint.
    * \param v The variable.
    * \param name_hint The name hint.
    * \return the variable name.
    */
-  std::string AllocVarID(const tirx::VarNode* v, std::string name_hint);
+  std::string AllocVarID(const tvm::VarNode* v, std::string name_hint);
   /*!
    * \brief Get a variable name.
    * \param v The variable.
    * \return the variable name.
    */
-  std::string GetVarID(const tirx::VarNode* v) const;
+  std::string GetVarID(const tvm::VarNode* v) const;
   /*!
    * \brief Get the SSA ID corresponds to src
    *  If necessary, generate new assignment
@@ -130,7 +130,7 @@ class CodeGenSourceBase {
   /*! \brief the forward declaration stream */
   std::ostringstream fwd_decl_stream;
   /*! \brief name of each variable */
-  std::unordered_map<const tirx::VarNode*, std::string> var_idmap_;
+  std::unordered_map<const tvm::VarNode*, std::string> var_idmap_;
   /*! \brief Unique name supply for allocation */
   UniqueNameSupply name_supply_;
   /*! \brief The current indentation value */

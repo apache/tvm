@@ -27,9 +27,9 @@ namespace script {
 namespace ir_builder {
 namespace s_tir {
 
+using tvm::Var;
 using tvm::tirx::Layout;
 using tvm::tirx::TensorVar;
-using tvm::tirx::Var;
 
 FunctionFrame Function(bool is_private = false, bool persistent = false);
 FunctionFrame DeclFunction(bool is_private = false, bool persistent = false);

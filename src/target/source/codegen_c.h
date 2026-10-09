@@ -57,11 +57,11 @@ using namespace tirx;
  * and OpenCL-C. You might find some odd variant features, e.g., type `int3` for
  * a vector of 3 `int`s. For native C code generator, see `CodeGenLLVM`.
  */
-class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
+class CodeGenC : public tvm::ExprFunctor<void(const Expr&, std::ostream&)>,
                  public StmtFunctor<void(const Stmt&)>,
                  public CodeGenSourceBase {
  public:
-  using tirx::ExprFunctor<void(const Expr&, std::ostream&)>::Dispatch;
+  using tvm::ExprFunctor<void(const Expr&, std::ostream&)>::Dispatch;
   using StmtFunctor::Dispatch;
 
   /*!
@@ -334,7 +334,7 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
    * code shape.  Only explicit pointer-offset values opt into typed pointer
    * arithmetic.
    */
-  void RegisterHandleTypeFromPointer(const tirx::Var& var, const Expr* value);
+  void RegisterHandleTypeFromPointer(const tvm::Var& var, const Expr* value);
   // override
   void PrintSSAAssign(const std::string& target, const std::string& src, const Type& t) override;
   /*! \brief reserves common C keywords */

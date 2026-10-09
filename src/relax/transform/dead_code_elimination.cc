@@ -33,11 +33,11 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt_functor.h>
 

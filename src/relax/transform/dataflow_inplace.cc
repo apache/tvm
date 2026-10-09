@@ -894,7 +894,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     // 3. Do the same for the *buffer vars* corresponding to the output vars
     // 4. Remove the output vars from the param list
     ffi::Map<tirx::TensorVar, tirx::TensorVar> buffer_subst_map;
-    ffi::Map<tirx::Var, tirx::Var> var_subst_map;
+    ffi::Map<tvm::Var, tvm::Var> var_subst_map;
     for (size_t i = 0; i < num_outs; i++) {
       // we will substitute output i with the corresponding param indicated by inplace indices
       auto output_var = old_function->params[num_params - num_outs + i];
@@ -911,7 +911,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     // apply substitutions
     new_body = RemapBuffers(new_body, buffer_subst_map);
     auto f_substitute =
-        [&var_subst_map](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        [&var_subst_map](const tvm::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       if (auto repl = var_subst_map.Get(var)) return ffi::Any(*std::move(repl));
       return ffi::Unchanged();
     };
@@ -920,8 +920,8 @@ class ModuleInplaceTransformer : public ExprMutator {
 
     // now get rid of the last num_outputs arguments
     // (couldn't do earlier or else it would have thrown off the indexing)
-    ffi::Array<tirx::Var> new_params(old_function->params.begin(),
-                                     old_function->params.begin() + (num_params - num_outs));
+    ffi::Array<tvm::Var> new_params(old_function->params.begin(),
+                                    old_function->params.begin() + (num_params - num_outs));
 
     tirx::Function new_function(new_params, tirx::SeqStmt(new_body), old_function->ret_type,
                                 old_function->attrs, old_function->span);

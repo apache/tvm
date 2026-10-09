@@ -33,7 +33,6 @@
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/var.h>
 
 #include <algorithm>
 #include <cctype>
@@ -43,7 +42,7 @@ namespace tirx {
 
 using s_tir::IterVar;
 using s_tir::IterVarNode;
-using tirx::Var;
+using tvm::Var;
 
 const SLayoutAxis SLayoutAxis::UPPER_CASE[] = {
     SLayoutAxis('A'), SLayoutAxis('B'), SLayoutAxis('C'), SLayoutAxis('D'), SLayoutAxis('E'),
@@ -448,7 +447,7 @@ inline ffi::Array<PrimExpr> TransformIndex(const ffi::Array<PrimExpr>& src_index
                                            const ffi::Array<PrimExpr>& transform_rule) {
   sym::Analyzer ana;
   ffi::Array<PrimExpr> result;
-  std::unordered_map<const tirx::VarNode*, PrimExpr> bind_map;
+  std::unordered_map<const tvm::VarNode*, PrimExpr> bind_map;
   for (size_t i = 0; i < src_index.size(); ++i) {
     bind_map.insert_or_assign(src_axis[i]->var.get(), src_index[i]);
   }
@@ -493,7 +492,7 @@ inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape
   // for major-axis, bind the corresponding size
   // for minor-axis, simply bind it as 0, so that we can reuse forward/backward_rule,
   // e.g., (C * 16 + c) / 32
-  std::unordered_map<const tirx::VarNode*, PrimExpr> bind_map;
+  std::unordered_map<const tvm::VarNode*, PrimExpr> bind_map;
   for (size_t i = 0; i < src_shape.size(); ++i) {
     PrimExpr orig_shape = src_shape[i];
     IterVar orig_axis = src_axis[i];

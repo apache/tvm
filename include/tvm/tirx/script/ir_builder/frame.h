@@ -77,7 +77,7 @@ class FunctionFrameNode : public TIRFrameNode {
   /*! \brief The name of the block. */
   ffi::Optional<ffi::String> name;
   /*! \brief Function parameters. */
-  ffi::Array<tvm::tirx::Var> args;
+  ffi::Array<tvm::Var> args;
   /*! \brief Whether the Function is annotated as private. */
   bool is_private;
   /*! \brief The return type of the function. */
@@ -153,10 +153,10 @@ class ForFrameNode : public TIRFrameNode {
    * \return A stmt, the loop nest
    */
   using FMakeForLoop = ffi::TypedFunction<tvm::tirx::Stmt(
-      ffi::Array<tvm::tirx::Var> loop_vars, ffi::Array<Range> loop_extents,
+      ffi::Array<tvm::Var> loop_vars, ffi::Array<Range> loop_extents,
       ffi::Array<ffi::Optional<PrimExpr>> loop_steps, tvm::tirx::SeqStmt loop_body, Span span)>;
   /*! \brief The loop variable. */
-  ffi::Array<tvm::tirx::Var> vars;
+  ffi::Array<tvm::Var> vars;
   /*! \brief The domains of iteration. */
   ffi::Array<Range> doms;
   /*! \brief The optional steps of iteration. */

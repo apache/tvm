@@ -95,7 +95,7 @@ ffi::Array<ArgInfo> ArgInfo::FromFunction(const tirx::Function& func) {
   using support::AsVector;
   ffi::Array<ArgInfo> result;
   result.reserve(func->params.size());
-  for (const tirx::Var& arg : func->params) {
+  for (const tvm::Var& arg : func->params) {
     if (auto buffer = arg.as<tirx::TensorVar>()) {
       result.push_back(TensorInfo(/*dtype=*/buffer.value()->dtype->dtype,
                                   /*shape=*/AsVector<PrimExpr, int64_t>(buffer.value()->shape)));

@@ -24,7 +24,6 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.testing import env
-from tvm.tirx import BufferAccessKind
 
 
 def _get_source(func: tvm.tirx.Function) -> tuple[str, tvm.IRModule]:
@@ -882,10 +881,7 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast2(inputs):
                                 T.ptx[
                                     f"cp.async.bulk.tensor.{len(shape)}d.shared::cluster.global.mbarrier::complete_tx::bytes.multicast::cluster"
                                 ](
-                                    A_smem.access_ptr(
-                                        BufferAccessKind.WRITE,
-                                        offset=A_smem.elem_offset_of(coord0[::-1]),
-                                    ),
+                                    A_smem.ptr_to(coord0[::-1]),
                                     T.address_of(A_map),
                                     *coord0,
                                     T.address_of(bar),
@@ -895,10 +891,7 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast2(inputs):
                                 T.ptx[
                                     f"cp.async.bulk.tensor.{len(shape)}d.shared::cluster.global.mbarrier::complete_tx::bytes.multicast::cluster"
                                 ](
-                                    A_smem.access_ptr(
-                                        BufferAccessKind.WRITE,
-                                        offset=A_smem.elem_offset_of(coord1[::-1]),
-                                    ),
+                                    A_smem.ptr_to(coord1[::-1]),
                                     T.address_of(A_map),
                                     *coord1,
                                     T.address_of(bar),
@@ -908,10 +901,7 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast2(inputs):
                                 T.ptx[
                                     f"cp.async.bulk.tensor.{len(shape)}d.shared::cluster.global.mbarrier::complete_tx::bytes.multicast::cluster"
                                 ](
-                                    A_smem.access_ptr(
-                                        BufferAccessKind.WRITE,
-                                        offset=A_smem.elem_offset_of(coord2[::-1]),
-                                    ),
+                                    A_smem.ptr_to(coord2[::-1]),
                                     T.address_of(A_map),
                                     *coord2,
                                     T.address_of(bar),
@@ -921,10 +911,7 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast2(inputs):
                                 T.ptx[
                                     f"cp.async.bulk.tensor.{len(shape)}d.shared::cluster.global.mbarrier::complete_tx::bytes.multicast::cluster"
                                 ](
-                                    A_smem.access_ptr(
-                                        BufferAccessKind.WRITE,
-                                        offset=A_smem.elem_offset_of(coord3[::-1]),
-                                    ),
+                                    A_smem.ptr_to(coord3[::-1]),
                                     T.address_of(A_map),
                                     *coord3,
                                     T.address_of(bar),

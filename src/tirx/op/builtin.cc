@@ -398,7 +398,6 @@ TVM_DEFINE_CACHED_OP_GETTER(masked_store_op, "tirx.masked_store")
 TVM_DEFINE_CACHED_OP_GETTER(ignore_loop_partition_op, "tirx.ignore_loop_partition")
 TVM_DEFINE_CACHED_OP_GETTER(alloc_tensor_op, "tirx.alloc_tensor")
 TVM_DEFINE_CACHED_OP_GETTER(decl_tensor_op, "tirx.decl_tensor")
-TVM_DEFINE_CACHED_OP_GETTER(buffer_offset_op, "tirx.buffer_offset")
 TVM_DEFINE_CACHED_OP_GETTER(tensor_data_ptr_op, "tirx.tensor_data_ptr")
 
 // Region operations.
@@ -861,11 +860,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .add_arg("shape", "The tuple of buffer extents.")
       .add_arg("dtype", "The buffer data type.")
       .add_arg("scope", "The storage scope.")
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
-
-  OpDef("tirx.buffer_offset")
-      .signature(sig::arg("load", "The buffer load whose offset is returned."))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("tirx.tensor_data_ptr")

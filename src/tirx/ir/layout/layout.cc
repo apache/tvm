@@ -80,9 +80,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             return layout->IsDirectSumLeft(sum_layout, interleaved_shape, left_shape);
           });
   def.def("tirx.LayoutSlice",
-          [](Layout layout, ffi::Array<PrimExpr> shape, Region region) -> ffi::Optional<Layout> {
-            return layout->Slice(shape, region);
-          });
+          [](Layout layout, ffi::Array<PrimExpr> shape, ffi::Array<Range> region)
+              -> ffi::Optional<Layout> { return layout->Slice(shape, region); });
 }
 
 }  // namespace tirx

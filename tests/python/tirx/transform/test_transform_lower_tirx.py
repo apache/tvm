@@ -726,7 +726,7 @@ def test_lower_decl_buffer_access_ptr():
         T.thread_id([128])
         buf = T.alloc_tensor([1024], "uint8", scope="shared.dyn")
         A = T.decl_tensor([128], "float16", buf.data, elem_offset=32)
-        T.evaluate(A.access_ptr("rw", ptr_type="float16", offset=A.elem_offset_of([64])))
+        T.evaluate(A.access_ptr("rw", ptr_type="float16", offset=64))
 
     @T.function(private=True)
     def after():
@@ -741,7 +741,7 @@ def test_lower_decl_buffer_access_ptr():
         A = T.decl_tensor(
             (128,), "float16", data=buf.data, elem_offset=32, scope="shared.dyn", layout=None
         )
-        T.access_ptr("float16", buf.data, T.Add(32, 64), T.Sub(128, 64), 3)
+        T.access_ptr("float16", buf.data, 96, 64, 3)
 
     compare(before, after, LowerTIRx)
 
@@ -1479,7 +1479,7 @@ def test_lower_buffer_offset():
         T.cta_id([1])
         T.thread_id([128])
         A = T.alloc_tensor([64, 64], "float16", scope="local")
-        A0 = T.decl_tensor([64], "float16", A.data, elem_offset=A.elem_offset_of([32, 32]))
+        A0 = T.decl_tensor([64], "float16", A.ptr_to([32, 32]), elem_offset=0)
         T.evaluate(T.address_of(A0[32]))
 
     @T.function(private=True)
@@ -1493,7 +1493,7 @@ def test_lower_buffer_offset():
         v_1: T.let[T.int32] = threadIdx_x
         A = T.alloc_local((4096,), "float16", layout=None)
         A0 = T.decl_tensor(
-            (64,), "float16", data=A.data, elem_offset=2080, scope="local", layout=None
+            (64,), "float16", data=T.address_of(A[2080]), elem_offset=0, scope="local", layout=None
         )
         T.address_of(A0[32])
 

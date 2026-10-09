@@ -451,7 +451,7 @@ ffi::Optional<Layout> ComposeLayoutNode::IsTileOuter(
 }
 
 ffi::Optional<Layout> ComposeLayoutNode::Slice(const ffi::Array<PrimExpr>& shape,
-                                               const Region& region) const {
+                                               const ffi::Array<Range>& region) const {
   // A bare swizzle (ComposeLayout with a trivial tile) carries only the swizzle
   // period, not a tile matching `shape`; substitute an identity tile over the
   // buffer shape first, matching the former SwizzleLayoutNode::Slice.
