@@ -678,8 +678,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // RegionStmt
-ffi::Array<Var> RegionNoBodyParams(const CallNode*) { return {}; }
-
 bool IsRegionOp(const Op& op) {
   if (!Op::HasAttrMap("FRegionGetBodyParams")) return false;
   static auto get_body_params = Op::GetAttrMap<FRegionGetBodyParams>("FRegionGetBodyParams");

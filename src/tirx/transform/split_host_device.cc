@@ -49,6 +49,8 @@ namespace tvm {
 namespace tirx {
 
 namespace {
+static ffi::Array<Var> RegionNoBodyParams(const CallNode*) { return {}; }
+
 void ValidateDeviceScopeRegion(const RegionStmtNode* region) {
   TVM_FFI_CHECK(region->result_vars.empty(), ValueError)
       << region->op->name << " expects no results";

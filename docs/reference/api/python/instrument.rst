@@ -19,5 +19,3 @@ tvm.transform.instrument
 ========================
 .. automodule:: tvm.transform.instrument
    :members:
-   :imported-members:
-   :exclude-members: Path

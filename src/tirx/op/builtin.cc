@@ -39,6 +39,8 @@
 namespace tvm {
 namespace tirx {
 
+static ffi::Array<Var> RegionNoBodyParams(const CallNode*) { return {}; }
+
 void CallFFIKernelAttr::RegisterReflection() {
   ffi::reflection::ObjectDef<CallFFIKernelAttr>().def_ro("launch_params",
                                                          &CallFFIKernelAttr::launch_params);

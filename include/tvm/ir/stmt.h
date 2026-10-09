@@ -33,25 +33,6 @@
 
 namespace tvm {
 
-class RegionStmtNode;
-
-/*!
- * \brief Construct fresh typed variables for a region's lexical body parameters.
- *
- * The input carries only the operation, operands and attributes, without a body
- * or builder state. Parameters are ordered, distinct definitions and may have
- * name hints. Every region operation must register this hook, returning an empty
- * array when it has no body parameters. Presence of the attribute identifies
- * region support without invoking the hook or allocating variables.
- */
-using FRegionGetBodyParams =
-    ffi::reflection::NativeFunctionView<ffi::Array<Var>(const CallNode* call)>;
-
-/*! \brief Shared FRegionGetBodyParams implementation for regions without body parameters. */
-TVM_DLL ffi::Array<Var> RegionNoBodyParams(const CallNode* call);
-
-/*! \brief Optional dialect validation of a complete region statement. */
-using FRegionValidate = ffi::reflection::NativeFunctionView<void(const RegionStmtNode*)>;
 /*! \brief Base node of all statements. */
 class StmtNode : public ffi::Object {
  public:
@@ -250,6 +231,21 @@ class RegionStmt : public Stmt {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RegionStmt, Stmt, RegionStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(RegionStmtNode);
 };
+
+/*!
+ * \brief Construct fresh typed variables for a region's lexical body parameters.
+ *
+ * The input carries only the operation, operands and attributes, without a body
+ * or builder state. Parameters are ordered, distinct definitions and may have
+ * name hints. Every region operation must register this hook, returning an empty
+ * array when it has no body parameters. Presence of the attribute identifies
+ * region support without invoking the hook or allocating variables.
+ */
+using FRegionGetBodyParams =
+    ffi::reflection::NativeFunctionView<ffi::Array<Var>(const CallNode* call)>;
+
+/*! \brief Optional dialect validation of a complete region statement. */
+using FRegionValidate = ffi::reflection::NativeFunctionView<void(const RegionStmtNode*)>;
 
 /*!
  * \brief Assert condition, if an error occurs, return the error message.
