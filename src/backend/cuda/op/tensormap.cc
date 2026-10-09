@@ -18,6 +18,9 @@
  */
 
 #include <tvm/backend/cuda/op/tensormap.h>
+#include <tvm/ir/expr.h>
+#include <tvm/ir/op.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/tirx/op_attr_types.h>
 
 namespace tvm {
@@ -58,13 +61,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         return Attrs(attrs);
       });
   OpDef("tirx.cuda.tensormap_encode_tiled")
-      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32))
+      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Int(32))
       .signature(sig::arg("descriptor", "The descriptor."), sig::arg("data", "The input data."),
                  sig::var_args<PrimExpr>("args"), sig::call_attrs<TensorMapEncodeTiledAttr>())
-      .set_attr<TScriptPrinterName>("TScriptPrinterName",
+      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
                                     ffi::String("tirx.cuda.tensormap_encode_tiled"))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
+                                 static_cast<int64_t>(CallEffectKind::kOpaque));
 }
 
 }  // namespace cuda

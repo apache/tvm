@@ -128,8 +128,10 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
              pat_permuted_matmul_on_rhs;
 
   PrimExpr symbolic_var_constraints = IntImm::Bool(true);
-  auto upper_bounds = func->GetAttr<ffi::Map<ffi::String, Any>>("tir_var_upper_bound");
-  auto lower_bounds = func->GetAttr<ffi::Map<ffi::String, Any>>("tir_var_lower_bound");
+  auto upper_bounds =
+      func->GetAttr<ffi::Map<ffi::String, Any>>(tvm::relax::attr::kTirVarUpperBound);
+  auto lower_bounds =
+      func->GetAttr<ffi::Map<ffi::String, Any>>(tvm::relax::attr::kTirVarLowerBound);
 
   if (upper_bounds || lower_bounds) {
     ffi::Map<ffi::String, tvm::Var> name_lookup;

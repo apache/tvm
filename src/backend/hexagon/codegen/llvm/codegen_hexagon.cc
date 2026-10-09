@@ -43,9 +43,11 @@
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/function.h>
 
 #include <cstdio>
 #include <cstdlib>
@@ -470,7 +472,7 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
       continue;
     }
     auto f = kv.second.as_or_throw<Function>();
-    if (f->HasNonzeroAttr(tirx::attr::kIsEntryFunc)) {
+    if (f->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc)) {
       auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
       TVM_FFI_ICHECK(global_symbol.has_value());
       entry_func = global_symbol.value();

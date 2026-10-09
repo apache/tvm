@@ -237,8 +237,10 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/op.h>
 #include <tvm/relax/backend/adreno/transform.h>
 #include <tvm/relax/dataflow_matcher.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/op/op.h>
@@ -380,7 +382,8 @@ class CollectConsumerScopeInfo : public ExprVisitor {
   template <typename T>
   ffi::Array<Attrs> ExtractAttrs(const T& func) {
     ffi::Array<Attrs> op_attrs;
-    ffi::Optional<ffi::ObjectRef> attrs = func->template GetAttr<ffi::ObjectRef>("op_attrs");
+    ffi::Optional<ffi::ObjectRef> attrs =
+        func->template GetAttr<ffi::ObjectRef>(tvm::relax::attr::kOpAttrs);
     if (attrs) {
       if (auto val = attrs.value().as<Attrs>()) {
         op_attrs.push_back(val.value());
@@ -393,7 +396,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
 
   template <typename T>
   ffi::Optional<int64_t> ExtractPattern(const T& func) {
-    ffi::Optional<int64_t> op_pat = func->template GetAttr<int64_t>("op_pattern");
+    ffi::Optional<int64_t> op_pat = func->template GetAttr<int64_t>(tvm::relax::attr::kOpPattern);
     return op_pat;
   }
 
@@ -502,12 +505,12 @@ class CollectProducerScopeInfo : public ExprVisitor {
     } else {
       auto* op_ptr = call->op.as<OpNode>();
       Op op = ffi::GetRef<Op>(op_ptr);
-      static auto op_map_context_free = Op::GetAttrMap<FInferType>("FInferType");
+      static auto op_map_context_free = Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
       if (op_map_context_free.count(op)) {
         out_ty = Call::ReinferType(call);
       } else {
         static auto op_map_infer_ty =
-            Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
+            Op::GetAttrMap<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder);
         TVM_FFI_ICHECK(op_map_infer_ty.count(op))
             << " Cannot find a type inference attribute registered to op: " << op->name;
         out_ty = op_map_infer_ty[op](ffi::GetRef<Call>(call), builder_);
@@ -594,7 +597,7 @@ class DefineVDevice : ExprMutator {
       if (func->IsInstance<relax::FunctionNode>()) {
         const auto& base_func = mod_->Lookup(gv);
         // Only non primitive relax functions
-        if (base_func->HasNonzeroAttr(attr::kPrimitive)) {
+        if (base_func->HasNonzeroAttr(tvm::relax::attr::kPrimitive)) {
           continue;
         }
         auto info = CollectConsumerScopeInfo().Collect(mod_, func.as_or_throw<Function>(), target_);

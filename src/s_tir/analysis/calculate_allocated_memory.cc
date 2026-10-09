@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/s_tir/analysis.h>

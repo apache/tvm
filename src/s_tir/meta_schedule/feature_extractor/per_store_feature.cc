@@ -19,8 +19,10 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/transform.h>
 
 #include <cmath>
@@ -92,7 +94,8 @@ std::vector<int64_t> GetBufferShape(const TensorVar& buffer, sym::AnalyzerObj* a
  * \return The value of `auto_unroll_max_step` if it exists, or -1 if it does not exist
  */
 int64_t GetAutoUnrollMaxStep(const ForNode* loop) {
-  if (ffi::Optional<IntImm> auto_unroll = GetAnn<IntImm>(loop, tirx::attr::auto_unroll_max_step)) {
+  if (ffi::Optional<IntImm> auto_unroll =
+          GetAnn<IntImm>(loop, tvm::tirx::attr::kAutoUnrollMaxStep)) {
     return static_cast<int64_t>(auto_unroll.value()->value);
   }
   return -1;
@@ -337,7 +340,7 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
                                  .ValueOrUnchanged(loop->annotations);
           Stmt body = Mutate(loop->body, inplace_mode).ValueOrUnchanged(loop->body);
           VarRemapSet(loop->loop_var, previous_remap);
-          annotations.erase("thread_binding");
+          annotations.erase(tvm::tirx::attr::kThreadBinding);
           if (!annotations.empty()) {
             PrimType ty = loop->loop_var.ty();
             body = For(PrimVar("annotation", ty), IntImm(ty, 0), IntImm(ty, 1), ForKind::kDefault,
@@ -683,7 +686,7 @@ Feature::ArithOps::ArithOps(const TensorStoreNode* store, int64_t prod_loop_exte
       if (!result_type) {
         return StmtExprVisitor::Visit_(op);
       }
-      static auto op_call_effect_ = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
+      static auto op_call_effect_ = Op::GetAttrMap<TCallEffectKind>(tvm::op_attr::kCallEffectKind);
       CallEffectKind effect_kind =
           static_cast<CallEffectKind>(op_call_effect_[op->op.as_or_throw<Op>()]);
       bool is_pure =

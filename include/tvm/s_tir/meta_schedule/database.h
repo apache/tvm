@@ -546,6 +546,10 @@ class Database : public ffi::ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Database, ffi::ObjectRef, DatabaseNode);
 };
 
+namespace attr {
+constexpr const char* kTaskName = "task_name";
+}  // namespace attr
+
 }  // namespace meta_schedule
 }  // namespace s_tir
 }  // namespace tvm

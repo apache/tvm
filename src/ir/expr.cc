@@ -1222,12 +1222,13 @@ Type Call::ReinferType(const CallNode* call) {
     if (const auto* type = call->op->ty.as<FuncTypeNode>()) return type->ret_type;
     return Type::Missing();
   }
-  if (Op::HasAttrMap("TFixedReturnType")) {
-    static auto fixed_return_type = Op::GetAttrMap<TFixedReturnType>("TFixedReturnType");
+  if (Op::HasAttrMap(tvm::op_attr::kFixedReturnType)) {
+    static auto fixed_return_type =
+        Op::GetAttrMap<TFixedReturnType>(tvm::op_attr::kFixedReturnType);
     if (fixed_return_type.count(op.value())) return fixed_return_type[op.value()];
   }
-  if (Op::HasAttrMap("FInferType")) {
-    static auto infer_type = Op::GetAttrMap<FInferType>("FInferType");
+  if (Op::HasAttrMap(tvm::op_attr::kInferType)) {
+    static auto infer_type = Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
     if (infer_type.count(op.value())) return infer_type[op.value()].CallExpected(call).value();
   }
   return Type::Missing();

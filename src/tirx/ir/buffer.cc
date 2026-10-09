@@ -22,6 +22,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
@@ -197,8 +198,9 @@ TensorRegion BufferRegionFromPoint(TensorVar buffer, ffi::Array<PrimExpr> indice
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::TypeAttrDef<TensorTypeNode>().def("__subscript_expr_realize__", RealizeBufferSubscript);
-  refl::TypeAttrDef<TensorRegionTypeNode>().def("__subscript_expr_realize__",
+  refl::TypeAttrDef<TensorTypeNode>().def(tvm::type_attr::kSubscriptExprRealize,
+                                          RealizeBufferSubscript);
+  refl::TypeAttrDef<TensorRegionTypeNode>().def(tvm::type_attr::kSubscriptExprRealize,
                                                 RealizeBufferRegionSubscript);
 }
 

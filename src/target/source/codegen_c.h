@@ -24,6 +24,7 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_C_H_
 #define TVM_TARGET_SOURCE_CODEGEN_C_H_
 
+#include <tvm/ir/function.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
@@ -356,7 +357,8 @@ class CodeGenC : public tvm::ExprFunctor<void(const Expr&, std::ostream&)>,
   /*! \brief Handle vars whose address_of(buffer[index]) should print as ptr + index. */
   std::unordered_set<const VarNode*> pointer_offset_vars_;
   /*! \brief Record of ops that have pre-defined global symbol. */
-  OpAttrMap<TGlobalSymbol> op_attr_global_symbol_ = Op::GetAttrMap<TGlobalSymbol>("TGlobalSymbol");
+  OpAttrMap<TGlobalSymbol> op_attr_global_symbol_ =
+      Op::GetAttrMap<TGlobalSymbol>(tvm::tirx::op_attr::kGlobalSymbol);
   // cache commonly used ops
   const Op& builtin_call_extern_ = tirx::call_extern_op();
   const Op& builtin_call_pure_extern_ = tirx::call_pure_extern_op();

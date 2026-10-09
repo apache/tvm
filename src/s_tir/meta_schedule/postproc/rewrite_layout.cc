@@ -19,7 +19,9 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/function.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/topi/tags.h>
 
 #include <optional>
 #include <unordered_set>
@@ -128,7 +130,7 @@ class LayoutFreeBufferCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(block));
-    if (auto ann = block->annotations.Get("layout_free_placeholders")) {
+    if (auto ann = block->annotations.Get(tvm::topi::attr::kLayoutFreePlaceholders)) {
       for (TensorVar buffer : ann.value().as_or_throw<ffi::Array<TensorVar>>()) {
         buffers.insert(buffer);
       }
@@ -142,7 +144,7 @@ class LayoutFreeBufferCollector : public StmtExprVisitor {
 ffi::Array<TensorVar> CollectLayoutFreeBuffers(const FunctionNode* func) {
   // Only rewrite Functions with attr "layout_free_buffers"
   ffi::Array<int64_t> layout_free_buffer_index =
-      func->GetAttr(s_tir::attr::layout_free_buffers, ffi::Array<int64_t>()).value();
+      func->GetAttr(tvm::s_tir::attr::kLayoutFreeBuffers, ffi::Array<int64_t>()).value();
 
   ffi::Array<TensorVar> layout_free_buffers;
   for (int64_t index : layout_free_buffer_index) {
@@ -214,7 +216,7 @@ bool RewriteLayout(const Schedule& sch) {
   std::vector<std::pair<StmtSRef, ffi::String>> results;
   auto add_layout_rewrite_block = [&sch](SBlockRV consumer_block_rv, int buffer_index) {
     SBlockRV rewrite_block_rv = sch->CacheRead(consumer_block_rv, buffer_index, "global");
-    sch->Annotate(rewrite_block_rv, s_tir::attr::meta_schedule_layout_rewrite_preproc, true);
+    sch->Annotate(rewrite_block_rv, tvm::s_tir::attr::kMetaScheduleLayoutRewritePreproc, true);
   };
 
   for (const auto& [g_var, base_func] : sch->mod()->functions) {

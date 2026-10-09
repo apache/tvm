@@ -22,6 +22,7 @@
  * \brief Lower tensor instructions and CUDA index calls using independent launch configuration.
  */
 
+#include <tvm/ir/function.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>

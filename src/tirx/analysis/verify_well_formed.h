@@ -24,6 +24,7 @@
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/op/region.h>
+#include <tvm/tirx/op_attr_types.h>
 
 #include <utility>
 

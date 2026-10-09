@@ -90,7 +90,7 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
     // Get access detection mask
     // 0 for provided region, 1 and 3 for need detect read, 2 and 3 for need detect write
     int mask = 0;
-    auto it = op->annotations.find(s_tir::attr::script_parsing_detect_access);
+    auto it = op->annotations.find(tvm::s_tir::attr::kScriptParsingDetectAccess);
     if (it != op->annotations.end()) {
       mask = (*it).second.as_or_throw<IntImm>()->value.as<int>().value();
     }
@@ -109,7 +109,7 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
         if (mask & 2) n->writes = writes;
       }
       n->annotations = op->annotations;
-      n->annotations.erase(s_tir::attr::script_parsing_detect_access);
+      n->annotations.erase(tvm::s_tir::attr::kScriptParsingDetectAccess);
       return block;
     } else {
       return block;

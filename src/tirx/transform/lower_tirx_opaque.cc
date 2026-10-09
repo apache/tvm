@@ -29,7 +29,9 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/op/region.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -88,10 +90,10 @@ class TIRxOpaqueLower : public StmtExprMutator {
       UpdateUnrollPolicy(op->annotations);
       const auto& policy = unroll_policy_.Current();
       if (policy.auto_unroll_max_step.has_value()) {
-        annotations.Set(tirx::attr::auto_unroll_max_step, policy.auto_unroll_max_step.value());
+        annotations.Set(tvm::tirx::attr::kAutoUnrollMaxStep, policy.auto_unroll_max_step.value());
       }
       if (policy.unroll_explicit.has_value()) {
-        annotations.Set(tirx::attr::unroll_explicit, policy.unroll_explicit.value());
+        annotations.Set(tvm::tirx::attr::kUnrollExplicit, policy.unroll_explicit.value());
       }
       // Rewrite annotations before visiting body-local definitions.
       annotations = this->Mutate(annotations, inplace_mode)
@@ -104,8 +106,8 @@ class TIRxOpaqueLower : public StmtExprMutator {
     // Step 2. Create the lowered loop or launch region.
     if (tvm::tirx::GetThreadBinding(op).has_value()) {
       // Case 1. Thread binding → RegionStmt(launch_thread)
-      TVM_FFI_ICHECK(!op->annotations.count("loop_partition_hint") ||
-                     op->annotations.at("loop_partition_hint") == nullptr)
+      TVM_FFI_ICHECK(!op->annotations.count(tvm::s_tir::attr::kLoopPartitionHint) ||
+                     op->annotations.at(tvm::s_tir::attr::kLoopPartitionHint) == nullptr)
           << "Run LoopPartition before opaque lowering of a thread-binding loop with "
              "loop_partition_hint";
       TVM_FFI_ICHECK(tvm::tirx::GetThreadBinding(op).has_value());
@@ -127,11 +129,11 @@ class TIRxOpaqueLower : public StmtExprMutator {
 
   void UpdateUnrollPolicy(const ffi::Map<ffi::String, ffi::Any>& annotations) {
     auto& policy = unroll_policy_.Current();
-    if (auto value = annotations.Get(tirx::attr::auto_unroll_max_step);
+    if (auto value = annotations.Get(tvm::tirx::attr::kAutoUnrollMaxStep);
         value.has_value() && value.value() != nullptr) {
       policy.auto_unroll_max_step = value.value();
     }
-    if (auto value = annotations.Get(tirx::attr::unroll_explicit);
+    if (auto value = annotations.Get(tvm::tirx::attr::kUnrollExplicit);
         value.has_value() && value.value() != nullptr) {
       policy.unroll_explicit = value.value();
     }
@@ -145,8 +147,8 @@ class TIRxOpaqueLower : public StmtExprMutator {
       const ffi::Map<ffi::String, ffi::Any>& annotations) {
     ffi::Map<ffi::String, ffi::Any> preserved;
     for (const auto& [key, value] : annotations) {
-      if ((key == tirx::attr::auto_unroll_max_step || key == tirx::attr::unroll_explicit ||
-           key == "pragma_unroll") &&
+      if ((key == tvm::tirx::attr::kAutoUnrollMaxStep || key == tvm::tirx::attr::kUnrollExplicit ||
+           key == tvm::tirx::attr::kPragmaUnroll) &&
           value == nullptr) {
         continue;
       }

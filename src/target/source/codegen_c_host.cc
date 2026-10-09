@@ -24,7 +24,10 @@
 
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
+#include <tvm/ir/module.h>
 #include <tvm/target/codegen.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/op/abi.h>
 
 #include <algorithm>
@@ -76,7 +79,7 @@ void CodeGenCHost::AddFunction(const GlobalVar& gvar, const Function& func,
 
   emit_fwd_func_decl_ = emit_fwd_func_decl;
   CodeGenC::AddFunction(gvar, func);
-  if (func->HasNonzeroAttr(tirx::attr::kIsEntryFunc) && !has_tvm_ffi_main_func_) {
+  if (func->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc) && !has_tvm_ffi_main_func_) {
     TVM_FFI_ICHECK(global_symbol.has_value())
         << "CodeGenCHost: The entry func must have the global_symbol attribute, "
         << "but function " << gvar << " only has attributes " << func->attrs;
@@ -376,9 +379,9 @@ ffi::Module BuildCHost(IRModule mod, Target target) {
   bool emit_fwd_func_decl = true;
 
   std::unordered_set<std::string> devices;
-  if (mod->GetAttr<ffi::Map<GlobalVar, ffi::String>>("device_contexts") != nullptr) {
+  if (mod->GetAttr<ffi::Map<GlobalVar, ffi::String>>(tvm::attr::kDeviceContexts) != nullptr) {
     ffi::Map<GlobalVar, ffi::String> device_contexts =
-        mod->GetAttr<ffi::Map<GlobalVar, ffi::String>>("device_contexts").value();
+        mod->GetAttr<ffi::Map<GlobalVar, ffi::String>>(tvm::attr::kDeviceContexts).value();
     for (auto const& context : device_contexts) {
       devices.insert(context.second.data());
     }
@@ -389,7 +392,7 @@ ffi::Module BuildCHost(IRModule mod, Target target) {
   cg.SetConstantsByteAlignment(target->GetAttr<int64_t>("constants-byte-alignment").value_or(16));
 
   auto is_aot_executor_fn = [](const Function& func) -> bool {
-    return func->GetAttr<bool>("runner_function", false).value();
+    return func->GetAttr<bool>(tvm::codegen::attr::kRunnerFunction, false).value();
   };
 
   std::vector<std::pair<GlobalVar, Function>> funcs;

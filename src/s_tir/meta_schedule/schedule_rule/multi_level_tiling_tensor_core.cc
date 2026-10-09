@@ -247,7 +247,7 @@ ffi::Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
     const TensorCoreIntrinGroup& intrin_group = intrin_groups[kv.first];
     const s_tir::AutoTensorizeMappingInfo& mapping_info = kv.second;
     Schedule new_sch = sch->Copy();
-    new_sch->Annotate(block_rv, s_tir::attr::meta_schedule_tiling_structure, structure);
+    new_sch->Annotate(block_rv, tvm::s_tir::attr::kMetaScheduleTilingStructure, structure);
     initial_states.push_back(TensorCoreState(intrin_group, mapping_info, new_sch, block_rv, true));
   }
   ffi::Array<Schedule> results;
@@ -297,9 +297,10 @@ void MultiLevelTilingTensorCoreNode::TileAndAnnotateTensorize(
   ffi::Optional<LoopRV> loop = s_tir::TileWithTensorIntrin(*sch, block_rv, intrin_name).value();
   TVM_FFI_ICHECK(loop.has_value());
   SBlockRV blockized_outer = (*sch)->Blockize(loop.value());
-  (*sch)->Annotate(blockized_outer, s_tir::attr::meta_schedule_auto_tensorize, intrin_name);
+  (*sch)->Annotate(blockized_outer, tvm::s_tir::attr::kMetaScheduleAutoTensorize, intrin_name);
   if (!permuted_layout_annotate_value.empty()) {
-    (*sch)->Annotate(blockized_outer, "permuted_layout", permuted_layout_annotate_value);
+    (*sch)->Annotate(blockized_outer, tvm::s_tir::attr::kPermutedLayout,
+                     permuted_layout_annotate_value);
   }
 }
 
@@ -328,7 +329,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::MMAAddReadReuse(TensorCoreSta
       new_state->read_reuse.emplace(i, cache_read_block);
       if (state->is_mma) {
         new_state->sch->Annotate(
-            cache_read_block, "permuted_layout",
+            cache_read_block, tvm::s_tir::attr::kPermutedLayout,
             ffi::String(std::string("g2s_") + std::string(i == 0 ? "A" : "B")));
       }
     }
@@ -428,9 +429,9 @@ std::vector<State> MultiLevelTilingTensorCoreNode::MMATileLoopNest(TensorCoreSta
     if (spatial_loop_product > 2 * this->thread_warp_size_) {
       low_inclusive = this->thread_warp_size_;
     }
-    sch->Annotate(block_rv, s_tir::attr::meta_schedule_thread_extent_low_inclusive,
+    sch->Annotate(block_rv, tvm::s_tir::attr::kMetaScheduleThreadExtentLowInclusive,
                   IntImm::Int32(low_inclusive));
-    sch->Annotate(block_rv, s_tir::attr::meta_schedule_thread_extent_high_inclusive,
+    sch->Annotate(block_rv, tvm::s_tir::attr::kMetaScheduleThreadExtentHighInclusive,
                   IntImm::Int32(high_inclusive));
   }
   return {state};
@@ -598,7 +599,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddWriteReuseTensorCore(
   sch->ReverseComputeInline(state->tensor_core_reindex_store);
   auto loops = sch->GetLoops(cache_write);
   auto blockized_store = sch->Blockize(loops[loops.size() - 2]);
-  sch->Annotate(blockized_store, s_tir::attr::meta_schedule_auto_tensorize,
+  sch->Annotate(blockized_store, tvm::s_tir::attr::kMetaScheduleAutoTensorize,
                 state->intrin_group.store_intrin);
 
   ffi::Array<LoopRV> buffer_loops = sch->GetLoops(state->write_reuse[0]);
@@ -681,15 +682,16 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
     const s_tir::SBlockRV cache_read = state->read_reuse.at(i);
     if (state->is_mma) {
       // Add vector bytes for memhammer
-      sch->Annotate(cache_read, s_tir::attr::vector_bytes, IntImm::Int32(16));
+      sch->Annotate(cache_read, tvm::s_tir::attr::kVectorBytes, IntImm::Int32(16));
       if (!state->use_async) {
-        sch->Annotate(cache_read, s_tir::attr::local_stage, IntImm::Int32(1));
-        sch->Annotate(cache_read, s_tir::attr::double_buffer_scope, IntImm::Int32(0));
+        sch->Annotate(cache_read, tvm::s_tir::attr::kLocalStage, IntImm::Int32(1));
+        sch->Annotate(cache_read, tvm::s_tir::attr::kDoubleBufferScope, IntImm::Int32(0));
       }
     } else {
       // Add local stage and double buffering
-      sch->Annotate(cache_read, s_tir::attr::manifest_shared_memory_local_stage, IntImm::Int32(1));
-      sch->Annotate(cache_read, s_tir::attr::double_buffer_scope, IntImm::Int32(0));
+      sch->Annotate(cache_read, tvm::s_tir::attr::kManifestSharedMemoryLocalStage,
+                    IntImm::Int32(1));
+      sch->Annotate(cache_read, tvm::s_tir::attr::kDoubleBufferScope, IntImm::Int32(0));
     }
   }
 
@@ -720,16 +722,16 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
   // epilogue:
   //   compute matmul with fragment K1 - 1
   //
-  sch->Annotate(state->tiles[r_indices_[1]].back(), s_tir::attr::software_pipeline_stage,
+  sch->Annotate(state->tiles[r_indices_[1]].back(), tvm::s_tir::attr::kSoftwarePipelineStage,
                 ffi::Array<int64_t>{0, 0, 1});
-  sch->Annotate(state->tiles[r_indices_[1]].back(), s_tir::attr::software_pipeline_order,
+  sch->Annotate(state->tiles[r_indices_[1]].back(), tvm::s_tir::attr::kSoftwarePipelineOrder,
                 ffi::Array<int64_t>{0, 1, 2});
   if (state->is_mma && state->use_async) {
-    sch->Annotate(state->tiles[r_indices_[0]].back(), s_tir::attr::software_pipeline_async_stages,
-                  ffi::Array<int64_t>{0});
-    sch->Annotate(state->tiles[r_indices_[0]].back(), s_tir::attr::software_pipeline_stage,
+    sch->Annotate(state->tiles[r_indices_[0]].back(),
+                  tvm::s_tir::attr::kSoftwarePipelineAsyncStages, ffi::Array<int64_t>{0});
+    sch->Annotate(state->tiles[r_indices_[0]].back(), tvm::s_tir::attr::kSoftwarePipelineStage,
                   ffi::Array<int64_t>{0, 0, 1, 2, 2});
-    sch->Annotate(state->tiles[r_indices_[0]].back(), s_tir::attr::software_pipeline_order,
+    sch->Annotate(state->tiles[r_indices_[0]].back(), tvm::s_tir::attr::kSoftwarePipelineOrder,
                   ffi::Array<int64_t>{0, 1, 3, 2, 4});
   } else {
     // Outer software pipeline: Interleave the outer loop with the (pipelined) inner loop.
@@ -772,9 +774,9 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
     //   // epilogue of the inner pipeline
     //   compute matmul with fragment K1 - 1 of tile K0 - 1
     //
-    sch->Annotate(state->tiles[r_indices_[0]].back(), s_tir::attr::software_pipeline_stage,
+    sch->Annotate(state->tiles[r_indices_[0]].back(), tvm::s_tir::attr::kSoftwarePipelineStage,
                   ffi::Array<int64_t>{0, 0, 0, 0, 0, 1, 1});
-    sch->Annotate(state->tiles[r_indices_[0]].back(), s_tir::attr::software_pipeline_order,
+    sch->Annotate(state->tiles[r_indices_[0]].back(), tvm::s_tir::attr::kSoftwarePipelineOrder,
                   ffi::Array<int64_t>{0, 3, 1, 4, 5, 2, 6});
   }
 
@@ -920,11 +922,11 @@ inline std::vector<State> MultiLevelTilingTensorCoreNode::TransformForTensorizat
   state->block_rv = state->sch->Blockize(transformed_loop_rv.value());
 
   // Add annotations for post processors.
-  state->sch->Annotate(state->block_rv, s_tir::attr::meta_schedule_auto_tensorize,
+  state->sch->Annotate(state->block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorize,
                        state->intrin_group.compute_intrin);
-  state->sch->Annotate(state->block_rv, s_tir::attr::meta_schedule_auto_tensorize_init,
+  state->sch->Annotate(state->block_rv, tvm::s_tir::attr::kMetaScheduleAutoTensorizeInit,
                        state->intrin_group.init_intrin);
-  state->sch->Annotate(state->block_rv, s_tir::attr::warp_execution, IntImm::Int32(1));
+  state->sch->Annotate(state->block_rv, tvm::s_tir::attr::kWarpExecution, IntImm::Int32(1));
   return {std::move(state)};
 }
 

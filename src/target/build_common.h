@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
@@ -71,7 +72,7 @@ inline ffi::Map<ffi::String, runtime::FunctionInfo> ExtractFuncInfo(const IRModu
                                                           : runtime::ArgExtraTags::kNone);
     }
     ffi::Array<ffi::String> launch_param_tags;
-    if (auto opt = f->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kKernelLaunchParams)) {
+    if (auto opt = f->GetAttr<ffi::Array<ffi::String>>(tvm::tirx::attr::kKernelLaunchParams)) {
       for (const auto& tag : opt.value()) {
         launch_param_tags.push_back(tag);
       }

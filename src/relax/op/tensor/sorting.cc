@@ -25,6 +25,8 @@
 #include "sorting.h"
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
+#include <tvm/relax/op_attr_types.h>
 
 #include <vector>
 
@@ -109,8 +111,8 @@ Type InferTypeSort(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.sort")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<SortAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeSort>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeSort>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.argsort */
@@ -146,8 +148,8 @@ Type InferTypeArgsort(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.argsort")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<ArgsortAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeArgsort>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeArgsort>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.topk */
@@ -216,8 +218,8 @@ Type InferTypeTopK(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.topk")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<TopKAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeTopK>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeTopK>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax

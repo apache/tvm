@@ -308,8 +308,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       }
     };
 
-    record_explicit_region(s_tir::attr::explicit_read_region, BufferIndexType::kRead);
-    record_explicit_region(s_tir::attr::explicit_write_region, BufferIndexType::kWrite);
+    record_explicit_region(tvm::s_tir::attr::kExplicitReadRegion, BufferIndexType::kRead);
+    record_explicit_region(tvm::s_tir::attr::kExplicitWriteRegion, BufferIndexType::kWrite);
 
     // Step 3. Record relax position of ancestor_loops_
     for (const TensorVar& buffer : op->alloc_buffers) {

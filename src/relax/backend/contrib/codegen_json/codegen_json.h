@@ -28,6 +28,7 @@
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
 
 #include <cstdint>
@@ -315,9 +316,9 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       extractor.Extract(const_cast<ffi::Object*>(call_attr));
     } else if (const auto* fn = cn->op.as<FunctionNode>()) {
       TVM_FFI_ICHECK(false);
-      auto pattern = fn->GetAttr<ffi::String>(attr::kPartitionedFromPattern);
+      auto pattern = fn->GetAttr<ffi::String>(tvm::relax::attr::kPartitionedFromPattern);
       TVM_FFI_ICHECK(pattern.has_value());
-      node->SetAttr("PartitionedFromPattern", pattern.value());
+      node->SetAttr(tvm::relax::attr::kPartitionedFromPattern, pattern.value());
     }
   }
 
@@ -411,7 +412,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
     if (const auto* op_node = cn->op.as<OpNode>()) {
       name = op_node->name;
     } else if (const auto* fn = cn->op.as<FunctionNode>()) {
-      auto comp = fn->GetAttr<ffi::String>(attr::kComposite);
+      auto comp = fn->GetAttr<ffi::String>(tvm::relax::attr::kComposite);
       TVM_FFI_ICHECK(comp.has_value()) << "JSON runtime only supports composite functions.";
       name = comp.value();
     } else {
@@ -441,7 +442,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
   }
 
   NodeEntries VisitExpr_(const FunctionNode* fn) {
-    TVM_FFI_ICHECK(fn->GetAttr<ffi::String>(attr::kComposite).has_value())
+    TVM_FFI_ICHECK(fn->GetAttr<ffi::String>(tvm::relax::attr::kComposite).has_value())
         << "JSON runtime only supports composite functions";
 
     // FunctionNode should be handled by the caller.

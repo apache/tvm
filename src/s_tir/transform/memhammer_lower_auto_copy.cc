@@ -735,7 +735,7 @@ class AutoCopyMutator : public StmtExprMutator {
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<SBlock>();
     // only rewrite the block annotated with "auto_copy"
-    if (!GetAnn<bool>(op, s_tir::attr::auto_copy).value_or(false)) {
+    if (!GetAnn<bool>(op, tvm::s_tir::attr::kAutoCopy).value_or(false)) {
       SBlockNode* n = block.CopyOnWrite();
       n->alloc_buffers = padder.PadSharedMemory(std::move(n->alloc_buffers));
       return block;
@@ -826,7 +826,8 @@ class ThreadExtentCollector : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
-    if (ffi::Optional<int64_t> warp_execution = GetAnn<int64_t>(op, "warp_execution")) {
+    if (ffi::Optional<int64_t> warp_execution =
+            GetAnn<int64_t>(op, tvm::s_tir::attr::kWarpExecution)) {
       if (warp_execution.value() != 0) {
         thread_extent_.Set("threadIdx.x", 32);
       }

@@ -26,6 +26,8 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/type.h>
 
 #include <utility>
@@ -217,8 +219,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                           "[B,4*N] box encodings (x,y,w,h); TFLite yxhw order remapped to xywh."),
                  sig::arg("anchor", "[1,N,4] priors as ltrb (left,top,right,bottom)."),
                  sig::call_attrs<MultiboxTransformLocAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeMultiboxTransformLoc>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeMultiboxTransformLoc>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax

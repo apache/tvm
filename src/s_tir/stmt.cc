@@ -24,8 +24,12 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr.h>
+#include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/ir/stmt.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op_attr_types.h>
 
@@ -59,23 +63,25 @@ static ffi::Array<Var> RegionNoBodyParams(const CallNode*) { return {}; }
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("s_tir.async_copy_scope", "Mark eligible copies for asynchronous lowering.")
       .signature()
-      .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
+      .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>());
   OpDef("s_tir.manual_sync", "Use explicitly authored synchronization within the body.")
       .signature()
-      .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
+      .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>());
   OpDef("s_tir.async_commit", "Commit asynchronous copies to a queue.")
       .signature(sig::arg<IntImm>("queue_id"))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("s_tir.async_commit"))
-      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
-      .set_attr<TCallEffectKind>("TCallEffectKind",
+      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
+                                    ffi::String("s_tir.async_commit"))
+      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kUpdateState));
   OpDef("s_tir.async_wait", "Wait for committed asynchronous copies.")
       .signature(sig::arg<IntImm>("queue_id"), sig::arg<PrimExpr>("inflight_count"))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("s_tir.async_wait"))
-      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
-      .set_attr<TCallEffectKind>("TCallEffectKind",
+      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
+                                    ffi::String("s_tir.async_wait"))
+      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kUpdateState));
 }
 

@@ -62,8 +62,8 @@ class FunctionNode : public BaseFuncNode {
         .def_ro("ret_type", &FunctionNode::ret_type)
         .def_ro("body", &FunctionNode::body);
     refl::TypeAttrDef<FunctionNode>()
-        .def("__s_equal__", &FunctionNode::SEqual)
-        .def("__s_hash__", &FunctionNode::SHash);
+        .def(tvm::ffi::reflection::type_attr::kSEqual, &FunctionNode::SEqual)
+        .def(tvm::ffi::reflection::type_attr::kSHash, &FunctionNode::SHash);
   }
 
   bool SEqual(const FunctionNode* other,
@@ -268,11 +268,9 @@ constexpr const char* kIsGlobalFunc = "tirx.is_global_func";
 constexpr const char* kIsHostFunc = "tirx.is_host_func";
 
 /*!
- * \brief Mark the function as scheduled, so the default schedule will pass will skip it.
- *
- * Type: IntImm
+ * \brief Mark the kernel as persistent.
  */
-constexpr const char* kIsScheduled = "tirx.is_scheduled";
+constexpr const char* kPersistentKernel = "tirx.persistent_kernel";
 
 }  // namespace attr
 }  // namespace tirx

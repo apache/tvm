@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
 
@@ -82,7 +83,8 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
           continue;
         }
         if (!ScheduleRule::IsApplyCustomRule(sch_rule)) {
-          if (s_tir::GetAnn<ffi::String>(sch->GetSRef(block_rv), "schedule_rule").has_value()) {
+          if (s_tir::GetAnn<ffi::String>(sch->GetSRef(block_rv), tvm::s_tir::attr::kScheduleRule)
+                  .has_value()) {
             stack.emplace_back(sch, blocks);
             continue;
           }

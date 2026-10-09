@@ -24,6 +24,7 @@
 #ifndef TVM_TIR_TRANSFORM_IR_UTILS_H_
 #define TVM_TIR_TRANSFORM_IR_UTILS_H_
 
+#include <tvm/ir/function.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/scope_stack.h>

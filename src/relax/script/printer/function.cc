@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ir/function.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/script/printer/printer.h>
 #include <tvm/tirx/type.h>
 
@@ -114,7 +115,8 @@ ffi::Optional<ExprDoc> FunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView in
 TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterNamespaceAlias("relax.prefix", "R");
   ffi::reflection::TypeAttrDef<relax::FunctionNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&FunctionDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&FunctionDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> ExternFuncDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -141,7 +143,8 @@ ffi::Optional<ExprDoc> ExternFuncDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::ExternFuncNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&ExternFuncDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&ExternFuncDocTranslate>());
 }
 
 }  // namespace

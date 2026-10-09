@@ -19,6 +19,7 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ir/op.h>
 #include <tvm/relax/op_attr_types.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/tirx/type.h>
 
 #include <optional>
@@ -54,7 +55,8 @@ ffi::Optional<ExprDoc> MatchCastDocTranslate(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::MatchCastNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&MatchCastDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&MatchCastDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> VarBindingDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -102,8 +104,8 @@ ffi::Optional<ExprDoc> VarBindingDocTranslate(DocTranslatorObj* d, ffi::AnyView 
     if (!call) {
       inferred = binding->value->ty;
     } else if (auto op = call->op.as<Op>()) {
-      static const auto fixed = Op::GetAttrMap<TFixedReturnType>("TFixedReturnType");
-      static const auto context_free = Op::GetAttrMap<FInferType>("FInferType");
+      static const auto fixed = Op::GetAttrMap<TFixedReturnType>(tvm::op_attr::kFixedReturnType);
+      static const auto context_free = Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
       if (fixed.count(op.value()) || context_free.count(op.value())) {
         try {
           inferred = Call::ReinferType(call);
@@ -129,7 +131,8 @@ ffi::Optional<ExprDoc> VarBindingDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::VarBindingNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&VarBindingDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&VarBindingDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> IfDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -159,7 +162,7 @@ ffi::Optional<ExprDoc> IfDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::IfExprNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&IfDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate, FDocTranslate::FromNative<&IfDocTranslate>());
 }
 
 }  // namespace

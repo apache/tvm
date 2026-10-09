@@ -189,8 +189,8 @@ class VarBindingNode : public BindingNode {
     refl::ObjectDef<VarBindingNode>().def_ro("value", &VarBindingNode::value);
     // customize the SEqual and SHash methods for better error messages
     refl::TypeAttrDef<VarBindingNode>()
-        .def("__s_equal__", &VarBindingNode::SEqual)
-        .def("__s_hash__", &VarBindingNode::SHash);
+        .def(tvm::ffi::reflection::type_attr::kSEqual, &VarBindingNode::SEqual)
+        .def(tvm::ffi::reflection::type_attr::kSHash, &VarBindingNode::SHash);
   }
 
   bool SEqual(const VarBindingNode* other,
@@ -266,8 +266,8 @@ class SeqExprNode : public ExprNode {
         .def_ro("blocks", &SeqExprNode::blocks)
         .def_ro("body", &SeqExprNode::body);
     refl::TypeAttrDef<SeqExprNode>()
-        .def("__s_equal__", &SeqExprNode::SEqual)
-        .def("__s_hash__", &SeqExprNode::SHash);
+        .def(tvm::ffi::reflection::type_attr::kSEqual, &SeqExprNode::SEqual)
+        .def(tvm::ffi::reflection::type_attr::kSHash, &SeqExprNode::SHash);
   }
 
   bool SEqual(const SeqExprNode* other,
@@ -443,37 +443,6 @@ class Function : public BaseFunc {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);
 };
 
-// TODO(@sunggg): Investigate the exact usage of kComposite, kPartitionedFromPattern, and
-// kPrimitive.
-namespace attr {
-/*! \brief Mark the function as a primitive function. */
-constexpr const char* kPrimitive = "Primitive";
-/*!
- * \brief Indicate the codegen that should be used for building this function.
- * When this is unset or set to "default", the default compilation pipeline will be used.
- */
-constexpr const char* kCodegen = "Codegen";
-/*! \brief Treat the function as a composite operator. */
-constexpr const char* kComposite = "Composite";
-/*! \brief Indicate the function was created by the Pattern Partitioning Pass. */
-constexpr const char* kPartitionedFromPattern = "PartitionedFromPattern";
-/*! \brief The required workspace for an external function. */
-constexpr const char* kWorkspaceSize = "WorkspaceSize";
-
-// Note: in the future, we prefer snake_case instead of CamelCase for attributes.
-// Past ones will be kept for backwards compatibility.
-/*! \brief Override checking purity for this function and treat as pure
- * (is_pure must be set to true) */
-constexpr const char* kForcePure = "relax.force_pure";
-
-/*!
- * \brief The number of inputs of a function.
- * If a function has the num_input attribute, the last func->params.size() - num_inputs
- * arguments are assumed to be weights that are fixed across invocations.
- */
-constexpr const char* kNumInput = "num_input";
-}  // namespace attr
-
 /*! \brief The extern function, which can represent packed function. */
 class ExternFuncNode : public BaseFuncNode {
  public:
@@ -510,6 +479,61 @@ class ExternFunc : public BaseFunc {
  *       Call(relax.op.shape_of, [expr]).
  */
 TVM_DLL Expr GetShapeOf(const Expr& expr);
+
+// TODO(@sunggg): Investigate the exact usage of kComposite, kPartitionedFromPattern, and
+// kPrimitive.
+namespace attr {
+/*! \brief Mark the function as a primitive function. */
+constexpr const char* kPrimitive = "Primitive";
+/*!
+ * \brief Indicate the codegen that should be used for building this function.
+ * When this is unset or set to "default", the default compilation pipeline will be used.
+ */
+constexpr const char* kCodegen = "Codegen";
+/*! \brief Treat the function as a composite operator. */
+constexpr const char* kComposite = "Composite";
+/*! \brief Indicate the function was created by the Pattern Partitioning Pass. */
+constexpr const char* kPartitionedFromPattern = "PartitionedFromPattern";
+/*! \brief The required workspace for an external function. */
+constexpr const char* kWorkspaceSize = "WorkspaceSize";
+
+// Note: in the future, we prefer snake_case instead of CamelCase for attributes.
+// Past ones will be kept for backwards compatibility.
+/*! \brief Override checking purity for this function and treat as pure
+ * (is_pure must be set to true) */
+constexpr const char* kForcePure = "relax.force_pure";
+
+/*!
+ * \brief The number of inputs of a function.
+ * If a function has the num_input attribute, the last func->params.size() - num_inputs
+ * arguments are assumed to be weights that are fixed across invocations.
+ */
+constexpr const char* kNumInput = "num_input";
+constexpr const char* kOpPattern = "op_pattern";
+
+constexpr const char* kOpAttrs = "op_attrs";
+
+constexpr const char* kOperatorName = "operator_name";
+
+constexpr const char* kLibraryKernel = "library_kernel";
+
+constexpr const char* kCSource = "c_source";
+
+constexpr const char* kCSourceFmt = "c_source_fmt";
+
+constexpr const char* kTirVarUpperBound = "tir_var_upper_bound";
+
+constexpr const char* kTirVarLowerBound = "tir_var_lower_bound";
+
+constexpr const char* kTirNonNegativeVar = "tir_non_negative_var";
+
+constexpr const char* kMemoryPlanDynamicFuncOutput = "relax.memory_plan_dynamic_func_output";
+
+constexpr const char* kCaptureSymbolicVars = "relax.rewrite_cuda_graph.capture_symbolic_vars";
+
+constexpr const char* kScoped = "scoped";
+
+}  // namespace attr
 
 }  // namespace relax
 }  // namespace tvm

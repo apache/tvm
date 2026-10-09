@@ -21,6 +21,7 @@
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
+#include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
@@ -312,9 +313,9 @@ class ConstantFolder : public ExprMutator {
     if (!ShouldBeFolded(post_call)) return post_call;
 
     static const Op call_tir_op = Op::Get("relax.call_tir");
-    static const auto& infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
+    static const auto& infer_type_map = Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
     static const auto& infer_type_with_builder_map =
-        Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
+        Op::GetAttrMap<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder);
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
     auto* op_node = post_call->op.as<OpNode>();
 

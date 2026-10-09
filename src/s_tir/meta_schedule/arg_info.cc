@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/tirx/function.h>
 
 #include <sstream>
 
@@ -44,7 +45,7 @@ inline tirx::Function FindEntryFunc(const IRModule& mod) {
     BaseFunc base_func = kv.second;
     if (const auto* func = base_func.as<tirx::FunctionNode>()) {
       last_func = func;
-      if (func->HasNonzeroAttr(tirx::attr::kIsEntryFunc)) {
+      if (func->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc)) {
         return ffi::GetRef<tirx::Function>(func);
       }
       if (gv->name_hint == "main") {

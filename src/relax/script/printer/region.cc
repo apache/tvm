@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/tirx/type.h>
 
 #include <optional>
@@ -86,7 +87,8 @@ ffi::Optional<ExprDoc> SeqExprDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::SeqExprNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&SeqExprDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&SeqExprDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> BindingBlockDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -102,7 +104,8 @@ ffi::Optional<ExprDoc> BindingBlockDocTranslate(DocTranslatorObj* d, ffi::AnyVie
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::BindingBlockNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&BindingBlockDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&BindingBlockDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> DataflowBlockDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -131,7 +134,8 @@ ffi::Optional<ExprDoc> DataflowBlockDocTranslate(DocTranslatorObj* d, ffi::AnyVi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::DataflowBlockNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&DataflowBlockDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&DataflowBlockDocTranslate>());
 }
 
 }  // namespace

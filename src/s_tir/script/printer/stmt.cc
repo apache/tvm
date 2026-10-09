@@ -18,6 +18,7 @@
  */
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/script/printer/doc_translator.h>
 
 #include "../../../script/printer/utils.h"
 #include "../../../tirx/script/printer/utils.h"
@@ -168,7 +169,8 @@ ffi::Optional<ExprDoc> SBlockRealizeDocTranslate(DocTranslatorObj* d, ffi::AnyVi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<s_tir::SBlockRealizeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&SBlockRealizeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&SBlockRealizeDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> SBlockDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -188,7 +190,8 @@ ffi::Optional<ExprDoc> SBlockDocTranslate(DocTranslatorObj* d, ffi::AnyView inpu
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<s_tir::SBlockNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&SBlockDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&SBlockDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> MatchBufferRegionDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -203,7 +206,8 @@ ffi::Optional<ExprDoc> MatchBufferRegionDocTranslate(DocTranslatorObj* d, ffi::A
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<s_tir::MatchBufferRegionNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&MatchBufferRegionDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&MatchBufferRegionDocTranslate>());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

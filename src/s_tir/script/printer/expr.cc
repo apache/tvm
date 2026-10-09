@@ -19,6 +19,7 @@
 #include <tvm/ir/op.h>
 #include <tvm/s_tir/iter_var.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/script/printer/doc_translator.h>
 
 #include "../../../script/printer/ir/utils.h"
 #include "../../../script/printer/utils.h"
@@ -46,7 +47,8 @@ ffi::Optional<ExprDoc> IterVarDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<s_tir::IterVarNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&IterVarDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&IterVarDocTranslate>());
 }
 
 }  // namespace

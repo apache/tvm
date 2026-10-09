@@ -26,6 +26,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op/index.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/utils.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -239,11 +240,11 @@ bool IsLeafOrTuple(const Expr& expr) {
 bool IsImpureCall(const Call& call) {
   if (auto op_ptr = call->op.as<OpNode>()) {
     auto op = ffi::GetRef<Op>(op_ptr);
-    static auto purity_map = Op::GetAttrMap<bool>("FPurity");
+    static auto purity_map = Op::GetAttrMap<bool>(tvm::relax::op_attr::kPurity);
     if (purity_map.count(op)) {
       return !(purity_map[op]);
     }
-    static auto effect_map = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
+    static auto effect_map = Op::GetAttrMap<TCallEffectKind>(tvm::op_attr::kCallEffectKind);
     TVM_FFI_ICHECK(effect_map.count(op))
         << "Cannot find the registered purity or call effect of this op: " << op->name;
     auto effect = static_cast<CallEffectKind>(effect_map[op]);

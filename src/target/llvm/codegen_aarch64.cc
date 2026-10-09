@@ -27,12 +27,14 @@
 #include <llvm/Target/TargetMachine.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/runtime/logging.h>
 
 #include "codegen_cpu.h"
 #include "llvm_instance.h"
 
 namespace tvm {
+
 namespace codegen {
 
 class CodeGenAArch64 final : public CodeGenCPU {
@@ -82,13 +84,13 @@ void CodeGenAArch64::SetComputeScopeAttributes(llvm::Function* func) {
 
 void CodeGenAArch64::SetPStateAttributes(llvm::Function* func, const Function& f) {
   // These string Function attrs are exposed directly through T.func_attr and with_attr.
-  if (auto sm = f->GetAttr<ffi::String>("aarch64_pstate_sm")) {
+  if (auto sm = f->GetAttr<ffi::String>(tvm::codegen::aarch64::attr::kPStateSM)) {
     // A locally streaming body does not change a bodyless declaration's interface.
     if (sm.value() != "body" || f->body.has_value()) {
       func->addFnAttr(MakeStringRef("aarch64_pstate_sm_" + sm.value()));
     }
   }
-  if (auto za = f->GetAttr<ffi::String>("aarch64_pstate_za")) {
+  if (auto za = f->GetAttr<ffi::String>(tvm::codegen::aarch64::attr::kPStateZA)) {
 #if TVM_LLVM_VERSION >= 190
     // LLVM 19 renamed the new/shared policies. Keep the legacy spelling for preserved:
     // aarch64_preserves_za describes a shared interface, unlike the old private interface.

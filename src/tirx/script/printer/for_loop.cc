@@ -17,7 +17,9 @@
  * under the License.
  */
 #include <tvm/ir/prim/op.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/tirx/stmt.h>
 
 #include <algorithm>
 #include <optional>
@@ -48,7 +50,7 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
       method = "serial";
       break;
     case ForKind::kParallel:
-      method = use_thread_binding ? "thread_binding" : "parallel";
+      method = use_thread_binding ? tvm::tirx::attr::kThreadBinding : "parallel";
       break;
     case ForKind::kVectorized:
       method = "vectorized";
@@ -82,11 +84,11 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
     const auto& [key, value] = *loop->annotations.begin();
     auto boolean = value.as<bool>();
     auto integer = value.as<int64_t>();
-    if (key == "disable_unroll" && boolean.value_or(false)) {
+    if (key == tvm::tirx::attr::kDisableUnroll && boolean.value_or(false)) {
       keys.push_back("unroll");
       values.push_back(LiteralDoc::Boolean(false, std::nullopt));
       unroll_option = true;
-    } else if (key == "pragma_unroll" &&
+    } else if (key == tvm::tirx::attr::kPragmaUnroll &&
                (boolean.value_or(false) || (integer.has_value() && integer.value() > 0))) {
       keys.push_back("unroll");
       values.push_back(AnyValue(d, value));
@@ -94,7 +96,7 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
     }
   }
   auto annotations = loop->annotations;
-  if (use_thread_binding) annotations.erase("thread_binding");
+  if (use_thread_binding) annotations.erase(tvm::tirx::attr::kThreadBinding);
   if (!unroll_option && !annotations.empty()) {
     std::vector<std::pair<ffi::String, ffi::Any>> sorted;
     for (const auto& [key, value] : annotations) sorted.emplace_back(key, value);
@@ -142,7 +144,7 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<ForNode>().attr(kDocTranslate,
+  ffi::reflection::TypeAttrDef<ForNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
                                                FDocTranslate::FromNative<&ForDocTranslate>());
 }
 

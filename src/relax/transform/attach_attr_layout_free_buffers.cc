@@ -22,8 +22,10 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/s_tir/function.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -49,7 +51,7 @@ class AttrAttacher : public ExprMutator {
 
   using ExprMutator::VisitExpr_;
   Expr VisitExpr_(const FunctionNode* op) final {
-    if (auto opt_num_input = op->attrs.GetAttr<int64_t>(attr::kNumInput)) {
+    if (auto opt_num_input = op->attrs.GetAttr<int64_t>(tvm::relax::attr::kNumInput)) {
       TVM_FFI_ICHECK(layout_free_exprs_.empty())
           << "meet a non-global function with num_input attr";
       size_t num_input = opt_num_input.value();
@@ -82,7 +84,7 @@ class AttrAttacher : public ExprMutator {
     }
     // Attach the layout free buffers to the tirx::Function
     tirx::Function func = WithAttr(mod_->Lookup(gv).as_or_throw<tirx::Function>(),
-                                   "layout_free_buffers", layout_free_buffers);
+                                   tvm::s_tir::attr::kLayoutFreeBuffers, layout_free_buffers);
     // Renew defs
     func = tirx::RenewDef(func);
     // Add the updated tirx::Function in the IRModule

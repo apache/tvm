@@ -23,6 +23,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>

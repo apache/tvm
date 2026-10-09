@@ -31,9 +31,11 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/analysis.h>
 #include <tvm/ir/expr_functor.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
@@ -130,8 +132,8 @@ class GraphCreator : public ExprVisitor {
       // `FuseOpsByPattern`, when the `annotate_codegen` option is
       // true.
       const auto* func = it.second.as<FunctionNode>();
-      if (func == nullptr || func->HasNonzeroAttr(attr::kPrimitive) ||
-          func->GetAttr<ffi::String>(attr::kCodegen).has_value()) {
+      if (func == nullptr || func->HasNonzeroAttr(tvm::relax::attr::kPrimitive) ||
+          func->GetAttr<ffi::String>(tvm::relax::attr::kCodegen).has_value()) {
         continue;
       }
       creator(ffi::GetRef<Function>(func));
@@ -160,7 +162,7 @@ class GraphCreator : public ExprVisitor {
       SetNodePattern(param_node, OpPatternKind::kOpaque);
       AddToPostDFSOrder(param_node, param.get());
     }
-    if (auto opt_num_input = func->GetAttr<int64_t>(attr::kNumInput)) {
+    if (auto opt_num_input = func->GetAttr<int64_t>(tvm::relax::attr::kNumInput)) {
       for (int i = static_cast<int>(opt_num_input.value());
            i < static_cast<int>(func->params.size()); ++i) {
         input_params_.insert(func->params[i].get());
@@ -220,7 +222,7 @@ class GraphCreator : public ExprVisitor {
       // Override args for call_tir
       args = call->args[1].as_or_throw<Tuple>()->fields;
 
-      ffi::Optional<int64_t> opt_pattern = func->GetAttr<int64_t>("op_pattern");
+      ffi::Optional<int64_t> opt_pattern = func->GetAttr<int64_t>(tvm::relax::attr::kOpPattern);
       if (opt_pattern.has_value()) {
         pattern = static_cast<OpPatternKind>(opt_pattern.value());
       } else {
@@ -847,8 +849,9 @@ class OperatorFusor : public ExprMutator {
       const auto& func = mod_->Lookup(gv);
       // Only visit Relax functions with neither attr::kPrimitive nor
       // attr::kCodegen.
-      if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive) &&
-          !func->GetAttr<ffi::String>(attr::kCodegen).has_value()) {
+      if (func->IsInstance<relax::FunctionNode>() &&
+          !func->HasNonzeroAttr(tvm::relax::attr::kPrimitive) &&
+          !func->GetAttr<ffi::String>(tvm::relax::attr::kCodegen).has_value()) {
         outer_bindings_ = AnalyzeVar2Value(func);
         auto updated_func = VisitExpr(func).as_or_throw<Function>();
         builder_->UpdateFunction(gv, updated_func);
@@ -1263,7 +1266,7 @@ class PatternBasedPartitioner : ExprVisitor {
       // parent_group corresponds to the group of "conv1" above.
       auto parent_group = GetGroupForBoundVar(binding->var);
       TVM_FFI_ICHECK(parent_group);
-      parent_group->attrs.Set(attr::kComposite, pat_name_);
+      parent_group->attrs.Set(tvm::relax::attr::kComposite, pat_name_);
       if (attrs_getter_ != nullptr) {
         const auto& custom_attrs = attrs_getter_(context->annotated_expr);
         for (const auto& pair : custom_attrs) {
@@ -1375,8 +1378,8 @@ class CompositeFunctionAnnotator : public ExprMutator {
       }
       const auto& base_func = (*it).second;
       if (const auto* func = base_func.as<FunctionNode>()) {
-        if (func->GetAttr<ffi::String>(attr::kComposite).has_value() ||
-            func->GetAttr<ffi::String>(attr::kCodegen).has_value()) {
+        if (func->GetAttr<ffi::String>(tvm::relax::attr::kComposite).has_value() ||
+            func->GetAttr<ffi::String>(tvm::relax::attr::kCodegen).has_value()) {
           continue;
         }
 
@@ -1397,12 +1400,12 @@ class CompositeFunctionAnnotator : public ExprMutator {
         return Call(Type::Missing(), it->second, call_node->args);
       }
       auto func = builder_->GetContextIRModule()->Lookup(ffi::GetRef<GlobalVar>(gvar));
-      if (auto composite_name = func->GetAttr<ffi::String>(attr::kComposite)) {
+      if (auto composite_name = func->GetAttr<ffi::String>(tvm::relax::attr::kComposite)) {
         auto new_func = VisitExpr(func).as_or_throw<Function>();
         auto codegen_name = GetCodegenName(composite_name.value());
         auto gsymbol = gvar->name_hint + "_" + codegen_name;
-        new_func = WithAttrs(new_func,
-                             {{attr::kCodegen, codegen_name}, {tvm::attr::kGlobalSymbol, gsymbol}});
+        new_func = WithAttrs(new_func, {{tvm::relax::attr::kCodegen, codegen_name},
+                                        {tvm::attr::kGlobalSymbol, gsymbol}});
         new_func = WithoutAttr(std::move(new_func), tvm::relax::attr::kPrimitive);
         builder_->GetContextIRModule()->Remove(ffi::GetRef<GlobalVar>(gvar));
         auto new_gvar = builder_->AddFunction(new_func, gsymbol);
@@ -1416,7 +1419,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
   Expr VisitExpr_(const FunctionNode* func_node) final {
     Function f_inner = ExprMutator::VisitExpr_(func_node).as_or_throw<Function>();
 
-    if (!func_node->GetAttr<ffi::String>(attr::kComposite)) {
+    if (!func_node->GetAttr<ffi::String>(tvm::relax::attr::kComposite)) {
       // This lambda function doesn't have `attr::kComposite`, so it
       // was not produced by FuseOps.
       return f_inner;
@@ -1475,9 +1478,9 @@ IRModule FuseOpsByPattern(const tvm::ffi::Array<transform::FusionPattern>& patte
           continue;
         }
         const FunctionNode* function = base_func.as<FunctionNode>();
-        if (function->GetAttr<bool>(attr::kPrimitive).value_or(false) ||
-            function->GetAttr<ffi::String>(attr::kComposite).has_value() ||
-            function->GetAttr<ffi::String>(attr::kCodegen).has_value()) {
+        if (function->GetAttr<bool>(tvm::relax::attr::kPrimitive).value_or(false) ||
+            function->GetAttr<ffi::String>(tvm::relax::attr::kComposite).has_value() ||
+            function->GetAttr<ffi::String>(tvm::relax::attr::kCodegen).has_value()) {
           continue;
         }
         entry_functions.push_back(base_func.as_or_throw<Function>());

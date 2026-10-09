@@ -40,6 +40,7 @@
 #include <llvm/Target/TargetMachine.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/stmt.h>
 #if TVM_LLVM_VERSION < 170
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #endif
@@ -157,7 +158,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
                                                        buf->getType()->getPointerAddressSpace()));
     TVM_FFI_ICHECK(!var_map_.count(buffer.get()));
     var_map_[buffer.get()] = buf;
-    if (annotations->dict.count(tirx::attr::kVolatile)) {
+    if (annotations->dict.count(tvm::tirx::attr::kVolatile)) {
       volatile_buf_.insert(buffer.get());
     }
   }

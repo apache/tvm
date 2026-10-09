@@ -26,13 +26,16 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/analysis.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/ir/stmt.h>
 #include <tvm/ir/transform.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
@@ -60,11 +63,11 @@ void ValidateDeviceScopeRegion(const RegionStmtNode* region) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.device_scope", "Internal host/device splitting boundary.")
       .signature(sig::var_args<Expr>("launch_values"), sig::call_attrs<DictAttrsNode>())
-      .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
+      .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
-      .set_attr<FRegionValidate>("FRegionValidate",
+      .set_attr<FRegionValidate>(tvm::op_attr::kRegionValidate,
                                  FRegionValidate::FromNative<&ValidateDeviceScopeRegion>())
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
+      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"));
 }
 
 // Device-region annotation
@@ -251,16 +254,16 @@ class HostDeviceSplitter : public StmtExprMutator {
     }
     Function device_func(kernel_params, SeqStmt(body), kernel_ret_type);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
-                                                     {tirx::attr::kNoAlias, true},
-                                                     {tirx::attr::kIsGlobalFunc, true}});
+                                                     {tvm::tirx::attr::kNoAlias, true},
+                                                     {tvm::tirx::attr::kIsGlobalFunc, true}});
     bool is_stir = cur_func_->attrs->dict.count(tvm::attr::kSTir);
     if (is_stir) {
       device_func = WithAttr(std::move(device_func), tvm::attr::kSTir, true);
     }
     if (auto launch_params =
-            cur_func_->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kKernelLaunchParams)) {
-      device_func =
-          WithAttr(std::move(device_func), tirx::attr::kKernelLaunchParams, launch_params.value());
+            cur_func_->GetAttr<ffi::Array<ffi::String>>(tvm::tirx::attr::kKernelLaunchParams)) {
+      device_func = WithAttr(std::move(device_func), tvm::tirx::attr::kKernelLaunchParams,
+                             launch_params.value());
     }
     auto num_inputs = cur_func_->GetAttr<int64_t>(tvm::attr::kNumInputs);
     if (num_inputs.has_value()) {
@@ -356,7 +359,8 @@ class DeviceInfoCollector : public StmtExprVisitor {
       return collector->info_;
     }
 
-    if (auto requested = func->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kKernelLaunchParams)) {
+    if (auto requested =
+            func->GetAttr<ffi::Array<ffi::String>>(tvm::tirx::attr::kKernelLaunchParams)) {
       for (const ffi::String& tag : requested.value()) {
         if (tag == tvm::runtime::launch_param::kUseProgramaticDependentLaunch) {
           collector->use_programmatic_dependent_launch_ = true;
@@ -798,7 +802,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     TVM_FFI_ICHECK(dev_info.launch_params.defined())
         << "CallNode attempted kernel launch to " << gvar->name_hint << " on target "
         << dev_info.target << ", but subroutine " << gvar->name_hint
-        << " did not have the tirx::attr::kKernelLaunchParams attribute "
+        << " did not have the tvm::tirx::attr::kKernelLaunchParams attribute "
         << "required for cross-target kernel launch";
 
     // Collected kernel information may be in terms of the callee's

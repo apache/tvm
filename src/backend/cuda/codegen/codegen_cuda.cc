@@ -25,12 +25,14 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <cmath>
@@ -404,13 +406,14 @@ void CodeGenCUDA::Dispatch_(const ForNode* op) {
   PrimExpr end = IsZero(op->min) ? op->extent : sym::Analyzer()->Simplify(op->min + op->extent);
   std::string end_str = PrintExpr(end);
   std::string step_str = op->step.has_value() ? PrintExpr(*op->step) : "";
-  if (op->annotations.count("disable_unroll")) {
+  if (op->annotations.count(tvm::tirx::attr::kDisableUnroll)) {
     PrintIndent();
     stream << "#pragma unroll 1\n";
   } else if (op->kind == ForKind::kUnrolled) {
     PrintIndent();
     stream << "#pragma unroll\n";
-  } else if (auto it = op->annotations.find("pragma_unroll"); it != op->annotations.end()) {
+  } else if (auto it = op->annotations.find(tvm::tirx::attr::kPragmaUnroll);
+             it != op->annotations.end()) {
     PrintIndent();
     stream << "#pragma unroll";
     if (auto count = (*it).second.as<int64_t>()) {
@@ -1379,7 +1382,7 @@ void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
   this->PrintIndent();
   PrintStorageScope(scope, stream);
   int align = buffer->data_alignment;
-  auto it = annotations->dict.find(tirx::attr::buffer_data_alignment);
+  auto it = annotations->dict.find(tvm::tirx::attr::kBufferDataAlignment);
   if (it != annotations->dict.end()) {
     if (const auto* n = (*it).second.as<IntImmNode>()) {
       align = n->value.as<int>().value();
@@ -1414,7 +1417,7 @@ void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
   }
 
   RegisterHandleType(buffer.get(), PrimType(dtype));
-  if (annotations->dict.count(tirx::attr::kVolatile)) {
+  if (annotations->dict.count(tvm::tirx::attr::kVolatile)) {
     MarkVolatile(buffer.get());
   }
 }

@@ -18,8 +18,10 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/transform.h>
 
 #include "../utils.h"
@@ -83,13 +85,13 @@ class ThreadExtentChecker : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* block) {
     int old_thread_idx_x = thread_idx_x;
-    if (block->annotations.count(s_tir::attr::warp_execution)) {
+    if (block->annotations.count(tvm::s_tir::attr::kWarpExecution)) {
       thread_idx_x = thread_warp_size_;
     }
     if (ffi::Optional<int64_t> low_inclusive =
-            GetAnn<int64_t>(block, s_tir::attr::meta_schedule_thread_extent_low_inclusive)) {
+            GetAnn<int64_t>(block, tvm::s_tir::attr::kMetaScheduleThreadExtentLowInclusive)) {
       if (ffi::Optional<int64_t> high_inclusive =
-              GetAnn<int64_t>(block, s_tir::attr::meta_schedule_thread_extent_high_inclusive)) {
+              GetAnn<int64_t>(block, tvm::s_tir::attr::kMetaScheduleThreadExtentHighInclusive)) {
         int64_t low = low_inclusive.value();
         int64_t high = high_inclusive.value();
         int64_t thread_extent_product = thread_idx_x * thread_idx_y * thread_idx_z;
@@ -195,12 +197,12 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(tirx::transform::LowerIntrin());
           // Convert Function to IRModule
           tvm::transform::PassContext pass_ctx = tvm::transform::PassContext::Current();
-          tirx::Function f = WithAttr(ffi::GetRef<tirx::Function>(function), "global_symbol",
-                                      ffi::String(g_var->name_hint));
+          tirx::Function f = WithAttr(ffi::GetRef<tirx::Function>(function),
+                                      tvm::attr::kGlobalSymbol, ffi::String(g_var->name_hint));
           f = WithAttr(f, tvm::attr::kTarget, this->target_);  // Required for LowerIntrin
-          bool noalias = pass_ctx->GetConfig<bool>("tirx.noalias").value_or(true);
+          bool noalias = pass_ctx->GetConfig<bool>(tvm::tirx::attr::kNoAlias).value_or(true);
           if (noalias) {
-            f = WithAttr(std::move(f), "tirx.noalias", true);
+            f = WithAttr(std::move(f), tvm::tirx::attr::kNoAlias, true);
           }
           IRModule mod =
               IRModule(ffi::Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));

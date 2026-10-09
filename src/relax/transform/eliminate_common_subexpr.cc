@@ -30,6 +30,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
@@ -193,7 +194,7 @@ class CommonSubexprEliminator : public ExprMutator {
   }
 
   bool IsAllocatorCall(const Expr& expr) {
-    static const auto& allocator_attr_map = Op::GetAttrMap<bool>("TAllocator");
+    static const auto& allocator_attr_map = Op::GetAttrMap<bool>(tvm::relax::op_attr::kAllocator);
     if (const auto* call = expr.as<CallNode>()) {
       if (const auto* op = call->op.as<OpNode>()) {
         bool is_allocator = allocator_attr_map.get(ffi::GetRef<Op>(op), false);

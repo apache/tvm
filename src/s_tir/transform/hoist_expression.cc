@@ -28,6 +28,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/analysis.h>
+#include <tvm/s_tir/function.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/analyzer.h>
@@ -621,7 +622,7 @@ static Pass HoistIfThenElseImpl() {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfigOrDefault<HoistIfThenElseConfig>("s_tir.HoistIfThenElse");
-    auto flag = f->GetAttr<int64_t>("tirx.HoistIfThenElseExprWithBlock");
+    auto flag = f->GetAttr<int64_t>(tvm::s_tir::attr::kHoistIfThenElseExprWithBlock);
     if (flag && flag.value() == 1) {
       HoistExpressionConfig config(static_cast<int>(HoistedConditionals::kUsingBlockVar) |
                                        static_cast<int>(HoistedConditionals::kIfElseExpr),

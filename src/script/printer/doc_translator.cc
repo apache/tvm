@@ -197,8 +197,8 @@ Doc DocTranslate(ffi::AnyView ir, ffi::Dict<Doc, ffi::ObjectRef>* doc_origins,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = ffi::reflection;
   refl::ObjectDef<DocTranslatorObj>();
-  refl::EnsureTypeAttrColumn(kDocTranslate);
-  refl::EnsureTypeAttrColumn(kTensorLoadDocTranslate);
+  refl::EnsureTypeAttrColumn(tvm::script::printer::type_attr::kDocTranslate);
+  refl::EnsureTypeAttrColumn(tvm::script::printer::type_attr::kTensorLoadDocTranslate);
   refl::GlobalDef()
       .def("script.printer.DocTranslate",
            [](ffi::AnyView ir, ffi::Map<ffi::String, ffi::Any> extra_config) {

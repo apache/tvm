@@ -22,8 +22,10 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/tir_pattern.h>
 #include <tvm/relax/transform.h>
@@ -37,9 +39,6 @@
 
 namespace tvm {
 
-static const constexpr char* kLibraryKernel = "library_kernel";
-static const constexpr char* kCSource = "c_source";
-static const constexpr char* kCSourceFmt = "c_source_fmt";
 static const constexpr char* kCSourceFmtCuda = "cu";
 
 namespace tirx {
@@ -635,7 +634,7 @@ std::pair<tirx::Function, ffi::Optional<tirx::Function>> SplitFunctions(
   }
   if (!has_second_func) {
     // No need to split the function.
-    return {WithAttr(func, kLibraryKernel, library_code), std::nullopt};
+    return {WithAttr(func, tvm::relax::attr::kLibraryKernel, library_code), std::nullopt};
   }
   // Step 2. Split the function into two functions.
   Stmt body1 = BlockRemover::RemoveBlockByPartition(
@@ -660,7 +659,7 @@ std::pair<tirx::Function, ffi::Optional<tirx::Function>> SplitFunctions(
   arg_partition->push_back(arg_partition1);
   new_params1.push_back(partitioner->intermediate_buffer.value().var());
   tirx::Function func1 = tirx::Function(new_params1, SeqStmt(body1), func->ret_type, func->attrs);
-  func1 = WithAttr(func1, kLibraryKernel, library_code);
+  func1 = WithAttr(func1, tvm::relax::attr::kLibraryKernel, library_code);
   // Step 4. Craft the second function.
   ffi::Array<Var> new_params2;
   std::vector<int> arg_partition2;
@@ -691,17 +690,19 @@ void StringReplace(std::string* subject, const std::string& search, const std::s
 
 tvm::BaseFunc CodegenWithLibrary(const tirx::FunctionNode* pf, ffi::String global_symbol) {
   using namespace tvm::tirx;
-  ffi::Optional<ffi::String> library_code = pf->attrs.GetAttr<ffi::String>(kLibraryKernel);
+  ffi::Optional<ffi::String> library_code =
+      pf->attrs.GetAttr<ffi::String>(tvm::relax::attr::kLibraryKernel);
   if (!library_code.has_value()) {
     return ffi::GetRef<tirx::Function>(pf);
   }
   std::string source = library_code.value();
   StringReplace(&source, "{global_symbol}", global_symbol);
   ExternFunc ret(global_symbol);
-  ret = WithAttrs(std::move(ret), ffi::Map<ffi::String, ffi::Any>{
-                                      {ffi::String(kCSource), ffi::String(source)},
-                                      {ffi::String(kCSourceFmt), ffi::String(kCSourceFmtCuda)},
-                                  });
+  ret = WithAttrs(std::move(ret),
+                  ffi::Map<ffi::String, ffi::Any>{
+                      {ffi::String(tvm::relax::attr::kCSource), ffi::String(source)},
+                      {ffi::String(tvm::relax::attr::kCSourceFmt), ffi::String(kCSourceFmtCuda)},
+                  });
   return ret;
 }
 
@@ -787,7 +788,7 @@ class SplitMutator : public ExprMutator {
     }
     GlobalVar gv2 = builder_->AddFunction(func2, "unfused_epilogue");
     Call call2(Type::Missing(), call_tir_op_, {gv2, Tuple(args2)}, call->attrs, call->ty_args);
-    builder_->UpdateFunction(gv, WithoutAttr(func, "global_symbol"));
+    builder_->UpdateFunction(gv, WithoutAttr(func, tvm::attr::kGlobalSymbol));
     return call2;
   }
 

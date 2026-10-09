@@ -59,8 +59,8 @@ class AnnotateRegionRewriter : public StmtExprMutator {
     // Annotate the block with explicit_read_region or explicit_write_region
     ffi::Map<ffi::String, ffi::Any> new_annotations = n->annotations;
     ffi::String annotation_key = buffer_index_type_ == BufferIndexType::kWrite
-                                     ? s_tir::attr::explicit_write_region
-                                     : s_tir::attr::explicit_read_region;
+                                     ? tvm::s_tir::attr::kExplicitWriteRegion
+                                     : tvm::s_tir::attr::kExplicitReadRegion;
     if (new_annotations.count(annotation_key)) {
       ffi::Array<int64_t> buffer_indices =
           new_annotations[annotation_key].as_or_throw<ffi::Array<int64_t>>();

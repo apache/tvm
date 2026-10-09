@@ -37,7 +37,9 @@
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Support/FileSystem.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/support/io.h>
+#include <tvm/tirx/function.h>
 #if TVM_LLVM_VERSION >= 180
 #include <llvm/TargetParser/Host.h>
 #else
@@ -264,7 +266,7 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
     }
     auto f = kv.second.as_or_throw<tirx::Function>();
     auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
-    bool is_entry_func = f->HasNonzeroAttr(tirx::attr::kIsEntryFunc);
+    bool is_entry_func = f->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc);
 
     TVM_FFI_ICHECK(global_symbol || !is_entry_func) << "The entry func must be exposed externally.";
 

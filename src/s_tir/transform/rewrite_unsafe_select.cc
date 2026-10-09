@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -121,7 +122,8 @@ class UnsafeExprDetector : public tvm::ExprFunctor<bool(const Expr& n)> {
     return Dispatch(op->a) || Dispatch(op->b);
   }
 
-  OpAttrMap<TCallEffectKind> op_call_effect_ = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
+  OpAttrMap<TCallEffectKind> op_call_effect_ =
+      Op::GetAttrMap<TCallEffectKind>(tvm::op_attr::kCallEffectKind);
 };
 
 class UnsafeSelectRewriter : public StmtExprMutator {

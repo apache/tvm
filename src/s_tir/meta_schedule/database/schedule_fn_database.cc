@@ -54,11 +54,11 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
 
   ffi::Optional<s_tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
                                                const ffi::String& workload_name) final {
-    s_tir::Schedule sch =
-        s_tir::Schedule::Traced(WithAttr<IRModule>(mod, "task_name", workload_name),
-                                /*rand_state=*/-1,
-                                /*debug_mode=*/0,
-                                /*error_render_level=*/s_tir::ScheduleErrorRenderLevel::kDetail);
+    s_tir::Schedule sch = s_tir::Schedule::Traced(
+        WithAttr<IRModule>(mod, tvm::s_tir::meta_schedule::attr::kTaskName, workload_name),
+        /*rand_state=*/-1,
+        /*debug_mode=*/0,
+        /*error_render_level=*/s_tir::ScheduleErrorRenderLevel::kDetail);
     if (!schedule_fn(sch)) {
       return std::nullopt;
     }

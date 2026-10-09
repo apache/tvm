@@ -24,6 +24,8 @@
 // Use libspirv for parsing and validating code.
 #include "spirv_utils.h"
 
+#include <tvm/ir/function.h>
+
 #if TVM_ENABLE_SPIRV
 #include <libspirv.h>
 

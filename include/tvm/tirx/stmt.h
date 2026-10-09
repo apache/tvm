@@ -29,9 +29,45 @@
 namespace tvm {
 namespace tirx {
 
+
+/*! \brief Whether stmt is undefined, an integer Evaluate, or an empty sequence. */
+inline bool IsNoOp(const Stmt& stmt) {
+  if (!stmt.defined()) return true;
+  if (const auto* op = stmt.as<EvaluateNode>()) return op->value.as<IntImmNode>() != nullptr;
+  if (const auto* op = stmt.as<SeqStmtNode>()) return op->seq.empty();
+  return false;
+}
+
+/*! \brief Statement attribute and loop annotation keys. */
+namespace attr {
+constexpr const char* kThreadBinding = "thread_binding";
+
+constexpr const char* kPragmaUnroll = "pragma_unroll";
+
+constexpr const char* kDisableUnroll = "disable_unroll";
+
+/*!
+ * \brief For annotation: maximum work for automatic unrolling.
+ *
+ * Integer policy inherited by nested loops unless they override it. Consumed by UnrollLoop.
+ */
+constexpr const char* kAutoUnrollMaxStep = "auto_unroll_max_step";
+/*!
+ * \brief For annotation: expand unrolled bodies instead of preserving unrolled loops.
+ *
+ * Integer policy inherited by nested loops unless they override it. Consumed by UnrollLoop.
+ */
+constexpr const char* kUnrollExplicit = "unroll_explicit";
+/*! \brief Annotation key on AllocTensor marking the allocation as volatile. */
+constexpr const char* kVolatile = "tirx.volatile";
+/*! \brief Mark buffer initial addr alignment in bytes */
+constexpr const char* kBufferDataAlignment = "buffer_data_alignment";
+
+}  // namespace attr
+
 /*! \brief Interpret and validate TIRx thread placement on a shared loop. */
 inline ffi::Optional<ffi::String> GetThreadBinding(const ForNode* loop) {
-  if (auto tag = loop->annotations.Get("thread_binding")) {
+  if (auto tag = loop->annotations.Get(tvm::tirx::attr::kThreadBinding)) {
     TVM_FFI_CHECK(loop->kind == ForKind::kParallel, ValueError)
         << "thread_binding requires a parallel loop";
     TVM_FFI_CHECK(tag->as<ffi::String>().has_value(), TypeError)
@@ -43,40 +79,6 @@ inline ffi::Optional<ffi::String> GetThreadBinding(const ForNode* loop) {
 }
 inline ffi::Optional<ffi::String> GetThreadBinding(const For& loop) {
   return GetThreadBinding(loop.get());
-}
-
-/*! \brief Statement attribute and loop annotation keys. */
-namespace attr {
-/*!
- * \brief For annotation: maximum work for automatic unrolling.
- *
- * Integer policy inherited by nested loops unless they override it. Consumed by UnrollLoop.
- */
-constexpr const char* auto_unroll_max_step = "auto_unroll_max_step";
-/*!
- * \brief For annotation: expand unrolled bodies instead of preserving unrolled loops.
- *
- * Integer policy inherited by nested loops unless they override it. Consumed by UnrollLoop.
- */
-constexpr const char* unroll_explicit = "unroll_explicit";
-/*! \brief Annotation key on AllocTensor marking the allocation as volatile. */
-constexpr const char* kVolatile = "tirx.volatile";
-/*! \brief Mark buffer initial addr alignment in bytes */
-constexpr const char* buffer_data_alignment = "buffer_data_alignment";
-
-/*!
- * \brief Mark the kernel as persistent.
- */
-constexpr const char* kPersistentKernel = "tirx.persistent_kernel";
-
-}  // namespace attr
-
-/*! \brief Whether stmt is undefined, an integer Evaluate, or an empty sequence. */
-inline bool IsNoOp(const Stmt& stmt) {
-  if (!stmt.defined()) return true;
-  if (const auto* op = stmt.as<EvaluateNode>()) return op->value.as<IntImmNode>() != nullptr;
-  if (const auto* op = stmt.as<SeqStmtNode>()) return op->seq.empty();
-  return false;
 }
 
 }  // namespace tirx

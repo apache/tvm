@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/ir/stmt.h>
 #include <tvm/tirx/op/region.h>
 #include <tvm/tirx/op_attr_types.h>
 
@@ -54,11 +55,11 @@ const Op& launch_thread_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.launch_thread", "Bind a thread index within a body with a launch extent.")
       .signature(sig::arg<StringImm>("tag"), sig::arg<IntExpr>("extent"))
-      .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
+      .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&LaunchThreadBodyParams>())
-      .set_attr<FRegionValidate>("FRegionValidate",
+      .set_attr<FRegionValidate>(tvm::op_attr::kRegionValidate,
                                  FRegionValidate::FromNative<&ValidateBuiltinRegion>())
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
+      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"));
 }
 
 const Op& device_entry_op() {
@@ -82,11 +83,11 @@ void ValidateDeviceEntry(const RegionStmtNode* region) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.device_entry", "Enter a device kernel with independent launch configuration.")
       .signature(sig::var_args("launch_values"), sig::call_attrs<DictAttrsNode>())
-      .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
+      .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
-      .set_attr<FRegionValidate>("FRegionValidate",
+      .set_attr<FRegionValidate>(tvm::op_attr::kRegionValidate,
                                  FRegionValidate::FromNative<&ValidateDeviceEntry>())
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
+      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"));
 }
 
 const Op& device_context_op() {
@@ -97,11 +98,11 @@ const Op& device_context_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.device_context", "Supply the device type and ID within a region.")
       .signature(sig::arg<IntExpr>("device_type"), sig::arg<IntExpr>("device_id"))
-      .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
+      .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
-      .set_attr<FRegionValidate>("FRegionValidate",
+      .set_attr<FRegionValidate>(tvm::op_attr::kRegionValidate,
                                  FRegionValidate::FromNative<&ValidateBuiltinRegion>())
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
+      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"));
 }
 
 const Op& compute_scope_op() {
@@ -112,11 +113,11 @@ const Op& compute_scope_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.compute_scope", "Outline a named CPU compute region.")
       .signature(sig::arg<StringImm>("name"))
-      .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
+      .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
-      .set_attr<FRegionValidate>("FRegionValidate",
+      .set_attr<FRegionValidate>(tvm::op_attr::kRegionValidate,
                                  FRegionValidate::FromNative<&ValidateBuiltinRegion>())
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
+      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"));
 }
 
 const Op& parallel_launch_op() {
@@ -127,11 +128,11 @@ const Op& parallel_launch_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.parallel_launch", "Launch a CPU worker team around a region.")
       .signature()
-      .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
+      .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
-      .set_attr<FRegionValidate>("FRegionValidate",
+      .set_attr<FRegionValidate>(tvm::op_attr::kRegionValidate,
                                  FRegionValidate::FromNative<&ValidateBuiltinRegion>())
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
+      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"));
 }
 
 }  // namespace tirx

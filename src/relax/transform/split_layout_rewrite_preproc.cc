@@ -22,9 +22,11 @@
  * \brief Use for rewriting the TIRs after meta_schedule layout rewrite post process.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/s_tir/function.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/function.h>
@@ -92,9 +94,9 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
 
     ffi::Map<ffi::String, ffi::Any> dict;
     for (const auto& [key, original_value] : original_func_->attrs->dict) {
-      if (key == "global_symbol") {
+      if (key == tvm::attr::kGlobalSymbol) {
         dict.Set(key, original_value.as_or_throw<ffi::String>() + "_weight_prepack");
-      } else if (key != "layout_free_buffers") {
+      } else if (key != tvm::s_tir::attr::kLayoutFreeBuffers) {
         dict.Set(key, original_value);
       }
     }
@@ -138,9 +140,9 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
 
     ffi::Map<ffi::String, ffi::Any> dict;
     for (const auto& [key, original_value] : original_func_->attrs->dict) {
-      if (key == "global_symbol") {
+      if (key == tvm::attr::kGlobalSymbol) {
         dict.Set(key, original_value.as_or_throw<ffi::String>() + "_prepacked");
-      } else if (key != "layout_free_buffers") {
+      } else if (key != tvm::s_tir::attr::kLayoutFreeBuffers) {
         dict.Set(key, original_value);
       }
     }
@@ -168,7 +170,7 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
     s_tir::SBlock block = s_tir::StmtExprMutator::Mutate_(op, inplace_mode)
                               .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                               .as_or_throw<s_tir::SBlock>();
-    auto it = op->annotations.find(s_tir::attr::meta_schedule_layout_rewrite_preproc);
+    auto it = op->annotations.find(tvm::s_tir::attr::kMetaScheduleLayoutRewritePreproc);
     bool is_layout_rewrite_preproc =
         it != op->annotations.end() && IsOne((*it).second.cast<PrimExpr>());
 
@@ -207,7 +209,7 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
                       op->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>()});
 
       auto new_annotations = op->annotations;
-      new_annotations.erase(s_tir::attr::meta_schedule_layout_rewrite_preproc);
+      new_annotations.erase(tvm::s_tir::attr::kMetaScheduleLayoutRewritePreproc);
       auto n = ffi::make_object<s_tir::SBlockNode>(*block.get());
       n->annotations = new_annotations;
       return s_tir::SBlock(n);

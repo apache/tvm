@@ -23,6 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
@@ -30,6 +31,7 @@
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -132,7 +134,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     const CallNode* call = node->value.template as<CallNode>();
     DictAttrs annotations = call->attrs.as_or_throw<DictAttrs>();
     if (replacement.scope() == "shared") {
-      annotations.CopyOnWrite()->dict.Set(tirx::attr::kVolatile, true);
+      annotations.CopyOnWrite()->dict.Set(tvm::tirx::attr::kVolatile, true);
     }
     ffi::Array<Expr> args = call->args;
     args.Set(0, tvm::Tuple(replacement->shape, call->args[0]->span));
@@ -988,7 +990,7 @@ class DeferredRemapper : public DialectMutator {
         const CallNode* call = node->value.template as<CallNode>();
         DictAttrs annotations = call->attrs.as_or_throw<DictAttrs>();
         if (replacement.scope() == "shared") {
-          annotations.CopyOnWrite()->dict.Set(tirx::attr::kVolatile, true);
+          annotations.CopyOnWrite()->dict.Set(tvm::tirx::attr::kVolatile, true);
         }
         ffi::Array<Expr> args = call->args;
         args.Set(0, tvm::Tuple(replacement->shape, call->args[0]->span));

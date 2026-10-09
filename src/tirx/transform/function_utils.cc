@@ -24,6 +24,8 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/transform.h>
 
 namespace tvm {
@@ -35,9 +37,10 @@ transform::Pass AnnotateEntryFunc() {
     // If only a single function exists, that function must be the entry
     if (mod->functions.size() == 1) {
       auto [gvar, base_func] = *mod->functions.begin();
-      if (!base_func->HasNonzeroAttr(tirx::attr::kIsEntryFunc)) {
+      if (!base_func->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc)) {
         if (auto ptr = base_func.as<FunctionNode>()) {
-          mod->Update(gvar, WithAttr(ffi::GetRef<Function>(ptr), tirx::attr::kIsEntryFunc, true));
+          mod->Update(gvar,
+                      WithAttr(ffi::GetRef<Function>(ptr), tvm::tirx::attr::kIsEntryFunc, true));
         }
       }
       return mod;
@@ -52,7 +55,7 @@ transform::Pass AnnotateEntryFunc() {
       if (is_external) {
         if (auto ptr = base_func.as<FunctionNode>()) {
           with_annotations->Add(
-              gvar, WithAttr(ffi::GetRef<Function>(ptr), tirx::attr::kIsEntryFunc, true));
+              gvar, WithAttr(ffi::GetRef<Function>(ptr), tvm::tirx::attr::kIsEntryFunc, true));
         } else {
           has_external_non_functions = true;
         }

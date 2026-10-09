@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/relax/distributed/type.h>
+#include <tvm/script/printer/doc_translator.h>
 
 #include <optional>
 
@@ -39,7 +40,8 @@ ffi::Optional<ExprDoc> PlacementDocTranslate(DocTranslatorObj*, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::distributed::PlacementNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&PlacementDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&PlacementDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> DTensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -94,7 +96,8 @@ ffi::Optional<ExprDoc> DTensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::distributed::DTensorTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&DTensorTypeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&DTensorTypeDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> DeviceMeshDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -118,7 +121,8 @@ ffi::Optional<ExprDoc> DeviceMeshDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::distributed::DeviceMeshNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&DeviceMeshDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&DeviceMeshDocTranslate>());
 }
 
 }  // namespace

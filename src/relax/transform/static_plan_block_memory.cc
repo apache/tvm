@@ -68,6 +68,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/transform.h>
@@ -434,13 +435,13 @@ void SetTIRVarRangeConstraints(Function func, sym::AnalyzerObj* ana,
   // NOTE: we only apply the annotated bounds to the TIR variables that
   // appear in the **function signature**.
   ffi::Map<ffi::String, IntImm> var_upper_bound_attr_raw =
-      func->GetAttr<ffi::Map<ffi::String, IntImm>>("tir_var_upper_bound")
+      func->GetAttr<ffi::Map<ffi::String, IntImm>>(tvm::relax::attr::kTirVarUpperBound)
           .value_or(ffi::Map<ffi::String, IntImm>());
   ffi::Map<ffi::String, IntImm> var_lower_bound_attr_raw =
-      func->GetAttr<ffi::Map<ffi::String, IntImm>>("tir_var_lower_bound")
+      func->GetAttr<ffi::Map<ffi::String, IntImm>>(tvm::relax::attr::kTirVarLowerBound)
           .value_or(ffi::Map<ffi::String, IntImm>());
   ffi::Array<ffi::String> non_negative_var_attr_raw =
-      func->GetAttr<ffi::Array<ffi::String>>("tir_non_negative_var")
+      func->GetAttr<ffi::Array<ffi::String>>(tvm::relax::attr::kTirNonNegativeVar)
           .value_or(ffi::Array<ffi::String>());
   std::unordered_map<ffi::String, IntImm> var_upper_bound_attr;
   std::unordered_map<ffi::String, IntImm> var_lower_bound_attr;

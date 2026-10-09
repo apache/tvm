@@ -22,7 +22,9 @@
  */
 #include <tvm/backend/cuda/op/tensormap.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/type.h>
 
@@ -127,7 +129,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
            << "  TVM_FFI_SAFE_CALL_END();\n}\n\n";
     if (auto symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
       function_names_.push_back(symbol.value());
-      if (func->HasNonzeroAttr(tirx::attr::kIsEntryFunc) && !has_tvm_ffi_main_func_) {
+      if (func->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc) && !has_tvm_ffi_main_func_) {
         function_names_.push_back(ffi::symbol::tvm_ffi_main);
         PrintFuncPrefix(stream);
         PrintType(func->ret_type, stream);

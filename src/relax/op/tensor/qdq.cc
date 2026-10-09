@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/relax/op_attr_types.h>
 
 #include <utility>
 
@@ -171,8 +172,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("scale", "The quantization scale of the output tensor."),
                  sig::arg("zero_point", "The quantization zero_point of the output tensor."),
                  sig::call_attrs<QuantizeAttrs>())
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeQuantize)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
+                                       InferTypeQuantize)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.dequantize */
@@ -294,8 +296,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("scale", "The quantization scale of the input tensor."),
                  sig::arg("zero_point", "The quantization zero_point of the input tensor."),
                  sig::call_attrs<QuantizeAttrs>())
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeDequantize)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
+                                       InferTypeDequantize)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax

@@ -25,6 +25,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
@@ -115,7 +116,7 @@ class LegalizeMutator : public ExprMutator {
   using ExprMutator::VisitExpr_;
 
   bool WrapPureCondition(const Op& op, const Expr& legalized) {
-    static const auto& purity_map = Op::GetAttrMap<bool>("FPurity");
+    static const auto& purity_map = Op::GetAttrMap<bool>(tvm::relax::op_attr::kPurity);
 
     const CallNode* call = legalized.as<CallNode>();
 
@@ -242,8 +243,10 @@ class LegalizeMutator : public ExprMutator {
   Expr VisitExpr_(const CallNode* call) final {
     Call visited_call = this->VisitExprPostOrder_(call).as_or_throw<Call>();
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
-    static const auto& call_packed_map = Op::GetAttrMap<FCallPacked>("FCallPacked");
-    static const auto& requires_arg_shapes_map = Op::GetAttrMap<bool>("RequiresArgumentShapes");
+    static const auto& call_packed_map =
+        Op::GetAttrMap<FCallPacked>(tvm::relax::op_attr::kCallPacked);
+    static const auto& requires_arg_shapes_map =
+        Op::GetAttrMap<bool>(tvm::relax::op_attr::kRequiresArgumentShapes);
     static const Op call_pure_packed_op = Op::Get("relax.call_pure_packed");
     static const Op call_tir_op = Op::Get("relax.call_tir");
     static const Op call_dps_packed_op = Op::Get("relax.call_dps_packed");
@@ -296,8 +299,8 @@ class LegalizeMutator : public ExprMutator {
       }
 
       bool is_data_dependent_op = [&]() -> bool {
-        if (Op::HasAttrMap("FDataDependent")) {
-          auto op_map = Op::GetAttrMap<bool>("FDataDependent");
+        if (Op::HasAttrMap(tvm::relax::op_attr::kDataDependent)) {
+          auto op_map = Op::GetAttrMap<bool>(tvm::relax::op_attr::kDataDependent);
           if (op_map.count(op)) {
             return op_map[op];
           }

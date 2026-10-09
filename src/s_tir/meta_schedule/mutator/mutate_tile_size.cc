@@ -127,7 +127,7 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
       TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
       TVM_FFI_ICHECK_EQ(inst->inputs.size(), 2);
       if (inst->attrs[0].as_or_throw<ffi::String>() ==
-          s_tir::attr::meta_schedule_cooperative_fetch) {
+          tvm::s_tir::attr::kMetaScheduleCooperativeFetch) {
         const auto* ann_val = inst->inputs[1].as<s_tir::ExprRVNode>();
         TVM_FFI_ICHECK(ann_val);
         annotated.insert(ann_val);

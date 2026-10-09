@@ -19,6 +19,8 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
+#include <tvm/s_tir/function.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../meta_schedule/utils.h"
@@ -92,7 +94,8 @@ IRModule MarkScheduled(const IRModule& mod) {
   for (const auto& [gv, base_func] : mod->functions) {
     if (const auto* function_node = base_func.as<tirx::FunctionNode>()) {
       tirx::Function function = ffi::GetRef<tirx::Function>(function_node);
-      tirx::Function new_function = WithAttr(std::move(function), tirx::attr::kIsScheduled, true);
+      tirx::Function new_function =
+          WithAttr(std::move(function), tvm::s_tir::attr::kIsScheduled, true);
       result.Set(gv, new_function);
     } else {
       result.Set(gv, base_func);
@@ -187,7 +190,7 @@ Pass DefaultGPUSchedule() {
         for (const auto& [gv, base_func] : m->functions) {
           if (const auto* function_node = base_func.as<tirx::FunctionNode>();
               function_node != nullptr && IsScheduledOnGPU(base_func) &&
-              !base_func->HasNonzeroAttr(tirx::attr::kIsScheduled)) {
+              !base_func->HasNonzeroAttr(tvm::s_tir::attr::kIsScheduled)) {
             tirx::Function func = ffi::GetRef<tirx::Function>(function_node);
             tirx::Function new_func = WrapBareSBlockBody(func);
             if (!new_func.same_as(func)) {
@@ -205,7 +208,7 @@ Pass DefaultGPUSchedule() {
                                                       s_tir::ScheduleErrorRenderLevel::kDetail);
         for (const auto& [gv, func] : m->functions) {
           if (func->IsInstance<tirx::FunctionNode>() &&
-              !func->HasNonzeroAttr(tirx::attr::kIsScheduled) && IsScheduledOnGPU(func)) {
+              !func->HasNonzeroAttr(tvm::s_tir::attr::kIsScheduled) && IsScheduledOnGPU(func)) {
             // get the target from context.
             tvm::Target target = tvm::Target::Current();
             // get the target from kTarget attribute
