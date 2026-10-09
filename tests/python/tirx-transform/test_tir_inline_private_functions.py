@@ -222,9 +222,9 @@ class TestInlineFunctionWithBufferArguments(BaseTestCase):
         @T.function
         def main(A: T.Tensor(16, "float32")):
             Before.subroutine(
-                T.tvm_stack_make_array(
+                T.stack_make_dltensor(
                     A.data,
-                    T.tvm_stack_make_shape(*A.ty.shape),
+                    T.stack_make_shape(*A.ty.shape),
                     0,
                     len(A.ty.shape),
                     0.0,

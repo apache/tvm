@@ -29,7 +29,11 @@
 #include <llvm/ADT/StringRef.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/tirx/op/gpu.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
+#include <tvm/tirx/op/vector.h>
 #if LLVM_VERSION_MAJOR >= 17
 #include <llvm/TargetParser/Triple.h>
 #else
@@ -621,9 +625,7 @@ llvm::Type* CodeGenLLVM::GetLLVMType(const Type& type) const {
   }
 }
 
-llvm::Type* CodeGenLLVM::GetLLVMType(const PrimExpr& expr) const {
-  return GetLLVMType(GetType(expr));
-}
+llvm::Type* CodeGenLLVM::GetLLVMType(const PrimExpr& expr) const { return GetLLVMType(expr->ty); }
 
 // Add tbaa alias information for load
 //
@@ -1364,7 +1366,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       }
     }
     return builder_->CreateCall(f, arg_value);
-  } else if (op->op.same_as(tirx::tvm_storage_sync_op())) {
+  } else if (op->op.same_as(tirx::gpu_storage_sync_op())) {
     return CreateStorageSync(op);
   } else if (op->op.same_as(tirx::address_of_op())) {
     const TensorLoadNode* load = args[0].as<TensorLoadNode>();
@@ -1432,7 +1434,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       return builder_->CreateIntToPtr(value, target);
     }
     return builder_->CreateBitCast(value, target);
-  } else if (op->op.same_as(tirx::isnan_op())) {
+  } else if (op->op.same_as(prim::isnan_op())) {
     // TODO(hgt312): set fast math flag
     llvm::Value* a = MakeValue(args[0]);
     return builder_->CreateFCmpUNO(a, a);
@@ -1463,10 +1465,10 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     StorageInfo& info = alloc_storage_info_[root];
     info.alignment = std::max(info.alignment, alignment);
     return builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(tensor), alignment);
-  } else if (op->op.same_as(tirx::assume_op())) {
+  } else if (op->op.same_as(prim::assume_op())) {
     llvm::Value* cond = MakeValue(args[0]);
     return builder_->CreateAssumption(cond);
-  } else if (op->op.same_as(tirx::tvm_thread_invariant_op())) {
+  } else if (op->op.same_as(tirx::gpu_thread_invariant_op())) {
     return MakeValue(args[0]);
   } else if (op->op.same_as(prim::vscale_op())) {
     llvm::Intrinsic::ID id = llvm::Intrinsic::vscale;
@@ -1942,7 +1944,7 @@ llvm::Value* CodeGenLLVM::Dispatch_(const CallNode* op) {
   const ffi::Array<Expr>& args = op->args;
   if (op->op.same_as(tirx::masked_load_op())) return CreateMaskedLoad(op);
   if (op->op.same_as(tirx::masked_store_op())) return CreateMaskedStore(op);
-  if (op->op.same_as(tirx::buffer_data_op())) {
+  if (op->op.same_as(tirx::tensor_data_ptr_op())) {
     TVM_FFI_ICHECK_EQ(args.size(), 1U);
     return MakeValue(args[0]);
   }
@@ -2335,7 +2337,7 @@ void CodeGenLLVM::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_
   llvm::Value* value = MakeValue(data);
   const VarNode* source = data.as<VarNode>();
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
     source = call->args[0].as<VarNode>();
   }
   if (source) {

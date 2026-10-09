@@ -842,7 +842,7 @@ def get_wmma_load_intrin(
             Ts.reads(A[0:frag_m, 0:frag_n])
             Ts.writes(C[0:frag_m, 0:frag_n])
             T.evaluate(
-                T.tvm_load_matrix_sync(
+                T.gpu_load_matrix_sync(
                     C.data,
                     m_dim,
                     n_dim,
@@ -896,7 +896,7 @@ def get_wmma_fill_intrin(
             Ts.reads()
             Ts.writes(C[0:m_dim, 0:n_dim])
             T.evaluate(
-                T.tvm_fill_fragment(
+                T.gpu_fill_fragment(
                     C.data,
                     m_dim,
                     n_dim,
@@ -958,7 +958,7 @@ def get_wmma_store_intrin(
             Ts.reads(A[0:m_dim, 0:n_dim])
             Ts.writes(C[0:m_dim, 0:n_dim])
             T.evaluate(
-                T.tvm_store_matrix_sync(
+                T.gpu_store_matrix_sync(
                     A.data,
                     m_dim,
                     n_dim,
@@ -1063,7 +1063,7 @@ def get_wmma_sync_intrin(
             Ts.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:b_shape_0, 0:b_shape_1])
             Ts.writes(C[0:m_dim, 0:n_dim])
             T.evaluate(
-                T.tvm_mma_sync(
+                T.gpu_mma_sync(
                     C.data,
                     get_wmma_fragment_index(C, c1, m_dim, n_dim),
                     A.data,

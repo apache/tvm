@@ -36,7 +36,7 @@ from tvm.tirx.layout import (
     tmem_datapath_layout,
 )
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 from ..common import get_st_extent
 from ..copy import _is_valid_copy, _scope_allowed
@@ -222,8 +222,8 @@ def _tmem_window(tmem_buf, tmem_region, atom_kind, frag_rows, analyzer):
     return width, window.offset.get(TCol, 0), lane_off // 16
 
 
-def copy_tmem_local_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
-    op_call = TilePrimitiveCall.downcast(op_call)
+def copy_tmem_local_impl(op_call: TileOpCall, sctx: DispatchContext) -> Function | None:
+    op_call = TileOpCall.downcast(op_call)
     dst_buffer_region, src_buffer_region = op_call.dst, op_call.src
     dst: Var = dst_buffer_region.source
     src: Var = src_buffer_region.source
@@ -590,7 +590,5 @@ def _emit_datapath_b_path(
         ),
     ],
 )
-def copy_async_schedule_tmem_local_async(
-    op_call: TilePrimitiveCall, sctx: DispatchContext
-) -> Function:
+def copy_async_schedule_tmem_local_async(op_call: TileOpCall, sctx: DispatchContext) -> Function:
     return copy_tmem_local_impl(op_call, sctx)

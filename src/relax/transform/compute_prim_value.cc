@@ -25,7 +25,6 @@
 #include <tvm/s_tir/analysis.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {

@@ -27,8 +27,8 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/relax/type.h>
-#include <tvm/tirx/op.h>
 
 #include <cstdint>
 #include <memory>

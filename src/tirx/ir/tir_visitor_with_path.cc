@@ -25,6 +25,7 @@
 
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/accessor.h>
+#include <tvm/tirx/stmt.h>
 
 #include <algorithm>
 #include <optional>
@@ -232,7 +233,7 @@ void TIRVisitorWithPath::Dispatch_(const EvaluateNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
 }
 
-void TIRVisitorWithPath::Dispatch_(const tirx::TilePrimitiveCallNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const tirx::TileOpCallNode* op, AccessPath path) {
   std::function<void(const Expr&, AccessPath)> visit = [&](const Expr& expr, AccessPath path) {
     if (auto buffer = expr.as<TensorVar>()) {
       VisitBufferUse(buffer.value(), path);

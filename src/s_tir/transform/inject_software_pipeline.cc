@@ -30,7 +30,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
 
 #include <map>
 #include <unordered_set>
@@ -53,7 +53,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -126,10 +126,10 @@ class PipelineOpaqueAccessRewriter {
   Expr Rewrite(const Call& call) {
     // Intrinsic calls should be handled explicitly here as they are opaque accesses to
     // buffer.
-    static const auto& access_ptr = tirx::tvm_access_ptr_op();
-    static const Op load_matrix_sync = Op::Get("tirx.tvm_load_matrix_sync");
-    static const Op store_matrix_sync = Op::Get("tirx.tvm_store_matrix_sync");
-    static const Op mma_sync = Op::Get("tirx.tvm_mma_sync");
+    static const auto& access_ptr = tirx::access_ptr_op();
+    static const Op load_matrix_sync = Op::Get("tirx.gpu_load_matrix_sync");
+    static const Op store_matrix_sync = Op::Get("tirx.gpu_store_matrix_sync");
+    static const Op mma_sync = Op::Get("tirx.gpu_mma_sync");
     static const Op ptx_ldmatrix_legacy = Op::Get("tirx.ptx_legacy.ldmatrix");
     static const Op ptx_mma_legacy = Op::Get("tirx.ptx_legacy.mma");
     if (call->op.same_as(load_matrix_sync) || call->op.same_as(store_matrix_sync)) {

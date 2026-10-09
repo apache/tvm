@@ -21,6 +21,7 @@ from typing import Any
 from ..base import Span
 from ..expr import Call, Expr
 from . import _ffi_api
+from .expr import ExprWithOp
 
 
 def convert(expr) -> Expr:
@@ -564,3 +565,797 @@ def min(a, b, span=None):
 def max(a, b, span=None):
     """Elementwise maximum of two primitive expressions."""
     return _ffi_api._OpMax(a, b, span)
+
+
+def _call_prim(ty, op, *args, span=None):
+    return Call(op, args, ty=ty, span=span)
+
+
+def _require_float_arg(op_name, x):
+    x = convert(x)
+    dtype = str(x.ty.dtype)
+    if "float" not in dtype and "bfloat" not in dtype:
+        raise TypeError(f"prim.{op_name} only supports floating-point inputs, but got {dtype}")
+    return x
+
+
+def assume(cond=None, *, ty=None, span=None):
+    """Provide a true statement that can be used for simplifications
+
+    Parameters
+    ----------
+    cond : Expr
+       The constraint condition.
+
+    Returns
+    -------
+    call : Expr
+        The call expression.
+    """
+    return _call_prim(ty, "prim.assume", cond, span=span)
+
+
+def infinity(dtype: str, span: Span | None = None) -> Any:
+    """infinity value of dtype
+
+    Parameters
+    ----------
+    dtype : str
+        The data type.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    value : tvm.Expr
+        The infinity value of dtype.
+    """
+    return _ffi_api.infinity(dtype, span)  # type: ignore
+
+
+def exp(x, *, ty=None, span=None):
+    """Take exponential of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.exp", x, span=span)
+
+
+def exp2(x, *, ty=None, span=None):
+    """Calculate 2**x
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.exp2", x, span=span)
+
+
+def exp10(x, *, ty=None, span=None):
+    """Calculate 10**x
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.exp10", x, span=span)
+
+
+def fma(x, y, z, *, ty=None, span=None):
+    """Take fused multiply-add of input x, y, z.
+
+    Parameters
+    ----------
+    x : Expr
+        First input argument.
+
+    y : Expr
+        Second input argument.
+
+    z : Expr
+        Third input argument.
+
+    Returns
+    -------
+    out : Expr
+        The result of x * y + z.
+    """
+    x = convert(x)
+    y = convert(y)
+    z = convert(z)
+    return _call_prim(ty, "prim.fma", x, y, z, span=span)
+
+
+def erf(x, *, ty=None, span=None):
+    """Take gauss error function of the input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.erf", x, span=span)
+
+
+def tanh(x, *, ty=None, span=None):
+    """Take hyperbolic tanh of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.tanh", x, span=span)
+
+
+def sigmoid(x, *, ty=None, span=None):
+    """Quick function to get sigmoid
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.sigmoid", x, span=span)
+
+
+def log(x, *, ty=None, span=None):
+    """Take log of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.log", x, span=span)
+
+
+def log10(x, *, ty=None, span=None):
+    """Take log10 of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.log10", x, span=span)
+
+
+def log1p(x, *, ty=None, span=None):
+    """Take log(x + 1) with respect to input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.log1p", x, span=span)
+
+
+def tan(x, *, ty=None, span=None):
+    """Take tan of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = _require_float_arg("tan", x)
+    return _call_prim(ty, "prim.tan", x, span=span)
+
+
+def cos(x, *, ty=None, span=None):
+    """Take cos of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = _require_float_arg("cos", x)
+    return _call_prim(ty, "prim.cos", x, span=span)
+
+
+def cosh(x, *, ty=None, span=None):
+    """Take cosh of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.cosh", x, span=span)
+
+
+def acos(x, *, ty=None, span=None):
+    """Take acos of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.acos", x, span=span)
+
+
+def acosh(x, *, ty=None, span=None):
+    """Take acos of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.acosh", x, span=span)
+
+
+def sin(x, *, ty=None, span=None):
+    """Take sin of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = _require_float_arg("sin", x)
+    return _call_prim(ty, "prim.sin", x, span=span)
+
+
+def sinh(x, *, ty=None, span=None):
+    """Take sinh of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.sinh", x, span=span)
+
+
+def asin(x, *, ty=None, span=None):
+    """Take asin of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.asin", x, span=span)
+
+
+def asinh(x, *, ty=None, span=None):
+    """Take asinh of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.asinh", x, span=span)
+
+
+def atan(x, *, ty=None, span=None):
+    """Take atan of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.atan", x, span=span)
+
+
+def atanh(x, *, ty=None, span=None):
+    """Take atanh of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.atanh", x, span=span)
+
+
+def atan2(x1, x2, *, ty=None, span=None):
+    """Take arctan2(x1, x2).
+
+    Parameters
+    ----------
+    x1 : Expr
+        Input argument.
+
+    x2 : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x1 = convert(x1)
+    x2 = convert(x2)
+    return _call_prim(ty, "prim.atan2", x1, x2, span=span)
+
+
+def sqrt(x, *, ty=None, span=None):
+    """Take square root of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.sqrt", x, span=span)
+
+
+def rsqrt(x, *, ty=None, span=None):
+    """Take reciprocal of square root of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.rsqrt", x, span=span)
+
+
+def floor(x: ExprWithOp, span=None):
+    """Take floor of float input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _ffi_api.floor(x, span)  # type: ignore
+
+
+def trunc(x, span=None):
+    """Get truncated value of the input.
+
+    The truncated value of the scalar x is the
+    nearest integer i which is closer to zero than x is.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _ffi_api.trunc(x, span)  # type: ignore
+
+
+def abs(x, span=None):
+    """Get absolute value of the input element-wise.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _ffi_api.abs(x, span)  # type: ignore
+
+
+def round(x, span=None):
+    """Round elements of the array to the nearest integer.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _ffi_api.round(x, span)  # type: ignore
+
+
+def nearbyint(x, span=None):
+    """Round elements of the array to the nearest integer.
+    This intrinsic uses llvm.nearbyint instead of llvm.round
+    which is faster but will results different from te.round.
+    Notably nearbyint rounds according to the rounding mode,
+    whereas te.round (llvm.round) ignores that.
+    For differences between the two see:
+    https://en.cppreference.com/w/cpp/numeric/math/round
+    https://en.cppreference.com/w/cpp/numeric/math/nearbyint
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _ffi_api.nearbyint(x, span)  # type: ignore
+
+
+def nextafter(x1, x2, *, ty=None, span=None):
+    """Return the next floating-point value after x1 towards x2.
+
+    Parameters
+    ----------
+    x1 : Expr
+        Input argument.
+
+    x2 : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x1 = convert(x1)
+    x2 = convert(x2)
+    return _call_prim(ty, "prim.nextafter", x1, x2, span=span)  # type: ignore
+
+
+def hypot(x1, x2, *, ty=None, span=None):
+    """Equivalent to sqrt(x1**2 + x2**2), element-wise.
+
+    Parameters
+    ----------
+    x1 : Expr
+        Input argument.
+
+    x2 : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x1 = convert(x1)
+    x2 = convert(x2)
+    return _call_prim(ty, "prim.hypot", x1, x2, span=span)  # type: ignore
+
+
+def copysign(x1, x2, *, ty=None, span=None):
+    """Change the sign of x1 to that of x2, element-wise.
+
+    Parameters
+    ----------
+    x1 : Expr
+        Input argument.
+
+    x2 : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x1 = convert(x1)
+    x2 = convert(x2)
+    return _call_prim(ty, "prim.copysign", x1, x2, span=span)  # type: ignore
+
+
+def ldexp(x1, x2, *, ty=None, span=None):
+    """Returns x1 * (2 ** x2).
+
+    Parameters
+    ----------
+    x1 : Expr
+        Input argument.
+
+    x2 : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x1 = convert(x1)
+    x2 = convert(x2)
+    return _call_prim(ty, "prim.ldexp", x1, x2, span=span)  # type: ignore
+
+
+def isnan(x, span=None):
+    """Check if input value is Nan.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _ffi_api.isnan(x, span)  # type: ignore
+
+
+def isfinite(x, span=None):
+    """Check if input value is finite.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _ffi_api.isfinite(x, span)  # type: ignore
+
+
+def isinf(x, span=None):
+    """Check if input value is infinite.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _ffi_api.isinf(x, span)  # type: ignore
+
+
+def power(x, y, span=None):
+    """x power y
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    y : Expr
+        The exponent
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    z : Expr
+        The result.
+    """
+    return _ffi_api._OpPow(x, y, span)  # type: ignore
+
+
+def popcount(x, *, ty=None, span=None):
+    """Count the number of set bits in input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    x = convert(x)
+    return _call_prim(ty, "prim.popcount", x, span=span)
+
+
+def fmod(x, y, *, ty=None, span=None):
+    """Return the remainder of x divided by y with the same sign as x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+    y : Expr
+        Input argument.
+
+    Returns
+    -------
+    z : Expr
+        The result.
+    """
+    x = convert(x)
+    y = convert(y)
+    return _call_prim(ty, "prim.fmod", x, y, span=span)
+
+
+def pow(x, y, span=None):
+    """x power y
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    y : Expr
+        The exponent
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    z : Expr
+        The result.
+    """
+    return _ffi_api._OpPow(x, y, span)  # type: ignore

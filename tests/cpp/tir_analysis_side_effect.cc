@@ -23,7 +23,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/expr.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/gpu.h>
 
 TEST(SimplePasses, SideEffect) {
   using namespace tvm::prim;
@@ -33,6 +33,6 @@ TEST(SimplePasses, SideEffect) {
   TVM_FFI_ICHECK(SideEffect(tirx::MakeTensorLoad(buf, {i})) == CallEffectKind::kReadState);
   TVM_FFI_ICHECK(SideEffect(exp(prim::Cast(PrimType::Float(32), i + 1))) == CallEffectKind::kPure);
   TVM_FFI_ICHECK(
-      SideEffect(tvm::Call(PrimType::Void(), tirx::tvm_storage_sync_op(), {StringImm("shared")})
+      SideEffect(tvm::Call(PrimType::Void(), tirx::gpu_storage_sync_op(), {StringImm("shared")})
                      .as_or_throw<PrimExpr>()) == CallEffectKind::kUpdateState);
 }

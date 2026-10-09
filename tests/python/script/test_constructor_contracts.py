@@ -30,17 +30,17 @@ def test_call_type_and_validation_contract():
     x = ir.Var("x", "float32")
     span = ir.Span(ir.SourceName("constructor"), 1, 1, 1, 5)
     for constructor in (ir.Call, I.Call):
-        call = constructor("tirx.exp", [x], span=span)
+        call = constructor("prim.exp", [x], span=span)
         assert isinstance(call, I.Call)
         assert call.ty == ir.PrimType("float32")
         assert call.span.same_as(span)
         ir.assert_structural_equal(
-            constructor("tirx.exp", [x], ty="float32"),
-            ir.Call("tirx.exp", [x], ty=ir.PrimType("float32")),
+            constructor("prim.exp", [x], ty="float32"),
+            ir.Call("prim.exp", [x], ty=ir.PrimType("float32")),
         )
         with pytest.raises(TypeError):
-            constructor("tirx.exp", [], ty="float32").validate()
-        provisional = constructor("tirx.exp", [], ty="float32", span=span)
+            constructor("prim.exp", [], ty="float32").validate()
+        provisional = constructor("prim.exp", [], ty="float32", span=span)
         assert not provisional.args
         assert provisional.span.same_as(span)
         assert provisional.ty.dtype == "float32"
@@ -49,7 +49,7 @@ def test_call_type_and_validation_contract():
 @pytest.mark.parametrize("ty", [ir.Type.missing(), "float32", "handle"])
 def test_raw_call_preserves_provisional_fields(ty):
     # Invalid arguments and type arguments must survive the raw representation.
-    call = ir.Call("tirx.exp", [], attrs={"tag": 7}, ty_args=[ir.StringType()], ty=ty)
+    call = ir.Call("prim.exp", [], attrs={"tag": 7}, ty_args=[ir.StringType()], ty=ty)
     source = call.script()
     assert "I.Call(" in source
     restored = eval(source, {"I": I, "R": R, "T": T})
@@ -57,7 +57,7 @@ def test_raw_call_preserves_provisional_fields(ty):
 
 
 def test_raw_call_preserves_checked_fields():
-    call = ir.Call("tirx.exp", [tirx.FloatImm("float32", 0)], attrs={"tag": 7}, ty="float32")
+    call = ir.Call("prim.exp", [tirx.FloatImm("float32", 0)], attrs={"tag": 7}, ty="float32")
     source = call.script()
     assert "I.Call(" in source
     ir.assert_structural_equal(call, eval(source, {"I": I, "R": R, "T": T}))
@@ -89,17 +89,17 @@ def test_operation_dtype_keywords_match_normal_constructors():
         with pytest.raises(TypeError):
             operation(x, dtype="float32")
     vector = ir.Var("v", "int8x4")
-    ir.assert_structural_equal(T.dp4a(vector, vector), tirx.dp4a(vector, vector))
+    ir.assert_structural_equal(T.gpu_dp4a(vector, vector), tirx.gpu_dp4a(vector, vector))
 
 
 def test_normal_constructors_in_parsed_function():
     @T.function
     def function(x: ir.PrimType("float32")):
-        T.evaluate(ir.Call("tirx.exp", [x], ty="float32"))
+        T.evaluate(ir.Call("prim.exp", [x], ty="float32"))
 
     call = function.body[0].value
     ir.assert_structural_equal(
-        call, ir.Call("tirx.exp", [function.params[0]], ty=ir.PrimType("float32"))
+        call, ir.Call("prim.exp", [function.params[0]], ty=ir.PrimType("float32"))
     )
     assert call.span is not None
 

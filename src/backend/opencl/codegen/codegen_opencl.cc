@@ -22,8 +22,10 @@
  */
 #include "codegen_opencl.h"
 
+#include <tvm/backend/opencl/op.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/tirx/op/memory.h>
 
 #include <cmath>
 #include <string>
@@ -43,11 +45,12 @@ const VarNode* TryUnwrapTextureVar(const Expr& texture) {
   if (const auto* var = texture.as<VarNode>()) {
     return var;
   }
-  if (const auto* call = texture.as<CallNode>(); call && call->op.same_as(tirx::buffer_data_op())) {
+  if (const auto* call = texture.as<CallNode>();
+      call && call->op.same_as(tirx::tensor_data_ptr_op())) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 1U);
     const auto* buffer = call->args[0].as<VarNode>();
     TVM_FFI_ICHECK(buffer && buffer->ty.as<TensorTypeNode>())
-        << "buffer_data expects a Var with TensorType";
+        << "tensor_data_ptr expects a Var with TensorType";
     return buffer;
   }
   return nullptr;
@@ -61,7 +64,7 @@ struct TextureArgument {
 TextureArgument UnwrapTextureArgument(const Expr& texture) {
   const auto* var = TryUnwrapTextureVar(texture);
   TVM_FFI_ICHECK(var)
-      << "Texture arguments must be a pointer Var or a buffer_data(TensorVar) projection";
+      << "Texture arguments must be a pointer Var or a tensor_data_ptr(TensorVar) projection";
   const auto* pointer_type = texture->ty.as<PointerTypeNode>();
   TVM_FFI_ICHECK(pointer_type) << "Texture arguments must have PointerType";
   TVM_FFI_ICHECK(runtime::IsTextureStorage(std::string(pointer_type->storage_scope)))
@@ -102,11 +105,11 @@ class InferTextureAccess : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    if (op->op.same_as(tirx::texture2d_load_op())) {
+    if (op->op.same_as(backend::opencl::texture2d_load_op())) {
       const VarNode* texture = UnwrapTextureArgument(op->args[0]).var;
       auto it = buffer_data_map_.find(texture);
       var_access_map_[it == buffer_data_map_.end() ? texture : it->second] |= kReadAccess;
-    } else if (op->op.same_as(tirx::texture2d_store_op())) {
+    } else if (op->op.same_as(backend::opencl::texture2d_store_op())) {
       const VarNode* texture = UnwrapTextureArgument(op->args[0]).var;
       auto it = buffer_data_map_.find(texture);
       var_access_map_[it == buffer_data_map_.end() ? texture : it->second] |= kWriteAccess;
@@ -490,7 +493,7 @@ void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
     os << " *)" << this->GetVarID(load->source.as_or_throw<tvm::tirx::TensorVar>().get()) << " + ";
     this->PrintExpr(load->indices[0], os);
     os << ')';
-  } else if (op->op.same_as(tirx::texture2d_store_op())) {
+  } else if (op->op.same_as(backend::opencl::texture2d_store_op())) {
     TextureArgument texture = UnwrapTextureArgument(op->args[0]);
     const int channel_size = op->args[4].as_or_throw<IntImm>()->value.as<int>().value();
     TVM_FFI_ICHECK(channel_size == 64 || channel_size == 128)
@@ -524,7 +527,7 @@ void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
     this->PrintType(channel_type, os);
     os << "(" << value << ")";
     os << ")";
-  } else if (op->op.same_as(tirx::texture2d_load_op())) {
+  } else if (op->op.same_as(backend::opencl::texture2d_load_op())) {
     TextureArgument texture = UnwrapTextureArgument(op->args[0]);
     enable_compliant_texture_reads_ = true;
     std::stringstream ss;

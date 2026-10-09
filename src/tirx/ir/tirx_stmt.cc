@@ -25,25 +25,25 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/tirx/op_attr_types.h>
-#include <tvm/tirx/tile_op.h>
+#include <tvm/tirx/stmt.h>
 
 #include <utility>
 
 namespace tvm {
 namespace tirx {
 
-// TilePrimitiveCall
-TilePrimitiveCall::TilePrimitiveCall(tvm::Op op, ffi::Array<Expr> args,
-                                     ffi::Map<ffi::String, TensorVar> workspace,
-                                     ffi::Map<ffi::String, Expr> config,
-                                     ffi::Optional<ffi::String> dispatch, ExecScope scope)
+// TileOpCall
+TileOpCall::TileOpCall(tvm::Op op, ffi::Array<Expr> args,
+                       ffi::Map<ffi::String, TensorVar> workspace,
+                       ffi::Map<ffi::String, Expr> config, ffi::Optional<ffi::String> dispatch,
+                       ExecScope scope)
     : Stmt(ffi::UnsafeInit{}) {
-  TVM_FFI_CHECK(op.defined(), ValueError) << "TilePrimitiveCall expects a defined operator";
+  TVM_FFI_CHECK(op.defined(), ValueError) << "TileOpCall expects a defined operator";
   static const auto& category_map = Op::GetAttrMap<TIRxOpCategory>("TIRxOpCategory");
   TVM_FFI_ICHECK(category_map.get(op, ffi::String("")) == "tile_primitive")
-      << "Only tile primitive ops can be used in tirx::TilePrimitiveCall";
+      << "Only tile primitive ops can be used in tirx::TileOpCall";
   TVM_FFI_CHECK_GE(args.size(), op->args_info.size(), ValueError)
       << op->name << " requires " << op->args_info.size() << " operands";
   if (!op->var_args_info.has_value()) {
@@ -63,32 +63,30 @@ TilePrimitiveCall::TilePrimitiveCall(tvm::Op op, ffi::Array<Expr> args,
                              << "Tile region must match its buffer rank";
                          return std::nullopt;
                        });
-  ffi::ObjectPtr<TilePrimitiveCallNode> n = ffi::make_object<TilePrimitiveCallNode>(
-      std::move(op), std::move(args), std::move(workspace), std::move(config), std::move(dispatch),
-      std::move(scope));
+  ffi::ObjectPtr<TileOpCallNode> n =
+      ffi::make_object<TileOpCallNode>(std::move(op), std::move(args), std::move(workspace),
+                                       std::move(config), std::move(dispatch), std::move(scope));
   data_ = std::move(n);
 }
 
 namespace {
 
-TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TilePrimitiveCallVisit(
+TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TileOpCallVisit(
     ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   // skips: op, dispatch, scope
-  const TilePrimitiveCallNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TilePrimitiveCallNode>(
-          value);
+  const TileOpCallNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TileOpCallNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->args));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->workspace));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->config));
   return std::nullopt;
 }
 
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TilePrimitiveCallMutate(
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TileOpCallMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   // skips: op, dispatch, scope
-  const TilePrimitiveCallNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TilePrimitiveCallNode>(
-          value);
+  const TileOpCallNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TileOpCallNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Expr>>, mapped_args,
                                     mutator->MutateExpected(self->args));
 
@@ -104,19 +102,18 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TilePrimitiveCallMutate
       mapped_config.UnchangedOrSameAs(self->config)) {
     return ffi::Unchanged();
   }
-  ffi::ObjectPtr<TilePrimitiveCallNode> copy = ffi::make_object<TilePrimitiveCallNode>(*self);
+  ffi::ObjectPtr<TileOpCallNode> copy = ffi::make_object<TileOpCallNode>(*self);
   copy->args = std::move(mapped_args).ValueOrUnchanged(std::move(copy->args));
   copy->workspace = std::move(mapped_workspace).ValueOrUnchanged(std::move(copy->workspace));
   copy->config = std::move(mapped_config).ValueOrUnchanged(std::move(copy->config));
   return ffi::Any(std::move(copy));
 }
 
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TilePrimitiveCallMaybeInplaceMutate(
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TileOpCallMaybeInplaceMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   // skips: op, dispatch, scope
-  TilePrimitiveCallNode* self = const_cast<TilePrimitiveCallNode*>(
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TilePrimitiveCallNode>(
-          value));
+  TileOpCallNode* self = const_cast<TileOpCallNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TileOpCallNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Expr>>, mapped_args,
                                     mutator->MutateExpected(self->args, ffi::InplaceMode::kAllow));
 
@@ -144,26 +141,25 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TilePrimitiveCallMaybeI
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  TilePrimitiveCallNode::RegisterReflection();
+  TileOpCallNode::RegisterReflection();
   refl::GlobalDef().def(
-      "tirx.TilePrimitiveCall",
+      "tirx.TileOpCall",
       [](tvm::Op op, ffi::Array<Expr> args, ffi::Map<ffi::String, TensorVar> workspace,
-         ffi::Map<ffi::String, Expr> config, ffi::Optional<ffi::String> dispatch, ExecScope scope) {
-        return TilePrimitiveCall(op, args, workspace, config, dispatch, scope);
-      });
-  refl::TypeAttrDef<TilePrimitiveCallNode>()
+         ffi::Map<ffi::String, Expr> config, ffi::Optional<ffi::String> dispatch,
+         ExecScope scope) { return TileOpCall(op, args, workspace, config, dispatch, scope); });
+  refl::TypeAttrDef<TileOpCallNode>()
       .attr(refl::type_attr::kStructuralVisit,
-            ffi::FStructuralVisit::FromNative<&TilePrimitiveCallVisit>())
+            ffi::FStructuralVisit::FromNative<&TileOpCallVisit>())
       .attr(refl::type_attr::kStructuralMutate,
-            ffi::FStructuralMutate::FromNative<&TilePrimitiveCallMutate>())
+            ffi::FStructuralMutate::FromNative<&TileOpCallMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            ffi::FStructuralMutate::FromNative<&TilePrimitiveCallMaybeInplaceMutate>());
+            ffi::FStructuralMutate::FromNative<&TileOpCallMaybeInplaceMutate>());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.TilePrimitiveCallCopyHandle",
-                        [](const TilePrimitiveCall& op) { return TilePrimitiveCall(op); });
+  refl::GlobalDef().def("tirx.TileOpCallCopyHandle",
+                        [](const TileOpCall& op) { return TileOpCall(op); });
 }
 
 }  // namespace tirx

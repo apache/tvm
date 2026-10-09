@@ -375,12 +375,12 @@ def test_dltensor_buffer_is_unlowered():
 
     @Ts.function
     def before(dlpack_handle: T.handle, axis: T.int64) -> T.int64:
-        ndim: T.int32 = T.tvm_struct_get(dlpack_handle, 0, 5, ty="int32")
-        stride_ptr: T.let[T.handle("int64")] = T.tvm_struct_get(
+        ndim: T.int32 = T.abi_field_get(dlpack_handle, 0, 5, ty="int32")
+        stride_ptr: T.let[T.handle("int64")] = T.abi_field_get(
             dlpack_handle, 0, 4, ty=T.handle("int64").ty
         )
         if T.isnullptr(stride_ptr):
-            shape_ptr: T.let[T.handle("int64")] = T.tvm_struct_get(
+            shape_ptr: T.let[T.handle("int64")] = T.abi_field_get(
                 dlpack_handle, 0, 3, ty=T.handle("int64").ty
             )
             shape = T.decl_tensor(ndim, "int64", data=shape_ptr)

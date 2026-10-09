@@ -25,7 +25,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -33,7 +33,7 @@
 namespace tvm {
 namespace tirx {
 
-// Remove any tirx::assume_op calls
+// Remove any prim::assume_op calls
 class AssumeRemover : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
@@ -42,7 +42,7 @@ class AssumeRemover : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     if (auto* call = op->value.as<CallNode>()) {
-      if (call->op.same_as(tirx::assume_op())) {
+      if (call->op.same_as(prim::assume_op())) {
         return Evaluate(0);
       }
     }

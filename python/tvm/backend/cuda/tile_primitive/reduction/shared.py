@@ -64,7 +64,7 @@ from tvm.tirx import Function
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import ReduceOpType
 from tvm.tirx.operator.tile_primitive.dispatcher import predicate, register_dispatch
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 from ..common import get_indices, get_st_extent, next_power_of_2
 from .utils import (
@@ -77,14 +77,12 @@ from .utils import (
 )
 
 
-def validate_reduction_shared(
-    op: TilePrimitiveCall, sctx: DispatchContext
-) -> tuple[bool, str | None]:
+def validate_reduction_shared(op: TileOpCall, sctx: DispatchContext) -> tuple[bool, str | None]:
     """Validate reduction in shared memory."""
     if sctx.scope_kind not in ["cta", "warpgroup", "warp", "thread"]:
         return False, f"unsupported exec_scope {sctx.scope_kind} for shared reduction"
 
-    op = TilePrimitiveCall.downcast(op)
+    op = TileOpCall.downcast(op)
     dst, src = op.output.source, op.input.source
     if not (src.scope().startswith("shared") and dst.scope().startswith("shared")):
         return False, "expected shared scope for both src and dst"
@@ -170,10 +168,10 @@ def _emit_reduction_shared_cta(
     def shuffle_data(thread_data):
         @T.inline
         def inner_shuffle(mask, v, shuffle_mask):
-            v[0] = op_func(v[0], T.tvm_warp_shuffle_xor(mask, v[0], shuffle_mask, group_size, 32))
+            v[0] = op_func(v[0], T.gpu_warp_shuffle_xor(mask, v[0], shuffle_mask, group_size, 32))
 
         if n_shuffles > 0:
-            mask = T.tvm_warp_activemask()
+            mask = T.gpu_warp_activemask()
             for i in range(n_shuffles):
                 inner_shuffle(mask, thread_data, 1 << i)
 
@@ -255,7 +253,7 @@ def _emit_reduction_shared_thread(
 
 
 def reduction_shared_impl(
-    op: TilePrimitiveCall, op_type: ReduceOpType, sctx: DispatchContext
+    op: TileOpCall, op_type: ReduceOpType, sctx: DispatchContext
 ) -> Function | None:
     dst_br, src_br, reduce_axes, accum, config = _reduction_args(op)
     src_ndim = len(src_br.region)
@@ -292,8 +290,6 @@ for op_name, op_type in [
             predicate("shared_valid", validate_reduction_shared),
         ],
     )
-    def _shared_dispatch(
-        op: TilePrimitiveCall, sctx: DispatchContext, _op_type=op_type
-    ) -> Function:
-        op = TilePrimitiveCall.downcast(op)
+    def _shared_dispatch(op: TileOpCall, sctx: DispatchContext, _op_type=op_type) -> Function:
+        op = TileOpCall.downcast(op)
         return reduction_shared_impl(op, _op_type, sctx)

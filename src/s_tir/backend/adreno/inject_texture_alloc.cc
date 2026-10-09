@@ -21,12 +21,15 @@
  * \file inject_texture_alloc.cc
  */
 
+#include <tvm/backend/opencl/op.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/op/memory.h>
 
 #include "../../../backend/opencl/runtime/texture.h"
 #include "../../../s_tir/ir/ir_mutator_with_analyzer.h"
@@ -96,13 +99,13 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
       ffi::Array<Expr> args;
       args.push_back(StringImm(scope));
       args.push_back(IntImm::Int64(3));
-      args.push_back(Call(PointerType(PrimType::Int(64)), tirx::tvm_stack_make_shape_op(),
+      args.push_back(Call(PointerType(PrimType::Int(64)), tirx::stack_make_shape_op(),
                           {texture.width, texture.height, texture.depth}));
       args.push_back(IntImm::Int64(channel_size));
       stmt = Bind(op->var.as_or_throw<TensorVar>(),
                   Call(op->var.as_or_throw<TensorVar>().type(), tirx::decl_tensor_op(),
                        {Call(op->var.as_or_throw<TensorVar>().DataPointerType(),
-                             tirx::nd_mem_alloc_with_scope_op(), args),
+                             tvm::backend::opencl::nd_mem_alloc_with_scope_op(), args),
                         tvm::Tuple(op->var.as_or_throw<TensorVar>()->shape),
                         DataTypeImm(op->var.as_or_throw<TensorVar>()->dtype->dtype),
                         StringImm(op->var.as_or_throw<TensorVar>().scope())},

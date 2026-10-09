@@ -43,7 +43,7 @@ from tvm.tirx.operator.tile_primitive import (
     predicate,
     register_dispatch,
 )
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 from ...op import _is_static_unicast_cta_mask, _resolve_cache_policy
 from ..exec_scope_utils import single_thread
@@ -1626,7 +1626,7 @@ def _runtime_config(op_call, sctx, direction: str, *, explicit: bool):
 
 
 def _copy_direction(op_call):
-    op_call = TilePrimitiveCall.downcast(op_call)
+    op_call = TileOpCall.downcast(op_call)
     dst_region, src_region = op_call.dst, op_call.src
     src_scope = src_region.source.scope()
     dst_scope = dst_region.source.scope()
@@ -1637,7 +1637,7 @@ def _copy_direction(op_call):
     fail(f"TMA requires global<->shared operands, got src={src_scope}, dst={dst_scope}")
 
 
-def _build_auto_plan(op_call: TilePrimitiveCall, sctx: DispatchContext) -> TMAPlan:
+def _build_auto_plan(op_call: TileOpCall, sctx: DispatchContext) -> TMAPlan:
     direction, shared_region, global_region = _copy_direction(op_call)
     s_buf = shared_region.source
     g_buf = global_region.source
@@ -1959,7 +1959,7 @@ def _selector_compatibility(main: TensorMapSpec, candidate: TensorMapSpec, index
             )
 
 
-def _build_explicit_plan(op_call: TilePrimitiveCall, sctx: DispatchContext):
+def _build_explicit_plan(op_call: TileOpCall, sctx: DispatchContext):
     direction, shared_region, global_region = _copy_direction(op_call)
     s_buf = shared_region.source
     g_buf = global_region.source
@@ -2055,8 +2055,8 @@ def _get_or_encode_descriptor(spec: TensorMapSpec, sctx: DispatchContext):
     # fmt: off
     @T.function(check_well_formed=False)
     def create_tensor_map():
-        T.bind(T.tvm_stack_alloca("tensormap", 1), var=tensor_map)
-        T.tensormap_encode_tiled(
+        T.bind(T.stack_alloca("tensormap", 1), var=tensor_map)
+        T.cuda.tensormap_encode_tiled(
             tensor_map,
             spec.base,
             *spec.global_dims,
@@ -2071,7 +2071,7 @@ def _get_or_encode_descriptor(spec: TensorMapSpec, sctx: DispatchContext):
             oob_fill=spec.oob_fill,
             force_cu_dtype=spec.force_cu_dtype,
         )
-        T.tvm_kernel_replace_point()
+        T.kernel_replace_point()
     # fmt: on
 
     sctx.add_init_stmt(create_tensor_map.body, host=True)
@@ -2093,7 +2093,7 @@ def _prefetch_main_descriptor(tensor_map, key: str, sctx: DispatchContext) -> No
         if warp_id == 0:
             if T.cuda.elect_sync() != T.uint32(0):
                 T.ptx.prefetch.tensormap(T.address_of(tensor_map))
-        T.tvm_kernel_replace_point()
+        T.kernel_replace_point()
     # fmt: on
 
     sctx.add_init_stmt(prefetch_tensor_map.body)
@@ -2220,7 +2220,7 @@ def _emit_plan(
     return impl
 
 
-def copy_tma_auto_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+def copy_tma_auto_impl(op_call: TileOpCall, sctx: DispatchContext) -> Function:
     """Lower one ``tma_auto`` call."""
 
     plan = _build_auto_plan(op_call, sctx)
@@ -2231,7 +2231,7 @@ def copy_tma_auto_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Fun
     return impl
 
 
-def copy_tma_explicit_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+def copy_tma_explicit_impl(op_call: TileOpCall, sctx: DispatchContext) -> Function:
     """Lower one direct TensorMap and exactly one TMA instruction."""
 
     plan, candidates = _build_explicit_plan(op_call, sctx)
@@ -2249,7 +2249,7 @@ def copy_tma_explicit_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) ->
     return impl
 
 
-def _validate_tma_copy_op(op_call: TilePrimitiveCall, _sctx: DispatchContext) -> bool:
+def _validate_tma_copy_op(op_call: TileOpCall, _sctx: DispatchContext) -> bool:
     dst_region, src_region = op_call.args[:2]
     src = src_region.source
     dst = dst_region.source
@@ -2283,7 +2283,7 @@ _COMMON_PREDICATES = [
     priority=10,
     when=_COMMON_PREDICATES,
 )
-def copy_async_dispatch_tma_auto(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+def copy_async_dispatch_tma_auto(op: TileOpCall, sctx: DispatchContext) -> Function:
     return copy_tma_auto_impl(op, sctx)
 
 
@@ -2294,5 +2294,5 @@ def copy_async_dispatch_tma_auto(op: TilePrimitiveCall, sctx: DispatchContext) -
     priority=10,
     when=_COMMON_PREDICATES,
 )
-def copy_async_dispatch_tma_explicit(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+def copy_async_dispatch_tma_explicit(op: TileOpCall, sctx: DispatchContext) -> Function:
     return copy_tma_explicit_impl(op, sctx)

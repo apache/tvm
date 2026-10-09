@@ -20,10 +20,11 @@
 #include "ir_utils.h"
 
 #include <tvm/ir/attrs.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
 
 namespace tvm {
 namespace s_tir {

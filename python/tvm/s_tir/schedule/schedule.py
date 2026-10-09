@@ -3042,7 +3042,7 @@ class Schedule(Object):
                     Ts.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
                     Ts.writes(C[0:16, 0:16])
                     T.evaluate(
-                        T.tvm_mma_sync(
+                        T.gpu_mma_sync(
                             C.data,
                             C.elem_offset // 256,
                             A.data,
@@ -3107,7 +3107,7 @@ class Schedule(Object):
                             offset_factor=1,
                         )
                         T.evaluate(
-                            T.tvm_mma_sync(
+                            T.gpu_mma_sync(
                                 C_1.data,
                                 C_1.elem_offset // 256,
                                 A_1.data,

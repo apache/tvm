@@ -22,7 +22,7 @@ from tvm.script import tirx as T
 from tvm.tirx import Function
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import ReduceOpType
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 from ..common import init_analyzer, nki_dim
 from ..dim_utils import get_reduction_dim_map
@@ -59,7 +59,7 @@ def generate_intermediate_buffer(
 
 
 def reduction_trn(
-    op: TilePrimitiveCall, reduce_op: ReduceOpType, sctx: DispatchContext, negate: bool = False
+    op: TileOpCall, reduce_op: ReduceOpType, sctx: DispatchContext, negate: bool = False
 ) -> Function | None:
     """Schedule reduction operation on Trainium.
 

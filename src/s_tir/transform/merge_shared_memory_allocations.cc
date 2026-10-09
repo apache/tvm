@@ -29,11 +29,13 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 
 #include <list>
 #include <map>
@@ -58,7 +60,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -664,7 +666,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     static const Op ptx_cp_async_op = Op::Get("tirx.s_tir.cp_async_raw");
-    if (op->op.same_as(tirx::tvm_access_ptr_op())) {
+    if (op->op.same_as(tirx::access_ptr_op())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
       DLDataType dtype = op->ty_args[0].as_or_throw<PrimType>()->dtype;
       auto buffer_opt = GetBufferDataVar(op->args[0]);

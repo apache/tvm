@@ -65,7 +65,7 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultLLVM() {
           /*disallow_if_then_else=*/true,
           /*require_injective=*/true,
           /*require_ordered=*/true,
-          /*disallow_op=*/ffi::Array<ffi::String>{"tirx.exp"}),
+          /*disallow_op=*/ffi::Array<ffi::String>{"prim.exp"}),
       ScheduleRule::AddRFactor(
           /*max_jobs_per_core=*/16,
           /*max_innermost_factor=*/static_cast<int64_t>(64)),
@@ -101,7 +101,7 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultX86(const ffi::String& type) {
           /*disallow_if_then_else=*/true,
           /*require_injective=*/true,
           /*require_ordered=*/true,
-          /*disallow_op=*/ffi::Array<ffi::String>{"tirx.exp"}),
+          /*disallow_op=*/ffi::Array<ffi::String>{"prim.exp"}),
       ScheduleRule::AddRFactor(
           /*max_jobs_per_core=*/16,
           /*max_innermost_factor=*/static_cast<int64_t>(64)),
@@ -287,7 +287,7 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultHexagon() {
           /*disallow_if_then_else=*/true,
           /*require_injective=*/true,
           /*require_ordered=*/true,
-          /*disallow_op=*/ffi::Array<ffi::String>{"tirx.exp"}),
+          /*disallow_op=*/ffi::Array<ffi::String>{"prim.exp"}),
       ScheduleRule::MultiLevelTilingWideVector(
           /*structure=*/"SRSRS",
           /*vector_length_in_bits=*/1024,
@@ -316,7 +316,7 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultRISCV(const int vlen) {
       /*disallow_if_then_else=*/true,
       /*require_injective=*/true,
       /*require_ordered=*/true,
-      /*disallow_op=*/ffi::Array<ffi::String>{"tirx.exp"}));
+      /*disallow_op=*/ffi::Array<ffi::String>{"prim.exp"}));
   rules.push_back(ScheduleRule::AddRFactor(
       /*max_jobs_per_core=*/16,
       /*max_innermost_factor=*/static_cast<int64_t>(64)));
@@ -426,7 +426,7 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultARM(const ffi::String& type) {
           /*disallow_if_then_else=*/true,
           /*require_injective=*/true,
           /*require_ordered=*/true,
-          /*disallow_op=*/ffi::Array<ffi::String>{"tirx.exp"}),
+          /*disallow_op=*/ffi::Array<ffi::String>{"prim.exp"}),
       ScheduleRule::AddRFactor(
           /*max_jobs_per_core=*/8,
           /*max_innermost_factor=*/static_cast<int64_t>(32)),

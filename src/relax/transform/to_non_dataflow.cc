@@ -21,11 +21,11 @@
  * \brief Transform all dataflow structure to non-dataflow version.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/relax/utils.h>
-#include <tvm/tirx/op.h>
 
 namespace tvm {
 namespace relax {

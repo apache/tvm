@@ -69,7 +69,7 @@ from tvm.tirx.layout import TileLayout, laneid
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import ReduceOpType
 from tvm.tirx.operator.tile_primitive.dispatcher import predicate, register_dispatch
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 from ..common import get_indices, get_st_extent
 from ..layout_utils import get_local_region, get_sublayout_from_region
@@ -149,11 +149,9 @@ def _gen_warp_shuffle_reduce(src, dst, reduce_width, local_elems, accum, op_type
     return impl
 
 
-def validate_reduction_local(
-    op: TilePrimitiveCall, sctx: DispatchContext
-) -> tuple[bool, str | None]:
+def validate_reduction_local(op: TileOpCall, sctx: DispatchContext) -> tuple[bool, str | None]:
     """Validate reduction in local memory."""
-    op = TilePrimitiveCall.downcast(op)
+    op = TileOpCall.downcast(op)
     dst_br, src_br = op.output, op.input
     dst, src = dst_br.source, src_br.source
 
@@ -346,7 +344,7 @@ def _emit_reduction_local_view(
         @T.inline
         def inner_shuffle(v, shuffle_mask):
             dst_local[tuple(dst_idx)] = op_func(
-                v, T.tvm_warp_shuffle_xor(mask, v, shuffle_mask, 32, 32)
+                v, T.gpu_warp_shuffle_xor(mask, v, shuffle_mask, 32, 32)
             )
 
         for i in range(len(shuffle_masks)):
@@ -373,7 +371,7 @@ def _emit_reduction_local_view(
                         src_idx = T.meta_var(_get_src_local_index(spa, red))
                         dst_local[tuple(dst_idx)] = op_func(dst_local[tuple(dst_idx)], src_local[tuple(src_idx)])  # noqa: E501
                 if T.constexpr(shuffle):
-                    mask = T.tvm_warp_activemask()
+                    mask = T.gpu_warp_activemask()
                     shuffle_data(mask, dst_local, dst_idx)
                 dst_local[tuple(dst_idx)] = op_func(dst_local[tuple(dst_idx)], old_val[0])
     else:
@@ -393,7 +391,7 @@ def _emit_reduction_local_view(
                         src_idx = T.meta_var(_get_src_local_index(spa, red))
                         dst_local[tuple(dst_idx)] = op_func(dst_local[tuple(dst_idx)], src_local[tuple(src_idx)])  # noqa: E501
                 if T.constexpr(shuffle):
-                    mask = T.tvm_warp_activemask()
+                    mask = T.gpu_warp_activemask()
                     shuffle_data(mask, dst_local, dst_idx)
     # fmt: on
 
@@ -401,7 +399,7 @@ def _emit_reduction_local_view(
 
 
 def reduction_local_impl(
-    op: TilePrimitiveCall, op_type: ReduceOpType, sctx: DispatchContext
+    op: TileOpCall, op_type: ReduceOpType, sctx: DispatchContext
 ) -> Function | None:
     dst_br, src_br, reduce_axes, accum, config = _reduction_args(op)
     src_ndim = len(src_br.region)
@@ -484,6 +482,6 @@ for op_name, op_type in [
             predicate("local_valid", validate_reduction_local),
         ],
     )
-    def _local_dispatch(op: TilePrimitiveCall, sctx: DispatchContext, _op_type=op_type) -> Function:
-        op = TilePrimitiveCall.downcast(op)
+    def _local_dispatch(op: TileOpCall, sctx: DispatchContext, _op_type=op_type) -> Function:
+        op = TileOpCall.downcast(op)
         return reduction_local_impl(op, _op_type, sctx)

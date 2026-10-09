@@ -524,14 +524,14 @@ def test_module_string_constants_keep_common_constructor_values():
 def test_thread_return_is_distinct_from_function_return():
     @T.function
     def thread_exit():
-        T.thread_return()
+        T.gpu_thread_return()
 
     @T.function
     def function_exit():
         return 0
 
     assert isinstance(thread_exit.body[0], tirx.Evaluate)
-    assert thread_exit.body[0].value.op.name == "tirx.thread_return"
+    assert thread_exit.body[0].value.op.name == "tirx.gpu_thread_return"
     assert isinstance(function_exit.body[0], tirx.Return)
     assert isinstance(function_exit.body[0].value, tirx.IntImm)
     assert function_exit.body[0].value.value == 0

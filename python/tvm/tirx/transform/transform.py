@@ -145,7 +145,7 @@ def RemoveNoOp():
 
 
 def RemoveAssume():
-    """Remove all instances of tirx::assume_op
+    """Remove all instances of prim::assume_op
 
     Returns
     -------

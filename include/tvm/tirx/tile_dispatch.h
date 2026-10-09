@@ -16,29 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-/*!
- * \file tvm/tirx/tile_op.h
- * \brief TIRX tile primitive statements, operators, and reified lambda expressions.
- */
-#ifndef TVM_TIRX_TILE_OP_H_
-#define TVM_TIRX_TILE_OP_H_
+/*! \brief Context and callbacks for tile operation dispatch. */
+#ifndef TVM_TIRX_TILE_DISPATCH_H_
+#define TVM_TIRX_TILE_DISPATCH_H_
 
-#include <tvm/ffi/object.h>
-#include <tvm/ir/op.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/var.h>
 
 namespace tvm {
 namespace tirx {
-
-/*!
- * \brief The type of the function that sanitizes the arguments of a TIRX operator.
- * \param op The operator.
- * \param args The arguments.
- */
-using FArgSanitizer = ffi::TypedFunction<void(tvm::Op, ffi::Array<ffi::ObjectRef>)>;
 
 namespace callback {
 /*! \brief The buffers allocated by the operator. */
@@ -141,176 +127,7 @@ class DispatchContext : public ffi::ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DispatchContext, ffi::ObjectRef, DispatchContextNode);
 };
 
-/*!
- * \brief TIRX TilePrimitiveCall stmt.
- */
-class TilePrimitiveCallNode : public StmtNode {
- public:
-  explicit TilePrimitiveCallNode(ffi::UnsafeInit tag) : op(tag) {}
-
-  TilePrimitiveCallNode(tvm::Op op, ffi::Array<Expr> args,
-                        ffi::Map<ffi::String, TensorVar> workspace,
-                        ffi::Map<ffi::String, Expr> config, ffi::Optional<ffi::String> dispatch,
-                        ExecScope scope)
-      : op(std::move(op)),
-        args(std::move(args)),
-        workspace(std::move(workspace)),
-        config(std::move(config)),
-        dispatch(std::move(dispatch)),
-        scope(std::move(scope)) {}
-
-  // tvm::Op which corresponds to the TIRX operator.
-  tvm::Op op;
-
-  // Arguments to the operator.
-  ffi::Array<Expr> args;
-
-  // Workspace (pre-allocated buffers) for the operator.
-  ffi::Map<ffi::String, TensorVar> workspace;
-
-  // Config for the operator/scheduler.
-  ffi::Map<ffi::String, Expr> config;
-
-  // Optional dispatch variant name registered via @register_dispatch.
-  ffi::Optional<ffi::String> dispatch{std::nullopt};
-
-  // Cooperation scope of this call. Default thread (an unscoped call).
-  ExecScope scope = ExecScope(ScopeKind::kThread);
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TilePrimitiveCallNode>()
-        .def_ro("op", &TilePrimitiveCallNode::op)
-        .def_ro("args", &TilePrimitiveCallNode::args)
-        .def_ro("workspace", &TilePrimitiveCallNode::workspace)
-        .def_ro("config", &TilePrimitiveCallNode::config)
-        .def_ro("dispatch", &TilePrimitiveCallNode::dispatch)
-        .def_ro("scope", &TilePrimitiveCallNode::scope);
-  }
-
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.TilePrimitiveCall", TilePrimitiveCallNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to TilePrimitiveCallNode
- * \sa TilePrimitiveCallNode
- */
-class TilePrimitiveCall : public Stmt {
- public:
-  TVM_DLL TilePrimitiveCall(tvm::Op op, ffi::Array<Expr> args,
-                            ffi::Map<ffi::String, TensorVar> workspace = {},
-                            ffi::Map<ffi::String, Expr> config = {},
-                            ffi::Optional<ffi::String> dispatch = std::nullopt,
-                            ExecScope scope = ExecScope(ScopeKind::kThread));
-
-  explicit TilePrimitiveCall(ffi::ObjectPtr<TilePrimitiveCallNode> node) : Stmt(std::move(node)) {}
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TilePrimitiveCall, Stmt, TilePrimitiveCallNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(TilePrimitiveCallNode);
-};
-
-/*! \brief Tile primitive operator handles. */
-namespace tile {
-
-/*!
- * \brief See pesudo code below:
- *
- * Tx.cast(TensorRegion dst, TensorRegion src)
- */
-TVM_DLL const Op& cast_op();
-
-/*!
- * \brief See pesudo code below:
- *
- * Tx.copy(TensorRegion dst, TensorRegion src)
- */
-TVM_DLL const Op& copy_op();
-
-/*!
- * \brief See pesudo code below:
- *
- * Tx.Async.copy(TensorRegion dst, TensorRegion src)
- */
-TVM_DLL const Op& copy_async_op();
-
-/*!
- * \brief See pesudo code below:
- *
- *  Tx.fill(TensorRegion dst, PrimExpr value)
- */
-TVM_DLL const Op& fill_op();
-
-/*!
- * \brief See pesudo code below:
- *
- * Tx.gemm(TensorVar A, TensorVar B, TensorVar C, TensorVar D, PrimExpr alpha, PrimExpr beta)
- */
-TVM_DLL const Op& gemm_op();
-
-/*!
- * \brief See pesudo code below:
- *
- * Tx.gemm_async(TensorRegion C, TensorRegion A, TensorRegion B, bool transA, bool transB,
- * bool accum)
- */
-TVM_DLL const Op& gemm_async_op();
-
-TVM_DLL const Op& zero_op();
-
-TVM_DLL const Op& sqrt_op();
-TVM_DLL const Op& sqrt_with_scale_bias_op();
-
-TVM_DLL const Op& exp_op();
-TVM_DLL const Op& exp_with_scale_bias_op();
-
-TVM_DLL const Op& exp2_op();
-TVM_DLL const Op& exp2_with_scale_bias_op();
-
-TVM_DLL const Op& log2_op();
-TVM_DLL const Op& log2_with_scale_bias_op();
-
-TVM_DLL const Op& add_op();
-
-TVM_DLL const Op& sub_op();
-
-TVM_DLL const Op& mul_op();
-
-TVM_DLL const Op& fdiv_op();
-
-TVM_DLL const Op& minimum_op();
-
-TVM_DLL const Op& maximum_op();
-
-TVM_DLL const Op& reciprocal_op();
-
-TVM_DLL const Op& sum_op();
-
-TVM_DLL const Op& max_op();
-
-TVM_DLL const Op& min_op();
-
-TVM_DLL const Op& memset_op();
-
-TVM_DLL const Op& reduce_negate_op();
-
-TVM_DLL const Op& binary_reduce_op();
-
-TVM_DLL const Op& unary_reduce_op();
-TVM_DLL const Op& unary_reduce_with_scale_bias_op();
-
-TVM_DLL const Op& binary_chain_op();
-
-TVM_DLL const Op& select_op();
-
-TVM_DLL const Op& fma_op();
-
-TVM_DLL const Op& silu_op();
-
-TVM_DLL const Op& permute_layout_op();
-
-}  // namespace tile
-
 }  // namespace tirx
 }  // namespace tvm
 
-#endif  // TVM_TIRX_TILE_OP_H_
+#endif  // TVM_TIRX_TILE_DISPATCH_H_

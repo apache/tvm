@@ -19,12 +19,12 @@
 from collections.abc import Iterable
 
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 from ..common import match_scope, validate_copy_op
 
 
-def _single_thread_exec(op_call: TilePrimitiveCall, sctx: DispatchContext):
+def _single_thread_exec(op_call: TileOpCall, sctx: DispatchContext):
     """Predicate: exec scope must be single-thread."""
     exec_scope = sctx.scope_kind
     ok = exec_scope == "thread"
@@ -42,11 +42,11 @@ DEFAULT_ALLOWED_PAIRS: tuple[tuple[str, str], ...] = (
 
 
 def _scope_allowed(
-    op_call: TilePrimitiveCall,
+    op_call: TileOpCall,
     sctx: DispatchContext,
     allowed_pairs: Iterable[tuple[str, str]] = DEFAULT_ALLOWED_PAIRS,
 ):
-    op_call = TilePrimitiveCall.downcast(op_call)
+    op_call = TileOpCall.downcast(op_call)
     dst_buffer_region, src_buffer_region = (op_call.dst, op_call.src)
     src_scope = src_buffer_region.source.scope()
     dst_scope = dst_buffer_region.source.scope()
@@ -65,5 +65,5 @@ def _scope_allowed(
     return (True, None)
 
 
-def _is_valid_copy(op_call: TilePrimitiveCall, sctx: DispatchContext):
+def _is_valid_copy(op_call: TileOpCall, sctx: DispatchContext):
     return (validate_copy_op(op_call, sctx), "validate_copy_op failed")

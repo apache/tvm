@@ -52,6 +52,10 @@
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/op/cpu.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 
 #include <algorithm>
 #include <memory>
@@ -864,7 +868,7 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<Expr>&
 
 llvm::Value* CodeGenCPU::CreateCallPacked(const CallNode* op) {
   TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
-  bool use_string_lookup = op->op.same_as(tirx::tvm_call_packed_lowered_op());
+  bool use_string_lookup = op->op.same_as(tirx::call_packed_lowered_op());
   PackedCall pc = MakeCallPackedLowered(
       op->args, op->ty, static_cast<int64_t>(op->args[2].as<IntImmNode>()->value),
       static_cast<int64_t>(op->args[3].as<IntImmNode>()->value), use_string_lookup);
@@ -999,9 +1003,9 @@ void CodeGenCPU::AddStartupFunction() {
 
 llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
   const ffi::Array<Expr>& args = op->args;
-  if (op->op.same_as(tirx::tvm_call_packed_lowered_op())) {
+  if (op->op.same_as(tirx::call_packed_lowered_op())) {
     return CreateCallPacked(op);
-  } else if (op->op.same_as(tirx::tvm_call_cpacked_lowered_op())) {
+  } else if (op->op.same_as(tirx::call_cpacked_lowered_op())) {
     return CreateCallPacked(op);
   } else if (op->op.same_as(tirx::cpu_parallel_barrier_op())) {
     TVM_FFI_ICHECK_EQ(args.size(), 0U);
@@ -1012,16 +1016,16 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     auto callee = llvm::FunctionCallee(ftype_tvm_parallel_barrier_, RuntimeTVMParallelBarrier());
     return builder_->CreateCall(callee,
                                 {MakeValue(parallel_env_.task_id.value()), parallel_env_.penv});
-  } else if (op->op.same_as(tirx::tvm_static_handle_op())) {
+  } else if (op->op.same_as(tirx::static_handle_op())) {
     return CreateStaticHandle();
-  } else if (op->op.same_as(tirx::tvm_throw_last_error_op())) {
+  } else if (op->op.same_as(tirx::throw_last_error_op())) {
     builder_->CreateRet(ConstInt32(-1));
     auto next_block = std::next(builder_->GetInsertBlock()->getIterator());
     llvm::BasicBlock* new_bb =
         llvm::BasicBlock::Create(*llvm_target_->GetContext(), "cont", function_, &*next_block);
     builder_->SetInsertPoint(new_bb);
     return ConstInt32(-1);
-  } else if (op->op.same_as(tirx::tvm_struct_get_op())) {
+  } else if (op->op.same_as(tirx::abi_field_get_op())) {
     TVM_FFI_ICHECK_EQ(args.size(), 3U);
     int kind = args[2].as<IntImm>().value()->value.as<int>().value();
     Type op_type = op->ty;
@@ -1049,7 +1053,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     }
 
     return struct_value;
-  } else if (op->op.same_as(tirx::tvm_struct_set_op())) {
+  } else if (op->op.same_as(tirx::abi_field_set_op())) {
     TVM_FFI_ICHECK_EQ(args.size(), 4U);
     int kind = args[2].as<IntImm>().value()->value.as<int>().value();
     llvm::Value* value = MakeValue(args[3]);
@@ -1071,7 +1075,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     }
     builder_->CreateStore(value, ref.addr);
     return ConstInt32(0);
-  } else if (op->op.same_as(tirx::tvm_stack_alloca_op())) {
+  } else if (op->op.same_as(tirx::stack_alloca_op())) {
     TVM_FFI_ICHECK_EQ(args.size(), 2U);
     std::string type = args[0].as<StringImm>().value()->value;
     return WithFunctionEntry([&]() -> llvm::AllocaInst* {

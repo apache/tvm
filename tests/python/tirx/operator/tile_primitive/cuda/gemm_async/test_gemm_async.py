@@ -3664,7 +3664,7 @@ def test_gemm_tcgen05_cta1_m64_packed_c_infers_weight_stationary():
 
 
 # Dispatch-level regression tests: call gemm_async_tcgen05_impl directly on a
-# constructed TilePrimitiveCall to pin rejection paths without full compilation.
+# constructed TileOpCall to pin rejection paths without full compilation.
 
 
 def _make_gemm_tcgen05_call(
@@ -3684,7 +3684,7 @@ def _make_gemm_tcgen05_call(
     A_scope="shared.dyn",
     A_allocated_addr=0,
 ):
-    """Construct a GemmAsync TilePrimitiveCall and run the tcgen05 dispatch.
+    """Construct a GemmAsync TileOpCall and run the tcgen05 dispatch.
 
     Buffer-shape convention follows the dispatcher: transA=False -> A is
     [M, K]; transB=True -> B is [K, N], transB=False -> B is [N, K].
@@ -3869,9 +3869,7 @@ def test_gemm_tcgen05_hoisted_descriptor_uniformization(scope_kind, expect_unifo
     assert ("T.ptx.shfl_sync" in callback_text) == expect_uniform
     assert ("elect_sync" in impl.script()) == expect_uniform
     if expect_uniform:
-        assert callback_text.index("T.ptx.shfl_sync") < callback_text.index(
-            "tvm_kernel_replace_point"
-        )
+        assert callback_text.index("T.ptx.shfl_sync") < callback_text.index("kernel_replace_point")
 
 
 def test_gemm_tcgen05_no_swizzle_col_major_rejects_non_128B_contiguous():

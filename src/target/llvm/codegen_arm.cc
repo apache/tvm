@@ -28,6 +28,7 @@
 #include <llvm/Target/TargetMachine.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/tirx/op/memory.h>
 
 #include "codegen_cpu.h"
 
@@ -96,7 +97,7 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode* call) {
       PrimType(uint16_type.code(), 32, uint8_type.bits() * uint8_type.lanes() / 32);
 
   // Interpret input as vector of 8bit values
-  PrimExpr input8 = reinterpret(uint8_type, e);
+  PrimExpr input8 = tirx::reinterpret(uint8_type, e);
   // Popcount 8bit->8bit
   const CallNode* c0 = input8.as<CallNode>();
   TVM_FFI_ICHECK(c0 != nullptr);

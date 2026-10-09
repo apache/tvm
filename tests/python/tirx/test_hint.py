@@ -28,14 +28,14 @@ def from_source(code):
 
 
 def test_hint_keyword_arg_on_tx_op():
-    """Tx.op(..., hint="msg") stores hint in TilePrimitiveCall.config."""
+    """Tx.op(..., hint="msg") stores hint in TileOpCall.config."""
     from tvm.tirx.buffer import decl_tensor
-    from tvm.tirx.tile_primitive import TilePrimitiveCall
+    from tvm.tirx.stmt import TileOpCall
 
     A = decl_tensor((64, 64), "float32", scope="global")
     A_sm = decl_tensor((64, 64), "float32", scope="shared")
 
-    op_call = TilePrimitiveCall(
+    op_call = TileOpCall(
         A[0:64, 0:64],
         A_sm[0:64, 0:64],
         op=tvm.ir.Op.get("tirx.tile.copy"),

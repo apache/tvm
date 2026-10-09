@@ -51,19 +51,19 @@ def generate_dma_load_intrin(
             Ts.reads(A[0:size])
             Ts.writes(C[0:size])
             T.evaluate(
-                T.tvm_call_packed(
+                T.call_packed(
                     "device_api.hexagon.dma_copy_dltensor",
-                    T.tvm_stack_make_array(
+                    T.stack_make_dltensor(
                         T.address_of(C[0]),
-                        T.tvm_stack_make_shape(size),
+                        T.stack_make_shape(size),
                         0,
                         1,
                         C.dtype,
                         0,
                     ),
-                    T.tvm_stack_make_array(
+                    T.stack_make_dltensor(
                         T.address_of(A[0]),
-                        T.tvm_stack_make_shape(size),
+                        T.stack_make_shape(size),
                         0,
                         1,
                         A.dtype,

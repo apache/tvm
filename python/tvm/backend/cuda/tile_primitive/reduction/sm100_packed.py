@@ -22,7 +22,7 @@ Registered ops: sum, max, min.
 When: thread scope, all local buffers, float32, 1D src with len >= 8,
 SM100+ (uses packed PTX instructions not available on older GPUs).
 
-Before (TilePrimitiveCall -- sum example):
+Before (TileOpCall -- sum example):
     Tx.sum(dst_local[0:1], src_local[0:32])   # float32, reduce 32 -> 1 (thread scope)
 
 After -- packed_add_sum (uses add.f32x2 to reduce pairs):
@@ -51,7 +51,7 @@ from tvm.tirx import Function
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.operator.tile_primitive.common import ReduceOpType
 from tvm.tirx.operator.tile_primitive.dispatcher import predicate, register_dispatch
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 from ..common import sm_version_ok
 from ..exec_scope_utils import exec_scope_ok
@@ -203,13 +203,13 @@ def _emit_reduction_local_thread_3input_maxmin(
     return impl
 
 
-def _sm100_packed_add_sum_impl(op: TilePrimitiveCall, op_type: ReduceOpType, sctx: DispatchContext):
-    op = TilePrimitiveCall.downcast(op)
+def _sm100_packed_add_sum_impl(op: TileOpCall, op_type: ReduceOpType, sctx: DispatchContext):
+    op = TileOpCall.downcast(op)
     return _emit_reduction_local_thread_packed_add_sum(op.output, op.input, op.accum, op_type, sctx)
 
 
-def _sm100_3input_maxmin_impl(op: TilePrimitiveCall, op_type: ReduceOpType, sctx: DispatchContext):
-    op = TilePrimitiveCall.downcast(op)
+def _sm100_3input_maxmin_impl(op: TileOpCall, op_type: ReduceOpType, sctx: DispatchContext):
+    op = TileOpCall.downcast(op)
     return _emit_reduction_local_thread_3input_maxmin(op.output, op.input, op.accum, op_type, sctx)
 
 
@@ -249,7 +249,7 @@ for op_name, op_type in [
         when=_optimized_local_reduction_predicates,
     )
     def _optimized_dispatch(
-        op: TilePrimitiveCall, sctx: DispatchContext, _impl=optimized_impl, _op_type=op_type
+        op: TileOpCall, sctx: DispatchContext, _impl=optimized_impl, _op_type=op_type
     ) -> Function:
-        op = TilePrimitiveCall.downcast(op)
+        op = TileOpCall.downcast(op)
         return _impl(op, _op_type, sctx)

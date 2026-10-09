@@ -35,7 +35,7 @@ from tvm.script import tirx as T
 from tvm.script.ir_builder.base import AlreadyEmitted
 from tvm.script.parser.inspect_source import Source
 from tvm.script.tirx import tile as Tx
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 
 def test_parser_attaches_span_to_direct_call():
@@ -162,7 +162,7 @@ def test_parser_attaches_span_to_tile_primitive_call():
     source = sources[0]
     call_ast = source.as_ast().body[0].body[-1].value
     func = tile_call
-    call = _find_ir_node(func, lambda node: isinstance(node, TilePrimitiveCall))
+    call = _find_ir_node(func, lambda node: isinstance(node, TileOpCall))
 
     assert _span_range(call.span) == _span_range(source.to_span(call_ast))
 

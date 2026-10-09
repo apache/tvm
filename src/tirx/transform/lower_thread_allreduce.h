@@ -27,7 +27,9 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/gpu.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -49,7 +51,7 @@ inline ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -87,7 +89,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     Stmt stmt = DialectMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<EvaluateNode>();
     const CallNode* call = op->value.as<CallNode>();
-    if (call && call->op.same_as(tirx::tvm_thread_allreduce_op())) {
+    if (call && call->op.same_as(tirx::gpu_thread_allreduce_op())) {
       return MakeAllreduce(call);
     } else {
       return stmt;
@@ -219,18 +221,25 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     ffi::Array<Expr> arguments;
     for (const PrimExpr& value : lhs) arguments.push_back(value);
     for (const PrimExpr& value : rhs) arguments.push_back(value);
-    return tirx::GetAllreduceFields(combiner->Apply(arguments)).Map([](const Expr& value) {
-      return value.as_or_throw<PrimExpr>();
-    });
+    Expr result = combiner->Apply(arguments);
+    const auto* tuple = result.as<tvm::TupleNode>();
+    ffi::Array<Expr> fields = tuple ? tuple->fields : ffi::Array<Expr>{result};
+    return fields.Map([](const Expr& value) { return value.as_or_throw<PrimExpr>(); });
   }
 
   // make allreduce.
   Stmt MakeAllreduce(const CallNode* call) {
     LambdaExpr combiner = call->args[0].as_or_throw<LambdaExpr>();
-    ffi::Array<Expr> inits = tirx::GetAllreduceFields(call->args[1]);
-    ffi::Array<Expr> inputs = tirx::GetAllreduceFields(call->args[2]);
-    ffi::Array<Expr> destinations = tirx::GetAllreduceFields(call->args[4]);
-    ffi::Array<Expr> thread_axes = tirx::GetAllreduceFields(call->args[5]);
+    const auto* inits_tuple = call->args[1].as<tvm::TupleNode>();
+    ffi::Array<Expr> inits = inits_tuple ? inits_tuple->fields : ffi::Array<Expr>{call->args[1]};
+    const auto* inputs_tuple = call->args[2].as<tvm::TupleNode>();
+    ffi::Array<Expr> inputs = inputs_tuple ? inputs_tuple->fields : ffi::Array<Expr>{call->args[2]};
+    const auto* destinations_tuple = call->args[4].as<tvm::TupleNode>();
+    ffi::Array<Expr> destinations =
+        destinations_tuple ? destinations_tuple->fields : ffi::Array<Expr>{call->args[4]};
+    const auto* thread_axes_tuple = call->args[5].as<tvm::TupleNode>();
+    ffi::Array<Expr> thread_axes =
+        thread_axes_tuple ? thread_axes_tuple->fields : ffi::Array<Expr>{call->args[5]};
     size_t size = inputs.size();
     std::vector<PrimExpr> values;
     values.reserve(size);
@@ -373,7 +382,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     if (IsWarpReduction(dtypes, group_extent, reduce_extent, contiguous_reduce_extent)) {
       std::vector<PrimExpr> reduce_results;
       PrimExpr mask =
-          Call(PrimType::UInt(32), tirx::tvm_warp_activemask_op(), {}).as_or_throw<PrimExpr>();
+          Call(PrimType::UInt(32), tirx::gpu_warp_activemask_op(), {}).as_or_throw<PrimExpr>();
 
       if (reduce_extent <= warp_size_) {
         std::tie(reduce_results, new_alloc_bufs) =
@@ -389,7 +398,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
                               ->source.as_or_throw<tvm::tirx::TensorVar>();
           PrimExpr val = MakeTensorLoad(buf, {zero_index});
           TVM_FFI_ICHECK_EQ(val.ty(), dtypes[i]);
-          PrimExpr splat = WarpShuffle(tirx::tvm_warp_shuffle_op(), new_alloc_bufs.back(), val,
+          PrimExpr splat = WarpShuffle(tirx::gpu_warp_shuffle_op(), new_alloc_bufs.back(), val,
                                        reduce_extent * group_index);
           seq.push_back(TensorStore(buf, splat, {zero_index}));
         }
@@ -608,7 +617,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         //
         // The former may cause dead lock as there is a divergent
         // branch with a warp sync call inside.
-        PrimExpr other = WarpShuffle(tirx::tvm_warp_shuffle_down_op(), mask_buffer, val, offset);
+        PrimExpr other = WarpShuffle(tirx::gpu_warp_shuffle_down_op(), mask_buffer, val, offset);
         TensorVar local_buf = local_bufs[i];
         Stmt s = TensorStore(local_buf, other, zero_indices);
         seq->push_back(s);
@@ -795,7 +804,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   }
   // sync thread op.
   static Stmt SyncThread(const std::string& sync) {
-    return Evaluate(Call(PrimType::Int(32), tirx::tvm_storage_sync_op(), {StringImm(sync)})
+    return Evaluate(Call(PrimType::Int(32), tirx::gpu_storage_sync_op(), {StringImm(sync)})
                         .as_or_throw<PrimExpr>());
   }
 

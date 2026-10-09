@@ -793,6 +793,258 @@ inline bool IsOne(const PrimExpr& x) { return IsConstInt(x, 1); }
 
 inline bool IsZero(const PrimExpr& x) { return IsConstInt(x, 0); }
 
+/*!
+ * Get the value of infinity.
+ * \param dtype The primitive type.
+ * \param span The location of this operation in the source.
+ * \return the infinity value in this format.
+ */
+TVM_DLL PrimExpr infinity(PrimType dtype, Span span = Span());
+
+/*!
+ * \brief Calculate power(x, y)
+ * \param x The left operand.
+ * \param y The right operand.
+ * \param span The location of this operation in the source.
+ */
+TVM_DLL PrimExpr pow(PrimExpr x, PrimExpr y, Span span = Span());
+
+/*!
+ * \brief Calculate absolute value of x.
+ * \param x The input data
+ * \param span The location of this operation in the source.
+ *
+ * \return The absolute value of input data x
+ */
+TVM_DLL PrimExpr abs(PrimExpr x, Span span = Span());
+
+/*!
+ * \brief Check if x is NaN.
+ * \param x The input data
+ * \param span The location of this operation in the source.
+ * \return The result expression.
+ */
+TVM_DLL PrimExpr isnan(PrimExpr x, Span span = Span());
+
+/*!
+ * \brief Check if x is finite.
+ * \param x The input data
+ * \param span The location of this operation in the source.
+ * \return The result expression.
+ */
+TVM_DLL PrimExpr isfinite(PrimExpr x, Span span = Span());
+
+/*!
+ * \brief Check if x is infinite.
+ * \param x The input data
+ * \param span The location of this operation in the source.
+ * \return The result expression.
+ */
+TVM_DLL PrimExpr isinf(PrimExpr x, Span span = Span());
+
+/*!
+ * \brief Calculate floor(x)
+ * \param x The input expression.
+ * \param span The location of this operation in the source.
+ * \return The result expression.
+ */
+TVM_DLL PrimExpr floor(PrimExpr x, Span span = Span());
+
+/*!
+ * \brief Round x to the nearest integer, ties to even.
+ *
+ * Uses IEEE 754 default rounding mode (ties-to-even / banker's rounding).
+ * Constant-folding and all backends consistently use std::nearbyint semantics.
+ *
+ * \param x The input expression.
+ * \param span The location of this operation in the source.
+ * \return The result expression.
+ */
+TVM_DLL PrimExpr round(PrimExpr x, Span span = Span());
+
+/*!
+ * \brief Round x to the nearest integer, ties to even.
+ *
+ * Equivalent to round(). Both use IEEE 754 default rounding mode (ties-to-even).
+ *
+ * \param x The input expression.
+ * \param span The location of this operation in the source.
+ * \return The result expression.
+ */
+TVM_DLL PrimExpr nearbyint(PrimExpr x, Span span = Span());
+
+/*!
+ * \brief Calculate trunc(x)
+ * \param x The input expression.
+ * \param span The location of this operation in the source.
+ * \return The result expression.
+ */
+TVM_DLL PrimExpr trunc(PrimExpr x, Span span = Span());
+
+/*! \brief Floating-point remainder of x divided by y. */
+TVM_DLL PrimExpr fmod(PrimExpr x, PrimExpr y, Span span = Span());
+/*! \brief Raise x to the power y. Arguments: x, y. */
+TVM_DLL const Op& pow_op();
+/*! \brief Absolute value. Argument: x. */
+TVM_DLL const Op& fabs_op();
+/*! \brief Floating-point remainder. Arguments: x, y. */
+TVM_DLL const Op& fmod_op();
+/*! \brief Round toward negative infinity. Argument: x. */
+TVM_DLL const Op& floor_op();
+/*! \brief Round to nearest integer, ties to even. Argument: x. */
+TVM_DLL const Op& round_op();
+/*! \brief Round to nearest integer, ties to even. Argument: x. */
+TVM_DLL const Op& nearbyint_op();
+/*! \brief Round toward zero. Argument: x. */
+TVM_DLL const Op& trunc_op();
+/*! \brief Natural exponential. Argument: x. */
+TVM_DLL const Op& exp_op();
+/*! \brief Base-two exponential. Argument: x. */
+TVM_DLL const Op& exp2_op();
+/*! \brief Base-ten exponential. Argument: x. */
+TVM_DLL const Op& exp10_op();
+/*! \brief Error function. Argument: x. */
+TVM_DLL const Op& erf_op();
+/*! \brief Hyperbolic tangent. Argument: x. */
+TVM_DLL const Op& tanh_op();
+/*! \brief Logistic sigmoid. Argument: x. */
+TVM_DLL const Op& sigmoid_op();
+/*! \brief Square root. Argument: x. */
+TVM_DLL const Op& sqrt_op();
+/*! \brief Reciprocal square root. Argument: x. */
+TVM_DLL const Op& rsqrt_op();
+/*! \brief Natural logarithm. Argument: x. */
+TVM_DLL const Op& log_op();
+/*! \brief Natural logarithm of one plus x. Argument: x. */
+TVM_DLL const Op& log1p_op();
+/*! \brief Base-ten logarithm. Argument: x. */
+TVM_DLL const Op& log10_op();
+/*! \brief Tangent. Argument: x. */
+TVM_DLL const Op& tan_op();
+/*! \brief Cosine. Argument: x. */
+TVM_DLL const Op& cos_op();
+/*! \brief Hyperbolic cosine. Argument: x. */
+TVM_DLL const Op& cosh_op();
+/*! \brief Sine. Argument: x. */
+TVM_DLL const Op& sin_op();
+/*! \brief Hyperbolic sine. Argument: x. */
+TVM_DLL const Op& sinh_op();
+/*! \brief Inverse sine. Argument: x. */
+TVM_DLL const Op& asin_op();
+/*! \brief Inverse cosine. Argument: x. */
+TVM_DLL const Op& acos_op();
+/*! \brief Inverse tangent. Argument: x. */
+TVM_DLL const Op& atan_op();
+/*! \brief Inverse hyperbolic cosine. Argument: x. */
+TVM_DLL const Op& acosh_op();
+/*! \brief Inverse hyperbolic sine. Argument: x. */
+TVM_DLL const Op& asinh_op();
+/*! \brief Inverse hyperbolic tangent. Argument: x. */
+TVM_DLL const Op& atanh_op();
+/*! \brief Inverse tangent of y/x with quadrant selection. Arguments: y, x. */
+TVM_DLL const Op& atan2_op();
+/*! \brief Next representable value from x toward y. Arguments: x, y. */
+TVM_DLL const Op& nextafter_op();
+/*! \brief Euclidean length of x and y. Arguments: x, y. */
+TVM_DLL const Op& hypot_op();
+/*! \brief Magnitude of x with the sign of y. Arguments: x, y. */
+TVM_DLL const Op& copysign_op();
+/*! \brief Multiply x by two raised to exponent. Arguments: x, exponent. */
+TVM_DLL const Op& ldexp_op();
+/*! \brief Check for NaN, preserving the lane count. Argument: x. */
+TVM_DLL const Op& isnan_op();
+/*! \brief Count set bits. Argument: x. */
+TVM_DLL const Op& popcount_op();
+/*! \brief Fused multiply-add, x * y + z. Arguments: x, y, z. */
+TVM_DLL const Op& fma_op();
+/*! \brief Record a known condition for simplification. Argument: condition. */
+TVM_DLL const Op& assume_op();
+/*! \brief Record a known condition for compile-time simplification. */
+TVM_DLL PrimExpr assume(PrimExpr condition, Span span = Span());
+
+/*! \brief Fused multiply-add of x, y and z, in that order. */
+inline PrimExpr fma(PrimExpr x, PrimExpr y, PrimExpr z, Span span = Span()) {
+  return Call(x.ty(), fma_op(), {x, y, z}, {}, {}, span).as_or_throw<PrimExpr>();
+}
+
+inline void CheckMathUnaryOpInputDType(const char* op_name, const PrimType& dtype) {
+  TVM_FFI_CHECK(dtype.code() == DLDataTypeCode::kDLFloat ||
+                    dtype.MatchesElementType(DLDataTypeCode::kDLBfloat, 16),
+                TypeError)
+      << "prim." << op_name << " only supports floating-point inputs, but got " << dtype;
+}
+
+// Intrinsic operators
+#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)                           \
+  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {                                     \
+    static const Op op = Op::Get("prim." #OpName);                                             \
+    PrimType x_ty = x.ty();                                                                    \
+    CheckInputDType(#OpName, x_ty);                                                            \
+    if (x_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {                              \
+      PrimType bf16_ty = x_ty;                                                                 \
+      PrimType f32_ty =                                                                        \
+          x_ty.IsScalableVector()                                                              \
+              ? PrimType::ScalableVector(DLDataTypeCode::kDLFloat, 32, x_ty.VScaleFactor())    \
+              : PrimType::Float(32, x_ty.lanes());                                             \
+      PrimExpr x_fp32 = prim::Cast(f32_ty, x, span);                                           \
+      PrimExpr result_fp32 = Call(f32_ty, op, {x_fp32}, {}, {}, span).as_or_throw<PrimExpr>(); \
+      return prim::Cast(bf16_ty, result_fp32, span);                                           \
+    } else {                                                                                   \
+      return Call(x_ty, op, {x}, {}, {}, span).as_or_throw<PrimExpr>();                        \
+    }                                                                                          \
+  }
+
+#define TVM_DECLARE_INTRIN_UNARY(OpName) \
+  TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, [](const char*, const PrimType&) {})
+
+#define TVM_DECLARE_FLOAT_INTRIN_UNARY(OpName) \
+  TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckMathUnaryOpInputDType)
+
+TVM_DECLARE_INTRIN_UNARY(exp);
+TVM_DECLARE_INTRIN_UNARY(exp2);
+TVM_DECLARE_INTRIN_UNARY(exp10);
+TVM_DECLARE_INTRIN_UNARY(erf);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(tanh);
+TVM_DECLARE_INTRIN_UNARY(sigmoid);
+TVM_DECLARE_INTRIN_UNARY(sqrt);
+TVM_DECLARE_INTRIN_UNARY(rsqrt);
+TVM_DECLARE_INTRIN_UNARY(log);
+TVM_DECLARE_INTRIN_UNARY(log10);
+TVM_DECLARE_INTRIN_UNARY(log1p);
+TVM_DECLARE_INTRIN_UNARY(popcount);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(tan);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(cos);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(cosh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(sin);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(sinh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(asin);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(acos);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(atan);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(acosh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(asinh);
+TVM_DECLARE_FLOAT_INTRIN_UNARY(atanh);
+
+#define TVM_DECLARE_INTRIN_BINARY(OpName)                                  \
+  inline PrimExpr OpName(PrimExpr x, PrimExpr y, Span span = Span()) {     \
+    static const Op op = Op::Get("prim." #OpName);                         \
+    return Call(x.ty(), op, {x, y}, {}, {}, span).as_or_throw<PrimExpr>(); \
+  }
+
+TVM_DECLARE_INTRIN_BINARY(atan2);
+TVM_DECLARE_INTRIN_BINARY(nextafter);
+TVM_DECLARE_INTRIN_BINARY(copysign);
+TVM_DECLARE_INTRIN_BINARY(hypot);
+TVM_DECLARE_INTRIN_BINARY(ldexp);
+
+template <typename FReduce>
+inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const ffi::Array<PrimExpr>& values,
+                      Span span = Span()) {
+  for (PrimExpr val : values) {
+    init_value = freduce(init_value, val, span);
+  }
+  return init_value;
+}
+
 }  // namespace prim
 
 }  // namespace tvm

@@ -30,7 +30,6 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/pattern.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/op.h>
 
 #include <algorithm>
 #include <functional>

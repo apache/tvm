@@ -32,7 +32,6 @@
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
 
 #include "../../s_tir/schedule/ir_comparator.h"
 

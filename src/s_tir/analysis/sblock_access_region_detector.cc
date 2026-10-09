@@ -25,10 +25,11 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -282,10 +283,10 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const CallNode* op)
     }
     return std::nullopt;
   }
-  if (op->op.same_as(tirx::tvm_access_ptr_op())) {
+  if (op->op.same_as(tirx::access_ptr_op())) {
     const VarNode* buffer_var = op->args[0].as<VarNode>();
     if (const auto* data = op->args[0].as<CallNode>();
-        data && data->op.same_as(tirx::buffer_data_op())) {
+        data && data->op.same_as(tirx::tensor_data_ptr_op())) {
       buffer_var = data->args[0].as<VarNode>();
     }
     const IntImmNode* access_mask = op->args[3].as<IntImmNode>();

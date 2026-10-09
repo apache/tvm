@@ -103,7 +103,7 @@ def test_dispatch_multinomial_from_uniform_gpu():
                         u: T.let[T.float32] = uniform_samples[bx, 0]
                         aggregate[()] = T.Cast("float32", 0)
                         step_iter[()] = 0
-                        while T.tvm_thread_invariant((step_iter[()] == 0 or aggregate[()] < u - T.float32(9.9999999999999995e-07)) and T.Cast("int64", step_iter[()]) < T.Cast("int64", (vocab_size + T.int64(512) - T.int64(1)) // T.int64(512))):
+                        while T.gpu_thread_invariant((step_iter[()] == 0 or aggregate[()] < u - T.float32(9.9999999999999995e-07)) and T.Cast("int64", step_iter[()]) < T.Cast("int64", (vocab_size + T.int64(512) - T.int64(1)) // T.int64(512))):
                             with Ts.sblock(""):
                                 Ts.reads(step_iter[()], prob[row_idx, T.Cast("int64", step_iter[()]) * T.int64(512) + ty * T.int64(128) + tx * T.int64(4):T.Cast("int64", step_iter[()]) * T.int64(512) + ty * T.int64(128) + tx * T.int64(4) + T.int64(4)], aggregate[()])
                                 Ts.writes(sample_id_local[()], aggregate[()])
@@ -133,7 +133,7 @@ def test_dispatch_multinomial_from_uniform_gpu():
                                         if idx % T.shift_left(T.int64(1), i + T.int64(1)) == T.int64(0):
                                             shared_buf[idx] = shared_buf[idx] + shared_buf[idx + T.shift_left(T.int64(1), i)]
                                     step_aggregate[()] = shared_buf[0]
-                                if T.tvm_thread_invariant(aggregate[()] + step_aggregate[()] >= u - T.float32(9.9999999999999995e-07)):
+                                if T.gpu_thread_invariant(aggregate[()] + step_aggregate[()] >= u - T.float32(9.9999999999999995e-07)):
                                     for i in T.unroll(T.int64(1), T.int64(4)):
                                         prob_gt_threshold[i] = prob_gt_threshold[i] + prob_gt_threshold[i - T.int64(1)]
                                     for i in T.vectorized(T.int64(4)):

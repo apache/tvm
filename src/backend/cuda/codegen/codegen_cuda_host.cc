@@ -20,8 +20,10 @@
 /*! \file codegen_cuda_host.cc
  *  \brief C host wrappers with direct CUDA kernel launches.
  */
+#include <tvm/backend/cuda/op.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/op.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/type.h>
 
 #include <algorithm>
@@ -131,7 +133,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
   }
 
   void Dispatch_(const CallNode* op, std::ostream& os) override {
-    if (op->op.same_as(tirx::tvm_stack_alloca_op()) &&
+    if (op->op.same_as(tirx::stack_alloca_op()) &&
         op->args[0].as_or_throw<StringImm>()->value == "tensormap") {
       auto count = op->args[1].as_or_throw<IntImm>()->value.as<int64_t>();
       TVM_FFI_CHECK(count.has_value() && *count > 0, ValueError)
@@ -142,7 +144,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
       os << name;
       return;
     }
-    if (op->op.same_as(tirx::tvm_call_packed_lowered_op())) {
+    if (op->op.same_as(tirx::call_packed_lowered_op())) {
       const auto& name = op->args[0].as_or_throw<StringImm>()->value;
       if (name == "runtime.cuTensorMapEncodeTiled" || name == "runtime.cuTensorMapInit") {
         TVM_FFI_THROW(ValueError)
@@ -180,7 +182,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
       TVM_FFI_CHECK(std::string(symbol).rfind("TVMBackend", 0) != 0, ValueError)
           << "cuda_host does not provide TVM runtime operation: " << symbol;
     }
-    if (op->op.same_as(tirx::tensormap_encode_tiled_op())) {
+    if (op->op.same_as(backend::cuda::tensormap_encode_tiled_op())) {
       PrintTensorMapEncode(op);
       os << "0";
       return;
@@ -380,7 +382,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
     stream << ") != 0) return -1;\n";
   }
   void PrintTensorMapEncode(const CallNode* op) {
-    const auto* attr = op->attrs.as<tirx::TensorMapEncodeTiledAttr>();
+    const auto* attr = op->attrs.as<backend::cuda::TensorMapEncodeTiledAttr>();
     TVM_FFI_CHECK(attr && attr->rank >= 1 && attr->rank <= 5 &&
                       op->args.size() == static_cast<size_t>(4 * attr->rank + 1),
                   ValueError)

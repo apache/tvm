@@ -27,14 +27,14 @@ import tvm
 from tvm.ir import Op, assert_structural_equal
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 
 def _tile_calls(func):
     calls = []
 
     def visit(stmt):
-        if isinstance(stmt, TilePrimitiveCall):
+        if isinstance(stmt, TileOpCall):
             calls.append(stmt)
 
     tvm_ffi.structural_walk(func.body, visit)
@@ -99,16 +99,16 @@ def test_builtin_expression_ops_are_not_tile_primitives():
     assert cast.ty.dtype == "float32"
 
     sqrt = T.sqrt(y)
-    assert sqrt.op.name == "tirx.sqrt"
+    assert sqrt.op.name == "prim.sqrt"
 
     fma = T.fma(y, y, y)
-    assert fma.op.name == "tirx.fma"
+    assert fma.op.name == "prim.fma"
 
 
 def test_tensormap_encoding_accepts_attribute_keywords_and_defaults():
     @T.function
     def encode(descriptor: T.TensorMap, data: T.handle):
-        T.tensormap_encode_tiled(
+        T.cuda.tensormap_encode_tiled(
             descriptor,
             data,
             64,
@@ -123,8 +123,8 @@ def test_tensormap_encoding_accepts_attribute_keywords_and_defaults():
             swizzle=3,
         )
 
-    (call,) = [c for c in _expr_calls(encode) if c.op.name == "tirx.tensormap_encode_tiled"]
-    assert call.op.attrs_type_key == "tirx.TensorMapEncodeTiledAttr"
+    (call,) = [c for c in _expr_calls(encode) if c.op.name == "tirx.cuda.tensormap_encode_tiled"]
+    assert call.op.attrs_type_key == "tirx.cuda.TensorMapEncodeTiledAttr"
     assert str(call.attrs.descriptor_dtype) == "bfloat16"
     assert call.attrs.rank == 2
     assert call.attrs.swizzle == 3
@@ -136,24 +136,24 @@ def test_tensormap_encoding_accepts_attribute_keywords_and_defaults():
 
 
 def test_kernel_replace_point_is_builtin_marker_not_tile_primitive():
-    assert _op_attr("tirx.tvm_kernel_replace_point", "TIRxOpCategory") == "builtin"
-    assert "tirx.tile.tvm_kernel_replace_point" not in Op.list_op_names()
-    assert hasattr(T, "tvm_kernel_replace_point")
-    assert not hasattr(Tx, "tvm_kernel_replace_point")
+    assert _op_attr("tirx.kernel_replace_point", "TIRxOpCategory") == "builtin"
+    assert "tirx.tile.kernel_replace_point" not in Op.list_op_names()
+    assert hasattr(T, "kernel_replace_point")
+    assert not hasattr(Tx, "kernel_replace_point")
 
     @T.function(check_well_formed=False)
     def marker():
-        T.tvm_kernel_replace_point()
+        T.kernel_replace_point()
 
     calls = _expr_calls(marker)
-    assert [call.op.name for call in calls] == ["tirx.tvm_kernel_replace_point"]
+    assert [call.op.name for call in calls] == ["tirx.kernel_replace_point"]
     assert _tile_calls(marker) == []
 
     code = marker.script()
-    assert "T.tvm_kernel_replace_point()" in code
-    assert "tvm_kernel_replace_point" in code
-    assert "T.tile.tvm_kernel_replace_point" not in code
-    assert "Tx.tvm_kernel_replace_point" not in code
+    assert "T.kernel_replace_point()" in code
+    assert "kernel_replace_point" in code
+    assert "T.tile.kernel_replace_point" not in code
+    assert "Tx.kernel_replace_point" not in code
     reparsed = tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
     assert_structural_equal(marker, reparsed)
 
@@ -352,7 +352,7 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
 
 
 def test_registered_tirx_ops_have_exactly_one_category():
-    if _op_attr("tirx.sqrt", "TIRxOpCategory") is None:
+    if _op_attr("prim.sqrt", "TIRxOpCategory") is None:
         pytest.skip("TIRx op categories require a rebuilt C++ runtime")
 
     categories = {"builtin", "tile_primitive", "device_intrin"}

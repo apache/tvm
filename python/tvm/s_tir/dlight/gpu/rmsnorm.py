@@ -70,7 +70,7 @@ def identify_rsqrt_block(block: SBlock) -> bool:
     call = store.value
     op = call.op
 
-    return op == tvm.ir.op.Op.get("tirx.rsqrt")
+    return op == tvm.ir.op.Op.get("prim.rsqrt")
 
 
 class RMSNorm(ScheduleRule):

@@ -29,8 +29,8 @@
 #include <tvm/ir/scope_stack.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/expr_functor.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
-#include <tvm/tirx/tile_op.h>
 
 #include <exception>
 #include <optional>
@@ -152,7 +152,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   void Dispatch_(const AssertStmtNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const SeqStmtNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const EvaluateNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const tirx::TilePrimitiveCallNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const tirx::TileOpCallNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const ScopeIdDefStmtNode* op, ffi::reflection::AccessPath path) override;
 
   using ExprFunctor::Dispatch;

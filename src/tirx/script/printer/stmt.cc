@@ -19,9 +19,10 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 #include <tvm/tirx/op_attr_types.h>
-#include <tvm/tirx/tile_op.h>
+#include <tvm/tirx/stmt.h>
 
 #include <algorithm>
 #include <cmath>
@@ -44,11 +45,10 @@ ffi::Array<StmtDoc> Body(const tirx::Stmt& stmt, DocTranslatorObj* d) {
 
 namespace {
 
-ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                                     const ffi::Object* destination) {
+ffi::Optional<ExprDoc> TileOpCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object* destination) {
   const auto* stmt =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::TilePrimitiveCallNode>(
-          input);
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::TileOpCallNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
   static const OpAttrMap<TScriptPrinterName>& names =
@@ -177,8 +177,8 @@ ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::A
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::TilePrimitiveCallNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TilePrimitiveCallDocTranslate>());
+  ffi::reflection::TypeAttrDef<tirx::TileOpCallNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&TileOpCallDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> EvaluateDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -188,7 +188,8 @@ ffi::Optional<ExprDoc> EvaluateDocTranslate(DocTranslatorObj* d, ffi::AnyView in
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
   ExprDoc value = d->Translate(stmt->value).value();
-  if (auto call = stmt->value.as<CallNode>(); call && !call->op.same_as(tirx::buffer_data_op())) {
+  if (auto call = stmt->value.as<CallNode>();
+      call && !call->op.same_as(tirx::tensor_data_ptr_op())) {
     d->Emit(ExprStmtDoc(value), ffi::GetRef<ffi::ObjectRef>(stmt));
   } else {
     d->Emit(ExprStmtDoc(NamespaceDoc("tirx")->Attr("evaluate")->Call({value})),

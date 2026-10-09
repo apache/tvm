@@ -22,10 +22,10 @@
  * \file lower_reduction.cc
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/op.h>
 
 #include "../../tirx/transform/ir_utils.h"
 

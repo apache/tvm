@@ -436,7 +436,7 @@ or hand you a pointer — they emit no runtime op of their own. The common ones:
    * - ``B.permute(*dims)``
      - a view with axes permuted (a transposed layout)
    * - ``B.access_ptr(mask, …)``
-     - a masked access pointer (the ``tvm_access_ptr`` builtin), for passing a
+     - a masked access pointer (the ``access_ptr`` builtin), for passing a
        region to an intrinsic
 
 **Pointers — ``ptr_to`` / ``data``.** ``ptr_to`` is how you hand an element address

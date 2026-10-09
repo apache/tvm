@@ -25,12 +25,12 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/sym/int_set.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr.h>
-#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
 
 #include <optional>

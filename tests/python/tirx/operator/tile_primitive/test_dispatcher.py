@@ -137,19 +137,17 @@ def test_dispatch_raises_with_aggregated_reasons(monkeypatch):
 
 
 def test_dispatch_prints_real_opcall_ir():
-    """Create a real TilePrimitiveCall via BufferRegions and ensure its IR is in the table."""
+    """Create a real TileOpCall via BufferRegions and ensure its IR is in the table."""
     _import_and_register()
     from tvm.ir import Op
     from tvm.tirx.buffer import decl_tensor
     from tvm.tirx.operator.tile_primitive.dispatcher import run_dispatch
-    from tvm.tirx.tile_primitive import TilePrimitiveCall
+    from tvm.tirx.stmt import TileOpCall
 
-    # Build a real TIRx TilePrimitiveCall: tirx.tile.copy(A[0:64], B[0:64])
+    # Build a real TIRx TileOpCall: tirx.tile.copy(A[0:64], B[0:64])
     A = decl_tensor((64,), "float32", scope="global")
     B = decl_tensor((64,), "float32", scope="shared")
-    real_opcall = TilePrimitiveCall(
-        A[0:64], B[0:64], op=Op.get("tirx.tile.copy"), workspace={}, config={}
-    )
+    real_opcall = TileOpCall(A[0:64], B[0:64], op=Op.get("tirx.tile.copy"), workspace={}, config={})
 
     # Force predicate rejection to trigger formatted error with opcall IR
     sctx = _DummySctx(target_kind="trn", exec_scope="warp")

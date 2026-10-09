@@ -31,7 +31,8 @@
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/op/memory.h>
 
 #include <initializer_list>
 #include <unordered_set>

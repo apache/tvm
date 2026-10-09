@@ -99,7 +99,7 @@ fp16):
                 Tx.ptx["tcgen05.alloc.cta_group::1.sync.aligned.shared::cta.b32"](
                     Tx.address_of(tmem_addr), Tx.uint32(32)
                 )
-            Tx.tvm_storage_sync("shared")
+            Tx.gpu_storage_sync("shared")
             tmem = Tx.decl_tensor(
                 (128, WIDTH),
                 "float16",

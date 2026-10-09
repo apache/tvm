@@ -25,10 +25,13 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/index_map.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/gpu.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <cmath>
@@ -1075,11 +1078,11 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     }
   }
 
-  static const Op tvm_fill_fragment_op = Op::Get("tirx.tvm_fill_fragment");
-  static const Op tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
-  static const Op tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
-  static const Op tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
-  static const Op tvm_bmma_sync_op = Op::Get("tirx.tvm_bmma_sync");
+  static const Op gpu_fill_fragment_op = Op::Get("tirx.gpu_fill_fragment");
+  static const Op gpu_load_matrix_sync_op = Op::Get("tirx.gpu_load_matrix_sync");
+  static const Op gpu_store_matrix_sync_op = Op::Get("tirx.gpu_store_matrix_sync");
+  static const Op gpu_mma_sync_op = Op::Get("tirx.gpu_mma_sync");
+  static const Op bmma_sync_op = Op::Get("tirx.cuda.bmma_sync");
   static const Op mma_store_op = Op::Get("tirx.mma_store");
   static const Op mma_fill_op = Op::Get("tirx.mma_fill");
   static const Op ptx_mma_legacy_op = Op::Get("tirx.ptx_legacy.mma");
@@ -1088,7 +1091,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
   static const Op mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
   static const Op cuda_func_call_op = Op::Get("tirx.cuda.func_call");
 
-  if (op->op.same_as(tvm_fill_fragment_op)) {
+  if (op->op.same_as(gpu_fill_fragment_op)) {
     codegen_tags_.insert("mma");
     TVM_FFI_ICHECK_EQ(op->args.size(), 6U);
     os << "nvcuda::wmma::fill_fragment(";
@@ -1098,7 +1101,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     os << "], ";
     this->PrintExpr(op->args[5], os);
     os << ")";
-  } else if (op->op.same_as(tvm_load_matrix_sync_op)) {
+  } else if (op->op.same_as(gpu_load_matrix_sync_op)) {
     codegen_tags_.insert("mma");
     TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
     os << "nvcuda::wmma::load_matrix_sync(";
@@ -1110,7 +1113,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     os << ", ";
     this->PrintExpr(op->args[6], os);
     os << ")";
-  } else if (op->op.same_as(tvm_store_matrix_sync_op)) {
+  } else if (op->op.same_as(gpu_store_matrix_sync_op)) {
     codegen_tags_.insert("mma");
     TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
     os << "nvcuda::wmma::store_matrix_sync(";
@@ -1127,7 +1130,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
       TVM_FFI_THROW(InternalError) << "Invalid parameters";
     }
     os << ")";
-  } else if (op->op.same_as(tvm_mma_sync_op)) {
+  } else if (op->op.same_as(gpu_mma_sync_op)) {
     codegen_tags_.insert("mma");
     TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
     os << "nvcuda::wmma::mma_sync(";
@@ -1137,7 +1140,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
       this->PrintExpr(op->args[i * 2 + 1], os);
       os << "]" << ((i < 3) ? ", " : ")");
     }
-  } else if (op->op.same_as(tvm_bmma_sync_op)) {
+  } else if (op->op.same_as(bmma_sync_op)) {
     codegen_tags_.insert("mma");
     TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
     os << "nvcuda::wmma::bmma_sync(";
@@ -1424,157 +1427,10 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
           << "Invalid number of lanes for float4_e2m1fn reinterpret: " << lanes;
     }
     EndScope(ssa_scope);
-  } else if (op->op.same_as(tirx::print_buffer_op())) {
-    TVM_FFI_ICHECK_GE(op->args.size(), 5U) << "Print operation expects at least 5 arguments";
-
-    Expr arg = op->args[0];
-    const auto* var_node = arg.as<VarNode>();
-    if (const auto* call = arg.as<CallNode>();
-        call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
-      var_node = call->args[0].as<VarNode>();
-      TVM_FFI_ICHECK(var_node && var_node->ty.as<tirx::TensorTypeNode>())
-          << "print_buffer expects buffer_data to project a TensorVar";
-    }
-    PrimType dtype_ty = op->ty.as_or_throw<PrimType>();
-    bool is_string = op->args[2].as<IntImmNode>()->value != 0;
-    bool is_scalar = op->args[3].as<IntImmNode>()->value != 0;
-    int num_dims = op->args[4].as<IntImmNode>()->value.as<int>().value();
-
-    TVM_FFI_ICHECK(!(is_string && is_scalar)) << "Cannot have both is_string and is_scalar true";
-    if (is_string) {
-      // String printing logic
-      std::string print_arg = var_node ? GetVarID(var_node) : PrintExpr(arg);
-      std::string buffer_name = var_node ? GetVarID(var_node) : "string_literal";
-      os << "// print_buffer starts (string)\n"
-         << "if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {\n"
-         << "  printf(\"" << buffer_name << ": %s\\n\\n\", (char*)" << print_arg << ");\n"
-         << "}\n"
-         << "// print_buffer ends\n";
-      return;
-    }
-
-    if (is_scalar) {
-      // Scalar printing logic
-      std::string format_specifier;
-      bool is_float16 = dtype_ty.MatchesElementType(DLDataTypeCode::kDLFloat, 16);
-      if (dtype_ty.MatchesCode(DLDataTypeCode::kDLFloat))
-        format_specifier = "%f";
-      else if (dtype_ty.MatchesCode(DLDataTypeCode::kDLInt))
-        format_specifier = "%d";
-      else if (dtype_ty.MatchesCode(DLDataTypeCode::kDLUInt))
-        format_specifier = "%u";
-      else
-        TVM_FFI_THROW(InternalError) << "Unsupported data type for scalar print: " << dtype_ty;
-
-      std::string print_arg = var_node ? ("*" + GetVarID(var_node)) : PrintExpr(arg);
-      os << "// print_buffer starts (scalar)\n"
-         << "if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {\n"
-         << "  printf(\"Scalar (dtype: " << dtype_ty << "): " << format_specifier << "\\n\\n\", "
-         << (is_float16 ? "static_cast<float>(" : "") << print_arg << (is_float16 ? ")" : "")
-         << ");\n"
-         << "}\n"
-         << "// print_buffer ends\n";
-      return;
-    }
-
-    Array<PrimExpr> shape;
-    for (size_t i = 5; i < op->args.size(); ++i) {
-      shape.push_back(op->args[i].as_or_throw<PrimExpr>());
-    }
-
-    std::string format_specifier;
-    bool is_float16 = false;
-    if (dtype_ty.MatchesCode(DLDataTypeCode::kDLFloat)) {
-      if (dtype_ty.bits() == 16) {
-        format_specifier = "%f";
-        is_float16 = true;
-      } else {
-        format_specifier = "%f";
-      }
-    } else if (dtype_ty.MatchesCode(DLDataTypeCode::kDLInt)) {
-      format_specifier = "%d";
-    } else if (dtype_ty.MatchesCode(DLDataTypeCode::kDLUInt)) {
-      format_specifier = "%u";
-    } else {
-      TVM_FFI_THROW(InternalError) << "Unsupported data type for print: " << dtype_ty;
-    }
-
-    TVM_FFI_ICHECK(var_node) << "Formatted print is only supported for buffer variables.";
-    std::string buffer_name = GetVarID(var_node);
-
-    os << "// print_buffer starts (buffer)\n"
-       << "if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {\n";
-
-    os << "  printf(\"(" << buffer_name << ", shape=(";
-    for (int i = 0; i < num_dims; ++i) {
-      os << PrintExpr(shape[i]) << (i < num_dims - 1 ? "," : "");
-    }
-    os << "), dtype=" << dtype_ty << "):\\n\");\n";
-
-    std::vector<std::string> loop_vars;
-    for (int i = 0; i < num_dims; ++i) {
-      loop_vars.push_back("i" + std::to_string(i));
-    }
-
-    std::function<void(int)> GenerateLoops;
-    GenerateLoops = [&](int dim) {
-      if (dim == num_dims) {
-        std::string idx_calculation;
-        if (num_dims > 0) {
-          idx_calculation = loop_vars[0];
-          for (int i = 1; i < num_dims; ++i) {
-            idx_calculation =
-                "(" + idx_calculation + " * " + PrintExpr(shape[i]) + " + " + loop_vars[i] + ")";
-          }
-        } else {
-          idx_calculation = "0";
-        }
-
-        os << std::string(num_dims * 2 + 4, ' ') << "printf(\"" << format_specifier << "\", ";
-        if (is_float16) {
-          os << "static_cast<float>(" << buffer_name << "[" << idx_calculation << "]));\n";
-        } else {
-          os << buffer_name << "[" << idx_calculation << "]);\n";
-        }
-        return;
-      }
-
-      std::string indent(dim * 2 + 2, ' ');
-      os << indent << "for (int " << loop_vars[dim] << " = 0; " << loop_vars[dim] << " < "
-         << PrintExpr(shape[dim]) << "; ++" << loop_vars[dim] << ") {\n";
-
-      if (dim < num_dims - 1) {
-        os << indent << "  printf(\"[\");\n";
-      }
-      GenerateLoops(dim + 1);
-
-      if (dim < num_dims - 1) {
-        os << indent << "  printf(\"]\");\n";
-      }
-
-      os << indent << "  if (" << loop_vars[dim] << " < " << PrintExpr(shape[dim]) << " - 1) {\n";
-      if (dim == num_dims - 1) {
-        os << indent << "    printf(\" \");\n";
-      } else {
-        os << indent << "    printf(\"\\n" << std::string(dim + 2, ' ') << "\");\n";
-      }
-      os << indent << "  }\n";
-
-      os << indent << "}\n";
-    };
-
-    os << "  printf(\"[\");\n";
-    if (num_dims > 0) {
-      GenerateLoops(0);
-    }
-    os << "  printf(\"]\\n\");\n";
-
-    os << "}\n"
-       << "// print_buffer ends\n";
   } else if (op->op.same_as(cuda_func_call_op) ||
              (op->op.as<Op>() && op->op.as<Op>().value()->name == "tirx.cuda.func_call")) {
     print_cuda_func_call(op, os);
-  } else if (op->op.same_as(tirx::thread_return_op())) {
+  } else if (op->op.same_as(tirx::gpu_thread_return_op())) {
     os << "return";
   } else {
     CodeGenC::Dispatch_(op, os);

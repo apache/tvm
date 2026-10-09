@@ -57,7 +57,7 @@ def test_sync_read_thread_id_independent_location():
         result_local[0] = result_local[0] + temp_shared[0] * p1[1]
 
     mod = run_passes(func)
-    assert 'T.tvm_storage_sync("shared", None, None, dtype="int32")' in str(mod)
+    assert 'T.gpu_storage_sync("shared", ty="int32")' in str(mod)
 
 
 def test_sync_inside_condition():
@@ -77,7 +77,7 @@ def test_sync_inside_condition():
         A_shared = T.alloc_tensor((4, 4), "float32", scope="shared")
         bx = T.launch_thread("blockIdx.x", 1)
         tx = T.launch_thread("threadIdx.x", 32)
-        if T.tvm_thread_invariant(A[0, 0] > 1.0):
+        if T.gpu_thread_invariant(A[0, 0] > 1.0):
             for i, j in T.grid(4, 4):
                 A_shared[i, j] = A[i, j]
             for i, j in T.grid(4, 4):
@@ -88,7 +88,7 @@ def test_sync_inside_condition():
         A_shared = T.alloc_tensor((4, 4), "float32", scope="shared")
         bx = T.launch_thread("blockIdx.x", 1)
         tx = T.launch_thread("threadIdx.x", 32)
-        while T.tvm_thread_invariant(A[0, 0] > 1.0):
+        while T.gpu_thread_invariant(A[0, 0] > 1.0):
             for i, j in T.grid(4, 4):
                 A_shared[i, j] = A[i, j]
             for i, j in T.grid(4, 4):
@@ -99,7 +99,7 @@ def test_sync_inside_condition():
 
     for func in (func2, func3):
         mod = s_tir.transform.ThreadSync("shared")(tvm.IRModule.from_expr(func))
-        assert 'T.tvm_storage_sync("shared", None, None, dtype="int32")' in mod.script()
+        assert 'T.gpu_storage_sync("shared", ty="int32")' in mod.script()
 
 
 def test_sync_shared_dyn():
@@ -133,7 +133,7 @@ def test_sync_shared_dyn():
         C_1_1 = T.decl_tensor((1,), data=C_1.data, scope="local")
         C_1_1[0] = B_1_1[threadIdx_x // 4 * 6 + threadIdx_x % 4]
         D_1_1 = T.decl_tensor((16,), data=D_1.data, scope="shared.dyn")
-        T.evaluate(T.call_intrin("tirx.tvm_storage_sync", "shared.dyn", ty="int32"))
+        T.evaluate(T.call_intrin("tirx.gpu_storage_sync", "shared.dyn", ty="int32"))
         D_1_1[threadIdx_x] = C_1_1[0]
         E_1 = T.decl_tensor((16,), data=E.data)
         E_1[threadIdx_x] = D_1_1[threadIdx_x]
@@ -154,7 +154,7 @@ def test_sync_shared_aliasing_buffer_views():
         shared_float = T.decl_tensor((16,), "float32", data=shared_storage.data, scope="shared")
         for i in range(2):
             shared_half[threadIdx_x] = T.Cast("float16", A[i * 32 + threadIdx_x])
-            T.tvm_storage_sync("shared")
+            T.gpu_storage_sync("shared")
             local[0] = shared_float[threadIdx_x % 16]
             A[i * 32 + threadIdx_x] = local[0]
 
@@ -163,7 +163,7 @@ def test_sync_shared_aliasing_buffer_views():
 
     # In addition to the explicit write-to-read barrier, the shared physical
     # storage needs a read-to-next-write barrier across loop iterations.
-    assert str(mod["main"]).count("T.tvm_storage_sync") == 2
+    assert str(mod["main"]).count("T.gpu_storage_sync") == 2
 
 
 @pytest.mark.gpu
@@ -190,7 +190,7 @@ def test_sync_bind():
         A_temp_4 = T.bind(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x + 384])
         in_thread_A_temp_1[0] = A_temp_4
         cross_thread_A_temp_1 = T.decl_tensor((1,), data=cross_thread_A_temp.data, scope="local")
-        T.tvm_thread_allreduce(
+        T.gpu_thread_allreduce(
             T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
             (T.float32(0),),
             (in_thread_A_temp_1[0],),
@@ -211,7 +211,7 @@ def test_sync_bind():
             A_shared_1_1[ax0] = A[blockIdx_x * 512 + ax0]
         in_thread_A_temp_1_1 = T.decl_tensor((1,), data=in_thread_A_temp_1.data, scope="local")
         in_thread_A_temp_1_1[0] = T.float32(0)
-        T.evaluate(T.call_intrin("tirx.tvm_storage_sync", "shared", ty="int32"))
+        T.evaluate(T.call_intrin("tirx.gpu_storage_sync", "shared", ty="int32"))
         A_temp_1 = T.bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x])
         in_thread_A_temp_1_1[0] = A_temp_1
         A_temp_2 = T.bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x + 128])
@@ -223,7 +223,7 @@ def test_sync_bind():
         cross_thread_A_temp_1_1 = T.decl_tensor(
             (1,), data=cross_thread_A_temp_1.data, scope="local"
         )
-        T.tvm_thread_allreduce(
+        T.gpu_thread_allreduce(
             T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
             (T.float32(0),),
             (in_thread_A_temp_1_1[0],),

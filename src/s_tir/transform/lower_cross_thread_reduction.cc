@@ -32,6 +32,7 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/op/gpu.h>
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/utils.h"
@@ -462,7 +463,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
                /*name_hint=*/block->name_hint + "_cross_thread",
                /*body=*/
                Evaluate(Call(/*dtype=*/PrimType::Void(),
-                             /*op=*/tirx::tvm_thread_allreduce_op(),
+                             /*op=*/tirx::gpu_thread_allreduce_op(),
                              /*args=*/std::move(parameters))
                             .as_or_throw<PrimExpr>()))));
   }

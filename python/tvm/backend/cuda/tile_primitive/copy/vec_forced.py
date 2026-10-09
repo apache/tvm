@@ -39,7 +39,7 @@ from tvm.sym.analyzer import Analyzer
 from tvm.tirx import Function, Var
 from tvm.tirx.operator.tile_primitive.dispatcher import predicate, register_dispatch
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 from ._common import copy_ptx_form, copy_ptx_ld_chain
 from .utils import _scope_allowed
@@ -71,7 +71,7 @@ def _ptx_space(scope: str) -> str:
 _LD_CACHE_HINT_KEYS = ("l1_evict", "l2_evict", "prefetch_size")
 
 
-def _ld_cache_config(op_call: TilePrimitiveCall) -> tuple[str | None, dict[str, str]]:
+def _ld_cache_config(op_call: TileOpCall) -> tuple[str | None, dict[str, str]]:
     """Read the cache-semantics config from ``op_call.config``.
 
     Returns ``(cache, hints)``: ``cache`` is ``None`` or ``"nc"``, and
@@ -90,7 +90,7 @@ def _ld_cache_config(op_call: TilePrimitiveCall) -> tuple[str | None, dict[str, 
 
 
 def _is_forced_vec_copy(
-    op_call: TilePrimitiveCall,
+    op_call: TileOpCall,
     sctx: DispatchContext,
     *,
     variant: str,
@@ -105,7 +105,7 @@ def _is_forced_vec_copy(
     if not scope_ok:
         return False, scope_reason
 
-    op_call = TilePrimitiveCall.downcast(op_call)
+    op_call = TileOpCall.downcast(op_call)
     src: Var = op_call.src.source
     dst: Var = op_call.dst.source
     if src.dtype != dst.dtype:
@@ -135,8 +135,8 @@ def _is_forced_vec_copy(
     return True, None
 
 
-def _emit_forced_vec_copy(op_call: TilePrimitiveCall, _sctx: DispatchContext, num_bytes: int):
-    op_call = TilePrimitiveCall.downcast(op_call)
+def _emit_forced_vec_copy(op_call: TileOpCall, _sctx: DispatchContext, num_bytes: int):
+    op_call = TileOpCall.downcast(op_call)
     src: Var = op_call.src.source
     dst: Var = op_call.dst.source
     src_scope = src.scope()
@@ -219,7 +219,7 @@ def _register_forced_vec_copy(variant: str, num_bytes: int) -> None:
         ],
     )
     def _copy_schedule_forced_vec(
-        op_call: TilePrimitiveCall,
+        op_call: TileOpCall,
         sctx: DispatchContext,
         _num_bytes=num_bytes,
     ) -> Function:

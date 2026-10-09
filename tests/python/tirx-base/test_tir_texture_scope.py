@@ -28,11 +28,11 @@ def test_texture_scope():
         T.func_attr({"global_symbol": "texture_kernel", "calling_conv": 2})
         tx = T.launch_thread("threadIdx.x", 128)
         value = T.call_intrin(
-            "tirx.texture2d_load", a, tx, 0, 0, 128, T.Ramp(0, 1, 4), ty="float32x4"
+            "tirx.opencl.texture2d_load", a, tx, 0, 0, 128, T.Ramp(0, 1, 4), ty="float32x4"
         )
         T.evaluate(
             T.call_intrin(
-                "tirx.texture2d_store",
+                "tirx.opencl.texture2d_store",
                 c,
                 tx,
                 0,

@@ -25,9 +25,9 @@
 #define TVM_TOPI_NN_H_
 
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
-#include <tvm/tirx/op.h>
 #include <tvm/topi/detail/constant_utils.h>
 #include <tvm/topi/reduction.h>
 #include <tvm/topi/tags.h>

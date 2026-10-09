@@ -28,7 +28,9 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/support/io.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/gpu.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -95,7 +97,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
       return var;
     }
     if (const auto* call = data.as<CallNode>();
-        call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
+        call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
       return call->args[0].as<Var>();
     }
     return std::nullopt;
@@ -541,8 +543,8 @@ void CodeGenWebGPU::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT
       this->EndScope(else_scope);
     }
     os << result;
-  } else if (op->op.same_as(tirx::dp4a_op())) {
-    // generate `dot4I8Packed(vec1, vec2) + acc` for the builtin `dp4a`
+  } else if (op->op.same_as(tirx::gpu_dp4a_op())) {
+    // generate `dot4I8Packed(vec1, vec2) + acc` for the builtin `gpu_dp4a`
     os << "dot4I8Packed(";
     this->PrintExpr(op->args[0], os);
     os << ", ";

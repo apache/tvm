@@ -30,7 +30,7 @@
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/gpu.h>
 
 #include <unordered_set>
 
@@ -293,7 +293,7 @@ class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(s_tir::async_wait())) {
-      auto sync = Evaluate(Call(PrimType::Int(32), tirx::tvm_storage_sync_op(),
+      auto sync = Evaluate(Call(PrimType::Int(32), tirx::gpu_storage_sync_op(),
                                 {StringImm(sync_scope_.to_string())}));
       return SeqStmt({ffi::GetRef<Stmt>(op), sync});
     }
@@ -318,7 +318,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     if (syncs_.empty()) return ffi::Unchanged();
     if (!syncs_.count(stmt)) return StmtExprMutator::Mutate(value, inplace_mode);
     Stmt barrier = Evaluate(
-        Call(PrimType::Int(32), tirx::tvm_storage_sync_op(), {StringImm(sync_scope_.to_string())})
+        Call(PrimType::Int(32), tirx::gpu_storage_sync_op(), {StringImm(sync_scope_.to_string())})
             .as_or_throw<PrimExpr>());
     // Mutate after query, to avoid stmt change.
     auto result = StmtExprMutator::Mutate(value, inplace_mode);

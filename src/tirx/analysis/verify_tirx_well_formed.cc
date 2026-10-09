@@ -23,15 +23,15 @@
  */
 
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/exec_scope.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/region.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
-#include <tvm/tirx/tile_op.h>
 
 #include <exception>
 #include <optional>
@@ -52,10 +52,10 @@ class ExecScopeVerifier : public Verifier<ExecScopeVerifier> {
  private:
   using Verifier::Visit;
 
-  void Dispatch_(const tirx::TilePrimitiveCallNode* op, ffi::reflection::AccessPath path) override {
+  void Dispatch_(const tirx::TileOpCallNode* op, ffi::reflection::AccessPath path) override {
     static const auto& category_map = Op::GetAttrMap<tirx::TIRxOpCategory>("TIRxOpCategory");
     Verify(category_map.get(op->op, ffi::String("")) == "tile_primitive")
-        << "TIRxError: TilePrimitiveCall at " << path << " has non-tile op " << op->op;
+        << "TIRxError: TileOpCall at " << path << " has non-tile op " << op->op;
   }
 };
 

@@ -75,7 +75,7 @@ from tvm.tirx.expr import (
     Shuffle,
     Sub,
 )
-from tvm.tirx.op import CallFFIKernelAttr, TensorMapEncodeTiledAttr
+from tvm.tirx.op import CallFFIKernelAttr
 
 from . import _ffi_api
 from .external_kernel import call_kernel
@@ -310,13 +310,13 @@ exp2 = _tir_op.exp2
 exp10 = _tir_op.exp10
 
 
-filter = _tir_op.filter
+gpu_thread_filter = _tir_op.gpu_thread_filter
 
 
-selector = _tir_op.selector
+gpu_active_thread_selector = _tir_op.gpu_active_thread_selector
 
 
-floor = _ir.op._make_op_api(_ir.Op.get("tirx.floor"), __name__)
+floor = _ir.op._make_op_api(_ir.Op.get("prim.floor"), __name__)
 
 
 ceildiv = _tir_op.ceildiv
@@ -379,7 +379,7 @@ max_value = _tir_op.max_value
 min_value = _tir_op.min_value
 
 
-nearbyint = _ir.op._make_op_api(_ir.Op.get("tirx.nearbyint"), __name__)
+nearbyint = _ir.op._make_op_api(_ir.Op.get("prim.nearbyint"), __name__)
 
 
 nextafter = _tir_op.nextafter
@@ -388,16 +388,10 @@ nextafter = _tir_op.nextafter
 popcount = _tir_op.popcount
 
 
-pow = _ir.op._make_op_api(_ir.Op.get("tirx.pow"), __name__)
+pow = _ir.op._make_op_api(_ir.Op.get("prim.pow"), __name__)
 
 
-q_multiply_shift = _tir_op.q_multiply_shift
-
-
-q_multiply_shift_per_axis = _tir_op.q_multiply_shift_per_axis
-
-
-round = _ir.op._make_op_api(_ir.Op.get("tirx.round"), __name__)
+round = _ir.op._make_op_api(_ir.Op.get("prim.round"), __name__)
 
 
 rsqrt = _tir_op.rsqrt
@@ -427,10 +421,10 @@ tan = _tir_op.tan
 tanh = _tir_op.tanh
 
 
-thread_return = _tir_op.thread_return
+gpu_thread_return = _tir_op.gpu_thread_return
 
 
-trunc = _ir.op._make_op_api(_ir.Op.get("tirx.trunc"), __name__)
+trunc = _ir.op._make_op_api(_ir.Op.get("prim.trunc"), __name__)
 
 
 truncdiv = _tir_op.truncdiv
@@ -439,34 +433,28 @@ truncdiv = _tir_op.truncdiv
 truncmod = _tir_op.truncmod
 
 
-tvm_access_ptr = _tir_op.tvm_access_ptr
+access_ptr = _tir_op.access_ptr
 
 
 ptr_byte_offset = _tir_op.ptr_byte_offset
 
 
-tvm_throw_last_error = _tir_op.tvm_throw_last_error
+throw_last_error = _tir_op.throw_last_error
 
 
-print_buffer = _tir_op.print_buffer
+stack_alloca = _tir_op.stack_alloca
 
 
-tvm_stack_alloca = _tir_op.tvm_stack_alloca
+stack_make_shape = _tir_op.stack_make_shape
 
 
-tvm_stack_make_shape = _tir_op.tvm_stack_make_shape
-
-
-tvm_stack_make_array = _tir_op.tvm_stack_make_array
+stack_make_dltensor = _tir_op.stack_make_dltensor
 
 
 call_packed = _tir_op.call_packed
 
 
 call_ffi_kernel = _ir.op._make_op_api(_ir.Op.get("tirx.call_ffi_kernel"), __name__)
-
-
-tensormap_encode_tiled = _ir.op._make_op_api(_ir.Op.get("tirx.tensormap_encode_tiled"), __name__)
 
 
 call_cpacked = _tir_op.call_cpacked
@@ -478,68 +466,56 @@ call_packed_lowered = _tir_op.call_packed_lowered
 call_cpacked_lowered = _tir_op.call_cpacked_lowered
 
 
+tensor_data_ptr = _tir_op.tensor_data_ptr
+
+
 handle_add_byte_offset = _tir_op.handle_add_byte_offset
 
 
-tvm_struct_set = _tir_op.tvm_struct_set
+abi_field_set = _tir_op.abi_field_set
 
 
-tvm_struct_get = _ir.op._make_op_api(_ir.Op.get("tirx.tvm_struct_get"), __name__)
+abi_field_get = _ir.op._make_op_api(_ir.Op.get("tirx.abi_field_get"), __name__)
 
 
-tvm_thread_invariant = _tir_op.tvm_thread_invariant
+gpu_thread_invariant = _tir_op.gpu_thread_invariant
 
 
-tvm_thread_allreduce = _tir_op.tvm_thread_allreduce
+gpu_thread_allreduce = _tir_op.gpu_thread_allreduce
 
 
-tvm_load_matrix_sync = _tir_op.tvm_load_matrix_sync
+gpu_load_matrix_sync = _tir_op.gpu_load_matrix_sync
 
 
-tvm_mma_sync = _tir_op.tvm_mma_sync
+gpu_mma_sync = _tir_op.gpu_mma_sync
 
 
-tvm_bmma_sync = _tir_op.tvm_bmma_sync
+gpu_fill_fragment = _tir_op.gpu_fill_fragment
 
 
-tvm_fill_fragment = _tir_op.tvm_fill_fragment
+gpu_store_matrix_sync = _tir_op.gpu_store_matrix_sync
 
 
-tvm_store_matrix_sync = _tir_op.tvm_store_matrix_sync
-
-
-tvm_storage_sync = _tir_op.tvm_storage_sync
+gpu_storage_sync = _tir_op.gpu_storage_sync
 cpu_parallel_barrier = _tir_op.cpu_parallel_barrier
 
 
-tvm_kernel_replace_point = _tir_op.tvm_kernel_replace_point
+kernel_replace_point = _tir_op.kernel_replace_point
 
 
-tvm_warp_shuffle = _tir_op.tvm_warp_shuffle
+gpu_warp_shuffle = _tir_op.gpu_warp_shuffle
 
 
-tvm_warp_shuffle_up = _tir_op.tvm_warp_shuffle_up
+gpu_warp_shuffle_up = _tir_op.gpu_warp_shuffle_up
 
 
-tvm_warp_shuffle_down = _tir_op.tvm_warp_shuffle_down
+gpu_warp_shuffle_down = _tir_op.gpu_warp_shuffle_down
 
 
-tvm_warp_shuffle_xor = _tir_op.tvm_warp_shuffle_xor
+gpu_warp_shuffle_xor = _tir_op.gpu_warp_shuffle_xor
 
 
-tvm_warp_activemask = _tir_op.tvm_warp_activemask
-
-
-cooperative_tensor_fill = _tir_op.cooperative_tensor_fill
-
-
-cooperative_tensor_load = _tir_op.cooperative_tensor_load
-
-
-cooperative_tensor_store = _tir_op.cooperative_tensor_store
-
-
-cooperative_tensor_multiply_accumulate = _tir_op.cooperative_tensor_multiply_accumulate
+gpu_warp_activemask = _tir_op.gpu_warp_activemask
 
 
 assume = _tir_op.assume
@@ -549,10 +525,10 @@ assume_aligned = _tir_op.assume_aligned
 undef = _tir_op.undef
 
 
-TVMBackendAllocWorkspace = _tir_op.TVMBackendAllocWorkspace
+alloc_workspace = _tir_op.alloc_workspace
 
 
-TVMBackendFreeWorkspace = _tir_op.TVMBackendFreeWorkspace
+free_workspace = _tir_op.free_workspace
 
 
 vscale = _tir_op.vscale
@@ -599,7 +575,7 @@ masked_load = _ir.op._make_op_api(_ir.Op.get("tirx.masked_load"), __name__)
 masked_store = _tir_op.masked_store
 
 
-dp4a = _tir_op.dp4a
+gpu_dp4a = _tir_op.gpu_dp4a
 
 
 broadcast = Broadcast
@@ -608,19 +584,7 @@ broadcast = Broadcast
 ramp = Ramp
 
 
-fabs = _ir.op._make_op_api(_ir.Op.get("tirx.fabs"), __name__)
-
-
-tvm_call_packed = call_packed
-
-
-tvm_call_cpacked = call_cpacked
-
-
-tvm_call_packed_lowered = call_packed_lowered
-
-
-tvm_call_cpacked_lowered = call_cpacked_lowered
+fabs = _ir.op._make_op_api(_ir.Op.get("prim.fabs"), __name__)
 
 
 def _as_expr(value):
@@ -788,13 +752,14 @@ __all__ = [
     "Select",
     "Shuffle",
     "Sub",
-    "TVMBackendAllocWorkspace",
-    "TVMBackendFreeWorkspace",
-    "TensorMapEncodeTiledAttr",
+    "abi_field_get",
+    "abi_field_set",
     "abs",
+    "access_ptr",
     "acos",
     "acosh",
     "address_of",
+    "alloc_workspace",
     "asin",
     "asinh",
     "assume",
@@ -822,27 +787,38 @@ __all__ = [
     "ceil",
     "ceildiv",
     "clz",
-    "cooperative_tensor_fill",
-    "cooperative_tensor_load",
-    "cooperative_tensor_multiply_accumulate",
-    "cooperative_tensor_store",
     "copysign",
     "cos",
     "cosh",
     "cpu_parallel_barrier",
-    "dp4a",
     "erf",
     "exp",
     "exp2",
     "exp10",
     "fabs",
-    "filter",
     "floor",
     "floordiv",
     "floormod",
     "fma",
     "fmod",
+    "free_workspace",
     "get_active_lane_mask",
+    "gpu_active_thread_selector",
+    "gpu_dp4a",
+    "gpu_fill_fragment",
+    "gpu_load_matrix_sync",
+    "gpu_mma_sync",
+    "gpu_storage_sync",
+    "gpu_store_matrix_sync",
+    "gpu_thread_allreduce",
+    "gpu_thread_filter",
+    "gpu_thread_invariant",
+    "gpu_thread_return",
+    "gpu_warp_activemask",
+    "gpu_warp_shuffle",
+    "gpu_warp_shuffle_down",
+    "gpu_warp_shuffle_up",
+    "gpu_warp_shuffle_xor",
     "handle_add_byte_offset",
     "hypot",
     "if_then_else",
@@ -852,6 +828,7 @@ __all__ = [
     "isinf",
     "isnan",
     "isnullptr",
+    "kernel_replace_point",
     "ldexp",
     "likely",
     "llvm_lookup_intrinsic_id",
@@ -872,55 +849,29 @@ __all__ = [
     "nextafter",
     "popcount",
     "pow",
-    "print_buffer",
     "ptr_byte_offset",
-    "q_multiply_shift",
-    "q_multiply_shift_per_axis",
     "ramp",
     "register_script_namespace",
     "reinterpret",
     "round",
     "rsqrt",
     "select",
-    "selector",
     "shift_left",
     "shift_right",
     "sigmoid",
     "sin",
     "sinh",
     "sqrt",
+    "stack_alloca",
+    "stack_make_dltensor",
+    "stack_make_shape",
     "tan",
     "tanh",
-    "tensormap_encode_tiled",
-    "thread_return",
+    "tensor_data_ptr",
+    "throw_last_error",
     "trunc",
     "truncdiv",
     "truncmod",
-    "tvm_access_ptr",
-    "tvm_bmma_sync",
-    "tvm_call_cpacked",
-    "tvm_call_cpacked_lowered",
-    "tvm_call_packed",
-    "tvm_call_packed_lowered",
-    "tvm_fill_fragment",
-    "tvm_kernel_replace_point",
-    "tvm_load_matrix_sync",
-    "tvm_mma_sync",
-    "tvm_stack_alloca",
-    "tvm_stack_make_array",
-    "tvm_stack_make_shape",
-    "tvm_storage_sync",
-    "tvm_store_matrix_sync",
-    "tvm_struct_get",
-    "tvm_struct_set",
-    "tvm_thread_allreduce",
-    "tvm_thread_invariant",
-    "tvm_throw_last_error",
-    "tvm_warp_activemask",
-    "tvm_warp_shuffle",
-    "tvm_warp_shuffle_down",
-    "tvm_warp_shuffle_up",
-    "tvm_warp_shuffle_xor",
     "undef",
     "vectorcombine",
     "vectorhigh",

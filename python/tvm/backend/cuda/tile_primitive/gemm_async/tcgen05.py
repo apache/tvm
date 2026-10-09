@@ -44,8 +44,7 @@ from tvm.tirx.layout import (
     tmem_mma_operand_layout,
 )
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.stmt import Bind, Evaluate, SeqStmt
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import Bind, Evaluate, SeqStmt, TileOpCall
 
 from ...cpp.descriptors import (
     _check_tcgen05_mma_matrix_shape,
@@ -352,7 +351,7 @@ def _layout_matches_datapath_f(tmem_buf) -> bool:
         return False
 
 
-def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+def gemm_async_tcgen05_impl(op_call: TileOpCall, sctx: DispatchContext) -> Function:
     """Schedule an asynchronous GEMM operation using tcgen05.mma (Blackwell Tensor Core).
 
     Computes C = A @ B (with optional transpose on A/B and accumulation).
@@ -362,7 +361,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     so that only one thread in the warp issues the MMA instruction.
 
     Args:
-        op_call: The TilePrimitiveCall containing:
+        op_call: The TileOpCall containing:
             Regular (6 args):
             - args[0:3]: C, A, B buffer regions
             - args[3:6]: transA, transB, accum flags
@@ -389,7 +388,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         AssertionError: If shape/layout constraints are not satisfied.
     """
     warp_scope = sctx.is_warp
-    op_call = TilePrimitiveCall.downcast(op_call)
+    op_call = TileOpCall.downcast(op_call)
     is_block_scaled = op_call.is_block_scaled
 
     C_buffer_region: TensorRegion = op_call.output
@@ -1084,7 +1083,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     elect_pred = T.cuda.elect_sync() if warp_scope else True
 
     _SWIZZLE_TO_LAYOUT = {0: 0, 1: 6, 2: 4, 3: 2, 4: 1}
-    _krp = Evaluate(tirx_op.tvm_kernel_replace_point())
+    _krp = Evaluate(tirx_op.kernel_replace_point())
 
     def _make_lo_uniform(desc_buf):
         desc_lo = tvm.tirx.decl_tensor((1,), "uint32", name=f"{desc_buf.name}_lo", scope="local")
@@ -1500,7 +1499,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
 # When: gemm_async op at single-thread exec scope on Blackwell (SM100+).
 # Requires A in smem (with TMA-compatible swizzle layout) or tmem, B in smem, accum in tmem.
 #
-# Before (TilePrimitiveCall — regular MMA):
+# Before (TileOpCall — regular MMA):
 #     Tx.gemm_async(C_tmem[0:64, 0:256], A_smem[0:64, 0:64], B_smem[0:256, 0:64])
 #     # A: shared float16, B: shared float16, C: tmem float32
 #
@@ -1511,7 +1510,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
 #         M=64, N=256, MMA_K=64, transA=False, transB=True, cta_group=1)
 #     T.ptx[mma_chain](..., descA_buf[0], descB_buf[0], descI_local, ...)
 #
-# Before (TilePrimitiveCall — block-scaled fp8 MMA):
+# Before (TileOpCall — block-scaled fp8 MMA):
 #     Tx.gemm_async(C_tmem, A_smem, B_smem,
 #                   scale_A=SFA_tmem, scale_B=SFB_tmem)
 #     # A/B: shared float8_e4m3, SFA/SFB: tmem float8_e8m0fnu
@@ -1538,5 +1537,5 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         )
     ],
 )
-def gemm_async_dispatch_tcgen05(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+def gemm_async_dispatch_tcgen05(op_call: TileOpCall, sctx: DispatchContext) -> Function:
     return gemm_async_tcgen05_impl(op_call, sctx)

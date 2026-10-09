@@ -79,7 +79,7 @@ from tvm.script import tirx as T
 from tvm.tirx import Function, IntImm, is_tensor_var
 from tvm.tirx.layout import TileLayout, _flatten_coord
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail, register_dispatch
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 from ..common import get_indices, get_st_extent
 
@@ -188,7 +188,7 @@ def _choose_xor_k(extent, src_strides, dst_strides, dtype_bytes, P):
 
 
 def _gather(op_call):
-    op_call = TilePrimitiveCall.downcast(op_call)
+    op_call = TileOpCall.downcast(op_call)
     dst_arg, src_arg = op_call.args[0], op_call.args[1]
     src_buf, src_st, src_ext = _as_buffer_and_region(src_arg)
     dst_buf, dst_st, dst_ext = _as_buffer_and_region(dst_arg)
@@ -391,7 +391,7 @@ def _impl(op_call, sctx):
 # dispatcher uses the layout shard for iteration (after slice+canon) and
 # projects back onto ``buf.shape`` via mixed-radix grouping for the emit.
 #
-# Before (TilePrimitiveCall):
+# Before (TileOpCall):
 #     with T.warp():
 #         # SFA_smem: u32 (PIPE, BLK_SFA//32, 32), layout shard 4D
 #         #   (PIPE, BLK_SFA//128, 4, 32) strides (BLK_SFA, 128, 32, 1)
@@ -419,7 +419,7 @@ def _impl(op_call, sctx):
     variant="warp_xor_swizzle",
     priority=20,
 )
-def permute_layout_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+def permute_layout_dispatch(op: TileOpCall, sctx: DispatchContext) -> Function:
     reason = _why_reject(op, sctx)
     if reason is not None:
         fail(reason)

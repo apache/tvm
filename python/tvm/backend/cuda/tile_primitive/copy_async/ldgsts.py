@@ -50,7 +50,7 @@ from tvm.tirx.operator.tile_primitive.dispatcher import (
     register_dispatch,
 )
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 from ..copy._common import (
     _TID_AXIS_FOR_SCOPE,
@@ -101,12 +101,12 @@ def _config_bool(value) -> bool:
 
 
 def _divides_thread_cnt_ldgsts(
-    op_call: TilePrimitiveCall, sctx: DispatchContext
+    op_call: TileOpCall, sctx: DispatchContext
 ) -> tuple[bool, str | None]:
     """Mirror of ``gmem_smem._divides_thread_cnt``: reject copies whose
     region element count doesn't divide ``thread_cnt`` (and reject
     ``thread_cnt=0`` scopes outright). See that docstring for rationale."""
-    op_call = TilePrimitiveCall.downcast(op_call)
+    op_call = TileOpCall.downcast(op_call)
     thread_cnt = _thread_cnt(sctx)
     if thread_cnt <= 0:
         return False, f"degenerate thread_cnt={thread_cnt} (scope has empty intra)"
@@ -123,7 +123,7 @@ def _divides_thread_cnt_ldgsts(
     return True, None
 
 
-def _is_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> tuple[bool, str | None]:
+def _is_ldgsts(op_call: TileOpCall, sctx: DispatchContext) -> tuple[bool, str | None]:
     if not sctx.is_target("cuda"):
         return False, "non-cuda target"
     if sctx.scope_kind not in ("thread", "warp", "warpgroup", "cta"):
@@ -140,8 +140,8 @@ def _is_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> tuple[bool,
     return True, None
 
 
-def _emit_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
-    op_call = TilePrimitiveCall.downcast(op_call)
+def _emit_ldgsts(op_call: TileOpCall, sctx: DispatchContext) -> Function:
+    op_call = TileOpCall.downcast(op_call)
     src: Var = op_call.src.source
     dst: Var = op_call.dst.source
     # Predicate above guarantees src is global, dst is shared.
@@ -268,5 +268,5 @@ def _emit_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     priority=20,
     when=[predicate("ldgsts_applicable", _is_ldgsts)],
 )
-def copy_schedule_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+def copy_schedule_ldgsts(op_call: TileOpCall, sctx: DispatchContext) -> Function:
     return _emit_ldgsts(op_call, sctx)

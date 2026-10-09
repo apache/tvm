@@ -123,7 +123,7 @@ class _EncodeCollector:
         self.calls = []
 
     def _visit_call(self, op):
-        if isinstance(op.op, tvm.ir.Op) and op.op.name == "tirx.tensormap_encode_tiled":
+        if isinstance(op.op, tvm.ir.Op) and op.op.name == "tirx.cuda.tensormap_encode_tiled":
             self.calls.append(op)
 
     def visit_stmt(self, stmt):

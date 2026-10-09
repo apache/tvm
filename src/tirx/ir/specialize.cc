@@ -26,9 +26,10 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <functional>
@@ -189,7 +190,7 @@ class FunctionSpecializer : public StmtExprMutator {
       op = ffi::AnyView(result).as<CallNode>();
       if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
     }
-    if (!op->op.same_as(tirx::buffer_data_op()) || op->args.size() != 1) return result;
+    if (!op->op.same_as(tirx::tensor_data_ptr_op()) || op->args.size() != 1) return result;
     PointerType type = op->args[0].as_or_throw<TensorVar>().DataPointerType();
     if (ffi::StructuralEqual()(op->ty, type)) return result;
     if (inplace_mode == InplaceMode::kAllow) {

@@ -349,6 +349,7 @@ tvm_file_glob(GLOB CODEGEN_SRCS
   src/backend/metal/codegen/*.cc
   src/backend/metal/op/*.cc
   src/backend/opencl/codegen/*.cc
+  src/backend/opencl/op/*.cc
   src/backend/rocm/codegen/*.cc
   src/backend/trn/codegen/*.cc
   src/backend/trn/op/*.cc

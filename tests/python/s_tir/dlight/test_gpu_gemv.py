@@ -1058,12 +1058,12 @@ def test_func_to_skip():
             Ts.writes()
             T.call_packed(
                 "tvm.contrib.thrust.sum_scan",
-                T.tvm_stack_make_array(
-                    data_buf.data, T.tvm_stack_make_shape(seq_len * T.int64(8)), 0, 1, 0, T.int64(0)
+                T.stack_make_dltensor(
+                    data_buf.data, T.stack_make_shape(seq_len * T.int64(8)), 0, 1, 0, T.int64(0)
                 ),
-                T.tvm_stack_make_array(
+                T.stack_make_dltensor(
                     output_buf.data,
-                    T.tvm_stack_make_shape(seq_len * T.int64(8)),
+                    T.stack_make_shape(seq_len * T.int64(8)),
                     0,
                     1,
                     0,

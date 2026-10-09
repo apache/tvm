@@ -23,13 +23,13 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
-#include <tvm/tirx/tile_op.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -252,17 +252,17 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const tirx::TilePrimitiveCallNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const tirx::TileOpCallNode* op, InplaceMode inplace_mode) final {
     auto args = op->args.Map(
         [this](const Expr& arg) { return MutateTileArgument(arg).as_or_throw<Expr>(); });
     if (args.same_as(op->args)) {
       return ffi::Unchanged();
     } else {
       if (inplace_mode == InplaceMode::kAllow) {
-        const_cast<TilePrimitiveCallNode*>(op)->args = std::move(args);
+        const_cast<TileOpCallNode*>(op)->args = std::move(args);
         return ffi::Unchanged();
       }
-      auto n = ffi::make_object<TilePrimitiveCallNode>(*op);
+      auto n = ffi::make_object<TileOpCallNode>(*op);
       n->args = std::move(args);
       return Stmt(n);
     }

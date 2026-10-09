@@ -268,13 +268,13 @@ def opaque_access(
             Ts.reads(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
             Ts.writes(B[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
             T.evaluate(
-                T.tvm_load_matrix_sync(
+                T.gpu_load_matrix_sync(
                     B.data,
                     16,
                     16,
                     16,
                     vi * 8 + vj,
-                    T.tvm_access_ptr(
+                    T.access_ptr(
                         "float16",
                         A.data,
                         vi * 2048 + vj * 16,
@@ -311,13 +311,13 @@ def opaque_access(
                 offset_factor=1,
             )
             T.evaluate(
-                T.tvm_load_matrix_sync(
+                T.gpu_load_matrix_sync(
                     C0.data,
                     16,
                     16,
                     16,
                     vi * 8 + vj,
-                    T.tvm_access_ptr(
+                    T.access_ptr(
                         "float16",
                         A0.data,
                         A0.elem_offset,
@@ -585,13 +585,13 @@ def cache_read_opaque_access(
             Ts.reads(A_global[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
             Ts.writes(B[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
             T.evaluate(
-                T.tvm_load_matrix_sync(
+                T.gpu_load_matrix_sync(
                     B.data,
                     16,
                     16,
                     16,
                     vi * 8 + vj,
-                    T.tvm_access_ptr(
+                    T.access_ptr(
                         "float16",
                         A_global.data,
                         vi * 2048 + vj * 16,
@@ -628,13 +628,13 @@ def cache_read_opaque_access(
                 offset_factor=1,
             )
             T.evaluate(
-                T.tvm_load_matrix_sync(
+                T.gpu_load_matrix_sync(
                     C0.data,
                     16,
                     16,
                     16,
                     vi * 8 + vj,
-                    T.tvm_access_ptr(
+                    T.access_ptr(
                         "float16",
                         A0.data,
                         A0.elem_offset,
@@ -946,13 +946,13 @@ def cache_write_opaque_access(
             Ts.reads(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
             Ts.writes(B_global[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
             T.evaluate(
-                T.tvm_load_matrix_sync(
+                T.gpu_load_matrix_sync(
                     B_global.data,
                     16,
                     16,
                     16,
                     vi * 8 + vj,
-                    T.tvm_access_ptr(
+                    T.access_ptr(
                         "float16",
                         A.data,
                         vi * 2048 + vj * 16,
@@ -989,13 +989,13 @@ def cache_write_opaque_access(
                 offset_factor=1,
             )
             T.evaluate(
-                T.tvm_load_matrix_sync(
+                T.gpu_load_matrix_sync(
                     C0.data,
                     16,
                     16,
                     16,
                     vi * 8 + vj,
-                    T.tvm_access_ptr(
+                    T.access_ptr(
                         "float16",
                         A0.data,
                         A0.elem_offset,

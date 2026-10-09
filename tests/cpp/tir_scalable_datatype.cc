@@ -23,7 +23,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/script/printer/printer.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/abi.h>
 
 #ifdef TVM_LLVM_VERSION
 #include <llvm/IR/Intrinsics.h>

@@ -72,6 +72,7 @@
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/transform.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <map>

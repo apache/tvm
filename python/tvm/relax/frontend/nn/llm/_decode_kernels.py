@@ -310,7 +310,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                                                 for vec in T.vectorized(VEC_SIZE):
                                                     K_smem[tile_start_s + j, tx * VEC_SIZE + vec] = 0.0
                                                     V_smem[tile_start_s + j, tx * VEC_SIZE + vec] = 0.0
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
                                     # compute QK
                                     m_prev[0] = st_m[0]
                                     for j in T.serial(bdy * tile_size_per_bdx):
@@ -324,7 +324,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                                         with Ts.sblock("block_cross_thread"):
                                             Ts.reads(S_reduce_local[0])
                                             Ts.writes(t0[0])
-                                            T.tvm_thread_allreduce(T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)), (T.float32(0),), (S_reduce_local[0],), True, (t0[0],), (tx,))
+                                            T.gpu_thread_allreduce(T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)), (T.float32(0),), (S_reduce_local[0],), True, (t0[0],), (tx,))
 
                                         S_local[j] = -5e4
                                         if (iterator * bdz + tz) * bdy * tile_size_per_bdx + j < kv_chunk_len[0]:
@@ -355,7 +355,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                                         O_allreduce[tz, ty, tx * VEC_SIZE + vec] = O_local[vec]
                                     md_allreduce[tz, ty, 0] = st_m[0]
                                     md_allreduce[tz, ty, 1] = st_d[0]
-                                    T.tvm_storage_sync("shared")
+                                    T.gpu_storage_sync("shared")
 
                                     st_m[0] = -5e4
                                     st_d[0] = 1.0
@@ -489,7 +489,7 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype, target: Target, global_sy
                             # above, so none may overwrite it until all of them have read it.
                             # Without this barrier the threads only stay in step while bdx fits
                             # in one warp, and a head_dim above 128 makes bdx wider than that.
-                            T.tvm_storage_sync("shared")
+                            T.gpu_storage_sync("shared")
                             if tx == 0:
                                 S[bx, ty + by * bdy] = T.log2(s_val[0] + s_other_val[0]) + s_max[0]
 

@@ -429,7 +429,7 @@ def GMMCUDATensorCore(
                             offset_factor=16,
                         )
                         T.evaluate(
-                            T.tvm_fill_fragment(
+                            T.gpu_fill_fragment(
                                 C.data,
                                 16,
                                 16,
@@ -542,13 +542,13 @@ def GMMCUDATensorCore(
                                     offset_factor=16,
                                 )
                                 T.evaluate(
-                                    T.tvm_load_matrix_sync(
+                                    T.gpu_load_matrix_sync(
                                         C_1.data,
                                         16,
                                         16,
                                         16,
                                         C_1.elem_offset // 256 + C_1.elem_offset % 256 // 16,
-                                        T.tvm_access_ptr(
+                                        T.access_ptr(
                                             "float16",
                                             A.data,
                                             A.elem_offset,
@@ -595,13 +595,13 @@ def GMMCUDATensorCore(
                                     offset_factor=16,
                                 )
                                 T.evaluate(
-                                    T.tvm_load_matrix_sync(
+                                    T.gpu_load_matrix_sync(
                                         C_2.data,
                                         16,
                                         16,
                                         16,
                                         C_2.elem_offset // 256 + C_2.elem_offset % 256 // 16,
-                                        T.tvm_access_ptr(
+                                        T.access_ptr(
                                             "float16",
                                             A_1.data,
                                             A_1.elem_offset,
@@ -684,7 +684,7 @@ def GMMCUDATensorCore(
                                     offset_factor=16,
                                 )
                                 T.evaluate(
-                                    T.tvm_mma_sync(
+                                    T.gpu_mma_sync(
                                         C_3.data,
                                         C_3.elem_offset // 256 + C_3.elem_offset % 256 // 16,
                                         A_2.data,
@@ -729,13 +729,13 @@ def GMMCUDATensorCore(
                             offset_factor=16,
                         )
                         T.evaluate(
-                            T.tvm_store_matrix_sync(
+                            T.gpu_store_matrix_sync(
                                 A_3.data,
                                 16,
                                 16,
                                 16,
                                 A_3.elem_offset // 256 + A_3.elem_offset % 256 // 16,
-                                T.tvm_access_ptr(
+                                T.access_ptr(
                                     "float32",
                                     C_4.data,
                                     C_4.elem_offset,

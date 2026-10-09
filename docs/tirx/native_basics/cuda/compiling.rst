@@ -50,9 +50,8 @@ compiled module.
     # the generated CUDA C source, from the compiled Executable:
     print(exe.mod.imports[0].inspect_source())
 
-Debug aids: ``Tx.print_buffer(C.data, "float32", False, False, 1, (M,))`` emits a
-runtime ``printf`` of a buffer into the kernel; ``Tx.hint("message")`` (statement
-or ``with`` block) attaches structured hints that survive a script round-trip.
+``Tx.hint("message")`` (statement or ``with`` block) attaches structured hints
+that survive a script round-trip.
 
 From simple to complex
 ----------------------
@@ -64,7 +63,7 @@ A natural native progression, each rung adding one capability:
 #. **Shared-memory reduction** — stage into ``Tx.alloc_shared``, then a
    ``cta_sync``-separated tree (shown in full below). Adds shared memory and a
    block barrier.
-#. **Warp / block reduction** — ``Tx.tvm_warp_shuffle_xor`` or ``Tx.cuda.cta_sum``
+#. **Warp / block reduction** — ``Tx.gpu_warp_shuffle_xor`` or ``Tx.cuda.cta_sum``
    to combine partial results across lanes/warps (the warp all-reduce in
    :doc:`threads_sync`).
 #. **Async pipeline** — ``Tx.ptx.cp.async_`` (or TMA ``cp.async.bulk.tensor``) with

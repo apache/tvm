@@ -30,7 +30,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/expr.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/transform.h>
 
 #include <limits>
@@ -60,11 +60,11 @@ static Expr LowerAccessPtr(const CallNode* call,
   // TensorLoad so lowering never assumes that args[0] is immediately a Var.
   Expr buffer = call->args[0];
   while (const auto* inner = buffer.as<CallNode>()) {
-    if (!inner->op.same_as(tvm_access_ptr_op())) break;
+    if (!inner->op.same_as(access_ptr_op())) break;
     TVM_FFI_ICHECK_EQ(inner->args.size(), 4U);
     PrimType inner_dtype = inner->ty_args[0].as_or_throw<PrimType>();
     TVM_FFI_ICHECK_EQ(inner_dtype, dtype)
-        << "Nested tvm_access_ptr calls must use the same element type";
+        << "Nested access_ptr calls must use the same element type";
     PrimExpr inner_offset = inner->args[1].as_or_throw<PrimExpr>();
     if (inner_offset.ty() != offset.ty()) {
       inner_offset = prim::Cast(offset.ty(), inner_offset);
@@ -74,15 +74,14 @@ static Expr LowerAccessPtr(const CallNode* call,
   }
 
   const auto* buffer_data = buffer.as<CallNode>();
-  if (buffer_data && buffer_data->op.same_as(buffer_data_op())) {
+  if (buffer_data && buffer_data->op.same_as(tensor_data_ptr_op())) {
     TVM_FFI_ICHECK_EQ(buffer_data->args.size(), 1U);
     buffer = buffer_data->args[0];
   }
 
   const auto* buffer_node = buffer.as<VarNode>();
   TVM_FFI_ICHECK(buffer_node)
-      << "tvm_access_ptr expects a buffer Var or nested tvm_access_ptr as args[0], but got "
-      << buffer;
+      << "access_ptr expects a buffer Var or nested access_ptr as args[0], but got " << buffer;
   Var buffer_var = ffi::GetRef<Var>(buffer_node);
   PrimExpr scalar_extent = offset + IntImm(offset.ty(), 1);
   if (dtype.lanes() != 1) {
@@ -102,7 +101,7 @@ static Expr LowerAccessPtr(const CallNode* call,
       access_buffer = source_buffer;
     } else {
       TVM_FFI_ICHECK_EQ(source_buffer->dtype.WithLanes(1), scalar_dtype)
-          << "tvm_access_ptr element type must match the source buffer";
+          << "access_ptr element type must match the source buffer";
       storage_scope = source_buffer.scope();
       access_data = source_buffer.data();
     }
@@ -158,7 +157,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
       if (Op::HasAttrMap(pattern)) {
         attr_maps_.push_back(Op::GetAttrMap<FLowerGeneral>(pattern));
         if (fma_ == nullptr) {
-          static const Op fma_op = Op::Get("tirx.fma");
+          static const Op fma_op = Op::Get("prim.fma");
           fma_ = (*attr_maps_.rbegin()).get(fma_op, nullptr);
         }
       }
@@ -185,7 +184,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(tvm_access_ptr_op())) {
+    if (op->op.same_as(access_ptr_op())) {
       Expr lowered = LowerAccessPtr(op, &access_ptr_buffer_aliases_);
       return this->Mutate(lowered, inplace_mode).ValueOrUnchanged(std::move(lowered));
     }

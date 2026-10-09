@@ -21,8 +21,10 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 
 #include "./memhammer_rewrite_rule.h"
 
@@ -161,7 +163,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                                  /*offset_factor=*/16));
   ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
   ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
-  static const Op tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
+  static const Op gpu_load_matrix_sync_op = Op::Get("tirx.gpu_load_matrix_sync");
   Stmt wmma_body = SBlockRealize(
       /*iter_values=*/{},
       /*predicate=*/IntImm::Bool(true),
@@ -173,7 +175,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
           /*body=*/
           Evaluate(Call(
               /*data=*/PrimType::Void(),
-              /*op=*/tvm_load_matrix_sync_op,
+              /*op=*/gpu_load_matrix_sync_op,
               ffi::Array<Expr>{
                   /*0:*/ new_tgt_buffer.data(),
                   /*1:*/ PrimExpr(16),
@@ -184,7 +186,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                   /*5:*/
                   Call(
                       /*dtype=*/new_src_buffer.data()->ty,
-                      /*op=*/tirx::tvm_access_ptr_op(),
+                      /*op=*/tirx::access_ptr_op(),
                       /*args=*/
                       ffi::Array<Expr>{
                           /*0:*/ new_src_buffer.data(),
@@ -263,7 +265,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
 
   ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
   ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
-  static const Op tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
+  static const Op gpu_store_matrix_sync_op = Op::Get("tirx.gpu_store_matrix_sync");
   Stmt wmma_body = SBlockRealize(
       /*iter_values=*/{},  //
       /*predicate=*/IntImm::Bool(true),
@@ -273,7 +275,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
              /*name_hint=*/"wmma_store",
              Evaluate(Call(
                  /*data=*/PrimType::Void(),
-                 /*op=*/tvm_store_matrix_sync_op,
+                 /*op=*/gpu_store_matrix_sync_op,
                  ffi::Array<Expr>{/*0:*/ new_src_buffer.data(),
                                   /*1:*/ PrimExpr(16),
                                   /*2:*/ PrimExpr(16),
@@ -283,7 +285,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
                                   /*5:*/
                                   Call(
                                       /*data=*/new_tgt_buffer.data()->ty,
-                                      /*op=*/tirx::tvm_access_ptr_op(),
+                                      /*op=*/tirx::access_ptr_op(),
                                       ffi::Array<Expr>{
                                           /*0:*/ new_tgt_buffer.data(),
                                           /*1:*/ new_tgt_buffer->elem_offset,

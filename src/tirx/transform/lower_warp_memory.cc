@@ -37,7 +37,9 @@
 #include <tvm/sym/pattern.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/gpu.h>
+#include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/op/region.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -112,7 +114,7 @@ const VarNode* GetTensorVar(const Expr& expr) {
     return var;
   }
   if (const auto* call = expr.as<CallNode>();
-      call && call->op.same_as(buffer_data_op()) && call->args.size() == 1) {
+      call && call->op.same_as(tensor_data_ptr_op()) && call->args.size() == 1) {
     return call->args[0].as<VarNode>();
   }
   return nullptr;
@@ -526,8 +528,8 @@ class WarpAccessRewriter : public StmtExprMutator {
       return load;
     }
 
-    PrimExpr mask = Call(PrimType::UInt(32), tvm_warp_activemask_op(), {}).as_or_throw<PrimExpr>();
-    return Call(load.ty(), tvm_warp_shuffle_op(),
+    PrimExpr mask = Call(PrimType::UInt(32), gpu_warp_activemask_op(), {}).as_or_throw<PrimExpr>();
+    return Call(load.ty(), gpu_warp_shuffle_op(),
                 ffi::Array<PrimExpr>{mask, load, group, width_, warp_size_})
         .as_or_throw<PrimExpr>();
   }

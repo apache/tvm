@@ -175,7 +175,7 @@ trailing ``1, 1`` are the grid/block launch dims):
 argument's shape (essentially ``n = a.shape[0]``) — and adds the dtype / shape /
 device checks (e.g. asserting ``B.shape[0] == n``)::
 
-    n = Tx.Cast("int32", Tx.tvm_struct_get(a_shape, 0, 17, "int64"))   # = a.shape[0]
+    n = Tx.Cast("int32", Tx.abi_field_get(a_shape, 0, 17, "int64"))   # = a.shape[0]
 
 ``@Tx.function`` vs ``@Tx.jit``
 --------------------------------

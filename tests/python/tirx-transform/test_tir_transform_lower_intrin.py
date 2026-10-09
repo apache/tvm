@@ -98,8 +98,8 @@ def check_value(expr, variables, data, fref):
 
 def test_lower_nested_access_ptr():
     data = tvm.tirx.Var("data", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
-    inner = tvm.tirx.tvm_access_ptr("float32", data, 2, 16, 1)
-    outer = tvm.tirx.tvm_access_ptr("float32", inner, 3, 8, 1)
+    inner = tvm.tirx.access_ptr("float32", data, 2, 16, 1)
+    outer = tvm.tirx.access_ptr("float32", inner, 3, 8, 1)
     body = tvm.tirx.Evaluate(tvm.tirx.call_extern("void", "consume", outer))
     mod = tvm.IRModule.from_expr(
         tvm.tirx.Function([data], body).with_attr("target", tvm.target.Target("llvm"))
@@ -111,7 +111,7 @@ def test_lower_nested_access_ptr():
 
     def collect(node):
         if isinstance(node, tvm.ir.Call):
-            if node.op.name == "tirx.tvm_access_ptr":
+            if node.op.name == "tirx.access_ptr":
                 access_ptr_calls.append(node)
             elif node.op.name == "tirx.address_of":
                 address_calls.append(node)
@@ -141,7 +141,7 @@ def test_lower_vector_access_ptr():
     buffer = tvm.tirx.decl_tensor((8,), "float32x2", name="A")
     access_ptr = buffer.access_ptr(access_mask=3, offset=2, extent=4)
 
-    assert access_ptr.op.name == "tirx.tvm_access_ptr"
+    assert access_ptr.op.name == "tirx.access_ptr"
     assert int(access_ptr.args[1]) == 2
     assert int(access_ptr.args[2]) == 4
     assert int(access_ptr.args[3]) == 3
@@ -155,7 +155,7 @@ def test_lower_vector_access_ptr():
     assert isinstance(lowered_body, tvm.tirx.SeqStmt)
     alias = lowered_body.seq[0]
     assert _is_buffer_binding(alias, "tirx.decl_tensor")
-    assert alias.value.args[0].op.name == "tirx.buffer_data"
+    assert alias.value.args[0].op.name == "tirx.tensor_data_ptr"
     assert alias.value.args[0].args[0].same_as(buffer)
     lowered = lowered_body.seq[1].value
     assert lowered.op.name == "tirx.address_of"
@@ -186,7 +186,7 @@ def test_lower_vector_access_ptr_with_padded_vector_dtype():
 
 def test_lower_buffer_data_access_ptr_preserves_buffer_identity():
     buffer = tvm.tirx.decl_tensor((16,), "float32", "buffer")
-    access = tvm.tirx.tvm_access_ptr("float32", buffer.data, 3, 8, 1)
+    access = tvm.tirx.access_ptr("float32", buffer.data, 3, 8, 1)
 
     func = tvm.tirx.Function([buffer], tvm.tirx.Evaluate(access)).with_attr(
         "target", tvm.target.Target("llvm")

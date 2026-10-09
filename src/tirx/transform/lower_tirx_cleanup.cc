@@ -22,14 +22,14 @@
  * \brief Final cleanup stage for TIRx lowering.
  */
 
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
-#include <tvm/tirx/tile_op.h>
 #include <tvm/tirx/transform.h>
 
 #include <tuple>
@@ -104,12 +104,13 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(buffer_data_op()) && op->args.size() == 1) {
+    if (op->op.same_as(tensor_data_ptr_op()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
           var.has_value() && var.value()->ty.as<TensorTypeNode>()) {
         auto root_opt = buffer_aliases_.Get(var.value());
         TVM_FFI_ICHECK(root_opt.has_value())
-            << "buffer_data projects " << var.value()->name << ", which has no visible definition "
+            << "tensor_data_ptr projects " << var.value()->name
+            << ", which has no visible definition "
             << "(AllocTensor/DeclTensor/Function parameter) at this point";
         Var root = root_opt.value();
         if (auto mapped = VarRemapGet(root); mapped != nullptr) {
@@ -281,18 +282,18 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     return VisitBufferAccess(std::move(load));
   }
 
-  UnchangedOr<Stmt> Mutate_(const tirx::TilePrimitiveCallNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const tirx::TileOpCallNode* op, InplaceMode inplace_mode) final {
     ffi::Array<Expr> args = op->args;
     args.MutateByApply([this](const Expr& arg) { return VisitAny(arg).as_or_throw<Expr>(); });
     if (args.same_as(op->args)) {
       return ffi::Unchanged();
     } else {
       if (inplace_mode == InplaceMode::kAllow) {
-        auto* n = const_cast<tirx::TilePrimitiveCallNode*>(op);
+        auto* n = const_cast<tirx::TileOpCallNode*>(op);
         n->args = std::move(args);
         return ffi::Unchanged();
       }
-      auto n = ffi::make_object<tirx::TilePrimitiveCallNode>(*op);
+      auto n = ffi::make_object<tirx::TileOpCallNode>(*op);
       n->args = std::move(args);
       return Stmt(n);
     }
@@ -359,7 +360,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
   void RegisterBufferAlias(TensorVar buffer, const Expr& data) {
     Var root = buffer.var();
     if (const auto* call = data.as<CallNode>();
-        call && call->op.same_as(buffer_data_op()) && call->args.size() == 1) {
+        call && call->op.same_as(tensor_data_ptr_op()) && call->args.size() == 1) {
       if (auto source = call->args[0].as<Var>();
           source.has_value() && source.value()->ty.as<TensorTypeNode>()) {
         auto source_root = buffer_aliases_.Get(source.value());

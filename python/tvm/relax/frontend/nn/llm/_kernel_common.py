@@ -217,7 +217,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
             with Ts.sblock("O_init"):
                 i, j = Ts.axis.remap("SS", [li, lj])
                 O_local[i, j] = 0.0
-        T.tvm_storage_sync("shared")
+        T.gpu_storage_sync("shared")
 
     @T.macro
     def compute_s_gemm(
@@ -230,12 +230,12 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                     with Ts.init():
                         S_local[i, j] = 0.0
                     S_local[i, j] += T.cast(Q_smem[i, k], "float32") * T.cast(K_smem[j, k], "float32") * sm_scale * math.log2(math.exp(1))
-        T.tvm_storage_sync("shared")
+        T.gpu_storage_sync("shared")
         for li, lj in T.grid(tile_x, tile_z):
             with Ts.sblock("S_store"):
                 i, j = Ts.axis.remap("SS", [li, lj])
                 S_smem[i, j] = S_local[i, j]
-        T.tvm_storage_sync("shared")
+        T.gpu_storage_sync("shared")
 
     @T.macro
     def softmax_update_causal(
@@ -278,7 +278,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                     m_smem[row] = m_new[i]
                     d_smem[row] = d_new[i]
                     m_prev_smem[row] = m_prev[i]
-        T.tvm_storage_sync("shared")
+        T.gpu_storage_sync("shared")
 
     @T.macro
     def compute_o_gemm(
@@ -375,7 +375,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                     m_smem[row] = m_new[i]
                     d_smem[row] = d_new[i]
                     m_prev_smem[row] = m_prev[i]
-        T.tvm_storage_sync("shared")
+        T.gpu_storage_sync("shared")
 
     @T.macro
     def softmax_update_causal_padded_left(
@@ -424,7 +424,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
                     m_smem[row] = m_new[i]
                     d_smem[row] = d_new[i]
                     m_prev_smem[row] = m_prev[i]
-        T.tvm_storage_sync("shared")
+        T.gpu_storage_sync("shared")
 
     return init_states, compute_s_gemm, softmax_update_causal, compute_o_gemm, softmax_update_valid_length, advance_tile_batch, paged_store_output_lse, softmax_update_causal_padded_left
 

@@ -27,7 +27,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/region.h>
 
 #include <algorithm>
 #include <functional>
@@ -298,7 +298,7 @@ UnchangedOr<Expr> DataTypeLegalizer::Mutate_(const CallNode* op, InplaceMode inp
     return e;
   }
   PrimExpr prim_e = e.as_or_throw<PrimExpr>();
-  static const Op pow_op = Op::Get("tirx.pow");
+  static const Op pow_op = Op::Get("prim.pow");
   static const Op& clz_op = prim::clz_op();
   if (op->op.same_as(pow_op)) {
     return pow(op->args[0].as_or_throw<PrimExpr>(), op->args[1].as_or_throw<PrimExpr>());

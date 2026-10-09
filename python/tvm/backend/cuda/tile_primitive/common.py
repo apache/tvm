@@ -28,7 +28,7 @@ from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
 from tvm.tirx import Function, Var
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 
 def next_power_of_2(x: int) -> int:
@@ -82,7 +82,7 @@ class CopyInstType(Enum):
 
 
 def validate_copy_op(
-    op_call: TilePrimitiveCall,
+    op_call: TileOpCall,
     sctx: DispatchContext,  # pylint: disable=unused-argument
 ) -> bool:
     """Sanity check for copy op"""
@@ -152,7 +152,7 @@ def get_vec_len(
 
 
 def copy_vec_load_impl(
-    op_call: TilePrimitiveCall, sctx: DispatchContext, inst_type: CopyInstType
+    op_call: TileOpCall, sctx: DispatchContext, inst_type: CopyInstType
 ) -> Function | None:
     """Schedule copy operation between global and local/shared memory on CUDA across a CTA/thread.
     The implementation tries to vectorize the copy operation and parallelize over
@@ -221,7 +221,7 @@ def copy_vec_load_impl(
                         src_indices = T.meta_var(get_indices(fused, src_st, src_extent))
                         T.evaluate(T.ptx[f"cp.async.{'cg' if T.constexpr(cp_size == 16) else 'ca'}.shared.global"](dst.ptr_to(dst_indices), src.ptr_to(src_indices), cp_size))  # noqa: E501
             if T.constexpr(dst.scope().startswith("shared") and inst_type == CopyInstType.NORMAL):
-                T.tvm_storage_sync("shared")
+                T.gpu_storage_sync("shared")
         # fmt: on
     elif sctx.is_thread:
         # fmt: off
@@ -272,7 +272,7 @@ def get_thread_cnt(sctx: DispatchContext) -> int | None:
 
 
 def sm_version_ok(
-    op: TilePrimitiveCall, sctx: DispatchContext, min_version: int
+    op: TileOpCall, sctx: DispatchContext, min_version: int
 ) -> tuple[bool, str | None]:
     """Check if SM version >= min_version. Usable as a dispatch predicate."""
     target_arch = sctx.target.arch if hasattr(sctx.target, "arch") else ""

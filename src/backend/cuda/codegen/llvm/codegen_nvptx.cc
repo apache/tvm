@@ -42,6 +42,8 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/tirx/op/gpu.h>
+#include <tvm/tirx/op/memory.h>
 #if TVM_LLVM_VERSION < 170
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #endif
@@ -260,11 +262,11 @@ static bool GetWarpShuffleIntrinsic(const CallNode* op, llvm::Intrinsic::ID* id)
       llvm::Intrinsic::nvvm_shfl_down_i32, llvm::Intrinsic::nvvm_shfl_down_f32};
 
   int offset = 0;
-  if (op->op.same_as(tirx::tvm_warp_shuffle_op())) {
+  if (op->op.same_as(tirx::gpu_warp_shuffle_op())) {
     offset = 0;
-  } else if (op->op.same_as(tirx::tvm_warp_shuffle_up_op())) {
+  } else if (op->op.same_as(tirx::gpu_warp_shuffle_up_op())) {
     offset = 2;
-  } else if (op->op.same_as(tirx::tvm_warp_shuffle_down_op())) {
+  } else if (op->op.same_as(tirx::gpu_warp_shuffle_down_op())) {
     offset = 4;
   } else {
     return false;
@@ -291,7 +293,7 @@ llvm::Value* CodeGenNVPTX::CreateIntrinsic(const CallNode* op) {
     llvm::Type* return_type = arg_type[0];
     llvm::Function* func = GetIntrinsicDecl(id, return_type, arg_type);
     return builder_->CreateCall(func, arg_value);
-  } else if (op->op.same_as(tirx::tvm_warp_activemask_op())) {
+  } else if (op->op.same_as(tirx::gpu_warp_activemask_op())) {
     // Only nvptx target may keep this intrinsic at this point.
     // PTX assembly: asm "activemask.b32 r1;"
     auto fty = llvm::FunctionType::get(t_int32_, false);

@@ -20,8 +20,8 @@
 #define TVM_TIRX_SCRIPT_IR_BUILDER_UTILS_H_
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/op.h>
 #include <tvm/tirx/script/ir_builder/frame.h>
 #include <tvm/tirx/script/ir_builder/ir.h>
 #include <tvm/tirx/stmt.h>

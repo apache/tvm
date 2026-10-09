@@ -134,7 +134,7 @@ def test_subroutine_call_to_externally_visible_subroutine():
     Because the subroutine may be called directly by a user, it must
     use the PackedFunc API.  Its signature should be updated to the
     PackedFunc signature, and call sites should be updated to use
-    `T.tvm_call_cpacked`.
+    `T.call_cpacked`.
     """
 
     @I.ir_module
@@ -158,10 +158,9 @@ def test_subroutine_call_to_externally_visible_subroutine():
 
     subroutine_call_op = main_compute_scope.body[0].value.op
     assert (
-        isinstance(subroutine_call_op, tvm.ir.Op)
-        and subroutine_call_op.name == "tirx.tvm_call_cpacked"
+        isinstance(subroutine_call_op, tvm.ir.Op) and subroutine_call_op.name == "tirx.call_cpacked"
     ), (
-        f"The main function's CallNode should be lowered to the builtin 'tirx.tvm_call_cpacked', "
+        f"The main function's CallNode should be lowered to the builtin 'tirx.call_cpacked', "
         f"but instead has an operation of type {subroutine_call_op}"
     )
 
@@ -197,9 +196,9 @@ def test_zero_arg_function():
                 ["Expected ", "0", " arguments", " when calling:\n  `", "func_without_arg()", "`"],
             )
             with T.compute_scope("func_without_arg_compute_"):
-                T.tvm_struct_set(result, 0, 13, 1)
-                T.tvm_struct_set(result, 0, 14, 0)
-                T.tvm_struct_set(result, 0, 15, T.Cast("int64", T.int64(42)))
+                T.abi_field_set(result, 0, 13, 1)
+                T.abi_field_set(result, 0, 14, 0)
+                T.abi_field_set(result, 0, 15, T.Cast("int64", T.int64(42)))
                 return 0
             return 0
 
@@ -221,7 +220,7 @@ def test_pointer_return():
     return_type_indices = []
 
     def collect(node):
-        if not isinstance(node, tvm.ir.Call) or node.op.name != "tirx.tvm_struct_set":
+        if not isinstance(node, tvm.ir.Call) or node.op.name != "tirx.abi_field_set":
             return
         field = node.args[2]
         if isinstance(field, tvm.tirx.IntImm) and int(field) == 13:
@@ -281,7 +280,7 @@ def test_int_parameter():
                 "TypeError",
                 ["args pointer is NULL", " when calling:\n  `", "main(arg: int32)", "`"],
             )
-            arg_type_index: T.let[T.int32] = T.tvm_struct_get(args, 0, 13, ty="int32")
+            arg_type_index: T.let[T.int32] = T.abi_field_get(args, 0, 13, ty="int32")
             assert arg_type_index == 1 or arg_type_index == 2, (
                 "TypeError",
                 [
@@ -293,17 +292,17 @@ def test_int_parameter():
                     "int",
                 ],
             )
-            arg: T.let[T.int32] = T.Cast("int32", T.tvm_struct_get(args, 0, 15, ty="int64"))
+            arg: T.let[T.int32] = T.Cast("int32", T.abi_field_get(args, 0, 15, ty="int64"))
             with T.compute_scope("main_compute_"):
                 if arg > 0:
-                    T.tvm_struct_set(result, 0, 13, 1)
-                    T.tvm_struct_set(result, 0, 14, 0)
-                    T.tvm_struct_set(result, 0, 15, T.Cast("int64", 10))
+                    T.abi_field_set(result, 0, 13, 1)
+                    T.abi_field_set(result, 0, 14, 0)
+                    T.abi_field_set(result, 0, 15, T.Cast("int64", 10))
                     return 0
                 else:
-                    T.tvm_struct_set(result, 0, 13, 1)
-                    T.tvm_struct_set(result, 0, 14, 0)
-                    T.tvm_struct_set(result, 0, 15, T.Cast("int64", 20))
+                    T.abi_field_set(result, 0, 13, 1)
+                    T.abi_field_set(result, 0, 14, 0)
+                    T.abi_field_set(result, 0, 15, T.Cast("int64", 20))
                     return 0
             return 0
 
@@ -348,7 +347,7 @@ def test_bool_parameter():
                 "TypeError",
                 ["args pointer is NULL", " when calling:\n  `", "main(arg: bool)", "`"],
             )
-            arg_type_index: T.let[T.int32] = T.tvm_struct_get(args, 0, 13, ty="int32")
+            arg_type_index: T.let[T.int32] = T.abi_field_get(args, 0, 13, ty="int32")
             assert arg_type_index == 2 or arg_type_index == 1, (
                 "TypeError",
                 [
@@ -360,17 +359,17 @@ def test_bool_parameter():
                     "boolean",
                 ],
             )
-            arg: T.let[T.bool] = T.Cast("bool", T.tvm_struct_get(args, 0, 15, ty="int64"))
+            arg: T.let[T.bool] = T.Cast("bool", T.abi_field_get(args, 0, 15, ty="int64"))
             with T.compute_scope("main_compute_"):
                 if arg:
-                    T.tvm_struct_set(result, 0, 13, 1)
-                    T.tvm_struct_set(result, 0, 14, 0)
-                    T.tvm_struct_set(result, 0, 15, T.Cast("int64", 10))
+                    T.abi_field_set(result, 0, 13, 1)
+                    T.abi_field_set(result, 0, 14, 0)
+                    T.abi_field_set(result, 0, 15, T.Cast("int64", 10))
                     return 0
                 else:
-                    T.tvm_struct_set(result, 0, 13, 1)
-                    T.tvm_struct_set(result, 0, 14, 0)
-                    T.tvm_struct_set(result, 0, 15, T.Cast("int64", 20))
+                    T.abi_field_set(result, 0, 13, 1)
+                    T.abi_field_set(result, 0, 14, 0)
+                    T.abi_field_set(result, 0, 15, T.Cast("int64", 20))
                     return 0
             return 0
 
@@ -415,7 +414,7 @@ def test_float_parameter():
                 "TypeError",
                 ["args pointer is NULL", " when calling:\n  `", "main(arg: float32)", "`"],
             )
-            arg_type_index: T.let[T.int32] = T.tvm_struct_get(args, 0, 13, ty="int32")
+            arg_type_index: T.let[T.int32] = T.abi_field_get(args, 0, 13, ty="int32")
             assert arg_type_index == 3 or arg_type_index == 1 or arg_type_index == 2, (
                 "TypeError",
                 [
@@ -429,19 +428,19 @@ def test_float_parameter():
             )
             arg: T.let[T.float32] = T.Select(
                 arg_type_index == 3,
-                T.Cast("float32", T.tvm_struct_get(args, 0, 15, ty="float64")),
-                T.Cast("float32", T.tvm_struct_get(args, 0, 15, ty="int64")),
+                T.Cast("float32", T.abi_field_get(args, 0, 15, ty="float64")),
+                T.Cast("float32", T.abi_field_get(args, 0, 15, ty="int64")),
             )
             with T.compute_scope("main_compute_"):
                 if arg > T.float32(0.0):
-                    T.tvm_struct_set(result, 0, 13, 1)
-                    T.tvm_struct_set(result, 0, 14, 0)
-                    T.tvm_struct_set(result, 0, 15, T.Cast("int64", 10))
+                    T.abi_field_set(result, 0, 13, 1)
+                    T.abi_field_set(result, 0, 14, 0)
+                    T.abi_field_set(result, 0, 15, T.Cast("int64", 10))
                     return 0
                 else:
-                    T.tvm_struct_set(result, 0, 13, 1)
-                    T.tvm_struct_set(result, 0, 14, 0)
-                    T.tvm_struct_set(result, 0, 15, T.Cast("int64", 20))
+                    T.abi_field_set(result, 0, 13, 1)
+                    T.abi_field_set(result, 0, 14, 0)
+                    T.abi_field_set(result, 0, 15, T.Cast("int64", 20))
                     return 0
             return 0
 

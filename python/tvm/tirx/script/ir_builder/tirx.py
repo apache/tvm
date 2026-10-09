@@ -22,7 +22,7 @@ from collections.abc import Callable
 import tvm
 import tvm.tirx.operator as tirx_op
 from tvm.ir import LambdaExpr, Op, PrimType, TensorRegion
-from tvm.tirx import Expr, Var, buffer_data, is_tensor_var
+from tvm.tirx import Expr, Var, is_tensor_var, tensor_data_ptr
 from tvm.tirx.exec_scope import _SCOPE_KIND_TO_NAME, ExecScope
 from tvm.tirx.expr import FloatImm, IntImm
 from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool
@@ -58,7 +58,7 @@ class ScopedOp:
     ``Tx.wg.sum(...)``, ``Tx.cta.fill(...)`` (see :class:`ScopeNamespace`).
 
     The wrapped ``fn`` must accept a keyword-only ``scope`` parameter that it
-    threads into the constructed ``TilePrimitiveCall``.
+    threads into the constructed ``TileOpCall``.
     """
 
     def __init__(self, fn):
@@ -142,7 +142,7 @@ def _wrap_elem_in_tuple(e):
     return (e,)
 
 
-f_insert = _ffi_api.TilePrimitiveCall  # pylint: disable=no-member
+f_insert = _ffi_api.TileOpCall  # pylint: disable=no-member
 
 
 @ScopedOp
@@ -1723,7 +1723,7 @@ def reshape(buffer: Var, shape: list[Expr]):
     return decl_tensor(
         shape,
         buffer.ty.dtype,
-        buffer_data(buffer),
+        tensor_data_ptr(buffer),
         buffer.ty.strides,
         buffer.ty.elem_offset,
         None,

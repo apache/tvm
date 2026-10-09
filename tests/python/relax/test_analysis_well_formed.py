@@ -109,8 +109,8 @@ def test_dataflow_var():
 
 def test_nested_tir_call_in_dependent_type_is_well_formed():
     p = rx.Var("p", tvm.ir.PrimType("int64"))
-    inner = tirx.call_intrin("int64", "tirx.tvm_thread_invariant", p)
-    outer = tirx.call_intrin("int64", "tirx.tvm_thread_invariant", inner)
+    inner = tirx.call_intrin("int64", "tirx.gpu_thread_invariant", p)
+    outer = tirx.call_intrin("int64", "tirx.gpu_thread_invariant", inner)
     x = rx.Var("x", rx.TensorType([outer], "float32"))
     bb = rx.BlockBuilder()
 
@@ -122,8 +122,8 @@ def test_nested_tir_call_in_dependent_type_is_well_formed():
 
 def test_nested_tir_call_in_shape_expr_is_well_formed():
     p = rx.Var("p", tvm.ir.PrimType("int64"))
-    inner = tirx.call_intrin("int64", "tirx.tvm_thread_invariant", p)
-    outer = tirx.call_intrin("int64", "tirx.tvm_thread_invariant", inner)
+    inner = tirx.call_intrin("int64", "tirx.gpu_thread_invariant", p)
+    outer = tirx.call_intrin("int64", "tirx.gpu_thread_invariant", inner)
     bb = rx.BlockBuilder()
 
     with bb.function("main", [p]):
@@ -734,7 +734,7 @@ def test_pass_dltensor_arg_to_tir():
         def is_bfloat16_dtype(tensor: T.handle) -> T.bool:
             T.func_attr({"tirx.is_scheduled": True, "tirx.is_host_func": True})
 
-            # From #include <tvm/tirx/op.h>
+            # From #include <tvm/ir/prim/op.h>
             kDLTensorTypeCode = T.meta_var(5)
             kDLTensorTypeBits = T.meta_var(6)
             kDLTensorTypeLanes = T.meta_var(7)
@@ -742,9 +742,9 @@ def test_pass_dltensor_arg_to_tir():
             # From #include <dlpack/dlpack.h>
             kDLBfloat = T.meta_var(4)
 
-            type_code = T.tvm_struct_get(tensor, 0, kDLTensorTypeCode, ty="uint8")
-            type_bits = T.tvm_struct_get(tensor, 0, kDLTensorTypeBits, ty="uint8")
-            type_lanes = T.tvm_struct_get(tensor, 0, kDLTensorTypeLanes, ty="uint16")
+            type_code = T.abi_field_get(tensor, 0, kDLTensorTypeCode, ty="uint8")
+            type_bits = T.abi_field_get(tensor, 0, kDLTensorTypeBits, ty="uint8")
+            type_lanes = T.abi_field_get(tensor, 0, kDLTensorTypeLanes, ty="uint16")
 
             is_bfloat16: T.bool = (
                 (type_code == kDLBfloat) and (type_bits == 16) and (type_lanes == 1)

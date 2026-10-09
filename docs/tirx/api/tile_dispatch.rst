@@ -22,7 +22,7 @@ Raw node constructors
 ---------------------
 
 ``tvm.tirx.script.ir_builder.tirx`` constructs the same
-``TilePrimitiveCall`` nodes as the validated ``Tx.tile`` facade.  This surface
+``TileOpCall`` nodes as the validated ``Tx.tile`` facade.  This surface
 is intended for parser, builder, and extension authors; kernel code should
 normally use the :doc:`tile authoring API <tile>`.  Its public builder spelling
 is ``tvm.tirx.script.ir_builder.tile``::

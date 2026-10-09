@@ -17,7 +17,7 @@
 
 """Implementation of ReduceNegate dispatch."""
 
-from tvm.tirx import Function, TilePrimitiveCall
+from tvm.tirx import Function, TileOpCall
 from tvm.tirx.op.tile import ReduceNegate
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
 
@@ -25,9 +25,9 @@ from ..reduction.utils import reduction_trn
 from .utils import optype_table
 
 
-def reduce_negate_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
+def reduce_negate_trn(op: TileOpCall, sctx: DispatchContext) -> Function | None:
     """Generate a TRN schedule for reduce negate operations."""
-    op = TilePrimitiveCall.downcast(op)
+    op = TileOpCall.downcast(op)
     assert isinstance(op, ReduceNegate), f"invalid operator downcast: {op}"
     return reduction_trn(op, optype_table[op.reduce_op], sctx, negate=True)
 
@@ -47,5 +47,5 @@ def reduce_negate_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function 
         )
     ],
 )
-def reduce_negate_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
+def reduce_negate_trn_dispatch(op: TileOpCall, sctx: DispatchContext) -> Function:
     return reduce_negate_trn(op, sctx)

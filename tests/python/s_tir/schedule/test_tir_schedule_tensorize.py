@@ -61,7 +61,7 @@ def mma_intrin(A: T.Tensor((16, 16), align=64, offset_factor=1), B: T.Tensor((16
         Ts.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
         Ts.writes(C[0 : 16, 0 : 16])
         T.evaluate(
-            T.tvm_mma_sync(
+            T.gpu_mma_sync(
                 C.data,
                 C.elem_offset // 256,
                 A.data,
@@ -215,7 +215,7 @@ def tensorized_matmul(A: T.Tensor([128, 128], elem_offset=0, align=64, offset_fa
                     elem_offset=C_elem_offset,
                 )
                 T.evaluate(
-                    T.tvm_mma_sync(
+                    T.gpu_mma_sync(
                         C_sub.data,
                         T.floordiv(C_sub.elem_offset, 256),
                         A_sub.data,
@@ -286,7 +286,7 @@ def tensorized_batch_matmul_mma(
                     elem_offset=C_elem_offset,
                 )
                 T.evaluate(
-                    T.tvm_mma_sync(
+                    T.gpu_mma_sync(
                         C_sub.data,
                         T.floordiv(C_sub.elem_offset, 256),
                         A_sub.data,
@@ -438,7 +438,7 @@ def annotated_tensorized_matmul(A: T.Tensor([128, 128], elem_offset=0, align=64,
                     elem_offset=C_elem_offset,
                 )
                 T.evaluate(
-                    T.tvm_mma_sync(
+                    T.gpu_mma_sync(
                         C_sub.data,
                         T.floordiv(C_sub.elem_offset, 256),
                         A_sub.data,
@@ -760,7 +760,7 @@ def test_tensorize_matmul_mixed_dtype():
                         elem_offset=C_elem_offset,
                     )
                     T.evaluate(
-                        T.tvm_mma_sync(
+                        T.gpu_mma_sync(
                             C_sub.data,
                             T.floordiv(C_sub.elem_offset, T.int64(256)),
                             A_sub.data,

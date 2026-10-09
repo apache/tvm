@@ -22,9 +22,8 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/tirx/index_map.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op_attr_types.h>
-#include <tvm/tirx/tile_op.h>
 
 #include <algorithm>
 #include <limits>
@@ -123,35 +122,6 @@ ffi::Optional<ExprDoc> IndexMapDocTranslate(DocTranslatorObj* d, ffi::AnyView in
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::IndexMapNode>().attr(
       kDocTranslate, FDocTranslate::FromNative<&IndexMapDocTranslate>());
-}
-
-ffi::Optional<ExprDoc> StorageSyncDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                               const ffi::Object*) {
-  const auto* call =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (!CanTranslateExplicitResultCall(call) || call->args.empty() || call->args.size() > 3) {
-    return RawCall(d, call);
-  }
-  ffi::Array<ExprDoc> args;
-  for (const Expr& arg : call->args) {
-    args.push_back(MaterializeCallArgument(d, arg, d->Translate(arg).value()));
-  }
-  // Explicit None operands suppress the helper's defaults without changing
-  // the stored argument list of native one- and two-operand calls.
-  while (args.size() < 3) args.push_back(LiteralDoc::None(std::nullopt));
-  ffi::Array<ffi::String> keys;
-  ffi::Array<ExprDoc> values;
-  if (!ffi::StructuralEqual()(call->ty, PrimType::Void())) {
-    keys.push_back("dtype");
-    values.push_back(TypeValue(d, call->ty));
-  }
-  return NamespaceDoc("tirx")->Attr("tvm_storage_sync")->Call(args, keys, values);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.tvm_storage_sync")
-      .set_attr<FDocTranslate>(kOpCallDocTranslate,
-                               FDocTranslate::FromNative<&StorageSyncDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> CUDALdgCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -333,7 +303,7 @@ ffi::Optional<ExprDoc> PointerCallDocTranslate(DocTranslatorObj* d, ffi::AnyView
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  for (const char* name : {"tirx.tvm_access_ptr", "tirx.ptr_byte_offset"}) {
+  for (const char* name : {"tirx.access_ptr", "tirx.ptr_byte_offset"}) {
     OpDef(name).set_attr<FDocTranslate>(kOpCallDocTranslate,
                                         FDocTranslate::FromNative<&PointerCallDocTranslate>());
   }
@@ -357,13 +327,13 @@ ffi::Optional<ExprDoc> IsNaNDocTranslate(DocTranslatorObj* d, ffi::AnyView input
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.isnan")
+  OpDef("prim.isnan")
       .set_attr<FDocTranslate>(kOpCallDocTranslate,
                                FDocTranslate::FromNative<&IsNaNDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> BufferDataDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                              const ffi::Object*) {
+ffi::Optional<ExprDoc> TensorDataPtrDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                 const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   if (call->attrs.defined() || !call->ty_args.empty() || call->args.size() != 1)
@@ -411,9 +381,9 @@ ffi::Optional<ExprDoc> PTXCallDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.buffer_data")
+  OpDef("tirx.tensor_data_ptr")
       .set_attr<FDocTranslate>(kOpCallDocTranslate,
-                               FDocTranslate::FromNative<&BufferDataDocTranslate>());
+                               FDocTranslate::FromNative<&TensorDataPtrDocTranslate>());
   ffi::reflection::GlobalDef().def("script.printer.PTXCallDocTranslate", []() {
     return ffi::Any(FDocTranslate::FromNative<&PTXCallDocTranslate>());
   });

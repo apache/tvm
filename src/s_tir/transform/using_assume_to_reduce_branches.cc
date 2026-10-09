@@ -43,7 +43,6 @@
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/function.h>
-#include <tvm/tirx/op.h>
 
 #include <unordered_map>
 
@@ -71,7 +70,7 @@ class AssumeChecker : public StmtExprVisitor {
     return StmtExprVisitor::Visit(stmt);
   }
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) override {
-    if (op->op.same_as(tirx::assume_op())) {
+    if (op->op.same_as(prim::assume_op())) {
       has_assume = true;
     }
     return std::nullopt;
@@ -291,7 +290,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
-    if (op->op.same_as(tirx::assume_op())) {
+    if (op->op.same_as(prim::assume_op())) {
       Assume(op->args[0].as_or_throw<PrimExpr>());
     }
     return Parent::Mutate_(op, inplace_mode);
