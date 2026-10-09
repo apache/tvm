@@ -68,7 +68,6 @@ ffi::Optional<ExprDoc> RelaxSugarDocTranslate(DocTranslatorObj* d, const CallNod
     return NamespaceDoc("relax")->Attr("call_py_func")->Call(packed_args, {"out_ty"}, {output_doc});
   }
 
-
   return std::nullopt;
 }
 
