@@ -97,6 +97,21 @@ class ExprTouched final : public StmtExprVisitor {
       for (size_t i = 1; i < op->args.size(); ++i) {
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->args[i]));
       }
+    } else if (op->op.same_as(tirx::tensor_data_ptr_op())) {
+      const VarNode* buffer = op->args[0].as_or_throw<Var>().get();
+      HandleUseVar(buffer);
+      // An escaping address carries no direction information.  Conservatively
+      // connect it to the other operands of an opaque statement so virtual
+      // threads never share storage that the statement may write.
+      if (check_write_) HandleWriteVar(buffer);
+    } else if (op->op.same_as(tirx::address_of_op()) && op->args[0].as<TensorLoadNode>()) {
+      const auto* load = op->args[0].as<TensorLoadNode>();
+      const VarNode* buffer = load->source.as_or_throw<TensorVar>().get();
+      HandleUseVar(buffer);
+      if (check_write_) HandleWriteVar(buffer);
+      for (const PrimExpr& index : load->indices) {
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
+      }
     } else {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }

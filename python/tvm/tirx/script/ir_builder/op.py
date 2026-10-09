@@ -434,8 +434,6 @@ truncdiv = _tir_op.truncdiv
 truncmod = _tir_op.truncmod
 
 
-
-
 ptr_byte_offset = _tir_op.ptr_byte_offset
 
 

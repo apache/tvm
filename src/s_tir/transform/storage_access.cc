@@ -266,6 +266,38 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const WhileNode* op) 
 
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
   Call call = ffi::GetRef<Call>(op);
+  if (allow_append_ && in_opaque_call_) {
+    ffi::Optional<TensorVar> buffer;
+    if (op->op.same_as(tirx::tensor_data_ptr_op())) {
+      buffer = op->args[0].as<TensorVar>();
+    } else if (op->op.same_as(tirx::address_of_op())) {
+      if (const auto* load = op->args[0].as<TensorLoadNode>()) {
+        buffer = load->source.as<TensorVar>();
+      }
+    }
+    if (buffer.has_value()) {
+      Var root = ResolveBuffer(buffer.value().var());
+      StorageScope scope = GetScope(root);
+      if (Enabled(root.get(), scope)) {
+        AccessEntry entry;
+        entry.threads = env_threads();
+        entry.buffer = root;
+        entry.dtype = buffer.value()->dtype;
+        entry.scope = scope;
+        // Without direction/extent metadata an escaping pointer may access any
+        // element.  Retain conservative synchronization using existing entries.
+        TensorVar storage =
+            root->ty.as<TensorTypeNode>() ? root.as_or_throw<TensorVar>() : buffer.value();
+        for (const PrimExpr& extent : storage->shape) {
+          entry.touched.push_back(sym::IntSet::FromRange(Range::FromMinExtent(0, extent)));
+        }
+        entry.type = kRead;
+        curr_stmt_.access.push_back(entry);
+        entry.type = kWrite;
+        curr_stmt_.access.push_back(std::move(entry));
+      }
+    }
+  }
   if (op->op.same_as(tirx::masked_load_op()) || op->op.same_as(tirx::masked_store_op())) {
     bool is_load = op->op.same_as(tirx::masked_load_op());
     TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
@@ -309,7 +341,16 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
       curr_stmt_.access.emplace_back(std::move(e));
     }
   } else {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+    bool previous = in_opaque_call_;
+    auto effect_map = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
+    auto callee = op->op.as<Op>();
+    if (!callee.has_value() || !effect_map.count(callee.value()) ||
+        effect_map[callee.value()] > static_cast<int>(CallEffectKind::kPure)) {
+      in_opaque_call_ = true;
+    }
+    auto result = StmtExprVisitor::Visit_(op);
+    in_opaque_call_ = previous;
+    return result;
   }
   return std::nullopt;
 }

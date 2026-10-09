@@ -300,8 +300,10 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     PrimExpr smem_offset = floordiv(byte_offset, bytes) + offset.value_or(PrimExpr(0));
     auto indices =
         PermuteIndices(floordiv(smem_offset, row_size), floormod(smem_offset, row_size), row_size);
-    PrimExpr new_bytes = analyzer_->Simplify((indices[0] * row_size + indices[1]) * bytes +
-                                             floormod(byte_offset, bytes));
+    PrimExpr new_offset = analyzer_->Simplify(indices[0] * row_size + indices[1]);
+    PrimExpr new_bytes = new_offset * bytes;
+    PrimExpr remainder = analyzer_->Simplify(floormod(byte_offset, bytes));
+    if (!prim::IsZero(remainder)) new_bytes = new_bytes + remainder;
     return Call(pointer->ty, tirx::ptr_byte_offset_op(), {buffer.data(), new_bytes});
   }
 

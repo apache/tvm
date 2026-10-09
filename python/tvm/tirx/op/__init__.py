@@ -1057,7 +1057,6 @@ def ptr_byte_offset(data, byte_offset, *, ty, span=None):
     return call_intrin(ty, "tirx.ptr_byte_offset", data, byte_offset, span=span)
 
 
-
 def throw_last_error(*, ty=None, span=None):
     """Throw TVMGetLastError()
 

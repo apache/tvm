@@ -132,6 +132,8 @@ class StorageAccessVisitor : public StmtExprVisitor {
  private:
   // whether access appending is enabled.
   bool allow_append_{false};
+  // Pointer operands of an opaque call may be read or written by that call.
+  bool in_opaque_call_{false};
   // Whether we are in device environment
   bool in_device_env_{false};
   // Whether we are inside condition.
