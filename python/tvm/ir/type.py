@@ -112,6 +112,15 @@ class PrimType(Type):
     def __str__(self):
         return str(self.dtype)
 
+    @property
+    def is_float(self) -> bool:
+        """Return whether this type stores floating-point values.
+
+        True for every float width, including the narrow ones, which each carry
+        their own DLPack dtype code.
+        """
+        return self.dtype.is_float
+
     def matches_code(self, *codes) -> bool:
         """Return whether this type has any of the given DLPack dtype codes."""
         type_code = self.dtype.type_code
