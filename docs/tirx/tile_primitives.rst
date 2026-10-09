@@ -125,3 +125,16 @@ allocate an identity or select a matrix multiplication algorithm.
 
 See :doc:`api/tile` for the constructor signatures and
 :doc:`arch/tile_dispatch` for the lowering boundary.
+
+Instruction guides
+------------------
+
+.. toctree::
+   :maxdepth: 1
+
+   tile_primitives/copy
+   tile_primitives/copy_async
+   tile_primitives/elementwise
+   tile_primitives/gemm
+   tile_primitives/gemm_async
+   tile_primitives/reduction
