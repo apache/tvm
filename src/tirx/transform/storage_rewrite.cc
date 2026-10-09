@@ -147,7 +147,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> DispatchDeclTensor(const BindNode* op,
                                                    const CallNode* buffer_call) {
     RegisterBufferAlias(op->var.as_or_throw<TensorVar>(), buffer_call->args[0]);
-    return std::nullopt;
+    return VisitBindingValue(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
