@@ -129,13 +129,6 @@ class TensorVar : public Var {
   ffi::Array<PrimExpr> OffsetOf(ffi::Array<PrimExpr> index) const;
 
   /*!
-   * \brief Get the buffer_offset op for the given index.
-   * \param index The index to be accessed.
-   * \return The buffer_offset op.
-   */
-  PrimExpr OffsetOf_p(const ffi::Array<PrimExpr>& indices) const;
-
-  /*!
    * \brief Return the storage scope associated with this buffer.
    */
   TVM_DLL ffi::String scope() const;

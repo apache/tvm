@@ -682,11 +682,6 @@ TensorVar TensorVar::with_dtype(PrimType dtype) const {
                         self->allocated_addr));
 }
 
-PrimExpr TensorVar::OffsetOf_p(const Array<PrimExpr>& indices) const {
-  return Call(PrimType::Int(32), tirx::buffer_offset_op(), {MakeTensorLoad(*this, indices)})
-      .as_or_throw<PrimExpr>();
-}
-
 bool TensorVar::IsScalar(bool alloc_or_decl) const { return type()->IsScalar(alloc_or_decl); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -702,7 +697,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                           const>(&TensorVar::access_ptr))
       .def_method("tirx.TensorGetFlattenedTensor", &TensorVar::GetFlattenedTensor)
       .def_method("tirx.TensorOffsetOf", &TensorVar::OffsetOf)
-      .def_method("tirx.TensorOffsetOfp", &TensorVar::OffsetOf_p)
       .def_method("tirx.TensorVLoad", &TensorVar::vload)
       .def_method("tirx.TensorVStore", &TensorVar::vstore)
       .def_method("tirx.TensorStorageScope", &TensorVar::scope)

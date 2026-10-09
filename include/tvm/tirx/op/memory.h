@@ -195,14 +195,6 @@ TVM_DLL const Op& masked_load_op();
 TVM_DLL const Op& masked_store_op();
 
 /*!
- * \brief Get the element offset of a buffer given logical indices.
- *
- * Arguments, in order:
- * - args[0]: load, The buffer load whose offset is returned.
- */
-TVM_DLL const Op& buffer_offset_op();
-
-/*!
  * \brief Project the physical pointer associated with a TensorVar definition.
  *
  * Argument: tensor, the TensorVar whose physical pointer is projected.
