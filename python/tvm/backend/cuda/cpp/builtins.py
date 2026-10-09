@@ -18,18 +18,17 @@
 """Thin wrappers around CUDA builtins and library calls.
 
 Everything here compiles to a plain CUDA C++ expression -- an intrinsic
-(``__ldg``, ``__shfl_xor_sync``, ``atomicAdd``), a type-punning
+(``__shfl_xor_sync``, ``atomicAdd``), a type-punning
 reinterpret, or a small arithmetic helper. Nothing in this module emits
 inline asm; anything that needs a hand-written PTX body lives in
 :mod:`.asm`, and single PTX instructions live in the ``T.ptx`` table.
 
 * warp / CTA reductions (templated butterfly shuffle-XOR)
 * packed float2 / bf16 / fp8 conversions and arithmetic
-* ``__ldg`` scalar and vector loads, atomics, address casts
+* Atomics and address casts
 * thread queries, scheduling hints, and the CUDA-side sync helpers
 """
 
-from tvm import DataType
 from tvm.backend.cuda.op import cuda_func_call
 
 from ..codegen.registry import register_codegen
@@ -92,7 +91,7 @@ def codegen_cuda_warp_reduce(value, op, width):
 
     func_name = f"tvm_builtin_cuda_warp_reduce_{op_str}_{width_int}"
     source_code = _warp_reduce_source(func_name, width_int, step_expr)
-    return cuda_func_call(func_name, value, source_code=source_code, return_type=value.ty)
+    return cuda_func_call(func_name, value, source_code, ty=value.ty)
 
 
 @register_codegen("cuda_cta_reduce")
@@ -125,7 +124,7 @@ def codegen_cuda_cta_reduce(value, op, num_warps, scratch):
         "    return scratch[0];\n"
         "}\n"
     )
-    return cuda_func_call(func_name, value, scratch, source_code=cta_body, return_type=value.ty)
+    return cuda_func_call(func_name, value, scratch, cta_body, ty=value.ty)
 
 
 # =============================================================================
@@ -274,92 +273,6 @@ device_intrinsic(
     ),
     extra_deps=("fp8",),
 )
-
-
-# =============================================================================
-# __ldg — typed read-only cached loads, scalar and vector. Source is ``void*``
-# so callers may pass a typed pointer or handle_add_byte_offset result; the
-# helper casts per ``dtype``.
-# =============================================================================
-
-
-def _int_attr(value):
-    return int(value.value) if hasattr(value, "value") else int(value)
-
-
-_CUDA_LDG_CTYPES = {
-    "int8": "signed char",
-    "uint8": "unsigned char",
-    "int16": "short",
-    "uint16": "unsigned short",
-    "int32": "int",
-    "uint32": "unsigned int",
-    "int64": "long long",
-    "uint64": "unsigned long long",
-    "float16": "half",
-    "bfloat16": "nv_bfloat16",
-    "float32": "float",
-    "float64": "double",
-}
-
-_CUDA_LDG_VECTOR_CTYPES = {
-    "int32": "int",
-    "uint32": "unsigned int",
-    "float32": "float",
-}
-_CUDA_LDG_VECTOR_BASES = {"int32": "int", "uint32": "uint", "float32": "float"}
-
-
-def _cuda_ldg_suffix(dtype: str) -> str:
-    return dtype.replace("float", "f").replace("uint", "u").replace("int", "i")
-
-
-@register_codegen("cuda_ldg")
-def codegen_cuda_ldg(*args):
-    if len(args) == 2:
-        addr, dtype = args
-        dtype = str(DataType(parse_str(dtype)))
-        if dtype not in _CUDA_LDG_CTYPES:
-            raise ValueError(f"Unsupported CUDA __ldg dtype {dtype!r}")
-        c_type = _CUDA_LDG_CTYPES[dtype]
-        func_name = f"tvm_builtin_cuda_ldg_{_cuda_ldg_suffix(dtype)}"
-        source_code = f"""
-__forceinline__ __device__ {c_type} {func_name}(void* src) {{
-    return __ldg(reinterpret_cast<const {c_type}*>(src));
-}}
-"""
-        return cuda_func_call(func_name, addr, source_code=source_code, return_type=dtype)
-
-    if len(args) < 5:
-        raise ValueError(f"cuda_ldg expects 2 args or vector form, got {len(args)}")
-    *dsts, addr, dtype, vec, dst_count = args
-    dtype = str(DataType(parse_str(dtype)))
-    vec = parse_str(vec)
-    dst_count = _int_attr(dst_count)
-    vec_len = int(vec[1:]) if vec else 1
-    if dtype not in _CUDA_LDG_VECTOR_CTYPES:
-        raise ValueError(f"Unsupported vector CUDA __ldg dtype {dtype!r}")
-    if vec not in ("v2", "v4") or dst_count != vec_len or len(dsts) != vec_len:
-        raise ValueError(
-            f"vector CUDA __ldg expects dst_count=len(dsts)=vec_len for v2/v4, "
-            f"got vec={vec!r}, dst_count={dst_count}, len(dsts)={len(dsts)}"
-        )
-    c_type = _CUDA_LDG_VECTOR_CTYPES[dtype]
-    vec_type = f"{_CUDA_LDG_VECTOR_BASES[dtype]}{vec_len}"
-    members = ("x", "y", "z", "w")[:vec_len]
-    func_name = f"tvm_builtin_cuda_ldg_{_cuda_ldg_suffix(dtype)}_{vec}_to_dst{dst_count}"
-    params = ", ".join(f"void* dst{i}" for i in range(vec_len))
-    stores = "\n".join(
-        f"    *reinterpret_cast<{c_type}*>(dst{i}) = v.{member};"
-        for i, member in enumerate(members)
-    )
-    source_code = f"""
-__forceinline__ __device__ void {func_name}({params}, void* src) {{
-    {vec_type} v = __ldg(reinterpret_cast<const {vec_type}*>(src));
-{stores}
-}}
-"""
-    return cuda_func_call(func_name, *dsts, addr, source_code=source_code, return_type="void")
 
 
 # =============================================================================

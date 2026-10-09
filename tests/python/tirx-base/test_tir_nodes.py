@@ -275,9 +275,9 @@ def test_isnan():
     assert str(tvm.tirx.isnan(x)) == "T.isnan(x)"
     assert str(tvm.tirx.isnan(x).ty.dtype) == "bool"
     y = tvm.tirx.Var("y", "float16")
-    assert str(tvm.tirx.isnan(y)) == 'T.isnan(T.Cast("float32", y))'
+    assert str(tvm.tirx.isnan(y)) == "T.isnan(y)"
     z = tvm.tirx.Var("z", "int32")
-    assert str(tvm.tirx.isnan(z)) == "T.bool(False)"
+    assert str(tvm.tirx.isnan(z)) == "T.isnan(z)"
     k = tvm.tirx.Var("k", "int8x2")
     assert str(tvm.tirx.isnan(k).ty.dtype) == "boolx2"
 
@@ -436,6 +436,19 @@ def test_scalable_vec_cast():
     store = tvm.tirx.TensorStore(b, value, [index])
 
     assert isinstance(store.value.value, tvm.tirx.expr.FloatImm)
+
+
+@pytest.mark.parametrize("dtype", ["float16", "float16x2", "float32x4", "int32", "int32x2"])
+def test_isnan_preserves_canonical_operand(dtype):
+    value = tvm.tirx.Var("value", dtype)
+    result = tvm.tirx.isnan(value)
+    assert result.op.name == "prim.isnan"
+    assert result.args[0].same_as(value)
+    assert result.ty.dtype.lanes == value.ty.dtype.lanes
+    expected_dtype = "bool" + (dtype[dtype.index("x") :] if "x" in dtype else "")
+    assert result.ty.dtype == expected_dtype
+    for constant in (tvm.tirx.const(0, "int32"), tvm.tirx.const(float("nan"), "float16")):
+        assert tvm.tirx.isnan(constant).args[0].same_as(constant)
 
 
 if __name__ == "__main__":

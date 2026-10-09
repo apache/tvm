@@ -129,7 +129,6 @@ mma_fill_legacy = _cuda_op.mma_fill_legacy
 atomic_add = _cuda_op.cuda_atomic_add
 atomic_cas = _cuda_op.cuda_atomic_cas
 cta_reduce = _cuda_op.cuda_cta_reduce
-ldg = _cuda_op.cuda_ldg
 mov_sreg = _cuda_op.cuda_mov_sreg
 wait_until = _cuda_op.cuda_wait_until
 warp_reduce = _cuda_op.cuda_warp_reduce
@@ -138,6 +137,8 @@ __shfl_up_sync = _cuda_op.__shfl_up_sync
 __shfl_down_sync = _cuda_op.__shfl_down_sync
 __shfl_xor_sync = _cuda_op.__shfl_xor_sync
 __activemask = _cuda_op.__activemask
+
+
 _ir.op._init_op_api("tirx.cuda", __name__)
 
 

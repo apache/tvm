@@ -1437,6 +1437,9 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   } else if (op->op.same_as(prim::isnan_op())) {
     // TODO(hgt312): set fast math flag
     llvm::Value* a = MakeValue(args[0]);
+    if (a->getType()->isIntOrIntVectorTy()) {
+      return llvm::Constant::getNullValue(GetLLVMType(op->ty));
+    }
     return builder_->CreateFCmpUNO(a, a);
   } else if (op->op.same_as(tirx::vectorlow_op())) {
     llvm::Value* v = MakeValue(args[0]);

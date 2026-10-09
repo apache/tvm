@@ -117,8 +117,8 @@ def codegen_cuda_iket_official_event(event_id, source_code, payload=None):
     return cuda_func_call(
         "tvm_builtin_iket_official_event",
         *args,
-        source_code=source_code,
-        return_type="uint32",
+        source_code,
+        ty="uint32",
     )
 
 
@@ -171,7 +171,7 @@ __noinline__ __device__ void {func_name}({params}) {{
     printf({fmt_literal}{comma_call_args});
 }}
 """
-    return cuda_func_call(func_name, *args, source_code=source_code)
+    return cuda_func_call(func_name, *args, source_code)
 
 
 device_intrinsic(
