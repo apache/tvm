@@ -26,6 +26,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/unique_name_supply.h>
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -109,7 +110,25 @@ class WorkspaceProvider : ExprMutator {
   using ExprMutator::VisitExpr_;
 
   IRModule Run() {
+    std::unordered_set<const GlobalVarNode*> unrewritten_callees;
     for (const auto& [gvar, f] : mod_->functions) {
+      if (!f->IsInstance<relax::FunctionNode>() || (!f->GetAttr<ffi::String>(attr::kCodegen) &&
+                                                    !f->GetAttr<ffi::String>(attr::kComposite))) {
+        continue;
+      }
+
+      // Calls in Codegen and Composite functions are not rewritten below.  Preserve their
+      // callees so those functions do not retain references to removed GlobalVars.
+      auto func = f.as_or_throw<Function>();
+      for (const auto& callee : AllGlobalVars(func->body)) {
+        unrewritten_callees.insert(callee.get());
+      }
+    }
+
+    for (const auto& [gvar, f] : mod_->functions) {
+      if (unrewritten_callees.count(gvar.get())) {
+        continue;
+      }
       if (auto workspace = f->GetAttr<int64_t>(relax::attr::kWorkspaceSize)) {
         max_workspace_size_ = std::max<size_t>(max_workspace_size_, workspace.value());
       }
@@ -120,6 +139,9 @@ class WorkspaceProvider : ExprMutator {
     }
 
     auto new_funcs = relax::ExternFunctionRewriter(mod_, max_workspace_size_).Run();
+    for (const auto* callee : unrewritten_callees) {
+      new_funcs.erase(callee);
+    }
 
     for (const auto& [gvar, f] : new_funcs) {
       auto new_gvar = builder_->AddFunction(f, gvar->name_hint);
