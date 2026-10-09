@@ -64,7 +64,7 @@ def test_simple_copy():
     def expected(A: T.Tensor((128, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_tensor((65536,), data=A.data, layout=None)
+        A_1 = T.decl_tensor((65536,), data=A.data_ptr(), layout=None)
         A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         for b_loop in T.serial(0, 1):
             T.nki.tensorized_instruction()
@@ -95,7 +95,7 @@ def test_simple_copy_2():
     def expected(A: T.Tensor((128, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_tensor((65536,), data=A.data, layout=None)
+        A_1 = T.decl_tensor((65536,), data=A.data_ptr(), layout=None)
         A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         for b_loop in T.serial(0, 512):
             T.nki.tensorized_instruction()
@@ -126,7 +126,7 @@ def test_copy_in_a_loop():
     def expected(A: T.Tensor((512, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_tensor((262144,), data=A.data, layout=None)
+        A_1 = T.decl_tensor((262144,), data=A.data_ptr(), layout=None)
         A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         for i, b_loop in T.grid(4, 1):
             T.nki.tensorized_instruction()
@@ -161,10 +161,12 @@ def test_copy_in_a_loop_2():
     def expected(A: T.Tensor((512, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        _A_flat = T.decl_tensor((262144,), data=A.data, layout=None)
+        _A_flat = T.decl_tensor((262144,), data=A.data_ptr(), layout=None)
         A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
-        A_sbuf_view = T.decl_tensor((128, 2048), data=A_sbuf.data, scope="trn.sbuf", layout=None)
-        A_view = T.decl_tensor((262144,), data=_A_flat.data, layout=None)
+        A_sbuf_view = T.decl_tensor(
+            (128, 2048), data=A_sbuf.data_ptr(), scope="trn.sbuf", layout=None
+        )
+        A_view = T.decl_tensor((262144,), data=_A_flat.data_ptr(), layout=None)
         for i, b_loop in T.grid(4, 1):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim": "P"}):
@@ -329,7 +331,9 @@ def test_copy_different_shape():
         T.func_attr({"global_symbol": "copy"})
         A_sbuf = T.alloc_tensor((128, 256), scope="trn.sbuf")
         B_sbuf = T.alloc_tensor((128, 16), scope="trn.sbuf")
-        B_sbuf_view = T.decl_tensor((128, 16), data=B_sbuf.data, scope="trn.sbuf", layout=None)
+        B_sbuf_view = T.decl_tensor(
+            (128, 16), data=B_sbuf.data_ptr(), scope="trn.sbuf", layout=None
+        )
         for b_loop in T.serial(0, 4):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim": "P"}):
@@ -362,7 +366,7 @@ def test_copy_irregular_shape():
     def expected(A: T.Tensor((128, 10000), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_tensor((1280000,), data=A.data, layout=None)
+        A_1 = T.decl_tensor((1280000,), data=A.data_ptr(), layout=None)
         A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         for i, b_loop in T.grid(4, 1):
             T.nki.tensorized_instruction()
@@ -395,7 +399,7 @@ def test_copy_different_shape_dim():
     def expected(A: T.Tensor((32, 128, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_tensor((2097152,), data=A.data, layout=None)
+        A_1 = T.decl_tensor((2097152,), data=A.data_ptr(), layout=None)
         A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         for i, b_loop in T.grid(32, 1):
             T.nki.tensorized_instruction()
@@ -426,7 +430,7 @@ def test_copy_with_offset():
     def expected(A: T.Tensor((256, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_tensor((131072,), data=A.data, layout=None)
+        A_1 = T.decl_tensor((131072,), data=A.data_ptr(), layout=None)
         A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         for i, b_loop in T.grid(2, 2):
             T.nki.tensorized_instruction()
@@ -460,7 +464,7 @@ def test_large_dma_copy():
     def expected(A: T.Tensor((512, 4096), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_tensor((2097152,), data=A.data, layout=None)
+        A_1 = T.decl_tensor((2097152,), data=A.data_ptr(), layout=None)
         A_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
         for i, b_loop in T.grid(4, 1):
             T.nki.tensorized_instruction()
@@ -529,7 +533,7 @@ def test_copy_with_complex_index():
     def expected(A: T.Tensor((4096, 4096), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_tensor((16777216,), data=A.data, layout=None)
+        A_1 = T.decl_tensor((16777216,), data=A.data_ptr(), layout=None)
         A_sbuf = T.alloc_tensor((128, 32768), scope="trn.sbuf")
         for b_loop in T.serial(0, 8):
             T.nki.tensorized_instruction()
@@ -561,7 +565,7 @@ def test_copy_with_complex_index_2():
     def expected(A: T.Tensor((2, 2048, 1024), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_tensor((4194304,), data=A.data, layout=None)
+        A_1 = T.decl_tensor((4194304,), data=A.data_ptr(), layout=None)
         A_sbuf = T.alloc_tensor((128, 131072), scope="trn.sbuf")
         for b_loop in T.serial(0, 8):
             T.nki.tensorized_instruction()
@@ -645,7 +649,7 @@ def test_copy_with_guard():
     def expected(A: T.Tensor((512, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_tensor((262144,), data=A.data, layout=None)
+        A_1 = T.decl_tensor((262144,), data=A.data_ptr(), layout=None)
         A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         for j, i, b_loop in T.grid(4, 4, 1):
             T.nki.tensorized_instruction()
@@ -681,7 +685,7 @@ def test_copy_with_guard_2():
     def expected(A: T.Tensor((512, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_tensor((262144,), data=A.data, layout=None)
+        A_1 = T.decl_tensor((262144,), data=A.data_ptr(), layout=None)
         A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         for j, i, b_loop in T.grid(4, 4, 3):
             T.nki.tensorized_instruction()

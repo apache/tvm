@@ -425,7 +425,7 @@ def test_rewrite_decl_buffer():
         @T.function
         def main(A: T.Tensor(16, "float32"), D: T.Tensor(16, "float32")):
             B = T.decl_tensor(16, dtype="float32")
-            C = T.decl_tensor(16, dtype="float32", data=B.data)
+            C = T.decl_tensor(16, dtype="float32", data=B.data_ptr())
 
             for i in range(16):
                 B[i] = A[i]
@@ -449,8 +449,8 @@ def test_decl_buffer_alias_chain_uses_flat_root():
         @T.function
         def main(D: T.Tensor(1, "float32")):
             A = T.decl_tensor(16, dtype="float32")
-            B = T.decl_tensor(16, dtype="float32", data=A.data)
-            C = T.decl_tensor(16, dtype="float32", data=B.data)
+            B = T.decl_tensor(16, dtype="float32", data=A.data_ptr())
+            C = T.decl_tensor(16, dtype="float32", data=B.data_ptr())
             A[0] = 1.0
             D[0] = C[0]
 
@@ -459,8 +459,8 @@ def test_decl_buffer_alias_chain_uses_flat_root():
         @T.function
         def main(D: T.Tensor(1, "float32")):
             A = T.decl_tensor(16, dtype="float32")
-            B = T.decl_tensor(16, dtype="float32", data=A.data)
-            C = T.decl_tensor(16, dtype="float32", data=A.data)
+            B = T.decl_tensor(16, dtype="float32", data=A.data_ptr())
+            C = T.decl_tensor(16, dtype="float32", data=A.data_ptr())
             A[0] = 1.0
             D[0] = C[0]
 
@@ -475,7 +475,7 @@ def test_decl_buffer_alias_extends_source_lifetime():
     @T.function
     def func(D: T.Tensor(1, "float32")):
         A = T.decl_tensor(16, dtype="float32")
-        B = T.decl_tensor(16, dtype="float32", data=A.data)
+        B = T.decl_tensor(16, dtype="float32", data=A.data_ptr())
         A[0] = 1.0
 
         C = T.decl_tensor(16, dtype="float32")
@@ -523,7 +523,7 @@ def test_no_orphaned_decl_buffer():
         @T.function
         def main(A: T.Tensor(16, "float32"), D: T.Tensor(16, "float32")):
             B = T.decl_tensor(16, dtype="float32")
-            C = T.decl_tensor(16, dtype="float32", data=B.data)
+            C = T.decl_tensor(16, dtype="float32", data=B.data_ptr())
 
             for i in range(16):
                 B[i] = A[i]

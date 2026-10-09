@@ -35,7 +35,7 @@ def _check_func_signature_remap(lhs: Function, rhs: Function):
 
 def _check_buffer_decl(lhs: Var, rhs: Var):
     assert lhs != rhs
-    assert lhs.data != rhs.data
+    assert lhs.data_ptr() != rhs.data_ptr()
 
 
 def _check_block_signature_remap(lhs: SBlock, rhs: SBlock):
@@ -140,7 +140,7 @@ def test_undefined_buffer():
     def access_alloc():
         # Var A should be remapped
         A = T.alloc_tensor((128,), "float16")
-        T.evaluate(A.data)
+        T.evaluate(A.data_ptr())
         for i in range(128):
             A[i] = A[i] + T.float16(1.0)
 
@@ -149,7 +149,7 @@ def test_undefined_buffer():
     tvm.ir.assert_structural_equal(f1, f2)
 
     # AllocTensor is now a flat statement in SeqStmt
-    assert f1.body.seq[0].var.data != f2.body.seq[0].var.data
+    assert f1.body.seq[0].var.data_ptr() != f2.body.seq[0].var.data_ptr()
 
     def _get_tensor_store_buffer(f):
         # SeqStmt: [AllocTensor, Evaluate, For]; For body has the TensorStore

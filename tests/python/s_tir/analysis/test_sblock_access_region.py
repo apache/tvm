@@ -43,7 +43,7 @@ def func() -> None:
                 Ts.writes([A[vi * 4 + 4 : vi * 4 + 8, vj * 4 + 4 : vj * 4 + 8]])
                 for i, j in T.grid(4, 4):
                     A[vi * 4 + 4 + i, vj * 4 + 4 + j] += C[i + 12, j + 12]
-        T.evaluate(D.data)
+        T.evaluate(D.data_ptr())
 
 
 @Ts.function
@@ -83,8 +83,8 @@ def match_buffer_func() -> None:
                         Ts.writes(AA[vii, vjj])
                         AAA = Ts.match_buffer(AA[vii, vjj], ())
                         AAA[()] = 1.0
-                T.evaluate(B0.data)
-                T.evaluate(B1.data)
+                T.evaluate(B0.data_ptr())
+                T.evaluate(B1.data_ptr())
 
 
 @Ts.function
@@ -116,7 +116,9 @@ def opaque_access_func() -> None:
             Ts.reads([A[v * 128 : v * 128 + 128]])
             Ts.writes([B[v * 128 : v * 128 + 128]])
             T.evaluate(
-                T.call_extern("test", B.data, v * 128, 128, A.data, v * 128, 128, ty="float32")
+                T.call_extern(
+                    "test", B.data_ptr(), v * 128, 128, A.data_ptr(), v * 128, 128, ty="float32"
+                )
             )
 
 
@@ -141,7 +143,7 @@ def decl_buffer_alias_func(
     with Ts.sblock("alias"):
         Ts.reads(A[0])
         Ts.writes(B[0])
-        A_view = T.decl_tensor((16,), "float32", data=A.data)
+        A_view = T.decl_tensor((16,), "float32", data=A.data_ptr())
         B[0] = A[0] + A_view[0]
 
 

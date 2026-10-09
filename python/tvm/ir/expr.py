@@ -17,6 +17,7 @@
 """Common expressions data structures in the IR."""
 
 from collections.abc import Callable
+from functools import partial
 from numbers import Number
 
 import tvm_ffi
@@ -50,6 +51,31 @@ class Expr(Node):
 
     span: Span | None
     ty: "tvm.ir.Type"
+
+    def __getattr__(self, name):
+        # Reflected fields are ordinary Python properties and have already had
+        # their chance to resolve before this type-directed fallback.
+        try:
+            ty = object.__getattribute__(self, "ty")
+        except AttributeError:
+            ty = None
+        if ty is not None and not name.startswith("_") and name in ty.__expr_methods__:
+            method = getattr(ty, name)
+            if not callable(method):
+                raise TypeError(f"Declared expression method {name!r} must be callable")
+            bound = partial(method, self)
+            bound.__doc__ = method.__doc__
+            return bound
+        raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
+
+    def __dir__(self):
+        names = set(super().__dir__())
+        try:
+            ty = object.__getattribute__(self, "ty")
+        except AttributeError:
+            return sorted(names)
+        names.update(name for name in ty.__expr_methods__ if not name.startswith("_"))
+        return sorted(names)
 
     def __getitem__(self, index):
         if isinstance(self.ty, tvm.ir.MissingType):

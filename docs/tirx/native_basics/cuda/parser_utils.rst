@@ -66,7 +66,7 @@ allocations and state into one object and use it in the kernel body.
             self.acc = Tx.alloc_local([1], "float32")
             self.buf = Tx.decl_tensor([64], "float16", smem, scope="shared.dyn")
 
-    s = State(smem.data)
+    s = State(smem.data_ptr())
     s.acc[0] = Tx.float32(0.0)     # use its fields like ordinary buffers
     # ... s.buf[i] ...
 

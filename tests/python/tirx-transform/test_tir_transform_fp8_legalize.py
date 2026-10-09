@@ -220,7 +220,7 @@ def test_fp8_compute_legalize_preserves_opaque_buffer_access(dtype, promote_dtyp
     @T.function
     def before():
         buffer = T.alloc_tensor((16,), dtype)
-        T.evaluate(T.call_extern("consume", buffer.data, ty="void"))
+        T.evaluate(T.call_extern("consume", buffer.data_ptr(), ty="void"))
 
     before_mod = tvm.IRModule.from_expr(before)
     after = tvm.tirx.transform.FP8ComputeLegalize(promote_dtype)(before_mod)

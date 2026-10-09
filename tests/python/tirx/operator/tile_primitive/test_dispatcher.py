@@ -140,7 +140,7 @@ def test_dispatch_prints_real_opcall_ir():
     """Create a real TileOpCall via BufferRegions and ensure its IR is in the table."""
     _import_and_register()
     from tvm.ir import Op
-    from tvm.tirx.buffer import decl_tensor
+    from tvm.tirx.tensor import decl_tensor
     from tvm.tirx.operator.tile_primitive.dispatcher import run_dispatch
     from tvm.tirx.stmt import TileOpCall
 

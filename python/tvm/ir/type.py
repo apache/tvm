@@ -24,7 +24,15 @@ from .base import Node, Scriptable
 
 @tvm_ffi.register_object("ir.Type")
 class Type(Node, Scriptable):
-    """The base class of all types."""
+    """The base class of all types.
+
+    ``__expr_methods__`` names methods exposed on expressions of this type.
+    Each method receives the type instance and then the expression operand:
+    ``expr.method(...)`` is equivalent to ``expr.ty.method(expr, ...)``.
+    Subclasses inherit the declaration, or replace it with their own tuple.
+    """
+
+    __expr_methods__: tuple[str, ...] = ()
 
     @staticmethod
     def missing():

@@ -61,7 +61,7 @@ def test_bounded_symbolic_stack_allocation():
                 }
             )
             scratch = T.alloc_tensor((T.min(n, 64), 2), "float32", scope="local")
-            T.evaluate(scratch.data)
+            T.evaluate(scratch.data_ptr())
 
     source = _build_webgpu(Module).inspect_source()
     assert re.search(r"\bvar\s+\w+\s*:\s*array<f32,\s*128>;", source)
@@ -216,7 +216,7 @@ def test_nonpositive_stack_allocation_rejected(extent):
                 }
             )
             scratch = T.alloc_tensor((extent,), "float32", scope="local")
-            T.evaluate(scratch.data)
+            T.evaluate(scratch.data_ptr())
 
     with pytest.raises(
         tvm.error.InternalError,
@@ -243,7 +243,7 @@ def test_stack_allocation_element_count_overflow_rejected():
                 "uint8",
                 scope="local",
             )
-            T.evaluate(scratch.data)
+            T.evaluate(scratch.data_ptr())
 
     with pytest.raises(
         tvm.error.InternalError, match="WebGPU allocation element count is too large to represent"
@@ -267,7 +267,7 @@ def test_stack_allocation_byte_size_overflow_rejected():
             scratch = T.alloc_tensor(
                 (T.min(n, 1 << 30), T.min(m, 1 << 30), 4), "float32", scope="local"
             )
-            T.evaluate(scratch.data)
+            T.evaluate(scratch.data_ptr())
 
     with pytest.raises(
         tvm.error.InternalError, match="WebGPU allocation byte size is too large to represent"

@@ -61,9 +61,9 @@ def test_tir_call_source_kernel():
                 T.call_kernel(
                     add_cuda_source,
                     ((T.ceildiv(m_add, BLOCK_SIZE),), (BLOCK_SIZE,)),
-                    x.data,
-                    y.data,
-                    output.data,
+                    x.data_ptr(),
+                    y.data_ptr(),
+                    output.data_ptr(),
                     m_add,
                     kernel_name="add_kernel",
                 )
@@ -86,9 +86,9 @@ def test_tir_call_source_kernel():
                 Ts.writes(output[0:m])
                 T.call_packed(
                     "add_kernel",
-                    x.data,
-                    y.data,
-                    output.data,
+                    x.data_ptr(),
+                    y.data_ptr(),
+                    output.data_ptr(),
                     m,
                     (m + T.int64(64) - T.int64(1)) // T.int64(64),
                     64,

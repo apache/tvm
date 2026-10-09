@@ -155,7 +155,7 @@ def test_ptx_explicit_cvta():
         smem = T.alloc_tensor((4,), "uint32", scope="shared")
         smem[tx % 4] = T.uint32(0)
         if tx == 0:
-            T.ptx.cvta.to.shared.u64(out[0], smem.data)
+            T.ptx.cvta.to.shared.u64(out[0], smem.data_ptr())
 
     src = _cuda_source(kernel)
     assert "cvta.to.shared.u64 %0, %1;" in src
@@ -2186,7 +2186,7 @@ def test_ptx_parser_roundtrip():
             T.ptx.st.shared__cta.b32(smem.ptr_to([0]), val)
             T.ptx.red.relaxed.gpu.global_.add.u32(B.ptr_to([0]), T.uint32(1), pred=val)
             T.ptx.prefetch.global_.L2(A.ptr_to([16]))
-            T.ptx.cvta.to.shared.u64(smem_addr, smem.data)
+            T.ptx.cvta.to.shared.u64(smem_addr, smem.data_ptr())
         T.cuda.cta_sync()
         B[tx] = smem[tx % 4]
 

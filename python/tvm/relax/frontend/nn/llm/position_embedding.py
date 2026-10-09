@@ -578,11 +578,11 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
         )
 
         # long factors is the first half, short factors is the second half
-        long_factors = T.decl_tensor((rotary_dim // 2,), "float32", data=ext_factors.data)
+        long_factors = T.decl_tensor((rotary_dim // 2,), "float32", data=ext_factors.data_ptr())
         short_factors = T.decl_tensor(
             (rotary_dim // 2,),
             "float32",
-            data=ext_factors.data,
+            data=ext_factors.data_ptr(),
             elem_offset=(rotary_dim // 2),
         )
 
@@ -795,11 +795,11 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
         )
 
         # long factors is the first half, short factors is the second half
-        long_factors = T.decl_tensor((rotary_dim // 2,), "float32", data=ext_factors.data)
+        long_factors = T.decl_tensor((rotary_dim // 2,), "float32", data=ext_factors.data_ptr())
         short_factors = T.decl_tensor(
             (rotary_dim // 2,),
             "float32",
-            data=ext_factors.data,
+            data=ext_factors.data_ptr(),
             elem_offset=(rotary_dim // 2),
         )
 

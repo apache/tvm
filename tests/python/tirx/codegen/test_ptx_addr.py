@@ -91,9 +91,9 @@ def test_ptx_addr_coercion_ir_order_and_shared_codegen():
         shared_buf = T.alloc_tensor((8,), "uint64", scope="shared")
         value = T.local_scalar("uint64")
         if tx == 0:
-            T.ptx.ld.shared.b64(value, T.ptx.addr(shared_buf.data, 4))
+            T.ptx.ld.shared.b64(value, T.ptx.addr(shared_buf.data_ptr(), 4))
             T.ptx.ld.shared.b64(value, T.ptx.addr(raw_shared, 8))
-            T.ptx.ld.global_.b64(value, T.ptx.addr(global_buf.data, 12))
+            T.ptx.ld.global_.b64(value, T.ptx.addr(global_buf.data_ptr(), 12))
             T.ptx.ld.global_.b64(value, T.ptx.addr(raw_global, 16))
 
     calls = _calls(kernel, "tirx.ptx.addr")
@@ -124,16 +124,16 @@ def test_ptx_addr_scalar_vector_cache_predicate_and_multi_address_codegen():
         shared_buf = T.alloc_tensor((64,), "uint32", scope="shared")
         barrier = T.alloc_tensor((1,), "uint64", scope="shared")
         values = T.alloc_local((2,), "uint32")
-        T.ptx.ld.global_.b32(values[0], T.ptx.addr(src.data, 16))
-        T.ptx.ld.global_.L2__cache_hint.b32(values[1], T.ptx.addr(src.data, -16), policy[0])
-        T.ptx.ld.shared.v2.b32(values[0], values[1], T.ptx.addr(shared_buf.data, 8))
-        T.ptx.st.global_.b32(T.ptx.addr(dst.data, 0), values[0])
-        T.ptx.st.global_.v2.b32(T.ptx.addr(dst.data, 32), values[0], values[1], pred=tx == 0)
+        T.ptx.ld.global_.b32(values[0], T.ptx.addr(src.data_ptr(), 16))
+        T.ptx.ld.global_.L2__cache_hint.b32(values[1], T.ptx.addr(src.data_ptr(), -16), policy[0])
+        T.ptx.ld.shared.v2.b32(values[0], values[1], T.ptx.addr(shared_buf.data_ptr(), 8))
+        T.ptx.st.global_.b32(T.ptx.addr(dst.data_ptr(), 0), values[0])
+        T.ptx.st.global_.v2.b32(T.ptx.addr(dst.data_ptr(), 32), values[0], values[1], pred=tx == 0)
         T.ptx["cp.async.bulk.shared::cta.global.mbarrier::complete_tx::bytes"](
-            T.ptx.addr(shared_buf.data, 16),
-            T.ptx.addr(src.data, -16),
+            T.ptx.addr(shared_buf.data_ptr(), 16),
+            T.ptx.addr(src.data_ptr(), -16),
             T.uint32(16),
-            T.ptx.addr(barrier.data, 8),
+            T.ptx.addr(barrier.data_ptr(), 8),
         )
 
     source = _cuda_source(kernel)
@@ -199,7 +199,7 @@ def test_ptx_addr_unrolled_expression_and_dynamic_rejection():
         value = T.local_scalar("uint32")
         if tx == 0:
             for i in T.unroll(3):
-                T.ptx.ld.global_.b32(value, T.ptx.addr(src.data, i * 16))
+                T.ptx.ld.global_.b32(value, T.ptx.addr(src.data_ptr(), i * 16))
 
     source = _cuda_source(unrolled)
     assert "ld.global.b32 %0, [%1];" in source
@@ -211,7 +211,7 @@ def test_ptx_addr_unrolled_expression_and_dynamic_rejection():
         T.device_entry()
         tx = T.thread_id([32])
         value = T.local_scalar("uint32")
-        T.ptx.ld.global_.b32(value, T.ptx.addr(src.data, tx * 4))
+        T.ptx.ld.global_.b32(value, T.ptx.addr(src.data_ptr(), tx * 4))
 
     @T.function
     def loop_dynamic(src: T.Tensor((16,), "uint32")):
@@ -220,7 +220,7 @@ def test_ptx_addr_unrolled_expression_and_dynamic_rejection():
         value = T.local_scalar("uint32")
         if tx == 0:
             for i in T.serial(2):
-                T.ptx.ld.global_.b32(value, T.ptx.addr(src.data, i * 4))
+                T.ptx.ld.global_.b32(value, T.ptx.addr(src.data_ptr(), i * 4))
 
     for func in (thread_dynamic, loop_dynamic):
         with pytest.raises(
@@ -255,7 +255,7 @@ def test_ptx_addr_pointer_and_raw_address_validation():
         def ptr_operand(src: T.Tensor((8,), "uint32")):
             T.device_entry()
             result = T.local_scalar("uint32")
-            T.ptx.isspacep.global_(result, T.ptx.addr(src.data, 4))
+            T.ptx.isspacep.global_(result, T.ptx.addr(src.data_ptr(), 4))
 
 
 def test_ptx_addr_tma_tmem_and_independent_immediate_rejections():
@@ -267,7 +267,10 @@ def test_ptx_addr_tma_tmem_and_independent_immediate_rejections():
             shared_buf = T.alloc_tensor((16,), "uint32", scope="shared")
             barrier = T.alloc_tensor((1,), "uint64", scope="shared")
             T.ptx["cp.async.bulk.tensor.1d.shared::cta.global.mbarrier::complete_tx::bytes"](
-                shared_buf.data, T.ptx.addr(tmap.data, 16), T.int32(0), barrier.data
+                shared_buf.data_ptr(),
+                T.ptx.addr(tmap.data_ptr(), 16),
+                T.int32(0),
+                barrier.data_ptr(),
             )
 
     with pytest.raises(ValueError, match="does not support T.ptx.addr"):
@@ -295,8 +298,8 @@ def test_ptx_addr_printer_script_and_json_roundtrip():
     def kernel(src: T.Tensor((8,), "uint32"), dst: T.Tensor((8,), "uint32")):
         T.device_entry()
         value = T.local_scalar("uint32")
-        T.ptx.ld.global_.b32(value, T.ptx.addr(src.data, -16))
-        T.ptx.st.global_.b32(T.ptx.addr(dst.data, 16), value)
+        T.ptx.ld.global_.b32(value, T.ptx.addr(src.data_ptr(), -16))
+        T.ptx.st.global_.b32(T.ptx.addr(dst.data_ptr(), 16), value)
 
     script = kernel.script()
     assert script.count("T.ptx.addr(") == 2
@@ -314,7 +317,7 @@ def test_ptx_addr_legacy_positional_offsets_rejected():
         def scalar_load(src: T.Tensor((8,), "uint32")):
             T.device_entry()
             value = T.local_scalar("uint32")
-            T.ptx.ld.global_.b32(value, src.data, 16)
+            T.ptx.ld.global_.b32(value, src.data_ptr(), 16)
 
     with pytest.raises(ValueError):
 
@@ -322,21 +325,21 @@ def test_ptx_addr_legacy_positional_offsets_rejected():
         def vector_load(src: T.Tensor((8,), "uint32")):
             T.device_entry()
             values = T.alloc_local((2,), "uint32")
-            T.ptx.ld.global_.v2.b32(values[0], values[1], src.data, 16)
+            T.ptx.ld.global_.v2.b32(values[0], values[1], src.data_ptr(), 16)
 
     with pytest.raises(ValueError):
 
         @T.function
         def scalar_store(dst: T.Tensor((8,), "uint32")):
             T.device_entry()
-            T.ptx.st.global_.b32(dst.data, 16, T.uint32(0))
+            T.ptx.st.global_.b32(dst.data_ptr(), 16, T.uint32(0))
 
     with pytest.raises(ValueError):
 
         @T.function
         def vector_store(dst: T.Tensor((8,), "uint32")):
             T.device_entry()
-            T.ptx.st.global_.v2.b32(dst.data, 16, T.uint32(0), T.uint32(0))
+            T.ptx.st.global_.v2.b32(dst.data_ptr(), 16, T.uint32(0), T.uint32(0))
 
 
 def test_ptx_addr_unconsumed_codegen_diagnostic():

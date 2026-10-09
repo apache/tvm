@@ -335,11 +335,18 @@ def test_codegen_simdgroup_buffer_data():
             A_frag = T.alloc_tensor((64,), "float16", scope="metal.simdgroup")
             B_frag = T.alloc_tensor((64,), "float16", scope="metal.simdgroup")
             C_frag = T.alloc_tensor((64,), "float16", scope="metal.simdgroup")
-            T.metal.make_filled_simdgroup_matrix(C_frag.data, 0, T.float32(0), 8, 8)
-            T.metal.simdgroup_load(A_frag.data, 0, A.data, 8, 8, 8, T.bool(False))
-            T.metal.simdgroup_store(C_frag.data, 0, A.data, 8, 8, 8, T.bool(False))
+            T.metal.make_filled_simdgroup_matrix(C_frag.data_ptr(), 0, T.float32(0), 8, 8)
+            T.metal.simdgroup_load(A_frag.data_ptr(), 0, A.data_ptr(), 8, 8, 8, T.bool(False))
+            T.metal.simdgroup_store(C_frag.data_ptr(), 0, A.data_ptr(), 8, 8, 8, T.bool(False))
             T.metal.simdgroup_multiply_accumulate(
-                C_frag.data, 0, A_frag.data, 0, B_frag.data, 0, C_frag.data, 0
+                C_frag.data_ptr(),
+                0,
+                A_frag.data_ptr(),
+                0,
+                B_frag.data_ptr(),
+                0,
+                C_frag.data_ptr(),
+                0,
             )
 
     metal_codegen = tvm.get_global_func("target.build.metal")
@@ -372,7 +379,7 @@ def test_bounded_symbolic_stack_allocation():
                 }
             )
             scratch = T.alloc_tensor((T.min(n, 64), 2), "float32", scope="local")
-            T.evaluate(scratch.data)
+            T.evaluate(scratch.data_ptr())
 
     source = _build_metal(Module).inspect_source()
     assert "thread float scratch[128]" in source
@@ -399,7 +406,7 @@ def test_bound_symbolic_stack_allocation(bounded):
             extent: T.let[T.int32] = T.min(n, limit)
             elements: T.let[T.int32] = extent * 2
             scratch = T.alloc_tensor((elements,), "float32", scope="local")
-            T.evaluate(scratch.data)
+            T.evaluate(scratch.data_ptr())
 
     if bounded:
         source = _build_metal(Module).inspect_source()
@@ -470,7 +477,7 @@ def test_bounded_uint64_symbolic_stack_allocation():
                 }
             )
             scratch = T.alloc_tensor((T.min(n, T.uint64(64)),), "float32", scope="local")
-            T.evaluate(scratch.data)
+            T.evaluate(scratch.data_ptr())
 
     source = _build_metal(Module).inspect_source()
     assert "thread float scratch[64]" in source
@@ -542,7 +549,7 @@ def test_nonpositive_stack_allocation_rejected(extent):
                 }
             )
             scratch = T.alloc_tensor((extent,), "float32", scope="local")
-            T.evaluate(scratch.data)
+            T.evaluate(scratch.data_ptr())
 
     with pytest.raises(
         tvm.error.InternalError,
@@ -570,7 +577,7 @@ def test_stack_allocation_element_count_overflow_rejected():
                 "uint8",
                 scope="local",
             )
-            T.evaluate(scratch.data)
+            T.evaluate(scratch.data_ptr())
 
     with pytest.raises(
         tvm.error.InternalError, match="Metal allocation element count is too large to represent"
@@ -593,9 +600,9 @@ def test_codegen_pointer_byte_offsets_preserve_storage_scope():
                 }
             )
             shared = T.alloc_tensor((16,), "float16", scope="shared")
-            typed_alias = T.ptr_byte_offset(shared.data, 4, "float16")
+            typed_alias = T.ptr_byte_offset(shared.data_ptr(), 4, "float16")
             typed_buffer = T.decl_tensor((14,), "float16", data=typed_alias, scope="shared")
-            void_alias = T.handle_add_byte_offset(shared.data, 8)
+            void_alias = T.handle_add_byte_offset(shared.data_ptr(), 8)
             void_buffer = T.decl_tensor((12,), "float16", data=void_alias, scope="shared")
             typed_buffer[0] = T.float16(1)
             void_buffer[0] = T.float16(2)
@@ -621,9 +628,9 @@ def test_pointer_byte_offsets_execute_in_threadgroup_memory():
             for bx in T.thread_binding(1, thread="blockIdx.x"):
                 for tx in T.thread_binding(1, thread="threadIdx.x"):
                     shared = T.alloc_tensor((16,), "float32", scope="shared")
-                    typed_alias = T.ptr_byte_offset(shared.data, 4, "float32")
+                    typed_alias = T.ptr_byte_offset(shared.data_ptr(), 4, "float32")
                     typed_buffer = T.decl_tensor((15,), "float32", data=typed_alias, scope="shared")
-                    void_alias = T.handle_add_byte_offset(shared.data, 8)
+                    void_alias = T.handle_add_byte_offset(shared.data_ptr(), 8)
                     void_buffer = T.decl_tensor((14,), "float32", data=void_alias, scope="shared")
                     shared[0] = A[0]
                     typed_buffer[0] = A[1]

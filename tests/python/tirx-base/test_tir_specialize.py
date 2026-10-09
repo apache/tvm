@@ -260,12 +260,12 @@ def test_specialize_preserves_decl_buffer_alias():
 
     @T.function(private=True)
     def before(A: T.Tensor((before_n,), "int32"), n: before_n):
-        A_flat = T.decl_tensor((n,), "int32", data=A.data)
+        A_flat = T.decl_tensor((n,), "int32", data=A.data_ptr())
         A_flat[n - 1] = 42
 
     @T.function(private=True)
     def expected(A: T.Tensor((8,), "int32")):
-        A_flat = T.decl_tensor((8,), "int32", data=A.data)
+        A_flat = T.decl_tensor((8,), "int32", data=A.data_ptr())
         A_flat[7] = 42
 
     after = before.specialize({before.params[1]: 8})
@@ -282,15 +282,15 @@ def test_specialize_buffer_var_to_var():
 
     @T.function(private=True)
     def before(A: T.Tensor([16, 16], "float32"), B: T.Tensor([16, 16], "float32")):
-        A_flat = T.decl_tensor([256], "float32", data=A.data)
-        B_flat = T.decl_tensor([256], "float32", data=B.data)
+        A_flat = T.decl_tensor([256], "float32", data=A.data_ptr())
+        B_flat = T.decl_tensor([256], "float32", data=B.data_ptr())
         for i in range(256):
             B_flat[i] = A_flat[i] * 2.0
 
     @T.function(private=True)
     def expected(A: T.Tensor([16, 16], "float32")):
-        A_flat = T.decl_tensor([256], "float32", data=A.data)
-        B_flat = T.decl_tensor([256], "float32", data=A.data)
+        A_flat = T.decl_tensor([256], "float32", data=A.data_ptr())
+        B_flat = T.decl_tensor([256], "float32", data=A.data_ptr())
         for i in range(256):
             B_flat[i] = A_flat[i] * 2.0
 

@@ -85,8 +85,8 @@ def test_ir2():
     st = tvm.tirx.TensorStore(buf, x + 1, [1])
     assert isinstance(st, tvm.tirx.TensorStore)
     assert st.buffer == buf
-    assert st.buffer.data.args[0].same_as(buf)
-    assert st.buffer.data.ty == array.ty
+    assert st.buffer.data_ptr().args[0].same_as(buf)
+    assert st.buffer.data_ptr().ty == array.ty
 
 
 def test_let():

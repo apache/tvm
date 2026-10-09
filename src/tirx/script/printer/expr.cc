@@ -343,7 +343,7 @@ ffi::Optional<ExprDoc> TensorDataPtrDocTranslate(DocTranslatorObj* d, ffi::AnyVi
   } catch (const ffi::Error&) {
     return RawCall(d, call);
   }
-  return d->Translate(call->args[0]).value()->Attr("data");
+  return d->Translate(call->args[0]).value()->Attr("data_ptr")->Call({});
 }
 
 // PTX modifiers and operand tags use a dedicated reconstruction surface.

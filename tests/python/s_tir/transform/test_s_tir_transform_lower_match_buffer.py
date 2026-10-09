@@ -91,7 +91,7 @@ def opaque_access(A: T.Tensor((32, 64, 128)), B: T.Tensor((64, 64, 64))) -> None
             )
             T.evaluate(
                 intrin_test(
-                    sub_A.data,
+                    sub_A.data_ptr(),
                     sub_A.elem_offset,
                     sub_A.strides[0],
                     sub_A.strides[1],
@@ -111,7 +111,7 @@ def opaque_access(A: T.Tensor((32, 64, 128)), B: T.Tensor((64, 64, 64))) -> None
             )
             T.evaluate(
                 intrin_test(
-                    sub_B.data,
+                    sub_B.data_ptr(),
                     sub_B.elem_offset,
                     sub_B.strides[0],
                     sub_B.strides[1],
@@ -129,7 +129,7 @@ def transformed_opaque_access(A: T.Tensor((32, 64, 128)), B: T.Tensor((64, 64, 6
             Ts.writes(A[i * 16 : i * 16 + 16, j, k * 16 : k * 16 + 16])
             T.evaluate(
                 intrin_test(
-                    A.data,
+                    A.data_ptr(),
                     i * 131072 + j * 128 + k * 16,
                     8192,
                     128,
@@ -143,7 +143,7 @@ def transformed_opaque_access(A: T.Tensor((32, 64, 128)), B: T.Tensor((64, 64, 6
             Ts.writes(B[i, j * 32 : j * 32 + 32, k * 8 : k * 8 + 8])
             T.evaluate(
                 intrin_test(
-                    B.data,
+                    B.data_ptr(),
                     i * 4096 + j * 2048 + k * 8,
                     64,
                     1,
@@ -159,7 +159,7 @@ def opaque_buffer_data_projection(A: T.Tensor((16,))) -> None:
         Ts.reads([])
         Ts.writes(A[4:8])
         sub_A = Ts.match_buffer(A[4:8], (4,), offset_factor=1)
-        T.evaluate(T.call_extern("consume", sub_A.data, sub_A.elem_offset, ty="int32"))
+        T.evaluate(T.call_extern("consume", sub_A.data_ptr(), sub_A.elem_offset, ty="int32"))
 
 
 @Ts.function
@@ -167,7 +167,7 @@ def transformed_opaque_buffer_data_projection(A: T.Tensor((16,))) -> None:
     with Ts.sblock():
         Ts.reads([])
         Ts.writes(A[4:8])
-        T.evaluate(T.call_extern("consume", A.data, 4, ty="int32"))
+        T.evaluate(T.call_extern("consume", A.data_ptr(), 4, ty="int32"))
 
 
 As_0 = T.dynamic("As_0", "int32")
@@ -188,7 +188,7 @@ def high_dim_opaque_access(A: T.Tensor((16, 32, 64))) -> None:
             )
             T.evaluate(
                 intrin_test(
-                    sub_A.data,
+                    sub_A.data_ptr(),
                     sub_A.elem_offset,
                     sub_A.strides[0],
                     sub_A.strides[1],
@@ -206,7 +206,7 @@ def transformed_high_dim_opaque_access(A: T.Tensor((16, 32, 64))) -> None:
             Ts.writes(A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16])
             T.evaluate(
                 intrin_test(
-                    A.data,
+                    A.data_ptr(),
                     i * 2048 + j * 1024 + k * 16,
                     64,
                     1,
@@ -236,7 +236,7 @@ def high_dim_opaque_access_with_source_strides(
             )
             T.evaluate(
                 intrin_test(
-                    sub_A.data,
+                    sub_A.data_ptr(),
                     sub_A.elem_offset,
                     sub_A.strides[0],
                     sub_A.strides[1],
@@ -256,7 +256,7 @@ def transformed_high_dim_opaque_access_with_source_strides(
             Ts.writes(A[i, j * 16 : j * 16 + 16, k * 16 : k * 16 + 16])
             T.evaluate(
                 intrin_test(
-                    A.data,
+                    A.data_ptr(),
                     i * 2576 + j * 1280 + k * 16,
                     80,
                     1,
@@ -316,7 +316,7 @@ def recursive_match(A: T.Tensor((64, 64, 64)), B: T.Tensor((64, 64, 64))) -> Non
                     )
                     T.evaluate(
                         intrin_test(
-                            sub_sub_A.data,
+                            sub_sub_A.data_ptr(),
                             sub_sub_A.elem_offset,
                             sub_sub_A.strides[0],
                             sub_sub_A.strides[1],
@@ -358,7 +358,7 @@ def transformed_recursive_match(A: T.Tensor((64, 64, 64)), B: T.Tensor((64, 64, 
                     )
                     T.evaluate(
                         intrin_test(
-                            A.data,
+                            A.data_ptr(),
                             i * 4096 + j * 1024 + jj * 256 + k * 16 + kk * 4,
                             64,
                             1,
@@ -394,7 +394,7 @@ def symbolic_match(
             for j in range(0, 4):
                 T.evaluate(
                     intrin_test(
-                        sub_B.data,
+                        sub_B.data_ptr(),
                         sub_B.elem_offset,
                         sub_B.strides[0],
                         sub_B.strides[1],
@@ -420,7 +420,7 @@ def transformed_symbolic_match(
             for j in range(0, 4):
                 T.evaluate(
                     intrin_test(
-                        B.data,
+                        B.data_ptr(),
                         i * n * (m * 4),
                         m * 4,
                         1,
@@ -441,7 +441,7 @@ def rank0_buffer(A: T.Tensor((8, 8)), B: T.Tensor((8, 8))) -> None:
             sub_A[()] = 1
             T.evaluate(
                 intrin_test(
-                    sub_B.data,
+                    sub_B.data_ptr(),
                     sub_B.elem_offset,
                     0,
                     0,
@@ -460,7 +460,7 @@ def transformed_rank0_buffer(A: T.Tensor((8, 8)), B: T.Tensor((8, 8))) -> None:
             A[i, j] = 1
             T.evaluate(
                 intrin_test(
-                    B.data,
+                    B.data_ptr(),
                     i * 8 + j,
                     0,
                     0,

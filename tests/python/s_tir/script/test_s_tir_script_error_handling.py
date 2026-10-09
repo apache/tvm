@@ -310,7 +310,7 @@ def test_opaque_access_during_complete():
     def opaque_access_during_complete(A: T.Tensor((16, 16), "float32")) -> None:  # error
         for i, j in T.grid(16, 16):
             with Ts.sblock():
-                T.evaluate(T.call_extern("dummy_extern_function", A.data, ty="int32"))
+                T.evaluate(T.call_extern("dummy_extern_function", A.data_ptr(), ty="int32"))
 
     check_error(opaque_access_during_complete, None, ValueError)
 

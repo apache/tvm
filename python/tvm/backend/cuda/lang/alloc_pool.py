@@ -411,7 +411,7 @@ class SMEMPool:
         ir = _get_ir()
         if ptr is _POOL_UNSET:
             self.buf = ir.alloc_tensor([0], "uint8", scope="shared.dyn")
-            self.ptr = self.buf.data
+            self.ptr = self.buf.data_ptr()
             self._owns_buffer = True
         else:
             self.buf = None

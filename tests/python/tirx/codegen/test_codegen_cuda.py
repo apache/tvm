@@ -188,7 +188,7 @@ def _cuda_ldg_scalar_kernel(dtype: str):
         T.device_entry()
         tx = T.thread_id([32])
         if tx == 0:
-            out[0] = T.cuda.ldg(src.data, dtype)
+            out[0] = T.cuda.ldg(src.data_ptr(), dtype)
 
     return main
 
@@ -205,7 +205,7 @@ def _cuda_ldg_vector_kernel(dtype: str, vec: str):
             tmp0 = T.alloc_local((1,), dtype)
             tmp1 = T.alloc_local((1,), dtype)
             if tx == 0:
-                T.cuda.ldg(src.data, dtype, dst=(tmp0.ptr_to([0]), tmp1.ptr_to([0])), vec=vec)
+                T.cuda.ldg(src.data_ptr(), dtype, dst=(tmp0.ptr_to([0]), tmp1.ptr_to([0])), vec=vec)
                 out[0] = tmp0[0]
                 out[1] = tmp1[0]
 
@@ -221,7 +221,7 @@ def _cuda_ldg_vector_kernel(dtype: str, vec: str):
         tmp3 = T.alloc_local((1,), dtype)
         if tx == 0:
             T.cuda.ldg(
-                src.data,
+                src.data_ptr(),
                 dtype,
                 dst=(
                     tmp0.ptr_to([0]),
@@ -457,8 +457,8 @@ def test_cuda_atomic_add():
         cta_id = T.cta_id([1])
         tx = T.thread_id([32])
         if tx == 0:
-            T.cuda.atomic_add(A.data, T.int32(1))
-            T.cuda.atomic_add(B.data, T.float32(1.0))
+            T.cuda.atomic_add(A.data_ptr(), T.int32(1))
+            T.cuda.atomic_add(B.data_ptr(), T.float32(1.0))
 
     src, mod = _get_source(main, target="cuda")
     assert "tvm_builtin_cuda_atomic_add" in src
@@ -482,11 +482,11 @@ def test_ptx_ld_acquire_and_volatile_codegen():
         T.device_entry()
         tx = T.thread_id([32])
         if tx == 0:
-            T.ptx.ld.acquire.gpu.global_.u64(A[0], A.data)
-            T.ptx.ld.acquire.sys.global_.s32(B[0], B.data)
-            T.ptx.ld.acquire.gpu.global_.b32(C[0], C.data)
-            T.ptx.ld.acquire.gpu.global_.b32(B[0], B.data)
-            T.ptx.ld.volatile.global_.u64(A[0], A.data)
+            T.ptx.ld.acquire.gpu.global_.u64(A[0], A.data_ptr())
+            T.ptx.ld.acquire.sys.global_.s32(B[0], B.data_ptr())
+            T.ptx.ld.acquire.gpu.global_.b32(C[0], C.data_ptr())
+            T.ptx.ld.acquire.gpu.global_.b32(B[0], B.data_ptr())
+            T.ptx.ld.volatile.global_.u64(A[0], A.data_ptr())
 
     src, _ = _get_source(main)
     assert "ld.acquire.gpu.global.u64" in src
@@ -597,25 +597,25 @@ def test_megamoe_extracted_intrinsics_codegen():
         T.device_entry()
         tx = T.thread_id([32])
         if tx == 0:
-            T.ptx.red.release.gpu.global_.or_.b64(U64.data, U64[0])
-            T.ptx.red.release.sys.global_.add.s32(I32.data, I32[0])
-            T.ptx.atom.release.gpu.global_.add.u32(U32[0], U32.data, U32[0])
-            T.ptx.atom.sys.global_.add.u64(U64[0], U64.data, U64[0])
-            T.ptx.red.gpu.global_.add.u32(U32.data, U32[0])
-            T.ptx.st.shared.u32(U32.data, U32[0])
-            T.ptx.st.shared.v4.b32(U32.data, U32[0], U32[1], U32[2], U32[3])
-            T.ptx.st_bulk.weak.shared__cta(U32.data, T.uint64(16))
+            T.ptx.red.release.gpu.global_.or_.b64(U64.data_ptr(), U64[0])
+            T.ptx.red.release.sys.global_.add.s32(I32.data_ptr(), I32[0])
+            T.ptx.atom.release.gpu.global_.add.u32(U32[0], U32.data_ptr(), U32[0])
+            T.ptx.atom.sys.global_.add.u64(U64[0], U64.data_ptr(), U64[0])
+            T.ptx.red.gpu.global_.add.u32(U32.data_ptr(), U32[0])
+            T.ptx.st.shared.u32(U32.data_ptr(), U32[0])
+            T.ptx.st.shared.v4.b32(U32.data_ptr(), U32[0], U32[1], U32[2], U32[3])
+            T.ptx.st_bulk.weak.shared__cta(U32.data_ptr(), T.uint64(16))
             T.ptx.fns.b32(U32[0], U32[0], U32[1], I32[0])
             T.ptx.movmatrix.sync.aligned.m8n8.trans.b16(U32[1], U32[0])
-            T.ptx.stmatrix.sync.aligned.m16n8.x1.trans.shared.b8(U32.data, U32[0])
+            T.ptx.stmatrix.sync.aligned.m16n8.x1.trans.shared.b8(U32.data_ptr(), U32[0])
 
             F32[1] = T.cuda.uint_as_float(U32[0])
-            T.ptx.ld.global_.f32(F32[2], F32.data)
-            F32[2] = T.cuda.ldg(T.handle_add_byte_offset(F32.data, 4), "float32")
+            T.ptx.ld.global_.f32(F32[2], F32.data_ptr())
+            F32[2] = T.cuda.ldg(T.handle_add_byte_offset(F32.data_ptr(), 4), "float32")
             F32[3] = T.cuda.fdividef(F32[0], F32[1])
             U32[3] = T.cuda.float_as_uint(F32[1])
             T.ptx.add.rn.f32.bf16(F32[0], T.cast(U32[0], "uint16"), F32[0])
-            U64[0] = T.reinterpret(U32.data, ty="uint64")
+            U64[0] = T.reinterpret(U32.data_ptr(), ty="uint64")
             U32[0] = T.cuda.ballot_sync(T.uint32(0xFFFFFFFF), I32[0])
             I32[0] = T.cuda.ffs_u32(U32[0])
             U32[0] = T.cuda.reduce_add_sync_u32(T.uint32(0xFFFFFFFF), U32[0])
@@ -693,13 +693,13 @@ def test_ptx_cp_async_bulk_non_tma_form_codegen():
         if tx == 0:
             smem = T.alloc_shared([128], "float32")
             T.ptx["cp.async.bulk.shared::cta.global.mbarrier::complete_tx::bytes.L2::cache_hint"](
-                smem.ptr_to([0]), A.data, T.uint32(64), smem.ptr_to([0]), C[0]
+                smem.ptr_to([0]), A.data_ptr(), T.uint32(64), smem.ptr_to([0]), C[0]
             )
             T.ptx[
                 "cp.async.bulk.shared::cluster.global.mbarrier::complete_tx::bytes.L2::cache_hint"
-            ](smem.ptr_to([0]), A.data, T.uint32(64), smem.ptr_to([0]), C[0])
+            ](smem.ptr_to([0]), A.data_ptr(), T.uint32(64), smem.ptr_to([0]), C[0])
             T.ptx["cp.async.bulk.global.shared::cta.bulk_group.L2::cache_hint"](
-                B.data, smem.ptr_to([0]), T.uint32(64), C[0]
+                B.data_ptr(), smem.ptr_to([0]), T.uint32(64), C[0]
             )
             T.ptx.cp.async_.bulk.commit_group()
             T.ptx.cp.async_.bulk.wait_group.read(0)
@@ -832,7 +832,7 @@ def test_cuda_ldg_vector_scatter_codegen():
         tmp3 = T.alloc_local((1,), "int32")
         if tx == 0:
             T.cuda.ldg(
-                src.data,
+                src.data_ptr(),
                 "int32",
                 dst=(
                     tmp0.ptr_to([0]),
@@ -893,26 +893,26 @@ def test_tma_cache_policy_operand_codegen():
             smem = T.alloc_tensor((128,), "float32", scope="shared", align=128)
             bar = T.shared_scalar("uint64")
             T.ptx[_TMA_G2S_CG2_CACHE](
-                smem.data, T.address_of(A_map), 0, 0, T.address_of(bar), Cache[0]
+                smem.data_ptr(), T.address_of(A_map), 0, 0, T.address_of(bar), Cache[0]
             )
             T.ptx[_TMA_G2S_MC_CG2_CACHE](
-                smem.data, T.address_of(A_map), 0, 0, T.address_of(bar), 3, Cache[0]
+                smem.data_ptr(), T.address_of(A_map), 0, 0, T.address_of(bar), 3, Cache[0]
             )
-            T.ptx[_TMA_S2G_CACHE](T.address_of(A_map), 0, 0, smem.data, Cache[0])
+            T.ptx[_TMA_S2G_CACHE](T.address_of(A_map), 0, 0, smem.data_ptr(), Cache[0])
             T.ptx[_TMA_CTA_GATHER4_CG2_CACHE](
-                smem.data, T.address_of(A_map), 0, 1, 2, 3, 4, T.address_of(bar), Cache[0]
+                smem.data_ptr(), T.address_of(A_map), 0, 1, 2, 3, 4, T.address_of(bar), Cache[0]
             )
             leader_mbar_addr = T.cuda.sm100_2sm_leader_smem_addr(T.address_of(bar))
             T.ptx[_TMA_G2S_CG2_CACHE](
-                smem.data, T.address_of(A_map), 0, 0, leader_mbar_addr, Cache[0]
+                smem.data_ptr(), T.address_of(A_map), 0, 0, leader_mbar_addr, Cache[0]
             )
             if tx == 0:
                 T.ptx[_TMA_G2S_CG2_CACHE](
-                    smem.data, T.address_of(A_map), 0, 0, leader_mbar_addr, Cache[0]
+                    smem.data_ptr(), T.address_of(A_map), 0, 0, leader_mbar_addr, Cache[0]
                 )
             else:
                 T.ptx[_TMA_G2S_CG2_CACHE](
-                    smem.data, T.address_of(B_map), 0, 0, leader_mbar_addr, Cache[0]
+                    smem.data_ptr(), T.address_of(B_map), 0, 0, leader_mbar_addr, Cache[0]
                 )
 
     src, _ = _get_source(main)
@@ -959,7 +959,7 @@ def test_cuda_atomic_cas():
         cta_id = T.cta_id([1])
         tx = T.thread_id([32])
         if tx == 0:
-            T.cuda.atomic_cas(A.data, T.int32(1), T.int32(2))
+            T.cuda.atomic_cas(A.data_ptr(), T.int32(1), T.int32(2))
 
     src, mod = _get_source(main)
     assert "tvm_builtin_cuda_atomic_cas" in src

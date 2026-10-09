@@ -120,8 +120,12 @@ def test_unary_in_a_loop(op_type):
         T.func_attr({"global_symbol": "unary"})
         A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
         B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
-        A_sbuf_view = T.decl_tensor((128, 4096), data=A_sbuf.data, scope="trn.sbuf", layout=None)
-        B_sbuf_view = T.decl_tensor((128, 2048), data=B_sbuf.data, scope="trn.sbuf", layout=None)
+        A_sbuf_view = T.decl_tensor(
+            (128, 4096), data=A_sbuf.data_ptr(), scope="trn.sbuf", layout=None
+        )
+        B_sbuf_view = T.decl_tensor(
+            (128, 2048), data=B_sbuf.data_ptr(), scope="trn.sbuf", layout=None
+        )
         for i, b_loop in T.grid(4, 1):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):

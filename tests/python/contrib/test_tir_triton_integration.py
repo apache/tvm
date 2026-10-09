@@ -83,9 +83,9 @@ def test_tir_triton_integration():
                 T.call_kernel(
                     add_kernel,
                     (T.ceildiv(add_m, BLOCK_SIZE),),
-                    x.data,
-                    y.data,
-                    output.data,
+                    x.data_ptr(),
+                    y.data_ptr(),
+                    output.data_ptr(),
                     add_m,
                     BLOCK_SIZE,
                     num_warps=8,
@@ -116,9 +116,9 @@ def test_tir_triton_integration():
                 Ts.writes(output[0:m])
                 T.call_packed(
                     "add_kernel",
-                    x.data,
-                    y.data,
-                    output.data,
+                    x.data_ptr(),
+                    y.data_ptr(),
+                    output.data_ptr(),
                     m,
                     *scratch_args,
                     256,

@@ -505,7 +505,7 @@ def test_reused_loop_var_in_decl_buffer_elem_offset():
         elem_offset=loop_var * 128,
         scope="shared.dyn",
     )
-    buffer_data = tirx.Var("buffer_data", buffer.data.ty)
+    buffer_data = tirx.Var("buffer_data", buffer.data_ptr().ty)
     loop = tirx.For(
         loop_var,
         0,

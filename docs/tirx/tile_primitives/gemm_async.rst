@@ -140,8 +140,8 @@ swizzle mode).  ``smem_desc`` selects where that descriptor comes from:
 
 .. code-block:: python
 
-    Tx.cuda.tcgen05.encode_matrix_descriptor(descA.data, A_smem.ptr_to([0]), ldo, sdo, swizzle)
-    Tx.cuda.tcgen05.encode_matrix_descriptor(descB.data, B_smem.ptr_to([0]), ldo, sdo, swizzle)
+    Tx.cuda.tcgen05.encode_matrix_descriptor(descA.data_ptr(), A_smem.ptr_to([0]), ldo, sdo, swizzle)
+    Tx.cuda.tcgen05.encode_matrix_descriptor(descB.data_ptr(), B_smem.ptr_to([0]), ldo, sdo, swizzle)
 
 **2. Choose the MMA tile.** ``M_mma × N_mma`` are chosen to tile ``M``/``N``
 (with ``MMA_K`` set by dtype: 8 tf32, 16 f16/bf16, 32 fp8, 64 fp4); a

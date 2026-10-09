@@ -44,9 +44,9 @@ def test_matmul_t_buffer():
             B: T.Tensor((1024, 1024), "float16"),
             matmul: T.Tensor((1024, 1024), "float32"),
         ):
-            A_flat = T.decl_tensor(1048576, "float16", data=A.data)
-            B_flat = T.decl_tensor(1048576, "float16", data=B.data)
-            matmul_flat = T.decl_tensor(1048576, data=matmul.data)
+            A_flat = T.decl_tensor(1048576, "float16", data=A.data_ptr())
+            B_flat = T.decl_tensor(1048576, "float16", data=B.data_ptr())
+            matmul_flat = T.decl_tensor(1048576, data=matmul.data_ptr())
 
             threadIdx_x = T.launch_thread("threadIdx.x", 16)
             C_local = T.alloc_tensor((1,), "float32", scope="local")
@@ -89,18 +89,18 @@ def test_matmul_t_buffer():
             B: T.Tensor((1024, 1024), "float16"),
             matmul: T.Tensor((1024, 1024), "float32"),
         ):
-            A_flat = T.decl_tensor(1048576, "float16", data=A.data)
-            B_flat = T.decl_tensor(1048576, "float16", data=B.data)
-            matmul_flat = T.decl_tensor(1048576, data=matmul.data)
+            A_flat = T.decl_tensor(1048576, "float16", data=A.data_ptr())
+            B_flat = T.decl_tensor(1048576, "float16", data=B.data_ptr())
+            matmul_flat = T.decl_tensor(1048576, data=matmul.data_ptr())
 
             threadIdx_x = T.launch_thread("threadIdx.x", 16)
 
             buf_dyn_shmem = T.alloc_tensor((1024,), "uint8", scope="shared.dyn")
 
             C_local = T.alloc_tensor((1,), "float32", scope="local")
-            A_sh = T.decl_tensor(256, "float16", data=buf_dyn_shmem.data, scope="shared.dyn")
-            B_sh = T.decl_tensor(256, "float16", data=buf_dyn_shmem.data, scope="shared.dyn")
-            C_sh = T.decl_tensor(256, "float32", data=buf_dyn_shmem.data, scope="shared.dyn")
+            A_sh = T.decl_tensor(256, "float16", data=buf_dyn_shmem.data_ptr(), scope="shared.dyn")
+            B_sh = T.decl_tensor(256, "float16", data=buf_dyn_shmem.data_ptr(), scope="shared.dyn")
+            C_sh = T.decl_tensor(256, "float32", data=buf_dyn_shmem.data_ptr(), scope="shared.dyn")
 
             threadIdx_y = T.launch_thread("threadIdx.y", 16)
             blockIdx_x = T.launch_thread("blockIdx.x", 64)
@@ -155,9 +155,9 @@ def test_matmul_decl_buffer():
             B: T.Tensor((1024, 1024), "float16"),
             matmul: T.Tensor((1024, 1024), "float32"),
         ):
-            A_flat = T.decl_tensor(1048576, "float16", data=A.data)
-            B_flat = T.decl_tensor(1048576, "float16", data=B.data)
-            matmul_flat = T.decl_tensor(1048576, data=matmul.data)
+            A_flat = T.decl_tensor(1048576, "float16", data=A.data_ptr())
+            B_flat = T.decl_tensor(1048576, "float16", data=B.data_ptr())
+            matmul_flat = T.decl_tensor(1048576, data=matmul.data_ptr())
 
             threadIdx_x = T.launch_thread("threadIdx.x", 16)
             C_local = T.alloc_tensor((1,), "float32", scope="local")
@@ -258,8 +258,12 @@ def test_async_copy():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             A_sh = T.alloc_tensor((128,), "float32", scope="shared.dyn")
             B_sh = T.alloc_tensor((128,), "float32", scope="shared.dyn")
-            T.s_tir.cp_async_raw(A_sh.data, threadIdx_x, A.data, threadIdx_x, 512, ty="float32")
-            T.s_tir.cp_async_raw(B_sh.data, threadIdx_x, B.data, threadIdx_x, 512, ty="float32")
+            T.s_tir.cp_async_raw(
+                A_sh.data_ptr(), threadIdx_x, A.data_ptr(), threadIdx_x, 512, ty="float32"
+            )
+            T.s_tir.cp_async_raw(
+                B_sh.data_ptr(), threadIdx_x, B.data_ptr(), threadIdx_x, 512, ty="float32"
+            )
 
     After = transform(Before)
     # The pass merges shared.dyn allocations. A_sh and B_sh are accessed
@@ -273,20 +277,20 @@ def test_async_copy():
     # offsets remain in float32 elements and are scaled by the intrinsic
     # lowering, rather than being pre-scaled as byte offsets here.
     assert (
-        'A_sh = T.decl_tensor((128,), "float32", data=buf_dyn_shmem.data, '
+        'A_sh = T.decl_tensor((128,), "float32", data=buf_dyn_shmem.data_ptr(), '
         'scope="shared.dyn")' in script
     )
     assert (
-        'B_sh = T.decl_tensor((128,), "float32", data=buf_dyn_shmem.data, '
+        'B_sh = T.decl_tensor((128,), "float32", data=buf_dyn_shmem.data_ptr(), '
         'scope="shared.dyn")' in script
     )
     assert (
-        "T.s_tir.cp_async_raw(A_sh.data, threadIdx_x, "
-        'A.data, threadIdx_x, 512, ty="float32")' in script
+        "T.s_tir.cp_async_raw(A_sh.data_ptr(), threadIdx_x, "
+        'A.data_ptr(), threadIdx_x, 512, ty="float32")' in script
     )
     assert (
-        "T.s_tir.cp_async_raw(B_sh.data, threadIdx_x, "
-        'B.data, threadIdx_x, 512, ty="float32")' in script
+        "T.s_tir.cp_async_raw(B_sh.data_ptr(), threadIdx_x, "
+        'B.data_ptr(), threadIdx_x, 512, ty="float32")' in script
     )
 
 
@@ -301,8 +305,8 @@ def test_decl_buffer_alias_extends_allocation_lifetime():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             A_sh = T.alloc_tensor((128,), "float32", scope="shared.dyn")
             B_sh = T.alloc_tensor((128,), "float32", scope="shared.dyn")
-            A_view = T.decl_tensor((128,), "float32", data=A_sh.data, scope="shared.dyn")
-            B_view = T.decl_tensor((128,), "float32", data=B_sh.data, scope="shared.dyn")
+            A_view = T.decl_tensor((128,), "float32", data=A_sh.data_ptr(), scope="shared.dyn")
+            B_view = T.decl_tensor((128,), "float32", data=B_sh.data_ptr(), scope="shared.dyn")
             A_view[threadIdx_x] = T.float32(1)
             B_view[threadIdx_x] = T.float32(2)
             C[threadIdx_x] = A_view[threadIdx_x] + B_view[threadIdx_x]
@@ -331,8 +335,8 @@ def test_multi_thread_extent_blocks():
             X: T.Tensor((128,), "float32"),
             Y: T.Tensor((128,), "float32"),
         ):
-            X_flat = T.decl_tensor(128, data=X.data)
-            Y_flat = T.decl_tensor(128, data=Y.data)
+            X_flat = T.decl_tensor(128, data=X.data_ptr())
+            Y_flat = T.decl_tensor(128, data=Y.data_ptr())
 
             # First kernel launch
             with T.launch_thread("threadIdx.x", 128) as tx0:

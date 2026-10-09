@@ -101,7 +101,7 @@ def test_flatten_remaps_loads_in_view_shape():
         n = T.alloc_local([1], "int32")
         n[0] = 8
         data = T.alloc_tensor([64], "float16", scope="shared")
-        view = T.decl_tensor((n[0],), "float16", data.data, scope="shared")
+        view = T.decl_tensor((n[0],), "float16", data.data_ptr(), scope="shared")
         view[0] = T.float16(0)
 
     _assert_loads_reference_defined_buffers(_flatten(before))
@@ -117,7 +117,7 @@ def test_flatten_remaps_loads_in_folded_elem_offset():
         n = T.alloc_local([1], "int32")
         n[0] = 4
         base = T.alloc_tensor([128], "uint64", scope="shared")
-        mbar = T.decl_tensor((1,), "uint64", base.data, elem_offset=n[0], scope="shared")
+        mbar = T.decl_tensor((1,), "uint64", base.data_ptr(), elem_offset=n[0], scope="shared")
         mbar[0] = T.uint64(1)
 
     after = _flatten(before)

@@ -239,7 +239,7 @@ def test_constexpr_specializes_nested_selector_condition():
             C[:],
             A[:],
             dispatch="tma_explicit",
-            mbar=C.data,
+            mbar=C.data_ptr(),
             src_selector=[(flag < LIMIT, B)],
         )
 

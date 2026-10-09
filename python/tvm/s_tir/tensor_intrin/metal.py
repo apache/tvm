@@ -63,7 +63,7 @@ def get_make_filled_simdgroup_matrix_intrin(
             Ts.reads()
             Ts.writes(A[0:col, 0:row])
             T.metal.make_filled_simdgroup_matrix(
-                A.data,
+                A.data_ptr(),
                 index=get_simdgroup_index(A, d1, col, row),
                 value=T.float32(0),
                 col=col,
@@ -120,7 +120,7 @@ def get_simdgroup_load_intrin(
             Ts.reads(A[0:col, 0:row])
             Ts.writes(C[0:col, 0:row])
             T.metal.simdgroup_load(
-                C.data,
+                C.data_ptr(),
                 index=get_simdgroup_index(C, d1, col, row),
                 ptr=A.access_ptr("r", ptr_type=dtype),
                 stride=s1,
@@ -178,7 +178,7 @@ def get_simdgroup_store_intrin(
             Ts.reads(A[0:col, 0:row])
             Ts.writes(C[0:col, 0:row])
             T.metal.simdgroup_store(
-                A.data,
+                A.data_ptr(),
                 index=get_simdgroup_index(A, s1, col, row),
                 ptr=C.access_ptr("w", ptr_type=dtype),
                 stride=d1,
@@ -230,13 +230,13 @@ def get_simdgroup_multiply_accumulate_intrin(
             Ts.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:k_dim, 0:n_dim])
             Ts.writes(C[0:m_dim, 0:n_dim])
             T.metal.simdgroup_multiply_accumulate(
-                C.data,
+                C.data_ptr(),
                 get_simdgroup_index(C, c1, m_dim, n_dim),
-                A.data,
+                A.data_ptr(),
                 get_simdgroup_index(A, a1, m_dim, k_dim),
-                B.data,
+                B.data_ptr(),
                 get_simdgroup_index(B, b1, k_dim, n_dim),
-                C.data,
+                C.data_ptr(),
                 get_simdgroup_index(C, c1, m_dim, n_dim),
             )
 

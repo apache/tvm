@@ -8337,8 +8337,8 @@ def _build_tflite_rfft2d_function(input_shape, output_pair_shape):
         # Flat 1D aliases of the multi-dim buffers. The kernel is rank-agnostic
         # over the leading batch dimensions, so collapsing the index space
         # avoids special-casing 2D / 3D / 4D input shapes.
-        data_flat = T.decl_tensor((input_total,), "float32", data=data.data)
-        output_flat = T.decl_tensor((output_complex_total * 2,), "float32", data=output.data)
+        data_flat = T.decl_tensor((input_total,), "float32", data=data.data_ptr())
+        output_flat = T.decl_tensor((output_complex_total * 2,), "float32", data=output.data_ptr())
         neg_two_pi_const = T.float32(neg_two_pi)
 
         for b_idx, out_y, out_x in T.grid(batch, height, out_width):
@@ -8509,8 +8509,8 @@ def _build_tflite_rfft2d_fft_function(input_shape, output_pair_shape):
         f"    data: T.Tensor({tuple(int(x) for x in input_shape)}, 'float32'),\n"
         f"    output: T.Tensor({tuple(int(x) for x in output_pair_shape)}, 'float32'),\n"
         "):\n"
-        f"    data_flat = T.decl_tensor(({input_total},), 'float32', data=data.data)\n"
-        f"    output_flat = T.decl_tensor(({output_complex_total * 2},), 'float32', data=output.data)\n"
+        f"    data_flat = T.decl_tensor(({input_total},), 'float32', data=data.data_ptr())\n"
+        f"    output_flat = T.decl_tensor(({output_complex_total * 2},), 'float32', data=output.data_ptr())\n"
         f"    scratch_real = T.decl_tensor(({input_total},), 'float32')\n"
         f"    scratch_imag = T.decl_tensor(({input_total},), 'float32')\n"
         f"    for b_idx in T.serial({batch}):\n"
@@ -8629,7 +8629,7 @@ def _build_stablehlo_rng_bit_generator_function(algorithm, state_len, out_dtype,
                 key_1 = _u32(state_key >> T.uint64(32))
                 output_state[0] = state_key
                 output_state[1] = state_counter + T.uint64(num_blocks)
-                out_flat = T.decl_tensor((total,), out_dtype, data=output.data)
+                out_flat = T.decl_tensor((total,), out_dtype, data=output.data_ptr())
                 keys = T.decl_tensor((3,), "uint32", scope="local")
                 rotations = T.decl_tensor((8,), "uint32", scope="local")
                 ctr = T.decl_tensor((2,), "uint32", scope="local")
@@ -8676,7 +8676,7 @@ def _build_stablehlo_rng_bit_generator_function(algorithm, state_len, out_dtype,
             key_1 = _u32(state_key >> T.uint64(32))
             output_state[0] = state_key
             output_state[1] = state_counter + T.uint64(num_blocks)
-            out_flat = T.decl_tensor((total,), out_dtype, data=output.data)
+            out_flat = T.decl_tensor((total,), out_dtype, data=output.data_ptr())
             ctr = T.decl_tensor((4,), "uint32", scope="local")
             keys = T.decl_tensor((2,), "uint32", scope="local")
             high_ctr = T.decl_tensor((2,), "uint32", scope="local")

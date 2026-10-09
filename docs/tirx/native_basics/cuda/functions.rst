@@ -169,7 +169,7 @@ trailing ``1, 1`` are the grid/block launch dims):
     @Tx.function  # host
     def main(A: Tx.Tensor((n,)), B: Tx.Tensor((n,))):
 
-        Tx.call_packed("scale_dyn_kernel", A.data, B.data, n, 1, 1)  # n forwarded
+        Tx.call_packed("scale_dyn_kernel", A.data_ptr(), B.data_ptr(), n, 1, 1)  # n forwarded
 
 ``MakePackedAPI`` then fills in where ``n`` comes from — reading it from the
 argument's shape (essentially ``n = a.shape[0]``) — and adds the dtype / shape /

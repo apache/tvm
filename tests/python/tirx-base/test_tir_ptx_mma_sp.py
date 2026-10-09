@@ -69,9 +69,9 @@ def mma_sp_m16n8k16_f16f16f16(
 
     meta_local[0] = metadata[tx // 4]
 
-    a_words = T.decl_tensor([2], "uint32", data=multi_a.data, scope="local")
-    b_words = T.decl_tensor([2], "uint32", data=multi_b.data, scope="local")
-    acc_words = T.decl_tensor([2], "uint32", data=accum.data, scope="local")
+    a_words = T.decl_tensor([2], "uint32", data=multi_a.data_ptr(), scope="local")
+    b_words = T.decl_tensor([2], "uint32", data=multi_b.data_ptr(), scope="local")
+    acc_words = T.decl_tensor([2], "uint32", data=accum.data_ptr(), scope="local")
     T.ptx.mma.sp.sync.aligned.m16n8k16.row.col.f16.f16.f16.f16(
         acc_words[0],
         acc_words[1],
@@ -116,8 +116,8 @@ def mma_sp_m16n8k16_f16f16f32(
 
     meta_local[0] = metadata[tx // 4]
 
-    a_words = T.decl_tensor([2], "uint32", data=multi_a.data, scope="local")
-    b_words = T.decl_tensor([2], "uint32", data=multi_b.data, scope="local")
+    a_words = T.decl_tensor([2], "uint32", data=multi_a.data_ptr(), scope="local")
+    b_words = T.decl_tensor([2], "uint32", data=multi_b.data_ptr(), scope="local")
     T.ptx.mma.sp.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32(
         accum[0],
         accum[1],
@@ -166,9 +166,9 @@ def mma_sp_m16n8k32_f16f16f16(
 
     meta_local[0] = metadata[tx // 4 * 2 + tx % 2]
 
-    a_words = T.decl_tensor([4], "uint32", data=multi_a.data, scope="local")
-    b_words = T.decl_tensor([4], "uint32", data=multi_b.data, scope="local")
-    acc_words = T.decl_tensor([2], "uint32", data=accum.data, scope="local")
+    a_words = T.decl_tensor([4], "uint32", data=multi_a.data_ptr(), scope="local")
+    b_words = T.decl_tensor([4], "uint32", data=multi_b.data_ptr(), scope="local")
+    acc_words = T.decl_tensor([2], "uint32", data=accum.data_ptr(), scope="local")
     T.ptx.mma.sp.sync.aligned.m16n8k32.row.col.f16.f16.f16.f16(
         acc_words[0],
         acc_words[1],
@@ -217,8 +217,8 @@ def mma_sp_m16n8k32_f16f16f32(
 
     meta_local[0] = metadata[tx // 4 * 2 + tx % 2]
 
-    a_words = T.decl_tensor([4], "uint32", data=multi_a.data, scope="local")
-    b_words = T.decl_tensor([4], "uint32", data=multi_b.data, scope="local")
+    a_words = T.decl_tensor([4], "uint32", data=multi_a.data_ptr(), scope="local")
+    b_words = T.decl_tensor([4], "uint32", data=multi_b.data_ptr(), scope="local")
     T.ptx.mma.sp.sync.aligned.m16n8k32.row.col.f32.f16.f16.f32(
         accum[0],
         accum[1],

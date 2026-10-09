@@ -160,8 +160,8 @@ def test_decl_buffer_alias_chain_uses_flat_root_map():
     class Before:
         @T.function
         def main(A: T.Tensor((16,), "float32")):
-            A_view = T.decl_tensor((16,), "float32", data=A.data)
-            A_view_2 = T.decl_tensor((16,), "float32", data=A_view.data)
+            A_view = T.decl_tensor((16,), "float32", data=A.data_ptr())
+            A_view_2 = T.decl_tensor((16,), "float32", data=A_view.data_ptr())
             for i in range(4):
                 A_view_2[T.ramp(i * 4, 1, 4)] = T.broadcast(T.float32(1), 4)
 

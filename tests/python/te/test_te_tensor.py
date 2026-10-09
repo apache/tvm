@@ -177,7 +177,7 @@ def test_extern():
 
     def extern_func(ins, outs):
         assert tvm.tirx.is_tensor_var(ins[0])
-        return tvm.tirx.call_packed("myadd", ins[0].data, outs[0].data, m)
+        return tvm.tirx.call_packed("myadd", ins[0].data_ptr(), outs[0].data_ptr(), m)
 
     B = te.extern((m,), [A], extern_func)
     assert tuple(B.shape) == (m,)
@@ -190,7 +190,9 @@ def test_extern_multi_out():
 
     def extern_func(ins, outs):
         assert tvm.tirx.is_tensor_var(ins[0])
-        return tvm.tirx.call_packed("myadd", ins[0].data, outs[0].data, outs[1].data, m)
+        return tvm.tirx.call_packed(
+            "myadd", ins[0].data_ptr(), outs[0].data_ptr(), outs[1].data_ptr(), m
+        )
 
     res = te.extern([A.shape, A.shape], [A, B], extern_func)
     assert len(res) == 2

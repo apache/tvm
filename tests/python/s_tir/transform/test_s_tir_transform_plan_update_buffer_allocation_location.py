@@ -170,10 +170,10 @@ def opaque_access(A: T.Tensor([1024]), B: T.Tensor([1024])) -> None:
                 T.evaluate(
                     T.call_extern(
                         "test",
-                        A_cache.data,
+                        A_cache.data_ptr(),
                         (v * 128),
                         128,
-                        A.data,
+                        A.data_ptr(),
                         (v * 128),
                         128,
                         ty="float32",
@@ -201,7 +201,14 @@ def transformed_opaque_access(A: T.Tensor([1024]), B: T.Tensor([1024])) -> None:
                 Ts.writes([A_cache[v * 128 : v * 128 + 128]])
                 T.evaluate(
                     T.call_extern(
-                        "test", A_cache.data, v * 128, 128, A.data, v * 128, 128, ty="float32"
+                        "test",
+                        A_cache.data_ptr(),
+                        v * 128,
+                        128,
+                        A.data_ptr(),
+                        v * 128,
+                        128,
+                        ty="float32",
                     )
                 )
             for j in T.serial(0, 128):

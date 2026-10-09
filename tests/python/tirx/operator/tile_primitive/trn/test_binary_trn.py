@@ -178,9 +178,11 @@ def test_binary_complex(op_type, operands_type):
         A_sbuf = T.alloc_tensor(src1_layout_data_iter, scope="trn.sbuf")
         B_sbuf = T.alloc_tensor(src2_layout_data_iter, scope="trn.sbuf")
         C_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
-        A_sbuf_view = T.decl_tensor(src1_layout_data_iter, data=A_sbuf.data, scope="trn.sbuf", layout=None)  # noqa: E501
-        B_sbuf_view = T.decl_tensor(src2_layout_data_iter, data=B_sbuf.data, scope="trn.sbuf", layout=None)  # noqa: E501
-        C_sbuf_view = T.decl_tensor((128, 2048), data=C_sbuf.data, scope="trn.sbuf", layout=None)
+        A_sbuf_view = T.decl_tensor(src1_layout_data_iter, data=A_sbuf.data_ptr(), scope="trn.sbuf", layout=None)  # noqa: E501
+        B_sbuf_view = T.decl_tensor(src2_layout_data_iter, data=B_sbuf.data_ptr(), scope="trn.sbuf", layout=None)  # noqa: E501
+        C_sbuf_view = T.decl_tensor(
+            (128, 2048), data=C_sbuf.data_ptr(), scope="trn.sbuf", layout=None
+        )
         for i, b_loop in T.grid(4, b_extent):
             T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
