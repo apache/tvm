@@ -68,7 +68,7 @@ def _redecl(buf: Var, shape, layout, *, dtype=None, elem_offset=None, addr_offse
 
 
 def view(buf: Var, *args, **kwargs) -> Var:
-    """Implement :meth:`Var.view`."""
+    """Implement :meth:`TensorType.view`."""
 
     def _infer_shape(shape):
         shape = list(shape)
@@ -124,7 +124,7 @@ def view(buf: Var, *args, **kwargs) -> Var:
 
 
 def local(buf: Var, *shape, layout=None) -> Var:
-    """Implement :meth:`Var.local`."""
+    """Implement :meth:`TensorType.local`."""
     if not shape:
         if buf.layout is None:
             raise ValueError(
@@ -151,7 +151,7 @@ def local(buf: Var, *shape, layout=None) -> Var:
 
 
 def permute(buf: Var, *dims) -> Var:
-    """Implement :meth:`Var.permute`."""
+    """Implement :meth:`TensorType.permute`."""
     new_shape = [buf.shape[d] for d in dims]
     layout, swizzle = _surgery_parts(buf)
     grouped, seps = layout.group(list(buf.shape))
@@ -162,7 +162,7 @@ def permute(buf: Var, *dims) -> Var:
 
 
 def rearrange(buf: Var, pattern: str, /, **sizes) -> Var:
-    """Implement :meth:`Var.rearrange`."""
+    """Implement :meth:`TensorType.rearrange`."""
 
     def _groups(side):
         out = []
@@ -225,7 +225,7 @@ def sub(buf: Var) -> SubIndexer:
 
 
 def tile(buf: Var, *specs) -> TileIndexer:
-    """Implement :meth:`Var.tile`."""
+    """Implement :meth:`TensorType.tile`."""
     if specs and isinstance(specs[0], int | Integral):
         if len(specs) != 2:
             raise ValueError("tile(dim, factors) takes a dim and a factors tuple")
@@ -247,7 +247,7 @@ def tile(buf: Var, *specs) -> TileIndexer:
 
 
 def chunk(buf: Var, spec) -> ChunkIndexer:
-    """Implement :meth:`Var.chunk`."""
+    """Implement :meth:`TensorType.chunk`."""
     if not isinstance(spec, tuple | list):
         raise ValueError(f"chunk: spec must be a per-dim tuple, got {spec!r}")
     if len(spec) != len(buf.shape):
@@ -548,7 +548,7 @@ class SubIndexer:
 
 
 class ChunkIndexer:
-    """Indexer returned by :meth:`Var.chunk`."""
+    """Indexer returned by :meth:`TensorType.chunk`."""
 
     def __init__(self, buffer: Var, spec):
         self._buffer = buffer
@@ -576,7 +576,7 @@ class ChunkIndexer:
 
 
 class TileIndexer:
-    """Indexer returned by :meth:`Var.tile`."""
+    """Indexer returned by :meth:`TensorType.tile`."""
 
     def __init__(self, buffer: Var, specs):
         self._buffer = buffer

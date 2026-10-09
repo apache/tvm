@@ -97,10 +97,12 @@ high-level **type**: ``PrimType(dtype)`` for a scalar, or
 Pointers (``handle``)
 ---------------------
 
-A buffer's ``data`` — its pointer — is a ``Var`` of pointer type, and it is
-**immutable** (a pointer is never reassigned). That shapes how you obtain one:
+A tensor variable's ``data_ptr()`` projects its physical pointer as a ``Call``
+with pointer type. The tensor variable's storage binding is **immutable**.
+That shapes how you obtain a pointer:
 
-- ``Tx.alloc_tensor(...)`` allocates storage **and** defines its ``data`` pointer.
+- ``Tx.alloc_tensor(...)`` allocates storage and defines the tensor variable;
+  ``tensor.data_ptr()`` projects its pointer.
 - ``Tx.decl_tensor(..., data=ptr)`` declares a buffer over an existing pointer
   ``Var`` ``ptr``.
 - To back a buffer with a pointer **expression** — e.g. ``Tx.ptx.mapa`` giving

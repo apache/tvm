@@ -246,14 +246,14 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
     from tvm import ir, tirx
     from tvm.script.ir_builder import base
 
-    original = ir.Var.view
+    original = tirx.TensorType.view
     seen, produced, observed = [], [], []
     span = ir.Span(ir.SourceName("producer.py"), 7, 7, 2, 19)
 
     @wraps(original)
-    def view(buffer, *args):
+    def view(ty, buffer, *args):
         seen.append("view")
-        value = base.at_(span, original(buffer, *args))
+        value = base.at_(span, original(ty, buffer, *args))
         produced.append((value, value.name, value.span))
         return value
 
@@ -264,7 +264,7 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
     def observe(value):
         observed.append((value, value.span))
 
-    monkeypatch.setattr(ir.Var, "view", view)
+    monkeypatch.setattr(tirx.TensorType, "view", view)
 
     @T.function
     def main(A: T.Tensor((4, 4), "float32")):
