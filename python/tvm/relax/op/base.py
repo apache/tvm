@@ -245,14 +245,15 @@ _call_dps_packed = _make_op_api(Op.get("relax.call_dps_packed"), __name__)
 def call_dps_packed(func, args, *, ty_args, attrs=None, ty=None, span=None, **kwargs) -> Call:
     """Call a destination-passing packed function and allocate its outputs.
 
-    Use an ExternFunc to identify an external packed function. ``ty_args``
-    contains one output type, including a TupleType for multiple results.
-    Strings retain the shared StringImm conversion rather than changing
-    callee identity.
+    Python string callees become ExternFunc; explicit Expr callees retain
+    their identity. ``ty_args`` contains one output type, including a TupleType
+    for multiple results.
 
     The function must be pure apart from writing its designated outputs.
     Other effects may be removed, reordered or repeated by the compiler.
     """
+    if isinstance(func, str):
+        func = ExternFunc(func)
     return _call_dps_packed(
         func, _wrap_inline_arg_tuple(args), ty_args=ty_args, attrs=attrs, ty=ty, span=span, **kwargs
     )

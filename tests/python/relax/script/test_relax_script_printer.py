@@ -728,7 +728,7 @@ I.Call("relax.call_tir", [Module.tir_func, I.Tuple([a, x])], ty_args=[R.Tensor((
         """
 x = I.dynamic("x", dtype="int64")
 a: R.Tensor((1, x, 3), dtype="float32")
-R.call_dps_packed(R.ExternFunc("my_dps_func"), I.Tuple([a]), ty_args=[R.Tensor((1, x, 3), dtype="float32")])
+R.call_dps_packed("my_dps_func", I.Tuple([a]), ty_args=[R.Tensor((1, x, 3), dtype="float32")])
 """,
     )
 
@@ -1199,8 +1199,8 @@ from __future__ import annotations
 
 @R.function
 def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype="float32"):
-    y = R.call_dps_packed(R.ExternFunc("extern_func"), I.Tuple([x]), ty_args=[R.Tensor((128, 128), dtype="float32")])
-    z = R.call_dps_packed(R.ExternFunc("extern_func"), I.Tuple([y]), ty_args=[R.Tensor((128, 128), dtype="float32")])
+    y = R.call_dps_packed("extern_func", I.Tuple([x]), ty_args=[R.Tensor((128, 128), dtype="float32")])
+    z = R.call_dps_packed("extern_func", I.Tuple([y]), ty_args=[R.Tensor((128, 128), dtype="float32")])
     return z
 """,
     )

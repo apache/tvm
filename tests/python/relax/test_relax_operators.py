@@ -456,9 +456,9 @@ def test_call_tir_canonical_roundtrip(name, tuple_result, result_kind, namespace
 
 
 @pytest.mark.parametrize("tuple_size", [None, 0, 1, 2])
-@pytest.mark.parametrize("external", [False, True])
+@pytest.mark.parametrize("callee_kind", ["string", "extern", "string_imm", "var"])
 @pytest.mark.parametrize("result_kind", ["inferred", "missing", "explicit"])
-def test_call_dps_packed_canonical_roundtrip(tuple_size, external, result_kind):
+def test_call_dps_packed_canonical_roundtrip(tuple_size, callee_kind, result_kind):
     tensor_type = R.Tensor((3,), "float32")
     output_type = (
         tensor_type if tuple_size is None else tvm.ir.TupleType([tensor_type] * tuple_size)
@@ -466,22 +466,64 @@ def test_call_dps_packed_canonical_roundtrip(tuple_size, external, result_kind):
     result_type = {
         "inferred": None,
         "missing": tvm.ir.Type.missing(),
-        "explicit": output_type,
+        "explicit": R.Tensor((3,), "float64"),
     }[result_kind]
-    callee = relax.ExternFunc("packed") if external else "packed"
+    callee = {
+        "string": "packed",
+        "extern": relax.ExternFunc("packed"),
+        "string_imm": tvm.ir.StringImm("packed"),
+        "var": relax.Var("callee", R.Object()),
+    }[callee_kind]
+    expected_callee = relax.ExternFunc("packed") if callee_kind == "string" else callee
     x = relax.Var("x", tensor_type)
     span = tvm.ir.Span(tvm.ir.SourceName("packed_call"), 1, 2, 3, 4)
     call = relax.op.call_dps_packed(callee, (x,), ty_args=[output_type], ty=result_type, span=span)
     expected = tvm.ir.Call(
-        "relax.call_dps_packed", [callee, (x,)], ty_args=[output_type], ty=result_type, span=span
+        "relax.call_dps_packed",
+        [expected_callee, (x,)],
+        ty_args=[output_type],
+        ty=result_type,
+        span=span,
     )
     tvm.ir.assert_structural_equal(call, expected)
     assert call.span.same_as(span)
-    assert isinstance(call.args[0], relax.ExternFunc if external else tvm.ir.StringImm)
+    if callee_kind != "string":
+        assert call.args[0].same_as(callee)
+    else:
+        assert isinstance(call.args[0], relax.ExternFunc)
     tvm.ir.assert_structural_equal(call.ty, output_type if result_type is None else result_type)
     printed = call.script()
     assert printed.startswith("R.call_dps_packed(")
-    reconstructed = eval(printed, {"I": I, "R": R, "T": T, "x": x})
+    if callee_kind in ("string", "extern"):
+        assert printed.startswith('R.call_dps_packed("packed",')
+    reconstructed = eval(printed, {"I": I, "R": R, "T": T, "x": x, "callee": callee})
+    tvm.ir.assert_structural_equal(call, reconstructed)
+
+
+@pytest.mark.parametrize("exception", ["attrs", "typed_callee", "tuple_var"])
+def test_call_dps_packed_raw_roundtrip(exception):
+    tensor_type = R.Tensor((3,), "float32")
+    x = relax.Var("x", tensor_type)
+    callee = relax.ExternFunc("packed")
+    args = (x,)
+    attrs = None
+    if exception == "attrs":
+        attrs = tvm.ir.make_node("ir.DictAttrs", label="preserved")
+    elif exception == "typed_callee":
+        callee = relax.ExternFunc("packed", ty=relax.FuncType([tensor_type], tensor_type))
+    else:
+        args = relax.Var("args", tvm.ir.TupleType([tensor_type]))
+    span = tvm.ir.Span(tvm.ir.SourceName("packed_raw"), 1, 2, 3, 4)
+    call = R.call_dps_packed(
+        callee, args, ty_args=[tensor_type], attrs=attrs, ty=tvm.ir.Type.missing(), span=span
+    )
+    assert call.args[0].same_as(callee)
+    assert call.span.same_as(span)
+    if attrs is not None:
+        assert call.attrs.same_as(attrs)
+    printed = call.script()
+    assert printed.startswith('I.Call("relax.call_dps_packed",')
+    reconstructed = eval(printed, {"I": I, "R": R, "T": T, "x": x, "args": args})
     tvm.ir.assert_structural_equal(call, reconstructed)
 
 
