@@ -21,7 +21,7 @@
  * \file vectorize_loop.cc
  */
 // Loop vectorizer as in Halide pipeline.
-#include <tvm/backend/opencl/op.h>
+#include <tvm/backend/opencl/op/memory.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_mutate.h>

@@ -38,7 +38,7 @@ from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import S, TileLayout
 from tvm.tirx.op.tile import CopyAsync
 from tvm.tirx.operator.tile_primitive.dispatcher import DispatchFail
-from tvm.tirx.tile_primitive import DispatchContext
+from tvm.tirx.tile_dispatch import DispatchContext
 
 
 def _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout):

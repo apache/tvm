@@ -22,7 +22,7 @@
  * \brief Deduplicate identical cuTensorMap objects created by TIRx schedules.
  */
 
-#include <tvm/backend/cuda/op.h>
+#include <tvm/backend/cuda/op/tensormap.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>

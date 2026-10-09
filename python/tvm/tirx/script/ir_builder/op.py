@@ -35,6 +35,7 @@ from tvm.ir.prim import _ffi_api as _prim_ffi_api
 from tvm.script.ir_builder import base as _base
 from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.ir_builder.frame import IRModuleFrame
+from tvm.script.ir_builder.stmt import _as_expr as _as_expr
 
 # pylint: disable=unused-import
 from tvm.target.codegen import llvm_lookup_intrinsic_id
@@ -585,18 +586,6 @@ ramp = Ramp
 
 
 fabs = _ir.op._make_op_api(_ir.Op.get("prim.fabs"), __name__)
-
-
-def _as_expr(value):
-    if isinstance(value, _ffi.ObjectConvertible):
-        value = value.asobject()
-    if isinstance(value, _ir.Expr):
-        return value
-    if isinstance(value, str):
-        return _ir.StringImm(value)
-    if isinstance(value, list | tuple):
-        return _ir.Tuple([_as_expr(item) for item in value])
-    return _tir.const(value)
 
 
 def logical_and(*values):

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include <tvm/backend/opencl/op.h>
+#include <tvm/backend/opencl/op/memory.h>
 #include <tvm/tirx/op_attr_types.h>
 
 namespace tvm {
@@ -31,16 +31,6 @@ const Op& texture2d_store_op() {
   return op;
 }
 
-const Op& texture2d_load_op() {
-  static const Op op = Op::Get("tirx.opencl.texture2d_load");
-  return op;
-}
-
-const Op& nd_mem_alloc_with_scope_op() {
-  static const Op op = Op::Get("tirx.opencl.nd_mem_alloc_with_scope");
-  return op;
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.opencl.texture2d_store")
       .signature(sig::arg("texture", "The texture."), sig::arg<IntExpr>("x", "The input value."),
@@ -51,7 +41,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TVectorizable>("TVectorizable", true)
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+}
 
+const Op& texture2d_load_op() {
+  static const Op op = Op::Get("tirx.opencl.texture2d_load");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.opencl.texture2d_load")
       .signature(sig::arg("texture", "The texture."), sig::arg<IntExpr>("x", "The input value."),
                  sig::arg<IntExpr>("y", "The second input value."),
@@ -61,7 +58,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TVectorizable>("TVectorizable", true)
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+}
 
+const Op& nd_mem_alloc_with_scope_op() {
+  static const Op op = Op::Get("tirx.opencl.nd_mem_alloc_with_scope");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.opencl.nd_mem_alloc_with_scope")
       .signature(sig::arg("storage_scope", "The storage scope."),
                  sig::arg<IntExpr>("ndim", "The number of dimensions."),

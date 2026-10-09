@@ -35,7 +35,7 @@ from tvm.tirx.op.tile import (
 )
 from tvm.tirx.operator.tile_primitive.registry import f_op_dispatcher
 from tvm.tirx.stmt import TileOpCall
-from tvm.tirx.tile_primitive import DispatchContext
+from tvm.tirx.tile_dispatch import DispatchContext
 
 
 def _scalar_dtype(scalar) -> str:
