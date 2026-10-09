@@ -23,8 +23,8 @@ import tvm_ffi
 
 import tvm
 from tvm import tirx
-from tvm.ir.transform import PassContext
 from tvm.script import tirx as T
+from tvm.transform import PassContext
 
 
 def build_tir_func(func):

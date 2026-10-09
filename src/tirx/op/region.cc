@@ -29,6 +29,8 @@
 namespace tvm {
 namespace tirx {
 
+static ffi::Array<Var> RegionNoBodyParams(const CallNode*) { return {}; }
+
 ffi::Array<Var> LaunchThreadBodyParams(const CallNode* call) {
   auto tag = call->args[0].as_or_throw<StringImm>();
   PrimType dtype = call->args[1].as_or_throw<IntExpr>().ty();

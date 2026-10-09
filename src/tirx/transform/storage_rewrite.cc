@@ -2217,7 +2217,7 @@ Pass StorageRewrite() {
     if (!f->body.has_value()) return f;
     bool enable_reuse = true;
     bool reuse_require_exact_matched_dtype = false;
-    bool merge_static_smem = ctx->GetConfig<bool>("tirx.merge_static_smem", false).value();
+    bool merge_static_smem = ctx->GetConfig<bool>("tirx.merge_static_smem").value_or(false);
     if (merge_static_smem) {
       // When `merge_static_smem` is true, we will reuse and merge shared
       // memory in a dedicated pass `MergeSharedMemoryAllocations`.
@@ -2238,7 +2238,7 @@ Pass StorageRewrite() {
     // Parameters may not be rewritten, but internal allocations may.
     return PointerValueTypeRewrite(std::move(f), true, false, false, true, true, true, false);
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.StorageRewrite", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.StorageRewrite");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2251,7 +2251,7 @@ Pass PointerValueTypeRewrite() {
     if (!f->body.has_value()) return f;
     return PointerValueTypeRewrite(std::move(f));
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.PointerValueTypeRewrite", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.PointerValueTypeRewrite");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

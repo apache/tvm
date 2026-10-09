@@ -221,7 +221,7 @@ Pass RenormalizeSplitPattern() {
                   .ValueOrUnchanged(std::move(n->body));
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.RenormalizeSplitPattern", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.RenormalizeSplitPattern");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

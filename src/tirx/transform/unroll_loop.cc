@@ -77,7 +77,9 @@ class UnrollLoopConfig : public ffi::ObjectRef {
 
 TVM_FFI_STATIC_INIT_BLOCK() { UnrollLoopConfigNode::RegisterReflection(); }
 
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.UnrollLoop", UnrollLoopConfig);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<UnrollLoopConfig>("tirx.UnrollLoop");
+}
 
 class VarLocalAccessMarker : public StmtExprVisitor {
  public:
@@ -337,14 +339,11 @@ Pass UnrollLoop() {
   auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
-    auto cfg = ctx->GetConfig<UnrollLoopConfig>("tirx.UnrollLoop");
-    if (!cfg.has_value()) {
-      cfg = tvm::transform::PassConfigWithDefaults<UnrollLoopConfig>();
-    }
-    n->body = UnrollLoop(std::move(f->body).value(), cfg.value());
+    auto cfg = ctx->GetConfigOrDefault<UnrollLoopConfig>("tirx.UnrollLoop");
+    n->body = UnrollLoop(std::move(f->body).value(), cfg);
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.UnrollLoop", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.UnrollLoop");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

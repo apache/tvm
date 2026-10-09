@@ -32,20 +32,23 @@ namespace tirx {
 namespace transform {
 
 // Register build pipeline related options
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.noalias", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.disable_assert", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.disable_vectorize", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.enable_buffer_level_predication", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.disable_cse_tir", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.enable_debug", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.disable_storage_rewrite", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.is_entry_func", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.add_lower_pass", ffi::Array<ffi::Array<ffi::ObjectRef>>);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.debug_keep_trivial_loop", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.use_async_copy", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.merge_static_smem", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.vtcm_capacity", int64_t);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.enable_fast_math", bool);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.noalias");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.disable_assert");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.disable_vectorize");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.enable_buffer_level_predication");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.disable_cse_tir");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.enable_debug");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.disable_storage_rewrite");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.is_entry_func");
+  ::tvm::transform::PassContext::RegisterConfigOption<ffi::Array<ffi::Array<ffi::ObjectRef>>>(
+      "tirx.add_lower_pass");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.debug_keep_trivial_loop");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.use_async_copy");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.merge_static_smem");
+  ::tvm::transform::PassContext::RegisterConfigOption<int64_t>("tirx.vtcm_capacity");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.enable_fast_math");
+}
 
 /*!
  * \brief Function level pass that applies transformations to all
@@ -138,8 +141,8 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
 
 Pass CreateFunctionPass(
     std::function<ffi::Optional<Function>(Function, IRModule, PassContext)> pass_func,
-    int opt_level, ffi::String name, tvm::ffi::Array<ffi::String> required, bool traceable) {
-  PassInfo pass_info = PassInfo(opt_level, name, required, traceable);
+    int opt_level, ffi::String name) {
+  PassInfo pass_info = PassInfo(opt_level, name);
   return FunctionPass(std::move(pass_func), pass_info);
 }
 

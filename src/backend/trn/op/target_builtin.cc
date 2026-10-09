@@ -36,8 +36,10 @@ namespace tirx {
 namespace builtin {
 
 namespace {
+static ffi::Array<Var> RegionNoBodyParams(const CallNode*) { return {}; }
+
 void RegisterNKIIntrinsicAliases();
-}
+}  // namespace
 
 void RegisterTRNTargetBuiltins() {
   static bool registered = false;

@@ -51,13 +51,12 @@ using tvm::transform::Sequential;
  * \param pass_func The packed function that contains the optimization.
  * \param opt_level The optimization level of the function pass.
  * \param name The name of the function pass.
- * \param required The list of the passes that the function pass is dependent on.
  *
  * \return The created function pass.
  */
 TVM_DLL Pass CreateFunctionPass(
     std::function<ffi::Optional<Function>(Function, IRModule, PassContext)> pass_func,
-    int opt_level, ffi::String name, tvm::ffi::Array<ffi::String> required, bool traceable = false);
+    int opt_level, ffi::String name);
 
 /*!
  * \brief Lower vectorization loops.

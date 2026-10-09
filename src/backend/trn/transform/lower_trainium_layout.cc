@@ -321,7 +321,7 @@ Pass LowerTrainiumLayout() {
     n->params = std::move(params);
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.backend.trn.LowerTrainiumLayout", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.backend.trn.LowerTrainiumLayout");
 }
 
 void RegisterTRNTransforms() {
