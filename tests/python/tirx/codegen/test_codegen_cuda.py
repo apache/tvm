@@ -141,9 +141,9 @@ def test_vector_access_ptr_preserves_packed_offset(monkeypatch):
     buffer = tvm.tirx.decl_tensor((8,), "int4x4", name="A")
     data = tvm.tirx.Var("A_data", tvm.tirx.buffer_data_pointer_type(buffer))
     access_ptr = buffer.access_ptr(access_mask=3, offset=2, extent=4)
-    body = tvm.tirx.SeqStmt(
+    body = tvm.ir.SeqStmt(
         [
-            tvm.tirx.Bind(
+            tvm.ir.Bind(
                 buffer,
                 tvm.ir.Call(
                     "tirx.decl_tensor",
@@ -156,7 +156,7 @@ def test_vector_access_ptr_preserves_packed_offset(monkeypatch):
                     ty=buffer.ty,
                 ),
             ),
-            tvm.tirx.Evaluate(tvm.tirx.call_extern("void", "consume", access_ptr)),
+            tvm.ir.Evaluate(tvm.tirx.call_extern("void", "consume", access_ptr)),
         ]
     )
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"})

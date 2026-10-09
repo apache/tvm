@@ -446,8 +446,9 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
     if ((*updates)[idx].defined()) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/8);
     }
-    updates->Set(idx, TensorStore(buf_store->buffer, let_values[idx], buf_store->indices));
-    auto insert_result = buf2index->insert(std::make_pair(buf_store->buffer.get(), idx));
+    updates->Set(idx, TensorStore(buf_store->dest, buf_store->indices, let_values[idx]));
+    auto insert_result =
+        buf2index->insert(std::make_pair(buf_store->dest.as_or_throw<TensorVar>().get(), idx));
     if (!insert_result.second) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/9);
     }
@@ -471,7 +472,7 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<TensorStore>> GetInitValuesAndUpdates
       if (!init) {
         ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/1);
       }
-      auto insert_result = init_buffers.insert(init.value()->buffer.get());
+      auto insert_result = init_buffers.insert(init.value()->dest.as_or_throw<TensorVar>().get());
       if (!insert_result.second) {
         ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/2);
       }
@@ -487,7 +488,7 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<TensorStore>> GetInitValuesAndUpdates
   if (const auto* update =
           block->body->size() == 1 ? block->body->seq[0].as<TensorStoreNode>() : nullptr) {
     updates.push_back(ffi::GetRef<TensorStore>(update));
-    buf2index[update->buffer.get()] = 0;
+    buf2index[update->dest.as_or_throw<TensorVar>().get()] = 0;
   } else {
     ExtractReductionUpdates(self, block, block->body->seq, n_buffers, &updates, &buf2index);
   }
@@ -502,13 +503,13 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<TensorStore>> GetInitValuesAndUpdates
   // - Check all indices of the TensorStores are the same
   // - Check buffers written in the block init and the block body can match
   // - Check buffers do not duplicate
-  const ffi::Array<PrimExpr>& expected_shape = updates[0]->buffer->shape;
+  const ffi::Array<PrimExpr>& expected_shape = updates[0]->dest.as_or_throw<TensorVar>()->shape;
   const ffi::Array<PrimExpr>& expected_indices = updates[0]->indices;
   TVM_FFI_ICHECK_EQ(expected_shape.size(), expected_indices.size());
   int n_dim = expected_indices.size();
   sym::Analyzer ana;
   for (int i = 0; i < n_buffers; ++i) {
-    if (static_cast<int>(updates[i]->buffer->shape.size()) != n_dim) {
+    if (static_cast<int>(updates[i]->dest.as_or_throw<TensorVar>()->shape.size()) != n_dim) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/11);
     }
     if (static_cast<int>(inits[i]->indices.size()) != n_dim ||
@@ -516,7 +517,8 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<TensorStore>> GetInitValuesAndUpdates
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/12);
     }
     for (int d = 0; d < n_dim; ++d) {
-      if (!ana->CanProveEqual(updates[i]->buffer->shape[d], expected_shape[d])) {
+      if (!ana->CanProveEqual(updates[i]->dest.as_or_throw<TensorVar>()->shape[d],
+                              expected_shape[d])) {
         ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/11);
       }
       if (!ana->CanProveEqual(inits[i]->indices[d], expected_indices[d]) ||
@@ -525,12 +527,13 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<TensorStore>> GetInitValuesAndUpdates
       }
     }
 
-    auto it = buf2index.find(inits[i]->buffer.get());
+    auto it = buf2index.find(inits[i]->dest.as_or_throw<TensorVar>().get());
     if (it == buf2index.end()) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/10);
     }
     int idx = it->second;
-    TVM_FFI_ICHECK(updates[idx]->buffer.same_as(inits[i]->buffer));
+    TVM_FFI_ICHECK(updates[idx]->dest.as_or_throw<TensorVar>().same_as(
+        inits[i]->dest.as_or_throw<TensorVar>()));
     TVM_FFI_ICHECK(!init_values[idx].defined());
     init_values.Set(idx, inits[i]->value);
   }
@@ -593,7 +596,7 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
     }
     return ffi::WalkResult::Advance();
   };
-  auto visit_alloc = [&](const tirx::Bind& alloc) -> ffi::Expected<ffi::WalkResult> {
+  auto visit_alloc = [&](const tvm::Bind& alloc) -> ffi::Expected<ffi::WalkResult> {
     // Inline AllocTensor statements (e.g. `T.local_scalar(...)` expansions)
     // declare buffer-local scratch storage inside the block body; treat them
     // the same as block->alloc_buffers entries for the "write-without-signature"
@@ -606,12 +609,14 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
   };
   auto visit_store = [&](const TensorStore& store) -> ffi::Expected<ffi::WalkResult> {
     bool write_is_covered_by_match_buffer =
-        match_buffer_sources.count(store->buffer.get()) &&
-        buffer_written.count(match_buffer_sources.find(store->buffer.get())->second);
-    TVM_FFI_CHECK(buffer_written.count(store->buffer.get()) || write_is_covered_by_match_buffer ||
-                      buffer_allocated.count(store->buffer.get()),
+        match_buffer_sources.count(store->dest.as_or_throw<TensorVar>().get()) &&
+        buffer_written.count(
+            match_buffer_sources.find(store->dest.as_or_throw<TensorVar>().get())->second);
+    TVM_FFI_CHECK(buffer_written.count(store->dest.as_or_throw<TensorVar>().get()) ||
+                      write_is_covered_by_match_buffer ||
+                      buffer_allocated.count(store->dest.as_or_throw<TensorVar>().get()),
                   ValueError)
-        << "The buffer \"" << store->buffer
+        << "The buffer \"" << store->dest.as_or_throw<TensorVar>()
         << "\" is written in the block but is not in the block's signature nor is it covered "
            "by a match_buffer";
     for (const PrimExpr& index : store->indices) {
@@ -722,7 +727,8 @@ bool FromIdentityCombiner(const ffi::Array<PrimExpr>& identities,
   stored_values.reserve(n);
 
   for (int i = 0; i < n; ++i) {
-    buf_loads.push_back(MakeTensorLoad(combiners[i]->buffer, combiners[i]->indices));
+    buf_loads.push_back(
+        MakeTensorLoad(combiners[i]->dest.as_or_throw<TensorVar>(), combiners[i]->indices));
     stored_values.push_back(combiners[i]->value);
   }
 

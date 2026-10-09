@@ -66,12 +66,13 @@ class PurityChecker : TIRVisitorWithPath {
   void Dispatch_(const TensorStoreNode* op, ffi::reflection::AccessPath path) override {
     TIRVisitorWithPath::Dispatch_(op, path);
 
-    if (!internal_allocations_.count(op->buffer.var())) {
+    if (!internal_allocations_.count(op->dest.as_or_throw<TensorVar>().var())) {
       is_pure_ = false;
       if (assert_on_error_) {
-        TVM_FFI_THROW(AssertionError) << "Pure functions must not write to buffers, "
-                                      << ", but function contains store to " << op->buffer
-                                      << op->indices << " of value " << op->value;
+        TVM_FFI_THROW(AssertionError)
+            << "Pure functions must not write to buffers, "
+            << ", but function contains store to " << op->dest.as_or_throw<TensorVar>()
+            << op->indices << " of value " << op->value;
       }
     }
   }

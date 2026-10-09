@@ -129,7 +129,7 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
       ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(loop->body, f_substitute).as_or_throw<Stmt>();
   PrimExpr predicate = substitute_value < loop->extent;
   if (!analyzer->CanProve(predicate)) {
-    body = IfThenElse(predicate, body);
+    body = If(predicate, body);
   }
   body = For(new_loop_vars.back().as_or_throw<PrimVar>(), 0, vector_len, ForKind::kVectorized,
              std::move(body));
@@ -169,9 +169,9 @@ ffi::Array<PrimExpr> GetMapping(const Stmt& stmt, const ConstraintSet& constrain
   const TensorStoreNode* buf_store = TVM_TYPE_AS(body, TensorStoreNode);
   TensorRegion write_region = constraints.write_region;
   const ffi::Array<PrimExpr>& write_index = buf_store->indices;
-  TVM_FFI_ICHECK(
-      write_region->region.size() == write_index.size() &&
-      write_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(buf_store->buffer));
+  TVM_FFI_ICHECK(write_region->region.size() == write_index.size() &&
+                 write_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(
+                     buf_store->dest.as_or_throw<TensorVar>()));
   ffi::Array<PrimExpr> result;
   sym::Analyzer analyzer;
   for (int i = 0; i < static_cast<int>(write_region->region.size()); i++) {
@@ -238,7 +238,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   TensorLoad new_buf_load =
       MakeTensorLoad(read_region->source.as_or_throw<tvm::tirx::TensorVar>(), read_index);
   TensorStore new_buf_store = TensorStore(write_region->source.as_or_throw<tvm::tirx::TensorVar>(),
-                                          new_buf_load, write_index);
+                                          write_index, new_buf_load);
   Stmt ret = new_buf_store;
   // Step 3.3 construct loop body
   for (int i = static_cast<int>(new_loop_vars.size()) - 1; i >= 0; i--) {

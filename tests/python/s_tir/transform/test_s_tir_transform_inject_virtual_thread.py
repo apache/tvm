@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 
 def _is_buffer_binding(node, *op_names):
     return (
-        isinstance(node, tvm.tirx.Bind)
+        isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
         and isinstance(node.value.op, tvm.ir.Op)
         and node.value.op.name in op_names
@@ -139,11 +139,11 @@ def test_vthread_if_then_else():
 
     stmt = tvm.s_tir.transform.InjectVirtualThread()(Module)["main"]
 
-    # Find IfThenElse nodes
+    # Find If nodes
     if_nodes = []
 
     def find_ifs(node):
-        if isinstance(node, tvm.tirx.IfThenElse):
+        if isinstance(node, tvm.ir.If):
             if_nodes.append(node)
 
     tvm_ffi.structural_walk(stmt.body, find_ifs)

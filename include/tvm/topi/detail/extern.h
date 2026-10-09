@@ -80,7 +80,7 @@ inline ffi::Array<Tensor> make_extern(const ffi::Array<ffi::Array<PrimExpr>>& ou
   }
 
   auto body = fextern(input_placeholders, output_placeholders);
-  auto body_stmt = tvm::tirx::Evaluate(body);
+  auto body_stmt = tvm::Evaluate(body);
 
   auto op = ExternOp(name, tag, attrs, inputs, input_placeholders, output_placeholders, body_stmt);
 

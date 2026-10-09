@@ -189,6 +189,11 @@ ffi::Expected<void> ValidateDeclTensor(const CallNode* call) noexcept try {
   return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
+void ValidateBuiltinRegion(const RegionStmtNode* region) {
+  TVM_FFI_CHECK(region->result_vars.empty() && region->attrs->dict.empty(), ValueError)
+      << region->op->name << " expects no results or attributes";
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   CallFFIKernelAttr::RegisterReflection();
   ffi::reflection::GlobalDef().def("tirx.CallFFIKernelAttr",
@@ -424,7 +429,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                  static_cast<int64_t>(CallEffectKind::kControlJump));
 
   // tirx.gpu_thread_filter: escape hatch for non-canonical thread-set filter predicates
-  // used as an IfThenElse condition. (var, cond) -- ``var`` names the
+  // used as an If condition. (var, cond) -- ``var`` names the
   // active-set axis the compiler should collapse to a singleton if it cannot
   // statically analyze ``cond``. Canonical predicates (see
   // ``analysis/filter_canonical.h``) should appear bare in ``if`` conditions
@@ -873,27 +878,37 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature()
       .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
+      .set_attr<FRegionValidate>("FRegionValidate",
+                                 FRegionValidate::FromNative<&ValidateBuiltinRegion>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
 
   OpDef("tirx.launch_thread", "Bind a thread index within a body with a launch extent.")
       .signature(sig::arg<StringImm>("tag"), sig::arg<IntExpr>("extent"))
       .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
                                       FRegionGetBodyParams::FromNative<&LaunchThreadBodyParams>())
+      .set_attr<FRegionValidate>("FRegionValidate",
+                                 FRegionValidate::FromNative<&ValidateBuiltinRegion>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
   OpDef("tirx.device_context", "Supply the device type and ID within a region.")
       .signature(sig::arg<IntExpr>("device_type"), sig::arg<IntExpr>("device_id"))
       .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
+      .set_attr<FRegionValidate>("FRegionValidate",
+                                 FRegionValidate::FromNative<&ValidateBuiltinRegion>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
   OpDef("tirx.compute_scope", "Outline a named CPU compute region.")
       .signature(sig::arg<StringImm>("name"))
       .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
+      .set_attr<FRegionValidate>("FRegionValidate",
+                                 FRegionValidate::FromNative<&ValidateBuiltinRegion>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
   OpDef("tirx.parallel_launch", "Launch a CPU worker team around a region.")
       .signature()
       .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
+      .set_attr<FRegionValidate>("FRegionValidate",
+                                 FRegionValidate::FromNative<&ValidateBuiltinRegion>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
 }
 

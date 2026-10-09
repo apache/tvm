@@ -198,10 +198,10 @@ class ASTPrinter(ExprFunctor):
             body=self.visit_expr(op.body),
         )
 
-    def visit_if_(self, op: relax.If) -> str:
+    def visit_if_expr_(self, op: relax.IfExpr) -> str:
         return self.build_expr(
             op,
-            "If",
+            "IfExpr",
             cond=self.visit_expr(op.cond),
             true_branch=self.visit_expr(op.true_branch),
             false_branch=self.visit_expr(op.false_branch),

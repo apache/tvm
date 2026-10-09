@@ -716,7 +716,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const prim::ShuffleNode* op) {
 
 void CodeGenSPIRV::Dispatch_(const TensorStoreNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
-  Var buffer_var = op->buffer.var();
+  Var buffer_var = op->dest.as_or_throw<TensorVar>().var();
   PrimExpr prim_index = op->indices[0];
 
   auto it = storage_info_.find(buffer_var.get());
@@ -853,7 +853,7 @@ void CodeGenSPIRV::Dispatch_(const WhileNode* op) {
   builder_->StartLabel(merge_label);
 }
 
-void CodeGenSPIRV::Dispatch_(const IfThenElseNode* op) {
+void CodeGenSPIRV::Dispatch_(const IfNode* op) {
   spirv::Value cond = MakeValue(op->condition);
   spirv::Label then_label = builder_->NewLabel();
   spirv::Label merge_label = builder_->NewLabel();

@@ -706,8 +706,8 @@ ffi::Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
   if (extra_relax_scope.rank != runtime::StorageRank::kGlobal) {
     for (; p; p = p->parent) {
       if (const ForNode* loop = p->StmtAs<ForNode>()) {
-        if (loop->GetThreadBinding().has_value()) {
-          const ffi::String thread_tag = loop->GetThreadBinding().value();
+        if (tvm::tirx::GetThreadBinding(loop).has_value()) {
+          const ffi::String thread_tag = tvm::tirx::GetThreadBinding(loop).value();
           if (CanRelaxStorageUnderThread(extra_relax_scope,
                                          runtime::ThreadScope::Create(thread_tag))) {
             result.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
@@ -1395,7 +1395,7 @@ bool HasIfThenElse(const Stmt& stmt) {
     }
     return ffi::WalkResult::Advance();
   };
-  auto visit_branch = [](const IfThenElse&) -> ffi::Expected<ffi::WalkResult> {
+  auto visit_branch = [](const If&) -> ffi::Expected<ffi::WalkResult> {
     return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(true));
   };
   auto visit_select = [](const Select&) -> ffi::Expected<ffi::WalkResult> {
@@ -1753,7 +1753,7 @@ struct TensorIntrinDescInfo {
    */
   const SBlockRealizeNode* desc_block = nullptr;
   /*! \brief The loops of the description function, in the order from outer loops to inner ones. */
-  std::vector<const tirx::ForNode*> desc_loops;
+  std::vector<const ForNode*> desc_loops;
   /*! \brief The loop variables. */
   std::unordered_set<const tvm::VarNode*> desc_loop_vars;
 };
@@ -1804,11 +1804,11 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
   // Step 2. Collect loops from block_sref
   const tirx::StmtSRef& scope_sref = GetScopeRoot(self, block_sref, false);
   TVM_SREF_TO_SBLOCK(scope_sref);
-  std::vector<const tirx::ForNode*> block_loops;
+  std::vector<const ForNode*> block_loops;
   std::unordered_set<const tvm::VarNode*> block_loop_vars;
   {
     for (const tirx::StmtSRefNode* loop_sref = block_sref->parent;; loop_sref = loop_sref->parent) {
-      const auto* loop = loop_sref->StmtAs<tirx::ForNode>();
+      const auto* loop = loop_sref->StmtAs<ForNode>();
       if (loop == nullptr || loop->body->size() != 1) {
         break;
       }
@@ -1869,7 +1869,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
   for (int i_desc = n_desc_vars - 1; i_desc >= 0; --i_desc) {
     // Step 3.1. Find the corresponding loop of the i_desc-th block var of desc
     const PrimExpr& desc_bind = desc_block->iter_values[i_desc];
-    const tirx::ForNode* desc_loop = nullptr;
+    const ForNode* desc_loop = nullptr;
     IterVarType iter_type_desc = iter_types_desc[i_desc];
     for (int i = 0, n = desc_loops.size(); i < n; ++i) {
       // Check if desc_bind = loops[i]->loop_var + stuff-irrelevant-of-loop-vars
@@ -1902,7 +1902,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
     // Step 3.3. Find the corresponding loop of the target block
     for (int i = 0, n = block_loops.size(); i < n; ++i) {
       // Check if block_bind = block_loops[i]->loop_var + stuff-irrelevant-of-loop-vars
-      const tirx::ForNode* block_loop = block_loops[i];
+      const ForNode* block_loop = block_loops[i];
       const tirx::StmtSRef& block_loop_sref = self->stmt2ref[block_loop];
       // Skip i-th loop if it has already been mapped
       if (ret->loop_map.find(block_loop_sref) != ret->loop_map.end()) continue;
@@ -1933,13 +1933,13 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
         }
       }
 
-      ret->loop_map.Set(block_loop_sref, ffi::GetRef<tirx::For>(desc_loop));
+      ret->loop_map.Set(block_loop_sref, ffi::GetRef<For>(desc_loop));
       break;
     }
   }
 
   for (int i = 0, n = desc_loops.size(); i < n; ++i) {
-    ret->desc_loop_indexer.Set(ffi::GetRef<tirx::For>(desc_loops[i]), static_cast<int64_t>(i));
+    ret->desc_loop_indexer.Set(ffi::GetRef<For>(desc_loops[i]), static_cast<int64_t>(i));
   }
   if (!block_index_to_padding.empty()) {
     if (!allow_padding) {

@@ -123,13 +123,13 @@ def scanop(
                 base_idx = i * cumsum_axis_len * axis_mul_after + j
                 if exclusive:
                     T.tensor_store(
-                        out_buf, cast(identity_value, dtype), T.tensor_indices(out_buf, base_idx)
+                        out_buf, T.tensor_indices(out_buf, base_idx), cast(identity_value, dtype)
                     )
                 else:
                     T.tensor_store(
                         out_buf,
-                        maybe_cast(data_buf[T.tensor_indices(data_buf, base_idx)]),
                         T.tensor_indices(out_buf, base_idx),
+                        maybe_cast(data_buf[T.tensor_indices(data_buf, base_idx)]),
                     )
                 with T.serial(0, cumsum_axis_len - 1) as _k:
                     k = _k + 1
@@ -138,20 +138,20 @@ def scanop(
                     if exclusive:
                         T.tensor_store(
                             out_buf,
+                            T.tensor_indices(out_buf, cur_idx),
                             binop(
                                 out_buf[T.tensor_indices(out_buf, prev_idx)],
                                 maybe_cast(data_buf[T.tensor_indices(data_buf, prev_idx)]),
                             ),
-                            T.tensor_indices(out_buf, cur_idx),
                         )
                     else:
                         T.tensor_store(
                             out_buf,
+                            T.tensor_indices(out_buf, cur_idx),
                             binop(
                                 out_buf[T.tensor_indices(out_buf, prev_idx)],
                                 maybe_cast(data_buf[T.tensor_indices(data_buf, cur_idx)]),
                             ),
-                            T.tensor_indices(out_buf, cur_idx),
                         )
 
             return ib.get()

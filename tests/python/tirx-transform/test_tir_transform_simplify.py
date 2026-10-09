@@ -38,11 +38,11 @@ def test_stmt_simplify():
     # After simplification, Bind is kept (not inlined) but the if is eliminated
     # since i < 12 is always true for i in 0..10.
     # Body is SeqStmt(Bind(n_val, 10), For(i, ...))
-    stmts = body if isinstance(body, tvm.tirx.SeqStmt) else [body]
+    stmts = body if isinstance(body, tvm.ir.SeqStmt) else [body]
     # Find the For loop in the sequence
-    for_stmt = [s for s in stmts if isinstance(s, tvm.tirx.For)]
+    for_stmt = [s for s in stmts if isinstance(s, tvm.ir.For)]
     assert len(for_stmt) == 1, f"Expected one For loop, got {len(for_stmt)}"
-    assert isinstance(for_stmt[0].body[0], tvm.tirx.TensorStore)
+    assert isinstance(for_stmt[0].body[0], tvm.ir.TensorStore)
 
 
 def test_thread_extent_simplify():
@@ -60,14 +60,14 @@ def test_thread_extent_simplify():
     body = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
     # After simplification: Bind is kept but the if is eliminated
     # since tx + ty < 12 is always true for tx in 0..10 and ty = 0.
-    stmts = list(body) if isinstance(body, tvm.tirx.SeqStmt) else [body]
-    for_stmts = [s for s in stmts if isinstance(s, tvm.tirx.For)]
+    stmts = list(body) if isinstance(body, tvm.ir.SeqStmt) else [body]
+    for_stmts = [s for s in stmts if isinstance(s, tvm.ir.For)]
     assert len(for_stmts) >= 1, f"Expected For loop, got stmts: {[type(s).__name__ for s in stmts]}"
     # The outermost For is the tx loop
     tx_loop = for_stmts[0]
-    assert isinstance(tx_loop, tvm.tirx.For)  # tx loop
-    assert isinstance(tx_loop.body[0], tvm.tirx.For)  # ty loop
-    assert isinstance(tx_loop.body[0].body[0], tvm.tirx.TensorStore)  # The if was eliminated
+    assert isinstance(tx_loop, tvm.ir.For)  # tx loop
+    assert isinstance(tx_loop.body[0], tvm.ir.For)  # ty loop
+    assert isinstance(tx_loop.body[0].body[0], tvm.ir.TensorStore)  # The if was eliminated
 
 
 def test_if_likely():
@@ -84,12 +84,12 @@ def test_if_likely():
     mod = tvm.IRModule.from_expr(func)
     body = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
     # With flat semantics, skip DeclTensor/AllocTensor siblings to find the For
-    if isinstance(body, tvm.tirx.SeqStmt):
-        for_stmts = [s for s in body.seq if isinstance(s, tvm.tirx.For)]
+    if isinstance(body, tvm.ir.SeqStmt):
+        for_stmts = [s for s in body.seq if isinstance(s, tvm.ir.For)]
         body = for_stmts[0] if for_stmts else body
-    # Structure: For(tx) -> For(ty) -> IfThenElse
-    assert isinstance(body.body[0].body[0], tvm.tirx.IfThenElse)
-    assert not isinstance(body.body[0].body[0].then_case[0], tvm.tirx.IfThenElse)
+    # Structure: For(tx) -> For(ty) -> If
+    assert isinstance(body.body[0].body[0], tvm.ir.If)
+    assert not isinstance(body.body[0].body[0].then_case[0], tvm.ir.If)
 
 
 def test_loop_body_knows_dynamic_extent_is_positive():
@@ -165,7 +165,7 @@ def test_load_store_noop_after_simplify():
 
 
 def test_nested_condition():
-    """Nested IfThenElse with the same condition can be simplified.
+    """Nested If with the same condition can be simplified.
 
     Requires const_int_bound to narrow scope of i within the
     conditional, or for rewrite_simplify to recognize the literal
@@ -1316,15 +1316,17 @@ def test_mutable_branch_predicate_preserves_while_bound(else_branch, write_befor
 
     x = tirx.decl_tensor((1,), "int32", name="x")
     count = tirx.decl_tensor((1,), "int32", name="count")
-    loop = tirx.While(
+    loop = tvm.ir.While(
         T.And(x[0] < 8, count[0] == 0),
-        tirx.TensorStore(x, x[0] + 1, [0]),
+        tvm.ir.TensorStore(x, [0], x[0] + 1),
     )
-    body = tirx.SeqStmt([tirx.TensorStore(x, x[0] + 1, [0]), loop]) if write_before_loop else loop
+    body = (
+        tvm.ir.SeqStmt([tvm.ir.TensorStore(x, [0], x[0] + 1), loop]) if write_before_loop else loop
+    )
     branch = (
-        tirx.IfThenElse(T.int32(8) <= x[0], tirx.Evaluate(0), body)
+        tvm.ir.If(T.int32(8) <= x[0], tvm.ir.Evaluate(0), body)
         if else_branch
-        else tirx.IfThenElse(x[0] < 8, body, None)
+        else tvm.ir.If(x[0] < 8, body, None)
     )
     func = tirx.Function([x, count], branch)
     after = _apply_simplify(func)

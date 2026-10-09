@@ -33,22 +33,22 @@ def test_unroll_loop():
     mod = Module
     stmt = mod["main"].body[0]
 
-    assert isinstance(stmt, tvm.tirx.For)
+    assert isinstance(stmt, tvm.ir.For)
 
     with tvm.transform.PassContext(config={"tirx.UnrollLoop": {"auto_max_step": 16}}):
         ret = tvm.tirx.transform.UnrollLoop()(mod)["main"].body
-        assert not any(isinstance(stmt, tvm.tirx.For) for stmt in ret)
+        assert not any(isinstance(stmt, tvm.ir.For) for stmt in ret)
 
     with tvm.transform.PassContext(config={"tirx.UnrollLoop": {"auto_max_step": 15}}):
         ret = tvm.tirx.transform.UnrollLoop()(mod)["main"].body
-        assert isinstance(ret[0], tvm.tirx.For)
+        assert isinstance(ret[0], tvm.ir.For)
 
     with tvm.transform.PassContext(
         config={"tirx.UnrollLoop": {"auto_max_step": 16, "explicit_unroll": False}}
     ):
         ret = tvm.tirx.transform.UnrollLoop()(mod)["main"].body
-        assert isinstance(ret[0], tvm.tirx.For)
-        assert ret[0].kind == tvm.tirx.ForKind.UNROLLED
+        assert isinstance(ret[0], tvm.ir.For)
+        assert ret[0].kind == tvm.ir.ForKind.UNROLLED
 
     @I.ir_module
     class ModuleWithPolicy:
@@ -65,10 +65,10 @@ def test_unroll_loop():
         config={"tirx.UnrollLoop": {"auto_max_depth": 8, "explicit_unroll": False}}
     ):
         ret = tvm.tirx.transform.UnrollLoop()(ModuleWithPolicy)["main"].body
-        assert isinstance(ret[0], tvm.tirx.For)
-        assert ret[0].kind == tvm.tirx.ForKind.UNROLLED
-        assert isinstance(ret[1], tvm.tirx.For)
-        assert ret[1].kind != tvm.tirx.ForKind.UNROLLED
+        assert isinstance(ret[0], tvm.ir.For)
+        assert ret[0].kind == tvm.ir.ForKind.UNROLLED
+        assert isinstance(ret[1], tvm.ir.For)
+        assert ret[1].kind != tvm.ir.ForKind.UNROLLED
 
 
 def test_unroll_fake_loop():
@@ -87,7 +87,7 @@ def test_unroll_fake_loop():
         }
     ):
         ret = tvm.tirx.transform.UnrollLoop()(Module)["main"].body
-        assert isinstance(ret[0], tvm.tirx.TensorStore)
+        assert isinstance(ret[0], tvm.ir.TensorStore)
 
 
 def test_unroll_allocations():

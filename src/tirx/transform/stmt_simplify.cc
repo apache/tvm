@@ -194,7 +194,7 @@ UnchangedOr<Stmt> StmtSimplifier::Mutate_(const BindNode* op, InplaceMode inplac
   }
 }
 
-UnchangedOr<Stmt> StmtSimplifier::Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> StmtSimplifier::Mutate_(const IfNode* op, InplaceMode inplace_mode) {
   if (ffi::Optional<bool> cond = ProveCondition(op->condition)) {
     if (cond.value()) {
       return this->Mutate(op->then_case, inplace_mode).ValueOrUnchanged(op->then_case);
@@ -215,10 +215,12 @@ UnchangedOr<Stmt> StmtSimplifier::Mutate_(const TensorStoreNode* op, InplaceMode
                           .as_or_throw<TensorStore>();
   if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
     TensorVar buffer = load->source.as_or_throw<tvm::tirx::TensorVar>();
-    if (buffer.same_as(store->buffer) && ArrayDeepEqual(load->indices, store->indices) &&
-        prim::ExprDeepEqual()(buffer->elem_offset, store->buffer->elem_offset) &&
-        ArrayDeepEqual(buffer->shape, store->buffer->shape) &&
-        ArrayDeepEqual(buffer->strides, store->buffer->strides)) {
+    if (buffer.same_as(store->dest.as_or_throw<TensorVar>()) &&
+        ArrayDeepEqual(load->indices, store->indices) &&
+        prim::ExprDeepEqual()(buffer->elem_offset,
+                              store->dest.as_or_throw<TensorVar>()->elem_offset) &&
+        ArrayDeepEqual(buffer->shape, store->dest.as_or_throw<TensorVar>()->shape) &&
+        ArrayDeepEqual(buffer->strides, store->dest.as_or_throw<TensorVar>()->strides)) {
       return Evaluate(0);
     }
   }

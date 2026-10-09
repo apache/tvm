@@ -153,7 +153,7 @@ def test_undefined_buffer():
 
     def _get_tensor_store_buffer(f):
         # SeqStmt: [AllocTensor, Evaluate, For]; For body has the TensorStore
-        return f.body.seq[2].body[0].buffer
+        return f.body.seq[2].body[0].dest
 
     _check_buffer_decl(_get_tensor_store_buffer(f1), _get_tensor_store_buffer(f2))
 
@@ -191,7 +191,7 @@ def test_buffer_params():
 def test_compound_buffer_param_shape_var():
     n = tvm.tirx.Var("n", "int32")
     A = tvm.tirx.decl_tensor((tvm.tirx.max(n, 1),), layout=None)
-    f1 = tvm.tirx.Function([A], tvm.tirx.Evaluate(n))
+    f1 = tvm.tirx.Function([A], tvm.ir.Evaluate(n))
     f2 = tvm.tirx.renew_def(f1)
 
     tvm.ir.assert_structural_equal(f1, f2)

@@ -71,16 +71,16 @@ def binary_search(y, num_boxes, scores, score_threshold, out):
     hi_buf = T.decl_tensor([1], "int32", scope="local")
     lo = lo_buf
     hi = hi_buf
-    T.tensor_store(lo, T.int32(0), T.tensor_indices(lo, 0))
-    T.tensor_store(hi, tvm.tirx.Cast("int32", num_boxes), T.tensor_indices(hi, 0))
+    T.tensor_store(lo, T.tensor_indices(lo, 0), T.int32(0))
+    T.tensor_store(hi, T.tensor_indices(hi, 0), tvm.tirx.Cast("int32", num_boxes))
     with T.while_(lo[T.tensor_indices(lo, 0)] < hi[T.tensor_indices(hi, 0)]):
         mid = (hi[T.tensor_indices(hi, 0)] + lo[T.tensor_indices(lo, 0)]) >> 1
         with T.if_(scores[y, mid] > score_threshold):
             with T.then_():
-                T.tensor_store(lo, mid + 1, T.tensor_indices(lo, 0))
+                T.tensor_store(lo, T.tensor_indices(lo, 0), mid + 1)
             with T.else_():
-                T.tensor_store(hi, mid, T.tensor_indices(hi, 0))
-    T.tensor_store(out, lo[T.tensor_indices(lo, 0)], T.tensor_indices(out, y))
+                T.tensor_store(hi, T.tensor_indices(hi, 0), mid)
+    T.tensor_store(out, T.tensor_indices(out, y), lo[T.tensor_indices(lo, 0)])
 
 
 def _estimate_max_detections(batch_class, input_image_size=None):
@@ -340,14 +340,14 @@ def _all_class_nms_ir(
                 with T.then_():
                     T.tensor_store(
                         box_indices,
-                        sorted_indices[i, j],
                         (i, num_current_valid_box),
+                        sorted_indices[i, j],
                     )
                     if selected_scores is not None:
                         T.tensor_store(
                             selected_scores,
-                            sorted_scores[i, j],
                             (i, num_current_valid_box),
+                            sorted_scores[i, j],
                         )
 
         def on_new_invalidated_box(*_):

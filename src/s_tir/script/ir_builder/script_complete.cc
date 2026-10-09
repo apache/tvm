@@ -176,7 +176,7 @@ Function ScriptComplete(Function func, const ffi::Array<TensorVar>& root_allocat
     return func;
   } else {
     auto fptr = func.CopyOnWrite();
-    fptr->body = tvm::tirx::SeqStmt(res);
+    fptr->body = tvm::SeqStmt(res);
     return func;
   }
 }

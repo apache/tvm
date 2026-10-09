@@ -303,7 +303,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
-    auto replacement = VarRemapGet(op->buffer).as<TensorVar>();
+    auto replacement = VarRemapGet(op->dest.as_or_throw<TensorVar>()).as<TensorVar>();
     TensorStore store = StmtExprMutator::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                             .as_or_throw<TensorStore>();
@@ -312,7 +312,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
     }
     TensorVar new_buffer = replacement.value();
     auto* n = store.CopyOnWrite();
-    n->buffer = new_buffer;
+    n->dest = new_buffer;
     PrimExpr version =
         floormod((pipeline_loop_->loop_var - pipeline_loop_->min), new_buffer->shape[0]);
     n->indices.insert(n->indices.begin(), version);

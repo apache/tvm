@@ -2111,7 +2111,7 @@ def _selected_descriptor(main_map, candidate_maps):
             selected_expr,
         )
     selected = T.Var("selected_tensormap", "uint64")
-    return selected, tvm.tirx.Bind(selected, selected_expr), True
+    return selected, tvm.ir.Bind(selected, selected_expr), True
 
 
 def _emit_plan(
@@ -2215,7 +2215,7 @@ def _emit_plan(
         # fmt: on
 
     if selector_bind is not None:
-        body = tvm.tirx.SeqStmt([selector_bind, impl.body])
+        body = tvm.ir.SeqStmt([selector_bind, impl.body])
         impl = Function([], body, ret_type=None).with_attr("global_symbol", "impl")
     return impl
 

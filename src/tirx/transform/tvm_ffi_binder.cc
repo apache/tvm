@@ -634,7 +634,7 @@ void TVMFFIABIBuilder::DecodeAllParams() {
       if (IsConstInt(size)) {
         if (!IsZero(size)) decl_buffers_.push_back(alignment);
       } else {
-        decl_buffers_.push_back(IfThenElse(size != 0, alignment));
+        decl_buffers_.push_back(If(size != 0, alignment));
       }
     }
   }
@@ -688,7 +688,7 @@ void TVMFFIABIBuilder::BindCompactStrides(const TensorVar& buffer, const Var& st
                                StringImm(".strides on argument #"),
                                StringImm(std::to_string(param_index)), when_calling_imm_, sig_imm_,
                                StringImm("`,\n  expected to be compact array")}));
-    check = IfThenElse(prim::Not(v_strides_is_null), check);
+    check = If(prim::Not(v_strides_is_null), check);
     asserts_.emplace_back(SeqStmt({check}));
   }
 }

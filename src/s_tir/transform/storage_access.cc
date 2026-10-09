@@ -78,8 +78,8 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const TensorStoreNode
   TVM_FFI_ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
 
-  Var buf = ResolveBuffer(op->buffer.var());
-  StorageScope scope = StorageScope::Create(op->buffer.scope());
+  Var buf = ResolveBuffer(op->dest.as_or_throw<TensorVar>().var());
+  StorageScope scope = StorageScope::Create(op->dest.as_or_throw<TensorVar>().scope());
   if (Enabled(buf.get(), scope)) {
     AccessEntry e;
     e.threads = env_threads();
@@ -219,7 +219,7 @@ bool IsThreadInvariant(const PrimExpr& cond) {
   return false;
 }
 
-ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const IfThenElseNode* op) {
+ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const IfNode* op) {
   bool is_thread_invariant = IsThreadInvariant(op->condition);
   if (!is_thread_invariant) {
     ++condition_counter_;

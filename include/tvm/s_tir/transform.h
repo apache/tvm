@@ -62,7 +62,7 @@ TVM_DLL Pass CanonicalizeLoop();
 TVM_DLL Pass LowerCrossThreadReduction();
 
 /*!
- * \brief Lower block init stmt into IfThenElse stmts
+ * \brief Lower block init stmt into If stmts
  * \return The pass.
  */
 TVM_DLL Pass LowerInitBlock();
@@ -230,7 +230,7 @@ TVM_DLL Pass LoopPartition();
 TVM_DLL Pass InjectVirtualThread();
 
 /*!
- * \brief Hoist loop-invariant IfThenElse nodes to
+ * \brief Hoist loop-invariant If nodes to
  * outside the eligible loops.
  *
  * \param variant The variant of the pass.
@@ -242,7 +242,7 @@ TVM_DLL Pass HoistIfThenElse(tvm::ffi::String variant = "");
 /*!
  * \brief Hoist loop-invariant expressions to outside the eligible loops.
  *
- * Can hoist conditionals used in IfThenElse statements and
+ * Can hoist conditionals used in If statements and
  * expressions, bindings of variables in Let statements and
  * expressions, or boolean expressions, configurable to enable/disable
  * each hoistable type.

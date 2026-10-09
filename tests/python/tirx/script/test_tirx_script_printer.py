@@ -176,7 +176,7 @@ A[128, 128]
 def test_tensor_store():
     a = tirx.decl_tensor((128, 128), "float16", name="A")
     with IRBuilder() as ib:
-        TB.tensor_store(a, a[128, 128] + 1, [128, 128])
+        TB.tensor_store(a, [128, 128], a[128, 128] + 1)
     obj = ib.get()
     _assert_print(
         obj,
@@ -664,10 +664,10 @@ def nested_seqstmt():
     """Sequence construction flattens nested input and removes no-op statements."""
     func = tvm.tirx.Function(
         params=[],
-        body=tvm.tirx.SeqStmt(
+        body=tvm.ir.SeqStmt(
             [
-                tvm.tirx.SeqStmt([tvm.tirx.Evaluate(0), tvm.tirx.Evaluate(1)]),
-                tvm.tirx.Evaluate(2),
+                tvm.ir.SeqStmt([tvm.ir.Evaluate(0), tvm.ir.Evaluate(1)]),
+                tvm.ir.Evaluate(2),
             ]
         ),
     )
@@ -725,7 +725,7 @@ def _make_minimal_tirx_function():
 
 
 def test_printer_cuda_namespace_printf():
-    node = tir.Evaluate(cuda_op.cuda_printf("x=%d", tir.IntImm("int32", 1)))
+    node = tvm.ir.Evaluate(cuda_op.cuda_printf("x=%d", tir.IntImm("int32", 1)))
     _assert_namespace_print(node, 'T.cuda.printf("x=%d", 1)')
 
 
@@ -736,17 +736,19 @@ def _assert_namespace_print(obj, expected):
 
 
 def test_printer_cuda_cluster_sync():
-    node = tir.Evaluate(cuda_op.cuda_cluster_sync())
+    node = tvm.ir.Evaluate(cuda_op.cuda_cluster_sync())
     _assert_namespace_print(node, "T.cuda.cluster_sync()")
 
 
 def test_printer_cuda_namespace_mbarrier_wait():
-    node = tir.Evaluate(cuda_op.cuda_mbarrier_wait(tir.IntImm("int32", 0), tir.IntImm("int32", 0)))
+    node = tvm.ir.Evaluate(
+        cuda_op.cuda_mbarrier_wait(tir.IntImm("int32", 0), tir.IntImm("int32", 0))
+    )
     _assert_namespace_print(node, "T.cuda.mbarrier_wait(0, 0)")
 
 
 def test_printer_nvshmem_namespace():
-    node = tir.Evaluate(cuda_op.nvshmem_fence())
+    node = tvm.ir.Evaluate(cuda_op.nvshmem_fence())
     _assert_namespace_print(node, "T.nvshmem.fence()")
 
 

@@ -37,22 +37,23 @@ namespace {
 ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                        const ffi::Object* destination) {
   const auto* loop =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ForNode>(input);
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ForNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
-  bool use_thread_binding = loop->GetThreadBinding().has_value() && !loop->step.has_value();
+  bool use_thread_binding =
+      tvm::tirx::GetThreadBinding(loop).has_value() && !loop->step.has_value();
   ffi::String method;
   switch (loop->kind) {
-    case tirx::ForKind::kDefault:
+    case ForKind::kDefault:
       method = "serial";
       break;
-    case tirx::ForKind::kParallel:
+    case ForKind::kParallel:
       method = use_thread_binding ? "thread_binding" : "parallel";
       break;
-    case tirx::ForKind::kVectorized:
+    case ForKind::kVectorized:
       method = "vectorized";
       break;
-    case tirx::ForKind::kUnrolled:
+    case ForKind::kUnrolled:
       method = "unroll";
       break;
     default:
@@ -71,13 +72,13 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
   ffi::Array<ffi::String> keys;
   ffi::Array<ExprDoc> values;
   if (use_thread_binding) {
-    TVM_FFI_CHECK(loop->GetThreadBinding().has_value(), TypeError)
+    TVM_FFI_CHECK(tvm::tirx::GetThreadBinding(loop).has_value(), TypeError)
         << "printer thread-binding loop lacks thread tag";
     keys.push_back("thread");
-    values.push_back(LiteralDoc::Str(loop->GetThreadBinding().value(), std::nullopt));
+    values.push_back(LiteralDoc::Str(tvm::tirx::GetThreadBinding(loop).value(), std::nullopt));
   }
   bool unroll_option = false;
-  if (loop->kind == tirx::ForKind::kDefault && loop->annotations.size() == 1) {
+  if (loop->kind == ForKind::kDefault && loop->annotations.size() == 1) {
     const auto& [key, value] = *loop->annotations.begin();
     auto boolean = value.as<bool>();
     auto integer = value.as<int64_t>();
@@ -122,7 +123,7 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
       bounds = {end};
     }
     ExprDoc callee = NamespaceDoc("tirx")->Attr(method);
-    if (loop->kind == tirx::ForKind::kDefault && loop->annotations.empty()) {
+    if (loop->kind == ForKind::kDefault && loop->annotations.empty()) {
       callee = IdDoc("range");
       // range's step is positional. Retain even an explicit unit step because
       // it is part of the source For node, unlike an absent step.
@@ -141,8 +142,8 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::ForNode>().attr(kDocTranslate,
-                                                     FDocTranslate::FromNative<&ForDocTranslate>());
+  ffi::reflection::TypeAttrDef<ForNode>().attr(kDocTranslate,
+                                               FDocTranslate::FromNative<&ForDocTranslate>());
 }
 
 }  // namespace

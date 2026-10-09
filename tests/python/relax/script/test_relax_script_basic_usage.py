@@ -755,7 +755,7 @@ def test_if_branch():
     assert isinstance(y, relax.Var)
     assert y.name == "y"
 
-    assert isinstance(ite, relax.If)
+    assert isinstance(ite, relax.IfExpr)
     assert isinstance(ite.true_branch, relax.SeqExpr)
     assert isinstance(ite.false_branch, relax.SeqExpr)
 
@@ -1442,7 +1442,7 @@ def test_primitive_if_emits_fresh_result():
 
     outer_binding = func.body.blocks[0].bindings[0]
     assert isinstance(outer_binding, relax.VarBinding)
-    assert isinstance(outer_binding.value, relax.If)
+    assert isinstance(outer_binding.value, relax.IfExpr)
     assert isinstance(outer_binding.var.ty, tvm.ir.PrimType)
     assert not outer_binding.var.same_as(func.params[1])
     assert not outer_binding.var.same_as(func.params[2])

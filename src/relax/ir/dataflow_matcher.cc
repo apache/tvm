@@ -124,7 +124,7 @@ Expr DFPatternMatcher::UnwrapBindings(Expr expr, const ffi::Map<Var, Expr>& var2
     }
 
     // Unwrap SeqExpr with no bindings.  These can occur due to Relax
-    // IR constraints for the bodies of Function and If nodes.
+    // IR constraints for the bodies of Function and IfExpr nodes.
     if (auto seq = expr.as<SeqExprNode>()) {
       if (seq->blocks.empty()) {
         return seq->body;

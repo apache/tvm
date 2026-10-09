@@ -114,7 +114,7 @@ class _TMACounter:
     def visit_stmt(self, stmt):
         tvm_ffi.structural_visit(
             stmt,
-            [(tvm.tirx.For, self._visit_for), (tvm.tirx.Evaluate, self._visit_evaluate)],
+            [(tvm.ir.For, self._visit_for), (tvm.ir.Evaluate, self._visit_evaluate)],
         )
 
 

@@ -68,12 +68,12 @@ def _sort_init(shape, axis, keys_in, keys_out, values_out=None, value_init_func=
             with T.then_():
                 T.tensor_store(
                     keys_out,
-                    keys_in[T.tensor_indices(keys_in, idx)],
                     T.tensor_indices(keys_out, idx),
+                    keys_in[T.tensor_indices(keys_in, idx)],
                 )
                 if values_out is not None:
                     T.tensor_store(
-                        values_out, value_init_func(idx, tid), T.tensor_indices(values_out, idx)
+                        values_out, T.tensor_indices(values_out, idx), value_init_func(idx, tid)
                     )
 
     return axis_mul_before, axis_mul_after
@@ -126,20 +126,20 @@ def _odd_even_sort(
                 with T.then_():
                     T.tensor_store(
                         tmp_keys_swap,
+                        [tid + n],
                         keys[
                             T.tensor_indices(keys, (base_idx + (tid + n + start) * axis_mul_after))
                         ],
-                        [tid + n],
                     )
                     if values_swap is not None:
                         T.tensor_store(
                             tmp_values_swap,
+                            [tid + n],
                             values[
                                 T.tensor_indices(
                                     values, (base_idx + (tid + n + start) * axis_mul_after)
                                 )
                             ],
-                            [tid + n],
                         )
 
         T.evaluate(tvm.ir.Call("tirx.gpu_storage_sync", [tvm.ir.StringImm("shared")], ty="void"))
@@ -151,25 +151,25 @@ def _odd_even_sort(
             n = idxm(tid + k, 2)
             with T.if_(tid + n < current_sort_num - 1):
                 with T.then_():
-                    T.tensor_store(temp_cond1, tmp_keys_swap[tid + n], [0])
-                    T.tensor_store(temp_cond2, tmp_keys_swap[tid + n + 1], [0])
+                    T.tensor_store(temp_cond1, [0], tmp_keys_swap[tid + n])
+                    T.tensor_store(temp_cond2, [0], tmp_keys_swap[tid + n + 1])
                     if is_ascend:
                         cond = temp_cond1[0] > temp_cond2[0]
                     else:
                         cond = temp_cond1[0] < temp_cond2[0]
                     with T.if_(cond):
                         with T.then_():
-                            T.tensor_store(temp_keys, tmp_keys_swap[tid + n], [0])
-                            T.tensor_store(tmp_keys_swap, tmp_keys_swap[tid + n + 1], [tid + n])
-                            T.tensor_store(tmp_keys_swap, temp_keys[0], [tid + n + 1])
+                            T.tensor_store(temp_keys, [0], tmp_keys_swap[tid + n])
+                            T.tensor_store(tmp_keys_swap, [tid + n], tmp_keys_swap[tid + n + 1])
+                            T.tensor_store(tmp_keys_swap, [tid + n + 1], temp_keys[0])
                             if values_swap is not None:
-                                T.tensor_store(temp_values, tmp_values_swap[tid + n], [0])
+                                T.tensor_store(temp_values, [0], tmp_values_swap[tid + n])
                                 T.tensor_store(
                                     tmp_values_swap,
-                                    tmp_values_swap[tid + n + 1],
                                     [tid + n],
+                                    tmp_values_swap[tid + n + 1],
                                 )
-                                T.tensor_store(tmp_values_swap, temp_values[0], [tid + n + 1])
+                                T.tensor_store(tmp_values_swap, [tid + n + 1], temp_values[0])
             T.evaluate(
                 tvm.ir.Call("tirx.gpu_storage_sync", [tvm.ir.StringImm("shared")], ty="void")
             )
@@ -179,18 +179,18 @@ def _odd_even_sort(
             with T.if_(tid + n + start < size):
                 with T.then_():
                     out_idx = base_idx + (tid + n + start) * axis_mul_after
-                    T.tensor_store(keys, tmp_keys_swap[tid + n], T.tensor_indices(keys, out_idx))
+                    T.tensor_store(keys, T.tensor_indices(keys, out_idx), tmp_keys_swap[tid + n])
                     T.tensor_store(
-                        keys_swap, tmp_keys_swap[tid + n], T.tensor_indices(keys_swap, out_idx)
+                        keys_swap, T.tensor_indices(keys_swap, out_idx), tmp_keys_swap[tid + n]
                     )
                     if values_swap is not None:
                         T.tensor_store(
-                            values, tmp_values_swap[tid + n], T.tensor_indices(values, out_idx)
+                            values, T.tensor_indices(values, out_idx), tmp_values_swap[tid + n]
                         )
                         T.tensor_store(
                             values_swap,
-                            tmp_values_swap[tid + n],
                             T.tensor_indices(values_swap, out_idx),
+                            tmp_values_swap[tid + n],
                         )
 
 
@@ -253,20 +253,20 @@ def _sort_common(
         max_val = tvm.te.max(0, diag - bCount)
         min_val = tvm.te.min(diag, aCount)
         if is_webgpu:
-            T.tensor_store(first, cast(max_val, target_dtype), T.tensor_indices(first, 0))
-            T.tensor_store(last, cast(min_val, target_dtype), T.tensor_indices(last, 0))
+            T.tensor_store(first, T.tensor_indices(first, 0), cast(max_val, target_dtype))
+            T.tensor_store(last, T.tensor_indices(last, 0), cast(min_val, target_dtype))
         else:
-            T.tensor_store(first, max_val, T.tensor_indices(first, 0))
-            T.tensor_store(last, min_val, T.tensor_indices(last, 0))
+            T.tensor_store(first, T.tensor_indices(first, 0), max_val)
+            T.tensor_store(last, T.tensor_indices(last, 0), min_val)
         with T.while_(first[T.tensor_indices(first, 0)] < last[T.tensor_indices(last, 0)]):
             mid = (first[T.tensor_indices(first, 0)] + last[T.tensor_indices(last, 0)]) >> 1
             a = source[T.tensor_indices(source, (base_idx + (aStart + mid)))]
             b = source[T.tensor_indices(source, (base_idx + (bStart + diag - 1 - mid)))]
             with T.if_(compare(a, b)):
                 with T.then_():
-                    T.tensor_store(first, mid + 1, T.tensor_indices(first, 0))
+                    T.tensor_store(first, T.tensor_indices(first, 0), mid + 1)
                 with T.else_():
-                    T.tensor_store(last, mid, T.tensor_indices(last, 0))
+                    T.tensor_store(last, T.tensor_indices(last, 0), mid)
 
     def serial_merge(
         source,
@@ -289,11 +289,11 @@ def _sort_common(
         i_val = aStart + first[T.tensor_indices(first, 0)]
         j_val = bStart + diag - last[T.tensor_indices(last, 0)]
         if is_webgpu:
-            T.tensor_store(i_buf, cast(i_val, target_dtype), T.tensor_indices(i_buf, 0))
-            T.tensor_store(j_buf, cast(j_val, target_dtype), T.tensor_indices(j_buf, 0))
+            T.tensor_store(i_buf, T.tensor_indices(i_buf, 0), cast(i_val, target_dtype))
+            T.tensor_store(j_buf, T.tensor_indices(j_buf, 0), cast(j_val, target_dtype))
         else:
-            T.tensor_store(i_buf, i_val, T.tensor_indices(i_buf, 0))
-            T.tensor_store(j_buf, j_val, T.tensor_indices(j_buf, 0))
+            T.tensor_store(i_buf, T.tensor_indices(i_buf, 0), i_val)
+            T.tensor_store(j_buf, T.tensor_indices(j_buf, 0), j_val)
 
         with T.serial(0, tvm.te.min(aCount + bCount - diag, step_count)) as count:
             i_idx = base_idx + i_buf[T.tensor_indices(i_buf, 0)]
@@ -316,72 +316,72 @@ def _sort_common(
                         with T.then_():
                             T.tensor_store(
                                 dest,
-                                source[T.tensor_indices(source, i_idx)],
                                 T.tensor_indices(dest, k_idx),
+                                source[T.tensor_indices(source, i_idx)],
                             )
                             if values is not None:
                                 T.tensor_store(
                                     dest_idx,
-                                    source_idx[T.tensor_indices(source_idx, i_idx)],
                                     T.tensor_indices(dest_idx, k_idx),
+                                    source_idx[T.tensor_indices(source_idx, i_idx)],
                                 )
                             T.tensor_store(
                                 i_buf,
-                                i_buf[T.tensor_indices(i_buf, 0)] + 1,
                                 T.tensor_indices(i_buf, 0),
+                                i_buf[T.tensor_indices(i_buf, 0)] + 1,
                             )
                         with T.else_():
                             T.tensor_store(
                                 dest,
-                                source[T.tensor_indices(source, j_idx)],
                                 T.tensor_indices(dest, k_idx),
+                                source[T.tensor_indices(source, j_idx)],
                             )
                             if values is not None:
                                 T.tensor_store(
                                     dest_idx,
-                                    source_idx[T.tensor_indices(source_idx, j_idx)],
                                     T.tensor_indices(dest_idx, k_idx),
+                                    source_idx[T.tensor_indices(source_idx, j_idx)],
                                 )
                             T.tensor_store(
                                 j_buf,
-                                j_buf[T.tensor_indices(j_buf, 0)] + 1,
                                 T.tensor_indices(j_buf, 0),
+                                j_buf[T.tensor_indices(j_buf, 0)] + 1,
                             )
                 with T.else_():
                     with T.if_(i_buf[T.tensor_indices(i_buf, 0)] < aStart + aCount):
                         with T.then_():
                             T.tensor_store(
                                 dest,
-                                source[T.tensor_indices(source, i_idx)],
                                 T.tensor_indices(dest, k_idx),
+                                source[T.tensor_indices(source, i_idx)],
                             )
                             if values is not None:
                                 T.tensor_store(
                                     dest_idx,
-                                    source_idx[T.tensor_indices(source_idx, i_idx)],
                                     T.tensor_indices(dest_idx, k_idx),
+                                    source_idx[T.tensor_indices(source_idx, i_idx)],
                                 )
                             T.tensor_store(
                                 i_buf,
-                                i_buf[T.tensor_indices(i_buf, 0)] + 1,
                                 T.tensor_indices(i_buf, 0),
+                                i_buf[T.tensor_indices(i_buf, 0)] + 1,
                             )
                         with T.else_():
                             T.tensor_store(
                                 dest,
-                                source[T.tensor_indices(source, j_idx)],
                                 T.tensor_indices(dest, k_idx),
+                                source[T.tensor_indices(source, j_idx)],
                             )
                             if values is not None:
                                 T.tensor_store(
                                     dest_idx,
-                                    source_idx[T.tensor_indices(source_idx, j_idx)],
                                     T.tensor_indices(dest_idx, k_idx),
+                                    source_idx[T.tensor_indices(source_idx, j_idx)],
                                 )
                             T.tensor_store(
                                 j_buf,
-                                j_buf[T.tensor_indices(j_buf, 0)] + 1,
                                 T.tensor_indices(j_buf, 0),
+                                j_buf[T.tensor_indices(j_buf, 0)] + 1,
                             )
 
     def mergepath(
@@ -656,14 +656,14 @@ def _sort_common(
                     with T.then_():
                         T.tensor_store(
                             keys,
-                            keys_swap[T.tensor_indices(keys_swap, idx)],
                             T.tensor_indices(keys, idx),
+                            keys_swap[T.tensor_indices(keys_swap, idx)],
                         )
                         if values is not None:
                             T.tensor_store(
                                 values,
-                                values_swap[T.tensor_indices(values_swap, idx)],
                                 T.tensor_indices(values, idx),
+                                values_swap[T.tensor_indices(values_swap, idx)],
                             )
 
 
@@ -1233,6 +1233,7 @@ def searchsorted(sorted_sequence, values, right=False, out_dtype="int64"):
 
                         T.tensor_store(
                             indices_ptr,
+                            T.tensor_indices(indices_ptr, tid),
                             binary_search(
                                 sequence_offset,
                                 search_range,
@@ -1241,7 +1242,6 @@ def searchsorted(sorted_sequence, values, right=False, out_dtype="int64"):
                                 right,
                                 out_dtype,
                             ),
-                            T.tensor_indices(indices_ptr, tid),
                         )
 
             return ib.get()

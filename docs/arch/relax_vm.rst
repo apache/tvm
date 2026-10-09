@@ -104,7 +104,7 @@ each Relax expression and emits instructions through the ``ExecBuilder``:
 - Each binding in a ``SeqExpr`` generates one or more instructions; the result is stored in a
   new register.
 - Function calls (``R.call_tir``, ``R.call_packed``, operator calls) become ``Call`` instructions.
-- Conditional expressions (``relax.If``, written as Python ``if`` in TVMScript) become an ``If``
+- Conditional expressions (``relax.IfExpr``, written as Python ``if`` in TVMScript) become an ``If``
   instruction followed by ``Goto`` to skip branches.
 - The function body ends with a ``Ret`` instruction.
 

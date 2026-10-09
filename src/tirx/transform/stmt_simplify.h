@@ -72,7 +72,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override;
 
-  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode) override;
 
   // eliminate useless stores
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) override;

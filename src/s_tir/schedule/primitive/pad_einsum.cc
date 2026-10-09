@@ -184,10 +184,10 @@ struct BufferPadding {
           }
         }
         PrimExpr rhs = MakeTensorLoad(buffer, indices);
-        return TensorStore(padded_buffer,
-                           if_then_else(predicate, rhs, prim::MakeConst(rhs.ty(), 0)), indices);
+        return TensorStore(padded_buffer, indices,
+                           if_then_else(predicate, rhs, prim::MakeConst(rhs.ty(), 0)));
       } else {
-        return TensorStore(buffer, MakeTensorLoad(padded_buffer, indices), indices);
+        return TensorStore(buffer, indices, MakeTensorLoad(padded_buffer, indices));
       }
     }();
     TensorRegion read_region = BufferRegion(buffer, instance_dom);
@@ -359,8 +359,9 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     TensorStore store = StmtExprMutator::Mutate_(old_store_ptr, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(old_store_ptr))
                             .as_or_throw<TensorStore>();
-    if (ffi::Optional<TensorVar> buffer = VarRemapGet(store->buffer).as<TensorVar>()) {
-      return TensorStore(buffer.value(), store->value, store->indices);
+    if (ffi::Optional<TensorVar> buffer =
+            VarRemapGet(store->dest.as_or_throw<TensorVar>()).as<TensorVar>()) {
+      return TensorStore(buffer.value(), store->indices, store->value);
     } else {
       return store;
     }

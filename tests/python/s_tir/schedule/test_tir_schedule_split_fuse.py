@@ -686,7 +686,7 @@ def test_unsupported_target_scalable_split():
     sch = tvm.s_tir.Schedule(before)
     (a,) = sch.get_loops("A")
 
-    err_msg = "The product of factors is not larger than or equal to the extent of loop tirx.For#0"
+    err_msg = "The product of factors is not larger than or equal to the extent of loop ir.For#0"
     with pytest.raises(tvm.s_tir.schedule.ScheduleError, match=err_msg):
         sch.split(a, factors=[T.ceildiv(128, 4 * T.vscale()), 4 * T.vscale()])
 

@@ -495,17 +495,18 @@ class BlockAnalyzer : public s_tir::StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
 
-    BufferAccessInfo& access_info = buffer_access_info_[op->buffer];
+    BufferAccessInfo& access_info =
+        buffer_access_info_[op->dest.as_or_throw<tvm::tirx::TensorVar>()];
 
     // Fast path to ignore further analysis if we know that the buffer access is invalid.
     if (!access_info.IsValid()) return std::nullopt;
 
     // Only single write buffer is supported for each block.
-    if (!op->buffer.same_as(block_->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>())) {
+    if (!op->dest.same_as(block_->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>())) {
       access_info.Invalidate();
       LOG(WARNING) << "[LayoutInference] Exactly one write buffer is supported for layout "
                       "inference, found two: "
-                   << op->buffer << " and "
+                   << op->dest << " and "
                    << block_->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>();
       can_transform_block_ = false;
       return std::nullopt;

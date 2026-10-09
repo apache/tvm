@@ -93,7 +93,7 @@ using namespace tvm::prim;
  * - that is a function parameter,
  * - that is a function return value,
  * - one of whose use site is a BindingBlock different from its allocation site,
- * - that is used as a condition or branch return of a IfNode,
+ * - that is used as a condition or branch return of a IfExprNode,
  * - that is used as the body of a SeqExprNode,
  * - that is used as arguments in a Call whose op is not a tirx::Function.
  *
@@ -606,7 +606,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     }
   }
 
-  void VisitExpr_(const IfNode* if_node) final {
+  void VisitExpr_(const IfExprNode* if_node) final {
     Tokens cond_tokens = GetTokens(if_node->cond);
     Tokens then_tokens = GetTokens(if_node->true_branch);
     Tokens else_tokens = GetTokens(if_node->false_branch);

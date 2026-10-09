@@ -43,7 +43,7 @@ from .expr import (
     TupleGetItem,
     Function,
     ExternFunc,
-    If,
+    IfExpr,
     prim_value,
 )
 

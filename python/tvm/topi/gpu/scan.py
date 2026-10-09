@@ -95,8 +95,8 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                             if reduction is not None:
                                 T.tensor_store(
                                     reduction,
-                                    cast(identity_value, out_dtype),
                                     T.tensor_indices(reduction, bx),
+                                    cast(identity_value, out_dtype),
                                 )
             with T.else_():
                 nthread_tx = max_threads
@@ -117,11 +117,11 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                         with T.then_():
                             T.tensor_store(
                                 output,
+                                T.tensor_indices(output, batch * scan_axis_size + tid),
                                 cast(
                                     data[T.tensor_indices(data, batch * scan_axis_size + tid)],
                                     out_dtype,
                                 ),
-                                T.tensor_indices(output, batch * scan_axis_size + tid),
                             )
 
                 # The following algorithm performs parallel exclusive scan
@@ -146,25 +146,33 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                         start = start_buf
                         middle = middle_buf
                         end = end_buf
-                        T.tensor_store(start, width * tid, T.tensor_indices(start, 0))
+                        T.tensor_store(start, T.tensor_indices(start, 0), width * tid)
                         with T.if_(start[T.tensor_indices(start, 0)] < scan_axis_size):
                             with T.then_():
                                 T.tensor_store(
                                     middle,
-                                    start[T.tensor_indices(start, 0)] + tvm.tirx.indexdiv(width, 2),
                                     T.tensor_indices(middle, 0),
+                                    start[T.tensor_indices(start, 0)] + tvm.tirx.indexdiv(width, 2),
                                 )
                                 T.tensor_store(
                                     end,
+                                    T.tensor_indices(end, 0),
                                     tvm.te.min(
                                         start[T.tensor_indices(start, 0)] + width, scan_axis_size
                                     ),
-                                    T.tensor_indices(end, 0),
                                 )
                                 with T.if_(middle[T.tensor_indices(middle, 0)] < scan_axis_size):
                                     with T.then_():
                                         T.tensor_store(
                                             output,
+                                            T.tensor_indices(
+                                                output,
+                                                (
+                                                    batch * scan_axis_size
+                                                    + end[T.tensor_indices(end, 0)]
+                                                    - 1
+                                                ),
+                                            ),
                                             binop(
                                                 output[
                                                     T.tensor_indices(
@@ -187,14 +195,6 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                                                     )
                                                 ],
                                             ),
-                                            T.tensor_indices(
-                                                output,
-                                                (
-                                                    batch * scan_axis_size
-                                                    + end[T.tensor_indices(end, 0)]
-                                                    - 1
-                                                ),
-                                            ),
                                         )
 
                 # Down Sweep of exclusive scan
@@ -204,15 +204,15 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                             if reduction is not None:
                                 T.tensor_store(
                                     reduction,
+                                    T.tensor_indices(reduction, bx),
                                     output[
                                         T.tensor_indices(output, ((bx + 1) * scan_axis_size - 1))
                                     ],
-                                    T.tensor_indices(reduction, bx),
                                 )
                             T.tensor_store(
                                 output,
-                                cast(identity_value, out_dtype),
                                 T.tensor_indices(output, ((bx + 1) * scan_axis_size - 1)),
+                                cast(identity_value, out_dtype),
                             )
 
                 with T.serial(0, cast(lim, "int32")) as l2_width:
@@ -235,27 +235,28 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                         middle = middle_buf
                         end = end_buf
                         tmp = tmp_buf
-                        T.tensor_store(start, width * tid, T.tensor_indices(start, 0))
+                        T.tensor_store(start, T.tensor_indices(start, 0), width * tid)
                         with T.if_(
                             tvm.tirx.all(start[T.tensor_indices(start, 0)] < scan_axis_size)
                         ):
                             with T.then_():
                                 T.tensor_store(
                                     middle,
-                                    start[T.tensor_indices(start, 0)] + tvm.tirx.indexdiv(width, 2),
                                     T.tensor_indices(middle, 0),
+                                    start[T.tensor_indices(start, 0)] + tvm.tirx.indexdiv(width, 2),
                                 )
                                 T.tensor_store(
                                     end,
+                                    T.tensor_indices(end, 0),
                                     tvm.tirx.min(
                                         start[T.tensor_indices(start, 0)] + width, scan_axis_size
                                     ),
-                                    T.tensor_indices(end, 0),
                                 )
                                 with T.if_(middle[T.tensor_indices(middle, 0)] < scan_axis_size):
                                     with T.then_():
                                         T.tensor_store(
                                             tmp,
+                                            T.tensor_indices(tmp, 0),
                                             output[
                                                 T.tensor_indices(
                                                     output,
@@ -266,10 +267,17 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                                                     ),
                                                 )
                                             ],
-                                            T.tensor_indices(tmp, 0),
                                         )
                                         T.tensor_store(
                                             output,
+                                            T.tensor_indices(
+                                                output,
+                                                (
+                                                    batch * scan_axis_size
+                                                    + middle[T.tensor_indices(middle, 0)]
+                                                    - 1
+                                                ),
+                                            ),
                                             output[
                                                 T.tensor_indices(
                                                     output,
@@ -280,17 +288,17 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                                                     ),
                                                 )
                                             ],
+                                        )
+                                        T.tensor_store(
+                                            output,
                                             T.tensor_indices(
                                                 output,
                                                 (
                                                     batch * scan_axis_size
-                                                    + middle[T.tensor_indices(middle, 0)]
+                                                    + end[T.tensor_indices(end, 0)]
                                                     - 1
                                                 ),
                                             ),
-                                        )
-                                        T.tensor_store(
-                                            output,
                                             binop(
                                                 output[
                                                     T.tensor_indices(
@@ -303,14 +311,6 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                                                     )
                                                 ],
                                                 tmp[T.tensor_indices(tmp, 0)],
-                                            ),
-                                            T.tensor_indices(
-                                                output,
-                                                (
-                                                    batch * scan_axis_size
-                                                    + end[T.tensor_indices(end, 0)]
-                                                    - 1
-                                                ),
                                             ),
                                         )
 
@@ -370,6 +370,7 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=operator.add):
                             with T.then_():
                                 T.tensor_store(
                                     reduction,
+                                    T.tensor_indices(reduction, tid),
                                     binop(
                                         data_ex_scan[
                                             T.tensor_indices(
@@ -383,13 +384,12 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=operator.add):
                                             )
                                         ],
                                     ),
-                                    T.tensor_indices(reduction, tid),
                                 )
                             with T.else_():
                                 T.tensor_store(
                                     reduction,
-                                    cast(0, reduction_buf.dtype),
                                     T.tensor_indices(reduction, tid),
+                                    cast(0, reduction_buf.dtype),
                                 )
 
             return ib.get()

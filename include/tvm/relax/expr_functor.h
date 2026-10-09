@@ -159,7 +159,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const tvm::IntImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const tvm::FloatImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const SeqExprNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const IfNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const IfExprNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const OpNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const TupleGetItemNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const StringImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -248,7 +248,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     RELAX_EXPR_FUNCTOR_DISPATCH(tvm::IntImmNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(tvm::FloatImmNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(SeqExprNode);
-    RELAX_EXPR_FUNCTOR_DISPATCH(IfNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(IfExprNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(OpNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(TupleGetItemNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(StringImmNode);
@@ -283,7 +283,7 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
   void VisitExpr_(const tvm::IntImmNode* op) override;
   void VisitExpr_(const tvm::FloatImmNode* op) override;
   void VisitExpr_(const SeqExprNode* op) override;
-  void VisitExpr_(const IfNode* op) override;
+  void VisitExpr_(const IfExprNode* op) override;
   void VisitExpr_(const OpNode* op) override;
   void VisitExpr_(const TupleGetItemNode* op) override;
   void VisitExpr_(const StringImmNode* op) override;
@@ -339,7 +339,7 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
   virtual void VisitBinding_(const VarBindingNode* binding, const FunctionNode* val);
   virtual void VisitBinding_(const VarBindingNode* binding, const CallNode* val);
   virtual void VisitBinding_(const VarBindingNode* binding, const SeqExprNode* val);
-  virtual void VisitBinding_(const VarBindingNode* binding, const IfNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const IfExprNode* val);
   virtual void VisitBinding_(const VarBindingNode* binding, const OpNode* val);
   virtual void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val);
   virtual void VisitBinding_(const VarBindingNode* binding, const ExprNode* val);
@@ -443,7 +443,7 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
   Expr VisitExpr_(const tvm::IntImmNode* op) override;
   Expr VisitExpr_(const tvm::FloatImmNode* op) override;
   Expr VisitExpr_(const SeqExprNode* op) override;
-  Expr VisitExpr_(const IfNode* op) override;
+  Expr VisitExpr_(const IfExprNode* op) override;
   Expr VisitExpr_(const OpNode* op) override;
   Expr VisitExpr_(const TupleGetItemNode* op) override;
   Expr VisitExpr_(const StringImmNode* op) override;
@@ -572,7 +572,7 @@ class ExprMutator : public ExprMutatorBase {
   Expr VisitExpr_(const DataflowVarNode* op) override;
   Expr VisitExpr_(const FunctionNode* op) override;
   Expr VisitExpr_(const SeqExprNode* op) override;
-  Expr VisitExpr_(const IfNode* op) override;
+  Expr VisitExpr_(const IfExprNode* op) override;
 
   /*!
    * \brief Generic dispatcher for bindings.
@@ -594,7 +594,7 @@ class ExprMutator : public ExprMutatorBase {
   virtual void VisitBinding_(const VarBindingNode* binding, const FunctionNode* val);
   virtual void VisitBinding_(const VarBindingNode* binding, const CallNode* val);
   virtual void VisitBinding_(const VarBindingNode* binding, const SeqExprNode* val);
-  virtual void VisitBinding_(const VarBindingNode* binding, const IfNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const IfExprNode* val);
   virtual void VisitBinding_(const VarBindingNode* binding, const OpNode* val);
   virtual void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val);
   virtual void VisitBinding_(const VarBindingNode* binding, const ExprNode* val);
@@ -651,7 +651,7 @@ class ExprMutator : public ExprMutatorBase {
                          ffi::Optional<ffi::Array<Var>> params = std::nullopt);
 
   /*!
-   * \brief Rewrite the expr with a new scope, used in the branches of If.
+   * \brief Rewrite the expr with a new scope, used in the branches of IfExpr.
    *
    * Visit an expression that may access variables from the current
    * scope, but may not export definitions into the current scope.

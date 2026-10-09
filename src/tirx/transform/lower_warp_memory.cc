@@ -228,7 +228,7 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
-    if (op->buffer.get() != buffer_) {
+    if (op->dest.as_or_throw<TensorVar>().get() != buffer_) {
       return StmtExprVisitor::Visit_(op);
     }
 
@@ -481,7 +481,7 @@ class WarpAccessRewriter : public StmtExprMutator {
       n->indices = std::move(indices).ValueOrUnchanged(op->indices);
     }
 
-    if (store->buffer.get() == buffer_) {
+    if (store->dest.as_or_throw<TensorVar>().get() == buffer_) {
       TVM_FFI_ICHECK_EQ(store->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
                                                   << "Has FlattenBuffer been run?";
 
@@ -489,7 +489,7 @@ class WarpAccessRewriter : public StmtExprMutator {
       (void)group;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
 
       auto writer = store.CopyOnWrite();
-      writer->buffer = new_buffer_;
+      writer->dest = new_buffer_;
       writer->indices = {local_index};
     }
 

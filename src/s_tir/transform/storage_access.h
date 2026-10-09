@@ -88,7 +88,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final;
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final;
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final;
-  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const IfNode* op) final;
   ffi::Optional<VisitInterrupt> Visit_(const WhileNode* op) final;
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final;
 

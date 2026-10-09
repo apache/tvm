@@ -32,7 +32,7 @@ from tvm.script import tirx as T
 
 def _is_buffer_binding(node, *op_names):
     return (
-        isinstance(node, tvm.tirx.Bind)
+        isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
         and isinstance(node.value.op, tvm.ir.Op)
         and node.value.op.name in op_names
@@ -43,7 +43,7 @@ def _find_compute_scope(func):
     result = None
 
     def _visitor(stmt):
-        if isinstance(stmt, tirx.RegionStmt) and stmt.op.same_as(
+        if isinstance(stmt, tvm.ir.RegionStmt) and stmt.op.same_as(
             tvm.ir.Op.get("tirx.compute_scope")
         ):
             nonlocal result
@@ -234,7 +234,7 @@ def test_return_from_parallel_scope_is_rejected():
     """A parallel loop cannot return from its enclosing function."""
 
     i = tirx.Var("i", "int32")
-    body = tirx.For(i, 0, 1, tirx.ForKind.PARALLEL, tirx.Return(i))
+    body = tvm.ir.For(i, 0, 1, tvm.ir.ForKind.PARALLEL, tvm.ir.Return(i))
     func = tirx.Function([], body, tvm.ir.PrimType("int32"))
     func = func.with_attr("global_symbol", "main")
     func = func.with_attr("target", tvm.target.Target("llvm", host="llvm"))

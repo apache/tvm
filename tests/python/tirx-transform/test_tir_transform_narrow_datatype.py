@@ -34,11 +34,11 @@ def lower_func_body(func, target_bits):
     func = tvm.tirx.transform.NarrowDataType(target_bits)(mod)[gvar]
     body = func.body
     # With flat buffer semantics, navigate to the first For node
-    if isinstance(body, tvm.tirx.SeqStmt):
+    if isinstance(body, tvm.ir.SeqStmt):
         for stmt in body:
-            if isinstance(stmt, tvm.tirx.For):
+            if isinstance(stmt, tvm.ir.For):
                 return stmt
-    while hasattr(body, "body") and not isinstance(body, tvm.tirx.For):
+    while hasattr(body, "body") and not isinstance(body, tvm.ir.For):
         body = body.body[0]
     return body
 

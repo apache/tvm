@@ -29,6 +29,8 @@ from collections.abc import Sequence
 from functools import partial as _partial
 from typing import Any
 
+import tvm
+
 # isort: off
 # isort: on
 from tvm import ir as _ir
@@ -308,20 +310,20 @@ def decl_mutable_cell_(
 
 def set_mutable_cell_(
     target: _ir.TensorLoad | _ir.Var, value: Any, *, span: _Span = None
-) -> _base.AlreadyEmitted[_tir.Stmt]:
+) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.set_mutable_cell_`.
 
     Updates emit a scalar buffer store. Targets must denote scalar storage.
     """
     if isinstance(target, _ir.TensorLoad):
-        return _base.at_(span, tensor_store(target.source, value, list(target.indices)))
+        return _base.at_(span, tensor_store(target.source, list(target.indices), value))
     elif (
         _tir.is_tensor_var(target)
         and len(target.ty.shape) == 1
         and isinstance(target.ty.shape[0], _tir.IntImm)
         and target.ty.shape[0].value == 1
     ):
-        return _base.at_(span, tensor_store(target, value, [0]))
+        return _base.at_(span, tensor_store(target, [0], value))
     else:
         raise TypeError("A mutable assignment requires scalar storage")
 
@@ -361,7 +363,7 @@ def emit_(value: Any, *, span: _Span = None) -> None:
     elif hasattr(value, "frames"):
         for frame in value.frames:
             _enter_concise(_base.at_(span, frame))
-    elif isinstance(value, _tir.Stmt):
+    elif isinstance(value, tvm.ir.Stmt):
         add_to_parent(_base.at_(span, value))
     else:
         # Native conversion owns Python literals; annotate the exact expression
@@ -373,14 +375,14 @@ def emit_(value: Any, *, span: _Span = None) -> None:
 
 def setitem_(
     target: Any, key: Any, value: Any, *, span: _Span = None
-) -> _base.AlreadyEmitted[_tir.Stmt]:
+) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.setitem_`."""
-    return _base.at_(span, tensor_store(target, value, key))
+    return _base.at_(span, tensor_store(target, key, value))
 
 
 def setattr_(
     target: Any, name: str, value: Any, *, span: _Span = None
-) -> _base.AlreadyEmitted[_tir.Stmt] | None:
+) -> _base.AlreadyEmitted[tvm.ir.Stmt] | None:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.setattr_`."""
     previous = getattr(target, name, _base.MISSING)
     buffer = previous.source if isinstance(previous, _ir.TensorLoad) else previous
@@ -427,22 +429,22 @@ def bind(  # pylint: disable=invalid-name
 
 
 def tensor_store(
-    buffer: Var,  # pylint: disable=redefined-outer-name
-    value: Expr,
+    dest: Expr,
     indices: list[Expr | slice],
-) -> AlreadyEmitted[_tir.Stmt]:
+    value: Expr,
+) -> AlreadyEmitted[tvm.ir.Stmt]:
     """Emit a buffer store and return a receipt for the stored statement.
 
     Parameters
     ----------
-    buffer : Var
-        The buffer.
-
-    value : Expr
-        The value to be stored.
+    dest : Expr
+        The destination expression.
 
     indices : List[Union[Expr, slice]]
         The indices location to be stored.
+
+    value : Expr
+        The value to be stored.
 
     Returns
     -------
@@ -468,12 +470,12 @@ def tensor_store(
                 expr_indices.append(_op.ramp(index.start, step, lanes))
         else:
             expr_indices.append(index)
-    if isinstance(value, bool) and buffer.ty.dtype == "bool":
+    if isinstance(value, bool) and dest.ty.dtype == "bool":
         value = IntImm("bool", value)
-    return AlreadyEmitted(_ffi_api.TensorStore(buffer, value, expr_indices))
+    return AlreadyEmitted(_ffi_api.TensorStore(dest, expr_indices, value))
 
 
-def evaluate(value: Expr) -> AlreadyEmitted[_tir.Stmt]:
+def evaluate(value: Expr) -> AlreadyEmitted[tvm.ir.Stmt]:
     """Emit an evaluation and return a reference to its stored statement.
 
     Parameters
@@ -499,7 +501,7 @@ def evaluate(value: Expr) -> AlreadyEmitted[_tir.Stmt]:
     return AlreadyEmitted(_ffi_api.Evaluate(value))  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def add_to_parent(stmt: _tir.Stmt) -> None:
+def add_to_parent(stmt: tvm.ir.Stmt) -> None:
     """Add a statement to the parent frame."""
     _ffi_api.AddToParent(stmt)  # type: ignore[attr-defined] # pylint: disable=no-member
 
@@ -570,7 +572,7 @@ def range_(*args: Any, annotations: dict[str, Any] | None = None) -> frame.ForFr
     return serial(args[0], args[1], step=args[2], annotations=annotations)
 
 
-def break_(*, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
+def break_(*, span: _Span = None) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.break_`.
 
     Legality is checked on the completed function, across loop and function boundaries.
@@ -578,7 +580,7 @@ def break_(*, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
     return _base.with_at_group_(span, lambda: _base.AlreadyEmitted(_ffi_api.Break()))
 
 
-def continue_(*, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
+def continue_(*, span: _Span = None) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.continue_`.
 
     Legality is checked on the completed function, across loop and function boundaries.
@@ -586,7 +588,7 @@ def continue_(*, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
     return _base.with_at_group_(span, lambda: _base.AlreadyEmitted(_ffi_api.Continue()))
 
 
-def return_(value: Any = None, *, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
+def return_(value: Any = None, *, span: _Span = None) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.return_`."""
     if value is None:
         raise TypeError("A primitive function return requires an expression")
@@ -915,7 +917,7 @@ def region(
 
     Operands and attributes belong to the enclosing scope. Entering the frame
     returns one parameter directly, or a sequence for zero or multiple parameters.
-    Result variables are supported by direct ``tirx.RegionStmt`` construction;
+    Result variables are supported by direct ``tvm.ir.RegionStmt`` construction;
     outward-result script syntax is not supported.
     """
     if isinstance(op, str):

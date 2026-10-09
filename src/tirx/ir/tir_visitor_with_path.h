@@ -142,7 +142,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   using StmtFunctor::Dispatch;
   void Dispatch_(const BindNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const RegionStmtNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const IfThenElseNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const IfNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const ForNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const WhileNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const ReturnNode* op, ffi::reflection::AccessPath path) override;
@@ -310,7 +310,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
 
   /*! \brief Scope stack for Bind variable definitions.
    *
-   * Body-carrying statements (For, IfThenElse, etc.) push a new scope.
+   * Body-carrying statements (For, If, etc.) push a new scope.
    * BindNode pushes its WithDef into the current scope.  When the
    * scope exits, all Bind defs are cleaned up automatically.
    */

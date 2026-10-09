@@ -344,7 +344,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
         /*writes=*/{BufferRegion(info->cache_buffer[expr_index], access_region)},
         /*name_hint=*/"index_" + std::to_string(expr_index),
         /*body=*/
-        TensorStore(info->cache_buffer[expr_index], new_expr, access_indices),
+        TensorStore(info->cache_buffer[expr_index], access_indices, new_expr),
         /*init=*/std::nullopt,
         /*alloc_buffers=*/{},
         /*match_buffers=*/{},

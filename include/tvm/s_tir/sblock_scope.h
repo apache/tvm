@@ -88,7 +88,7 @@ class StmtSRefNode : public ffi::Object {
    * It serves the same purpose as `ffi::ObjectRef::as`, but does not acquire strong reference to
    * `stmt`
    * \tparam StmtType The type that `this->stmt` to be downcasted to. Presumably
-   * tvm::s_tir::SBlockNode or tvm::tirx::ForNode
+   * tvm::s_tir::SBlockNode or tvm::ForNode
    * \return nullptr if type check fails, otherwise the casted result for `this->stmt`
    */
   template <typename StmtType>

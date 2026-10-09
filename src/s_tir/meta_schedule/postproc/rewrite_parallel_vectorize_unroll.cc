@@ -33,7 +33,7 @@ using namespace tvm::tirx;
  * \return Whether the loop has any annotation
  */
 inline bool HasAnnOrBinding(const ForNode* loop) {
-  return loop->GetThreadBinding().has_value() || !loop->annotations.empty();
+  return tvm::tirx::GetThreadBinding(loop).has_value() || !loop->annotations.empty();
 }
 
 /*! \brief The visitor for extracting the stride of a var in a PrimExpr. */

@@ -22,6 +22,7 @@ from tvm_ffi import structural_walk
 
 import tvm
 import tvm.testing
+from tvm.ir import Evaluate, For, ForKind
 from tvm.ir.prim import expr_deep_equal
 from tvm.s_tir import Schedule, TensorIntrin
 from tvm.s_tir.meta_schedule.testing import te_workload
@@ -40,16 +41,7 @@ from tvm.s_tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.te import create_function
-from tvm.tirx import (
-    Evaluate,
-    For,
-    ForKind,
-    IndexMap,
-    Var,
-    decl_tensor,
-    floordiv,
-    floormod,
-)
+from tvm.tirx import IndexMap, Var, decl_tensor, floordiv, floormod
 
 
 def _make_vars(*args: str) -> list[Var]:
@@ -223,7 +215,7 @@ class Conv2dNCHWcTIRModule:
 
 def collect_loops(function):
     loops = []
-    structural_walk(function.body, (tvm.tirx.For, loops.append), order="pre")
+    structural_walk(function.body, (tvm.ir.For, loops.append), order="pre")
 
     return loops
 

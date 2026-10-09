@@ -33,7 +33,7 @@ from tvm.tirx.transform import FlattenBuffer
 
 def _is_buffer_binding(node, *op_names):
     return (
-        isinstance(node, tvm.tirx.Bind)
+        isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
         and isinstance(node.value.op, tvm.ir.Op)
         and node.value.op.name in op_names
@@ -70,8 +70,8 @@ def _assert_loads_reference_defined_buffers(func):
         tvm_ffi.structural_walk(expr, visit)
 
     def visit(node):
-        if isinstance(node, tvm.ir.TensorLoad | tvm.tirx.TensorStore):
-            buffer = node.source if isinstance(node, tvm.ir.TensorLoad) else node.buffer
+        if isinstance(node, tvm.ir.TensorLoad | tvm.ir.TensorStore):
+            buffer = node.source if isinstance(node, tvm.ir.TensorLoad) else node.dest
             if not is_defined(buffer):
                 stale.append(f"access of {buffer.name}")
             for index in node.indices:
@@ -127,7 +127,7 @@ def test_flatten_remaps_loads_in_folded_elem_offset():
     found = []
 
     def visit(node):
-        if isinstance(node, tvm.tirx.TensorStore) and node.buffer.name.startswith("mbar"):
+        if isinstance(node, tvm.ir.TensorStore) and node.dest.name.startswith("mbar"):
 
             def inner(sub):
                 if isinstance(sub, tvm.ir.TensorLoad):

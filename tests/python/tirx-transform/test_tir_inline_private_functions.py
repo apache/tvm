@@ -166,7 +166,7 @@ class TestInlineCallOccurringInExpression(BaseTestCase):
     """Inline a Call node that is used in a function
 
     The current implementation only replaces `ir.Call` instances that
-    occur in a `tirx.Evaluate` context.  This is the primary use case,
+    occur in a `tvm.ir.Evaluate` context.  This is the primary use case,
     used in destination-passing style.
 
     This unit test is marked as xfail.  If/when the implementation
@@ -174,7 +174,9 @@ class TestInlineCallOccurringInExpression(BaseTestCase):
     expression, the annotation can be removed.
     """
 
-    @pytest.mark.xfail(reason="Inlining of Functions outside of tirx.Evaluate is not yet supported")
+    @pytest.mark.xfail(
+        reason="Inlining of Functions outside of tvm.ir.Evaluate is not yet supported"
+    )
     def test_produces_expected(self):
         super().test_produces_expected(self)
 

@@ -120,8 +120,8 @@ def _binary_rhs_helper(rhs: Expr):
     raise TypeError(f"type {type(rhs)} not supported")
 
 
-@tvm_ffi.register_object("relax.expr.If")
-class If(_CallableExprWithOp):
+@tvm_ffi.register_object("relax.expr.IfExpr")
+class IfExpr(_CallableExprWithOp):
     """A conditional expression in Relax.
 
     Parameters
@@ -149,7 +149,7 @@ class If(_CallableExprWithOp):
 
     def __init__(self, cond: Expr, true_branch: Expr, false_branch: Expr, span: Span | None = None):
         self.__init_handle_by_constructor__(
-            _ffi_api.If,
+            _ffi_api.IfExpr,
             cond,
             true_branch,
             false_branch,

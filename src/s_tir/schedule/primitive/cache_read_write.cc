@@ -222,8 +222,8 @@ SBlock MakeReindexCacheStage(const TensorRegion& cache_region, ReindexCacheStage
       /*name_hint*/ cache_region->source.as_or_throw<tvm::tirx::TensorVar>().name() + "_" +
           storage_scope,
       /*body=*/
-      TensorStore(info->write_buffer, MakeTensorLoad(info->read_buffer, read_access_indices),
-                  write_access_indices),
+      TensorStore(info->write_buffer, write_access_indices,
+                  MakeTensorLoad(info->read_buffer, read_access_indices)),
       /*init=*/std::nullopt,
       /*alloc_buffers=*/{},
       /*match_buffers=*/{},
@@ -325,8 +325,8 @@ SBlock MakeCacheStage(const TensorRegion& cache_region, CacheStageInfo* info,
       /*name_hint=*/cache_region->source.as_or_throw<tvm::tirx::TensorVar>().name() + "_" +
           storage_scope,
       /*body=*/
-      TensorStore(info->write_buffer, MakeTensorLoad(info->read_buffer, read_access_indices),
-                  write_access_indices),
+      TensorStore(info->write_buffer, write_access_indices,
+                  MakeTensorLoad(info->read_buffer, read_access_indices)),
       /*init=*/std::nullopt,
       /*alloc_buffers=*/{},
       /*match_buffers=*/{},
@@ -432,7 +432,7 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
       /*writes=*/{BufferRegionFromPoint(info->write_buffer, dst_indices)},
       /*name_hint=*/info->write_buffer.name() + "_reindex",
       /*body=*/
-      TensorStore(info->write_buffer, MakeTensorLoad(info->read_buffer, src_indices), dst_indices));
+      TensorStore(info->write_buffer, dst_indices, MakeTensorLoad(info->read_buffer, src_indices)));
 
   // Step 4: Create surrounding loops
 
@@ -1436,7 +1436,7 @@ class CacheWriteRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* store, InplaceMode inplace_mode) override {
-    bool rewrite_buffer = store->buffer.same_as(info_->write_buffer);
+    bool rewrite_buffer = store->dest.as_or_throw<TensorVar>().same_as(info_->write_buffer);
     auto value = Mutate(store->value);
     auto indices = Mutate(store->indices).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
     TensorStore stmt = ffi::GetRef<TensorStore>(store);
@@ -1447,7 +1447,7 @@ class CacheWriteRewriter : public StmtExprMutator {
     }
     if (rewrite_buffer) {
       TensorStoreNode* n = stmt.CopyOnWrite();
-      n->buffer = info_->read_buffer;
+      n->dest = info_->read_buffer;
       if (!cache_full_region_) {
         n->indices = RewriteIndices(n->indices);
       }
@@ -1591,7 +1591,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
 
  private:
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* store, InplaceMode inplace_mode) final {
-    bool rewrite_buffer = store->buffer.same_as(info_->write_buffer);
+    bool rewrite_buffer = store->dest.as_or_throw<TensorVar>().same_as(info_->write_buffer);
     auto value = Mutate(store->value);
     auto indices = Mutate(store->indices).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
     TensorStore stmt = ffi::GetRef<TensorStore>(store);
@@ -1602,7 +1602,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
     }
     if (rewrite_buffer) {
       TensorStoreNode* n = stmt.CopyOnWrite();
-      n->buffer = info_->read_buffer;
+      n->dest = info_->read_buffer;
       n->indices = new_indices_;
       return stmt;
     } else {
@@ -1753,7 +1753,7 @@ class ReIndexCollector : public StmtExprVisitor {
     for (const PrimExpr& index : store->indices) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
     }
-    if (store->buffer.same_as(buffer_)) {
+    if (store->dest.as_or_throw<TensorVar>().same_as(buffer_)) {
       CheckAndUpdateBufferAccessIndices(store->indices);
     }
     return std::nullopt;
@@ -1861,11 +1861,10 @@ class ReIndexRewriter : public StmtExprMutator {
     return old_stmt;
   }
 
-  template <typename Node>
-  Node VisitBufferAccess(Node node) {
-    if (node->buffer.same_as(old_buffer_)) {
+  TensorStore VisitBufferAccess(TensorStore node) {
+    if (node->dest.same_as(old_buffer_)) {
       auto* n = node.CopyOnWrite();
-      n->buffer = new_buffer_;
+      n->dest = new_buffer_;
       n->indices = indices_;
     }
     return node;

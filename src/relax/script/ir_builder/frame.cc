@@ -322,7 +322,7 @@ void IfFrameNode::ExitWithScope() {
       << "The body of then part is expected to be defined before exiting.";
   TVM_FFI_CHECK(else_expr.has_value(), ValueError)
       << "The body of else part is expected to be defined before exiting.";
-  auto body = tvm::relax::If(condition, then_expr.value(), else_expr.value(), source_span);
+  auto body = tvm::relax::IfExpr(condition, then_expr.value(), else_expr.value(), source_span);
   auto binding_var = Emit(body, std::nullopt);
   var = binding_var;
   // Finalization uses the frame's already-composed location, never the exit context.

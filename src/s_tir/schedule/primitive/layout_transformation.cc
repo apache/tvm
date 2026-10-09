@@ -154,7 +154,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) override {
-    if (!op->buffer.same_as(old_buffer_)) {
+    if (!op->dest.as_or_throw<TensorVar>().same_as(old_buffer_)) {
       return std::nullopt;
     }
 
@@ -370,7 +370,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
 
     UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
       bool can_replace = [&]() -> bool {
-        if (!op->buffer.same_as(info.store->buffer)) {
+        if (!op->dest.as_or_throw<TensorVar>().same_as(info.store->dest)) {
           return false;
         }
 
@@ -392,9 +392,8 @@ class TransformLayoutPlanner : public StmtExprVisitor {
             new_indices.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); });
         PrimExpr pad_value_at_index =
             pad_value.value()->MapIndices(new_index_exprs, ffi::GetRef<sym::Analyzer>(analyzer))[0];
-        store =
-            TensorStore(new_buffer, if_then_else(padding_predicate, pad_value_at_index, op->value),
-                        new_index_exprs);
+        store = TensorStore(new_buffer, new_index_exprs,
+                            if_then_else(padding_predicate, pad_value_at_index, op->value));
       } else {
         all_stores_replaced = false;
       }
@@ -622,7 +621,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
 
     PrimExpr pad_value_at_index =
         pad_value.value()->MapIndices(indices, ffi::GetRef<sym::Analyzer>(analyzer))[0];
-    Stmt stmt = TensorStore(new_buffer, pad_value_at_index, indices);
+    Stmt stmt = TensorStore(new_buffer, indices, pad_value_at_index);
 
     std::stringstream block_name;
     block_name << "buffer_" << new_buffer.name() << "_padding";
@@ -910,9 +909,11 @@ class TransformLayoutRewriter : public s_tir::IRMutatorWithAnalyzer {
     TensorStore tensor_store = Parent::Mutate_(op, inplace_mode)
                                    .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                                    .as_or_throw<TensorStore>();
-    if (tensor_store->buffer.same_as(old_buffer_)) {
+    if (tensor_store->dest.as_or_throw<TensorVar>().same_as(old_buffer_)) {
       auto* n = tensor_store.CopyOnWrite();
-      RewriteBufferAccess(&n->buffer, &n->indices);
+      TensorVar buffer = n->dest.as_or_throw<TensorVar>();
+      RewriteBufferAccess(&buffer, &n->indices);
+      n->dest = std::move(buffer);
     }
     return tensor_store;
   }

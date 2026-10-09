@@ -18,6 +18,7 @@
 
 import tvm_ffi
 
+import tvm
 from tvm import s_tir, sym, tirx
 
 from .common_analysis import (
@@ -48,13 +49,13 @@ def get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
     if len(block.body) != 1:
         return None
     tensor_store = block.body[0]
-    if not isinstance(tensor_store, tirx.TensorStore):
+    if not isinstance(tensor_store, tvm.ir.TensorStore):
         return None
     if not isinstance(tensor_store.value, tirx.Add):
         return None
     if not tvm_ffi.structural_equal(
         tensor_store.value.a,
-        tirx.TensorLoad(tensor_store.buffer, tensor_store.indices),
+        tirx.TensorLoad(tensor_store.dest, tensor_store.indices),
         map_free_vars=True,
     ):
         return None

@@ -2061,7 +2061,7 @@ llvm::Value* CodeGenLLVM::Dispatch_(const prim::BroadcastNode* op) {
 void CodeGenLLVM::Dispatch_(const TensorStoreNode* op) {
   EmitDebugLocation(op);
   PrimType value_dtype = PrimType(op->value.ty()->dtype);
-  Var buffer_var = op->buffer.var();
+  Var buffer_var = op->dest.as_or_throw<TensorVar>().var();
 
   llvm::Value* value = MakeValue(op->value);
 
@@ -2095,7 +2095,8 @@ void CodeGenLLVM::Dispatch_(const TensorStoreNode* op) {
   // Pass all indices into BufferAccessHelper.  In CodeGenLLVM,
   // non-flat indices will result in an error in CreateBufferPtr, but
   // a subclass may override CreateBufferPtr.
-  BufferAccessHelper(op->buffer, op->indices, std::nullopt, value_dtype, make_store);
+  BufferAccessHelper(op->dest.as_or_throw<TensorVar>(), op->indices, std::nullopt, value_dtype,
+                     make_store);
 }
 
 void CodeGenLLVM::Dispatch_(const ForNode* op) {
@@ -2164,7 +2165,7 @@ void CodeGenLLVM::Dispatch_(const ContinueNode* op) {
   builder_->SetInsertPoint(post_dummy);
 }
 
-void CodeGenLLVM::Dispatch_(const IfThenElseNode* op) {
+void CodeGenLLVM::Dispatch_(const IfNode* op) {
   EmitDebugLocation(op);
   // A branch-local assumption cannot strengthen its sibling or the join.
   auto outer_storage_info = alloc_storage_info_;

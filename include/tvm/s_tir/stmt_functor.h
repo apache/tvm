@@ -37,9 +37,8 @@ template <typename FType>
 class StmtFunctor;
 
 template <typename R, typename... Args>
-class StmtFunctor<R(const tirx::Stmt&, Args...)>
-    : public tirx::StmtFunctor<R(const tirx::Stmt&, Args...)> {
-  using Parent = tirx::StmtFunctor<R(const tirx::Stmt&, Args...)>;
+class StmtFunctor<R(const Stmt&, Args...)> : public tirx::StmtFunctor<R(const Stmt&, Args...)> {
+  using Parent = tirx::StmtFunctor<R(const Stmt&, Args...)>;
 
  public:
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(StmtFunctor, Parent)
@@ -108,15 +107,15 @@ class TVM_DLL StmtExprMutator : public tirx::StmtExprMutator {
   using tirx::StmtExprMutator::Mutate;
   using tirx::StmtExprMutator::Mutate_;
 
-  virtual UnchangedOr<tirx::Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode);
-  virtual UnchangedOr<tirx::Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode);
 
   // Share block ownership and binder rules with specialized TIRX helpers.
-  static UnchangedOr<tirx::Stmt> MutateBlock(tirx::StmtExprMutator* mutator, const SBlockNode* op,
-                                             InplaceMode inplace_mode);
-  static UnchangedOr<tirx::Stmt> MutateBlockRealize(tirx::StmtExprMutator* mutator,
-                                                    const SBlockRealizeNode* op,
-                                                    InplaceMode inplace_mode);
+  static UnchangedOr<Stmt> MutateBlock(tirx::StmtExprMutator* mutator, const SBlockNode* op,
+                                       InplaceMode inplace_mode);
+  static UnchangedOr<Stmt> MutateBlockRealize(tirx::StmtExprMutator* mutator,
+                                              const SBlockRealizeNode* op,
+                                              InplaceMode inplace_mode);
 
  protected:
   explicit StmtExprMutator(const VTable* vtable) : tirx::StmtExprMutator(vtable) {}

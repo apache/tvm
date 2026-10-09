@@ -70,8 +70,8 @@ def scatter_nd(data, indices, updates, mode):
                     with T.then_():
                         T.tensor_store(
                             out,
-                            data[T.tensor_indices(data, tid)],
                             T.tensor_indices(out, tid),
+                            data[T.tensor_indices(data, tid)],
                         )
 
             # Scatter
@@ -102,14 +102,15 @@ def scatter_nd(data, indices, updates, mode):
                             if mode == "update":
                                 T.tensor_store(
                                     out,
+                                    T.tensor_indices(out, index),
                                     updates[
                                         T.tensor_indices(updates, (i * fused_updates_dimension + j))
                                     ],
-                                    T.tensor_indices(out, index),
                                 )
                             elif mode == "add":
                                 T.tensor_store(
                                     out,
+                                    T.tensor_indices(out, index),
                                     out[T.tensor_indices(out, index)]
                                     + (
                                         updates[
@@ -118,11 +119,11 @@ def scatter_nd(data, indices, updates, mode):
                                             )
                                         ]
                                     ),
-                                    T.tensor_indices(out, index),
                                 )
                             elif mode == "mul":
                                 T.tensor_store(
                                     out,
+                                    T.tensor_indices(out, index),
                                     out[T.tensor_indices(out, index)]
                                     * (
                                         updates[
@@ -131,11 +132,11 @@ def scatter_nd(data, indices, updates, mode):
                                             )
                                         ]
                                     ),
-                                    T.tensor_indices(out, index),
                                 )
                             elif mode == "min":
                                 T.tensor_store(
                                     out,
+                                    T.tensor_indices(out, index),
                                     tirx.min(
                                         out[T.tensor_indices(out, index)],
                                         updates[
@@ -144,11 +145,11 @@ def scatter_nd(data, indices, updates, mode):
                                             )
                                         ],
                                     ),
-                                    T.tensor_indices(out, index),
                                 )
                             elif mode == "max":
                                 T.tensor_store(
                                     out,
+                                    T.tensor_indices(out, index),
                                     tirx.max(
                                         out[T.tensor_indices(out, index)],
                                         updates[
@@ -157,7 +158,6 @@ def scatter_nd(data, indices, updates, mode):
                                             )
                                         ],
                                     ),
-                                    T.tensor_indices(out, index),
                                 )
                             else:
                                 raise NotImplementedError(

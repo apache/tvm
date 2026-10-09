@@ -26,13 +26,12 @@ import tvm_ffi
 
 import tvm
 import tvm.runtime
-from tvm.ir import BaseFunc, Range, Scriptable, Var
+from tvm.ir import BaseFunc, Range, Scriptable, SeqStmt, Stmt, Var
 from tvm.runtime import Object
 
 from ..runtime._tensor import Tensor
 from . import _ffi_api
 from .expr import Expr
-from .stmt import SeqStmt, Stmt
 
 
 @tvm_ffi.register_object("tirx.Function")

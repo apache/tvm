@@ -232,7 +232,7 @@ def rnn_state_get(
                     # `output[vi, *vs] = storage[seq_id, history_id, *vs]`
                     # However, unpacking operator in subscript requires Python 3.11 or newer
                     T.tensor_store(
-                        output, T.TensorLoad(storage, [seq_id, history_id, *vs]), [vi, *vs]
+                        output, [vi, *vs], T.TensorLoad(storage, [seq_id, history_id, *vs])
                     )
     # fmt: on
     return _rnn_state_get
@@ -265,7 +265,7 @@ def rnn_state_set(
                     # `storage[seq_id, history_id, *vs] = data[vi, *vs]`
                     # However, unpacking operator in subscript requires Python 3.11 or newer
                     T.tensor_store(
-                        storage, T.TensorLoad(data, [vi, *vs]), [seq_id, history_id, *vs]
+                        storage, [seq_id, history_id, *vs], T.TensorLoad(data, [vi, *vs])
                     )
 
     # fmt: on

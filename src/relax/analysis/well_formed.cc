@@ -36,10 +36,10 @@
  *    5. Vars, including those introduced in definitional type positions, are defined before use.
  *    6. Vars are defined exactly once.
  *    7. DataflowVars cannot be defined inside BindingBlock.
- *    8. Vars defined in IfNode, except the return Var, are invisible
+ *    8. Vars defined in IfExprNode, except the return Var, are invisible
  *       out of the If body.(May change for new AST designs)
  *    9. SeqExpr only serves as function body, or in the true and
- *       false branches in IfNode.
+ *       false branches in IfExprNode.
  *    10. The IR is in ANF:
  *       (a) Expressions cannot contain nested complex expressions.
  *           Here are the expressions that may be nested inside other expressions:
@@ -481,11 +481,11 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
     TVM_FFI_VISIT_END(ffi::GetRef<Call>(call));
   }
 
-  void VisitExpr_(const IfNode* op) final {
+  void VisitExpr_(const IfExprNode* op) final {
     TVM_FFI_VISIT_BEGIN();
     if (is_dataflow_) {
       TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Expr>(op))
-          << "If nodes are not allowed to appear in dataflow blocks.";
+          << "IfExpr nodes are not allowed to appear in dataflow blocks.";
     }
     if (IsLeafOrTuple(op->cond)) {
       this->VisitExpr(op->cond);
@@ -519,13 +519,13 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
   void VisitExpr_(const SeqExprNode* op) final {
     TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Expr>(op))
         << "SeqExpr only serves as the function body in FunctionNode, "
-           "or the true/false branch body in IfNode.";
+           "or the true/false branch body in IfExprNode.";
   }
 
   void VisitSeqExpr(const SeqExprNode* op) {
     TVM_FFI_VISIT_BEGIN();
     // a special call only if SeqExpr is the function body
-    // in FunctionNode or the true/false branch body in IfNode
+    // in FunctionNode or the true/false branch body in IfExprNode
     for (BindingBlock block : op->blocks) {
       this->VisitBindingBlock(block);
     }

@@ -36,15 +36,15 @@ namespace tirx {
  * \param stmt The Stmt.
  * \param span The stored result location, which may be undefined.
  */
-inline void AddToParent(tvm::tirx::Stmt stmt, Span span) {
+inline void AddToParent(tvm::Stmt stmt, Span span) {
   IRBuilder builder = IRBuilder::Current();
   // A deferred frame owns its location even when that location is undefined.
   // Preserve an existing body location when flattening returns the body itself.
   if (stmt.defined() && !stmt->span.defined()) stmt->span = std::move(span);
   if (builder->frames.empty()) {
     if (!builder->result.has_value()) {
-      if (stmt.as<tvm::tirx::SeqStmtNode>()) {
-        auto normalized = tvm::tirx::SeqStmt(stmt);
+      if (stmt.as<tvm::SeqStmtNode>()) {
+        auto normalized = tvm::SeqStmt(stmt);
         if (!normalized->span.defined()) normalized->span = stmt->span;
         builder->result = std::move(normalized);
       } else {
@@ -52,20 +52,20 @@ inline void AddToParent(tvm::tirx::Stmt stmt, Span span) {
       }
       return;
     }
-    TVM_FFI_CHECK(builder->result.as<tvm::tirx::StmtNode>(), ValueError)
+    TVM_FFI_CHECK(builder->result.as<tvm::StmtNode>(), ValueError)
         << "Builder.result has already been set";
-    ffi::Array<tvm::tirx::Stmt> incoming = tvm::tirx::SeqStmt(stmt)->seq;
+    ffi::Array<tvm::Stmt> incoming = tvm::SeqStmt(stmt)->seq;
     if (incoming.empty()) return;
-    if (builder->result.as<tvm::tirx::SeqStmtNode>()) {
+    if (builder->result.as<tvm::SeqStmtNode>()) {
       // Move the builder's ownership so unobserved results can grow in place.
       // Copy-on-write preserves sequences and arrays retained by callers.
-      auto sequence = std::move(builder->result).value().as_or_throw<tvm::tirx::SeqStmt>();
+      auto sequence = std::move(builder->result).value().as_or_throw<tvm::SeqStmt>();
       auto* node = sequence.CopyOnWrite();
       for (const auto& child : incoming) node->seq.push_back(child);
       builder->result = std::move(sequence);
     } else {
-      builder->result = tvm::tirx::SeqStmt(
-          {builder->result.value().as_or_throw<tvm::tirx::Stmt>(), tvm::tirx::SeqStmt(incoming)});
+      builder->result =
+          tvm::SeqStmt({builder->result.value().as_or_throw<tvm::Stmt>(), tvm::SeqStmt(incoming)});
     }
   } else if (const auto* tir_frame = builder->frames.back().as<TIRFrameNode>()) {
     ffi::GetRef<TIRFrame>(tir_frame)->stmts.push_back(stmt);
@@ -75,7 +75,7 @@ inline void AddToParent(tvm::tirx::Stmt stmt, Span span) {
 }
 
 /*! \brief Add an eager statement under the current source-call context. */
-inline void AddToParent(tvm::tirx::Stmt stmt) {
+inline void AddToParent(tvm::Stmt stmt) {
   // Some builder paths use an undefined statement as an omitted branch.
   if (stmt.defined()) IRBuilder::Current()->SetCurrentSourceSpan(stmt);
   AddToParent(std::move(stmt), Span());
@@ -86,9 +86,7 @@ inline void AddToParent(tvm::tirx::Stmt stmt) {
  * \param stmt The array of Stmt.
  * \return The SeqStmt.
  */
-inline tvm::tirx::SeqStmt AsStmt(const ffi::Array<tvm::tirx::Stmt>& stmt) {
-  return tvm::tirx::SeqStmt(stmt);
-}
+inline tvm::SeqStmt AsStmt(const ffi::Array<tvm::Stmt>& stmt) { return tvm::SeqStmt(stmt); }
 
 /*!
  * \brief Check whether the top frame in IRBuilder frame stack is FunctionFrame.
@@ -126,9 +124,9 @@ inline IfFrame FindIfFrame(const ffi::String& method) {
                               << " did occur within the conditional based on ("
                               << frame.value()->condition
                               << "), other frames (e.g. if/else/let) had been introduced since the "
-                              << "IfThenElse frame";
+                              << "If frame";
   } else {
-    TVM_FFI_THROW(ValueError) << "IfThenElse frame not find. Please ensure '" << method
+    TVM_FFI_THROW(ValueError) << "If frame not find. Please ensure '" << method
                               << "' is called under T.if_()";
   }
   throw;

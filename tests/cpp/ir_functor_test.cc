@@ -118,8 +118,8 @@ TEST(IRF, CountVar) {
 TEST(IRF, PreOrderStructuralWalk) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Stmt init = IfThenElse(IntImm::Bool(true), Evaluate(IntImm::Int32(2)),
-                         SeqStmt(Evaluate(IntImm::Int32(2))));
+  Stmt init =
+      If(IntImm::Bool(true), Evaluate(IntImm::Int32(2)), SeqStmt(Evaluate(IntImm::Int32(2))));
   Stmt body = Evaluate(IntImm::Int32(1));
   s_tir::SBlock block(/*iter_vars=*/{}, /*reads=*/{},
                       /*writes=*/{}, /*name_hint=*/"block", /*body=*/body,
@@ -127,7 +127,7 @@ TEST(IRF, PreOrderStructuralWalk) {
   bool init_visited = false;
   bool stopped_at_if = true;
   bool body_visited = false;
-  auto visit_if = [&](const IfThenElse&) -> ffi::Expected<ffi::WalkResult> {
+  auto visit_if = [&](const If&) -> ffi::Expected<ffi::WalkResult> {
     init_visited = true;
     return ffi::WalkResult::Skip();
   };
@@ -283,7 +283,7 @@ TEST(IRF, StmtExprMutator) {
   auto fmakeif = [&]() {
     auto z = x + 1;
     Stmt body = Evaluate(z);
-    return IfThenElse(x, Evaluate(0), SeqStmt(body));
+    return If(x, Evaluate(0), SeqStmt(body));
   };
 
   auto v = ffi::make_object<MyMutator>();
@@ -317,8 +317,7 @@ TEST(IRF, StmtExprMutator) {
     ffi::Array<Stmt> arr{fmakeif()};
     arr.MutateByApply([&](Stmt s) { return v->Mutate(s).ValueOrUnchanged(std::move(s)); });
     TVM_FFI_ICHECK(
-        arr[0].as<IfThenElseNode>()->else_case.value()->seq[0].as<EvaluateNode>()->value.same_as(
-            x));
+        arr[0].as<IfNode>()->else_case.value()->seq[0].as<EvaluateNode>()->value.same_as(x));
     // mutate but no content change.
     auto arr2 = arr;
     arr.MutateByApply([&](Stmt s) { return v->Mutate(s).ValueOrUnchanged(std::move(s)); });
@@ -704,7 +703,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
     tvm::Var y = x.CopyWithSuffix("subst");
     PrimVar m("m", PrimType::Int(32));
     TensorVar buffer = fmakebuffer();
-    Stmt store = TensorStore(buffer, FloatImm(dtype, 0), {IntImm::Int32(0)});
+    Stmt store = TensorStore(buffer, {IntImm::Int32(0)}, FloatImm(dtype, 0));
     Stmt decl =
         SeqStmt({Bind(buffer, Call(buffer.type(), tvm::tirx::decl_tensor_op(),
                                    {x, tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
@@ -728,7 +727,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
     TVM_FFI_ICHECK(!decl_node->var.same_as(buffer));
     auto* store_node = seq_node->seq[1].as<TensorStoreNode>();
     TVM_FFI_ICHECK(store_node != nullptr);
-    TVM_FFI_ICHECK(store_node->buffer.same_as(decl_node->var));
+    TVM_FFI_ICHECK(store_node->dest.same_as(decl_node->var));
   }
 
   {

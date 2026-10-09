@@ -27,8 +27,8 @@
 
 namespace tvm {
 namespace s_tir {
-using tirx::ForNode;
 using tirx::Function;
+using tvm::ForNode;
 
 /*! \brief Verify all Expr inside the block does not contain:
  *    1. loop vars outside the current block.
