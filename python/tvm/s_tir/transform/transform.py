@@ -257,39 +257,6 @@ def InjectVirtualThread():
     return _ffi_api.InjectVirtualThread()  # type: ignore
 
 
-def HoistIfThenElse(variant=None):
-    """Hoist loop-invariant If nodes to outside the eligible loops.
-
-    Parameters
-    ----------
-    variant : Optional[String]
-        The variant of the pass.
-        variant can have any one of following values ["basic", None(Default)].
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    if variant == "basic":
-        return _ffi_api.HoistIfThenElseBasic()  # type: ignore
-    elif variant is None:
-        return _ffi_api.HoistIfThenElse()  # type: ignore
-    else:
-        raise ValueError("wrong variant of HoistIfThenElse, " + variant)
-
-
-def HoistExpression():
-    """Hoist loop-invariant expressions to outside the eligible loops.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.HoistExpression()  # type: ignore
-
-
 def RewriteUnsafeSelect():
     """Detect and rewrite unsafe select that contains memory access.
 

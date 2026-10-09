@@ -62,7 +62,7 @@ def default_tir_pipeline(*, prepare_only=False):
             passes.append(tirx.transform.StorageRewrite())
         passes.extend(
             [
-                s_tir.transform.HoistIfThenElse(),
+                tirx.transform.HoistIf(),
                 tirx.transform.UnrollLoop(),
                 tirx.transform.RenormalizeSplitPattern(),
                 s_tir.transform.StmtSimplify(),
