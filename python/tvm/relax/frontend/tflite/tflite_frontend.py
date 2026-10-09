@@ -5647,13 +5647,15 @@ class OperatorConverter:
         Pool2D's SAME padding and the quantized average pool's divisor are
         folded to constants, so they need concrete extents -- read from the
         Relax expression rather than the serialized TFLite tensor, which is
-        stale once shape_dict overrides the input shape."""
+        stale once shape_dict overrides the input shape. Only H and W are
+        converted: N and C may stay symbolic, since nothing folded depends on
+        them."""
         shape = self._infer_shape(expr)
         try:
-            _, h, w, _ = [int(v) for v in shape]
+            h, w = int(shape[1]), int(shape[2])
         except (TypeError, ValueError) as err:
             raise tvm.error.OpAttributeUnImplemented(
-                f"Pool2D requires a static NHWC {what} shape, got {shape}"
+                f"Pool2D requires static H and W in its NHWC {what} shape, got {shape}"
             ) from err
         return h, w
 
@@ -5723,15 +5725,16 @@ class OperatorConverter:
 
         in_expr = self.get_expr(input_tensor_idx)
 
-        # Take H and W from the Relax input, not from the serialized TFLite
-        # shape: from_tflite(..., shape_dict=...) can override the input
-        # dimensions, and then the flatbuffer's shapes are stale. SAME padding
-        # and the quantized divisor below both depend on the real extents.
-        input_h, input_w = self._pool2d_static_hw(in_expr, "input")
-
+        # SAME padding and the quantized divisor below need the real input H
+        # and W, so take them from the Relax input, not from the serialized
+        # TFLite shape: from_tflite(..., shape_dict=...) can override the input
+        # dimensions, and then the flatbuffer's shapes are stale. Read them only
+        # where they are used, so that a VALID pool that folds nothing keeps
+        # accepting a symbolic H or W, as it did before.
         if padding == Padding.VALID:
             pass
         elif padding == Padding.SAME:
+            input_h, input_w = self._pool2d_static_hw(in_expr, "input")
             pad_top, pad_bottom = get_pad_value(input_h, filter_h, stride_h)
             pad_left, pad_right = get_pad_value(input_w, filter_w, stride_w)
             params["padding"] = [pad_top, pad_left, pad_bottom, pad_right]
@@ -5805,7 +5808,7 @@ class OperatorConverter:
                 # -- so the constant matches the tensor it divides even when
                 # shape_dict overrides the serialized input shape.
                 counts = self._avg_pool2d_valid_counts(
-                    (input_h, input_w),
+                    self._pool2d_static_hw(in_expr, "input"),
                     (filter_h, filter_w),
                     (stride_h, stride_w),
                     params["padding"],
