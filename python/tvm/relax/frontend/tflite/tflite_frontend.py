@@ -28,7 +28,7 @@ import math
 import numpy as np
 
 import tvm
-from tvm import relax, tirx
+from tvm import relax, te, tirx
 from tvm.relax import op as _op
 from tvm.script import s_tir as Ts
 
@@ -46,6 +46,43 @@ def to_int_list(np_array):
     cause problems in relax/TOPI.
     """
     return [int(x) for x in np_array]
+
+
+def _quantized_avg_pool2d(data, output_shape, pool_size, strides, padding):
+    """TFLite integer average pooling, with ties rounded away from zero."""
+    _, height, width, _ = data.shape
+    kh, kw = pool_size
+    sh, sw = strides
+    pt, pl = padding[:2]
+    rh = te.reduce_axis((0, kh), name="rh")
+    rw = te.reduce_axis((0, kw), name="rw")
+
+    def accumulate(n, y, x, c):
+        iy, ix = y * sh - pt + rh, x * sw - pl + rw
+        return te.sum(
+            tirx.if_then_else(
+                tirx.all(iy >= 0, iy < height, ix >= 0, ix < width),
+                data[n, iy, ix, c].astype("int32"),
+                tirx.const(0, "int32"),
+            ),
+            axis=[rh, rw],
+        )
+
+    sums = te.compute(output_shape, accumulate, name="pool_sum")
+
+    def average(n, y, x, c):
+        y0, x0 = y * sh - pt, x * sw - pl
+        count = (
+            (tirx.min(y0 + kh, height) - tirx.max(y0, 0))
+            * (tirx.min(x0 + kw, width) - tirx.max(x0, 0))
+        ).astype("int32")
+        total = sums[n, y, x, c]
+        half = tirx.truncdiv(count, 2)
+        # TFLite uses C++ signed division (truncation toward zero).
+        rounded = tirx.truncdiv(tirx.if_then_else(total > 0, total + half, total - half), count)
+        return rounded.astype(data.dtype)
+
+    return te.compute(output_shape, average, name="quantized_avg_pool")
 
 
 class ExprTable:
@@ -5741,9 +5778,14 @@ class OperatorConverter:
                     "TFLite avg_pool2dreshape requires input and output scale"
                     "and zero points to be equal"
                 )
-                out = relax.op.astype(in_expr, "int32")
-                out = relax.op.nn.avg_pool2d(out, **params)
-                out = relax.op.astype(out, output_tensor_type_str)
+                out = self.conversion_state["module_builder"].call_te(
+                    _quantized_avg_pool2d,
+                    in_expr,
+                    output_shape=tuple(to_int_list(self.get_tensor_shape(output_tensor))),
+                    pool_size=params["pool_size"],
+                    strides=params["strides"],
+                    padding=params["padding"],
+                )
             else:
                 out = relax.op.nn.avg_pool2d(in_expr, **params)
         elif pool_type == "max":
