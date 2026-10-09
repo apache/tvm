@@ -65,7 +65,9 @@ class ValidateBufferScopes(PyExprVisitor):  # pylint: disable=abstract-method
                     )
                 if isinstance(call.ty_args[0], relax.TensorType):
                     buf = pfunc.params[-1]
-                    assert call.ty_args[0].vdevice.memory_scope == buf.data_ptr().ty.storage_scope, (
+                    assert (
+                        call.ty_args[0].vdevice.memory_scope == buf.data_ptr().ty.storage_scope
+                    ), (
                         f"scope mismatched after specialization {call.ty_args[0].vdevice.memory_scope} vs {buf.data_ptr().ty.storage_scope}"
                     )
                 else:

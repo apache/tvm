@@ -556,14 +556,22 @@ class TestAnnotatedOpaqueAccess(BaseCompactTest):
                     # no annotation, opaque access will cover full region
                     Ts.reads([])
                     Ts.writes([])
-                    T.evaluate(T.call_extern("opaque_extern_function", A.data_ptr(), B.data_ptr(), ty="int32"))
+                    T.evaluate(
+                        T.call_extern(
+                            "opaque_extern_function", A.data_ptr(), B.data_ptr(), ty="int32"
+                        )
+                    )
                     B[i] = A[i]
                 with Ts.sblock():
                     # treat opaque access only access annotated regions, even if
                     # they are not compatible with actual buffer accesses.
                     Ts.reads([B[i]])
                     Ts.writes([C[i : i + 9]])
-                    T.evaluate(T.call_extern("opaque_extern_function", B.data_ptr(), C.data_ptr(), ty="int32"))
+                    T.evaluate(
+                        T.call_extern(
+                            "opaque_extern_function", B.data_ptr(), C.data_ptr(), ty="int32"
+                        )
+                    )
                     C[i] = B[i]
 
     @Ts.function
@@ -576,14 +584,22 @@ class TestAnnotatedOpaqueAccess(BaseCompactTest):
                     # no annotation, opaque access will cover full region
                     Ts.reads([])
                     Ts.writes([])
-                    T.evaluate(T.call_extern("opaque_extern_function", A.data_ptr(), B.data_ptr(), ty="int32"))
+                    T.evaluate(
+                        T.call_extern(
+                            "opaque_extern_function", A.data_ptr(), B.data_ptr(), ty="int32"
+                        )
+                    )
                     B[i] = A[i]
                 with Ts.sblock():
                     # treat opaque access only access annotated regions, even if
                     # they are not compatible with actual buffer accesses.
                     Ts.reads([B[i]])
                     Ts.writes([C[i : i + 9]])
-                    T.evaluate(T.call_extern("opaque_extern_function", B.data_ptr(), C.data_ptr(), ty="int32"))
+                    T.evaluate(
+                        T.call_extern(
+                            "opaque_extern_function", B.data_ptr(), C.data_ptr(), ty="int32"
+                        )
+                    )
                     C[i] = B[i]
 
 
