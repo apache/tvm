@@ -18,7 +18,7 @@ import pytest
 
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
-from tvm.tirx.analysis import verify_tirx_well_formed as verify
+from tvm.tirx.analysis import verify_well_formed as verify
 
 
 def test_root_scope():
@@ -244,8 +244,8 @@ def test_device_func():
         T.thread_id([128])
         Tx.fill(A, 0.)
     # fmt: on
-    verify(test1, device_func=True)
-    verify(test2, device_func=True)
+    verify(test1)
+    verify(test2)
 
 
 def test_preferred_cluster_validation():
