@@ -33,10 +33,6 @@ from tvm.s_tir.schedule.analysis import (
     is_output_block,
     suggest_index_map,
 )
-from tvm.s_tir.tensor_intrin.cuda import (
-    WMMA_SYNC_16x16x16_f16f16f16_INTRIN,
-    WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
-)
 from tvm.s_tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
@@ -315,10 +311,10 @@ def test_get_tensorize_loop_mapping_padding_matmul():
     s = Schedule(matmul)
     block = s.get_sblock("C")
 
-    desc = TensorIntrin.get(WMMA_SYNC_16x16x16_f16f16f16_INTRIN).desc
+    desc = TensorIntrin.get("mma_sync_m16n8k8_f16f16f16").desc
     info = get_tensorize_loop_mapping(s, block, desc, allow_padding=True)
     assert info is not None
-    expected_padding = [16, 1, 16]
+    expected_padding = [16, 1, 8]
     actual_padding = info.block_iter_paddings
     assert actual_padding is not None
     assert len(actual_padding) == len(expected_padding)
@@ -345,7 +341,7 @@ def test_get_auto_tensorize_mapping_info_conv2d():
     check_index_map(
         conv2d,
         "conv2d_nhwc",
-        WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
+        "mma_sync_m16n8k8_f16f16f32",
         lambda n, h, w, c, rh, rw, rc: (n * 256 + h * 16 + w, c, rh * 192 + rw * 64 + rc),
     )
 
@@ -357,7 +353,7 @@ def test_get_auto_tensorize_mapping_info_conv2d_unit_batch():
     check_index_map(
         conv2d,
         "conv2d_nhwc",
-        WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
+        "mma_sync_m16n8k8_f16f16f32",
         lambda n, h, w, c, rh, rw, rc: (n * 256 + h * 16 + w, c, rh * 192 + rw * 64 + rc),
     )
 
@@ -367,9 +363,7 @@ def test_get_auto_tensorize_mapping_info_batch_matmul(b, m, n, k):
     matmul = create_function(
         te_workload.batch_matmul_nkkm(b, m, n, k, in_dtype="float16", out_dtype="float32")
     )
-    check_index_map(
-        matmul, "Z", WMMA_SYNC_16x16x16_f16f16f32_INTRIN, lambda b, m, n, k: (b, m, n, k)
-    )
+    check_index_map(matmul, "Z", "mma_sync_m16n8k8_f16f16f32", lambda b, m, n, k: (b, m, n, k))
 
 
 @pytest.mark.parametrize(
@@ -390,7 +384,7 @@ def test_get_auto_tensorize_mapping_info_batch_matmul(b, m, n, k):
 )
 def test_get_auto_tensorize_mapping_info_matmul(n, m, k, expected):
     matmul = create_function(te_workload.matmul(n, m, k, in_dtype="float16", out_dtype="float32"))
-    check_index_map(matmul, "C", WMMA_SYNC_16x16x16_f16f16f32_INTRIN, expected)
+    check_index_map(matmul, "C", "mma_sync_m16n8k8_f16f16f32", expected)
 
 
 def test_is_output_block():

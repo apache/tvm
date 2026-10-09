@@ -26,7 +26,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
-#include <tvm/s_tir/stmt.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/op/gpu.h>
@@ -42,7 +41,6 @@
 
 #include "../../../runtime/thread_storage_scope.h"
 #include "../../../target/build_common.h"
-#include "../../../tirx/transform/ir_utils.h"
 #include "cuda_fallback_module.h"
 #include "literal/cuda_half_t.h"
 #include "literal/cuda_int8_t.h"
@@ -1085,11 +1083,6 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     }
   }
 
-  static const Op gpu_fill_fragment_op = Op::Get("tirx.gpu_fill_fragment");
-  static const Op gpu_load_matrix_sync_op = Op::Get("tirx.gpu_load_matrix_sync");
-  static const Op gpu_store_matrix_sync_op = Op::Get("tirx.gpu_store_matrix_sync");
-  static const Op gpu_mma_sync_op = Op::Get("tirx.gpu_mma_sync");
-  static const Op bmma_sync_op = Op::Get("tirx.cuda.bmma_sync");
   static const Op mma_store_op = Op::Get("tirx.mma_store");
   static const Op mma_fill_op = Op::Get("tirx.mma_fill");
   static const Op ptx_mma_legacy_op = Op::Get("tirx.ptx_legacy.mma");
@@ -1098,66 +1091,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
   static const Op mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
   static const Op cuda_func_call_op = Op::Get("tirx.cuda.func_call");
 
-  if (op->op.same_as(gpu_fill_fragment_op)) {
-    codegen_tags_.insert("mma");
-    TVM_FFI_ICHECK_EQ(op->args.size(), 6U);
-    os << "nvcuda::wmma::fill_fragment(";
-    this->PrintExpr(op->args[0], os);
-    os << "[";
-    this->PrintExpr(op->args[4], os);
-    os << "], ";
-    this->PrintExpr(op->args[5], os);
-    os << ")";
-  } else if (op->op.same_as(gpu_load_matrix_sync_op)) {
-    codegen_tags_.insert("mma");
-    TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
-    os << "nvcuda::wmma::load_matrix_sync(";
-    this->PrintExpr(op->args[0], os);
-    os << "[";
-    this->PrintExpr(op->args[4], os);
-    os << "], ";
-    this->PrintExpr(op->args[5], os);
-    os << ", ";
-    this->PrintExpr(op->args[6], os);
-    os << ")";
-  } else if (op->op.same_as(gpu_store_matrix_sync_op)) {
-    codegen_tags_.insert("mma");
-    TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
-    os << "nvcuda::wmma::store_matrix_sync(";
-    this->PrintExpr(op->args[5], os);
-    os << ", ";
-    this->PrintExpr(op->args[0], os);
-    os << "[";
-    this->PrintExpr(op->args[4], os);
-    os << "], ";
-    this->PrintExpr(op->args[6], os);
-    if (const StringImmNode* str = op->args[7].as<StringImmNode>()) {
-      os << ", nvcuda::wmma::mem_" << str->value;
-    } else {
-      TVM_FFI_THROW(InternalError) << "Invalid parameters";
-    }
-    os << ")";
-  } else if (op->op.same_as(gpu_mma_sync_op)) {
-    codegen_tags_.insert("mma");
-    TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
-    os << "nvcuda::wmma::mma_sync(";
-    for (int i = 0; i < 4; ++i) {
-      this->PrintExpr(op->args[i * 2], os);
-      os << "[";
-      this->PrintExpr(op->args[i * 2 + 1], os);
-      os << "]" << ((i < 3) ? ", " : ")");
-    }
-  } else if (op->op.same_as(bmma_sync_op)) {
-    codegen_tags_.insert("mma");
-    TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
-    os << "nvcuda::wmma::bmma_sync(";
-    for (int i = 0; i < 4; ++i) {
-      this->PrintExpr(op->args[i * 2], os);
-      os << "[";
-      this->PrintExpr(op->args[i * 2 + 1], os);
-      os << "]" << ((i < 3) ? ", " : ")");
-    }
-  } else if (op->op.same_as(mma_store_op)) {
+  if (op->op.same_as(mma_store_op)) {
     int m = op->args[0].as_or_throw<IntImm>()->value.as<int>().value();
     int n = op->args[1].as_or_throw<IntImm>()->value.as<int>().value();
     std::string dst = this->PrintExpr(op->args[2]);
@@ -1460,51 +1394,21 @@ void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
   TVM_FFI_ICHECK(buffer.defined());
   std::string vid = AllocVarID(buffer.get(), buffer.name() + "_ptr");
 
-  std::string fragment_shape;
-  std::string fragment_layout;
-  if (std::string(scope).find("wmma.") == 0) {
-    auto shape = annotations->dict.Get(s_tir::attr::fragment_shape);
-    TVM_FFI_ICHECK(shape.has_value()) << "Cannot find shape of the wmma fragment " << buffer.name();
-    fragment_shape = shape.value().as_or_throw<ffi::String>();
-    if (auto layout = annotations->dict.Get(s_tir::attr::fragment_layout)) {
-      fragment_layout = layout.value().as_or_throw<ffi::String>();
-    }
-  }
   this->PrintIndent();
-  if (std::string(scope).find("wmma.") == 0) {
-    if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
-      bool supported_wmma_input_dtype =
-          PrimType(dtype) == PrimType::Float(16) || PrimType(dtype) == PrimType::Int(8) ||
-          PrimType(dtype) == PrimType::UInt(8) || PrimType(dtype) == PrimType::Int(4) ||
-          PrimType(dtype) == PrimType::UInt(4) || PrimType(dtype) == PrimType::Int(1) ||
-          PrimType(dtype) == PrimType::BFloat(16);
-      TVM_FFI_ICHECK(supported_wmma_input_dtype)
-          << "Matrix_a and matrix_b only support half or char or unsigned char "
-          << "or uint4 or int4 or int1 type for now";
-    } else {
-      bool supported_wmma_accumulator_dtype = PrimType(dtype) == PrimType::Float(16) ||
-                                              PrimType(dtype) == PrimType::Float(32) ||
-                                              PrimType(dtype) == PrimType::Int(32);
-      TVM_FFI_ICHECK(supported_wmma_accumulator_dtype)
-          << "Accumulator only support half, float and int type for now";
+  PrintStorageScope(scope, stream);
+  int align = buffer->data_alignment;
+  auto it = annotations->dict.find(tirx::attr::buffer_data_alignment);
+  if (it != annotations->dict.end()) {
+    if (const auto* n = (*it).second.as<IntImmNode>()) {
+      align = n->value.as<int>().value();
     }
-    PrintWmmaScope(scope, PrimType(dtype), fragment_shape, fragment_layout, stream);
-  } else {
-    PrintStorageScope(scope, stream);
-    int align = buffer->data_alignment;
-    auto it = annotations->dict.find(tirx::attr::buffer_data_alignment);
-    if (it != annotations->dict.end()) {
-      if (const auto* n = (*it).second.as<IntImmNode>()) {
-        align = n->value.as<int>().value();
-      }
-    }
-    if (align > 0 && scope == "shared.dyn") {
-      stream << "__align__(" << align << ") ";
-    } else if (align > 0) {
-      stream << "alignas(" << align << ") ";
-    }
-    PrintType(PrimType(dtype), stream);
   }
+  if (align > 0 && scope == "shared.dyn") {
+    stream << "__align__(" << align << ") ";
+  } else if (align > 0) {
+    stream << "alignas(" << align << ") ";
+  }
+  PrintType(PrimType(dtype), stream);
 
   if (scope == "shared.dyn") {
     stream << ' ' << vid << "[];\n";
@@ -1518,9 +1422,6 @@ void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
     }
     TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
-    if (std::string(scope).find("wmma.") == 0) {
-      constant_size = GetWmmaFragmentSize(scope, fragment_shape, constant_size);
-    }
     bool is_packed_integer_dtype = PrimType(dtype) == PrimType::Int(4) ||
                                    PrimType(dtype) == PrimType::UInt(4) ||
                                    PrimType(dtype) == PrimType::Int(1);
@@ -1845,65 +1746,6 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p)
 
 void CodeGenCUDA::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
-}
-
-void CodeGenCUDA::PrintWmmaScope(const std::string& scope, const PrimType& t,
-                                 const std::string& shape_str, const std::string& layout_str,
-                                 std::ostream& os) {
-  std::stringstream type;
-  PrintType(t, type);
-  if ((t.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) && t.bits() < 8 &&
-      t.lanes() == 1) {
-    type.str(std::string());
-    if (t.MatchesCode(DLDataTypeCode::kDLInt)) {
-      if (t.bits() == 4) {
-        type << "nvcuda::wmma::experimental::precision::s4";
-      } else if (t.bits() == 1) {
-        type << "nvcuda::wmma::experimental::precision::b1";
-      } else {
-        TVM_FFI_THROW(InternalError) << "Unhandled interger type for wmma fragment!";
-      }
-    } else if (t.MatchesCode(DLDataTypeCode::kDLUInt)) {
-      if (t.bits() == 4) {
-        type << "nvcuda::wmma::experimental::precision::u4";
-      } else {
-        TVM_FFI_THROW(InternalError) << "Unhandled interger type for wmma fragment!";
-      }
-    }
-  }
-  if (scope == "wmma.matrix_a") {
-    codegen_tags_.insert("mma");
-    TVM_FFI_ICHECK_NE(layout_str, "") << "Layout must be defined for matrix_a";
-    os << "nvcuda::wmma::fragment<nvcuda::wmma::matrix_a, " << shape_str << ", " << type.str()
-       << ", nvcuda::wmma::" << layout_str << ">";
-  } else if (scope == "wmma.matrix_b") {
-    codegen_tags_.insert("mma");
-    TVM_FFI_ICHECK_NE(layout_str, "") << "Layout must be defined for matrix_b";
-    os << "nvcuda::wmma::fragment<nvcuda::wmma::matrix_b, " << shape_str << ", " << type.str()
-       << ", nvcuda::wmma::" << layout_str << ">";
-  } else if (scope == "wmma.accumulator") {
-    codegen_tags_.insert("mma");
-    os << "nvcuda::wmma::fragment<nvcuda::wmma::accumulator, " << shape_str << ", " << type.str()
-       << ">";
-  }
-}
-
-int stoi(const std::string& str) {
-  try {
-    return std::stoi(str);
-  } catch (std::invalid_argument& e) {
-    TVM_FFI_THROW(InternalError) << "Cannot convert \"" << str << "\" to int";
-    throw;
-  }
-}
-
-int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string& scope, const std::string& shape_str,
-                                         int32_t size) {
-  std::pair<int32_t, int32_t> dim = GetWmmaFragmentDimSize(shape_str, scope);
-  if (dim.first * dim.second != 0)
-    return size / dim.first / dim.second;
-  else
-    return 0;
 }
 
 void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const TensorLoadNode* op,
