@@ -174,53 +174,6 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultCUDA() {
 }
 
 ffi::Array<ScheduleRule> ScheduleRule::DefaultCUDATensorCore() {
-  ffi::Array<ffi::Map<ffi::String, ffi::String>> wmma_intrin_groups = {
-      // Tensor Cores f32 += f16 * f16
-      {
-          {"init", "wmma_fill_16x16x16_f32"},
-          {"load_a", "wmma_load_16x16x16_f16_a_shared_dyn"},
-          {"load_b", "wmma_load_16x16x16_f16_b_shared_dyn"},
-          {"compute", "wmma_sync_16x16x16_f16f16f32"},
-          {"store", "wmma_store_16x16x16_f32_shared_dyn"},
-      },
-      {
-          {"init", "wmma_fill_16x16x16_f32"},
-          {"load_a", "wmma_load_16x16x16_f16_a_shared_dyn"},
-          {"load_b", "wmma_load_16x16x16_f16_b_trans_shared_dyn"},
-          {"compute", "wmma_sync_16x16x16_f16f16f32_trans"},
-          {"store", "wmma_store_16x16x16_f32_shared_dyn"},
-      },
-      // Tensor Cores f16 += f16 * f16
-      {
-          {"init", "wmma_fill_16x16x16_f16"},
-          {"load_a", "wmma_load_16x16x16_f16_a_shared_dyn"},
-          {"load_b", "wmma_load_16x16x16_f16_b_shared_dyn"},
-          {"compute", "wmma_sync_16x16x16_f16f16f16"},
-          {"store", "wmma_store_16x16x16_f16_shared_dyn"},
-      },
-      {
-          {"init", "wmma_fill_16x16x16_f16"},
-          {"load_a", "wmma_load_16x16x16_f16_a_shared_dyn"},
-          {"load_b", "wmma_load_16x16x16_f16_b_trans_shared_dyn"},
-          {"compute", "wmma_sync_16x16x16_f16f16f16_trans"},
-          {"store", "wmma_store_16x16x16_f16_shared_dyn"},
-      },
-      // Tensor Cores s32 += s8 * s8
-      {
-          {"init", "wmma_fill_16x16x16_s32"},
-          {"load_a", "wmma_load_16x16x16_s8_a_shared_dyn"},
-          {"load_b", "wmma_load_16x16x16_s8_b_shared_dyn"},
-          {"compute", "wmma_sync_16x16x16_s8s8s32"},
-          {"store", "wmma_store_16x16x16_s32_shared_dyn"},
-      },
-      {
-          {"init", "wmma_fill_16x16x16_s32"},
-          {"load_a", "wmma_load_16x16x16_s8_a_shared_dyn"},
-          {"load_b", "wmma_load_16x16x16_s8_b_trans_shared_dyn"},
-          {"compute", "wmma_sync_16x16x16_s8s8s32_trans"},
-          {"store", "wmma_store_16x16x16_s32_shared_dyn"},
-      },
-  };
   ffi::Array<ffi::Map<ffi::String, ffi::String>> mma_intrin_groups = {
       // Tensor Core MMA
       {
@@ -240,21 +193,6 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultCUDATensorCore() {
   };
   ffi::Array<ScheduleRule> results{
       ScheduleRule::ApplyCustomRule(),
-      ScheduleRule::MultiLevelTilingTensorCore(
-          /*intrin_groups=*/wmma_intrin_groups,
-          /*structure=*/"SSSRRSRS",
-          /*tile_binds=*/ffi::Array<ffi::String>{"blockIdx.y", "blockIdx.x", "threadIdx.y"},
-          /*max_innermost_factor=*/static_cast<int64_t>(4),
-          /*vector_load_lens=*/ffi::Array<int64_t>{1, 2, 3, 4, 8, 16},
-          /*reuse_read=*/
-          ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("must")},
-                                          {"levels", ffi::Array<int64_t>{4}},  //
-                                          {"scope", ffi::String("shared.dyn")}},
-          /*reuse_write=*/
-          ffi::Map<ffi::String, ffi::Any>{{"req", ffi::String("must")},
-                                          {"levels", ffi::Array<int64_t>{2}},  //
-                                          {"scope", ffi::String("shared.dyn")}},
-          /*use_software_pipeline=*/false),  //
       ScheduleRule::MultiLevelTilingTensorCore(
           /*intrin_groups=*/mma_intrin_groups,
           /*structure=*/"SSSRRSRS",
