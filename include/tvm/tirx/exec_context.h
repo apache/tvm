@@ -28,9 +28,9 @@
 #ifndef TVM_TIRX_EXEC_CONTEXT_H_
 #define TVM_TIRX_EXEC_CONTEXT_H_
 
+#include <tvm/ir/expr.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/layout.h>
-#include <tvm/tirx/var.h>
 
 #include <string>
 #include <unordered_map>

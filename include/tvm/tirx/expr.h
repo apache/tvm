@@ -29,7 +29,6 @@
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/tirx/type.h>
-#include <tvm/tirx/var.h>
 
 #include <string>
 
@@ -272,10 +271,10 @@ struct TypeTraits<tirx::TensorVar> : public ObjectRefTypeTraitsBase<tirx::Tensor
     if (src->type_index == TypeIndex::kTVMFFINone) {
       return false;
     }
-    if (src->type_index != tirx::VarNode::RuntimeTypeIndex()) {
+    if (src->type_index != tvm::VarNode::RuntimeTypeIndex()) {
       return false;
     }
-    const auto* var = static_cast<const tirx::VarNode*>(
+    const auto* var = static_cast<const tvm::VarNode*>(
         details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj).get());
     return details::AnyUnsafe::CheckAnyStrict<tirx::TensorType>(var->ExprNode::ty);
   }
@@ -283,7 +282,7 @@ struct TypeTraits<tirx::TensorVar> : public ObjectRefTypeTraitsBase<tirx::Tensor
   TVM_FFI_INLINE static std::optional<tirx::TensorVar> TryCastFromAnyView(const TVMFFIAny* src) {
     if (CheckAnyStrict(src)) {
       return details::ObjectUnsafe::ObjectRefFromObjectPtr<tirx::TensorVar>(
-          details::ObjectUnsafe::ObjectPtrFromUnowned<tirx::VarNode>(src->v_obj));
+          details::ObjectUnsafe::ObjectPtrFromUnowned<tvm::VarNode>(src->v_obj));
     }
     return std::nullopt;
   }

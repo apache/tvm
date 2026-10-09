@@ -132,7 +132,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
   auto lower_bounds = func->GetAttr<ffi::Map<ffi::String, Any>>("tir_var_lower_bound");
 
   if (upper_bounds || lower_bounds) {
-    ffi::Map<ffi::String, tirx::Var> name_lookup;
+    ffi::Map<ffi::String, tvm::Var> name_lookup;
     for (const auto& tir_var : TIRVarsInType(GetType(func))) {
       name_lookup.Set(tir_var->name, tir_var);
       symbolic_var_constraints = symbolic_var_constraints && (0 <= tir_var.as_or_throw<PrimExpr>());

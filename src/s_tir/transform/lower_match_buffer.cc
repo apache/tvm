@@ -172,7 +172,8 @@ class MatchBufferLower : public StmtExprMutator {
       return buffer_region;
     } else {
       const TensorRegion& source = (*it).second;
-      Region region = ConvertRegion(MatchBufferRegion(buffer, source), buffer_region->region);
+      ffi::Array<Range> region =
+          ConvertRegion(MatchBufferRegion(buffer, source), buffer_region->region);
       return BufferRegion(source->source.as_or_throw<tvm::tirx::TensorVar>(), std::move(region));
     }
   }

@@ -71,8 +71,8 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
     return buffer_access_map_;
   }
 
-  Region FindUnion(const TensorVar& buffer, bool consider_loads, bool consider_stores) {
-    Region ret;
+  ffi::Array<Range> FindUnion(const TensorVar& buffer, bool consider_loads, bool consider_stores) {
+    ffi::Array<Range> ret;
     auto kv = buffer_access_map_.find(buffer.get());
     if (kv == buffer_access_map_.end()) {
       LOG(WARNING) << "[s_tir::BufferDomainTouched] "
@@ -134,8 +134,8 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
   std::unordered_map<const VarNode*, BufferDomainAccess> buffer_access_map_;
 };
 
-Region DomainTouched(const Stmt& stmt, const TensorVar& buffer, bool consider_loads,
-                     bool consider_stores) {
+ffi::Array<Range> DomainTouched(const Stmt& stmt, const TensorVar& buffer, bool consider_loads,
+                                bool consider_stores) {
   auto visitor = ffi::make_object<BufferTouchedDomain>();
   visitor->Visit(stmt);
   return visitor->FindUnion(buffer, consider_loads, consider_stores);

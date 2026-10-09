@@ -49,7 +49,7 @@ namespace tirx {
 class FunctionNode : public BaseFuncNode {
  public:
   /*! \brief Function parameters */
-  ffi::Array<tirx::Var> params;
+  ffi::Array<tvm::Var> params;
   /*! \brief The return type of the function. */
   Type ret_type = Type::Missing();
   /*! \brief The body of the function, absent for a declaration. */
@@ -117,7 +117,7 @@ class Function : public BaseFunc {
    *
    * \param span The location of this object in the source code.
    */
-  TVM_DLL Function(ffi::Array<tirx::Var> params, ffi::Optional<SeqStmt> body,
+  TVM_DLL Function(ffi::Array<tvm::Var> params, ffi::Optional<SeqStmt> body,
                    Type ret_type = VoidType(), DictAttrs attrs = DictAttrs(), Span span = Span());
 
   explicit Function(ffi::ObjectPtr<FunctionNode> node) : BaseFunc(std::move(node)) {}

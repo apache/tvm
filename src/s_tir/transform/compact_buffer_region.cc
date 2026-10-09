@@ -51,7 +51,7 @@ using namespace tvm::tirx;
 using support::NDIntSet;
 
 /*! \brief a more constrained bound estimate for n-dimentional int set */
-NDIntSet NDIntSetEval(Region region, PrimExpr predicate,
+NDIntSet NDIntSetEval(ffi::Array<Range> region, PrimExpr predicate,
                       const std::unordered_map<const VarNode*, sym::IntSet>& dom_map,
                       sym::AnalyzerObj* analyzer) {
   std::unordered_map<Var, Range, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_dom;
@@ -117,8 +117,8 @@ class Var2BufferCollector : public StmtExprVisitor {
 class BufferAccessRegionCollector : public StmtExprVisitor {
  public:
   using StmtExprVisitor::Visit_;
-  static std::unordered_map<TensorVar, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> Collect(
-      const Function& f, bool collect_inbound) {
+  static std::unordered_map<TensorVar, ffi::Array<Range>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  Collect(const Function& f, bool collect_inbound) {
     auto region_collector = ffi::make_object<BufferAccessRegionCollector>(collect_inbound);
     // collect buffer var to aliased buffer mapping
     auto var2buffer_collector = ffi::make_object<Var2BufferCollector>();
@@ -578,7 +578,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
    * The entire access region should get updated on the buffer's define point
    * and we sanity check that every buffer is defined only once.
    */
-  std::unordered_map<TensorVar, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<TensorVar, ffi::Array<Range>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       buffer_access_region_;
 
   /*! \brief The map from TensorVar to it's access regions annotated by current block. */
@@ -599,7 +599,7 @@ struct DimAlignInfo {
 
 struct BufferAllocInfo {
   /*! \brief The buffer access region. */
-  Region region;
+  ffi::Array<Range> region;
   /*! \brief The storage alignment information. */
   std::vector<DimAlignInfo> dim_aligns;
   /*!
@@ -712,7 +712,7 @@ class BufferCompactor : public StmtExprMutator {
     *indices = std::move(new_indices);
   }
 
-  void RewriteBufferRegion(TensorVar* buffer, Region* region) const {
+  void RewriteBufferRegion(TensorVar* buffer, ffi::Array<Range>* region) const {
     auto it = buffer_info_.find((*buffer).var());
     if (it == buffer_info_.end()) {
       // Skip if the buffer is parameter
@@ -720,7 +720,7 @@ class BufferCompactor : public StmtExprMutator {
     }
     const BufferAllocInfo& info = it->second;
     TVM_FFI_ICHECK_EQ(region->size(), info.region.size());
-    Region new_region;
+    ffi::Array<Range> new_region;
     new_region.reserve(info.region.size());
     for (size_t i = 0; i < info.region.size(); ++i) {
       const Range& range = (*region)[i];
@@ -789,14 +789,15 @@ ffi::Array<PrimExpr> CalcStrides(const BufferAllocInfo& alloc_info,
 
 Stmt BufferCompactorCompact(
     const Function& f,
-    const std::unordered_map<TensorVar, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& regions,
+    const std::unordered_map<TensorVar, ffi::Array<Range>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>&
+        regions,
     const std::unordered_map<Var, StorageAlignAnnotation>& storage_align) {
   // collect buffer allocation info for no-alias buffers
   std::unordered_map<Var, BufferAllocInfo> buffer_info;
   for (const auto& kv : regions) {
     const TensorVar& buffer = kv.first;
     // set dim alignment info
-    Region region = kv.second;
+    ffi::Array<Range> region = kv.second;
     BufferAllocInfo alloc_info;
     auto it = storage_align.find(buffer.var());
     if (it != storage_align.end()) {

@@ -137,8 +137,8 @@ tirx::Function WrapBareSBlockBody(const tirx::Function& func) {
   }
   tvm::IntImm zero(tvm::PrimType::Int(32), 0);
   tvm::IntImm one(tvm::PrimType::Int(32), 1);
-  tirx::Var loop_var("u", tvm::PrimType::Int(32));
-  tirx::Var iter_var_var("vu", tvm::PrimType::Int(32));
+  tvm::Var loop_var("u", tvm::PrimType::Int(32));
+  tvm::Var iter_var_var("vu", tvm::PrimType::Int(32));
   s_tir::IterVar new_iter(tvm::Range::FromMinExtent(zero, one), iter_var_var.as_or_throw<PrimVar>(),
                           s_tir::IterVarType::kDataPar);
   s_tir::SBlock inner_block = realize->block;

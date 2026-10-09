@@ -355,7 +355,7 @@ inline int GetNumOutput(Call call) {
 void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tirx::Function& func,
                            distributed::AxisGroupGraph* axis_group_graph) {
   auto tir_var_axis_group_list = tirx::BufferAxisGraphExtractor::GetTIRVarAxisGraph(func);
-  ffi::Map<tirx::Var, Expr> input_var_to_relax_expr;
+  ffi::Map<tvm::Var, Expr> input_var_to_relax_expr;
   ffi::Array<Expr> input_list = call->args[1].as_or_throw<Tuple>()->fields;
   input_list.push_back(output_var);
   for (int i = 0; i < static_cast<int>(input_list.size()); i++) {

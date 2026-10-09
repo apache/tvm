@@ -26,8 +26,8 @@
 
 #include <tvm/ffi/container/tuple.h>
 #include <tvm/ffi/container/variant.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
-#include <tvm/tirx/var.h>
 
 #include <string>
 #include <utility>

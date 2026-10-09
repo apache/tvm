@@ -29,6 +29,8 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/analysis.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
@@ -38,7 +40,6 @@
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
 
 #include <optional>
@@ -584,7 +585,7 @@ class FunctionCreator : public ExprMutator {
                                    /*is_pure=*/true,         //
                                    /*attrs=*/DictAttrs(group_attrs));
       ffi::Array<PrimExpr> free_vars = FreeSymbolicVars(function).Map(
-          [](const tirx::Var& var) { return var.as_or_throw<PrimExpr>(); });
+          [](const tvm::Var& var) { return var.as_or_throw<PrimExpr>(); });
       if (!free_vars.empty()) {
         params_.push_back(Var("tir_vars", ShapeType(free_vars)));
         arguments_.push_back(ShapeExpr(free_vars));
@@ -636,8 +637,8 @@ class FunctionCreator : public ExprMutator {
       boundary_types.push_back(GetType(ffi::GetRef<Var>(output_var)));
     }
 
-    std::unordered_set<tirx::Var> boundary_shape_vars;
-    for (const tirx::Var& var : TIRVarsInType(TupleType(boundary_types))) {
+    std::unordered_set<tvm::Var> boundary_shape_vars;
+    for (const tvm::Var& var : TIRVarsInType(TupleType(boundary_types))) {
       boundary_shape_vars.insert(var);
     }
 
@@ -733,17 +734,17 @@ class FunctionCreator : public ExprMutator {
   bool IsSymbolicPrimExpr(const Expr& expr) {
     if (expr.as<CallNode>()) return false;
     if (auto prim_value = expr.as<PrimExpr>()) {
-      return !tvm::tirx::UndefinedVars(prim_value.value()).empty();
+      return !tvm::UndefinedVars(prim_value.value()).empty();
     }
     return false;
   }
 
   bool IsShapeDependentPrimExpr(const Expr& expr,
-                                const std::unordered_set<tirx::Var>& referenced_shape_vars) {
+                                const std::unordered_set<tvm::Var>& referenced_shape_vars) {
     if (!IsSymbolicPrimExpr(expr)) return false;
-    ffi::Array<tirx::Var> undefined_vars = tvm::tirx::UndefinedVars(expr.as_or_throw<PrimExpr>());
+    ffi::Array<tvm::Var> undefined_vars = tvm::UndefinedVars(expr.as_or_throw<PrimExpr>());
     return std::all_of(undefined_vars.begin(), undefined_vars.end(),
-                       [&](const tirx::Var& var) { return referenced_shape_vars.count(var); });
+                       [&](const tvm::Var& var) { return referenced_shape_vars.count(var); });
   }
 
   bool IsInlinableConstants(const Expr& expr) {
@@ -753,10 +754,10 @@ class FunctionCreator : public ExprMutator {
     } else if (expr.as<VarNode>() || expr.as<CallNode>()) {
       return false;
     } else if (auto prim_value = expr.as<PrimExpr>()) {
-      return tvm::tirx::UndefinedVars(prim_value.value()).empty();
+      return tvm::UndefinedVars(prim_value.value()).empty();
     } else if (const auto* shape_expr = expr.as<ShapeExprNode>()) {
       return std::all_of(shape_expr->values.begin(), shape_expr->values.end(),
-                         [](const PrimExpr& e) { return tvm::tirx::UndefinedVars(e).empty(); });
+                         [](const PrimExpr& e) { return tvm::UndefinedVars(e).empty(); });
     }
     return false;
   }

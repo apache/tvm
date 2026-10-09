@@ -406,7 +406,7 @@ class LowerTIRToLocalView : public ExprMutator {
     TVM_FFI_ICHECK_LE(args.size(), function->params.size());
     for (size_t i = 0; i < args.size(); ++i) {
       const Expr& arg = args[i];
-      const tirx::Var& param = function->params[i];
+      const tvm::Var& param = function->params[i];
       if (param->ty.as<tirx::TensorTypeNode>()) {
         const auto* ty = GetTypeAs<DTensorTypeNode>(arg);
         TVM_FFI_CHECK(ty, TypeError)

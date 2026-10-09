@@ -220,7 +220,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
  private:
   class RuntimePrimVarCollector : public ExprVisitor {
    public:
-    static std::unordered_set<tirx::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> Collect(
+    static std::unordered_set<tvm::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> Collect(
         const Expr& expr) {
       RuntimePrimVarCollector collector;
       collector.VisitExpr(expr);
@@ -239,7 +239,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     }
 
    private:
-    std::unordered_set<tirx::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> uses_;
+    std::unordered_set<tvm::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> uses_;
   };
 
   PrimExpr CanonicalizeShapeValue(const PrimExpr& expr) {
@@ -260,8 +260,8 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     MatchCast source;
   };
 
-  std::unordered_map<tirx::Var, KnownValue, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> known_values_;
-  std::unordered_set<tirx::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> runtime_prim_var_uses_;
+  std::unordered_map<tvm::Var, KnownValue, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> known_values_;
+  std::unordered_set<tvm::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> runtime_prim_var_uses_;
   bool canonicalize_shape_values_ = true;
 };
 

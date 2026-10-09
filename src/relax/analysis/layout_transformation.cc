@@ -24,6 +24,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/analysis.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
@@ -62,7 +63,7 @@ static bool IsBijectiveAffine(const IndexMap& m, const ffi::Array<Range>& ranges
  */
 class IndexAnalyzer : public s_tir::StmtExprVisitor {
  public:
-  ffi::Array<tirx::Var> Analyze(const sym::IterSumExpr& expr) {
+  ffi::Array<tvm::Var> Analyze(const sym::IterSumExpr& expr) {
     Visit(expr);
     return iterators_;
   }
@@ -92,7 +93,7 @@ class IndexAnalyzer : public s_tir::StmtExprVisitor {
   }
 
  private:
-  ffi::Array<tirx::Var> iterators_;
+  ffi::Array<tvm::Var> iterators_;
 };
 
 /*!
@@ -110,13 +111,13 @@ class IndexAnalyzer : public s_tir::StmtExprVisitor {
  * SpatialLayout(A[s0, constant, r0, s1]) = {s0, null, null, s1}
  * SpatialLayout(A[s0 * c + s1]) = undefined
  */
-using SpatialLayout = ffi::Array<ffi::Optional<tirx::Var>>;
+using SpatialLayout = ffi::Array<ffi::Optional<tvm::Var>>;
 static SpatialLayout GetSpatialLayout(const sym::IterMapResult& iter_map_result) {
   TVM_FFI_ICHECK(!iter_map_result->indices.empty());
   SpatialLayout result;
   for (const sym::IterSumExpr& index : iter_map_result->indices) {
     auto index_analyzer = ffi::make_object<IndexAnalyzer>();
-    ffi::Array<tirx::Var> iter_vars = index_analyzer->Analyze(index);
+    ffi::Array<tvm::Var> iter_vars = index_analyzer->Analyze(index);
     if (iter_vars.size() >= 2) {
       LOG(WARNING) << "[LayoutInference] Unable to get spatial layout of access: "
                    << sym::NormalizeIterMapToExpr(index);
@@ -151,7 +152,7 @@ static bool AreIdenticalSpatialAccess(const SpatialLayout& s0, const SpatialLayo
  * (ignoring reduction dimensions). It checks that the order of spatial iter vars in spatial layout
  * of a buffer access is same as the order of spatial iter vars in block domain.
  */
-using VarToBlockIndexMap = std::unordered_map<tirx::Var, int>;
+using VarToBlockIndexMap = std::unordered_map<tvm::Var, int>;
 static bool IsSequentialAccess(const SpatialLayout& iterators,
                                const VarToBlockIndexMap& iter_to_block_index) {
   int last_value = -1;
@@ -173,7 +174,7 @@ static bool AreIdenticalTransforms(const IndexMap& t0, const IndexMap& t1) {
 
   // Create a new shape expression.
   ffi::Array<PrimExpr> t1_initial_indices =
-      t1->initial_indices.Map([](tirx::Var i) { return i.as_or_throw<PrimExpr>(); });
+      t1->initial_indices.Map([](tvm::Var i) { return i.as_or_throw<PrimExpr>(); });
   sym::Analyzer analyzer;
   auto t0_output = t0->MapIndices(t1_initial_indices, analyzer);
   for (size_t i = 0; i < t0_output.size(); ++i) {
@@ -211,13 +212,13 @@ static bool AreIdenticalTransforms(const IndexMap& t0, const IndexMap& t1) {
  * source spatial layout.
  * target transformation = lambda dim, C, H, W -> (dim, H, W, C // 4, C %4)
  */
-using VarSet = std::unordered_set<tirx::Var>;
+using VarSet = std::unordered_set<tvm::Var>;
 static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& src_spatial_layout,
                                                          const IndexMap& src_transformation,
                                                          const SpatialLayout& tgt_spatial_layout) {
   // Copy over the src transformation intial and final indices
-  std::vector<tirx::Var> initial_indices(src_transformation->initial_indices.begin(),
-                                         src_transformation->initial_indices.end());
+  std::vector<tvm::Var> initial_indices(src_transformation->initial_indices.begin(),
+                                        src_transformation->initial_indices.end());
   std::vector<PrimExpr> final_indices(src_transformation->final_indices.begin(),
                                       src_transformation->final_indices.end());
 
@@ -245,13 +246,13 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
   auto final_indices_it = final_indices.begin();
   while (final_indices_it != final_indices.end()) {
     // Collect all the vars used in this final index.
-    ffi::Array<tirx::Var> used_vars = tirx::UndefinedVars(*final_indices_it);
+    ffi::Array<tvm::Var> used_vars = tvm::UndefinedVars(*final_indices_it);
     TVM_FFI_ICHECK(!used_vars.empty())
-        << "IndexMap expression must always contain tirx::Var nodes but found none in: "
+        << "IndexMap expression must always contain tvm::Var nodes but found none in: "
         << *final_indices_it;
 
     bool has_undefined_vars = std::any_of(used_vars.begin(), used_vars.end(),
-                                          [&initial_indices_var_set](const tirx::Var& v) {
+                                          [&initial_indices_var_set](const tvm::Var& v) {
                                             return initial_indices_var_set.count(v) == 0;
                                           });
 
@@ -267,7 +268,7 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
     // "H4h" -> "H*4+h" ) and the buffer we are trying to infer the transformation of has 'h'
     // dimension, but not 'H'. So, it is dependent on undefined var 'H' and defined var 'h'.
     bool depends_on_initial_indices = std::any_of(used_vars.begin(), used_vars.end(),
-                                                  [&initial_indices_var_set](const tirx::Var& v) {
+                                                  [&initial_indices_var_set](const tvm::Var& v) {
                                                     return initial_indices_var_set.count(v) != 0;
                                                   });
     if (depends_on_initial_indices) {
@@ -306,9 +307,9 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
     final_indices_it++;
   }
 
-  ffi::Array<tirx::Var> initial_array(initial_indices.begin(), initial_indices.end());
+  ffi::Array<tvm::Var> initial_array(initial_indices.begin(), initial_indices.end());
   ffi::Array<PrimExpr> final_array(final_indices.begin(), final_indices.end());
-  return IndexMap(initial_array.Map([](tirx::Var var) { return var.as_or_throw<PrimVar>(); }),
+  return IndexMap(initial_array.Map([](tvm::Var var) { return var.as_or_throw<PrimVar>(); }),
                   final_array);
 }
 
@@ -359,7 +360,7 @@ class BlockAnalyzer : public s_tir::StmtExprVisitor {
     for (const auto& iter_var : block->iter_vars) {
       auto var = iter_var->var;
       iter_var_to_block_index[var] = index++;
-      block_spatial_layout.push_back(static_cast<tirx::Var>(var));
+      block_spatial_layout.push_back(static_cast<tvm::Var>(var));
     }
 
     // Helper to get the spatial layout of buffer from buffer access map.

@@ -81,7 +81,7 @@ class SpecializeTIRCallArgs : ExprMutator {
     auto gv = call->args[0].as_or_throw<GlobalVar>();
     auto pfunc = mod_->Lookup(gv).as_or_throw<tirx::Function>();
     auto args = call->args[1].as_or_throw<Tuple>()->fields;
-    ffi::Map<tirx::Var, ffi::Variant<TensorVar, Expr>> param_map;
+    ffi::Map<tvm::Var, ffi::Variant<TensorVar, Expr>> param_map;
 
     for (size_t i = 0; i < args.size(); ++i) {
       auto ty = GetType(args[i]);

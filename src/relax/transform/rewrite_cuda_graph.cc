@@ -52,12 +52,12 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/backend.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/utils.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
@@ -248,7 +248,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
             func->attrs.GetAttr<int64_t>(attr::kNumInput).value_or(func->params.size());
         auto capture_symbolic_var_name_hints = ExtractSymbolicVarHints(func);
         for (int i = 0; i < static_cast<int>(func->params.size()); ++i) {
-          ffi::Array<tirx::Var> symbolic_vars =
+          ffi::Array<tvm::Var> symbolic_vars =
               DefinableTIRVarsInType(func->params[i]->ty.as_or_throw<Type>());
           if (i < num_inputs) {
             for (const auto& symbolic_var : symbolic_vars) {
@@ -497,7 +497,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
                 std::vector<PrimVar>* tir_vars_collector = nullptr) {
     bool is_static = true;
     std::unordered_set<const ffi::Object*> visited;
-    auto walk_fn = [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+    auto walk_fn = [&](const tvm::Var& var) -> ffi::Expected<ffi::WalkResult> {
       auto prim_var = var.as<PrimVar>();
       if (!prim_var || !visited.insert(prim_var.value().get()).second) {
         return ffi::WalkResult::Advance();

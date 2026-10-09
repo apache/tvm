@@ -48,7 +48,6 @@
 
 #include "tvm/ffi/dtype.h"
 #include "tvm/ir/expr.h"
-#include "tvm/tirx/var.h"
 
 namespace tvm {
 namespace topi {

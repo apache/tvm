@@ -21,6 +21,7 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ir/analysis.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
@@ -28,7 +29,6 @@
 
 #include <unordered_set>
 
-#include "../../../tirx/analysis/var_use_def_analysis.h"
 #include "../../../tirx/transform/ir_utils.h"
 #include "../utils.h"
 
@@ -196,18 +196,18 @@ SBlock MakeReindexCacheStage(const TensorRegion& cache_region, ReindexCacheStage
   }
 
   // block access region for read/write buffers
-  Region read_access_region, write_access_region;
+  ffi::Array<Range> read_access_region, write_access_region;
   ffi::Array<PrimExpr> read_access_indices, write_access_indices;
   // Compute read/write region and read/write access indices.
   ffi::Array<PrimExpr>& old_indices = (is_cache_read) ? read_access_indices : write_access_indices;
-  Region& old_region = (is_cache_read) ? read_access_region : write_access_region;
+  ffi::Array<Range>& old_region = (is_cache_read) ? read_access_region : write_access_region;
   for (const Range& range : cache_region->region) {
     old_indices.push_back(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, f_substitute)
                               .template as_or_throw<PrimExpr>());
     old_region.push_back(Range::FromMinExtent(old_indices.back(), IntImm::Int32(1)));
   }
   ffi::Array<PrimExpr>& new_indices = (is_cache_read) ? write_access_indices : read_access_indices;
-  Region& new_region = (is_cache_read) ? write_access_region : read_access_region;
+  ffi::Array<Range>& new_region = (is_cache_read) ? write_access_region : read_access_region;
   for (const PrimExpr& idx : info->indices) {
     new_indices.push_back(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(idx, f_substitute)
                               .template as_or_throw<PrimExpr>());
@@ -271,8 +271,8 @@ SBlock MakeCacheStage(const TensorRegion& cache_region, CacheStageInfo* info,
   // block variables
   ffi::Array<IterVar> block_vars;
   // block access region for read/write buffers
-  Region read_access_region;
-  Region write_access_region;
+  ffi::Array<Range> read_access_region;
+  ffi::Array<Range> write_access_region;
   // indices used in block body
   ffi::Array<PrimExpr> read_access_indices;
   ffi::Array<PrimExpr> write_access_indices;
@@ -412,8 +412,8 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
   // Step 3: Create the reindex block
 
   // The src and the dst region and indices of the data copy
-  Region src_region{nullptr};
-  Region dst_region{nullptr};
+  ffi::Array<Range> src_region{nullptr};
+  ffi::Array<Range> dst_region{nullptr};
   ffi::Array<PrimExpr> src_indices{nullptr};
   ffi::Array<PrimExpr> dst_indices{nullptr};
 
@@ -691,7 +691,7 @@ TensorRegion RelaxBufferRegion(ScheduleState self, const TensorRegion& buffer_re
       /*analyzer=*/analyzer.get());
   TVM_FFI_ICHECK_EQ(buffer_region->region.size(), int_sets.size());
 
-  Region region;
+  ffi::Array<Range> region;
   region.reserve(int_sets.size());
   for (size_t i = 0; i < int_sets.size(); ++i) {
     region.push_back(int_sets[i].CoverRange(Range::FromMinExtent(0, buffer->shape[i])));
@@ -978,7 +978,8 @@ class CacheReadRewriter : public StmtExprMutator {
                              bool cache_full_region = true)
       : scope_sref_(scope_sref), info_(info), cache_full_region_(cache_full_region) {
     VarRemapSet(info_->read_buffer, info_->write_buffer);
-    auto update_region = [this](const Region& region, const Region& offset) -> Region {
+    auto update_region = [this](const ffi::Array<Range>& region,
+                                const ffi::Array<Range>& offset) -> ffi::Array<Range> {
       TVM_FFI_ICHECK_EQ(region.size(), offset.size());
       std::vector<Range> ret;
       for (size_t i = 0; i < region.size(); ++i) {
@@ -1208,7 +1209,7 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
       ffi::Array<TensorRegion> new_reads;
       for (const TensorRegion& buf_region : reads) {
         if (buf_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->read_buffer)) {
-          Region region;
+          ffi::Array<Range> region;
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, IntImm::Int32(1)));
           }
@@ -1224,7 +1225,7 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
       for (const MatchBufferRegion& match_buffer_region : match_buffers) {
         TensorRegion source = match_buffer_region->source;
         if (source->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->read_buffer)) {
-          Region region;
+          ffi::Array<Range> region;
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, IntImm::Int32(1)));
           }
@@ -1287,7 +1288,8 @@ class CacheWriteRewriter : public StmtExprMutator {
         info_(info),
         cache_full_region_(cache_full_region) {
     VarRemapSet(info_->write_buffer, info_->read_buffer);
-    auto update_region = [this](const Region& region, const Region& offset) -> Region {
+    auto update_region = [this](const ffi::Array<Range>& region,
+                                const ffi::Array<Range>& offset) -> ffi::Array<Range> {
       TVM_FFI_ICHECK_EQ(region.size(), offset.size());
       std::vector<Range> ret;
       for (size_t i = 0; i < region.size(); ++i) {
@@ -1557,7 +1559,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
       ffi::Array<TensorRegion> new_reads;
       for (const TensorRegion& buf_region : reads) {
         if (buf_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->write_buffer)) {
-          Region region;
+          ffi::Array<Range> region;
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, IntImm::Int32(1)));
           }
@@ -1573,7 +1575,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
       for (const MatchBufferRegion& match_buffer_region : match_buffers) {
         TensorRegion source = match_buffer_region->source;
         if (source->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->write_buffer)) {
-          Region region;
+          ffi::Array<Range> region;
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, IntImm::Int32(1)));
           }
@@ -1912,7 +1914,7 @@ class ReIndexRewriter : public StmtExprMutator {
   /*! \brief The new indices */
   ffi::Array<PrimExpr> indices_;
   /*! \brief The new region */
-  Region region_;
+  ffi::Array<Range> region_;
 };
 
 void CheckRegionCover(const ScheduleState& self, StmtSRef scope_root, TensorVar read_buffer) {
@@ -2232,24 +2234,21 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
   info->indices = new_indices;
 
   // Step 5. Update CacheTouchedInfo
-  auto collector_old = ffi::make_object<VarUseDefAnalyzer>(ffi::Array<Var>{});
+  auto collect_vars = [](const ffi::Array<PrimExpr>& values) {
+    ffi::Array<Var> vars = UndefinedVars(values);
+    return std::unordered_set<Var>(vars.begin(), vars.end());
+  };
   ffi::Array<PrimExpr> old_indices;
   for (const Range& range : cache_region->region) {
-    collector_old->Visit(range->min);
     old_indices.push_back(range->min);
   }
-
-  auto collector_new = ffi::make_object<VarUseDefAnalyzer>(ffi::Array<Var>{});
-  for (const PrimExpr& idx : new_indices) {
-    collector_new->Visit(idx);
-  }
-
-  auto collector_iter_values = ffi::make_object<VarUseDefAnalyzer>(ffi::Array<Var>{});
+  auto old_vars = collect_vars(old_indices);
+  auto new_vars = collect_vars(new_indices);
   for (size_t i = 0; i < block->iter_vars.size(); ++i) {
     const IterVar& block_iter_var = block->iter_vars[i];
     const PrimExpr& block_iter_value = realize->iter_values[i];
-    bool appears_in_new = collector_new->use_count_.count(block_iter_var->var.get());
-    bool appears_in_old = collector_old->use_count_.count(block_iter_var->var.get());
+    bool appears_in_new = new_vars.count(block_iter_var->var);
+    bool appears_in_old = old_vars.count(block_iter_var->var);
     if (appears_in_new != appears_in_old) {
       throw MakeScheduleError<ReindexCacheReadWriteNotMatchError>(
           mod, block, block_iter_var->var, old_indices, new_indices, is_cache_read, appears_in_old);
@@ -2257,13 +2256,13 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
     if (appears_in_new) {
       info->block_iter_vars.push_back(block_iter_var);
       info->block_iter_values.push_back(block_iter_value);
-      collector_iter_values->Visit(block_iter_value);
     }
   }
 
+  auto iter_value_vars = collect_vars(info->block_iter_values);
   for (const StmtSRef& loop_sref : GetLoopsUnderScope(block_sref, info->loc_sref)) {
     const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-    if (collector_iter_values->use_count_.count(loop->loop_var.get())) {
+    if (iter_value_vars.count(loop->loop_var)) {
       info->loop_vars.push_back(loop->loop_var);
       info->loop_ranges.push_back(Range::FromMinExtent(loop->min, loop->extent));
     }

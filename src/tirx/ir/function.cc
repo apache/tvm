@@ -106,7 +106,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMaybeInplaceMut
 }  // namespace
 
 // Get the function type of a Function
-Function::Function(ffi::Array<tirx::Var> params, ffi::Optional<SeqStmt> body, Type ret_type,
+Function::Function(ffi::Array<tvm::Var> params, ffi::Optional<SeqStmt> body, Type ret_type,
                    DictAttrs attrs, Span span)
     : BaseFunc(ffi::UnsafeInit{}) {
   if (ret_type.as<MissingType>().has_value()) {
@@ -163,7 +163,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   refl::GlobalDef().def(
       "tirx.Function",
-      [](ffi::Array<tirx::Var> params, ffi::Optional<SeqStmt> body, Type ret_type, DictAttrs attrs,
+      [](ffi::Array<tvm::Var> params, ffi::Optional<SeqStmt> body, Type ret_type, DictAttrs attrs,
          Span span) { return Function(params, body, ret_type, attrs, span); });
   refl::GlobalDef().def("tirx.RenewDef", RenewDef);
 }

@@ -252,7 +252,7 @@ class DataflowBlockMutator : public ExprMutator {
     PreservedVars vars;
     for (const Binding& binding : bindings) {
       if (const auto* match_cast = binding.as<MatchCastNode>()) {
-        for (const tirx::Var& var : DefinableTIRVarsInType(match_cast->ty)) {
+        for (const tvm::Var& var : DefinableTIRVarsInType(match_cast->ty)) {
           vars.match_cast_symbolic_vars.insert(var.get());
         }
       }

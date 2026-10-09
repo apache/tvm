@@ -21,6 +21,7 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/object_functor.h>
 #include <tvm/ir/prim/expr.h>
@@ -29,7 +30,6 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/memory.h>
@@ -155,7 +155,7 @@ TEST(IRF, ExprTransform) {
   PrimVar x("x");
   auto z = x + 1;
 
-  class MyExprFunctor : public tirx::ExprFunctor<int(const Expr&, int)> {
+  class MyExprFunctor : public tvm::ExprFunctor<int(const Expr&, int)> {
    public:
     int Dispatch_(const VarNode* op, int b) final { return b; }
     int Dispatch_(const IntImmNode* op, int b) final { return op->value.as<int>().value(); }
@@ -179,10 +179,10 @@ TEST(IRF, ExprVisit) {
   PrimVar x("x");
   auto z = x + 1;
 
-  class MyVisitor : public tirx::ExprFunctor<void(const Expr&)>,
+  class MyVisitor : public tvm::ExprFunctor<void(const Expr&)>,
                     public tirx::StmtFunctor<void(const Stmt&)> {
    public:
-    using tirx::ExprFunctor<void(const Expr&)>::Dispatch;
+    using tvm::ExprFunctor<void(const Expr&)>::Dispatch;
     using tirx::StmtFunctor<void(const Stmt&)>::Dispatch;
     int count = 0;
     // implementation
@@ -235,7 +235,7 @@ TEST(IRF, StmtVisitor) {
     // tests for block and block_realize
     Stmt body = fmaketest();
     PrimType dtype = PrimType::Float(32);
-    tirx::Var buf_var("b", PointerType(dtype));
+    tvm::Var buf_var("b", PointerType(dtype));
     TensorVar buffer = decl_tensor({16});
     body =
         SeqStmt({Bind(buffer, Call(buffer.type(), tvm::tirx::decl_tensor_op(),
@@ -372,7 +372,7 @@ TEST(IRF, StmtExprMutator) {
     // AllocTensor and DeclTensor are flat (no body), placed as siblings in SeqStmt
     Stmt eval_body = Evaluate(x + 1);
     TensorVar buffer = decl_tensor({16});
-    tirx::Var buffer_data("buffer_data", buffer.DataPointerType());
+    tvm::Var buffer_data("buffer_data", buffer.DataPointerType());
     Stmt decl = Bind(buffer, Call(buffer.type(), tvm::tirx::decl_tensor_op(),
                                   {buffer_data, tvm::Tuple(buffer->shape),
                                    DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())}));
@@ -684,7 +684,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
   using namespace tvm;
   using namespace tvm::tirx;
   PrimType dtype = PrimType::Float(32);
-  tirx::Var x("x", PointerType(dtype, ""));
+  tvm::Var x("x", PointerType(dtype, ""));
   PrimVar n("n", PrimType::Int(32));
 
   auto fmakebuffer = [&]() {
@@ -701,7 +701,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
     // Test substitution of an explicit DeclTensor source and a dependent
     // TensorType shape.  Changing the type creates one fresh Var identity
     // that is shared by the declaration and every use.
-    tirx::Var y = x.CopyWithSuffix("subst");
+    tvm::Var y = x.CopyWithSuffix("subst");
     PrimVar m("m", PrimType::Int(32));
     TensorVar buffer = fmakebuffer();
     Stmt store = TensorStore(buffer, FloatImm(dtype, 0), {IntImm::Int32(0)});
@@ -710,7 +710,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
                                    {x, tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                                     StringImm(buffer.scope())})),
                  store});
-    auto f_subst = [&](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    auto f_subst = [&](const tvm::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       if (var.same_as(x)) return ffi::Any(y);
       if (var.same_as(n)) return ffi::Any(m);
       return ffi::Unchanged();
@@ -735,7 +735,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
     // test identity substitution on expression
     TensorVar buffer = fmakebuffer();
     PrimExpr expr = MakeTensorLoad(buffer, {IntImm::Int32(0)});
-    auto f_subst = [&](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    auto f_subst = [&](const tvm::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       return ffi::Any(var);
     };
     PrimExpr new_expr =
@@ -752,7 +752,7 @@ TEST(IRF, SubstituteWithDataTypeLegalizationPreservesShiftAmounts) {
 
   PrimVar x("x", PrimType::Int(64));
   PrimVar y("y", PrimType::Int(32));
-  auto f_subst = [&](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
+  auto f_subst = [&](const tvm::Var& var) -> ffi::Optional<PrimExpr> {
     if (var.same_as(x)) return PrimExpr(y);
     return std::nullopt;
   };

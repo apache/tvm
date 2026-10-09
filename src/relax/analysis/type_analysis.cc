@@ -27,6 +27,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/analysis.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
@@ -288,7 +289,7 @@ Type EraseToWellDefined(const Type& info, ffi::Map<Var, Expr> var_map, const sym
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.analysis.EraseToWellDefined",
-                        [](const Type& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
+                        [](const Type& info, ffi::Map<tvm::Var, PrimExpr> shape_var_map,
                            ffi::Map<Var, Expr> var_map) {
                           for (const auto& [var, value] : shape_var_map) {
                             TVM_FFI_CHECK(var.as<PrimVar>(), TypeError)
@@ -1199,7 +1200,7 @@ class TIRVarsDetector : public TypeVisitor {
   };
   explicit TIRVarsDetector(VarType collection_type) : collection_type(collection_type) {}
 
-  ffi::Array<tirx::Var> GetTIRVars() const { return tir_vars_; }
+  ffi::Array<tvm::Var> GetTIRVars() const { return tir_vars_; }
 
  private:
   void VisitTypePrimExprField(PrimExpr expr) {
@@ -1208,7 +1209,7 @@ class TIRVarsDetector : public TypeVisitor {
         RecordTIRVar(opt.value());
       }
     } else if (collection_type == VarType::Usage) {
-      for (const tirx::Var& tir_var : tirx::UndefinedVars(expr)) {
+      for (const tvm::Var& tir_var : tvm::UndefinedVars(expr)) {
         if (auto prim_var = tir_var.as<PrimVar>()) {
           RecordTIRVar(prim_var.value());
         }
@@ -1239,26 +1240,26 @@ class TIRVarsDetector : public TypeVisitor {
     }
   }
 
-  void RecordTIRVar(const tirx::Var& tir_var) {
+  void RecordTIRVar(const tvm::Var& tir_var) {
     auto insert_res = used_tir_vars_dedup_.insert(tir_var.get());
     if (insert_res.second) {
       tir_vars_.push_back(tir_var);
     }
   }
 
-  ffi::Array<tirx::Var> tir_vars_;
-  std::unordered_set<const tirx::VarNode*> used_tir_vars_dedup_;
+  ffi::Array<tvm::Var> tir_vars_;
+  std::unordered_set<const tvm::VarNode*> used_tir_vars_dedup_;
 
   VarType collection_type;
 };
 
-ffi::Array<tirx::Var> TIRVarsInType(const Type& ty) {
+ffi::Array<tvm::Var> TIRVarsInType(const Type& ty) {
   TIRVarsDetector detector(TIRVarsDetector::VarType::Usage);
   detector(ty);
   return detector.GetTIRVars();
 }
 
-ffi::Array<tirx::Var> DefinableTIRVarsInType(const Type& ty) {
+ffi::Array<tvm::Var> DefinableTIRVarsInType(const Type& ty) {
   TIRVarsDetector detector(TIRVarsDetector::VarType::Definition);
   detector(ty);
   return detector.GetTIRVars();
@@ -1321,19 +1322,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 class SymbolicVarCollector : public relax::ExprVisitor, public relax::TypeVisitor {
  public:
-  static ffi::Array<tirx::Var> Free(const Expr& expr) {
+  static ffi::Array<tvm::Var> Free(const Expr& expr) {
     SymbolicVarCollector collector;
     collector.relax::ExprVisitor::VisitExpr(expr);
-    ffi::Array<tirx::Var> ret{collector.free_symbolic_var_.begin(),
-                              collector.free_symbolic_var_.end()};
+    ffi::Array<tvm::Var> ret{collector.free_symbolic_var_.begin(),
+                             collector.free_symbolic_var_.end()};
     return ret;
   }
 
-  static ffi::Array<tirx::Var> Defined(const Expr& expr) {
+  static ffi::Array<tvm::Var> Defined(const Expr& expr) {
     SymbolicVarCollector collector;
     collector.relax::ExprVisitor::VisitExpr(expr);
-    ffi::Array<tirx::Var> ret{collector.defined_symbolic_var_.begin(),
-                              collector.defined_symbolic_var_.end()};
+    ffi::Array<tvm::Var> ret{collector.defined_symbolic_var_.begin(),
+                             collector.defined_symbolic_var_.end()};
     return ret;
   }
 
@@ -1466,17 +1467,15 @@ class SymbolicVarCollector : public relax::ExprVisitor, public relax::TypeVisito
   /*! \brief The current visit mode. */
   VisitMode mode_ = VisitMode::kRequireDefinition;
   /*! \brief The set of defined symbolic vars. */
-  std::unordered_set<tirx::Var> defined_symbolic_var_;
+  std::unordered_set<tvm::Var> defined_symbolic_var_;
   /*! \brief The set of free/undefined symbolic vars. */
-  std::unordered_set<tirx::Var> free_symbolic_var_;
+  std::unordered_set<tvm::Var> free_symbolic_var_;
 };
 
-ffi::Array<tirx::Var> DefinedSymbolicVars(const Expr& expr) {
+ffi::Array<tvm::Var> DefinedSymbolicVars(const Expr& expr) {
   return SymbolicVarCollector::Defined(expr);
 }
-ffi::Array<tirx::Var> FreeSymbolicVars(const Expr& expr) {
-  return SymbolicVarCollector::Free(expr);
-}
+ffi::Array<tvm::Var> FreeSymbolicVars(const Expr& expr) { return SymbolicVarCollector::Free(expr); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

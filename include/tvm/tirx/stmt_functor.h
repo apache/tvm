@@ -29,7 +29,6 @@
 #include <tvm/ir/expr_functor.h>
 #include <tvm/ir/object_functor.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
 

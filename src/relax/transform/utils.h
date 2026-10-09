@@ -26,10 +26,10 @@
 
 #include <builtin_fp16.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/tirx/expr_functor.h>
 
 #include <algorithm>
 #include <string>

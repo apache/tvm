@@ -27,8 +27,8 @@
 #ifndef TVM_TIR_TRANSFORM_REPLACE_SELECTED_EXPR_H_
 #define TVM_TIR_TRANSFORM_REPLACE_SELECTED_EXPR_H_
 
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>  // For the class StmtExprMutator
 

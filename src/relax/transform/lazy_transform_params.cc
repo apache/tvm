@@ -72,8 +72,8 @@ class LazyInputMutator : public ExprMutator {
     new_params.push_back(fget_param);
 
     auto array_externally_visible_vars = DefinableTIRVarsInType(TupleType(new_params.Map(GetType)));
-    std::unordered_set<tirx::Var> externally_visible_vars(array_externally_visible_vars.begin(),
-                                                          array_externally_visible_vars.end());
+    std::unordered_set<tvm::Var> externally_visible_vars(array_externally_visible_vars.begin(),
+                                                         array_externally_visible_vars.end());
     Type new_ret_ty = EraseToWellDefined(func->ret_ty, [&](const Var& var) -> ffi::Optional<Expr> {
       if (auto prim_var = var.as<PrimVar>();
           prim_var && externally_visible_vars.count(prim_var.value())) {

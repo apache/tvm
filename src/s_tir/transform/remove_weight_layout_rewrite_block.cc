@@ -146,8 +146,8 @@ class WeightLayoutRewriteBlockRemover : public StmtExprMutator {
 
     FunctionNode* n = f_.CopyOnWrite();
 
-    ffi::Array<tirx::Var> params;
-    for (const tirx::Var& param : f_->params) {
+    ffi::Array<tvm::Var> params;
+    for (const tvm::Var& param : f_->params) {
       auto opt_buffer = param.as<TensorVar>();
       if (!opt_buffer.has_value()) {
         params.push_back(param);

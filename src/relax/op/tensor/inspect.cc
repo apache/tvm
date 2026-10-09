@@ -92,9 +92,9 @@ std::tuple<TensorType, ffi::Optional<int64_t>> GetTensorArgInfoWithIndex(const C
 }
 
 tirx::Function GetDLTensorField(tirx::TVMStructFieldKind field, PrimType field_ty) {
-  tirx::Var dlpack_handle("dlpack_handle", PointerType::VoidPointerTy());
+  tvm::Var dlpack_handle("dlpack_handle", PointerType::VoidPointerTy());
 
-  tirx::Var value("value", field_ty);
+  tvm::Var value("value", field_ty);
 
   tirx::SeqStmt body(
       {tirx::Bind(value, tvm::Call(field_ty, tirx::abi_field_get_op(),
@@ -104,7 +104,7 @@ tirx::Function GetDLTensorField(tirx::TVMStructFieldKind field, PrimType field_t
 
   DictAttrs attrs({{"tirx.is_scheduled", true}, {"tirx.is_host_func", true}});
 
-  tirx::Function func(ffi::Array<tirx::Var>{dlpack_handle}, body, field_ty, attrs);
+  tirx::Function func(ffi::Array<tvm::Var>{dlpack_handle}, body, field_ty, attrs);
 
   return func;
 }
@@ -252,15 +252,15 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
   PrimType field_ty = call->ty.as_or_throw<tvm::PrimType>();
 
   tirx::Function getter = [&]() -> tirx::Function {
-    tirx::Var dlpack_handle("dlpack_handle", PointerType::VoidPointerTy());
-    tirx::Var axis("axis", PrimType::Int(64));
+    tvm::Var dlpack_handle("dlpack_handle", PointerType::VoidPointerTy());
+    tvm::Var axis("axis", PrimType::Int(64));
 
-    tirx::Var ndim("ndim", PrimType::Int(32));
+    tvm::Var ndim("ndim", PrimType::Int(32));
 
     tirx::TensorVar shape_buffer =
         tirx::decl_tensor({ndim.as_or_throw<PrimExpr>()}, field_ty, "shape");
 
-    tirx::Var extent("extent", field_ty);
+    tvm::Var extent("extent", field_ty);
 
     tirx::SeqStmt body(
         {tirx::AssertStmt(0 <= axis.as_or_throw<PrimExpr>(), StringImm("RuntimeError"),

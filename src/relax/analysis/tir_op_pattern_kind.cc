@@ -21,6 +21,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr_functor.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/op_attr_types.h>
@@ -28,7 +29,6 @@
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
 
 #include <algorithm>
@@ -42,7 +42,7 @@ using namespace tirx;
 class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
  public:
   explicit PatternKindAnalyzer(const tirx::Function& func) {
-    for (const tirx::Var& param : func->params) {
+    for (const tvm::Var& param : func->params) {
       ffi::Optional<TensorVar> param_buf = param.as<TensorVar>();
       if (param_buf.has_value()) {
         param_buffers_.insert(param_buf.value());
@@ -137,7 +137,7 @@ class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
 
     // Step 4. Checking if the block contains reduce axis by looking into block iterators.
     bool has_reduction = false;
-    ffi::Array<tirx::Var> reduce_vars;
+    ffi::Array<tvm::Var> reduce_vars;
     for (const s_tir::IterVar& it : op->iter_vars) {
       if (it->iter_type == s_tir::IterVarType::kCommReduce) {
         has_reduction = true;
@@ -232,7 +232,7 @@ class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
    *      A[i, j] = B[i - j] is injective since the load index vars are only i, j
    */
   static bool IsInjectivePattern(const TensorStore& store, const TensorLoad& load) {
-    std::unordered_set<const tirx::VarNode*> vars;
+    std::unordered_set<const tvm::VarNode*> vars;
     for (const PrimExpr& store_index : store->indices) {
       if (auto var = store_index.as<PrimVar>()) {
         vars.insert(var.value().get());
@@ -240,7 +240,7 @@ class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
         return false;
       }
     }
-    auto walkfn = [&vars](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+    auto walkfn = [&vars](const tvm::Var& var) -> ffi::Expected<ffi::WalkResult> {
       return !vars.count(var.get()) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
                                     : ffi::WalkResult::Advance();
     };
@@ -260,7 +260,7 @@ class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
    *      Store = A[i, j] and Load = B[i, j + k] allow data reuse.
    */
   static bool IsAllowReusePattern(const TensorStore& store, const TensorLoad& load) {
-    std::unordered_set<const tirx::VarNode*> vars;
+    std::unordered_set<const tvm::VarNode*> vars;
     for (const PrimExpr& index : store->indices) {
       if (auto var = index.as<PrimVar>()) {
         vars.insert(var.value().get());
@@ -268,7 +268,7 @@ class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
         return false;
       }
     }
-    auto walk_fn = [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+    auto walk_fn = [&](const tvm::Var& var) -> ffi::Expected<ffi::WalkResult> {
       if (auto prim_var = var.as<PrimVar>()) {
         vars.erase(prim_var.value().get());
       }
@@ -324,22 +324,21 @@ class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
    *      A[i] = sum(B[i, j + k]) is not pure reduce
    *      pooling is not pure reduce
    */
-  static bool IsPureReducePattern(ffi::Array<tirx::Var> reduce_loops,
-                                  ffi::Array<PrimExpr> indices) {
-    auto walkfn = [&](const tirx::Var& var) -> ffi::Expected<ffi::WalkResult> {
+  static bool IsPureReducePattern(ffi::Array<tvm::Var> reduce_loops, ffi::Array<PrimExpr> indices) {
+    auto walkfn = [&](const tvm::Var& var) -> ffi::Expected<ffi::WalkResult> {
       return std::any_of(reduce_loops.begin(), reduce_loops.end(),
-                         [&](const tirx::Var& loop) { return loop.same_as(var); })
+                         [&](const tvm::Var& loop) { return loop.same_as(var); })
                  ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
                  : ffi::WalkResult::Advance();
     };
     for (const PrimExpr& e : indices) {
       auto result = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(e, walkfn);
       if (result.has_value()) {
-        tirx::Var var = result.value()->value.cast<tirx::Var>();
+        tvm::Var var = result.value()->value.cast<tvm::Var>();
         int id =
             std::distance(reduce_loops.begin(),
                           std::find_if(reduce_loops.begin(), reduce_loops.end(),
-                                       [&](const tirx::Var& loop) { return loop.same_as(var); }));
+                                       [&](const tvm::Var& loop) { return loop.same_as(var); }));
         if (!reduce_loops[id].same_as(e)) {
           return false;
         }
@@ -510,7 +509,7 @@ bool HasReshapePattern(const tirx::Function& func) {
         PrimType dtype =
             !block->iter_vars.empty() ? block->iter_vars[0]->var.ty() : PrimType::Int(64);
         PrimVar fused_var("fused", dtype);
-        ffi::Map<tirx::Var, PrimExpr> inverse_indices_map;
+        ffi::Map<tvm::Var, PrimExpr> inverse_indices_map;
         PrimExpr stride = IntImm(dtype, /*value=*/1);
         for (int i = static_cast<int>(block->iter_vars.size()) - 1; i >= 0; --i) {
           inverse_indices_map.Set(block->iter_vars[i]->var,
@@ -519,7 +518,7 @@ bool HasReshapePattern(const tirx::Function& func) {
           stride *= block->iter_vars[i]->dom->extent;
         }
         auto f_substitute = [&inverse_indices_map](
-                                const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+                                const tvm::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
           if (auto repl = inverse_indices_map.Get(var)) return ffi::Any(*std::move(repl));
           return ffi::Unchanged();
         };

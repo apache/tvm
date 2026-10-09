@@ -86,12 +86,12 @@ struct TResult {
   std::unordered_map<int32_t, double> data_;
 };
 
-class FlopEstimator : private tirx::ExprFunctor<TResult(const Expr& n)>,
+class FlopEstimator : private tvm::ExprFunctor<TResult(const Expr& n)>,
                       private StmtFunctor<TResult(const Stmt& n)> {
   sym::Analyzer ana;
 
  public:
-  using tirx::ExprFunctor<TResult(const Expr&)>::Dispatch;
+  using tvm::ExprFunctor<TResult(const Expr&)>::Dispatch;
   TResult Dispatch(const Stmt& stmt) override { return StmtFunctor::Dispatch(stmt); }
 
 #define TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(Node)       \
@@ -265,13 +265,15 @@ double EstimateTIRFlops(const IRModule& mod) {
   FlopEstimator counter;
   TResult result;
   double cached_result = 0;
-  VisitFunctions(mod, [&result, &counter, &cached_result](const FunctionNode* f) {
-    if (auto cached = f->attrs.GetAttr<int64_t>("estimated_flops")) {
-      cached_result += cached.value();
-    } else {
-      if (f->body.has_value()) result += counter.Dispatch(f->body.value());  //
+  for (const auto& [_, base_func] : mod->functions) {
+    if (const auto* func = base_func.as<FunctionNode>()) {
+      if (auto cached = func->attrs.GetAttr<int64_t>("estimated_flops")) {
+        cached_result += cached.value();
+      } else if (func->body.has_value()) {
+        result += counter.Dispatch(func->body.value());
+      }
     }
-  });
+  }
   return PostprocessResults(result) + cached_result;
 }
 

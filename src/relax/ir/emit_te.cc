@@ -34,7 +34,7 @@ namespace relax {
 
 TVM_FFI_STATIC_INIT_BLOCK() { RXPlaceholderOpNode::RegisterReflection(); }
 
-te::Tensor TETensor(Expr value, ffi::Map<tirx::Var, PrimExpr> tir_var_map, std::string name) {
+te::Tensor TETensor(Expr value, ffi::Map<tvm::Var, PrimExpr> tir_var_map, std::string name) {
   auto n = ffi::make_object<RXPlaceholderOpNode>(value);
   n->name = name;
 
@@ -64,7 +64,7 @@ te::Tensor TETensor(Expr value, ffi::Map<tirx::Var, PrimExpr> tir_var_map, std::
          "match_cast "
       << "to constrain the shape before passing into te_tensor";
   auto f_substitute =
-      [&tir_var_map](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+      [&tir_var_map](const tvm::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto repl = tir_var_map.Get(var)) return ffi::Any(*std::move(repl));
     return ffi::Unchanged();
   };

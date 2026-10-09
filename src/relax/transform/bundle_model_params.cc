@@ -60,7 +60,7 @@ class ModelParamBundler : public ExprMutator {
     }
 
     std::unordered_set<const VarNode*> signature_vars;
-    for (const tirx::Var& var : DefinableTIRVarsInType(TupleType(params.Map(GetType)))) {
+    for (const tvm::Var& var : DefinableTIRVarsInType(TupleType(params.Map(GetType)))) {
       signature_vars.insert(var.get());
     }
 

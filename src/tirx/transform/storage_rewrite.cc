@@ -1346,7 +1346,7 @@ struct BufferVarInfo {
     kDeclTensorCall = (1 << 4),
   };
 
-  // The tirx::Var that represents this buffer.
+  // The tvm::Var that represents this buffer.
   Var var;
 
   // The data type of an element of the buffer.
@@ -1432,7 +1432,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
    * missing a type annotation, assume that it has the same underlying
    * type as it is later accessed, with scalar element types.
    */
-  VectorTypeAccessChecker(const ffi::Array<tirx::Var>& params, bool allow_untyped_pointers = false,
+  VectorTypeAccessChecker(const ffi::Array<tvm::Var>& params, bool allow_untyped_pointers = false,
                           bool detect_scalar_read_patterns = true)
       : allow_untyped_pointers_(allow_untyped_pointers),
         detect_scalar_read_patterns_(detect_scalar_read_patterns) {
