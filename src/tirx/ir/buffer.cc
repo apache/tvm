@@ -22,11 +22,10 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
@@ -170,7 +169,7 @@ using IndexDiv = prim::FloorDivNode;
 TensorRegion BufferRegion(TensorVar buffer, ffi::Array<Range> region, Span span) {
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), region.size())
       << "Buffer rank and region dimension mismatch";
-  return TensorRegion(std::move(buffer), std::move(region), BufferRegionType(), std::move(span));
+  return TensorRegion(std::move(buffer), std::move(region), TensorRegionType(), std::move(span));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -204,7 +203,7 @@ TensorRegion BufferRegionFromPoint(TensorVar buffer, ffi::Array<PrimExpr> indice
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::TypeAttrDef<TensorTypeNode>().def("__subscript_expr_realize__", RealizeBufferSubscript);
-  refl::TypeAttrDef<BufferRegionTypeNode>().def("__subscript_expr_realize__",
+  refl::TypeAttrDef<TensorRegionTypeNode>().def("__subscript_expr_realize__",
                                                 RealizeBufferRegionSubscript);
 }
 
@@ -622,7 +621,7 @@ Expr TensorVar::access_ptr(int access_mask, PointerType ptr_type, int content_la
   // requested type controls its pointee, while the buffer controls its address
   // space (for example, shared or local memory).
   ptr_type = PointerType(ptr_type->element_type, self->storage_scope);
-  PrimExpr e_dtype{ffi::UnsafeInit{}};
+  PrimType access_dtype = self->dtype;
   PrimExpr extent{ffi::UnsafeInit{}};
   if (self->shape.size() == 0) {
     extent = IntImm(PrimType(self->DefaultIndexType()), 1);
@@ -636,24 +635,22 @@ Expr TensorVar::access_ptr(int access_mask, PointerType ptr_type, int content_la
   }
   PrimExpr elem_offset = self->elem_offset + offset;
   if (content_lanes > 1) {
-    e_dtype = tirx::TypeAnnotation(PrimType(self->dtype).WithLanes(content_lanes));
+    access_dtype = PrimType(self->dtype).WithLanes(content_lanes);
     extent = extent / MakeConst(self->elem_offset.ty(), content_lanes);
     elem_offset = self->elem_offset / MakeConst(self->elem_offset.ty(), content_lanes);
-  } else {
-    e_dtype = tirx::TypeAnnotation(self->dtype);
   }
 
   if (input_extent.has_value()) {
     extent = input_extent.value();
   }
-  ffi::Array<Expr> acc_args{e_dtype, data(), elem_offset, extent, IntImm::Int32(access_mask)};
-  return Call(ptr_type, tirx::builtin::tvm_access_ptr(), acc_args);
+  ffi::Array<Expr> acc_args{data(), elem_offset, extent, IntImm::Int32(access_mask)};
+  return Call(ptr_type, tirx::tvm_access_ptr_op(), acc_args, {}, {access_dtype});
 }
 
 TensorVar::TensorVar(ffi::String name, TensorType type, Span span)
     : Var(Var(std::move(name), std::move(type), std::move(span))) {}
 
-Expr TensorVar::data() const { return Call(DataPointerType(), builtin::buffer_data(), {var()}); }
+Expr TensorVar::data() const { return Call(DataPointerType(), tirx::buffer_data_op(), {var()}); }
 
 tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
                                           std::string name, int data_alignment, int offset_factor,
@@ -684,7 +681,7 @@ TensorVar TensorVar::with_dtype(PrimType dtype) const {
 }
 
 PrimExpr TensorVar::OffsetOf_p(const Array<PrimExpr>& indices) const {
-  return Call(PrimType::Int(32), tirx::builtin::buffer_offset(), {MakeTensorLoad(*this, indices)})
+  return Call(PrimType::Int(32), tirx::buffer_offset_op(), {MakeTensorLoad(*this, indices)})
       .as_or_throw<PrimExpr>();
 }
 

@@ -23,8 +23,8 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op/op.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/tirx/op.h>
@@ -137,11 +137,10 @@ class CallTIRMutator : public ExprMutator {
             }
           }
         }
-        Expr invocation =
-            call->op.same_as(call_dps_packed_op)
-                ? Expr(Call::Unchecked(Type::Missing(), call->args[0], args))
-                : Expr(Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir_packed"),
-                                       {call->args[0], Tuple(args)}));
+        Expr invocation = call->op.same_as(call_dps_packed_op)
+                              ? Expr(Call(Type::Missing(), call->args[0], args))
+                              : Expr(Call(Type::Missing(), Op::Get("relax.call_tir_packed"),
+                                          {call->args[0], Tuple(args)}));
         builder_->Emit(invocation, "_");
       } else {
         if (!is_inplace) {
@@ -150,11 +149,10 @@ class CallTIRMutator : public ExprMutator {
         } else {
           args.push_back(call->args[1]);
         }
-        Expr invocation =
-            call->op.same_as(call_dps_packed_op)
-                ? Expr(Call::Unchecked(Type::Missing(), call->args[0], args))
-                : Expr(Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir_packed"),
-                                       {call->args[0], Tuple(args)}));
+        Expr invocation = call->op.same_as(call_dps_packed_op)
+                              ? Expr(Call(Type::Missing(), call->args[0], args))
+                              : Expr(Call(Type::Missing(), Op::Get("relax.call_tir_packed"),
+                                          {call->args[0], Tuple(args)}));
         builder_->Emit(invocation, "_");
       }
 
@@ -184,11 +182,11 @@ class CallTIRMutator : public ExprMutator {
       dev_index = GetDeviceIndexByScope(mod_, scope);
     }
 
-    return builder_->Emit(Call::Unchecked(Type::Missing(), alloc_tensor_op,
-                                          {tensor_ty->shape.value().as_or_throw<ShapeExpr>(),
-                                           DataTypeImm(tensor_ty->dtype.value()->dtype),
-                                           IntImm::Int64(dev_index), StringImm(scope)},
-                                          Attrs(), {tensor_ty}),
+    return builder_->Emit(Call(Type::Missing(), alloc_tensor_op,
+                               {tensor_ty->shape.value().as_or_throw<ShapeExpr>(),
+                                DataTypeImm(tensor_ty->dtype.value()->dtype),
+                                IntImm::Int64(dev_index), StringImm(scope)},
+                               Attrs(), {tensor_ty}),
                           "alloc");
   }
 

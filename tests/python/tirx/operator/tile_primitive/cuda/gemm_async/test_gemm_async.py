@@ -532,8 +532,8 @@ def test_gemm_tcgen05_cta_group_2(task):
         mma_mbar = T.alloc_shared([1], "uint64")
 
         ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64"), "shared"))] = T.reinterpret(
-            PointerType(PrimType("uint64"), "shared"), _mapa(tma_mbar.ptr_to([0]), 0)
-        )
+             _mapa(tma_mbar.ptr_to([0]), 0)
+        , ty=PointerType(PrimType("uint64"), "shared"))
         tma_mbar_cta_0 = T.decl_tensor([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:
@@ -703,8 +703,8 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
         mma_mbar = T.alloc_shared([1], "uint64")
 
         ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64"), "shared"))] = T.reinterpret(
-            PointerType(PrimType("uint64"), "shared"), _mapa(tma_mbar.ptr_to([0]), 0)
-        )
+             _mapa(tma_mbar.ptr_to([0]), 0)
+        , ty=PointerType(PrimType("uint64"), "shared"))
         tma_mbar_cta_0 = T.decl_tensor([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:
@@ -1242,7 +1242,7 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
         descSFA = T.alloc_tensor((1,), "uint64", scope="local")
         descSFB = T.alloc_tensor((1,), "uint64", scope="local")
 
-        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64"), "shared"))] = T.reinterpret(PointerType(PrimType("uint64"), "shared"), _mapa(tma_mbar.ptr_to([0]), 0))  # noqa: E501
+        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64"), "shared"))] = T.reinterpret( _mapa(tma_mbar.ptr_to([0]), 0), ty=PointerType(PrimType("uint64"), "shared"))  # noqa: E501
         tma_mbar_cta_0 = T.decl_tensor([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:
@@ -1623,7 +1623,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
         descSFA = T.alloc_tensor((1,), "uint64", scope="local")
         descSFB = T.alloc_tensor((1,), "uint64", scope="local")
 
-        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64"), "shared"))] = T.reinterpret(PointerType(PrimType("uint64"), "shared"), _mapa(tma_mbar.ptr_to([0]), 0))  # noqa: E501
+        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64"), "shared"))] = T.reinterpret( _mapa(tma_mbar.ptr_to([0]), 0), ty=PointerType(PrimType("uint64"), "shared"))  # noqa: E501
         tma_mbar_cta_0 = T.decl_tensor([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:
@@ -2978,7 +2978,7 @@ def _build_smem_desc_kernel(smem_desc, weight_stationary=False, pass_descI=False
         T.cuda.mbarrier_wait(tma_mbar.ptr_to([0]), 0)
         T.cuda.cta_sync()
         if tid_in_wg == 0:
-            if pass_descI:
+            if T.constexpr(pass_descI):
                 desc_i: T.uint32
                 T.cuda.tcgen05.encode_instr_descriptor(
                     T.address_of(desc_i),  # noqa: F821
@@ -3696,7 +3696,7 @@ def _make_gemm_tcgen05_call(
         gemm_async_tcgen05_impl,
     )
     from tvm.tirx.exec_scope import ExecScope
-    from tvm.tirx.operator.tile_primitive.ops import GemmAsync
+    from tvm.tirx.op.tile import GemmAsync
     from tvm.tirx.stmt import BufferRegion
     from tvm.tirx.tile_primitive import DispatchContext
 
@@ -3775,7 +3775,7 @@ def test_gemm_tcgen05_preserves_block_scale_tmem_lane_bases():
         gemm_async_tcgen05_impl,
     )
     from tvm.tirx.exec_scope import ExecScope
-    from tvm.tirx.operator.tile_primitive.ops import GemmAsync
+    from tvm.tirx.op.tile import GemmAsync
     from tvm.tirx.stmt import BufferRegion
     from tvm.tirx.tile_primitive import DispatchContext
 

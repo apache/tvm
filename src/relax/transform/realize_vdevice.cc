@@ -24,8 +24,8 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op/op.h>
 #include <tvm/relax/transform.h>
 
 namespace tvm {
@@ -397,7 +397,7 @@ class VDeviceTypeUpdater : ExprMutator {
     } else {
       ffi::ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>();
       attrs->dst_vdevice = output_vdevice;
-      return Call::Unchecked(Type::Missing(), to_vdevice_op_, {arg}, Attrs(attrs), {});
+      return Call(Type::Missing(), to_vdevice_op_, {arg}, Attrs(attrs), {});
     }
   }
 

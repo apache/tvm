@@ -90,7 +90,7 @@ def test_llvm_void_intrin():
         @T.function
         def main(A: T.handle("uint8")):
             # Create an intrinsic that returns void.
-            T.call_llvm_intrin("", "llvm.assume", T.bool(True))
+            T.call_llvm_intrin("llvm.assume", T.bool(True), ty="void")
 
     fcode = tvm.compile(Module)
 
@@ -117,7 +117,7 @@ def test_llvm_overloaded_intrin():
     class Module:
         @T.function
         def main(A: T.Tensor((1, 1), "int32"), C: T.Tensor((1, 1), "int32")):
-            C[0, 0] = T.call_llvm_pure_intrin("int32", "llvm.ctlz", A[0, 0], int1_zero)
+            C[0, 0] = T.call_llvm_pure_intrin("llvm.ctlz", A[0, 0], int1_zero, ty="int32")
 
     f = tvm.compile(Module, target="llvm")
 
@@ -129,7 +129,7 @@ def test_llvm_lookup_intrin():
         @T.function
         def main(A: T.handle("uint8x8")):
             A_buf = T.decl_tensor((1,), "uint8x8", data=A)
-            T.evaluate(T.call_llvm_pure_intrin("uint8x8", "llvm.ctpop.v8i8", A_buf[0]))
+            T.evaluate(T.call_llvm_pure_intrin("llvm.ctpop.v8i8", A_buf[0], ty="uint8x8"))
 
     fcode = tvm.compile(Module, None)
 
@@ -804,15 +804,15 @@ def test_llvm_order_functions():
     class Module:
         @T.function
         def Danny(v: T.float32) -> T.float32:
-            return T.call_extern("float32", "Dave", v)
+            return T.call_extern("Dave", v, ty="float32")
 
         @T.function
         def Sammy(v: T.float32) -> T.float32:
-            return T.call_extern("float32", "Eve", v)
+            return T.call_extern("Eve", v, ty="float32")
 
         @T.function
         def Kirby(v: T.float32) -> T.float32:
-            return T.call_extern("float32", "Fred", v)
+            return T.call_extern("Fred", v, ty="float32")
 
     ir_text = tvm.tirx.build(Module, target="llvm").inspect_source("ll")
     # Skip functions whose names start with _.
@@ -1095,11 +1095,7 @@ def test_invalid_volatile_masked_buffer_load():
         def main(B: T.Tensor([4])):
             A = T.alloc_tensor((4,), annotations={"tirx.volatile": True})
             B[0:4] = T.call_intrin(
-                "float32x4",
-                "tirx.masked_load",
-                A,
-                T.Ramp(0, 1, 4),
-                T.Broadcast(T.bool(True), 4),
+                "tirx.masked_load", A, T.Ramp(0, 1, 4), T.Broadcast(T.bool(True), 4), ty="float32x4"
             )
 
     err_msg = "The masked load intrinsic does not support declaring load as volatile."
@@ -1116,11 +1112,11 @@ def test_invalid_volatile_masked_decl_buffer_load():
             A = T.alloc_tensor((4,), annotations={"tirx.volatile": True})
             A_alias = T.decl_tensor((4,), data=A.data)
             B[0:4] = T.call_intrin(
-                "float32x4",
                 "tirx.masked_load",
                 A_alias,
                 T.Ramp(0, 1, 4),
                 T.Broadcast(T.bool(True), 4),
+                ty="float32x4",
             )
 
     err_msg = "The masked load intrinsic does not support declaring load as volatile."
@@ -1137,12 +1133,12 @@ def test_invalid_volatile_masked_tensor_store():
             A = T.alloc_tensor((4,), annotations={"tirx.volatile": True})
             T.evaluate(
                 T.call_intrin(
-                    "void",
                     "tirx.masked_store",
                     A,
                     T.Broadcast(0.0, 4),
                     T.Ramp(0, 1, 4),
                     T.Broadcast(T.bool(True), 4),
+                    ty="void",
                 )
             )
 

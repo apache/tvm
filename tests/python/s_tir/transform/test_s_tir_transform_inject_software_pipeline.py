@@ -1554,24 +1554,29 @@ def test_async_pipelined_mma_gemm_simple():
     )
     mod = seq(sch.mod)
 
-    pipeline = mod["main"].body.block.body.body.body.body.block.body[1].block.body
+    pipeline = mod["main"].body[0].block.body[0].body[0].body[0].body[0].block.body[1].block.body
     prologue, body, epilogue = pipeline
 
-    commit_group = prologue.block.body.body.block.body
+    commit_group = prologue.block.body[0].body[0].block.body
     assert len(commit_group) == 3
     assert commit_group[-1].value.args[0] == 0
 
-    commit_group = body.block.body.body[0].block.body
+    commit_group = body.block.body[0].body[0].block.body
     assert len(commit_group) == 3
     assert commit_group[-1].value.args[0] == 0
 
-    assert body.block.body.body[1].block.body[0].value.op.same_as(tvm.ir.Op.get("s_tir.async_wait"))
-    assert body.block.body.body[1].block.body[0].value.args[1] == 3
-
-    assert epilogue.block.body.body.block.body[0].value.op.same_as(
-        tvm.ir.Op.get("s_tir.async_wait")
+    assert (
+        body.block.body[0].body[1].block.body[0].value.op.same_as(tvm.ir.Op.get("s_tir.async_wait"))
     )
-    assert str(epilogue.block.body.body.block.body[0].value.args[1]) == "2 - k_0_0"
+    assert body.block.body[0].body[1].block.body[0].value.args[1] == 3
+
+    assert (
+        epilogue.block.body[0]
+        .body[0]
+        .block.body[0]
+        .value.op.same_as(tvm.ir.Op.get("s_tir.async_wait"))
+    )
+    assert str(epilogue.block.body[0].body[0].block.body[0].value.args[1]) == "2 - k_0_0"
 
     build_and_run(sch)
 
@@ -1601,28 +1606,31 @@ def test_async_nested_pipeline_mma_gemm_ideal_annotation():
     )
     mod = seq(sch.mod)
 
-    pipeline = mod["main"].body.block.body.body.body.body.block.body[1].block.body
+    pipeline = mod["main"].body[0].block.body[0].body[0].body[0].body[0].block.body[1].block.body
     prologue, body, epilogue = pipeline
 
-    commit_group = prologue.block.body.body[0].block.body
+    commit_group = prologue.block.body[0].body[0].block.body
     assert len(commit_group) == 3
     assert commit_group[-1].value.args[0] == 0
 
     assert (
-        prologue.block.body.body[1]
+        prologue.block.body[0]
+        .body[1]
         .block.body[0]
         .value.op.same_as(tvm.ir.Op.get("s_tir.async_wait"))
     )
-    assert prologue.block.body.body[1].block.body[0].value.args[1] == 2
+    assert prologue.block.body[0].body[1].block.body[0].value.args[1] == 2
 
-    commit_group = body.block.body.body[0].block.body
+    commit_group = body.block.body[0].body[0].block.body
     assert len(commit_group) == 3
     assert commit_group[-1].value.args[0] == 0
 
-    assert body.block.body.body[1].block.body[0].value.op.same_as(tvm.ir.Op.get("s_tir.async_wait"))
-    assert body.block.body.body[1].block.body[0].value.args[1] == 2
+    assert (
+        body.block.body[0].body[1].block.body[0].value.op.same_as(tvm.ir.Op.get("s_tir.async_wait"))
+    )
+    assert body.block.body[0].body[1].block.body[0].value.args[1] == 2
 
-    assert str(epilogue.block.body.body[0].block.body[0].value.args[1]) == "1 - k_0_0"
+    assert str(epilogue.block.body[0].body[0].block.body[0].value.args[1]) == "1 - k_0_0"
 
     build_and_run(sch)
 

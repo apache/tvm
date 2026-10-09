@@ -20,10 +20,10 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <tvm/ffi/dtype.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/script/printer/printer.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 #ifdef TVM_LLVM_VERSION
 #include <llvm/IR/Intrinsics.h>
@@ -191,7 +191,7 @@ TEST(ScalablePrimType, TestScalableUInt) {
 #ifdef TVM_LLVM_VERSION
 TEST(ScalablePrimType, TestScalableIntrinCall) {
   tvm::PrimType scalable_type = tvm::PrimType::ScalableVector(kDLInt, 32, 4);
-  tvm::Call call = tvm::Call(scalable_type, tvm::tirx::builtin::call_llvm_intrin(),
+  tvm::Call call = tvm::Call(scalable_type, tvm::tirx::call_llvm_intrin_op(),
 #if TVM_LLVM_VERSION >= 200
                              {tvm::IntImm::Int32(::llvm::Intrinsic::stepvector)});
 #else
@@ -200,9 +200,9 @@ TEST(ScalablePrimType, TestScalableIntrinCall) {
   ASSERT_EQ(call->ty.as_or_throw<tvm::PrimType>(), scalable_type);
   ASSERT_EQ(tvm::Script(call),
 #if TVM_LLVM_VERSION >= 200
-            "T.call_llvm_intrin(\"int32xvscalex4\", \"llvm.stepvector\")");
+            "T.call_llvm_intrin(\"llvm.stepvector\", ty=\"int32xvscalex4\")");
 #else
-            "T.call_llvm_intrin(\"int32xvscalex4\", \"llvm.experimental.stepvector\")");
+            "T.call_llvm_intrin(\"llvm.experimental.stepvector\", ty=\"int32xvscalex4\")");
 #endif
 }
 #endif

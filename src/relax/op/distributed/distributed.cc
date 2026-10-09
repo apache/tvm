@@ -26,7 +26,7 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/relax/attrs/ccl.h>
+#include <tvm/relax/op/ccl.h>
 #include <tvm/topi/einsum.h>
 
 #include <algorithm>
@@ -39,6 +39,15 @@ namespace tvm {
 namespace relax {
 using namespace tvm::prim;
 
+void DistributionAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<DistributionAttrs>()
+      .def_ro("device_mesh", &DistributionAttrs::device_mesh,
+              "The device mesh of a tensor's distribution plan")
+      .def_ro("placement", &DistributionAttrs::placement,
+              "The placement of a tensor's distribution plan");
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() { DistributionAttrs::RegisterReflection(); }
 
 /* relax.dist.annotate_sharding */
@@ -50,7 +59,7 @@ Expr annotate_sharding(Expr input, distributed::DeviceMesh device_mesh,
   attrs->placement = placement;
 
   static const Op op = Op::Get("relax.dist.annotate_sharding");
-  return Call::Unchecked(Type::Missing(), op, {std::move(input)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(input)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -80,7 +89,7 @@ Expr redistribute(Expr input, distributed::DeviceMesh device_mesh,
   attrs->placement = placement;
 
   static const Op op = Op::Get("relax.dist.redistribute");
-  return Call::Unchecked(Type::Missing(), op, {std::move(input)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(input)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -140,7 +149,7 @@ Expr MakeCallTIRLocalView(Expr func, Tuple args, ffi::Array<distributed::DTensor
   }
 
   static const Op op = Op::Get("relax.dist.call_tir_local_view");
-  return Call::Unchecked(Type::Missing(), op, {func, args}, {}, {out_ty});
+  return Call(Type::Missing(), op, {func, args}, {}, {out_ty});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -212,7 +221,7 @@ Expr redistribute_replica_to_shard(Expr input, int num_workers, int axis) {
   attrs->axis = std::move(axis);
   static const Op op = Op::Get("relax.dist.redistribute_replica_to_shard");
 
-  return Call::Unchecked(Type::Missing(), op, {std::move(input)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(input)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

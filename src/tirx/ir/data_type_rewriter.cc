@@ -26,8 +26,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/tirx/op.h>
 
 #include <algorithm>
@@ -74,7 +73,7 @@ UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const ForNode* op, InplaceMode inpl
 UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) {
   Stmt result = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
   const auto* region = result.as<RegionStmtNode>();
-  if (!region || !region->op.same_as(tirx::builtin::launch_thread())) return result;
+  if (!region || !region->op.same_as(tirx::launch_thread_op())) return result;
   PrimVar var = region->body_params[0].as_or_throw<PrimVar>();
   PrimExpr extent = region->args[1].as_or_throw<PrimExpr>();
   if (var.ty() == extent.ty()) return result;
@@ -300,10 +299,10 @@ UnchangedOr<Expr> DataTypeLegalizer::Mutate_(const CallNode* op, InplaceMode inp
   }
   PrimExpr prim_e = e.as_or_throw<PrimExpr>();
   static const Op pow_op = Op::Get("tirx.pow");
-  static const Op& clz_op = prim::builtin::clz();
+  static const Op& clz_op = prim::clz_op();
   if (op->op.same_as(pow_op)) {
     return pow(op->args[0].as_or_throw<PrimExpr>(), op->args[1].as_or_throw<PrimExpr>());
-  } else if (op->op.same_as(prim::builtin::if_then_else())) {
+  } else if (op->op.same_as(prim::if_then_else_op())) {
     return Call(op->ty.as_or_throw<PrimType>(), op->op,
                 {op->args[0].as_or_throw<PrimExpr>(), op->args[1].as_or_throw<PrimExpr>(),
                  op->args[2].as_or_throw<PrimExpr>()},
@@ -330,7 +329,7 @@ UnchangedOr<Expr> DataTypeLegalizer::Mutate_(const CallNode* op, InplaceMode inp
 UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const RegionStmtNode* op,
                                                  InplaceMode inplace_mode) {
   bool was_enabled = is_enabled_;
-  if (op->op.same_as(tirx::builtin::launch_thread())) is_enabled_ = true;
+  if (op->op.same_as(tirx::launch_thread_op())) is_enabled_ = true;
   auto result = DataTypeLegalizer::Mutate_(op, inplace_mode);
   is_enabled_ = was_enabled;
   return result;
@@ -408,11 +407,12 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const IfThenElseNode* op,
   is_condition_ = is_condition;
   auto then_case_result = Mutate(op->then_case, inplace_mode);
   bool then_case_unchanged = then_case_result.UnchangedOrSameAs(op->then_case);
-  Stmt then_case = std::move(then_case_result).ValueOrUnchanged(op->then_case);
-  ffi::Optional<Stmt> else_case =
-      op->else_case.has_value() ? ffi::Optional<Stmt>{Mutate(op->else_case.value(), inplace_mode)
-                                                          .ValueOrUnchanged(op->else_case.value())}
-                                : std::nullopt;
+  SeqStmt then_case = std::move(then_case_result).ValueOrUnchanged(op->then_case);
+  ffi::Optional<SeqStmt> else_case =
+      op->else_case.has_value()
+          ? ffi::Optional<SeqStmt>{Mutate(op->else_case.value(), inplace_mode)
+                                       .ValueOrUnchanged(op->else_case.value())}
+          : std::nullopt;
   if (!cond_unchanged || !then_case_unchanged || !else_case.same_as(op->else_case)) {
     IfThenElse new_stmt = ffi::GetRef<IfThenElse>(op);
     auto* n = new_stmt.CopyOnWrite();
@@ -492,7 +492,7 @@ TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(prim::GENode, operator>=);
 
 UnchangedOr<Expr> IndexDataTypeRewriter::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
   // handle if_then_else condition
-  if (op->op.same_as(prim::builtin::if_then_else())) {
+  if (op->op.same_as(prim::if_then_else_op())) {
     bool is_condition = is_condition_;
     is_condition_ = true;
     PrimExpr cond = Mutate(op->args[0]).ValueOrUnchanged(op->args[0]).as_or_throw<PrimExpr>();

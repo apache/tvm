@@ -30,7 +30,7 @@ Implementation surfaces
 The authoritative operation list is the C++ registry
 (``src/tirx/op/tirx.cc``, with operations named ``tirx.tile.<name>``).  IR
 wrapper classes live in
-``python/tvm/tirx/operator/tile_primitive/ops.py``.  Raw
+``python/tvm/tirx/op/tile.py``.  Raw
 ``TilePrimitiveCall`` constructors live in
 ``python/tvm/tirx/script/ir_builder/tirx.py``, while the validated authoring facade
 is in ``python/tvm/tirx/script/tile.py``.  Both Python construction surfaces

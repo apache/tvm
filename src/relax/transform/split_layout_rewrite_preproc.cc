@@ -27,7 +27,7 @@
 #include <tvm/relax/transform.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
-#include <tvm/s_tir/transform.h>
+#include <tvm/tirx/function.h>
 
 #include <algorithm>
 #include <cstddef>
@@ -46,9 +46,10 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
 
   explicit SplitFunctionLayoutRewrite(const tirx::Function& func) : original_func_(func) {}
   std::tuple<ffi::Optional<tirx::Function>, tirx::Function> Transform(const tirx::Function& func) {
-    TVM_FFI_ICHECK(func->body.as<s_tir::SBlockRealizeNode>())
+    TVM_FFI_ICHECK(func->body.has_value() && func->body.value()->size() == 1 &&
+                   func->body.value()->seq[0].as<s_tir::SBlockRealizeNode>())
         << "The body of the function should be a root block.";
-    const auto& block = func->body.as<s_tir::SBlockRealizeNode>()->block;
+    const auto& block = func->body.value()->seq[0].as<s_tir::SBlockRealizeNode>()->block;
     visit_root_block(block.get());
     if (layout_rewrite_preproc_stmts_.size() > 0) {
       return std::make_tuple(create_layout_rewrite_preproc_func(), create_compute_func());
@@ -81,8 +82,7 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
     // Step 3: Create the body for the new tirx::Function
     TVM_FFI_ICHECK(layout_rewrite_preproc_stmts_.size() > 0)
         << "There should be at least one layout rewrite preproc stmt.";
-    Stmt body = layout_rewrite_preproc_stmts_.size() == 1 ? layout_rewrite_preproc_stmts_[0]
-                                                          : SeqStmt(layout_rewrite_preproc_stmts_);
+    Stmt body = SeqStmt(layout_rewrite_preproc_stmts_);
     body = s_tir::SBlockRealize(
         /*iter_values=*/ffi::Array<PrimExpr>(),
         /*predicate=*/IntImm::Bool(true),
@@ -99,9 +99,9 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
       }
     }
     DictAttrs attrs(dict);
-    tirx::Function func = tirx::Function(params, body, VoidType(), attrs);
+    tirx::Function func = tirx::Function(params, SeqStmt(body), VoidType(), attrs);
 
-    return s_tir::RenewDefs(func);
+    return tirx::RenewDef(func);
   }
 
   tirx::Function create_compute_func() const {
@@ -114,8 +114,9 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
     }
 
     // Step 2: Create the body for the new tirx::Function
-    Stmt body = compute_stmts_.size() == 1 ? compute_stmts_[0] : SeqStmt(compute_stmts_);
-    s_tir::SBlock original_block = original_func_->body.as<s_tir::SBlockRealizeNode>()->block;
+    Stmt body = SeqStmt(compute_stmts_);
+    s_tir::SBlock original_block =
+        original_func_->body.value()->seq[0].as<s_tir::SBlockRealizeNode>()->block;
     ffi::Array<TensorVar> alloc_buffers;
     for (const auto& buffer : original_block->alloc_buffers) {
       auto it =
@@ -144,29 +145,23 @@ class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
       }
     }
     DictAttrs attrs(dict);
-    tirx::Function func = tirx::Function(params, body, VoidType(), attrs);
+    tirx::Function func = tirx::Function(params, SeqStmt(body), VoidType(), attrs);
 
-    return s_tir::RenewDefs(func);
+    return tirx::RenewDef(func);
   }
 
   void visit_root_block(const s_tir::SBlockNode* op) {
-    Stmt body = op->body;
-    if (const auto* seq_stmt = body.as<SeqStmtNode>()) {
-      for (const auto& stmt : seq_stmt->seq) {
-        current_subtree_ = 0;
-        Stmt new_stmt = this->Mutate(stmt).ValueOrUnchanged(stmt);
-        TVM_FFI_ICHECK(current_subtree_ != 0) << "There should be at least a block in the subtree.";
-        if (current_subtree_ == 1) {
-          layout_rewrite_preproc_stmts_.push_back(new_stmt);
-        } else {
-          compute_stmts_.push_back(new_stmt);
-        }
-      }
-    } else {
+    for (const auto& stmt : op->body->seq) {
       current_subtree_ = 0;
-      this->Mutate(body, InplaceMode::kDisallow);
-      TVM_FFI_ICHECK(current_subtree_ == -1)
+      Stmt new_stmt = this->Mutate(stmt).ValueOrUnchanged(stmt);
+      TVM_FFI_ICHECK(current_subtree_ != 0) << "There should be at least a block in the subtree.";
+      TVM_FFI_ICHECK(op->body->size() != 1 || current_subtree_ == -1)
           << "There should be a compute block if there is only one subtree under the root.";
+      if (current_subtree_ == 1) {
+        layout_rewrite_preproc_stmts_.push_back(new_stmt);
+      } else {
+        compute_stmts_.push_back(new_stmt);
+      }
     }
   }
   UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* op, InplaceMode inplace_mode) final {
@@ -325,8 +320,8 @@ class SplitLayoutRewritePreproc : public ExprMutator {
                           : preproc_ty_list[0];
 
     // Step 6: Call the preproc function
-    Expr preproc_call = builder_->Emit(Call::Unchecked(
-        Type::Missing(), call_tir_op, {preproc_gv, Tuple(preproc_args)}, {}, {preproc_ty}));
+    Expr preproc_call = builder_->Emit(
+        Call(Type::Missing(), call_tir_op, {preproc_gv, Tuple(preproc_args)}, {}, {preproc_ty}));
     if (rewrite_infos.size() == 1) {
       call_tir_args.Set(rewrite_infos[0].buffer_index, preproc_call);
     } else {
@@ -334,8 +329,8 @@ class SplitLayoutRewritePreproc : public ExprMutator {
         call_tir_args.Set(rewrite_infos[i].buffer_index, TupleGetItem(preproc_call, i));
       }
     }
-    Expr main_call = builder_->Emit(Call::Unchecked(
-        Type::Missing(), call_tir_op, {compute_gv, Tuple(call_tir_args)}, {}, call->ty_args));
+    Expr main_call = builder_->Emit(
+        Call(Type::Missing(), call_tir_op, {compute_gv, Tuple(call_tir_args)}, {}, call->ty_args));
 
     return main_call;
   }

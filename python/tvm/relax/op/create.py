@@ -16,11 +16,14 @@
 # under the License.
 """Creation operators."""
 
+import tvm_ffi
+
 from tvm import DataType, DataTypeCode
-from tvm.ir import PrimType, is_prim_expr
+from tvm.ir import Attrs, PrimType, is_prim_expr
+from tvm.ir import Call as _Call
+from tvm.ir.attrs import make_node as _make_attrs
 
 from ..expr import Expr, ShapeExpr, prim_value
-from . import _ffi_api
 
 PrimExprLike = int | Expr
 
@@ -37,10 +40,18 @@ def _normalize_shape(shape):
     return shape
 
 
+@tvm_ffi.register_object("relax.attrs.InitAttrs")
+class InitAttrs(Attrs):
+    """Attributes used in full/full_like, ones/ones_like, and zeros/zeros_like operator"""
+
+
 def full(
     shape: tuple[PrimExprLike] | Expr,
     fill_value: Expr,
     dtype: str | DataType | None = None,
+    *,
+    ty=None,
+    span=None,
 ) -> Expr:
     """Fill array with scalar value.
 
@@ -62,10 +73,23 @@ def full(
         The result tensor.
     """
     shape = _normalize_shape(shape)
-    return _ffi_api.full(shape, fill_value, _raw_dtype(dtype))  # type: ignore
+    return _Call(
+        "relax.full",
+        [shape, fill_value],
+        attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def full_like(x: Expr, fill_value: Expr, dtype: str | DataType | None = None) -> Expr:
+def full_like(
+    x: Expr,
+    fill_value: Expr,
+    dtype: str | DataType | None = None,
+    *,
+    ty=None,
+    span=None,
+) -> Expr:
     """Construct a tensor such that
     - its shape is the same as the input data tensor's shape,
     - its value is filled with the input scalar fill value.
@@ -88,10 +112,22 @@ def full_like(x: Expr, fill_value: Expr, dtype: str | DataType | None = None) ->
     result : relax.Expr
         The result tensor.
     """
-    return _ffi_api.full_like(x, fill_value, _raw_dtype(dtype))  # type: ignore
+    return _Call(
+        "relax.full_like",
+        [x, fill_value],
+        attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def ones(shape: tuple[PrimExprLike] | Expr, dtype: str | DataType) -> Expr:
+def ones(
+    shape: tuple[PrimExprLike] | Expr,
+    dtype: str | DataType,
+    *,
+    ty=None,
+    span=None,
+) -> Expr:
     """Construct a tensor of all ones, with the input shape and dtype.
 
     Parameters
@@ -108,10 +144,16 @@ def ones(shape: tuple[PrimExprLike] | Expr, dtype: str | DataType) -> Expr:
         The result tensor.
     """
     shape = _normalize_shape(shape)
-    return _ffi_api.ones(shape, _raw_dtype(dtype))  # type: ignore
+    return _Call(
+        "relax.ones",
+        [shape],
+        attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def ones_like(x: Expr, dtype: str | DataType | None = None) -> Expr:
+def ones_like(x: Expr, dtype: str | DataType | None = None, *, ty=None, span=None) -> Expr:
     """Construct a tensor with all ones, with shape of the input tensor shape.
 
     Parameters
@@ -129,10 +171,22 @@ def ones_like(x: Expr, dtype: str | DataType | None = None) -> Expr:
     result : relax.Expr
         The result tensor.
     """
-    return _ffi_api.ones_like(x, _raw_dtype(dtype))  # type: ignore
+    return _Call(
+        "relax.ones_like",
+        [x],
+        attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def zeros(shape: tuple[PrimExprLike] | Expr, dtype: str | DataType) -> Expr:
+def zeros(
+    shape: tuple[PrimExprLike] | Expr,
+    dtype: str | DataType,
+    *,
+    ty=None,
+    span=None,
+) -> Expr:
     """Construct a tensor of all zeros, with the input shape and dtype.
 
     Parameters
@@ -149,10 +203,16 @@ def zeros(shape: tuple[PrimExprLike] | Expr, dtype: str | DataType) -> Expr:
         The result tensor.
     """
     shape = _normalize_shape(shape)
-    return _ffi_api.zeros(shape, _raw_dtype(dtype))  # type: ignore
+    return _Call(
+        "relax.zeros",
+        [shape],
+        attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def zeros_like(x: Expr, dtype: str | DataType | None = None) -> Expr:
+def zeros_like(x: Expr, dtype: str | DataType | None = None, *, ty=None, span=None) -> Expr:
     """Construct a tensor with all zeros, with shape of the input tensor shape.
 
     Parameters
@@ -170,7 +230,13 @@ def zeros_like(x: Expr, dtype: str | DataType | None = None) -> Expr:
     result : relax.Expr
         The result tensor.
     """
-    return _ffi_api.zeros_like(x, _raw_dtype(dtype))  # type: ignore
+    return _Call(
+        "relax.zeros_like",
+        [x],
+        attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
 def eye(
@@ -178,6 +244,9 @@ def eye(
     m: PrimExprLike | None = None,
     k: PrimExprLike = 0,
     dtype: str | DataType = "float32",
+    *,
+    ty=None,
+    span=None,
 ) -> Expr:
     """Construct a 2-D tensor with ones on the diagonal and zeros elsewhere.
 
@@ -206,13 +275,22 @@ def eye(
     n = prim_value(n)
     m = prim_value(m)
     k = prim_value(k)
-    return _ffi_api.eye(n, m, k, _raw_dtype(dtype))  # type: ignore
+    return _Call(
+        "relax.eye",
+        [n, m, k],
+        attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
 def eye_like(
     x: Expr,
     k: PrimExprLike = 0,
     dtype: str | DataType | None = None,
+    *,
+    ty=None,
+    span=None,
 ) -> Expr:
     """Return a 2-D tensor with ones on the diagonal and zeros elsewhere,
     with the same shape as the input tensor.
@@ -238,7 +316,13 @@ def eye_like(
         The result tensor.
     """
     k = prim_value(k)
-    return _ffi_api.eye_like(x, k, _raw_dtype(dtype))  # type: ignore
+    return _Call(
+        "relax.eye_like",
+        [x, k],
+        attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
 def arange(
@@ -246,6 +330,9 @@ def arange(
     end: PrimExprLike | None = None,
     step: PrimExprLike = 1,
     dtype: str | DataType | PrimType | None = None,
+    *,
+    ty=None,
+    span=None,
 ) -> Expr:
     """Construct a tensor with evenly spaced elements.
 
@@ -288,10 +375,16 @@ def arange(
     start = prim_value(start)
     end = prim_value(end)
     step = prim_value(step)
-    return _ffi_api.arange(start, end, step, _raw_dtype(dtype))  # type: ignore
+    return _Call(
+        "relax.arange",
+        [start, end, step],
+        attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
+        ty=ty,
+        span=span,
+    )  # type: ignore
 
 
-def hamming_window(window_size, periodic, alpha, beta, dtype):
+def hamming_window(window_size, periodic, alpha, beta, dtype, *, ty=None, span=None):
     """Hamming window function.
 
     Parameters
@@ -323,10 +416,21 @@ def hamming_window(window_size, periodic, alpha, beta, dtype):
     if not is_prim_expr(beta):
         beta = prim_value(beta)
 
-    return _ffi_api.hamming_window(window_size, periodic, alpha, beta, dtype)
+    return _Call(
+        "relax.hamming_window",
+        [window_size, periodic, alpha, beta],
+        attrs=_make_attrs("relax.attrs.InitAttrs", dtype=dtype),
+        ty=ty,
+        span=span,
+    )
 
 
-def tril(x: Expr, k: int | Expr = 0) -> Expr:
+@tvm_ffi.register_object("relax.attrs.TriluAttrs")
+class TriluAttrs(Attrs):
+    """Attributes used in tril and triu operator"""
+
+
+def tril(x: Expr, k: int | Expr = 0, *, ty=None, span=None) -> Expr:
     """Return the lower triangular part of a matrix or a batch of matrices.
 
     Parameters
@@ -349,10 +453,10 @@ def tril(x: Expr, k: int | Expr = 0) -> Expr:
     if not is_prim_expr(k):
         k = prim_value(k)
 
-    return _ffi_api.tril(x, k)  # type: ignore
+    return _Call("relax.tril", [x, k], ty=ty, span=span)  # type: ignore
 
 
-def triu(x: Expr, k: int | Expr = 0) -> Expr:
+def triu(x: Expr, k: int | Expr = 0, *, ty=None, span=None) -> Expr:
     """Return the upper triangular part of a matrix or a batch of matrices.
 
     Parameters
@@ -375,4 +479,4 @@ def triu(x: Expr, k: int | Expr = 0) -> Expr:
     if not is_prim_expr(k):
         k = prim_value(k)
 
-    return _ffi_api.triu(x, k)  # type: ignore
+    return _Call("relax.triu", [x, k], ty=ty, span=span)  # type: ignore

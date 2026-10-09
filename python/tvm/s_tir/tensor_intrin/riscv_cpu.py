@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,line-too-long
-# ruff: noqa: E501
 """Intrinsics for RISCV tensorization"""
 
 import logging
@@ -128,11 +127,10 @@ def rvv_vec_dot_product_kernels(
             Ts.writes(C[0:n_lanes])
 
             vec_A = T.call_llvm_intrin(
-                f"{data_dtype}xvscalex{d_dtype_lanes}",
                 "llvm.riscv.vle",
                 T.broadcast(T.Cast(data_dtype, 0), T.vscale() * d_dtype_lanes),
-                T.tvm_access_ptr(T.type_annotation(data_dtype), A.data, 0, n_elems, 1),
-                T.int64(n_elems))
+                T.tvm_access_ptr(data_dtype, A.data, 0, n_elems, 1),
+                T.int64(n_elems), ty=f"{data_dtype}xvscalex{d_dtype_lanes}")
 
             for i in range(n_lanes):
                 with Ts.sblock("update"):
@@ -140,41 +138,36 @@ def rvv_vec_dot_product_kernels(
                     Ts.writes(C[i])
 
                     vec_B_row = T.call_llvm_intrin(
-                        f"{weight_dtype}xvscalex{w_dtype_lanes}",
                         "llvm.riscv.vle",
                         T.broadcast(T.Cast(data_dtype, 0), T.vscale() * w_dtype_lanes),
-                        T.tvm_access_ptr(T.type_annotation(weight_dtype), B.data, i * n_elems, n_elems, 1),
-                        T.int64(n_elems))
+                        T.tvm_access_ptr(weight_dtype, B.data, i * n_elems, n_elems, 1),
+                        T.int64(n_elems), ty=f"{weight_dtype}xvscalex{w_dtype_lanes}")
 
                     product = T.call_llvm_intrin(
-                        f"{wide_dtype}xvscalex{w_dtype_lanes}",
                         mul_intrin,
                         T.broadcast(T.Cast(wide_dtype, 0), T.vscale() * w_dtype_lanes),
                         vec_B_row,
                         vec_A,
                         *mask_args,
-                        T.uint64(n_elems))
+                        T.uint64(n_elems), ty=f"{wide_dtype}xvscalex{w_dtype_lanes}")
 
                     ini_acc = T.call_llvm_intrin(
-                        f"{out_dtype}xvscalex{o_dtype_lanes}",
                         "llvm.riscv.vle",
                         T.broadcast(T.Cast(out_dtype, 0), T.vscale() * o_dtype_lanes),
-                        T.tvm_access_ptr(T.type_annotation(out_dtype), C.data, i, 1, 1),
-                        T.int64(1))
+                        T.tvm_access_ptr(out_dtype, C.data, i, 1, 1),
+                        T.int64(1), ty=f"{out_dtype}xvscalex{o_dtype_lanes}")
 
                     red_sum = T.call_llvm_intrin(
-                        f"{out_dtype}xvscalex{o_dtype_lanes}",
                         sum_intrin,
                         T.broadcast(T.Cast(out_dtype, 0), T.vscale() * o_dtype_lanes),
                         product,
                         ini_acc,
                         *mask_args,
-                        T.uint64(n_elems))
+                        T.uint64(n_elems), ty=f"{out_dtype}xvscalex{o_dtype_lanes}")
 
                     C[i] = T.call_llvm_intrin(
-                        out_dtype,
                         extract_intrin,
-                        red_sum)
+                        red_sum, ty=out_dtype)
     # fmt: on
     return rvv_vec_dot_prod_desc, rvv_vec_dot_prod_impl
 

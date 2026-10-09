@@ -204,7 +204,7 @@ struct BufferPadding {
     body = SBlockRealize(prim_loop_vars, IntImm::Bool(true), new_block);
     for (int i = ndim - 1; i >= 0; --i) {
       body = For(loop_vars[i].as_or_throw<PrimVar>(), loop_doms[i]->min, loop_doms[i]->extent,
-                 ForKind::kSerial, std::move(body));
+                 ForKind::kDefault, std::move(body));
     }
     return body;
   }
@@ -419,12 +419,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
     return false;
   };
   // Step 3. Convert the subtree under the scope root
-  ffi::Array<Stmt> scope_body;
-  if (const auto* seq_stmt = scope_block->body.as<SeqStmtNode>()) {
-    scope_body = seq_stmt->seq;
-  } else {
-    scope_body.push_back(scope_block->body);
-  }
+  ffi::Array<Stmt> scope_body = scope_block->body->seq;
   // Step 4. Find out the block of our interest
   int pos = -1;
   for (int i = 0; i < static_cast<int>(scope_body.size()); ++i) {
@@ -478,7 +473,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   // Step 7. Create new scope
   SBlock new_scope_block = [&]() {
     ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*scope_block);
-    n->body = SeqStmt::Flatten(new_scope_body);
+    n->body = SeqStmt(new_scope_body, scope_block->body->span);
     n->alloc_buffers.insert(n->alloc_buffers.end(), alloc_buffers.begin(), alloc_buffers.end());
     return SBlock(n);
   }();

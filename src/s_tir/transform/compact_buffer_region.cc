@@ -30,7 +30,6 @@
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/int_set.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
 #include <numeric>
@@ -185,10 +184,10 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     Range loop_range = Range::FromMinExtent(op->min, op->extent);
-    IterVar iter =
-        op->kind == ForKind::kThreadBinding
-            ? IterVar(Range(), op->loop_var, IterVarType::kThreadIndex, op->thread_binding.value())
-            : IterVar(Range(), op->loop_var, IterVarType::kDataPar);
+    IterVar iter = op->GetThreadBinding().has_value()
+                       ? IterVar(Range(), op->loop_var, IterVarType::kThreadIndex,
+                                 op->GetThreadBinding().value())
+                       : IterVar(Range(), op->loop_var, IterVarType::kDataPar);
     ancestor_iters_.push_back(iter);
     dom_analyzer_->Bind(op->loop_var, loop_range);
     dom_map_.emplace(op->loop_var.get(), sym::IntSet::FromRange(loop_range));
@@ -203,11 +202,11 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
       return DispatchAllocTensor(op);
     }
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::decl_tensor()))
+        call && call->op.same_as(tirx::decl_tensor_op()))
       return StmtExprVisitor::Visit_(op);
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->value));
     if (auto value = op->value.as<PrimExpr>(); value && sym::IsIndexTypedExpr(value.value())) {
@@ -249,7 +248,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    if (op->op.same_as(prim::builtin::if_then_else())) {
+    if (op->op.same_as(prim::if_then_else_op())) {
       PrimExpr condition = op->args[0].as_or_throw<PrimExpr>();
       PrimExpr then_value = op->args[1].as_or_throw<PrimExpr>();
       PrimExpr else_value = op->args[2].as_or_throw<PrimExpr>();
@@ -353,7 +352,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (op->op.same_as(tirx::builtin::launch_thread())) {
+    if (op->op.same_as(tirx::launch_thread_op())) {
       PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
       Range dom = Range::FromMinExtent(IntImm(extent.ty(), 0), extent);
       IterVar iter(dom, op->body_params[0].as_or_throw<PrimVar>(), IterVarType::kThreadIndex,
@@ -657,13 +656,13 @@ class BufferCompactor : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     const auto* call = op->value.as<CallNode>();
-    if (!call || (!call->op.same_as(tirx::builtin::alloc_tensor()) &&
-                  !call->op.same_as(tirx::builtin::decl_tensor()))) {
+    if (!call ||
+        (!call->op.same_as(tirx::alloc_tensor_op()) && !call->op.same_as(tirx::decl_tensor_op()))) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     TensorVar buffer = op->var.as_or_throw<TensorVar>();
     TensorVar new_buffer = RewriteAllocTensor(buffer);
-    bool is_alloc = call->op.same_as(tirx::builtin::alloc_tensor());
+    bool is_alloc = call->op.same_as(tirx::alloc_tensor_op());
     if (new_buffer.same_as(buffer) ||
         (is_alloc &&
          PrimType(call->args[1].as_or_throw<DataTypeImm>()->value) != new_buffer->dtype)) {

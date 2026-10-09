@@ -23,14 +23,13 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
 #include <unordered_set>
@@ -294,7 +293,7 @@ class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(s_tir::async_wait())) {
-      auto sync = Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_storage_sync(),
+      auto sync = Evaluate(Call(PrimType::Int(32), tirx::tvm_storage_sync_op(),
                                 {StringImm(sync_scope_.to_string())}));
       return SeqStmt({ffi::GetRef<Stmt>(op), sync});
     }
@@ -318,9 +317,9 @@ class ThreadSyncInserter : public StmtExprMutator {
     if (!stmt) return StmtExprMutator::Mutate(value, inplace_mode);
     if (syncs_.empty()) return ffi::Unchanged();
     if (!syncs_.count(stmt)) return StmtExprMutator::Mutate(value, inplace_mode);
-    Stmt barrier = Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_storage_sync(),
-                                 {StringImm(sync_scope_.to_string())})
-                                .as_or_throw<PrimExpr>());
+    Stmt barrier = Evaluate(
+        Call(PrimType::Int(32), tirx::tvm_storage_sync_op(), {StringImm(sync_scope_.to_string())})
+            .as_or_throw<PrimExpr>());
     // Mutate after query, to avoid stmt change.
     auto result = StmtExprMutator::Mutate(value, inplace_mode);
     Stmt body = std::move(result).ValueOrUnchanged(value).as_or_throw<Stmt>();

@@ -100,7 +100,7 @@ def dot_product_intrin(A: T.Tensor((4,), offset_factor=1), B: T.Tensor((4,), off
                 A.elem_offset,
                 B.data,
                 B.elem_offset,
-                dtype="int32",
+                ty="int32",
             )
         )
 
@@ -120,7 +120,7 @@ def dot_product_intrin_annotated(A: T.Tensor((4,), offset_factor=1), B: T.Tensor
                 A.elem_offset,
                 B.data,
                 B.elem_offset,
-                dtype="int32",
+                ty="int32",
             )
         )
 
@@ -158,7 +158,7 @@ def outer_product_intrin(A: T.Tensor((16, 1), offset_factor=1), B: T.Tensor((16,
                 A.elem_offset,
                 B.data,
                 B.elem_offset,
-                dtype="int32",
+                ty="int32",
             )
         )
 
@@ -334,7 +334,7 @@ def tensorized_batch_matmul_dot_product(
                     A_1.elem_offset,
                     B_1.data,
                     B_1.elem_offset,
-                    dtype="int32",
+                    ty="int32",
                 )
             )
 
@@ -367,7 +367,7 @@ def tensorized_batch_matmul_outer_product(
             )
             T.evaluate(
                 T.call_extern("outer_product", C_1.data, C_1.elem_offset, A_1.data, A_1.elem_offset,
-                              B_1.data, B_1.elem_offset, dtype="int32"
+                              B_1.data, B_1.elem_offset, ty="int32"
                 )
             )
 
@@ -815,12 +815,12 @@ def decode_i4s_to_f16_impl(Compressed: T.Tensor([1], dtype='int32', scope='local
         Ts.reads(Compressed[0:1])
         Ts.writes(Decompressed[0:8])
         T.call_extern(
-            "handle",
+
             "test_decode_i4s_to_f16",
             Compressed.data,
             Decompressed.data,
             8,
-        )
+         ty="handle")
 
 s_tir.TensorIntrin.register("test_decode_i4s_to_f16_intrin", decode_i4s_to_f16_desc, decode_i4s_to_f16_impl)
 
@@ -858,7 +858,7 @@ def test_tensorize_arith_simplification():
                                 Ts.writes(B_decode_local[v0_o, v1_o * 8:v1_o * 8 + 8])
                                 Compressed = Ts.match_buffer(B_local[v0_o, v1_o], (1,), "int32", scope="local")
                                 Decompressed = Ts.match_buffer(B_decode_local[v0_o, v1_o * 8:v1_o * 8 + 8], (8,), "float16", scope="local")
-                                T.call_extern("handle", "test_decode_i4s_to_f16", Compressed.data, Decompressed.data, 8)
+                                T.call_extern( "test_decode_i4s_to_f16", Compressed.data, Decompressed.data, 8, ty="handle")
 
     s = tvm.s_tir.Schedule(decode_i4s_to_int32_to_f16, debug_mask="all")
     update = s.get_sblock("B_decode_local")

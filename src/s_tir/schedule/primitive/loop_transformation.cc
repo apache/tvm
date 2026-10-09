@@ -437,7 +437,7 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   // order with before.
   // Step 1. Check correctness
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-  if (!loop->annotations.empty() || loop->thread_binding.has_value()) {
+  if (!loop->annotations.empty()) {
     throw MakeScheduleError<HasAnnotationOrThreadBindingError>(self->mod, ffi::GetRef<For>(loop));
   }
   // Currently, loops not starting with 0 are not supported
@@ -480,7 +480,7 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   // Step 4. Generate nested loops to replace the original loop and simplify the binding
   for (int i = n - 1; i >= 0; i--) {
     new_stmt =
-        For(new_loop_vars[i].as_or_throw<PrimVar>(), 0, factors[i], ForKind::kSerial, new_stmt);
+        For(new_loop_vars[i].as_or_throw<PrimVar>(), 0, factors[i], ForKind::kDefault, new_stmt);
   }
   new_stmt = IterMapSimplifyBlockBinding::SimplifyBindings(std::move(new_stmt), GetLoops(loop_sref),
                                                            opaque_block_reuse.CopyOnWrite(),
@@ -490,8 +490,11 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   result_srefs.reserve(n);
   for (int i = 0; i < n; i++) {
     result_srefs.push_back(self->stmt2ref.at(new_stmt.get()));
-    const ForNode* outer_loop = TVM_TYPE_AS(new_stmt, ForNode);
-    new_stmt = outer_loop->body;
+    if (i + 1 < n) {
+      const ForNode* outer_loop = TVM_TYPE_AS(new_stmt, ForNode);
+      TVM_FFI_ICHECK_EQ(outer_loop->body->size(), 1);
+      new_stmt = outer_loop->body->seq[0];
+    }
   }
   return result_srefs;
 }
@@ -701,18 +704,19 @@ class BlockMutator : public StmtExprMutator {
   int inner_iter_var_index = -1;
 };
 
-const ffi::String get_sblock_name(Stmt loop_body) {
-  const SBlockRealizeNode* blk_realize = loop_body.as<SBlockRealizeNode>();
-  if (blk_realize == nullptr) {
-    return get_sblock_name(loop_body.as<ForNode>()->body);
+const ffi::String get_sblock_name(SeqStmt loop_body) {
+  TVM_FFI_ICHECK_EQ(loop_body->size(), 1);
+  const Stmt& child = loop_body->seq[0];
+  if (const auto* block_realize = child.as<SBlockRealizeNode>()) {
+    return block_realize->block->name_hint;
   }
-  return blk_realize->block->name_hint;
+  return get_sblock_name(child.as_or_throw<For>()->body);
 }
 
 ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref,
                                    const ffi::Array<PrimExpr>& factors, bool preserve_unit_iters) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-  if (!loop->annotations.empty() || loop->thread_binding.has_value()) {
+  if (!loop->annotations.empty()) {
     throw MakeScheduleError<HasAnnotationOrThreadBindingError>(self->mod, ffi::GetRef<For>(loop));
   }
 
@@ -755,7 +759,7 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
                     .ValueOrUnchanged(std::move(loop_body));
     // Create new for loop with appropriate range
     auto for_node = For(new_loop_var.as_or_throw<PrimVar>(), min_value, extent_value - min_value,
-                        ForKind::kSerial, loop_body);
+                        ForKind::kDefault, loop_body);
 
     const auto& partition_block_name = block_name + std::to_string(i) + "_partition";
     // Create partition_block for the partitioned for loop
@@ -783,8 +787,9 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
   ffi::Array<StmtSRef> partition_srefs;
   partition_srefs.reserve(n);
   for (int i = 0; i < n; i++) {
-    StmtSRef partition_loop_sref =
-        self->stmt2ref.at(block_partitions[i].as<SBlockRealizeNode>()->block->body.get());
+    const SeqStmt& body = block_partitions[i].as<SBlockRealizeNode>()->block->body;
+    TVM_FFI_ICHECK_EQ(body->size(), 1);
+    StmtSRef partition_loop_sref = self->stmt2ref.at(body->seq[0].get());
     partition_srefs.push_back(partition_loop_sref);
   }
   return partition_srefs;
@@ -833,13 +838,13 @@ class LoopReconstructor : public StmtExprMutator {
       this->need_remove_loop_.push_back(loops_[i].back());
     }
     auto new_loop = For(new_loop_vars[0].as_or_throw<PrimVar>(), IntImm::Int32(0),
-                        new_loop_extents[0], ForKind::kSerial, SeqStmt(std::move(new_stmts)));
+                        new_loop_extents[0], ForKind::kDefault, SeqStmt(std::move(new_stmts)));
     this->new_inner_loop_ = new_loop;
     for (size_t i = 1; i < new_loop_vars.size(); ++i) {
       const Var& loop_var = new_loop_vars[i];
       const PrimExpr& loop_extent = new_loop_extents[i];
       new_loop = For(loop_var.as_or_throw<PrimVar>(), IntImm::Int32(0), loop_extent,
-                     ForKind::kSerial, new_loop);
+                     ForKind::kDefault, new_loop);
     }
     this->new_outer_loop_ = new_loop;
   }
@@ -894,7 +899,7 @@ StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs) {
     std::vector<For> nest_loop_i_loops;
     for (auto p = sref.get(); p != lca.get(); p = p->parent) {
       if (auto loop = p->StmtAs<ForNode>()) {
-        if (!loop->annotations.empty() || loop->thread_binding.has_value()) {
+        if (!loop->annotations.empty()) {
           throw MakeScheduleError<HasAnnotationOrThreadBindingError>(self->mod,
                                                                      ffi::GetRef<For>(loop));
         }
@@ -906,7 +911,8 @@ StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs) {
     lca_nest_loops.push_back(nest_loop_i_loops);
     const ForNode* outer_loop = nullptr;
     for (auto iter = nest_loop_i_loops.rbegin(); iter != nest_loop_i_loops.rend(); ++iter) {
-      if (outer_loop && !outer_loop->body.same_as(*iter)) {
+      if (outer_loop &&
+          (outer_loop->body->size() != 1 || !outer_loop->body->seq[0].same_as(*iter))) {
         throw MakeScheduleError<NotOnlyChildError>(self->mod, ffi::GetRef<For>(outer_loop), *iter);
       }
       outer_loop = (*iter).get();
@@ -961,7 +967,7 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
   // Step 1. check correctness
   for (const StmtSRef& sref : loop_srefs) {
     const ForNode* loop = TVM_SREF_TO_FOR(sref);
-    if (!loop->annotations.empty() || loop->thread_binding.has_value()) {
+    if (!loop->annotations.empty()) {
       throw MakeScheduleError<HasAnnotationOrThreadBindingError>(self->mod, ffi::GetRef<For>(loop));
     }
     if (outer_loop_sref.defined()) {
@@ -969,7 +975,8 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
         throw MakeScheduleError<OuterNotInnerParent>(self->mod, ffi::GetRef<For>(outer_loop),
                                                      ffi::GetRef<For>(loop));
       }
-      if (!outer_loop->body.same_as(ffi::GetRef<For>(loop))) {
+      if (outer_loop->body->size() != 1 ||
+          !outer_loop->body->seq[0].same_as(ffi::GetRef<For>(loop))) {
         throw MakeScheduleError<NotOnlyChildError>(self->mod, ffi::GetRef<For>(outer_loop),
                                                    ffi::GetRef<For>(loop));
       }
@@ -1029,7 +1036,7 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
     fused_extent *= loops[i]->extent;
   }
   fused_extent = analyzer->Simplify(fused_extent);
-  new_stmt = For(fused_var.as_or_throw<PrimVar>(), 0, fused_extent, ForKind::kSerial, new_stmt);
+  new_stmt = For(fused_var.as_or_throw<PrimVar>(), 0, fused_extent, ForKind::kDefault, new_stmt);
   new_stmt = IterMapSimplifyBlockBinding::SimplifyBindings(
       std::move(new_stmt), GetLoops(loop_srefs[0]), opaque_block_reuse.CopyOnWrite(),
       preserve_unit_iters);
@@ -1127,7 +1134,7 @@ std::vector<const StmtSRefNode*> GetLoopsInReorderRange(const ScheduleState& sel
     const ForNode* outer = parent_loop_sref->StmtAs<ForNode>();
     const ForNode* inner = loop_sref->StmtAs<ForNode>();
     TVM_FFI_ICHECK(outer != nullptr && inner != nullptr);
-    if (outer->body.get() != inner) {
+    if (outer->body->size() != 1 || outer->body->seq[0].get() != inner) {
       throw MakeScheduleError<LoopsNotAChainError>(
           self->mod, ffi::GetRef<For>(outer),
           LoopsNotAChainError::ProblemKind::kHaveNonSingleBranchStmt);
@@ -1218,8 +1225,8 @@ void Reorder(ScheduleState self, const ffi::Array<StmtSRef>& ordered_loop_srefs)
 
 StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
   if (sref->stmt->IsInstance<ForNode>()) {
-    For new_loop =
-        For(PrimVar("u", PrimType::Int(32)), 0, 1, ForKind::kSerial, ffi::GetRef<Stmt>(sref->stmt));
+    For new_loop = For(PrimVar("u", PrimType::Int(32)), 0, 1, ForKind::kDefault,
+                       ffi::GetRef<Stmt>(sref->stmt));
     self->Replace(sref, new_loop, {});
     return self->stmt2ref.at(new_loop.get());
   }
@@ -1236,7 +1243,7 @@ StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
 
     UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {
       if (realize->block.get() == src_block_) {
-        new_loop_ = For(PrimVar("u", PrimType::Int(32)), 0, 1, ForKind::kSerial,
+        new_loop_ = For(PrimVar("u", PrimType::Int(32)), 0, 1, ForKind::kDefault,
                         ffi::GetRef<SBlockRealize>(realize));
         return new_loop_.value();
       }

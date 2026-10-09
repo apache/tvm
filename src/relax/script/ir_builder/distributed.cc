@@ -18,8 +18,8 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/distributed/type.h>
+#include <tvm/relax/op/op.h>
 #include <tvm/relax/script/ir_builder/ir.h>
 #include <tvm/relax/type.h>
 #include <tvm/tirx/op.h>
@@ -45,7 +45,7 @@ Expr MakeCallTIRDist(Expr func, Tuple args, ffi::Array<distributed::DTensorType>
   }
 
   static const Op op = Op::Get("relax.call_tir");
-  return Call::Unchecked(Type::Missing(), op, {func, args}, {}, {out_ty});
+  return Call(Type::Missing(), op, {func, args}, {}, {out_ty});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

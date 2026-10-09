@@ -35,15 +35,6 @@
 
 namespace tvm {
 namespace s_tir {
-/*!
- * \brief Renew the definition nodes for a TIR, including Var, Buffer and IterVar.
- *        This pass works as a simple DeepCopy to duplicate a function with different Vars and
- *        Buffers but the same behavior
- * \param func The input Function.
- * \return The renewed func.
- */
-TVM_DLL tirx::Function RenewDefs(const tirx::Function& func);
-
 namespace transform {
 
 using tirx::transform::CreateFunctionPass;
@@ -330,7 +321,7 @@ TVM_DLL Pass DefaultGPUSchedule();
 TVM_DLL Pass RemoveWeightLayoutRewriteBlock(bool skip_tensor_rewrite = false);
 
 /*!
- * \brief Remove stores of tirx::builtin::undef.
+ * \brief Remove stores of tirx::undef_op.
  * \return The pass.
  */
 TVM_DLL Pass RemoveStoreUndef();

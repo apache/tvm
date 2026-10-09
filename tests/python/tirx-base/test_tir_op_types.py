@@ -37,7 +37,7 @@ def test_scalar_integer_signature():
     assert tirx.tvm_struct_get(ptr, 1 << 40, 2, dtype="int32").args[1].ty.dtype == "int64"
     for dtype in ("float32", "bool", "int32x4", "int32xvscalex4"):
         with pytest.raises(TypeError, match=rf"index.*expected `ir.IntExpr`.*\[ty={dtype}\]"):
-            tirx.tvm_struct_get(ptr, tirx.Var("index", dtype), 2, dtype="int32")
+            tirx.tvm_struct_get(ptr, tirx.Var("index", dtype), 2, dtype="int32").validate()
 
 
 def test_tir_op_tvm_struct_set():
@@ -101,11 +101,6 @@ def test_tir_op_tvm_thread_allreduce():
         combine, (tirx.const(0, "float32"),), (tensor[0],), True, (result[0],), (axis,)
     )
     assert expr.op.name == "tirx.tvm_thread_allreduce"
-
-
-def test_tir_op_type_annotation():
-    expr = tirx.type_annotation("int32")
-    assert expr.op.name == "tirx.type_annotation"
 
 
 def test_tir_op_tvm_access_ptr():
@@ -220,13 +215,13 @@ def test_op_ptx_cp_async():
 
     inner_dst = tirx.tvm_access_ptr("float16", buffer_shared.data, 2, 8, 1)
     inner_src = tirx.tvm_access_ptr("float16", buffer_local.data, 4, 8, 1)
-    expr = _cuda_op.ptx_cp_async_legacy("float16", inner_dst, 3, inner_src, 5, 16)
+    expr = _cuda_op.ptx_cp_async_legacy(inner_dst, 3, inner_src, 5, 16, elem_dtype="float16")
     # Raw-form layout: (dst, dst_off, src, src_off, cp_size), offsets folded.
     for access_ptr, expected_offset in zip((expr.args[0], expr.args[2]), [5, 9]):
         assert access_ptr.op.name == "tirx.tvm_access_ptr"
-        assert access_ptr.args[1].op.name == "tirx.buffer_data"
-        assert isinstance(access_ptr.args[1].args[0], tirx.Var)
-        simplified_offset = tvm.sym.Analyzer().simplify(access_ptr.args[2])
+        assert access_ptr.args[0].op.name == "tirx.buffer_data"
+        assert isinstance(access_ptr.args[0].args[0], tirx.Var)
+        simplified_offset = tvm.sym.Analyzer().simplify(access_ptr.args[1])
         assert int(simplified_offset) == expected_offset
 
 

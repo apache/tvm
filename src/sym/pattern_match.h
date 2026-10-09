@@ -66,7 +66,6 @@
 #define TVM_SYM_PATTERN_MATCH_H_
 
 #include <tvm/ffi/cast.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 
@@ -830,7 +829,7 @@ struct PIfThenElseOp {
   static PrimExpr Eval(ffi::Array<PrimExpr> args) {
     return Call(args[1].ty(), GetOp(), args).as_or_throw<PrimExpr>();
   }
-  static const Op& GetOp() { return prim::builtin::if_then_else(); }
+  static const Op& GetOp() { return prim::if_then_else_op(); }
 };
 
 /*!

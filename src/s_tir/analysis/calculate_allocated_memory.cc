@@ -29,8 +29,8 @@
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -66,7 +66,7 @@ class AllocTensorCalculator : public StmtExprVisitor {
  private:
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
       return DispatchAllocTensor(op, call);
     }
     return StmtExprVisitor::Visit_(op);

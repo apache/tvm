@@ -21,17 +21,17 @@
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/layout.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/script/ir_builder/ir.h>
-#include <tvm/tirx/tile_primitive.h>
+#include <tvm/tirx/tile_op.h>
 
 #include "./utils.h"
 
@@ -281,34 +281,34 @@ PrimExpr ConvertLoopBound(const PrimExpr& e, const PrimType& var_ty) {
   return tvm::prim::Cast(var_ty, e);
 }
 
-#define TVM_TIRX_IR_BUILDER_FOR_FRAME(Method, Kind)                                              \
-  ForFrame Method(PrimExpr start, PrimExpr stop,                                                 \
-                  ffi::Optional<ffi::Map<ffi::String, Any>> annotations,                         \
-                  ffi::Optional<PrimExpr> step, ffi::Optional<PrimType> dtype) {                 \
-    PrimType var_ty = InferLoopVarDtype(start, stop, dtype);                                     \
-    PrimExpr min = ConvertLoopBound(start, var_ty);                                              \
-    PrimExpr extent = sym::Analyzer()->Simplify(ConvertLoopBound(stop, var_ty) - min);           \
-    if (step.has_value()) {                                                                      \
-      step = ConvertLoopBound(step.value(), var_ty);                                             \
-    }                                                                                            \
-    ffi::ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();                           \
-    n->vars = {Var("v", var_ty)};                                                                \
-    n->doms = {Range::FromMinExtent(min, extent)};                                               \
-    n->steps = {step};                                                                           \
-    n->f_make_for_loop = [annotations](ffi::Array<Var> vars, ffi::Array<Range> doms,             \
-                                       ffi::Array<ffi::Optional<PrimExpr>> steps,                \
-                                       tvm::tirx::Stmt body, Span span) {                        \
-      TVM_FFI_ICHECK_EQ(vars.size(), 1);                                                         \
-      TVM_FFI_ICHECK_EQ(doms.size(), 1);                                                         \
-      TVM_FFI_ICHECK_EQ(steps.size(), 1);                                                        \
-      return tvm::tirx::For(vars[0].as_or_throw<tvm::PrimVar>(), doms[0]->min, doms[0]->extent,  \
-                            Kind, body, std::nullopt,                                            \
-                            annotations.value_or(ffi::Map<ffi::String, Any>()), steps[0], span); \
-    };                                                                                           \
-    return ForFrame(n);                                                                          \
+#define TVM_TIRX_IR_BUILDER_FOR_FRAME(Method, Kind)                                             \
+  ForFrame Method(PrimExpr start, PrimExpr stop,                                                \
+                  ffi::Optional<ffi::Map<ffi::String, Any>> annotations,                        \
+                  ffi::Optional<PrimExpr> step, ffi::Optional<PrimType> dtype) {                \
+    PrimType var_ty = InferLoopVarDtype(start, stop, dtype);                                    \
+    PrimExpr min = ConvertLoopBound(start, var_ty);                                             \
+    PrimExpr extent = sym::Analyzer()->Simplify(ConvertLoopBound(stop, var_ty) - min);          \
+    if (step.has_value()) {                                                                     \
+      step = ConvertLoopBound(step.value(), var_ty);                                            \
+    }                                                                                           \
+    ffi::ObjectPtr<ForFrameNode> n = ffi::make_object<ForFrameNode>();                          \
+    n->vars = {Var("v", var_ty)};                                                               \
+    n->doms = {Range::FromMinExtent(min, extent)};                                              \
+    n->steps = {step};                                                                          \
+    n->f_make_for_loop = [annotations](ffi::Array<Var> vars, ffi::Array<Range> doms,            \
+                                       ffi::Array<ffi::Optional<PrimExpr>> steps,               \
+                                       tvm::tirx::SeqStmt body, Span span) {                    \
+      TVM_FFI_ICHECK_EQ(vars.size(), 1);                                                        \
+      TVM_FFI_ICHECK_EQ(doms.size(), 1);                                                        \
+      TVM_FFI_ICHECK_EQ(steps.size(), 1);                                                       \
+      return tvm::tirx::For(vars[0].as_or_throw<tvm::PrimVar>(), doms[0]->min, doms[0]->extent, \
+                            Kind, body, annotations.value_or(ffi::Map<ffi::String, Any>()),     \
+                            steps[0], span);                                                    \
+    };                                                                                          \
+    return ForFrame(n);                                                                         \
   }
 
-TVM_TIRX_IR_BUILDER_FOR_FRAME(Serial, tvm::tirx::ForKind::kSerial);
+TVM_TIRX_IR_BUILDER_FOR_FRAME(Serial, tvm::tirx::ForKind::kDefault);
 TVM_TIRX_IR_BUILDER_FOR_FRAME(Parallel, tvm::tirx::ForKind::kParallel);
 TVM_TIRX_IR_BUILDER_FOR_FRAME(Vectorized, tvm::tirx::ForKind::kVectorized);
 TVM_TIRX_IR_BUILDER_FOR_FRAME(Unroll, tvm::tirx::ForKind::kUnrolled);
@@ -330,13 +330,18 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
   n->steps = {std::nullopt};
   n->f_make_for_loop = [annotations, thread, dtype](ffi::Array<Var> vars, ffi::Array<Range> doms,
                                                     ffi::Array<ffi::Optional<PrimExpr>> steps,
-                                                    Stmt body, Span span) -> For {
+                                                    SeqStmt body, Span span) -> For {
     TVM_FFI_ICHECK_EQ(vars.size(), 1);
     TVM_FFI_ICHECK_EQ(doms.size(), 1);
     TVM_FFI_ICHECK(steps.size() == 1 && (!steps[0].has_value() || IsOne(*steps[0])));
+    auto loop_annotations = annotations.value_or(ffi::Map<ffi::String, ffi::Any>());
+    if (auto existing = loop_annotations.Get("thread_binding")) {
+      TVM_FFI_CHECK(existing->cast<ffi::String>() == thread, ValueError)
+          << "Conflicting thread_binding annotation and thread argument";
+    }
+    loop_annotations.Set("thread_binding", thread);
     return For(vars[0].as_or_throw<tvm::PrimVar>(), doms[0]->min, doms[0]->extent,
-               ForKind::kThreadBinding, body, thread,
-               annotations.value_or(ffi::Map<ffi::String, ffi::Any>()), std::nullopt, span);
+               ForKind::kParallel, body, std::move(loop_annotations), std::nullopt, span);
   };
   return ForFrame(n);
 }
@@ -368,18 +373,20 @@ ForFrame Grid(ffi::Array<ffi::Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>>
     }
   }
   n->f_make_for_loop = [](ffi::Array<Var> vars, ffi::Array<Range> doms,
-                          ffi::Array<ffi::Optional<PrimExpr>> steps, Stmt body, Span span) -> Stmt {
+                          ffi::Array<ffi::Optional<PrimExpr>> steps, SeqStmt body,
+                          Span span) -> Stmt {
     TVM_FFI_ICHECK_EQ(vars.size(), doms.size());
     TVM_FFI_ICHECK_EQ(vars.size(), steps.size());
+    Stmt result = std::move(body);
     int n = vars.size();
     for (int i = n - 1; i >= 0; --i) {
       Range dom = doms[i];
       Var var = vars[i];
-      body = For(var.as_or_throw<tvm::PrimVar>(), dom->min, dom->extent, ForKind::kSerial,
-                 std::move(body),
-                 /*thread_binding=*/std::nullopt, /*annotations=*/{}, /*step=*/steps[i], span);
+      result = For(var.as_or_throw<tvm::PrimVar>(), dom->min, dom->extent, ForKind::kDefault,
+                   SeqStmt(std::move(result)),
+                   /*annotations=*/{}, /*step=*/steps[i], span);
     }
-    return body;
+    return result;
   };
   return ForFrame(n);
 }
@@ -570,13 +577,12 @@ TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buf
                                 storage_scope, align, offset_factor, layout, allocated_addr_arr);
   if (scope == "tmem") {
     // Tensor memory is externally allocated; make its address-to-pointer binding explicit.
-    data =
-        Call(buffer.DataPointerType(), tvm::tirx::builtin::reinterpret(), {allocated_addr.value()});
+    data = Call(buffer.DataPointerType(), tvm::tirx::reinterpret_op(), {allocated_addr.value()});
   }
   Span span = IRBuilder::Current()->GetCurrentSourceSpan();
   if (data.has_value()) {
     AddToParent(tvm::tirx::Bind(buffer.var(),
-                                Call(buffer.type(), tvm::tirx::builtin::decl_tensor(),
+                                Call(buffer.type(), tvm::tirx::decl_tensor_op(),
                                      {data.value(), tvm::Tuple(buffer->shape),
                                       DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
                                      {}, {}, span),
@@ -584,7 +590,7 @@ TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buf
   } else {
     // Without a backing pointer, declare and allocate the tensor together.
     AddToParent(tvm::tirx::Bind(buffer.var(),
-                                Call(buffer.type(), tvm::tirx::builtin::alloc_tensor(),
+                                Call(buffer.type(), tvm::tirx::alloc_tensor_op(),
                                      {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                                       StringImm(buffer.scope())},
                                      DictAttrs(), {}, span),
@@ -598,7 +604,7 @@ TensorVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String st
   TensorVar buffer = TensorDecl(shape, dtype, "", std::nullopt, std::nullopt, std::nullopt,
                                 storage_scope, 0, 0, std::nullopt, {});
   AddToParent(tvm::tirx::Bind(
-      buffer.var(), Call(buffer.type(), tvm::tirx::builtin::alloc_tensor(),
+      buffer.var(), Call(buffer.type(), tvm::tirx::alloc_tensor_op(),
                          {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                           StringImm(buffer.scope())},
                          DictAttrs(annotations.value_or(ffi::Map<ffi::String, ffi::Any>())))));

@@ -45,7 +45,9 @@ def test_op_correctness():
     y = relax.Var("x", R.Tensor((4, 5), "float32"))
     assert relax.op.collapse_sum_like(x, y).op == Op.get("relax.collapse_sum_like")
     assert relax.op.cumsum(x, axis=1, dtype="int32").op == Op.get("relax.cumsum")
-    assert relax.op.einsum(x, subscripts="ii").op == Op.get("relax.einsum")
+    assert relax.op.einsum(x, subscripts="ii", ty=tvm.ir.Type.missing()).op == Op.get(
+        "relax.einsum"
+    )
     assert relax.op.flip(x, axis=1).op == Op.get("relax.flip")
     seq_lengths = relax.Var("seq_lengths", R.Tensor((3,), "int32"))
     assert relax.op.reverse_sequence(x, seq_lengths).op == Op.get("relax.reverse_sequence")

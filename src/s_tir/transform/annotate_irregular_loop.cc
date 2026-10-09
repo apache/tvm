@@ -20,13 +20,13 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/ir/transform.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 namespace tvm {
 namespace s_tir {
@@ -55,7 +55,7 @@ class IrregularLoopAnnotator : public StmtExprMutator {
                   .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                   .as_or_throw<For>();
     if (has_jump_) {
-      TVM_FFI_ICHECK(op->kind == ForKind::kSerial)
+      TVM_FFI_ICHECK(op->kind == ForKind::kDefault)
           << "Loop kind " << op->kind << " is invalid for irregular loop " << op->loop_var;
       for (const char* key :
            {tirx::attr::auto_unroll_max_step, tirx::attr::unroll_explicit,

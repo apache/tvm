@@ -24,7 +24,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
-#include <tvm/s_tir/transform.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -84,7 +84,7 @@ class AttrAttacher : public ExprMutator {
     tirx::Function func = WithAttr(mod_->Lookup(gv).as_or_throw<tirx::Function>(),
                                    "layout_free_buffers", layout_free_buffers);
     // Renew defs
-    func = s_tir::RenewDefs(func);
+    func = tirx::RenewDef(func);
     // Add the updated tirx::Function in the IRModule
     // Note the blockbuilder would automatically combine the same tirx function
     // So we don't need to worry about the duplicate insertion

@@ -19,19 +19,20 @@
 
 import collections
 import inspect
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from typing import Optional
 
 import tvm_ffi
 
 import tvm
 import tvm.runtime
-from tvm.ir import BaseFunc, Range, Var
-from tvm.runtime import Object, Scriptable
+from tvm.ir import BaseFunc, Range, Scriptable, Var
+from tvm.runtime import Object
 
 from ..runtime._tensor import Tensor
 from . import _ffi_api
 from .expr import Expr
+from .stmt import SeqStmt, Stmt
 
 
 @tvm_ffi.register_object("tirx.Function")
@@ -43,7 +44,7 @@ class Function(BaseFunc, Scriptable):
     params: List[Union[tvm.tirx.Var, tvm.tirx.Var]]
         List of input parameters to the function.
 
-    body: Optional[tvm.tirx.Stmt]
+    body: Stmt | Sequence[Stmt] | None
         The body of the function, or None for a declaration.
 
     ret_type: tvm.ir.Type
@@ -56,7 +57,11 @@ class Function(BaseFunc, Scriptable):
         The location of this itervar in the source code.
     """
 
-    def __init__(self, params, body, ret_type=None, attrs=None, span=None):
+    body: SeqStmt | None
+
+    def __init__(
+        self, params, body: Stmt | Sequence[Stmt] | None, ret_type=None, attrs=None, span=None
+    ):
         if ret_type is None:
             ret_type = tvm.ir.Type.missing()
         param_list = []
@@ -83,12 +88,12 @@ class Function(BaseFunc, Scriptable):
         """Whether this primitive function uses the TIRx dialect."""
         return not bool(self.attrs.get("s_tir", False))
 
-    def with_body(self, new_body, span=None):
+    def with_body(self, new_body: Stmt | Sequence[Stmt] | None, span=None):
         """Create a new Function with the same set signatures but a new body.
 
         Parameters
         ----------
-        new_body : Optional[Stmt]
+        new_body : Stmt | Sequence[Stmt] | None
             The new body, or None for a declaration.
 
         span : Optional[Span]
@@ -162,6 +167,25 @@ class Function(BaseFunc, Scriptable):
             The new function with parameter specialized
         """
         return _ffi_api.Specialize(self, param_map)  # type: ignore
+
+
+def renew_def(func: Function) -> Function:
+    """Renew variable definitions and remap their uses in a function.
+
+    Definition regions follow the registered structural hooks. Free variables
+    and function attributes are preserved, and the function signature is rebuilt.
+
+    Parameters
+    ----------
+    func : Function
+        The function to renew.
+
+    Returns
+    -------
+    Function
+        The function with fresh variable definitions.
+    """
+    return _ffi_api.RenewDef(func)
 
 
 @tvm_ffi.register_object("tirx.IndexMap")

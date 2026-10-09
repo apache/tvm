@@ -31,7 +31,7 @@ Use :py:func:`tvm.target.list_tags` to list all available target tags,
 and :py:func:`tvm.target.register_tag` to register new tags.
 """
 
-from .target import Target, TargetKind
+from .target import Target, TargetKind, device_from_target
 from .tag import list_tags, register_tag
 from . import codegen
 from . import tag_registry  # registers tags on import

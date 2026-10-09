@@ -37,9 +37,8 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/unique_name_supply.h>
-#include <tvm/s_tir/stmt.h>
-#include <tvm/s_tir/transform.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -103,7 +102,7 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
-    if (op->kind == ForKind::kThreadBinding) {
+    if (op->GetThreadBinding().has_value()) {
       // Enter GPU scope for thread binding loops
       bool last_is_under_gpu_scope = is_under_gpu_scope_;
       is_under_gpu_scope_ = true;
@@ -116,8 +115,7 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (!op->op.same_as(tirx::builtin::launch_thread()) &&
-        !op->op.same_as(tirx::builtin::device_entry()))
+    if (!op->op.same_as(tirx::launch_thread_op()) && !op->op.same_as(tirx::device_entry_op()))
       return StmtExprVisitor::Visit_(op);
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->args));
     bool previous_scope = is_under_gpu_scope_;
@@ -190,7 +188,7 @@ class CallSubstitutor : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    if (op->kind == ForKind::kThreadBinding) {
+    if (op->GetThreadBinding().has_value()) {
       // Enter GPU scope for thread binding loops
       bool last_is_under_gpu_scope = is_under_gpu_scope_;
       is_under_gpu_scope_ = true;
@@ -203,8 +201,7 @@ class CallSubstitutor : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (!op->op.same_as(tirx::builtin::launch_thread()) &&
-        !op->op.same_as(tirx::builtin::device_entry()))
+    if (!op->op.same_as(tirx::launch_thread_op()) && !op->op.same_as(tirx::device_entry_op()))
       return StmtExprMutator::Mutate_(op, inplace_mode);
     auto args =
         Mutate(op->args, inplace_mode).ValueOrUnchanged(op->args).as_or_throw<ffi::Array<Expr>>();
@@ -310,7 +307,7 @@ IRModule BindTarget(IRModule mod, const Target& target) {
       if (called_by_host && called_by_device) {
         // Rule 4.1: Called by both host and device
         // Bind device target to current function
-        Function host_func = s_tir::RenewDefs(function);
+        Function host_func = tirx::RenewDef(function);
         new_mod->Update(gvar,
                         WithAttr(std::move(function), tvm::attr::kTarget, target_without_host));
 

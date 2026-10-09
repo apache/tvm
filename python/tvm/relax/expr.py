@@ -30,10 +30,10 @@ import tvm.ir
 import tvm.relax
 import tvm.runtime
 from tvm import DataType
+from tvm.ir import Scriptable
 
 from ..ir import BaseFunc, Node, Span
 from ..ir.expr import _CallableExprWithOp
-from ..runtime import Scriptable
 from . import _ffi_api
 
 # It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
@@ -58,8 +58,17 @@ def prim_value(value: Expr | int | float, dtype: str | None = None) -> Expr:
     Returns
     -------
     result : Expr
-        The converted primitive expression.  Existing ``Expr`` inputs are
-        returned unchanged.
+        The converted primitive expression. Existing primitive expression inputs are
+        returned unchanged, even when ``dtype`` is supplied.
+
+    Notes
+    -----
+    Existing primitive expressions can be used directly in TVMScript. Python
+    scalars are context dependent: an unannotated Relax binding or return
+    converts them to tensor constants, while this helper constructs primitive
+    expressions. ``dtype`` selects the type of Python numeric inputs; omitting
+    it uses bool, int64, or float64. The script alias ``R.prim_value`` retains
+    these programmatic conversion semantics.
     """
     if tvm.ir.is_prim_expr(value):
         return value

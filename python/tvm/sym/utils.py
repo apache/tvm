@@ -14,22 +14,33 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
+"""Utilities for extracting values from symbolic expressions."""
 
-import tvm
-from tvm.script import s_tir as Ts
-from tvm.script import tirx as T
+from numbers import Integral
+
+from tvm.ir.prim import IntImm
+
+from .analyzer import Analyzer
 
 
-def test_reject_blocks():
-    @Ts.function(private=True)
-    def before(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
-        for i in T.serial(0, T.int64(16)):
-            for j in T.serial(0, T.int64(8)):
-                with Ts.sblock():
-                    vi = Ts.axis.spatial(T.int64(128), i * T.int64(8) + j)
-                    B[vi] = A[vi] + T.float32(1)
+def get_const_int(expr):
+    """Verifies expr is integer and get the constant value.
 
-    mod = tvm.IRModule.from_expr(before)
-    with pytest.raises(ValueError, match="requires a function without S-TIR blocks"):
-        tvm.tirx.transform.ForceNarrowIndexToInt32()(mod)
+    Parameters
+    ----------
+    expr : tvm.Expr or int
+        The input expression.
+
+    Returns
+    -------
+    out_value : int
+        The output.
+    """
+    if isinstance(expr, Integral):
+        return expr
+    if not isinstance(expr, IntImm):
+        ana = Analyzer()
+        expr = ana.simplify(expr)
+    if not isinstance(expr, IntImm):
+        raise ValueError("Expect value to be constant int")
+    return int(expr.value)

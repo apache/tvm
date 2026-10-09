@@ -1786,7 +1786,7 @@ class Schedule(Object):
                     with Ts.sblock("A"):
                         Ts.reads(data_io[:64])
                         Ts.writes(data_io[:64])
-                        T.evaluate(T.call_extern("call_impl", data_io.data, dtype=""))
+                        T.evaluate(T.call_extern("call_impl", data_io.data, ty="void"))
 
         Create the schedule and cache_inplace:
 
@@ -1814,7 +1814,7 @@ class Schedule(Object):
                     with Ts.sblock("A"):
                         Ts.reads(data_io_local[0 : 64])
                         Ts.writes(data_io_local[0 : 64])
-                        T.evaluate(T.call_extern("call_impl", data_io_local.data, dtype=""))
+                        T.evaluate(T.call_extern("call_impl", data_io_local.data, ty="void"))
                     for ax0 in T.serial(64):
                         with Ts.sblock("data_io_local"):
                             v0 = Ts.axis.spatial(64, ax0)

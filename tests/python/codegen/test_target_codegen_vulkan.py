@@ -481,14 +481,14 @@ def test_cooperative_matrix(out_dtype):
                                 W_shared[k_0 * 16 + index // 16, index % 16] = W[k_0 * 16 + index // 16, index % 16]
                     T.tvm_storage_sync("shared")
                     T.tvm_load_matrix_sync(X_shared_wmma_matrix_a.data, 16, 16, 16, k_0,
-                        T.tvm_access_ptr(T.type_annotation("float16"), X_shared.data, k_0 * 16, 512, 1), 32, "row_major")
+                        T.tvm_access_ptr("float16", X_shared.data, k_0 * 16, 512, 1), 32, "row_major")
                     T.tvm_load_matrix_sync(W_shared_wmma_matrix_b.data, 16, 16, 16, k_0,
-                        T.tvm_access_ptr(T.type_annotation("float16"), W_shared.data, k_0 * 256, 256, 1), 16, "row_major")
+                        T.tvm_access_ptr("float16", W_shared.data, k_0 * 256, 256, 1), 16, "row_major")
                     T.tvm_mma_sync(compute_wmma_accumulator.data, 0,
                         X_shared_wmma_matrix_a.data, k_0, W_shared_wmma_matrix_b.data, k_0,
                         compute_wmma_accumulator.data, 0)
                 T.tvm_store_matrix_sync(compute_wmma_accumulator.data, 16, 16, 16, 0,
-                    T.tvm_access_ptr(T.type_annotation(out_dtype), compute.data, 0, 256, 2), 16, "row_major")
+                    T.tvm_access_ptr(out_dtype, compute.data, 0, 256, 2), 16, "row_major")
     # fmt: on
 
     target = {"kind": "vulkan", "from_device": 0}

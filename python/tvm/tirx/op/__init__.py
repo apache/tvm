@@ -15,7 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name, too-many-arguments
-"""Operators used in TIR expression."""
+"""Operators used in TIR expression.
+
+For helpers exposing ``ty``, omitted or ``None`` result types use core Call
+inference; explicit types, including ``Type.missing()``, are retained.
+"""
 
 from typing import Any
 
@@ -23,30 +27,51 @@ import tvm_ffi
 from tvm_ffi import Array
 
 import tvm
-import tvm.ir.prim._ffi_api as _prim_ffi_api
 from tvm import tirx
 from tvm.ir import (
     Call,
     Expr,
     ExprWithOp,
-    Op,
     PointerType,
     PrimType,
     TensorLoad,
     TensorRegion,
     Var,
+    const,
 )
 from tvm.ir.base import Span
 from tvm.ir.prim import clz as clz
 from tvm.ir.prim import max_value as max_value
 from tvm.ir.prim import min_value as min_value
-from tvm.runtime import const
+from tvm.ir.prim.op import all as all
+from tvm.ir.prim.op import any as any
+from tvm.ir.prim.op import bitwise_and as bitwise_and
+from tvm.ir.prim.op import bitwise_not as bitwise_not
+from tvm.ir.prim.op import bitwise_or as bitwise_or
+from tvm.ir.prim.op import bitwise_xor as bitwise_xor
+from tvm.ir.prim.op import ceil as ceil
+from tvm.ir.prim.op import ceildiv as ceildiv
+from tvm.ir.prim.op import div as div
+from tvm.ir.prim.op import floordiv as floordiv
+from tvm.ir.prim.op import floormod as floormod
+from tvm.ir.prim.op import if_then_else as if_then_else
+from tvm.ir.prim.op import indexdiv as indexdiv
+from tvm.ir.prim.op import indexmod as indexmod
+from tvm.ir.prim.op import likely as likely
+from tvm.ir.prim.op import log2 as log2
+from tvm.ir.prim.op import max as max
+from tvm.ir.prim.op import min as min
+from tvm.ir.prim.op import shift_left as shift_left
+from tvm.ir.prim.op import shift_right as shift_right
+from tvm.ir.prim.op import truncdiv as truncdiv
+from tvm.ir.prim.op import truncmod as truncmod
+from tvm.ir.prim.op import vscale as vscale
 
-from . import _ffi_api
-from .buffer import buffer_data, is_tensor_var
-from .expr import ExprOp, IntImm
-from .expr import TensorLoad as _make_tensor_load
-from .type import TensorMapType
+from .. import _ffi_api
+from ..buffer import buffer_data, is_tensor_var
+from ..expr import ExprOp, IntImm
+from ..expr import TensorLoad as _make_tensor_load
+from ..type import TensorMapType
 
 tir = tirx  # alias for backward compat with upstream tir.convert() calls
 
@@ -170,10 +195,10 @@ def _pack_buffer(buf, span=None):
         const(0, dtype=buf.ty.dtype),
         buf.ty.elem_offset,
     ]
-    return Call(Op.get("tirx.tvm_stack_make_array"), pack_args, span=span, ty="handle")
+    return Call("tirx.tvm_stack_make_array", pack_args, span=span, ty="handle")
 
 
-def call_packed_lowered(*args, span=None):
+def call_packed_lowered(*args, span=None, ty=None):
     """Lowered version of call packed.
     The argument to a packed function can be an Expr or a tensor variable.
     The argument is the corresponding POD type when Expr is presented.
@@ -202,10 +227,15 @@ def call_packed_lowered(*args, span=None):
         _pack_buffer(x) if is_tensor_var(x) else _reject_buffer_region(x, "call_packed_lowered")
         for x in args
     ]
-    return Call(Op.get("tirx.tvm_call_packed_lowered"), call_args, span=span, ty="int32")
+    return Call(
+        "tirx.tvm_call_packed_lowered",
+        call_args,
+        ty=ty,
+        span=span,
+    )
 
 
-def call_cpacked_lowered(*args, span=None):
+def call_cpacked_lowered(*args, span=None, ty=None):
     """Lowered version of call c-packed.
     Same as call_packed, except that the first argument is the function name
     (as in call_extern), and the last argument is the resource handle.
@@ -231,10 +261,15 @@ def call_cpacked_lowered(*args, span=None):
         _pack_buffer(x) if is_tensor_var(x) else _reject_buffer_region(x, "call_cpacked_lowered")
         for x in args
     ]
-    return Call(Op.get("tirx.tvm_call_cpacked_lowered"), call_args, span=span, ty="int32")
+    return Call(
+        "tirx.tvm_call_cpacked_lowered",
+        call_args,
+        ty=ty,
+        span=span,
+    )
 
 
-def call_packed(*args, span=None):
+def call_packed(*args, span=None, ty=None):
     """Build expression by call an external packed function.
 
     The argument to a packed function can be an Expr or a tensor variable.
@@ -265,7 +300,7 @@ def call_packed(*args, span=None):
         _pack_buffer(x) if is_tensor_var(x) else _reject_buffer_region(x, "call_packed")
         for x in args
     ]
-    return Call(Op.get("tirx.tvm_call_packed"), call_args, span=span, ty="int32")
+    return Call("tirx.tvm_call_packed", call_args, ty=ty, span=span)
 
 
 @tvm_ffi.register_object("tirx.CallFFIKernelAttr")
@@ -278,7 +313,7 @@ class CallFFIKernelAttr(tvm.ir.Attrs):
         self.__init_handle_by_constructor__(_ffi_api.CallFFIKernelAttr, launch_params)
 
 
-def call_ffi_kernel(*args, launch_params, ret_ty="int32", span=None):
+def call_ffi_kernel(*args, launch_params, ty="int32", span=None):
     """Call a kernel with its symbol, kernel operands, then launch values.
 
     ``launch_params`` contains ordered tags for the launch-value suffix.
@@ -290,7 +325,7 @@ def call_ffi_kernel(*args, launch_params, ret_ty="int32", span=None):
         "tirx.call_ffi_kernel",
         args,
         attrs=CallFFIKernelAttr(launch_params),
-        ty=ret_ty,
+        ty=ty,
         span=span,
     )
 
@@ -352,7 +387,7 @@ def tensormap_encode_tiled(
     )
 
 
-def call_cpacked(*args, span=None):
+def call_cpacked(*args, span=None, ty=None):
     """Build expression by call an external packed function.
 
     Same as call_packed, except that the first argument is the function name
@@ -379,7 +414,7 @@ def call_cpacked(*args, span=None):
         _pack_buffer(x) if is_tensor_var(x) else _reject_buffer_region(x, "call_cpacked")
         for x in args
     ]
-    return Call(Op.get("tirx.tvm_call_cpacked"), call_args, span=span, ty="int32")
+    return Call("tirx.tvm_call_cpacked", call_args, ty=ty, span=span)
 
 
 def call_intrin(dtype: str | tvm.ir.Type, func_name, *args, attrs=None, span=None):
@@ -439,7 +474,7 @@ def call_pure_extern(dtype, func_name, *args, span=None):
         The call expression.
     """
     return Call(
-        Op.get("tirx.call_pure_extern"),
+        "tirx.call_pure_extern",
         [func_name, *(_reject_buffer_region(arg, "call_pure_extern") for arg in args)],
         span=span,
         ty=dtype,
@@ -469,7 +504,7 @@ def call_extern(dtype, func_name, *args, span=None):
         The call expression.
     """
     return Call(
-        Op.get("tirx.call_extern"),
+        "tirx.call_extern",
         [func_name, *(_reject_buffer_region(arg, "call_extern") for arg in args)],
         span=span,
         ty=dtype,
@@ -519,7 +554,7 @@ def call_llvm_intrin(dtype, name, *args, span=None):
         raise ValueError(f"Unknown llvm intrinsic function {name}")
     return call_intrin(
         dtype,
-        Op.get("tirx.call_llvm_intrin"),
+        "tirx.call_llvm_intrin",
         name
         if isinstance(name, IntImm)
         else tvm.tirx.const(llvm_id, "int32" if isinstance(name, str) else "uint32"),
@@ -563,7 +598,7 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
         raise ValueError(f"Unknown llvm intrinsic function {name}")
     return call_intrin(
         dtype,
-        Op.get("tirx.call_llvm_pure_intrin"),
+        "tirx.call_llvm_pure_intrin",
         name
         if isinstance(name, IntImm)
         else tvm.tirx.const(llvm_id, "int32" if isinstance(name, str) else "uint32"),
@@ -572,7 +607,7 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     )
 
 
-def tvm_stack_alloca(dtype_str, num):
+def tvm_stack_alloca(dtype_str, num, *, ty=None, span=None):
     """Return new on stack dtype[num]
 
     Parameters
@@ -588,18 +623,10 @@ def tvm_stack_alloca(dtype_str, num):
     call : Expr
         The call expression.
     """
-    if dtype_str == "shape":
-        ret_ty = PointerType(tvm.ir.PrimType("int64"))
-    elif dtype_str == "arg_tcode":
-        ret_ty = PointerType(tvm.ir.PrimType("int32"))
-    elif dtype_str == "tensormap":
-        ret_ty = PointerType(TensorMapType())
-    else:
-        ret_ty = PointerType(tvm.ir.PrimType("void"))
-    return call_intrin(ret_ty, "tirx.tvm_stack_alloca", dtype_str, num)
+    return call_intrin(ty, "tirx.tvm_stack_alloca", dtype_str, num, span=span)
 
 
-def tvm_stack_make_shape(*args):
+def tvm_stack_make_shape(*args, ty=None, span=None):
     """Allocate a shape tuple on stack, return the handle
 
     Parameters
@@ -612,10 +639,20 @@ def tvm_stack_make_shape(*args):
     call : Expr
         The call expression.
     """
-    return call_intrin(PointerType(tvm.ir.PrimType("int64")), "tirx.tvm_stack_make_shape", *args)
+    return call_intrin(ty, "tirx.tvm_stack_make_shape", *args, span=span)
 
 
-def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
+def tvm_stack_make_array(
+    data,
+    shape,
+    strides,
+    ndim,
+    arr_dtype,
+    elem_offset,
+    *,
+    ty=None,
+    span=None,
+):
     """Allocate a Tensor(DLTensor) on stack, return the handle
 
     Parameters
@@ -647,7 +684,7 @@ def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
         arr_dtype = const(0, dtype=arr_dtype)
 
     return call_intrin(
-        "handle",
+        ty,
         "tirx.tvm_stack_make_array",
         data,
         shape,
@@ -655,10 +692,11 @@ def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
         ndim,
         arr_dtype,
         elem_offset,
+        span=span,
     )
 
 
-def assume(cond=None):
+def assume(cond=None, *, ty=None, span=None):
     """Provide a true statement that can be used for simplifications
 
     Parameters
@@ -671,20 +709,20 @@ def assume(cond=None):
     call : Expr
         The call expression.
     """
-    return call_intrin("bool", "tirx.assume", cond)
+    return call_intrin(ty, "tirx.assume", cond, span=span)
 
 
-def assume_aligned(tensor, alignment_bytes):
+def assume_aligned(tensor, alignment_bytes, *, ty=None, span=None):
     """Assume the tensor's base address is aligned to ``alignment_bytes``.
 
     This compiler fact does not check or modify the address. The tensor must
     be a tensor variable and alignment a scalar integer constant, a power of
     two between 1 and 2**27 bytes (inclusive).
     """
-    return call_intrin("void", "tirx.assume_aligned", tensor, alignment_bytes)
+    return call_intrin(ty, "tirx.assume_aligned", tensor, alignment_bytes, span=span)
 
 
-def undef():
+def undef(*, ty=None, span=None):
     """Returns an initialized but arbitrary value
 
     Returns
@@ -692,10 +730,10 @@ def undef():
     call : Expr
         The call expression.
     """
-    return call_intrin("int32", "tirx.undef")
+    return call_intrin(ty, "tirx.undef", span=span)
 
 
-def handle_add_byte_offset(handle, offset):
+def handle_add_byte_offset(handle, offset, *, ty=None, span=None):
     """Add offset to handle
 
     Parameters
@@ -711,14 +749,7 @@ def handle_add_byte_offset(handle, offset):
     call : Expr
         The call expression.
     """
-    handle_type = getattr(handle, "ty", None)
-    storage_scope = handle_type.storage_scope if isinstance(handle_type, PointerType) else "global"
-    return call_intrin(
-        PointerType(tvm.ir.PrimType("void"), storage_scope),
-        "tirx.handle_add_byte_offset",
-        handle,
-        offset,
-    )
+    return call_intrin(ty, "tirx.handle_add_byte_offset", handle, offset, span=span)
 
 
 def tvm_struct_get(arr, index, field, dtype):
@@ -746,7 +777,7 @@ def tvm_struct_get(arr, index, field, dtype):
     return call_intrin(dtype, "tirx.tvm_struct_get", arr, index, field)
 
 
-def tvm_struct_set(arr, index, field, value):
+def tvm_struct_set(arr, index, field, value, *, ty=None, span=None):
     """Set value in struct field in array
 
     Parameters
@@ -768,19 +799,14 @@ def tvm_struct_set(arr, index, field, value):
     call : Expr
         The call expression.
     """
-    return call_intrin("int32", "tirx.tvm_struct_set", arr, index, field, value)
+    return call_intrin(ty, "tirx.tvm_struct_set", arr, index, field, value, span=span)
 
 
 def _is_tensormap_var(obj: Var) -> bool:
     return isinstance(obj.ty, PointerType) and isinstance(obj.ty.element_type, TensorMapType)
 
 
-def _buffer_element_pointer_type(buffer: Var) -> PointerType:
-    """Return a pointer to ``buffer`` elements in the buffer's storage scope."""
-    return PointerType(buffer.ty.dtype, buffer.ty.storage_scope)
-
-
-def address_of(obj: Var | TensorLoad, span: Span | None = None) -> Expr:
+def address_of(obj: Var | TensorLoad, span: Span | None = None, *, ty=None) -> Expr:
     """Returns the address of a buffer element or addressable variable.
 
     Parameters
@@ -799,30 +825,30 @@ def address_of(obj: Var | TensorLoad, span: Span | None = None) -> Expr:
     if is_tensor_var(obj):
         n_dim = len(obj.ty.shape)
         buffer_load = _make_tensor_load(obj, [0] * n_dim)
-        return Call(
-            "tirx.address_of",
-            [buffer_load],
-            span=span,
-            ty=_buffer_element_pointer_type(obj),
-        )
+        return Call("tirx.address_of", [buffer_load], ty=ty, span=span)
     elif isinstance(obj, Var):
         if _is_tensormap_var(obj):
-            return call_intrin("uint64", "tirx.address_of", obj, span=span)
+            return call_intrin(ty, "tirx.address_of", obj, span=span)
         if not isinstance(obj.ty, tvm.ir.PrimType):
             raise TypeError(f"address_of expects a scalar or TensorMap Var, but got {obj.ty}")
-        return Call("tirx.address_of", [obj], span=span, ty=PointerType(obj.ty))
+        return Call("tirx.address_of", [obj], ty=ty, span=span)
     elif isinstance(obj, TensorLoad):
-        return Call(
-            "tirx.address_of",
-            [obj],
-            span=span,
-            ty=_buffer_element_pointer_type(obj.source),
-        )
+        return Call("tirx.address_of", [obj], ty=ty, span=span)
     else:
         raise ValueError(f"Invalid object type: {type(obj)}")
 
 
-def tvm_thread_allreduce(combine, identity, values, predicate, destinations, thread_axes):
+def tvm_thread_allreduce(
+    combine,
+    identity,
+    values,
+    predicate,
+    destinations,
+    thread_axes,
+    *,
+    ty=None,
+    span=None,
+):
     """Perform an all-reduce inside a thread block.
 
     Parameters
@@ -853,7 +879,7 @@ def tvm_thread_allreduce(combine, identity, values, predicate, destinations, thr
         return tvm.ir.Tuple(value) if isinstance(value, list | tuple | Array) else value
 
     return call_intrin(
-        "void",
+        ty,
         "tirx.tvm_thread_allreduce",
         combine,
         as_operand(identity),
@@ -861,10 +887,11 @@ def tvm_thread_allreduce(combine, identity, values, predicate, destinations, thr
         predicate,
         as_operand(destinations),
         as_operand(thread_axes),
+        span=span,
     )
 
 
-def tvm_thread_invariant(cond):
+def tvm_thread_invariant(cond, *, ty=None, span=None):
     """Mark condition as thread invariant.
 
     Parameters
@@ -878,7 +905,7 @@ def tvm_thread_invariant(cond):
         The call expression.
     """
     assert tvm.ir.is_prim_expr(cond)
-    return call_intrin(_primexpr_ty(cond), "tirx.tvm_thread_invariant", cond)
+    return call_intrin(ty, "tirx.tvm_thread_invariant", cond, span=span)
 
 
 def tvm_storage_sync(storage_scope, is_load=False, num_blocks=-1, *, dtype="void"):
@@ -916,7 +943,7 @@ def tvm_storage_sync(storage_scope, is_load=False, num_blocks=-1, *, dtype="void
     return call_intrin(dtype, "tirx.tvm_storage_sync", *args)
 
 
-def cpu_parallel_barrier():
+def cpu_parallel_barrier(*, ty=None, span=None):
     """Synchronize all workers in the current CPU parallel launch.
 
     Every worker must reach this operation at the same program point. Place it
@@ -927,15 +954,15 @@ def cpu_parallel_barrier():
     To replace ``pragma_parallel_barrier_when_finish``, place this operation
     after the former attribute body.
     """
-    return call_intrin("void", "tirx.cpu_parallel_barrier")
+    return call_intrin(ty, "tirx.cpu_parallel_barrier", span=span)
 
 
-def tvm_kernel_replace_point():
+def tvm_kernel_replace_point(*, ty=None, span=None):
     """Mark where a transform should replace generated kernel initialization."""
-    return call_intrin("void", "tirx.tvm_kernel_replace_point")
+    return call_intrin(ty, "tirx.tvm_kernel_replace_point", span=span)
 
 
-def tvm_warp_shuffle(mask, value, warp_id, width, warp_size):
+def tvm_warp_shuffle(mask, value, warp_id, width, warp_size, *, ty=None, span=None):
     """Exchange value between threads inside a warp.
 
     Parameters
@@ -957,11 +984,18 @@ def tvm_warp_shuffle(mask, value, warp_id, width, warp_size):
         The call expression.
     """
     return call_intrin(
-        _primexpr_ty(value), "tirx.tvm_warp_shuffle", mask, value, warp_id, width, warp_size
+        ty,
+        "tirx.tvm_warp_shuffle",
+        mask,
+        value,
+        warp_id,
+        width,
+        warp_size,
+        span=span,
     )
 
 
-def tvm_warp_shuffle_up(mask, value, offset, width, warp_size):
+def tvm_warp_shuffle_up(mask, value, offset, width, warp_size, *, ty=None, span=None):
     """Copy value from a lane with lower (by offset) index relative to caller.
 
     Parameters
@@ -984,11 +1018,18 @@ def tvm_warp_shuffle_up(mask, value, offset, width, warp_size):
         The call expression.
     """
     return call_intrin(
-        _primexpr_ty(value), "tirx.tvm_warp_shuffle_up", mask, value, offset, width, warp_size
+        ty,
+        "tirx.tvm_warp_shuffle_up",
+        mask,
+        value,
+        offset,
+        width,
+        warp_size,
+        span=span,
     )
 
 
-def tvm_warp_shuffle_down(mask, value, offset, width, warp_size):
+def tvm_warp_shuffle_down(mask, value, offset, width, warp_size, *, ty=None, span=None):
     """Copy value from a lane with higher (by offset) index relative to caller.
 
     Parameters
@@ -1011,11 +1052,18 @@ def tvm_warp_shuffle_down(mask, value, offset, width, warp_size):
         The call expression.
     """
     return call_intrin(
-        _primexpr_ty(value), "tirx.tvm_warp_shuffle_down", mask, value, offset, width, warp_size
+        ty,
+        "tirx.tvm_warp_shuffle_down",
+        mask,
+        value,
+        offset,
+        width,
+        warp_size,
+        span=span,
     )
 
 
-def tvm_warp_shuffle_xor(mask, value, lane_mask, width, warp_size):
+def tvm_warp_shuffle_xor(mask, value, lane_mask, width, warp_size, *, ty=None, span=None):
     """Copy value from a lane with index computed by `src_lane_idx ^ lane_mask`.
 
     Parameters
@@ -1037,11 +1085,18 @@ def tvm_warp_shuffle_xor(mask, value, lane_mask, width, warp_size):
         The call expression.
     """
     return call_intrin(
-        _primexpr_ty(value), "tirx.tvm_warp_shuffle_xor", mask, value, lane_mask, width, warp_size
+        ty,
+        "tirx.tvm_warp_shuffle_xor",
+        mask,
+        value,
+        lane_mask,
+        width,
+        warp_size,
+        span=span,
     )
 
 
-def tvm_warp_activemask():
+def tvm_warp_activemask(*, ty=None, span=None):
     """Return a 32-bit mask indicates currently active threads in a calling warp.
 
     Returns
@@ -1049,35 +1104,16 @@ def tvm_warp_activemask():
     call : Expr
         The call expression.
     """
-    return call_intrin("uint32", "tirx.tvm_warp_activemask")
+    return call_intrin(ty, "tirx.tvm_warp_activemask", span=span)
 
 
-def type_annotation(dtype):
-    """Create a type annotation expression
-
-    Parameters
-    ----------
-    dtype : Expr
-        The data type.
-
-    Returns
-    -------
-    call : Expr
-        The call expression.
-    """
-    return call_intrin(dtype, "tirx.type_annotation")
-
-
-def tvm_access_ptr(ptype, data, offset, extent, rw_mask):
+def tvm_access_ptr(ptype, data, offset, extent, rw_mask, *, ty=None, span=None):
     """Get head access address with memory access pattern info
 
     Parameters
     ----------
-    ptype : Expr, PrimType, or str
-        The data type of pointer. If a ``PrimType`` or ``str``, it is wrapped
-        via :func:`type_annotation` so that the lowering rule (which reads
-        ``args[0].dtype()`` for the cast type) sees the intended dtype instead
-        of StringType from a string literal.
+    ptype : PrimType or str
+        The accessed element type. Offsets and extents are in units of this type.
 
     data : DType*
         The data of pointer.
@@ -1096,41 +1132,35 @@ def tvm_access_ptr(ptype, data, offset, extent, rw_mask):
     call : Expr
         The call expression.
     """
-    if isinstance(ptype, str | PrimType):
-        ptype = type_annotation(ptype)
-    data_type = getattr(data, "ty", None)
-    storage_scope = data_type.storage_scope if isinstance(data_type, PointerType) else "global"
-    return call_intrin(
-        PointerType(_primexpr_ty(ptype), storage_scope),
+    ptype = PrimType(ptype) if isinstance(ptype, str) else ptype
+    return Call(
         "tirx.tvm_access_ptr",
-        ptype,
-        data,
-        offset,
-        extent,
-        rw_mask,
+        [data, offset, extent, rw_mask],
+        ty=ty,
+        ty_args=[ptype],
+        span=span,
     )
 
 
-def ptr_byte_offset(data, byte_offset, dtype):
+def ptr_byte_offset(data, byte_offset, dtype, *, ty=None, span=None):
     """Cast ``data + byte_offset`` to ``dtype*``.
 
     ``byte_offset`` is always in bytes.  Use this when the source CUDA shape
     needs an explicitly typed local pointer derived from a byte-addressed base.
     """
-    if isinstance(dtype, str | PrimType):
-        dtype = type_annotation(dtype)
+    dtype = PrimType(dtype) if isinstance(dtype, str) else dtype
     data_type = getattr(data, "ty", None)
     storage_scope = data_type.storage_scope if isinstance(data_type, PointerType) else "global"
     return call_intrin(
-        PointerType(_primexpr_ty(dtype), storage_scope),
+        PointerType(dtype, storage_scope) if ty is None else ty,
         "tirx.ptr_byte_offset",
         data,
         byte_offset,
-        dtype,
+        span=span,
     )
 
 
-def tvm_throw_last_error():
+def tvm_throw_last_error(*, ty=None, span=None):
     """Throw TVMGetLastError()
 
     Returns
@@ -1138,10 +1168,19 @@ def tvm_throw_last_error():
     ret : Expr
         The return expression
     """
-    return call_intrin("void", "tirx.tvm_throw_last_error")
+    return call_intrin(ty, "tirx.tvm_throw_last_error", span=span)
 
 
-def print_buffer(buffer_var, dtype, is_string, is_scalar, dim_num, *shape):
+def print_buffer(
+    buffer_var,
+    dtype,
+    is_string,
+    is_scalar,
+    dim_num,
+    *shape,
+    ty=None,
+    span=None,
+):
     """Print out buffer memory during runtime."""
     if len(shape) == 1 and isinstance(shape[0], tuple | list | tvm.ir.Array):
         final_shape_args = list(shape[0])
@@ -1149,8 +1188,26 @@ def print_buffer(buffer_var, dtype, is_string, is_scalar, dim_num, *shape):
         final_shape_args = list(shape)
     if isinstance(dtype, tvm.ir.PrimType):
         dtype = dtype.dtype
-    return _ffi_api.print_buffer(
-        buffer_var, dtype, is_string, is_scalar, dim_num, *final_shape_args
+    if isinstance(dtype, tvm.ir.StringImm):
+        dtype = dtype.value
+    if isinstance(is_string, IntImm):
+        is_string = is_string.value
+    if isinstance(is_scalar, IntImm):
+        is_scalar = is_scalar.value
+    if isinstance(dim_num, IntImm):
+        dim_num = dim_num.value
+    return Call(
+        "tirx.print_buffer",
+        [
+            buffer_var,
+            str(tvm.DataType(dtype)),
+            const(bool(is_string), "bool"),
+            const(bool(is_scalar), "bool"),
+            const(dim_num, "uint32"),
+            *final_shape_args,
+        ],
+        ty=ty,
+        span=span,
     )
 
 
@@ -1160,8 +1217,20 @@ def cooperative_tensor_fill(
     value: Expr,
     rows: int,
     cols: int,
+    *,
+    ty=None,
+    span=None,
 ):
-    return call_intrin("void", "tirx.cooperative_tensor_fill", d, index, value, rows, cols)
+    return call_intrin(
+        ty,
+        "tirx.cooperative_tensor_fill",
+        d,
+        index,
+        value,
+        rows,
+        cols,
+        span=span,
+    )
 
 
 def cooperative_tensor_load(
@@ -1176,9 +1245,12 @@ def cooperative_tensor_load(
     mma_N: int = 0,
     mma_K: int = 0,
     operand_role: int = 0,
+    *,
+    ty=None,
+    span=None,
 ):
     return call_intrin(
-        "void",
+        ty,
         "tirx.cooperative_tensor_load",
         d,
         index,
@@ -1191,6 +1263,7 @@ def cooperative_tensor_load(
         mma_N,
         mma_K,
         operand_role,
+        span=span,
     )
 
 
@@ -1206,9 +1279,12 @@ def cooperative_tensor_store(
     mma_N: int = 0,
     mma_K: int = 0,
     operand_role: int = 0,
+    *,
+    ty=None,
+    span=None,
 ):
     return call_intrin(
-        "void",
+        ty,
         "tirx.cooperative_tensor_store",
         d,
         index,
@@ -1221,6 +1297,7 @@ def cooperative_tensor_store(
         mma_N,
         mma_K,
         operand_role,
+        span=span,
     )
 
 
@@ -1238,9 +1315,12 @@ def cooperative_tensor_multiply_accumulate(
     K: int,
     transpose_a: bool = False,
     transpose_b: bool = False,
+    *,
+    ty=None,
+    span=None,
 ):
     return call_intrin(
-        "void",
+        ty,
         "tirx.cooperative_tensor_multiply_accumulate",
         d,
         index_d,
@@ -1255,6 +1335,7 @@ def cooperative_tensor_multiply_accumulate(
         K,
         transpose_a,
         transpose_b,
+        span=span,
     )
 
 
@@ -1315,7 +1396,7 @@ def vectorcombine(dtype, vec1, vec2):
     return call_intrin(dtype, "tirx.vectorcombine", vec1, vec2)
 
 
-def dp4a(vec1, vec2, acc=0):
+def dp4a(vec1, vec2, acc=0, **kwargs):
     """Dot product of two int8x4 vectors and add an optional accumulator
 
     Parameters
@@ -1334,60 +1415,7 @@ def dp4a(vec1, vec2, acc=0):
     call : Expr
         The call expression.
     """
-    return call_intrin("int32", "tirx.dp4a", vec1, vec2, acc)
-
-
-def any(*args, span=None):
-    """Create a new experssion of the union of all conditions in the arguments
-
-    Parameters
-    ----------
-    args : list
-        List of symbolic boolean expressions
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    expr: Expr
-        Expression
-    """
-    if not args:
-        raise ValueError("Any must take at least 1 argument")
-    if len(args) == 1:
-        return args[0]
-    val = _prim_ffi_api._OpOr(args[0], args[1], span)  # type: ignore
-    for i in range(2, len(args)):
-        val = _prim_ffi_api._OpOr(val, args[i], span)  # type: ignore
-    return val
-
-
-def all(*args, span=None):
-    """Create a new expression of the intersection of all conditions in the
-      arguments
-
-    Parameters
-    ----------
-    args : list
-        List of symbolic boolean expressions
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    expr: Expr
-        Expression
-    """
-    if not args:
-        raise ValueError("Any must take at least 1 argument")
-    if len(args) == 1:
-        return args[0]
-    val = _prim_ffi_api._OpAnd(args[0], args[1], span)  # type: ignore
-    for i in range(2, len(args)):
-        val = _prim_ffi_api._OpAnd(val, args[i], span)  # type: ignore
-    return val
+    return Call("tirx.dp4a", [vec1, vec2, acc], **kwargs)
 
 
 def infinity(dtype: str, span: Span | None = None) -> Any:
@@ -1435,7 +1463,7 @@ def reinterpret(dtype, value, span: Span | None = None) -> Expr:
     return _ffi_api.reinterpret(dtype, value, span)  # type: ignore
 
 
-def exp(x):
+def exp(x, *, ty=None, span=None):
     """Take exponential of input x.
 
     Parameters
@@ -1449,10 +1477,10 @@ def exp(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.exp", x)
+    return call_intrin(ty, "tirx.exp", x, span=span)
 
 
-def exp2(x):
+def exp2(x, *, ty=None, span=None):
     """Calculate 2**x
 
     Parameters
@@ -1466,10 +1494,10 @@ def exp2(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.exp2", x)
+    return call_intrin(ty, "tirx.exp2", x, span=span)
 
 
-def exp10(x):
+def exp10(x, *, ty=None, span=None):
     """Calculate 10**x
 
     Parameters
@@ -1483,10 +1511,10 @@ def exp10(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.exp10", x)
+    return call_intrin(ty, "tirx.exp10", x, span=span)
 
 
-def fma(x, y, z):
+def fma(x, y, z, *, ty=None, span=None):
     """Take fused multiply-add of input x, y, z.
 
     Parameters
@@ -1508,10 +1536,10 @@ def fma(x, y, z):
     x = tir.convert(x)
     y = tir.convert(y)
     z = tir.convert(z)
-    return call_intrin(_primexpr_ty(x), "tirx.fma", x, y, z)
+    return call_intrin(ty, "tirx.fma", x, y, z, span=span)
 
 
-def erf(x):
+def erf(x, *, ty=None, span=None):
     """Take gauss error function of the input x.
 
     Parameters
@@ -1525,10 +1553,10 @@ def erf(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.erf", x)
+    return call_intrin(ty, "tirx.erf", x, span=span)
 
 
-def tanh(x):
+def tanh(x, *, ty=None, span=None):
     """Take hyperbolic tanh of input x.
 
     Parameters
@@ -1542,10 +1570,10 @@ def tanh(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.tanh", x)
+    return call_intrin(ty, "tirx.tanh", x, span=span)
 
 
-def sigmoid(x):
+def sigmoid(x, *, ty=None, span=None):
     """Quick function to get sigmoid
 
     Parameters
@@ -1559,10 +1587,10 @@ def sigmoid(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.sigmoid", x)
+    return call_intrin(ty, "tirx.sigmoid", x, span=span)
 
 
-def log(x):
+def log(x, *, ty=None, span=None):
     """Take log of input x.
 
     Parameters
@@ -1576,27 +1604,10 @@ def log(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.log", x)
+    return call_intrin(ty, "tirx.log", x, span=span)
 
 
-def log2(x):
-    """Take log2 of input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "prim.log2", x)
-
-
-def log10(x):
+def log10(x, *, ty=None, span=None):
     """Take log10 of input x.
 
     Parameters
@@ -1610,10 +1621,10 @@ def log10(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.log10", x)
+    return call_intrin(ty, "tirx.log10", x, span=span)
 
 
-def log1p(x):
+def log1p(x, *, ty=None, span=None):
     """Take log(x + 1) with respect to input x.
 
     Parameters
@@ -1627,10 +1638,10 @@ def log1p(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.log1p", x)
+    return call_intrin(ty, "tirx.log1p", x, span=span)
 
 
-def tan(x):
+def tan(x, *, ty=None, span=None):
     """Take tan of input x.
 
     Parameters
@@ -1644,10 +1655,10 @@ def tan(x):
         The result.
     """
     x = _require_float_arg("tan", x)
-    return call_intrin(_primexpr_ty(x), "tirx.tan", x)
+    return call_intrin(ty, "tirx.tan", x, span=span)
 
 
-def cos(x):
+def cos(x, *, ty=None, span=None):
     """Take cos of input x.
 
     Parameters
@@ -1661,10 +1672,10 @@ def cos(x):
         The result.
     """
     x = _require_float_arg("cos", x)
-    return call_intrin(_primexpr_ty(x), "tirx.cos", x)
+    return call_intrin(ty, "tirx.cos", x, span=span)
 
 
-def cosh(x):
+def cosh(x, *, ty=None, span=None):
     """Take cosh of input x.
 
     Parameters
@@ -1678,10 +1689,10 @@ def cosh(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.cosh", x)
+    return call_intrin(ty, "tirx.cosh", x, span=span)
 
 
-def acos(x):
+def acos(x, *, ty=None, span=None):
     """Take acos of input x.
 
     Parameters
@@ -1695,10 +1706,10 @@ def acos(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.acos", x)
+    return call_intrin(ty, "tirx.acos", x, span=span)
 
 
-def acosh(x):
+def acosh(x, *, ty=None, span=None):
     """Take acos of input x.
 
     Parameters
@@ -1712,10 +1723,10 @@ def acosh(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.acosh", x)
+    return call_intrin(ty, "tirx.acosh", x, span=span)
 
 
-def sin(x):
+def sin(x, *, ty=None, span=None):
     """Take sin of input x.
 
     Parameters
@@ -1729,10 +1740,10 @@ def sin(x):
         The result.
     """
     x = _require_float_arg("sin", x)
-    return call_intrin(_primexpr_ty(x), "tirx.sin", x)
+    return call_intrin(ty, "tirx.sin", x, span=span)
 
 
-def sinh(x):
+def sinh(x, *, ty=None, span=None):
     """Take sinh of input x.
 
     Parameters
@@ -1746,10 +1757,10 @@ def sinh(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.sinh", x)
+    return call_intrin(ty, "tirx.sinh", x, span=span)
 
 
-def asin(x):
+def asin(x, *, ty=None, span=None):
     """Take asin of input x.
 
     Parameters
@@ -1763,10 +1774,10 @@ def asin(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.asin", x)
+    return call_intrin(ty, "tirx.asin", x, span=span)
 
 
-def asinh(x):
+def asinh(x, *, ty=None, span=None):
     """Take asinh of input x.
 
     Parameters
@@ -1780,10 +1791,10 @@ def asinh(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.asinh", x)
+    return call_intrin(ty, "tirx.asinh", x, span=span)
 
 
-def atan(x):
+def atan(x, *, ty=None, span=None):
     """Take atan of input x.
 
     Parameters
@@ -1797,10 +1808,10 @@ def atan(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.atan", x)
+    return call_intrin(ty, "tirx.atan", x, span=span)
 
 
-def atanh(x):
+def atanh(x, *, ty=None, span=None):
     """Take atanh of input x.
 
     Parameters
@@ -1814,10 +1825,10 @@ def atanh(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.atanh", x)
+    return call_intrin(ty, "tirx.atanh", x, span=span)
 
 
-def atan2(x1, x2):
+def atan2(x1, x2, *, ty=None, span=None):
     """Take arctan2(x1, x2).
 
     Parameters
@@ -1835,10 +1846,10 @@ def atan2(x1, x2):
     """
     x1 = tir.convert(x1)
     x2 = tir.convert(x2)
-    return call_intrin(_primexpr_ty(x1), "tirx.atan2", x1, x2)
+    return call_intrin(ty, "tirx.atan2", x1, x2, span=span)
 
 
-def sqrt(x):
+def sqrt(x, *, ty=None, span=None):
     """Take square root of input x.
 
     Parameters
@@ -1852,10 +1863,10 @@ def sqrt(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.sqrt", x)
+    return call_intrin(ty, "tirx.sqrt", x, span=span)
 
 
-def rsqrt(x):
+def rsqrt(x, *, ty=None, span=None):
     """Take reciprocal of square root of input x.
 
     Parameters
@@ -1869,7 +1880,7 @@ def rsqrt(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.rsqrt", x)
+    return call_intrin(ty, "tirx.rsqrt", x, span=span)
 
 
 def floor(x: ExprWithOp, span=None):
@@ -1889,25 +1900,6 @@ def floor(x: ExprWithOp, span=None):
         The result.
     """
     return _ffi_api.floor(x, span)  # type: ignore
-
-
-def ceil(x, span=None):
-    """Take ceil of float input x.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    y : Expr
-        The result.
-    """
-    return _prim_ffi_api.ceil(x, span)  # type: ignore
 
 
 def trunc(x, span=None):
@@ -1949,91 +1941,6 @@ def abs(x, span=None):
         The result.
     """
     return _ffi_api.abs(x, span)  # type: ignore
-
-
-def bitwise_and(x, y, span=None):
-    """Take bitwise and of two values
-
-    Parameters
-    ----------
-    x : Expr
-        Left operand
-
-    y : Expr
-        Right operand
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    res : Expr
-        The result.
-    """
-    return _prim_ffi_api.bitwise_and(x, y, span)
-
-
-def bitwise_not(x, span=None):
-    """Take bitwise not of input value
-
-    Parameters
-    ----------
-    x : Expr
-        Input operand
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    res : Expr
-        The result.
-    """
-    return _prim_ffi_api.bitwise_not(x, span)
-
-
-def bitwise_or(x, y, span=None):
-    """Take bitwise or of two values
-
-    Parameters
-    ----------
-    x : Expr
-        Left operand
-
-    y : Expr
-        Right operand
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    res : Expr
-        The result.
-    """
-    return _prim_ffi_api.bitwise_or(x, y, span)
-
-
-def bitwise_xor(x, y, span=None):
-    """Take bitwise xor of two values
-
-    Parameters
-    ----------
-    x : Expr
-        Left operand
-
-    y : Expr
-        Right operand
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    res : Expr
-        The result.
-    """
-    return _prim_ffi_api.bitwise_xor(x, y, span)
 
 
 def round(x, span=None):
@@ -2081,7 +1988,7 @@ def nearbyint(x, span=None):
     return _ffi_api.nearbyint(x, span)  # type: ignore
 
 
-def nextafter(x1, x2):
+def nextafter(x1, x2, *, ty=None, span=None):
     """Return the next floating-point value after x1 towards x2.
 
     Parameters
@@ -2099,10 +2006,10 @@ def nextafter(x1, x2):
     """
     x1 = tir.convert(x1)
     x2 = tir.convert(x2)
-    return call_intrin(_primexpr_ty(x1), "tirx.nextafter", x1, x2)  # type: ignore
+    return call_intrin(ty, "tirx.nextafter", x1, x2, span=span)  # type: ignore
 
 
-def hypot(x1, x2):
+def hypot(x1, x2, *, ty=None, span=None):
     """Equivalent to sqrt(x1**2 + x2**2), element-wise.
 
     Parameters
@@ -2120,10 +2027,10 @@ def hypot(x1, x2):
     """
     x1 = tir.convert(x1)
     x2 = tir.convert(x2)
-    return call_intrin(_primexpr_ty(x1), "tirx.hypot", x1, x2)  # type: ignore
+    return call_intrin(ty, "tirx.hypot", x1, x2, span=span)  # type: ignore
 
 
-def copysign(x1, x2):
+def copysign(x1, x2, *, ty=None, span=None):
     """Change the sign of x1 to that of x2, element-wise.
 
     Parameters
@@ -2141,10 +2048,10 @@ def copysign(x1, x2):
     """
     x1 = tir.convert(x1)
     x2 = tir.convert(x2)
-    return call_intrin(_primexpr_ty(x1), "tirx.copysign", x1, x2)  # type: ignore
+    return call_intrin(ty, "tirx.copysign", x1, x2, span=span)  # type: ignore
 
 
-def ldexp(x1, x2):
+def ldexp(x1, x2, *, ty=None, span=None):
     """Returns x1 * (2 ** x2).
 
     Parameters
@@ -2162,30 +2069,10 @@ def ldexp(x1, x2):
     """
     x1 = tir.convert(x1)
     x2 = tir.convert(x2)
-    return call_intrin(_primexpr_ty(x1), "tirx.ldexp", x1, x2)  # type: ignore
+    return call_intrin(ty, "tirx.ldexp", x1, x2, span=span)  # type: ignore
 
 
-def likely(cond, span=None):
-    """Mark condition as likely.
-
-    Parameters
-    ----------
-
-    cond : Expr
-        Input argument.
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    y : Expr
-        The marked expression.
-    """
-    return _prim_ffi_api.likely(cond, span)  # type: ignore
-
-
-def filter(var, pred, *, span=None):  # pylint: disable=redefined-builtin
+def filter(var, pred, *, span=None, ty=None):  # pylint: disable=redefined-builtin
     """Thread-set filter escape hatch.
 
     Use this wrapper only when the predicate is *not* in the canonical
@@ -2204,17 +2091,17 @@ def filter(var, pred, *, span=None):  # pylint: disable=redefined-builtin
     removed -- write ``lo <= var and var < hi`` (or ``var == lo`` when
     ``hi == lo + 1``) at the call site instead.
     """
-    return call_intrin("bool", "tirx.filter", var, pred, span=span)
+    return call_intrin(ty, "tirx.filter", var, pred, span=span)
 
 
-def selector(var, pred, span=None):
+def selector(var, pred, span=None, *, ty=None):
     """Analysis-only active-thread selector.
 
     ``selector(var, pred)`` denotes the unique value of ``var`` in the current
     active domain for which ``pred`` is true. It is intended for compiler
     metadata and should not survive to executable codegen.
     """
-    return call_intrin(_primexpr_ty(var), "tirx.selector", var, pred, span=span)
+    return call_intrin(ty, "tirx.selector", var, pred, span=span)
 
 
 def isnan(x, span=None):
@@ -2236,7 +2123,7 @@ def isnan(x, span=None):
     return _ffi_api.isnan(x, span)  # type: ignore
 
 
-def isnullptr(x, span=None):
+def isnullptr(x, span=None, *, ty=None):
     """Check if input value is nullptr.
 
     Parameters
@@ -2252,7 +2139,7 @@ def isnullptr(x, span=None):
     y : Expr
         The result.
     """
-    return call_intrin("bool", "tirx.isnullptr", x, span=span)  # type: ignore
+    return call_intrin(ty, "tirx.isnullptr", x, span=span)  # type: ignore
 
 
 def isfinite(x, span=None):
@@ -2337,7 +2224,7 @@ def pow(x, y, span=None):
     return _ffi_api._OpPow(x, y, span)  # type: ignore
 
 
-def popcount(x):
+def popcount(x, *, ty=None, span=None):
     """Count the number of set bits in input x.
 
     Parameters
@@ -2351,10 +2238,10 @@ def popcount(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(_primexpr_ty(x), "tirx.popcount", x)
+    return call_intrin(ty, "tirx.popcount", x, span=span)
 
 
-def q_multiply_shift(x, y, q, s):
+def q_multiply_shift(x, y, q, s, *, ty=None, span=None):
     """Execute a multiplication between two Q-numbers x and y
     followed by a right shift s. The mathematical expression is:
 
@@ -2380,7 +2267,7 @@ def q_multiply_shift(x, y, q, s):
     y : Expr
         The result.
     """
-    return call_intrin("int32", "tirx.q_multiply_shift", x, y, q, s)
+    return call_intrin(ty, "tirx.q_multiply_shift", x, y, q, s, span=span)
 
 
 def q_multiply_shift_per_axis(
@@ -2391,6 +2278,9 @@ def q_multiply_shift_per_axis(
     q: IntImm,
     is_lshift_required: IntImm,
     is_rshift_required: IntImm,
+    *,
+    ty=None,
+    span=None,
 ):
     """Execute a multiplication between two Q-numbers x and y
 
@@ -2417,7 +2307,7 @@ def q_multiply_shift_per_axis(
         The result.
     """
     return call_intrin(
-        "int32",
+        ty,
         "tirx.q_multiply_shift_per_axis",
         x,
         y,
@@ -2426,48 +2316,11 @@ def q_multiply_shift_per_axis(
         q,
         is_lshift_required,
         is_rshift_required,
+        span=span,
     )
 
 
-def shift_left(x, y, span=None):
-    """Return the result of x left shifted by y bits.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    y : Expr
-        Input argument.
-
-    Returns
-    -------
-    z : Expr
-        The result.
-    """
-    return _prim_ffi_api.left_shift(x, y, span)
-
-
-def shift_right(x, y, span=None):
-    """Return the result of x right shifted by y bits.
-
-    Parameters
-    ----------
-    x : Expr
-        Input argument.
-
-    y : Expr
-        Input argument.
-
-    Returns
-    -------
-    z : Expr
-        The result.
-    """
-    return _prim_ffi_api.right_shift(x, y, span)
-
-
-def fmod(x, y):
+def fmod(x, y, *, ty=None, span=None):
     """Return the remainder of x divided by y with the same sign as x.
 
     Parameters
@@ -2484,195 +2337,7 @@ def fmod(x, y):
     """
     x = tir.convert(x)
     y = tir.convert(y)
-    return call_intrin(_primexpr_ty(x), "tirx.fmod", x, y)
-
-
-def if_then_else(cond, t, f, span=None):
-    """Conditional selection expression.
-
-    Parameters
-    ----------
-    cond : Expr
-        The condition
-
-    t : Expr
-        The result expression if cond is true.
-
-    f : Expr
-        The result expression if cond is false.
-
-    span : Optional[Span]
-        The location of this operator in the source.
-
-    Returns
-    -------
-    result : Node
-        The result of conditional expression.
-
-    Note
-    ----
-    Unlike Select, if_then_else will not execute
-    the branch that does not satisfy the condition.
-    You can use it to guard against out of bound access.
-    Unlike Select, if_then_else cannot be vectorized
-    if some lanes in the vector have different conditions.
-    """
-    return _prim_ffi_api._OpIfThenElse(cond, t, f, span)  # type: ignore
-
-
-def div(a, b, span=None):
-    """Compute a / b as in C/C++ semantics.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand, known to be non-negative.
-
-    b : Expr
-        The right hand operand, known to be non-negative.
-
-    span : Optional[Span]
-        The location of this operator in the source.
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-    Note
-    ----
-    When operands are integers, returns truncdiv(a, b, span).
-    """
-    return _prim_ffi_api._OpDiv(a, b, span)  # type: ignore
-
-
-def indexdiv(a, b, span=None):
-    """Compute floor(a / b) where a and b are non-negative.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand, known to be non-negative.
-
-    b : Expr
-        The right hand operand, known to be non-negative.
-
-    span : Optional[Span]
-        The location of this operator in the source.
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-
-    Note
-    ----
-    Use this function to split non-negative indices.
-    This function may take advantage of operands'
-    non-negativeness.
-    """
-    return _prim_ffi_api._OpIndexDiv(a, b, span)  # type: ignore
-
-
-def indexmod(a, b, span=None):
-    """Compute the remainder of indexdiv. a and b are non-negative.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand, known to be non-negative.
-
-    b : Expr
-        The right hand operand, known to be non-negative.
-
-    span : Optional[Span]
-        The location of this operator in the source.
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-
-    Note
-    ----
-    Use this function to split non-negative indices.
-    This function may take advantage of operands'
-    non-negativeness.
-    """
-    return _prim_ffi_api._OpIndexMod(a, b, span)  # type: ignore
-
-
-def truncdiv(a, b, span=None):
-    """Compute the truncdiv of two expressions.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand
-
-    b : Expr
-        The right hand operand
-
-    span : Optional[Span]
-        The location of this operator in the source.
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-
-    Note
-    ----
-    This is the default integer division behavior in C.
-    """
-    return _prim_ffi_api._OpTruncDiv(a, b, span)  # type: ignore
-
-
-def truncmod(a, b, span=None):
-    """Compute the truncmod of two expressions.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand
-
-    b : Expr
-        The right hand operand
-
-    span : Optional[Span]
-        The location of this operator in the source.
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-
-    Note
-    ----
-    This is the default integer division behavior in C.
-    """
-    return _prim_ffi_api._OpTruncMod(a, b, span)  # type: ignore
-
-
-def floordiv(a, b, span=None):
-    """Compute the floordiv of two expressions.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand
-
-    b : Expr
-        The right hand operand
-
-    span : Optional[Span]
-        The location of this operator in the source.
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-    """
-    return _prim_ffi_api._OpFloorDiv(a, b, span)  # type: ignore
+    return call_intrin(ty, "tirx.fmod", x, y, span=span)
 
 
 def logaddexp(a, b, span=None):
@@ -2697,49 +2362,16 @@ def logaddexp(a, b, span=None):
     return _ffi_api._OpLogAddExp(a, b, span)  # type: ignore
 
 
-def floormod(a, b, span=None):
-    """Compute the floormod of two expressions.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand
-
-    b : Expr
-        The right hand operand
-
-    span : Optional[Span]
-        The location of this operator in the source.
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-    """
-    return _prim_ffi_api._OpFloorMod(a, b, span)  # type: ignore
-
-
-def ceildiv(lhs, rhs, span=None):
-    """Generic ceildiv operator.
-
-    Parameters
-    ----------
-    lhs : object
-        The left operand.
-    rhs : object
-        The right operand.
-    span : Optional[Span]
-        The location of this operator in the source.
-
-    Returns
-    -------
-    op : tvm.Expr
-        The result Expr of ceildiv operaton.
-    """
-    return _prim_ffi_api._OpCeilDiv(lhs, rhs, span)  # type: ignore
-
-
-def TVMBackendAllocWorkspace(device_type, device_id, nbytes, dtype_code_hint, dtype_bits_hint):
+def TVMBackendAllocWorkspace(
+    device_type,
+    device_id,
+    nbytes,
+    dtype_code_hint,
+    dtype_bits_hint,
+    *,
+    ty=None,
+    span=None,
+):
     """Backend function to allocate temporal workspace
 
     Parameters
@@ -2765,17 +2397,18 @@ def TVMBackendAllocWorkspace(device_type, device_id, nbytes, dtype_code_hint, dt
         The call expression.
     """
     return call_intrin(
-        "handle",
+        ty,
         "tirx.TVMBackendAllocWorkspace",
         device_type,
         device_id,
         nbytes,
         dtype_code_hint,
         dtype_bits_hint,
+        span=span,
     )
 
 
-def TVMBackendFreeWorkspace(device_type, device_id, ptr):
+def TVMBackendFreeWorkspace(device_type, device_id, ptr, *, ty=None, span=None):
     """Backend function to free temporal workspace.
 
     Parameters
@@ -2794,18 +2427,14 @@ def TVMBackendFreeWorkspace(device_type, device_id, ptr):
     call : Expr
         The call expression.
     """
-    return call_intrin("int32", "tirx.TVMBackendFreeWorkspace", device_type, device_id, ptr)
-
-
-def vscale():
-    """Get the target's vscale value. It will be lowered to llvm.vscale intrinsic
-    (https://llvm.org/docs/LangRef.html#llvm-vscale-intrinsic)
-    Returns
-    -------
-    call : Expr
-        Call to the vscale intrinsic
-    """
-    return call_intrin("int32", "prim.vscale")
+    return call_intrin(
+        ty,
+        "tirx.TVMBackendFreeWorkspace",
+        device_type,
+        device_id,
+        ptr,
+        span=span,
+    )
 
 
 def get_active_lane_mask(dtype, base, limit):
@@ -2852,7 +2481,7 @@ def masked_load(dtype, buffer, *indices_and_mask):
     return call_intrin(dtype, "tirx.masked_load", buffer, *indices_and_mask)
 
 
-def masked_store(buffer, value, *indices_and_mask):
+def masked_store(buffer, value, *indices_and_mask, ty=None, span=None):
     """Store vector lanes selected by a predicate mask.
 
     Parameters
@@ -2872,7 +2501,14 @@ def masked_store(buffer, value, *indices_and_mask):
     call : Expr
         A void-typed ``tirx.masked_store`` call.
     """
-    return call_intrin("void", "tirx.masked_store", buffer, value, *indices_and_mask)
+    return call_intrin(
+        ty,
+        "tirx.masked_store",
+        buffer,
+        value,
+        *indices_and_mask,
+        span=span,
+    )
 
 
 def get_vscale_expr(dtype: str | tvm_ffi.dtype, min_size: int = 128) -> Expr:
@@ -2891,7 +2527,7 @@ def get_vscale_expr(dtype: str | tvm_ffi.dtype, min_size: int = 128) -> Expr:
     return min_size // dtype.bits * vscale()
 
 
-def ignore_loop_partition(predicate) -> Expr:
+def ignore_loop_partition(predicate, *, ty=None, span=None) -> Expr:
     """
     Annotate a predicate not be considered as target condition of loop partition.
 
@@ -2900,21 +2536,22 @@ def ignore_loop_partition(predicate) -> Expr:
     predicate : Expr
         The annotated predicate expression.
     """
-    return call_intrin("bool", "tirx.ignore_loop_partition", predicate)
+    return call_intrin(ty, "tirx.ignore_loop_partition", predicate, span=span)
 
 
-# pylint: disable=unnecessary-lambda
-def min(a, b, span=None):
-    """Elementwise minimum of two primitive expressions."""
-    return _prim_ffi_api._OpMin(a, b, span)
-
-
-def max(a, b, span=None):
-    """Elementwise maximum of two primitive expressions."""
-    return _prim_ffi_api._OpMax(a, b, span)
-
-
-def tvm_load_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
+def tvm_load_matrix_sync(
+    fragment,
+    m,
+    n,
+    k,
+    index,
+    buffer_ptr,
+    stride,
+    layout,
+    *,
+    ty=None,
+    span=None,
+):
     """TVM intrinsic for tensor core load operators
 
     Parameters
@@ -2949,12 +2586,32 @@ def tvm_load_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
         The call expression.
     """
     return call_intrin(
-        "void", "tirx.tvm_load_matrix_sync", fragment, m, n, k, index, buffer_ptr, stride, layout
+        ty,
+        "tirx.tvm_load_matrix_sync",
+        fragment,
+        m,
+        n,
+        k,
+        index,
+        buffer_ptr,
+        stride,
+        layout,
+        span=span,
     )
 
 
 def tvm_mma_sync(
-    fragment_d, index_d, fragment_a, index_a, fragment_b, index_b, fragment_c, index_c
+    fragment_d,
+    index_d,
+    fragment_a,
+    index_a,
+    fragment_b,
+    index_b,
+    fragment_c,
+    index_c,
+    *,
+    ty=None,
+    span=None,
 ):
     """TVM intrinsic for tensor core mma_sync operators
 
@@ -2990,7 +2647,7 @@ def tvm_mma_sync(
         The call expression.
     """
     return call_intrin(
-        "void",
+        ty,
         "tirx.tvm_mma_sync",
         fragment_d,
         index_d,
@@ -3000,11 +2657,22 @@ def tvm_mma_sync(
         index_b,
         fragment_c,
         index_c,
+        span=span,
     )
 
 
 def tvm_bmma_sync(
-    fragment_d, index_d, fragment_a, index_a, fragment_b, index_b, fragment_c, index_c
+    fragment_d,
+    index_d,
+    fragment_a,
+    index_a,
+    fragment_b,
+    index_b,
+    fragment_c,
+    index_c,
+    *,
+    ty=None,
+    span=None,
 ):
     """TVM intrinsic for tensor core bmma_sync operators
 
@@ -3040,7 +2708,7 @@ def tvm_bmma_sync(
         The call expression.
     """
     return call_intrin(
-        "void",
+        ty,
         "tirx.tvm_bmma_sync",
         fragment_d,
         index_d,
@@ -3050,10 +2718,11 @@ def tvm_bmma_sync(
         index_b,
         fragment_c,
         index_c,
+        span=span,
     )
 
 
-def tvm_fill_fragment(fragment, m, n, k, index, value):
+def tvm_fill_fragment(fragment, m, n, k, index, value, *, ty=None, span=None):
     """TVM intrinsic for tensor core fill_fragment operators
 
     Parameters
@@ -3081,10 +2750,32 @@ def tvm_fill_fragment(fragment, m, n, k, index, value):
     call : Expr
         The call expression.
     """
-    return call_intrin("void", "tirx.tvm_fill_fragment", fragment, m, n, k, index, value)
+    return call_intrin(
+        ty,
+        "tirx.tvm_fill_fragment",
+        fragment,
+        m,
+        n,
+        k,
+        index,
+        value,
+        span=span,
+    )
 
 
-def tvm_store_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
+def tvm_store_matrix_sync(
+    fragment,
+    m,
+    n,
+    k,
+    index,
+    buffer_ptr,
+    stride,
+    layout,
+    *,
+    ty=None,
+    span=None,
+):
     """TVM intrinsic for tensor core store operators
 
     Parameters
@@ -3119,10 +2810,30 @@ def tvm_store_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
         The call expression.
     """
     return call_intrin(
-        "void", "tirx.tvm_store_matrix_sync", fragment, m, n, k, index, buffer_ptr, stride, layout
+        ty,
+        "tirx.tvm_store_matrix_sync",
+        fragment,
+        m,
+        n,
+        k,
+        index,
+        buffer_ptr,
+        stride,
+        layout,
+        span=span,
     )
 
 
-def thread_return():
+def thread_return(*, ty=None, span=None):
     """Return from the current GPU thread without a function value."""
-    return call_intrin("", "tirx.thread_return")
+    return call_intrin(ty, "tirx.thread_return", span=span)
+
+
+def __getattr__(name):
+    # Tile classes resolve registered Ops at import time. Load the family only
+    # when requested, after the core TIRx types are available.
+    if name == "tile":
+        from importlib import import_module  # pylint: disable=import-outside-toplevel
+
+        return import_module(".tile", __name__)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

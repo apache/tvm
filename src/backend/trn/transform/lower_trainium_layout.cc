@@ -29,7 +29,7 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
-#include <tvm/tirx/tile_primitive.h>
+#include <tvm/tirx/tile_op.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -79,12 +79,11 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     }
     auto new_stmt = storage_lower->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
     for (const auto& [buf, source] : param_flattened_buffers) {
-      new_stmt =
-          SeqStmt::Flatten(Bind(buf, Call(buf.type(), tirx::builtin::decl_tensor(),
-                                          {source.data(), tvm::Tuple(buf->shape),
-                                           DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
-                                          {})),
-                           std::move(new_stmt));
+      new_stmt = SeqStmt({Bind(buf, Call(buf.type(), tirx::decl_tensor_op(),
+                                         {source.data(), tvm::Tuple(buf->shape),
+                                          DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
+                                         {})),
+                          std::move(new_stmt)});
     }
     return std::make_pair(new_stmt, new_params);
   }
@@ -110,7 +109,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
       TensorVar original_buffer = op->var.as_or_throw<TensorVar>();
       if (!original_buffer->layout.has_value()) {
         return ffi::Unchanged();
@@ -120,7 +119,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
         return ffi::Unchanged();
       }
       return Bind(buffer.var(),
-                  Call(buffer.type(), tirx::builtin::alloc_tensor(),
+                  Call(buffer.type(), tirx::alloc_tensor_op(),
                        {tvm::Tuple(buffer->shape, call->args[0]->span),
                         DataTypeImm(buffer->dtype->dtype, call->args[1]->span),
                         StringImm(buffer.scope(), call->args[2]->span)},
@@ -128,7 +127,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
                   op->span);
     }
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::decl_tensor())) {
+        call && call->op.same_as(tirx::decl_tensor_op())) {
       TensorVar original_buffer = op->var.as_or_throw<TensorVar>();
       Expr original_data = call->args[0];
       auto data_update = Mutate(original_data, inplace_mode);
@@ -139,7 +138,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
         return ffi::Unchanged();
       }
       return Bind(buffer,
-                  Call(buffer.type(), tirx::builtin::decl_tensor(),
+                  Call(buffer.type(), tirx::decl_tensor_op(),
                        {std::move(data), tvm::Tuple(buffer->shape),
                         DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
                        call->attrs, call->ty_args, call->span),
@@ -334,7 +333,7 @@ class TrainiumBufferOffsetRemover : public StmtExprMutator {
 
  private:
   UnchangedOr<Expr> Mutate_(const CallNode* call, InplaceMode inplace_mode) final {
-    if (call->op.same_as(tirx::builtin::buffer_offset())) {
+    if (call->op.same_as(tirx::buffer_offset_op())) {
       auto buffer_load = call->args[0].as_or_throw<TensorLoad>();
       TVM_FFI_ICHECK_EQ(buffer_load->indices.size(), 1) << "Expected a single index";
       return buffer_load->indices[0];

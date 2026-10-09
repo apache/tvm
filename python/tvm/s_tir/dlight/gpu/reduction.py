@@ -36,14 +36,16 @@ from .base import GPUScheduleRule
 
 def _get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
     # Detect and return `Y` in `X[...] = X[...] + Y`
-    tensor_store = block.body
+    if len(block.body) != 1:
+        return None
+    tensor_store = block.body[0]
     if not isinstance(tensor_store, tirx.TensorStore):
         return None
     if not isinstance(tensor_store.value, tirx.Add):
         return None
     if not tvm_ffi.structural_equal(
         tensor_store.value.a,
-        tirx.TensorLoad(tensor_store.buffer, block.body.indices),
+        tirx.TensorLoad(tensor_store.buffer, tensor_store.indices),
         map_free_vars=True,
     ):
         return None

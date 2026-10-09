@@ -33,8 +33,19 @@ from typing import Any
 
 import tvm_ffi
 
-from tvm.ir import DictAttrs, Expr, Op, Range, Span, StringImm, TensorRegion, Type, Var, make_node
-from tvm.runtime import Object, Scriptable
+from tvm.ir import (
+    DictAttrs,
+    Expr,
+    Op,
+    Range,
+    Scriptable,
+    Span,
+    StringImm,
+    TensorRegion,
+    Var,
+    make_node,
+)
+from tvm.runtime import Object
 
 from . import _ffi_api
 from .exec_scope import ScopeIdDef
@@ -130,11 +141,10 @@ class ForKind(IntEnum):
     of the loop and need to be considered in all TIR passes.
     """
 
-    SERIAL = 0
-    PARALLEL = 1
+    DEFAULT = 0  # Ordinary loop with sequential iteration semantics.
+    PARALLEL = 1  # Parallel execution, optionally with explicit thread placement.
     VECTORIZED = 2
     UNROLLED = 3
-    THREAD_BINDING = 4  # pylint: disable=invalid-name
 
 
 @tvm_ffi.register_object("tirx.For")
@@ -155,19 +165,16 @@ class For(Stmt):
     kind : ForKind
         The type of the for.
 
-    body : Stmt
+    body : Stmt | Sequence[Stmt]
         The body statement.
 
-    thread_binding: Optional[str]
-        The thread this loop binds to. Only valid
-        if kind is ThreadBinding
+    annotations: Optional[Mapping[str, Object]]
+        Additional loop annotations. For parallel loops, the optional
+        ``thread_binding`` entry is a string naming the bound thread.
+        Parallel loops without this entry use CPU parallel execution.
 
     step : Expr
-        The loop step. Default to none which
-        represent one.
-
-    annotations: Optional[Mapping[str, Object]]
-        Additional annotation hints.
+        The loop step. Defaults to None, which represents one.
 
     span : Optional[Span]
         The location of the stmt in the source code.
@@ -177,8 +184,7 @@ class For(Stmt):
     min: Expr
     extent: Expr
     kind: ForKind
-    body: Stmt
-    thread_binding: str | None
+    body: "SeqStmt"
     annotations: Mapping[str, Object]
     step: Expr | None
     span: Span | None
@@ -189,8 +195,7 @@ class For(Stmt):
         min: Expr,  # pylint: disable=redefined-builtin
         extent: Expr,
         kind: ForKind,
-        body: Stmt,
-        thread_binding: str | None = None,
+        body: Stmt | Sequence[Stmt],
         annotations: Mapping[str, Object] | None = None,
         step: Expr | None = None,
         span: Span | None = None,
@@ -202,7 +207,6 @@ class For(Stmt):
             extent,
             kind,
             body,
-            thread_binding,
             annotations,
             step,
             span,
@@ -218,7 +222,7 @@ class While(Stmt):
     condition : Expr
         The termination condition.
 
-    body : Stmt
+    body : Stmt | Sequence[Stmt]
         The body statement.
 
     span : Optional[Span]
@@ -226,10 +230,12 @@ class While(Stmt):
     """
 
     condition: Expr
-    body: Stmt
+    body: "SeqStmt"
     span: Span | None
 
-    def __init__(self, condition: Expr, body: Stmt, span: Span | None = None) -> None:
+    def __init__(
+        self, condition: Expr, body: Stmt | Sequence[Stmt], span: Span | None = None
+    ) -> None:
         self.__init_handle_by_constructor__(_ffi_api.While, condition, body, span)  # type: ignore
 
 
@@ -292,7 +298,7 @@ class RegionStmt(Stmt):
     args: list[Expr]
     body_params: list[Var]
     attrs: DictAttrs
-    body: Stmt
+    body: "SeqStmt"
     result_vars: list[Var]
     span: Span | None
 
@@ -302,7 +308,7 @@ class RegionStmt(Stmt):
         args: Sequence[Expr],
         body_params: Sequence[Var],
         attrs: DictAttrs | Mapping[str, Any] | None,
-        body: Stmt,
+        body: Stmt | Sequence[Stmt],
         result_vars: Sequence[Var] | None = None,
         span: Span | None = None,
     ) -> None:
@@ -328,8 +334,8 @@ class SeqStmt(Stmt):
 
     Parameters
     ----------
-    seq : List[Stmt]
-        The statements
+    seq : Stmt | Sequence[Stmt]
+        The statements, flattened into one sequence. Empty and singleton sequences are valid.
 
     span : Optional[Span]
         The location of the stmt in the source code.
@@ -338,7 +344,7 @@ class SeqStmt(Stmt):
     seq: list[Stmt]
     span: Span | None
 
-    def __init__(self, seq: list[Stmt], span: Span | None = None) -> None:
+    def __init__(self, seq: Stmt | Sequence[Stmt], span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.SeqStmt, seq, span)  # type: ignore
 
     def __getitem__(self, i: int):
@@ -357,10 +363,10 @@ class IfThenElse(Stmt):
     condition : Expr
         The expression
 
-    then_case : Stmt
+    then_case : Stmt | Sequence[Stmt]
         The statement to execute if condition is true.
 
-    else_case : Optional[Stmt]
+    else_case : Stmt | Sequence[Stmt] | None
         The statement to execute if condition is false.
 
     span : Optional[Span]
@@ -368,11 +374,15 @@ class IfThenElse(Stmt):
     """
 
     condition: Expr
-    then_case: Stmt
-    else_case: Stmt | None
+    then_case: SeqStmt
+    else_case: SeqStmt | None
 
     def __init__(
-        self, condition: Expr, then_case: Stmt, else_case: Stmt | None, span: Span | None = None
+        self,
+        condition: Expr,
+        then_case: Stmt | Sequence[Stmt],
+        else_case: Stmt | Sequence[Stmt] | None,
+        span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.IfThenElse,
@@ -401,14 +411,6 @@ class Evaluate(Stmt):
 
     def __init__(self, value: Expr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Evaluate, value, span)  # type: ignore
-
-
-@tvm_ffi.register_object("tirx.BufferRegionType")
-class BufferRegionType(Type):
-    """The TIRX subscript type of a buffer-backed :class:`tvm.ir.TensorRegion`."""
-
-    def __init__(self) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.BufferRegionType)  # type: ignore
 
 
 def BufferRegion(buffer: Var, region: list[Range]) -> TensorRegion:
@@ -512,16 +514,14 @@ def stmt_seq(*args: Expr | Stmt) -> SeqStmt:
 
     Returns
     -------
-    stmt : Stmt
-        The combined statement.
+    stmt : SeqStmt
+        The combined sequence.
     """
     ret = []
     for value in args:
         if not isinstance(value, Stmt):
             value = Evaluate(value)
         ret.append(value)
-    if len(ret) == 1:
-        return ret[0]
     return SeqStmt(ret)
 
 
@@ -539,10 +539,7 @@ def stmt_list(stmt: Stmt) -> list[Stmt]:
         The unpacked list of statements
     """
     if isinstance(stmt, SeqStmt):
-        res = []
-        for x in stmt:
-            res += stmt_list(x)
-        return res
+        return list(stmt.seq)
     return [stmt]
 
 

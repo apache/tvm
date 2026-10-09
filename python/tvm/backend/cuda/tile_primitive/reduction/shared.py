@@ -179,17 +179,17 @@ def _emit_reduction_shared_cta(
 
     @T.inline
     def sync():
-        if exec_scope_name == "cta":
+        if T.constexpr(exec_scope_name == "cta"):
             T.cuda.cta_sync()
-        elif exec_scope_name == "warpgroup":
+        elif T.constexpr(exec_scope_name == "warpgroup"):
             T.cuda.warpgroup_sync(8)  # TODO: fix this hardcoded value
-        elif exec_scope_name == "warp":
+        elif T.constexpr(exec_scope_name == "warp"):
             T.cuda.warp_sync()
-        elif exec_scope_name == "thread":
+        elif T.constexpr(exec_scope_name == "thread"):
             pass
 
     # fmt: off
-    @T.function
+    @T.function(check_well_formed=False)
     def impl():
         tid_in_scope = get_tid_in_scope()
         thread_data = T.alloc_tensor([1], dtype=dtype, scope="local")
@@ -237,11 +237,11 @@ def _emit_reduction_shared_thread(
     assert op_func is not None
     init_value = reduce_default_value_table(dtype).get(reduce_op)
 
-    @T.function
+    @T.function(check_well_formed=False)
     def impl():
         for spa_fused in T.serial(spatial_len):
             dst_indices = T.meta_var(get_indices(spa_fused, dst_st, dst_extent))
-            if not accum:
+            if T.constexpr(not accum):
                 dst[tuple(dst_indices)] = init_value
             for red_fused in T.serial(reduction_len):
                 src_indices = T.meta_var(

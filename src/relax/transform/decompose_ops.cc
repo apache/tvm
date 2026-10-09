@@ -22,7 +22,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/nn.h>
+#include <tvm/relax/op/nn.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/tirx/function.h>
@@ -151,9 +151,9 @@ Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
   // call builtin function that converts tensor to shape tuple
   // TODO(@sunggg): Register operator for "vm.builtin.tensor_to_shape"
   static const Op call_pure_packed_op = Op::Get("relax.call_pure_packed");
-  Var call = builder->Emit(Call::Unchecked(Type::Missing(), call_pure_packed_op,
-                                           {ExternFunc("vm.builtin.tensor_to_shape"), expr}, {},
-                                           {ffi::GetRef<ShapeType>(ty)}));
+  Var call = builder->Emit(Call(Type::Missing(), call_pure_packed_op,
+                                {ExternFunc("vm.builtin.tensor_to_shape"), expr}, {},
+                                {ffi::GetRef<ShapeType>(ty)}));
 
   // Operators like reshape take the output of `TensorToShape` as their output shape.
   // Because TOPI expects to have such output shape in symbolic shape at least (i.e.,

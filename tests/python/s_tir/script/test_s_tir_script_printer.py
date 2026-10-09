@@ -140,7 +140,7 @@ from __future__ import annotations
 
 @Ts.function
 def main(A: T.Tensor((128, 128), "float32", layout="default"), B: T.Tensor((256, 256), "float32", layout="default")):
-    T.evaluate(0)""",
+    pass""",
     )
 
 
@@ -194,7 +194,7 @@ from __future__ import annotations
 
 @Ts.function
 def main(A: T.Tensor((128, 128), "float32", layout="default"), B: T.Tensor((256, 256), "float32", layout="default")):
-    T.evaluate(0)
+    pass
 """,
     )
 
@@ -224,7 +224,7 @@ with Ts.sblock("block"):
     vk = Ts.axis.reduce(32, k)
     Ts.reads()
     Ts.writes()
-    T.evaluate(0)""",
+""",
     )
 
 
@@ -250,7 +250,7 @@ with Ts.sblock("block", no_realize=True):
     vk = Ts.axis.reduce(32)
     Ts.reads()
     Ts.writes()
-    T.evaluate(0)""",
+""",
     )
 
 
@@ -322,7 +322,6 @@ def test_remap():
 
     expected_output = """
 # from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
 
 @Ts.function
 def main():
@@ -344,7 +343,7 @@ def main():
                                     v_5 = Ts.axis.spatial(128, i5)
                                     Ts.reads()
                                     Ts.writes()
-                                    T.evaluate(0)"""
+"""
     _assert_print(block_with_remap_explicitly.with_attr("global_symbol", "main"), expected_output)
     _assert_print(block_with_remap_implicitly.with_attr("global_symbol", "main"), expected_output)
 
@@ -369,7 +368,6 @@ def test_root_block():
 
     expected_output = """
 # from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
 
 @Ts.function
 def main():
@@ -382,7 +380,7 @@ def main():
                 with Ts.sblock(""):
                     Ts.reads()
                     Ts.writes()
-                    T.evaluate(0)"""
+"""
     _assert_print(root_block_implicitly.with_attr("global_symbol", "main"), expected_output)
     _assert_print(root_block_explicitly.with_attr("global_symbol", "main"), expected_output)
 
@@ -405,7 +403,7 @@ from __future__ import annotations
 
 @Ts.function(private=True)
 def main(A: T.Tensor((128, 128), "float32", layout="default"), B: T.Tensor((256, 256), "float32", layout="default")):
-    T.evaluate(0)""",
+    pass""",
     )
 
 
@@ -425,7 +423,7 @@ from __future__ import annotations
 
 @Ts.function
 def func(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
-    T.evaluate(0)"""
+    pass"""
     _assert_print(main, expected_output)
 
 
@@ -492,23 +490,23 @@ def test_predicated_load_store():
         TB.func_attr({"global_symbol": "func"})
         a_load = TB.meta_var(
             TB.call_intrin(
-                "float32x4",
                 "tirx.masked_load",
                 A,
                 0,
                 TB.Ramp(0, 4, 4),
                 TB.Broadcast(TB.bool(False), 4),
+                ty="float32x4",
             )
         )
         TB.evaluate(
             TB.call_intrin(
-                "void",
                 "tirx.masked_store",
                 A,
                 a_load,
                 0,
                 TB.Ramp(0, 2, 4),
                 TB.Broadcast(TB.bool(False), 4),
+                ty="void",
             )
         )
 
@@ -520,7 +518,7 @@ from __future__ import annotations
 
 @Ts.function
 def func(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
-    a_load: T.let[T.float32x4] = T.masked_load("float32x4", A, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4))
+    a_load: T.let[T.float32x4] = T.masked_load(A, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4))
     T.masked_store(A, a_load, 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))"""
     _assert_print(main, expected_output)
 
@@ -565,7 +563,7 @@ from __future__ import annotations
 
 @Ts.function(private=True)
 def main(A: T.Tensor((128, 128), "float32", layout="default"), B: T.Tensor((256, 256), "float32", layout="default")):
-    T.masked_store(A, T.masked_load("float32x4", B, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4)), 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))"""
+    T.masked_store(A, T.masked_load(B, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4)), 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))"""
     _assert_print(func, expected_output)
 
 
@@ -575,15 +573,20 @@ def test_predicated_scalable_load_store():
     @Ts.function
     def main(A: TB.Tensor((128, 128), "float32"), B: TB.Tensor((256, 256), "float32")):
         TB.func_attr({"global_symbol": "func"})
-        mask = TB.meta_var(TB.get_active_lane_mask("uint1xvscalex4", 0, 13))
+        mask = TB.meta_var(TB.get_active_lane_mask(0, 13, ty="uint1xvscalex4"))
         a_load = TB.meta_var(
             TB.call_intrin(
-                "float32xvscalex4", "tirx.masked_load", A, 0, TB.Ramp(0, 4, TB.vscale() * 4), mask
+                "tirx.masked_load",
+                A,
+                0,
+                TB.Ramp(0, 4, TB.vscale() * 4),
+                mask,
+                ty="float32xvscalex4",
             )
         )
         TB.evaluate(
             TB.call_intrin(
-                "void", "tirx.masked_store", A, a_load, 0, TB.Ramp(0, 2, TB.vscale() * 4), mask
+                "tirx.masked_store", A, a_load, 0, TB.Ramp(0, 2, TB.vscale() * 4), mask, ty="void"
             )
         )
 
@@ -595,8 +598,8 @@ from __future__ import annotations
 
 @Ts.function
 def func(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
-    mask: T.let["uint1xvscalex4"] = T.get_active_lane_mask("uint1xvscalex4", 0, 13)
-    a_load: T.let["float32xvscalex4"] = T.masked_load("float32xvscalex4", A, 0, T.Ramp(0, 4, T.vscale() * 4), mask)
+    mask: T.let["uint1xvscalex4"] = T.get_active_lane_mask(0, 13, ty="uint1xvscalex4")
+    a_load: T.let["float32xvscalex4"] = T.masked_load(A, 0, T.Ramp(0, 4, T.vscale() * 4), mask)
     T.masked_store(A, a_load, 0, T.Ramp(0, 2, T.vscale() * 4), mask)
 """
     _assert_print(main, expected_output)
@@ -608,7 +611,7 @@ def test_masked_load_prevents_scalar_allocation_init_fusion():
     @Ts.function
     def main():
         A = TB.alloc_tensor((1,), "float32x4")
-        A[0] = TB.masked_load("float32x4", A, 0, TB.Broadcast(TB.bool(True), 4))
+        A[0] = TB.masked_load(A, 0, TB.Broadcast(TB.bool(True), 4), ty="float32x4")
 
     source = main.script()
     assert "A = T.alloc_tensor" in source
@@ -646,7 +649,7 @@ def test_vectorize_llvm_pure_intrin():
     @Ts.function
     def main(A: TB.Tensor((4,), "float32"), B: TB.Tensor((4,), "float32")):
         A[TB.Ramp(0, 1, 4)] = TB.call_llvm_pure_intrin(
-            "float32x4", "llvm.sqrt", B[TB.Ramp(0, 1, 4)]
+            "llvm.sqrt", B[TB.Ramp(0, 1, 4)], ty="float32x4"
         )
 
     expected_output = """
@@ -657,7 +660,7 @@ from __future__ import annotations
 
 @Ts.function
 def main(A: T.Tensor((4,), "float32"), B: T.Tensor((4,), "float32")):
-    A[0:4] = T.call_llvm_pure_intrin("float32x4", "llvm.sqrt", B[T.Ramp(0, 1, 4)])"""
+    A[0:4] = T.call_llvm_pure_intrin("llvm.sqrt", B[T.Ramp(0, 1, 4)], ty="float32x4")"""
     _assert_print(main, expected_output)
 
 
@@ -906,7 +909,7 @@ def opt_conv_tensorcore_lower():
                                 16,
                                 0,
                                 T.tvm_access_ptr(
-                                    T.type_annotation(dtype="float16"),
+                                    "float16",
                                     Apad_shared.data,
                                     (((ty * 3072) + (kw * 512)) + (ic_inner * 256)),
                                     256,
@@ -924,7 +927,7 @@ def opt_conv_tensorcore_lower():
                                 16,
                                 1,
                                 T.tvm_access_ptr(
-                                    T.type_annotation(dtype="float16"),
+                                    "float16",
                                     Apad_shared.data,
                                     ((((ty * 3072) + (kw * 512)) + (ic_inner * 256)) + 1536),
                                     256,
@@ -942,7 +945,7 @@ def opt_conv_tensorcore_lower():
                                 16,
                                 0,
                                 T.tvm_access_ptr(
-                                    T.type_annotation(dtype="float16"),
+                                    "float16",
                                     W_shared.data,
                                     (((kw * 4096) + (ic_inner * 2048)) + (tz * 1024)),
                                     256,
@@ -960,7 +963,7 @@ def opt_conv_tensorcore_lower():
                                 16,
                                 3,
                                 T.tvm_access_ptr(
-                                    T.type_annotation(dtype="float16"),
+                                    "float16",
                                     W_shared.data,
                                     ((((kw * 4096) + (ic_inner * 2048)) + (tz * 1024)) + 768),
                                     256,
@@ -1002,7 +1005,7 @@ def opt_conv_tensorcore_lower():
                 16,
                 0,
                 T.tvm_access_ptr(
-                    T.type_annotation(dtype="float32"),
+                    "float32",
                     Conv_1.data,
                     (
                         ((((bx * 12845056) + (ty * 3211264)) + (bz * 8192)) + (by * 2048))
@@ -1023,7 +1026,7 @@ def opt_conv_tensorcore_lower():
                 16,
                 7,
                 T.tvm_access_ptr(
-                    T.type_annotation(dtype="float32"),
+                    "float32",
                     Conv_1.data,
                     (
                         (
@@ -1069,41 +1072,41 @@ def opt_conv_tensorcore_mod_host():
         stack_tcode = T.decl_tensor([9], "int32", data=stack_tcode_data)
         stack_value: T.let[T.handle] = T.tvm_stack_alloca("arg_value", 10)
         assert num_args == 3, "default_function: num_args should be 3"
-        arg0: T.let[T.handle] = T.tvm_struct_get(args, 0, 12, dtype="handle")
+        arg0: T.let[T.handle] = T.tvm_struct_get(args, 0, 12, ty="handle")
         arg0_code: T.let[T.int32] = arg_type_ids[0]
-        arg1: T.let[T.handle] = T.tvm_struct_get(args, 1, 12, dtype="handle")
-        arg2: T.let[T.handle] = T.tvm_struct_get(args, 2, 12, dtype="handle")
+        arg1: T.let[T.handle] = T.tvm_struct_get(args, 1, 12, ty="handle")
+        arg2: T.let[T.handle] = T.tvm_struct_get(args, 2, 12, ty="handle")
 
-        A: T.let[T.handle] = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
+        A: T.let[T.handle] = T.tvm_struct_get(arg0, 0, 1, ty="handle")
         A_tensor = T.decl_tensor([1], "float16", data=A)
         T.assume_aligned(A_tensor, 128)
         arg0_shape_data: T.let[T.handle("int64")] = T.tvm_struct_get(
-            arg0, 0, 2, dtype=T.handle("int64").ty
+            arg0, 0, 2, ty=T.handle("int64").ty
         )
         arg0_shape = T.decl_tensor([6], "int64", data=arg0_shape_data)
         arg0_strides_data: T.let[T.handle("int64")] = T.tvm_struct_get(
-            arg0, 0, 3, dtype=T.handle("int64").ty
+            arg0, 0, 3, ty=T.handle("int64").ty
         )
         arg0_strides = T.decl_tensor([6], "int64", data=arg0_strides_data)
 
-        dev_id: T.let[T.int32] = T.tvm_struct_get(arg0, 0, 9, dtype="int32")
+        dev_id: T.let[T.int32] = T.tvm_struct_get(arg0, 0, 9, ty="int32")
 
-        W: T.let[T.handle] = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
+        W: T.let[T.handle] = T.tvm_struct_get(arg1, 0, 1, ty="handle")
         W_tensor = T.decl_tensor([1], "float16", data=W)
         T.assume_aligned(W_tensor, 128)
 
-        Conv: T.let[T.handle] = T.tvm_struct_get(arg2, 0, 1, dtype="handle")
+        Conv: T.let[T.handle] = T.tvm_struct_get(arg2, 0, 1, ty="handle")
         Conv_tensor = T.decl_tensor([1], "float32", data=Conv)
         T.assume_aligned(Conv_tensor, 128)
 
         assert (((arg0_code == 3) or (arg0_code == 13)) or (arg0_code == 7)) or (arg0_code == 4), (
             "default_function: Expect arg[0] to be pointer"
         )
-        assert 6 == T.tvm_struct_get(arg0, 0, 4, dtype="int32"), "arg0.ndim is expected to equal 6"
+        assert 6 == T.tvm_struct_get(arg0, 0, 4, ty="int32"), "arg0.ndim is expected to equal 6"
         assert (
-            (T.tvm_struct_get(arg0, 0, 5, dtype="uint8") == T.uint8(2))
-            and (T.tvm_struct_get(arg0, 0, 6, dtype="uint8") == T.uint8(16))
-        ) and (T.tvm_struct_get(arg0, 0, 7, dtype="uint16") == T.uint16(1)), (
+            (T.tvm_struct_get(arg0, 0, 5, ty="uint8") == T.uint8(2))
+            and (T.tvm_struct_get(arg0, 0, 6, ty="uint8") == T.uint8(16))
+        ) and (T.tvm_struct_get(arg0, 0, 7, ty="uint16") == T.uint16(1)), (
             "arg0.dtype is expected to be float16"
         )
         assert 16 == T.cast(arg0_shape[0], "int32"), (
@@ -1129,19 +1132,19 @@ def opt_conv_tensorcore_mod_host():
                 "arg0.strides: expected to be compact array"
             )
             T.evaluate(0)
-        assert T.uint64(0) == T.tvm_struct_get(arg0, 0, 8, dtype="uint64"), (
+        assert T.uint64(0) == T.tvm_struct_get(arg0, 0, 8, ty="uint64"), (
             "Argument arg0.byte_offset has an unsatisfied constraint"
         )
-        assert 2 == T.tvm_struct_get(arg0, 0, 10, dtype="int32"), (
+        assert 2 == T.tvm_struct_get(arg0, 0, 10, ty="int32"), (
             "Argument arg0.device_type has an unsatisfied constraint"
         )
         assert (
-            (T.tvm_struct_get(arg2, 0, 5, dtype="uint8") == T.uint8(2))
-            and (T.tvm_struct_get(arg2, 0, 6, dtype="uint8") == T.uint8(32))
-        ) and (T.tvm_struct_get(arg2, 0, 7, dtype="uint16") == T.uint16(1)), (
+            (T.tvm_struct_get(arg2, 0, 5, ty="uint8") == T.uint8(2))
+            and (T.tvm_struct_get(arg2, 0, 6, ty="uint8") == T.uint8(32))
+        ) and (T.tvm_struct_get(arg2, 0, 7, ty="uint16") == T.uint16(1)), (
             "arg2.dtype is expected to be float32"
         )
-        assert dev_id == T.tvm_struct_get(arg2, 0, 9, dtype="int32"), (
+        assert dev_id == T.tvm_struct_get(arg2, 0, 9, ty="int32"), (
             "Argument arg2.device_id has an unsatisfied constraint"
         )
         T.evaluate(T.tvm_struct_set(stack_value, 0, 12, T.cast(2, "int64")))
@@ -1493,14 +1496,13 @@ def func_T_ptr_let_statement():
         # correctly, and should be usable as the data pointer in a buffer.
         arg_type_ids = T.decl_tensor([2], dtype="int32", data=arg_type_ids_handle)
 
-        arg0: T.let[T.handle] = T.tvm_struct_get(args, 0, 12, dtype="handle")
-        arg1: T.let[T.handle] = T.tvm_struct_get(args, 1, 12, dtype="handle")
+        arg0: T.let[T.handle] = T.tvm_struct_get(args, 0, 12, ty="handle")
+        arg1: T.let[T.handle] = T.tvm_struct_get(args, 1, 12, ty="handle")
 
         # The ABI field is an opaque pointer.  Retag it explicitly before
         # binding it to the buffer's exact element pointer type.
         A_data: T.let[T.handle("float32")] = T.reinterpret(
-            T.handle("float32").ty,
-            T.tvm_struct_get(arg0, 0, 1, dtype="handle"),
+            T.tvm_struct_get(arg0, 0, 1, ty="handle"), ty=T.handle("float32").ty
         )
 
         # The buffer declaration has a data pointer defined earlier in
@@ -1509,8 +1511,7 @@ def func_T_ptr_let_statement():
         # the function as other buffer_decl statements can be.
         A = T.decl_tensor([1024], dtype="float32", data=A_data)
         B_data: T.let[T.handle("float32")] = T.reinterpret(
-            T.handle("float32").ty,
-            T.tvm_struct_get(arg1, 0, 1, dtype="handle"),
+            T.tvm_struct_get(arg1, 0, 1, ty="handle"), ty=T.handle("float32").ty
         )
         B = T.decl_tensor([1024], dtype="float32", data=B_data)
 
@@ -1542,7 +1543,7 @@ def llvm_intrin_call():
                 B[vi] = T.call_llvm_pure_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.ctpop.i8"),
                     A[vi],
-                    dtype="uint8",
+                    ty="uint8",
                 )
 
     return ctpop
@@ -1573,7 +1574,7 @@ def pointer_type():
         yy = T.alloc_tensor((16,), "int32", scope="shared")
         a: T.let[T.handle("int32")] = T.address_of(xx[0])
         b: T.let[T.handle("int32", "shared")] = T.address_of(yy[0])
-        T.evaluate(T.call_extern("copy", a, b, dtype=""))
+        T.evaluate(T.call_extern("copy", a, b, ty=""))
 
     return func_with_ptr_type_annotations
 
@@ -1617,21 +1618,21 @@ def predicated_buffer_load_store():
         for i_0 in range(4):
             load_a = T.meta_var(
                 T.call_intrin(
-                    "float32x4",
                     "tirx.masked_load",
                     A,
                     T.Ramp(i_0, 1, 4),
                     T.Broadcast(T.bool(True), 4),
+                    ty="float32x4",
                 )
             )
             T.evaluate(
                 T.call_intrin(
-                    "void",
                     "tirx.masked_store",
                     B,
                     load_a,
                     T.Ramp(0, 2, 4),
                     T.Broadcast(T.bool(True), 4),
+                    ty="void",
                 )
             )
 
@@ -1934,7 +1935,7 @@ def tvm_struct_set_generated_in_cpp():
                         T.tvm_stack_make_array(
                             A.data,
                             T.tvm_stack_make_shape(16),
-                            T.reinterpret(T.uint64(0), dtype="handle"),
+                            T.reinterpret(T.uint64(0), ty="handle"),
                             T.uint32(1),
                             T.Cast("float32", 0),
                             0,
@@ -2130,13 +2131,12 @@ def test_ir_module():
         """
 # from tvm.script import ir as I
 # from tvm.script import s_tir as Ts
-# from tvm.script import tirx as T
 
 @I.ir_module
 class Module:
     @Ts.function
     def foo():
-        T.evaluate(0)""",
+        pass""",
     )
 
 

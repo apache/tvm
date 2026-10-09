@@ -1420,7 +1420,7 @@ def test_symbolic_var_1():
             R.func_attr({"num_input": 0})
             # All instance of the empty tuple are normalized to be
             # in-line.
-            return R.tuple()
+            return ()
 
         @R.function
         def main(shape: R.Shape([n])) -> R.Shape([n]):
@@ -1483,7 +1483,7 @@ def test_symbolic_var_2():
         @R.function
         def main_transform_params(params: R.Tuple) -> R.Tuple:
             R.func_attr({"num_input": 0})
-            return R.tuple()
+            return ()
 
         @R.function
         def main(shape: R.Shape([n_main])) -> R.Shape([n_main]):

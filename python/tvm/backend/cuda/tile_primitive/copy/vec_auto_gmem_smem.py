@@ -176,7 +176,7 @@ def _emit_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Functi
             s_off = s_apply_layout.apply(f, tid, v0, shape=apply_shape)["m"]
             s_ptr = _ptr_off(s_buf.ptr_to(s_zero), s_off)
             g_ptr = _ptr_off(g_buf.ptr_to(g_zero), g_lin)
-            if g_is_src:
+            if T.constexpr(g_is_src):
                 T.ptx[ld_g](*[tmp[i] for i in range(lanes)], g_ptr)
                 T.ptx[st_s](s_ptr, *[tmp[i] for i in range(lanes)])
             else:

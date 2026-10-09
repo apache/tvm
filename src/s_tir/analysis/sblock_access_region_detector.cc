@@ -28,7 +28,6 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
 #include <unordered_map>
@@ -235,7 +234,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const IfThenElseNod
 
 ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::decl_tensor())) {
+      call && call->op.same_as(tirx::decl_tensor_op())) {
     // A DeclTensor data expression defines the alias source.  It is not an
     // opaque buffer access by the containing block.
     return WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() { return Visit(op->var); });
@@ -269,9 +268,8 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const CallNode* op)
     }
     Update(buffers, regions, buffer, relaxed_region);
   };
-  if (op->op.same_as(tirx::builtin::masked_load()) ||
-      op->op.same_as(tirx::builtin::masked_store())) {
-    bool is_load = op->op.same_as(tirx::builtin::masked_load());
+  if (op->op.same_as(tirx::masked_load_op()) || op->op.same_as(tirx::masked_store_op())) {
+    bool is_load = op->op.same_as(tirx::masked_load_op());
     TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
     ffi::Array<PrimExpr> indices;
     for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
@@ -284,13 +282,13 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const CallNode* op)
     }
     return std::nullopt;
   }
-  if (op->op.same_as(tirx::builtin::tvm_access_ptr())) {
-    const VarNode* buffer_var = op->args[1].as<VarNode>();
-    if (const auto* data = op->args[1].as<CallNode>();
-        data && data->op.same_as(tirx::builtin::buffer_data())) {
+  if (op->op.same_as(tirx::tvm_access_ptr_op())) {
+    const VarNode* buffer_var = op->args[0].as<VarNode>();
+    if (const auto* data = op->args[0].as<CallNode>();
+        data && data->op.same_as(tirx::buffer_data_op())) {
       buffer_var = data->args[0].as<VarNode>();
     }
-    const IntImmNode* access_mask = op->args[4].as<IntImmNode>();
+    const IntImmNode* access_mask = op->args[3].as<IntImmNode>();
     if (buffer_var && access_mask) {
       auto it = buffer_var_map_.find(ffi::GetRef<Var>(buffer_var));
       if (it != buffer_var_map_.end()) {
@@ -316,7 +314,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const CallNode* op)
     }
     return std::nullopt;
   }
-  if (op->op.same_as(prim::builtin::if_then_else())) {
+  if (op->op.same_as(prim::if_then_else_op())) {
     PrimExpr condition = op->args[0].as_or_throw<PrimExpr>();
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(condition));
     {

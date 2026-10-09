@@ -25,11 +25,11 @@ from tvm_ffi import Array
 import tvm
 from tvm import ir
 from tvm import tirx as tir
-from tvm.ir import Expr, Var
+from tvm.ir import Expr, Scriptable, Var, const
 from tvm.ir.base import Span
 from tvm.ir.prim import _ffi_api as _prim_ffi_api
 from tvm.ir.prim import max_value, min_value
-from tvm.runtime import Object, Scriptable, const
+from tvm.runtime import Object
 from tvm.tirx.op import _primexpr_dtype
 
 from . import _ffi_api

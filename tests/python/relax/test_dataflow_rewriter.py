@@ -71,7 +71,7 @@ def test_missing_pattern_raises_error():
         class Rewriter:
             @R.function
             def replacement():
-                return R.tuple()
+                return ()
 
 
 def test_incorrect_function_type_of_pattern_raises_error():
@@ -87,7 +87,7 @@ def test_incorrect_function_type_of_pattern_raises_error():
 
             @R.function
             def replacement():
-                return R.tuple()
+                return ()
 
 
 def test_missing_replacement_raises_error():
@@ -99,7 +99,7 @@ def test_missing_replacement_raises_error():
         class Rewriter:
             @R.function
             def pattern():
-                return R.tuple()
+                return ()
 
 
 def test_incorrect_function_type_of_replacement_raises_error():
@@ -111,7 +111,7 @@ def test_incorrect_function_type_of_replacement_raises_error():
         class Rewriter:
             @R.function
             def pattern():
-                return R.tuple()
+                return ()
 
             @Ts.function
             def replacement():

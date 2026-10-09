@@ -19,11 +19,14 @@
 
 from __future__ import annotations
 
+from enum import Enum
+
+import tvm_ffi
+
 from tvm import tirx
-from tvm.ir import Call, Op, StringImm
+from tvm.ir import Attrs, Call, Op, StringImm, const
 from tvm.ir.op import _init_op_api, _make_op_api
 from tvm.ir.type import PointerType, PrimType
-from tvm.runtime import const
 from tvm.tirx.op import bitwise_and, call_intrin, tvm_access_ptr
 from tvm.tirx.operator.intrinsics._common import (
     CP_ASYNC_BULK_CACHE_HINT as _CP_ASYNC_BULK_CACHE_HINT,
@@ -99,7 +102,7 @@ def cuda_func_call(func_name, *args, source_code, return_type="void"):
     return call_intrin(return_type, "tirx.cuda.func_call", func_name, *args, source_code)
 
 
-def cuda_warp_reduce(value, op, width=32):
+def cuda_warp_reduce(value, op, width=32, *, ty=None, span=None):
     """Warp-level butterfly shuffle-XOR reduction.
 
     Reduces ``value`` across ``width`` adjacent lanes using the specified
@@ -123,7 +126,12 @@ def cuda_warp_reduce(value, op, width=32):
     call : Expr
         The reduced value (same dtype as *value*).
     """
-    return call_intrin(value.ty, "tirx.cuda.warp_reduce", value, op, width)
+    return Call(
+        "tirx.cuda.warp_reduce",
+        [value, op, width],
+        ty=ty,
+        span=span,
+    )
 
 
 def cuda_warp_sum(value, width=32):
@@ -141,7 +149,7 @@ def cuda_warp_min(value, width=32):
     return cuda_warp_reduce(value, "min", width)
 
 
-def cuda_cta_reduce(value, op, num_warps, scratch):
+def cuda_cta_reduce(value, op, num_warps, scratch, *, ty=None, span=None):
     """CTA-wide reduction via warp shuffle + shared memory.
 
     Two-step reduction: (1) intra-warp shuffle reduction, (2) warp-0
@@ -167,7 +175,12 @@ def cuda_cta_reduce(value, op, num_warps, scratch):
     call : Expr
         The reduced value broadcast to all threads (same dtype as *value*).
     """
-    return call_intrin(value.ty, "tirx.cuda.cta_reduce", value, op, num_warps, scratch)
+    return Call(
+        "tirx.cuda.cta_reduce",
+        [value, op, num_warps, scratch],
+        ty=ty,
+        span=span,
+    )
 
 
 def cuda_cta_sum(value, num_warps, scratch):
@@ -254,6 +267,9 @@ def cuda_wait_until(
     space="global",
     ptx_type=None,
     backoff_ns=None,
+    *,
+    ty=None,
+    span=None,
 ):
     """Read the global word at ``ptr`` into ``dst`` until ``predicate`` holds,
     and leave the exit value there.
@@ -306,21 +322,27 @@ def cuda_wait_until(
     checker concludes. A timeout that has to print and trap is not that, and
     belongs to a loop the kernel writes itself.
     """
+    scope = _static_str(scope)
+    space = _static_str(space)
+    ptx_type = _static_str(ptx_type) if ptx_type is not None else None
     _validate_wait_until_attrs(scope, space, ptx_type)
     _reject_wide_word_for_predicate(ptx_type, "wait_until")
     if tirx.is_tensor_var(dst):
         dst = dst[0]
     condition = tirx.convert(predicate(dst) if callable(predicate) else predicate)
-    return call_intrin(
-        "",
+    return Call(
         "tirx.cuda.wait_until",
-        dst,
-        ptr,
-        condition,
-        scope,
-        space,
-        ptx_type or "",
-        tirx.convert(0 if backoff_ns is None else backoff_ns),
+        [
+            dst,
+            ptr,
+            condition,
+            scope,
+            space,
+            ptx_type or "",
+            tirx.convert(0 if backoff_ns is None else backoff_ns),
+        ],
+        ty=ty,
+        span=span,
     )
 
 
@@ -337,35 +359,27 @@ def _validate_mbarrier_arrive_attrs(sem, scope, space, remote):
         raise ValueError("remote mbarrier.arrive requires space='shared::cluster'")
 
 
-def ptx_cp_async_legacy(*all_args):
-    """Legacy ``ptx_cp_async`` API taking explicit src/dst offsets.
+_cp_async_raw = _make_op_api(Op.get("tirx.s_tir.cp_async_raw"), __name__)
 
-    Signature: ``(dst_ptr, dst_offset, src_ptr, src_offset, cp_size)``.
-    Offsets are folded into the pointers via ``tvm_access_ptr`` and the call
-    lowers through the raw ``tirx.s_tir.cp_async_raw`` op.
 
-    ``T.s_tir.cp_async_raw.legacy`` runs through ``_dtype_forward`` which
-    prepends a ``dtype=`` kwarg as a leading positional. The dtype names
-    the *element* type of the buffer (offsets are in elements of that
-    dtype, not bytes), so this function accepts either 5 or 6 positional
-    args.
+def ptx_cp_async_legacy(
+    dst_ptr,
+    dst_offset,
+    src_ptr,
+    src_offset,
+    cp_size,
+    *,
+    elem_dtype="int8",
+    ty=None,
+    span=None,
+):
+    """Fold element offsets into the raw cp.async pointer operands.
+
+    ``elem_dtype`` scales element offsets independently of the call's result ``ty``.
     """
-    args = list(all_args)
-    elem_dtype = "int8"
-    if len(args) == 6:
-        # Leading positional is the buffer element dtype, used to scale
-        # offsets correctly when folding via ``tvm_access_ptr``.
-        elem_dtype = args.pop(0)
-    if len(args) != 5:
-        raise ValueError(
-            f"ptx_cp_async_legacy expects 5 args (or 6 with dtype= kwarg "
-            f"prepended); got {len(all_args)}"
-        )
-    dst_ptr, dst_offset, src_ptr, src_offset, cp_size = args
     dst_ptr = _wrap_or_fold_access_ptr(dst_ptr, dst_offset, elem_dtype)
     src_ptr = _wrap_or_fold_access_ptr(src_ptr, src_offset, elem_dtype)
-    # The raw 5-arg Call InjectPTXAsyncCopy emits; offsets are already folded.
-    return call_intrin(elem_dtype, "tirx.s_tir.cp_async_raw", dst_ptr, 0, src_ptr, 0, cp_size)
+    return _cp_async_raw(dst_ptr, 0, src_ptr, 0, cp_size, ty=ty, span=span)
 
 
 def _is_static_unicast_cta_mask(cta_mask):
@@ -377,7 +391,7 @@ def _is_static_unicast_cta_mask(cta_mask):
     return False
 
 
-def cuda_mov_sreg(bits, reg_name):
+def cuda_mov_sreg(bits, reg_name, *, ty=None, span=None):
     """TVM intrinsic to tvm instrinsics to fetch PTX pre-defined registers
 
     Parameters
@@ -393,63 +407,38 @@ def cuda_mov_sreg(bits, reg_name):
     call : Expr
         The call expression.
     """
-    return call_intrin("int" + str(bits), "tirx.cuda.mov_sreg", bits, reg_name)
+    return Call(
+        "tirx.cuda.mov_sreg",
+        [bits, reg_name],
+        ty=ty,
+        span=span,
+    )
 
 
-def ptx_legacy_mma(*all_args, operator=None):
-    """Legacy ``ptx_mma`` API.
+_legacy_mma = _make_op_api(Op.get("tirx.ptx_legacy.mma"), __name__)
 
-    Signature: ``(shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype,
-    multiplicand_a, a_index, multiplicand_b, b_index, accumulator,
-    c_index, saturate, operator=None)``. The accumulator is reused as
-    both input and output (no separate ``d``/``c`` slot). Translation:
 
-    * ``a_dtype, b_dtype, c_dtype`` → fork ``a_type, b_type, c_type``
-      (and reuse ``c_dtype`` as fork ``d_type`` since the accumulator
-      dtype is the output dtype here).
-    * ``(a_ptr, a_offset)`` and ``(b_ptr, b_offset)`` → folded via
-      :func:`tvm_access_ptr`.
-    * ``(accumulator, c_index)`` → folded; passed for both ``d_ptr`` and
-      ``c_ptr`` since the accumulator is reused as the output.
-
-    ``T.ptx_legacy.mma`` runs through ``_dtype_forward`` which prepends a
-    ``dtype=`` kwarg as a leading positional, so this function accepts
-    either 13 or 14 positional args.
-    """
-    args = list(all_args)
-    # ``T.ptx_legacy.mma(..., dtype="...")`` has the dtype prepended by
-    # ``_dtype_forward``; strip it here.
-    if len(args) in (14, 15):
-        _ = args.pop(0)
-    if len(args) == 14:
-        # operator passed positionally as the trailing arg.
-        operator = args.pop()
-    if len(args) != 13:
-        raise ValueError(
-            f"ptx_legacy_mma expects 13-15 positional args (with optional "
-            f"leading ``call_dtype`` from dtype= kwarg and optional trailing "
-            f"``operator``); got {len(all_args)}"
-        )
-    (
-        shape,
-        a_layout,
-        b_layout,
-        a_dtype,
-        b_dtype,
-        c_dtype,
-        a_ptr,
-        a_offset,
-        b_ptr,
-        b_offset,
-        acc_ptr,
-        c_offset,
-        saturate,
-    ) = args
-    # Emit tirx.ptx_legacy.mma directly with separate (ptr_var, offset)
-    # pairs. codegen_cuda.cc uses C pointer arithmetic ``ptr + offset``
-    # so element offsets stay element-accurate, and lower_warp_memory
-    # rewrites the offset's group component to a thread-local index.
-    call_args = [
+def ptx_legacy_mma(
+    shape,
+    a_layout,
+    b_layout,
+    a_dtype,
+    b_dtype,
+    c_dtype,
+    a_ptr,
+    a_offset,
+    b_ptr,
+    b_offset,
+    acc_ptr,
+    c_offset,
+    saturate,
+    operator=None,
+    *,
+    ty=None,
+    span=None,
+):
+    """Construct legacy MMA with element offsets and an optional bit operator."""
+    args = [
         shape,
         a_layout,
         b_layout,
@@ -465,8 +454,8 @@ def ptx_legacy_mma(*all_args, operator=None):
         saturate,
     ]
     if operator is not None:
-        call_args.append(operator)
-    return call_intrin("", "tirx.ptx_legacy.mma", *call_args)
+        args.append(operator)
+    return _legacy_mma(*args, ty=ty, span=span)
 
 
 def mma_store(dtype, m, n, dst_ptr, src_ptr, src_offset, dst_stride):
@@ -475,18 +464,20 @@ def mma_store(dtype, m, n, dst_ptr, src_ptr, src_offset, dst_stride):
     return call_intrin(dtype, "tirx.mma_store", m, n, dst_ptr, src_ptr, src_offset, dst_stride)
 
 
-def mma_store_legacy(dtype, m, n, dst_ptr, src_ptr, src_offset, dst_stride):
-    """mma_store with apache-style pointer/offset semantics."""
+_mma_store_legacy = _make_op_api(Op.get("tirx.mma_store_legacy"), __name__)
 
-    return call_intrin(
-        dtype,
-        "tirx.mma_store_legacy",
+
+def mma_store_legacy(m, n, dst_ptr, src_ptr, src_offset, dst_stride, *, ty=None, span=None):
+    """Store MMA registers using explicit pointer and element-offset operands."""
+    return _mma_store_legacy(
         m,
         n,
         dst_ptr,
         src_ptr,
         src_offset,
         dst_stride,
+        ty=ty,
+        span=span,
     )
 
 
@@ -496,10 +487,12 @@ def mma_fill(dtype, local_size, local_ptr, offset):
     return call_intrin(dtype, "tirx.mma_fill", local_size, local_ptr, offset)
 
 
-def mma_fill_legacy(dtype, local_size, local_ptr, offset):
-    """mma_fill with apache-style pointer/offset semantics."""
+_mma_fill_legacy = _make_op_api(Op.get("tirx.mma_fill_legacy"), __name__)
 
-    return call_intrin(dtype, "tirx.mma_fill_legacy", local_size, local_ptr, offset)
+
+def mma_fill_legacy(local_size, local_ptr, offset, *, ty=None, span=None):
+    """Initialize MMA registers using an explicit element offset."""
+    return _mma_fill_legacy(local_size, local_ptr, offset, ty=ty, span=span)
 
 
 _PTX_TO_NUMPY_DTYPE = {
@@ -535,7 +528,7 @@ def _wrap_or_fold_access_ptr(ptr, offset, elem_dtype):
     Several s_tir tensor intrinsics already pass ``buffer.access_ptr(...)``
     (an ``tvm_access_ptr`` Call) for the pointer argument. Naively wrapping
     that again yields a nested ``tvm_access_ptr(... access_ptr(...) ...)``
-    whose ``args[1]`` is a Call rather than a Var, which crashes the
+    whose ``args[0]`` is a Call rather than a Var, which crashes the
     lowering rule (Downcast<Var> at intrin_rule.cc) and several s_tir
     passes that assume a raw buffer var. Detect that case and fold the
     outer offset into the inner one.
@@ -546,53 +539,45 @@ def _wrap_or_fold_access_ptr(ptr, offset, elem_dtype):
     )
     if is_access_ptr_call:
         # Inner Call already wraps the buffer var. Reuse its inner var and
-        # inner element dtype (the marker type_annotation), and add the
+        # inner access element type, and add the
         # outer offset (which is in `elem_dtype` units, same convention as
         # the inner since both come from the same buffer).
         inner_args = ptr.args
-        inner_marker = inner_args[0]
-        inner_var = inner_args[1]
-        inner_offset = inner_args[2]
-        rw_mask = inner_args[4]
-        return call_intrin(
-            ptr.ty,
+        inner_var = inner_args[0]
+        inner_offset = inner_args[1]
+        rw_mask = inner_args[3]
+        return Call(
             "tirx.tvm_access_ptr",
-            inner_marker,
-            inner_var,
-            inner_offset + offset,
-            1,
-            rw_mask,
+            [inner_var, inner_offset + offset, 1, rw_mask],
+            ty=ptr.ty,
+            attrs=ptr.attrs,
+            ty_args=ptr.ty_args,
+            span=ptr.span,
         )
     return tvm_access_ptr(elem_dtype, ptr, offset, 1, 1)
 
 
-def ptx_legacy_ldmatrix(*all_args):
-    """Legacy ``ptx_ldmatrix`` API taking explicit offsets.
+_legacy_ldmatrix = _make_op_api(Op.get("tirx.ptx_legacy.ldmatrix"), __name__)
 
-    Signature: ``(trans, num, dtype, local_ptr, local_offset, smem_ptr,
-    smem_offset)``. Offsets are folded into the pointers via
-    ``tvm_access_ptr``.
 
-    ``T.ptx_legacy.ldmatrix`` runs through ``_dtype_forward`` which
-    prepends a ``dtype=`` kwarg as a leading positional naming the buffer
-    element type — offsets are in elements of that dtype, not bytes, so
-    we forward it to ``tvm_access_ptr`` for correct scaling.
+def ptx_legacy_ldmatrix(
+    trans,
+    num,
+    dtype,
+    local_ptr,
+    local_offset,
+    smem_ptr,
+    smem_offset,
+    *,
+    ty=None,
+    span=None,
+):
+    """Load a matrix with explicit pointer and element-offset operands.
+
+    The legacy lowering uses the result ``ty`` for its element width, including
+    the transposed int8 gather form. ``dtype`` is the PTX instruction type token.
     """
-    if len(all_args) == 8:
-        elem_dtype, trans, num, dtype, local_ptr, local_offset, smem_ptr, smem_offset = all_args
-    elif len(all_args) == 7:
-        trans, num, dtype, local_ptr, local_offset, smem_ptr, smem_offset = all_args
-        elem_dtype = "int8"
-    else:
-        raise ValueError(
-            f"ptx_legacy_ldmatrix expects 7 args (or 8 with dtype= kwarg "
-            f"prepended); got {len(all_args)}"
-        )
-    # Call.dtype carries the buffer element type so codegen can pick the
-    # int8+trans manual-loop fallback (ldmatrix can't transpose int8).
-    return call_intrin(
-        elem_dtype,
-        "tirx.ptx_legacy.ldmatrix",
+    return _legacy_ldmatrix(
         trans,
         num,
         dtype,
@@ -600,7 +585,19 @@ def ptx_legacy_ldmatrix(*all_args):
         local_offset,
         smem_ptr,
         smem_offset,
+        ty=ty,
+        span=span,
     )
+
+
+@tvm_ffi.register_object("tirx.cuda.TCGen05InstrDescriptorAttrs")
+class TCGen05InstrDescriptorAttrs(Attrs):
+    """Static options for the dense tcgen05 instruction descriptor."""
+
+
+@tvm_ffi.register_object("tirx.cuda.TCGen05InstrDescriptorBlockScaledAttrs")
+class TCGen05InstrDescriptorBlockScaledAttrs(Attrs):
+    """Static options for the block-scaled tcgen05 instruction descriptor."""
 
 
 _encode_instr_descriptor = _make_op_api(
@@ -818,7 +815,16 @@ def _static_str(value):
 # shape tokens in backend/cuda/ptx/table.py.
 
 
-def timer_init_cuda(profiler_buffer, profiler_tag, profiler_write_offset, num_groups, group_id):
+def timer_init_cuda(
+    profiler_buffer,
+    profiler_tag,
+    profiler_write_offset,
+    num_groups,
+    group_id,
+    *,
+    ty=None,
+    span=None,
+):
     """TVM intrinsic for initializing the CUDA profiler, and store profiling result in a buffer.
 
     Parameters
@@ -845,14 +851,11 @@ def timer_init_cuda(profiler_buffer, profiler_tag, profiler_write_offset, num_gr
         The call expression.
     """
 
-    return call_intrin(
-        "void",
+    return Call(
         "tirx.timer_init_cuda",
-        profiler_buffer,
-        profiler_tag,
-        profiler_write_offset,
-        num_groups,
-        group_id,
+        [profiler_buffer, profiler_tag, profiler_write_offset, num_groups, group_id],
+        ty=ty,
+        span=span,
     )
 
 
@@ -863,6 +866,9 @@ def timer_start_cuda(
     profiler_write_offset,
     profiler_write_stride,
     leader_cond,
+    *,
+    ty=None,
+    span=None,
 ):
     """TVM intrinsic for starting the timer for profiling a specific event, and storing profiling result in a buffer.
 
@@ -893,15 +899,18 @@ def timer_start_cuda(
         The call expression.
     """  # noqa: E501
 
-    return call_intrin(
-        "void",
+    return Call(
         "tirx.timer_start_cuda",
-        event_type.value,
-        profiler_buffer,
-        profiler_tag,
-        profiler_write_offset,
-        profiler_write_stride,
-        leader_cond,
+        [
+            event_type.value if isinstance(event_type, Enum) else event_type,
+            profiler_buffer,
+            profiler_tag,
+            profiler_write_offset,
+            profiler_write_stride,
+            leader_cond,
+        ],
+        ty=ty,
+        span=span,
     )
 
 
@@ -912,6 +921,9 @@ def timer_end_cuda(
     profiler_write_offset,
     profiler_write_stride,
     leader_cond,
+    *,
+    ty=None,
+    span=None,
 ):
     """TVM intrinsic for ending the timer for profiling a specific event, and storing profiling result in a buffer.
 
@@ -942,20 +954,30 @@ def timer_end_cuda(
         The call expression.
     """  # noqa: E501
 
-    return call_intrin(
-        "void",
+    return Call(
         "tirx.timer_end_cuda",
-        event_type.value,
-        profiler_buffer,
-        profiler_tag,
-        profiler_write_offset,
-        profiler_write_stride,
-        leader_cond,
+        [
+            event_type.value if isinstance(event_type, Enum) else event_type,
+            profiler_buffer,
+            profiler_tag,
+            profiler_write_offset,
+            profiler_write_stride,
+            leader_cond,
+        ],
+        ty=ty,
+        span=span,
     )
 
 
 def timer_finalize_cuda(
-    profiler_buffer, profiler_tag, profiler_write_offset, profiler_write_stride, leader_cond
+    profiler_buffer,
+    profiler_tag,
+    profiler_write_offset,
+    profiler_write_stride,
+    leader_cond,
+    *,
+    ty=None,
+    span=None,
 ):
     """TVM intrinsic for finalizing the CUDA profiler, and store profiling result in a buffer.
 
@@ -983,18 +1005,15 @@ def timer_finalize_cuda(
         The call expression.
     """
 
-    return call_intrin(
-        "void",
+    return Call(
         "tirx.timer_finalize_cuda",
-        profiler_buffer,
-        profiler_tag,
-        profiler_write_offset,
-        profiler_write_stride,
-        leader_cond,
+        [profiler_buffer, profiler_tag, profiler_write_offset, profiler_write_stride, leader_cond],
+        ty=ty,
+        span=span,
     )
 
 
-def cuda_atomic_add(res_addr, value):
+def cuda_atomic_add(res_addr, value, *, ty=None, span=None):
     """TVM intrinsic to call cuda atomic add instruction
 
     Parameters
@@ -1011,10 +1030,15 @@ def cuda_atomic_add(res_addr, value):
         The call expression.
     """
     value = tir.convert(value)
-    return call_intrin(value.ty, "tirx.cuda.atomic_add", res_addr, value)
+    return Call(
+        "tirx.cuda.atomic_add",
+        [res_addr, value],
+        ty=ty,
+        span=span,
+    )
 
 
-def cuda_ldg(addr, dtype, *, dst=None, vec=""):
+def cuda_ldg(addr, dtype, *, dst=None, vec="", ty=None, span=None):
     """TVM intrinsic to call CUDA C++ ``__ldg()``.
 
     Parameters
@@ -1037,7 +1061,7 @@ def cuda_ldg(addr, dtype, *, dst=None, vec=""):
     if dst is None:
         if vec:
             raise ValueError("vector cuda.ldg requires dst")
-        return call_intrin(dtype, "tirx.cuda.ldg", addr, dtype)
+        return Call("tirx.cuda.ldg", [addr, dtype], ty=ty, span=span)
     if vec not in ("v2", "v4"):
         raise ValueError(f"vector cuda.ldg expects vec in {{'v2', 'v4'}}, got {vec!r}")
     if not isinstance(dst, list | tuple):
@@ -1045,7 +1069,12 @@ def cuda_ldg(addr, dtype, *, dst=None, vec=""):
     vec_len = int(vec[1:])
     if len(dst) != vec_len:
         raise ValueError(f"cuda.ldg dst length must match {vec}: got {len(dst)}")
-    return call_intrin("", "tirx.cuda.ldg", *dst, addr, dtype, vec, vec_len)
+    return Call(
+        "tirx.cuda.ldg",
+        [*dst, addr, dtype, vec, vec_len],
+        ty=ty,
+        span=span,
+    )
 
 
 def cuda_sm100_2sm_leader_smem_addr(ptr):
@@ -1174,7 +1203,7 @@ def _validate_ptx_address(addr, space, op_name):
             )
 
 
-def cuda_atomic_cas(ptr, old_val, new_val):
+def cuda_atomic_cas(ptr, old_val, new_val, *, ty=None, span=None):
     """TVM intrinsic to call cuda atomic cas instruction
 
     Parameters
@@ -1194,7 +1223,12 @@ def cuda_atomic_cas(ptr, old_val, new_val):
         The call expression.
     """
     old_val = tir.convert(old_val)
-    return call_intrin(old_val.ty, "tirx.cuda.atomic_cas", ptr, old_val, new_val)
+    return Call(
+        "tirx.cuda.atomic_cas",
+        [ptr, old_val, new_val],
+        ty=ty,
+        span=span,
+    )
 
 
 ########################################################
@@ -1202,7 +1236,7 @@ def cuda_atomic_cas(ptr, old_val, new_val):
 ########################################################
 
 
-def nvshmem_my_pe():
+def nvshmem_my_pe(*, ty=None, span=None):
     """TVM intrinsic to call nvshmem_my_pe()
 
     Returns
@@ -1211,10 +1245,10 @@ def nvshmem_my_pe():
         The call expression.
     """
 
-    return call_intrin("int32", "tirx.nvshmem.my_pe")
+    return Call("tirx.nvshmem.my_pe", [], ty=ty, span=span)
 
 
-def nvshmem_n_pes():
+def nvshmem_n_pes(*, ty=None, span=None):
     """TVM intrinsic to call nvshmem_n_pes()
 
     Returns
@@ -1223,10 +1257,10 @@ def nvshmem_n_pes():
         The call expression.
     """
 
-    return call_intrin("int32", "tirx.nvshmem.n_pes")
+    return Call("tirx.nvshmem.n_pes", [], ty=ty, span=span)
 
 
-def nvshmem_getmem_nbi(dst, src, nelems, pe):
+def nvshmem_getmem_nbi(dst, src, nelems, pe, *, ty=None, span=None):
     """TVM intrinsic to call nvshmem_getmem_nbi()
 
     Parameters
@@ -1249,10 +1283,15 @@ def nvshmem_getmem_nbi(dst, src, nelems, pe):
         The call expression.
     """  # noqa: E501
 
-    return call_intrin("", "tirx.nvshmem.getmem_nbi", dst, src, nelems, pe)
+    return Call(
+        "tirx.nvshmem.getmem_nbi",
+        [dst, src, nelems, pe],
+        ty=ty,
+        span=span,
+    )
 
 
-def nvshmem_putmem_nbi(dst, src, nelems, pe):
+def nvshmem_putmem_nbi(dst, src, nelems, pe, *, ty=None, span=None):
     """TVM intrinsic to call nvshmem_putmem_nbi()
 
     Parameters
@@ -1275,10 +1314,15 @@ def nvshmem_putmem_nbi(dst, src, nelems, pe):
         The call expression.
     """
 
-    return call_intrin("", "tirx.nvshmem.putmem_nbi", dst, src, nelems, pe)
+    return Call(
+        "tirx.nvshmem.putmem_nbi",
+        [dst, src, nelems, pe],
+        ty=ty,
+        span=span,
+    )
 
 
-def nvshmem_getmem_nbi_warp(dst, src, nelems, pe):
+def nvshmem_getmem_nbi_warp(dst, src, nelems, pe, *, ty=None, span=None):
     """TVM intrinsic to call nvshmem_getmem_nbi_warp()
 
     Parameters
@@ -1301,10 +1345,15 @@ def nvshmem_getmem_nbi_warp(dst, src, nelems, pe):
         The call expression.
     """  # noqa: E501
 
-    return call_intrin("", "tirx.nvshmem.getmem_nbi_warp", dst, src, nelems, pe)
+    return Call(
+        "tirx.nvshmem.getmem_nbi_warp",
+        [dst, src, nelems, pe],
+        ty=ty,
+        span=span,
+    )
 
 
-def nvshmem_putmem_nbi_warp(dst, src, nelems, pe):
+def nvshmem_putmem_nbi_warp(dst, src, nelems, pe, *, ty=None, span=None):
     """TVM intrinsic to call nvshmem_putmem_nbi_warp()
 
     Parameters
@@ -1327,10 +1376,15 @@ def nvshmem_putmem_nbi_warp(dst, src, nelems, pe):
         The call expression.
     """
 
-    return call_intrin("", "tirx.nvshmem.putmem_nbi_warp", dst, src, nelems, pe)
+    return Call(
+        "tirx.nvshmem.putmem_nbi_warp",
+        [dst, src, nelems, pe],
+        ty=ty,
+        span=span,
+    )
 
 
-def nvshmem_getmem_nbi_block(dst, src, nelems, pe):
+def nvshmem_getmem_nbi_block(dst, src, nelems, pe, *, ty=None, span=None):
     """TVM intrinsic to call nvshmem_getmem_nbi_block()
 
     Parameters
@@ -1353,10 +1407,15 @@ def nvshmem_getmem_nbi_block(dst, src, nelems, pe):
         The call expression.
     """  # noqa: E501
 
-    return call_intrin("", "tirx.nvshmem.getmem_nbi_block", dst, src, nelems, pe)
+    return Call(
+        "tirx.nvshmem.getmem_nbi_block",
+        [dst, src, nelems, pe],
+        ty=ty,
+        span=span,
+    )
 
 
-def nvshmem_putmem_nbi_block(dst, src, nelems, pe):
+def nvshmem_putmem_nbi_block(dst, src, nelems, pe, *, ty=None, span=None):
     """TVM intrinsic to call nvshmem_putmem_nbi_block()
 
     Parameters
@@ -1379,10 +1438,15 @@ def nvshmem_putmem_nbi_block(dst, src, nelems, pe):
         The call expression.
     """
 
-    return call_intrin("", "tirx.nvshmem.putmem_nbi_block", dst, src, nelems, pe)
+    return Call(
+        "tirx.nvshmem.putmem_nbi_block",
+        [dst, src, nelems, pe],
+        ty=ty,
+        span=span,
+    )
 
 
-def nvshmem_signal_op(sig_addr, signal, sig_op, pe):
+def nvshmem_signal_op(sig_addr, signal, sig_op, pe, *, ty=None, span=None):
     """TVM intrinsic to call nvshmem_signal_op()
 
     Parameters
@@ -1406,10 +1470,15 @@ def nvshmem_signal_op(sig_addr, signal, sig_op, pe):
     """
 
     _choice("sig_op", sig_op, _NVSHMEM_SIG_OP)
-    return call_intrin("", "tirx.nvshmem.signal_op", sig_addr, signal, sig_op, pe)
+    return Call(
+        "tirx.nvshmem.signal_op",
+        [sig_addr, signal, sig_op, pe],
+        ty=ty,
+        span=span,
+    )
 
 
-def nvshmem_wait_until(ivar, cmp, cmp_value, type="uint64_t"):
+def nvshmem_wait_until(ivar, cmp, cmp_value, type="uint64_t", *, ty=None, span=None):
     """TVM intrinsic to call nvshmem_wait_until()
 
     Parameters
@@ -1433,10 +1502,15 @@ def nvshmem_wait_until(ivar, cmp, cmp_value, type="uint64_t"):
     """
 
     _choice("cmp", cmp, _NVSHMEM_CMP)
-    return call_intrin("", "tirx.nvshmem.wait_until", ivar, cmp, cmp_value, type)
+    return Call(
+        "tirx.nvshmem.wait_until",
+        [ivar, cmp, cmp_value, type],
+        ty=ty,
+        span=span,
+    )
 
 
-def nvshmem_quiet():
+def nvshmem_quiet(*, ty=None, span=None):
     """TVM intrinsic to call nvshmem_quiet()
 
     Returns
@@ -1445,10 +1519,12 @@ def nvshmem_quiet():
         The call expression.
     """
 
-    return call_intrin("", "tirx.nvshmem.quiet")
+    return Call("tirx.nvshmem.quiet", [], ty=ty, span=span)
 
 
-def nvshmem_putmem_signal_nbi(dst, src, nelems, sig_addr, signal, sig_op, pe):
+def nvshmem_putmem_signal_nbi(
+    dst, src, nelems, sig_addr, signal, sig_op, pe, *, ty=None, span=None
+):
     """TVM intrinsic to call nvshmem_putmem_signal_nbi()
 
     Parameters
@@ -1480,12 +1556,17 @@ def nvshmem_putmem_signal_nbi(dst, src, nelems, sig_addr, signal, sig_op, pe):
         The call expression.
     """  # noqa: E501
 
-    return call_intrin(
-        "", "tirx.nvshmem.putmem_signal_nbi", dst, src, nelems, sig_addr, signal, sig_op, pe
+    return Call(
+        "tirx.nvshmem.putmem_signal_nbi",
+        [dst, src, nelems, sig_addr, signal, sig_op, pe],
+        ty=ty,
+        span=span,
     )
 
 
-def nvshmem_putmem_signal_nbi_warp(dst, src, nelems, sig_addr, signal, sig_op, pe):
+def nvshmem_putmem_signal_nbi_warp(
+    dst, src, nelems, sig_addr, signal, sig_op, pe, *, ty=None, span=None
+):
     """TVM intrinsic to call nvshmem_putmem_signal_nbi_warp()
 
     Parameters
@@ -1517,12 +1598,17 @@ def nvshmem_putmem_signal_nbi_warp(dst, src, nelems, sig_addr, signal, sig_op, p
         The call expression.
     """  # noqa: E501
 
-    return call_intrin(
-        "", "tirx.nvshmem.putmem_signal_nbi_warp", dst, src, nelems, sig_addr, signal, sig_op, pe
+    return Call(
+        "tirx.nvshmem.putmem_signal_nbi_warp",
+        [dst, src, nelems, sig_addr, signal, sig_op, pe],
+        ty=ty,
+        span=span,
     )
 
 
-def nvshmem_putmem_signal_nbi_block(dst, src, nelems, sig_addr, signal, sig_op, pe):
+def nvshmem_putmem_signal_nbi_block(
+    dst, src, nelems, sig_addr, signal, sig_op, pe, *, ty=None, span=None
+):
     """TVM intrinsic to call nvshmem_putmem_signal_nbi_block()
 
     Parameters
@@ -1554,12 +1640,15 @@ def nvshmem_putmem_signal_nbi_block(dst, src, nelems, sig_addr, signal, sig_op, 
         The call expression.
     """  # noqa: E501
 
-    return call_intrin(
-        "", "tirx.nvshmem.putmem_signal_nbi_block", dst, src, nelems, sig_addr, signal, sig_op, pe
+    return Call(
+        "tirx.nvshmem.putmem_signal_nbi_block",
+        [dst, src, nelems, sig_addr, signal, sig_op, pe],
+        ty=ty,
+        span=span,
     )
 
 
-def nvshmem_fence():
+def nvshmem_fence(*, ty=None, span=None):
     """TVM intrinsic to call nvshmem_fence()
 
     Returns
@@ -1568,10 +1657,10 @@ def nvshmem_fence():
         The call expression.
     """
 
-    return call_intrin("", "tirx.nvshmem.fence")
+    return Call("tirx.nvshmem.fence", [], ty=ty, span=span)
 
 
-def nvshmem_barrier_all():
+def nvshmem_barrier_all(*, ty=None, span=None):
     """TVM intrinsic to call nvshmem_barrier_all()
 
     Returns
@@ -1580,7 +1669,7 @@ def nvshmem_barrier_all():
         The call expression.
     """
 
-    return call_intrin("", "tirx.nvshmem.barrier_all")
+    return Call("tirx.nvshmem.barrier_all", [], ty=ty, span=span)
 
 
 # Canonical Op builders also supply the historical direct-import aliases.

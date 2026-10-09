@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/relax/attrs/index.h
+ * \file tvm/relax/op/index.h
  * \brief Attributes for indexing operators.
  */
-#ifndef TVM_RELAX_ATTRS_INDEX_H_
-#define TVM_RELAX_ATTRS_INDEX_H_
+#ifndef TVM_RELAX_OP_INDEX_H_
+#define TVM_RELAX_OP_INDEX_H_
 
 #include <tvm/relax/expr.h>
 
@@ -34,32 +34,27 @@ struct TakeAttrs : public AttrsNode {
   ffi::Optional<int64_t> axis;
   ffi::String mode;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TakeAttrs>()
-        .def_ro("axis", &TakeAttrs::axis, "The axis over which to select values.")
-        .def_ro("mode", &TakeAttrs::mode, "The mode for handling out-of-bounds indices.",
-                refl::DefaultValue("fast"));
-  }
+  static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TakeAttrs", TakeAttrs, AttrsNode);
 };  // struct TakeAttrs
+
+/*! \brief Attributes used in take_backward operator */
+struct TakeBackwardAttrs : public AttrsNode {
+  ffi::Optional<int64_t> axis;
+
+  static void RegisterReflection();
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TakeBackwardAttrs", TakeBackwardAttrs, AttrsNode);
+};
 
 /*! \brief Attributes used in strided_slice operator */
 struct StridedSliceAttrs : public AttrsNode {
   bool assume_inbound;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<StridedSliceAttrs>().def_ro(
-        "assume_inbound", &StridedSliceAttrs::assume_inbound,
-        "Whether to assume the indices are in bound. If it is set to false, "
-        "out of bound indices will be clipped to the bound.",
-        refl::DefaultValue(true));
-  }
+  static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.StridedSliceAttrs", StridedSliceAttrs, AttrsNode);
 };  // struct StridedSliceAttrs
 
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_ATTRS_INDEX_H_
+#endif  // TVM_RELAX_OP_INDEX_H_

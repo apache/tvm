@@ -55,7 +55,8 @@ class IntermediateStageRewriter {
       : ancestor_loop_or_blocks_(ancestor_loop_or_blocks) {}
 
   std::tuple<TensorVar, TensorVar, SBlock, Stmt> Rewrite(const SBlockNode* block) {
-    const TensorStoreNode* store = block->body.as<TensorStoreNode>();
+    const TensorStoreNode* store =
+        block->body->size() == 1 ? block->body->seq[0].as<TensorStoreNode>() : nullptr;
     TVM_FFI_CHECK(store != nullptr && runtime::StorageScope::Create(store->buffer.scope()).rank ==
                                           runtime::StorageRank::kShared,
                   ValueError)
@@ -74,7 +75,7 @@ class IntermediateStageRewriter {
 
     // Step 3: Create TensorLoad from the intermediate buffer
     TensorLoad new_buffer_load = MakeTensorLoad(new_buffer, buffer_indices);
-    TensorStore new_tensor_store = block->body.as_or_throw<TensorStore>();
+    TensorStore new_tensor_store = ffi::GetRef<TensorStore>(store);
     new_tensor_store.CopyOnWrite()->value = new_buffer_load;
     SBlock new_block = ffi::GetRef<SBlock>(block);
     new_block.CopyOnWrite()->body = std::move(new_tensor_store);
@@ -91,16 +92,20 @@ class IntermediateStageRewriter {
       const Stmt& ancestor = ancestor_loop_or_blocks_[i];
       if (const ForNode* ancestor_loop = ancestor.as<ForNode>()) {
         TVM_FFI_CHECK(
-            ancestor_loop->kind == ForKind::kSerial || ancestor_loop->kind == ForKind::kVectorized,
+            ancestor_loop->kind == ForKind::kDefault || ancestor_loop->kind == ForKind::kVectorized,
             ValueError)
             << "Expect the ancestor loops to be serial or vectorized, got " << ancestor_loop->kind;
         relaxed_loops.push_back(ancestor.as<ForNode>());
 
         if (i < n - 1) {
-          TVM_FFI_CHECK(ancestor_loop->body.same_as(ancestor_loop_or_blocks_[i + 1]), ValueError)
+          TVM_FFI_CHECK(ancestor_loop->body->size() == 1 &&
+                            ancestor_loop->body->seq[0].same_as(ancestor_loop_or_blocks_[i + 1]),
+                        ValueError)
               << "Expect the ancestor loops to have a single child.";
         } else {
-          const SBlockRealizeNode* block_realize = ancestor_loop->body.as<SBlockRealizeNode>();
+          const SBlockRealizeNode* block_realize =
+              ancestor_loop->body->size() == 1 ? ancestor_loop->body->seq[0].as<SBlockRealizeNode>()
+                                               : nullptr;
           TVM_FFI_ICHECK(block_realize != nullptr);
           TVM_FFI_CHECK(block_realize != nullptr && block_realize->block.get() == block, ValueError)
               << "Expect the ancestor loops to have a single child.";
@@ -241,36 +246,20 @@ class SharedMemoryLocalStageInserter : public StmtExprMutator {
       }
     };
 
-    if (const SeqStmtNode* seq = op->body.as<SeqStmtNode>()) {
-      // Visit each element of the SeqStmt. Create a new SeqStmt if any of the children is modified.
-      bool changed = false;  // whether the SeqStmt has been changed
-      for (int i = 0, n = seq->seq.size(); i < n; ++i) {
-        int subtree_start = target_buffers_.size();
-        auto new_seq_elem_result = Mutate(seq->seq[i]);
-        bool new_seq_elem_unchanged = new_seq_elem_result.UnchangedOrSameAs(seq->seq[i]);
-        Stmt new_seq_elem =
-            std::move(new_seq_elem_result).ValueOrUnchanged(seq->seq[i]).as_or_throw<Stmt>();
-        int subtree_end = target_buffers_.size();
-        f_check_subtree(subtree_start, subtree_end);
-        new_seq.push_back(new_seq_elem);
-        if (!new_seq_elem_unchanged) {
-          changed = true;
-        }
-      }
-      if (!changed) {
-        return ffi::Unchanged();
-      }
-    } else {
+    // Visit each body statement and insert its local stage immediately before it.
+    bool changed = false;
+    for (const Stmt& stmt : op->body->seq) {
       int subtree_start = target_buffers_.size();
-      auto body_result = Mutate(op->body, inplace_mode);
-      bool body_unchanged = body_result.UnchangedOrSameAs(op->body);
-      Stmt body = std::move(body_result).ValueOrUnchanged(op->body);
+      auto result = Mutate(stmt);
+      bool unchanged = result.UnchangedOrSameAs(stmt);
+      Stmt new_stmt = std::move(result).ValueOrUnchanged(stmt);
       int subtree_end = target_buffers_.size();
       f_check_subtree(subtree_start, subtree_end);
-      if (body_unchanged) {
-        return ffi::Unchanged();
-      }
-      new_seq.push_back(body);
+      new_seq.push_back(new_stmt);
+      changed |= !unchanged;
+    }
+    if (!changed && new_alloc_buffers.empty()) {
+      return ffi::Unchanged();
     }
 
     SBlock new_block = ffi::GetRef<SBlock>(op);
@@ -279,7 +268,7 @@ class SharedMemoryLocalStageInserter : public StmtExprMutator {
     if (new_alloc_buffers.size() > 0) {
       new_block_node->alloc_buffers = Concat(new_block_node->alloc_buffers, new_alloc_buffers);
     }
-    new_block_node->body = new_seq.size() == 1 ? new_seq[0] : SeqStmt(new_seq);
+    new_block_node->body = SeqStmt(new_seq, op->body->span);
     return new_block;
   }
 

@@ -29,7 +29,7 @@
 #include <llvm/ADT/StringRef.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 #if LLVM_VERSION_MAJOR >= 17
 #include <llvm/TargetParser/Triple.h>
 #else
@@ -82,7 +82,6 @@
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/op.h>
 #include <tvm/tirx/type.h>
 
 #include <algorithm>
@@ -1365,9 +1364,9 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       }
     }
     return builder_->CreateCall(f, arg_value);
-  } else if (op->op.same_as(tirx::builtin::tvm_storage_sync())) {
+  } else if (op->op.same_as(tirx::tvm_storage_sync_op())) {
     return CreateStorageSync(op);
-  } else if (op->op.same_as(tirx::builtin::address_of())) {
+  } else if (op->op.same_as(tirx::address_of_op())) {
     const TensorLoadNode* load = args[0].as<TensorLoadNode>();
     TVM_FFI_ICHECK(args.size() == 1 && load);
 
@@ -1386,15 +1385,15 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
                         load->source.as_or_throw<tvm::tirx::TensorVar>()->dtype, indices_val,
                         PrimType(load->ty.as_or_throw<PrimType>()->dtype));
     return buffer_ptr.addr;
-  } else if (op->op.same_as(tirx::builtin::reinterpret()) && args[0].as<PrimExpr>() &&
+  } else if (op->op.same_as(tirx::reinterpret_op()) && args[0].as<PrimExpr>() &&
              IsZero(args[0].as<PrimExpr>().value())) {
     llvm::Type* target = GetLLVMType(ret_type);
     TVM_FFI_ICHECK(target->isPointerTy())
         << "A zero reinterpret shortcut requires pointer result type, but got " << ret_type;
     return llvm::Constant::getNullValue(target);
-  } else if (op->op.same_as(tirx::builtin::isnullptr())) {
+  } else if (op->op.same_as(tirx::isnullptr_op())) {
     return builder_->CreateIsNull(MakeValue(args[0]));
-  } else if (op->op.same_as(tirx::builtin::handle_add_byte_offset())) {
+  } else if (op->op.same_as(tirx::handle_add_byte_offset_op())) {
     llvm::Value* ptr = MakeValue(args[0]);
     llvm::Value* offset = MakeValue(args[1]);
     llvm::Value* result = builder_->CreateInBoundsGEP(t_int8_, ptr, offset);
@@ -1403,7 +1402,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       result = builder_->CreatePointerCast(result, target);
     }
     return result;
-  } else if (op->op.same_as(prim::builtin::if_then_else())) {
+  } else if (op->op.same_as(prim::if_then_else_op())) {
     TVM_FFI_ICHECK_EQ(args[0].as_or_throw<PrimExpr>().ty().lanes(), 1)
         << "if_then_else can only take scalar condition";
     llvm::LLVMContext* ctx = llvm_target_->GetContext();
@@ -1424,7 +1423,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     value->addIncoming(then_value, then_value_block);
     value->addIncoming(else_value, else_value_block);
     return value;
-  } else if (op->op.same_as(tirx::builtin::reinterpret())) {
+  } else if (op->op.same_as(tirx::reinterpret_op())) {
     llvm::Type* target = GetLLVMType(ret_type);
     llvm::Value* value = MakeValue(args[0]);
     if (value->getType()->isPointerTy() && target->isIntegerTy()) {
@@ -1433,19 +1432,19 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       return builder_->CreateIntToPtr(value, target);
     }
     return builder_->CreateBitCast(value, target);
-  } else if (op->op.same_as(tirx::builtin::isnan())) {
+  } else if (op->op.same_as(tirx::isnan_op())) {
     // TODO(hgt312): set fast math flag
     llvm::Value* a = MakeValue(args[0]);
     return builder_->CreateFCmpUNO(a, a);
-  } else if (op->op.same_as(tirx::builtin::vectorlow())) {
+  } else if (op->op.same_as(tirx::vectorlow_op())) {
     llvm::Value* v = MakeValue(args[0]);
     int l = GetVectorNumElements(v);
     return CreateVecSlice(v, 0, l / 2);
-  } else if (op->op.same_as(tirx::builtin::vectorhigh())) {
+  } else if (op->op.same_as(tirx::vectorhigh_op())) {
     llvm::Value* v = MakeValue(args[0]);
     int l = GetVectorNumElements(v);
     return CreateVecSlice(v, l / 2, l / 2);
-  } else if (op->op.same_as(tirx::builtin::vectorcombine())) {
+  } else if (op->op.same_as(tirx::vectorcombine_op())) {
     llvm::Value* v0 = MakeValue(args[0]);
     llvm::Value* v1 = MakeValue(args[1]);
     int num_elems = GetVectorNumElements(v0) * 2;
@@ -1454,26 +1453,26 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       indices.push_back(i);
     }
     return builder_->CreateShuffleVector(v0, v1, indices);
-  } else if (op->op.same_as(tirx::builtin::atomic_add())) {
+  } else if (op->op.same_as(tirx::atomic_add_op())) {
     // TODO(masahi): Support atomic for CPU backend
     TVM_FFI_THROW(InternalError) << "CPU backend does not support atomic add yet.";
-  } else if (op->op.same_as(tirx::builtin::assume_aligned())) {
+  } else if (op->op.same_as(tirx::assume_aligned_op())) {
     const VarNode* tensor = args[0].as_or_throw<TensorVar>().get();
     const VarNode* root = GetBufferPhysicalRoot(tensor);
     int alignment = args[1].as_or_throw<IntImm>()->value.as<int>().value();
     StorageInfo& info = alloc_storage_info_[root];
     info.alignment = std::max(info.alignment, alignment);
     return builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(tensor), alignment);
-  } else if (op->op.same_as(tirx::builtin::assume())) {
+  } else if (op->op.same_as(tirx::assume_op())) {
     llvm::Value* cond = MakeValue(args[0]);
     return builder_->CreateAssumption(cond);
-  } else if (op->op.same_as(tirx::builtin::tvm_thread_invariant())) {
+  } else if (op->op.same_as(tirx::tvm_thread_invariant_op())) {
     return MakeValue(args[0]);
-  } else if (op->op.same_as(prim::builtin::vscale())) {
+  } else if (op->op.same_as(prim::vscale_op())) {
     llvm::Intrinsic::ID id = llvm::Intrinsic::vscale;
     llvm::Function* f = GetIntrinsicDecl(id, builder_->getInt32Ty(), {});
     return builder_->CreateCall(f);
-  } else if (op->op.same_as(tirx::builtin::get_active_lane_mask())) {
+  } else if (op->op.same_as(tirx::get_active_lane_mask_op())) {
     llvm::Intrinsic::ID id = llvm::Intrinsic::get_active_lane_mask;
     llvm::Function* f = GetIntrinsicDecl(id, DTypeToLLVMType(ret_type.as_or_throw<PrimType>()),
                                          {builder_->getInt32Ty(), builder_->getInt32Ty()});
@@ -1941,9 +1940,9 @@ llvm::Value* CodeGenLLVM::CreateMaskedStore(const CallNode* op) {
 
 llvm::Value* CodeGenLLVM::Dispatch_(const CallNode* op) {
   const ffi::Array<Expr>& args = op->args;
-  if (op->op.same_as(tirx::builtin::masked_load())) return CreateMaskedLoad(op);
-  if (op->op.same_as(tirx::builtin::masked_store())) return CreateMaskedStore(op);
-  if (op->op.same_as(tirx::builtin::buffer_data())) {
+  if (op->op.same_as(tirx::masked_load_op())) return CreateMaskedLoad(op);
+  if (op->op.same_as(tirx::masked_store_op())) return CreateMaskedStore(op);
+  if (op->op.same_as(tirx::buffer_data_op())) {
     TVM_FFI_ICHECK_EQ(args.size(), 1U);
     return MakeValue(args[0]);
   }
@@ -2101,7 +2100,7 @@ void CodeGenLLVM::Dispatch_(const ForNode* op) {
     LOG(WARNING) << "Unroll hint get ignore at CodeGenLLVM backend, "
                  << " consider set unroll_explicit=True";
   } else {
-    TVM_FFI_ICHECK(op->kind == ForKind::kSerial);
+    TVM_FFI_ICHECK(op->kind == ForKind::kDefault);
   }
   PrimExpr step = op->step.value_or(IntImm(op->extent.ty(), 1));
   PrimExpr end = IsZero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
@@ -2240,7 +2239,7 @@ void CodeGenLLVM::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
 }
 
 void CodeGenLLVM::Dispatch_(const RegionStmtNode* op) {
-  if (op->op.same_as(tirx::builtin::launch_thread())) {
+  if (op->op.same_as(tirx::launch_thread_op())) {
     TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
                   ValueError)
         << "Virtual thread launches must be lowered before code generation";
@@ -2256,9 +2255,9 @@ void CodeGenLLVM::Dispatch_(const RegionStmtNode* op) {
     With<sym::ConstraintContext> thread_scope(analyzer_, var >= 0 && var < extent);
     this->Dispatch(op->body);
     var_map_.erase(var.get());
-  } else if (op->op.same_as(tirx::builtin::device_context()) ||
-             op->op.same_as(tirx::builtin::compute_scope()) ||
-             op->op.same_as(tirx::builtin::parallel_launch())) {
+  } else if (op->op.same_as(tirx::device_context_op()) ||
+             op->op.same_as(tirx::compute_scope_op()) ||
+             op->op.same_as(tirx::parallel_launch_op())) {
     this->Dispatch(op->body);
   } else {
     TVM_FFI_THROW(ValueError) << "Unsupported region op " << op->op;
@@ -2273,8 +2272,8 @@ void CodeGenLLVM::Dispatch_(const AssertStmtNode* op) {
 
 void CodeGenLLVM::Dispatch_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>(); call) {
-    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
-    if (call->op.same_as(tirx::builtin::decl_tensor())) return DispatchDeclTensor(op, call);
+    if (call->op.same_as(tirx::alloc_tensor_op())) return DispatchAllocTensor(op, call);
+    if (call->op.same_as(tirx::decl_tensor_op())) return DispatchDeclTensor(op, call);
   }
   EmitDebugLocation(op);
   const VarNode* v = op->var.get();
@@ -2336,7 +2335,7 @@ void CodeGenLLVM::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_
   llvm::Value* value = MakeValue(data);
   const VarNode* source = data.as<VarNode>();
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
     source = call->args[0].as<VarNode>();
   }
   if (source) {

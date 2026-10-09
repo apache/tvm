@@ -159,7 +159,7 @@ def opaque_buffer_data_projection(A: T.Tensor((16,))) -> None:
         Ts.reads([])
         Ts.writes(A[4:8])
         sub_A = Ts.match_buffer(A[4:8], (4,), offset_factor=1)
-        T.evaluate(T.call_extern("consume", sub_A.data, sub_A.elem_offset, dtype="int32"))
+        T.evaluate(T.call_extern("consume", sub_A.data, sub_A.elem_offset, ty="int32"))
 
 
 @Ts.function
@@ -167,7 +167,7 @@ def transformed_opaque_buffer_data_projection(A: T.Tensor((16,))) -> None:
     with Ts.sblock():
         Ts.reads([])
         Ts.writes(A[4:8])
-        T.evaluate(T.call_extern("consume", A.data, 4, dtype="int32"))
+        T.evaluate(T.call_extern("consume", A.data, 4, ty="int32"))
 
 
 As_0 = T.dynamic("As_0", "int32")
@@ -594,7 +594,7 @@ def masked_match_buffer(A: T.Tensor((8,), "float32")) -> None:
         Ts.reads(A[2:6])
         sub_A = Ts.match_buffer(A[2:6], (4,), offset_factor=1)
         mask = T.meta_var(T.Broadcast(T.bool(True), 4))
-        T.evaluate(T.masked_load("float32x4", sub_A, T.Ramp(0, 1, 4), mask))
+        T.evaluate(T.masked_load(sub_A, T.Ramp(0, 1, 4), mask, ty="float32x4"))
 
 
 def test_masked_match_buffer_fails_explicitly():

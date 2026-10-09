@@ -121,7 +121,7 @@ def test_internal_subroutine_call():
     tvm.ir.assert_structural_equal(before["subroutine"], after["subroutine"])
 
     compute_scope = _find_compute_scope(after["main"])
-    subroutine_call_op = compute_scope.body.value.op
+    subroutine_call_op = compute_scope.body[0].value.op
     assert isinstance(subroutine_call_op, tvm.ir.GlobalVar), (
         f"The main function's CallNode should use the subroutine's GlobalVar as the operation, "
         f"but instead has an operation of type {subroutine_call_op}"
@@ -156,7 +156,7 @@ def test_subroutine_call_to_externally_visible_subroutine():
     subroutine_compute_scope = _find_compute_scope(after["subroutine"])
     assert subroutine_compute_scope is not None
 
-    subroutine_call_op = main_compute_scope.body.value.op
+    subroutine_call_op = main_compute_scope.body[0].value.op
     assert (
         isinstance(subroutine_call_op, tvm.ir.Op)
         and subroutine_call_op.name == "tirx.tvm_call_cpacked"
@@ -281,7 +281,7 @@ def test_int_parameter():
                 "TypeError",
                 ["args pointer is NULL", " when calling:\n  `", "main(arg: int32)", "`"],
             )
-            arg_type_index: T.let[T.int32] = T.tvm_struct_get(args, 0, 13, "int32")
+            arg_type_index: T.let[T.int32] = T.tvm_struct_get(args, 0, 13, ty="int32")
             assert arg_type_index == 1 or arg_type_index == 2, (
                 "TypeError",
                 [
@@ -293,7 +293,7 @@ def test_int_parameter():
                     "int",
                 ],
             )
-            arg: T.let[T.int32] = T.Cast("int32", T.tvm_struct_get(args, 0, 15, "int64"))
+            arg: T.let[T.int32] = T.Cast("int32", T.tvm_struct_get(args, 0, 15, ty="int64"))
             with T.compute_scope("main_compute_"):
                 if arg > 0:
                     T.tvm_struct_set(result, 0, 13, 1)
@@ -348,7 +348,7 @@ def test_bool_parameter():
                 "TypeError",
                 ["args pointer is NULL", " when calling:\n  `", "main(arg: bool)", "`"],
             )
-            arg_type_index: T.let[T.int32] = T.tvm_struct_get(args, 0, 13, "int32")
+            arg_type_index: T.let[T.int32] = T.tvm_struct_get(args, 0, 13, ty="int32")
             assert arg_type_index == 2 or arg_type_index == 1, (
                 "TypeError",
                 [
@@ -360,7 +360,7 @@ def test_bool_parameter():
                     "boolean",
                 ],
             )
-            arg: T.let[T.bool] = T.Cast("bool", T.tvm_struct_get(args, 0, 15, "int64"))
+            arg: T.let[T.bool] = T.Cast("bool", T.tvm_struct_get(args, 0, 15, ty="int64"))
             with T.compute_scope("main_compute_"):
                 if arg:
                     T.tvm_struct_set(result, 0, 13, 1)
@@ -415,7 +415,7 @@ def test_float_parameter():
                 "TypeError",
                 ["args pointer is NULL", " when calling:\n  `", "main(arg: float32)", "`"],
             )
-            arg_type_index: T.let[T.int32] = T.tvm_struct_get(args, 0, 13, "int32")
+            arg_type_index: T.let[T.int32] = T.tvm_struct_get(args, 0, 13, ty="int32")
             assert arg_type_index == 3 or arg_type_index == 1 or arg_type_index == 2, (
                 "TypeError",
                 [
@@ -429,8 +429,8 @@ def test_float_parameter():
             )
             arg: T.let[T.float32] = T.Select(
                 arg_type_index == 3,
-                T.Cast("float32", T.tvm_struct_get(args, 0, 15, "float64")),
-                T.Cast("float32", T.tvm_struct_get(args, 0, 15, "int64")),
+                T.Cast("float32", T.tvm_struct_get(args, 0, 15, ty="float64")),
+                T.Cast("float32", T.tvm_struct_get(args, 0, 15, ty="int64")),
             )
             with T.compute_scope("main_compute_"):
                 if arg > T.float32(0.0):

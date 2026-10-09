@@ -34,7 +34,7 @@
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/tile_primitive.h>
+#include <tvm/tirx/tile_op.h>
 
 #include <utility>
 
@@ -69,6 +69,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterScriptRepr<RangeNode>();
   RegisterScriptRepr<StringImmNode>();
   RegisterScriptRepr<TensorLoadNode>();
+  RegisterScriptRepr<TensorRegionTypeNode>();
   RegisterScriptRepr<TupleTypeNode>();
   RegisterScriptRepr<VarNode>();
   RegisterScriptRepr<prim::AddNode>();

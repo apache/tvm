@@ -32,11 +32,13 @@ from tvm.script import tirx as T
 def test_op_correctness():
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
     idx = relax.Var("idx", R.Tensor((2,), "float32"))
-    assert relax.op.take(x, idx, axis=1).op == Op.get("relax.take")
+    assert relax.op.take(x, idx, axis=1, ty=tvm.ir.Type.missing()).op == Op.get("relax.take")
     assert relax.op.strided_slice(x, axes=[0], begin=[0], end=[2]).op == Op.get(
         "relax.strided_slice"
     )
-    assert relax.op.dynamic_strided_slice(x, x, x, x).op == Op.get("relax.dynamic_strided_slice")
+    assert relax.op.dynamic_strided_slice(x, x, x, x, ty=tvm.ir.Type.missing()).op == Op.get(
+        "relax.dynamic_strided_slice"
+    )
 
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_ty: relax.Type):

@@ -38,17 +38,17 @@ def test_remove_no_op():
         i,
         0,
         4,
-        tvm.tirx.ForKind.SERIAL,
+        tvm.tirx.ForKind.DEFAULT,
         tvm.tirx.For(
             j,
             0,
             n,
-            tvm.tirx.ForKind.SERIAL,
+            tvm.tirx.ForKind.DEFAULT,
             tvm.tirx.For(
                 k,
                 0,
                 m,
-                tvm.tirx.ForKind.SERIAL,
+                tvm.tirx.ForKind.DEFAULT,
                 tvm.tirx.IfThenElse(
                     (i * m + j + k < n), tvm.tirx.Evaluate(m), tvm.tirx.Evaluate(n)
                 ),
@@ -59,19 +59,19 @@ def test_remove_no_op():
     mod = tvm.IRModule.from_expr(tvm.tirx.Function([Ab], stmt))
     ret = tvm.tirx.transform.RemoveNoOp()(mod)["main"].body
 
-    assert isinstance(ret, tvm.tirx.Evaluate)
+    assert isinstance(ret, tvm.tirx.SeqStmt) and len(ret) == 0
     store = tvm.tirx.TensorStore(Ab, tvm.tirx.TensorLoad(Ab, [i]) + 1, [i + 1])
     stmt2 = tvm.tirx.SeqStmt([nop(), tvm.tirx.SeqStmt([store, nop()])])
 
     mod = tvm.IRModule.from_expr(tvm.tirx.Function([Ab], stmt2))
     ret = tvm.tirx.transform.RemoveNoOp()(mod)["main"].body
-    assert ret == store
+    assert len(ret) == 1 and ret[0] == store
 
     # remove zero extent loop
-    stmt3 = tvm.tirx.For(i, 0, 0, tvm.tirx.ForKind.SERIAL, store)
+    stmt3 = tvm.tirx.For(i, 0, 0, tvm.tirx.ForKind.DEFAULT, store)
     mod = tvm.IRModule.from_expr(tvm.tirx.Function([Ab], stmt3))
     ret = tvm.tirx.transform.RemoveNoOp()(mod)["main"].body
-    assert isinstance(ret, tvm.tirx.Evaluate)
+    assert isinstance(ret, tvm.tirx.SeqStmt) and len(ret) == 0
 
 
 def test_remove_no_op_with_invalid_extent():
@@ -83,7 +83,7 @@ def test_remove_no_op_with_invalid_extent():
 
     mod = tvm.ir.module.IRModule.from_expr(main)
     ret = tvm.tirx.transform.RemoveNoOp()(mod)["main"].body
-    assert isinstance(ret, tvm.tirx.Evaluate)
+    assert isinstance(ret, tvm.tirx.SeqStmt) and len(ret) == 0
 
 
 def _apply_remove_no_op(mod, max_simplification_steps=0):
@@ -184,12 +184,12 @@ def test_keep_side_effects_of_let():
 
     @T.function(private=True)
     def before():
-        x = T.call_extern("extern_func", dtype="int32")
+        x = T.call_extern("extern_func", ty="int32")
         T.evaluate(0)
 
     @T.function(private=True)
     def expected():
-        x = T.call_extern("extern_func", dtype="int32")
+        x = T.call_extern("extern_func", ty="int32")
         T.evaluate(0)
 
     mod = tvm.IRModule.from_expr(before)

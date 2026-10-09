@@ -30,12 +30,12 @@ def test_tensor_store_predicate_not_supported():
     def func(B: T.Tensor((8,), "float32")):
         T.evaluate(
             T.call_intrin(
-                "void",
                 "tirx.masked_store",
                 B,
                 T.Broadcast(1.0, 4),
                 T.Ramp(0, 2, 4),
                 T.Broadcast(T.bool(True), 4),
+                ty="void",
             )
         )
 
@@ -65,12 +65,12 @@ def test_tensor_store_predicate_not_supported_gpu(target):
         for i_0 in T.thread_binding(3, thread="threadIdx.x"):
             T.evaluate(
                 T.call_intrin(
-                    "void",
                     "tirx.masked_store",
                     B,
                     T.Broadcast(1.0, 4),
                     T.Ramp(i_0, 1, 4),
                     T.Broadcast(T.bool(True), 4),
+                    ty="void",
                 )
             )
 
@@ -89,11 +89,11 @@ def test_buffer_load_predicate_not_supported():
             B.vstore(
                 [T.Ramp(0, 2, 4)],
                 T.call_intrin(
-                    "float32x4",
                     "tirx.masked_load",
                     A,
                     T.Ramp(i_0, 1, 4),
                     T.Broadcast(T.bool(True), 4),
+                    ty="float32x4",
                 ),
             )
 
@@ -123,11 +123,11 @@ def test_buffer_load_predicate_not_supported_gpu(target):
             B.vstore(
                 [T.Ramp(0, 2, 4)],
                 T.call_intrin(
-                    "float32x4",
                     "tirx.masked_load",
                     A,
                     T.Ramp(i_0, 1, 4),
                     T.Broadcast(T.bool(True), 4),
+                    ty="float32x4",
                 ),
             )
 

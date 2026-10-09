@@ -212,7 +212,7 @@ def test_roundtrip_tensormap():
 
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
         T.call_packed(
-            "runtime.tensormap_init", T.address_of(A_map), T.reinterpret("handle", A.data)
+            "runtime.tensormap_init", T.address_of(A_map), T.reinterpret( A.data, ty="handle")
         )
     # fmt: on
     code = func1.script()
@@ -307,7 +307,7 @@ def test_workspace_default_none():
     C = BufferRegion(C_buf, [tvm.ir.Range(0, 128)])
 
     # These should not crash when workspace is not provided (defaults to None)
-    from tvm.tirx.operator.tile_primitive import ops as tirx_op
+    from tvm.tirx.op import tile as tirx_op
 
     op_br = tirx_op.BinaryReduce(
         B, C, A, B, tirx_op.get_tirx_op("add"), tirx_op.get_tirx_op("max"), (-1,)

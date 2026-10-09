@@ -17,7 +17,6 @@
 """Wrapping existing transformations."""
 # pylint: disable=invalid-name, unsupported-binary-operation
 
-import enum
 from collections.abc import Callable
 
 import tvm_ffi as _ffi
@@ -146,7 +145,7 @@ def RemoveNoOp():
 
 
 def RemoveAssume():
-    """Remove all instances of builtin::assume
+    """Remove all instances of tirx::assume_op
 
     Returns
     -------
@@ -397,65 +396,6 @@ def VerifyMemory():
         The result pass
     """
     return _ffi_api.VerifyMemory()  # type: ignore
-
-
-@_ffi.register_object("s_tir.transform.HoistIfThenElseConfig")
-class HoistIfThenElseConfig(_ffi.Object):
-    """Config for hoist if then else pass"""
-
-
-class HoistedConditionals(enum.Flag):
-    """Flags for use in HoistExpressionConfig.conditional_types
-
-    Each bitflag represents a type of expression that should be
-    hoisted to the outermost loop possible.
-    """
-
-    Never = 0
-    """ No hoisting of conditionals """
-
-    IfElseStmt = 1
-    """ If set, look for hoist candidates in IfElseStmt """
-
-    IfElseExpr = 2
-    """ If set, look for hoist candidates in tirx.if_then_else """
-
-    BooleanExpression = 4
-    """ If set, look for hoist candidates in all boolean expressions """
-
-    UsingBlockVar = 8
-    """ If set, allow hoisting of conditionals that use a block variable (e.g. threadIdx.x)  """
-
-    All = IfElseStmt | IfElseExpr | BooleanExpression | UsingBlockVar
-    """ Enable all hoisting of conditionals"""
-
-
-class HoistedLetBindings(enum.Flag):
-    """Flags for use in HoistExpressionConfig.let_binding_types
-
-    Each bitflag represents a type of let binding expression that should be
-    hoisted to the outermost loop possible.
-    """
-
-    Never = 0
-    """ No hoisting of let bindings """
-
-    RequiredByConditional = 1
-    """ Bindings that are used by a hoisted conditional """
-
-    Bind = 2
-    """ Bindings occurring in Bind nodes """
-
-    LetExpr = 4
-    """ Bindings occurring in Let expressions """
-
-    All = RequiredByConditional | Bind | LetExpr
-    """ Enable all hoisting of let bindings """
-
-
-@_ffi.register_object("s_tir.transform.HoistExpressionConfig")
-class HoistExpressionConfig(_ffi.Object):
-    """Config for hoist expression pass"""
 
 
 def FlattenBuffer():

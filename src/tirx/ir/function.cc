@@ -58,13 +58,18 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMutate(
                                     mutator->MutateExpected(self->body));
   if (mapped_params.UnchangedOrSameAs(self->params) &&
       mapped_ret_type.UnchangedOrSameAs(self->ret_type) &&
-      mapped_body.UnchangedOrSameAs(self->body)) {
+      (mapped_body.IsUnchanged() || ffi::AnyView(mapped_body).same_as(self->body))) {
     return ffi::Unchanged();
   }
   ffi::ObjectPtr<FunctionNode> copy = ffi::make_object<FunctionNode>(*self);
   copy->params = std::move(mapped_params).ValueOrUnchanged(std::move(copy->params));
   copy->ret_type = std::move(mapped_ret_type).ValueOrUnchanged(std::move(copy->ret_type));
-  copy->body = std::move(mapped_body).ValueOrUnchanged(std::move(copy->body));
+  if (!mapped_body.IsUnchanged()) {
+    auto replacement = std::move(mapped_body).ValueUnchecked();
+    copy->body = replacement.has_value()
+                     ? ffi::Optional<SeqStmt>(SeqStmt(std::move(replacement).value()))
+                     : std::nullopt;
+  }
   return ffi::Any(std::move(copy));
 }
 
@@ -89,8 +94,11 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMaybeInplaceMut
   if (!mapped_ret_type.UnchangedOrSameAs(self->ret_type)) {
     self->ret_type = std::move(mapped_ret_type).ValueUnchecked();
   }
-  if (!mapped_body.UnchangedOrSameAs(self->body)) {
-    self->body = std::move(mapped_body).ValueUnchecked();
+  if (!(mapped_body.IsUnchanged() || ffi::AnyView(mapped_body).same_as(self->body))) {
+    auto replacement = std::move(mapped_body).ValueUnchecked();
+    self->body = replacement.has_value()
+                     ? ffi::Optional<SeqStmt>(SeqStmt(std::move(replacement).value()))
+                     : std::nullopt;
   }
   return ffi::Unchanged();
 }
@@ -98,7 +106,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMaybeInplaceMut
 }  // namespace
 
 // Get the function type of a Function
-Function::Function(ffi::Array<tirx::Var> params, ffi::Optional<Stmt> body, Type ret_type,
+Function::Function(ffi::Array<tirx::Var> params, ffi::Optional<SeqStmt> body, Type ret_type,
                    DictAttrs attrs, Span span)
     : BaseFunc(ffi::UnsafeInit{}) {
   if (ret_type.as<MissingType>().has_value()) {
@@ -115,6 +123,34 @@ Function::Function(ffi::Array<tirx::Var> params, ffi::Optional<Stmt> body, Type 
   data_ = std::move(n);
 }
 
+Function RenewDef(Function func) {
+  // Seed original definitions so identities created by structural hooks are preserved.
+  ffi::Map<Var, Var> definition_remap;
+  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(func,
+                                                  [&](const Var& var, TVMFFIDefRegionKind kind) {
+                                                    if (kind != kTVMFFIDefRegionKindNone)
+                                                      definition_remap.Set(var, var);
+                                                    return ffi::WalkResult::Advance();
+                                                  });
+  return ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
+             func,
+             [remap = std::move(definition_remap)](const Var& var,
+                                                   TVMFFIDefRegionKind kind) mutable {
+               auto mapped = remap.Get(var);
+               if (!mapped.has_value()) return var;
+               if (!mapped.value().same_as(var)) return mapped.value();
+               if (kind == kTVMFFIDefRegionKindNone) return var;
+               Var fresh(var->name, var->ty, var->span);
+               remap.Set(var, fresh);
+               return fresh;
+             },
+             [](const Function& mapped) {
+               return Function(mapped->params, mapped->body, mapped->ret_type, mapped->attrs,
+                               mapped->span);
+             })
+      .as_or_throw<Function>();
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   FunctionNode::RegisterReflection();
@@ -125,10 +161,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&FunctionMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("tirx.Function", [](ffi::Array<tirx::Var> params, ffi::Optional<Stmt> body,
-                                            Type ret_type, DictAttrs attrs, Span span) {
-    return Function(params, body, ret_type, attrs, span);
-  });
+  refl::GlobalDef().def(
+      "tirx.Function",
+      [](ffi::Array<tirx::Var> params, ffi::Optional<SeqStmt> body, Type ret_type, DictAttrs attrs,
+         Span span) { return Function(params, body, ret_type, attrs, span); });
+  refl::GlobalDef().def("tirx.RenewDef", RenewDef);
 }
 
 FuncType FunctionNode::func_type_annotation() const {

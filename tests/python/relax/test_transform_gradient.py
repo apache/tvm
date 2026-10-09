@@ -1107,7 +1107,7 @@ def test_report_error():
         def main(x: R.Tensor((3, 3), "float32")):
             with R.dataflow():
                 lv1 = R.sum(x)
-                gv = R.tuple(lv1, lv1)
+                gv = (lv1, lv1)
                 R.output(gv)
             return gv
 

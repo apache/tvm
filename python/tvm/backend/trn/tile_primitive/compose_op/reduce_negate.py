@@ -18,8 +18,8 @@
 """Implementation of ReduceNegate dispatch."""
 
 from tvm.tirx import Function, TilePrimitiveCall
+from tvm.tirx.op.tile import ReduceNegate
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.operator.tile_primitive.ops import ReduceNegate
 
 from ..reduction.utils import reduction_trn
 from .utils import optype_table

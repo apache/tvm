@@ -47,7 +47,7 @@ ffi::Array<PrimExpr> ExternOpNode::output_shape(size_t i) const {
 
 ExternOp::ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi::Any> attrs,
                    ffi::Array<Tensor> inputs, ffi::Array<TensorVar> input_placeholders,
-                   ffi::Array<TensorVar> output_placeholders, Stmt body) {
+                   ffi::Array<TensorVar> output_placeholders, SeqStmt body) {
   if (!attrs.defined()) {
     attrs = ffi::Map<ffi::String, ffi::Any>();
   }
@@ -76,7 +76,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "te.ExternOp",
       [](std::string name, std::string tag, ffi::Optional<ffi::Map<ffi::String, ffi::Any>> attrs,
          ffi::Array<Tensor> inputs, ffi::Array<TensorVar> input_placeholders,
-         ffi::Array<TensorVar> output_placeholders, Stmt body) {
+         ffi::Array<TensorVar> output_placeholders, SeqStmt body) {
         return ExternOp(name, tag, attrs.value_or({}), inputs, input_placeholders,
                         output_placeholders, body);
       });

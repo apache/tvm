@@ -26,11 +26,11 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 #include <map>
 #include <unordered_set>
@@ -53,7 +53,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -72,8 +72,9 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
  * \param buffer_data_to_buffer The map from buffer data to buffer.
  * \return The result block.
  */
-SBlock MakeSBlock(const Stmt& body, const ffi::Map<Var, TensorVar>& buffer_data_to_buffer) {
-  if (const SBlockRealizeNode* block_realize = body.as<SBlockRealizeNode>()) {
+SBlock MakeSBlock(const SeqStmt& body, const ffi::Map<Var, TensorVar>& buffer_data_to_buffer) {
+  if (const SBlockRealizeNode* block_realize =
+          body->size() == 1 ? body->seq[0].as<SBlockRealizeNode>() : nullptr) {
     if (IsOne(block_realize->predicate)) {
       // no need to create a new block
       return block_realize->block;
@@ -125,7 +126,7 @@ class PipelineOpaqueAccessRewriter {
   Expr Rewrite(const Call& call) {
     // Intrinsic calls should be handled explicitly here as they are opaque accesses to
     // buffer.
-    static const auto& access_ptr = tirx::builtin::tvm_access_ptr();
+    static const auto& access_ptr = tirx::tvm_access_ptr_op();
     static const Op load_matrix_sync = Op::Get("tirx.tvm_load_matrix_sync");
     static const Op store_matrix_sync = Op::Get("tirx.tvm_store_matrix_sync");
     static const Op mma_sync = Op::Get("tirx.tvm_mma_sync");
@@ -140,7 +141,7 @@ class PipelineOpaqueAccessRewriter {
         new_args.Set(0, new_buffer.data());
         new_args.Set(
             4, RewriteWmmaFragmentIndex(buffer, new_buffer, call->args[4].as_or_throw<PrimExpr>()));
-        return Call(call->ty, call->op, new_args, call->attrs, {}, call->span);
+        return Call(call->ty, call->op, new_args, call->attrs, call->ty_args, call->span);
       }
     } else if (call->op.same_as(mma_sync)) {
       ffi::Array<Expr> new_args = call->args;
@@ -156,9 +157,9 @@ class PipelineOpaqueAccessRewriter {
           new_args.Set(i * 2 + 1, new_index);
         }
       }
-      return Call(call->ty, call->op, new_args, call->attrs, {}, call->span);
+      return Call(call->ty, call->op, new_args, call->attrs, call->ty_args, call->span);
     } else if (call->op.same_as(access_ptr)) {
-      return RewriteBufferAccess(call, {1});
+      return RewriteBufferAccess(call, {0});
     } else if (call->op.same_as(ptx_mma_legacy)) {
       return RewriteBufferAccess(call, {6, 8, 10});
     } else if (call->op.same_as(ptx_ldmatrix_legacy)) {
@@ -216,7 +217,7 @@ class PipelineOpaqueAccessRewriter {
         new_args.Set(i + 1, new_index);
       }
     }
-    return Call(call->ty, call->op, new_args, call->attrs, {}, call->span);
+    return Call(call->ty, call->op, new_args, call->attrs, call->ty_args, call->span);
   }
 
   const ffi::Map<Var, TensorVar>& buffer_data_to_buffer_;
@@ -811,7 +812,7 @@ class PipelineRewriter : public StmtExprMutator {
           // If the async operation that this wait_queue is waiting on is predicated, and we cannot
           // prove that the predicate is always true, the precise wait count is only valid
           // at iterations where the predicate is true;
-          auto wait_count = Call(PrimType::Int(32), prim::builtin::if_then_else(),
+          auto wait_count = Call(PrimType::Int(32), prim::if_then_else_op(),
                                  ffi::Array<PrimExpr>{state.predicate.value(),
                                                       state.pending_wait.wait_count.value(), 0})
                                 .as_or_throw<PrimExpr>();
@@ -1002,14 +1003,14 @@ class PipelineRewriter : public StmtExprMutator {
         CompletePipelineLoopStatements(new_blocks, async_states_local, ana_normalized.get());
 
     if (stmts.empty()) {
-      return make_nop();
+      return SeqStmt({});
     }
-    Stmt new_loop = stmts.size() == 1 ? stmts[0] : SeqStmt(stmts);
+    Stmt new_loop = SeqStmt(stmts);
 
     if (!is_unit_loop) {
       new_loop = For(new_loop_var.as_or_throw<PrimVar>(), pipeline_loop_->min, extent,
                      unroll_loop ? ForKind::kUnrolled : pipeline_loop_->kind, std::move(new_loop),
-                     std::nullopt, preserved_annotations_, std::nullopt);
+                     preserved_annotations_, std::nullopt);
     }
 
     // Update producer heads in the global async states.
@@ -1159,9 +1160,11 @@ class PipelineInjector : public StmtExprMutator {
     // Step 2: Find the body and buffer allocations of the pipeline. The body can be direct child of
     // the for-loop. If the for-loop has BlockRealize as its child, the pipeline body will be the
     // child of the block.
-    Stmt pipeline_body = for_node->body;
+    SeqStmt pipeline_body = for_node->body;
     ffi::Array<TensorVar> pipeline_allocs;
-    if (const auto* realize = for_node->body.as<SBlockRealizeNode>()) {
+    if (const auto* realize = for_node->body->size() == 1
+                                  ? for_node->body->seq[0].as<SBlockRealizeNode>()
+                                  : nullptr) {
       const auto& block = realize->block;
       for (const auto& buffer : block->alloc_buffers) {
         TVM_FFI_ICHECK(buffer->IsInstance<TensorTypeNode>());
@@ -1171,10 +1174,9 @@ class PipelineInjector : public StmtExprMutator {
       pipeline_allocs = block->alloc_buffers;
     }
 
-    const SeqStmtNode* pipeline_body_seq = pipeline_body.as<SeqStmtNode>();
-    TVM_FFI_CHECK(pipeline_body_seq, ValueError)
-        << "The body of the software pipeline should be SeqStmt, got "
-        << pipeline_body->GetTypeKey();
+    const SeqStmtNode* pipeline_body_seq = pipeline_body.get();
+    TVM_FFI_CHECK_GT(pipeline_body_seq->size(), 1, ValueError)
+        << "The body of the software pipeline should contain multiple statements";
 
     // Step 3: Blockize the components of the pipeline. Each child of the pipelined loop will be
     // converted into a block.
@@ -1187,7 +1189,7 @@ class PipelineInjector : public StmtExprMutator {
     for (size_t i = 0; i < pipeline_body_seq->seq.size(); i++) {
       const auto* nested_block_realize = pipeline_body_seq->seq[i].as<SBlockRealizeNode>();
       if (nested_block_realize && IsOne(nested_block_realize->predicate) &&
-          nested_block_realize->block->body->IsInstance<SeqStmtNode>()) {
+          nested_block_realize->block->body->size() > 1) {
         const SBlock& nested_pipeline_block = nested_block_realize->block;
         TVM_FFI_ICHECK(
             nested_pipeline_block->match_buffers.empty());  // match_buffer should have been lowered
@@ -1195,7 +1197,7 @@ class PipelineInjector : public StmtExprMutator {
           pipeline_allocs.push_back(buffer);
           buffer_data_to_buffer_.Set(buffer.var(), buffer);
         }
-        const auto* nested_seq = nested_pipeline_block->body.as<SeqStmtNode>();
+        const auto* nested_seq = nested_pipeline_block->body.get();
         for (size_t j = 0; j < nested_seq->seq.size(); j++) {
           f_add_child(nested_seq->seq[j]);
         }
@@ -1249,7 +1251,8 @@ class PipelineInjector : public StmtExprMutator {
                                               pipeline_allocs, ffi::GetRef<For>(op), pipeline_info,
                                               fragment_info_, preserved_annotations);
 
-    if (const auto* realize = op->body.as<SBlockRealizeNode>()) {
+    if (const auto* realize =
+            op->body->size() == 1 ? op->body->seq[0].as<SBlockRealizeNode>() : nullptr) {
       const auto& block = realize->block;
       for (const auto& buffer : block->alloc_buffers) {
         buffer_data_to_buffer_.erase(buffer.var());

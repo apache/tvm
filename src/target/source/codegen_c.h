@@ -25,12 +25,12 @@
 #define TVM_TARGET_SOURCE_CODEGEN_C_H_
 
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -358,8 +358,8 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
   /*! \brief Record of ops that have pre-defined global symbol. */
   OpAttrMap<TGlobalSymbol> op_attr_global_symbol_ = Op::GetAttrMap<TGlobalSymbol>("TGlobalSymbol");
   // cache commonly used ops
-  const Op& builtin_call_extern_ = builtin::call_extern();
-  const Op& builtin_call_pure_extern_ = builtin::call_pure_extern();
+  const Op& builtin_call_extern_ = tirx::call_extern_op();
+  const Op& builtin_call_pure_extern_ = tirx::call_pure_extern_op();
   int64_t constants_byte_alignment_ = 16;
   /*! \brief whether to print in SSA form */
   bool print_ssa_form_{false};

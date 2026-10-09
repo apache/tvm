@@ -32,6 +32,34 @@
 namespace tvm {
 namespace relax {
 
+void StatisticalAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<StatisticalAttrs>()
+      .def_ro("axis", &StatisticalAttrs::axis,
+              "The axis or axes along which to perform the reduction.",
+              refl::DefaultValue(ffi::Optional<ffi::Array<int64_t>>{}))
+      .def_ro("keepdims", &StatisticalAttrs::keepdims,
+              "If this is set to `True`, the reduced axes are left in the result as dimension "
+              "with size "
+              "one.",
+              refl::DefaultValue(false));
+}
+
+void ScanopAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<ScanopAttrs>()
+      .def_ro("axis", &ScanopAttrs::axis,
+              "The axis along which to perform the scan computation."
+              "The default (None) is to compute over the flattened array.",
+              refl::DefaultValue(ffi::Optional<int64_t>{}))
+      .def_ro("dtype", &ScanopAttrs::dtype,
+              "The output data type."
+              "If dtype is not specified, it defaults to the dtype of input data.",
+              refl::DefaultValue(ffi::Optional<DLDataType>{}))
+      .def_ro("exclusive", &ScanopAttrs::exclusive, "The first element is not included",
+              refl::DefaultValue(false));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   StatisticalAttrs::RegisterReflection();
   ScanopAttrs::RegisterReflection();
@@ -39,6 +67,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeStatistical(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<StatisticalAttrs>();
 
@@ -251,7 +280,7 @@ Expr cumprod(Expr data, ffi::Optional<int64_t> axis, ffi::Optional<DLDataType> d
   attrs->exclusive = exclusive;
 
   static const Op op = Op::Get("relax.cumprod");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -273,7 +302,7 @@ Expr cumsum(Expr data, ffi::Optional<int64_t> axis, ffi::Optional<DLDataType> dt
   attrs->exclusive = exclusive;
 
   static const Op op = Op::Get("relax.cumsum");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -292,7 +321,7 @@ Expr median(Expr data, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op op = Op::Get("relax.median");
-  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -310,7 +339,7 @@ Expr max(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op op = Op::Get("relax.max");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 Expr mean(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
@@ -318,7 +347,7 @@ Expr mean(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op op = Op::Get("relax.mean");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 Expr min(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
@@ -326,7 +355,7 @@ Expr min(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op op = Op::Get("relax.min");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 Expr prod(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
@@ -334,7 +363,7 @@ Expr prod(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op op = Op::Get("relax.prod");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 Expr std(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
@@ -342,7 +371,7 @@ Expr std(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op op = Op::Get("relax.std");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 Expr sum(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
@@ -350,7 +379,7 @@ Expr sum(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op op = Op::Get("relax.sum");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 Expr variance(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
@@ -358,7 +387,7 @@ Expr variance(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op op = Op::Get("relax.variance");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

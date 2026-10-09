@@ -93,12 +93,12 @@ class OpaqueBlockLower : public StmtExprMutator {
       allocate_annotations.Set(tirx::attr::buffer_data_alignment,
                                IntImm::Int32(buffer->data_alignment));
       allocate_annotations.Set(tirx::attr::buffer_allocated_addr, buffer->allocated_addr);
-      body = SeqStmt::Flatten(
-          Bind(buffer.var(), Call(buffer.type(), tirx::builtin::alloc_tensor(),
-                                  {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                                   StringImm(buffer.scope())},
-                                  DictAttrs(allocate_annotations))),
-          std::move(body));
+      body = SeqStmt(
+          {Bind(buffer.var(), Call(buffer.type(), tirx::alloc_tensor_op(),
+                                   {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                                    StringImm(buffer.scope())},
+                                   DictAttrs(allocate_annotations))),
+           std::move(body)});
     }
     return body;
   }
@@ -111,7 +111,7 @@ class OpaqueBlockLower : public StmtExprMutator {
                     .as_or_throw<UnchangedOr<ffi::Optional<PrimExpr>>>()
                     .ValueOrUnchanged(op->step);
     auto previous_remap = VarRemapGet(op->loop_var);
-    if (op->kind != ForKind::kThreadBinding && IsOne(extent) && op->annotations.empty()) {
+    if (!op->GetThreadBinding().has_value() && IsOne(extent) && op->annotations.empty()) {
       // handling unit loop
       VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), min));
     }
@@ -137,12 +137,12 @@ class OpaqueBlockLower : public StmtExprMutator {
     VarRemapSet(op->loop_var, previous_remap);
 
     // Step 2. Keep thread-binding loops until LowerThreadBinding.
-    if (op->kind != ForKind::kThreadBinding && IsOne(extent) && op->annotations.empty() &&
+    if (!op->GetThreadBinding().has_value() && IsOne(extent) && op->annotations.empty() &&
         !op->annotations.count(s_tir::attr::irregular_loop_mark)) {
       return body;
     }
     return For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body),
-               op->thread_binding, std::move(new_annotations), std::move(step), op->span);
+               std::move(new_annotations), std::move(step), op->span);
   }
 
   void UpdateUnrollPolicy(const ffi::Map<ffi::String, ffi::Any>& annotations) {

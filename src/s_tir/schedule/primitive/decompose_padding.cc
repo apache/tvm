@@ -96,13 +96,14 @@ class PaddingInfoAnalyzer {
       Var block_var = block->iter_vars[i]->var;
       iter_values.insert_or_assign(block_var.get(), realize->iter_values[i]);
     }
-    const TensorStoreNode* store = block->body.as<TensorStoreNode>();
+    const TensorStoreNode* store =
+        block->body->size() == 1 ? block->body->seq[0].as<TensorStoreNode>() : nullptr;
     if (!store) {
       SetError("Block body expect a TensorStore to the write buffer");
       return false;
     }
     const CallNode* if_then_else = store->value.as<CallNode>();
-    if (!if_then_else || !if_then_else->op.same_as(prim::builtin::if_then_else())) {
+    if (!if_then_else || !if_then_else->op.same_as(prim::if_then_else_op())) {
       SetError("Value of TensorStore expect to be constrained by a padding predicate");
       return false;
     }
@@ -158,7 +159,7 @@ class PaddingInfoAnalyzer {
         update(b.Eval());
       } else {
         if (const CallNode* call = e.as<CallNode>()) {
-          if (call->op.same_as(prim::builtin::likely())) {
+          if (call->op.same_as(prim::likely_op())) {
             e = call->args[0].as_or_throw<PrimExpr>();
           }
         }
@@ -245,7 +246,8 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
                    }));
 
   // create block to fill const pad values
-  TensorStore store = block->body.as_or_throw<TensorStore>();
+  TVM_FFI_ICHECK_EQ(block->body->size(), 1);
+  TensorStore store = block->body->seq[0].as_or_throw<TensorStore>();
   store.CopyOnWrite()->value = info.pad_value;
   store.CopyOnWrite()->indices = store->indices.Map(rewrite_expr);
   SBlock new_block(/*iter_vars=*/new_iter_vars, /*reads=*/{}, /*writes=*/{write_region},
@@ -276,7 +278,7 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   for (size_t i = 0; i < new_loop_vars.size(); ++i) {
     For loop = loops[i];
     nest_stmt_root = For(new_loop_vars[i].as_or_throw<PrimVar>(), loop->min, loop->extent,
-                         ForKind::kSerial, nest_stmt_root);
+                         ForKind::kDefault, nest_stmt_root);
   }
 
   return {nest_stmt_root, new_realize};
@@ -356,7 +358,8 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
   }
 
   // create new block realize node
-  TensorStore store = block->body.as_or_throw<TensorStore>();
+  TVM_FFI_ICHECK_EQ(block->body->size(), 1);
+  TensorStore store = block->body->seq[0].as_or_throw<TensorStore>();
   store.CopyOnWrite()->value = rewrite_expr(info.in_bound_value);
   store.CopyOnWrite()->indices = store->indices.Map(rewrite_expr);
   SBlock new_block(/*iter_vars=*/new_iter_vars, /*reads=*/reads, /*writes=*/writes,
@@ -371,8 +374,8 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
     auto it = new_loop_ranges.find(loop->loop_var);
     PrimExpr min = it == new_loop_ranges.end() ? loop->min : (*it).second->min;
     PrimExpr extent = it == new_loop_ranges.end() ? loop->extent : (*it).second->extent;
-    nest_stmt_root = For(loop->loop_var, min, extent, loop->kind, nest_stmt_root,
-                         loop->thread_binding, loop->annotations, loop->step, loop->span);
+    nest_stmt_root = For(loop->loop_var, min, extent, loop->kind, nest_stmt_root, loop->annotations,
+                         loop->step, loop->span);
     if (loop.same_as(highest_pos_inclusive)) {
       break;
     }
@@ -481,8 +484,9 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
         in_bound_filling_pos = cur_loop;
       }
     } else if (!found_in_bound_filling_pos) {
-      if (!cur_loop->body->IsInstance<ForNode>() &&
-          !cur_loop->body->IsInstance<SBlockRealizeNode>()) {
+      if (cur_loop->body->size() != 1 ||
+          (!cur_loop->body->seq[0]->IsInstance<ForNode>() &&
+           !cur_loop->body->seq[0]->IsInstance<SBlockRealizeNode>())) {
         found_in_bound_filling_pos = true;
       } else {
         in_bound_filling_pos = cur_loop;

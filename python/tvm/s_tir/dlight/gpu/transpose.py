@@ -32,10 +32,11 @@ class Transpose(GPUScheduleRule):
 
     def is_transpose(self, sch: Schedule, block_rv: SBlockRV):
         block = sch.get(block_rv)
-        if isinstance(block.body, tirx.TensorStore):
-            rhs = block.body.value
+        if len(block.body) == 1 and isinstance(block.body[0], tirx.TensorStore):
+            store = block.body[0]
+            rhs = store.value
             if isinstance(rhs, TensorLoad):
-                lhs_indices = block.body.indices
+                lhs_indices = store.indices
                 rhs_indices = rhs.indices
                 if list(lhs_indices) != list(rhs_indices) and set(lhs_indices) == set(rhs_indices):
                     return True

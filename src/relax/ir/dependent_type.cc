@@ -378,7 +378,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.UpdateType", [](Expr expr, Type ty) { UpdateType(expr, ty); })
-      .def("ir.ExprType", [](Expr expr) { return GetType(expr); });
+      .def("relax.ExprType", [](Expr expr) { return GetType(expr); });
 }
 
 }  // namespace relax

@@ -16,7 +16,7 @@
 # under the License.
 """TIRx tile primitive IR nodes: DispatchContext, TilePrimitiveCall.
 
-Mirrors the C++ header ``include/tvm/tirx/tile_primitive.h``.
+Mirrors the C++ header ``include/tvm/tirx/tile_op.h``.
 """
 # pylint: disable=no-member
 
@@ -25,8 +25,8 @@ from typing import Any, ClassVar
 import tvm_ffi
 from tvm_ffi import register_object
 
-from tvm.ir import Expr, Op, Range, Var
-from tvm.runtime import Object, Scriptable
+from tvm.ir import Expr, Op, Range, Scriptable, Var
+from tvm.runtime import Object
 from tvm.target import Target
 
 from . import _ffi_api

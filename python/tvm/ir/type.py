@@ -18,10 +18,8 @@
 
 import tvm_ffi
 
-from tvm.runtime import Scriptable
-
 from . import _ffi_api
-from .base import Node
+from .base import Node, Scriptable
 
 
 @tvm_ffi.register_object("ir.Type")
@@ -68,6 +66,14 @@ class AnyType(Type):
 
     def __init__(self, span=None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.AnyType, span)
+
+
+@tvm_ffi.register_object("ir.TensorRegionType")
+class TensorRegionType(Type):
+    """The type of a multi-dimensional :class:`tvm.ir.TensorRegion`."""
+
+    def __init__(self):
+        self.__init_handle_by_constructor__(_ffi_api.TensorRegionType)
 
 
 @tvm_ffi.register_object("ir.OpaqueType")

@@ -40,13 +40,12 @@ Expr unique(Expr x, PrimExpr sorted, PrimExpr return_index, PrimExpr return_inve
             PrimExpr return_counts, ffi::Optional<PrimExpr> axis) {
   static const Op op = Op::Get("relax.unique");
   if (!axis) {
-    return Call::Unchecked(Type::Missing(), op,
-                           {std::move(x), sorted, return_index, return_inverse, return_counts});
+    return Call(Type::Missing(), op,
+                {std::move(x), sorted, return_index, return_inverse, return_counts});
   } else {
     PrimExpr pv_axis = axis.value();
-    return Call::Unchecked(
-        Type::Missing(), op,
-        {std::move(x), sorted, return_index, return_inverse, return_counts, pv_axis});
+    return Call(Type::Missing(), op,
+                {std::move(x), sorted, return_index, return_inverse, return_counts, pv_axis});
   }
 }
 
@@ -167,7 +166,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.nonzero */
 Expr nonzero(Expr x) {
   static const Op op = Op::Get("relax.nonzero");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)});
+  return Call(Type::Missing(), op, {std::move(x)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

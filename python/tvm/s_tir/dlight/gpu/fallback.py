@@ -42,7 +42,7 @@ def _has_internal_thread_env(stmt: tirx.Stmt) -> bool:
 
     def visit_for(node: tirx.For):
         nonlocal found
-        if node.kind == tirx.ForKind.THREAD_BINDING:
+        if node.annotations.get("thread_binding") is not None:
             found = True
 
     tvm_ffi.structural_walk(
@@ -100,7 +100,8 @@ class Fallback(GPUScheduleRule):
             block = block.block_rv
 
             if any(
-                [sch.get(loop_rv).thread_binding is not None for loop_rv in sch.get_loops(block)]
+                sch.get(loop_rv).annotations.get("thread_binding") is not None
+                for loop_rv in sch.get_loops(block)
             ):
                 continue
 

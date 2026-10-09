@@ -73,7 +73,7 @@ class PipelineState:
 
     @T.inline
     def advance(self):
-        if self.depth > 1:
+        if T.constexpr(self.depth > 1):
             self.stage = self.stage + 1
             if self.stage == self.depth:
                 self.stage = 0
@@ -116,7 +116,7 @@ def _map_buffer_into_cta(ptr, rank, depth):
     mapped = T.alloc_local([1], "uint64")
     T.evaluate(T.ptx.mapa.u64(mapped[0], ptr, T.uint32(rank)))
     remote_ptr = TIRVar("remote_mbar_ptr", ptr_ty)
-    T.bind(T.reinterpret(ptr_ty, mapped[0]), var=remote_ptr)
+    T.bind(T.reinterpret(mapped[0], ty=ptr_ty), var=remote_ptr)
     return T.decl_tensor([depth], "uint64", data=remote_ptr, scope="shared")
 
 
@@ -219,11 +219,13 @@ class MBarrier:
 
     @T.inline
     def _arrive(self, bar, pred=None, count=None):
-        if pred is None:
-            T.ptx.mbarrier.arrive.shared.b64(bar, T.uint32(1 if count is None else count))
+        if T.constexpr(pred is None):
+            T.ptx.mbarrier.arrive.shared.b64(
+                bar, T.uint32(1 if T.constexpr(count is None) else count)
+            )
         else:
             T.ptx.mbarrier.arrive.shared.b64(
-                bar, T.uint32(1 if count is None else count), pred=pred
+                bar, T.uint32(1 if T.constexpr(count is None) else count), pred=pred
             )
 
     def ptr_to(self, idx):
@@ -280,7 +282,7 @@ class TMABar(MBarrier):
 
     @T.inline
     def _arrive_tma_local(self, bar, tx_count=None):
-        if tx_count is None:
+        if T.constexpr(tx_count is None):
             T.ptx.mbarrier.arrive.shared.b64(bar, T.uint32(1))
         else:
             T.ptx.mbarrier.arrive.expect_tx.shared.b64(bar, T.uint32(tx_count))
@@ -307,7 +309,7 @@ class TCGen05Bar(MBarrier):
         # form cannot depend on it, so a runtime mask always multicasts.
         # ``pred`` rides the ptx keyword: the instruction is emitted
         # predicated (@p) rather than branched around.
-        if _tcgen05_commit_is_unicast(cta_mask):
+        if T.constexpr(_tcgen05_commit_is_unicast(cta_mask)):
             T.evaluate(
                 T.ptx[
                     f"tcgen05.commit.cta_group::{cta_group}"

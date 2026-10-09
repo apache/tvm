@@ -741,7 +741,7 @@ def test_lower_decl_buffer_access_ptr():
         A = T.decl_tensor(
             (128,), "float16", data=buf.data, elem_offset=32, scope="shared.dyn", layout=None
         )
-        T.tvm_access_ptr(T.type_annotation("float16"), buf.data, T.Add(32, 64), T.Sub(128, 64), 3)
+        T.tvm_access_ptr("float16", buf.data, T.Add(32, 64), T.Sub(128, 64), 3)
 
     compare(before, after, LowerTIRx)
 
@@ -1437,6 +1437,36 @@ def test_lower_exec_context_tracks_cta_id_in_pair_after_axis_predicate():
     assert len(seen) == 1
     assert _int_pair(seen[0], "cbx") == (1, 0)
     assert _int_triple(seen[0], "cby") == (1, 1, 2)
+
+
+@pytest.mark.parametrize("offset", [0, 16])
+def test_lower_remaps_tensor_memory_address_metadata(offset):
+    @T.function(private=True)
+    def before():
+        T.device_entry()
+        addr = T.alloc_shared((1,), "uint32")
+        for i in T.serial(2):
+            tensor = T.decl_tensor(
+                (64,),
+                "float32",
+                scope="tmem",
+                allocated_addr=addr[0] + T.uint32(offset) + T.cast(i, "uint32"),
+            )
+            T.evaluate(tensor.data)
+
+    with tvm.target.Target("cuda"):
+        lowered = LowerTIRx()(tvm.IRModule({"main": before}))["main"]
+    assert not tvm.tirx.analysis.undefined_vars(lowered.body, lowered.params)
+    tvm.tirx.analysis.verify_well_formed(lowered)
+    bindings = []
+    tvm_ffi.structural_walk(lowered.body, (tvm.tirx.Bind, bindings.append))
+    address = next(node.var for node in bindings if node.var.scope() == "shared")
+    tensor = next(node for node in bindings if node.var.scope() == "tmem")
+    loads = []
+    tvm_ffi.structural_walk(tensor.var.ty.allocated_addr, (tvm.ir.TensorLoad, loads.append))
+    assert len(loads) == 1
+    assert loads[0].source.same_as(address)
+    tvm.ir.assert_structural_equal(tensor.var.ty, tensor.value.ty)
 
 
 def test_lower_buffer_offset():

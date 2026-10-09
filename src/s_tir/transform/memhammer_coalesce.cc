@@ -35,7 +35,7 @@ Stmt FuseNestLoops(Stmt body) {
   std::vector<const ForNode*> loops;
   while (const ForNode* loop = body.as<ForNode>()) {
     loops.push_back(loop);
-    body = loop->body;
+    body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   std::string suffix;
   int n = loops.size();
@@ -60,7 +60,7 @@ Stmt FuseNestLoops(Stmt body) {
   }
   body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(body), f_substitute)
              .as_or_throw<Stmt>();
-  return For(fused_var, 0, fused_extent, ForKind::kSerial, std::move(body));
+  return For(fused_var, 0, fused_extent, ForKind::kDefault, std::move(body));
 }
 
 /*!
@@ -134,10 +134,11 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   body = For(new_loop_vars.back().as_or_throw<PrimVar>(), 0, vector_len, ForKind::kVectorized,
              std::move(body));
   for (int i = n - 2; i >= 1; i--) {
-    body = For(new_loop_vars[i].as_or_throw<PrimVar>(), 0, factors[i], ForKind::kThreadBinding,
-               std::move(body), ffi::String(thread_axis[i - 1]), {}, std::nullopt);
+    body =
+        For(new_loop_vars[i].as_or_throw<PrimVar>(), 0, factors[i], ForKind::kParallel,
+            std::move(body), {{"thread_binding", ffi::String(thread_axis[i - 1])}}, std::nullopt);
   }
-  return For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factors[0], ForKind::kSerial,
+  return For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factors[0], ForKind::kDefault,
              std::move(body));
 }
 
@@ -163,7 +164,7 @@ Stmt CoalescedAccess::Rewrite(const Stmt& stmt, const ConstraintSet& constraints
 ffi::Array<PrimExpr> GetMapping(const Stmt& stmt, const ConstraintSet& constraints) {
   Stmt body = stmt;
   while (const ForNode* loop = body.as<ForNode>()) {
-    body = loop->body;
+    body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   const TensorStoreNode* buf_store = TVM_TYPE_AS(body, TensorStoreNode);
   TensorRegion write_region = constraints.write_region;
@@ -192,7 +193,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   while (const ForNode* loop = body.as<ForNode>()) {
     var_range.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     loop_vars.push_back(loop->loop_var);
-    body = loop->body;
+    body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   // Step 2. Get Inverse mapping
   sym::Analyzer analyzer;
@@ -242,7 +243,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   // Step 3.3 construct loop body
   for (int i = static_cast<int>(new_loop_vars.size()) - 1; i >= 0; i--) {
     PrimExpr extent = write_region->region[i]->extent;
-    ret = For(new_loop_vars[i], 0, extent, ForKind::kSerial, std::move(ret));
+    ret = For(new_loop_vars[i], 0, extent, ForKind::kDefault, std::move(ret));
   }
   return ret;
 }

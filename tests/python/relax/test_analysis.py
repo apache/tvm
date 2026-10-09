@@ -216,7 +216,7 @@ def test_binding_block_keep_pure_func_used_only_for_impure():
         z = R.call_packed(
             "function_maybe_with_side_effects", y, ty_args=(R.Tensor((32, 32), "int32"))
         )
-        return R.tuple()
+        return ()
 
     expected = before
 

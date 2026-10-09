@@ -33,6 +33,13 @@
 namespace tvm {
 namespace relax {
 
+void MultinomialFromUniformAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<MultinomialFromUniformAttrs>().def_ro(
+      "dtype", &MultinomialFromUniformAttrs::dtype, "Data type of the output indices.",
+      refl::DefaultValue((DLDataType{kDLInt, 64, 1})));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() { MultinomialFromUniformAttrs::RegisterReflection(); }
 
 /* relax.multinomial_from_uniform */
@@ -44,9 +51,9 @@ Expr multinomial_from_uniform(Expr prob, Expr uniform_sample, Expr sample_indice
   attrs->dtype = dtype;
 
   static const Op op = Op::Get("relax.multinomial_from_uniform");
-  return Call::Unchecked(Type::Missing(), op,
-                         {std::move(prob), std::move(uniform_sample), std::move(sample_indices)},
-                         Attrs(attrs), {});
+  return Call(Type::Missing(), op,
+              {std::move(prob), std::move(uniform_sample), std::move(sample_indices)}, Attrs(attrs),
+              {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -56,6 +63,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeMultinomialFromUniform(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
+  if (RequiresTensorInputNormalization(call)) return Type::Missing();
   CheckNumArguments(call);
   TensorType prob_ty = GetInputTensorType(call, 0);
   TensorType uniform_sample_ty = GetInputTensorType(call, 1);

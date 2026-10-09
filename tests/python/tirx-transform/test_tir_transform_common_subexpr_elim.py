@@ -448,15 +448,15 @@ def test_cannot_lift_call():
     class Before:
         @T.function
         def main(B: T.Tensor((50,), "int32"), x: T.int32):
-            B[0] = T.call_extern("my_func", x, dtype="int32") + 1
-            B[1] = T.call_extern("my_func", x, dtype="int32") + 1
+            B[0] = T.call_extern("my_func", x, ty="int32") + 1
+            B[1] = T.call_extern("my_func", x, ty="int32") + 1
 
     @tvm.script.ir_module
     class Expected:
         @T.function
         def main(B: T.Tensor((50,), "int32"), x: T.int32):
-            B[0] = T.call_extern("my_func", x, dtype="int32") + 1
-            B[1] = T.call_extern("my_func", x, dtype="int32") + 1
+            B[0] = T.call_extern("my_func", x, ty="int32") + 1
+            B[1] = T.call_extern("my_func", x, ty="int32") + 1
 
     after = tvm.tirx.transform.CommonSubexprElim()(Before)
     tvm.ir.assert_structural_equal(after, Expected)
@@ -596,7 +596,7 @@ def test_let_body_no_extraction():
         i,
         tvm.tirx.const(0, "int32"),
         tvm.tirx.const(10, "int32"),
-        tvm.tirx.ForKind.SERIAL,
+        tvm.tirx.ForKind.DEFAULT,
         store,
     )
     func = tvm.tirx.Function([buf, y], loop)
@@ -626,7 +626,7 @@ def test_let_value_cse():
         i,
         tvm.tirx.const(0, "int32"),
         tvm.tirx.const(10, "int32"),
-        tvm.tirx.ForKind.SERIAL,
+        tvm.tirx.ForKind.DEFAULT,
         store,
     )
     func = tvm.tirx.Function([buf, y, z], loop)
@@ -659,7 +659,7 @@ def test_nested_let_no_extraction():
         i,
         tvm.tirx.const(0, "int32"),
         tvm.tirx.const(10, "int32"),
-        tvm.tirx.ForKind.SERIAL,
+        tvm.tirx.ForKind.DEFAULT,
         store,
     )
     func = tvm.tirx.Function([buf, z], loop)
@@ -702,7 +702,7 @@ def test_let_floordiv_pattern():
         i,
         tvm.tirx.const(0, "int32"),
         tvm.tirx.const(10, "int32"),
-        tvm.tirx.ForKind.SERIAL,
+        tvm.tirx.ForKind.DEFAULT,
         store,
     )
     func = tvm.tirx.Function([buf_a, buf_b, buf_c], loop)

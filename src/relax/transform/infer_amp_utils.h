@@ -25,9 +25,9 @@
 #ifndef TVM_RELAX_TRANSFORM_INFER_AMP_UTILS_H_
 #define TVM_RELAX_TRANSFORM_INFER_AMP_UTILS_H_
 
-#include <tvm/relax/attrs/nn.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/nested_msg.h>
+#include <tvm/relax/op/nn.h>
 #include <tvm/relax/op_attr_types.h>
 
 #include <unordered_map>

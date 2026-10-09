@@ -29,7 +29,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -47,7 +47,7 @@ const VarNode* GetBufferVarFromData(const Expr& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
     return call->args[0].as<VarNode>();
   }
   return nullptr;
@@ -208,7 +208,7 @@ class InferFragmenter : public s_tir::StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
       auto it = fragment_getter.fragments.find(op->var.get());
       if (it == fragment_getter.fragments.end()) return ffi::Unchanged();
       const FragmentInfo& info = it->second;

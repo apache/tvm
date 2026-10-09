@@ -583,9 +583,10 @@ SBlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
              /*body=*/MakeLoopNest(inner_realize, loops),
              /*init=*/
              block_subst->init.has_value()  //
-                 ? GenerateOuterInit(block_subst->init.value(), inner_realize, loops,
-                                     block_subst->name_hint + "_init")
-                 : ffi::Optional<Stmt>(std::nullopt)));
+                 ? ffi::Optional<SeqStmt>(
+                       SeqStmt(GenerateOuterInit(block_subst->init.value(), inner_realize, loops,
+                                                 block_subst->name_hint + "_init")))
+                 : ffi::Optional<SeqStmt>(std::nullopt)));
 }
 
 StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref, bool preserve_unit_iters) {
@@ -704,7 +705,7 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
              /*writes=*/UnionRegions(write_regions),
              /*name_hint=*/outer_block_name,
              /*body=*/SeqStmt(seq_body),
-             /*init=*/ffi::Optional<Stmt>(std::nullopt)));
+             /*init=*/std::nullopt));
 }
 
 class BlockizeRewriter : public StmtExprMutator {
@@ -753,14 +754,13 @@ class BlockizeRewriter : public StmtExprMutator {
       }
       ++cur_idx;
     }
-    if (new_seq.size() == 1) return new_seq[0];
     return SeqStmt(new_seq, seq->span);
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     if (loop == lca_->stmt) {
       return For(loop->loop_var, loop->min, loop->extent, loop->kind, RewriteSeq(loop->body),
-                 loop->thread_binding, loop->annotations, loop->step, loop->span);
+                 loop->annotations, loop->step, loop->span);
     }
     return StmtExprMutator::Mutate_(loop, inplace_mode);
   }
@@ -841,7 +841,9 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   TensorizeComparator comparator(self->mod, /*assert_mode=*/true);
   TVM_FFI_CHECK(intrin_desc->body.has_value(), ValueError)
       << "A tensor intrinsic description must have a body";
-  comparator.Dispatch(block_realize, intrin_desc->body.value());
+  TVM_FFI_CHECK_EQ(intrin_desc->body.value()->size(), 1, ValueError)
+      << "A tensor intrinsic description must contain a single root block";
+  comparator.Dispatch(block_realize, intrin_desc->body.value()->seq[0]);
   // Step 3: Prepare necessary mapping
   // 1) TensorVar mapping from intrin impl buffers to intrin desc buffers.
   // 2) TensorVar mapping from intrin impl buffers to buffers in the current AST.
@@ -862,7 +864,9 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   }
   std::unordered_map<TensorVar, ffi::Array<Range>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       impl2region;
-  SBlock impl_block = intrin_impl->body.as_or_throw<SBlockRealize>()->block;
+  TVM_FFI_ICHECK(intrin_impl->body.has_value());
+  TVM_FFI_ICHECK_EQ(intrin_impl->body.value()->size(), 1);
+  SBlock impl_block = intrin_impl->body.value()->seq[0].as_or_throw<SBlockRealize>()->block;
   for (const TensorRegion& read : impl_block->reads) {
     impl2region.emplace(read->source.as_or_throw<tvm::tirx::TensorVar>(), read->region);
   }

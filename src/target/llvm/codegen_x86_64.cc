@@ -66,9 +66,8 @@ llvm::Value* CodeGenX86_64::Dispatch_(const prim::CastNode* op) {
           llvm::Intrinsic::x86_avx512_mask_vcvtph2ps_512, 16,
           DTypeToLLVMType(PrimType::Float(32, from.lanes())),
           {
-              MakeValue(
-                  Call(PrimType::Int(16, from.lanes()), tirx::builtin::reinterpret(), {op->value})
-                      .as_or_throw<PrimExpr>()),
+              MakeValue(Call(PrimType::Int(16, from.lanes()), tirx::reinterpret_op(), {op->value})
+                            .as_or_throw<PrimExpr>()),
               MakeValue(prim::Broadcast(FloatImm(PrimType::Float(32), 0), from.lanes())),
               /*mask=*/MakeValue(IntImm(PrimType::Int(16), -1)),
               /*rounding-mode=*/MakeValue(IntImm::Int32(4)),

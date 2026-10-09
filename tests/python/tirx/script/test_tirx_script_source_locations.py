@@ -174,8 +174,8 @@ def test_parser_spans_do_not_affect_structural_identity():
     func_a = tvm.script.from_source(source_a, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
     func_b = tvm.script.from_source(source_b, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
 
-    assert _span_range(func_a.body.span) == ("<str>", 3, 5, 3, 18)
-    assert _span_range(func_b.body.span) == ("<str>", 5, 5, 5, 18)
+    assert _span_range(func_a.body[0].span) == ("<str>", 3, 5, 3, 18)
+    assert _span_range(func_b.body[0].span) == ("<str>", 5, 5, 5, 18)
     assert tvm_ffi.structural_hash(func_a) == tvm_ffi.structural_hash(func_b)
     assert_structural_equal(func_a, func_b)
 
@@ -338,7 +338,7 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
     assert observed[0].same_as(layout)
     assert observed[1] is holder and holder.resource.same_as(buffer)
     assert all(buffer.span.same_as(span) for span in resource_spans)
-    binding = main.body
+    binding = main.body[0]
     assert isinstance(binding, tirx.Bind) and binding.value.same_as(projection)
     assert binding.var.name == "bound"
     assert tirx.is_tensor_var(binding.var)

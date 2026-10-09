@@ -37,6 +37,20 @@
 namespace tvm {
 namespace relax {
 
+void InitAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<InitAttrs>().def_ro("dtype", &InitAttrs::dtype,
+                                      "The data type of the created tensor.",
+                                      refl::DefaultValue(ffi::Optional<DLDataType>{}));
+}
+
+void TriluAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<TriluAttrs>().def_ro(
+      "k", &TriluAttrs::k,
+      "The number of diagonals above or below the main diagonal to exclude or include.");
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   InitAttrs::RegisterReflection();
   TriluAttrs::RegisterReflection();
@@ -59,8 +73,8 @@ Expr full(ffi::Variant<ffi::Array<PrimExpr>, Expr> shape, Expr fill_value,
   attrs->dtype = dtype;
 
   static const Op op = Op::Get("relax.full");
-  return Call::Unchecked(Type::Missing(), op, {std::move(shape_in_expr), std::move(fill_value)},
-                         Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(shape_in_expr), std::move(fill_value)}, Attrs(attrs),
+              {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -110,8 +124,7 @@ Expr full_like(Expr x, Expr fill_value, ffi::Optional<DLDataType> dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op op = Op::Get("relax.full_like");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x), std::move(fill_value)}, Attrs(attrs),
-                         {});
+  return Call(Type::Missing(), op, {std::move(x), std::move(fill_value)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -187,14 +200,14 @@ Expr ones(Expr shape, DLDataType dtype) {
   attrs->dtype = dtype;
 
   static const Op op = Op::Get("relax.ones");
-  return Call::Unchecked(Type::Missing(), op, {std::move(shape)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(shape)}, Attrs(attrs), {});
 }
 
 Expr ones_like(Expr x, ffi::Optional<DLDataType> dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op op = Op::Get("relax.ones_like");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -220,14 +233,14 @@ Expr zeros(Expr shape, DLDataType dtype) {
   attrs->dtype = dtype;
 
   static const Op op = Op::Get("relax.zeros");
-  return Call::Unchecked(Type::Missing(), op, {std::move(shape)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(shape)}, Attrs(attrs), {});
 }
 
 Expr zeros_like(Expr x, ffi::Optional<DLDataType> dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op op = Op::Get("relax.zeros_like");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -252,15 +265,14 @@ Expr eye(PrimExpr n, PrimExpr m, PrimExpr k, DLDataType dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op op = Op::Get("relax.eye");
-  return Call::Unchecked(Type::Missing(), op, {std::move(n), std::move(m), std::move(k)},
-                         Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(n), std::move(m), std::move(k)}, Attrs(attrs), {});
 }
 
 Expr eye_like(Expr x, PrimExpr k, ffi::Optional<DLDataType> dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op op = Op::Get("relax.eye_like");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x), std::move(k)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(x), std::move(k)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -342,8 +354,8 @@ Expr arange(PrimExpr start, PrimExpr stop, PrimExpr step, DLDataType dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op op = Op::Get("relax.arange");
-  return Call::Unchecked(Type::Missing(), op, {std::move(start), std::move(stop), std::move(step)},
-                         Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(start), std::move(stop), std::move(step)},
+              Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -405,10 +417,9 @@ Expr hamming_window(PrimExpr window_size, PrimExpr periodic, PrimExpr alpha, Pri
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op op = Op::Get("relax.hamming_window");
-  return Call::Unchecked(
-      Type::Missing(), op,
-      {std::move(window_size), std::move(periodic), std::move(alpha), std::move(beta)},
-      Attrs(attrs), {});
+  return Call(Type::Missing(), op,
+              {std::move(window_size), std::move(periodic), std::move(alpha), std::move(beta)},
+              Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -463,12 +474,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr tril(Expr x, Expr k) {
   static const Op op = Op::Get("relax.tril");
-  return Call::Unchecked(Type::Missing(), op, {x, k});
+  return Call(Type::Missing(), op, {x, k});
 }
 
 Expr triu(Expr x, Expr k) {
   static const Op op = Op::Get("relax.triu");
-  return Call::Unchecked(Type::Missing(), op, {x, k});
+  return Call(Type::Missing(), op, {x, k});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

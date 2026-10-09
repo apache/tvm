@@ -28,9 +28,9 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
+#include <tvm/relax/op/op.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
 
@@ -76,8 +76,8 @@ class CallTIRWithGradEliminator : private ExprMutator {
     if (!call_node->op.same_as(Op::Get("relax.call_tir_with_grad"))) {
       return ExprMutator::VisitExpr_(call_node);
     }
-    return Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir"), call_node->args, {},
-                           call_node->ty_args, call_node->span);
+    return Call(Type::Missing(), Op::Get("relax.call_tir"), call_node->args, {}, call_node->ty_args,
+                call_node->span);
   }
 };
 

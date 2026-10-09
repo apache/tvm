@@ -40,7 +40,7 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
   ffi::Array<s_tir::LoopRV> loops = sch->GetLoops(block);
   for (const s_tir::LoopRV& loop : loops) {
     // skip block if already scheduled
-    if (sch->Get(loop)->thread_binding.has_value()) {
+    if (sch->Get(loop)->GetThreadBinding().has_value()) {
       return;
     }
   }
@@ -120,7 +120,9 @@ IRModule MarkScheduled(const IRModule& mod) {
  * iter_values/iter_vars counts consistent for downstream checks.
  */
 tirx::Function WrapBareSBlockBody(const tirx::Function& func) {
-  const auto* realize = func->body.as<s_tir::SBlockRealizeNode>();
+  const auto* realize = func->body.has_value() && func->body.value()->size() == 1
+                            ? func->body.value()->seq[0].as<s_tir::SBlockRealizeNode>()
+                            : nullptr;
   if (realize == nullptr || !realize->block->iter_vars.empty()) {
     return func;
   }
@@ -128,8 +130,9 @@ tirx::Function WrapBareSBlockBody(const tirx::Function& func) {
   // produced by the rest of the pipeline has an implicit root SBlockRealize
   // whose block body is a For loop (or a nested SBlockRealize) — that case
   // already has somewhere to put thread bindings, so leave it alone.
-  const tirx::Stmt& inner = realize->block->body;
-  if (inner->IsInstance<tirx::ForNode>() || inner->IsInstance<s_tir::SBlockRealizeNode>()) {
+  const tirx::SeqStmt& inner = realize->block->body;
+  if (inner->size() == 1 && (inner->seq[0]->IsInstance<tirx::ForNode>() ||
+                             inner->seq[0]->IsInstance<s_tir::SBlockRealizeNode>())) {
     return func;
   }
   tvm::IntImm zero(tvm::PrimType::Int(32), 0);
@@ -144,7 +147,7 @@ tirx::Function WrapBareSBlockBody(const tirx::Function& func) {
       /*iter_values=*/ffi::Array<tvm::PrimExpr>{loop_var.as_or_throw<tvm::PrimExpr>()},
       /*predicate=*/realize->predicate, inner_block);
   tirx::Stmt for_stmt =
-      tirx::For(loop_var.as_or_throw<PrimVar>(), zero, one, tirx::ForKind::kSerial, inner_realize);
+      tirx::For(loop_var.as_or_throw<PrimVar>(), zero, one, tirx::ForKind::kDefault, inner_realize);
   s_tir::SBlock root_block(/*iter_vars=*/ffi::Array<s_tir::IterVar>{},
                            /*reads=*/ffi::Array<tvm::TensorRegion>{},
                            /*writes=*/ffi::Array<tvm::TensorRegion>{},

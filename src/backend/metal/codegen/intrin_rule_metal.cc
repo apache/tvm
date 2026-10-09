@@ -39,14 +39,14 @@ static Type InferTypeReturnArgType(const CallNode* call) {
 
 struct MetalWarpIntrinsic {
   const Op operator()(PrimType t, const Op& orig_op) const {
-    if (orig_op.same_as(builtin::tvm_warp_shuffle())) {
+    if (orig_op.same_as(tirx::tvm_warp_shuffle_op())) {
       static const Op metal_simd_shuffle_op = Op::Get("tirx.metal.simd_shuffle");
       return metal_simd_shuffle_op;
-    } else if (orig_op.same_as(builtin::tvm_warp_shuffle_up())) {
+    } else if (orig_op.same_as(tirx::tvm_warp_shuffle_up_op())) {
       static const Op metal_simd_shuffle_up_op = Op::Get("tirx.metal.simd_shuffle_up");
       return metal_simd_shuffle_up_op;
     } else {
-      TVM_FFI_ICHECK(orig_op.same_as(builtin::tvm_warp_shuffle_down()));
+      TVM_FFI_ICHECK(orig_op.same_as(tirx::tvm_warp_shuffle_down_op()));
       static const Op metal_simd_shuffle_down_op = Op::Get("tirx.metal.simd_shuffle_down");
       return metal_simd_shuffle_down_op;
     }
@@ -89,7 +89,7 @@ void RegisterMetalIntrinRules() {
         for (const PrimExpr& arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
           new_args.push_back(arg);
         }
-        return Call(e.ty(), tirx::builtin::call_pure_extern(), new_args).as_or_throw<PrimExpr>();
+        return Call(e.ty(), tirx::call_pure_extern_op(), new_args).as_or_throw<PrimExpr>();
       });
 
   OpDef("tirx.nearbyint")
@@ -159,7 +159,7 @@ void RegisterMetalIntrinRules() {
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                           ffi::String("tirx.metal.simd_shuffle"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
@@ -170,7 +170,7 @@ void RegisterMetalIntrinRules() {
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                           ffi::String("tirx.metal.simd_shuffle_up"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle_up")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
@@ -181,7 +181,7 @@ void RegisterMetalIntrinRules() {
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                           ffi::String("tirx.metal.simd_shuffle_down"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle_down")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));

@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/relax/attrs/op.h
+ * \file tvm/relax/op/op.h
  * \brief Attributes for relax specific operators.
  */
-#ifndef TVM_RELAX_ATTRS_OP_H_
-#define TVM_RELAX_ATTRS_OP_H_
+#ifndef TVM_RELAX_OP_OP_H_
+#define TVM_RELAX_OP_OP_H_
 
 #include <tvm/relax/expr.h>
 #include <tvm/relax/global_info.h>
@@ -35,15 +35,7 @@ struct CallTIRWithGradAttrs : public AttrsNode {
   ffi::String te_grad_name;
   ffi::Map<ffi::String, Any> te_grad_kwargs;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<CallTIRWithGradAttrs>()
-        .def_ro(
-            "te_grad_name", &CallTIRWithGradAttrs::te_grad_name,
-            "The name of the te gradient function associated with this call_tir_with_grad node.")
-        .def_ro("te_grad_kwargs", &CallTIRWithGradAttrs::te_grad_kwargs,
-                "The keyword arguments passed to the te gradient function.");
-  }
+  static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.CallTIRWithGradAttrs", CallTIRWithGradAttrs,
                                     AttrsNode);
 };  // struct CallTIRAttrs
@@ -59,11 +51,7 @@ struct CallTIRInplaceAttrs : public AttrsNode {
    */
   ffi::Array<int64_t> inplace_indices;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<CallTIRInplaceAttrs>().def_ro("inplace_indices",
-                                                  &CallTIRInplaceAttrs::inplace_indices);
-  }
+  static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.CallTIRInplaceAttrs", CallTIRInplaceAttrs,
                                     AttrsNode);
 };  // struct CallTIRInplaceAttrs
@@ -79,11 +67,7 @@ struct CallInplacePackedAttrs : public AttrsNode {
    */
   ffi::Array<int64_t> inplace_indices;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<CallInplacePackedAttrs>().def_ro("inplace_indices",
-                                                     &CallInplacePackedAttrs::inplace_indices);
-  }
+  static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.CallInplacePackedAttrs", CallInplacePackedAttrs,
                                     AttrsNode);
 };  // struct CallInplacePackedAttrs
@@ -92,11 +76,7 @@ struct CallInplacePackedAttrs : public AttrsNode {
 struct ToVDeviceAttrs : public AttrsNode {
   VDevice dst_vdevice;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ToVDeviceAttrs>().def_ro("dst_vdevice", &ToVDeviceAttrs::dst_vdevice,
-                                             "The destination device where the data is copied to.");
-  }
+  static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ToVDeviceAttrs", ToVDeviceAttrs, AttrsNode);
 };  // struct ToVDeviceAttrs
 
@@ -106,18 +86,11 @@ struct HintOnDeviceAttrs : public AttrsNode {
   int32_t index;
   MemoryScope memory_scope;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<HintOnDeviceAttrs>()
-        .def_ro("device_type", &HintOnDeviceAttrs::device_type,
-                "The device type where the data is supposed to be executed.")
-        .def_ro("index", &HintOnDeviceAttrs::index, "The device id.")
-        .def_ro("memory_scope", &HintOnDeviceAttrs::memory_scope, "The device memory scope.");
-  }
+  static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.HintOnDeviceAttrs", HintOnDeviceAttrs, AttrsNode);
 };  // struct HintOnDeviceAttrs
 
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_ATTRS_OP_H_
+#endif  // TVM_RELAX_OP_OP_H_

@@ -230,7 +230,7 @@ def extern(
         The inputs
 
     fcompute: lambda function of inputs, outputs-> stmt
-        Specifies the IR statement to do the computation.
+        Specifies the IR statement or sequence of statements to do the computation.
         See the following note for function signature of fcompute
 
         .. note::
@@ -241,7 +241,8 @@ def extern(
 
              **Returns**
 
-             - **stmt** (:any:`tvm.tirx.Stmt`) - The statement that carries out array computation.
+             - **stmt** (:any:`tvm.tirx.Stmt` or a sequence of statements) -
+               The body that carries out array computation.
 
     name: str, optional
         The name hint of the tensor
@@ -341,9 +342,10 @@ def extern(
     body = fcompute(input_placeholders, output_placeholders)
     if tvm.ir.is_prim_expr(body):
         body = tvm.tirx.Evaluate(body)
-    if not isinstance(body, tvm.tirx.Stmt):
+    if not isinstance(body, tvm.tirx.Stmt | list | tuple | Array):
         raise ValueError(
-            f"Function '{fcompute.__name__}' should return Expr or Stmt, but it returned "
+            f"Function '{fcompute.__name__}' should return Expr, Stmt, or a sequence of Stmt, "
+            "but it returned "
             f"'{type(body)}'"
         )
 

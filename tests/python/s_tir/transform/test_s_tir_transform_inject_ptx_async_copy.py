@@ -38,7 +38,7 @@ def test_cp_async_raw_dtype_round_trips():
     def f(A: T.Tensor((128,), "float16"), B: T.Tensor((128,), "float16")):
         T.func_attr({"global_symbol": "f"})
         for i in T.serial(8):
-            T.s_tir.cp_async_raw("float16", B.data, i * 16, A.data, i * 16, 16)
+            T.s_tir.cp_async_raw(B.data, i * 16, A.data, i * 16, 16, ty="float16")
 
     reparsed = tvm.script.from_source(
         f.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
@@ -698,7 +698,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             C.ty.elem_offset // C_s0_1 // 16 * (C_s0_1 // 16)
                                             + C.ty.elem_offset % C_s0_1 // 16,
                                             T.tvm_access_ptr(
-                                                T.type_annotation("float16"),
+                                                "float16",
                                                 A_1.data,
                                                 A_1.ty.elem_offset,
                                                 A_s0_0 * 16,
@@ -755,7 +755,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             C.ty.elem_offset // C_s0_2 // 16 * (C_s0_2 // 16)
                                             + C.ty.elem_offset % C_s0_2 // 16,
                                             T.tvm_access_ptr(
-                                                T.type_annotation("float16"),
+                                                "float16",
                                                 A_1.data,
                                                 A_1.ty.elem_offset,
                                                 A_s0_1 * 16,
@@ -873,7 +873,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                     A_1.ty.elem_offset // A_s0_3 // 16 * (A_s0_3 // 16)
                                     + A_1.ty.elem_offset % A_s0_3 // 16,
                                     T.tvm_access_ptr(
-                                        T.type_annotation("float16"),
+                                        "float16",
                                         C.data,
                                         C.ty.elem_offset,
                                         C_s0_4 * 16,
@@ -919,12 +919,12 @@ def test_multiplication_nodes_are_inlined():
             for i in range(16):
                 cse_v1: T.int64 = T.Cast("int64", i)
                 T.s_tir.cp_async_raw(
-                    "float16",
                     A_shared.data,
                     tx * T.int64(128) + cse_v1 * T.int64(8),
                     A_flattened.data,
                     tx * T.int64(128) + cse_v1 * T.int64(8),
                     16,
+                    ty="float16",
                 )
             T.ptx.cp.async_.commit_group()
             T.ptx.cp.async_.wait_group(0)

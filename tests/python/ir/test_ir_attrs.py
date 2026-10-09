@@ -77,27 +77,27 @@ def test_op_set_signature_metadata_and_counts():
     assert [(info.name, info.doc) for info in op.ty_args_info] == [("T", "Result type")]
     assert (op.var_args_info.name, op.var_args_info.doc) == ("rest", "Other inputs")
     assert op.var_ty_args_info.name == "more_types"
-    tvm.ir.Call(op, [x, x], ty_args=[ty])
-    tvm.ir.Call(op, [x, x, x], ty_args=[ty, ty])
+    tvm.ir.Call(op, [x, x], ty_args=[ty]).validate()
+    tvm.ir.Call(op, [x, x, x], ty_args=[ty, ty]).validate()
     with pytest.raises(TypeError, match=r"Call.args expected at least 2 arguments, got 1"):
-        tvm.ir.Call(op, [x], ty_args=[ty])
+        tvm.ir.Call(op, [x], ty_args=[ty]).validate()
     with pytest.raises(TypeError, match=r"Call.ty_args expected at least 1 type argument, got 0"):
-        tvm.ir.Call(op, [x, x])
+        tvm.ir.Call(op, [x, x]).validate()
 
     op.set_signature(["only"])
     assert [info.name for info in op.args_info] == ["only"]
     assert op.var_args_info is None and op.var_ty_args_info is None
-    tvm.ir.Call(op, [x])
+    tvm.ir.Call(op, [x]).validate()
     with pytest.raises(TypeError, match=r"Call.args expected 1 argument, got 2"):
-        tvm.ir.Call(op, [x, x])
+        tvm.ir.Call(op, [x, x]).validate()
     with pytest.raises(TypeError, match=r"Call.ty_args expected 0 type arguments, got 1"):
-        tvm.ir.Call(op, [x], ty_args=[ty])
+        tvm.ir.Call(op, [x], ty_args=[ty]).validate()
     with pytest.raises(TypeError, match=r"args must be a name string or a \(name, doc\) tuple"):
         op.set_signature(["new", ("bad", 7)])
     with pytest.raises(TypeError, match=r"var_ty_args must be a name string"):
         op.set_signature(["new"], var_ty_args=("bad", 7))
     assert [info.name for info in op.args_info] == ["only"]
-    tvm.ir.Call(op, [x])
+    tvm.ir.Call(op, [x]).validate()
 
 
 def test_op_set_signature_preserves_custom_validator():
@@ -109,7 +109,7 @@ def test_op_set_signature_preserves_custom_validator():
     try:
         op.set_signature()
         with pytest.raises(TypeError, match="call_pure_packed expects a function argument"):
-            tvm.ir.Call(op, [])
+            tvm.ir.Call(op, []).validate()
     finally:
         op.set_signature(
             original_args,
@@ -140,8 +140,8 @@ def test_ptx_ops_have_variadic_call_signature():
     op = tvm.ir.Op.get(next(iter(TABLE.values())).op_name)
     assert not op.args_info
     assert op.var_args_info.name == "operands"
-    tvm.ir.Call(op, [])
-    tvm.ir.Call(op, [tvm.ir.Var("x", tvm.ir.AnyType())])
+    tvm.ir.Call(op, []).validate()
+    tvm.ir.Call(op, [tvm.ir.Var("x", tvm.ir.AnyType())]).validate()
 
 
 if __name__ == "__main__":

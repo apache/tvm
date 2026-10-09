@@ -22,7 +22,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 #include "./memhammer_rewrite_rule.h"
 
@@ -41,7 +41,7 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
   std::vector<const ForNode*> loops;
   while (const ForNode* loop = body.as<ForNode>()) {
     loops.push_back(loop);
-    body = loop->body;
+    body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   int n = loops.size();
   PrimExpr extent_last1 = loops[n - 1]->extent;
@@ -78,13 +78,13 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
         /*3:*/ 16,                          //
         /*4:*/ 16,                          //
     };
-    body = For(new_loop_vars[3].as_or_throw<PrimVar>(), 0, factor[3], ForKind::kSerial,
+    body = For(new_loop_vars[3].as_or_throw<PrimVar>(), 0, factor[3], ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[2].as_or_throw<PrimVar>(), 0, factor[2], ForKind::kSerial,
+    body = For(new_loop_vars[2].as_or_throw<PrimVar>(), 0, factor[2], ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[1].as_or_throw<PrimVar>(), 0, factor[1], ForKind::kSerial,
+    body = For(new_loop_vars[1].as_or_throw<PrimVar>(), 0, factor[1], ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factor[0], ForKind::kSerial,
+    body = For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factor[0], ForKind::kDefault,
                std::move(body));
   }
   For compute_location = body.as_or_throw<For>();
@@ -128,7 +128,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   std::vector<const ForNode*> loops;
   while (const ForNode* loop = body.as<ForNode>()) {
     loops.push_back(loop);
-    body = loop->body;
+    body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   int n = loops.size();
 
@@ -184,15 +184,15 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                   /*5:*/
                   Call(
                       /*dtype=*/new_src_buffer.data()->ty,
-                      /*op=*/tirx::builtin::tvm_access_ptr(),
+                      /*op=*/tirx::tvm_access_ptr_op(),
                       /*args=*/
                       ffi::Array<Expr>{
-                          /*0:*/ TypeAnnotation(new_src_buffer->dtype),
-                          /*1:*/ new_src_buffer.data(),
-                          /*2:*/ new_src_buffer->elem_offset,
-                          /*3:*/ new_src_buffer->strides[new_src_buffer->strides.size() - 2] * 16,
-                          /*4:*/ PrimExpr(1),
-                      }),
+                          /*0:*/ new_src_buffer.data(),
+                          /*1:*/ new_src_buffer->elem_offset,
+                          /*2:*/ new_src_buffer->strides[new_src_buffer->strides.size() - 2] * 16,
+                          /*3:*/ PrimExpr(1),
+                      },
+                      {}, {new_src_buffer->dtype}),
                   /*6:*/ new_src_buffer->strides[new_src_buffer->strides.size() - 2],
                   /*7:*/ StringImm(layout),
               })),
@@ -225,7 +225,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   std::vector<const ForNode*> loops;
   while (const ForNode* loop = body.as<ForNode>()) {
     loops.push_back(loop);
-    body = loop->body;
+    body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   int n = loops.size();
 
@@ -283,14 +283,14 @@ Stmt RewriteWmmaStore(Stmt stmt) {
                                   /*5:*/
                                   Call(
                                       /*data=*/new_tgt_buffer.data()->ty,
-                                      /*op=*/tirx::builtin::tvm_access_ptr(),
+                                      /*op=*/tirx::tvm_access_ptr_op(),
                                       ffi::Array<Expr>{
-                                          /*0:*/ TypeAnnotation(new_tgt_buffer->dtype),
-                                          /*1:*/ new_tgt_buffer.data(),
-                                          /*2:*/ new_tgt_buffer->elem_offset,
-                                          /*3:*/ new_tgt_buffer->strides[0] * 16,
-                                          /*4:*/ PrimExpr(2),
-                                      }),
+                                          /*0:*/ new_tgt_buffer.data(),
+                                          /*1:*/ new_tgt_buffer->elem_offset,
+                                          /*2:*/ new_tgt_buffer->strides[0] * 16,
+                                          /*3:*/ PrimExpr(2),
+                                      },
+                                      {}, {new_tgt_buffer->dtype}),
                                   /*6:*/ new_tgt_buffer->strides[0],
                                   /*7:*/ StringImm("row_major")})),
              /*init=*/std::nullopt,
@@ -371,7 +371,7 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
   std::vector<const ForNode*> loops;
   while (const ForNode* loop = body.as<ForNode>()) {
     loops.push_back(loop);
-    body = loop->body;
+    body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   int n = loops.size();
   PrimExpr extent_last1 = loops[n - 1]->extent;
@@ -409,13 +409,13 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
         /*3:*/ 8,                          //
         /*4:*/ 8,                          //
     };
-    body = For(new_loop_vars[3].as_or_throw<PrimVar>(), 0, factor[3], ForKind::kSerial,
+    body = For(new_loop_vars[3].as_or_throw<PrimVar>(), 0, factor[3], ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[2].as_or_throw<PrimVar>(), 0, factor[2], ForKind::kSerial,
+    body = For(new_loop_vars[2].as_or_throw<PrimVar>(), 0, factor[2], ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[1].as_or_throw<PrimVar>(), 0, factor[1], ForKind::kSerial,
+    body = For(new_loop_vars[1].as_or_throw<PrimVar>(), 0, factor[1], ForKind::kDefault,
                std::move(body));
-    body = For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factor[0], ForKind::kSerial,
+    body = For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factor[0], ForKind::kDefault,
                std::move(body));
   }
   For compute_location = body.as_or_throw<For>();
@@ -441,7 +441,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
   std::vector<const ForNode*> loops;
   while (const ForNode* loop = body.as<ForNode>()) {
     loops.push_back(loop);
-    body = loop->body;
+    body = loop->body->size() == 1 ? loop->body->seq[0] : loop->body;
   }
   int n = loops.size();
 
@@ -502,8 +502,8 @@ Stmt RewriteMmaStore(Stmt stmt) {
              /*reads=*/{BufferRegion(src_buffer, read_region)},
              /*writes=*/{BufferRegion(tgt_buffer, write_region)},
              /*name_hint=*/"mma_store",
-             RegionStmt(tirx::builtin::launch_thread(),
-                        {StringImm("threadIdx.x"), IntImm::Int32(32)}, {tx}, DictAttrs(), /*body=*/
+             RegionStmt(tirx::launch_thread_op(), {StringImm("threadIdx.x"), IntImm::Int32(32)},
+                        {tx}, DictAttrs(), /*body=*/
                         For(vec.as_or_throw<PrimVar>(), 0, 2, ForKind::kVectorized,
                             /*body=*/
                             TensorStore(new_tgt_buffer,

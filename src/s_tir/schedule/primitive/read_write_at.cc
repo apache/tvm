@@ -337,7 +337,7 @@ struct ReadWriteAtImpl {
         TensorStore(copy_to, /*value=*/MakeTensorLoad(copy_from, indices), /*indices=*/indices);
     for (int i = n - 1; i >= 0; --i) {
       stmt = For(loop_vars[i].as_or_throw<PrimVar>(), IntImm::Int32(0), domain[i]->extent,
-                 ForKind::kSerial, stmt);
+                 ForKind::kDefault, stmt);
     }
     return SBlockRealize(
         /*values=*/iter_values,

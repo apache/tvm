@@ -66,13 +66,13 @@ def test_vectorize_vector():
                     A[j] = T.Broadcast(T.float32(1), 4)
 
     mod = tvm.tirx.transform.VectorizeLoop()(Module)
-    stmt = mod["main"].body
+    stmt = mod["main"].body[0]
 
     assert isinstance(stmt, tvm.tirx.For)
-    assert not isinstance(stmt.body, tvm.tirx.For)
-    assert len(stmt.body.indices) == 1
-    assert isinstance(stmt.body.indices[0], tvm.tirx.Ramp)
-    assert isinstance(stmt.body.value, tvm.tirx.Broadcast)
+    assert not isinstance(stmt.body[0], tvm.tirx.For)
+    assert len(stmt.body[0].indices) == 1
+    assert isinstance(stmt.body[0].indices[0], tvm.tirx.Ramp)
+    assert isinstance(stmt.body[0].value, tvm.tirx.Broadcast)
 
 
 def test_vectorize_vector_scalable_error():
@@ -196,12 +196,12 @@ def test_vectorize_if_scalable_extent():
             else:
                 T.evaluate(
                     T.call_intrin(
-                        "void",
                         "tirx.masked_store",
                         A,
                         T.Broadcast(T.float32(2), T.vscale() * 4),
                         T.Ramp(0, 1, T.vscale() * 4),
-                        T.get_active_lane_mask("uint1xvscalex4", 0, n),
+                        T.get_active_lane_mask(0, n, ty="uint1xvscalex4"),
+                        ty="void",
                     )
                 )
 
@@ -243,7 +243,7 @@ def test_vectorize_with_le_cond(extent, target):
                 if i <= n:
                     A[i] = A[i] + T.float32(1)
 
-    stmt = tvm.tirx.transform.VectorizeLoop()(Module)["main"].body
+    stmt = tvm.tirx.transform.VectorizeLoop()(Module)["main"].body[0]
 
     # Check that the loop wasn't vectorised
     assert isinstance(stmt, tvm.tirx.For)
@@ -260,7 +260,7 @@ def test_vectorize_with_ge_cond(extent, target):
                 if i >= n:
                     A[i] = A[i] + T.float32(1)
 
-    stmt = tvm.tirx.transform.VectorizeLoop()(Module)["main"].body
+    stmt = tvm.tirx.transform.VectorizeLoop()(Module)["main"].body[0]
 
     # Check that the loop wasn't vectorised
     assert isinstance(stmt, tvm.tirx.For)
@@ -380,14 +380,14 @@ def test_vectorize_with_reinterpret(extent, vec_str, target):
         def main(A: T.Tensor((16,), "int32"), B: T.Tensor((16,), "float32")):
             T.func_attr({"target": target})
             for i in T.vectorized(0, extent):
-                B[i] = T.reinterpret("float32", A[i])
+                B[i] = T.reinterpret(A[i], ty="float32")
 
     @I.ir_module
     class After:
         @T.function
         def main(A: T.Tensor((16,), "int32"), B: T.Tensor((16,), "float32")):
             T.func_attr({"target": target})
-            B[T.Ramp(0, 1, extent)] = T.reinterpret(vec_str, A[T.Ramp(0, 1, extent)])
+            B[T.Ramp(0, 1, extent)] = T.reinterpret(A[T.Ramp(0, 1, extent)], ty=vec_str)
 
     mod = tvm.tirx.transform.VectorizeLoop()(Before)
     tvm.ir.assert_structural_equal(mod, After)
@@ -549,21 +549,21 @@ def test_vectorize_and_predicate_all_buffer_loads_stores():
         for i_0 in range(4):
             T.evaluate(
                 T.call_intrin(
-                    "void",
                     "tirx.masked_store",
                     B,
                     (
                         T.call_intrin(
-                            "float32x4",
                             "tirx.masked_load",
                             A,
                             T.Ramp(i_0 * 4, 1, 4),
-                            T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                            T.get_active_lane_mask(i_0 * 4, 14, ty="uint1x4"),
+                            ty="float32x4",
                         )
                         + T.Broadcast(T.float32(1), 4)
                     ),
                     T.Ramp(i_0 * 4, 1, 4),
-                    T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                    T.get_active_lane_mask(i_0 * 4, 14, ty="uint1x4"),
+                    ty="void",
                 )
             )
 
@@ -613,22 +613,22 @@ def test_vectorize_and_predicate_multiple_access_statements():
         for i_0 in range(4):
             T.evaluate(
                 T.call_intrin(
-                    "void",
                     "tirx.masked_store",
                     A,
                     T.Broadcast(T.float32(2), 4),
                     T.Ramp(i_0 * 4, 1, 4),
-                    T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                    T.get_active_lane_mask(i_0 * 4, 14, ty="uint1x4"),
+                    ty="void",
                 )
             )
             T.evaluate(
                 T.call_intrin(
-                    "void",
                     "tirx.masked_store",
                     B,
                     T.Broadcast(T.float32(1), 4),
                     T.Ramp(i_0 * 4, 1, 4),
-                    T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                    T.get_active_lane_mask(i_0 * 4, 14, ty="uint1x4"),
+                    ty="void",
                 )
             )
 
@@ -739,21 +739,21 @@ def test_vectorize_and_predicate_buffer_load_stores_with_sve_func_attr_target():
         for i_0 in range(4):
             T.evaluate(
                 T.call_intrin(
-                    "void",
                     "tirx.masked_store",
                     B,
                     (
                         T.call_intrin(
-                            "float32x4",
                             "tirx.masked_load",
                             A,
                             T.Ramp(i_0 * 4, 1, 4),
-                            T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                            T.get_active_lane_mask(i_0 * 4, 14, ty="uint1x4"),
+                            ty="float32x4",
                         )
                         + T.Broadcast(T.float32(1), 4)
                     ),
                     T.Ramp(i_0 * 4, 1, 4),
-                    T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                    T.get_active_lane_mask(i_0 * 4, 14, ty="uint1x4"),
+                    ty="void",
                 )
             )
 
@@ -773,7 +773,7 @@ def test_vectorize_llvm_pure_intrin(extent, vec_str, target):
         def main(A: T.Tensor((25,), "float32"), B: T.Tensor((25,), "float32")):
             T.func_attr({"target": target})
             for j in T.vectorized(extent):
-                A[j] = T.call_llvm_pure_intrin("float32", "llvm.sqrt", B[j])
+                A[j] = T.call_llvm_pure_intrin("llvm.sqrt", B[j], ty="float32")
 
     @I.ir_module
     class After:
@@ -781,7 +781,7 @@ def test_vectorize_llvm_pure_intrin(extent, vec_str, target):
         def main(A: T.Tensor((25,), "float32"), B: T.Tensor((25,), "float32")):
             T.func_attr({"target": target})
             A[T.Ramp(0, 1, extent)] = T.call_llvm_pure_intrin(
-                vec_str, "llvm.sqrt", B[T.Ramp(0, 1, extent)]
+                "llvm.sqrt", B[T.Ramp(0, 1, extent)], ty=vec_str
             )
 
     mod = tvm.tirx.transform.VectorizeLoop()(Before)
@@ -800,7 +800,7 @@ def test_vectorize_llvm_pure_intrin_fail(extent, vec_str, target):
         def main(A: T.Tensor((25,), "int32"), B: T.Tensor((25,), "float32")):
             T.func_attr({"target": target})
             for j in T.vectorized(extent):
-                A[j] = T.call_llvm_pure_intrin("int32", "llvm.lround", B[j])
+                A[j] = T.call_llvm_pure_intrin("llvm.lround", B[j], ty="int32")
 
     @I.ir_module
     class After:
@@ -808,7 +808,7 @@ def test_vectorize_llvm_pure_intrin_fail(extent, vec_str, target):
         def main(A: T.Tensor((25,), "int32"), B: T.Tensor((25,), "float32")):
             T.func_attr({"target": target})
             A[T.Ramp(0, 1, extent)] = T.call_llvm_pure_intrin(
-                vec_str, "llvm.lround", B[T.Ramp(0, 1, extent)]
+                "llvm.lround", B[T.Ramp(0, 1, extent)], ty=vec_str
             )
 
     mod = tvm.tirx.transform.VectorizeLoop()(Before)

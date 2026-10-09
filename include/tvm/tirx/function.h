@@ -53,7 +53,7 @@ class FunctionNode : public BaseFuncNode {
   /*! \brief The return type of the function. */
   Type ret_type = Type::Missing();
   /*! \brief The body of the function, absent for a declaration. */
-  ffi::Optional<tirx::Stmt> body;
+  ffi::Optional<tirx::SeqStmt> body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -117,7 +117,7 @@ class Function : public BaseFunc {
    *
    * \param span The location of this object in the source code.
    */
-  TVM_DLL Function(ffi::Array<tirx::Var> params, ffi::Optional<Stmt> body,
+  TVM_DLL Function(ffi::Array<tirx::Var> params, ffi::Optional<SeqStmt> body,
                    Type ret_type = VoidType(), DictAttrs attrs = DictAttrs(), Span span = Span());
 
   explicit Function(ffi::ObjectPtr<FunctionNode> node) : BaseFunc(std::move(node)) {}
@@ -125,6 +125,17 @@ class Function : public BaseFunc {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Function, BaseFunc, FunctionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);
 };
+
+/*!
+ * \brief Renew variable definitions and remap their uses in a function.
+ *
+ * Definition regions follow the registered structural hooks. Free variables
+ * and function attributes are preserved, and the function signature is rebuilt.
+ *
+ * \param func The function to renew.
+ * \return The function with fresh variable definitions.
+ */
+TVM_DLL Function RenewDef(Function func);
 
 /*!
  * \brief Specialize parameters of Function.

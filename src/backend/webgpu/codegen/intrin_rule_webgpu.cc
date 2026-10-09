@@ -42,14 +42,14 @@ static Type InferTypeReturnArgType(const CallNode* call) {
 // warp-level primitives. Follows implementation in intrin_rule_metal.cc
 struct WebGPUWarpIntrinsic {
   const Op operator()(PrimType t, const Op& orig_op) const {
-    if (orig_op.same_as(builtin::tvm_warp_shuffle())) {
+    if (orig_op.same_as(tirx::tvm_warp_shuffle_op())) {
       static const Op webgpu_subgroup_shuffle_op = Op::Get("tirx.webgpu.subgroup_shuffle");
       return webgpu_subgroup_shuffle_op;
-    } else if (orig_op.same_as(builtin::tvm_warp_shuffle_up())) {
+    } else if (orig_op.same_as(tirx::tvm_warp_shuffle_up_op())) {
       static const Op webgpu_subgroup_shuffle_up_op = Op::Get("tirx.webgpu.subgroup_shuffle_up");
       return webgpu_subgroup_shuffle_up_op;
     } else {
-      TVM_FFI_ICHECK(orig_op.same_as(builtin::tvm_warp_shuffle_down()));
+      TVM_FFI_ICHECK(orig_op.same_as(tirx::tvm_warp_shuffle_down_op()));
       static const Op webgpu_subgroup_shuffle_down_op =
           Op::Get("tirx.webgpu.subgroup_shuffle_down");
       return webgpu_subgroup_shuffle_down_op;
@@ -186,7 +186,7 @@ void RegisterWebGPUIntrinRules() {
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                           ffi::String("tirx.webgpu.subgroup_shuffle"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffle")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
@@ -197,7 +197,7 @@ void RegisterWebGPUIntrinRules() {
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                           ffi::String("tirx.webgpu.subgroup_shuffle_up"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffleUp")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
@@ -208,7 +208,7 @@ void RegisterWebGPUIntrinRules() {
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                           ffi::String("tirx.webgpu.subgroup_shuffle_down"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffleDown")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));

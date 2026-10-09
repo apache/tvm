@@ -23,9 +23,10 @@ import tvm_ffi
 
 import tvm
 
-from ..runtime import Object, Scriptable, const
+from ..runtime import Object
 from . import _ffi_api, _tensor_expr_overload
-from .base import Node, Span
+from ._constant import const
+from .base import Node, Scriptable, Span
 
 
 def _convert_subscript_index(index):
@@ -511,10 +512,11 @@ class StringImm(Constant):
 class Call(_CallableExprWithOp):
     """Core function call node.
 
-    When ``ty`` is omitted, use a missing type for subsequent normalization.
-    Builders may supply a known result type explicitly.
-    Operator validation runs during construction. Use :meth:`unchecked` for a
-    provisional call that will be checked after normalization.
+    Omitted or ``None`` ``ty`` uses available result inference, or a missing
+    type when no deduction is available. Explicit types, including
+    ``Type.missing()``, are preserved exactly. Inference errors propagate.
+    Construction permits provisional IR; :meth:`validate` checks the operator
+    contract explicitly after inputs are ready.
     """
 
     op: Expr
@@ -547,8 +549,6 @@ class Call(_CallableExprWithOp):
             op = Op.get(op)
         if attrs is not None and isinstance(attrs, dict):
             attrs = DictAttrs(attrs)
-        if ty is None:
-            ty = Type.missing()
         if isinstance(ty, str) and ty == "handle":
             ty = PointerType(PrimType("void"))
         elif ty is not None and not isinstance(ty, Type):
@@ -557,48 +557,9 @@ class Call(_CallableExprWithOp):
             ty_args = []
         return ty, op, args, attrs, ty_args, span
 
-    @staticmethod
-    def unchecked(
-        op: Expr | str,
-        args: list[Expr] | tuple[Expr, ...],
-        attrs: "tvm.ir.Attrs | dict | None" = None,
-        ty_args: list["tvm.ir.Type"] | tuple["tvm.ir.Type", ...] | None = None,
-        span: Span | None = None,
-        ty: "tvm.ir.Type | str | None" = None,
-    ) -> "Call":
-        """Construct a provisional Call without invoking its Op validator.
-
-        Use this for inputs that cannot be checked until type deduction or
-        normalization. Op validation is skipped at construction, so callers
-        must arrange a later check before relying on the Call. For Relax Calls,
-        operator-specific normalization and :func:`tvm.relax.analysis.well_formed`
-        provide validation paths. Ordinary ``Call(...)`` validates immediately.
-
-        Parameters
-        ----------
-        op : Expr or str
-            Callee expression or the name of a registered Op.
-        args : list[Expr] or tuple[Expr, ...]
-            Positional value arguments.
-        attrs : tvm.ir.Attrs, dict, or None
-            Call attributes. A dict is converted to ``DictAttrs``.
-        ty_args : list[tvm.ir.Type], tuple[tvm.ir.Type, ...], or None
-            Explicit type arguments; ``None`` gives an empty list.
-        span : Span or None
-            Source location of the Call.
-        ty : tvm.ir.Type, str, or None
-            Result type. ``None`` uses ``Type.missing()`` for later inference;
-            ``"handle"`` becomes a void pointer type and other strings become
-            primitive types.
-
-        Returns
-        -------
-        Call
-            The provisional, unvalidated Call.
-        """
-        return _ffi_api.CallUnchecked(
-            *Call._normalize_constructor_args(op, args, attrs, ty_args, span, ty)
-        )
+    def validate(self) -> None:
+        """Check the registered operator contract without changing this Call."""
+        _ffi_api.CallValidate(self)
 
 
 def reinfer_type(call: Call) -> "tvm.ir.Type":

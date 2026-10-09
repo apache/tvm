@@ -90,7 +90,7 @@ class Int32DTypeNarrowerBase : public Normalizer {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(builtin::alloc_tensor()))
+        call && call->op.same_as(tirx::alloc_tensor_op()))
       return MutateAllocTensor(op, inplace_mode);
     return Normalizer::Mutate_(op, inplace_mode);
   }

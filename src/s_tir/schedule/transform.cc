@@ -22,7 +22,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/tensor_intrin.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 #include "../../tirx/transform/ir_utils.h"
 #include "./utils.h"
@@ -148,7 +148,7 @@ UnchangedOr<Expr> ReplaceBufferMutator::Mutate_(const CallNode* op, InplaceMode 
     op = ffi::AnyView(result).as<CallNode>();
     if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
   }
-  if (!op->op.same_as(tirx::builtin::buffer_data()) || op->args.size() != 1) return result;
+  if (!op->op.same_as(tirx::buffer_data_op()) || op->args.size() != 1) return result;
   PointerType type = op->args[0].as_or_throw<TensorVar>().DataPointerType();
   if (ffi::StructuralEqual()(op->ty, type)) return result;
   if (inplace_mode == InplaceMode::kAllow) {
@@ -275,10 +275,8 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
   StmtSRefNode* sref = leaf_block_sref->parent;
   for (;; last_stmt = sref->stmt, sref = sref->parent) {
     if (const auto* loop = sref->StmtAs<ForNode>()) {
-      if (const auto* seq = loop->body.as<SeqStmtNode>()) {
-        if (seq->size() > 1) {
-          break;
-        }
+      if (loop->body->size() > 1) {
+        break;
       }
     } else {
       // Removal is not done beyond scope-level.
@@ -287,10 +285,9 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
     }
   }
   if (const auto* block = sref->StmtAs<SBlockNode>()) {
-    auto body = block->body;
-    if (const auto* seq = body.as<SeqStmtNode>()) {
+    if (block->body->size() > 1) {
       ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block);
-      auto new_seq = RemoveFromSeqStmt(ffi::GetRef<SeqStmt>(seq), ffi::GetRef<Stmt>(last_stmt));
+      auto new_seq = RemoveFromSeqStmt(block->body, ffi::GetRef<Stmt>(last_stmt));
       n->body = new_seq;
       *src_stmt = ffi::GetRef<Stmt>(block);
       *tgt_stmt = Stmt(std::move(n));
@@ -298,9 +295,9 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
     }
   }
   if (const auto* loop = sref->StmtAs<ForNode>()) {
-    if (const auto* seq = loop->body.as<SeqStmtNode>()) {
+    if (loop->body->size() > 1) {
       ffi::ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*loop);
-      n->body = RemoveFromSeqStmt(ffi::GetRef<SeqStmt>(seq), ffi::GetRef<Stmt>(last_stmt));
+      n->body = RemoveFromSeqStmt(loop->body, ffi::GetRef<Stmt>(last_stmt));
       *src_stmt = ffi::GetRef<Stmt>(loop);
       *tgt_stmt = Stmt(std::move(n));
       return;

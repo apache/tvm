@@ -243,8 +243,8 @@ def test_reused_compound_buffer_shape_var():
     n_a = func_a.params[0].shape[0].a
     n_b = func_b.params[0].shape[0].a
     assert not n_a.same_as(n_b)
-    assert n_a.same_as(func_a.body.value)
-    assert n_b.same_as(func_b.body.value)
+    assert n_a.same_as(func_a.body[0].value)
+    assert n_b.same_as(func_b.body[0].value)
 
 
 def test_no_change_if_already_ssa():
@@ -510,7 +510,7 @@ def test_reused_loop_var_in_decl_buffer_elem_offset():
         loop_var,
         0,
         128,
-        tirx.ForKind.SERIAL,
+        tirx.ForKind.DEFAULT,
         tirx.SeqStmt(
             [
                 tirx.Bind(

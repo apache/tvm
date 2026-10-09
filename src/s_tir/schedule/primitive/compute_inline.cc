@@ -317,7 +317,9 @@ class BaseInliner : public StmtExprMutator {
   explicit BaseInliner(const TensorVar& inlined_buffer, const SBlock& inlined_block,
                        const StmtSRef& scope_root_sref)
       : inlined_buffer_(inlined_buffer),
-        inlined_store_(inlined_block->body.as<TensorStoreNode>()),
+        inlined_store_(inlined_block->body->size() == 1
+                           ? inlined_block->body->seq[0].as<TensorStoreNode>()
+                           : nullptr),
         scope_root_sref_(scope_root_sref) {
     AddBuffersInBlockSignature(inlined_block.get());
   }
@@ -748,20 +750,33 @@ class ReverseComputeInliner : public BaseInliner {
       return false;
     }
 
+    if (producer_block_->body->size() != 1) {
+      return false;
+    }
     const TensorStoreNode* producer_store = nullptr;
-    if (const auto* producer_if = producer_block_->body.as<tirx::IfThenElseNode>()) {
+    const Stmt& producer_body = producer_block_->body->seq[0];
+    if (const auto* producer_if = producer_body.as<tirx::IfThenElseNode>()) {
       if (producer_if->else_case.has_value()) {
         return false;
       }
-      producer_store = producer_if->then_case.as<TensorStoreNode>();
+      producer_store = producer_if->then_case->size() == 1
+                           ? producer_if->then_case->seq[0].as<TensorStoreNode>()
+                           : nullptr;
     } else {
-      producer_store = producer_block_->body.as<TensorStoreNode>();
+      producer_store = producer_body.as<TensorStoreNode>();
       if (producer_block_->annotations.count(s_tir::attr::auto_copy) != 0) {
-        const ForNode* producer_inner_loop = producer_block_->body.as<ForNode>();
-        while (producer_inner_loop->body.as<ForNode>()) {
-          producer_inner_loop = producer_inner_loop->body.as<ForNode>();
+        const ForNode* producer_inner_loop = producer_body.as<ForNode>();
+        if (producer_inner_loop == nullptr) return false;
+        for (;;) {
+          if (producer_inner_loop->body->size() != 1) return false;
+          const Stmt& child = producer_inner_loop->body->seq[0];
+          if (const auto* inner_loop = child.as<ForNode>()) {
+            producer_inner_loop = inner_loop;
+          } else {
+            producer_store = child.as<TensorStoreNode>();
+            break;
+          }
         }
-        producer_store = producer_inner_loop->body.as<TensorStoreNode>();
       }
     }
     if (producer_store == nullptr) {
@@ -794,12 +809,13 @@ class ReverseComputeInliner : public BaseInliner {
         analyzer_->Bind(loop->loop_var,
                         Range::FromMinExtent(IntImm(loop->extent.ty(), 0), loop->extent));
       };
-      const ForNode* producer_inner_loop = producer_block->body.as<ForNode>();
-      while (producer_inner_loop->body.as<ForNode>()) {
+      TVM_FFI_ICHECK_EQ(producer_block->body->size(), 1);
+      const ForNode* producer_inner_loop = producer_block->body->seq[0].as<ForNode>();
+      while (producer_inner_loop != nullptr) {
         bind(producer_inner_loop);
-        producer_inner_loop = producer_inner_loop->body.as<ForNode>();
+        TVM_FFI_ICHECK_EQ(producer_inner_loop->body->size(), 1);
+        producer_inner_loop = producer_inner_loop->body->seq[0].as<ForNode>();
       }
-      bind(producer_inner_loop);
     }
     // Substitute the consumer block iters with the corresponding iters in the producer blocks
     PrimExpr predicate = ffi::make_object<Substituter>(this)
@@ -810,7 +826,9 @@ class ReverseComputeInliner : public BaseInliner {
     if (IsOne(predicate)) {
       return producer_block_realize;
     }
-    if (const auto* if_ = producer_block->body.as<IfThenElseNode>()) {
+    if (const auto* if_ = producer_block->body->size() == 1
+                              ? producer_block->body->seq[0].as<IfThenElseNode>()
+                              : nullptr) {
       if (!if_->else_case.has_value()) {
         PrimExpr if_predicate = analyzer_->Simplify(if_->condition);
         if (!ffi::StructuralEqual()(predicate, if_predicate)) {
@@ -1788,16 +1806,13 @@ class SingleBlockFusionReplacer : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
-    Stmt mutated_body = StmtExprMutator::Mutate(ffi::AnyView(loop->body), inplace_mode)
-                            .ValueOrUnchanged(loop->body)
-                            .as_or_throw<Stmt>();
-    // Remove empty loops (containing only Evaluate(0))
-    if (mutated_body.as<EvaluateNode>()) {
-      return mutated_body;  // Return Evaluate(0) to be removed by SeqStmt
+    SeqStmt mutated_body = Mutate(loop->body, inplace_mode).ValueOrUnchanged(loop->body);
+    if (mutated_body->seq.empty()) {
+      return mutated_body;
     }
 
     return For(loop->loop_var, loop->min, loop->extent, loop->kind, mutated_body,
-               loop->thread_binding, loop->annotations);
+               loop->annotations);
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {
@@ -1807,8 +1822,8 @@ class SingleBlockFusionReplacer : public StmtExprMutator {
       new_realize->block = new_fused_block_;
       return SBlockRealize(new_realize);
     } else if (realize->block.same_as(old_epilogue_block_)) {
-      // Remove epilogue block completely
-      return Evaluate(0);
+      // Remove epilogue block completely.
+      return SeqStmt({});
     }
     return StmtExprMutator::Mutate_(realize, inplace_mode);
   }
@@ -1818,12 +1833,9 @@ class SingleBlockFusionReplacer : public StmtExprMutator {
     for (size_t i = 0; i < seq->seq.size(); ++i) {
       Stmt stmt = seq->seq[i];
       Stmt new_stmt = Mutate(stmt).ValueOrUnchanged(stmt).as_or_throw<Stmt>();
-      // Remove Evaluate(0)
-      if (!new_stmt.as<EvaluateNode>()) {
-        new_stmts.push_back(new_stmt);
-      }
+      new_stmts.push_back(new_stmt);
     }
-    return SeqStmt::Flatten(new_stmts);
+    return SeqStmt(new_stmts, seq->span);
   }
 
   SBlock new_fused_block_;

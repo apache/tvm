@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/relax/attrs/create.h
+ * \file tvm/relax/op/create.h
  * \brief Attributes for tensor creation operators.
  */
-#ifndef TVM_RELAX_ATTRS_CREATE_H_
-#define TVM_RELAX_ATTRS_CREATE_H_
+#ifndef TVM_RELAX_OP_CREATE_H_
+#define TVM_RELAX_OP_CREATE_H_
 
 #include <tvm/relax/expr.h>
 
@@ -33,11 +33,7 @@ namespace relax {
 struct InitAttrs : public AttrsNode {
   ffi::Optional<DLDataType> dtype;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<InitAttrs>().def_ro("dtype", &InitAttrs::dtype,
-                                        "The data type of the created tensor.");
-  }
+  static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.InitAttrs", InitAttrs, AttrsNode);
 };  // struct InitAttrs
 
@@ -45,16 +41,11 @@ struct InitAttrs : public AttrsNode {
 struct TriluAttrs : public AttrsNode {
   int k;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TriluAttrs>().def_ro(
-        "k", &TriluAttrs::k,
-        "The number of diagonals above or below the main diagonal to exclude or include.");
-  }
+  static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TriluAttrs", TriluAttrs, AttrsNode);
 };  // struct TriluAttrs
 
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_ATTRS_CREATE_H_
+#endif  // TVM_RELAX_OP_CREATE_H_

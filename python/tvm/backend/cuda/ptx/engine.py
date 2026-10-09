@@ -37,13 +37,14 @@ per-instruction generated or hand-written code:
   ``T.ptx.ld.acquire.gpu.global_.b32(val, ptr)``.
 """
 
+from tvm_ffi import get_global_func, register_global_func, structural_equal
+
 from tvm.backend.cuda.codegen.registry import register_codegen
 from tvm.backend.cuda.codegen.utils import parse_str
 from tvm.backend.cuda.op import cuda_cvta_generic_to_shared, cuda_func_call
-from tvm.ir import Call, Op, TensorLoad
+from tvm.ir import Call, Op, StringImm, TensorLoad, const
 from tvm.ir.op import register_op_attr
 from tvm.ir.type import PointerType, PrimType
-from tvm.runtime import const
 from tvm.tirx.expr import CallEffectKind, IntImm
 from tvm.tirx.op import call_intrin, reinterpret
 
@@ -109,6 +110,12 @@ def register_table(table: dict[str, InstructionEntry]) -> None:
         register_op_attr(entry.op_name, "TIRxOpCategory", "device_intrin")
         register_op_attr(entry.op_name, "TDeviceIntrinsicNamespace", "ptx")
         register_op_attr(entry.op_name, "TFixedReturnType", PrimType("void"))
+        if Op.get(entry.op_name).get_attr("__tvm_doc_translate_op_call__") is None:
+            register_op_attr(
+                entry.op_name,
+                "__tvm_doc_translate_op_call__",
+                get_global_func("script.printer.PTXCallDocTranslate")(),
+            )
         register_codegen(f"ptx.{entry.name}")(_make_codegen(entry))
 
 
@@ -122,6 +129,12 @@ def register_addr() -> None:
     register_op_attr(_ADDR_OP_NAME, "TIRxOpCategory", "device_intrin")
     register_op_attr(_ADDR_OP_NAME, "TDeviceIntrinsicNamespace", "ptx")
     register_op_attr(_ADDR_OP_NAME, "FInferType", _infer_addr_type)
+    if op.get_attr("__tvm_doc_translate_op_call__") is None:
+        register_op_attr(
+            _ADDR_OP_NAME,
+            "__tvm_doc_translate_op_call__",
+            get_global_func("script.printer.PTXCallDocTranslate")(),
+        )
     register_codegen("ptx.addr")(_unconsumed_addr_codegen)
 
 
@@ -981,3 +994,20 @@ class PTXNamespace:
 
     def __repr__(self):
         return f"<T.ptx: {len(self._family_names())} instruction families>"
+
+
+@register_global_func("script.printer.PTXCallCanRoundtrip")
+def _ptx_call_can_roundtrip(call):
+    """Check that printed operands dispatch to the same PTX instruction."""
+    name = call.op.get_attr("TScriptPrinterName").rsplit(".", 1)[-1]
+    args = []
+    try:
+        for arg in call.args:
+            if isinstance(arg, StringImm):
+                arg = arg.value
+            elif isinstance(arg, Call) and arg.op.same_as(Op.get(_ADDR_OP_NAME)):
+                arg = AddrArg(*arg.args)
+            args.append(arg)
+        return structural_equal(call, getattr(PTXNamespace(), name)(*args))
+    except (ValueError, TypeError, IndexError, AttributeError):
+        return False

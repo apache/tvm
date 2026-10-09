@@ -47,7 +47,7 @@ def test_multi_loop():
     mod = tvm.s_tir.transform.LoopPartition()(mod)
     stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert not any(collect_visit(stmt.body[0], lambda x: isinstance(x, tvm.tirx.IfThenElse)))
+    assert not any(collect_visit(stmt[0].body[0], lambda x: isinstance(x, tvm.tirx.IfThenElse)))
 
 
 def test_multi_if():
@@ -69,7 +69,7 @@ def test_multi_if():
     mod = tvm.s_tir.transform.LoopPartition()(mod)
     stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert not any(collect_visit(stmt.body[0], lambda x: isinstance(x, tvm.tirx.IfThenElse)))
+    assert not any(collect_visit(stmt[0].body[0], lambda x: isinstance(x, tvm.tirx.IfThenElse)))
 
 
 def test_condition():
@@ -113,7 +113,7 @@ def test_everything_during_deduction():
     mod = tvm.s_tir.transform.LoopPartition()(mod)
     stmt = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
 
-    assert isinstance(stmt.body.body, tvm.tirx.IfThenElse)
+    assert isinstance(stmt[0].body[0].body[0], tvm.tirx.IfThenElse)
 
 
 def test_oneD_pool():
@@ -176,9 +176,9 @@ def test_cce_loop_2():
     def func():
         for i in range(loop):
             if T.likely(i * tile + tile > length):
-                T.evaluate(T.call_extern("float32", "cce_intrisic", i * tile, length))
+                T.evaluate(T.call_extern("cce_intrisic", i * tile, length, ty="float32"))
             else:
-                T.evaluate(T.call_extern("float32", "cce_intrisic", i * tile, i * tile + tile))
+                T.evaluate(T.call_extern("cce_intrisic", i * tile, i * tile + tile, ty="float32"))
 
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     with tvm.transform.PassContext(config={"s_tir.LoopPartition": {"partition_const_loop": True}}):
@@ -198,7 +198,7 @@ def test_cce_loop_3():
         for i in range(loop2):
             for j in range(loop1):
                 if T.likely(i * loop1 + j < tile):
-                    T.evaluate(T.call_extern("float16", "cce_intrisic", i))
+                    T.evaluate(T.call_extern("cce_intrisic", i, ty="float16"))
 
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
 

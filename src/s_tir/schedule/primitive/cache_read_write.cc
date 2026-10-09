@@ -23,7 +23,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 #include <unordered_set>
 
@@ -236,7 +236,7 @@ SBlock MakeReindexCacheStage(const TensorRegion& cache_region, ReindexCacheStage
     body = For(/*loop_var=*/loop_vars[i - 1],
                /*min=*/info->loop_ranges[i - 1]->min,
                /*extent=*/info->loop_ranges[i - 1]->extent,
-               /*kind=*/ForKind::kSerial,
+               /*kind=*/ForKind::kDefault,
                /*body=*/body);
   }
   info->cache_stage = std::move(body);
@@ -339,7 +339,7 @@ SBlock MakeCacheStage(const TensorRegion& cache_region, CacheStageInfo* info,
     body = For(/*loop_var=*/loop_vars[i - 1],
                /*min=*/0,
                /*extent=*/cache_region->region[i - 1]->extent,
-               /*kind=*/ForKind::kSerial,
+               /*kind=*/ForKind::kDefault,
                /*body=*/body);
   }
   info->cache_stage = std::move(body);
@@ -457,7 +457,7 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
     body = For(/*loop_var=*/loop_vars[i],
                /*min=*/new_block_iters[i]->dom->min,
                /*extent=*/new_block_iters[i]->dom->extent,
-               /*kind=*/ForKind::kSerial,
+               /*kind=*/ForKind::kDefault,
                /*body=*/std::move(body));
   }
   // Update cache info, which will be used in the later rewriting.
@@ -754,9 +754,7 @@ class CacheLocDetector : public StmtExprVisitor {
     } else {
       info->loc_sref = scope_sref;
 
-      auto block_body = scope_sref->StmtAs<SBlockNode>()->body;
-      const auto* body = block_body.as<SeqStmtNode>();
-      info->loc_pos = body == nullptr ? 1 : body->size();
+      info->loc_pos = scope_sref->StmtAs<SBlockNode>()->body->size();
     }
   }
 
@@ -1119,7 +1117,7 @@ class CacheReadRewriter : public StmtExprMutator {
       if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
     }
     // Cache remapping can change pointer storage scope; the base Call hook preserves its type.
-    if (!op->op.same_as(tirx::builtin::buffer_data()) || op->args.size() != 1) return result;
+    if (!op->op.same_as(tirx::buffer_data_op()) || op->args.size() != 1) return result;
     PointerType type = op->args[0].as_or_throw<TensorVar>().DataPointerType();
     if (ffi::StructuralEqual()(op->ty, type)) return result;
     if (inplace_mode == InplaceMode::kAllow) {
@@ -1463,7 +1461,7 @@ class CacheWriteRewriter : public StmtExprMutator {
       if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
     }
     // Cache remapping can change pointer storage scope; the base Call hook preserves its type.
-    if (!op->op.same_as(tirx::builtin::buffer_data()) || op->args.size() != 1) return result;
+    if (!op->op.same_as(tirx::buffer_data_op()) || op->args.size() != 1) return result;
     PointerType type = op->args[0].as_or_throw<TensorVar>().DataPointerType();
     if (ffi::StructuralEqual()(op->ty, type)) return result;
     if (inplace_mode == InplaceMode::kAllow) {
@@ -2597,7 +2595,7 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
     const ForNode* outer = loop->parent->StmtAs<ForNode>();
     const ForNode* inner = loop->StmtAs<ForNode>();
     TVM_FFI_ICHECK(outer != nullptr && inner != nullptr);
-    TVM_FFI_ICHECK(outer->body.get() == inner);
+    TVM_FFI_ICHECK(outer->body->size() == 1 && outer->body->seq[0].get() == inner);
     loop = loop->parent;
   }
 

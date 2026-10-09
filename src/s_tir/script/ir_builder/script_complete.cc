@@ -151,7 +151,9 @@ Function ScriptComplete(Function func, const ffi::Array<TensorVar>& root_allocat
     if (root_allocates.size()) {
       return true;
     }
-    auto* block_realize = func->body.as<s_tir::SBlockRealizeNode>();
+    auto* block_realize = func->body.value()->seq.size() == 1
+                              ? func->body.value()->seq[0].as<s_tir::SBlockRealizeNode>()
+                              : nullptr;
     if (block_realize && block_realize->block->iter_vars.size()) {
       return true;
     }
@@ -174,7 +176,7 @@ Function ScriptComplete(Function func, const ffi::Array<TensorVar>& root_allocat
     return func;
   } else {
     auto fptr = func.CopyOnWrite();
-    fptr->body = res;
+    fptr->body = tvm::tirx::SeqStmt(res);
     return func;
   }
 }

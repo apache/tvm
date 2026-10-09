@@ -21,7 +21,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/te/operation.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 #include "../utils.h"
 
@@ -462,9 +462,8 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<TensorStore>> GetInitValuesAndUpdates
   ffi::Array<TensorStore> updates;
 
   // Step 1. Extract the TensorStores serving as block inits.
-  if (auto init = block->init.as<TensorStore>()) {
-    inits.push_back(init.value());
-  } else if (const auto* seq_init = block->init.as<SeqStmtNode>()) {
+  if (block->init.has_value() && !block->init.value()->seq.empty()) {
+    const SeqStmt& seq_init = block->init.value();
     std::unordered_set<const VarNode*> init_buffers;
     for (const Stmt& stmt : seq_init->seq) {
       auto init = stmt.as<TensorStore>();
@@ -484,13 +483,12 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<TensorStore>> GetInitValuesAndUpdates
   // Step 2. Extract the block updates, in the form of TensorStores.
   int n_buffers = inits.size();
   std::unordered_map<const VarNode*, int> buf2index;
-  if (const auto* update = block->body.as<TensorStoreNode>()) {
+  if (const auto* update =
+          block->body->size() == 1 ? block->body->seq[0].as<TensorStoreNode>() : nullptr) {
     updates.push_back(ffi::GetRef<TensorStore>(update));
     buf2index[update->buffer.get()] = 0;
-  } else if (const auto* seq = block->body.as<SeqStmtNode>()) {
-    ExtractReductionUpdates(self, block, seq->seq, n_buffers, &updates, &buf2index);
   } else {
-    ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/3);
+    ExtractReductionUpdates(self, block, block->body->seq, n_buffers, &updates, &buf2index);
   }
   TVM_FFI_ICHECK_EQ(updates.size(), n_buffers);
 
@@ -600,7 +598,7 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
     // the same as block->alloc_buffers entries for the "write-without-signature"
     // check below.
     if (const auto* call = alloc->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
       buffer_allocated.insert(alloc->var.get());
     }
     return ffi::WalkResult::Advance();

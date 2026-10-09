@@ -49,7 +49,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
     return var;
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
   }
   return std::nullopt;
@@ -249,23 +249,23 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
   }
 
   Expr HandleAccessPtrAndOffset(Expr access_ptr, ffi::Optional<PrimExpr> offset = std::nullopt) {
-    // The 2th arg of T.tvm_access_ptr call is offset, we set it to 0 and accumulate it to
+    // The second arg of T.tvm_access_ptr call is offset, we set it to 0 and accumulate it to
     // smem_offset
     TVM_FFI_ICHECK(access_ptr->IsInstance<CallNode>())
         << "Invalid access ptr for permuted layout: " << access_ptr;
     auto access_ptr_call = access_ptr.as_or_throw<Call>();
-    TVM_FFI_ICHECK(access_ptr_call->op.same_as(tirx::builtin::tvm_access_ptr()))
+    TVM_FFI_ICHECK(access_ptr_call->op.same_as(tirx::tvm_access_ptr_op()))
         << "Invalid access ptr for permuted layout: " << access_ptr;
 
-    auto data_var = GetBufferDataVar(access_ptr_call->args[1]);
+    auto data_var = GetBufferDataVar(access_ptr_call->args[0]);
     TVM_FFI_ICHECK(data_var.has_value())
-        << "Expected a buffer data expression, but received " << access_ptr_call->args[1];
+        << "Expected a buffer data expression, but received " << access_ptr_call->args[0];
     auto buffer_map_iter = buffer_map_.find(data_var.value());
     TVM_FFI_ICHECK(buffer_map_iter != buffer_map_.end())
-        << "The buffer corresponding to data Var " << access_ptr_call->args[1] << " is not found";
+        << "The buffer corresponding to data Var " << access_ptr_call->args[0] << " is not found";
     int buffer_row_size = CheckAndGetBufferRowSize(buffer_map_iter->second);
 
-    PrimExpr smem_offset = access_ptr_call->args[2].as_or_throw<PrimExpr>() +
+    PrimExpr smem_offset = access_ptr_call->args[1].as_or_throw<PrimExpr>() +
                            (offset.has_value() ? offset.value() : 0);
 
     // Convert offset to 2-dimension, reindex it and convert it back
@@ -276,7 +276,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     auto new_offset = analyzer_->Simplify(new_indices[0] * buffer_row_size + new_indices[1]);
 
     auto new_access_ptr = access_ptr_call.CopyOnWrite();
-    new_access_ptr->args.Set(2, new_offset);
+    new_access_ptr->args.Set(1, new_offset);
     return access_ptr_call;
   }
 

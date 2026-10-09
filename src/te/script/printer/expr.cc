@@ -41,7 +41,7 @@ ffi::Optional<ExprDoc> CommReducerDocTranslate(DocTranslatorObj* d, ffi::AnyView
   for (const PrimExpr& value : reducer->identity_element)
     identity.push_back(d->Translate(value).value());
   ExprDoc result_doc = result.size() == 1 ? result[0] : ExprDoc(TupleDoc(result));
-  return NamespaceDoc("tirx")
+  return NamespaceDoc("s_tir")
       ->Attr("comm_reducer")
       ->Call({LambdaDoc(args, result_doc), ListDoc(identity)});
 }
@@ -76,7 +76,7 @@ ffi::Optional<ExprDoc> ReduceDocTranslate(DocTranslatorObj* d, ffi::AnyView inpu
   d->RecordOrigin(source, node->source);
   d->RecordOrigin(axis, node->axis);
   d->RecordOrigin(init, node->init);
-  return NamespaceDoc("tirx")->Attr("Reduce")->Call(
+  return NamespaceDoc("s_tir")->Attr("Reduce")->Call(
       {combiner, source, axis, condition, value_index, init});
 }
 

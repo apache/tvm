@@ -40,11 +40,11 @@ def sdot4(
 
         C[0] += T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.amdgcn.sdot4"),
-            T.reinterpret(A.vload([0], "int8x4"), dtype="int32"),
-            T.reinterpret(B.vload([0], "int8x4"), dtype="int32"),
+            T.reinterpret(A.vload([0], "int8x4"), ty="int32"),
+            T.reinterpret(B.vload([0], "int8x4"), ty="int32"),
             T.int32(0),
             T.bool(1),
-            dtype="int32",
+            ty="int32",
         )
 
 
@@ -320,7 +320,7 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
                 T.int32(0),
                 T.int32(0),
                 T.int32(0),
-                dtype=f"{out_dtype}x4",
+                ty=f"{out_dtype}x4",
             )
 
     @Ts.function
@@ -341,20 +341,20 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
             C[tx, T.ramp(0, 1, local_size_out)] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id(mfma_intrin),
                 T.call_intrin(
-                    "int32",
                     "tirx.reinterpret",
                     A[tx, T.ramp(0, 1, local_size) if T.constexpr(local_size > 1) else 0],
+                    ty="int32",
                 ),
                 T.call_intrin(
-                    "int32",
                     "tirx.reinterpret",
                     B[tx, T.ramp(0, 1, local_size) if T.constexpr(local_size > 1) else 0],
+                    ty="int32",
                 ),
                 C[tx, T.ramp(0, 1, local_size_out)],
                 T.int32(0),
                 T.int32(0),
                 T.int32(0),
-                dtype=f"{out_dtype}x4",
+                ty=f"{out_dtype}x4",
             )
 
     return (

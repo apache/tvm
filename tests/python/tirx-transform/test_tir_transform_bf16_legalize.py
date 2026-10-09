@@ -35,15 +35,15 @@ def _is_buffer_binding(node, *op_names):
 def u16tof32(v):
     uint32_v = v.astype("uint32")
     uint32_v = uint32_v << tvm.tirx.const(16, "uint32")
-    return T.reinterpret("float32", uint32_v)
+    return T.reinterpret(uint32_v, ty="float32")
 
 
 def bf16tof32(v):
-    return u16tof32(T.reinterpret("uint16", v))
+    return u16tof32(T.reinterpret(v, ty="uint16"))
 
 
 def f32tou16(v):
-    uint32_v = T.reinterpret("uint32", v)
+    uint32_v = T.reinterpret(v, ty="uint32")
     rounding_bias = (uint32_v >> tvm.tirx.const(16, "uint32")) & tvm.tirx.const(1, "uint32")
     rounding_bias += tvm.tirx.const(0x7FFF, "uint32")
     uint32_v = uint32_v + rounding_bias
@@ -51,7 +51,7 @@ def f32tou16(v):
 
 
 def f32tobf16(v):
-    return T.reinterpret("bfloat16", f32tou16(v))
+    return T.reinterpret(f32tou16(v), ty="bfloat16")
 
 
 def test_bf16_simple_store_will_legalize():
@@ -131,22 +131,26 @@ def test_bf16_masked_load_store_will_legalize():
                 mask = T.Broadcast(T.bool(True), 4)
                 T.evaluate(
                     T.call_intrin(
-                        "void",
                         "tirx.masked_store",
                         B,
-                        T.call_intrin("bfloat16x4", "tirx.masked_load", A, T.Ramp(0, 1, 4), mask),
+                        T.call_intrin(
+                            "tirx.masked_load", A, T.Ramp(0, 1, 4), mask, ty="bfloat16x4"
+                        ),
                         T.Ramp(0, 1, 4),
                         mask,
+                        ty="void",
                     )
                 )
                 T.evaluate(
                     T.call_intrin(
-                        "void",
                         "tirx.masked_store",
                         C,
-                        T.call_intrin("bfloat16x4", "tirx.masked_load", B, T.Ramp(0, 1, 4), mask),
+                        T.call_intrin(
+                            "tirx.masked_load", B, T.Ramp(0, 1, 4), mask, ty="bfloat16x4"
+                        ),
                         T.Ramp(0, 1, 4),
                         mask,
+                        ty="void",
                     )
                 )
 
@@ -389,11 +393,11 @@ def test_bf16_reduce_will_legalize():
                         (T.float32(0),),
                         (
                             T.reinterpret(
-                                "float32",
                                 T.shift_left(
-                                    T.Cast("uint32", T.reinterpret("uint16", A_flat_1[0])),
+                                    T.Cast("uint32", T.reinterpret(A_flat_1[0], ty="uint16")),
                                     T.uint32(16),
                                 ),
+                                ty="float32",
                             ),
                         ),
                         T.bool(True),
@@ -422,11 +426,11 @@ def test_bf16_reduce_will_legalize():
                         (T.float32(0),),
                         (
                             T.reinterpret(
-                                "float32",
                                 T.shift_left(
-                                    T.Cast("uint32", T.reinterpret("uint16", A_flat[0])),
+                                    T.Cast("uint32", A_flat[0]),
                                     T.uint32(16),
                                 ),
+                                ty="float32",
                             ),
                         ),
                         T.bool(True),

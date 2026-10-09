@@ -328,7 +328,7 @@ def _impl(op_call, sctx):
 
     # fmt: off
     if direct:
-        @T.function
+        @T.function(check_well_formed=False)
         def impl():
             warp_size = T.meta_var(32)
             lane_id = T.meta_var(tid_x % warp_size)
@@ -354,7 +354,7 @@ def _impl(op_call, sctx):
                 T.ptx[st_chain](ptr, regs[r])
             T.cuda.warp_sync()
     else:
-        @T.function
+        @T.function(check_well_formed=False)
         def impl():
             warp_size = T.meta_var(32)
             lane_id = T.meta_var(tid_x % warp_size)

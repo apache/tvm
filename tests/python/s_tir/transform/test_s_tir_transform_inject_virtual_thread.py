@@ -50,14 +50,7 @@ def test_vthread():
                 vt_y = T.launch_thread("vthread", nthread)
                 B = T.alloc_tensor((m,), scope="shared")
                 B[i] = A_buf[i * nthread + vt_x]
-                T.evaluate(
-                    T.call_extern(
-                        "int32",
-                        "Run",
-                        B.access_ptr("r"),
-                        vt_x,
-                    )
-                )
+                T.evaluate(T.call_extern("Run", B.access_ptr("r"), vt_x, ty="int32"))
                 C_buf[i * nthread + vt_x] = B[i] + T.float32(1)
 
     # For vthread, expected allocation is m * nthread
@@ -98,11 +91,7 @@ def test_vthread_extern():
                 B[vt_y] = T.Cast("float32", vt_y) + T.float32(1)
                 T.evaluate(
                     T.call_extern(
-                        "int32",
-                        "Run",
-                        A.access_ptr("r"),
-                        B.access_ptr("r"),
-                        C.access_ptr("rw"),
+                        "Run", A.access_ptr("r"), B.access_ptr("r"), C.access_ptr("rw"), ty="int32"
                     )
                 )
 
@@ -229,7 +218,7 @@ def test_vthread_rewrites_masked_accesses():
         vthread = T.launch_thread("vthread", 2)
         B = T.alloc_tensor((4,), "float32", scope="shared")
         mask = T.meta_var(T.Broadcast(T.bool(True), 4))
-        loaded = T.meta_var(T.masked_load("float32x4", B, T.Ramp(0, 1, 4), mask))
+        loaded = T.meta_var(T.masked_load(B, T.Ramp(0, 1, 4), mask, ty="float32x4"))
         value = T.meta_var(loaded + T.Broadcast(T.Cast("float32", vthread), 4))
         T.masked_store(B, value, T.Ramp(0, 1, 4), mask)
 

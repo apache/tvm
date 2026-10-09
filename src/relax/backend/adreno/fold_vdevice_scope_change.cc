@@ -24,11 +24,11 @@
  */
 
 #include <tvm/ffi/cast.h>
-#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/backend/adreno/transform.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
+#include <tvm/relax/op/op.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/tirx/index_map.h>
 
@@ -88,8 +88,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       auto shape_arr = tir_out_ty->GetShape().value();
       auto new_ty = TensorType(ShapeExpr(shape_arr), tir_out_ty->dtype, vdev_attrs->dst_vdevice);
 
-      return Call::Unchecked(Type::Missing(), call_tir->op, call_tir->args, call_tir->attrs,
-                             {new_ty});
+      return Call(Type::Missing(), call_tir->op, call_tir->args, call_tir->attrs, {new_ty});
     }
     return expr;
   };

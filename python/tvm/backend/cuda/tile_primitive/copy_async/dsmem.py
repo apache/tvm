@@ -134,6 +134,8 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Functi
 
     # Helper to compute element offsets from loop variables (called via T.meta_var)
     def compute_offsets(loop_vars):
+        if isinstance(loop_vars, Var):
+            loop_vars = (loop_vars,)
         src_off = 0
         dst_off = 0
         for j, v in enumerate(loop_vars):

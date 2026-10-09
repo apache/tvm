@@ -57,7 +57,10 @@ def verify_structure(stmt, expected_struct):
     tvm_ffi.structural_walk(stmt, _visit)
     for key, val in node_dict.items():
         struct[val[1]] = tuple(
-            node_dict[child][1] if child in node_dict else None for child in val[0]
+            node_dict[child[0]][1]
+            if child is not None and len(child) == 1 and child[0] in node_dict
+            else None
+            for child in val[0]
         )
 
     assert struct == expected_struct, (
@@ -77,9 +80,9 @@ def test_hoist_top_for():
             for j in T.serial(m):
                 for k in T.serial(n):
                     if T.likely(i < 2):
-                        T.evaluate(T.call_extern("int32", "dummy", m))
+                        T.evaluate(T.call_extern("dummy", m, ty="int32"))
                     else:
-                        T.evaluate(T.call_extern("int32", "dummy", n))
+                        T.evaluate(T.call_extern("dummy", n, ty="int32"))
 
     mod = tvm.IRModule.from_expr(func)
     new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
@@ -99,9 +102,9 @@ def test_hoist_multi_var_if():
             for j in T.serial(m):
                 for k in T.serial(n):
                     if T.likely(i + j < 2):
-                        T.evaluate(T.call_extern("int32", "dummy", m))
+                        T.evaluate(T.call_extern("dummy", m, ty="int32"))
                     else:
-                        T.evaluate(T.call_extern("int32", "dummy", n))
+                        T.evaluate(T.call_extern("dummy", n, ty="int32"))
 
     mod = tvm.IRModule.from_expr(func)
     new_mod = tvm.s_tir.transform.HoistIfThenElse()(mod)
@@ -124,9 +127,9 @@ def test_hoist_no_match_for():
                 data_ptr[i * 3 + j] = data_ptr[i * 3 + j] + T.float32(0.5)
                 for k in T.serial(n):
                     if T.likely(i < 2):
-                        T.evaluate(T.call_extern("int32", "dummy", m))
+                        T.evaluate(T.call_extern("dummy", m, ty="int32"))
                     else:
-                        T.evaluate(T.call_extern("int32", "dummy", n))
+                        T.evaluate(T.call_extern("dummy", n, ty="int32"))
 
     mod = tvm.IRModule.from_expr(func)
     new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
@@ -146,7 +149,7 @@ def test_no_else():
             for j in T.serial(m):
                 for k in T.serial(n):
                     if T.likely(i < 2):
-                        T.evaluate(T.call_extern("int32", "dummy", m))
+                        T.evaluate(T.call_extern("dummy", m, ty="int32"))
 
     mod = tvm.IRModule.from_expr(func)
     new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body

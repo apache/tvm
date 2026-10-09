@@ -58,7 +58,7 @@ def test_error_for_out_of_scope_usage():
         tvm.tirx.Var("j", "int32"),
         0,
         1,
-        tvm.tirx.ForKind.SERIAL,
+        tvm.tirx.ForKind.DEFAULT,
         tvm.tirx.SeqStmt([tvm.tirx.Bind(i, 42), tvm.tirx.Evaluate(i)]),
     )
     # Use i outside the For loop — this is out of scope

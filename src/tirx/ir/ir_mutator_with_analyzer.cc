@@ -26,7 +26,6 @@
 #include <tvm/ir/op.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
 #include "../../sym/constraint_helpers.h"
@@ -166,8 +165,8 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const IfThenElseNode* op,
     // may change after stores, opaque calls, or another iteration of a nested
     // loop, so they cannot be facts for the entire branch scope.
     bool condition_is_pure = SideEffect(real_condition) <= CallEffectKind::kPure;
-    Stmt then_case = op->then_case;
-    ffi::Optional<Stmt> else_case;
+    SeqStmt then_case = op->then_case;
+    ffi::Optional<SeqStmt> else_case;
     constraint_scope_.WithNewScope([&]() {
       if (condition_is_pure) {
         EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, real_condition);
@@ -214,7 +213,7 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const IfThenElseNode* op,
 UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const RegionStmtNode* op,
                                                  InplaceMode inplace_mode) {
   return constraint_scope_.WithNewScope([&]() -> UnchangedOr<Stmt> {
-    if (op->op.same_as(tirx::builtin::launch_thread())) {
+    if (op->op.same_as(tirx::launch_thread_op())) {
       PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
       PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
       Range dom = Range::FromMinExtent(IntImm(extent.ty(), 0), extent);

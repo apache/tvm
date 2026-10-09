@@ -44,7 +44,7 @@ static PrimExpr DispatchIntelShuffle(const PrimExpr& e) {
   ffi::Array<Expr> opencl_args{StringImm("intel_sub_group_shuffle"),
                                call->args[1].as_or_throw<PrimExpr>(),
                                call->args[2].as_or_throw<PrimExpr>()};
-  return Call(e.ty(), builtin::call_pure_extern(), opencl_args).as_or_throw<PrimExpr>();
+  return Call(e.ty(), tirx::call_pure_extern_op(), opencl_args).as_or_throw<PrimExpr>();
 }
 
 void RegisterOpenCLIntrinRules() {
@@ -77,7 +77,7 @@ void RegisterOpenCLIntrinRules() {
         for (const PrimExpr& arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
           new_args.push_back(arg);
         }
-        return Call(e.ty(), tirx::builtin::call_pure_extern(), new_args).as_or_throw<PrimExpr>();
+        return Call(e.ty(), tirx::call_pure_extern_op(), new_args).as_or_throw<PrimExpr>();
       });
 
   OpDef("tirx.nearbyint")

@@ -28,9 +28,9 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op/op.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/utils.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -923,8 +923,8 @@ class ModuleInplaceTransformer : public ExprMutator {
     ffi::Array<tirx::Var> new_params(old_function->params.begin(),
                                      old_function->params.begin() + (num_params - num_outs));
 
-    tirx::Function new_function(new_params, new_body, old_function->ret_type, old_function->attrs,
-                                old_function->span);
+    tirx::Function new_function(new_params, tirx::SeqStmt(new_body), old_function->ret_type,
+                                old_function->attrs, old_function->span);
 
     // note: this might be a good time to get rid of the old legalized function, but we don't do it
     // now because later ops might need the same one. Instead, we will clean up at the end

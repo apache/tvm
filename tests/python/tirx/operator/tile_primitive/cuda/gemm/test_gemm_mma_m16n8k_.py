@@ -33,6 +33,7 @@ is guarded by ``requires_cuda`` since it needs a real device.
 
 import numpy as np
 import pytest
+from tvm_ffi import structural_walk
 
 import tvm
 import tvm.testing
@@ -278,7 +279,7 @@ def _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype):
                 kt * kinst + kHi * 8 + 2 * (lane % 4) + kp,
                 nt * 8 + lane // 4,
             ]
-        if beta == 1.0:
+        if T.constexpr(beta == 1.0):
             C_reg = C_f.local(Mt, Nt, 2, 2)
             for mt, nt, rM, rN in T.grid(Mt, Nt, 2, 2):
                 C_reg[mt, nt, rM, rN] = C_g[
@@ -318,7 +319,7 @@ def _build_transpose_numeric(transpose_A, transpose_B, dtype="float16"):
         B_f = T.alloc_tensor(B_shape, dtype, scope="local", layout=Bl)
         D_f = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
         A_reg = A_f.local(2, 2, 2)
-        if transpose_A:
+        if T.constexpr(transpose_A):
             # A_KM_FRAG: buffer is [K, M].
             for kHi, rM, kp in T.grid(2, 2, 2):
                 A_reg[kHi, rM, kp] = A_g[2 * (lane % 4) + kp + 8 * kHi, lane // 4 + 8 * rM]
@@ -327,7 +328,7 @@ def _build_transpose_numeric(transpose_A, transpose_B, dtype="float16"):
             for kHi, rM, kp in T.grid(2, 2, 2):
                 A_reg[kHi, rM, kp] = A_g[lane // 4 + 8 * rM, 2 * (lane % 4) + kp + 8 * kHi]
         B_reg = B_f.local(2, 2)
-        if transpose_B:
+        if T.constexpr(transpose_B):
             # B_NK_FRAG buffer is [N, K].
             for kHi, kp in T.grid(2, 2):
                 B_reg[kHi, kp] = B_g[lane // 4, 2 * (lane % 4) + kp + 8 * kHi]
@@ -372,35 +373,51 @@ def test_cuda_gemm_mma_variant_is_registered():
 def test_cuda_gemm_mma_lowers_to_mma_sync(dtype):
     """beta=0: the dispatch clears D, then issues a single accumulating mma with
     the registers laid out in the fixed PTX fragment order."""
-    script = _lower(_build_gemm(alpha=1.0, beta=0.0, dtype=dtype))["main"].script()
-
-    assert "T.ptx.mma(" in script
-    assert "m16n8k16" in script
+    func = _lower(_build_gemm(alpha=1.0, beta=0.0, dtype=dtype))["main"]
+    calls, stores = [], []
+    structural_walk(func.body, [(tvm.ir.Call, calls.append), (tvm.tirx.TensorStore, stores.append)])
+    mma_calls = [call for call in calls if call.op.name == "tirx.ptx.mma"]
+    assert len(mma_calls) == 1
+    operands = mma_calls[0].args
+    assert operands[16].value == "m16n8k16"
     # beta == 0 clears the accumulator before the K loop.
-    assert "T.float32(0" in script
+    assert len(stores) == 1
+    assert isinstance(stores[0].value, tvm.tirx.FloatImm) and stores[0].value.value == 0
+    assert stores[0].buffer.same_as(operands[0].source)
     # D accumulator: c_id = 2*rM + rN -> regs 0..3.
-    for r in range(4):
-        assert f"d_local[{r}]" in script
     # A and B fragments are packed two elements per b32, so the instruction
     # indexes a uint32 view: the element strides above halve into word strides.
     # A: b32 = rM + 2*kHi (kHi outer) -> words 0..3.
-    for r in range(4):
-        assert f"a_words[{r}]" in script
     # B: b32 = kHi -> words 0, 1.
-    for r in (0, 1):
-        assert f"b_words[{r}]" in script
+    for fragment, dtype in [
+        (operands[:4], "float32"),
+        (operands[4:8], "uint32"),
+        (operands[8:10], "uint32"),
+    ]:
+        for r, load in enumerate(fragment):
+            assert isinstance(load, tvm.ir.TensorLoad)
+            assert load.source.same_as(fragment[0].source)
+            assert load.ty.dtype == dtype
+            assert len(load.indices) == 1 and int(load.indices[0]) == r
+    for dst, src in zip(operands[:4], operands[10:14]):
+        tvm.ir.assert_structural_equal(dst, src)
 
 
 @pytest.mark.gpu
 def test_cuda_gemm_mma_accumulates_c_when_beta_one():
     """beta=1: the accumulator is initialized by copying C instead of zeroing."""
-    script = _lower(_build_gemm(alpha=1.0, beta=1.0))["main"].script()
-
-    assert "T.ptx.mma(" in script
-    assert "m16n8k16" in script
+    func = _lower(_build_gemm(alpha=1.0, beta=1.0))["main"]
+    calls, stores = [], []
+    structural_walk(func.body, [(tvm.ir.Call, calls.append), (tvm.tirx.TensorStore, stores.append)])
+    mma_calls = [call for call in calls if call.op.name == "tirx.ptx.mma"]
+    assert len(mma_calls) == 1
     # The init reads C into D; nothing is zeroed.
-    assert "c_local[" in script
-    assert "T.float32(0" not in script
+    assert len(stores) == 1
+    init = stores[0]
+    assert init.buffer.same_as(mma_calls[0].args[0].source)
+    assert isinstance(init.value, tvm.ir.TensorLoad)
+    assert not init.buffer.same_as(init.value.source)
+    tvm.ir.assert_structural_equal(init.indices, init.value.indices)
 
 
 def test_cuda_gemm_mma_rejects_nonunit_alpha():

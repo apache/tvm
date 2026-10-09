@@ -26,7 +26,7 @@
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 #include "../../../backend/opencl/runtime/texture.h"
 #include "../../../s_tir/ir/ir_mutator_with_analyzer.h"
@@ -63,7 +63,7 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
  private:
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+        call && call->op.same_as(tirx::alloc_tensor_op())) {
       return Mutate_AllocTensor(op, call, inplace_mode);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -76,7 +76,7 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
     if (IsTextureStorage(scope)) {
       op = stmt.as<BindNode>();
       if (const auto* call = op ? op->value.as<CallNode>() : nullptr;
-          !call || !call->op.same_as(tirx::builtin::alloc_tensor())) {
+          !call || !call->op.same_as(tirx::alloc_tensor_op())) {
         TVM_FFI_THROW(InternalError) << "Expected an allocation binding after buffer mutation";
       }
       const auto* allocation = op->value.as<CallNode>();
@@ -96,13 +96,13 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
       ffi::Array<Expr> args;
       args.push_back(StringImm(scope));
       args.push_back(IntImm::Int64(3));
-      args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
+      args.push_back(Call(PointerType(PrimType::Int(64)), tirx::tvm_stack_make_shape_op(),
                           {texture.width, texture.height, texture.depth}));
       args.push_back(IntImm::Int64(channel_size));
       stmt = Bind(op->var.as_or_throw<TensorVar>(),
-                  Call(op->var.as_or_throw<TensorVar>().type(), tirx::builtin::decl_tensor(),
+                  Call(op->var.as_or_throw<TensorVar>().type(), tirx::decl_tensor_op(),
                        {Call(op->var.as_or_throw<TensorVar>().DataPointerType(),
-                             tirx::builtin::nd_mem_alloc_with_scope(), args),
+                             tirx::nd_mem_alloc_with_scope_op(), args),
                         tvm::Tuple(op->var.as_or_throw<TensorVar>()->shape),
                         DataTypeImm(op->var.as_or_throw<TensorVar>()->dtype->dtype),
                         StringImm(op->var.as_or_throw<TensorVar>().scope())},

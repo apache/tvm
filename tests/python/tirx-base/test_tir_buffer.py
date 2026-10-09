@@ -114,9 +114,9 @@ def test_buffer_access_ptr():
     aptr = Ab.access_ptr("rw")
     assert isinstance(aptr.ty, tvm.ir.PointerType)
     assert aptr.ty.element_type == tvm.ir.PrimType("void")
-    tvm.ir.assert_structural_equal(aptr.args[3], Ab.ty.strides[0] * m)
-    assert aptr.args[0].ty == Ab.ty.dtype
-    assert aptr.args[4].value == BufferAccessKind.READ | BufferAccessKind.WRITE
+    tvm.ir.assert_structural_equal(aptr.args[2], Ab.ty.strides[0] * m)
+    assert aptr.ty_args[0] == Ab.ty.dtype
+    assert aptr.args[3].value == BufferAccessKind.READ | BufferAccessKind.WRITE
     typed_ptr = Ab.access_ptr("r", ptr_type="uint8")
     assert typed_ptr.ty == tvm.ir.PointerType(tvm.ir.PrimType("uint8"))
     shared = tvm.tirx.decl_tensor((m, n), "float32", scope="shared")
@@ -125,7 +125,7 @@ def test_buffer_access_ptr():
         tvm.ir.PrimType("uint8"), "shared"
     )
     aptr = Ab.access_ptr("w")
-    assert aptr.args[4].value == BufferAccessKind.WRITE
+    assert aptr.args[3].value == BufferAccessKind.WRITE
 
 
 def test_buffer_access_ptr_offset():
@@ -133,17 +133,17 @@ def test_buffer_access_ptr_offset():
     n = tvm.tirx.Var("n", "int32")
     Ab = tvm.tirx.decl_tensor((m, n), "float32")
     aptr = Ab.access_ptr("rw", offset=100)
-    tvm.testing.assert_prim_expr_equal(aptr.args[2], 100)
-    assert aptr.args[4].value == BufferAccessKind.READ | BufferAccessKind.WRITE
+    tvm.testing.assert_prim_expr_equal(aptr.args[1], 100)
+    assert aptr.args[3].value == BufferAccessKind.READ | BufferAccessKind.WRITE
     v = tvm.tirx.Var("int32", "int32")
     aptr = Ab.access_ptr("rw", offset=100 + 100 + v)
-    tvm.testing.assert_prim_expr_equal(aptr.args[2], 200 + v)
-    assert aptr.args[4].value == BufferAccessKind.READ | BufferAccessKind.WRITE
+    tvm.testing.assert_prim_expr_equal(aptr.args[1], 200 + v)
+    assert aptr.args[3].value == BufferAccessKind.READ | BufferAccessKind.WRITE
     aptr = Ab.access_ptr("rw", offset=tvm.tirx.call_extern("int32", "test_call", 100 + 100 + v))
     tvm.testing.assert_prim_expr_equal(
-        aptr.args[2], tvm.tirx.call_extern("int32", "test_call", 200 + v)
+        aptr.args[1], tvm.tirx.call_extern("int32", "test_call", 200 + v)
     )
-    assert aptr.args[4].value == BufferAccessKind.READ | BufferAccessKind.WRITE
+    assert aptr.args[3].value == BufferAccessKind.READ | BufferAccessKind.WRITE
 
 
 def test_buffer_access_ptr_extent():
@@ -151,18 +151,18 @@ def test_buffer_access_ptr_extent():
     n = tvm.tirx.Var("n", "int32")
     Ab = tvm.tirx.decl_tensor((m, n), "float32")
     aptr = Ab.access_ptr("rw")
-    tvm.ir.assert_structural_equal(aptr.args[3], m * n)
+    tvm.ir.assert_structural_equal(aptr.args[2], m * n)
     aptr = Ab.access_ptr("rw", offset=100)
-    tvm.ir.assert_structural_equal(aptr.args[3], m * n - 100)
+    tvm.ir.assert_structural_equal(aptr.args[2], m * n - 100)
     Ab = tvm.tirx.decl_tensor((m, n), "float32", strides=[n + 1, 1])
     aptr = Ab.access_ptr("rw", offset=100)
-    tvm.ir.assert_structural_equal(aptr.args[3], Ab.ty.strides[0] * m - 100)
+    tvm.ir.assert_structural_equal(aptr.args[2], Ab.ty.strides[0] * m - 100)
 
     # Test extent from input params
     aptr = Ab.access_ptr("rw", extent=200)
-    tvm.ir.assert_structural_equal(aptr.args[3], T.int32(200))
+    tvm.ir.assert_structural_equal(aptr.args[2], T.int32(200))
     aptr = Ab.access_ptr("rw", offset=100, extent=100)
-    tvm.ir.assert_structural_equal(aptr.args[3], T.int32(100))
+    tvm.ir.assert_structural_equal(aptr.args[2], T.int32(100))
 
 
 def test_buffer_vload():

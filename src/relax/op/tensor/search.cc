@@ -33,6 +33,29 @@
 namespace tvm {
 namespace relax {
 
+void ArgmaxArgminAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<ArgmaxArgminAttrs>()
+      .def_ro("axis", &ArgmaxArgminAttrs::axis,
+              "The axis along which to perform the argmin/argmax.",
+              refl::DefaultValue(ffi::Optional<int64_t>{}))
+      .def_ro("keepdims", &ArgmaxArgminAttrs::keepdims,
+              "If this is set to `True`, the reduced axis is left in the result as dimension "
+              "with size "
+              "one.",
+              refl::DefaultValue(false));
+}
+
+void BucketizeAttrs::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<BucketizeAttrs>()
+      .def_ro("out_int32", &BucketizeAttrs::out_int32,
+              "Indicate the output datatype, int32 if True, int64 otherwise.",
+              refl::DefaultValue(false))
+      .def_ro("right", &BucketizeAttrs::right, "Determines the behavior for values in boundaries",
+              refl::DefaultValue(false));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   ArgmaxArgminAttrs::RegisterReflection();
   BucketizeAttrs::RegisterReflection();
@@ -45,8 +68,8 @@ Expr bucketize(Expr input_tensor, Expr boundaries, bool out_int32, bool right) {
   attrs->out_int32 = std::move(out_int32);
   attrs->right = std::move(right);
   static const Op op = Op::Get("relax.bucketize");
-  return Call::Unchecked(Type::Missing(), op, {std::move(input_tensor), std::move(boundaries)},
-                         Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(input_tensor), std::move(boundaries)}, Attrs(attrs),
+              {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -94,8 +117,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.where */
 Expr where(Expr condition, Expr x1, Expr x2) {
   static const Op op = Op::Get("relax.where");
-  return Call::Unchecked(Type::Missing(), op, {std::move(condition), std::move(x1), std::move(x2)},
-                         Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(condition), std::move(x1), std::move(x2)}, Attrs(),
+              {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -259,7 +282,7 @@ Expr argmax(Expr x, ffi::Optional<int64_t> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = std::move(keepdims);
   static const Op op = Op::Get("relax.argmax");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs(attrs));
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs(attrs));
 }
 
 Expr argmin(Expr x, ffi::Optional<int64_t> axis, bool keepdims) {
@@ -267,7 +290,7 @@ Expr argmin(Expr x, ffi::Optional<int64_t> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = std::move(keepdims);
   static const Op op = Op::Get("relax.argmin");
-  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs(attrs));
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs(attrs));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

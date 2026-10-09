@@ -146,7 +146,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr ewise_fma(Expr x1, Expr x2, Expr x3) {
   static const Op op = Op::Get("relax.ewise_fma");
-  return Call::Unchecked(Type::Missing(), op, {x1, x2, x3}, Attrs(), {});
+  return Call(Type::Missing(), op, {x1, x2, x3}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

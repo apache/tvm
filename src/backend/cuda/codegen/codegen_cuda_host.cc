@@ -21,7 +21,7 @@
  *  \brief C host wrappers with direct CUDA kernel launches.
  */
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/attrs.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/type.h>
 
 #include <algorithm>
@@ -131,7 +131,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
   }
 
   void Dispatch_(const CallNode* op, std::ostream& os) override {
-    if (op->op.same_as(tirx::builtin::tvm_stack_alloca()) &&
+    if (op->op.same_as(tirx::tvm_stack_alloca_op()) &&
         op->args[0].as_or_throw<StringImm>()->value == "tensormap") {
       auto count = op->args[1].as_or_throw<IntImm>()->value.as<int64_t>();
       TVM_FFI_CHECK(count.has_value() && *count > 0, ValueError)
@@ -142,7 +142,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
       os << name;
       return;
     }
-    if (op->op.same_as(tirx::builtin::tvm_call_packed_lowered())) {
+    if (op->op.same_as(tirx::tvm_call_packed_lowered_op())) {
       const auto& name = op->args[0].as_or_throw<StringImm>()->value;
       if (name == "runtime.cuTensorMapEncodeTiled" || name == "runtime.cuTensorMapInit") {
         TVM_FFI_THROW(ValueError)
@@ -175,18 +175,17 @@ class CodeGenCUDAHost : public CodeGenCHost {
             << "cuda_host does not provide TVM runtime operation: " << symbol;
       }
     }
-    if (op->op.same_as(tirx::builtin::call_extern()) ||
-        op->op.same_as(tirx::builtin::call_pure_extern())) {
+    if (op->op.same_as(tirx::call_extern_op()) || op->op.same_as(tirx::call_pure_extern_op())) {
       const auto& symbol = op->args[0].as_or_throw<StringImm>()->value;
       TVM_FFI_CHECK(std::string(symbol).rfind("TVMBackend", 0) != 0, ValueError)
           << "cuda_host does not provide TVM runtime operation: " << symbol;
     }
-    if (op->op.same_as(tirx::builtin::tensormap_encode_tiled())) {
+    if (op->op.same_as(tirx::tensormap_encode_tiled_op())) {
       PrintTensorMapEncode(op);
       os << "0";
       return;
     }
-    if (!op->op.same_as(tirx::builtin::call_ffi_kernel())) {
+    if (!op->op.same_as(tirx::call_ffi_kernel_op())) {
       CodeGenCHost::Dispatch_(op, os);
       return;
     }

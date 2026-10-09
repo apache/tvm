@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/relax/attrs/search.h
+ * \file tvm/relax/op/search.h
  * \brief Attributes for search operators.
  */
-#ifndef TVM_RELAX_ATTRS_SEARCH_H_
-#define TVM_RELAX_ATTRS_SEARCH_H_
+#ifndef TVM_RELAX_OP_SEARCH_H_
+#define TVM_RELAX_OP_SEARCH_H_
 
 #include <tvm/relax/expr.h>
 
@@ -34,16 +34,7 @@ struct ArgmaxArgminAttrs : public AttrsNode {
   ffi::Optional<int64_t> axis;
   bool keepdims;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ArgmaxArgminAttrs>()
-        .def_ro("axis", &ArgmaxArgminAttrs::axis,
-                "The axis along which to perform the argmin/argmax.")
-        .def_ro("keepdims", &ArgmaxArgminAttrs::keepdims,
-                "If this is set to `True`, the reduced axis is left in the result as dimension "
-                "with size "
-                "one.");
-  }
+  static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ArgmaxArgminAttrs", ArgmaxArgminAttrs, AttrsNode);
 };  // struct ArgmaxArgminAttrs
 
@@ -52,18 +43,11 @@ struct BucketizeAttrs : public tvm::AttrsNode {
   bool out_int32;
   bool right;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BucketizeAttrs>()
-        .def_ro("out_int32", &BucketizeAttrs::out_int32,
-                "Indicate the output datatype, int32 if True, int64 otherwise.")
-        .def_ro("right", &BucketizeAttrs::right,
-                "Determines the behavior for values in boundaries");
-  }
+  static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.BucketizeAttrs", BucketizeAttrs, AttrsNode);
 };  // struct BucketizeAttrs
 
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_ATTRS_SEARCH_H_
+#endif  // TVM_RELAX_OP_SEARCH_H_

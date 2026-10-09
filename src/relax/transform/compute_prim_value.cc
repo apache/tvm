@@ -18,14 +18,14 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
 #include <tvm/s_tir/analysis.h>
-#include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/function.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -114,9 +114,9 @@ class PrimExprComputeInjector : public ExprMutator {
     auto param_vars = tirx::UndefinedVars(node);
     tirx::Stmt body = tirx::Return(node);
 
-    tirx::Function func(param_vars, body, ret_ty,
+    tirx::Function func(param_vars, tirx::SeqStmt(body), ret_ty,
                         DictAttrs({{tirx::attr::kIsHostFunc, true}, {tvm::attr::kSTir, true}}));
-    func = s_tir::RenewDefs(func);
+    func = tirx::RenewDef(func);
 
     auto callee = builder_->AddFunction(func, "compute_symbolic_expr");
 
@@ -124,10 +124,9 @@ class PrimExprComputeInjector : public ExprMutator {
         [](const tirx::Var& tir_var) -> relax::Expr { return tir_var.as_or_throw<PrimExpr>(); }));
     const Op& bridge = Op::Get("relax.call_tir_packed");
     if (s_tir::IsPureFunction(func)) {
-      return Call::Unchecked(Type::Missing(), Op::Get("relax.call_pure_packed"),
-                             {bridge, callee, args});
+      return Call(Type::Missing(), Op::Get("relax.call_pure_packed"), {bridge, callee, args});
     }
-    return Call::Unchecked(Type::Missing(), bridge, {callee, args});
+    return Call(Type::Missing(), bridge, {callee, args});
   }
 };
 

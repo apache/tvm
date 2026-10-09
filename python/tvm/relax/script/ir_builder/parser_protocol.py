@@ -419,6 +419,8 @@ def emit_(value: Any, *, span: _Span = None) -> None:
         return None
     if value is None:
         return
+    if isinstance(value, _python.tuple) and not value:
+        value = _relax.Tuple([])
     if not isinstance(value, _relax.Expr):
         raise TypeError(f"Unsupported expression statement value: {type(value).__name__}")
     result = bind_(_base.at_(span, value), name="_", span=span)
@@ -533,7 +535,7 @@ def assert_(
     """Implements :func:`tvm.script.ir_builder.parser_protocol.assert_`."""
     if not isinstance(message, _python.str):
         raise TypeError("An assertion message must be construction-time text")
-    emit_(_base.at_(span, _op.assert_op(condition, format=message)), span=span)
+    emit_(_base.at_(span, _op.assert_op(condition, message)), span=span)
 
 
 # --------------------------------------

@@ -22,6 +22,7 @@
  * \brief Lower frontend-only TIRx IKET annotations to CUDA tracing helpers.
  */
 
+#include <tvm/backend/cuda/op.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/logging.h>
@@ -86,46 +87,20 @@ enum class PayloadType : uint32_t {
   kUI64 = 16,
 };
 
-const Op& IketMarkOp() {
-  static const Op op = Op::Get("tirx.cuda.iket_mark");
-  return op;
-}
-
-const Op& IketRangeStartOp() {
-  static const Op op = Op::Get("tirx.cuda.iket_range_start");
-  return op;
-}
-
-const Op& IketRangeEndOp() {
-  static const Op op = Op::Get("tirx.cuda.iket_range_end");
-  return op;
-}
-
-const Op& IketRangePushOp() {
-  static const Op op = Op::Get("tirx.cuda.iket_range_push");
-  return op;
-}
-
-const Op& IketRangePopOp() {
-  static const Op op = Op::Get("tirx.cuda.iket_range_pop");
-  return op;
-}
-
-const Op& IketSentinelOp() {
-  static const Op op = Op::Get("tirx.cuda.iket_sentinel_token");
-  return op;
-}
-
 bool IsIketOp(const ffi::ObjectRef& value) {
   auto op = value.as<Op>();
   if (!op.has_value()) return false;
-  return op.value().same_as(IketMarkOp()) || op.value().same_as(IketRangeStartOp()) ||
-         op.value().same_as(IketRangeEndOp()) || op.value().same_as(IketRangePushOp()) ||
-         op.value().same_as(IketRangePopOp()) || op.value().same_as(IketSentinelOp());
+  return op.value().same_as(backend::cuda::iket_mark_op()) ||
+         op.value().same_as(backend::cuda::iket_range_start_op()) ||
+         op.value().same_as(backend::cuda::iket_range_end_op()) ||
+         op.value().same_as(backend::cuda::iket_range_push_op()) ||
+         op.value().same_as(backend::cuda::iket_range_pop_op()) ||
+         op.value().same_as(backend::cuda::iket_sentinel_token_op());
 }
 
 bool IsTokenProducer(const CallNode* call) {
-  return call->op.same_as(IketRangeStartOp()) || call->op.same_as(IketSentinelOp());
+  return call->op.same_as(backend::cuda::iket_range_start_op()) ||
+         call->op.same_as(backend::cuda::iket_sentinel_token_op());
 }
 
 bool IsValidUTF8(const std::string& value) {
@@ -336,15 +311,15 @@ class AnnotationCollector : public StmtExprVisitor {
       return StmtExprVisitor::Visit_(call);
     }
     has_annotations = true;
-    if (call->op.same_as(IketMarkOp())) {
+    if (call->op.same_as(backend::cuda::iket_mark_op())) {
       AddDeclaration(DeclarationKind::kMark, call);
-    } else if (call->op.same_as(IketRangeStartOp())) {
+    } else if (call->op.same_as(backend::cuda::iket_range_start_op())) {
       TVM_FFI_CHECK(call->ty.as_or_throw<PrimType>()->dtype.code == kDLUInt &&
                         call->ty.as_or_throw<PrimType>()->dtype.bits == 32,
                     TypeError)
           << "IKET range_start must return uint32";
       AddDeclaration(DeclarationKind::kRange, call);
-    } else if (call->op.same_as(IketSentinelOp())) {
+    } else if (call->op.same_as(backend::cuda::iket_sentinel_token_op())) {
       TVM_FFI_CHECK_EQ(call->args.size(), 1, TypeError)
           << "IKET sentinel_token expects one event name";
       TVM_FFI_CHECK(call->ty.as_or_throw<PrimType>()->dtype.code == kDLUInt &&
@@ -354,9 +329,9 @@ class AnnotationCollector : public StmtExprVisitor {
       // A sentinel carries only token-flow identity.  It emits no runtime
       // event and therefore must not create metadata or consume an event ID.
       GetName(call);
-    } else if (call->op.same_as(IketRangePushOp())) {
+    } else if (call->op.same_as(backend::cuda::iket_range_push_op())) {
       AddDeclaration(DeclarationKind::kPush, call);
-    } else if (call->op.same_as(IketRangeEndOp())) {
+    } else if (call->op.same_as(backend::cuda::iket_range_end_op())) {
       TVM_FFI_CHECK(call->args.size() == 1 || call->args.size() == 2, TypeError)
           << "IKET range_end expects a token and optional payload";
       DLDataType token_dtype = call->args[0].as_or_throw<PrimExpr>().ty()->dtype;
@@ -367,7 +342,7 @@ class AnnotationCollector : public StmtExprVisitor {
         has_payload_calls = true;
         ValidatePayload(call->args[1]);
       }
-    } else if (call->op.same_as(IketRangePopOp())) {
+    } else if (call->op.same_as(backend::cuda::iket_range_pop_op())) {
       TVM_FFI_CHECK_EQ(call->args.size(), 0, TypeError) << "IKET range_pop takes no arguments";
     }
 
@@ -460,7 +435,7 @@ class RangeEndSchemaVerifier : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* call) final {
-    if (!call->op.same_as(IketRangeEndOp())) {
+    if (!call->op.same_as(backend::cuda::iket_range_end_op())) {
       return StmtExprVisitor::Visit_(call);
     }
     const auto* token = call->args[0].as<TensorLoadNode>();
@@ -567,7 +542,7 @@ class TokenVerifier : public StmtExprVisitor {
       allow_producer_ = old_allow_producer;
       return std::nullopt;
     }
-    if (call->op.same_as(IketRangeEndOp())) {
+    if (call->op.same_as(backend::cuda::iket_range_end_op())) {
       TVM_FFI_CHECK_GE(call->args.size(), 1, TypeError) << "range_end requires a RangeToken";
       const auto* token = call->args[0].as<TensorLoadNode>();
       TVM_FFI_CHECK(
@@ -596,9 +571,9 @@ class StripIket : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const BindNode* alloc, InplaceMode inplace_mode) final {
-    if (const auto* call = alloc->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_tensor()) &&
-        token_buffers_.count(alloc->var.get())) {
+    if (const auto* call = alloc->value.as<CallNode>(); call &&
+                                                        call->op.same_as(tirx::alloc_tensor_op()) &&
+                                                        token_buffers_.count(alloc->var.get())) {
       return Evaluate(0);
     }
     return StmtExprMutator::Mutate_(alloc, inplace_mode);
@@ -617,7 +592,8 @@ class StripIket : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* call, InplaceMode inplace_mode) final {
-    if (call->op.same_as(IketRangeStartOp()) || call->op.same_as(IketSentinelOp())) {
+    if (call->op.same_as(backend::cuda::iket_range_start_op()) ||
+        call->op.same_as(backend::cuda::iket_sentinel_token_op())) {
       return IntImm(PrimType::UInt(32), 0);
     }
     return StmtExprMutator::Mutate_(call, inplace_mode);
@@ -625,12 +601,6 @@ class StripIket : public StmtExprMutator {
 
   TokenBufferSet token_buffers_;
 };
-
-bool IsEvaluateZero(const Stmt& stmt) {
-  const auto* evaluate = stmt.as<EvaluateNode>();
-  const auto* value = evaluate ? evaluate->value.as<IntImmNode>() : nullptr;
-  return value && value->value == 0;
-}
 
 class RemoveStrippedIketNoOps : public StmtExprMutator {
  private:
@@ -641,14 +611,14 @@ class RemoveStrippedIketNoOps : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     auto result = StmtExprMutator::Mutate_(loop, inplace_mode);
     if (!result.IsUnchanged()) loop = ffi::AnyView(result).as<ForNode>();
-    if (IsEvaluateZero(loop->body)) return loop->body;
+    if (loop->body->seq.empty()) return loop->body;
     return result;
   }
 
   UnchangedOr<Stmt> Mutate_(const WhileNode* loop, InplaceMode inplace_mode) final {
     auto result = StmtExprMutator::Mutate_(loop, inplace_mode);
     if (!result.IsUnchanged()) loop = ffi::AnyView(result).as<WhileNode>();
-    if (IsEvaluateZero(loop->body)) return loop->body;
+    if (loop->body->seq.empty()) return loop->body;
     return result;
   }
 
@@ -656,11 +626,11 @@ class RemoveStrippedIketNoOps : public StmtExprMutator {
     auto result = StmtExprMutator::Mutate_(branch, inplace_mode);
     if (!result.IsUnchanged()) branch = ffi::AnyView(result).as<IfThenElseNode>();
     if (!branch->else_case.has_value()) {
-      if (IsEvaluateZero(branch->then_case)) return PreserveConditionEffects(branch->condition);
+      if (branch->then_case->seq.empty()) return PreserveConditionEffects(branch->condition);
       return result;
     }
-    bool empty_then = IsEvaluateZero(branch->then_case);
-    bool empty_else = IsEvaluateZero(branch->else_case.value());
+    bool empty_then = branch->then_case->seq.empty();
+    bool empty_else = branch->else_case.value()->seq.empty();
     if (empty_then && empty_else) return PreserveConditionEffects(branch->condition);
     if (empty_else) {
       return IfThenElse(branch->condition, branch->then_case, std::nullopt, branch->span);
@@ -1133,7 +1103,7 @@ class InstrumentOfficialKernel : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* evaluate, InplaceMode inplace_mode) final {
     if (const auto* call = evaluate->value.as<CallNode>();
-        call && call->op.same_as(IketRangeEndOp())) {
+        call && call->op.same_as(backend::cuda::iket_range_end_op())) {
       PrimExpr token =
           Mutate(call->args[0]).ValueOrUnchanged(call->args[0]).as_or_throw<PrimExpr>();
       if (call->args.size() == 2) {
@@ -1149,7 +1119,7 @@ class InstrumentOfficialKernel : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* call, InplaceMode inplace_mode) final {
-    if (call->op.same_as(IketRangeStartOp())) {
+    if (call->op.same_as(backend::cuda::iket_range_start_op())) {
       const Declaration& declaration = Lookup(DeclarationKind::kRange, call);
       PrimExpr event_id = IntImm(PrimType::UInt(32), declaration.event_id);
       if (declaration.has_payload) {
@@ -1161,8 +1131,9 @@ class InstrumentOfficialKernel : public StmtExprMutator {
       }
       return Event(event_id);
     }
-    if (call->op.same_as(IketSentinelOp())) return IntImm(PrimType::UInt(32), 0);
-    if (call->op.same_as(IketMarkOp())) {
+    if (call->op.same_as(backend::cuda::iket_sentinel_token_op()))
+      return IntImm(PrimType::UInt(32), 0);
+    if (call->op.same_as(backend::cuda::iket_mark_op())) {
       const Declaration& declaration = Lookup(DeclarationKind::kMark, call);
       PrimExpr event_id = IntImm(PrimType::UInt(32), declaration.event_id);
       if (declaration.has_payload) {
@@ -1174,7 +1145,7 @@ class InstrumentOfficialKernel : public StmtExprMutator {
       }
       return Event(event_id);
     }
-    if (call->op.same_as(IketRangePushOp())) {
+    if (call->op.same_as(backend::cuda::iket_range_push_op())) {
       const Declaration& declaration = Lookup(DeclarationKind::kPush, call);
       PrimExpr event_id = IntImm(PrimType::UInt(32), declaration.event_id);
       if (declaration.has_payload) {
@@ -1186,10 +1157,10 @@ class InstrumentOfficialKernel : public StmtExprMutator {
       }
       return Event(event_id);
     }
-    if (call->op.same_as(IketRangePopOp())) {
+    if (call->op.same_as(backend::cuda::iket_range_pop_op())) {
       return Event(IntImm(PrimType::UInt(32), kRangePopEventId));
     }
-    if (call->op.same_as(IketRangeEndOp())) {
+    if (call->op.same_as(backend::cuda::iket_range_end_op())) {
       TVM_FFI_THROW(ValueError) << "range_end must be emitted in statement position";
     }
     return StmtExprMutator::Mutate_(call, inplace_mode);

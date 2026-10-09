@@ -18,10 +18,9 @@
  */
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ir/op.h>
-#include <tvm/ir/prim/builtin.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/script/ir_builder/ir.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
@@ -103,7 +102,7 @@ void FunctionFrameNode::ExitWithScope() {
   }
   TVM_FFI_CHECK(!is_declaration || stmts.empty(), ValueError)
       << "A function declaration cannot contain body statements";
-  ffi::Optional<tvm::tirx::Stmt> body = std::nullopt;
+  ffi::Optional<tvm::tirx::SeqStmt> body = std::nullopt;
   if (!is_declaration) body = AsStmt(stmts);
   tvm::tirx::Function func(
       /*params=*/args,
@@ -233,9 +232,9 @@ void IfFrameNode::ExitWithScope() {
     TVM_FFI_THROW(InternalError) << "IfThenElse frame should have at least one then branch";
   }
   AddToParent(tvm::tirx::IfThenElse(condition, AsStmt(then_stmts.value()),
-                                    else_stmts.has_value()
-                                        ? ffi::Optional<tvm::tirx::Stmt>(AsStmt(else_stmts.value()))
-                                        : std::nullopt,
+                                    else_stmts.has_value() ? ffi::Optional<tvm::tirx::SeqStmt>(
+                                                                 AsStmt(else_stmts.value()))
+                                                           : std::nullopt,
                                     source_span),
               source_span);
 }

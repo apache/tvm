@@ -24,7 +24,7 @@ tvm.script.register_dialect("tirx", "tvm.tirx.script", builder_path="tvm.tirx.sc
 
 
 from tvm.ir import Expr
-from tvm.runtime import const
+from tvm.ir import const
 
 from .buffer import (
     BufferAccessKind,
@@ -52,11 +52,11 @@ from .stmt import TensorStore, RegionStmt
 
 from .stmt import SeqStmt
 from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
-from .stmt import BufferRegion, BufferRegionType
+from .stmt import BufferRegion
 from .stmt import ScopeIdDefStmt
 from .tile_primitive import DispatchContext, TilePrimitiveCall
 
-from .function import Function, IndexMap
+from .function import Function, IndexMap, renew_def
 
 from .op import call_packed_lowered, call_cpacked_lowered, register_intrin_lowering
 from .op import call_packed, call_cpacked, call_intrin, call_pure_extern, call_extern
@@ -65,7 +65,7 @@ from .op import call_llvm_intrin, call_llvm_pure_intrin, all, any, min_value, ma
 from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
 from .op import handle_add_byte_offset, tvm_struct_get, tvm_struct_set
 from .op import address_of, assume, assume_aligned, undef
-from .op import tvm_thread_allreduce, type_annotation, tvm_access_ptr, ptr_byte_offset
+from .op import tvm_thread_allreduce, tvm_access_ptr, ptr_byte_offset
 from .op import tvm_throw_last_error, cpu_parallel_barrier
 from .op import (
     tvm_load_matrix_sync,

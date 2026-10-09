@@ -33,7 +33,7 @@ using namespace tvm::tirx;
  * \return Whether the loop has any annotation
  */
 inline bool HasAnnOrBinding(const ForNode* loop) {
-  return loop->kind == ForKind::kThreadBinding || !loop->annotations.empty();
+  return loop->GetThreadBinding().has_value() || !loop->annotations.empty();
 }
 
 /*! \brief The visitor for extracting the stride of a var in a PrimExpr. */
@@ -384,7 +384,10 @@ bool FindAnnotatedRootBlock(const Schedule& sch, ParsedAnnotation* parsed, SBloc
     const GlobalVar& g_var = kv.first;
     const BaseFunc& base_func = kv.second;
     if (const auto* function = base_func.as<FunctionNode>()) {
-      const SBlockRealizeNode* block_realize = function->body.as<SBlockRealizeNode>();
+      const SBlockRealizeNode* block_realize =
+          function->body.has_value() && function->body.value()->size() == 1
+              ? function->body.value()->seq[0].as<SBlockRealizeNode>()
+              : nullptr;
       if (block_realize != nullptr) {
         SBlock block = block_realize->block;
         if (ParseAnnotation(block, parsed)) {

@@ -21,6 +21,7 @@
  * \brief Frontend-only NVIDIA IKET annotation operators for CUDA.
  */
 
+#include <tvm/backend/cuda/op.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
@@ -79,4 +80,40 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 }  // namespace tirx
+
+namespace backend {
+namespace cuda {
+
+const Op& iket_mark_op() {
+  static const Op op = Op::Get("tirx.cuda.iket_mark");
+  return op;
+}
+
+const Op& iket_range_start_op() {
+  static const Op op = Op::Get("tirx.cuda.iket_range_start");
+  return op;
+}
+
+const Op& iket_range_end_op() {
+  static const Op op = Op::Get("tirx.cuda.iket_range_end");
+  return op;
+}
+
+const Op& iket_range_push_op() {
+  static const Op op = Op::Get("tirx.cuda.iket_range_push");
+  return op;
+}
+
+const Op& iket_range_pop_op() {
+  static const Op op = Op::Get("tirx.cuda.iket_range_pop");
+  return op;
+}
+
+const Op& iket_sentinel_token_op() {
+  static const Op op = Op::Get("tirx.cuda.iket_sentinel_token");
+  return op;
+}
+
+}  // namespace cuda
+}  // namespace backend
 }  // namespace tvm

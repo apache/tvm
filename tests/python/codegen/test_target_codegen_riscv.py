@@ -111,11 +111,11 @@ def test_rvv_vscale_llvm_dbginfo(target):
     @T.function
     def rvv_with_vscale(A: T.Tensor((8,), dtype='float32', align=4, offset_factor=1), B: T.Tensor((4, 8), dtype='float32', align=4, offset_factor=1, strides=[8, 1]), C: T.Tensor((4,), dtype='float32', align=4, offset_factor=1)):
 
-        zero = T.call_llvm_intrin('float32xvscalex2', 'llvm.riscv.vfmv.v.f', T.Broadcast(T.float32(0.0), T.vscale() * 2), C[0], T.uint64(1))
-        vec_A = T.call_llvm_intrin('float32xvscalex4', 'llvm.riscv.vle', T.Broadcast(T.float32(0.0), T.vscale() * 4), T.tvm_access_ptr(T.type_annotation('float32'), A.data, 0, 8, 1), T.int64(8))
-        vec_B = T.call_llvm_intrin('float32xvscalex4', 'llvm.riscv.vle', T.Broadcast(T.float32(0.0), T.vscale() * 4), T.tvm_access_ptr(T.type_annotation('float32'), B.data, 0 * 8, 8, 1), T.int64(8))
-        prod = T.call_llvm_intrin('float32xvscalex4', 'llvm.riscv.vfmul', T.Broadcast(T.float32(0.0), T.vscale() * 4), vec_A, vec_B, T.uint64(7), T.uint64(8))
-        redsum = T.call_llvm_intrin('float32xvscalex2', 'llvm.riscv.vfredusum', T.Broadcast(T.float32(0.0), T.vscale() * 2), prod, zero, T.uint64(7), T.uint64(8))
+        zero = T.call_llvm_intrin( 'llvm.riscv.vfmv.v.f', T.Broadcast(T.float32(0.0), T.vscale() * 2), C[0], T.uint64(1), ty='float32xvscalex2')
+        vec_A = T.call_llvm_intrin( 'llvm.riscv.vle', T.Broadcast(T.float32(0.0), T.vscale() * 4), T.tvm_access_ptr('float32', A.data, 0, 8, 1), T.int64(8), ty='float32xvscalex4')
+        vec_B = T.call_llvm_intrin( 'llvm.riscv.vle', T.Broadcast(T.float32(0.0), T.vscale() * 4), T.tvm_access_ptr('float32', B.data, 0 * 8, 8, 1), T.int64(8), ty='float32xvscalex4')
+        prod = T.call_llvm_intrin( 'llvm.riscv.vfmul', T.Broadcast(T.float32(0.0), T.vscale() * 4), vec_A, vec_B, T.uint64(7), T.uint64(8), ty='float32xvscalex4')
+        redsum = T.call_llvm_intrin( 'llvm.riscv.vfredusum', T.Broadcast(T.float32(0.0), T.vscale() * 2), prod, zero, T.uint64(7), T.uint64(8), ty='float32xvscalex2')
     # fmt: on
 
     # tvm.error.InternalError: Can't fetch the lanes of a scalable vector at a compile time.

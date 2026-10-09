@@ -44,7 +44,7 @@ def lower_intrin(params, stmt):
         [tvm.tirx.transform.StmtSimplify(), tvm.tirx.transform.LowerIntrin()]
     )(mod)
     func = mod["main"]
-    stmt = func.body
+    stmt = func.body[0]
     return stmt.value if lower_expr else stmt.body
 
 
@@ -78,7 +78,7 @@ def check_value(expr, variables, data, fref):
         loop_var,
         tvm.tirx.const(0, "int32"),
         tvm.tirx.const(n, "int32"),
-        tvm.tirx.ForKind.SERIAL,
+        tvm.tirx.ForKind.DEFAULT,
         make_store(loop_var),
     )
 
@@ -142,9 +142,9 @@ def test_lower_vector_access_ptr():
     access_ptr = buffer.access_ptr(access_mask=3, offset=2, extent=4)
 
     assert access_ptr.op.name == "tirx.tvm_access_ptr"
-    assert int(access_ptr.args[2]) == 2
-    assert int(access_ptr.args[3]) == 4
-    assert int(access_ptr.args[4]) == 3
+    assert int(access_ptr.args[1]) == 2
+    assert int(access_ptr.args[2]) == 4
+    assert int(access_ptr.args[3]) == 3
 
     mod = tvm.IRModule.from_expr(
         tvm.tirx.Function([buffer], tvm.tirx.Evaluate(access_ptr)).with_attr(
@@ -191,7 +191,7 @@ def test_lower_buffer_data_access_ptr_preserves_buffer_identity():
     func = tvm.tirx.Function([buffer], tvm.tirx.Evaluate(access)).with_attr(
         "target", tvm.target.Target("llvm")
     )
-    lowered = tvm.tirx.transform.LowerIntrin()(tvm.IRModule.from_expr(func))["main"].body.value
+    lowered = tvm.tirx.transform.LowerIntrin()(tvm.IRModule.from_expr(func))["main"].body[0].value
     assert isinstance(lowered, tvm.ir.Call)
     assert lowered.op.name == "tirx.address_of"
     load = lowered.args[0]
