@@ -49,6 +49,8 @@ namespace tvm {
 namespace tirx {
 
 namespace {
+static ffi::Array<Var> RegionNoBodyParams(const CallNode*) { return {}; }
+
 void ValidateDeviceScopeRegion(const RegionStmtNode* region) {
   TVM_FFI_CHECK(region->result_vars.empty(), ValueError)
       << region->op->name << " expects no results";
@@ -900,7 +902,7 @@ Pass SplitHostDevice() {
     return LowerDeviceKernelLaunches(mod);
   };
 
-  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.SplitHostDevice", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.SplitHostDevice");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

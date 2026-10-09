@@ -1310,7 +1310,7 @@ Pass LowerIket() {
   auto pass_func = [](IRModule module, tvm::transform::PassContext) {
     return LowerIketImpl(std::move(module));
   };
-  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.backend.cuda.LowerIket", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.backend.cuda.LowerIket");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

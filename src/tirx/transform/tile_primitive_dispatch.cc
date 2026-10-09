@@ -1558,7 +1558,7 @@ Pass TilePrimitiveDispatch() {
     }
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.TilePrimitiveDispatch", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.TilePrimitiveDispatch");
 }
 
 }  // namespace transform

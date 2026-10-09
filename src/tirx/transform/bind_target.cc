@@ -375,7 +375,7 @@ transform::Pass BindTarget(Target target) {
   auto fpass = [target](IRModule mod, transform::PassContext ctx) {
     return tvm::tirx::BindTarget(mod, target);
   };
-  return tirx::transform::CreateModulePass(fpass, 0, "tirx.BindTarget", {});
+  return tirx::transform::CreateModulePass(fpass, 0, "tirx.BindTarget");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

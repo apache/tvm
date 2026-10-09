@@ -1427,7 +1427,7 @@ Pass VectorizeLoop(bool enable_vectorize) {
     }
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.VectorizeLoop", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.VectorizeLoop");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

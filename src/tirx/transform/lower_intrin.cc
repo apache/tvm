@@ -501,7 +501,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
 Stmt LowerIntrinStmt(Stmt stmt, const std::string& target) {
   sym::Analyzer analyzer;
   bool enable_fast_math =
-      transform::PassContext::Current()->GetConfig<bool>("tirx.enable_fast_math", false).value();
+      transform::PassContext::Current()->GetConfig<bool>("tirx.enable_fast_math").value_or(false);
   return ffi::make_object<IntrinInjecter>(analyzer, Target(ffi::String(target)), enable_fast_math)
       ->Mutate(stmt, InplaceMode::kAllow)
       .ValueOrUnchanged(stmt);
@@ -515,13 +515,13 @@ Pass LowerIntrin() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     TVM_FFI_ICHECK(target.has_value()) << "LowerIntrin: Require the target attribute";
     sym::Analyzer analyzer;
-    bool enable_fast_math = ctx->GetConfig<bool>("tirx.enable_fast_math", false).value();
+    bool enable_fast_math = ctx->GetConfig<bool>("tirx.enable_fast_math").value_or(false);
     n->body = ffi::make_object<IntrinInjecter>(analyzer, target.value(), enable_fast_math)
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(n->body);
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.LowerIntrin", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.LowerIntrin");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

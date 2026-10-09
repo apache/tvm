@@ -346,7 +346,7 @@ Pass MakePackedAPI() {
     return mod;
   };
 
-  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.MakePackedAPI", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "tirx.MakePackedAPI");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

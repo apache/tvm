@@ -315,7 +315,7 @@ Pass NarrowDataType(int target_bits) {
     n->body = ffi::make_object<NarrowDataTypeRewriter>(target_bits)->Rewrite(n->body.value());
     return f;
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.NarrowDataType", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.NarrowDataType");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

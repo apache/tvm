@@ -758,7 +758,7 @@ Pass BF16ComputeLegalize() {
     }
     return ffi::make_object<BF16ComputeLegalizer>()->Legalize(f);
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.BF16ComputeLegalize", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.BF16ComputeLegalize");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -775,7 +775,7 @@ Pass BF16StorageLegalize() {
     }
     return ffi::make_object<BF16StorageLegalizer>()->Legalize(f);
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.BF16StorageLegalize", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.BF16StorageLegalize");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -793,7 +793,7 @@ Pass FP8ComputeLegalize(ffi::String promote_dtype) {
     return ffi::make_object<FP8ComputeLegalizer>(PrimType(ffi::StringToDLDataType(promote_dtype)))
         ->Legalize(f);
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.FP8ComputeLegalize", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.FP8ComputeLegalize");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -810,7 +810,7 @@ Pass FP8StorageLegalize() {
     }
     return ffi::make_object<FP8StorageLegalizer>()->Legalize(f);
   };
-  return CreateFunctionPass(pass_func, 0, "tirx.FP8StorageLegalize", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.FP8StorageLegalize");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
