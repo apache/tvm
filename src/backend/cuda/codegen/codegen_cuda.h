@@ -25,8 +25,8 @@
 #define TVM_TARGET_SOURCE_CODEGEN_CUDA_H_
 
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/target/codegen.h>
-#include <tvm/tirx/op.h>
 
 #include <array>
 #include <optional>

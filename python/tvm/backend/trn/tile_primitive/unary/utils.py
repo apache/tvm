@@ -112,7 +112,7 @@ def get_const_bias_tensor(bias, shape, dtype, workspace, sctx):
                 for p_loop in T.serial(0, shape[0], annotations={nki_dim: "P"}):
                     for f_loop in T.serial(0, shape[1], annotations={nki_dim: "F"}):
                         T.evaluate(T.nki.memset(bias_buffer[p_loop, f_loop], bias))
-            T.tvm_kernel_replace_point()
+            T.kernel_replace_point()
 
         sctx.add_init_stmt(const_bias_init.body)
     else:

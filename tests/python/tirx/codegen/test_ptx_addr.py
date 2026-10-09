@@ -100,7 +100,7 @@ def test_ptx_addr_coercion_ir_order_and_shared_codegen():
     assert len(calls) == 4
     assert getattr(calls[0].args[0].op, "name", None) == "tirx.cuda.cvta_generic_to_shared"
     assert not isinstance(calls[1].args[0], Call)
-    assert getattr(calls[2].args[0].op, "name", None) == "tirx.buffer_data"
+    assert getattr(calls[2].args[0].op, "name", None) == "tirx.tensor_data_ptr"
     assert getattr(calls[3].args[0].op, "name", None) == "tirx.reinterpret"
     assert [int(call.args[1]) for call in calls] == [4, 8, 12, 16]
     assert all(call.ty == call.args[0].ty for call in calls)

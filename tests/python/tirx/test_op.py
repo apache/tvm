@@ -21,11 +21,11 @@ import pytest
 from tvm.ir import Op, assert_structural_equal
 from tvm.tirx.buffer import decl_tensor
 from tvm.tirx.exec_scope import ExecScope
-from tvm.tirx.tile_primitive import TilePrimitiveCall
+from tvm.tirx.stmt import TileOpCall
 
 
 def _test(op: str, *args):
-    return TilePrimitiveCall(*args, op=Op.get("tirx.tile." + op), workspace={}, config={})
+    return TileOpCall(*args, op=Op.get("tirx.tile." + op), workspace={}, config={})
 
 
 def test_copy():
@@ -48,10 +48,10 @@ def test_gemm():
 
 
 def test_tile_primitive_call_pickle_roundtrip():
-    """TilePrimitiveCall reflection must provide a deserialization creator."""
+    """TileOpCall reflection must provide a deserialization creator."""
     A = decl_tensor((64,), "float32", scope="local")
     workspace = decl_tensor((16,), "float32", scope="shared")
-    call = TilePrimitiveCall(
+    call = TileOpCall(
         A[:],
         1.0,
         op=Op.get("tirx.tile.fill"),

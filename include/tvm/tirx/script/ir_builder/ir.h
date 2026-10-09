@@ -21,13 +21,13 @@
 
 #include <tvm/ffi/container/tuple.h>
 #include <tvm/ffi/container/variant.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/script/ir_builder/base.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/layout.h>
-#include <tvm/tirx/op.h>
 #include <tvm/tirx/script/ir_builder/frame.h>
-#include <tvm/tirx/tile_op.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/type.h>
 
 namespace tvm {
@@ -106,7 +106,7 @@ void FuncAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
  */
 Type FuncRet(Type ret_type);
 
-void TilePrimitiveCall(tvm::tirx::TilePrimitiveCall op_call);
+void TileOpCall(tvm::tirx::TileOpCall op_call);
 
 /*!
  * \brief Define a scope id. Pass `extents=std::nullopt` to defer the extent; it is

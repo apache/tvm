@@ -471,7 +471,7 @@ def test_cooperative_matrix(out_dtype):
             W_shared_wmma_matrix_b = T.alloc_tensor((32, 16), "float16", scope="wmma.matrix_b")
             compute_wmma_accumulator = T.alloc_tensor((16, 16), out_dtype, scope="wmma.accumulator")
             for i_0_j_0_fused in T.thread_binding(1, thread="blockIdx.x"):
-                T.tvm_fill_fragment(compute_wmma_accumulator.data, 16, 16, 16, 0, T.float32(0.0))
+                T.gpu_fill_fragment(compute_wmma_accumulator.data, 16, 16, 16, 0, T.float32(0.0))
                 for k_0 in range(2):
                     for fused_outer in range(2):
                         for tx in T.thread_binding(32, thread="threadIdx.x"):
@@ -479,16 +479,16 @@ def test_cooperative_matrix(out_dtype):
                                 index = fused_outer * 128 + tx * 4 + lane
                                 X_shared[index // 16, k_0 * 16 + index % 16] = X[index // 16, k_0 * 16 + index % 16]
                                 W_shared[k_0 * 16 + index // 16, index % 16] = W[k_0 * 16 + index // 16, index % 16]
-                    T.tvm_storage_sync("shared")
-                    T.tvm_load_matrix_sync(X_shared_wmma_matrix_a.data, 16, 16, 16, k_0,
-                        T.tvm_access_ptr("float16", X_shared.data, k_0 * 16, 512, 1), 32, "row_major")
-                    T.tvm_load_matrix_sync(W_shared_wmma_matrix_b.data, 16, 16, 16, k_0,
-                        T.tvm_access_ptr("float16", W_shared.data, k_0 * 256, 256, 1), 16, "row_major")
-                    T.tvm_mma_sync(compute_wmma_accumulator.data, 0,
+                    T.gpu_storage_sync("shared")
+                    T.gpu_load_matrix_sync(X_shared_wmma_matrix_a.data, 16, 16, 16, k_0,
+                        T.access_ptr("float16", X_shared.data, k_0 * 16, 512, 1), 32, "row_major")
+                    T.gpu_load_matrix_sync(W_shared_wmma_matrix_b.data, 16, 16, 16, k_0,
+                        T.access_ptr("float16", W_shared.data, k_0 * 256, 256, 1), 16, "row_major")
+                    T.gpu_mma_sync(compute_wmma_accumulator.data, 0,
                         X_shared_wmma_matrix_a.data, k_0, W_shared_wmma_matrix_b.data, k_0,
                         compute_wmma_accumulator.data, 0)
-                T.tvm_store_matrix_sync(compute_wmma_accumulator.data, 16, 16, 16, 0,
-                    T.tvm_access_ptr(out_dtype, compute.data, 0, 256, 2), 16, "row_major")
+                T.gpu_store_matrix_sync(compute_wmma_accumulator.data, 16, 16, 16, 0,
+                    T.access_ptr(out_dtype, compute.data, 0, 256, 2), 16, "row_major")
     # fmt: on
 
     target = {"kind": "vulkan", "from_device": 0}

@@ -210,7 +210,7 @@ def test_roundtrip_tensormap():
     def func1(A: T.Tensor([128], "float32")):
         T.func_attr({"global_symbol": "func"})
 
-        A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
+        A_map: T.let[T.handle("tensormap")] = T.stack_alloca("tensormap", 1)
         T.call_packed(
             "runtime.tensormap_init", T.address_of(A_map), T.reinterpret( A.data, ty="handle")
         )
@@ -455,7 +455,7 @@ def test_roundtrip_cp_async_bulk_tensor_g2s_cluster():
     @T.function(check_well_formed=False)
     def func(_: T.Tensor((16, 16), 'float32')):
 
-        A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
+        A_map: T.let[T.handle("tensormap")] = T.stack_alloca("tensormap", 1)
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
             A_smem = T.alloc_tensor((16, 16), "float32", scope="shared")
@@ -476,7 +476,7 @@ def test_roundtrip_cp_async_bulk_tensor_s2g():
     @T.function(check_well_formed=False)
     def func(_: T.Tensor((16, 16), 'float32')):
 
-        A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
+        A_map: T.let[T.handle("tensormap")] = T.stack_alloca("tensormap", 1)
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
             A_smem = T.alloc_tensor((16, 16), "float32", scope="shared")
@@ -497,7 +497,7 @@ def test_roundtrip_cp_async_bulk_tensor_prefetch():
     @T.function(check_well_formed=False)
     def func(_: T.Tensor((16, 16), 'float32')):
 
-        A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
+        A_map: T.let[T.handle("tensormap")] = T.stack_alloca("tensormap", 1)
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
             T.ptx["cp.async.bulk.prefetch.tensor.2d.L2.global.tile"](
@@ -517,7 +517,7 @@ def test_roundtrip_cp_async_bulk_tensor_s2g_reduce():
     @T.function(check_well_formed=False)
     def func(_: T.Tensor((16, 16), 'float32')):
 
-        A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
+        A_map: T.let[T.handle("tensormap")] = T.stack_alloca("tensormap", 1)
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
             A_smem = T.alloc_tensor((16, 16), "float32", scope="shared")

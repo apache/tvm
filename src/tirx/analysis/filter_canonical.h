@@ -33,10 +33,10 @@
  *   1. tile_primitive_dispatch routes a bare `if cond:` to atom-based
  *      narrowing when cond is canonical; otherwise treats it as a regular
  *      data-dependent branch (no narrowing).
- *   2. The `tirx.filter(var, pred)` escape-hatch wrapper is intended for the
+ *   2. The `tirx.gpu_thread_filter(var, pred)` escape-hatch wrapper is intended for the
  *      *non-canonical* case -- callers who want thread-filter semantics on a
  *      predicate the classifier cannot decode. A canonical predicate inside
- *      `tirx.filter` is redundant: the wrapper can be dropped in favor of a
+ *      `tirx.gpu_thread_filter` is redundant: the wrapper can be dropped in favor of a
  *      bare `if`.
  */
 #ifndef TVM_TIRX_ANALYSIS_FILTER_CANONICAL_H_
@@ -128,7 +128,7 @@ using ScopeIdPredicate = std::function<bool(const Var&)>;
  * Returns:
  *   - `std::nullopt` if `cond` does not match the grammar. The caller should
  *     treat the enclosing if-statement as either a regular data-dependent
- *     branch (no narrowing) or -- if wrapped in `tirx.filter(var, cond)` --
+ *     branch (no narrowing) or -- if wrapped in `tirx.gpu_thread_filter(var, cond)` --
  *     an explicit escape-hatch (binding-var-driven singleton fallback).
  *   - A `CanonicalForm` with the parsed atom list otherwise.
  *
@@ -143,9 +143,9 @@ using ScopeIdPredicate = std::function<bool(const Var&)>;
  *   - The classifier is purely syntactic: it does NOT call
  *     `sym::Analyzer::Simplify` on subexpressions. Callers that want
  *     `2 + 1` to collapse to `3` should pre-simplify their input.
- *   - This function does NOT unwrap `tirx.filter` Calls. The caller is
+ *   - This function does NOT unwrap `tirx.gpu_thread_filter` Calls. The caller is
  *     responsible for extracting the inner predicate (`call->args[1]`)
- *     before passing it here. A `tirx.filter` Call passed in directly is
+ *     before passing it here. A `tirx.gpu_thread_filter` Call passed in directly is
  *     classified as non-canonical.
  *
  * Thread safety: pure function; safe to call concurrently provided the

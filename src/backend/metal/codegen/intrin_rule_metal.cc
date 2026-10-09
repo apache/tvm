@@ -21,6 +21,8 @@
  * \file intrin_rule_metal.cc
  * \brief Metal intrinsic rules.
  */
+#include <tvm/tirx/op/abi.h>
+#include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op_attr_types.h>
 
 #include "../../../target/intrin_rule.h"
@@ -39,14 +41,14 @@ static Type InferTypeReturnArgType(const CallNode* call) {
 
 struct MetalWarpIntrinsic {
   const Op operator()(PrimType t, const Op& orig_op) const {
-    if (orig_op.same_as(tirx::tvm_warp_shuffle_op())) {
+    if (orig_op.same_as(tirx::gpu_warp_shuffle_op())) {
       static const Op metal_simd_shuffle_op = Op::Get("tirx.metal.simd_shuffle");
       return metal_simd_shuffle_op;
-    } else if (orig_op.same_as(tirx::tvm_warp_shuffle_up_op())) {
+    } else if (orig_op.same_as(tirx::gpu_warp_shuffle_up_op())) {
       static const Op metal_simd_shuffle_up_op = Op::Get("tirx.metal.simd_shuffle_up");
       return metal_simd_shuffle_up_op;
     } else {
-      TVM_FFI_ICHECK(orig_op.same_as(tirx::tvm_warp_shuffle_down_op()));
+      TVM_FFI_ICHECK(orig_op.same_as(tirx::gpu_warp_shuffle_down_op()));
       static const Op metal_simd_shuffle_down_op = Op::Get("tirx.metal.simd_shuffle_down");
       return metal_simd_shuffle_down_op;
     }
@@ -68,19 +70,19 @@ void RegisterMetalIntrinRules() {
   OpDef("prim.clz")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.floor")
+  OpDef("prim.floor")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
   OpDef("prim.ceil")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.trunc")
+  OpDef("prim.trunc")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.fabs")
+  OpDef("prim.fabs")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.round")
+  OpDef("prim.round")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
         // Metal's rint() uses ties-to-even, matching constant-folding semantics.
         const CallNode* call = e.as<CallNode>();
@@ -92,64 +94,64 @@ void RegisterMetalIntrinRules() {
         return Call(e.ty(), tirx::call_pure_extern_op(), new_args).as_or_throw<PrimExpr>();
       });
 
-  OpDef("tirx.nearbyint")
+  OpDef("prim.nearbyint")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.exp")
+  OpDef("prim.exp")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.exp2")
+  OpDef("prim.exp2")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.exp10")
+  OpDef("prim.exp10")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.log")
+  OpDef("prim.log")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
   OpDef("prim.log2")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.log10")
+  OpDef("prim.log10")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.tanh")
+  OpDef("prim.tanh")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchNumericalStableTanh);
 
-  OpDef("tirx.sqrt")
+  OpDef("prim.sqrt")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.pow")
+  OpDef("prim.pow")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.popcount")
+  OpDef("prim.popcount")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.fmod")
+  OpDef("prim.fmod")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.sin")
+  OpDef("prim.sin")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.sinh")
+  OpDef("prim.sinh")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.cos")
+  OpDef("prim.cos")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.cosh")
+  OpDef("prim.cosh")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-  OpDef("tirx.erf")
+  OpDef("prim.erf")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchFastErf);
 
-  OpDef("tirx.tvm_warp_shuffle")
+  OpDef("tirx.gpu_warp_shuffle")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchMetalShuffle<MetalWarpIntrinsic>);
 
-  OpDef("tirx.tvm_warp_shuffle_up")
+  OpDef("tirx.gpu_warp_shuffle_up")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchMetalShuffle<MetalWarpIntrinsic>);
 
-  OpDef("tirx.tvm_warp_shuffle_down")
+  OpDef("tirx.gpu_warp_shuffle_down")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchMetalShuffle<MetalWarpIntrinsic>);
 
   // Register low-level Metal device intrinsics.

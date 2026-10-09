@@ -23,8 +23,8 @@
  *  builtin intrinsic operators specific to Metal target.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/base.h>
-#include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
 namespace tvm {
@@ -36,7 +36,7 @@ void RegisterMetalTargetBuiltins() {
   if (registered) return;
   registered = true;
 
-  OpDef("tirx.make_filled_simdgroup_matrix")
+  OpDef("tirx.metal.make_filled_simdgroup_matrix")
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(sig::arg("d", "The D operand."), sig::arg<IntExpr>("index", "The index."),
                  sig::arg("value", "The value to use."),
@@ -47,7 +47,7 @@ void RegisterMetalTargetBuiltins() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-  OpDef("tirx.simdgroup_load")
+  OpDef("tirx.metal.simdgroup_load")
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(sig::arg("d", "The D operand."), sig::arg<IntExpr>("index", "The index."),
                  sig::arg("ptr", "The pointer."), sig::arg<IntExpr>("stride", "The stride."),
@@ -58,7 +58,7 @@ void RegisterMetalTargetBuiltins() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-  OpDef("tirx.simdgroup_store")
+  OpDef("tirx.metal.simdgroup_store")
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(sig::arg("d", "The D operand."), sig::arg<IntExpr>("index", "The index."),
                  sig::arg("ptr", "The pointer."), sig::arg<IntExpr>("stride", "The stride."),
@@ -69,7 +69,7 @@ void RegisterMetalTargetBuiltins() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-  OpDef("tirx.simdgroup_multiply_accumulate")
+  OpDef("tirx.metal.simdgroup_multiply_accumulate")
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .signature(
           sig::arg("d", "The D operand."), sig::arg<IntExpr>("index_d", "The D fragment index."),

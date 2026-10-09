@@ -354,10 +354,10 @@ def test_float_constructor_requires_float_dtype():
 def test_math_unary_constructor_requires_float_dtype():
     x = tvm.tirx.Var("x", "int32")
 
-    with pytest.raises(TypeError, match=r"tirx\.tan only supports floating-point inputs"):
+    with pytest.raises(TypeError, match=r"prim\.tan only supports floating-point inputs"):
         tvm.tirx.tan(x)
 
-    with pytest.raises(TypeError, match=r"tirx\.sin only supports floating-point inputs"):
+    with pytest.raises(TypeError, match=r"prim\.sin only supports floating-point inputs"):
         tvm.tirx.sin(x)
 
     y = tvm.tirx.Var("y", "float32")
@@ -367,7 +367,7 @@ def test_math_unary_constructor_requires_float_dtype():
 def test_topi_tan_requires_float_dtype():
     x = te.placeholder((2, 2), dtype="int32", name="x")
 
-    with pytest.raises(TypeError, match=r"tirx\.tan only supports floating-point inputs"):
+    with pytest.raises(TypeError, match=r"prim\.tan only supports floating-point inputs"):
         topi.tan(x)
 
 

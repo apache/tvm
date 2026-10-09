@@ -161,7 +161,7 @@ class TensorVar : public Var {
   /*! \return primitive element type for compiler-side uses. */
   PrimType ElementType() const { return (*this)->ElementType(); }
 
-  /*! \return type of the physical pointer projected by buffer_data. */
+  /*! \return type of the physical pointer projected by tensor_data_ptr. */
   PointerType DataPointerType() const { return (*this)->DataPointerType(); }
 
   explicit TensorVar(ffi::ObjectPtr<VarNode> node) : Var(std::move(node)) {}

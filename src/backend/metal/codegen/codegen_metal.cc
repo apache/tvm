@@ -28,6 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -53,14 +54,15 @@ Var GetSimdgroupBufferVar(const Expr& data) {
     return ffi::GetRef<Var>(var);
   }
   if (const auto* call = data.as<CallNode>();
-      call && call->op.same_as(tirx::buffer_data_op()) && call->args.size() == 1) {
+      call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
     const auto* buffer = call->args[0].as<VarNode>();
     TVM_FFI_ICHECK(buffer && buffer->ty.as<TensorTypeNode>())
-        << "Metal simdgroup data operands expect buffer_data to project a TensorVar";
+        << "Metal simdgroup data operands expect tensor_data_ptr to project a TensorVar";
     return ffi::GetRef<Var>(buffer);
   }
   TVM_FFI_THROW(InternalError)
-      << "Metal simdgroup data operands must be a Var or buffer_data(TensorVar), but got " << data;
+      << "Metal simdgroup data operands must be a Var or tensor_data_ptr(TensorVar), but got "
+      << data;
 }
 
 }  // namespace
@@ -464,10 +466,12 @@ void CodeGenMetal::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(
         << "Only 8x8 matrix is supported, but got " << col_val << "x" << row_val;
   };
 
-  static const Op make_filled_simdgroup_matrix_op = Op::Get("tirx.make_filled_simdgroup_matrix");
-  static const Op simdgroup_load_op = Op::Get("tirx.simdgroup_load");
-  static const Op simdgroup_store_op = Op::Get("tirx.simdgroup_store");
-  static const Op simdgroup_multiply_accumulate_op = Op::Get("tirx.simdgroup_multiply_accumulate");
+  static const Op make_filled_simdgroup_matrix_op =
+      Op::Get("tirx.metal.make_filled_simdgroup_matrix");
+  static const Op simdgroup_load_op = Op::Get("tirx.metal.simdgroup_load");
+  static const Op simdgroup_store_op = Op::Get("tirx.metal.simdgroup_store");
+  static const Op simdgroup_multiply_accumulate_op =
+      Op::Get("tirx.metal.simdgroup_multiply_accumulate");
 
   if (op->op.same_as(make_filled_simdgroup_matrix_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 5);

@@ -498,7 +498,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                     scope="wmma.accumulator",
                                     offset_factor=16,
                                 )
-                                T.tvm_fill_fragment(
+                                T.gpu_fill_fragment(
                                     C.data,
                                     16,
                                     16,
@@ -690,14 +690,14 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             scope="wmma.matrix_a",
                                             offset_factor=16,
                                         )
-                                        T.tvm_load_matrix_sync(
+                                        T.gpu_load_matrix_sync(
                                             C.data,
                                             16,
                                             16,
                                             16,
                                             C.ty.elem_offset // C_s0_1 // 16 * (C_s0_1 // 16)
                                             + C.ty.elem_offset % C_s0_1 // 16,
-                                            T.tvm_access_ptr(
+                                            T.access_ptr(
                                                 "float16",
                                                 A_1.data,
                                                 A_1.ty.elem_offset,
@@ -747,14 +747,14 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             scope="wmma.matrix_b",
                                             offset_factor=16,
                                         )
-                                        T.tvm_load_matrix_sync(
+                                        T.gpu_load_matrix_sync(
                                             C.data,
                                             16,
                                             16,
                                             16,
                                             C.ty.elem_offset // C_s0_2 // 16 * (C_s0_2 // 16)
                                             + C.ty.elem_offset % C_s0_2 // 16,
-                                            T.tvm_access_ptr(
+                                            T.access_ptr(
                                                 "float16",
                                                 A_1.data,
                                                 A_1.ty.elem_offset,
@@ -822,7 +822,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             scope="wmma.accumulator",
                                             offset_factor=16,
                                         )
-                                        T.tvm_mma_sync(
+                                        T.gpu_mma_sync(
                                             C.data,
                                             C.ty.elem_offset // C_s0_3 // 16 * (C_s0_3 // 16)
                                             + C.ty.elem_offset % C_s0_3 // 16,
@@ -865,14 +865,14 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                     strides=(C_s0_4, C_s1_4),
                                     offset_factor=16,
                                 )
-                                T.tvm_store_matrix_sync(
+                                T.gpu_store_matrix_sync(
                                     A_1.data,
                                     16,
                                     16,
                                     16,
                                     A_1.ty.elem_offset // A_s0_3 // 16 * (A_s0_3 // 16)
                                     + A_1.ty.elem_offset % A_s0_3 // 16,
-                                    T.tvm_access_ptr(
+                                    T.access_ptr(
                                         "float16",
                                         C.data,
                                         C.ty.elem_offset,

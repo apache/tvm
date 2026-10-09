@@ -199,7 +199,7 @@ def test_host():
     @T.function(check_well_formed=False)
     def test1(A: T.Tensor((16, 16), dtype='float32', align=16)):
 
-        A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
+        A_map: T.let[T.handle("tensormap")] = T.stack_alloca("tensormap", 1)
         T.call_packed("runtime.cuTensorMapEncodeTiled", A_map, "float32", 2, A.data, 16, 16, 64, 16, 16, 1, 1, 0, 0, 0, 0)  # noqa: E501
 
         T.device_entry()
@@ -217,7 +217,7 @@ def test_host():
                     T.ptx.mbarrier.arrive.expect_tx.shared.b64(bar.data, T.uint32(16*16*4))
                 T.cuda.mbarrier_wait(bar.data, phase[0])
                 phase[0] = phase[0] ^ 1
-                T.print_buffer(A_smem.data, "float32", False, False, 2, 16*16)
+                T.evaluate(A_smem[0, 0])
         # fmt: on
     verify(test1)
 

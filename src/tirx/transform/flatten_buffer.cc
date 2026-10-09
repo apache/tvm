@@ -27,6 +27,7 @@
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/layout.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -212,7 +213,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     Expr data = buffer_call->args[0];
     bool is_extern_buffer_source = false;
     if (const auto* call = buffer_call->args[0].as<CallNode>();
-        call && call->op.same_as(buffer_data_op()) && call->args.size() == 1) {
+        call && call->op.same_as(tensor_data_ptr_op()) && call->args.size() == 1) {
       if (const auto* var = call->args[0].as<VarNode>(); var && var->ty.as<TensorTypeNode>()) {
         is_extern_buffer_source =
             extern_buffers_.count(ffi::GetRef<Var>(var).as_or_throw<TensorVar>());
@@ -278,7 +279,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
                          .as_or_throw<Expr>());
       return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
     }
-    if (op->op.same_as(buffer_data_op()) && op->args.size() == 1) {
+    if (op->op.same_as(tensor_data_ptr_op()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>()) {
         if (var.value()->ty.as<TensorTypeNode>()) {
           TensorVar original = var.value().as_or_throw<TensorVar>();

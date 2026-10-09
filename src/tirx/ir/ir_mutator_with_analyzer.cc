@@ -24,9 +24,10 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/region.h>
 
 #include "../../sym/constraint_helpers.h"
 

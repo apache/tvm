@@ -777,8 +777,8 @@ def opt_conv_tensorcore_lower():
         by = T.launch_thread("blockIdx.y", 4)
         ty = T.launch_thread("threadIdx.y", 4)
         tz = T.launch_thread("threadIdx.z", 2)
-        T.evaluate(T.tvm_fill_fragment(Conv_wmma_accumulator.data, 16, 16, 16, 0, T.float32(0)))
-        T.evaluate(T.tvm_fill_fragment(Conv_wmma_accumulator.data, 16, 16, 16, 7, T.float32(0)))
+        T.evaluate(T.gpu_fill_fragment(Conv_wmma_accumulator.data, 16, 16, 16, 0, T.float32(0)))
+        T.evaluate(T.gpu_fill_fragment(Conv_wmma_accumulator.data, 16, 16, 16, 7, T.float32(0)))
         for ic_outer in T.serial(0, 8):
             for kh in T.serial(0, 3):
                 for ax2 in T.serial(0, 3):
@@ -902,13 +902,13 @@ def opt_conv_tensorcore_lower():
                 for ic_inner in T.serial(0, 2):
                     for kw in T.serial(0, 3):
                         T.evaluate(
-                            T.tvm_load_matrix_sync(
+                            T.gpu_load_matrix_sync(
                                 Apad_shared_wmma_matrix_a.data,
                                 16,
                                 16,
                                 16,
                                 0,
-                                T.tvm_access_ptr(
+                                T.access_ptr(
                                     "float16",
                                     Apad_shared.data,
                                     (((ty * 3072) + (kw * 512)) + (ic_inner * 256)),
@@ -920,13 +920,13 @@ def opt_conv_tensorcore_lower():
                             )
                         )
                         T.evaluate(
-                            T.tvm_load_matrix_sync(
+                            T.gpu_load_matrix_sync(
                                 Apad_shared_wmma_matrix_a.data,
                                 16,
                                 16,
                                 16,
                                 1,
-                                T.tvm_access_ptr(
+                                T.access_ptr(
                                     "float16",
                                     Apad_shared.data,
                                     ((((ty * 3072) + (kw * 512)) + (ic_inner * 256)) + 1536),
@@ -938,13 +938,13 @@ def opt_conv_tensorcore_lower():
                             )
                         )
                         T.evaluate(
-                            T.tvm_load_matrix_sync(
+                            T.gpu_load_matrix_sync(
                                 W_shared_wmma_matrix_b.data,
                                 16,
                                 16,
                                 16,
                                 0,
-                                T.tvm_access_ptr(
+                                T.access_ptr(
                                     "float16",
                                     W_shared.data,
                                     (((kw * 4096) + (ic_inner * 2048)) + (tz * 1024)),
@@ -956,13 +956,13 @@ def opt_conv_tensorcore_lower():
                             )
                         )
                         T.evaluate(
-                            T.tvm_load_matrix_sync(
+                            T.gpu_load_matrix_sync(
                                 W_shared_wmma_matrix_b.data,
                                 16,
                                 16,
                                 16,
                                 3,
-                                T.tvm_access_ptr(
+                                T.access_ptr(
                                     "float16",
                                     W_shared.data,
                                     ((((kw * 4096) + (ic_inner * 2048)) + (tz * 1024)) + 768),
@@ -974,7 +974,7 @@ def opt_conv_tensorcore_lower():
                             )
                         )
                         T.evaluate(
-                            T.tvm_mma_sync(
+                            T.gpu_mma_sync(
                                 Conv_wmma_accumulator.data,
                                 0,
                                 Apad_shared_wmma_matrix_a.data,
@@ -986,7 +986,7 @@ def opt_conv_tensorcore_lower():
                             )
                         )
                         T.evaluate(
-                            T.tvm_mma_sync(
+                            T.gpu_mma_sync(
                                 Conv_wmma_accumulator.data,
                                 7,
                                 Apad_shared_wmma_matrix_a.data,
@@ -998,13 +998,13 @@ def opt_conv_tensorcore_lower():
                             )
                         )
         T.evaluate(
-            T.tvm_store_matrix_sync(
+            T.gpu_store_matrix_sync(
                 Conv_wmma_accumulator.data,
                 16,
                 16,
                 16,
                 0,
-                T.tvm_access_ptr(
+                T.access_ptr(
                     "float32",
                     Conv_1.data,
                     (
@@ -1019,13 +1019,13 @@ def opt_conv_tensorcore_lower():
             )
         )
         T.evaluate(
-            T.tvm_store_matrix_sync(
+            T.gpu_store_matrix_sync(
                 Conv_wmma_accumulator.data,
                 16,
                 16,
                 16,
                 7,
-                T.tvm_access_ptr(
+                T.access_ptr(
                     "float32",
                     Conv_1.data,
                     (
@@ -1068,45 +1068,45 @@ def opt_conv_tensorcore_mod_host():
             }
         )
         # body
-        stack_tcode_data: T.let[T.handle("int32")] = T.tvm_stack_alloca("arg_tcode", 10)
+        stack_tcode_data: T.let[T.handle("int32")] = T.stack_alloca("arg_tcode", 10)
         stack_tcode = T.decl_tensor([9], "int32", data=stack_tcode_data)
-        stack_value: T.let[T.handle] = T.tvm_stack_alloca("arg_value", 10)
+        stack_value: T.let[T.handle] = T.stack_alloca("arg_value", 10)
         assert num_args == 3, "default_function: num_args should be 3"
-        arg0: T.let[T.handle] = T.tvm_struct_get(args, 0, 12, ty="handle")
+        arg0: T.let[T.handle] = T.abi_field_get(args, 0, 12, ty="handle")
         arg0_code: T.let[T.int32] = arg_type_ids[0]
-        arg1: T.let[T.handle] = T.tvm_struct_get(args, 1, 12, ty="handle")
-        arg2: T.let[T.handle] = T.tvm_struct_get(args, 2, 12, ty="handle")
+        arg1: T.let[T.handle] = T.abi_field_get(args, 1, 12, ty="handle")
+        arg2: T.let[T.handle] = T.abi_field_get(args, 2, 12, ty="handle")
 
-        A: T.let[T.handle] = T.tvm_struct_get(arg0, 0, 1, ty="handle")
+        A: T.let[T.handle] = T.abi_field_get(arg0, 0, 1, ty="handle")
         A_tensor = T.decl_tensor([1], "float16", data=A)
         T.assume_aligned(A_tensor, 128)
-        arg0_shape_data: T.let[T.handle("int64")] = T.tvm_struct_get(
+        arg0_shape_data: T.let[T.handle("int64")] = T.abi_field_get(
             arg0, 0, 2, ty=T.handle("int64").ty
         )
         arg0_shape = T.decl_tensor([6], "int64", data=arg0_shape_data)
-        arg0_strides_data: T.let[T.handle("int64")] = T.tvm_struct_get(
+        arg0_strides_data: T.let[T.handle("int64")] = T.abi_field_get(
             arg0, 0, 3, ty=T.handle("int64").ty
         )
         arg0_strides = T.decl_tensor([6], "int64", data=arg0_strides_data)
 
-        dev_id: T.let[T.int32] = T.tvm_struct_get(arg0, 0, 9, ty="int32")
+        dev_id: T.let[T.int32] = T.abi_field_get(arg0, 0, 9, ty="int32")
 
-        W: T.let[T.handle] = T.tvm_struct_get(arg1, 0, 1, ty="handle")
+        W: T.let[T.handle] = T.abi_field_get(arg1, 0, 1, ty="handle")
         W_tensor = T.decl_tensor([1], "float16", data=W)
         T.assume_aligned(W_tensor, 128)
 
-        Conv: T.let[T.handle] = T.tvm_struct_get(arg2, 0, 1, ty="handle")
+        Conv: T.let[T.handle] = T.abi_field_get(arg2, 0, 1, ty="handle")
         Conv_tensor = T.decl_tensor([1], "float32", data=Conv)
         T.assume_aligned(Conv_tensor, 128)
 
         assert (((arg0_code == 3) or (arg0_code == 13)) or (arg0_code == 7)) or (arg0_code == 4), (
             "default_function: Expect arg[0] to be pointer"
         )
-        assert 6 == T.tvm_struct_get(arg0, 0, 4, ty="int32"), "arg0.ndim is expected to equal 6"
+        assert 6 == T.abi_field_get(arg0, 0, 4, ty="int32"), "arg0.ndim is expected to equal 6"
         assert (
-            (T.tvm_struct_get(arg0, 0, 5, ty="uint8") == T.uint8(2))
-            and (T.tvm_struct_get(arg0, 0, 6, ty="uint8") == T.uint8(16))
-        ) and (T.tvm_struct_get(arg0, 0, 7, ty="uint16") == T.uint16(1)), (
+            (T.abi_field_get(arg0, 0, 5, ty="uint8") == T.uint8(2))
+            and (T.abi_field_get(arg0, 0, 6, ty="uint8") == T.uint8(16))
+        ) and (T.abi_field_get(arg0, 0, 7, ty="uint16") == T.uint16(1)), (
             "arg0.dtype is expected to be float16"
         )
         assert 16 == T.cast(arg0_shape[0], "int32"), (
@@ -1132,46 +1132,46 @@ def opt_conv_tensorcore_mod_host():
                 "arg0.strides: expected to be compact array"
             )
             T.evaluate(0)
-        assert T.uint64(0) == T.tvm_struct_get(arg0, 0, 8, ty="uint64"), (
+        assert T.uint64(0) == T.abi_field_get(arg0, 0, 8, ty="uint64"), (
             "Argument arg0.byte_offset has an unsatisfied constraint"
         )
-        assert 2 == T.tvm_struct_get(arg0, 0, 10, ty="int32"), (
+        assert 2 == T.abi_field_get(arg0, 0, 10, ty="int32"), (
             "Argument arg0.device_type has an unsatisfied constraint"
         )
         assert (
-            (T.tvm_struct_get(arg2, 0, 5, ty="uint8") == T.uint8(2))
-            and (T.tvm_struct_get(arg2, 0, 6, ty="uint8") == T.uint8(32))
-        ) and (T.tvm_struct_get(arg2, 0, 7, ty="uint16") == T.uint16(1)), (
+            (T.abi_field_get(arg2, 0, 5, ty="uint8") == T.uint8(2))
+            and (T.abi_field_get(arg2, 0, 6, ty="uint8") == T.uint8(32))
+        ) and (T.abi_field_get(arg2, 0, 7, ty="uint16") == T.uint16(1)), (
             "arg2.dtype is expected to be float32"
         )
-        assert dev_id == T.tvm_struct_get(arg2, 0, 9, ty="int32"), (
+        assert dev_id == T.abi_field_get(arg2, 0, 9, ty="int32"), (
             "Argument arg2.device_id has an unsatisfied constraint"
         )
-        T.evaluate(T.tvm_struct_set(stack_value, 0, 12, T.cast(2, "int64")))
+        T.evaluate(T.abi_field_set(stack_value, 0, 12, T.cast(2, "int64")))
         stack_tcode[0] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 1, 12, T.cast(dev_id, "int64")))
+        T.evaluate(T.abi_field_set(stack_value, 1, 12, T.cast(dev_id, "int64")))
         stack_tcode[1] = 0
-        T.evaluate(T.tvm_call_packed_lowered("__tvm_set_device", stack_value, 0, 2))
+        T.evaluate(T.call_packed_lowered("__tvm_set_device", stack_value, 0, 2))
         with T.compute_scope("default_function_compute_"):
-            T.evaluate(T.tvm_struct_set(stack_value, 0, 12, A))
+            T.evaluate(T.abi_field_set(stack_value, 0, 12, A))
             stack_tcode[0] = 3
-            T.evaluate(T.tvm_struct_set(stack_value, 1, 12, W))
+            T.evaluate(T.abi_field_set(stack_value, 1, 12, W))
             stack_tcode[1] = 3
-            T.evaluate(T.tvm_struct_set(stack_value, 2, 12, Conv))
+            T.evaluate(T.abi_field_set(stack_value, 2, 12, Conv))
             stack_tcode[2] = 3
-            T.evaluate(T.tvm_struct_set(stack_value, 3, 12, T.cast(196, "int64")))
+            T.evaluate(T.abi_field_set(stack_value, 3, 12, T.cast(196, "int64")))
             stack_tcode[3] = 0
-            T.evaluate(T.tvm_struct_set(stack_value, 4, 12, T.cast(2, "int64")))
+            T.evaluate(T.abi_field_set(stack_value, 4, 12, T.cast(2, "int64")))
             stack_tcode[4] = 0
-            T.evaluate(T.tvm_struct_set(stack_value, 5, 12, T.cast(4, "int64")))
+            T.evaluate(T.abi_field_set(stack_value, 5, 12, T.cast(4, "int64")))
             stack_tcode[5] = 0
-            T.evaluate(T.tvm_struct_set(stack_value, 6, 12, T.cast(4, "int64")))
+            T.evaluate(T.abi_field_set(stack_value, 6, 12, T.cast(4, "int64")))
             stack_tcode[6] = 0
-            T.evaluate(T.tvm_struct_set(stack_value, 7, 12, T.cast(2, "int64")))
+            T.evaluate(T.abi_field_set(stack_value, 7, 12, T.cast(2, "int64")))
             stack_tcode[7] = 0
-            T.evaluate(T.tvm_struct_set(stack_value, 8, 12, T.cast(32, "int64")))
+            T.evaluate(T.abi_field_set(stack_value, 8, 12, T.cast(32, "int64")))
             stack_tcode[8] = 0
-            T.evaluate(T.tvm_call_packed_lowered("default_function_kernel0", stack_value, 0, 9))
+            T.evaluate(T.call_packed_lowered("default_function_kernel0", stack_value, 0, 9))
 
     return opt_conv_tensorcore_mod_host
 
@@ -1325,7 +1325,7 @@ def comm_reducer_single_reduce_group():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             reduce_temp0 = T.alloc_tensor((1,), scope="local")
             T.evaluate(
-                T.tvm_thread_allreduce(
+                T.gpu_thread_allreduce(
                     T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
                     (T.float32(0),),
                     (A[i * 128 + threadIdx_x],),
@@ -1350,7 +1350,7 @@ def comm_reducer_multiple_reduce_groups():
             reduce_temp0 = T.alloc_tensor((1,), "int32", scope="local")
             reduce_temp1 = T.alloc_tensor((1,), "float32", scope="local")
             T.evaluate(
-                T.tvm_thread_allreduce(
+                T.gpu_thread_allreduce(
                     T.Lambda(
                         [T.int32, T.float32, T.int32, T.float32],
                         lambda x0, x1, y0, y1: (
@@ -1388,7 +1388,7 @@ def multiple_commreducer():
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
             with Ts.sblock("T_softmax_maxelem_cross_thread_reduction"):
                 T.evaluate(
-                    T.tvm_thread_allreduce(
+                    T.gpu_thread_allreduce(
                         T.Lambda([T.float32, T.float32], lambda x, y: (T.max(x, y),)),
                         (T.min_value("float32"),),
                         (normal_reduce_temp0[0],),
@@ -1400,7 +1400,7 @@ def multiple_commreducer():
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
             with Ts.sblock("T_softmax_expsum_cross_thread_reduction"):
                 T.evaluate(
-                    T.tvm_thread_allreduce(
+                    T.gpu_thread_allreduce(
                         T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
                         (T.float32(0),),
                         (normal_reduce_temp1[0],),
@@ -1496,13 +1496,13 @@ def func_T_ptr_let_statement():
         # correctly, and should be usable as the data pointer in a buffer.
         arg_type_ids = T.decl_tensor([2], dtype="int32", data=arg_type_ids_handle)
 
-        arg0: T.let[T.handle] = T.tvm_struct_get(args, 0, 12, ty="handle")
-        arg1: T.let[T.handle] = T.tvm_struct_get(args, 1, 12, ty="handle")
+        arg0: T.let[T.handle] = T.abi_field_get(args, 0, 12, ty="handle")
+        arg1: T.let[T.handle] = T.abi_field_get(args, 1, 12, ty="handle")
 
         # The ABI field is an opaque pointer.  Retag it explicitly before
         # binding it to the buffer's exact element pointer type.
         A_data: T.let[T.handle("float32")] = T.reinterpret(
-            T.tvm_struct_get(arg0, 0, 1, ty="handle"), ty=T.handle("float32").ty
+            T.abi_field_get(arg0, 0, 1, ty="handle"), ty=T.handle("float32").ty
         )
 
         # The buffer declaration has a data pointer defined earlier in
@@ -1511,7 +1511,7 @@ def func_T_ptr_let_statement():
         # the function as other buffer_decl statements can be.
         A = T.decl_tensor([1024], dtype="float32", data=A_data)
         B_data: T.let[T.handle("float32")] = T.reinterpret(
-            T.tvm_struct_get(arg1, 0, 1, ty="handle"), ty=T.handle("float32").ty
+            T.abi_field_get(arg1, 0, 1, ty="handle"), ty=T.handle("float32").ty
         )
         B = T.decl_tensor([1024], dtype="float32", data=B_data)
 
@@ -1872,30 +1872,30 @@ def tvm_shfl_builtins():
         A_1 = T.decl_tensor((32,), data=A)  # A is a handle param
         A_warp_1[0] = A_1[threadIdx_x]
         B_warp_1 = T.decl_tensor((32,), data=B_warp.data, scope="local")
-        T.tvm_storage_sync("warp")
-        B_warp_1[0] = T.tvm_warp_shuffle(
-            T.tvm_warp_activemask(), A_warp_1[0], threadIdx_x % 4 * 8 + threadIdx_x // 4, 32, 32
+        T.gpu_storage_sync("warp")
+        B_warp_1[0] = T.gpu_warp_shuffle(
+            T.gpu_warp_activemask(), A_warp_1[0], threadIdx_x % 4 * 8 + threadIdx_x // 4, 32, 32
         ) + T.float32(1)
         red_buf0_1 = T.decl_tensor((1,), data=red_buf0.data, scope="local")
         mask = T.alloc_tensor((1,), "uint32", scope="local")
         t0 = T.alloc_tensor((1,), scope="local")
         red_buf0_1[0] = A_warp_1[0]
         mask_1 = T.decl_tensor((1,), "uint32", data=mask.data, scope="local")
-        mask_1[0] = T.tvm_warp_activemask()
+        mask_1[0] = T.gpu_warp_activemask()
         t0_1 = T.decl_tensor((1,), data=t0.data, scope="local")
-        t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 16, 32, 32)
+        t0_1[0] = T.gpu_warp_shuffle_down(mask_1[0], red_buf0_1[0], 16, 32, 32)
         red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
-        t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 8, 32, 32)
+        t0_1[0] = T.gpu_warp_shuffle_down(mask_1[0], red_buf0_1[0], 8, 32, 32)
         red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
-        t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 4, 32, 32)
+        t0_1[0] = T.gpu_warp_shuffle_down(mask_1[0], red_buf0_1[0], 4, 32, 32)
         red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
-        t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 2, 32, 32)
+        t0_1[0] = T.gpu_warp_shuffle_down(mask_1[0], red_buf0_1[0], 2, 32, 32)
         red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
-        t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 1, 32, 32)
+        t0_1[0] = T.gpu_warp_shuffle_down(mask_1[0], red_buf0_1[0], 1, 32, 32)
         red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
-        red_buf0_1[0] = T.tvm_warp_shuffle(mask_1[0], red_buf0_1[0], 0, 32, 32)
-        # NOTE(Zihao): test tvm_warp_shuffle_up
-        red_buf0_1[0] = T.tvm_warp_shuffle_up(mask_1[0], red_buf0_1[0], 0, 32, 32)
+        red_buf0_1[0] = T.gpu_warp_shuffle(mask_1[0], red_buf0_1[0], 0, 32, 32)
+        # NOTE(Zihao): test gpu_warp_shuffle_up
+        red_buf0_1[0] = T.gpu_warp_shuffle_up(mask_1[0], red_buf0_1[0], 0, 32, 32)
         if threadIdx_x == 0:
             C_1 = T.decl_tensor((1,), data=C)
             C_1[0] = red_buf0_1[0]
@@ -1917,10 +1917,10 @@ def make_packed_api_result():
 
 
 def tvm_struct_set_generated_in_cpp():
-    """Ensure same dtype for tvm_struct_set in Python/C++
+    """Ensure same dtype for abi_field_set in Python/C++
 
     The TVMStructSet method in C++, used internally by
-    LowerTVMBuiltin, and the Python method `T.tvm_struct_set`, used
+    LowerTVMBuiltin, and the Python method `T.abi_field_set`, used
     when parsing TVMScript should use the same dtype "int32".
     """
 
@@ -1930,11 +1930,11 @@ def tvm_struct_set_generated_in_cpp():
         def tir_packed_call(A: T.Tensor(16)):
             with T.device_context(0, 0):
                 T.evaluate(
-                    T.tvm_call_cpacked(
+                    T.call_cpacked(
                         "tvm_test_cpacked",
-                        T.tvm_stack_make_array(
+                        T.stack_make_dltensor(
                             A.data,
-                            T.tvm_stack_make_shape(16),
+                            T.stack_make_shape(16),
                             T.reinterpret(T.uint64(0), ty="handle"),
                             T.uint32(1),
                             T.Cast("float32", 0),
@@ -2309,7 +2309,7 @@ def lowered_loop_split(
                 Ts.reads([normal_reduce_temp0[0]])
                 Ts.writes([reduce_temp0[0]])
                 T.evaluate(
-                    T.tvm_thread_allreduce(
+                    T.gpu_thread_allreduce(
                         T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
                         (T.float32(0),),
                         (normal_reduce_temp0[0],),

@@ -27,7 +27,7 @@ from tvm import tirx
 from tvm.ir import Attrs, Call, Op, StringImm, const
 from tvm.ir.op import _init_op_api, _make_op_api
 from tvm.ir.type import PointerType, PrimType
-from tvm.tirx.op import bitwise_and, call_intrin, tvm_access_ptr
+from tvm.tirx.op import access_ptr, bitwise_and, call_intrin
 from tvm.tirx.operator.intrinsics._common import (
     CP_ASYNC_BULK_CACHE_HINT as _CP_ASYNC_BULK_CACHE_HINT,
 )
@@ -458,6 +458,67 @@ def ptx_legacy_mma(
     return _legacy_mma(*args, ty=ty, span=span)
 
 
+def bmma_sync(
+    fragment_d,
+    index_d,
+    fragment_a,
+    index_a,
+    fragment_b,
+    index_b,
+    fragment_c,
+    index_c,
+    *,
+    ty=None,
+    span=None,
+):
+    """TVM intrinsic for tensor core bmma_sync operators
+
+    Parameters
+    ----------
+    fragment_d : Var
+        The bwmma fragment_d.
+
+    index_d : Expr
+        The fragment_d index.
+
+    fragment_a : Var
+        The bwmma fragment_a.
+
+    index_a : Expr
+        The fragment_a index.
+
+    fragment_b : Var
+        The bwmma fragment_b.
+
+    index_b : Expr
+        The fragment_b index.
+
+    fragment_c : Var
+        The bwmma fragment_c.
+
+    index_c : Expr
+        The fragment_c index.
+
+    Returns
+    -------
+    call : Expr
+        The call expression.
+    """
+    return call_intrin(
+        ty,
+        "tirx.cuda.bmma_sync",
+        fragment_d,
+        index_d,
+        fragment_a,
+        index_a,
+        fragment_b,
+        index_b,
+        fragment_c,
+        index_c,
+        span=span,
+    )
+
+
 def mma_store(dtype, m, n, dst_ptr, src_ptr, src_offset, dst_stride):
     """Store the result of PTX MMA into a destination pointer."""
 
@@ -515,7 +576,7 @@ _PTX_TO_NUMPY_DTYPE = {
 
 def _ptx_to_numpy_dtype(dtype_str):
     """Map a PTX-abbreviation or numpy dtype string to a numpy dtype string
-    suitable for ``tvm_access_ptr`` (which scales the offset by the element
+    suitable for ``access_ptr`` (which scales the offset by the element
     bit width). Unknown strings pass through unchanged so a caller may also
     pass an already-numpy dtype."""
     s = dtype_str if isinstance(dtype_str, str) else str(dtype_str)
@@ -523,11 +584,11 @@ def _ptx_to_numpy_dtype(dtype_str):
 
 
 def _wrap_or_fold_access_ptr(ptr, offset, elem_dtype):
-    """Wrap ``ptr`` with ``tvm_access_ptr`` unless it already is one.
+    """Wrap ``ptr`` with ``access_ptr`` unless it already is one.
 
     Several s_tir tensor intrinsics already pass ``buffer.access_ptr(...)``
-    (an ``tvm_access_ptr`` Call) for the pointer argument. Naively wrapping
-    that again yields a nested ``tvm_access_ptr(... access_ptr(...) ...)``
+    (an ``access_ptr`` Call) for the pointer argument. Naively wrapping
+    that again yields a nested ``access_ptr(... access_ptr(...) ...)``
     whose ``args[0]`` is a Call rather than a Var, which crashes the
     lowering rule (Downcast<Var> at intrin_rule.cc) and several s_tir
     passes that assume a raw buffer var. Detect that case and fold the
@@ -535,7 +596,7 @@ def _wrap_or_fold_access_ptr(ptr, offset, elem_dtype):
     """
 
     is_access_ptr_call = (
-        isinstance(ptr, Call) and isinstance(ptr.op, Op) and ptr.op.name == "tirx.tvm_access_ptr"
+        isinstance(ptr, Call) and isinstance(ptr.op, Op) and ptr.op.name == "tirx.access_ptr"
     )
     if is_access_ptr_call:
         # Inner Call already wraps the buffer var. Reuse its inner var and
@@ -547,14 +608,14 @@ def _wrap_or_fold_access_ptr(ptr, offset, elem_dtype):
         inner_offset = inner_args[1]
         rw_mask = inner_args[3]
         return Call(
-            "tirx.tvm_access_ptr",
+            "tirx.access_ptr",
             [inner_var, inner_offset + offset, 1, rw_mask],
             ty=ptr.ty,
             attrs=ptr.attrs,
             ty_args=ptr.ty_args,
             span=ptr.span,
         )
-    return tvm_access_ptr(elem_dtype, ptr, offset, 1, 1)
+    return access_ptr(elem_dtype, ptr, offset, 1, 1)
 
 
 _legacy_ldmatrix = _make_op_api(Op.get("tirx.ptx_legacy.ldmatrix"), __name__)
@@ -1673,6 +1734,65 @@ def nvshmem_barrier_all(*, ty=None, span=None):
 
 
 # Canonical Op builders also supply the historical direct-import aliases.
+
+
+@tvm_ffi.register_object("tirx.cuda.TensorMapEncodeTiledAttr")
+class TensorMapEncodeTiledAttr(Attrs):
+    """Descriptor dtype and fixed options for tiled tensor-map encoding."""
+
+    def __init__(
+        self,
+        descriptor_dtype,
+        rank,
+        interleave=0,
+        swizzle=0,
+        l2_promotion=0,
+        oob_fill=0,
+        force_cu_dtype=-1,
+    ):
+        self.__init_handle_by_constructor__(
+            tvm_ffi.get_global_func("tirx.cuda.TensorMapEncodeTiledAttr"),
+            descriptor_dtype,
+            rank,
+            interleave,
+            swizzle,
+            l2_promotion,
+            oob_fill,
+            force_cu_dtype,
+        )
+
+
+def tensormap_encode_tiled(
+    *args,
+    descriptor_dtype,
+    rank,
+    interleave=0,
+    swizzle=0,
+    l2_promotion=0,
+    oob_fill=0,
+    force_cu_dtype=-1,
+    span=None,
+):
+    """Encode a tiled tensor map using runtime pointers and shape operands.
+
+    Arguments are the descriptor and data pointers, global dimensions (rank),
+    byte strides (rank - 1), box dimensions (rank), and element strides (rank).
+    The dtype describes the final descriptor units, including any promotion.
+    CUDA-host codegen encodes directly; other hosts use the runtime packed call.
+    """
+    if not 1 <= rank <= 5 or len(args) != 4 * rank + 1:
+        raise ValueError("tensormap_encode_tiled requires rank 1..5 and 4 * rank + 1 operands")
+    return Call(
+        "tirx.cuda.tensormap_encode_tiled",
+        args,
+        attrs=TensorMapEncodeTiledAttr(
+            descriptor_dtype, rank, interleave, swizzle, l2_promotion, oob_fill, force_cu_dtype
+        ),
+        ty="int32",
+        span=span,
+    )
+
+
 _init_op_api("tirx.cuda", __name__)
 for _name in Op.list_op_names():
     if _name.startswith("tirx.cuda."):

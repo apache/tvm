@@ -25,10 +25,10 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -100,8 +100,8 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
       return stmt;
     }
     if (op->else_case) {
-      bool no_op_else = is_no_op(op->else_case.value());
-      bool no_op_then = is_no_op(op->then_case);
+      bool no_op_else = tirx::IsNoOp(op->else_case.value());
+      bool no_op_then = tirx::IsNoOp(op->then_case);
       if (no_op_else && no_op_then) {
         return MakeEvaluate(op->condition);
       } else if (no_op_else) {
@@ -112,7 +112,7 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
         return stmt;
       }
     } else {
-      if (is_no_op(op->then_case)) {
+      if (tirx::IsNoOp(op->then_case)) {
         return MakeEvaluate(op->condition);
       } else {
         return stmt;
@@ -132,7 +132,7 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
     if (IsZero(op->extent)) {
       return Evaluate(0);
     }
-    return is_no_op(op->body) ? MakeEvaluate({op->min, op->extent}) : stmt;
+    return tirx::IsNoOp(op->body) ? MakeEvaluate({op->min, op->extent}) : stmt;
   }
 
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {

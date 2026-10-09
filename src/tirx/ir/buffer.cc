@@ -27,7 +27,7 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/stmt.h>
 
 #include <iterator>
@@ -644,13 +644,15 @@ Expr TensorVar::access_ptr(int access_mask, PointerType ptr_type, int content_la
     extent = input_extent.value();
   }
   ffi::Array<Expr> acc_args{data(), elem_offset, extent, IntImm::Int32(access_mask)};
-  return Call(ptr_type, tirx::tvm_access_ptr_op(), acc_args, {}, {access_dtype});
+  return Call(ptr_type, tirx::access_ptr_op(), acc_args, {}, {access_dtype});
 }
 
 TensorVar::TensorVar(ffi::String name, TensorType type, Span span)
     : Var(Var(std::move(name), std::move(type), std::move(span))) {}
 
-Expr TensorVar::data() const { return Call(DataPointerType(), tirx::buffer_data_op(), {var()}); }
+Expr TensorVar::data() const {
+  return Call(DataPointerType(), tirx::tensor_data_ptr_op(), {var()});
+}
 
 tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
                                           std::string name, int data_alignment, int offset_factor,

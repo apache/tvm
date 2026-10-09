@@ -48,7 +48,7 @@ using FRegionGetBodyParams =
     ffi::reflection::NativeFunctionView<ffi::Array<Var>(const CallNode* call)>;
 
 /*! \brief Shared FRegionGetBodyParams implementation for regions without body parameters. */
-inline ffi::Array<Var> RegionNoBodyParams(const CallNode*) { return {}; }
+TVM_DLL ffi::Array<Var> RegionNoBodyParams(const CallNode* call);
 
 /*!
  * \brief Global symbol of the op after lowering.

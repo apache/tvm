@@ -32,7 +32,7 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/op.h>
+#include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/transform.h>
 
 #include "../ir/ir_mutator_with_analyzer.h"

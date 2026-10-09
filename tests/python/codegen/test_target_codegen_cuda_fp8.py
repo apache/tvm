@@ -574,7 +574,7 @@ def test_moe_gemv_shfl_down_illegal_instr():
                                 )
                                 * T.Cast("float16", scale[0])
                             )
-                        T.tvm_thread_allreduce(
+                        T.gpu_thread_allreduce(
                             T.Lambda([T.float16, T.float16], lambda x, y: (x + y,)),
                             (T.float16(0),),
                             (partial[0],),
