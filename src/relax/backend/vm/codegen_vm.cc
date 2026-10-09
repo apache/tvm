@@ -182,8 +182,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     return Instruction::Arg::Register(dst_reg);
   }
 
-  Instruction::Arg VisitExpr_(const IfNode* op) final {
-    const If& ife = ffi::GetRef<If>(op);
+  Instruction::Arg VisitExpr_(const IfExprNode* op) final {
+    const IfExpr& ife = ffi::GetRef<IfExpr>(op);
     Instruction::Arg cond_value = this->VisitExpr(ife->cond);
 
     // Reserve a register for cond

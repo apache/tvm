@@ -201,7 +201,7 @@ class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
    */
   static bool IsBroadcastPattern(const TensorStore& store, const TensorLoad& load) {
     size_t ndim_load_buf = load->source.as_or_throw<tvm::tirx::TensorVar>()->shape.size();
-    size_t ndim_store_buf = store->buffer->shape.size();
+    size_t ndim_store_buf = store->dest.as_or_throw<tvm::tirx::TensorVar>()->shape.size();
 
     for (size_t i = 0, j = 0; i < ndim_load_buf; ++i) {
       if (IsConstInt(load->source.as_or_throw<tvm::tirx::TensorVar>()->shape[i], 1) &&
@@ -299,7 +299,7 @@ class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
         if (const auto* mul = RemoveCast(add->b).as<prim::MulNode>()) {
           const auto* store_lhs = RemoveCast(add->a).as<TensorLoadNode>();
           if (!store_lhs ||
-              !store->buffer.same_as(store_lhs->source.as_or_throw<tvm::tirx::TensorVar>()) ||
+              !store->dest.same_as(store_lhs->source.as_or_throw<tvm::tirx::TensorVar>()) ||
               !IsSameArray(store->indices, store_lhs->indices)) {
             return false;
           }
@@ -447,7 +447,7 @@ bool HasReshapePattern(const tirx::Function& func) {
       }
       // Further, we require the buffer being stored and being loaded to
       // match the parameter of the tirx::Function, namely `dst_buffer_` and `src_buffer_`.
-      if (!(tensor_store->buffer.same_as(dst_buffer_) &&
+      if (!(tensor_store->dest.same_as(dst_buffer_) &&
             buffer_load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(src_buffer_))) {
         return std::nullopt;
       }

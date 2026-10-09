@@ -30,7 +30,7 @@ def test_buffer_region_bounds_are_visited():
     buffer = tvm.tirx.decl_tensor([4], "int32", data=data)
     undefined = tvm.tirx.Var("undefined", "int32")
     region = tvm.tirx.BufferRegion(buffer, [tvm.ir.Range.from_min_extent(undefined, 4)])
-    block = tvm.s_tir.SBlock([], [region], [], "region", tvm.tirx.Evaluate(0))
+    block = tvm.s_tir.SBlock([], [region], [], "region", tvm.ir.Evaluate(0))
     func = tvm.tirx.Function([buffer], block)
     assert not tvm.s_tir.analysis.verify_well_formed(func, assert_mode=False)
 
@@ -131,7 +131,7 @@ def test_error_undeclared_buffer_in_schedulable_tir():
         iter_vars=[tvm.s_tir.IterVar(tvm.ir.Range(0, n), bi, 0)],  # 0 = kDataPar
         reads=[tvm.tirx.BufferRegion(A, [tvm.ir.Range(bi, bi + 1)])],
         writes=[tvm.tirx.BufferRegion(B, [tvm.ir.Range(bi, bi + 1)])],
-        body=tvm.tirx.TensorStore(B, tvm.tirx.TensorLoad(A, [bi]), [bi]),
+        body=tvm.ir.TensorStore(B, [bi], tvm.tirx.TensorLoad(A, [bi])),
         name_hint="write_B",
     )
     block_realize = tvm.s_tir.SBlockRealize(
@@ -142,7 +142,7 @@ def test_error_undeclared_buffer_in_schedulable_tir():
 
     function = tvm.tirx.Function(
         params=[A, B_data],
-        body=tvm.tirx.For(i, 0, n, tvm.tirx.ForKind.DEFAULT, block_realize),
+        body=tvm.ir.For(i, 0, n, tvm.ir.ForKind.DEFAULT, block_realize),
         # Note: B is NOT a function parameter, so its declaration scope is only
         # within a DeclTensor node (which we intentionally omit here).
     )

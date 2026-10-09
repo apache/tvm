@@ -618,7 +618,7 @@ bool HasOp(const Stmt& stmt, const ffi::Array<Op>& ops);
 
 /*!
  * \brief Checks if the given AST statement contains if-then-else, including
- * 1) IfThenElse statement
+ * 1) If statement
  * 2) Select expression
  * 3) The operator `tirx.if_then_else`
  * 4) non-constant-true SBlock predicates
@@ -744,9 +744,9 @@ PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, sym::AnalyzerObj* analyzer
 class TensorizeInfoNode : public ffi::Object {
  public:
   /*! \brief Maps loops in a target block to the ones in an intrinsic description */
-  ffi::Map<tirx::StmtSRef, tirx::For> loop_map;
+  ffi::Map<tirx::StmtSRef, For> loop_map;
   /*! \brief Maps loops in an intrinsic description to its index, outer to inner */
-  ffi::Map<tirx::For, int64_t> desc_loop_indexer;
+  ffi::Map<For, int64_t> desc_loop_indexer;
   /*! \brief Optional padded extents of the block iters when padding is needed to match the
    * intrinsic description
    */

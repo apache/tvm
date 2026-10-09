@@ -523,8 +523,9 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
       }
       indices.push_back(var.value());
     }
-    if (buffer_indices_map.find(store->buffer) == buffer_indices_map.end() && !check_)
-      buffer_indices_map.Set(store->buffer, indices);
+    if (buffer_indices_map.find(store->dest.as_or_throw<TensorVar>()) == buffer_indices_map.end() &&
+        !check_)
+      buffer_indices_map.Set(store->dest.as_or_throw<TensorVar>(), indices);
     return StmtExprVisitor::Visit_(store);
   }
 
@@ -772,7 +773,7 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
 
   // Create common block with all the partitioned blocks as its children blocks
   SBlockRealize common({}, IntImm::Bool(true),
-                       SBlock({}, {}, {}, block_name + "_common", tirx::SeqStmt(block_partitions)));
+                       SBlock({}, {}, {}, block_name + "_common", SeqStmt(block_partitions)));
 
   // Replace existing loop with the newly created common block
   self->Replace(loop_sref, common, {});

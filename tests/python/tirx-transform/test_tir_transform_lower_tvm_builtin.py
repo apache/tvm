@@ -162,17 +162,17 @@ def test_call_packed_return_non_i32():
 
         # Build statements using direct TIR construction (no ir_builder)
         # 1. Store packed_echo(const) result into Ab[0]
-        store0 = tvm.tirx.TensorStore(
-            Ab, packed_echo(tvm.tirx.const(expected_value[0], "float32")), [0]
+        store0 = tvm.ir.TensorStore(
+            Ab, [0], packed_echo(tvm.tirx.const(expected_value[0], "float32"))
         )
 
         # 2. Let binding: Aptr_dup = packed_echo(Ab.data), then store const into Ab[1]
         Aptr_dup = tvm.tirx.Var("Aptr_dup", Ab.data.ty)
-        store1 = tvm.tirx.TensorStore(Ab, tvm.tirx.const(expected_value[1], "float32"), [1])
-        bind_stmt = tvm.tirx.Bind(Aptr_dup, packed_echo(Ab.data))
+        store1 = tvm.ir.TensorStore(Ab, [1], tvm.tirx.const(expected_value[1], "float32"))
+        bind_stmt = tvm.ir.Bind(Aptr_dup, packed_echo(Ab.data))
 
         # Combine into sequence
-        stmt = tvm.tirx.SeqStmt([store0, bind_stmt, store1])
+        stmt = tvm.ir.SeqStmt([store0, bind_stmt, store1])
 
         return tvm.IRModule.from_expr(
             tvm.tirx.Function([Ab], stmt).with_attr("global_symbol", "packed_test")

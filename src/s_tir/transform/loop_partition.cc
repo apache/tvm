@@ -111,8 +111,8 @@ using ExpressionSet = std::unordered_set<PrimExpr, ffi::ObjectPtrHash, ffi::Obje
 
 // Virtual threads are lowered separately and are not hardware partition scopes.
 static bool IsVirtualThread(const ForNode* op) {
-  if (!op->GetThreadBinding().has_value()) return false;
-  const auto tag = op->GetThreadBinding().value();
+  if (!tvm::tirx::GetThreadBinding(op).has_value()) return false;
+  const auto tag = tvm::tirx::GetThreadBinding(op).value();
   return std::string(tag).rfind("vthread", 0) == 0;
 }
 
@@ -167,8 +167,8 @@ class CandidateSelector final : public StmtExprVisitor {
       candidates.insert(ffi::GetRef<Stmt>(op));
       return StmtExprVisitor::Visit_(op);
     }
-    if (op->GetThreadBinding().has_value() &&
-        runtime::ThreadScope::Create(op->GetThreadBinding().value()).rank != 0) {
+    if (tvm::tirx::GetThreadBinding(op).has_value() &&
+        runtime::ThreadScope::Create(tvm::tirx::GetThreadBinding(op).value()).rank != 0) {
       return StmtExprVisitor::Visit_(op);
     }
     // partition const loop when sets partition_const_loop_
@@ -453,7 +453,7 @@ class ThreadPartitionInserter : public StmtExprMutator {
       : ps_(ps), cond_(cond), innermost_thread_scope_(false) {}
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    if (!op->GetThreadBinding().has_value() || IsVirtualThread(op)) {
+    if (!tvm::tirx::GetThreadBinding(op).has_value() || IsVirtualThread(op)) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     innermost_thread_scope_ = true;
@@ -465,7 +465,7 @@ class ThreadPartitionInserter : public StmtExprMutator {
       Stmt simplified_body = ffi::make_object<ConditionEliminator>(ps_)
                                  ->Mutate(body, InplaceMode::kDisallow)
                                  .ValueOrUnchanged(body);
-      loop.CopyOnWrite()->body = IfThenElse(cond_, simplified_body, SeqStmt(body));
+      loop.CopyOnWrite()->body = If(cond_, simplified_body, SeqStmt(body));
     }
     innermost_thread_scope_ = false;
     return loop;
@@ -481,7 +481,7 @@ class ThreadPartitionInserter : public StmtExprMutator {
       if (innermost_thread_scope_) {
         Stmt simplified_body =
             ffi::make_object<ConditionEliminator>(ps_)->Mutate(op->body).ValueOrUnchanged(op->body);
-        Stmt body = IfThenElse(cond_, simplified_body, op->body);
+        Stmt body = If(cond_, simplified_body, op->body);
         auto region = stmt.as_or_throw<RegionStmt>();
         region.CopyOnWrite()->body = body;
         stmt = region;
@@ -523,7 +523,7 @@ class LoopPartitioner : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     if (IsVirtualThread(op)) return StmtExprMutator::Mutate_(op, inplace_mode);
-    bool thread_scope = op->GetThreadBinding().has_value();
+    bool thread_scope = tvm::tirx::GetThreadBinding(op).has_value();
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent), true);
     auto fs = ffi::GetRef<Stmt>(op);
     if (selector->candidates.count(fs)) {
@@ -533,8 +533,8 @@ class LoopPartitioner : public StmtExprMutator {
     }
 
     // Relax threadIdx ranges to avoid introducing divergent partition branches.
-    bool relax =
-        thread_scope && runtime::ThreadScope::Create(op->GetThreadBinding().value()).rank == 1;
+    bool relax = thread_scope &&
+                 runtime::ThreadScope::Create(tvm::tirx::GetThreadBinding(op).value()).rank == 1;
     auto& ranges = relax ? relax_map_ : hint_map_;
     ranges.insert({op->loop_var.get(), IntSet::Interval(op->min, op->min + op->extent - 1)});
     Stmt res = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)
@@ -926,7 +926,7 @@ inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, S
     };
     return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(body, f_substitute).as_or_throw<Stmt>();
   } else {
-    TVM_FFI_ICHECK(!for_node->GetThreadBinding().has_value());
+    TVM_FFI_ICHECK(!tvm::tirx::GetThreadBinding(for_node).has_value());
     auto new_loop = ffi::make_object<ForNode>(*for_node);
     new_loop->min = IntImm(for_node->min.ty(), 0);
     new_loop->extent = extent;

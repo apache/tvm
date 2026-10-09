@@ -115,7 +115,7 @@ class DataflowBlockExtractor : public ExprMutator {
       for (const auto& binding : binding_block->bindings) {
         Expr value = GetBoundValue(binding);
         // dataflow values: not an if node and not an impure call
-        bool is_dataflow = (!value.as<IfNode>()) &&
+        bool is_dataflow = (!value.as<IfExprNode>()) &&
                            (!(value.as<CallNode>() && IsImpureCall(value.as_or_throw<Call>())));
         if (is_dataflow) {
           // extend the streak

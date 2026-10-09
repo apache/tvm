@@ -874,7 +874,7 @@ class FusedTIRConstructor : public ExprVisitor {
         alloc_buffers.push_back(subst->SubstituteAllocatedBuffer(buf));
       }
     }
-    tirx::Stmt body = tirx::SeqStmt(func_info_.bodies);
+    tvm::Stmt body = tvm::SeqStmt(func_info_.bodies);
     body = ffi::make_object<tirx::SBlockNameDeduplicator>()->Mutate(body).ValueOrUnchanged(body);
 
     body = subst->Mutate(body).ValueOrUnchanged(body);
@@ -886,7 +886,7 @@ class FusedTIRConstructor : public ExprVisitor {
       }
       return param;
     });
-    tirx::Function func(params, tirx::SeqStmt(body), VoidType(), DictAttrs(attr_map));
+    tirx::Function func(params, tvm::SeqStmt(body), VoidType(), DictAttrs(attr_map));
     // Renew function defs to prevent using the same symbolic vars in different functions
     return tirx::RenewDef(func);
   }
@@ -921,7 +921,7 @@ class FusedTIRConstructor : public ExprVisitor {
     /*! \brief The buffers to allocate in the fused func*/
     ffi::Array<tirx::TensorVar> alloc_buffers;
     /*! \brief The bodies of the original funcs, which is also the body of the fused func. */
-    ffi::Array<tirx::Stmt> bodies;
+    ffi::Array<tvm::Stmt> bodies;
     /*! \brief The params of the fused function*/
     ffi::Array<tvm::Var> params;
     /*!

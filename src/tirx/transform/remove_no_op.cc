@@ -90,11 +90,11 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
       : Parent(analyzer), ignore_profiler_call_(ignore_profiler_call) {}
 
  private:
-  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode) final {
     Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    op = stmt.as<IfThenElseNode>();
+    op = stmt.as<IfNode>();
     // Sometimes the condition can be statically determined,
-    // in which the type of the `stmt` will not be IfThenElseNode.
+    // in which the type of the `stmt` will not be IfNode.
     if (!op) {
       return stmt;
     }
@@ -104,9 +104,9 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
       if (no_op_else && no_op_then) {
         return MakeEvaluate(op->condition);
       } else if (no_op_else) {
-        return IfThenElse(op->condition, op->then_case);
+        return If(op->condition, op->then_case);
       } else if (no_op_then) {
-        return IfThenElse(!op->condition, op->else_case.value());
+        return If(!op->condition, op->else_case.value());
       } else {
         return stmt;
       }
@@ -169,7 +169,7 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
     // A write whose destination is known to already contain the
     // values to be written is a no-op.
     PrimExpr stores_existing_value =
-        store->value - MakeTensorLoad(store->buffer, store->indices) == 0;
+        store->value - MakeTensorLoad(store->dest.as_or_throw<TensorVar>(), store->indices) == 0;
     stores_existing_value = analyzer_->Simplify(stores_existing_value);
     if (IsOne(stores_existing_value)) {
       return only_side_effects();
@@ -179,10 +179,11 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
     // statement is a no-op, regardless of contextual information.
     if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
       TensorVar buffer = load->source.as_or_throw<tvm::tirx::TensorVar>();
-      if (buffer.same_as(store->buffer) &&
-          analyzer_->CanProveEqual(buffer->elem_offset, store->buffer->elem_offset) &&
-          ArrayValueEqual(buffer->shape, store->buffer->shape) &&
-          ArrayValueEqual(buffer->strides, store->buffer->strides) &&
+      if (buffer.same_as(store->dest.as_or_throw<TensorVar>()) &&
+          analyzer_->CanProveEqual(buffer->elem_offset,
+                                   store->dest.as_or_throw<TensorVar>()->elem_offset) &&
+          ArrayValueEqual(buffer->shape, store->dest.as_or_throw<TensorVar>()->shape) &&
+          ArrayValueEqual(buffer->strides, store->dest.as_or_throw<TensorVar>()->strides) &&
           ArrayValueEqual(load->indices, store->indices)) {
         return only_side_effects();
       }

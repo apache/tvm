@@ -57,7 +57,7 @@ def _launch_thread_extents(func):
     extents = {}
 
     def collect(node):
-        if isinstance(node, tvm.tirx.RegionStmt) and node.op.name == "tirx.launch_thread":
+        if isinstance(node, tvm.ir.RegionStmt) and node.op.name == "tirx.launch_thread":
             extents[node.args[0].value] = int(node.args[1])
 
     tvm_ffi.structural_walk(func.body, collect)
@@ -1462,7 +1462,7 @@ def test_lower_remaps_tensor_memory_address_metadata(offset):
     assert not tvm.tirx.analysis.undefined_vars(lowered.body, lowered.params)
     tvm.tirx.analysis.verify_well_formed(lowered)
     bindings = []
-    tvm_ffi.structural_walk(lowered.body, (tvm.tirx.Bind, bindings.append))
+    tvm_ffi.structural_walk(lowered.body, (tvm.ir.Bind, bindings.append))
     address = next(node.var for node in bindings if node.var.scope() == "shared")
     tensor = next(node for node in bindings if node.var.scope() == "tmem")
     loads = []
@@ -1512,7 +1512,7 @@ def test_lower_alloc_decl_buffer_outside_of_parser():
     def int_var1(val):
         buf = T.local_scalar("int32")
         if val is not None:
-            T.tensor_store(buf.source, val, 0)
+            T.tensor_store(buf.source, 0, val)
         return buf
 
     TestMutableCells = SimpleNamespace(int_var1=int_var1)
@@ -1521,7 +1521,7 @@ def test_lower_alloc_decl_buffer_outside_of_parser():
     def int_var2(val):
         buf = T.alloc_local([1], "int32")
         if val is not None:
-            T.tensor_store(buf, val, 0)
+            T.tensor_store(buf, 0, val)
         return buf
 
     @T.function(private=True)

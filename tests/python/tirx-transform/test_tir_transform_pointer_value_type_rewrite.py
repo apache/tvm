@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 
 def _is_buffer_binding(node, *op_names):
     return (
-        isinstance(node, tvm.tirx.Bind)
+        isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
         and isinstance(node.value.op, tvm.ir.Op)
         and node.value.op.name in op_names
@@ -178,14 +178,14 @@ def test_decl_buffer_alias_chain_uses_flat_root_map():
             decl_buffers.append(node)
             if _is_buffer_binding(node, "tirx.decl_tensor")
             else tensor_stores.append(node)
-            if isinstance(node, tvm.tirx.TensorStore)
+            if isinstance(node, tvm.ir.TensorStore)
             else None
         ),
     )
     assert len(decl_buffers) == 2
     assert all(decl.var.ty.dtype == tvm.ir.PrimType("float32x4") for decl in decl_buffers)
     assert len(tensor_stores) == 1
-    assert tensor_stores[0].buffer.ty.dtype == tvm.ir.PrimType("float32x4")
+    assert tensor_stores[0].dest.ty.dtype == tvm.ir.PrimType("float32x4")
 
 
 if __name__ == "__main__":

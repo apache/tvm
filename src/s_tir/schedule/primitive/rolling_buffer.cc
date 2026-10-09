@@ -394,9 +394,11 @@ class RollingBufferRewriter : public StmtExprMutator {
     TensorStore stmt = StmtExprMutator::Mutate_(op, inplace_mode)
                            .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                            .as_or_throw<TensorStore>();
-    if (stmt->buffer.same_as(info_->old_buffer)) {
+    if (stmt->dest.as_or_throw<TensorVar>().same_as(info_->old_buffer)) {
       TensorStoreNode* n = stmt.CopyOnWrite();
-      RewriteBufferAccess(&n->buffer, &n->indices);
+      TensorVar buffer = n->dest.as_or_throw<TensorVar>();
+      RewriteBufferAccess(&buffer, &n->indices);
+      n->dest = std::move(buffer);
       // Need to add predicate to the current block to avoid recomputing elements.
       rewrite_block_predicate_ = true;
     }

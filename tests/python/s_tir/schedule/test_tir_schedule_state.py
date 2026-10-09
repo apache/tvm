@@ -334,12 +334,12 @@ def test_replace_block_in_opaque_block():
     root_hash = s.mod["main"].__hash__()
     for_loop = s.mod["main"].body[0].block.body[0].body[0].block.body[1].then_case[0].block.body[0]
     sref = s.get_sref(for_loop)
-    new_for_loop = tirx.For(
+    new_for_loop = tvm.ir.For(
         loop_var=for_loop.loop_var,
         min=0,
         extent=128,
-        kind=tirx.ForKind.DEFAULT,
-        body=tirx.Evaluate(0),
+        kind=tvm.ir.ForKind.DEFAULT,
+        body=tvm.ir.Evaluate(0),
         annotations=None,
     )
     s.replace(sref, new_for_loop)

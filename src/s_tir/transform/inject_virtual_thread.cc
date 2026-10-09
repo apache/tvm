@@ -170,7 +170,7 @@ class VarTouchedAnalysis : public StmtExprVisitor {
     for (const auto& index : op->indices) {
       expr_touched_->Visit(index);
     }
-    Record(op->buffer.get(), *expr_touched_);
+    Record(op->dest.as_or_throw<TensorVar>().get(), *expr_touched_);
     return std::nullopt;
   }
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
@@ -326,8 +326,8 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
         args.push_back(predicate);
         return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
       }
-      TensorStore access = VisitBufferAccess(TensorStore(buffer, value.value(), indices, op->span));
-      ffi::Array<Expr> args{access->buffer.var(), access->value};
+      TensorStore access = VisitBufferAccess(TensorStore(buffer, indices, value.value(), op->span));
+      ffi::Array<Expr> args{access->dest.as_or_throw<TensorVar>().var(), access->value};
       for (const PrimExpr& index : access->indices) args.push_back(index);
       args.push_back(predicate);
       return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
@@ -391,18 +391,18 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
     return VisitBufferAccess(std::move(node));
   }
 
-  template <typename Node>
-  Node VisitBufferAccess(Node node) {
-    if (touched_var_.count(node->buffer.get())) {
+  TensorStore VisitBufferAccess(TensorStore node) {
+    TensorVar buffer = node->dest.as_or_throw<TensorVar>();
+    if (touched_var_.count(buffer.get())) {
       visit_touched_var_ = true;
     }
 
-    auto it = alloc_remap_.find(node->buffer.get());
+    auto it = alloc_remap_.find(buffer.get());
     if (it != alloc_remap_.end()) {
       TVM_FFI_ICHECK_EQ(node->indices.size(), 1)
           << "InjectVirtualThread expects rewritten allocations to be flat memory.";
       auto writer = node.CopyOnWrite();
-      writer->buffer = GetRemappedBuffer(node->buffer, it->second);
+      writer->dest = GetRemappedBuffer(buffer, it->second);
       writer->indices = {RewriteIndex(node->indices[0], it->second)};
     }
 
@@ -510,8 +510,8 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
       }
     }
   }
-  // IfThenElse
-  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final {
+  // If
+  UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode) final {
     auto condition_result = this->Mutate(op->condition, inplace_mode);
     bool condition_unchanged = condition_result.UnchangedOrSameAs(op->condition);
     PrimExpr condition = std::move(condition_result).ValueOrUnchanged(op->condition);
@@ -534,7 +534,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
     if (condition_unchanged && then_case_unchanged && else_case.same_as(op->else_case)) {
       return ffi::Unchanged();
     } else {
-      return IfThenElse(condition, then_case, else_case);
+      return If(condition, then_case, else_case);
     }
   }
 

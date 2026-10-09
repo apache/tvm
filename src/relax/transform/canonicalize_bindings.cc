@@ -167,7 +167,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     canonicalize_shape_values_ = cached;
   }
 
-  Expr VisitExpr_(const IfNode* op) override {
+  Expr VisitExpr_(const IfExprNode* op) override {
     Expr guard = this->VisitExpr(op->cond);
 
     auto cached = known_values_;
@@ -214,7 +214,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
                         output_var);
     }
 
-    return If(guard, true_b, false_b, op->span);
+    return IfExpr(guard, true_b, false_b, op->span);
   }
 
  private:

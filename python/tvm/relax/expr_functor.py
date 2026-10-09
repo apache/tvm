@@ -40,7 +40,7 @@ from .expr import (
     ExternFunc,
     Function,
     GlobalVar,
-    If,
+    IfExpr,
     MatchCast,
     SeqExpr,
     ShapeExpr,
@@ -216,8 +216,8 @@ class ExprFunctor:
             ret = self.visit_float_imm_(expr)
         elif isinstance(expr, SeqExpr):
             ret = self.visit_seq_expr_(expr)
-        elif isinstance(expr, If):  # type: ignore
-            ret = self.visit_if_(expr)
+        elif isinstance(expr, IfExpr):  # type: ignore
+            ret = self.visit_if_expr_(expr)
         elif isinstance(expr, Op):
             ret = self.visit_op_(expr)
         elif isinstance(expr, TupleGetItem):
@@ -363,7 +363,7 @@ class ExprFunctor:
     def visit_seq_expr_(self, op: SeqExpr):
         raise NotImplementedError()
 
-    def visit_if_(self, op: If):
+    def visit_if_expr_(self, op: IfExpr):
         raise NotImplementedError()
 
     def visit_op_(self, op: Op):
@@ -448,7 +448,7 @@ class _PyExprVisitor(tvm_ffi.core.Object):
         f_visit_function_: Callable | None = None,
         f_visit_call_: Callable | None = None,
         f_visit_seq_expr_: Callable | None = None,
-        f_visit_if_: Callable | None = None,
+        f_visit_if_expr_: Callable | None = None,
         f_visit_op_: Callable | None = None,
         f_visit_tuple_getitem_: Callable | None = None,
         f_visit_expr_fallback_: Callable | None = None,
@@ -480,7 +480,7 @@ class _PyExprVisitor(tvm_ffi.core.Object):
             f_visit_function_,
             f_visit_call_,
             f_visit_seq_expr_,
-            f_visit_if_,
+            f_visit_if_expr_,
             f_visit_op_,
             f_visit_tuple_getitem_,
             f_visit_expr_fallback_,
@@ -575,7 +575,7 @@ class PyExprVisitor:
             "visit_function_",
             "visit_call_",
             "visit_seq_expr_",
-            "visit_if_",
+            "visit_if_expr_",
             "visit_op_",
             "visit_tuple_getitem_",
             "visit_expr_fallback_",
@@ -775,15 +775,15 @@ class PyExprVisitor:
         # Using self._outer() to ref _PyExprVisitor
         return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_if_(self, op: If) -> None:
-        """Visit If.
-        Users can customized this function to overwrite VisitExpr_(const IfNode* op)
+    def visit_if_expr_(self, op: IfExpr) -> None:
+        """Visit IfExpr.
+        Users can customized this function to overwrite VisitExpr_(const IfExprNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : If
-            The If to be visited.
+        op : IfExpr
+            The IfExpr to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
         return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
@@ -967,7 +967,7 @@ class _PyExprMutator(Object):
         f_visit_function_: Callable | None = None,
         f_visit_call_: Callable | None = None,
         f_visit_seq_expr_: Callable | None = None,
-        f_visit_if_: Callable | None = None,
+        f_visit_if_expr_: Callable | None = None,
         f_visit_op_: Callable | None = None,
         f_visit_tuple_getitem_: Callable | None = None,
         f_visit_expr_fallback_: Callable | None = None,
@@ -1000,7 +1000,7 @@ class _PyExprMutator(Object):
             f_visit_function_,
             f_visit_call_,
             f_visit_seq_expr_,
-            f_visit_if_,
+            f_visit_if_expr_,
             f_visit_op_,
             f_visit_tuple_getitem_,
             f_visit_expr_fallback_,
@@ -1111,7 +1111,7 @@ class PyExprMutator:
             "visit_function_",
             "visit_call_",
             "visit_seq_expr_",
-            "visit_if_",
+            "visit_if_expr_",
             "visit_op_",
             "visit_tuple_getitem_",
             "visit_expr_fallback_",
@@ -1380,15 +1380,15 @@ class PyExprMutator:
         # Using self._outer() to ref _PyExprMutator
         return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_if_(self, op: If) -> Expr:
-        """Visit If.
-        Users can customized this function to overwrite VisitExpr_(const IfNode* op)
+    def visit_if_expr_(self, op: IfExpr) -> Expr:
+        """Visit IfExpr.
+        Users can customized this function to overwrite VisitExpr_(const IfExprNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : If
-            The If to be visited.
+        op : IfExpr
+            The IfExpr to be visited.
 
         Returns
         -------
@@ -1647,7 +1647,7 @@ class PyExprMutator:
         return _ffi_api.PyExprMutatorGetVarRemap(self._outer(), var)  # type: ignore
 
     def visit_with_new_scope(self, expr: Expr) -> Expr:
-        """Rewrite the expr with a new scope, used in a Function's body and the branches of If.
+        """Rewrite the expr with a new scope, used in a Function's body and the branches of IfExpr.
 
         Parameters
         ----------

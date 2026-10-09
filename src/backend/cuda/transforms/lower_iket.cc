@@ -369,7 +369,8 @@ class TokenBufferCollector : public StmtExprVisitor {
     } else if (const auto* load = store->value.as<TensorLoadNode>()) {
       is_token_value = buffers_->count(load->source.as_or_throw<tvm::tirx::TensorVar>().get());
     }
-    if (is_token_value && buffers_->insert(store->buffer.get()).second) changed = true;
+    if (is_token_value && buffers_->insert(store->dest.as_or_throw<TensorVar>().get()).second)
+      changed = true;
     return StmtExprVisitor::Visit_(store);
   }
 
@@ -406,7 +407,7 @@ class TokenDeclarationCollector : public StmtExprVisitor {
       if (it != declarations_->end()) possible = it->second;
     }
     if (!possible.empty()) {
-      auto& target = (*declarations_)[store->buffer.get()];
+      auto& target = (*declarations_)[store->dest.as_or_throw<TensorVar>().get()];
       size_t old_size = target.size();
       target.insert(possible.begin(), possible.end());
       changed = changed || target.size() != old_size;
@@ -491,17 +492,17 @@ class TokenVerifier : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* store) final {
-    if (!token_buffers_.count(store->buffer.get())) {
+    if (!token_buffers_.count(store->dest.as_or_throw<TensorVar>().get())) {
       return StmtExprVisitor::Visit_(store);
     }
-    TVM_FFI_CHECK(store->buffer->dtype->dtype.code == kDLUInt &&
-                      store->buffer->dtype->dtype.bits == 32 &&
-                      store->buffer->dtype->dtype.lanes == 1,
+    TVM_FFI_CHECK(store->dest.as_or_throw<TensorVar>()->dtype->dtype.code == kDLUInt &&
+                      store->dest.as_or_throw<TensorVar>()->dtype->dtype.bits == 32 &&
+                      store->dest.as_or_throw<TensorVar>()->dtype->dtype.lanes == 1,
                   TypeError)
         << "IKET RangeToken storage must have dtype uint32";
-    TVM_FFI_CHECK(
-        store->buffer.scope() == "local" && IsScalarBufferAccess(store->buffer, store->indices),
-        ValueError)
+    TVM_FFI_CHECK(store->dest.as_or_throw<TensorVar>().scope() == "local" &&
+                      IsScalarBufferAccess(store->dest.as_or_throw<TensorVar>(), store->indices),
+                  ValueError)
         << "IKET RangeToken must use element zero of a local uint32[1] buffer";
     bool valid_value = false;
     if (const auto* call = store->value.as<CallNode>()) {
@@ -581,7 +582,7 @@ class StripIket : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* store, InplaceMode inplace_mode) final {
-    if (token_buffers_.count(store->buffer.get())) return Evaluate(0);
+    if (token_buffers_.count(store->dest.as_or_throw<TensorVar>().get())) return Evaluate(0);
     return StmtExprMutator::Mutate_(store, inplace_mode);
   }
 
@@ -623,9 +624,9 @@ class RemoveStrippedIketNoOps : public StmtExprMutator {
     return result;
   }
 
-  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* branch, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const IfNode* branch, InplaceMode inplace_mode) final {
     auto result = StmtExprMutator::Mutate_(branch, inplace_mode);
-    if (!result.IsUnchanged()) branch = ffi::AnyView(result).as<IfThenElseNode>();
+    if (!result.IsUnchanged()) branch = ffi::AnyView(result).as<IfNode>();
     if (!branch->else_case.has_value()) {
       if (branch->then_case->seq.empty()) return PreserveConditionEffects(branch->condition);
       return result;
@@ -634,10 +635,10 @@ class RemoveStrippedIketNoOps : public StmtExprMutator {
     bool empty_else = branch->else_case.value()->seq.empty();
     if (empty_then && empty_else) return PreserveConditionEffects(branch->condition);
     if (empty_else) {
-      return IfThenElse(branch->condition, branch->then_case, std::nullopt, branch->span);
+      return If(branch->condition, branch->then_case, std::nullopt, branch->span);
     }
     if (empty_then) {
-      return IfThenElse(!branch->condition, branch->else_case.value(), std::nullopt, branch->span);
+      return If(!branch->condition, branch->else_case.value(), std::nullopt, branch->span);
     }
     return result;
   }
@@ -1112,7 +1113,7 @@ class InstrumentOfficialKernel : public StmtExprMutator {
         PrimExpr payload = NormalizePayload(
             Mutate(call->args[1]).ValueOrUnchanged(call->args[1]).as_or_throw<PrimExpr>(),
             payload_type);
-        return IfThenElse(not_equal(token, 0), Evaluate(Event(token, std::move(payload))));
+        return If(not_equal(token, 0), Evaluate(Event(token, std::move(payload))));
       }
       return Evaluate(Event(token));
     }

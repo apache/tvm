@@ -20,11 +20,11 @@ import tvm
 def test_verify_ssa():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("tindex", "int32")
-    z = tvm.tirx.Evaluate(x + y)
+    z = tvm.ir.Evaluate(x + y)
     assert tvm.tirx.analysis.verify_ssa(tvm.tirx.Function([x, y], z))
 
     assert not tvm.tirx.analysis.verify_ssa(
-        tvm.tirx.Function([x, y], tvm.tirx.SeqStmt([tvm.tirx.Bind(x, 1), z]))
+        tvm.tirx.Function([x, y], tvm.ir.SeqStmt([tvm.ir.Bind(x, 1), z]))
     )
 
 
@@ -33,8 +33,8 @@ def test_verify_weak_let_ssa():
     z1 = tvm.tirx.Let(x, 1, x + 1)
     z2 = tvm.tirx.Let(x, 2, x + 2)
 
-    assert tvm.tirx.analysis.verify_ssa(tvm.tirx.Function([], tvm.tirx.Evaluate(z1 + z1)))
-    assert not tvm.tirx.analysis.verify_ssa(tvm.tirx.Function([], tvm.tirx.Evaluate(z1 * z2)))
+    assert tvm.tirx.analysis.verify_ssa(tvm.tirx.Function([], tvm.ir.Evaluate(z1 + z1)))
+    assert not tvm.tirx.analysis.verify_ssa(tvm.tirx.Function([], tvm.ir.Evaluate(z1 * z2)))
 
 
 if __name__ == "__main__":

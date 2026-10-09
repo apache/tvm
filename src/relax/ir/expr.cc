@@ -68,10 +68,10 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TypeOnlyExprMaybeInplac
   return ffi::Unchanged();
 }
 
-TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> IfVisit(
+TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> IfExprVisit(
     ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
-  const IfNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IfNode>(value);
+  const IfExprNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IfExprNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->ty));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->cond));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->true_branch));
@@ -79,10 +79,10 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> IfVisit(
   return std::nullopt;
 }
 
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IfMutate(
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IfExprMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  const IfNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IfNode>(value);
+  const IfExprNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IfExprNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty,
                                     mutator->MutateExpected(self->ty));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_cond,
@@ -96,7 +96,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IfMutate(
       mapped_false_branch.UnchangedOrSameAs(self->false_branch)) {
     return ffi::Unchanged();
   }
-  ffi::ObjectPtr<IfNode> copy = ffi::make_object<IfNode>(*self);
+  ffi::ObjectPtr<IfExprNode> copy = ffi::make_object<IfExprNode>(*self);
   copy->ty = std::move(mapped_ty).ValueOrUnchanged(std::move(copy->ty));
   copy->cond = std::move(mapped_cond).ValueOrUnchanged(std::move(copy->cond));
   copy->true_branch = std::move(mapped_true_branch).ValueOrUnchanged(std::move(copy->true_branch));
@@ -105,10 +105,10 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IfMutate(
   return ffi::Any(std::move(copy));
 }
 
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IfMaybeInplaceMutate(
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IfExprMaybeInplaceMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  IfNode* self = const_cast<IfNode*>(
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IfNode>(value));
+  IfExprNode* self = const_cast<IfExprNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IfExprNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty,
                                     mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_cond,
@@ -399,25 +399,27 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMaybeInplaceMut
 
 TVM_FFI_STATIC_INIT_BLOCK() { BindingNode::RegisterReflection(); }
 
-If::If(Expr cond, Expr true_branch, Expr false_branch, Span span) : Expr(ffi::UnsafeInit{}) {
-  ffi::ObjectPtr<IfNode> n =
-      ffi::make_object<IfNode>(std::move(cond), std::move(true_branch), std::move(false_branch));
+IfExpr::IfExpr(Expr cond, Expr true_branch, Expr false_branch, Span span)
+    : Expr(ffi::UnsafeInit{}) {
+  ffi::ObjectPtr<IfExprNode> n = ffi::make_object<IfExprNode>(
+      std::move(cond), std::move(true_branch), std::move(false_branch));
   n->span = std::move(span);
   data_ = std::move(n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  IfNode::RegisterReflection();
-  refl::TypeAttrDef<IfNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&IfVisit>())
-      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&IfMutate>())
+  IfExprNode::RegisterReflection();
+  refl::TypeAttrDef<IfExprNode>()
+      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&IfExprVisit>())
+      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&IfExprMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            ffi::FStructuralMutate::FromNative<&IfMaybeInplaceMutate>());
+            ffi::FStructuralMutate::FromNative<&IfExprMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("relax.If", [](Expr cond, Expr true_branch, Expr false_branch, Span span) {
-    return If(cond, true_branch, false_branch, span);
-  });
+  refl::GlobalDef().def("relax.IfExpr",
+                        [](Expr cond, Expr true_branch, Expr false_branch, Span span) {
+                          return IfExpr(cond, true_branch, false_branch, span);
+                        });
 }
 
 ShapeExpr::ShapeExpr(ffi::Array<PrimExpr> values, Span span) : Expr(ffi::UnsafeInit{}) {

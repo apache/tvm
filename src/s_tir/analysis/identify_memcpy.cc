@@ -86,7 +86,8 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   // Now, we have a TensorStore whose value is a TensorLoad.  Because
   // non-flat physical indices are target-dependent, only handle cases
   // where the buffer will be flattened to a 1-d physical buffer.
-  ffi::Array<PrimExpr> flattened_dst = store->buffer.OffsetOf(store->indices);
+  ffi::Array<PrimExpr> flattened_dst =
+      store->dest.as_or_throw<TensorVar>().OffsetOf(store->indices);
   ffi::Array<PrimExpr> flattened_src =
       load->source.as_or_throw<tvm::tirx::TensorVar>().OffsetOf(load->indices);
 
@@ -277,7 +278,8 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
       load->source.as_or_throw<tvm::tirx::TensorVar>(),
       DomainTouched(loop, load->source.as_or_throw<tvm::tirx::TensorVar>(), true, true));
   TensorRegion dst_region =
-      BufferRegion(store->buffer, DomainTouched(loop, store->buffer, true, true));
+      BufferRegion(store->dest.as_or_throw<TensorVar>(),
+                   DomainTouched(loop, store->dest.as_or_throw<TensorVar>(), true, true));
 
   return MemCpyDetails{src_region, dst_region};
 }

@@ -19,6 +19,7 @@
 
 from functools import reduce
 
+import tvm
 from tvm import s_tir, tirx
 from tvm.target import Target
 
@@ -185,7 +186,7 @@ class GEMV(GPUScheduleRule):
                 V_shared = sch.cache_read(rf, read_buffer_index=0, storage_scope="shared")
                 sch.compute_at(V_shared, tr, preserve_unit_loops=True)
                 l = sch.get_loops(block=V_shared)[-1]
-                loop: tirx.For = sch.get(l)
+                loop: tvm.ir.For = sch.get(l)
                 if isinstance(loop.extent, tirx.IntImm):
                     # avoid introducing predicates when vector length is too large
                     vec_length = max(

@@ -143,7 +143,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   const TensorLoadNode* buf_load = TVM_TYPE_AS(buf_store->value, TensorLoadNode);
 
   TensorVar src_buffer = buf_load->source.as_or_throw<tvm::tirx::TensorVar>();
-  TensorVar tgt_buffer = buf_store->buffer;
+  TensorVar tgt_buffer = buf_store->dest.as_or_throw<TensorVar>();
   std::string layout = tgt_buffer.scope() == "wmma.matrix_a" ? "row_major" : "col_major";
   TensorVar new_src_buffer(
       /*name=*/"src", TensorType(/*storage_scope=*/src_buffer.scope(),
@@ -250,7 +250,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   };
   ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(buf_store->value, walk_fn);
   TensorVar src_buffer = buf_load->source.as_or_throw<tvm::tirx::TensorVar>();
-  TensorVar tgt_buffer = buf_store->buffer;
+  TensorVar tgt_buffer = buf_store->dest.as_or_throw<TensorVar>();
 
   PrimType dtype_ty = src_buffer->dtype;
   const PrimType& dtype = dtype_ty;
@@ -477,7 +477,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
 
   // Step 3.1. Generate new buffer
   TensorVar src_buffer = buf_load->source.as_or_throw<tvm::tirx::TensorVar>();
-  TensorVar tgt_buffer = buf_store->buffer;
+  TensorVar tgt_buffer = buf_store->dest.as_or_throw<TensorVar>();
   PrimType dtype_ty = src_buffer->dtype;
   const PrimType& dtype = dtype_ty;
   TensorVar new_src_buffer(
@@ -500,26 +500,26 @@ Stmt RewriteMmaStore(Stmt stmt) {
   Stmt mma_body = SBlockRealize(
       /*iter_values=*/{},  //
       /*predicate=*/IntImm::Bool(true),
-      SBlock(/*iter_vars=*/{},
-             /*reads=*/{BufferRegion(src_buffer, read_region)},
-             /*writes=*/{BufferRegion(tgt_buffer, write_region)},
-             /*name_hint=*/"mma_store",
-             RegionStmt(tirx::launch_thread_op(), {StringImm("threadIdx.x"), IntImm::Int32(32)},
-                        {tx}, DictAttrs(), /*body=*/
-                        For(vec.as_or_throw<PrimVar>(), 0, 2, ForKind::kVectorized,
-                            /*body=*/
-                            TensorStore(new_tgt_buffer,
-                                        MakeTensorLoad(new_src_buffer, {floordiv(tx, 4),
-                                                                        floormod(tx, 4) * 2 + vec}),
-                                        {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}))),
-             /*init=*/std::nullopt,
-             /*alloc_buffers=*/{},
-             /*match_buffers=*/
-             {
-                 MatchBufferRegion(new_src_buffer, BufferRegion(src_buffer, read_region)),
-                 MatchBufferRegion(new_tgt_buffer, BufferRegion(tgt_buffer, write_region)),
-             },
-             /*annotations=*/{}));
+      SBlock(
+          /*iter_vars=*/{},
+          /*reads=*/{BufferRegion(src_buffer, read_region)},
+          /*writes=*/{BufferRegion(tgt_buffer, write_region)},
+          /*name_hint=*/"mma_store",
+          RegionStmt(tirx::launch_thread_op(), {StringImm("threadIdx.x"), IntImm::Int32(32)}, {tx},
+                     DictAttrs(), /*body=*/
+                     For(vec.as_or_throw<PrimVar>(), 0, 2, ForKind::kVectorized,
+                         /*body=*/
+                         TensorStore(new_tgt_buffer, {floordiv(tx, 4), floormod(tx, 4) * 2 + vec},
+                                     MakeTensorLoad(new_src_buffer, {floordiv(tx, 4),
+                                                                     floormod(tx, 4) * 2 + vec})))),
+          /*init=*/std::nullopt,
+          /*alloc_buffers=*/{},
+          /*match_buffers=*/
+          {
+              MatchBufferRegion(new_src_buffer, BufferRegion(src_buffer, read_region)),
+              MatchBufferRegion(new_tgt_buffer, BufferRegion(tgt_buffer, write_region)),
+          },
+          /*annotations=*/{}));
 
   // Step 3.4. wrap outer loops
   for (int i = n - 3; i >= 0; i--) {

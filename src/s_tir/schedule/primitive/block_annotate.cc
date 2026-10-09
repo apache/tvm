@@ -335,12 +335,12 @@ class DTypeMutator : public ReplaceBufferMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
-    TensorVar original_buffer = op->buffer;
+    TensorVar original_buffer = op->dest.as_or_throw<TensorVar>();
     TensorStore node = StmtExprMutator::Mutate_(op, inplace_mode)
                            .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                            .as_or_throw<TensorStore>();
     if (auto replacement = VarRemapGet(original_buffer).as<TensorVar>()) {
-      node.CopyOnWrite()->buffer = replacement.value();
+      node.CopyOnWrite()->dest = replacement.value();
       node.CopyOnWrite()->value = Cast(tgt_dtype_, node->value);
     }
     return node;

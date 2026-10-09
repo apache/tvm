@@ -340,13 +340,13 @@ std::vector<State> MultiLevelTilingNode::AddAsyncPipeline(State state) const {
   // check the reduce loop contains exactly 3 for loops
   // therefore it matches the notation array size in the following code
   tirx::StmtSRef r_loop_sref = state->sch->GetSRef(state->tiles[r_indices_[0]].back());
-  const tirx::ForNode* r_for_loop = TVM_SREF_TO_FOR(r_loop_sref);
-  ffi::Array<tirx::Stmt> seq = r_for_loop->body->seq;
+  const ForNode* r_for_loop = TVM_SREF_TO_FOR(r_loop_sref);
+  ffi::Array<Stmt> seq = r_for_loop->body->seq;
   if (seq.size() != 3) {
     return {state};
   }
   for (auto& stmt : seq) {
-    if (!stmt.as<tirx::ForNode>()) {
+    if (!stmt.as<ForNode>()) {
       return {state};
     }
   }

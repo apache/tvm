@@ -137,7 +137,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
   bool InThreadScope(const s_tir::Schedule& sch, const s_tir::SBlockRV& block) {
     const ffi::Array<s_tir::LoopRV>& axes = sch->GetLoops(block);
     for (const s_tir::LoopRV& loop_rv : axes) {
-      const tirx::For& loop = sch->Get(loop_rv);
+      const For& loop = sch->Get(loop_rv);
       runtime::ThreadScope thread_scope = s_tir::GetThreadScope(loop.get());
       if (s_tir::IsThreadIdx(thread_scope)) {
         return true;

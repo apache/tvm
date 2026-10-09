@@ -6500,7 +6500,7 @@ class ONNXGraphImporter:
                 else_expr = self._convert_subgraph(self.bb, attr["else_branch"])
                 then_seq = relax.SeqExpr(blocks=[], body=then_expr)
                 else_seq = relax.SeqExpr(blocks=[], body=else_expr)
-                if_result = self.bb.emit(relax.If(cond, then_seq, else_seq))
+                if_result = self.bb.emit(relax.IfExpr(cond, then_seq, else_seq))
                 if len(outputs) == 1:
                     self._nodes[outputs[0]] = if_result
                 else:
@@ -6685,7 +6685,7 @@ class ONNXGraphImporter:
                     else_expr = self._convert_subgraph(bb, attr["else_branch"])
                     then_seq = relax.SeqExpr(blocks=[], body=then_expr)
                     else_seq = relax.SeqExpr(blocks=[], body=else_expr)
-                    op = bb.emit(relax.If(cond, then_seq, else_seq))
+                    op = bb.emit(relax.IfExpr(cond, then_seq, else_seq))
                     outputs = node.output
                     if len(outputs) == 1:
                         self._nodes[outputs[0]] = op

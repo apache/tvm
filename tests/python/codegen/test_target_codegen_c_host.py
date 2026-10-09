@@ -259,7 +259,7 @@ def test_local_alloc_buffer_uses_plain_c_pointer():
 def test_vector_access_ptr_address_uses_ramp_base():
     buffer = tvm.tirx.decl_tensor((8,), "float32x2", name="A")
     access_ptr = buffer.access_ptr(access_mask=3, offset=2, extent=4)
-    body = tvm.tirx.Evaluate(tvm.tirx.call_extern("void", "consume", access_ptr))
+    body = tvm.ir.Evaluate(tvm.tirx.call_extern("void", "consume", access_ptr))
     func = tvm.tirx.Function([buffer], body).with_attr("global_symbol", "main")
 
     source = tvm.tirx.build(tvm.IRModule.from_expr(func), target="c").inspect_source()

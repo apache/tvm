@@ -256,7 +256,7 @@ class ForMatcher : public TensorizeComparator {
     return true;
   }
 
-  bool Dispatch_(const tirx::ForNode* op, const Stmt& other) final {
+  bool Dispatch_(const tvm::ForNode* op, const Stmt& other) final {
     const auto* rhs = other.as<ForNode>();
     loop_stack_lhs_.push_back(ffi::GetRef<For>(op));
     loop_stack_rhs_.push_back(ffi::GetRef<For>(rhs));
@@ -273,7 +273,8 @@ class ForMatcher : public TensorizeComparator {
     if (!DefEqual(op->loop_var, rhs->loop_var)) return false;
     // Only handle the case where the loop start from 0
     if (!IsZero(op->min) || !IsZero(rhs->min)) return false;
-    if (op->GetThreadBinding().has_value() || rhs->GetThreadBinding().has_value()) return false;
+    if (tvm::tirx::GetThreadBinding(op).has_value() || tvm::tirx::GetThreadBinding(rhs).has_value())
+      return false;
     if (op->kind != ForKind::kDefault || op->kind != rhs->kind) return false;
     if (!op->annotations.empty() || !rhs->annotations.empty()) return false;
     // Match the extents of loops
@@ -365,9 +366,10 @@ class ForMatcher : public TensorizeComparator {
     return CompareArray(lhs->region, rhs->region, &ForMatcher::CompareRange);
   }
 
-  template <typename T>
-  bool CompareBufferAccess(const T* lhs, const T* rhs) {
-    if (!CompareBuffer(lhs->buffer, rhs->buffer)) return false;
+  bool CompareBufferAccess(const TensorStoreNode* lhs, const TensorStoreNode* rhs) {
+    if (!CompareBuffer(lhs->dest.as_or_throw<TensorVar>(), rhs->dest.as_or_throw<TensorVar>())) {
+      return false;
+    }
     return CompareArray(
         lhs->indices, rhs->indices,
         static_cast<bool (ForMatcher::*)(const Expr&, const PrimExpr&)>(&ForMatcher::Dispatch));

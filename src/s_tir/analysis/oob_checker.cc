@@ -74,8 +74,8 @@ class OOBCheckerVisitor final : public s_tir::IRVisitorWithAnalyzer {
   using s_tir::IRVisitorWithAnalyzer::Visit_;
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* node) final {
-    for (size_t i = 0; i < node->buffer->shape.size(); i++) {
-      CheckBounds(node, node->buffer, i);
+    for (size_t i = 0; i < node->dest.as_or_throw<TensorVar>()->shape.size(); i++) {
+      CheckBounds(node, node->dest.as_or_throw<TensorVar>(), i);
     }
     return IRVisitorWithAnalyzer::Visit_(node);
   }
@@ -92,7 +92,7 @@ class OOBCheckerVisitor final : public s_tir::IRVisitorWithAnalyzer {
     auto ind_bounds = analyzer_->int_set(node->indices[i]);
     auto shape_bounds = analyzer_->int_set(buffer->shape[i]);
     // We would expect that
-    // `analyzer_.CanProve(node->indices[i] < 0 || node->indices[i] >= node->buffer->shape[i])`
+    // `analyzer_.CanProve(node->indices[i] < 0 || node->indices[i] >= buffer->shape[i])`
     // would be the way to check if any out of bounds access occurs here, but `CanProve` checks if
     // the statement is true for all possible values (universal quantification). For a mix of in
     // bounds and out of bounds access, no out of bounds access would be reported. We instead want

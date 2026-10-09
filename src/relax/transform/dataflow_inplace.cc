@@ -764,8 +764,8 @@ FindInplaceOpportunities(const DataflowBlock& block, const ffi::Array<Var>& inpu
 }
 
 // Replace buffers in a tirx::Function according to the mapping.
-tirx::Stmt RemapBuffers(const tirx::Stmt& stmt,
-                        const ffi::Map<tirx::TensorVar, tirx::TensorVar>& buffer_map) {
+tvm::Stmt RemapBuffers(const tvm::Stmt& stmt,
+                       const ffi::Map<tirx::TensorVar, tirx::TensorVar>& buffer_map) {
   class BufferMapper : public tirx::StmtExprMutator {
    public:
     explicit BufferMapper(const ffi::Map<tirx::TensorVar, tirx::TensorVar>& buffer_map) {
@@ -881,7 +881,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     auto mod = builder_->GetContextIRModule();
     auto old_function = mod->Lookup(legal_op).as_or_throw<tirx::Function>();
 
-    tirx::Stmt new_body = old_function->body.value();
+    tvm::Stmt new_body = old_function->body.value();
 
     size_t num_outs = inplace_indices.size();
     size_t num_params = old_function->params.size();
@@ -916,14 +916,14 @@ class ModuleInplaceTransformer : public ExprMutator {
       return ffi::Unchanged();
     };
     new_body = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(new_body), f_substitute)
-                   .as_or_throw<tirx::Stmt>();
+                   .as_or_throw<tvm::Stmt>();
 
     // now get rid of the last num_outputs arguments
     // (couldn't do earlier or else it would have thrown off the indexing)
     ffi::Array<tvm::Var> new_params(old_function->params.begin(),
                                     old_function->params.begin() + (num_params - num_outs));
 
-    tirx::Function new_function(new_params, tirx::SeqStmt(new_body), old_function->ret_type,
+    tirx::Function new_function(new_params, tvm::SeqStmt(new_body), old_function->ret_type,
                                 old_function->attrs, old_function->span);
 
     // note: this might be a good time to get rid of the old legalized function, but we don't do it

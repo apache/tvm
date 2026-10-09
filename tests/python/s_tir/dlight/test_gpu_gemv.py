@@ -1136,7 +1136,7 @@ def test_gemv_rank_one_vector_input():
     sch = tvm.s_tir.Schedule(mod)
     vector_local = sch.get_sblock("vector_local")
     vector_load_loop = sch.get(sch.get_loops(vector_local)[-1])
-    assert vector_load_loop.kind == tvm.tirx.ForKind.VECTORIZED
+    assert vector_load_loop.kind == tvm.ir.ForKind.VECTORIZED
 
 
 def test_gemv_broadcast_epilogue():

@@ -56,7 +56,7 @@ def LowerCrossThreadReduction():
 
 
 def LowerInitBlock():
-    """Lower block init stmt into IfThenElse statements.
+    """Lower block init stmt into If statements.
 
     Returns
     -------
@@ -258,7 +258,7 @@ def InjectVirtualThread():
 
 
 def HoistIfThenElse(variant=None):
-    """Hoist loop-invariant IfThenElse nodes to outside the eligible loops.
+    """Hoist loop-invariant If nodes to outside the eligible loops.
 
     Parameters
     ----------

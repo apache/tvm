@@ -120,9 +120,9 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
     TensorStore store = StmtExprMutator::Mutate_(_store, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(_store))
                             .as_or_throw<TensorStore>();
-    if (store->buffer.same_as(src_)) {
+    if (store->dest.as_or_throw<TensorVar>().same_as(src_)) {
       ffi::ObjectPtr<TensorStoreNode> new_store = ffi::make_object<TensorStoreNode>(*store.get());
-      new_store->buffer = dst_;
+      new_store->dest = dst_;
       return TensorStore(new_store);
     }
     return store;
@@ -334,7 +334,7 @@ struct ReadWriteAtImpl {
       indices.push_back(domain[i]->min + loop_vars[i].as_or_throw<PrimExpr>());
     }
     Stmt stmt =
-        TensorStore(copy_to, /*value=*/MakeTensorLoad(copy_from, indices), /*indices=*/indices);
+        TensorStore(copy_to, /*indices=*/indices, /*value=*/MakeTensorLoad(copy_from, indices));
     for (int i = n - 1; i >= 0; --i) {
       stmt = For(loop_vars[i].as_or_throw<PrimVar>(), IntImm::Int32(0), domain[i]->extent,
                  ForKind::kDefault, stmt);

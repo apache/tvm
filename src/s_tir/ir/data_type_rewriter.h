@@ -38,8 +38,8 @@ class IndexDataTypeNormalizer : public tirx::IndexDataTypeNormalizer {
       : Parent(std::move(target_data_type), GlobalVTable()) {}
   tirx::Function Rewrite(tirx::Function func);
 
-  virtual UnchangedOr<tirx::Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode);
-  virtual UnchangedOr<tirx::Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode);
+  virtual UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode);
 
  protected:
   static void InitVTable(VTable* table) {

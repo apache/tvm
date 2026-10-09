@@ -390,7 +390,7 @@ class HoistInfoCollector : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const IfNode* op) final {
     AttemptHoistConditional(op->condition, HoistedConditionals::kIfElseStmt,
                             op->else_case.has_value());
     return Parent::Visit_(op);
@@ -520,9 +520,9 @@ class ExpressionHoister : public s_tir::IRMutatorWithAnalyzer {
     for (auto cond_it = info.conditions.rbegin(); cond_it != info.conditions.rend(); cond_it++) {
       if (cond_it->IsEnabled(config_)) {
         if (cond_it->generate_else_case) {
-          stmt = IfThenElse(cond_it->condition, stmt, SeqStmt(stmt));
+          stmt = If(cond_it->condition, stmt, SeqStmt(stmt));
         } else {
-          stmt = IfThenElse(cond_it->condition, stmt);
+          stmt = If(cond_it->condition, stmt);
         }
       }
     }

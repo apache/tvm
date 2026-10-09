@@ -29,7 +29,6 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import tirx
 from tvm.script import from_source
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
@@ -239,8 +238,8 @@ def test_buffer_rebinding_preserves_distinct_allocations():
     first, second = block.alloc_buffers
     assert not first.same_as(second)
     store = block.body[0]
-    assert isinstance(store, tirx.TensorStore)
-    assert store.buffer.same_as(second)
+    assert isinstance(store, tvm.ir.TensorStore)
+    assert store.dest.same_as(second)
     assert store.value.a.source.same_as(second)
 
 
@@ -467,7 +466,7 @@ def test_reorder_fail_nested_loop_inner():
         sch.reorder(k, i)
     expected_sub_error_message = (
         "            for i in range(128):\n"
-        "                # tirx.For#0\n"
+        "                # ir.For#0\n"
         "                for j in range(128):\n"
         "                ^^^^^^^^^^^^^^^^^^^^\n"
     )
@@ -481,7 +480,7 @@ def test_fuse_fail_nested_loop_outer():
     with pytest.raises(tvm.s_tir.ScheduleError) as execinfo:
         sch.fuse(k, i)
     expected_sub_error_message = (
-        "            # tirx.For#1\n"
+        "            # ir.For#1\n"
         "            for i in range(128):\n"
         "            ^^^^^^^^^^^^^^^^^^^^\n"
         "                for j in range(128):\n"

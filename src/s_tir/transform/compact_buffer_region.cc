@@ -80,7 +80,7 @@ class Var2BufferCollector : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
-    var2buffer_[op->buffer.var()].insert(op->buffer);
+    var2buffer_[op->dest.as_or_throw<TensorVar>().var()].insert(op->dest.as_or_throw<TensorVar>());
     return StmtExprVisitor::Visit_(op);
   }
 
@@ -160,7 +160,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
-    VisitBufferAccess(BufferRegionFromPoint(op->buffer, op->indices));
+    VisitBufferAccess(BufferRegionFromPoint(op->dest.as_or_throw<TensorVar>(), op->indices));
     return Visit(op->value);
   }
 
@@ -186,9 +186,9 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     Range loop_range = Range::FromMinExtent(op->min, op->extent);
-    IterVar iter = op->GetThreadBinding().has_value()
+    IterVar iter = tvm::tirx::GetThreadBinding(op).has_value()
                        ? IterVar(Range(), op->loop_var, IterVarType::kThreadIndex,
-                                 op->GetThreadBinding().value())
+                                 tvm::tirx::GetThreadBinding(op).value())
                        : IterVar(Range(), op->loop_var, IterVarType::kDataPar);
     ancestor_iters_.push_back(iter);
     dom_analyzer_->Bind(op->loop_var, loop_range);
@@ -231,7 +231,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const IfNode* op) final {
     // Visit condition
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->condition));
     {
@@ -619,12 +619,14 @@ class BufferCompactor : public StmtExprMutator {
       : buffer_info_(std::move(buffer_info)) {}
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* _op, InplaceMode inplace_mode) final {
-    TensorVar original_buffer = _op->buffer;
+    TensorVar original_buffer = _op->dest.as_or_throw<TensorVar>();
     TensorStore store = StmtExprMutator::Mutate_(_op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(_op))
                             .as_or_throw<TensorStore>();
     TensorStoreNode* op = store.CopyOnWrite();
-    RewriteBufferAccess(original_buffer, &op->buffer, &op->indices);
+    TensorVar buffer = op->dest.as_or_throw<TensorVar>();
+    RewriteBufferAccess(original_buffer, &buffer, &op->indices);
+    op->dest = std::move(buffer);
     return store;
   }
 
@@ -678,7 +680,7 @@ class BufferCompactor : public StmtExprMutator {
     auto rewritten = ffi::make_object<BindNode>(*op);
     rewritten->value =
         Call(new_buffer.type(), call->op, args, call->attrs, call->ty_args, call->span);
-    tirx::Bind binding(std::move(rewritten));
+    tvm::Bind binding(std::move(rewritten));
     return StmtExprMutator::Mutate_(binding.get(), inplace_mode).ValueOrUnchanged(binding);
   }
 

@@ -124,7 +124,7 @@ class MatchBufferLower : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     // Save the original buffer before base class mutation may remap it
-    TensorVar orig_buffer = op->buffer;
+    TensorVar orig_buffer = op->dest.as_or_throw<TensorVar>();
     TensorStore stmt = StmtExprMutator::Mutate_(op, inplace_mode)
                            .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                            .as_or_throw<TensorStore>();
@@ -141,7 +141,7 @@ class MatchBufferLower : public StmtExprMutator {
 
       auto* n = stmt.CopyOnWrite();
       n->indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
-      n->buffer = source->source.as_or_throw<tvm::tirx::TensorVar>();
+      n->dest = source->source.as_or_throw<tvm::tirx::TensorVar>();
       return stmt;
     }
   }

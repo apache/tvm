@@ -679,8 +679,8 @@ class ReverseComputeInliner : public BaseInliner {
                             .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_load))
                             .as_or_throw<TensorLoad>();
       if (!load->source.as_or_throw<TensorVar>().same_as(self_->inlined_buffer_)) return load;
-      PrimExpr replacement =
-          MakeTensorLoad(self_->inlined_store_->buffer, self_->inlined_store_->indices);
+      PrimExpr replacement = MakeTensorLoad(self_->inlined_store_->dest.as_or_throw<TensorVar>(),
+                                            self_->inlined_store_->indices);
       return StmtExprMutator::Mutate(ffi::AnyView(replacement), InplaceMode::kDisallow)
           .ValueOrUnchanged(std::move(replacement))
           .as_or_throw<PrimExpr>();
@@ -755,7 +755,7 @@ class ReverseComputeInliner : public BaseInliner {
     }
     const TensorStoreNode* producer_store = nullptr;
     const Stmt& producer_body = producer_block_->body->seq[0];
-    if (const auto* producer_if = producer_body.as<tirx::IfThenElseNode>()) {
+    if (const auto* producer_if = producer_body.as<IfNode>()) {
       if (producer_if->else_case.has_value()) {
         return false;
       }
@@ -827,7 +827,7 @@ class ReverseComputeInliner : public BaseInliner {
       return producer_block_realize;
     }
     if (const auto* if_ = producer_block->body->size() == 1
-                              ? producer_block->body->seq[0].as<IfThenElseNode>()
+                              ? producer_block->body->seq[0].as<IfNode>()
                               : nullptr) {
       if (!if_->else_case.has_value()) {
         PrimExpr if_predicate = analyzer_->Simplify(if_->condition);
@@ -866,7 +866,7 @@ class ReverseComputeInliner : public BaseInliner {
     TensorStore store = BaseInliner::Mutate_(_store, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(_store))
                             .as_or_throw<TensorStore>();
-    if (!store->buffer.same_as(inlined_buffer_)) {
+    if (!store->dest.as_or_throw<TensorVar>().same_as(inlined_buffer_)) {
       return store;
     }
     return ReplaceInlinedBuffer(std::move(store));
@@ -1314,7 +1314,7 @@ bool ReductionEpilogueFuser::IsReductionBlock(const SBlockNode* block) {
 
 void ReductionEpilogueFuser::ExtractEpilogueInfo() {
   // Extract epilogue output buffer and indices
-  epilogue_output_buffer_ = inlined_store_->buffer;
+  epilogue_output_buffer_ = inlined_store_->dest.as_or_throw<TensorVar>();
   epilogue_output_indices_ = inlined_store_->indices;
 
   // Extract epilogue output region from epilogue block writes
@@ -1437,7 +1437,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
         return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(index, f_substitute)
             .as_or_throw<PrimExpr>();
       });
-  TensorStore new_init_store = TensorStore(epilogue_output_buffer_, init_epilogue, init_indices);
+  TensorStore new_init_store = TensorStore(epilogue_output_buffer_, init_indices, init_epilogue);
   new_block->init = new_init_store;
 
   // 3. Generalized update transformation: apply epilogue expression with reduction buffer replaced
@@ -1461,7 +1461,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
       TensorStore store = StmtExprMutator::Mutate_(op, inplace_mode)
                               .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                               .as_or_throw<TensorStore>();
-      if (store->buffer.same_as(old_buffer_)) {
+      if (store->dest.as_or_throw<TensorVar>().same_as(old_buffer_)) {
         // Replace old_buffer_ in store->value with new_buffer_ to get the reduction update
         // expression This ensures store->value references new_buffer_ instead of old_buffer_
         class ReductionUpdateReplacer : public StmtExprMutator {
@@ -1589,7 +1589,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
         new_value = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(new_value, f_substitute)
                         .as_or_throw<PrimExpr>();
 
-        return TensorStore(new_buffer_, new_value, store->indices);
+        return TensorStore(new_buffer_, store->indices, new_value);
       }
       return store;
     }

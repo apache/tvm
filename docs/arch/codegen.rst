@@ -152,7 +152,7 @@ backend (x86, ARM, NVPTX, AMDGPU, etc.).
   ``Cast`` → LLVM type conversions, ``Call`` → intrinsic or extern function calls.
 - **Statements** (``VisitStmt_``) emit LLVM IR side effects:
   ``TensorStore`` → store instructions, ``For`` → loop basic blocks with branches,
-  ``IfThenElse`` → conditional branches, ``tirx.alloc_tensor`` calls → stack or heap allocation.
+  ``If`` → conditional branches, ``tirx.alloc_tensor`` calls → stack or heap allocation.
 
 The key methods on ``CodeGenLLVM`` are:
 

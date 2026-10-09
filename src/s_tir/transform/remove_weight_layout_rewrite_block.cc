@@ -96,8 +96,9 @@ class RemoveLayoutRewriteBlock : public StmtExprMutator {
     TVM_FFI_ICHECK(load);
 
     // Step 3. Update TensorVar
-    buf_map_.Set(load->source.as_or_throw<tvm::tirx::TensorVar>(), store->buffer);
-    rewritten_buffers_.insert(store->buffer);
+    buf_map_.Set(load->source.as_or_throw<tvm::tirx::TensorVar>(),
+                 store->dest.as_or_throw<TensorVar>());
+    rewritten_buffers_.insert(store->dest.as_or_throw<TensorVar>());
 
     // Step 4. Set block body as no_op
     Stmt old_body = block->body;
@@ -115,7 +116,7 @@ class RemoveLayoutRewriteBlock : public StmtExprMutator {
         IndexMap(load_indices, store->indices);
 
     buffer_var_to_rewritten_shape_[load->source.as_or_throw<tvm::tirx::TensorVar>().get()] =
-        store->buffer->shape;
+        store->dest.as_or_throw<TensorVar>()->shape;
 
     return block;
   }

@@ -223,8 +223,8 @@ class AutoPadder {
                                 .ValueOrUnchanged(ffi::GetRef<Stmt>(_op))
                                 .as_or_throw<TensorStore>();
         TensorStoreNode* op = store.CopyOnWrite();
-        if (auto replacement = VarRemapGet(op->buffer).as<TensorVar>()) {
-          op->buffer = replacement.value();
+        if (auto replacement = VarRemapGet(op->dest.as_or_throw<TensorVar>()).as<TensorVar>()) {
+          op->dest = replacement.value();
         }
         return store;
       }
@@ -516,10 +516,11 @@ class AutoPadder {
     }
 
     ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
-      if (!op->GetThreadBinding().has_value()) {
+      if (!tvm::tirx::GetThreadBinding(op).has_value()) {
         substitute_map_.Set(op->loop_var, op->min);
       } else {
-        int64_t extent = warp_thread_extent_.Get(op->GetThreadBinding().value()).value_or(1);
+        int64_t extent =
+            warp_thread_extent_.Get(tvm::tirx::GetThreadBinding(op).value()).value_or(1);
         var_range_.Set(op->loop_var, Range::FromMinExtent(op->min, IntImm::Int64(extent)));
       }
       if (op->kind == ForKind::kVectorized) {
@@ -530,7 +531,7 @@ class AutoPadder {
       if (op->kind == ForKind::kVectorized) {
         vector_length_ = -1;
       }
-      if (!op->GetThreadBinding().has_value()) {
+      if (!tvm::tirx::GetThreadBinding(op).has_value()) {
         substitute_map_.erase(op->loop_var);
       }
       return std::nullopt;
@@ -543,7 +544,8 @@ class AutoPadder {
      * \param op the buffer store
      */
     ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
-      runtime::StorageScope scope = runtime::StorageScope::Create(op->buffer.scope());
+      runtime::StorageScope scope =
+          runtime::StorageScope::Create(op->dest.as_or_throw<TensorVar>().scope());
       if (scope.rank == runtime::StorageRank::kShared) {
         ffi::Array<PrimExpr> substitued_indices;
         sym::Analyzer analyzer;
@@ -559,12 +561,13 @@ class AutoPadder {
         std::vector<std::vector<int>> iter_space =
             PatternCollector::CollectIterationSpace(substitued_indices, var_range_, data_bits_);
         if (!iter_space.empty()) {
-          self->iter_spaces_[op->buffer.get()].push_back(iter_space);
+          self->iter_spaces_[op->dest.as_or_throw<TensorVar>().get()].push_back(iter_space);
         }
         if (vector_length_ != -1 &&
             CheckVarContiguous(op->indices.back(), vector_var.value(), substitute_map_)) {
-          int64_t m = self->padding_min_.Get(op->buffer).value_or(1);
-          self->padding_min_.Set(op->buffer, std::max(static_cast<int64_t>(vector_length_), m));
+          int64_t m = self->padding_min_.Get(op->dest.as_or_throw<TensorVar>()).value_or(1);
+          self->padding_min_.Set(op->dest.as_or_throw<TensorVar>(),
+                                 std::max(static_cast<int64_t>(vector_length_), m));
         }
       }
       return StmtExprVisitor::Visit_(op);
@@ -831,9 +834,10 @@ class ThreadExtentCollector : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
-    if (op->GetThreadBinding().has_value()) {
+    if (tvm::tirx::GetThreadBinding(op).has_value()) {
       if (const auto* extent = op->extent.as<IntImmNode>()) {
-        thread_extent_.Set(op->GetThreadBinding().value(), static_cast<int64_t>(extent->value));
+        thread_extent_.Set(tvm::tirx::GetThreadBinding(op).value(),
+                           static_cast<int64_t>(extent->value));
       }
     }
     return StmtExprVisitor::Visit_(op);

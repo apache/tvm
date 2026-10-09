@@ -51,7 +51,7 @@
     RELAX_VISIT_BINDING_DISPATCH(FunctionNode);                                         \
     RELAX_VISIT_BINDING_DISPATCH(CallNode);                                             \
     RELAX_VISIT_BINDING_DISPATCH(SeqExprNode);                                          \
-    RELAX_VISIT_BINDING_DISPATCH(IfNode);                                               \
+    RELAX_VISIT_BINDING_DISPATCH(IfExprNode);                                           \
     RELAX_VISIT_BINDING_DISPATCH(OpNode);                                               \
     RELAX_VISIT_BINDING_DISPATCH(TupleGetItemNode);                                     \
     RELAX_VISIT_BINDING_DISPATCH(StringImmNode);                                        \
@@ -273,7 +273,7 @@ void ExprVisitor::VisitExpr_(const tvm::IntImmNode* op) { this->VisitSpan(op->sp
 
 void ExprVisitor::VisitExpr_(const tvm::FloatImmNode* op) { this->VisitSpan(op->span); }
 
-void ExprVisitor::VisitExpr_(const IfNode* op) {
+void ExprVisitor::VisitExpr_(const IfExprNode* op) {
   this->VisitSpan(op->span);
   this->VisitExpr(op->cond);
   this->VisitExpr(op->true_branch);
@@ -339,7 +339,7 @@ RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(GlobalVarNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(FunctionNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(CallNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(SeqExprNode);
-RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(IfNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(IfExprNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(OpNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(TupleGetItemNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(ExprNode);
@@ -645,7 +645,7 @@ Expr ExprMutatorBase::VisitExpr_(const tvm::IntImmNode* op) { return ffi::GetRef
 
 Expr ExprMutatorBase::VisitExpr_(const tvm::FloatImmNode* op) { return ffi::GetRef<Expr>(op); }
 
-Expr ExprMutatorBase::VisitExpr_(const IfNode* op) {
+Expr ExprMutatorBase::VisitExpr_(const IfExprNode* op) {
   Expr guard = this->VisitExpr(op->cond);
   Expr true_b = this->VisitExpr(op->true_branch);
   Expr false_b = this->VisitExpr(op->false_branch);
@@ -653,7 +653,7 @@ Expr ExprMutatorBase::VisitExpr_(const IfNode* op) {
       op->false_branch.same_as(false_b) && VisitAndCheckTypeFieldUnchanged(op->ty)) {
     return ffi::GetRef<Expr>(op);
   } else {
-    return If(guard, true_b, false_b, op->span);
+    return IfExpr(guard, true_b, false_b, op->span);
   }
 }
 
@@ -809,7 +809,7 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
   }
 }
 
-Expr ExprMutator::VisitExpr_(const IfNode* op) {
+Expr ExprMutator::VisitExpr_(const IfExprNode* op) {
   Expr guard = this->VisitExpr(op->cond);
   Expr true_b = this->VisitWithInnerScope(op->true_branch);
   Expr false_b = this->VisitWithInnerScope(op->false_branch);
@@ -817,7 +817,7 @@ Expr ExprMutator::VisitExpr_(const IfNode* op) {
       op->false_branch.same_as(false_b) && VisitAndCheckTypeFieldUnchanged(op->ty)) {
     return ffi::GetRef<Expr>(op);
   } else {
-    return If(guard, true_b, false_b, op->span);
+    return IfExpr(guard, true_b, false_b, op->span);
   }
 }
 
@@ -858,7 +858,7 @@ RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(GlobalVarNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(FunctionNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(CallNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(SeqExprNode);
-RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(IfNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(IfExprNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(OpNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(TupleGetItemNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(ExprNode);

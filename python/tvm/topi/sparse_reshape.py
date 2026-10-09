@@ -106,44 +106,44 @@ def sparse_reshape(
 
             T.tensor_store(
                 total_ele,
-                prev_shape[T.tensor_indices(prev_shape, 0)],
                 T.tensor_indices(total_ele, 0),
+                prev_shape[T.tensor_indices(prev_shape, 0)],
             )
 
             # Cumulative Reverse Exclusive Multiply
             T.tensor_store(
                 multipliers,
-                Cast(new_shape_ptr.dtype, 1),
                 T.tensor_indices(multipliers, prev_shape_size - 1),
+                Cast(new_shape_ptr.dtype, 1),
             )
             with T.serial(0, prev_shape_size - 1) as i_:
                 i = i_ + 1
                 T.tensor_store(
                     multipliers,
+                    T.tensor_indices(multipliers, prev_shape_size - 1 - i),
                     prev_shape[T.tensor_indices(prev_shape, prev_shape_size - i)]
                     * multipliers[T.tensor_indices(multipliers, prev_shape_size - i)],
-                    T.tensor_indices(multipliers, prev_shape_size - 1 - i),
                 )
                 T.tensor_store(
                     total_ele,
+                    T.tensor_indices(total_ele, 0),
                     total_ele[T.tensor_indices(total_ele, 0)]
                     * (prev_shape[T.tensor_indices(prev_shape, prev_shape_size - i)]),
-                    T.tensor_indices(total_ele, 0),
                 )
 
             T.tensor_store(
                 division_total_ele,
-                Cast(new_shape_ptr.dtype, 1),
                 T.tensor_indices(division_total_ele, 0),
+                Cast(new_shape_ptr.dtype, 1),
             )
             with T.serial(0, new_shape_size) as i:
                 with T.if_(new_shape[T.tensor_indices(new_shape, i)] != -1):
                     with T.then_():
                         T.tensor_store(
                             division_total_ele,
+                            T.tensor_indices(division_total_ele, 0),
                             division_total_ele[T.tensor_indices(division_total_ele, 0)]
                             * (new_shape[T.tensor_indices(new_shape, i)]),
-                            T.tensor_indices(division_total_ele, 0),
                         )
 
             # Compute true output shape (replace negative ones)
@@ -152,6 +152,7 @@ def sparse_reshape(
                     with T.then_():
                         T.tensor_store(
                             out_new_shape,
+                            T.tensor_indices(out_new_shape, i),
                             Cast(
                                 new_shape_ptr.dtype,
                                 div(
@@ -159,17 +160,16 @@ def sparse_reshape(
                                     division_total_ele[T.tensor_indices(division_total_ele, 0)],
                                 ),
                             ),
-                            T.tensor_indices(out_new_shape, i),
                         )
                     with T.else_():
                         T.tensor_store(
                             out_new_shape,
-                            new_shape[T.tensor_indices(new_shape, i)],
                             T.tensor_indices(out_new_shape, i),
+                            new_shape[T.tensor_indices(new_shape, i)],
                         )
 
             # Check if prev_shape and new_shape are equal
-            T.tensor_store(equal_shape, True, T.tensor_indices(equal_shape, 0))
+            T.tensor_store(equal_shape, T.tensor_indices(equal_shape, 0), True)
             with T.if_(prev_shape_size == new_shape_size):
                 with T.then_():
                     with T.serial(0, prev_shape_size) as i:
@@ -178,9 +178,9 @@ def sparse_reshape(
                             != out_new_shape[T.tensor_indices(out_new_shape, i)]
                         ):
                             with T.then_():
-                                T.tensor_store(equal_shape, False, T.tensor_indices(equal_shape, 0))
+                                T.tensor_store(equal_shape, T.tensor_indices(equal_shape, 0), False)
                 with T.else_():
-                    T.tensor_store(equal_shape, False, T.tensor_indices(equal_shape, 0))
+                    T.tensor_store(equal_shape, T.tensor_indices(equal_shape, 0), False)
 
             # Return same inputs if shapes are equal
             with T.if_(equal_shape[T.tensor_indices(equal_shape, 0)]):
@@ -189,41 +189,41 @@ def sparse_reshape(
                         with T.serial(0, sparse_indices_ptr.shape[1]) as j:
                             T.tensor_store(
                                 new_sparse_indices,
-                                sparse_indices[(i, j)],
                                 (i, j),
+                                sparse_indices[(i, j)],
                             )
 
                 # Else compute new_sparse_indices
                 with T.else_():
                     T.tensor_store(
                         dividers,
-                        Cast(new_shape_ptr.dtype, 1),
                         T.tensor_indices(dividers, new_shape_size - 1),
+                        Cast(new_shape_ptr.dtype, 1),
                     )
                     with T.serial(0, new_shape_size - 1) as i_:
                         i = i_ + 1
                         T.tensor_store(
                             dividers,
+                            T.tensor_indices(dividers, new_shape_size - 1 - i),
                             dividers[T.tensor_indices(dividers, new_shape_size - i)]
                             * out_new_shape[T.tensor_indices(out_new_shape, new_shape_size - i)],
-                            T.tensor_indices(dividers, new_shape_size - 1 - i),
                         )
 
                     with T.parallel(0, sparse_indices_ptr.shape[0]) as i:
                         T.tensor_store(
                             flattened_indices,
-                            Cast(new_shape_ptr.dtype, 0),
                             T.tensor_indices(flattened_indices, i),
+                            Cast(new_shape_ptr.dtype, 0),
                         )
                         with T.serial(0, sparse_indices_ptr.shape[1]) as j:
                             T.tensor_store(
                                 flattened_indices,
+                                T.tensor_indices(flattened_indices, i),
                                 flattened_indices[T.tensor_indices(flattened_indices, i)]
                                 + (
                                     sparse_indices[(i, j)]
                                     * multipliers[T.tensor_indices(multipliers, j)]
                                 ),
-                                T.tensor_indices(flattened_indices, i),
                             )
 
                     with T.parallel(0, new_sparse_indices_ptr.shape[0]) as i:
@@ -233,13 +233,14 @@ def sparse_reshape(
                         current_element = current_element_buf
                         T.tensor_store(
                             current_element,
-                            flattened_indices[T.tensor_indices(flattened_indices, i)],
                             T.tensor_indices(current_element, 0),
+                            flattened_indices[T.tensor_indices(flattened_indices, i)],
                         )
 
                         with T.serial(0, new_sparse_indices_ptr.shape[1]) as j:
                             T.tensor_store(
                                 new_sparse_indices,
+                                (i, j),
                                 Cast(
                                     sparse_indices_ptr.dtype,
                                     floordiv(
@@ -247,15 +248,14 @@ def sparse_reshape(
                                         dividers[T.tensor_indices(dividers, j)],
                                     ),
                                 ),
-                                (i, j),
                             )
                             T.tensor_store(
                                 current_element,
+                                T.tensor_indices(current_element, 0),
                                 floormod(
                                     current_element[T.tensor_indices(current_element, 0)],
                                     dividers[T.tensor_indices(dividers, j)],
                                 ),
-                                T.tensor_indices(current_element, 0),
                             )
 
             return ib.get()

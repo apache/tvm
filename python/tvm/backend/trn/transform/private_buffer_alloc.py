@@ -16,16 +16,23 @@
 # under the License.
 import tvm_ffi
 
-from tvm.ir import Call, DataTypeImm, DictAttrs, Op, Range, StringImm, Tuple, Var
-from tvm.target import Target
-from tvm.tirx.stmt import (
+from tvm.ir import (
     Bind,
+    Call,
+    DataTypeImm,
+    DictAttrs,
     For,
+    Op,
+    Range,
     RegionStmt,
     SeqStmt,
     Stmt,
-    TileOpCall,
+    StringImm,
+    Tuple,
+    Var,
 )
+from tvm.target import Target
+from tvm.tirx.stmt import TileOpCall
 from tvm.tirx.tile_primitive import DispatchContext
 from tvm.tirx.transform.common import seek_kernel_replace_point
 from tvm.tirx.transform.function_pass import function_pass

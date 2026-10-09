@@ -394,8 +394,8 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
   for (const auto& kv : info->loop_map) {
     // Extract mapping (block_loop => desc_loop)
     const tirx::StmtSRef& block_loop_sref = kv.first;
-    const tirx::ForNode* block_loop = block_loop_sref->StmtAs<tirx::ForNode>();
-    const tirx::ForNode* desc_loop = kv.second.get();
+    const ForNode* block_loop = block_loop_sref->StmtAs<ForNode>();
+    const ForNode* desc_loop = kv.second.get();
     TVM_FFI_ICHECK(block_loop != nullptr && desc_loop != nullptr);
     // Extract the loop extent
     PrimExpr block_extent = analyzer->Simplify(block_loop->extent);
@@ -414,8 +414,7 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
     TVM_FFI_ICHECK_EQ(split.size(), 2);
     inner_loops.insert(sch->GetSRef(split[1]).operator->());
     // The inner split will be reordered to the loop domain that is tensorized
-    int desc_loop_index =
-        static_cast<int>(info->desc_loop_indexer.at(ffi::GetRef<tirx::For>(desc_loop)));
+    int desc_loop_index = static_cast<int>(info->desc_loop_indexer.at(ffi::GetRef<For>(desc_loop)));
     reorder_suffix[desc_loop_index] = split[1];
   }
   // Reorder the loops

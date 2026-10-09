@@ -22,6 +22,7 @@ from typing import Literal
 
 import tvm_ffi
 
+import tvm
 from tvm import s_tir, sym, tirx
 from tvm.target import Target
 
@@ -42,13 +43,13 @@ def _get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
     if len(block.body) != 1:
         return None
     tensor_store = block.body[0]
-    if not isinstance(tensor_store, tirx.TensorStore):
+    if not isinstance(tensor_store, tvm.ir.TensorStore):
         return None
     if not isinstance(tensor_store.value, tirx.Add):
         return None
     if not tvm_ffi.structural_equal(
         tensor_store.value.a,
-        tirx.TensorLoad(tensor_store.buffer, tensor_store.indices),
+        tirx.TensorLoad(tensor_store.dest, tensor_store.indices),
         map_free_vars=True,
     ):
         return None
@@ -398,7 +399,7 @@ class LowBatchGEMV(GPUScheduleRule):
                 V_shared = sch.cache_read(rf, read_buffer_index=0, storage_scope="shared")
                 sch.compute_at(V_shared, tr, preserve_unit_loops=True)
                 l = sch.get_loops(block=V_shared)[-1]
-                loop: tirx.For = sch.get(l)
+                loop: tvm.ir.For = sch.get(l)
                 if isinstance(loop.extent, tirx.IntImm):
                     # avoid introducing predicates when vector length is too large
                     vec_length = max(

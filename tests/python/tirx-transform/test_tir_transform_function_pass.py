@@ -32,11 +32,11 @@ def test_function_pass():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "int32")
     b = tvm.tirx.decl_tensor((x,), "float32")
-    stmt = tvm.tirx.SeqStmt([tvm.tirx.Bind(x, 10), tvm.tirx.Evaluate(x + 1)])
+    stmt = tvm.ir.SeqStmt([tvm.ir.Bind(x, 10), tvm.ir.Evaluate(x + 1)])
 
     func = tvm.tirx.Function([x, y, b], stmt)
 
-    new_func = tvm.tirx.Function([x, y, b], tvm.tirx.Evaluate(0))
+    new_func = tvm.tirx.Function([x, y, b], tvm.ir.Evaluate(0))
 
     mod = tvm.IRModule({"main": func})
     mod = TestReplaceFunc(new_func)(mod)
@@ -51,7 +51,7 @@ def test_cow_pass():
 
     pidentity = tvm.tirx.transform.Apply(fapply)
     x = tvm.tirx.Var("x", "int32")
-    func = tvm.tirx.Function([x], tvm.tirx.Evaluate(x)).with_attr("target_bits", 32)
+    func = tvm.tirx.Function([x], tvm.ir.Evaluate(x)).with_attr("target_bits", 32)
     func_hash = func.__hash__()
     mod = tvm.IRModule({"main": func})
     del func

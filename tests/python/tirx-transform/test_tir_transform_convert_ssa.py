@@ -30,12 +30,12 @@ def test_reuse_in_sequential_bind():
     # not valid TIR, and may not be expressible in future versions
     # of TVMSCript.
     var = tirx.Var("var", "int32")
-    sequential_bindings = tirx.SeqStmt(
+    sequential_bindings = tvm.ir.SeqStmt(
         [
-            tirx.Bind(var, 16),
-            tirx.Evaluate(var),
-            tirx.Bind(var, 32),
-            tirx.Evaluate(var),
+            tvm.ir.Bind(var, 16),
+            tvm.ir.Evaluate(var),
+            tvm.ir.Bind(var, 32),
+            tvm.ir.Evaluate(var),
         ]
     )
     before = tirx.Function([], sequential_bindings)
@@ -67,18 +67,18 @@ def test_reuse_in_nested_bind():
     var = tirx.Var("var", "int32")
     # Note: nested SeqStmt is flattened by the IR builder, so the input
     # is actually a flat SeqStmt with 5 elements.
-    inner_seq = tirx.SeqStmt(
+    inner_seq = tvm.ir.SeqStmt(
         [
-            tirx.Bind(var, 16),
-            tirx.Evaluate(var),
+            tvm.ir.Bind(var, 16),
+            tvm.ir.Evaluate(var),
         ]
     )
-    outer_seq = tirx.SeqStmt(
+    outer_seq = tvm.ir.SeqStmt(
         [
-            tirx.Bind(var, 32),
-            tirx.Evaluate(var),
+            tvm.ir.Bind(var, 32),
+            tvm.ir.Evaluate(var),
             inner_seq,
-            tirx.Evaluate(var),
+            tvm.ir.Evaluate(var),
         ]
     )
     before = tirx.Function([], outer_seq)
@@ -87,13 +87,13 @@ def test_reuse_in_nested_bind():
     # ALL subsequent siblings including the last Evaluate.
     var1 = tirx.Var("var", "int32")
     var2 = tirx.Var("var", "int32")
-    expected_body = tirx.SeqStmt(
+    expected_body = tvm.ir.SeqStmt(
         [
-            tirx.Bind(var1, 32),
-            tirx.Evaluate(var1),
-            tirx.Bind(var2, 16),
-            tirx.Evaluate(var2),
-            tirx.Evaluate(var2),
+            tvm.ir.Bind(var1, 32),
+            tvm.ir.Evaluate(var1),
+            tvm.ir.Bind(var2, 16),
+            tvm.ir.Evaluate(var2),
+            tvm.ir.Evaluate(var2),
         ]
     )
     expected = tirx.Function([], expected_body)
@@ -229,7 +229,7 @@ def test_reused_compound_buffer_shape_var():
     """De-duplicate implicit Vars nested in buffer parameter shapes."""
     n = tirx.Var("n", "int32")
     A = tirx.decl_tensor((tirx.max(n, 1),), layout=None)
-    func = tirx.Function([A], tirx.Evaluate(n))
+    func = tirx.Function([A], tvm.ir.Evaluate(n))
     before = tvm.IRModule(
         {
             "func_a": func.with_attr("global_symbol", "func_a"),
@@ -468,9 +468,9 @@ def test_shared_shape_var_in_buffer_params_and_alloc_buffer():
 
     # AllocTensor with shape [n] in the body (flat, no body)
     C = tirx.decl_tensor((n,), "float32", "C")
-    body = tirx.SeqStmt(
+    body = tvm.ir.SeqStmt(
         [
-            tvm.tirx.Bind(
+            tvm.ir.Bind(
                 C,
                 tvm.ir.Call(
                     "tirx.alloc_tensor",
@@ -483,7 +483,7 @@ def test_shared_shape_var_in_buffer_params_and_alloc_buffer():
                     ty=C.ty,
                 ),
             ),
-            tirx.Evaluate(1),
+            tvm.ir.Evaluate(1),
         ]
     )
 
@@ -506,14 +506,14 @@ def test_reused_loop_var_in_decl_buffer_elem_offset():
         scope="shared.dyn",
     )
     buffer_data = tirx.Var("buffer_data", buffer.data.ty)
-    loop = tirx.For(
+    loop = tvm.ir.For(
         loop_var,
         0,
         128,
-        tirx.ForKind.DEFAULT,
-        tirx.SeqStmt(
+        tvm.ir.ForKind.DEFAULT,
+        tvm.ir.SeqStmt(
             [
-                tirx.Bind(
+                tvm.ir.Bind(
                     buffer,
                     tvm.ir.Call(
                         "tirx.decl_tensor",
@@ -526,11 +526,11 @@ def test_reused_loop_var_in_decl_buffer_elem_offset():
                         ty=buffer.ty,
                     ),
                 ),
-                tirx.Evaluate(tirx.TensorLoad(buffer, [0])),
+                tvm.ir.Evaluate(tirx.TensorLoad(buffer, [0])),
             ]
         ),
     )
-    func = tirx.Function([buffer_data], tirx.SeqStmt([loop, loop, loop]))
+    func = tirx.Function([buffer_data], tvm.ir.SeqStmt([loop, loop, loop]))
 
     after = tvm.tirx.transform.ConvertSSA()(tvm.IRModule.from_expr(func))
 

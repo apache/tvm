@@ -183,7 +183,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
-    const VarNode* allocation = GetAllocationKey(op->buffer.get());
+    const VarNode* allocation = GetAllocationKey(op->dest.as_or_throw<TensorVar>().get());
     TensorStore store = DialectMutator::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                             .template as_or_throw<TensorStore>();
@@ -195,10 +195,10 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         TVM_FFI_ICHECK(IsZero(index));
       }
       auto* writer = store.CopyOnWrite();
-      writer->buffer = replacement->source.template as_or_throw<tvm::tirx::TensorVar>();
+      writer->dest = replacement->source.template as_or_throw<tvm::tirx::TensorVar>();
       writer->indices = replacement->indices;
-    } else if (auto opt = GetRemappedBuffer(store->buffer)) {
-      store.CopyOnWrite()->buffer = opt.value();
+    } else if (auto opt = GetRemappedBuffer(store->dest.as_or_throw<TensorVar>())) {
+      store.CopyOnWrite()->dest = opt.value();
     }
     return store;
   }
@@ -400,7 +400,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
           TVM_FFI_ICHECK_EQ(val.ty(), dtypes[i]);
           PrimExpr splat = WarpShuffle(tirx::gpu_warp_shuffle_op(), new_alloc_bufs.back(), val,
                                        reduce_extent * group_index);
-          seq.push_back(TensorStore(buf, splat, {zero_index}));
+          seq.push_back(TensorStore(buf, {zero_index}, splat));
         }
       } else {
         int n_warps = reduce_extent / warp_size_;
@@ -432,11 +432,11 @@ class ThreadAllreduceBuilder final : public DialectMutator {
                                        ->source.as_or_throw<tvm::tirx::TensorVar>());
           write_staging_buf.push_back(TensorStore(
               /*buffer=*/staging_shared_bufs[i],
-              /*value=*/reduce_results[i],
-              /*indices=*/{group_index * n_warps + floordiv(reduce_index, warp_size_)}));
+              /*indices=*/{group_index * n_warps + floordiv(reduce_index, warp_size_)},
+              /*value=*/reduce_results[i]));
         }
         PrimExpr cond = floormod(reduce_index, warp_size_) == zero_index;
-        seq.push_back(IfThenElse(cond, SeqStmt(write_staging_buf)));
+        seq.push_back(If(cond, SeqStmt(write_staging_buf)));
         seq.push_back(SyncThread("shared"));
 
         // 4. Load staging buffer.
@@ -462,11 +462,11 @@ class ThreadAllreduceBuilder final : public DialectMutator {
               /*shape=*/{IntImm(reduce_index.ty(), group_extent)},
               /*dtype=*/buffers[i]->dtype, /*name=*/"red_result", /*storage_scope=*/"shared");
           write_result.push_back(
-              TensorStore(broadcast_shared_buf, reduce_results[i], {group_index}));
+              TensorStore(broadcast_shared_buf, {group_index}, reduce_results[i]));
           // Update `reduce_results`, pointing to the value loaded from the shared memory buffer.
           reduce_results[i] = MakeTensorLoad(broadcast_shared_buf, {group_index});
         }
-        seq.push_back(IfThenElse(reduce_index == zero_index, SeqStmt(write_result)));
+        seq.push_back(If(reduce_index == zero_index, SeqStmt(write_result)));
         seq.push_back(SyncThread("shared"));
       }
 
@@ -492,7 +492,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         // special case, no reduction is needed.
         std::vector<Stmt> stores;
         for (size_t i = 0; i < size; ++i) {
-          stores.push_back(TensorStore(buffers[i], values[i], {0}));
+          stores.push_back(TensorStore(buffers[i], {0}, values[i]));
         }
         return SeqStmt(stores);
       }
@@ -502,8 +502,8 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       for (size_t idx = 0; idx < size; ++idx) {
         shared_bufs.push_back(decl_tensor({IntImm(group_index.ty(), group_extent * reduce_extent)},
                                           dtypes[idx], "red_buf" + std::to_string(idx), "shared"));
-        seq.emplace_back(TensorStore(shared_bufs[idx], values[idx],
-                                     {BufIndex(reduce_index, group_index, reduce_extent)}));
+        seq.emplace_back(TensorStore(
+            shared_bufs[idx], {BufIndex(reduce_index, group_index, reduce_extent)}, values[idx]));
       }
       seq.emplace_back(SyncThread("shared"));
       seq.emplace_back(MakeBufAllreduce(combiner, dtypes, shared_bufs, reduce_index, group_index,
@@ -566,7 +566,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     for (int idx = 0; idx < n_buffers; ++idx) {
       shared_bufs.push_back(
           decl_tensor(shape, dtypes[idx], "red_buf" + std::to_string(idx), "local"));
-      load_values.push_back(TensorStore(shared_bufs[idx], src_values[idx], zero_indices));
+      load_values.push_back(TensorStore(shared_bufs[idx], zero_indices, src_values[idx]));
 
       // Uses a local variable to store the shuffled data.  Later
       // on, an allocation will be built for this local variable.
@@ -574,7 +574,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     }
 
     if (predicate.has_value()) {
-      seq->push_back(IfThenElse(predicate.value(), SeqStmt(load_values)));
+      seq->push_back(If(predicate.value(), SeqStmt(load_values)));
     } else {
       seq->insert(seq->end(), load_values.begin(), load_values.end());
     }
@@ -585,7 +585,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     ffi::Optional<TensorVar> mask_buffer;
     if (need_warp_shuffle_mask_) {
       mask_buffer = decl_tensor(shape, mask.ty(), "mask", "local");
-      seq->emplace_back(TensorStore(mask_buffer.value(), mask, zero_indices));
+      seq->emplace_back(TensorStore(mask_buffer.value(), zero_indices, mask));
       // Push the buffer description.  Later this will have an
       // allocation built for it.
       local_bufs.push_back(mask_buffer.value());
@@ -619,7 +619,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         // branch with a warp sync call inside.
         PrimExpr other = WarpShuffle(tirx::gpu_warp_shuffle_down_op(), mask_buffer, val, offset);
         TensorVar local_buf = local_bufs[i];
-        Stmt s = TensorStore(local_buf, other, zero_indices);
+        Stmt s = TensorStore(local_buf, zero_indices, other);
         seq->push_back(s);
 
         TensorLoad load = MakeTensorLoad(local_buf, zero_indices);
@@ -635,7 +635,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       stores.reserve(n_buffers);
       for (int i = 0; i < n_buffers; ++i) {
         TensorVar buf = shared_bufs[i];
-        stores.push_back(TensorStore(buf, ret[i], zero_indices));
+        stores.push_back(TensorStore(buf, zero_indices, ret[i]));
       }
 
       // During the sub-warp reduction, values from inactive threads could be read,
@@ -646,7 +646,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       // Therefore an additional range check has to be performed to ensure the correctness.
       if (offset * 2 > reduce_extent) {
         PrimExpr cond = reduce_index + offset < reduce_extent;
-        seq->push_back(IfThenElse(cond, SeqStmt(stores)));
+        seq->push_back(If(cond, SeqStmt(stores)));
       } else {
         seq->push_back(SeqStmt(stores));
       }
@@ -696,7 +696,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       std::vector<Stmt> stores;
       stores.reserve(size);
       for (size_t i = 0; i < size; ++i) {
-        stores.push_back(TensorStore(shared_bufs[i], ret[i], {buf_index}));
+        stores.push_back(TensorStore(shared_bufs[i], {buf_index}, ret[i]));
       }
       return SeqStmt(stores);
     };
@@ -709,7 +709,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       // reduction with the boundary condition
       reduce_align = reduce_align >> 1;
       PrimExpr cond = reduce_index < (reduce_extent - reduce_align);
-      seq.emplace_back(IfThenElse(cond, freduce(reduce_align)));
+      seq.emplace_back(If(cond, freduce(reduce_align)));
       seq.emplace_back(SyncThread("shared"));
     }
 
@@ -721,7 +721,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       }
       reduce_align = reduce_align >> 1;
       PrimExpr cond = reduce_index < reduce_align;
-      seq.emplace_back(IfThenElse(cond, freduce(reduce_align)));
+      seq.emplace_back(If(cond, freduce(reduce_align)));
       seq.emplace_back(SyncThread("shared"));
     }
     // in warp synchronization.
@@ -771,7 +771,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
 
       Stmt warp_body = SeqStmt(in_warp_seq);
 
-      seq.emplace_back(IfThenElse(in_warp_cond, warp_body));
+      seq.emplace_back(If(in_warp_cond, warp_body));
       seq.emplace_back(SyncThread("shared"));
     }
     return SeqStmt(seq);

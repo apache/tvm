@@ -956,7 +956,7 @@ class PatternMatchingMutator : public ExprMutator {
 
       for (const auto& binding : block->bindings) {
         auto value = GetBoundValue(binding);
-        bool is_dataflow = (!value.as<IfNode>()) &&
+        bool is_dataflow = (!value.as<IfExprNode>()) &&
                            (!(value.as<CallNode>() && IsImpureCall(value.as_or_throw<Call>())));
         if (is_dataflow) {
           // This binding satisfies the dataflow constraints.

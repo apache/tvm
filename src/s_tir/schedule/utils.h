@@ -166,8 +166,8 @@ inline IterVar IterVarFromLoop(const For& loop, ffi::String name, IterVarType it
  * \return The thread scope bound to the loop
  */
 inline runtime::ThreadScope GetThreadScope(const ForNode* loop) {
-  if (loop->GetThreadBinding().has_value()) {
-    return runtime::ThreadScope::Create(loop->GetThreadBinding().value());
+  if (tvm::tirx::GetThreadBinding(loop).has_value()) {
+    return runtime::ThreadScope::Create(tvm::tirx::GetThreadBinding(loop).value());
   }
   return runtime::ThreadScope{-1, -1};
 }

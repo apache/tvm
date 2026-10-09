@@ -54,12 +54,12 @@ def test_dso_module_load():
         Ab = tvm.tirx.decl_tensor((n,), dtype)
         i = te.var("i")
         # for i in 0 to n-1:
-        stmt = tvm.tirx.For(
+        stmt = tvm.ir.For(
             i,
             0,
             n - 1,
-            tvm.tirx.ForKind.DEFAULT,
-            tvm.tirx.TensorStore(Ab, tvm.tirx.TensorLoad(Ab, [i]) + 1, [i + 1]),
+            tvm.ir.ForKind.DEFAULT,
+            tvm.ir.TensorStore(Ab, [i + 1], tvm.tirx.TensorLoad(Ab, [i]) + 1),
         )
         mod = tvm.IRModule.from_expr(
             tvm.tirx.Function([Ab], stmt).with_attr("global_symbol", "main")

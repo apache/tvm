@@ -26,7 +26,7 @@ from tvm.ir import prim
 @pytest.mark.parametrize("inplace", [False, True])
 def test_bind_rebinds_after_value_type_change(inplace):
     var = tirx.Var("x", "int32")
-    stmt = tirx.SeqStmt([tirx.Bind(var, tirx.IntImm("int32", 1)), tirx.Evaluate(var)])
+    stmt = tvm.ir.SeqStmt([tvm.ir.Bind(var, tirx.IntImm("int32", 1)), tvm.ir.Evaluate(var)])
     if inplace:
         stmt = stmt._move()
 
@@ -64,7 +64,7 @@ def test_bind_uses_type_identity_after_real_value_mutation(inplace):
     input_var = ir.Var("x", result_ty)
     replacement = ir.Var("replacement", result_ty)
     call = ir.Call("relax.exp", [input_var], ty=result_ty)
-    stmt = tirx.SeqStmt([tirx.Bind(var, call), tirx.Evaluate(var)])
+    stmt = tvm.ir.SeqStmt([tvm.ir.Bind(var, call), tvm.ir.Evaluate(var)])
     if inplace:
         stmt = stmt._move()
 
@@ -82,7 +82,7 @@ def test_bind_uses_type_identity_after_real_value_mutation(inplace):
 @pytest.mark.parametrize("inplace", [False, True])
 def test_unchanged_bind_and_let_keep_binder_identity(inplace):
     var = tirx.Var("x", "int32")
-    binding = tirx.Bind(var, tirx.IntImm("int32", 1))
+    binding = tvm.ir.Bind(var, tirx.IntImm("int32", 1))
     let = prim.Let(var, tirx.IntImm("int32", 1), var)
     if inplace:
         binding = binding._move()
@@ -100,7 +100,7 @@ def test_unchanged_equal_but_distinct_types_do_not_rebind(inplace):
     binder_ty = relax.TensorType(result_ty.shape, result_ty.dtype)
     var = ir.Var("y", binder_ty)
     x = ir.Var("x", result_ty)
-    stmt = tirx.Bind(var, ir.Call("relax.exp", [x], ty=result_ty))
+    stmt = tvm.ir.Bind(var, ir.Call("relax.exp", [x], ty=result_ty))
     if inplace:
         stmt = stmt._move()
 
@@ -112,7 +112,7 @@ def test_unchanged_equal_but_distinct_types_do_not_rebind(inplace):
 @pytest.mark.parametrize("inplace", [False, True])
 def test_binder_mutation_synchronizes_type(inplace):
     var = tirx.Var("x", "int32")
-    stmt = tirx.SeqStmt([tirx.Bind(var, tirx.IntImm("int32", 1)), tirx.Evaluate(var)])
+    stmt = tvm.ir.SeqStmt([tvm.ir.Bind(var, tirx.IntImm("int32", 1)), tvm.ir.Evaluate(var)])
     if inplace:
         stmt = stmt._move()
 
@@ -147,7 +147,7 @@ def test_symbolic_call_type_rewrite_remaps_later_use(inplace):
     x = ir.Var("x", tensor_ty)
     y = ir.Var("y", tensor_ty)
     call = ir.Call("relax.exp", [x], ty=tensor_ty)
-    stmt = tirx.SeqStmt([tirx.Bind(y, call), tirx.Evaluate(y)])
+    stmt = tvm.ir.SeqStmt([tvm.ir.Bind(y, call), tvm.ir.Evaluate(y)])
     if inplace:
         stmt = stmt._move()
 

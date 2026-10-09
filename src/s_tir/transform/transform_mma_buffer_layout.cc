@@ -130,7 +130,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) {
-    TensorVar original_buffer = op->buffer;
+    TensorVar original_buffer = op->dest.as_or_throw<TensorVar>();
     auto value = Mutate(op->value, inplace_mode);
     auto indices =
         Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
@@ -147,7 +147,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         TVM_FFI_ICHECK(index_map_func.has_value());
         auto index_map = IndexMap::FromFunc(2, *index_map_func);
         auto new_indices = index_map->MapIndices(store->indices, analyzer);
-        n->buffer = replacement.value();
+        n->dest = replacement.value();
         n->indices = std::move(new_indices);
       } else if (original_buffer.scope() == "m16n8k8.matrixA" ||
                  original_buffer.scope() == "m16n8k8.matrixB") {

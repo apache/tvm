@@ -206,11 +206,11 @@ void TIRVisitorWithPath::Dispatch_(const ContinueNode* op, AccessPath path) {}
 
 void TIRVisitorWithPath::Dispatch_(const TensorStoreNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
-  VisitBufferUse(op->buffer, path->Attr("buffer"));
+  VisitBufferUse(op->dest.as_or_throw<TensorVar>(), path->Attr("buffer"));
   Visit(op->indices, path->Attr("indices"));
 }
 
-void TIRVisitorWithPath::Dispatch_(const IfThenElseNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const IfNode* op, AccessPath path) {
   Visit(op->condition, path->Attr("condition"));
   bind_scope_.WithNewScope([&]() { Visit(op->then_case, path->Attr("then_case")); });
   bind_scope_.WithNewScope([&]() { Visit(op->else_case, path->Attr("else_case")); });

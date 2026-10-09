@@ -455,9 +455,9 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
     s_tir::SBlock intrin_block =
         desc->body.value()->seq[0].as_or_throw<s_tir::SBlockRealize>()->block;
     TVM_FFI_ICHECK_EQ(intrin_block->body->size(), 1);
-    tirx::For loop_m = intrin_block->body->seq[0].as_or_throw<tirx::For>();
+    For loop_m = intrin_block->body->seq[0].as_or_throw<For>();
     TVM_FFI_ICHECK_EQ(loop_m->body->size(), 1);
-    tirx::For loop_n = loop_m->body->seq[0].as_or_throw<tirx::For>();
+    For loop_n = loop_m->body->seq[0].as_or_throw<For>();
     return std::make_tuple(loop_m->extent, loop_n->extent);
   }();
 

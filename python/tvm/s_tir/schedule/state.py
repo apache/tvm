@@ -22,10 +22,10 @@ from enum import IntEnum
 
 from tvm_ffi import register_object
 
-from tvm.ir import IRModule
+from tvm.ir import For, IRModule
 from tvm.runtime import Object
 from tvm.s_tir import SBlock, SBlockRealize
-from tvm.tirx import For, Function
+from tvm.tirx import Function
 
 from ..sblock_scope import SBlockScope, StmtSRef
 from . import _ffi_api

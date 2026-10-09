@@ -51,7 +51,7 @@ def test_scalar_add():
         lhs = tirx.Cast(lhs_type, lhs_input)
         rhs = tirx.Cast(rhs_type, rhs_input)
         output = lhs + rhs
-        output = tirx.Return(output)
+        output = tvm.ir.Return(output)
         func = tirx.Function([lhs_input, rhs_input], output)
         func = build_tir_func(func)
         out = func(1.0, 2.0)
@@ -94,7 +94,7 @@ def test_cast_between_types():
 
 def test_return_const():
     a = tirx.const(0)
-    b = tirx.Return(a)
+    b = tvm.ir.Return(a)
     func = tirx.Function([], b)
     func = build_tir_func(func)
     out = func()
@@ -104,7 +104,7 @@ def test_return_const():
 def test_return_accepts_expr_and_roundtrips():
     value = tvm.relax.ShapeExpr([2, 3])
     span = tvm.ir.Span(tvm.ir.SourceName("return_test"), 1, 1, 1, 9)
-    stmt = tirx.Return(value, span)
+    stmt = tvm.ir.Return(value, span)
 
     assert stmt.value.same_as(value)
     assert stmt.span.same_as(span)
@@ -115,14 +115,14 @@ def test_return_accepts_expr_and_roundtrips():
     assert tvm_ffi.structural_hash(restored) == tvm_ffi.structural_hash(stmt)
 
     with pytest.raises(TypeError):
-        tirx.Return(None)
+        tvm.ir.Return(None)
 
 
 def test_stmt_span_not_structural():
     span_a = tvm.ir.Span(tvm.ir.SourceName("a.py"), 1, 1, 1, 2)
     span_b = tvm.ir.Span(tvm.ir.SourceName("b.py"), 10, 10, 3, 4)
-    stmt_a = tirx.Evaluate(tirx.IntImm("int32", 0), span_a)
-    stmt_b = tirx.Evaluate(tirx.IntImm("int32", 0), span_b)
+    stmt_a = tvm.ir.Evaluate(tirx.IntImm("int32", 0), span_a)
+    stmt_b = tvm.ir.Evaluate(tirx.IntImm("int32", 0), span_b)
 
     assert tvm_ffi.structural_equal(stmt_a, stmt_b)
     assert tvm_ffi.structural_hash(stmt_a) == tvm_ffi.structural_hash(stmt_b)
@@ -131,19 +131,19 @@ def test_stmt_span_not_structural():
 def test_return_stmt_functor_traversal_and_mutation():
     x = tirx.Var("x", "int32")
     span = tvm.ir.Span(tvm.ir.SourceName("return_test"), 1, 1, 1, 9)
-    stmt = tirx.Return(x + 1, span)
+    stmt = tvm.ir.Return(x + 1, span)
     visited = []
 
     tvm_ffi.structural_walk(stmt, visited.append)
     assert any(node.same_as(x) for node in visited)
-    assert any(isinstance(node, tirx.Return) for node in visited)
+    assert any(isinstance(node, tvm.ir.Return) for node in visited)
 
     rewritten = tvm_ffi.structural_map(
         stmt,
         (tirx.Var, lambda var: tirx.IntImm("int32", 4) if var.same_as(x) else var),
         order="post",
     )
-    expected = tirx.Return(tirx.Add(tirx.IntImm("int32", 4), tirx.IntImm("int32", 1)), span)
+    expected = tvm.ir.Return(tirx.Add(tirx.IntImm("int32", 4), tirx.IntImm("int32", 1)), span)
     tvm.ir.assert_structural_equal(rewritten, expected)
     assert rewritten.span.same_as(span)
 
