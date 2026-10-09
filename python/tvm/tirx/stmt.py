@@ -20,7 +20,8 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import tvm_ffi
 
-from tvm.ir import Expr, Op, Range, Span, Stmt, TensorRegion, Var
+from tvm import ir as _ir
+from tvm.ir import Expr, Op, Range, Span, TensorRegion, Var
 
 from . import _ffi_api
 from .exec_scope import ExecScope, ScopeIdDef
@@ -44,7 +45,7 @@ def BufferRegion(buffer: Var, region: list[Range]) -> TensorRegion:
 
 
 @tvm_ffi.register_object("tirx.ScopeIdDefStmt")
-class ScopeIdDefStmt(Stmt):
+class ScopeIdDefStmt(_ir.Stmt):
     """ScopeIdDefStmt node.
 
     Leaf statement that introduces scope-identifier vars
@@ -77,7 +78,7 @@ class ScopeIdDefStmt(Stmt):
 
 
 @tvm_ffi.register_object("tirx.TileOpCall")
-class TileOpCall(Stmt):
+class TileOpCall(_ir.Stmt):
     """TileOpCall node.
 
     Parameters
@@ -201,14 +202,14 @@ class TileOpCall(Stmt):
         raise NotImplementedError("Subclass must implement this method")
 
     def get_private_buffers(
-        self, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: "DispatchContext"
+        self, buffer_dict: dict[Any, tuple[Var, _ir.Stmt | None]], sctx: "DispatchContext"
     ) -> dict[str, Any]:
         """
         Create private (intermediate) buffers needed in this operator.
 
         Parameters
         ----------
-        buffer_dict: Dict[Any, Tuple[Var, Optional[Stmt]]]
+        buffer_dict: Dict[Any, Tuple[Var, Optional[tvm.ir.Stmt]]]
             A dictionary containing private buffers (and their init stmts) in other operators.
             Key can be anything to reference the buffer.
             This is used to reuse private buffers in other operators (like identity tensor etc.).
@@ -236,12 +237,12 @@ class TileOpCall(Stmt):
             raise ValueError(f"Unsupported target: {sctx.target.kind.name}")
 
     def get_private_buffers_trn(
-        self, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: "DispatchContext"
+        self, buffer_dict: dict[Any, tuple[Var, _ir.Stmt | None]], sctx: "DispatchContext"
     ) -> dict[str, Any]:
         return {}
 
     def get_private_buffers_cuda(
-        self, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: "DispatchContext"
+        self, buffer_dict: dict[Any, tuple[Var, _ir.Stmt | None]], sctx: "DispatchContext"
     ) -> dict[str, Any]:
         return {}
 
