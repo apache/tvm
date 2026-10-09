@@ -424,7 +424,7 @@ def test_call_tir_canonical_roundtrip(name, tuple_result, result_kind, namespace
         tvm.tirx.Var(f"p{i}", T.Tensor((3,), "float32"))
         for i in range(1 + output_count - int(inplace))
     ]
-    func = tvm.tirx.Function(params, [tvm.tirx.Evaluate(0)], ret_type=tvm.ir.TupleType([]))
+    func = tvm.tirx.Function(params, [tvm.ir.Evaluate(0)], ret_type=tvm.ir.TupleType([]))
     callee = relax.BlockBuilder().add_func(func, "callee")
     x = relax.Var("x", tensor_type)
     kwargs = {}
