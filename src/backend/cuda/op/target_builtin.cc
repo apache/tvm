@@ -104,9 +104,11 @@ void RegisterCudaTargetBuiltins() {
       .set_validator(ffi::reflection::NativeFunctionView<void(
                          const CallNode*)>::FromNative<&ValidateDeclTmem>(),
                      true)
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.decl_tmem"))
+      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
+                                    ffi::String("tirx.cuda.decl_tmem"))
       .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
+                                 static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("tirx.cuda.bmma_sync")
       .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
