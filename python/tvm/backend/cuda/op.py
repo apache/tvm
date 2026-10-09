@@ -1683,12 +1683,6 @@ def nvshmem_barrier_all(*, ty=None, span=None):
     return Call("tirx.nvshmem.barrier_all", [], ty=ty, span=span)
 
 
-def _op_api_factory(op, module_name):
-    from tvm.tirx.op import _make_registered_op_api
-
-    return _make_registered_op_api(op, module_name)
-
-
 # Canonical Op builders also supply the historical direct-import aliases.
 
 

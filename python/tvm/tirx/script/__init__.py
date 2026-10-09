@@ -81,24 +81,3 @@ def __getattr__(name: str) -> _Any:
 from .jit import OptionalAnnotation as Optional
 
 globals().pop("jit", None)
-
-
-def _refresh_op_api():
-    """Explicitly refresh canonical names using the existing script constructors."""
-    from functools import partial
-
-    from tvm.ir.op import _init_op_api
-    from tvm.tirx.op import _make_registered_op_api
-
-    from . import tile
-
-    _initialize()
-    factory = partial(_make_registered_op_api, script=True)
-    _init_op_api("tirx", __name__, factory=factory, recursive=False)
-    _init_op_api("tirx.tile", tile.__name__, factory=factory)
-
-
-def _op_api_factory(op, module_name):
-    from tvm.tirx.op import _make_registered_op_api
-
-    return _make_registered_op_api(op, module_name, script=True)

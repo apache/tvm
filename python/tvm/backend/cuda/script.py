@@ -139,12 +139,6 @@ __shfl_xor_sync = _cuda_op.__shfl_xor_sync
 __activemask = _cuda_op.__activemask
 
 
-def _op_api_factory(op, module_name):
-    from tvm.tirx.op import _make_registered_op_api
-
-    return _make_registered_op_api(op, module_name, script=True)
-
-
 _ir.op._init_op_api("tirx.cuda", __name__)
 
 

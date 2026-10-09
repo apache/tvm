@@ -101,23 +101,3 @@ def __getattr__(name):
     if name in globals():
         return globals()[name]
     raise AttributeError(name)
-
-
-def _op_api_factory(op, module_name):
-    from tvm.tirx.op import _make_registered_op_api
-
-    return _make_registered_op_api(op, module_name, script=True)
-
-
-def _refresh_op_api():
-    """Explicitly refresh registered S-TIR expression and region constructors."""
-    from tvm.ir.op import _init_op_api
-    from tvm.tirx import script as shared
-
-    _initialize()
-    shared._refresh_op_api()
-    for name in shared.__all__:
-        if name not in globals() and name not in ("builder", "ir_builder", "jit"):
-            globals()[name] = getattr(shared, name)
-            globals()["__all__"].append(name)
-    _init_op_api("s_tir", __name__, recursive=False)

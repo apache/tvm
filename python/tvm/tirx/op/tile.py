@@ -574,9 +574,3 @@ class PermuteLayout(TileOpCall):
     @property
     def dsts(self) -> list[Expr]:
         return [self.dst]
-
-
-def _op_api_factory(op, module_name):
-    from tvm.tirx.op import _make_registered_op_api
-
-    return _make_registered_op_api(op, module_name)

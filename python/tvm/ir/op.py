@@ -28,21 +28,6 @@ from . import _ffi_api
 from .expr import Expr
 
 
-def _bind_op_operands(op, args, kwargs):
-    # Bind named operands using the registered signature, without inventing
-    # defaults or interpreting arbitrary Python wrapper signatures.
-    operands = list(args)
-    for index, info in enumerate(op.args_info):
-        if index < len(args):
-            if info.name in kwargs:
-                raise TypeError(f"{op.name}: multiple values for {info.name!r}")
-        elif info.name in kwargs:
-            operands.append(kwargs.pop(info.name))
-        else:
-            raise TypeError(f"{op.name}: missing operand {info.name!r}")
-    return operands
-
-
 def _make_op_api(op, module_name):
     """Build a callable whose operands and result are governed by its Op."""
     from .attrs import make_node  # pylint: disable=import-outside-toplevel
@@ -56,7 +41,17 @@ def _make_op_api(op, module_name):
         ty=None,
         **kwargs,
     ):
-        operands = _bind_op_operands(op, args, kwargs)
+        # Bind named operands using the registered signature, without inventing
+        # defaults or interpreting arbitrary Python wrapper signatures.
+        operands = list(args)
+        for index, info in enumerate(op.args_info):
+            if index < len(args):
+                if info.name in kwargs:
+                    raise TypeError(f"{op.name}: multiple values for {info.name!r}")
+            elif info.name in kwargs:
+                operands.append(kwargs.pop(info.name))
+            else:
+                raise TypeError(f"{op.name}: missing operand {info.name!r}")
         if kwargs or (attrs is None and op.attrs_type_key):
             if not op.attrs_type_key:
                 raise TypeError(f"{op.name}: unexpected keyword operands {tuple(kwargs)}")
@@ -73,7 +68,7 @@ def _make_op_api(op, module_name):
     return call
 
 
-def _init_op_api(namespace, target_module_name=None, *, factory=None, recursive=True):
+def _init_op_api(namespace, target_module_name=None):
     """Initialize registered Op callables in an already loaded Python module.
 
     Like :func:`tvm_ffi.init_ffi_api`, the registry prefix comes first and the
@@ -89,10 +84,6 @@ def _init_op_api(namespace, target_module_name=None, *, factory=None, recursive=
     the operator contract separately. Attribute
     keywords construct the registered attrs schema, when one is declared.
 
-    ``factory`` lets the namespace owner select its semantic constructor.
-    ``recursive=False`` refreshes only immediate names; nested namespaces keep
-    their own owners. Explicit exports include newly generated callables.
-
     Existing Python callables retain ownership of their names; only missing
     exposures are generated. Existing functions must accept printed calls or
     have an appropriate exceptional printer hook. Non-callable collisions fail
@@ -104,7 +95,6 @@ def _init_op_api(namespace, target_module_name=None, *, factory=None, recursive=
     ):
         raise ValueError(f"Invalid Op namespace {namespace!r}")
     target = sys.modules[target_module_name or namespace]
-    factory = factory or getattr(target, "_op_api_factory", _make_op_api)
     pending = []
     existing = []
     destinations = set()
@@ -112,13 +102,11 @@ def _init_op_api(namespace, target_module_name=None, *, factory=None, recursive=
         if not name.startswith(namespace + "."):
             continue
         parts = name[len(namespace) + 1 :].split(".")
-        if not recursive and len(parts) != 1:
-            continue
         if any(not part.isidentifier() or keyword.iskeyword(part) for part in parts):
             raise ValueError(f"Op {name!r} has no Python attribute spelling")
         container = target
         for part in parts[:-1]:
-            container = getattr(container, part, None)
+            container = vars(container).get(part)
             if not isinstance(container, ModuleType | SimpleNamespace):
                 raise ValueError(f"Op {name!r} requires an existing namespace at {part!r}")
         destination = (id(container), parts[-1])
@@ -126,23 +114,15 @@ def _init_op_api(namespace, target_module_name=None, *, factory=None, recursive=
             raise ValueError(f"Op {name!r} aliases another exposure destination")
         destinations.add(destination)
         op = Op.get(name)
-        printer_name = op.get_attr("TScriptPrinterName")
-        if not recursive and printer_name and printer_name.rpartition(".")[0] != namespace:
-            # Immediate refresh leaves operations assigned to another namespace
-            # with that namespace's existing constructor owner.
-            continue
-        if hasattr(container, parts[-1]):
-            current = getattr(container, parts[-1])
+        if parts[-1] in vars(container):
+            current = vars(container)[parts[-1]]
             if not callable(current):
                 raise ValueError(f"Op {name!r} conflicts with an existing Python attribute")
             existing.append(op)
         else:
-            pending.append((container, parts[-1], factory(op, target.__name__)))
+            pending.append((container, parts[-1], _make_op_api(op, target.__name__)))
     for container, name, call in pending:
         setattr(container, name, call)
-        exports = getattr(container, "__all__", None)
-        if isinstance(exports, list) and name not in exports:
-            exports.append(name)
     for op in existing:
         if op.get_attr("TScriptPrinterName") is None:
             op.set_attr("TScriptPrinterName", op.name)
