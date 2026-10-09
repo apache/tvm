@@ -42,18 +42,17 @@ namespace tvm {
  * \return Undefined variables, uniquely ordered by their first use.
  */
 inline ffi::Array<Var> UndefinedVars(ffi::AnyView object, const ffi::Array<Var>& defs = {}) {
-  std::unordered_set<const VarNode*> defined;
-  std::unordered_set<const VarNode*> used;
-  for (const Var& var : defs) defined.insert(var.get());
+  std::unordered_set<const VarNode*> visited_vars;
+  for (const Var& var : defs) visited_vars.insert(var.get());
   ffi::Array<Var> undefined;
   ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-      object, [&](const Var& var, TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::WalkResult> {
+      object, [&](const VarNode* var, TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::WalkResult> {
         if (kind != kTVMFFIDefRegionKindNone) {
-          defined.insert(var.get());
+          visited_vars.insert(var);
           return ffi::WalkResult::Advance();
         }
-        if (!defined.count(var.get()) && used.insert(var.get()).second) {
-          undefined.push_back(var);
+        if (visited_vars.insert(var).second) {
+          undefined.push_back(ffi::GetRef<Var>(var));
         }
         return ffi::WalkResult::Skip();
       });

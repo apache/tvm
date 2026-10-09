@@ -290,17 +290,6 @@ def HoistExpression():
     return _ffi_api.HoistExpression()  # type: ignore
 
 
-def RenormalizeSplitPattern():
-    """Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.RenormalizeSplitPattern()  # type: ignore
-
-
 def RewriteUnsafeSelect():
     """Detect and rewrite unsafe select that contains memory access.
 

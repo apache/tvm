@@ -252,12 +252,6 @@ TVM_DLL Pass HoistIfThenElse(tvm::ffi::String variant = "");
 TVM_DLL Pass HoistExpression();
 
 /*!
- * \brief Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv()).
- * \return The pass.
- */
-TVM_DLL Pass RenormalizeSplitPattern();
-
-/*!
  * \brief Detect and rewrite unsafe select that contains memory access.
  * \return The pass.
  */

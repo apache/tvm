@@ -39,17 +39,6 @@ namespace tvm {
 namespace tirx {
 
 /*!
- * \brief Verifies whether the IR stmt or Expr is in SSA form.
- *  That is: each Var is defined and assigned once(in Let/For)
- *
- * \param func The function to be verified.
- * \return Whether IR is in SSA form.
- *
- * \note All passes in TIR consume and produce SSA form.
- */
-TVM_DLL bool VerifySSA(const Function& func);
-
-/*!
  * \brief Verify if memory accesses are legal for a specific target device type.
  *
  *  In the case that tgt is cuda, if not all workload is bound with
@@ -91,6 +80,10 @@ TVM_DLL size_t CalculateWorkspaceBytes(const Function& func, int64_t workspace_b
  *
  * - Each variable has a single point of definition.
  *
+ * - Buffer loads have consistent source, indices, and result types.
+ *
+ * - Loop control, tile-operation categories, and scope IDs are valid.
+ *
  * Dialect statements require their dialect-specific verifier.
  *
  * \param func The Function to be verified.
@@ -130,50 +123,12 @@ using tvm::transform::Pass;
 using tvm::transform::PassContext;
 
 /*!
- * \brief Pass variant of VerifySSA.
- *
- * \returns The pass.
- * \sa tvm::tirx::VerifySSA
- */
-TVM_DLL Pass VerifySSA();
-
-/*!
  * \brief Pass variant of VerifyMemory.
  *
  * \returns The pass.
  * \sa tvm::tirx::VerifyMemory
  */
 TVM_DLL Pass VerifyMemory();
-
-/*!
- * \brief Pass variant of VerifyGPUCode.
- *
- * \param constraints The dict to specify constraints to check.
- *
- * \returns The pass.
- * \sa tvm::tir::VerifyGPUCode
- */
-/******** TIRx analysis helpers ********/
-
-/*!
- * \brief Verify if the given TIRX is well-formed.
- * \param func The Function to be verified.
- * \param assert_mode The indicator if it raises an error when the function is not well-formed.
- * \param device_func The indicator if it is a device function.
- * \return Whether it is a well-formed TIRX function.
- */
-TVM_DLL bool VerifyTIRxWellFormed(const Function& func, bool assert_mode = true,
-                                  bool device_func = false);
-
-/*!
- * \brief Verify if the TIRX in the given IRMOdule is well-formed.
- * \param mod The IRModule to be verified.
- * \param assert_mode The indicator if it raises an error when the function is not well-formed.
- * \param device_func The indicator if it is a device function.
- * \return Whether it is a well-formed TIRX module.
- */
-TVM_DLL bool VerifyTIRxWellFormed(const IRModule& mod, bool assert_mode = true,
-                                  bool device_func = false);
 
 }  // namespace transform
 }  // namespace tirx

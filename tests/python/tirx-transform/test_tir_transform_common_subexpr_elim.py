@@ -775,7 +775,7 @@ def test_shared_subtree_stays_ssa():
     for i, va in enumerate(bound_vars):
         for vb in bound_vars[i + 1 :]:
             assert not va.same_as(vb), f"duplicate var definitions:\n{after.script()}"
-    assert tvm.tirx.analysis.verify_ssa(after), after.script()
+    assert tvm.tirx.analysis.verify_well_formed(after), after.script()
 
 
 if __name__ == "__main__":

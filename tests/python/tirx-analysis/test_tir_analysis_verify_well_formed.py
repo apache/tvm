@@ -376,5 +376,31 @@ def test_tensor_load_malformed_indices_return_false_without_asserting():
         tvm.tirx.analysis.verify_well_formed(non_final_vector)
 
 
+def test_verify_unique_definitions():
+    x = tvm.tirx.Var("x", "int32")
+    y = tvm.tirx.Var("tindex", "int32")
+    z = tvm.tirx.Evaluate(x + y)
+    assert tvm.tirx.analysis.verify_well_formed(tvm.tirx.Function([x, y], z))
+
+    assert not tvm.tirx.analysis.verify_well_formed(
+        tvm.tirx.Function([x, y], tvm.tirx.SeqStmt([tvm.tirx.Bind(x, 1), z])),
+        assert_mode=False,
+    )
+
+
+def test_verify_repeated_let_definitions():
+    x = tvm.tirx.Var("x", "int32")
+    z1 = tvm.tirx.Let(x, 1, x + 1)
+    z2 = tvm.tirx.Let(x, 2, x + 2)
+
+    # Each occurrence must define a distinct variable, even for a shared Let.
+    assert not tvm.tirx.analysis.verify_well_formed(
+        tvm.tirx.Function([], tvm.tirx.Evaluate(z1 + z1)), assert_mode=False
+    )
+    assert not tvm.tirx.analysis.verify_well_formed(
+        tvm.tirx.Function([], tvm.tirx.Evaluate(z1 * z2)), assert_mode=False
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()

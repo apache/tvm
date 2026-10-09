@@ -152,7 +152,6 @@ def check_well_formed_(function: _tir.Function) -> None:
     """Validate a completed TIRx function."""
     try:
         _tir.analysis.verify_well_formed(function)
-        _tir.analysis.verify_tirx_well_formed(function)
     except Exception as error:
         raise ValueError(
             "Program is not well-formed. If this is deliberate, set "
