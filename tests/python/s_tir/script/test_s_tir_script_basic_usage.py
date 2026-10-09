@@ -618,7 +618,7 @@ def subroutine_call():
     class mod:
         @Ts.function
         def main(A: T.Tensor(16, "float32")):
-            mod.subroutine(A.data_ptr(), T.int32(16))
+            mod.subroutine(A.data, T.int32(16))
 
         @Ts.function
         def subroutine(A_data: T.handle("float32"), n: T.int32):
@@ -868,11 +868,11 @@ def test_implicit_evaluate_assume():
 def test_implicit_evaluate_call_extern():
     @Ts.function
     def explicit(A: T.Tensor(1, "int32")):
-        T.evaluate(T.call_extern("extern_func", A.data_ptr(), ty="int32"))
+        T.evaluate(T.call_extern("extern_func", A.data, ty="int32"))
 
     @Ts.function
     def implicit(A: T.Tensor(1, "int32")):
-        T.call_extern("extern_func", A.data_ptr(), ty="int32")
+        T.call_extern("extern_func", A.data, ty="int32")
 
     assert_structural_equal_ignore_global_symbol(implicit, explicit)
 

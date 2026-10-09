@@ -109,7 +109,7 @@ def test_internal_subroutine_call():
         @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm", host="llvm")})
-            before.subroutine(A.data_ptr())
+            before.subroutine(A.data)
 
         # this test fails if it's made public
         @T.function(private=True)
@@ -142,7 +142,7 @@ def test_subroutine_call_to_externally_visible_subroutine():
         @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
-            before.subroutine(A.data_ptr())
+            before.subroutine(A.data)
 
         @T.function
         def subroutine(A_data: T.handle("float32")):

@@ -37,9 +37,9 @@ synchronization, mbarriers, reductions, and the PTX data-movement / MMA families
 
     bar = Tx.alloc_shared((1,), "uint64")
     if Tx.cuda.thread_rank() == 0:  # one thread initializes the CTA-shared barrier
-        Tx.ptx.mbarrier.init.shared.b64(bar.data_ptr(), Tx.uint32(1))
+        Tx.ptx.mbarrier.init.shared.b64(bar.data, Tx.uint32(1))
     Tx.cuda.cta_sync()  # initialization completes before any thread uses bar
-    Tx.cuda.mbarrier_wait(bar.data_ptr(), phase)
+    Tx.cuda.mbarrier_wait(bar.data, phase)
 
 A complete, runnable example — a warp all-reduce via ``Tx.gpu_warp_shuffle_xor``:
 

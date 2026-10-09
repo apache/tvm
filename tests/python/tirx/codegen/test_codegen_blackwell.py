@@ -461,12 +461,12 @@ def test_tcgen05_cp_ld_roundtrip():
         # SMEM -> TMEM (cp)
         phase[0] = 0
         if tx == 0:
-            T.ptx.mbarrier.init.shared.b64(bar.data_ptr(), T.uint32(1))
+            T.ptx.mbarrier.init.shared.b64(bar.data, T.uint32(1))
             for k in range(dtype_bits * WIDTH // 256):
-                T.cuda.tcgen05.encode_matrix_descriptor(descA.data_ptr(), A_smem.ptr_to([0, k * 8]), ldo=ldo, sdo=sdo, swizzle=SWIZZLE)  # noqa: E501
+                T.cuda.tcgen05.encode_matrix_descriptor(descA.data, A_smem.ptr_to([0, k * 8]), ldo=ldo, sdo=sdo, swizzle=SWIZZLE)  # noqa: E501
                 T.ptx[f"tcgen05.cp.cta_group::{cta_group}.128x256b"](T.cuda.get_tmem_addr(tmem_addr, 0, k * 256 // 32), descA[0])  # noqa: E501
-            T.ptx[f"tcgen05.commit.cta_group::{cta_group}.mbarrier::arrive::one.shared::cluster.b64"](bar.data_ptr())
-        T.cuda.mbarrier_wait(bar.data_ptr(), phase[0])
+            T.ptx[f"tcgen05.commit.cta_group::{cta_group}.mbarrier::arrive::one.shared::cluster.b64"](bar.data)
+        T.cuda.mbarrier_wait(bar.data, phase[0])
         phase[0] = phase[0] ^ 1
         T.cuda.cta_sync()
         # TMEM -> RF (ld)
@@ -552,12 +552,10 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
         lane_id = T.lane_id([32])
         tx = T.thread_id([128])
         dyn = T.alloc_tensor((dyn_smem_bytes,), "uint8", scope="shared")
-        tmem_addr = T.decl_scalar("uint32", dyn.data_ptr(), scope="shared", elem_offset=0)
-        A_smem = T.decl_tensor((M, K), a_type, dyn.data_ptr(), elem_offset=256, layout=A_layout)
-        B_smem = T.decl_tensor(
-            (N, K), b_type, dyn.data_ptr(), elem_offset=256 + M * K, layout=B_layout
-        )
-        bar = T.decl_tensor((1,), "uint64", dyn.data_ptr(), scope="shared", elem_offset=8)
+        tmem_addr = T.decl_scalar("uint32", dyn.data, scope="shared", elem_offset=0)
+        A_smem = T.decl_tensor((M, K), a_type, dyn.data, elem_offset=256, layout=A_layout)
+        B_smem = T.decl_tensor((N, K), b_type, dyn.data, elem_offset=256 + M*K, layout=B_layout)
+        bar = T.decl_tensor((1,), "uint64", dyn.data, scope="shared", elem_offset=8)
 
         reg = T.alloc_tensor((N,), d_type, scope="local")
         descA = T.alloc_tensor((1,), "uint64", scope="local")
@@ -580,17 +578,17 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
         # MMA
         phase[0] = 0
         if tx == 0:
-            T.ptx.mbarrier.init.shared.b64(bar.data_ptr(), T.uint32(1))
-            T.cuda.tcgen05.encode_instr_descriptor(descI.data_ptr(), d_dtype=d_type, a_dtype=a_type, b_dtype=b_type, M=M, N=N, K=MMA_K, trans_a=False, trans_b=False, n_cta_groups=cta_group)  # noqa: E501
+            T.ptx.mbarrier.init.shared.b64(bar.data, T.uint32(1))
+            T.cuda.tcgen05.encode_instr_descriptor(descI.data, d_dtype=d_type, a_dtype=a_type, b_dtype=b_type, M=M, N=N, K=MMA_K, trans_a=False, trans_b=False, n_cta_groups=cta_group)  # noqa: E501
             for k in range(K // MMA_K):
-                T.cuda.tcgen05.encode_matrix_descriptor(descA.data_ptr(), A_smem.ptr_to([0, k * MMA_K]), ldo=ldo, sdo=sdo, swizzle=SWIZZLE)  # noqa: E501
-                T.cuda.tcgen05.encode_matrix_descriptor(descB.data_ptr(), B_smem.ptr_to([0, k * MMA_K]), ldo=ldo, sdo=sdo, swizzle=SWIZZLE)  # noqa: E501
+                T.cuda.tcgen05.encode_matrix_descriptor(descA.data, A_smem.ptr_to([0, k * MMA_K]), ldo=ldo, sdo=sdo, swizzle=SWIZZLE)  # noqa: E501
+                T.cuda.tcgen05.encode_matrix_descriptor(descB.data, B_smem.ptr_to([0, k * MMA_K]), ldo=ldo, sdo=sdo, swizzle=SWIZZLE)  # noqa: E501
                 if k == 0:
                     T.ptx[mma_chain](tmem_addr, descA[0], descB[0], descI[0], *mma_masks, False)
                 else:
                     T.ptx[mma_chain](tmem_addr, descA[0], descB[0], descI[0], *mma_masks, True)
-            T.ptx[f"tcgen05.commit.cta_group::{cta_group}.mbarrier::arrive::one.shared::cluster.b64"](bar.data_ptr())
-        T.cuda.mbarrier_wait(bar.data_ptr(), phase[0])
+            T.ptx[f"tcgen05.commit.cta_group::{cta_group}.mbarrier::arrive::one.shared::cluster.b64"](bar.data)
+        T.cuda.mbarrier_wait(bar.data, phase[0])
         phase[0] = phase[0] ^ 1
         T.cuda.cta_sync()
 

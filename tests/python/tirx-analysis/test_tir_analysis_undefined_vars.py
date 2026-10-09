@@ -129,7 +129,7 @@ def test_alloc_buffer_data_is_def():
 def test_buffer_data_projection_is_buffer_use():
     """An opaque data projection must retain the TensorVar identity."""
     buf = tirx.decl_tensor((16,), "float32", "buf")
-    stmt = tirx.Evaluate(buf.data_ptr())
+    stmt = tirx.Evaluate(buf.data)
 
     undef = tvm.tirx.analysis.undefined_vars(stmt, [])
     assert len(undef) == 1

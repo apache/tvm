@@ -194,7 +194,7 @@ def test_subroutine_call():
     class Module:
         @T.function
         def main(A: T.Tensor(1, dtype="float32")):
-            Module.subroutine(A.data_ptr())
+            Module.subroutine(A.data)
 
         @T.function(private=True)
         def subroutine(A_data: T.handle("float32")):

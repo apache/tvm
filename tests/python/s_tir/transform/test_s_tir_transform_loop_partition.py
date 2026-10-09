@@ -240,10 +240,10 @@ def partitioned_concat_3(
     placeholder_2: T.Tensor((1, 32, 28, 28), "int8"),
     T_concat: T.Tensor((1, 128, 28, 28), "int8"),
 ) -> None:
-    placeholder_flat = T.decl_tensor([50176], "int8", data=placeholder.data_ptr())
-    placeholder_1_flat = T.decl_tensor([25088], "int8", data=placeholder_1.data_ptr())
-    placeholder_2_flat = T.decl_tensor([25088], "int8", data=placeholder_2.data_ptr())
-    T_concat_flat = T.decl_tensor([100352], "int8", data=T_concat.data_ptr())
+    placeholder_flat = T.decl_tensor([50176], "int8", data=placeholder.data)
+    placeholder_1_flat = T.decl_tensor([25088], "int8", data=placeholder_1.data)
+    placeholder_2_flat = T.decl_tensor([25088], "int8", data=placeholder_2.data)
+    T_concat_flat = T.decl_tensor([100352], "int8", data=T_concat.data)
     for i1, i2, i3 in T.grid(64, 28, 28):
         T_concat_flat[i1 * 784 + i2 * 28 + i3] = placeholder_flat[i1 * 784 + i2 * 28 + i3]
     for i1, i2, i3 in T.grid(32, 28, 28):
@@ -259,10 +259,10 @@ def concat_func_3(
     placeholder_2: T.Tensor((1, 32, 28, 28), "int8"),
     T_concat: T.Tensor((1, 128, 28, 28), "int8"),
 ) -> None:
-    placeholder_flat = T.decl_tensor([50176], "int8", data=placeholder.data_ptr())
-    placeholder_1_flat = T.decl_tensor([25088], "int8", data=placeholder_1.data_ptr())
-    placeholder_2_flat = T.decl_tensor([25088], "int8", data=placeholder_2.data_ptr())
-    T_concat_flat = T.decl_tensor([100352], "int8", data=T_concat.data_ptr())
+    placeholder_flat = T.decl_tensor([50176], "int8", data=placeholder.data)
+    placeholder_1_flat = T.decl_tensor([25088], "int8", data=placeholder_1.data)
+    placeholder_2_flat = T.decl_tensor([25088], "int8", data=placeholder_2.data)
+    T_concat_flat = T.decl_tensor([100352], "int8", data=T_concat.data)
     for i1 in T.serial(128, annotations={"loop_partition_hint": 1}):
         for i2, i3 in T.grid(28, 28):
             if 96 <= i1:
@@ -291,8 +291,8 @@ def test_loop_partition_unroll_hint():
     def main(
         A_arg: T.Tensor((1, 3, 224, 224), "int8"), B_arg: T.Tensor((1, 224, 7, 16), "int8")
     ) -> None:
-        A = T.decl_tensor(150528, "int8", data=A_arg.data_ptr())
-        B = T.decl_tensor(25088, "int8", data=B_arg.data_ptr())
+        A = T.decl_tensor(150528, "int8", data=A_arg.data)
+        B = T.decl_tensor(25088, "int8", data=B_arg.data)
         for ax0 in T.serial(
             112,
             annotations={"loop_partition_hint": True},
@@ -305,8 +305,8 @@ def test_loop_partition_unroll_hint():
     def partitioned_main(
         A_arg: T.Tensor((1, 3, 224, 224), "int8"), B_arg: T.Tensor((1, 224, 7, 16), "int8")
     ) -> None:
-        A = T.decl_tensor(150528, dtype="int8", data=A_arg.data_ptr())
-        B = T.decl_tensor(25088, dtype="int8", data=B_arg.data_ptr())
+        A = T.decl_tensor(150528, dtype="int8", data=A_arg.data)
+        B = T.decl_tensor(25088, dtype="int8", data=B_arg.data)
         # body
         for ax1, ax2, ax3 in T.grid(224, 7, 16):
             if 3 <= ax2 and ax3 < 3:
@@ -417,8 +417,8 @@ def test_loop_partition_keep_loop_annotations():
 
     @Ts.function
     def after(A: T.Tensor(160, "int32"), B: T.Tensor(160, "int32")) -> None:
-        A_1 = T.decl_tensor((160,), "int32", data=A.data_ptr())
-        B_1 = T.decl_tensor((160,), "int32", data=B.data_ptr())
+        A_1 = T.decl_tensor((160,), "int32", data=A.data)
+        B_1 = T.decl_tensor((160,), "int32", data=B.data)
         for i in T.serial(10, annotations={"key": "value"}):
             B_1[i] = A_1[i] + 1
         for i in T.serial(140, annotations={"key": "value"}):
@@ -466,10 +466,10 @@ def test_loop_partition_with_unit_loop_in_condition():
         placeholder_2: T.Tensor(25088, "int8"),
         T_concat: T.Tensor(100352, "int8"),
     ) -> None:
-        placeholder_3 = T.decl_tensor((50176,), "int8", data=placeholder.data_ptr())
-        placeholder_1_1 = T.decl_tensor((25088,), "int8", data=placeholder_1.data_ptr())
-        placeholder_2_1 = T.decl_tensor((25088,), "int8", data=placeholder_2.data_ptr())
-        T_concat_1 = T.decl_tensor((100352,), "int8", data=T_concat.data_ptr())
+        placeholder_3 = T.decl_tensor((50176,), "int8", data=placeholder.data)
+        placeholder_1_1 = T.decl_tensor((25088,), "int8", data=placeholder_1.data)
+        placeholder_2_1 = T.decl_tensor((25088,), "int8", data=placeholder_2.data)
+        T_concat_1 = T.decl_tensor((100352,), "int8", data=T_concat.data)
         for k in T.serial(1, annotations={"preserve_unit_loop": True}):
             for i1, i2, i3 in T.grid(64, 28, 28):
                 T_concat_1[i1 * 784 + i2 * 28 + i3] = placeholder_3[i1 * 784 + i2 * 28 + i3]
@@ -515,10 +515,10 @@ def expected_partitioned_concat_single_point(
     placeholder_2: T.Tensor((28, 63), "int8"),
     T_concat: T.Tensor((28, 128), "int8"),
 ):
-    placeholder_3 = T.decl_tensor((1792,), "int8", data=placeholder.data_ptr())
-    placeholder_1_1 = T.decl_tensor((28,), "int8", data=placeholder_1.data_ptr())
-    placeholder_2_1 = T.decl_tensor((1764,), "int8", data=placeholder_2.data_ptr())
-    T_concat_1 = T.decl_tensor((3584,), "int8", data=T_concat.data_ptr())
+    placeholder_3 = T.decl_tensor((1792,), "int8", data=placeholder.data)
+    placeholder_1_1 = T.decl_tensor((28,), "int8", data=placeholder_1.data)
+    placeholder_2_1 = T.decl_tensor((1764,), "int8", data=placeholder_2.data)
+    T_concat_1 = T.decl_tensor((3584,), "int8", data=T_concat.data)
     for i0 in range(28):
         for i1 in range(63):
             T_concat_1[i0 * 128 + i1] = placeholder_2_1[i0 * 63 + i1]
@@ -554,10 +554,10 @@ def concat_func_start_point_equality_expected(
     placeholder_2: T.Tensor((28, 63), "int8"),
     T_concat: T.Tensor((28, 128), "int8"),
 ):
-    placeholder_3 = T.decl_tensor((1792,), "int8", data=placeholder.data_ptr())
-    placeholder_1_1 = T.decl_tensor((28,), "int8", data=placeholder_1.data_ptr())
-    placeholder_2_1 = T.decl_tensor((1764,), "int8", data=placeholder_2.data_ptr())
-    T_concat_1 = T.decl_tensor((3584,), "int8", data=T_concat.data_ptr())
+    placeholder_3 = T.decl_tensor((1792,), "int8", data=placeholder.data)
+    placeholder_1_1 = T.decl_tensor((28,), "int8", data=placeholder_1.data)
+    placeholder_2_1 = T.decl_tensor((1764,), "int8", data=placeholder_2.data)
+    T_concat_1 = T.decl_tensor((3584,), "int8", data=T_concat.data)
     for i0 in range(28):
         T_concat_1[i0 * 128] = placeholder_1_1[i0]
         for i1 in range(63):
@@ -593,10 +593,10 @@ def concat_func_end_point_equality_expected(
     placeholder_2: T.Tensor((28, 63), "int8"),
     T_concat: T.Tensor((28, 128), "int8"),
 ):
-    placeholder_3 = T.decl_tensor((1792,), "int8", data=placeholder.data_ptr())
-    placeholder_1_1 = T.decl_tensor((28,), "int8", data=placeholder_1.data_ptr())
-    placeholder_2_1 = T.decl_tensor((1764,), "int8", data=placeholder_2.data_ptr())
-    T_concat_1 = T.decl_tensor((3584,), "int8", data=T_concat.data_ptr())
+    placeholder_3 = T.decl_tensor((1792,), "int8", data=placeholder.data)
+    placeholder_1_1 = T.decl_tensor((28,), "int8", data=placeholder_1.data)
+    placeholder_2_1 = T.decl_tensor((1764,), "int8", data=placeholder_2.data)
+    T_concat_1 = T.decl_tensor((3584,), "int8", data=T_concat.data)
     for i0 in range(28):
         for i1 in range(64):
             T_concat_1[i0 * 128 + i1] = placeholder_2_1[i0 * 63 + i1]
@@ -632,10 +632,10 @@ def concat_func_edge_equalities_expected(
     placeholder_2: T.Tensor((28, 1), "int8"),
     T_concat: T.Tensor((28, 66), "int8"),
 ):
-    placeholder_3 = T.decl_tensor((1792,), "int8", data=placeholder.data_ptr())
-    placeholder_1_1 = T.decl_tensor((28,), "int8", data=placeholder_1.data_ptr())
-    placeholder_2_1 = T.decl_tensor((28,), "int8", data=placeholder_2.data_ptr())
-    T_concat_1 = T.decl_tensor((1848,), "int8", data=T_concat.data_ptr())
+    placeholder_3 = T.decl_tensor((1792,), "int8", data=placeholder.data)
+    placeholder_1_1 = T.decl_tensor((28,), "int8", data=placeholder_1.data)
+    placeholder_2_1 = T.decl_tensor((28,), "int8", data=placeholder_2.data)
+    T_concat_1 = T.decl_tensor((1848,), "int8", data=T_concat.data)
     for i0 in range(28):
         T_concat_1[i0 * 66] = placeholder_2_1[i0]
         for i1 in range(64):
@@ -675,12 +675,12 @@ def concat_five_buffers_with_equalities_expected(
     buffer_e: T.Tensor((28, 1), "int8"),  # Used for i1 == 129
     T_concat: T.Tensor((28, 129), "int8"),
 ):
-    buffer_a_1 = T.decl_tensor((28,), "int8", data=buffer_a.data_ptr())
-    buffer_b_1 = T.decl_tensor((1764,), "int8", data=buffer_b.data_ptr())
-    buffer_c_1 = T.decl_tensor((28,), "int8", data=buffer_c.data_ptr())
-    buffer_d_1 = T.decl_tensor((1764,), "int8", data=buffer_d.data_ptr())
-    buffer_e_1 = T.decl_tensor((28,), "int8", data=buffer_e.data_ptr())
-    T_concat_1 = T.decl_tensor((3612,), "int8", data=T_concat.data_ptr())
+    buffer_a_1 = T.decl_tensor((28,), "int8", data=buffer_a.data)
+    buffer_b_1 = T.decl_tensor((1764,), "int8", data=buffer_b.data)
+    buffer_c_1 = T.decl_tensor((28,), "int8", data=buffer_c.data)
+    buffer_d_1 = T.decl_tensor((1764,), "int8", data=buffer_d.data)
+    buffer_e_1 = T.decl_tensor((28,), "int8", data=buffer_e.data)
+    T_concat_1 = T.decl_tensor((3612,), "int8", data=T_concat.data)
     for i0 in range(28):
         T_concat_1[i0 * 129] = buffer_a_1[i0]
         for i1 in range(63):
@@ -706,7 +706,7 @@ def nested_partition_with_single_points(A: T.Tensor((25,), "int32")):
 
 @Ts.function
 def nested_partition_with_single_points_expected(A: T.Tensor((25,), "int32")):
-    A_1 = T.decl_tensor((25,), "int32", data=A.data_ptr())
+    A_1 = T.decl_tensor((25,), "int32", data=A.data)
     for j in range(2):
         A_1[j + 3] = j + 3
     for j in range(2):

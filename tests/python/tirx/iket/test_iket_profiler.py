@@ -179,7 +179,7 @@ def payload_bfloat16(out: T.Tensor((32,), "int32")):
 def payload_pointer(out: T.Tensor((32,), "int32")):
     T.device_entry()
     tx = T.thread_id([32])
-    T.evaluate(tvm.tirx.call_intrin("", "tirx.cuda.iket_mark", "bad", out.data_ptr()))
+    T.evaluate(tvm.tirx.call_intrin("", "tirx.cuda.iket_mark", "bad", out.data))
     out[tx] = tx
 
 

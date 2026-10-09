@@ -23,7 +23,7 @@ shape, dtype, strides, offsets, layout and storage scope describe the same
 low-level storage contract used by the allocation and declaration helpers.
 Scratch tensors are created in the body with the APIs below. Index a tensor with
 ``A[i, j]``, slice it with ``A[m0:m0+BM, 0:BK]`` (a ``TensorRegion``), and take a
-pointer with ``A.ptr_to([i, j])`` or the raw data pointer ``A.data_ptr()``.
+pointer with ``A.ptr_to([i, j])`` or the raw data pointer ``A.data``.
 
 Declaring buffers
 -----------------
@@ -40,7 +40,7 @@ Two fundamental APIs create a tensor variable:
   it allocates, like ``alloc_tensor``, except in ``tmem`` scope, where
   ``allocated_addr`` identifies externally allocated tensor memory.
 
-``A.data_ptr()`` projects the physical pointer from the tensor variable.
+``A.data`` projects the physical pointer from the tensor variable.
 ``alloc_tensor`` supplies new storage; ``decl_tensor`` with ``data`` binds an
 existing pointer expression. See :doc:`data_types`.
 
@@ -96,12 +96,12 @@ The ``scope`` argument selects the memory space:
     def kernel(A: Tx.Tensor((M, K), "float16", align=16)):
         As = Tx.alloc_shared((BM, BK), "float16")  # new shared tile
         acc = Tx.alloc_local((4,), "float32")  # per-thread accumulator
-        view = Tx.decl_tensor((BM, BK), "float16", data=As.data_ptr())  # a view over As
+        view = Tx.decl_tensor((BM, BK), "float16", data=As.data)  # a view over As
 
 **A ptr-based buffer is just metadata over a pointer.** For any non-tmem buffer,
 the declaration is a pointer plus a layout, and indexing resolves to an address::
 
-    addr(buffer[coord]) = buffer.data_ptr() + elem_offset + layout.apply(coord, shape=shape)["m"]
+    addr(buffer[coord]) = buffer.data + elem_offset + layout.apply(coord, shape=shape)["m"]
 
 (``layout.apply`` returns the per-axis mapping; its ``"m"`` component is the
 element offset.) So the *same* logical access compiles to different address
@@ -179,8 +179,8 @@ and an ``elem_offset``:
 .. code-block:: python
 
     arena = Tx.alloc_tensor((128,), "float32", scope="shared.dyn")   # the one arena
-    As = Tx.decl_tensor((64,), "float32", data=arena.data_ptr(), scope="shared.dyn")                 # offset 0
-    Bs = Tx.decl_tensor((64,), "float32", data=arena.data_ptr(), elem_offset=64, scope="shared.dyn") # offset 64
+    As = Tx.decl_tensor((64,), "float32", data=arena.data, scope="shared.dyn")                 # offset 0
+    Bs = Tx.decl_tensor((64,), "float32", data=arena.data, elem_offset=64, scope="shared.dyn") # offset 64
     As[tx] = A[tx]
     Bs[tx] = B[tx]
     Tx.cuda.cta_sync()
@@ -216,7 +216,7 @@ with views decl'd at offsets inside it.
        "tirx.kernel_launch_params": ["blockIdx.x", "threadIdx.x", "tirx.use_dyn_shared_memory"]
 
        # host-side launch call  (..., gridDim.x, blockDim.x, dyn_shared_bytes):
-       Tx.call_packed("dyn_kernel", A.data_ptr(), B.data_ptr(), C.data_ptr(), 1, 64, 512)
+       Tx.call_packed("dyn_kernel", A.data, B.data, C.data, 1, 64, 512)
 
    At run time that ``512`` becomes ``config.sharedMemBytes`` in the
    ``cuLaunchKernelEx`` call. You never set it by hand — it is derived from the
@@ -416,15 +416,22 @@ A tensor variable is an ``ir.Var`` carrying ``tirx.TensorType`` metadata
 its methods are *compile-time* reshapes/reinterprets that change index arithmetic
 or hand you a pointer — they emit no runtime op of their own.
 
-These Python methods belong to ``TensorType``. Its ``__expr_methods__`` tuple
-explicitly names the methods available through an expression: ``B.view(...)``
-binds the operand exactly as ``B.ty.view(B, ...)``. Existing expression fields
-and methods take precedence. The tensor methods require a tensor variable;
-merely retrieving a method does not construct IR. Metadata conveniences such
-as ``B.shape``, ``B.dtype``, ``B.byte_offset`` and ``B.sub`` remain available.
-Use ``B.data_ptr()`` to project the physical pointer.
+``TensorType.__expr_methods__`` explicitly names the Python methods available
+through an expression: ``B.view(...)`` binds the operand exactly as
+``B.ty.view(B, ...)``. ``TensorType.__expr_properties__`` maps property names
+to getters taking the type and original expression. It preserves conveniences
+such as ``B.shape``, ``B.strides``, ``B.dtype``, ``B.byte_offset``, ``B.sub`` and
+``B.data`` without modifying the shared ``Var`` class. ``B.dtype`` returns a
+runtime ``DataType``; ``B.ty.dtype`` stores a ``PrimType``.
 
-The common methods:
+Existing expression attributes and reflected fields take precedence, followed
+by declared properties and then declared methods. Declared properties are
+read-only. Tensor methods and properties require an ordinary tensor variable;
+merely retrieving a method does not construct IR. A property getter executes
+when the property is read: for example, ``B.data`` constructs the canonical
+physical-pointer projection.
+
+The common methods and properties:
 
 .. list-table::
    :header-rows: 1
@@ -432,7 +439,7 @@ The common methods:
 
    * - Method
      - What it is
-   * - ``B.data_ptr()``
+   * - ``B.data``
      - the physical-pointer projection (a ``Call``); lowers to ``B_ptr``
    * - ``B.ptr_to([i, j])``
      - a typed pointer to an element (``address_of``); prints as ``&B_ptr[…]``
@@ -449,8 +456,8 @@ The common methods:
      - a masked access pointer (the ``access_ptr`` builtin), for passing a
        region to an intrinsic
 
-**Pointers — ``ptr_to`` / ``data_ptr``.** ``ptr_to`` is how you hand an element address
-to an intrinsic or inline function; ``data_ptr()`` is the base pointer:
+**Pointers — ``ptr_to`` / ``data``.** ``ptr_to`` is how you hand an element address
+to an intrinsic or inline function; ``data`` is the base pointer:
 
 .. code-block:: python
 
@@ -458,7 +465,7 @@ to an intrinsic or inline function; ``data_ptr()`` is the base pointer:
 
 .. code-block:: c++
 
-    B_ptr[tx] = ld(&A_ptr[tx]);          // ptr_to([tx]) -> &A_ptr[tx];  A.data_ptr() -> A_ptr
+    B_ptr[tx] = ld(&A_ptr[tx]);          // ptr_to([tx]) -> &A_ptr[tx];  A.data -> A_ptr
 
 The pointer returned by ``ptr_to`` has the buffer's element type and storage
 scope. This remains true when the buffer is a typed view over a byte-addressed

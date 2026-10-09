@@ -19,9 +19,9 @@ import pickle
 import pytest
 
 from tvm.ir import Op, assert_structural_equal
-from tvm.tirx.tensor import decl_tensor
 from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.stmt import TileOpCall
+from tvm.tirx.tensor import decl_tensor
 
 
 def _test(op: str, *args):

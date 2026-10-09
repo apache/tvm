@@ -192,7 +192,7 @@ def test_multiple_buffer_arguments_may_share_allocation():
     @I.ir_module
     class mod:
         @T.function
-        def func(A: T.Tensor([256], "float32"), B: T.Tensor([256], "float32", data=A.data_ptr())):  # noqa: F821
+        def func(A: T.Tensor([256], "float32"), B: T.Tensor([256], "float32", data=A.data)):  # noqa: F821
             pass
 
     tvm.tirx.analysis.verify_well_formed(mod)

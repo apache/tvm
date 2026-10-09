@@ -951,9 +951,9 @@ class CudaProfiler:
     def init(self, group_id: tvm.tirx.Expr):
         if self.profiler_enabled:
             T.cuda.timer_init(
-                self.buffer.data_ptr(),
-                self.profiler_tag.data_ptr(),
-                self.profiler_write_offset.data_ptr(),
+                self.buffer.data,
+                self.profiler_tag.data,
+                self.profiler_write_offset.data,
                 self.num_groups,
                 group_id,
             )
@@ -963,9 +963,9 @@ class CudaProfiler:
         if self.profiler_enabled:
             T.cuda.timer_start(
                 event_type,
-                self.buffer.data_ptr(),
-                self.profiler_tag.data_ptr(),
-                self.profiler_write_offset.data_ptr(),
+                self.buffer.data,
+                self.profiler_tag.data,
+                self.profiler_write_offset.data,
                 self.write_stride,
                 self._leader(leader),
             )
@@ -975,9 +975,9 @@ class CudaProfiler:
         if self.profiler_enabled:
             T.cuda.timer_end(
                 event_type,
-                self.buffer.data_ptr(),
-                self.profiler_tag.data_ptr(),
-                self.profiler_write_offset.data_ptr(),
+                self.buffer.data,
+                self.profiler_tag.data,
+                self.profiler_write_offset.data,
                 self.write_stride,
                 self._leader(leader),
             )
@@ -986,9 +986,9 @@ class CudaProfiler:
     def finalize(self, leader: None | tvm.tirx.Expr | bool = None):
         if self.profiler_enabled:
             T.cuda.timer_finalize(
-                self.buffer.data_ptr(),
-                self.profiler_tag.data_ptr(),
-                self.profiler_write_offset.data_ptr(),
+                self.buffer.data,
+                self.profiler_tag.data,
+                self.profiler_write_offset.data,
                 self.write_stride,
                 self._leader(leader),
             )

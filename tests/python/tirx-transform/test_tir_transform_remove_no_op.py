@@ -404,7 +404,7 @@ def test_remove_empty_temporary_with_decl_buffer():
     @T.function(private=True)
     def before():
         A = T.decl_tensor([4, 4], "int32", scope="local")
-        A_flat = T.decl_tensor(16, "int32", scope="local", data=A.data_ptr())
+        A_flat = T.decl_tensor(16, "int32", scope="local", data=A.data)
         T.evaluate(0)
 
     @T.function(private=True)

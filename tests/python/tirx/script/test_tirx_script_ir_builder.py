@@ -451,7 +451,7 @@ def test_concrete_mutable_scalar(declare):
         with T.function():
             if declare:
                 owner = T.alloc_tensor((4,), "int32", scope="local")
-                scalar = T.decl_scalar("int32", owner.data_ptr(), "local", elem_offset=2)
+                scalar = T.decl_scalar("int32", owner.data, "local", elem_offset=2)
             else:
                 scalar = T.alloc_scalar("int32", "local")
             assert type(scalar) is tvm.ir.TensorLoad
@@ -472,7 +472,7 @@ def test_concrete_mutable_scalar(declare):
             stmt for stmt in ib.get().body.seq if _is_buffer_binding(stmt, "tirx.decl_tensor")
         )
         assert declaration.var.same_as(scalar.source)
-        tvm.ir.assert_structural_equal(declaration.value.args[0], owner.data_ptr())
+        tvm.ir.assert_structural_equal(declaration.value.args[0], owner.data)
         assert scalar.source.elem_offset == 2
 
 

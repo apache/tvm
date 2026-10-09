@@ -288,8 +288,8 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
     assert isinstance(nodes[1], tirx.TensorStore) and isinstance(nodes[2], tirx.Bind)
     assert nodes[0].var.same_as(value) and nodes[1].buffer.same_as(value)
     assert nodes[2].var.same_as(produced[1][0])
-    ir.assert_structural_equal(nodes[0].value.args[0], captured.data_ptr())
-    ir.assert_structural_equal(nodes[2].value.args[0], captured.data_ptr())
+    ir.assert_structural_equal(nodes[0].value.args[0], captured.data)
+    ir.assert_structural_equal(nodes[2].value.args[0], captured.data)
 
 
 def test_native_binding_preserves_metadata_but_binds_buffer_expressions():

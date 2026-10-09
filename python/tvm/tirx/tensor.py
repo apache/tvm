@@ -16,18 +16,28 @@
 # under the License.
 """Tensor types, declarations, and type-owned expression methods."""
 
+from collections.abc import Callable
 from enum import IntEnum
 from numbers import Integral
+from typing import ClassVar
 
 import tvm_ffi
 
 import tvm
-from tvm.ir import PointerType, PrimType, Type, Var
+from tvm.ir import Call, PointerType, PrimType, Type, Var
 from tvm.runtime import convert
 
 from . import _buffer_view, _ffi_api
 
 _REARRANGE_PATTERN_UNSET = object()
+
+
+def _tensor_type_field(name):
+    def getter(ty, expr):
+        _check_tensor_property_receiver(ty, expr)
+        return getattr(ty, name)
+
+    return getter
 
 
 @tvm_ffi.register_object("tirx.TensorType")
@@ -61,7 +71,6 @@ class TensorType(Type):
         "rearrange",
         "tile",
         "chunk",
-        "data_ptr",
     )
 
     def access_ptr(
@@ -402,10 +411,35 @@ class TensorType(Type):
         _check_tensor_receiver(self, expr)
         return _buffer_view.chunk(expr, spec)
 
-    def data_ptr(self, expr):
-        """Project the physical pointer associated with a tensor variable."""
-        _check_tensor_receiver(self, expr)
-        return buffer_data(expr)
+    def _data(self, expr):
+        _check_tensor_property_receiver(self, expr)
+        return tensor_data_ptr(expr)
+
+    def _dtype(self, expr):
+        _check_tensor_property_receiver(self, expr)
+        return self.dtype.dtype
+
+    def _byte_offset(self, expr):
+        _check_tensor_property_receiver(self, expr)
+        return self.elem_offset * tvm.DataType(self.dtype).bits // 8
+
+    def _sub(self, expr):
+        _check_tensor_property_receiver(self, expr)
+        return _buffer_view.sub(expr)
+
+    __expr_properties__: ClassVar[dict[str, Callable]] = {
+        "shape": _tensor_type_field("shape"),
+        "strides": _tensor_type_field("strides"),
+        "elem_offset": _tensor_type_field("elem_offset"),
+        "data_alignment": _tensor_type_field("data_alignment"),
+        "offset_factor": _tensor_type_field("offset_factor"),
+        "layout": _tensor_type_field("layout"),
+        "allocated_addr": _tensor_type_field("allocated_addr"),
+        "data": _data,
+        "dtype": _dtype,
+        "byte_offset": _byte_offset,
+        "sub": _sub,
+    }
 
 
 def is_tensor_var(value) -> bool:
@@ -430,6 +464,12 @@ def _check_tensor_receiver(ty, expr):
         raise TypeError("Tensor methods expect a Var with TensorType")
     if not ty.same_as(expr.ty):
         raise TypeError("Tensor method type must be the operand's type")
+
+
+def _check_tensor_property_receiver(ty, expr):
+    if not is_tensor_var(expr):
+        raise AttributeError("Tensor properties are only available on a Var with TensorType")
+    _check_tensor_receiver(ty, expr)
 
 
 def decl_tensor(
@@ -481,69 +521,20 @@ def decl_tensor(
     return _ffi_api.TensorVar(name, buffer_type, span)  # type: ignore
 
 
-def buffer_data(buffer):
-    """Project the physical pointer associated with a buffer variable."""
+def tensor_data_ptr(tensor, *, ty=None, span=None):
+    """Project a tensor variable's physical pointer.
 
-    if not is_tensor_var(buffer):
-        raise TypeError("buffer_data expects a Var with TensorType")
-    return _ffi_api.TensorData(buffer)
+    The result type is inferred from its element type and storage scope.
+    ``ty`` may supply an explicit result type; ``span`` records the source location.
+    """
+    if not is_tensor_var(tensor):
+        raise TypeError("tensor_data_ptr expects a Var with TensorType")
+    return Call("tirx.tensor_data_ptr", [tensor], ty=ty, span=span)
 
 
 def buffer_data_pointer_type(buffer):
-    """Return the pointer type produced by :func:`buffer_data`."""
+    """Return the pointer type produced by :func:`tensor_data_ptr`."""
 
     if not is_tensor_var(buffer):
         raise TypeError("buffer_data_pointer_type expects a Var with TensorType")
     return _ffi_api.TensorDataPointerType(buffer)
-
-
-# Retain the metadata compatibility surface on ordinary tensor Vars. Callable
-# methods belong to TensorType and are exposed through Expr.__getattr__.
-def _tensor_type_field(name):
-    def getter(value):
-        if not is_tensor_var(value):
-            raise AttributeError(f"{name} is only available on a Var with TensorType")
-        return getattr(value.ty, name)
-
-    return property(getter)
-
-
-# Preserve the tensor variable metadata surface while keeping TensorType as the
-# single source of truth.
-for _name in (
-    "shape",
-    "strides",
-    "elem_offset",
-    "data_alignment",
-    "offset_factor",
-    "layout",
-    "allocated_addr",
-):
-    setattr(tvm.ir.Var, _name, _tensor_type_field(_name))
-
-
-def _tensor_dtype_property(value):
-    if not is_tensor_var(value):
-        raise AttributeError("dtype is only available on a Var with TensorType")
-    # Preserve the tensor variable Python dtype surface.  TensorType stores a
-    # PrimType, while Python callers historically receive its runtime DataType.
-    return value.ty.dtype.dtype
-
-
-tvm.ir.Var.dtype = property(_tensor_dtype_property)
-
-
-def _tensor_byte_offset(value):
-    if not is_tensor_var(value):
-        raise AttributeError("byte_offset is only available on a Var with TensorType")
-    return value.ty.elem_offset * tvm.DataType(value.ty.dtype).bits // 8
-
-
-def _tensor_sub(value):
-    if not is_tensor_var(value):
-        raise AttributeError("sub is only available on a Var with TensorType")
-    return _buffer_view.sub(value)
-
-
-tvm.ir.Var.byte_offset = property(_tensor_byte_offset)
-tvm.ir.Var.sub = property(_tensor_sub)

@@ -212,7 +212,7 @@ def test_roundtrip_tensormap():
 
         A_map: T.let[T.handle("tensormap")] = T.stack_alloca("tensormap", 1)
         T.call_packed(
-            "runtime.tensormap_init", T.address_of(A_map), T.reinterpret( A.data_ptr(), ty="handle")
+            "runtime.tensormap_init", T.address_of(A_map), T.reinterpret( A.data, ty="handle")
         )
     # fmt: on
     code = func1.script()
@@ -460,7 +460,7 @@ def test_roundtrip_cp_async_bulk_tensor_g2s_cluster():
             T.launch_thread("threadIdx.x", 128)
             A_smem = T.alloc_tensor((16, 16), "float32", scope="shared")
             T.ptx["cp.async.bulk.tensor.2d.shared::cluster.global.mbarrier::complete_tx::bytes"](
-                A_smem.data_ptr(), T.address_of(A_map), 0, 0, T.uint32(0)
+                A_smem.data, T.address_of(A_map), 0, 0, T.uint32(0)
             )
     # fmt: on
 
@@ -481,7 +481,7 @@ def test_roundtrip_cp_async_bulk_tensor_s2g():
             T.launch_thread("threadIdx.x", 128)
             A_smem = T.alloc_tensor((16, 16), "float32", scope="shared")
             T.ptx["cp.async.bulk.tensor.2d.global.shared::cta.tile.bulk_group"](
-                T.address_of(A_map), 0, 0, A_smem.data_ptr()
+                T.address_of(A_map), 0, 0, A_smem.data
             )
     # fmt: on
 
@@ -522,7 +522,7 @@ def test_roundtrip_cp_async_bulk_tensor_s2g_reduce():
             T.launch_thread("threadIdx.x", 128)
             A_smem = T.alloc_tensor((16, 16), "float32", scope="shared")
             T.ptx["cp.reduce.async.bulk.tensor.2d.global.shared::cta.add.tile.bulk_group"](
-                T.address_of(A_map), 0, 0, A_smem.data_ptr()
+                T.address_of(A_map), 0, 0, A_smem.data
             )
     # fmt: on
 

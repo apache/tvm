@@ -258,14 +258,14 @@ def test_allocate_with_decl_buffer_sugar():
         with TB.function():
             TB.func_name_("test")
             buf = TB.alloc_tensor([128, 128], "float32")
-            buf2 = TB.decl_tensor([128, 128], "float32", data=buf.data_ptr())
+            buf2 = TB.decl_tensor([128, 128], "float32", data=buf.data)
             TB.evaluate(1)
     obj = ib.get()
     _assert_print(
         obj.body,
         """
 v = T.alloc_tensor((128, 128), "float32", layout="default")
-v_1 = T.decl_tensor((128, 128), "float32", data=v.data_ptr(), layout="default")
+v_1 = T.decl_tensor((128, 128), "float32", data=v.data, layout="default")
 T.evaluate(1)
 """,
     )
@@ -277,15 +277,15 @@ def test_allocate_with_decl_buffer_sugar_multi_usage():
         with TB.function():
             TB.func_name_("test")
             buf = TB.alloc_tensor([128, 128], "float32")
-            buf2 = TB.decl_tensor([128, 128], "float32", data=buf.data_ptr())
-            TB.evaluate(buf.data_ptr())
+            buf2 = TB.decl_tensor([128, 128], "float32", data=buf.data)
+            TB.evaluate(buf.data)
     obj = ib.get()
     _assert_print(
         obj.body,
         """
 v = T.alloc_tensor((128, 128), "float32", layout="default")
-v_1 = T.decl_tensor((128, 128), "float32", data=v.data_ptr(), layout="default")
-T.evaluate(v.data_ptr())
+v_1 = T.decl_tensor((128, 128), "float32", data=v.data, layout="default")
+T.evaluate(v.data)
 """,
     )
 
@@ -295,15 +295,15 @@ def test_allocate_with_decl_buffer_no_sugar_mismatch():
         with TB.function():
             TB.func_name_("test")
             buf = TB.alloc_tensor([128, 128], "float32")
-            buf2 = TB.decl_tensor([256, 256], "float32", data=buf.data_ptr())
-            TB.evaluate(buf.data_ptr())
+            buf2 = TB.decl_tensor([256, 256], "float32", data=buf.data)
+            TB.evaluate(buf.data)
     obj = ib.get()
     _assert_print(
         obj.body,
         """
 v = T.alloc_tensor((128, 128), "float32", layout="default")
-v_1 = T.decl_tensor((256, 256), "float32", data=v.data_ptr(), layout="default")
-T.evaluate(v.data_ptr())
+v_1 = T.decl_tensor((256, 256), "float32", data=v.data, layout="default")
+T.evaluate(v.data)
 """,
     )
 

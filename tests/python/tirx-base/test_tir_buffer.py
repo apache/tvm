@@ -61,7 +61,7 @@ def test_tensor_var_identity_and_global_var_properties():
 
     for name in ("shape", "dtype", "data"):
         assert not hasattr(scalar, name)
-        with pytest.raises(AttributeError, match="only available on a Var with TensorType"):
+        with pytest.raises(AttributeError, match="has no attribute"):
             getattr(scalar, name)
 
 

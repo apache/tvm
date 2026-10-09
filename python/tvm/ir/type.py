@@ -16,6 +16,9 @@
 # under the License.
 """Unified type system in the project."""
 
+from collections.abc import Callable
+from typing import ClassVar
+
 import tvm_ffi
 
 from . import _ffi_api
@@ -29,10 +32,14 @@ class Type(Node, Scriptable):
     ``__expr_methods__`` names methods exposed on expressions of this type.
     Each method receives the type instance and then the expression operand:
     ``expr.method(...)`` is equivalent to ``expr.ty.method(expr, ...)``.
-    Subclasses inherit the declaration, or replace it with their own tuple.
+    ``__expr_properties__`` maps read-only expression property names to
+    getters taking ``(type_instance, expression)``. Ordinary expression
+    attributes take precedence, then declared properties, then methods.
+    Subclasses inherit these declarations or replace them explicitly.
     """
 
     __expr_methods__: tuple[str, ...] = ()
+    __expr_properties__: ClassVar[dict[str, Callable]] = {}
 
     @staticmethod
     def missing():

@@ -223,7 +223,7 @@ def test_alloc_apis():
             self.inner_pool = inner_pool
             self.Tb = T.shared_scalar("float16")
             self.idx = T.local_scalar("int32")
-            self.inner_pool2 = T.decl_scalar("float16", self.inner_pool.data_ptr(), "shared.dyn", 5)
+            self.inner_pool2 = T.decl_scalar("float16", self.inner_pool.data, "shared.dyn", 5)
 
         @T.inline
         def init(self):
@@ -249,13 +249,11 @@ def test_alloc_apis():
         D: T.float16
         pool = T.alloc_tensor([10], "uint8", scope="shared.dyn")
                 # scalar buffer (decl)
-        E = T.decl_scalar("float16", pool.data_ptr(), "shared.dyn", 0)
+        E = T.decl_scalar("float16", pool.data, "shared.dyn", 0)
                 # normal 1-dim buffer with shape (1,)
         F = T.alloc_local((1,), "float16")
         Ta: T.float16
-        inner_pool = T.decl_tensor(
-            shape=[10], data=pool.data_ptr(), dtype="uint8", scope="shared.dyn"
-        )
+        inner_pool = T.decl_tensor(shape=[10], data=pool.data, dtype="uint8", scope="shared.dyn")
         test = Test(Ta, inner_pool)  # noqa: F821
         test.init()
         A[0] = C
@@ -273,7 +271,7 @@ def test_alloc_apis():
         D += E + C + D
         T.evaluate(T.address_of(C))
         T.evaluate(C.source.access_ptr("rw", offset=0))
-        T.evaluate(C.source.data_ptr())
+        T.evaluate(C.source.data)
         T.evaluate(D)
         T.evaluate(T.address_of(D))
         # fmt: on
@@ -307,10 +305,10 @@ def test_buffer():
     ):
 
 
-        _A0 = T.decl_tensor((10, 11), "float32", data=A.data_ptr(), layout=None)
-        _B0 = T.decl_tensor((10, 11), "float32", data=B.data_ptr(), scope="global")
-        _C0 = T.decl_tensor((10, 11), "float32", data=C.data_ptr(), layout="default")
-        _D0 = T.decl_tensor((10, 11), "float32", data=D.data_ptr(), layout=T.TileLayout(T.S[(10, 11) : (1, 10)]))  # noqa: E501
+        _A0 = T.decl_tensor((10, 11), "float32", data=A.data, layout=None)
+        _B0 = T.decl_tensor((10, 11), "float32", data=B.data, scope="global")
+        _C0 = T.decl_tensor((10, 11), "float32", data=C.data, layout="default")
+        _D0 = T.decl_tensor((10, 11), "float32", data=D.data, layout=T.TileLayout(T.S[(10, 11) : (1, 10)]))  # noqa: E501
         _A1 = T.alloc_tensor((10, 11), "float32", layout=None)
         _B1 = T.alloc_tensor((10, 11), "float32", scope="global")
         _C1 = T.alloc_tensor((10, 11), "float32", layout="default")
@@ -435,7 +433,7 @@ def test_buffer_local_ir():
     _, b_buf, b_local = _collect_buffers(func)
 
     # Shared data pointer
-    assert_structural_equal(_buffer_source(func, b_local), b_buf.data_ptr())
+    assert_structural_equal(_buffer_source(func, b_local), b_buf.data)
     # Shape: single dim matching the raw physical storage span
     assert len(b_local.ty.shape) == 1
     storage = b_buf.ty.layout.storage()
@@ -446,7 +444,7 @@ def test_buffer_local_ir():
     # Round-trip
     code = func.script()
     assert (
-        'v_1 = T.decl_tensor((2,), "float16", data=v.data_ptr(), '
+        'v_1 = T.decl_tensor((2,), "float16", data=v.data, '
         'scope="local", layout="default")'
     ) in code
     assert from_source(code).script() == code
@@ -510,7 +508,7 @@ def test_buffer_local_physical_order():
     assert not b_buf.ty.layout.storage().is_trivial()
 
     for local in [b_flat, b_2d]:
-        assert_structural_equal(_buffer_source(func, local), b_buf.data_ptr())
+        assert_structural_equal(_buffer_source(func, local), b_buf.data)
         assert local.ty.layout.is_trivial()
     assert [int(dim) for dim in b_flat.ty.shape] == [32]
     assert [int(dim) for dim in b_2d.ty.shape] == [4, 8]
@@ -522,11 +520,11 @@ def test_buffer_local_physical_order():
 
     code = func.script()
     assert (
-        'v_1 = T.decl_tensor((32,), "float32", data=v.data_ptr(), '
+        'v_1 = T.decl_tensor((32,), "float32", data=v.data, '
         'scope="local", layout="default")'
     ) in code
     assert (
-        'v_2 = T.decl_tensor((4, 8), "float32", data=v.data_ptr(), '
+        'v_2 = T.decl_tensor((4, 8), "float32", data=v.data, '
         'scope="local", layout="default")'
     ) in code
     assert from_source(code).script() == code
@@ -560,10 +558,10 @@ def test_buffer_local_layout_overrides_roundtrip():
     storage_line = next(line for line in code.splitlines() if "v_1 =" in line)
     custom_line = next(line for line in code.splitlines() if "v_2 =" in line)
     assert (
-        'T.decl_tensor((32,), "float32", data=v.data_ptr(), scope="local", layout='
+        'T.decl_tensor((32,), "float32", data=v.data, scope="local", layout='
     ) in storage_line
     assert (
-        'T.decl_tensor((2, 4), "float32", data=v.data_ptr(), scope="local", '
+        'T.decl_tensor((2, 4), "float32", data=v.data, scope="local", '
         'layout='
     ) in custom_line
     assert_structural_equal(func, from_source(code))
@@ -613,7 +611,7 @@ def test_buffer_local_compose_layout_printer_roundtrip():
     assert b_buf.ty.layout.is_trivial()
     code = func.script()
     local_line = next(line for line in code.splitlines() if "v =" in line)
-    assert 'T.decl_tensor((64,), "float32", data=A.data_ptr(), scope="local", layout=' in local_line
+    assert 'T.decl_tensor((64,), "float32", data=A.data, scope="local", layout=' in local_line
     parsed = from_source(code)
     assert_structural_equal(func, parsed)
     assert parsed.script() == code
@@ -666,9 +664,7 @@ def test_buffer_local_physical_span_includes_gaps_and_offset():
 
     code = func.script()
     storage_line = next(line for line in code.splitlines() if "v_3 =" in line)
-    assert (
-        'T.decl_tensor((2,), "float32", data=v.data_ptr(), scope="local", layout=' in storage_line
-    )
+    assert 'T.decl_tensor((2,), "float32", data=v.data, scope="local", layout=' in storage_line
     assert_structural_equal(func, from_source(code))
     assert from_source(code).script() == code
 
@@ -691,16 +687,16 @@ def test_buffer_local_printer_is_stable_with_multiple_aliases():
 
     expected = func.script()
     assert (
-        'v_1 = T.decl_tensor((32,), "float32", data=v.data_ptr(), '
+        'v_1 = T.decl_tensor((32,), "float32", data=v.data, '
         'scope="local", layout="default")'
     ) in expected
     assert (
-        'v_2 = T.decl_tensor((4, 8), "float32", data=v.data_ptr(), '
+        'v_2 = T.decl_tensor((4, 8), "float32", data=v.data, '
         'scope="local", layout="default")'
     ) in expected
     storage_line = next(line for line in expected.splitlines() if "v_3 =" in line)
     assert (
-        'T.decl_tensor((32,), "float32", data=v.data_ptr(), scope="local", layout='
+        'T.decl_tensor((32,), "float32", data=v.data, scope="local", layout='
     ) in storage_line
     for _ in range(20):
         parsed = from_source(expected)
@@ -725,7 +721,7 @@ def test_buffer_local_printer_preserves_inherited_metadata():
         B_align = T.decl_tensor(
             (2,),
             dtype="float32",
-            data=A.data_ptr(),
+            data=A.data,
             elem_offset=8,
             scope="local",
             align=128,
@@ -733,7 +729,7 @@ def test_buffer_local_printer_preserves_inherited_metadata():
         B_factor = T.decl_tensor(
             (2,),
             dtype="float32",
-            data=A.data_ptr(),
+            data=A.data,
             elem_offset=8,
             scope="local",
             offset_factor=8,
@@ -783,7 +779,7 @@ def test_buffer_permute_ir():
     a_buf, b_buf = _collect_buffers(func)
 
     # Shared data pointer
-    assert_structural_equal(_buffer_source(func, b_buf), a_buf.data_ptr())
+    assert_structural_equal(_buffer_source(func, b_buf), a_buf.data)
     # Shape: [4, 8] from [8, 4]
     assert int(b_buf.ty.shape[0]) == 4
     assert int(b_buf.ty.shape[1]) == 8
@@ -881,7 +877,7 @@ def test_buffer_permute_compose_layout_ir():
 
     a_buf, b_buf = _collect_buffers(func)
 
-    assert_structural_equal(_buffer_source(func, b_buf), a_buf.data_ptr())
+    assert_structural_equal(_buffer_source(func, b_buf), a_buf.data)
     assert [int(s) for s in b_buf.shape] == [4, 4, 4, 64]
     expected = tvm.tirx.layout.ComposeLayout(
         a_buf.layout.per_element,
@@ -1254,7 +1250,7 @@ def test_buffer_view_dtype_ir():
     a_buf, b_buf = _collect_buffers(func)
 
     # Shared data pointer
-    assert_structural_equal(_buffer_source(func, b_buf), a_buf.data_ptr())
+    assert_structural_equal(_buffer_source(func, b_buf), a_buf.data)
     # dtype
     assert str(b_buf.ty.dtype) == "float32"
     # Shape: [8, 4] (last dim halved since float32 is 2x float16)
@@ -1396,7 +1392,7 @@ def test_roundtrip_tmem_decl_buffer():
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
             addr = T.alloc_shared((1,), "uint32", layout=None)
-            addr_alias = T.decl_tensor((1,), "uint32", data=addr.data_ptr(), scope="shared")
+            addr_alias = T.decl_tensor((1,), "uint32", data=addr.data, scope="shared")
             buf = T.decl_tensor((64,), scope="tmem", layout=None, allocated_addr=addr_alias[0])
     # fmt: on
 

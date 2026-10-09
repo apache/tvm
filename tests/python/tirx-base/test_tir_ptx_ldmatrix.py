@@ -40,9 +40,9 @@ def ptx_ldmatrix(
             trans,
             num,
             ".b16",
-            A_local.data_ptr(),
+            A_local.data,
             0,
-            A_shared.data_ptr(),
+            A_shared.data,
             16 * (tx % 16) + 8 * (tx // 16),
             ty="float16",
         )

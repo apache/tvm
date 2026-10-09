@@ -31,9 +31,9 @@ class Before:
     def main(inputs: T.Tensor((1, 4, 4, 512), "float32"), weight: T.Tensor((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Tensor((1, 8, 8, 256), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        inputs_flat = T.decl_tensor([8192], dtype="float32", data=inputs.data_ptr())
-        weight_flat = T.decl_tensor([2097152], dtype="float32", data=weight.data_ptr())
-        conv2d_transpose_nhwc_flat = T.decl_tensor([16384], dtype="float32", data=conv2d_transpose_nhwc.data_ptr())
+        inputs_flat = T.decl_tensor([8192], dtype="float32", data=inputs.data)
+        weight_flat = T.decl_tensor([2097152], dtype="float32", data=weight.data)
+        conv2d_transpose_nhwc_flat = T.decl_tensor([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
         # var definition
         # body
         blockIdx_x = T.launch_thread("blockIdx.x", 64)
@@ -60,9 +60,9 @@ class After:
     def main(inputs: T.Tensor((1, 4, 4, 512), "float32"), weight: T.Tensor((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Tensor((1, 8, 8, 256), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        inputs_flat = T.decl_tensor([8192], dtype="float32", data=inputs.data_ptr())
-        weight_flat = T.decl_tensor([2097152], dtype="float32", data=weight.data_ptr())
-        conv2d_transpose_nhwc_flat = T.decl_tensor([16384], dtype="float32", data=conv2d_transpose_nhwc.data_ptr())
+        inputs_flat = T.decl_tensor([8192], dtype="float32", data=inputs.data)
+        weight_flat = T.decl_tensor([2097152], dtype="float32", data=weight.data)
+        conv2d_transpose_nhwc_flat = T.decl_tensor([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
         # var definition
         # body
         blockIdx_x = T.launch_thread("blockIdx.x", 64)
@@ -90,9 +90,9 @@ class After_simplified:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # var definition
-        inputs_flat = T.decl_tensor([8192], dtype="float32", data=inputs.data_ptr())
-        weight_flat = T.decl_tensor([2097152], dtype="float32", data=weight.data_ptr())
-        conv2d_transpose_nhwc_flat = T.decl_tensor([16384], dtype="float32", data=conv2d_transpose_nhwc.data_ptr())
+        inputs_flat = T.decl_tensor([8192], dtype="float32", data=inputs.data)
+        weight_flat = T.decl_tensor([2097152], dtype="float32", data=weight.data)
+        conv2d_transpose_nhwc_flat = T.decl_tensor([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
         # body
         blockIdx_x = T.launch_thread("blockIdx.x", 64)
         conv2d_transpose_nhwc_local = T.decl_tensor([8], "float32", scope="local")

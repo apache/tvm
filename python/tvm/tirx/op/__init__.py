@@ -110,9 +110,9 @@ from tvm.ir.prim.op import truncmod as truncmod
 from tvm.ir.prim.op import vscale as vscale
 
 from .. import _ffi_api
-from ..tensor import is_tensor_var, tensor_data_ptr
 from ..expr import ExprOp, IntImm
 from ..expr import TensorLoad as _make_tensor_load
+from ..tensor import is_tensor_var, tensor_data_ptr
 from ..type import TensorMapType
 
 tir = tirx  # alias for backward compat with upstream tir.convert() calls

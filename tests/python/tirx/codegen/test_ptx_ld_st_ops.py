@@ -145,9 +145,9 @@ def test_ptx_ld_st_raw_shared_address_codegen():
         smem = T.alloc_tensor((2,), "uint64", scope="shared")
         values = T.alloc_local((4,), "uint32")
         if tx == 0:
-            raw_addr: T.uint32 = T.cuda.cvta_generic_to_shared(smem.data_ptr())
+            raw_addr: T.uint32 = T.cuda.cvta_generic_to_shared(smem.data)
             T.ptx.ld.shared.u64(out[0], raw_addr)
-            T.ptx.ld.shared.u64(out[1], smem.data_ptr())
+            T.ptx.ld.shared.u64(out[1], smem.data)
             T.ptx.st.weak.shared__cta.b128(raw_addr, values.view("uint128")[0])
 
     with TARGET:
@@ -170,8 +170,8 @@ def test_ptx_ld_st_immediate_offset_codegen():
         tx = T.thread_id([32])
         values = T.alloc_local((2,), "uint64")
         if tx == 0:
-            T.ptx.ld.global_.v2.b64(values[0], values[1], T.ptx.addr(src.data_ptr(), 16))
-            T.ptx.st.global_.v2.b64(T.ptx.addr(out.data_ptr(), 16), values[0], values[1])
+            T.ptx.ld.global_.v2.b64(values[0], values[1], T.ptx.addr(src.data, 16))
+            T.ptx.st.global_.v2.b64(T.ptx.addr(out.data, 16), values[0], values[1])
 
     with TARGET:
         mod = tvm.compile(tvm.IRModule({"main": main}), target=TARGET, tir_pipeline="tirx")
@@ -194,7 +194,7 @@ def test_ptx_ld_global_nc_v8_codegen():
         tmp = T.alloc_local((8,), "int32")
         if tx == 0:
             T.ptx["ld.global.nc.L1::no_allocate.L2::evict_first.L2::256B.v8.s32"](
-                *[tmp[i] for i in range(8)], src.data_ptr()
+                *[tmp[i] for i in range(8)], src.data
             )
             for i in T.unroll(8):
                 out[i] = tmp[i]
@@ -221,7 +221,7 @@ def test_ptx_ld_global_nc_v4_u64_256b_codegen():
         tmp = T.alloc_local((4,), "uint64")
         if tx == 0:
             T.ptx["ld.global.nc.L1::no_allocate.L2::evict_normal.L2::256B.v4.u64"](
-                tmp[0], tmp[1], tmp[2], tmp[3], src.data_ptr()
+                tmp[0], tmp[1], tmp[2], tmp[3], src.data
             )
             for i in T.unroll(4):
                 out[i] = tmp[i]
@@ -246,7 +246,7 @@ def test_ptx_ld_vector_scatter_dst_codegen():
         tmp2 = T.alloc_local((1,), "int32")
         tmp3 = T.alloc_local((1,), "int32")
         if tx == 0:
-            T.ptx["ld.global.nc.v4.s32"](tmp0[0], tmp1[0], tmp2[0], tmp3[0], src.data_ptr())
+            T.ptx["ld.global.nc.v4.s32"](tmp0[0], tmp1[0], tmp2[0], tmp3[0], src.data)
             out[0] = tmp0[0]
             out[1] = tmp1[0]
             out[2] = tmp2[0]

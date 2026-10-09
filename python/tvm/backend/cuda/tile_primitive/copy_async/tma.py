@@ -447,8 +447,8 @@ def _buffer_base(buffer: Var, *, auto: bool, stage: str):
         stage=stage,
         label="view base offset",
     )
-    base = tvm.tirx.handle_add_byte_offset(buffer.data_ptr(), byte_offset)
-    return base, f"{hash(buffer.data_ptr())}:{base}", byte_offset
+    base = tvm.tirx.handle_add_byte_offset(buffer.data, byte_offset)
+    return base, f"{hash(buffer.data)}:{base}", byte_offset
 
 
 def _finding(
@@ -2182,7 +2182,7 @@ def _emit_plan(
         smem_view = T.decl_tensor(
             (1,),
             spec.smem_buffer.dtype,
-            spec.smem_buffer.data_ptr(),
+            spec.smem_buffer.data,
             elem_offset=0,
             scope=spec.smem_buffer.scope(),
         )

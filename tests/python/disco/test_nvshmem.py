@@ -317,8 +317,8 @@ def _kernel_compile(compile_mode):
                     T.call_kernel(
                         NVSHMEM_QUERY_KERNEL_SOURCE,
                         ((1,), (1,)),  # grid=(1,), block=(1,)
-                        my_pe_out.data_ptr(),
-                        n_pes_out.data_ptr(),
+                        my_pe_out.data,
+                        n_pes_out.data,
                         kernel_name="nvshmem_query_kernel",
                     )
 

@@ -153,7 +153,7 @@ Generated TIRx IR
 
 .. code-block:: python
 
-    r_local = Tx.decl_tensor((8,), data=R.data_ptr(), scope="local")   # 8 fp32 elements / lane
+    r_local = Tx.decl_tensor((8,), data=R.data, scope="local")   # 8 fp32 elements / lane
     r_words = r_local.view("uint32")
     for f in range(2):                                           # outer = 8 / vec 4
         s_ptr = pointer_offset(A_smem, ...)                      # this lane's row

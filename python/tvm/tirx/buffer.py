@@ -19,17 +19,17 @@
 from .tensor import (
     BufferAccessKind,
     TensorType,
-    tensor_data_ptr,
     buffer_data_pointer_type,
     decl_tensor,
     is_tensor_var,
+    tensor_data_ptr,
 )
 
 __all__ = [
     "BufferAccessKind",
     "TensorType",
-    "tensor_data_ptr",
     "buffer_data_pointer_type",
     "decl_tensor",
     "is_tensor_var",
+    "tensor_data_ptr",
 ]

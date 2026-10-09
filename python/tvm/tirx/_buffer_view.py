@@ -56,7 +56,7 @@ def _redecl(buf: Var, shape, layout, *, dtype=None, elem_offset=None, addr_offse
     return tvm.tirx.script.ir_builder.decl_tensor(
         shape,
         buf.dtype if dtype is None else dtype,
-        buf.data_ptr(),
+        buf.data,
         buf.strides,
         buf.elem_offset if elem_offset is None else elem_offset,
         None,

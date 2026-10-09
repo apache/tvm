@@ -109,8 +109,8 @@ def test_expr_constructor():
     assert isinstance(x, tvm.ir.TensorLoad)
     assert x.ty == tvm.ir.PrimType("float32")
     assert x.source == buffer
-    assert x.source.data_ptr().args[0].same_as(buffer)
-    assert x.source.data_ptr().ty == tvm.tirx.buffer_data_pointer_type(buffer)
+    assert x.source.data.args[0].same_as(buffer)
+    assert x.source.data.ty == tvm.tirx.buffer_data_pointer_type(buffer)
     assert list(x.indices) == [1]
 
     x = tvm.tirx.Ramp(1, 2, 10)
@@ -317,8 +317,8 @@ def test_stmt_constructor():
     x = tvm.tirx.TensorStore(buffer, tvm.tirx.IntImm("bool", 1), [10])
     assert isinstance(x, tvm.tirx.TensorStore)
     assert x.buffer == buffer
-    assert x.buffer.data_ptr().args[0].same_as(buffer)
-    assert x.buffer.data_ptr().ty == tvm.tirx.buffer_data_pointer_type(buffer)
+    assert x.buffer.data.args[0].same_as(buffer)
+    assert x.buffer.data.ty == tvm.tirx.buffer_data_pointer_type(buffer)
     assert list(x.indices) == [10]
     assert x.value.value == 1
 

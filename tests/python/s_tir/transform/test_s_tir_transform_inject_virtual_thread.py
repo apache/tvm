@@ -203,7 +203,7 @@ def test_vthread_vectorized():
 
     def visitor(op):
         nonlocal allocate_node
-        if _is_buffer_binding(op, "tirx.alloc_tensor") and "shared" in str(op.var.data_ptr().ty):
+        if _is_buffer_binding(op, "tirx.alloc_tensor") and "shared" in str(op.var.data.ty):
             allocate_node = op
 
     tvm_ffi.structural_walk(after_func.body, visitor)

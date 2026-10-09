@@ -125,7 +125,7 @@ class TestUnschedulableFunc(BaseCompactTest):
                 Ts.writes(C[i, 0:16])
                 B = Ts.sblock_alloc_buffer((16, 16), "float32")
                 for j in range(0, 16):
-                    T.evaluate(T.call_extern("dummy_extern_function", B.data_ptr(), ty="int32"))
+                    T.evaluate(T.call_extern("dummy_extern_function", B.data, ty="int32"))
                     B[i, j] = A[i, j] + 1.0
                 for j in range(0, 16):
                     C[i, j] = B[i, j] * 2.0
@@ -556,22 +556,14 @@ class TestAnnotatedOpaqueAccess(BaseCompactTest):
                     # no annotation, opaque access will cover full region
                     Ts.reads([])
                     Ts.writes([])
-                    T.evaluate(
-                        T.call_extern(
-                            "opaque_extern_function", A.data_ptr(), B.data_ptr(), ty="int32"
-                        )
-                    )
+                    T.evaluate(T.call_extern("opaque_extern_function", A.data, B.data, ty="int32"))
                     B[i] = A[i]
                 with Ts.sblock():
                     # treat opaque access only access annotated regions, even if
                     # they are not compatible with actual buffer accesses.
                     Ts.reads([B[i]])
                     Ts.writes([C[i : i + 9]])
-                    T.evaluate(
-                        T.call_extern(
-                            "opaque_extern_function", B.data_ptr(), C.data_ptr(), ty="int32"
-                        )
-                    )
+                    T.evaluate(T.call_extern("opaque_extern_function", B.data, C.data, ty="int32"))
                     C[i] = B[i]
 
     @Ts.function
@@ -584,22 +576,14 @@ class TestAnnotatedOpaqueAccess(BaseCompactTest):
                     # no annotation, opaque access will cover full region
                     Ts.reads([])
                     Ts.writes([])
-                    T.evaluate(
-                        T.call_extern(
-                            "opaque_extern_function", A.data_ptr(), B.data_ptr(), ty="int32"
-                        )
-                    )
+                    T.evaluate(T.call_extern("opaque_extern_function", A.data, B.data, ty="int32"))
                     B[i] = A[i]
                 with Ts.sblock():
                     # treat opaque access only access annotated regions, even if
                     # they are not compatible with actual buffer accesses.
                     Ts.reads([B[i]])
                     Ts.writes([C[i : i + 9]])
-                    T.evaluate(
-                        T.call_extern(
-                            "opaque_extern_function", B.data_ptr(), C.data_ptr(), ty="int32"
-                        )
-                    )
+                    T.evaluate(T.call_extern("opaque_extern_function", B.data, C.data, ty="int32"))
                     C[i] = B[i]
 
 
@@ -1220,8 +1204,8 @@ class TestNotCompactAliasBuffer(BaseCompactTest):
         """Partially accessed buffer, but should not compact
         because existence of aliasing buffer B."""
         data = T.alloc_tensor((1024,), "int8")
-        A = T.decl_tensor([1024], "int8", data=data.data_ptr())
-        B = T.decl_tensor([512], "float16", data=data.data_ptr())
+        A = T.decl_tensor([1024], "int8", data=data.data)
+        B = T.decl_tensor([512], "float16", data=data.data)
         for i in range(10):
             A[i] = A[i] + T.int8(1)
         for i in range(10):
@@ -1239,7 +1223,7 @@ class TestNotCompactBufferWithDifferentDtype(BaseCompactTest):
         """Partially accessed buffer, but should not compact
         because existence of aliasing buffer B."""
         data = T.alloc_tensor((1024,), "int8")
-        A = T.decl_tensor([256], "int32", data=data.data_ptr())
+        A = T.decl_tensor([256], "int32", data=data.data)
         for i in range(10):
             A[i] = A[i] + 1
 

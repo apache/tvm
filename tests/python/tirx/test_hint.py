@@ -29,8 +29,8 @@ def from_source(code):
 
 def test_hint_keyword_arg_on_tx_op():
     """Tx.op(..., hint="msg") stores hint in TileOpCall.config."""
-    from tvm.tirx.tensor import decl_tensor
     from tvm.tirx.stmt import TileOpCall
+    from tvm.tirx.tensor import decl_tensor
 
     A = decl_tensor((64, 64), "float32", scope="global")
     A_sm = decl_tensor((64, 64), "float32", scope="shared")

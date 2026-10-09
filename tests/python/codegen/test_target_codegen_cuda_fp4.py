@@ -234,7 +234,7 @@ def test_e2m1_scalar_buffer_offset():
     @T.function
     def func(A_raw: T.Tensor((n // 2,), "uint8"), B: T.Tensor((n,), "float16")):
         T.func_attr({"tir.noalias": True})
-        A = T.decl_tensor((n,), "float4_e2m1fn", data=A_raw.data_ptr())
+        A = T.decl_tensor((n,), "float4_e2m1fn", data=A_raw.data)
         for bx in T.thread_binding(n // 32, thread="blockIdx.x"):
             for tx in T.thread_binding(32, thread="threadIdx.x"):
                 B[bx * 32 + tx] = T.Cast("float16", A[bx * 32 + tx])

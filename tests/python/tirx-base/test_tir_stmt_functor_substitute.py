@@ -63,14 +63,14 @@ def test_substitute_allocate():
         @T.function
         def main(n: T.int32):
             A = T.alloc_tensor((n,), "float32")
-            T.evaluate(A.data_ptr())
+            T.evaluate(A.data)
 
     @I.ir_module
     class Expected:
         @T.function
         def main():
             A = T.alloc_tensor((16,), "float32")
-            T.evaluate(A.data_ptr())
+            T.evaluate(A.data)
 
     After = _apply_substitute(Before)
     tvm.ir.assert_structural_equal(After, Expected)
@@ -103,14 +103,14 @@ def test_substitute_decl_buffer():
         @T.function
         def main(n: T.int32):
             A = T.alloc_tensor((n,), "float32")
-            T.evaluate(A.data_ptr())
+            T.evaluate(A.data)
 
     @I.ir_module
     class Expected:
         @T.function
         def main():
             A = T.alloc_tensor((16,), "float32")
-            T.evaluate(A.data_ptr())
+            T.evaluate(A.data)
 
     After = _apply_substitute(Before)
     tvm.ir.assert_structural_equal(After, Expected)

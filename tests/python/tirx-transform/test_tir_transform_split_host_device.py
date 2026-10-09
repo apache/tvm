@@ -313,7 +313,7 @@ def test_dynamic_launch_thread():
             T.func_attr({"target": T.target("cuda")})
 
             num_blocks: T.let[T.int32] = (seq_len + 127) // 128
-            expected.default_function_kernel(A.data_ptr(), B.data_ptr(), num_blocks, seq_len)
+            expected.default_function_kernel(A.data, B.data, num_blocks, seq_len)
 
         @T.function(private=True)
         def default_function_kernel(
@@ -353,8 +353,8 @@ def test_symbolic_var_parameter():
 
             T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")})
             blockIdx_x = T.launch_thread("blockIdx.x", m)
-            B_1 = T.decl_tensor((m,), data=B.data_ptr())
-            A_1 = T.decl_tensor((m,), data=A.data_ptr())
+            B_1 = T.decl_tensor((m,), data=B.data)
+            A_1 = T.decl_tensor((m,), data=A.data)
             B_1[blockIdx_x] = A_1[blockIdx_x]
 
     after = tvm.tirx.transform.SplitHostDevice()(Module)
@@ -369,7 +369,7 @@ def test_buffer_used_only_through_data_projection():
         def main(A: T.Tensor((16,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             with T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")}):
-                T.evaluate(T.call_extern("consume", A.data_ptr(), ty="int32"))
+                T.evaluate(T.call_extern("consume", A.data, ty="int32"))
 
     after = tvm.tirx.transform.SplitHostDevice()(Before)
     kernel = after["main_kernel"]
@@ -400,7 +400,7 @@ def test_thread_extent_region_extracted_as_device_kernel():
         @T.function
         def main(A: T.Tensor(16, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
-            T.call_ffi_kernel("main_kernel", A.data_ptr(), 16, launch_params=["threadIdx.x"])
+            T.call_ffi_kernel("main_kernel", A.data, 16, launch_params=["threadIdx.x"])
 
         @T.function
         def main_kernel(A_data: T.handle("float32")):
@@ -541,7 +541,7 @@ def test_device_scope_region_extracted_as_device_kernel():
         @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
-            T.call_ffi_kernel("main_kernel", A.data_ptr(), launch_params=[])
+            T.call_ffi_kernel("main_kernel", A.data, launch_params=[])
 
         @T.function
         def main_kernel(A_data: T.handle("float32")):
@@ -570,7 +570,7 @@ def test_lower_device_kernel_launch():
         @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
-            Before.kernel(A.data_ptr())
+            Before.kernel(A.data)
 
         @T.function
         def kernel(A_data: T.handle("float32")):
@@ -583,7 +583,7 @@ def test_lower_device_kernel_launch():
         @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
-            T.call_ffi_kernel("kernel", A.data_ptr(), launch_params=[])
+            T.call_ffi_kernel("kernel", A.data, launch_params=[])
 
         @T.function
         def kernel(A_data: T.handle("float32")):
@@ -611,7 +611,7 @@ def test_externally_visible_kernel_launch():
         @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
-            Before.kernel(A.data_ptr())
+            Before.kernel(A.data)
 
         @T.function
         def kernel(A_data: T.handle("float32")):
@@ -624,7 +624,7 @@ def test_externally_visible_kernel_launch():
         @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
-            T.call_ffi_kernel("kernel_by_another_name", A.data_ptr(), launch_params=[])
+            T.call_ffi_kernel("kernel_by_another_name", A.data, launch_params=[])
 
         @T.function
         def kernel(A_data: T.handle("float32")):
@@ -652,7 +652,7 @@ def test_collect_launch_parameter():
         @T.function
         def main(A: T.Tensor(16, "float32")):
             T.func_attr({"target": T.target("llvm")})
-            Before.kernel(A.data_ptr())
+            Before.kernel(A.data)
 
         @T.function
         def kernel(A_data: T.handle("float32")):
@@ -671,7 +671,7 @@ def test_collect_launch_parameter():
         @T.function
         def main(A: T.Tensor(16, "float32")):
             T.func_attr({"target": T.target("llvm")})
-            T.call_ffi_kernel("kernel", A.data_ptr(), 16, launch_params=["threadIdx.x"])
+            T.call_ffi_kernel("kernel", A.data, 16, launch_params=["threadIdx.x"])
 
         @T.function
         def kernel(A_data: T.handle("float32")):
@@ -700,7 +700,7 @@ def test_same_device_different_target():
         @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
-            Before.kernel(A.data_ptr())
+            Before.kernel(A.data)
 
         @T.function
         def kernel(A_data: T.handle("float32")):
@@ -713,7 +713,7 @@ def test_same_device_different_target():
         @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
-            T.call_extern("kernel", A.data_ptr(), ty="void")
+            T.call_extern("kernel", A.data, ty="void")
 
         @T.function
         def kernel(A_data: T.handle("float32")):
@@ -739,7 +739,7 @@ def test_bind_before_thread_extent():
         @T.function
         def main(A: T.Tensor(16, "float32"), n: T.int32):
             T.func_attr({"target": T.target("llvm")})
-            Before.kernel(A.data_ptr(), n)
+            Before.kernel(A.data, n)
 
         @T.function
         def kernel(A_data: T.handle("float32"), n: T.int32):
@@ -754,7 +754,7 @@ def test_bind_before_thread_extent():
         @T.function
         def main(A: T.Tensor(16, "float32"), n: T.int32):
             T.func_attr({"target": T.target("llvm")})
-            T.call_ffi_kernel("kernel", A.data_ptr(), n, n + 1, launch_params=["threadIdx.x"])
+            T.call_ffi_kernel("kernel", A.data, n, n + 1, launch_params=["threadIdx.x"])
 
         @T.function
         def kernel(A_data: T.handle("float32"), n: T.int32):

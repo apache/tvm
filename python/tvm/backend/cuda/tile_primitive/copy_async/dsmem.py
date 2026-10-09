@@ -170,13 +170,13 @@ def copy_dsmem_impl(op_call: TileOpCall, sctx: DispatchContext) -> Function:
                 src_elem_offset, dst_elem_offset = T.meta_var(compute_offsets(loop_vars))
 
                 src_buf_w = T.decl_tensor(
-                    src_buf.shape, src_buf.dtype, src_buf.data_ptr(),
+                    src_buf.shape, src_buf.dtype, src_buf.data,
                     elem_offset=src_buf.elem_offset + src_elem_offset,
                     scope=src_buf.scope(),
                     layout=src_tile,
                 )
                 dst_buf_w = T.decl_tensor(
-                    dst_buf.shape, dst_buf.dtype, dst_buf.data_ptr(),
+                    dst_buf.shape, dst_buf.dtype, dst_buf.data,
                     elem_offset=dst_buf.elem_offset + dst_elem_offset,
                     scope=dst_buf.scope(),
                     layout=dst_tile,
