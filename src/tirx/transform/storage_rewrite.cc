@@ -773,8 +773,8 @@ class StoragePlanRewriter : public StmtExprMutator {
     PrimType elem_type = PrimType::Void();
     // Whether any constituent allocation was marked volatile.
     bool is_volatile{false};
-    // Fragment metadata belongs to this allocation, not interchangeable storage.
-    bool has_fragment_metadata{false};
+    // Explicit placement and fragment metadata belong to this exact allocation.
+    bool requires_exact_allocation{false};
     // This is non-zero if this alloc_tensor is folded into another one
     // the address(in bits) becomes alloc_var + bits_offset;
     // can be effectively converted to the element type.
@@ -789,7 +789,8 @@ class StoragePlanRewriter : public StmtExprMutator {
     uint64_t bits_offset{0};
   };
 
-  static bool HasFragmentMetadata(const CallNode* call) {
+  static bool RequiresExactAllocation(const CallNode* call) {
+    if (call->args.size() == 4) return true;
     const auto& annotations = call->attrs.as_or_throw<DictAttrs>()->dict;
     return annotations.count(s_tir::attr::fragment_shape) ||
            annotations.count(s_tir::attr::fragment_layout);
@@ -837,10 +838,10 @@ class StoragePlanRewriter : public StmtExprMutator {
       // try to find merge, for tagged memory
       for (size_t i = 0; i < vec.size(); ++i) {
         StorageEntry* e = vec[i];
-        if (!e->has_fragment_metadata && IsSpecialTaggedMemory(e->scope)) {
+        if (!e->requires_exact_allocation && IsSpecialTaggedMemory(e->scope)) {
           TVM_FFI_ICHECK_NE(e->const_nbits, 0U) << "Special tagged memory must be const size";
           for (size_t j = 0; j < i; ++j) {
-            if (!vec[j]->has_fragment_metadata && e->scope == vec[j]->scope) {
+            if (!vec[j]->requires_exact_allocation && e->scope == vec[j]->scope) {
               vec[j]->merged_children.push_back(e);
               break;
             }
@@ -850,7 +851,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       // Start allocation
       for (size_t i = 0; i < vec.size(); ++i) {
         StorageEntry* e = vec[i];
-        if (e->has_fragment_metadata) {
+        if (e->requires_exact_allocation) {
           TVM_FFI_ICHECK_EQ(e->allocs.size(), 1U);
           TVM_FFI_ICHECK(e->merged_children.empty());
           e->alloc_var = e->allocs[0]->var;
@@ -1117,7 +1118,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           auto storage_scope = StorageScope::Create(scope);
           StorageEntry* dst_entry = nullptr;
           // inplace detection
-          if (detect_inplace && !HasFragmentMetadata(call)) {
+          if (detect_inplace && !RequiresExactAllocation(call)) {
             DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
             PrimType element_type(dtype);
             // only one inplace var for s.stmt
@@ -1126,7 +1127,7 @@ class StoragePlanRewriter : public StmtExprMutator {
               if (!inplace_flag.count(src) && alloc_map_.count(src)) {
                 auto visitor = ffi::make_object<InplaceOpVerifier>();
                 StorageEntry* src_entry = alloc_map_.at(src);
-                if (!src_entry->has_fragment_metadata && src_entry->scope == storage_scope &&
+                if (!src_entry->requires_exact_allocation && src_entry->scope == storage_scope &&
                     src_entry->attach_scope_ == thread_scope_ && !element_type.IsScalableVector() &&
                     src_entry->elem_type == element_type.WithLanes(1) &&
                     visitor->Check(s.stmt, var, src)) {
@@ -1196,7 +1197,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     entry->scope = scope;
     entry->elem_type = element_type.WithLanes(1);
     entry->const_nbits = const_nbits;
-    entry->has_fragment_metadata = HasFragmentMetadata(call);
+    entry->requires_exact_allocation = RequiresExactAllocation(call);
     StorageEntry* e = entry.get();
     alloc_vec_.emplace_back(std::move(entry));
     return e;
@@ -1233,7 +1234,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     bool is_small_array = (scope.tag.length() == 0) && (scope.rank >= StorageRank::kWarp ||
                                                         (is_known_size && const_nbits <= 32));
 
-    if (HasFragmentMetadata(call) || is_scalable_vector || !enable_reuse || is_small_array ||
+    if (RequiresExactAllocation(call) || is_scalable_vector || !enable_reuse || is_small_array ||
         !is_flat_memory_space) {
       return NewAlloc(op, attach_scope, scope, const_nbits);
     }
@@ -1290,7 +1291,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     TVM_FFI_ICHECK(it != alloc_map_.end());
     StorageEntry* e = it->second;
     TVM_FFI_ICHECK_NE(e->allocs.size(), 0U);
-    if (e->has_fragment_metadata) return;
+    if (e->requires_exact_allocation) return;
 
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
@@ -2011,12 +2012,13 @@ class VectorTypeRewriter : public StmtExprMutator {
     if (new_buf.same_as(op->var.as_or_throw<TensorVar>())) {
       return ffi::Unchanged();
     }
+    ffi::Array<Expr> args = buffer_call->args;
+    args.Set(0, tvm::Tuple(new_buf->shape, buffer_call->args[0]->span));
+    args.Set(1, DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span));
+    args.Set(2, StringImm(new_buf.scope(), buffer_call->args[2]->span));
     return Bind(new_buf.var(),
-                Call(new_buf.type(), tirx::alloc_tensor_op(),
-                     {tvm::Tuple(new_buf->shape, buffer_call->args[0]->span),
-                      DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span),
-                      StringImm(new_buf.scope(), buffer_call->args[2]->span)},
-                     buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
+                Call(new_buf.type(), tirx::alloc_tensor_op(), args, buffer_call->attrs,
+                     buffer_call->ty_args, buffer_call->span),
                 op->span);
   }
 

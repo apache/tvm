@@ -122,10 +122,48 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
+  UnchangedOr<PrimExpr> Mutate_(const prim::CastNode* op, InplaceMode inplace_mode) final {
+    // A local TMEM producer exposes the encoded address directly.  Parameters and
+    // pointer-backed aliases retain the ordinary pointer projection conversion.
+    if (op->ty == PrimType::UInt(32)) {
+      const auto* integer = op->value.as<CallNode>();
+      if (integer && integer->op.same_as(reinterpret_op()) && integer->args.size() == 1 &&
+          integer->ty == PrimType::UInt(64)) {
+        const auto* pointer = integer->args[0].as<CallNode>();
+        if (pointer && pointer->op.same_as(tensor_data_ptr_op()) && pointer->args.size() == 1) {
+          if (auto var = pointer->args[0].as<Var>()) {
+            if (auto definition = def_site_.Get(var.value())) {
+              const auto* producer = definition.value()->value.as<CallNode>();
+              if (producer && producer->op.same_as(Op::Get("tirx.cuda.decl_tmem"))) {
+                PrimExpr address = producer->args[0].as_or_throw<PrimExpr>();
+                address = Mutate(address, InplaceMode::kDisallow).ValueOrUnchanged(address);
+                return prim::Cast(PrimType::UInt(32), address);
+              }
+            }
+          }
+        }
+      }
+    }
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
+  }
+
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    def_site_.Set(op->var, ffi::GetRef<Bind>(op));
     if (const auto* call = op->value.as<CallNode>(); call) {
       if (call->op.same_as(alloc_tensor_op())) return MutateAllocTensor(op, call, inplace_mode);
       if (call->op.same_as(decl_tensor_op())) return MutateDeclTensor(op, call, inplace_mode);
+      if (call->op.same_as(Op::Get("tirx.cuda.decl_tmem"))) {
+        auto buffer = op->var.as_or_throw<TensorVar>();
+        // TMEM is already allocated by the pool.  Retain an explicit backing pointer so
+        // ordinary data projections also work for views and function parameters.
+        Call declaration(buffer.type(), decl_tensor_op(),
+                         {Call(buffer->DataPointerType(), reinterpret_op(), {call->args[0]}),
+                          tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                          StringImm(buffer.scope())});
+        Bind binding(op->var, declaration, op->span);
+        return MutateDeclTensor(binding.get(), declaration.get(), inplace_mode)
+            .ValueOrUnchanged(binding);
+      }
     }
     return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
@@ -140,15 +178,16 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
       return GetFlattenedTensor(buf, /*is_alloc=*/true);
     };
     auto buffer = mutate(op->var.as_or_throw<TensorVar>());
-    if (buffer.same_as(op->var.as_or_throw<TensorVar>())) {
-      return ffi::Unchanged();
+    ffi::Array<Expr> args = buffer_call->args;
+    args.Set(0, tvm::Tuple(buffer->shape, buffer_call->args[0]->span));
+    args.Set(1, DataTypeImm(buffer->dtype->dtype, buffer_call->args[1]->span));
+    args.Set(2, StringImm(buffer.scope(), buffer_call->args[2]->span));
+    if (args.size() == 4) {
+      args.Set(3, Mutate(args[3], inplace_mode).ValueOrUnchanged(args[3]));
     }
     return Bind(buffer.var(),
-                Call(buffer.type(), tirx::alloc_tensor_op(),
-                     {tvm::Tuple(buffer->shape, buffer_call->args[0]->span),
-                      DataTypeImm(buffer->dtype->dtype, buffer_call->args[1]->span),
-                      StringImm(buffer.scope(), buffer_call->args[2]->span)},
-                     buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
+                Call(buffer.type(), tirx::alloc_tensor_op(), args, buffer_call->attrs,
+                     buffer_call->ty_args, buffer_call->span),
                 op->span);
   }
 
@@ -234,14 +273,6 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
       type->strides.Set(
           i, StmtExprMutator::Mutate(ffi::AnyView(type->strides[i]), InplaceMode::kDisallow)
                  .ValueOrUnchanged(type->strides[i])
-                 .as_or_throw<PrimExpr>());
-    }
-    // TMEM addresses may load from an allocation whose variable was rebuilt
-    // above. Keep the type metadata in sync with the declaration's pointer.
-    for (size_t i = 0; i < type->allocated_addr.size(); ++i) {
-      type->allocated_addr.Set(
-          i, StmtExprMutator::Mutate(ffi::AnyView(type->allocated_addr[i]), InplaceMode::kDisallow)
-                 .ValueOrUnchanged(type->allocated_addr[i])
                  .as_or_throw<PrimExpr>());
     }
     type->layout = std::nullopt;
@@ -360,6 +391,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
 
   /*! \brief Physical roots of buffer aliases, flattened at each declaration. */
   ffi::Map<Var, Var> buffer_aliases_;
+  ffi::Map<Var, Bind> def_site_;
   const Target& target_;
 };
 

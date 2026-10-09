@@ -40,6 +40,14 @@ from tvm.tirx.operator.intrinsics._common import TCGEN05_CTA_GROUP as _TCGEN05_C
 
 tir = tirx
 
+
+def _tmem_address(tensor):
+    """Recover the encoded 32-bit address from an explicit TMEM backing pointer."""
+    if tensor.scope() != "tmem":
+        raise ValueError("Expected a TMEM tensor")
+    return tirx.Cast("uint32", tirx.reinterpret("uint64", tensor.data))
+
+
 ########################################################
 # CUDA native builtins
 ########################################################

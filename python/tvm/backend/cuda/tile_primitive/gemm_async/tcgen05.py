@@ -21,6 +21,7 @@ import functools
 import operator
 
 import tvm
+from tvm.backend.cuda.op import _tmem_address
 from tvm.ir import (
     Bind,
     Call,
@@ -1030,8 +1031,7 @@ def gemm_async_tcgen05_impl(op_call: TensorCall, sctx: DispatchContext) -> Funct
         base.shard, base.replica, C_slice_layout.offset
     ).canonicalize()
     tvm.ir.assert_structural_equal(C_slice_layout.canonicalize(), expected_c_layout)
-    assert C_buffer.allocated_addr is not None
-    tmem_addr = C_buffer.allocated_addr[0]
+    tmem_addr = _tmem_address(C_buffer)
     tmem_lane_offset = C_slice_layout.offset.get(TLane, 0)
     tmem_offset_32b = C_slice_layout.offset.get(TCol, 0)
 
@@ -1061,8 +1061,7 @@ def gemm_async_tcgen05_impl(op_call: TensorCall, sctx: DispatchContext) -> Funct
                     "gemm_async[tcgen05]: TMEM A layout does not match "
                     "tmem_pool.alloc_tcgen05_mma_A semantic layout"
                 ) from err
-        assert A_buffer.allocated_addr is not None, "TMEM A buffer must have allocated_addr"
-        A_tmem_addr = A_buffer.allocated_addr[0]
+        A_tmem_addr = _tmem_address(A_buffer)
         A_elem_per_32b = 32 // DataType(A_type).bits
         A_tmem_lane_offset = A_slice_layout.offset.get(TLane, 0)
         # TCol offset is in element units (not 32-bit columns) for sub-32-bit dtypes.
@@ -1279,8 +1278,8 @@ def gemm_async_tcgen05_impl(op_call: TensorCall, sctx: DispatchContext) -> Funct
         sfa_elems_per_ki = SFA_K_total // K_iters if K_iters > 0 else 0
         sfb_elems_per_ki = SFB_K_total // K_iters if K_iters > 0 else 0
 
-        sfa_base = SFA_buffer.allocated_addr[0]
-        sfb_base = SFB_buffer.allocated_addr[0]
+        sfa_base = _tmem_address(SFA_buffer)
+        sfb_base = _tmem_address(SFB_buffer)
 
         # Rotate sf_id per ki when multiple ki share one SF column.
         needs_sf_id = sfa_sf_mma_k < SFA_elem_per_col and sfa_elems_per_ki > 0

@@ -17,10 +17,10 @@
 
 import tvm
 import tvm.testing
+from tvm.backend.trn.transform import TrnPrivateBufferAlloc
 from tvm.ir import assert_structural_equal
 from tvm.script import tirx as T
 from tvm.tirx.layout import F, P, S, TileLayout
-from tvm.tirx.trn.transform import TrnPrivateBufferAlloc
 
 target = tvm.target.Target("aws/trn1/trn1.2xlarge")
 

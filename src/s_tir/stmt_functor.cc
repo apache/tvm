@@ -64,6 +64,12 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBlock(tirx::StmtExprVisitor*
         kTVMFFIDefRegionKindSimple, [&]() { return visitor->Visit(match_buffer_region->buffer); }));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(match_buffer_region->source));
   }
+  if (auto addresses = op->annotations.Get(attr::buffer_allocated_addr)) {
+    // The owner reference identifies the allocation; it is not a data access.
+    for (const auto& entry : addresses.value().cast<BufferAllocatedAddresses>()) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(entry.get<1>()));
+    }
+  }
   for (const TensorRegion& region : op->reads) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(region));
   }
@@ -131,6 +137,13 @@ UnchangedOr<Stmt> StmtExprMutator::MutateBlock(tirx::StmtExprMutator* mutator, c
           .as_or_throw<UnchangedOr<ffi::Array<TensorVar>>>();
   auto match_buffers = mutator->Mutate(op->match_buffers, inplace_mode)
                            .as_or_throw<UnchangedOr<ffi::Array<MatchBufferRegion>>>();
+  auto annotations = op->annotations;
+  if (auto addresses = annotations.Get(attr::buffer_allocated_addr)) {
+    auto updated = mutator->Mutate(addresses.value(), InplaceMode::kDisallow);
+    if (!updated.IsUnchanged()) {
+      annotations.Set(attr::buffer_allocated_addr, std::move(updated).ValueUnchecked());
+    }
+  }
   auto reads =
       mutator->Mutate(op->reads, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<TensorRegion>>>();
   auto writes = mutator->Mutate(op->writes, inplace_mode)
@@ -140,10 +153,12 @@ UnchangedOr<Stmt> StmtExprMutator::MutateBlock(tirx::StmtExprMutator* mutator, c
   if (iter_vars.UnchangedOrSameAs(op->iter_vars) &&
       alloc_buffers.UnchangedOrSameAs(op->alloc_buffers) && reads.UnchangedOrSameAs(op->reads) &&
       writes.UnchangedOrSameAs(op->writes) && match_buffers.UnchangedOrSameAs(op->match_buffers) &&
-      init.UnchangedOrSameAs(op->init) && body.UnchangedOrSameAs(op->body))
+      init.UnchangedOrSameAs(op->init) && body.UnchangedOrSameAs(op->body) &&
+      annotations.same_as(op->annotations))
     return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<SBlockNode*>(op);
+    writable->annotations = std::move(annotations);
     if (!iter_vars.IsUnchanged()) writable->iter_vars = std::move(iter_vars).ValueUnchecked();
     if (!alloc_buffers.IsUnchanged())
       writable->alloc_buffers = std::move(alloc_buffers).ValueUnchecked();
@@ -156,6 +171,7 @@ UnchangedOr<Stmt> StmtExprMutator::MutateBlock(tirx::StmtExprMutator* mutator, c
     return ffi::Unchanged();
   }
   auto copy = ffi::make_object<SBlockNode>(*op);
+  copy->annotations = std::move(annotations);
   if (!iter_vars.IsUnchanged()) copy->iter_vars = std::move(iter_vars).ValueUnchecked();
   if (!alloc_buffers.IsUnchanged()) copy->alloc_buffers = std::move(alloc_buffers).ValueUnchecked();
   if (!reads.IsUnchanged()) copy->reads = std::move(reads).ValueUnchecked();

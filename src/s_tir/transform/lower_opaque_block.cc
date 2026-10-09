@@ -79,6 +79,12 @@ class OpaqueBlockLower : public StmtExprMutator {
       body = If(predicate, std::move(body));
     }
     // Step 3. Handle allocations in reverse order
+    ffi::Map<Var, ffi::Array<PrimExpr>> addresses;
+    if (auto value = new_block->annotations.Get(s_tir::attr::buffer_allocated_addr)) {
+      for (const auto& entry : value.value().cast<BufferAllocatedAddresses>()) {
+        addresses.Set(entry.get<0>(), entry.get<1>());
+      }
+    }
     for (size_t i = new_block->alloc_buffers.size(); i > 0; --i) {
       const TensorVar& buffer = new_block->alloc_buffers[i - 1];
       ffi::Map<ffi::String, ffi::Any> allocate_annotations;
@@ -93,13 +99,12 @@ class OpaqueBlockLower : public StmtExprMutator {
       }
       allocate_annotations.Set(tirx::attr::buffer_data_alignment,
                                IntImm::Int32(buffer->data_alignment));
-      allocate_annotations.Set(tirx::attr::buffer_allocated_addr, buffer->allocated_addr);
-      body = SeqStmt(
-          {Bind(buffer.var(), Call(buffer.type(), tirx::alloc_tensor_op(),
-                                   {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                                    StringImm(buffer.scope())},
-                                   DictAttrs(allocate_annotations))),
-           std::move(body)});
+      ffi::Array<Expr> args{tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                            StringImm(buffer.scope())};
+      if (auto address = addresses.Get(buffer.var())) args.push_back(tvm::Tuple(address.value()));
+      body = SeqStmt({Bind(buffer.var(), Call(buffer.type(), tirx::alloc_tensor_op(), args,
+                                              DictAttrs(allocate_annotations))),
+                      std::move(body)});
     }
     return body;
   }

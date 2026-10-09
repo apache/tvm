@@ -130,7 +130,8 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
   bool is_root_block_ = true;
 };
 
-Function ScriptComplete(Function func, const ffi::Array<TensorVar>& root_allocates) {
+Function ScriptComplete(Function func, const ffi::Array<TensorVar>& root_allocates,
+                        const BufferAllocatedAddresses& root_addresses) {
   if (!func->body.has_value()) return func;
   ffi::Map<Var, TensorVar> buffer_var_map;
   for (const Var& param : func->params) {
@@ -164,7 +165,12 @@ Function ScriptComplete(Function func, const ffi::Array<TensorVar>& root_allocat
   }();
 
   if (should_insert_root) {
-    s_tir::SBlock root_block({}, {}, {}, "root", std::move(res), std::nullopt, root_allocates);
+    ffi::Map<ffi::String, ffi::Any> annotations;
+    if (!root_addresses.empty()) {
+      annotations.Set(s_tir::attr::buffer_allocated_addr, root_addresses);
+    }
+    s_tir::SBlock root_block({}, {}, {}, "root", std::move(res), std::nullopt, root_allocates, {},
+                             annotations);
     res = s_tir::SBlockRealize({}, IntImm::Bool(true), std::move(root_block));
   }
 
@@ -183,7 +189,10 @@ Function ScriptComplete(Function func, const ffi::Array<TensorVar>& root_allocat
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("s_tir.script.Complete", ScriptComplete);
+  refl::GlobalDef().def("s_tir.script.Complete",
+                        [](Function func, const ffi::Array<TensorVar>& root_allocates) {
+                          return ScriptComplete(std::move(func), root_allocates);
+                        });
 }
 
 }  // namespace s_tir

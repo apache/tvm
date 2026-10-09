@@ -296,12 +296,11 @@ def _run_roundtrip_16b(
 
             T.gpu_storage_sync("shared")
 
-            tmem = T.decl_tensor(
-                (tmem_rows, stage_width_elem),
-                dtype,
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=tmem_layout,
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[
+                    T.Tensor((tmem_rows, stage_width_elem), dtype, scope="tmem", layout=tmem_layout)
+                ],
             )
 
             # Load per-thread A → reg_in
@@ -535,26 +534,17 @@ def test_tcgen05_16xnb_sub_slab_view_read(shape, rep):
                     T.address_of(tmem_addr), T.uint32(tmem_cols)
                 )
             T.gpu_storage_sync("shared")
-            tmem_d = T.decl_tensor(
-                (128, tmem_cols),
-                dtype,
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=layout_d,
+            tmem_d = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[T.Tensor((128, tmem_cols), dtype, scope="tmem", layout=layout_d)],
             )
-            tmem_f0 = T.decl_tensor(
-                (64, tmem_cols),
-                dtype,
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=layout_f0,
+            tmem_f0 = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[T.Tensor((64, tmem_cols), dtype, scope="tmem", layout=layout_f0)],
             )
-            tmem_f1 = T.decl_tensor(
-                (64, tmem_cols),
-                dtype,
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=layout_f1,
+            tmem_f1 = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[T.Tensor((64, tmem_cols), dtype, scope="tmem", layout=layout_f1)],
             )
             source = T.alloc_local((regs128,), dtype)
             for i in range(regs128):
@@ -655,12 +645,13 @@ def test_layout_F_rejects_incompatible_atoms(atom_kind, frag_rows):
         tmem_addr = T.alloc_shared([1], "uint32")
         if wg_id == 0:
             T.gpu_storage_sync("shared")
-            tmem = T.decl_tensor(
-                (tmem_rows, stage_width_elem),
-                "float32",
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=tmem_layout,
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[
+                    T.Tensor(
+                        (tmem_rows, stage_width_elem), "float32", scope="tmem", layout=tmem_layout
+                    )
+                ],
             )
             frag = T.alloc_local((local_extent_rows * local_cols // 128,), "float32")
             frag_view = frag.view(local_extent_rows, local_cols, layout=atom_view)
@@ -689,12 +680,9 @@ def test_layout_B_rejects_16xnb_fragment():
         T.warp_id_in_wg([4])
         T.lane_id([32])
         tmem_addr = T.alloc_shared([1], "uint32")
-        tmem = T.decl_tensor(
-            (64, n_cols),
-            "float32",
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=tmem_layout,
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[T.Tensor((64, n_cols), "float32", scope="tmem", layout=tmem_layout)],
         )
         frag = T.alloc_local((n_cols // 2,), "float32")
         frag_view = frag.view(64, n_cols, layout=wrong_layout)
@@ -718,12 +706,16 @@ def test_layout_B_rejects_partial_column_copy():
         T.warp_id_in_wg([4])
         T.lane_id([32])
         tmem_addr = T.alloc_shared([1], "uint32")
-        tmem = T.decl_tensor(
-            (64, n_cols),
-            "float32",
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=tmem_datapath_layout("B", 64, n_cols),
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[
+                T.Tensor(
+                    (64, n_cols),
+                    "float32",
+                    scope="tmem",
+                    layout=tmem_datapath_layout("B", 64, n_cols),
+                )
+            ],
         )
         frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, n_cols), "float32")
         T.cuda.tile.tcgen05.ld(frag[:, : n_cols // 2], tmem[:, : n_cols // 2], scope="warpgroup")
@@ -747,12 +739,16 @@ def test_datapath_B_codegen(direction):
         T.warp_id_in_wg([4])
         T.lane_id([32])
         tmem_addr = T.alloc_shared([1], "uint32")
-        tmem = T.decl_tensor(
-            (64, n_cols),
-            "float32",
-            scope="tmem",
-            allocated_addr=tmem_addr[0] + 32,
-            layout=tmem_datapath_layout("B", 64, n_cols),
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0] + 32,
+            ty_args=[
+                T.Tensor(
+                    (64, n_cols),
+                    "float32",
+                    scope="tmem",
+                    layout=tmem_datapath_layout("B", 64, n_cols),
+                )
+            ],
         )
         frag = T.alloc_tcgen05_ldst_frag("32x32b", (64, n_cols), "float32")
         if T.constexpr(direction == "ld"):
@@ -796,12 +792,16 @@ def test_datapath_B_ld_st_roundtrip(n_cols, col_offset):
                     T.address_of(tmem_addr), T.uint32(tmem_cols)
                 )
             T.gpu_storage_sync("shared")
-            tmem = T.decl_tensor(
-                (64, n_cols),
-                "float32",
-                scope="tmem",
-                allocated_addr=tmem_addr[0] + col_offset,
-                layout=tmem_datapath_layout("B", 64, n_cols),
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0] + col_offset,
+                ty_args=[
+                    T.Tensor(
+                        (64, n_cols),
+                        "float32",
+                        scope="tmem",
+                        layout=tmem_datapath_layout("B", 64, n_cols),
+                    )
+                ],
             )
 
             frag_in = T.alloc_tcgen05_ldst_frag("32x32b", (64, n_cols), "float32")
@@ -911,12 +911,16 @@ def _run_load_test(shape: str, rep: int, dtype: str):
 
             T.gpu_storage_sync("shared")
 
-            tmem = T.decl_tensor(
-                (128, stage_width_elem),
-                dtype,
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=TileLayout(S[(128, stage_width_elem) : (1 @ TLane, 1 @ TCol)]),
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[
+                    T.Tensor(
+                        (128, stage_width_elem),
+                        dtype,
+                        scope="tmem",
+                        layout=TileLayout(S[(128, stage_width_elem) : (1 @ TLane, 1 @ TCol)]),
+                    )
+                ],
             )
 
             # Per-thread chunk staging buffer (CHUNK_FP32 fp32 worth).
@@ -1082,12 +1086,16 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
 
             T.gpu_storage_sync("shared")
 
-            tmem = T.decl_tensor(
-                (128, stage_width_elem),
-                dtype,
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=TileLayout(S[(128, stage_width_elem) : (1 @ TLane, 1 @ TCol)]),
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[
+                    T.Tensor(
+                        (128, stage_width_elem),
+                        dtype,
+                        scope="tmem",
+                        layout=TileLayout(S[(128, stage_width_elem) : (1 @ TLane, 1 @ TCol)]),
+                    )
+                ],
             )
 
             # Load per-thread A → frag_reg
@@ -1208,12 +1216,16 @@ def test_alloc_tcgen05_frag_wrapper_compiles(shape, frag_rows, K_cols):
                     T.address_of(tmem_addr), T.uint32(max(32, K_cols))
                 )
             T.gpu_storage_sync("shared")
-            tmem = T.decl_tensor(
-                (128, K_cols),
-                "float32",
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=TileLayout(S[(128, K_cols) : (1 @ TLane, 1 @ TCol)]),
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[
+                    T.Tensor(
+                        (128, K_cols),
+                        "float32",
+                        scope="tmem",
+                        layout=TileLayout(S[(128, K_cols) : (1 @ TLane, 1 @ TCol)]),
+                    )
+                ],
             )
             # One-liner: wrapper handles per-thread storage + layout.
             frag = T.alloc_tcgen05_ldst_frag(shape, (frag_rows, K_cols), "float32")
@@ -1261,12 +1273,16 @@ def test_tcgen05_32x32b_float32_keeps_typed_register_operands():
                     T.address_of(tmem_addr), T.uint32(K_cols)
                 )
             T.gpu_storage_sync("shared")
-            tmem = T.decl_tensor(
-                (128, K_cols),
-                "float32",
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=TileLayout(S[(128, K_cols) : (1 @ TLane, 1 @ TCol)]),
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[
+                    T.Tensor(
+                        (128, K_cols),
+                        "float32",
+                        scope="tmem",
+                        layout=TileLayout(S[(128, K_cols) : (1 @ TLane, 1 @ TCol)]),
+                    )
+                ],
             )
             frag = T.alloc_tcgen05_ldst_frag("32x32b", (128, K_cols), "float32")
             T.cuda.tile.tcgen05.ld(frag[:, :], tmem[:, :], scope="warpgroup")
@@ -1311,12 +1327,16 @@ def test_tcgen05_ldst_constant_tmem_address_is_uint32():
         T.thread_id([128])
 
         if wg_id == 0:
-            tmem = T.decl_tensor(
-                (128, K_cols),
-                "float32",
-                scope="tmem",
-                allocated_addr=0,
-                layout=TileLayout(S[(128, K_cols) : (1 @ TLane, 1 @ TCol)]),
+            tmem = T.cuda.decl_tmem(
+                0,
+                ty_args=[
+                    T.Tensor(
+                        (128, K_cols),
+                        "float32",
+                        scope="tmem",
+                        layout=TileLayout(S[(128, K_cols) : (1 @ TLane, 1 @ TCol)]),
+                    )
+                ],
             )
             frag = T.alloc_tcgen05_ldst_frag("32x32b", (128, K_cols), "float32")
             T.cuda.tile.tcgen05.ld(frag[:, :], tmem[:, :], scope="warpgroup")
@@ -1404,12 +1424,16 @@ def _run_sliced_vs_full_load(shape, full_rep, n_chunks):
                     T.address_of(tmem_addr), T.uint32(tmem_col_width_32b)
                 )
             T.gpu_storage_sync("shared")
-            tmem = T.decl_tensor(
-                (128, stage_width_elem),
-                dtype,
-                scope="tmem",
-                allocated_addr=tmem_addr[0],
-                layout=TileLayout(S[(128, stage_width_elem) : (1 @ TLane, 1 @ TCol)]),
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[
+                    T.Tensor(
+                        (128, stage_width_elem),
+                        dtype,
+                        scope="tmem",
+                        layout=TileLayout(S[(128, stage_width_elem) : (1 @ TLane, 1 @ TCol)]),
+                    )
+                ],
             )
             # Stage A -> TMEM via the standard .32x32b path.
             stage_reg = T.alloc_local((stage_w,), dtype)
@@ -1550,8 +1574,15 @@ def test_copy_tmem2reg_async(dtype, width_32b):
 
             T.gpu_storage_sync("shared")
 
-            tmem = T.decl_tensor((128, WIDTH), dtype, scope="tmem", allocated_addr=tmem_addr[0],
-                                 layout=TileLayout(S[(128, WIDTH) : (1 @ TLane, 1 @ TCol)]))
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[T.Tensor(
+                    (128, WIDTH),
+                    dtype,
+                    scope="tmem",
+                    layout=TileLayout(S[(128, WIDTH) : (1 @ TLane, 1 @ TCol)]),
+                )],
+            )
 
             A_reg = T.alloc_local((WIDTH), dtype)
             B_reg = T.alloc_local((WIDTH), dtype)
@@ -1646,8 +1677,7 @@ def test_copy_tmem2reg(dtype, width_32b, offset_32b):
 
             T.gpu_storage_sync("shared")
 
-            tmem = T.decl_tensor((128, OFFSET + WIDTH), dtype, scope="tmem", allocated_addr=tmem_addr[0],  # noqa: E501
-                                 layout=TileLayout(S[(128, OFFSET + WIDTH) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
+            tmem = T.cuda.decl_tmem(tmem_addr[0], ty_args=[T.Tensor((128, OFFSET + WIDTH), dtype, scope="tmem", layout=TileLayout(S[(128, OFFSET + WIDTH) : (1 @ TLane, 1 @ TCol)]))])  # noqa: E501
 
             A_reg = T.alloc_local((WIDTH), dtype)
             B_reg = T.alloc_local((WIDTH), dtype)
@@ -1747,8 +1777,15 @@ def test_copy_tmem2reg_sliced_local(dtype, width_32b, local_offset_32b):
 
             T.gpu_storage_sync("shared")
 
-            tmem = T.decl_tensor((128, WIDTH), dtype, scope="tmem", allocated_addr=tmem_addr[0],
-                                 layout=TileLayout(S[(128, WIDTH) : (1 @ TLane, 1 @ TCol)]))
+            tmem = T.cuda.decl_tmem(
+                tmem_addr[0],
+                ty_args=[T.Tensor(
+                    (128, WIDTH),
+                    dtype,
+                    scope="tmem",
+                    layout=TileLayout(S[(128, WIDTH) : (1 @ TLane, 1 @ TCol)]),
+                )],
+            )
 
             A_reg = T.alloc_local((TOTAL_LOCAL_WIDTH), dtype)
             B_reg = T.alloc_local((TOTAL_LOCAL_WIDTH), dtype)

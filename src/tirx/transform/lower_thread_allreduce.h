@@ -134,12 +134,13 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     if (replacement.scope() == "shared") {
       annotations.CopyOnWrite()->dict.Set(tirx::attr::kVolatile, true);
     }
+    ffi::Array<Expr> args = call->args;
+    args.Set(0, tvm::Tuple(replacement->shape, call->args[0]->span));
+    args.Set(1, DataTypeImm(replacement->dtype->dtype, call->args[1]->span));
+    args.Set(2, StringImm(replacement.scope(), call->args[2]->span));
     return Bind(replacement.var(),
-                Call(replacement.type(), tirx::alloc_tensor_op(),
-                     {tvm::Tuple(replacement->shape, call->args[0]->span),
-                      DataTypeImm(replacement->dtype->dtype, call->args[1]->span),
-                      StringImm(replacement.scope(), call->args[2]->span)},
-                     annotations, call->ty_args, call->span),
+                Call(replacement.type(), tirx::alloc_tensor_op(), args, annotations, call->ty_args,
+                     call->span),
                 node->span);
   }
 
@@ -989,12 +990,13 @@ class DeferredRemapper : public DialectMutator {
         if (replacement.scope() == "shared") {
           annotations.CopyOnWrite()->dict.Set(tirx::attr::kVolatile, true);
         }
+        ffi::Array<Expr> args = call->args;
+        args.Set(0, tvm::Tuple(replacement->shape, call->args[0]->span));
+        args.Set(1, DataTypeImm(replacement->dtype->dtype, call->args[1]->span));
+        args.Set(2, StringImm(replacement.scope(), call->args[2]->span));
         return Bind(replacement.var(),
-                    Call(replacement.type(), tirx::alloc_tensor_op(),
-                         {tvm::Tuple(replacement->shape, call->args[0]->span),
-                          DataTypeImm(replacement->dtype->dtype, call->args[1]->span),
-                          StringImm(replacement.scope(), call->args[2]->span)},
-                         annotations, call->ty_args, call->span),
+                    Call(replacement.type(), tirx::alloc_tensor_op(), args, annotations,
+                         call->ty_args, call->span),
                     node->span);
       }
     }

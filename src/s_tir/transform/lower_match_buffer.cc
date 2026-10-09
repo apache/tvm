@@ -89,6 +89,23 @@ class MatchBufferLower : public StmtExprMutator {
       return stmt;
     } else {
       auto* n = stmt.CopyOnWrite();
+      // Match buffers are aliases of their source region. Their placement belongs
+      // to that alias definition, which disappears along with the match buffer.
+      if (auto value = n->annotations.Get(s_tir::attr::buffer_allocated_addr)) {
+        BufferAllocatedAddresses addresses;
+        for (const auto& entry : value.value().cast<BufferAllocatedAddresses>()) {
+          bool is_alias = false;
+          for (const auto& match : n->match_buffers) {
+            is_alias |= entry.get<0>().same_as(match->buffer.var());
+          }
+          if (!is_alias) addresses.push_back(entry);
+        }
+        if (addresses.empty()) {
+          n->annotations.erase(s_tir::attr::buffer_allocated_addr);
+        } else {
+          n->annotations.Set(s_tir::attr::buffer_allocated_addr, addresses);
+        }
+      }
       n->match_buffers = {};
       n->reads = std::move(reads);
       n->writes = std::move(writes);

@@ -631,12 +631,13 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
       type->shape = new_shape;
       TensorVar new_buffer = RebuildTensorVar(op->var.as_or_throw<TensorVar>(), std::move(type));
       VarRemapSet(op->var.as_or_throw<TensorVar>(), new_buffer);
+      ffi::Array<Expr> args = call->args;
+      args.Set(0, tvm::Tuple(new_buffer->shape, call->args[0]->span));
+      args.Set(1, DataTypeImm(new_buffer->dtype->dtype, call->args[1]->span));
+      args.Set(2, StringImm(new_buffer.scope(), call->args[2]->span));
       return Bind(new_buffer.var(),
-                  Call(new_buffer.type(), tirx::alloc_tensor_op(),
-                       {tvm::Tuple(new_buffer->shape, call->args[0]->span),
-                        DataTypeImm(new_buffer->dtype->dtype, call->args[1]->span),
-                        StringImm(new_buffer.scope(), call->args[2]->span)},
-                       call->attrs, call->ty_args, call->span),
+                  Call(new_buffer.type(), tirx::alloc_tensor_op(), args, call->attrs, call->ty_args,
+                       call->span),
                   op->span);
     }
   }

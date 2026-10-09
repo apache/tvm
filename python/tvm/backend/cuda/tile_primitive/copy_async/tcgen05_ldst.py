@@ -23,6 +23,7 @@ Callers that want sync semantics should issue the matching wait after the copy.
 """
 
 import tvm
+from tvm.backend.cuda.op import _tmem_address
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
@@ -240,7 +241,6 @@ def copy_tmem_local_impl(op_call: TensorCall, sctx: DispatchContext) -> Function
     assert tmem_buf.layout is not None
     assert local_buf.layout is not None
     assert tmem_buf.dtype == local_buf.dtype
-    assert tmem_buf.allocated_addr is not None
 
     analyzer = Analyzer()
     elem_size = DataType(local_buf.dtype).bits
@@ -342,7 +342,7 @@ def _emit_32x32b_path(
         @T.function(check_well_formed=False)
         def impl():
             local_storage = local_buf.view(local_buf.shape[1], layout=TileLayout(S[num]))
-            emit(tmem_buf.allocated_addr[0], 0, offset_32b, [local_storage[local_st[1]+i] for i in range(num)])  # noqa: E501
+            emit(_tmem_address(tmem_buf), 0, offset_32b, [local_storage[local_st[1]+i] for i in range(num)])  # noqa: E501
         # fmt: on
     else:
         # 16-bit fragments are packed two elements per b32 register operand.
@@ -351,7 +351,7 @@ def _emit_32x32b_path(
         def impl():
             local_storage = local_buf.view(local_buf.shape[1] * elem_per_32b, layout=TileLayout(S[num * elem_per_32b]))  # noqa: E501
             local_32b = local_storage.view("uint32")
-            emit(tmem_buf.allocated_addr[0], 0, offset_32b, [local_32b[local_st[1] // elem_per_32b+i] for i in range(num)])  # noqa: E501
+            emit(_tmem_address(tmem_buf), 0, offset_32b, [local_32b[local_st[1] // elem_per_32b+i] for i in range(num)])  # noqa: E501
         # fmt: on
     return impl
 
@@ -467,7 +467,7 @@ def _emit_16xnb_path(
         for slab in range(n_slabs):
             reg_base = slab * regs_per_thread_per_slab
             emit(
-                tmem_buf.allocated_addr[0],
+                _tmem_address(tmem_buf),
                 (sub_slab + slab) * 16,
                 col_off_32b,
                 [local_32b[local_reg_base + reg_base + i] for i in range(regs_eff)],
@@ -562,6 +562,6 @@ def _emit_datapath_b_path(
     def impl():
         local_storage = local_buf.view(n_half, layout=TileLayout(S[n_half]))
         local_32b = local_storage.view("uint32")
-        emit(tmem_buf.allocated_addr[0], 0, 0, [local_32b[i] for i in range(n_half)])
+        emit(_tmem_address(tmem_buf), 0, 0, [local_32b[i] for i in range(n_half)])
     # fmt: on
     return impl

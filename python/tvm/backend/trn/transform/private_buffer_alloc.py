@@ -19,16 +19,12 @@ import tvm_ffi
 from tvm.ir import (
     Bind,
     Call,
-    DataTypeImm,
-    DictAttrs,
     For,
     Op,
     Range,
     RegionStmt,
     SeqStmt,
     Stmt,
-    StringImm,
-    Tuple,
     Var,
 )
 from tvm.target import Target
@@ -90,7 +86,7 @@ def _collect_private_allocations(stmt: Stmt, target: Target):
 
 def _inject_private_allocations(
     stmt: Stmt,
-    alloc_buffers: list[Var],
+    alloc_buffers: list[Bind],
     init_stmts: list[Stmt],
     added_workspace: dict[Call, dict[str, Var]],
 ) -> Stmt:
@@ -107,20 +103,7 @@ def _inject_private_allocations(
                 body = op.body
                 for init_stmt in init_stmts:
                     body = seek_kernel_replace_point(init_stmt, body)
-                for buffer in reversed(alloc_buffers):
-                    allocation = Bind(
-                        buffer,
-                        Call(
-                            "tirx.alloc_tensor",
-                            [
-                                Tuple(buffer.ty.shape),
-                                DataTypeImm(buffer.ty.dtype.dtype),
-                                StringImm(buffer.scope()),
-                            ],
-                            attrs=DictAttrs({}),
-                            ty=buffer.ty,
-                        ),
-                    )
+                for allocation in reversed(alloc_buffers):
                     body = SeqStmt([allocation, body])
                 return RegionStmt(
                     op.op, op.args, op.body_params, op.attrs, body, op.result_vars, op.span
@@ -144,10 +127,10 @@ def _inject_private_allocations(
 def private_alloc(stmt: Stmt, target: Target) -> Stmt:
     buffer_dict, private_buf_refs = _collect_private_allocations(stmt, target)
 
-    alloc_buffers = [buffer for buffer, _ in buffer_dict.values()]
+    alloc_buffers = [allocation for allocation, _ in buffer_dict.values()]
     init_stmts = [stmt for _, stmt in buffer_dict.values() if stmt is not None]
     added_workspace = {
-        op: {name: buffer_dict[ref][0] for name, ref in private_buf_refs[op].items()}
+        op: {name: buffer_dict[ref][0].var for name, ref in private_buf_refs[op].items()}
         for op in private_buf_refs
     }
 

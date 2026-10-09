@@ -83,14 +83,12 @@ class BufferReplacer:
             )
         else:
             new_layout = buffer.ty.layout
-        new_allocated_addr = [self._replace_expr(expr) for expr in buffer.ty.allocated_addr]
 
         unchanged = (
             all(old is new for old, new in zip(buffer.ty.shape, new_shape))
             and all(old is new for old, new in zip(buffer.ty.strides, new_strides))
             and buffer.ty.elem_offset is new_elem_offset
             and buffer.ty.layout is new_layout
-            and all(old is new for old, new in zip(buffer.ty.allocated_addr, new_allocated_addr))
         )
         if unchanged:
             return buffer
@@ -107,8 +105,6 @@ class BufferReplacer:
             buffer.ty.offset_factor,
             layout=new_layout,
         )
-        if new_allocated_addr:
-            new_buffer = new_buffer.with_allocated_addr(new_allocated_addr)
         self.buffer_map[buffer] = new_buffer
         self.var_map[buffer] = new_buffer
         return new_buffer

@@ -36,23 +36,23 @@ def _redecl(buf: Var, shape, layout, *, dtype=None, elem_offset=None, addr_offse
     column address, while every other scope carries
     ``data``/``strides``/``elem_offset`` through.
     """
-    if buf.scope() == "tmem" and buf.allocated_addr is not None and len(buf.allocated_addr) > 0:
-        addr = buf.allocated_addr[0]
+    if buf.scope() == "tmem":
+        from tvm.backend.cuda.op import _tmem_address  # pylint: disable=import-outside-toplevel
+        from tvm.tirx.script.ir_builder.parser_protocol import (
+            bind_,  # pylint: disable=import-outside-toplevel
+        )
+
+        addr = _tmem_address(buf)
         if addr_offset is not None:
             addr = addr + addr_offset
-        return tvm.tirx.script.ir_builder.decl_tensor(
+        ty = tvm.tirx.script.ir_builder.Tensor(
             shape,
             buf.dtype if dtype is None else dtype,
-            None,
-            None,
-            None,
-            None,
-            buf.scope(),
-            buf.data_alignment,
-            0,
-            layout,
-            allocated_addr=addr,
+            scope="tmem",
+            align=buf.data_alignment,
+            layout=layout,
         )
+        return bind_(tvm.ir.Call("tirx.cuda.decl_tmem", [addr], ty_args=[ty]))
     return tvm.tirx.script.ir_builder.decl_tensor(
         shape,
         buf.dtype if dtype is None else dtype,
@@ -350,9 +350,7 @@ def _swizzle_offset_commutes(swizzle, extra_offset):
 def _rebuild_view(buf: Var, new_shape, new_shard, grouped, swizzle, extra_offset):
     """Rebuild a derived view while preserving its physical addresses."""
     offset_map = dict(grouped.offset.items())
-    is_tmem = (
-        buf.scope() == "tmem" and buf.allocated_addr is not None and len(buf.allocated_addr) > 0
-    )
+    is_tmem = buf.scope() == "tmem"
     if (
         not is_tmem
         and extra_offset is not None
@@ -401,8 +399,8 @@ def _tmem_element_offset_to_column_offset(buf: Var, element_offset):
 
 
 def _tmem_offset_axis_check(buf: Var, group_iters, start_c, what):
-    """Check that a tmem view offset can move into ``allocated_addr``."""
-    if buf.allocated_addr is None or len(buf.allocated_addr) == 0:
+    """Check that a tmem view offset can move into the declaration address."""
+    if buf.scope() != "tmem":
         return
     if start_c == 0:
         return
@@ -412,7 +410,7 @@ def _tmem_offset_axis_check(buf: Var, group_iters, start_c, what):
             raise ValueError(
                 f"sub: tmem {what} with nonzero offset requires TCol-stride "
                 f"layout iters; dim iter has axis {axis_name!r} (a lane-axis "
-                f"offset cannot fold into the column allocated_addr)"
+                f"offset cannot fold into the column address)"
             )
 
 

@@ -51,7 +51,8 @@ tvm::tirx::Function FunctionFrameNode::FinalizeFunction(tvm::tirx::Function func
       << "A function declaration cannot allocate buffers";
   if (!is_declaration) {
     func = WithAttr(std::move(func), tvm::attr::kSTir, true);
-    func = tvm::s_tir::ScriptComplete(std::move(func), root_alloc_buffers);
+    func =
+        tvm::s_tir::ScriptComplete(std::move(func), root_alloc_buffers, root_allocated_addresses);
   }
   return func;
 }
@@ -75,6 +76,11 @@ void SBlockFrameNode::ExitWithScope() {
     tir_alloc_buffers.push_back(buffer);
   }
   ffi::Map<ffi::String, Any> attrs = annotations.value_or({});
+  if (!allocated_addresses.empty()) {
+    TVM_FFI_CHECK(!attrs.count(tvm::s_tir::attr::buffer_allocated_addr), ValueError)
+        << "Buffer placement must be specified on its allocation or match_buffer";
+    attrs.Set(tvm::s_tir::attr::buffer_allocated_addr, allocated_addresses);
+  }
   if (int detect_access = (!reads.has_value()) | (!writes.has_value() << 1)) {
     attrs.Set("tirx.script_parsing_detect_access", tvm::IntImm::Int64(detect_access));
   }

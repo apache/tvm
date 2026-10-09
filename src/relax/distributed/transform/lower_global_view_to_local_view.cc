@@ -262,7 +262,7 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
     }
     TensorType new_type(buffer->storage_scope, buffer->dtype, std::move(shape), buffer->strides,
                         buffer->elem_offset, buffer->data_alignment, buffer->offset_factor,
-                        buffer->layout, buffer->allocated_addr);
+                        buffer->layout);
     return TensorVar(buffer.name(), std::move(new_type), buffer.span());
   }
 

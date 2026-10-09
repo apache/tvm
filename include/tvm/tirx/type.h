@@ -95,12 +95,6 @@ class TensorTypeNode : public TypeNode {
   /*! \brief The layout of the buffer */
   ffi::Optional<Layout> layout;
 
-  /*! \brief The allocated address of the buffer.
-   * The address might be multi-dimensional based on its scope.
-   * For example, trn.psum takes 2D address, representing (bank, offset).
-   */
-  ffi::Array<PrimExpr> allocated_addr;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TensorTypeNode>()
@@ -112,8 +106,7 @@ class TensorTypeNode : public TypeNode {
                 refl::AttachFieldFlag::SEqHashDefSimple())
         .def_ro("data_alignment", &TensorTypeNode::data_alignment)
         .def_ro("offset_factor", &TensorTypeNode::offset_factor)
-        .def_ro("layout", &TensorTypeNode::layout)
-        .def_ro("allocated_addr", &TensorTypeNode::allocated_addr);
+        .def_ro("layout", &TensorTypeNode::layout);
   }
 
   /*! \return preferred index type for this buffer node */
@@ -155,8 +148,7 @@ class TensorType : public Type {
   TVM_DLL TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
                      ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
                      int data_alignment, int offset_factor,
-                     ffi::Optional<Layout> layout = std::nullopt,
-                     ffi::Array<PrimExpr> allocated_addr = {}, Span span = Span());
+                     ffi::Optional<Layout> layout = std::nullopt, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorType, Type, TensorTypeNode);
 

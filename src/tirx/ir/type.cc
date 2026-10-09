@@ -38,7 +38,7 @@ bool TensorTypeNode::IsScalar(bool alloc_or_decl) const {
   // TODO(@bohan): logical scope is not considered
   return shape.size() == 1 && tvm::prim::IsOne(shape[0]) && strides.empty() &&
          (!alloc_or_decl || tvm::prim::IsZero(elem_offset)) && data_alignment == 64 &&
-         offset_factor == 1 && allocated_addr.empty() && layout.has_value() &&
+         offset_factor == 1 && layout.has_value() &&
          ffi::StructuralEqual()(layout.value(), TileLayoutNode::DefaultLayout({1}));
 }
 
@@ -85,11 +85,6 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TensorTypeVisit
   }
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->elem_offset));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->layout));
-  // allocated_addr is empty outside specialized storage scopes.  Broad callbacks do not see the
-  // empty container; present addresses retain normal container descent and callback behavior.
-  if (!self->allocated_addr.empty()) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->allocated_addr));
-  }
   return std::nullopt;
 }
 
@@ -114,20 +109,10 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorTypeMutate(
                                     mutator->MutateExpected(self->elem_offset));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<Layout>>, mapped_layout,
                                     mutator->MutateExpected(self->layout));
-  // allocated_addr is empty outside specialized storage scopes.  Broad callbacks do not see the
-  // empty container; present addresses retain normal container descent and callback behavior.
-  ffi::UnchangedOr<ffi::Array<PrimExpr>> mapped_allocated_addr = ffi::Unchanged();
-  if (!self->allocated_addr.empty()) {
-    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<PrimExpr>>,
-                                      descended_allocated_addr,
-                                      mutator->MutateExpected(self->allocated_addr));
-    mapped_allocated_addr = std::move(descended_allocated_addr);
-  }
   if (mapped_dtype.UnchangedOrSameAs(self->dtype) && mapped_shape.UnchangedOrSameAs(self->shape) &&
       mapped_strides.UnchangedOrSameAs(self->strides) &&
       mapped_elem_offset.UnchangedOrSameAs(self->elem_offset) &&
-      mapped_layout.UnchangedOrSameAs(self->layout) &&
-      mapped_allocated_addr.UnchangedOrSameAs(self->allocated_addr)) {
+      mapped_layout.UnchangedOrSameAs(self->layout)) {
     return ffi::Unchanged();
   }
   ffi::ObjectPtr<TensorTypeNode> copy = ffi::make_object<TensorTypeNode>(*self);
@@ -136,8 +121,6 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorTypeMutate(
   copy->strides = std::move(mapped_strides).ValueOrUnchanged(std::move(copy->strides));
   copy->elem_offset = std::move(mapped_elem_offset).ValueOrUnchanged(std::move(copy->elem_offset));
   copy->layout = std::move(mapped_layout).ValueOrUnchanged(std::move(copy->layout));
-  copy->allocated_addr =
-      std::move(mapped_allocated_addr).ValueOrUnchanged(std::move(copy->allocated_addr));
   return ffi::Any(std::move(copy));
 }
 
@@ -165,20 +148,10 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorTypeMaybeInplaceM
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<ffi::Optional<Layout>>, mapped_layout,
       mutator->MutateExpected(self->layout, ffi::InplaceMode::kAllow));
-  // allocated_addr is empty outside specialized storage scopes.  Broad callbacks do not see the
-  // empty container; present addresses retain normal container descent and callback behavior.
-  ffi::UnchangedOr<ffi::Array<PrimExpr>> mapped_allocated_addr = ffi::Unchanged();
-  if (!self->allocated_addr.empty()) {
-    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-        ffi::UnchangedOr<ffi::Array<PrimExpr>>, descended_allocated_addr,
-        mutator->MutateExpected(self->allocated_addr, ffi::InplaceMode::kAllow));
-    mapped_allocated_addr = std::move(descended_allocated_addr);
-  }
   if (mapped_dtype.UnchangedOrSameAs(self->dtype) && mapped_shape.UnchangedOrSameAs(self->shape) &&
       mapped_strides.UnchangedOrSameAs(self->strides) &&
       mapped_elem_offset.UnchangedOrSameAs(self->elem_offset) &&
-      mapped_layout.UnchangedOrSameAs(self->layout) &&
-      mapped_allocated_addr.UnchangedOrSameAs(self->allocated_addr)) {
+      mapped_layout.UnchangedOrSameAs(self->layout)) {
     return ffi::Unchanged();
   }
   if (!mapped_dtype.IsUnchanged()) self->dtype = std::move(mapped_dtype).ValueUnchecked();
@@ -187,9 +160,6 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorTypeMaybeInplaceM
   if (!mapped_elem_offset.IsUnchanged())
     self->elem_offset = std::move(mapped_elem_offset).ValueUnchecked();
   if (!mapped_layout.IsUnchanged()) self->layout = std::move(mapped_layout).ValueUnchecked();
-  if (!mapped_allocated_addr.IsUnchanged()) {
-    self->allocated_addr = std::move(mapped_allocated_addr).ValueUnchecked();
-  }
   return ffi::Unchanged();
 }
 
@@ -198,7 +168,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorTypeMaybeInplaceM
 TensorType::TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
                        ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
                        int data_alignment, int offset_factor, ffi::Optional<Layout> layout,
-                       ffi::Array<PrimExpr> allocated_addr, Span span)
+                       Span span)
     : Type(ffi::UnsafeInit{}) {
   PrimExpr offset = elem_offset.value_or(
       IntImm(shape.empty() ? PrimType(tvm::tirx::DefaultIndexType()) : shape[0].ty(), 0));
@@ -211,7 +181,6 @@ TensorType::TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<Pri
       data_alignment <= 0 ? static_cast<int>(runtime::kAllocAlignment) : data_alignment;
   n->offset_factor = offset_factor == 0 ? 1 : offset_factor;
   n->layout = std::move(layout);
-  n->allocated_addr = std::move(allocated_addr);
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -228,13 +197,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&TensorTypeMaybeInplaceMutate>());
 
   refl::GlobalDef().def(
-      "tirx.TensorType", [](ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
-                            ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
-                            int data_alignment, int offset_factor, ffi::Optional<Layout> layout,
-                            ffi::Array<PrimExpr> allocated_addr, Span span) {
+      "tirx.TensorType",
+      [](ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
+         ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset, int data_alignment,
+         int offset_factor, ffi::Optional<Layout> layout, Span span) {
         return TensorType(std::move(storage_scope), std::move(dtype), std::move(shape),
                           std::move(strides), std::move(elem_offset), data_alignment, offset_factor,
-                          std::move(layout), std::move(allocated_addr), std::move(span));
+                          std::move(layout), std::move(span));
       });
 }
 

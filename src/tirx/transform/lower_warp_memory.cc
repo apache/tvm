@@ -383,12 +383,13 @@ class WarpAccessRewriter : public StmtExprMutator {
     TensorVar new_buf = RebuildTensorVar(op->var.as_or_throw<TensorVar>(), std::move(type));
     new_buffer_ = new_buf;
     Stmt rewritten_body = this->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
+    ffi::Array<Expr> args = buffer_call->args;
+    args.Set(0, tvm::Tuple(new_buf->shape, buffer_call->args[0]->span));
+    args.Set(1, DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span));
+    args.Set(2, StringImm(new_buf.scope(), buffer_call->args[2]->span));
     return SeqStmt({Bind(new_buf.var(),
-                         Call(new_buf.type(), tirx::alloc_tensor_op(),
-                              {tvm::Tuple(new_buf->shape, buffer_call->args[0]->span),
-                               DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span),
-                               StringImm(new_buf.scope(), buffer_call->args[2]->span)},
-                              buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
+                         Call(new_buf.type(), tirx::alloc_tensor_op(), args, buffer_call->attrs,
+                              buffer_call->ty_args, buffer_call->span),
                          op->span),
                     rewritten_body});
   }

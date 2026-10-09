@@ -103,8 +103,13 @@ into shared (from
         Tx.ptx["tcgen05.alloc.cta_group::1.sync.aligned.shared::cta.b32"](
             Tx.address_of(tmem_addr), Tx.uint32(512))
     Tx.cuda.cta_sync()
-    tmem = Tx.decl_tensor((128, 512), "float32", scope="tmem", allocated_addr=tmem_addr[0],
-                         layout=TileLayout(S[(128, 512) : (1 @ TLane, 1 @ TCol)]))
+    tmem = Tx.cuda.decl_tmem(
+        tmem_addr[0],
+        ty_args=[Tx.Tensor(
+            (128, 512), "float32", scope="tmem",
+            layout=TileLayout(S[(128, 512) : (1 @ TLane, 1 @ TCol)]),
+        )],
+    )
     # ... TMA-load A_smem, B_smem from global, wait ...
     if tid_in_wg == 0:
         Tx.cuda.tile.tcgen05.mma(tmem[0:128, 256:384], A_smem[1:2, :, :], B_smem[2:3, :, :])

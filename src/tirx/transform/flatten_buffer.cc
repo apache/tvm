@@ -199,12 +199,13 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     if (info.flattened.same_as(op->var.as_or_throw<TensorVar>())) {
       return ffi::Unchanged();
     }
+    ffi::Array<Expr> args = buffer_call->args;
+    args.Set(0, tvm::Tuple(info.flattened->shape, buffer_call->args[0]->span));
+    args.Set(1, DataTypeImm(info.flattened->dtype->dtype, buffer_call->args[1]->span));
+    args.Set(2, StringImm(info.flattened.scope(), buffer_call->args[2]->span));
     return Bind(info.flattened.var(),
-                Call(info.flattened.type(), tirx::alloc_tensor_op(),
-                     {tvm::Tuple(info.flattened->shape, buffer_call->args[0]->span),
-                      DataTypeImm(info.flattened->dtype->dtype, buffer_call->args[1]->span),
-                      StringImm(info.flattened.scope(), buffer_call->args[2]->span)},
-                     buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
+                Call(info.flattened.type(), tirx::alloc_tensor_op(), args, buffer_call->attrs,
+                     buffer_call->ty_args, buffer_call->span),
                 op->span);
   }
 

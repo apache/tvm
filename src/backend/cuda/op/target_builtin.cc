@@ -22,10 +22,12 @@
  *
  *  builtin intrinsic operators specific to CUDA target.
  */
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/base.h>
 #include <tvm/tirx/op_attr_types.h>
+#include <tvm/tirx/type.h>
 
 #include <string>
 
@@ -44,6 +46,31 @@ Type InferTypeMovSreg(const CallNode* call) {
   return PrimType::Int(static_cast<int64_t>(bits->value));
 }
 
+Type InferTypeDeclTmem(const CallNode* call) {
+  TVM_FFI_CHECK_EQ(call->args.size(), 1U, ValueError) << "decl_tmem expects one address operand";
+  TVM_FFI_CHECK_EQ(call->ty_args.size(), 1U, ValueError)
+      << "decl_tmem expects exactly one TensorType argument";
+  auto type = call->ty_args[0].as_or_throw<TensorType>();
+  TVM_FFI_CHECK_EQ(type->storage_scope, "tmem", ValueError)
+      << "decl_tmem requires a tmem tensor type";
+  auto addr_type = call->args[0]->ty.as_or_throw<PrimType>();
+  TVM_FFI_CHECK(addr_type.IsScalar() &&
+                    addr_type.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) &&
+                    addr_type.bits() == 32,
+                TypeError)
+      << "decl_tmem address must be a scalar 32-bit integer";
+  TVM_FFI_CHECK(prim::IsZero(type->elem_offset) && type->strides.empty(), ValueError)
+      << "decl_tmem addresses use physical columns; express tensor offsets through the layout";
+  return type;
+}
+
+void ValidateDeclTmem(const CallNode* call) {
+  Type inferred = InferTypeDeclTmem(call);
+  TVM_FFI_CHECK(ffi::StructuralEqual()(call->ty, inferred), TypeError)
+      << "decl_tmem result must match its TensorType argument";
+  TVM_FFI_CHECK(!call->attrs.defined(), ValueError) << "decl_tmem does not accept attributes";
+}
+
 template <size_t N>
 static Type InferTypeReturnArgType(const CallNode* call) {
   TVM_FFI_CHECK_GT(call->args.size(), N, ValueError)
@@ -57,6 +84,17 @@ void RegisterCudaTargetBuiltins() {
   static bool registered = false;
   if (registered) return;
   registered = true;
+
+  OpDef("tirx.cuda.decl_tmem")
+      .signature(sig::arg<IntExpr>("addr", "Encoded TMEM base address in physical columns."),
+                 sig::ty_arg<TensorType>("tensor_type"))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeDeclTmem>())
+      .set_validator(ffi::reflection::NativeFunctionView<void(
+                         const CallNode*)>::FromNative<&ValidateDeclTmem>(),
+                     true)
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.decl_tmem"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("tirx.cuda.bmma_sync")
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())

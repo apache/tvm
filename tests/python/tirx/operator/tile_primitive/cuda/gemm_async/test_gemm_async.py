@@ -32,15 +32,17 @@ except ImportError:
 import tvm
 import tvm.testing
 from tvm.ir.type import PointerType, PrimType
-from tvm.script import tirx as T
-from tvm.testing import env
-from tvm.tirx.cuda.tile_primitive.gemm_async import sf_tmem_layout
-from tvm.tirx.cuda.tile_primitive.tma_utils import (
+from tvm.backend.cuda.tile_primitive.gemm_async import sf_tmem_layout
+from tvm.backend.cuda.tile_primitive.tma_utils import (
     SwizzleMode,
     mma_atom_layout,
     mma_atom_shape,
     mma_shared_layout,
 )
+from tvm.ir.type import PointerType, PrimType
+from tvm.script import tirx as T
+from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 from tvm.tirx.layout import (
     R,
     S,
@@ -265,12 +267,14 @@ def test_gemm_tcgen05_cta_group_1(task):
                 T.address_of(tmem_addr), T.uint32(cols_alloc)
             )
         T.cuda.cta_sync()
-        tmem = T.decl_tensor(
-            (128, C_shape[1]),
-            C_dtype,
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]),
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[T.Tensor(
+                (128, C_shape[1]),
+                C_dtype,
+                scope="tmem",
+                layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]),
+            )],
         )
 
         if tid_in_wg == 0:
@@ -397,8 +401,14 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
             )
         T.cuda.cta_sync()
         # Layout F C operand — the path under test.
-        tmem = T.decl_tensor(
-            (64, N), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=c_layout
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[T.Tensor(
+                (64, N),
+                C_dtype,
+                scope="tmem",
+                layout=c_layout,
+            )],
         )
 
         if tid_in_wg == 0:
@@ -547,12 +557,14 @@ def test_gemm_tcgen05_cta_group_2(task):
             T.ptx.tcgen05.alloc.cta_group__2.sync.aligned.shared__cta.b32(
                 T.address_of(tmem_addr), T.uint32(cols_alloc)
             )
-        tmem = T.decl_tensor(
-            (128, C_shape[1]),
-            C_dtype,
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]),
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[T.Tensor(
+                (128, C_shape[1]),
+                C_dtype,
+                scope="tmem",
+                layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]),
+            )],
         )
         T.ptx.fence.mbarrier_init.release.cluster()
         T.ptx.fence.proxy.async_.shared__cta()
@@ -718,20 +730,24 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
             T.ptx.tcgen05.alloc.cta_group__2.sync.aligned.shared__cta.b32(
                 T.address_of(tmem_addr), T.uint32(cols_alloc)
             )
-        tmem = T.decl_tensor(
-            (M_per_cta, N_logical),
-            C_dtype,
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=TileLayout(S[(M_per_cta, 2, N_half) : (1 @ TLane, 64 @ TLane, 1 @ TCol)]),
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[T.Tensor(
+                (M_per_cta, N_logical),
+                C_dtype,
+                scope="tmem",
+                layout=TileLayout(S[(M_per_cta, 2, N_half) : (1 @ TLane, 64 @ TLane, 1 @ TCol)]),
+            )],
         )
         # Physical TMEM view for readback: (128, N_half) standard layout
-        tmem_phys = T.decl_tensor(
-            (128, N_half),
-            C_dtype,
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=TileLayout(S[(128, N_half) : (1 @ TLane, 1 @ TCol)]),
+        tmem_phys = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[T.Tensor(
+                (128, N_half),
+                C_dtype,
+                scope="tmem",
+                layout=TileLayout(S[(128, N_half) : (1 @ TLane, 1 @ TCol)]),
+            )],
         )
         T.ptx.fence.mbarrier_init.release.cluster()
         T.ptx.fence.proxy.async_.shared__cta()
@@ -870,12 +886,14 @@ def test_gemm_tcgen05_cta_group_2_datapath_b_readback():
         T.ptx.fence.mbarrier_init.release.cluster()
         T.cuda.cta_sync()
 
-        tmem = T.decl_tensor(
-            (m_per_cta, n_logical),
-            c_dtype,
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=tmem_datapath_layout("B", m_per_cta, n_logical),
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[T.Tensor(
+                (m_per_cta, n_logical),
+                c_dtype,
+                scope="tmem",
+                layout=tmem_datapath_layout("B", m_per_cta, n_logical),
+            )],
         )
 
         # Use ordinary shared-memory stores here so this test is independent
@@ -1053,9 +1071,9 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
             )
         T.cuda.cta_sync()
 
-        tmem = T.decl_tensor((128, C_shape[1]), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
-        sfa_tmem = T.decl_tensor((M, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFA_TMEM_START, layout=sfa_layout)  # noqa: E501
-        sfb_tmem = T.decl_tensor((N, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFB_TMEM_START, layout=sfb_layout)  # noqa: E501
+        tmem = T.cuda.decl_tmem(tmem_addr[0], ty_args=[T.Tensor((128, C_shape[1]), C_dtype, scope="tmem", layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))])  # noqa: E501
+        sfa_tmem = T.cuda.decl_tmem(SFA_TMEM_START, ty_args=[T.Tensor((M, sf_mma_k), SF_dtype, scope="tmem", layout=sfa_layout)])  # noqa: E501
+        sfb_tmem = T.cuda.decl_tmem(SFB_TMEM_START, ty_args=[T.Tensor((N, sf_mma_k), SF_dtype, scope="tmem", layout=sfb_layout)])  # noqa: E501
 
                 # TMA load A and B from global to shared
         if tid_in_wg == 0:
@@ -1275,10 +1293,10 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
             T.ptx.tcgen05.alloc.cta_group__2.sync.aligned.shared__cta.b32(
                 T.address_of(tmem_addr), T.uint32(cols_alloc)
             )
-        tmem = T.decl_tensor((128, C_shape[1]), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
+        tmem = T.cuda.decl_tmem(tmem_addr[0], ty_args=[T.Tensor((128, C_shape[1]), C_dtype, scope="tmem", layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))])  # noqa: E501
 
-        sfa_tmem = T.decl_tensor((128, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFA_TMEM_START, layout=sf_layout)  # noqa: E501
-        sfb_tmem = T.decl_tensor((128, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFB_TMEM_START, layout=sf_layout)  # noqa: E501
+        sfa_tmem = T.cuda.decl_tmem(SFA_TMEM_START, ty_args=[T.Tensor((128, sf_mma_k), SF_dtype, scope="tmem", layout=sf_layout)])  # noqa: E501
+        sfb_tmem = T.cuda.decl_tmem(SFB_TMEM_START, ty_args=[T.Tensor((128, sf_mma_k), SF_dtype, scope="tmem", layout=sf_layout)])  # noqa: E501
 
         T.ptx.fence.mbarrier_init.release.cluster()
         T.ptx.fence.proxy.async_.shared__cta()
@@ -1498,9 +1516,9 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
             )
         T.cuda.cta_sync()
 
-        tmem = T.decl_tensor((128, C_shape[1]), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
-        sfa_tmem = T.decl_tensor((M, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFA_TMEM_START, layout=sfa_layout)  # noqa: E501
-        sfb_tmem = T.decl_tensor((N, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFB_TMEM_START, layout=sfb_layout)  # noqa: E501
+        tmem = T.cuda.decl_tmem(tmem_addr[0], ty_args=[T.Tensor((128, C_shape[1]), C_dtype, scope="tmem", layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))])  # noqa: E501
+        sfa_tmem = T.cuda.decl_tmem(SFA_TMEM_START, ty_args=[T.Tensor((M, sf_mma_k), SF_dtype, scope="tmem", layout=sfa_layout)])  # noqa: E501
+        sfb_tmem = T.cuda.decl_tmem(SFB_TMEM_START, ty_args=[T.Tensor((N, sf_mma_k), SF_dtype, scope="tmem", layout=sfb_layout)])  # noqa: E501
 
                 # TMA load A and B as uint8
         if tid_in_wg == 0:
@@ -1700,10 +1718,10 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
             T.ptx.tcgen05.alloc.cta_group__2.sync.aligned.shared__cta.b32(
                 T.address_of(tmem_addr), T.uint32(cols_alloc)
             )
-        tmem = T.decl_tensor((128, C_shape[1]), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
+        tmem = T.cuda.decl_tmem(tmem_addr[0], ty_args=[T.Tensor((128, C_shape[1]), C_dtype, scope="tmem", layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))])  # noqa: E501
 
-        sfa_tmem = T.decl_tensor((M_per_cta, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFA_TMEM_START, layout=sfa_layout)  # noqa: E501
-        sfb_tmem = T.decl_tensor((N_total, sf_mma_k), SF_dtype, scope="tmem", allocated_addr=SFB_TMEM_START, layout=sfb_layout)  # noqa: E501
+        sfa_tmem = T.cuda.decl_tmem(SFA_TMEM_START, ty_args=[T.Tensor((M_per_cta, sf_mma_k), SF_dtype, scope="tmem", layout=sfa_layout)])  # noqa: E501
+        sfb_tmem = T.cuda.decl_tmem(SFB_TMEM_START, ty_args=[T.Tensor((N_total, sf_mma_k), SF_dtype, scope="tmem", layout=sfb_layout)])  # noqa: E501
 
         T.ptx.fence.mbarrier_init.release.cluster()
         T.ptx.fence.proxy.async_.shared__cta()
@@ -1928,9 +1946,9 @@ def test_gemm_block_scaled_fp8_sf_id():
             )
         T.cuda.cta_sync()
 
-        tmem = T.decl_tensor(C_shape, C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
-        sfa_tmem = T.decl_tensor((M, sf_mma_k * num_ki), SF_dtype, scope="tmem", allocated_addr=SFA_TMEM_START, layout=sfa_layout)  # noqa: E501
-        sfb_tmem = T.decl_tensor((N, sf_mma_k * num_ki), SF_dtype, scope="tmem", allocated_addr=SFB_TMEM_START, layout=sfb_layout)  # noqa: E501
+        tmem = T.cuda.decl_tmem(tmem_addr[0], ty_args=[T.Tensor(C_shape, C_dtype, scope="tmem", layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))])  # noqa: E501
+        sfa_tmem = T.cuda.decl_tmem(SFA_TMEM_START, ty_args=[T.Tensor((M, sf_mma_k * num_ki), SF_dtype, scope="tmem", layout=sfa_layout)])  # noqa: E501
+        sfb_tmem = T.cuda.decl_tmem(SFB_TMEM_START, ty_args=[T.Tensor((N, sf_mma_k * num_ki), SF_dtype, scope="tmem", layout=sfb_layout)])  # noqa: E501
 
                 # TMA load A and B from global to shared
         if tid_in_wg == 0:
@@ -2295,12 +2313,14 @@ def test_gemm_tcgen05_arbitrary_tiles(task):
                 T.address_of(tmem_addr), T.uint32(cols_alloc)
             )
         T.cuda.cta_sync()
-        tmem = T.decl_tensor(
-            (M, C_shape[1]),
-            C_dtype,
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=TileLayout(S[(M, C_shape[1]) : (1 @ TLane, 1 @ TCol)]),
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[T.Tensor(
+                (M, C_shape[1]),
+                C_dtype,
+                scope="tmem",
+                layout=TileLayout(S[(M, C_shape[1]) : (1 @ TLane, 1 @ TCol)]),
+            )],
         )
 
         if tid_in_wg == 0:
@@ -2427,12 +2447,8 @@ def test_gemm_tcgen05_no_swizzle_smem_descriptor_codegen(a_layout_kind):
                 T.address_of(tmem_addr[0]), T.uint32(256)
             )
         T.cuda.cta_sync()
-        tmem = T.decl_tensor(
-            (M, N),
-            "float32",
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=C_layout,
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0], ty_args=[T.Tensor((M, N), "float32", scope="tmem", layout=C_layout)]
         )
         if tid_in_wg == 0:
             T.cuda.tile.tcgen05.mma(
@@ -2481,19 +2497,12 @@ def test_gemm_tcgen05_cta_group_2_accepts_replicated_tmem_a_codegen():
                 T.address_of(tmem_addr[0]), T.uint32(128)
             )
         T.cuda.cta_sync()
-        C_tmem = T.decl_tensor(
-            (M, N),
-            "float32",
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=C_layout,
+        C_tmem = T.cuda.decl_tmem(
+            tmem_addr[0], ty_args=[T.Tensor((M, N), "float32", scope="tmem", layout=C_layout)]
         )
-        A_tmem = T.decl_tensor(
-            (M, K),
-            dtype,
-            scope="tmem",
-            allocated_addr=tmem_addr[0] + T.uint32(64),
-            layout=A_layout,
+        A_tmem = T.cuda.decl_tmem(
+            tmem_addr[0] + T.uint32(64),
+            ty_args=[T.Tensor((M, K), dtype, scope="tmem", layout=A_layout)],
         )
         if tid_in_wg == 0:
             T.cuda.tile.tcgen05.mma(C_tmem[:, :], A_tmem[:, :], B_smem[:, :], cta_group=2)
@@ -2537,19 +2546,12 @@ def test_gemm_tcgen05_cta_group_2_rejects_flat_tmem_a_codegen():
                 T.address_of(tmem_addr[0]), T.uint32(128)
             )
         T.cuda.cta_sync()
-        C_tmem = T.decl_tensor(
-            (M, N),
-            "float32",
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=C_layout,
+        C_tmem = T.cuda.decl_tmem(
+            tmem_addr[0], ty_args=[T.Tensor((M, N), "float32", scope="tmem", layout=C_layout)]
         )
-        A_tmem = T.decl_tensor(
-            (M, K),
-            dtype,
-            scope="tmem",
-            allocated_addr=tmem_addr[0] + T.uint32(64),
-            layout=A_layout,
+        A_tmem = T.cuda.decl_tmem(
+            tmem_addr[0] + T.uint32(64),
+            ty_args=[T.Tensor((M, K), dtype, scope="tmem", layout=A_layout)],
         )
         if tid_in_wg == 0:
             T.cuda.tile.tcgen05.mma(C_tmem[:, :], A_tmem[:, :], B_smem[:, :], cta_group=2)
@@ -2617,20 +2619,24 @@ def test_gemm_tcgen05_no_swizzle_col_major_a_ws_local_idesc():
         T.cuda.cta_sync()
         # M=64 .ws accumulates via datapath E (FlashMLA head64's tmem_o layout):
         # lane = m + 64*(n >= N/2), col = n % (N/2).
-        tmem = T.decl_tensor(
-            (M, N),
-            "float32",
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=TileLayout(S[(M, 2, N // 2) : (1 @ TLane, 64 @ TLane, 1 @ TCol)]),
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[T.Tensor(
+                (M, N),
+                "float32",
+                scope="tmem",
+                layout=TileLayout(S[(M, 2, N // 2) : (1 @ TLane, 64 @ TLane, 1 @ TCol)]),
+            )],
         )
         # Identity overlay of the physical 128x128 TMEM footprint for readback.
-        tmem_ldst = T.decl_tensor(
-            (128, N // 2),
-            "float32",
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=TileLayout(S[(128, N // 2) : (1 @ TLane, 1 @ TCol)]),
+        tmem_ldst = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[T.Tensor(
+                (128, N // 2),
+                "float32",
+                scope="tmem",
+                layout=TileLayout(S[(128, N // 2) : (1 @ TLane, 1 @ TCol)]),
+            )],
         )
         # Plain generic-proxy stores; A's bytes follow the FlashMLA S-tile ABI
         # (phys = 8*m + 8*M*(k//8) + k%8), col-major A_smem is descriptor fiction.
@@ -2714,7 +2720,7 @@ def test_gemm_tcgen05_contiguous_kslice_partial_k(k_lo, k_hi):
     so the MMA accumulates exactly k in [lo, hi) -- enabling fine K-major split-K.
     Any MMA_K(16)-aligned [lo:hi] is supported.
     """
-    from tvm.tirx.cuda.tile_primitive.tma_utils import SwizzleMode
+    from tvm.backend.cuda.tile_primitive.tma_utils import SwizzleMode
 
     M, N, K_alloc = 128, 128, 64
     dtype = "float16"
@@ -2748,12 +2754,14 @@ def test_gemm_tcgen05_contiguous_kslice_partial_k(k_lo, k_hi):
                 T.address_of(tmem_addr), T.uint32(128)
             )
         T.cuda.cta_sync()
-        tmem = T.decl_tensor(
-            (128, N),
-            "float32",
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=TileLayout(S[(128, N) : (1 @ TLane, 1 @ TCol)]),
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[T.Tensor(
+                (128, N),
+                "float32",
+                scope="tmem",
+                layout=TileLayout(S[(128, N) : (1 @ TLane, 1 @ TCol)]),
+            )],
         )
         if tid_in_wg == 0:
             tma_args = T.meta_var({"descriptor_mode": "auto", "mbar": tma_mbar.ptr_to([0])})
@@ -2854,12 +2862,16 @@ def _run_dense_gemm(
                 T.address_of(tmem_addr), T.uint32(cols_alloc)
             )
         T.cuda.cta_sync()
-        tmem = T.decl_tensor(
-            (128, N),
-            C_dtype,
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=TileLayout(S[(128, N) : (1 @ TLane, 1 @ TCol)]),
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[
+                T.Tensor(
+                    (128, N),
+                    C_dtype,
+                    scope="tmem",
+                    layout=TileLayout(S[(128, N) : (1 @ TLane, 1 @ TCol)]),
+                )
+            ],
         )
         if tid_in_wg == 0:
             T.cuda.tile.cp_async_bulk_tensor_load(
@@ -2981,12 +2993,16 @@ def _run_dense_gemm(
                 T.address_of(tmem_addr), T.uint32(cols_alloc)
             )
         T.cuda.cta_sync()
-        tmem = T.decl_tensor(
-            (128, N),
-            C_dtype,
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=TileLayout(S[(128, N) : (1 @ TLane, 1 @ TCol)]),
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[
+                T.Tensor(
+                    (128, N),
+                    C_dtype,
+                    scope="tmem",
+                    layout=TileLayout(S[(128, N) : (1 @ TLane, 1 @ TCol)]),
+                )
+            ],
         )
         if tid_in_wg == 0:
             T.cuda.tile.cp_async_bulk_tensor_load(
@@ -3081,12 +3097,14 @@ def _build_smem_desc_kernel(smem_desc, weight_stationary=False, pass_descI=False
                 T.address_of(tmem_addr), T.uint32(128)
             )
         T.cuda.cta_sync()
-        tmem = T.decl_tensor(
-            (128, C_shape[1]),
-            C_dtype,
-            scope="tmem",
-            allocated_addr=tmem_addr[0],
-            layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]),
+        tmem = T.cuda.decl_tmem(
+            tmem_addr[0],
+            ty_args=[T.Tensor(
+                (128, C_shape[1]),
+                C_dtype,
+                scope="tmem",
+                layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]),
+            )],
         )
         if tid_in_wg == 0:
             tma_args = T.meta_var({"descriptor_mode": "auto", "mbar": tma_mbar.ptr_to([0])})
@@ -3177,7 +3195,7 @@ def _build_explicit_cta2_dense_kernel(M_per_cta, mma_m):
         tid = T.thread_id_in_wg([128])
         A_smem = T.alloc_tensor(A_shape, "float16", scope="shared", layout=A_layout)
         B_smem = T.alloc_tensor(B_shape, "float16", scope="shared", layout=B_layout)
-        C_tmem = T.decl_tensor((M_per_cta, N), "float32", scope="tmem", allocated_addr=0, layout=C_layout)  # noqa: E501
+        C_tmem = T.cuda.decl_tmem(0, ty_args=[T.Tensor((M_per_cta, N), "float32", scope="tmem", layout=C_layout)])  # noqa: E501
         if tid == 0:
             T.cuda.tile.tcgen05.mma(C_tmem[:, :], A_smem[:, :], B_smem[:, :], cta_group=2, mma_m=mma_m, mma_n=N)  # noqa: E501
         # fmt: on
@@ -3205,9 +3223,17 @@ def _build_explicit_block_scaled_split_n_kernel():
         tid = T.thread_id_in_wg([128])
         A_smem = T.alloc_tensor(A_shape, "float8_e4m3fn", scope="shared", layout=A_layout)
         B_smem = T.alloc_tensor(B_shape, "float8_e4m3fn", scope="shared", layout=B_layout)
-        C_tmem = T.decl_tensor((M, N), "float32", scope="tmem", allocated_addr=0, layout=C_layout)
-        SFA_tmem = T.decl_tensor((M, 1), "float8_e8m0fnu", scope="tmem", allocated_addr=N, layout=sf_layout)  # noqa: E501
-        SFB_tmem = T.decl_tensor((N, 1), "float8_e8m0fnu", scope="tmem", allocated_addr=N + 4, layout=sf_layout)  # noqa: E501
+        C_tmem = T.cuda.decl_tmem(
+            0,
+            ty_args=[T.Tensor(
+                (M, N),
+                "float32",
+                scope="tmem",
+                layout=C_layout,
+            )],
+        )
+        SFA_tmem = T.cuda.decl_tmem(N, ty_args=[T.Tensor((M, 1), "float8_e8m0fnu", scope="tmem", layout=sf_layout)])  # noqa: E501
+        SFB_tmem = T.cuda.decl_tmem(N + 4, ty_args=[T.Tensor((N, 1), "float8_e8m0fnu", scope="tmem", layout=sf_layout)])  # noqa: E501
         if tid == 0:
             T.cuda.tile.tcgen05.mma_block_scale(C_tmem[:, :], A_smem[:, :], B_smem[:, :], SFA=SFA_tmem[:, :], SFB=SFB_tmem[:, :], cta_group=2, mma_m=256, mma_n=64)  # noqa: E501
         # fmt: on
@@ -3423,19 +3449,19 @@ def _build_cta1_m64_packed_c_kernel(weight_stationary=None, mma_config=None):
         T.cuda.cta_sync()
         # A-in-TMEM .ws reads A from both 64-lane halves, so A is declared in
         # the honest batched A[2, M, K] fold (the A-side).
-        A_tmem = T.decl_tensor(
-            (2, M, K),
-            A_dtype,
-            scope="tmem",
-            allocated_addr=256,
-            layout=TileLayout(S[(2, M, K) : (64 @ TLane, 1 @ TLane, 1 @ TCol)]),
+        A_tmem = T.cuda.decl_tmem(
+            256,
+            ty_args=[
+                T.Tensor(
+                    (2, M, K),
+                    A_dtype,
+                    scope="tmem",
+                    layout=TileLayout(S[(2, M, K) : (64 @ TLane, 1 @ TLane, 1 @ TCol)]),
+                )
+            ],
         )
-        C_tmem = T.decl_tensor(
-            (M, N),
-            C_dtype,
-            scope="tmem",
-            allocated_addr=400,
-            layout=C_layout,
+        C_tmem = T.cuda.decl_tmem(
+            400, ty_args=[T.Tensor((M, N), C_dtype, scope="tmem", layout=C_layout)]
         )
         if tid == 0:
             copy_src_1 = T.meta_var(B[:, :])
@@ -3536,19 +3562,19 @@ def _build_cta1_m64_batched_c_kernel():
         T.cuda.cta_sync()
         # Honest batched A[2, M, K] fold (A-side), matching the
         # batched C below: both banks of the M=64 .ws are explicit.
-        A_tmem = T.decl_tensor(
-            (2, M, K),
-            B_dtype,
-            scope="tmem",
-            allocated_addr=256,
-            layout=TileLayout(S[(2, M, K) : (64 @ TLane, 1 @ TLane, 1 @ TCol)]),
+        A_tmem = T.cuda.decl_tmem(
+            256,
+            ty_args=[
+                T.Tensor(
+                    (2, M, K),
+                    B_dtype,
+                    scope="tmem",
+                    layout=TileLayout(S[(2, M, K) : (64 @ TLane, 1 @ TLane, 1 @ TCol)]),
+                )
+            ],
         )
-        C_tmem = T.decl_tensor(
-            (2, M, N // 2),
-            "float32",
-            scope="tmem",
-            allocated_addr=400,
-            layout=C_layout,
+        C_tmem = T.cuda.decl_tmem(
+            400, ty_args=[T.Tensor((2, M, N // 2), "float32", scope="tmem", layout=C_layout)]
         )
         if tid == 0:
             copy_src_2 = T.meta_var(B[:, :])
@@ -3610,19 +3636,27 @@ def _build_cta1_m64_identity_c_ws_kernel():
                 T.address_of(tmem_addr[0]), T.uint32(512)
             )
         T.cuda.cta_sync()
-        A_tmem = T.decl_tensor(
-            (M, K),
-            B_dtype,
-            scope="tmem",
-            allocated_addr=256,
-            layout=TileLayout(S[(M, K) : (1 @ TLane, 1 @ TCol)]),
+        A_tmem = T.cuda.decl_tmem(
+            256,
+            ty_args=[
+                T.Tensor(
+                    (M, K),
+                    B_dtype,
+                    scope="tmem",
+                    layout=TileLayout(S[(M, K) : (1 @ TLane, 1 @ TCol)]),
+                )
+            ],
         )
-        C_tmem = T.decl_tensor(
-            (M, N),
-            "float32",
-            scope="tmem",
-            allocated_addr=400,
-            layout=TileLayout(S[(M, N) : (1 @ TLane, 1 @ TCol)]),
+        C_tmem = T.cuda.decl_tmem(
+            400,
+            ty_args=[
+                T.Tensor(
+                    (M, N),
+                    "float32",
+                    scope="tmem",
+                    layout=TileLayout(S[(M, N) : (1 @ TLane, 1 @ TCol)]),
+                )
+            ],
         )
         if tid == 0:
             copy_src_3 = T.meta_var(B[:, :])
@@ -3703,19 +3737,19 @@ def _build_cta1_m64_flat_a_ws_kernel():
                 T.address_of(tmem_addr[0]), T.uint32(512)
             )
         T.cuda.cta_sync()
-        A_tmem = T.decl_tensor(
-            (M, K),
-            B_dtype,
-            scope="tmem",
-            allocated_addr=256,
-            layout=TileLayout(S[(M, K) : (1 @ TLane, 1 @ TCol)]),
+        A_tmem = T.cuda.decl_tmem(
+            256,
+            ty_args=[
+                T.Tensor(
+                    (M, K),
+                    B_dtype,
+                    scope="tmem",
+                    layout=TileLayout(S[(M, K) : (1 @ TLane, 1 @ TCol)]),
+                )
+            ],
         )
-        C_tmem = T.decl_tensor(
-            (M, N),
-            "float32",
-            scope="tmem",
-            allocated_addr=400,
-            layout=C_layout,
+        C_tmem = T.cuda.decl_tmem(
+            400, ty_args=[T.Tensor((M, N), "float32", scope="tmem", layout=C_layout)]
         )
         if tid == 0:
             copy_src_4 = T.meta_var(B[:, :])
@@ -3796,19 +3830,27 @@ def _build_m128_batched_a_kernel():
                 T.address_of(tmem_addr[0]), T.uint32(512)
             )
         T.cuda.cta_sync()
-        A_tmem = T.decl_tensor(
-            (2, M, K),
-            B_dtype,
-            scope="tmem",
-            allocated_addr=256,
-            layout=TileLayout(S[(2, M, K) : (64 @ TLane, 1 @ TLane, 1 @ TCol)]),
+        A_tmem = T.cuda.decl_tmem(
+            256,
+            ty_args=[
+                T.Tensor(
+                    (2, M, K),
+                    B_dtype,
+                    scope="tmem",
+                    layout=TileLayout(S[(2, M, K) : (64 @ TLane, 1 @ TLane, 1 @ TCol)]),
+                )
+            ],
         )
-        C_tmem = T.decl_tensor(
-            (M, N),
-            "float32",
-            scope="tmem",
-            allocated_addr=400,
-            layout=TileLayout(S[(M, N) : (1 @ TLane, 1 @ TCol)]),
+        C_tmem = T.cuda.decl_tmem(
+            400,
+            ty_args=[
+                T.Tensor(
+                    (M, N),
+                    "float32",
+                    scope="tmem",
+                    layout=TileLayout(S[(M, N) : (1 @ TLane, 1 @ TCol)]),
+                )
+            ],
         )
         if tid == 0:
             copy_src_5 = T.meta_var(B[:, :])
@@ -3916,6 +3958,25 @@ def test_gemm_tcgen05_cta1_m64_packed_c_infers_weight_stationary():
 # constructed tensor instruction Call to pin rejection paths without full compilation.
 
 
+def _resolve_dispatch_tmem_addresses(impl, addresses):
+    """Supply explicit backing addresses to a standalone dispatch fixture."""
+    import tvm_ffi
+
+    from tvm.backend.cuda.op import _tmem_address
+
+    if impl is None:
+        return None
+    projections = [(_tmem_address(buffer), address) for buffer, address in addresses.items()]
+
+    def resolve(expr):
+        for projection, address in projections:
+            if tvm_ffi.structural_equal(expr, projection):
+                return tvm.tirx.IntImm("uint32", address)
+        return expr
+
+    return impl.with_body(tvm_ffi.structural_map(impl.body, (tvm.tirx.Cast, resolve)))
+
+
 def _make_gemm_tcgen05_call(
     M,
     N,
@@ -3929,9 +3990,9 @@ def _make_gemm_tcgen05_call(
     scope_kind="thread",
     return_context=False,
     C_layout=None,
-    C_allocated_addr=0,
+    C_tmem_addr=0,
     A_scope="shared.dyn",
-    A_allocated_addr=0,
+    A_tmem_addr=0,
 ):
     """Construct a tcgen05.mma Call and run its lowerer.
 
@@ -3940,10 +4001,10 @@ def _make_gemm_tcgen05_call(
     C is a full-region (M, N) float32 TMEM buffer with the identity
     (1@TLane, 1@TCol) layout.
     """
-    from tvm.ir import Range
-    from tvm.tirx.cuda.tile_primitive.gemm_async.tcgen05 import (
+    from tvm.backend.cuda.tile_primitive.gemm_async.tcgen05 import (
         gemm_async_tcgen05_impl,
     )
+    from tvm.ir import Range
     from tvm.tirx.exec_scope import ExecScope
     from tvm.tirx.stmt import BufferRegion
     from tvm.tirx.tile_dispatch import DispatchContext
@@ -3954,13 +4015,10 @@ def _make_gemm_tcgen05_call(
     A_shape = (M, K) if not transA else (K, M)
     B_shape = (K, N) if transB else (N, K)
     A_buf = tvm.tirx.decl_tensor(A_shape, dtype, "A", scope=A_scope, layout=A_layout)
-    if A_scope == "tmem":
-        A_buf = A_buf.with_allocated_addr([tvm.tirx.IntImm("uint32", A_allocated_addr)])
     B_buf = tvm.tirx.decl_tensor(B_shape, dtype, "B_smem", scope="shared.dyn", layout=B_layout)
     if C_layout is None:
         C_layout = TileLayout(S[(M, N) : (1 @ TLane, 1 @ TCol)])
     C_buf = tvm.tirx.decl_tensor((M, N), "float32", "C_tmem", scope="tmem", layout=C_layout)
-    C_buf = C_buf.with_allocated_addr([tvm.tirx.IntImm("uint32", C_allocated_addr)])
     call = T.cuda.tile.tcgen05.mma(
         full_region(C_buf),
         full_region(A_buf),
@@ -3973,6 +4031,10 @@ def _make_gemm_tcgen05_call(
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     sctx = DispatchContext(target, ExecScope(scope_kind), {}, {}, scope_kind=scope_kind)
     impl = gemm_async_tcgen05_impl(call, sctx)
+    addresses = {C_buf: C_tmem_addr}
+    if A_scope == "tmem":
+        addresses[A_buf] = A_tmem_addr
+    impl = _resolve_dispatch_tmem_addresses(impl, addresses)
     return (impl, sctx) if return_context else impl
 
 
@@ -3993,7 +4055,7 @@ def test_gemm_tcgen05_preserves_explicit_tmem_lane_bases():
         A_smem_layout,
         B_layout,
         C_layout=d_offset,
-        C_allocated_addr=400,
+        C_tmem_addr=400,
         config={"mma_m": M, "mma_n": N},
     )
     assert "T.cuda.get_tmem_addr(T.uint32(400), 1, ni * 64)" in d_impl.script()
@@ -4008,9 +4070,9 @@ def test_gemm_tcgen05_preserves_explicit_tmem_lane_bases():
         a_offset,
         B_layout,
         C_layout=d_base,
-        C_allocated_addr=400,
+        C_tmem_addr=400,
         A_scope="tmem",
-        A_allocated_addr=256,
+        A_tmem_addr=256,
         config={"mma_m": M, "mma_n": N},
     )
     assert "T.cuda.get_tmem_addr(T.uint32(256), 1, ki * 8)" in a_impl.script()
@@ -4018,10 +4080,10 @@ def test_gemm_tcgen05_preserves_explicit_tmem_lane_bases():
 
 def test_gemm_tcgen05_preserves_block_scale_tmem_lane_bases():
     """SFA/SFB row offsets must reach the encoded TMEM address operands."""
-    from tvm.ir import Range
-    from tvm.tirx.cuda.tile_primitive.gemm_async.tcgen05 import (
+    from tvm.backend.cuda.tile_primitive.gemm_async.tcgen05 import (
         gemm_async_tcgen05_impl,
     )
+    from tvm.ir import Range
     from tvm.tirx.exec_scope import ExecScope
     from tvm.tirx.stmt import BufferRegion
     from tvm.tirx.tile_dispatch import DispatchContext
@@ -4052,7 +4114,7 @@ def test_gemm_tcgen05_preserves_block_scale_tmem_lane_bases():
         "C_tmem",
         scope="tmem",
         layout=tmem_datapath_layout("D", M, N),
-    ).with_allocated_addr([tvm.tirx.IntImm("uint32", 0)])
+    )
 
     sf_per_mma = 4
     sfa_base = sf_tmem_layout(M, SF_K=sf_per_mma, sf_per_mma=sf_per_mma)
@@ -4061,10 +4123,10 @@ def test_gemm_tcgen05_preserves_block_scale_tmem_lane_bases():
     sfb_layout = TileLayout.from_iters(sfb_base.shard, sfb_base.replica, {TLane: 2})
     SFA = tvm.tirx.decl_tensor(
         (M, sf_per_mma), sf_dtype, "SFA_tmem", scope="tmem", layout=sfa_layout
-    ).with_allocated_addr([tvm.tirx.IntImm("uint32", 256)])
+    )
     SFB = tvm.tirx.decl_tensor(
         (N, sf_per_mma), sf_dtype, "SFB_tmem", scope="tmem", layout=sfb_layout
-    ).with_allocated_addr([tvm.tirx.IntImm("uint32", 320)])
+    )
 
     call = T.cuda.tile.tcgen05.mma_block_scale(
         full_region(C),
@@ -4081,7 +4143,8 @@ def test_gemm_tcgen05_preserves_block_scale_tmem_lane_bases():
     )
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     sctx = DispatchContext(target, ExecScope("thread"), {}, {}, scope_kind="thread")
-    script = gemm_async_tcgen05_impl(call, sctx).script()
+    impl = gemm_async_tcgen05_impl(call, sctx)
+    script = _resolve_dispatch_tmem_addresses(impl, {C: 0, SFA: 256, SFB: 320}).script()
 
     # Check the addresses consumed by MMA, rather than the former unused
     # initial-address operands of the instruction descriptor encoder.

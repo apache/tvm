@@ -118,12 +118,13 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
       if (buffer.same_as(original_buffer)) {
         return ffi::Unchanged();
       }
+      ffi::Array<Expr> args = call->args;
+      args.Set(0, tvm::Tuple(buffer->shape, call->args[0]->span));
+      args.Set(1, DataTypeImm(buffer->dtype->dtype, call->args[1]->span));
+      args.Set(2, StringImm(buffer.scope(), call->args[2]->span));
       return Bind(buffer.var(),
-                  Call(buffer.type(), tirx::alloc_tensor_op(),
-                       {tvm::Tuple(buffer->shape, call->args[0]->span),
-                        DataTypeImm(buffer->dtype->dtype, call->args[1]->span),
-                        StringImm(buffer.scope(), call->args[2]->span)},
-                       call->attrs, call->ty_args, call->span),
+                  Call(buffer.type(), tirx::alloc_tensor_op(), args, call->attrs, call->ty_args,
+                       call->span),
                   op->span);
     }
     if (const auto* call = op->value.as<CallNode>();
