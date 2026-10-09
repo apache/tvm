@@ -28,7 +28,7 @@ from tvm_ffi import structural_walk
 
 import tvm
 import tvm.testing
-from tvm import ir
+from tvm import ir, tirx
 from tvm.ir import Call, SequentialSpan, TensorLoad, assert_structural_equal, prim
 from tvm.script import ir as I
 from tvm.script import tirx as T
@@ -295,7 +295,7 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
 def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
     # Inert metadata must retain resource identity; a non-Var buffer expression still needs a
     # located binding.
-    from tvm import ir, tirx
+    from tvm import ir
     from tvm.script.ir_builder import base
 
     producer_span = ir.Span(ir.SourceName("producer.py"), 7, 7, 2, 19)
