@@ -17,6 +17,8 @@
 """Common expressions data structures in the IR."""
 
 from collections.abc import Callable
+from functools import partial
+from inspect import getattr_static
 from numbers import Number
 
 import tvm_ffi
@@ -27,6 +29,8 @@ from ..runtime import Object
 from . import _ffi_api, _tensor_expr_overload
 from ._constant import const
 from .base import Node, Scriptable, Span
+
+_ATTRIBUTE_MISSING = object()
 
 
 def _convert_subscript_index(index):
@@ -50,6 +54,55 @@ class Expr(Node):
 
     span: Span | None
     ty: "tvm.ir.Type"
+
+    def __getattr__(self, name):
+        # Reflected fields are ordinary Python properties and have already had
+        # their chance to resolve before this type-directed fallback.
+        try:
+            ty = object.__getattribute__(self, "ty")
+        except AttributeError:
+            ty = None
+        if ty is not None and not name.startswith("_"):
+            if name in ty.__expr_properties__:
+                getter = ty.__expr_properties__[name]
+                if not callable(getter):
+                    raise TypeError(
+                        f"Declared expression property {name!r} must have a callable getter"
+                    )
+                return getter(ty, self)
+            if name in ty.__expr_methods__:
+                method = getattr(ty, name)
+                if not callable(method):
+                    raise TypeError(f"Declared expression method {name!r} must be callable")
+                bound = partial(method, self)
+                bound.__doc__ = method.__doc__
+                return bound
+        raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
+
+    def __setattr__(self, name, value):
+        # Do not invoke getters to distinguish real attributes from the fallback.
+        # Existing descriptors and instance attributes keep their usual behavior.
+        if (
+            not name.startswith("_")
+            and getattr_static(self, name, _ATTRIBUTE_MISSING) is _ATTRIBUTE_MISSING
+        ):
+            try:
+                ty = object.__getattribute__(self, "ty")
+            except AttributeError:
+                ty = None
+            if ty is not None and name in ty.__expr_properties__:
+                raise AttributeError(f"Expression property {name!r} is read-only")
+        super().__setattr__(name, value)
+
+    def __dir__(self):
+        names = set(super().__dir__())
+        try:
+            ty = object.__getattribute__(self, "ty")
+        except AttributeError:
+            return sorted(names)
+        names.update(name for name in ty.__expr_methods__ if not name.startswith("_"))
+        names.update(name for name in ty.__expr_properties__ if not name.startswith("_"))
+        return sorted(names)
 
     def __getitem__(self, index):
         if isinstance(self.ty, tvm.ir.MissingType):

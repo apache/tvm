@@ -16,6 +16,9 @@
 # under the License.
 """Unified type system in the project."""
 
+from collections.abc import Callable
+from typing import ClassVar
+
 import tvm_ffi
 
 from . import _ffi_api
@@ -24,7 +27,19 @@ from .base import Node, Scriptable
 
 @tvm_ffi.register_object("ir.Type")
 class Type(Node, Scriptable):
-    """The base class of all types."""
+    """The base class of all types.
+
+    ``__expr_methods__`` names methods exposed on expressions of this type.
+    Each method receives the type instance and then the expression operand:
+    ``expr.method(...)`` is equivalent to ``expr.ty.method(expr, ...)``.
+    ``__expr_properties__`` maps read-only expression property names to
+    getters taking ``(type_instance, expression)``. Ordinary expression
+    attributes take precedence, then declared properties, then methods.
+    Subclasses inherit these declarations or replace them explicitly.
+    """
+
+    __expr_methods__: tuple[str, ...] = ()
+    __expr_properties__: ClassVar[dict[str, Callable]] = {}
 
     @staticmethod
     def missing():
