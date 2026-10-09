@@ -148,7 +148,7 @@ class LoopUnroller : public StmtExprMutator {
       node->annotations.erase(attr::unroll_explicit);
       op = node;
     }
-    if (op->GetThreadBinding().has_value()) {
+    if (tvm::tirx::GetThreadBinding(op).has_value()) {
       // Explicit thread placement must survive until thread-binding lowering.
       normal_loop_depth_ += 1;
       return result;
@@ -218,7 +218,7 @@ class LoopUnroller : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     ++step_count_;
     if (unroll_local_access_) {
-      auto storage_scope = runtime::StorageScope::Create(op->buffer.scope());
+      auto storage_scope = runtime::StorageScope::Create(op->dest.as_or_throw<TensorVar>().scope());
       if (storage_scope.rank == runtime::StorageRank::kLocal ||
           storage_scope.rank == runtime::StorageRank::kWarp) {
         auto marker = ffi::make_object<VarLocalAccessMarker>(&var_touched_local_);

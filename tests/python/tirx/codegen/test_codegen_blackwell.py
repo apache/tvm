@@ -29,7 +29,7 @@ from tvm.testing import env
 
 def _is_buffer_binding(node, *op_names):
     return (
-        isinstance(node, tvm.tirx.Bind)
+        isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
         and isinstance(node.value.op, tvm.ir.Op)
         and node.value.op.name in op_names
@@ -51,7 +51,7 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
     arrive_calls = []
 
     def visit(node):
-        if isinstance(node, tvm.tirx.Bind) and node.var.name == "remote_mbar_ptr":
+        if isinstance(node, tvm.ir.Bind) and node.var.name == "remote_mbar_ptr":
             bindings.append(node)
         if (
             _is_buffer_binding(node, "tirx.decl_tensor")

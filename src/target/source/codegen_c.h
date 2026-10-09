@@ -216,7 +216,7 @@ class CodeGenC : public tvm::ExprFunctor<void(const Expr&, std::ostream&)>,
   void Dispatch_(const ReturnNode* op) override;
   void Dispatch_(const BreakNode* op) override;
   void Dispatch_(const ContinueNode* op) override;
-  void Dispatch_(const IfThenElseNode* op) override;
+  void Dispatch_(const IfNode* op) override;
   void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const RegionStmtNode* op) override;
   void Dispatch_(const AssertStmtNode* op) override;

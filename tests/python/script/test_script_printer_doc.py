@@ -165,7 +165,7 @@ EXPR_CASES = {
         '{"key_x": x, "key_y": y}',
     ),
     "if-then-else": (
-        op(OperationKind.IfThenElse)(x, LiteralDoc(None), LiteralDoc(1)),
+        op(OperationKind.If)(x, LiteralDoc(None), LiteralDoc(1)),
         "None if x else 1",
     ),
 }
@@ -220,7 +220,7 @@ def test_print_binary_operation_doc(op_kind, expected_token):
     assert to_python_script(doc) == f"x {expected_token} y"
 
 
-SPECIAL_OP_KINDS = {OperationKind.IfThenElse}
+SPECIAL_OP_KINDS = {OperationKind.If}
 
 
 def test_operation_doc_test_exhaustive():
@@ -248,7 +248,7 @@ def generate_expr_precedence_test_cases():
     add, mult, div, mod, pow_ = op(K.Add), op(K.Mult), op(K.Div), op(K.Mod), op(K.Pow)
     lshift, bit_and, bit_or, bit_xor = op(K.LShift), op(K.BitAnd), op(K.BitOr), op(K.BitXor)
     lt, eq, not_eq = op(K.Lt), op(K.Eq), op(K.NotEq)
-    and_, or_, ite = op(K.And), op(K.Or), op(K.IfThenElse)
+    and_, or_, ite = op(K.And), op(K.Or), op(K.If)
 
     test_cases = {
         "attr-call-index": [

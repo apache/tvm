@@ -68,7 +68,7 @@ def test_scalar_assign_error_not_swallowed():
 
     def bomb(*args, **kwargs):
         # Intercept only the scalar-assignment path (indices == [0])
-        if args[2] == [0]:
+        if args[1] == [0]:
             raise ValueError("boom")
         return original(*args, **kwargs)
 

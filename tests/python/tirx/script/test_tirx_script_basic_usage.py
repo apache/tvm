@@ -34,7 +34,6 @@ from tvm.script.tirx import tile as Tx
 
 def test_native_concise_scopes_unwind_with_their_parent():
     # Nested concise thread scopes must preserve the original variables in the constructed IR.
-    from tvm import tirx
 
     variables = []
 
@@ -50,7 +49,7 @@ def test_native_concise_scopes_unwind_with_their_parent():
 
     bx, tx = variables
     body = main.body[0]
-    assert isinstance(body, tirx.RegionStmt) and isinstance(body.body[0], tirx.RegionStmt)
+    assert isinstance(body, tvm.ir.RegionStmt) and isinstance(body.body[0], tvm.ir.RegionStmt)
     assert body.body_params[0].same_as(bx) and body.body[0].body_params[0].same_as(tx)
     assert body.body[0].body[0].value.a.same_as(bx) and body.body[0].body[0].value.b.same_as(tx)
 
@@ -188,7 +187,7 @@ def test_tuple_let_binding_and_traversal():
     def tuple_value(func):
         visited = []
         tvm_ffi.structural_walk(func.body, visited.append)
-        bind = next(node for node in visited if isinstance(node, tvm.tirx.Bind))
+        bind = next(node for node in visited if isinstance(node, tvm.ir.Bind))
         return bind.value
 
     list_value = tuple_value(from_list)
@@ -268,7 +267,7 @@ def test_pointer_expression_assignment_uses_bind():
     binds = []
 
     def collect_pointer_bind(node):
-        if isinstance(node, tvm.tirx.Bind) and isinstance(node.var.ty, PointerType):
+        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PointerType):
             binds.append(node)
 
     tvm_ffi.structural_walk(func.body, collect_pointer_bind)
@@ -299,9 +298,9 @@ def test_pointer_expression_rebinding_creates_distinct_native_bindings():
     bindings, uses = [], []
 
     def collect(node):
-        if isinstance(node, tvm.tirx.Bind) and isinstance(node.var.ty, PointerType):
+        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PointerType):
             bindings.append(node)
-        elif isinstance(node, tvm.tirx.Evaluate):
+        elif isinstance(node, tvm.ir.Evaluate):
             uses.append(node)
 
     tvm_ffi.structural_walk(func.body, collect)
@@ -328,7 +327,7 @@ def func() -> None:
     binds = []
 
     def collect_pointer_bind(node):
-        if isinstance(node, tvm.tirx.Bind) and isinstance(node.var.ty, PointerType):
+        if isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PointerType):
             binds.append(node)
 
     tvm_ffi.structural_walk(func.body, collect_pointer_bind)
@@ -530,9 +529,9 @@ def test_thread_return_is_distinct_from_function_return():
     def function_exit():
         return 0
 
-    assert isinstance(thread_exit.body[0], tirx.Evaluate)
+    assert isinstance(thread_exit.body[0], tvm.ir.Evaluate)
     assert thread_exit.body[0].value.op.name == "tirx.gpu_thread_return"
-    assert isinstance(function_exit.body[0], tirx.Return)
+    assert isinstance(function_exit.body[0], tvm.ir.Return)
     assert isinstance(function_exit.body[0].value, tirx.IntImm)
     assert function_exit.body[0].value.value == 0
 
@@ -541,10 +540,10 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
     # Invalid loop placement must be rejected, while disabled checks preserve the original IR.
     from tvm import error, ir, tirx
 
-    invalid = tirx.Function(params=[], body=tirx.Break())
+    invalid = tirx.Function(params=[], body=tvm.ir.Break())
 
     # Direct construction retains the native statement for an explicit verifier pass.
-    ir.assert_structural_equal(invalid.body, tirx.SeqStmt([tirx.Break()]))
+    ir.assert_structural_equal(invalid.body, tvm.ir.SeqStmt([tvm.ir.Break()]))
     assert not tirx.analysis.verify_well_formed(invalid, assert_mode=False)
     with pytest.raises(error.InternalError, match="requires an enclosing loop"):
         tirx.analysis.verify_well_formed(invalid)
@@ -554,7 +553,7 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
         for i in range(2):
             break
 
-    assert isinstance(valid.body[0], tirx.For)
+    assert isinstance(valid.body[0], tvm.ir.For)
     ir.assert_structural_equal(valid.body[0].body, invalid.body)
 
     @I.ir_module(check_well_formed=False, extra_vars={"invalid": invalid})
@@ -929,7 +928,7 @@ def test_thread_binding_has_no_dtype_parameter():
 def test_hand_built_for_promotes_int_literal_bounds_to_uint32():
     """The For constructor retypes literal bounds to the loop var's dtype."""
     loop_var = tvm.tirx.Var("i", "uint32")
-    loop = tvm.tirx.For(loop_var, 0, 128, tvm.tirx.ForKind.DEFAULT, tvm.tirx.Evaluate(0))
+    loop = tvm.ir.For(loop_var, 0, 128, tvm.ir.ForKind.DEFAULT, tvm.ir.Evaluate(0))
     assert loop.min.ty == PrimType("uint32")
     assert loop.extent.ty == PrimType("uint32")
 
@@ -937,4 +936,4 @@ def test_hand_built_for_promotes_int_literal_bounds_to_uint32():
 def test_hand_built_for_rejects_negative_literal_for_uint32():
     loop_var = tvm.tirx.Var("i", "uint32")
     with pytest.raises(Exception, match="not representable"):
-        tvm.tirx.For(loop_var, -1, 128, tvm.tirx.ForKind.DEFAULT, tvm.tirx.Evaluate(0))
+        tvm.ir.For(loop_var, -1, 128, tvm.ir.ForKind.DEFAULT, tvm.ir.Evaluate(0))

@@ -25,7 +25,7 @@ from tvm.tirx.transform.transform import BindTarget
 
 def _is_buffer_binding(node, *op_names):
     return (
-        isinstance(node, tvm.tirx.Bind)
+        isinstance(node, tvm.ir.Bind)
         and isinstance(node.value, tvm.ir.Call)
         and isinstance(node.value.op, tvm.ir.Op)
         and node.value.op.name in op_names
@@ -170,7 +170,7 @@ def test_bf16_masked_load_store_will_legalize():
 
         tvm_ffi.structural_walk(
             mod["main"].body,
-            ((tvm.tirx.Bind, tvm.ir.Call), collect_once),
+            ((tvm.ir.Bind, tvm.ir.Call), collect_once),
         )
         buffers = {
             node.var.name: str(node.var.dtype)

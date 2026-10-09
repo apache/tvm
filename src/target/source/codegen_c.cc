@@ -1046,13 +1046,14 @@ void CodeGenC::Dispatch_(const TensorStoreNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Store to non-flat memory not supported.";
 
   PrimType value_ty = op->value.ty();
-  const PrimType& element_ty = op->buffer->dtype;
+  const PrimType& element_ty = op->dest.as_or_throw<TensorVar>()->dtype;
   PrimExpr index_expr = op->indices[0];
-  Var buffer_var = op->buffer.var();
+  Var buffer_var = op->dest.as_or_throw<TensorVar>().var();
 
   if (value_ty.lanes() == element_ty.lanes()) {
     std::string value = this->PrintExpr(op->value);
-    std::string ref = this->GetBufferRef(value_ty, op->buffer.get(), index_expr);
+    std::string ref =
+        this->GetBufferRef(value_ty, op->dest.as_or_throw<TensorVar>().get(), index_expr);
     this->PrintIndent();
     stream << ref << " = " << value << ";\n";
   } else {
@@ -1061,7 +1062,7 @@ void CodeGenC::Dispatch_(const TensorStoreNode* op) {
     if (sym::ramp(base, 1, value_ty.lanes()).Match(index_expr) &&
         value_ty.code() != DLDataTypeCode::kDLFloat4_e2m1fn) {
       std::string value = this->PrintExpr(op->value);
-      this->PrintVecStore(op->buffer.get(), value_ty, base.Eval(), value);
+      this->PrintVecStore(op->dest.as_or_throw<TensorVar>().get(), value_ty, base.Eval(), value);
     } else {
       // The assignment below introduces side-effect, and the resulting value cannot
       // be reused across multiple expression, thus a new scope is needed
@@ -1442,7 +1443,7 @@ void CodeGenC::Dispatch_(const ContinueNode* op) {
   stream << "continue;\n";
 }
 
-void CodeGenC::Dispatch_(const IfThenElseNode* op) {
+void CodeGenC::Dispatch_(const IfNode* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
   if (cond[0] == '(' && cond[cond.length() - 1] == ')') {

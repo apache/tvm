@@ -22,13 +22,12 @@ Mirrors the C++ header ``include/tvm/tirx/tile_dispatch.h``.
 
 from tvm_ffi import register_object
 
-from tvm.ir import Expr, Range, Scriptable, Var
+from tvm.ir import Expr, Range, Scriptable, Stmt, Var
 from tvm.runtime import Object
 from tvm.target import Target
 
 from . import _ffi_api
 from .exec_scope import ExecScope
-from .stmt import Stmt
 
 
 @register_object("tirx.DispatchContext")

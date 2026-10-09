@@ -26,6 +26,7 @@ import pytest
 # ruff: noqa: F841
 from minilang import Value
 
+import tvm
 from tvm import DataType, error, ir
 from tvm.ir import prim
 from tvm.ir._overload_prim_expr import EqualOp
@@ -258,7 +259,6 @@ def test_body_annotation_reads_a_preceding_ordinary_local(language):
 
 def test_native_concise_scopes_unwind_with_their_parent():
     # Nested concise thread scopes must preserve the original variables in the constructed IR.
-    from tvm import tirx
     from tvm.script import tirx as T
 
     variables = []
@@ -275,7 +275,7 @@ def test_native_concise_scopes_unwind_with_their_parent():
 
     bx, tx = variables
     body = main.body[0]
-    assert isinstance(body, tirx.RegionStmt) and isinstance(body.body[0], tirx.RegionStmt)
+    assert isinstance(body, tvm.ir.RegionStmt) and isinstance(body.body[0], tvm.ir.RegionStmt)
     assert body.body_params[0].same_as(bx) and body.body[0].body_params[0].same_as(tx)
     assert body.body[0].body[0].value.a.same_as(bx) and body.body[0].body[0].value.b.same_as(tx)
 
@@ -285,8 +285,8 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
     from tvm import ir, tirx
     from tvm.script import tirx as T
 
-    invalid = tirx.Function(params=[], body=tirx.Break())
-    ir.assert_structural_equal(invalid.body, tirx.SeqStmt([tirx.Break()]))
+    invalid = tirx.Function(params=[], body=tvm.ir.Break())
+    ir.assert_structural_equal(invalid.body, tvm.ir.SeqStmt([tvm.ir.Break()]))
     assert not tirx.analysis.verify_well_formed(invalid, assert_mode=False)
     with pytest.raises(error.InternalError, match="requires an enclosing loop"):
         tirx.analysis.verify_well_formed(invalid)
@@ -296,7 +296,7 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
         for i in range(2):
             break
 
-    assert isinstance(valid.body[0], tirx.For)
+    assert isinstance(valid.body[0], tvm.ir.For)
     ir.assert_structural_equal(valid.body[0].body, invalid.body)
 
     @I.ir_module(check_well_formed=False, extra_vars={"invalid": invalid})

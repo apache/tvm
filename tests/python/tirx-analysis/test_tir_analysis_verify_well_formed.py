@@ -54,15 +54,15 @@ def test_error_for_out_of_scope_usage():
     """
     i = tvm.tirx.Var("i", "int32")
     # Bind i inside a For loop body
-    for_stmt = tvm.tirx.For(
+    for_stmt = tvm.ir.For(
         tvm.tirx.Var("j", "int32"),
         0,
         1,
-        tvm.tirx.ForKind.DEFAULT,
-        tvm.tirx.SeqStmt([tvm.tirx.Bind(i, 42), tvm.tirx.Evaluate(i)]),
+        tvm.ir.ForKind.DEFAULT,
+        tvm.ir.SeqStmt([tvm.ir.Bind(i, 42), tvm.ir.Evaluate(i)]),
     )
     # Use i outside the For loop — this is out of scope
-    body = tvm.tirx.SeqStmt([for_stmt, tvm.tirx.Evaluate(i)])
+    body = tvm.ir.SeqStmt([for_stmt, tvm.ir.Evaluate(i)])
     func = tvm.tirx.Function([], body)
 
     with pytest.raises(
@@ -355,7 +355,7 @@ def test_tensor_load_malformed_indices_return_false_without_asserting():
     buffer = tvm.tirx.decl_tensor((4, 4), "float32")
     vector_index = tvm.tirx.Ramp(0, 1, 4)
     load = tvm.tirx.TensorLoad(buffer, [0, vector_index])
-    func = tvm.tirx.Function([buffer], tvm.tirx.Evaluate(load))
+    func = tvm.tirx.Function([buffer], tvm.ir.Evaluate(load))
 
     graph = json.loads(tvm.ir.save_json(func))
     load_node = next(node for node in graph["nodes"] if node["type"] == "ir.TensorLoad")

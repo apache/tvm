@@ -53,8 +53,8 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
     } else if (const auto* bind = s.as<BindNode>()) {
       // Bind has no body -- prepend it before the accumulated body in a SeqStmt.
       body = SeqStmt({ffi::GetRef<Stmt>(bind), body});
-    } else if (const auto* ite = s.as<IfThenElseNode>()) {
-      auto n = ffi::make_object<IfThenElseNode>(*ite);
+    } else if (const auto* ite = s.as<IfNode>()) {
+      auto n = ffi::make_object<IfNode>(*ite);
       TVM_FFI_ICHECK(tirx::IsNoOp(n->then_case));
       TVM_FFI_ICHECK(!n->else_case);
       n->then_case = body;
@@ -205,7 +205,7 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const BindNode* op, InplaceMode inplace_
   return stmt;
 }
 
-UnchangedOr<Stmt> IRConvertSSA::Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> IRConvertSSA::Mutate_(const IfNode* op, InplaceMode inplace_mode) {
   // Each branch gets its own scope so Bind remaps in one branch
   // do not leak into the other.
   auto condition_result = Mutate(op->condition, inplace_mode);
@@ -223,7 +223,7 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const IfThenElseNode* op, InplaceMode in
   if (condition_unchanged && then_case.same_as(op->then_case) && else_case.same_as(op->else_case)) {
     return ffi::Unchanged();
   }
-  return IfThenElse(condition, then_case, else_case);
+  return If(condition, then_case, else_case);
 }
 
 UnchangedOr<Stmt> IRConvertSSA::Mutate_(const ForNode* op, InplaceMode inplace_mode) {

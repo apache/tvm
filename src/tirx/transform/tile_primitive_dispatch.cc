@@ -528,7 +528,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return SeqStmt(seq);
   }
 
-  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode) final {
     // Narrow ExecContext for structurally recognized predicates on the
     // then-branch. The canonical-form classifier (filter_canonical.h)
     // recognizes the dominant shapes: pure conjunctions of `scopeid_var op
@@ -556,7 +556,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
                       (op->else_case.has_value() && else_case.has_value() &&
                        else_case.value().same_as(op->else_case.value())));
     if (unchanged) return ffi::Unchanged();
-    return IfThenElse(new_cond, then_case, else_case);
+    return If(new_cond, then_case, else_case);
   }
 
   UnchangedOr<Stmt> Mutate_(const tirx::TileOpCallNode* op, InplaceMode inplace_mode) final {

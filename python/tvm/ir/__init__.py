@@ -75,5 +75,23 @@ from .function import BaseFunc, CallingConv
 from .global_info import GlobalInfo
 from .module import IRModule
 from .op import Op, register_op_attr
+from .stmt import (
+    Stmt,
+    SeqStmt,
+    Bind,
+    Evaluate,
+    Return,
+    If,
+    ForKind,
+    For,
+    While,
+    Break,
+    Continue,
+    AssertStmt,
+    RegionStmt,
+    TensorStore,
+    stmt_seq,
+    stmt_list,
+)
 
 from tvm_ffi import Array, Map

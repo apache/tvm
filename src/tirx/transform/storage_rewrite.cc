@@ -91,7 +91,7 @@ struct PrimTypeEqual {
 // The linear_seq_ stores before_scope and after_scope.
 // The access to the arrays are stored at the after_scope point.
 //
-// Define "scope" as the body of For/thread_launch/IfThenElse
+// Define "scope" as the body of For/thread_launch/If
 // This pass tries to detect last point that we need to keep memory
 // alive under the same scope as allocate.
 // The storage need to be kept alive between allocate and last access.
@@ -157,7 +157,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     for (const auto& index : op->indices) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
     }
-    RecordAccess(op->buffer);
+    RecordAccess(op->dest.as_or_throw<TensorVar>());
     StmtEntry e = scope_.back();
     scope_.pop_back();
     if (e.touched.size() != 0) {
@@ -251,7 +251,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     return VisitNewScope(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) final { return VisitNewScope(op); }
+  ffi::Optional<VisitInterrupt> Visit_(const IfNode* op) final { return VisitNewScope(op); }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final { return VisitNewScope(op); }
 
@@ -349,8 +349,8 @@ class InplaceOpVerifier : public StmtExprVisitor {
     result_ = true;
     if (stmt->IsInstance<ForNode>()) {
       Visit_(static_cast<const ForNode*>(stmt));
-    } else if (stmt->IsInstance<IfThenElseNode>()) {
-      Visit_(static_cast<const IfThenElseNode*>(stmt));
+    } else if (stmt->IsInstance<IfNode>()) {
+      Visit_(static_cast<const IfNode*>(stmt));
     } else if (stmt->IsInstance<WhileNode>()) {
       Visit_(static_cast<const WhileNode*>(stmt));
     } else if (stmt->IsInstance<TensorStoreNode>()) {
@@ -384,7 +384,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(index));
     }
     --mem_nest_;
-    if (op->buffer.get() == dst_) {
+    if (op->dest.as_or_throw<TensorVar>().get() == dst_) {
       store_ = op;
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
       store_ = nullptr;
@@ -504,18 +504,21 @@ class StoragePlanRewriter : public StmtExprMutator {
 
   template <typename Node>
   Node VisitBufferAccess(Node node) {
-    const VarNode* root =
-        buffer_aliases_.Get(node->buffer.var()).value_or(node->buffer.var()).get();
+    const VarNode* root = buffer_aliases_.Get(node->dest.template as_or_throw<TensorVar>().var())
+                              .value_or(node->dest.template as_or_throw<TensorVar>().var())
+                              .get();
     auto it = alloc_map_.find(root);
     if (it != alloc_map_.end()) {
-      TensorVar buf = RemapBuffer(node->buffer, it->second->alloc_var);
+      TensorVar buf =
+          RemapBuffer(node->dest.template as_or_throw<TensorVar>(), it->second->alloc_var);
 
       ffi::Array<PrimExpr> indices = node->indices;
       indices.Set(indices.size() - 1,
-                  RemapIndex(node->buffer->dtype, indices[indices.size() - 1], it->second));
+                  RemapIndex(node->dest.template as_or_throw<TensorVar>()->dtype,
+                             indices[indices.size() - 1], it->second));
 
       auto writer = node.CopyOnWrite();
-      writer->buffer = buf;
+      writer->dest = buf;
       writer->indices = indices;
     }
     return node;
@@ -560,11 +563,11 @@ class StoragePlanRewriter : public StmtExprMutator {
     auto value = Mutate(op->value, inplace_mode);
     auto indices =
         Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
-    TensorStore node =
-        value.UnchangedOrSameAs(op->value) && indices.UnchangedOrSameAs(op->indices)
-            ? ffi::GetRef<TensorStore>(op)
-            : TensorStore(op->buffer, std::move(value).ValueOrUnchanged(op->value),
-                          std::move(indices).ValueOrUnchanged(op->indices), op->span);
+    TensorStore node = value.UnchangedOrSameAs(op->value) && indices.UnchangedOrSameAs(op->indices)
+                           ? ffi::GetRef<TensorStore>(op)
+                           : TensorStore(op->dest.as_or_throw<TensorVar>(),
+                                         std::move(indices).ValueOrUnchanged(op->indices),
+                                         std::move(value).ValueOrUnchanged(op->value), op->span);
     return VisitBufferAccess(std::move(node));
   }
 
@@ -624,9 +627,9 @@ class StoragePlanRewriter : public StmtExprMutator {
                            .as_or_throw<Expr>());
         return Call(access->ty, op->op, args, op->attrs, op->ty_args, op->span);
       } else {
-        TensorStore access(buffer, value.value(), indices, op->span);
+        TensorStore access(buffer, indices, value.value(), op->span);
         access = VisitBufferAccess(std::move(access));
-        ffi::Array<Expr> args{access->buffer.var(), access->value};
+        ffi::Array<Expr> args{access->dest.as_or_throw<TensorVar>().var(), access->value};
         for (const PrimExpr& index : access->indices) args.push_back(index);
         args.push_back(this->Mutate(op->args[op->args.size() - 1])
                            .ValueOrUnchanged(op->args[op->args.size() - 1])
@@ -1160,7 +1163,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         PlanNewScope(s.stmt);
       } else if (s.stmt->IsInstance<ForNode>()) {
         const auto* op = static_cast<const ForNode*>(s.stmt);
-        if (op->kind == ForKind::kParallel && !op->GetThreadBinding().has_value()) {
+        if (op->kind == ForKind::kParallel && !tvm::tirx::GetThreadBinding(op).has_value()) {
           if (thread_scope_ == nullptr || thread_scope_ == op) {
             PlanNewScope(op);
           }
@@ -1465,7 +1468,8 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
-    OnArrayAccess(op->value.ty(), op->buffer.get(), op->indices, /*is_buffer_load=*/false);
+    OnArrayAccess(op->value.ty(), op->dest.as_or_throw<TensorVar>().get(), op->indices,
+                  /*is_buffer_load=*/false);
     return StmtExprVisitor::Visit_(op);
   }
 
@@ -1819,7 +1823,8 @@ class VectorTypeRewriter : public StmtExprMutator {
       return {node, shuffle_index};
     }
 
-    Var root = buffer_aliases_.Get(node->buffer.var()).value_or(node->buffer.var());
+    Var root = buffer_aliases_.Get(node->dest.template as_or_throw<TensorVar>().var())
+                   .value_or(node->dest.template as_or_throw<TensorVar>().var());
     auto it = rewrite_map_.find(root.get());
     if (it == rewrite_map_.end()) {
       return {node, shuffle_index};
@@ -1830,7 +1835,8 @@ class VectorTypeRewriter : public StmtExprMutator {
     const PrimExpr& last_dim_index = indices[indices.size() - 1];
     const prim::RampNode* ramp_index = indices[indices.size() - 1].as<prim::RampNode>();
 
-    if (node->buffer->dtype.IsScalableVector() || last_dim_index.ty().IsScalableVector()) {
+    if (node->dest.template as_or_throw<TensorVar>()->dtype.IsScalableVector() ||
+        last_dim_index.ty().IsScalableVector()) {
       // Scalable types are not currently supported in storage_rewrite. Scalable buffer
       // accesses are not currently checked and therefore are not rewritten.
       return {node, shuffle_index};
@@ -1855,7 +1861,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     }
 
     auto writer = node.CopyOnWrite();
-    writer->buffer = RemapBuffer(node->buffer);
+    writer->dest = RemapBuffer(node->dest.template as_or_throw<TensorVar>());
     writer->indices = indices;
     return {node, shuffle_index};
   }
@@ -1928,11 +1934,11 @@ class VectorTypeRewriter : public StmtExprMutator {
     auto value = Mutate(op->value, inplace_mode);
     auto indices =
         Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
-    TensorStore node =
-        value.UnchangedOrSameAs(op->value) && indices.UnchangedOrSameAs(op->indices)
-            ? ffi::GetRef<TensorStore>(op)
-            : TensorStore(op->buffer, std::move(value).ValueOrUnchanged(op->value),
-                          std::move(indices).ValueOrUnchanged(op->indices), op->span);
+    TensorStore node = value.UnchangedOrSameAs(op->value) && indices.UnchangedOrSameAs(op->indices)
+                           ? ffi::GetRef<TensorStore>(op)
+                           : TensorStore(op->dest.as_or_throw<TensorVar>(),
+                                         std::move(indices).ValueOrUnchanged(op->indices),
+                                         std::move(value).ValueOrUnchanged(op->value), op->span);
     auto [modified, shuffle_index] = VisitBufferAccess(std::move(node));
     TVM_FFI_ICHECK(shuffle_index < 0);
     return modified;
@@ -1964,11 +1970,12 @@ class VectorTypeRewriter : public StmtExprMutator {
         indices.push_back(this->Mutate(op->args[i].as_or_throw<PrimExpr>())
                               .ValueOrUnchanged(op->args[i].as_or_throw<PrimExpr>()));
       }
-      TensorStore access(buffer, value, indices, op->span);
+      TensorStore access(buffer, indices, value, op->span);
       auto [modified, shuffle_index] = VisitBufferAccess(std::move(access));
       TVM_FFI_ICHECK_LT(shuffle_index, 0)
           << "A masked vector store cannot be rewritten into a scalar shuffle.";
-      ffi::Array<Expr> args{modified->buffer.var(), modified->value};
+      ffi::Array<Expr> args{modified->dest.template as_or_throw<TensorVar>().var(),
+                            modified->value};
       for (const PrimExpr& index : modified->indices) args.push_back(index);
       args.push_back(this->Mutate(op->args.back()).ValueOrUnchanged(op->args.back()));
       return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);

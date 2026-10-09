@@ -69,8 +69,8 @@ def test_ir():
     x = tvm.tirx.const(1, "int32")
     y = tvm.tirx.IntImm("int32", 1)
     z = x + y
-    stmt = tvm.tirx.Evaluate(z)
-    assert isinstance(stmt, tvm.tirx.Evaluate)
+    stmt = tvm.ir.Evaluate(z)
+    assert isinstance(stmt, tvm.ir.Evaluate)
 
 
 def test_ir2():
@@ -82,17 +82,17 @@ def test_ir2():
     array = tvm.tirx.Var("array", handle_type)
     buf = tvm.tirx.decl_tensor([buf_size], "int32", data=array)
 
-    st = tvm.tirx.TensorStore(buf, x + 1, [1])
-    assert isinstance(st, tvm.tirx.TensorStore)
-    assert st.buffer == buf
-    assert st.buffer.data.args[0].same_as(buf)
-    assert st.buffer.data.ty == array.ty
+    st = tvm.ir.TensorStore(buf, [1], x + 1)
+    assert isinstance(st, tvm.ir.TensorStore)
+    assert st.dest == buf
+    assert st.dest.data.args[0].same_as(buf)
+    assert st.dest.data.ty == array.ty
 
 
 def test_let():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "int32")
-    stmt = tvm.tirx.Bind(x, 10)
+    stmt = tvm.ir.Bind(x, 10)
 
 
 def test_cast():
@@ -128,9 +128,9 @@ def test_basic():
 
 
 def test_stmt():
-    x = tvm.tirx.Evaluate(0)
-    tvm.tirx.For(tvm.tirx.Var("i", "int32"), 0, 1, tvm.tirx.ForKind.DEFAULT, x)
-    tvm.tirx.For(tvm.tirx.Var("i", "int32"), 0, 1, tvm.tirx.ForKind.UNROLLED, x, step=2)
+    x = tvm.ir.Evaluate(0)
+    tvm.ir.For(tvm.tirx.Var("i", "int32"), 0, 1, tvm.ir.ForKind.DEFAULT, x)
+    tvm.ir.For(tvm.tirx.Var("i", "int32"), 0, 1, tvm.ir.ForKind.UNROLLED, x, step=2)
 
 
 def test_dir():
@@ -302,7 +302,7 @@ def test_function():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "int32")
     b = tvm.tirx.decl_tensor((x,), "float32")
-    stmt = tvm.tirx.SeqStmt([tvm.tirx.Bind(x, 10), tvm.tirx.Evaluate(x + 1)])
+    stmt = tvm.ir.SeqStmt([tvm.ir.Bind(x, 10), tvm.ir.Evaluate(x + 1)])
 
     func = tvm.tirx.Function([x, y, b], stmt)
     # make sure we can print
@@ -310,7 +310,7 @@ def test_function():
     assert not hasattr(func, "buffer_map")
 
     assert sum(tvm.tirx.is_tensor_var(param) for param in func.params) == 1
-    assert func.with_body(tvm.tirx.Evaluate(0)).params[2].same_as(b)
+    assert func.with_body(tvm.ir.Evaluate(0)).params[2].same_as(b)
     f2 = func.with_attr({"calling_conv": 1, "tirx.noalias": True})
     assert f2.attrs["calling_conv"] == 1
     assert not func.attrs
@@ -345,8 +345,8 @@ def test_buffer_load_store():
     assert not hasattr(x, "buffer")
     with pytest.raises(TypeError, match="cannot be constructed directly"):
         tvm.ir.TensorLoad(b, [0])
-    s = tvm.tirx.TensorStore(b, 0.1, [0])
-    assert isinstance(s, tvm.tirx.TensorStore)
+    s = tvm.ir.TensorStore(b, [0], 0.1)
+    assert isinstance(s, tvm.ir.TensorStore)
 
 
 def test_intimm_cond():
@@ -422,9 +422,9 @@ def test_tensor_store_scalable_vec():
     b = tvm.tirx.decl_tensor((24,), "int32")
     value = tvm.tirx.expr.Broadcast(1, 4 * tvm.tirx.vscale())
     index = tvm.tirx.expr.Ramp(0, 1, 4 * tvm.tirx.vscale())
-    store = tvm.tirx.TensorStore(b, value, [index])
+    store = tvm.ir.TensorStore(b, [index], value)
 
-    assert isinstance(store, tvm.tirx.TensorStore)
+    assert isinstance(store, tvm.ir.TensorStore)
     assert store.value.ty.dtype == "int32xvscalex4"
 
 
@@ -433,7 +433,7 @@ def test_scalable_vec_cast():
     value = tvm.tirx.expr.Broadcast(1, 12 * tvm.tirx.vscale()).astype("float32xvscalex12")
     index = tvm.tirx.expr.Ramp(0, 1, 12 * tvm.tirx.vscale())
 
-    store = tvm.tirx.TensorStore(b, value, [index])
+    store = tvm.ir.TensorStore(b, [index], value)
 
     assert isinstance(store.value.value, tvm.tirx.expr.FloatImm)
 

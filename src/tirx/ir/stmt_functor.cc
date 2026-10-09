@@ -35,8 +35,8 @@
 #include <utility>
 #include <vector>
 
+#include "../../ir/seq_stmt_mutate.h"
 #include "data_type_rewriter.h"
-#include "seq_stmt_mutate.h"
 
 namespace tvm {
 namespace tirx {
@@ -45,7 +45,7 @@ void StmtExprVisitor::InitVTable(VTable* vtable) {
   tvm::ExprVisitor::InitVTable(vtable);
   SetDispatch<StmtExprVisitor, BindNode>(vtable);
   SetDispatch<StmtExprVisitor, RegionStmtNode>(vtable);
-  SetDispatch<StmtExprVisitor, IfThenElseNode>(vtable);
+  SetDispatch<StmtExprVisitor, IfNode>(vtable);
   SetDispatch<StmtExprVisitor, ForNode>(vtable);
   SetDispatch<StmtExprVisitor, WhileNode>(vtable);
   SetDispatch<StmtExprVisitor, ReturnNode>(vtable);
@@ -163,15 +163,14 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const ReturnNode* op) {
 }
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const TensorStoreNode* op) {
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->buffer));
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->dest));
   for (const auto& child : op->indices) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
   }
-  return std::nullopt;
+  return this->Visit(op->value);
 }
 
-ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const IfThenElseNode* op) {
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const IfNode* op) {
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->condition));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->then_case));
   if (op->else_case) {
@@ -227,7 +226,7 @@ void StmtExprMutator::InitVTable(VTable* vtable) {
   tvm::ExprMutator::InitVTable(vtable);
   SetDispatch<StmtExprMutator, BindNode>(vtable);
   SetDispatch<StmtExprMutator, RegionStmtNode>(vtable);
-  SetDispatch<StmtExprMutator, IfThenElseNode>(vtable);
+  SetDispatch<StmtExprMutator, IfNode>(vtable);
   SetDispatch<StmtExprMutator, ForNode>(vtable);
   SetDispatch<StmtExprMutator, WhileNode>(vtable);
   SetDispatch<StmtExprMutator, ReturnNode>(vtable);
@@ -358,7 +357,7 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const ReturnNode* op, InplaceMode inp
   return Stmt(std::move(copy));
 }
 
-UnchangedOr<Stmt> StmtExprMutator::Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> StmtExprMutator::Mutate_(const IfNode* op, InplaceMode inplace_mode) {
   auto condition = Mutate(op->condition, inplace_mode);
   auto then_case = Mutate(op->then_case, inplace_mode);
   auto else_case = Mutate(op->else_case, inplace_mode);
@@ -366,13 +365,13 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const IfThenElseNode* op, InplaceMode
       else_case.UnchangedOrSameAs(op->else_case))
     return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
-    auto* writable = const_cast<IfThenElseNode*>(op);
+    auto* writable = const_cast<IfNode*>(op);
     if (!condition.IsUnchanged()) writable->condition = std::move(condition).ValueUnchecked();
     if (!then_case.IsUnchanged()) writable->then_case = std::move(then_case).ValueUnchecked();
     if (!else_case.IsUnchanged()) writable->else_case = std::move(else_case).ValueUnchecked();
     return ffi::Unchanged();
   }
-  auto copy = ffi::make_object<IfThenElseNode>(*op);
+  auto copy = ffi::make_object<IfNode>(*op);
   if (!condition.IsUnchanged()) copy->condition = std::move(condition).ValueUnchecked();
   if (!then_case.IsUnchanged()) copy->then_case = std::move(then_case).ValueUnchecked();
   if (!else_case.IsUnchanged()) copy->else_case = std::move(else_case).ValueUnchecked();
@@ -418,30 +417,31 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const ContinueNode* op, InplaceMode i
 }
 
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) {
-  auto buffer = Mutate(op->buffer, inplace_mode).as_or_throw<UnchangedOr<TensorVar>>();
-  auto value = Mutate(op->value, inplace_mode);
+  auto dest = Mutate(op->dest, inplace_mode).as_or_throw<UnchangedOr<Expr>>();
   auto indices = Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
-  if (buffer.UnchangedOrSameAs(op->buffer) && value.UnchangedOrSameAs(op->value) &&
+  auto value = Mutate(op->value, inplace_mode);
+  if (dest.UnchangedOrSameAs(op->dest) && value.UnchangedOrSameAs(op->value) &&
       indices.UnchangedOrSameAs(op->indices))
     return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<TensorStoreNode*>(op);
-    if (!buffer.IsUnchanged()) writable->buffer = std::move(buffer).ValueUnchecked();
+    if (!dest.IsUnchanged()) writable->dest = std::move(dest).ValueUnchecked();
     if (!value.IsUnchanged()) writable->value = std::move(value).ValueUnchecked();
     if (!indices.IsUnchanged()) writable->indices = std::move(indices).ValueUnchecked();
     return ffi::Unchanged();
   }
   auto copy = ffi::make_object<TensorStoreNode>(*op);
-  if (!buffer.IsUnchanged()) copy->buffer = std::move(buffer).ValueUnchecked();
+  if (!dest.IsUnchanged()) copy->dest = std::move(dest).ValueUnchecked();
   if (!value.IsUnchanged()) copy->value = std::move(value).ValueUnchecked();
   if (!indices.IsUnchanged()) copy->indices = std::move(indices).ValueUnchecked();
   return Stmt(std::move(copy));
 }
 
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) {
-  return detail::MutateSeqStmt(op, inplace_mode, [this](ffi::AnyView element, InplaceMode mode) {
-    return Mutate(element, mode).as_or_throw<UnchangedOr<Stmt>>();
-  });
+  return tvm::detail::MutateSeqStmt(op, inplace_mode,
+                                    [this](ffi::AnyView element, InplaceMode mode) {
+                                      return Mutate(element, mode).as_or_throw<UnchangedOr<Stmt>>();
+                                    });
 }
 
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const ScopeIdDefStmtNode* op, InplaceMode inplace_mode) {

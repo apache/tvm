@@ -307,9 +307,9 @@ class BuiltinLower : public StmtExprMutator {
         Evaluate(Call(PrimType::Int(32), throw_last_error_op(), {}).as_or_throw<PrimExpr>());
 
     Stmt alloc_nullptr_check =
-        IfThenElse(Call(PrimType::Bool(), isnullptr_op(), {op->var.as_or_throw<TensorVar>().data()})
-                       .as_or_throw<PrimExpr>(),
-                   throw_last_error);
+        If(Call(PrimType::Bool(), isnullptr_op(), {op->var.as_or_throw<TensorVar>().data()})
+               .as_or_throw<PrimExpr>(),
+           throw_last_error);
 
     static const Op free_workspace_op = Op::Get("tirx.free_workspace");
     static const Op alloc_workspace_op = Op::Get("tirx.alloc_workspace");
@@ -318,7 +318,7 @@ class BuiltinLower : public StmtExprMutator {
                              prim::cast(PrimType::Int(32), device_id_.value()),
                              op->var.as_or_throw<TensorVar>().data()})
                            .as_or_throw<PrimExpr>();
-    Stmt free_stmt = IfThenElse(free_op != IntImm::Int32(0), throw_last_error);
+    Stmt free_stmt = If(free_op != IntImm::Int32(0), throw_last_error);
 
     // Push free to enclosing scope's pending_frees (LIFO ordering preserved).
     scope_.Current().pending_frees.push_back(free_stmt);
@@ -378,7 +378,7 @@ class BuiltinLower : public StmtExprMutator {
     PrimExpr extent = std::move(extent_result).ValueOrUnchanged(op->extent);
     Stmt body = op->body;
 
-    if (op->kind == ForKind::kParallel && !op->GetThreadBinding().has_value()) {
+    if (op->kind == ForKind::kParallel && !tvm::tirx::GetThreadBinding(op).has_value()) {
       body = this->VisitBodyAndRealizeAlloca(op->body);
     } else {
       body = scope_.WithNewScope([&]() -> Stmt {
@@ -405,7 +405,7 @@ class BuiltinLower : public StmtExprMutator {
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode) final {
     auto condition_result = this->Mutate(op->condition, inplace_mode);
     bool condition_unchanged = condition_result.UnchangedOrSameAs(op->condition);
     PrimExpr condition = std::move(condition_result).ValueOrUnchanged(op->condition);
@@ -426,7 +426,7 @@ class BuiltinLower : public StmtExprMutator {
         else_case.same_as(op->else_case)) {
       return ffi::Unchanged();
     }
-    return IfThenElse(condition, then_case, else_case, op->span);
+    return If(condition, then_case, else_case, op->span);
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
@@ -494,9 +494,8 @@ class BuiltinLower : public StmtExprMutator {
     // no need to perform any store for a scalar shape
     for (size_t i = 0; i < op->args.size(); ++i) {
       prep_seq.emplace_back(
-          TensorStore(scope.stack_shape.value(),
-                      prim::cast(PrimType::Int(64), op->args[i].as_or_throw<PrimExpr>()),
-                      {ConstInt32(stack_begin + i)}));
+          TensorStore(scope.stack_shape.value(), {ConstInt32(stack_begin + i)},
+                      prim::cast(PrimType::Int(64), op->args[i].as_or_throw<PrimExpr>())));
     }
     PrimExpr offset = ConstInt32(stack_begin);
     TensorLoad load = MakeTensorLoad(scope.stack_shape.value(), {offset});
@@ -551,7 +550,7 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   void SetPackedArg(Expr arg, const Var& args_stack, size_t stack_offset,
-                    std::vector<tirx::Stmt>* prep_seq) {
+                    std::vector<Stmt>* prep_seq) {
     int arg_type_index;
     if (arg.as<StringImmNode>()) {
       arg_type_index = ffi::TypeIndex::kTVMFFIRawStr;
@@ -580,11 +579,11 @@ class BuiltinLower : public StmtExprMutator {
     // opaque handle need to set the kind properly
     if (arg_type_index == ffi::TypeIndex::kTVMFFIOpaquePtr) {
       prep_seq->emplace_back(
-          IfThenElse(Call(PrimType::Bool(), isnullptr_op(), {arg}).as_or_throw<PrimExpr>(),
-                     TVMStructSet(args_stack, stack_offset, kTVMFFIAnyTypeIndex,
-                                  ConstInt32(ffi::TypeIndex::kTVMFFINone)),
-                     SeqStmt(TVMStructSet(args_stack, stack_offset, kTVMFFIAnyTypeIndex,
-                                          ConstInt32(ffi::TypeIndex::kTVMFFIOpaquePtr)))));
+          If(Call(PrimType::Bool(), isnullptr_op(), {arg}).as_or_throw<PrimExpr>(),
+             TVMStructSet(args_stack, stack_offset, kTVMFFIAnyTypeIndex,
+                          ConstInt32(ffi::TypeIndex::kTVMFFINone)),
+             SeqStmt(TVMStructSet(args_stack, stack_offset, kTVMFFIAnyTypeIndex,
+                                  ConstInt32(ffi::TypeIndex::kTVMFFIOpaquePtr)))));
     } else {
       prep_seq->emplace_back(
           TVMStructSet(args_stack, stack_offset, kTVMFFIAnyTypeIndex, ConstInt32(arg_type_index)));
@@ -676,7 +675,7 @@ class BuiltinLower : public StmtExprMutator {
     }
 
     Call call_packed = Call(let->var->ty, call_packed_op(), args);
-    Stmt null_check = IfThenElse(
+    Stmt null_check = If(
         Call(PrimType::Bool(), isnullptr_op(), ffi::Array<Expr>{let->var}).as_or_throw<PrimExpr>(),
         throw_last_error);
 
@@ -686,8 +685,7 @@ class BuiltinLower : public StmtExprMutator {
     Call free_op = Call(PrimType::Int(32), call_packed_op(),
                         {GetDeviceMethodName("free_nd"), device_type_.value(), device_id_.value(),
                          storage_scope, let->var});
-    Stmt free_stmt =
-        IfThenElse(free_op.as_or_throw<PrimExpr>() != IntImm::Int32(0), throw_last_error);
+    Stmt free_stmt = If(free_op.as_or_throw<PrimExpr>() != IntImm::Int32(0), throw_last_error);
     // Visit the free_stmt so call_packed builtins inside it get lowered.
     free_stmt = StmtExprMutator::Mutate(ffi::AnyView(free_stmt), InplaceMode::kDisallow)
                     .ValueOrUnchanged(free_stmt)
@@ -718,7 +716,7 @@ class BuiltinLower : public StmtExprMutator {
    *
    * When a Bind allocates via nd_mem_alloc_with_scope, the corresponding
    * free_nd stmt is pushed to the current scope's pending_frees. Body-carrying
-   * stmts (For, IfThenElse, RegionStmt) create new scopes via
+   * stmts (For, If, RegionStmt) create new scopes via
    * WithNewScope. On scope exit, pending_frees are appended after the body.
    * AllocTensor (flat, no body) pushes its free to the enclosing scope.
    */

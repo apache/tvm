@@ -53,7 +53,7 @@ class FunctionNode : public BaseFuncNode {
   /*! \brief The return type of the function. */
   Type ret_type = Type::Missing();
   /*! \brief The body of the function, absent for a declaration. */
-  ffi::Optional<tirx::SeqStmt> body;
+  ffi::Optional<SeqStmt> body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
