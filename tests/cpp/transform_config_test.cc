@@ -32,7 +32,7 @@ class TestConfigNode : public ffi::Object {
   TestConfigNode() { ++constructions; }
 
   static void RegisterReflection() {
-    ffi::reflection::ObjectDef<TestConfigNode>().def_rw("limit", &TestConfigNode::limit,
+    ffi::reflection::ObjectDef<TestConfigNode>().def_ro("limit", &TestConfigNode::limit,
                                                         ffi::reflection::DefaultValue(17));
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("testing.TransformConfig", TestConfigNode, ffi::Object);
@@ -61,7 +61,7 @@ TEST(TransformConfig, LazyFreshReflectionDefaults) {
 
   auto configured_node = ffi::make_object<TestConfigNode>();
   configured_node->limit = 42;
-  TestConfig configured(configured_node);
+  auto configured = ffi::GetRef<TestConfig>(configured_node.get());
   ctx->config.Set("testing.transform_config", configured);
   before = TestConfigNode::constructions;
   auto found = ctx->GetConfigOrDefault<TestConfig>("testing.transform_config");
