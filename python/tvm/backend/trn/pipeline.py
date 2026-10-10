@@ -38,7 +38,7 @@ def trn_pipeline():
             tirx.transform.StmtSimplify(),
             tvm.s_tir.transform.LoopPartition(),
             tirx.transform.LowerTIRxOpaque(),
-            tvm.s_tir.transform.HoistIfThenElse(),
+            tirx.transform.HoistIf(),
             tirx.transform.StmtSimplify(),
             tirx.transform.RemoveNoOp(),
             tirx.transform.AnnotateEntryFunc(),

@@ -25,12 +25,21 @@
 #include <tvm/ir/op.h>
 
 #include <algorithm>
+#include <unordered_set>
 
 namespace tvm {
 
 CallEffectKind SideEffect(const Expr& expr) {
   static auto effects = Op::GetAttrMap<TCallEffectKind>(tvm::op_attr::kCallEffectKind);
   CallEffectKind kind = CallEffectKind::kPure;
+  std::unordered_set<const ExprNode*> visited;
+  auto visit_expr =
+      [&](const ExprNode* node,
+          ffi::StructuralVisitorObj* visitor) -> ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> {
+    // Effects are context-independent; inspect each shared expression only once.
+    if (!visited.insert(node).second) return std::nullopt;
+    return visitor->DefaultVisitExpected(node);
+  };
   ffi::StructuralVisit(
       expr,
       [&](const CallNode* node,
@@ -39,18 +48,19 @@ CallEffectKind SideEffect(const Expr& expr) {
             effects.get(node->op, static_cast<TCallEffectKind>(CallEffectKind::kOpaque)));
         kind = std::max(kind, std::min(effect, CallEffectKind::kUpdateState));
         if (kind == CallEffectKind::kUpdateState) return ffi::VisitInterrupt();
-        return visitor->DefaultVisitExpected(node);
+        return visit_expr(node, visitor);
       },
       [&](const TensorLoadNode* node,
           ffi::StructuralVisitorObj* visitor) -> ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> {
         kind = std::max(kind, CallEffectKind::kReadState);
-        return visitor->DefaultVisitExpected(node);
+        return visit_expr(node, visitor);
       },
       [](const TypeNode*,
          ffi::StructuralVisitorObj*) -> ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> {
         // Effects describe evaluated expressions, not expressions embedded in types.
         return std::nullopt;
-      });
+      },
+      visit_expr);
   return kind;
 }
 
