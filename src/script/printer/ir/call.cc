@@ -55,7 +55,7 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
   }
   ffi::Array<ExprDoc> args;
   for (const Expr& arg : call->args) {
-    args.push_back(MaterializeCallArgument(d, arg, d->Translate(arg).value()));
+    args.push_back(d->Translate(arg).value());
   }
   ffi::Array<ffi::String> keys;
   ffi::Array<ExprDoc> values;
@@ -65,6 +65,7 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
     keys.push_back("ty_args");
     values.push_back(ListDoc(types));
   }
+  bool default_attrs = false;
   if (call->attrs.defined()) {
     std::vector<std::pair<ffi::String, ffi::Any>> fields;
     ffi::reflection::ForEachFieldInfo(
@@ -80,9 +81,8 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
           }
           fields.emplace_back(ffi::String(field->name), std::move(value));
         });
-    // Keep an explicit schema when no attribute fields remain in the spelling,
-    // including empty and entirely default-valued attrs.
-    if (fields.empty()) return RawCall(d, call);
+    // Named constructors supply the registered attribute schema and defaults.
+    default_attrs = fields.empty();
     std::sort(fields.begin(), fields.end(),
               [](const auto& a, const auto& b) { return a.first < b.first; });
     for (const auto& [key, value] : fields) {
@@ -104,6 +104,7 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
     // Missing information, unavailable inference, or errors require the exact stored type.
   }
   if (!omit_result) {
+    if (default_attrs) return RawCall(d, call);
     keys.push_back("ty");
     values.push_back(TypeValue(d, call->ty));
   }

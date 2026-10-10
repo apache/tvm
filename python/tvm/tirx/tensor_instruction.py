@@ -35,6 +35,7 @@ from tvm.ir import (
     PointerType,
     PrimType,
     StringImm,
+    TensorLoad,
     TensorRegion,
     Tuple,
     const,
@@ -86,11 +87,6 @@ class Instruction:
         op.set_signature(args=[arg.name for arg in self.operands])
         op.set_attrs_type_key("tirx.tensor." + self.schema)
         tvm_ffi.get_global_func("tirx.ConfigureTensorInstruction")(op, self.validate)
-        register_op_attr(
-            self.name,
-            "__tvm_doc_translate_op_call__",
-            tvm_ffi.get_global_func("script.printer.TensorCallDocTranslate")(),
-        )
         SPECS[self.name] = self
 
         def construct(*args, **qualifiers):
@@ -279,12 +275,16 @@ def _is_absent(value):
 def _operand(value, role="expr"):
     from tvm.tirx import is_tensor_var
 
-    if value is None:
+    if value is None or _is_absent(value) or (isinstance(value, tuple | list) and not value):
         return Tuple([])
     if role == "region":
+        if isinstance(value, TensorLoad):
+            value = tvm_ffi.get_global_func("tirx.AsTensorRegion")(value)
         return _region(value)
     if role == "selectors":
-        return Tuple([Tuple([_expr(cond), _region(candidate)]) for cond, candidate in value])
+        return Tuple(
+            [Tuple([_expr(cond), _operand(candidate, "region")]) for cond, candidate in value]
+        )
     if role == "tensor":
         return value
     if is_tensor_var(value):

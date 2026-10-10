@@ -16,9 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/prim/vector_expr.h>
 #include <tvm/script/printer/doc_translator.h>
+#include <tvm/sym/analyzer.h>
+#include <tvm/tirx/expr.h>
 
 #include <cstring>
 #include <optional>
@@ -71,40 +74,61 @@ ffi::Array<Doc> TensorIndices(DocTranslatorObj* d, const ffi::Array<PrimExpr>& i
   return docs;
 }
 
-ExprDoc TensorRegionValue(DocTranslatorObj* d, const TensorRegionNode* region,
-                          bool require_region) {
-  ffi::Array<Doc> slices;
-  for (const Range& range : region->region) {
-    ExprDoc start = d->Translate(range->min).value();
-    if (const auto* extent = range->extent.as<IntImmNode>();
-        !require_region && extent && extent->value == 1) {
-      slices.push_back(start);
-    } else {
-      ExprDoc end = [&]() -> ExprDoc {
-        auto lower = range->min.as<IntImmNode>();
-        auto length = range->extent.as<IntImmNode>();
-        if (lower && length) {
-          auto last = (lower->value + length->value).as<int64_t>();
-          if (last) {
-            return LiteralDoc::Int(*last, std::nullopt);
-          }
-        }
-        return OperationDoc(OperationDocNode::Kind::kAdd,
-                            {start, d->Translate(range->extent).value()});
-      }();
-      slices.push_back(SliceDoc(start, end, std::nullopt));
-    }
-  }
-  return d->Translate(region->source).value()[slices];
-}
-
 namespace {
 
 ffi::Optional<ExprDoc> TensorRegionDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                                 const ffi::Object*) {
   const auto* region =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorRegionNode>(input);
-  return TensorRegionValue(d, region, false);
+  auto source = region->source.as<tirx::TensorVar>();
+  bool indexable = source && region->ty.as<TensorRegionTypeNode>() && !region->region.empty() &&
+                   source.value()->shape.size() == region->region.size();
+  ffi::Array<Doc> slices;
+  bool has_slice = false;
+  if (indexable) {
+    sym::Analyzer analyzer;
+    for (size_t i = 0; i < region->region.size(); ++i) {
+      const Range& range = region->region[i];
+      if (range->min.ty()->dtype.lanes != 1 || range->extent.ty()->dtype.lanes != 1) {
+        indexable = false;
+        break;
+      }
+      ExprDoc start = d->Translate(range->min).value();
+      bool point = ffi::StructuralEqual()(range->extent, IntImm(range->min.ty(), 1));
+      if (point && (has_slice || i + 1 < region->region.size())) {
+        slices.push_back(start);
+      } else {
+        try {
+          PrimExpr stop = range->min + range->extent;
+          // Subscription simplifies stop - start. Use sugar only when that
+          // reconstruction retains the stored extent, including its type.
+          if (!ffi::StructuralEqual()(analyzer->Simplify(stop - range->min), range->extent)) {
+            indexable = false;
+            break;
+          }
+          slices.push_back(SliceDoc(start, d->Translate(stop).value(), std::nullopt));
+          has_slice = true;
+        } catch (const ffi::Error&) {
+          indexable = false;
+          break;
+        }
+      }
+    }
+  }
+  if (indexable) return d->Translate(region->source).value()[slices];
+
+  ffi::Array<ExprDoc> ranges;
+  for (const Range& range : region->region) {
+    ranges.push_back(
+        NamespaceDoc("ir")
+            ->Attr("Range")
+            ->Attr("from_min_extent")
+            ->Call({d->Translate(range->min).value(), d->Translate(range->extent).value()}));
+  }
+  return NamespaceDoc("ir")
+      ->Attr("TensorRegion")
+      ->Call({d->Translate(region->source).value(), ListDoc(ranges)}, {"ty"},
+             {TypeValue(d, region->ty, false)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

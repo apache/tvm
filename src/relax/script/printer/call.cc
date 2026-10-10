@@ -49,11 +49,9 @@ ffi::Optional<ExprDoc> CallDPSPackedDocTranslate(DocTranslatorObj* d, ffi::AnyVi
   } else if (call->args[0].as<StringImmNode>()) {
     // A bare Python string now constructs ExternFunc, so retain this explicit IR value.
     callee = AnyValue(d, call->args[0]);
-  } else {
-    callee = MaterializeCallArgument(d, call->args[0], callee);
   }
   d->RecordOrigin(callee, call->args[0]);
-  ExprDoc args = MaterializeCallArgument(d, call->args[1], d->Translate(call->args[1]).value());
+  ExprDoc args = d->Translate(call->args[1]).value();
   ffi::Array<ffi::String> keys = {"ty_args"};
   ffi::Array<ExprDoc> values = {ListDoc({TypeValue(d, call->ty_args[0], false)})};
   bool omit_result = false;

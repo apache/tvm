@@ -42,52 +42,6 @@ namespace details {
 
 namespace {
 
-ExprDoc TensorOperandDoc(DocTranslatorObj* d, const Expr& value) {
-  if (const auto* region = value.as<TensorRegionNode>()) {
-    ExprDoc doc = TensorRegionValue(d, region, true);
-    d->RecordOrigin(doc, value);
-    return doc;
-  }
-  if (const auto* tuple = value.as<TupleNode>()) {
-    if (tuple->fields.empty()) return LiteralDoc::None(std::nullopt);
-    ffi::Array<ExprDoc> fields;
-    for (const auto& field : tuple->fields) fields.push_back(TensorOperandDoc(d, field));
-    return TupleDoc(fields);
-  }
-  return AnyValue(d, value);
-}
-
-ffi::Optional<ExprDoc> TensorCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                              const ffi::Object* destination) {
-  const auto* call =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  const auto op = call->op.as_or_throw<Op>();
-  op.Validate(call);
-  ffi::Array<ExprDoc> args;
-  for (const auto& arg : call->args) args.push_back(TensorOperandDoc(d, arg));
-  ffi::Array<ffi::String> keys;
-  ffi::Array<ExprDoc> values;
-  ffi::reflection::ForEachFieldInfo(
-      TVMFFIGetTypeInfo(call->attrs->type_index()), [&](const TVMFFIFieldInfo* field) {
-        ffi::Any value = ffi::reflection::FieldGetter(field)(call->attrs);
-        if ((field->flags & kTVMFFIFieldFlagBitMaskHasDefault) &&
-            ffi::StructuralEqual()(
-                value, ffi::AnyView::CopyFromTVMFFIAny(field->default_value_or_factory)))
-          return;
-        keys.push_back(ffi::String(field->name));
-        values.push_back(AnyValue(d, value));
-      });
-  static const auto& names =
-      Op::GetAttrMap<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName);
-  return NamedCallCallee(names[op])->Call(args, keys, values);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::GlobalDef().def("script.printer.TensorCallDocTranslate", []() {
-    return FDocTranslate::FromNative<&TensorCallDocTranslate>();
-  });
-}
-
 ffi::Optional<ExprDoc> EvaluateDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                             const ffi::Object* destination) {
   const auto* stmt =
@@ -172,48 +126,35 @@ ffi::Optional<ExprDoc> RegionStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 
   // Inputs, attributes, and parameter types are evaluated before the body
   // parameters enter scope. Explicit Var constructors preserve their exact types.
+  ffi::Array<ExprDoc> args;
+  for (const Expr& arg : stmt->args) args.push_back(d->Translate(arg).value());
+  ffi::Array<ffi::String> keys;
+  ffi::Array<ExprDoc> values;
+  if (!stmt->body_params.empty()) {
+    ffi::Array<ExprDoc> params;
+    for (const Var& param : stmt->body_params) {
+      ExprDoc value = NamespaceDoc("tirx")->Attr("Var")->Call(
+          {LiteralDoc::Str("", std::nullopt), TypeValue(d, param->ty)});
+      d->RecordOrigin(value, param);
+      params.push_back(value);
+    }
+    keys.push_back("body_params");
+    values.push_back(ListDoc(params));
+  }
+  if (!stmt->attrs->dict.empty()) {
+    keys.push_back("attrs");
+    values.push_back(AnyValue(d, stmt->attrs));
+  }
   ExprDoc rhs(ffi::UnsafeInit{});
-  if (stmt->op.same_as(tirx::device_entry_op()) && stmt->attrs->dict.empty()) {
-    rhs = NamespaceDoc("tirx")->Attr("device_entry")->Call({});
-  } else if (stmt->op.same_as(tirx::launch_thread_op())) {
-    rhs = NamespaceDoc("tirx")
-              ->Attr("launch_thread")
-              ->Call({LiteralDoc::Str(stmt->args[0].as_or_throw<StringImm>()->value, std::nullopt),
-                      d->Translate(stmt->args[1].as_or_throw<PrimExpr>()).value()});
-  } else if (stmt->op.same_as(tirx::device_context_op())) {
-    rhs = NamespaceDoc("tirx")
-              ->Attr("device_context")
-              ->Call({d->Translate(stmt->args[0]).value(), d->Translate(stmt->args[1]).value()});
-  } else if (stmt->op.same_as(tirx::compute_scope_op())) {
-    rhs =
-        NamespaceDoc("tirx")
-            ->Attr("compute_scope")
-            ->Call({LiteralDoc::Str(stmt->args[0].as_or_throw<StringImm>()->value, std::nullopt)});
-  } else if (stmt->op.same_as(tirx::parallel_launch_op())) {
-    rhs = NamespaceDoc("tirx")->Attr("parallel_launch")->Call({});
+  ffi::Optional<ffi::String> name;
+  if (Op::HasAttrMap(tvm::script::printer::op_attr::kScriptPrinterName)) {
+    auto names =
+        Op::GetAttrMap<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName);
+    if (names.count(stmt->op)) name = names[stmt->op];
+  }
+  if (name.has_value() && !name.value().empty()) {
+    rhs = NamedCallCallee(name.value())->Call(args, keys, values);
   } else {
-    ffi::Array<ExprDoc> args;
-    for (const Expr& arg : stmt->args) args.push_back(d->Translate(arg).value());
-    for (size_t i = 0; i < args.size(); ++i) {
-      args.Set(i, MaterializeCallArgument(d, stmt->args[i], args[i]));
-    }
-    ffi::Array<ffi::String> keys;
-    ffi::Array<ExprDoc> values;
-    if (!stmt->body_params.empty()) {
-      ffi::Array<ExprDoc> params;
-      for (const Var& param : stmt->body_params) {
-        ExprDoc value = NamespaceDoc("tirx")->Attr("Var")->Call(
-            {LiteralDoc::Str(param->name, std::nullopt), TypeValue(d, param->ty)});
-        d->RecordOrigin(value, param);
-        params.push_back(value);
-      }
-      keys.push_back("body_params");
-      values.push_back(ListDoc(params));
-    }
-    if (!stmt->attrs->dict.empty()) {
-      keys.push_back("attrs");
-      values.push_back(AnyValue(d, stmt->attrs));
-    }
     rhs = NamespaceDoc("tirx")->Attr("region")->Call(
         {LiteralDoc::Str(stmt->op->name, std::nullopt), ListDoc(args)}, keys, values);
   }

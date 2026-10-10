@@ -166,7 +166,7 @@ from __future__ import annotations
 
 @R.function
 def foo(x: R.DTensor((128, 128), "float32", R.device_mesh((2, 2), I.Range(0, 4)), "S[0], R")) -> R.DTensor((128, 128), "float32", R.device_mesh((2, 2), I.Range(0, 4)), "S[0], R"):
-    gv0 = R.call_tir(Module.tir_func, I.Tuple([x]), ty_args=[R.DTensor((128, 128), "float32", R.device_mesh((2, 2), I.Range(0, 4)), "S[0], R")])
+    gv0 = R.call_tir(Module.tir_func, (x,), ty_args=[R.DTensor((128, 128), "float32", R.device_mesh((2, 2), I.Range(0, 4)), "S[0], R")])
     return gv0
 """,
     )
@@ -198,13 +198,13 @@ class Module:
                     with Ts.sblock(""):
                         v = Ts.axis.spatial(T.int64(128), i, dtype="int64")
                         v_1 = Ts.axis.spatial(T.int64(128), j, dtype="int64")
-                        Ts.reads(x[v, v_1])
-                        Ts.writes(y[v, v_1])
+                        Ts.reads(x[v, v_1:v_1 + T.int64(1)])
+                        Ts.writes(y[v, v_1:v_1 + T.int64(1)])
                         y[v, v_1] = x[v, v_1] + T.float32(1.0)
 
     @R.function
     def foo(x: R.DTensor((128, 128), "float32", "mesh[0]", "S[0], R")) -> R.DTensor((128, 128), "float32", "mesh[0]", "S[0], R"):
-        gv0 = R.call_tir(Module.tir_func, I.Tuple([x]), ty_args=[R.DTensor((128, 128), "float32", "mesh[0]", "S[0], R")])
+        gv0 = R.call_tir(Module.tir_func, (x,), ty_args=[R.DTensor((128, 128), "float32", "mesh[0]", "S[0], R")])
         return gv0
 """,
     )
@@ -720,7 +720,7 @@ def test_call():
         """
 x = I.dynamic("x", dtype="int64")
 a: R.Tensor((1, x, 3), dtype="float32")
-I.Call("relax.call_tir", [Module.tir_func, I.Tuple([a, x])], ty_args=[R.Tensor((1, x, 3), dtype="float32")], ty=R.Tensor((1, x, 3), dtype="float32"))
+I.Call("relax.call_tir", [Module.tir_func, (a, x)], ty_args=[R.Tensor((1, x, 3), dtype="float32")], ty=R.Tensor((1, x, 3), dtype="float32"))
 """,
     )
     _assert_print_lines(
@@ -728,7 +728,7 @@ I.Call("relax.call_tir", [Module.tir_func, I.Tuple([a, x])], ty_args=[R.Tensor((
         """
 x = I.dynamic("x", dtype="int64")
 a: R.Tensor((1, x, 3), dtype="float32")
-R.call_dps_packed("my_dps_func", I.Tuple([a]), ty_args=[R.Tensor((1, x, 3), dtype="float32")])
+R.call_dps_packed("my_dps_func", (a,), ty_args=[R.Tensor((1, x, 3), dtype="float32")])
 """,
     )
 
@@ -749,7 +749,7 @@ def test_call_tir_with_grad():
         """
 v0: R.Tensor((54, 96), dtype="float32")
 x = I.dynamic("x", dtype="int64")
-I.Call("relax.call_tir_with_grad", [Module.tir_func, I.Tuple([v0])], attrs=I.make_node("relax.attrs.CallTIRWithGradAttrs", te_grad_kwargs={"k": 1.0, "x": x}, te_grad_name="grad_func"), ty_args=[R.Tensor((54, 96), dtype="float32")], ty=R.Tensor((54, 96), dtype="float32"))
+I.Call("relax.call_tir_with_grad", [Module.tir_func, (v0,)], attrs=I.make_node("relax.attrs.CallTIRWithGradAttrs", te_grad_kwargs={"k": 1.0, "x": x}, te_grad_name="grad_func"), ty_args=[R.Tensor((54, 96), dtype="float32")], ty=R.Tensor((54, 96), dtype="float32"))
 """,
     )
 
@@ -776,7 +776,7 @@ def test_call_tir_inplace():
 x: R.Tensor((32, 32), dtype="int32")
 y: R.Tensor((32, 32), dtype="int32")
 t = I.dynamic("t", dtype="int64")
-I.Call("relax.call_tir_inplace", [Module.tir_func, I.Tuple([x, y, t])], attrs=I.make_node("relax.attrs.CallTIRInplaceAttrs", inplace_indices=[-1, 0]), ty_args=[R.Tuple(R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32"))], ty=R.Tuple(R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32")))
+I.Call("relax.call_tir_inplace", [Module.tir_func, (x, y, t)], attrs=I.make_node("relax.attrs.CallTIRInplaceAttrs", inplace_indices=[-1, 0]), ty_args=[R.Tuple(R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32"))], ty=R.Tuple(R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32")))
 """,
     )
 
@@ -965,7 +965,7 @@ class Module:
 
     @R.function
     def foo(x: R.Tensor((128,), dtype="float32")) -> R.Tensor((128,), dtype="float32"):
-        gv0 = R.call_tir(Module.tir_func, I.Tuple([x]), ty_args=[R.Tensor((128,), dtype="float32")])
+        gv0 = R.call_tir(Module.tir_func, (x,), ty_args=[R.Tensor((128,), dtype="float32")])
         return gv0
 """,
     )
@@ -990,7 +990,7 @@ class Module:
 
     @R.function
     def foo(x: R.Tensor((128,), dtype="float32")) -> R.Tensor((128,), dtype="float32"):
-        gv0 = R.call_tir(Module.tir_func, I.Tuple([x]), ty_args=[R.Tensor((128,), dtype="float32")])
+        gv0 = R.call_tir(Module.tir_func, (x,), ty_args=[R.Tensor((128,), dtype="float32")])
         return gv0
 """,
     )
@@ -1163,14 +1163,13 @@ def test_reused_extern_func():
         """
 from __future__ import annotations
 
-# from tvm.script import ir as I
 # from tvm.script import relax as R
 
 @R.function
 def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype="float32"):
     extern_func: R.Callable(derive_func="tvm.relax.type.infer_by_ty_args") = R.ExternFunc("extern_func")
-    y = R.call_dps_packed(extern_func, I.Tuple([x]), ty_args=[R.Tensor((128, 128), dtype="float32")])
-    z = R.call_dps_packed(extern_func, I.Tuple([y]), ty_args=[R.Tensor((128, 128), dtype="float32")])
+    y = R.call_dps_packed(extern_func, (x,), ty_args=[R.Tensor((128, 128), dtype="float32")])
+    z = R.call_dps_packed(extern_func, (y,), ty_args=[R.Tensor((128, 128), dtype="float32")])
     return z
 """,
     )
@@ -1194,13 +1193,12 @@ def test_inline_extern_func():
         """
 from __future__ import annotations
 
-# from tvm.script import ir as I
 # from tvm.script import relax as R
 
 @R.function
 def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype="float32"):
-    y = R.call_dps_packed("extern_func", I.Tuple([x]), ty_args=[R.Tensor((128, 128), dtype="float32")])
-    z = R.call_dps_packed("extern_func", I.Tuple([y]), ty_args=[R.Tensor((128, 128), dtype="float32")])
+    y = R.call_dps_packed("extern_func", (x,), ty_args=[R.Tensor((128, 128), dtype="float32")])
+    z = R.call_dps_packed("extern_func", (y,), ty_args=[R.Tensor((128, 128), dtype="float32")])
     return z
 """,
     )

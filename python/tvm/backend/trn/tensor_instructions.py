@@ -16,7 +16,7 @@
 # under the License.
 """Trainium tensor instructions with explicit NKI instruction identity."""
 
-from tvm.ir import LambdaExpr, PrimType, Tuple, const
+from tvm.ir import Expr, LambdaExpr, PrimType, Tuple, const
 from tvm.tirx.tensor_instruction import Instruction, Operand, namespace
 
 
@@ -296,10 +296,10 @@ def make_namespace():
     original = ns.affine_select
 
     def affine_select(dst, true_value, false_value, pred, **kwargs):
-        from tvm.tirx.tensor_instruction import _region
+        from tvm.tirx.tensor_instruction import _operand
 
-        dst = _region(dst)
-        if not isinstance(pred, LambdaExpr):
+        dst = _operand(dst, "region")
+        if not isinstance(pred, Expr):
             pred = LambdaExpr([PrimType("int32")] * len(dst.region), pred)
         return original(dst, true_value, false_value, pred, **kwargs)
 

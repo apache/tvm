@@ -25,6 +25,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/stmt.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/tirx/op/region.h>
 #include <tvm/tirx/op_attr_types.h>
 
@@ -55,6 +56,8 @@ const Op& launch_thread_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.launch_thread", "Bind a thread index within a body with a launch extent.")
+      .set_attr<ffi::String>(tvm::script::printer::op_attr::kScriptPrinterName,
+                             "tirx.launch_thread")
       .signature(sig::arg<StringImm>("tag"), sig::arg<IntExpr>("extent"))
       .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&LaunchThreadBodyParams>())
@@ -83,6 +86,7 @@ void ValidateDeviceEntry(const RegionStmtNode* region) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.device_entry", "Enter a device kernel with independent launch configuration.")
+      .set_attr<ffi::String>(tvm::script::printer::op_attr::kScriptPrinterName, "tirx.device_entry")
       .signature(sig::var_args("launch_values"), sig::call_attrs<DictAttrsNode>())
       .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
@@ -98,6 +102,8 @@ const Op& device_context_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.device_context", "Supply the device type and ID within a region.")
+      .set_attr<ffi::String>(tvm::script::printer::op_attr::kScriptPrinterName,
+                             "tirx.device_context")
       .signature(sig::arg<IntExpr>("device_type"), sig::arg<IntExpr>("device_id"))
       .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
@@ -113,6 +119,8 @@ const Op& compute_scope_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.compute_scope", "Outline a named CPU compute region.")
+      .set_attr<ffi::String>(tvm::script::printer::op_attr::kScriptPrinterName,
+                             "tirx.compute_scope")
       .signature(sig::arg<StringImm>("name"))
       .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
@@ -128,6 +136,8 @@ const Op& parallel_launch_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.parallel_launch", "Launch a CPU worker team around a region.")
+      .set_attr<ffi::String>(tvm::script::printer::op_attr::kScriptPrinterName,
+                             "tirx.parallel_launch")
       .signature()
       .set_attr<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams,
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())

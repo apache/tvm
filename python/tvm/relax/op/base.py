@@ -263,9 +263,11 @@ def call_dps_packed(
     """
     if isinstance(func, str):
         func = ExternFunc(func)
-    return _call_dps_packed(
-        func, _wrap_inline_arg_tuple(args), ty_args=ty_args, attrs=attrs, ty=ty, loc=loc, **kwargs
-    )
+    if isinstance(args, tuple | list):
+        args = tvm.ir.Tuple(args)
+    else:
+        args = _wrap_inline_arg_tuple(args)
+    return _call_dps_packed(func, args, ty_args=ty_args, attrs=attrs, ty=ty, loc=loc, **kwargs)
 
 
 def call_py_func(

@@ -39,6 +39,15 @@
 #include "../../sym/pattern_match.h"
 
 namespace tvm {
+
+TensorRegion ffi::TypeTraits<TensorRegion>::ConvertFallbackValue(TensorLoad value) {
+  ffi::Array<Range> ranges;
+  for (const PrimExpr& index : value->indices) {
+    ranges.push_back(Range::FromMinExtent(index, IntImm(index.ty(), 1)));
+  }
+  return tirx::BufferRegion(value->source.as_or_throw<tirx::TensorVar>(), ranges, value->loc);
+}
+
 namespace tirx {
 using namespace tvm::prim;
 
@@ -170,6 +179,7 @@ TensorRegion BufferRegion(TensorVar buffer, ffi::Array<Range> region, Location l
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tirx.AsTensorRegion", [](TensorRegion region) { return region; });
   refl::GlobalDef().def("tirx.BufferRegion", [](TensorVar buffer, ffi::Array<Range> region) {
     return BufferRegion(buffer, region);
   });

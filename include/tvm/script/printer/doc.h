@@ -1353,58 +1353,6 @@ class DocStringDoc : public StmtDoc {
 };
 
 /*!
- * \brief Doc that represents call to an TIRX operator
- *
- * \sa OpCallDoc
- */
-class OpCallDocNode : public StmtDocNode {
- public:
-  /*! \brief The callee of this function call */
-  ExprDoc callee{ffi::UnsafeInit()};
-  /*! \brief The positional arguments */
-  ffi::Array<Doc> args;
-  /*! \brief The workspace of this op call */
-  ffi::Optional<DictDoc> workspace{std::nullopt};
-  /*! \brief The config of this op call */
-  ffi::Optional<DictDoc> config{std::nullopt};
-  /*! \brief The optional dispatch variant of this op call */
-  ffi::Optional<ExprDoc> dispatch{std::nullopt};
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<OpCallDocNode>()
-        .def_ro("callee", &OpCallDocNode::callee)
-        .def_ro("args", &OpCallDocNode::args)
-        .def_ro("workspace", &OpCallDocNode::workspace)
-        .def_ro("config", &OpCallDocNode::config)
-        .def_ro("dispatch", &OpCallDocNode::dispatch);
-  }
-
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.OpCallDoc", OpCallDocNode, StmtDocNode);
-};
-
-/*!
- * \brief Reference type of OpCallDocNode.
- *
- * \sa OpCallDocNode
- */
-class OpCallDoc : public StmtDoc {
- public:
-  /*!
-   * \brief Constructor of OpCallDoc
-   * \param callee The callee of this function call.
-   * \param args The positional arguments.
-   * \param workspace The workspace of this op call.
-   * \param config The config of this op call.
-   * \param dispatch The optional dispatch variant name of this op call.
-   */
-  TVM_DLL explicit OpCallDoc(ExprDoc callee, ffi::Array<Doc> args, ffi::Optional<DictDoc> workspace,
-                             ffi::Optional<DictDoc> config,
-                             ffi::Optional<ExprDoc> dispatch = std::nullopt);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(OpCallDoc, StmtDoc, OpCallDocNode);
-};
-
-/*!
  * \brief A reference to a canonical script namespace.
  *
  * The renderer resolves the configured alias without remapping ordinary identifiers.
