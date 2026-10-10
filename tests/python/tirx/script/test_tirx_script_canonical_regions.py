@@ -63,11 +63,22 @@ def test_region_expression_kind_and_nested_call_tuple(dtype, extents):
 
 
 @pytest.mark.parametrize(
-    "kind", ["unusual_type", "unusual_source", "zero_rank", "unsimplified_extent"]
+    "kind",
+    [
+        "unusual_type",
+        "unusual_source",
+        "zero_rank",
+        "unsimplified_extent",
+        "rank_mismatch",
+        "tuple_source",
+    ],
 )
 def test_region_explicit_fallback(kind):
-    a = tirx.decl_tensor(() if kind == "zero_rank" else (16,), "float32", name="A")
+    shape = () if kind == "zero_rank" else (16, 16) if kind == "rank_mismatch" else (16,)
+    a = tirx.decl_tensor(shape, "float32", name="A")
     source = ir.Var("source", "handle") if kind == "unusual_source" else a
+    if kind == "tuple_source":
+        source = ir.Tuple([0])
     ty = ir.Type.missing() if kind == "unusual_type" else ir.TensorRegionType()
     extent = tirx.Add(tirx.IntImm("int32", 1), tirx.IntImm("int32", 1))
     ranges = (
