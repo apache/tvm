@@ -139,12 +139,12 @@ def test_cuda_module_destructor_preserves_current_device():
 
 def _subbyte_shared_alloc_kernel(shape: int, dtype: str):
     @T.function
-    def main(A: T.Tensor((shape,), dtype), B: T.Tensor((shape,), dtype)):
-        T.device_entry()
+    def main(A: T.Tensor((shape,), "int32"), B: T.Tensor((shape,), "int32")):
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(shape,)))
         tx = T.cuda.thread_idx("x")
         smem = T.alloc_shared([shape], dtype)
-        smem[tx] = A[tx]
-        B[tx] = smem[tx]
+        smem[tx] = T.cast(A[tx], dtype)
+        B[tx] = T.cast(smem[tx], "int32")
 
     return main
 
