@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ir/stmt.h>
+#include <tvm/script/printer/doc_translator.h>
 
 #include "utils.h"
 
@@ -58,7 +59,7 @@ ffi::Optional<ExprDoc> BindDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<BindNode>().attr(kDocTranslate,
+  ffi::reflection::TypeAttrDef<BindNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
                                                 FDocTranslate::FromNative<&BindDocTranslate>());
 }
 
@@ -73,7 +74,7 @@ ffi::Optional<ExprDoc> ReturnDocTranslate(DocTranslatorObj* d, ffi::AnyView inpu
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<ReturnNode>().attr(kDocTranslate,
+  ffi::reflection::TypeAttrDef<ReturnNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
                                                   FDocTranslate::FromNative<&ReturnDocTranslate>());
 }
 
@@ -96,7 +97,8 @@ ffi::Optional<ExprDoc> AssertStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<AssertStmtNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&AssertStmtDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&AssertStmtDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> WhileDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -111,7 +113,7 @@ ffi::Optional<ExprDoc> WhileDocTranslate(DocTranslatorObj* d, ffi::AnyView input
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<WhileNode>().attr(kDocTranslate,
+  ffi::reflection::TypeAttrDef<WhileNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
                                                  FDocTranslate::FromNative<&WhileDocTranslate>());
 }
 
@@ -126,7 +128,7 @@ ffi::Optional<ExprDoc> BreakDocTranslate(DocTranslatorObj* d, ffi::AnyView input
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<BreakNode>().attr(kDocTranslate,
+  ffi::reflection::TypeAttrDef<BreakNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
                                                  FDocTranslate::FromNative<&BreakDocTranslate>());
 }
 
@@ -142,7 +144,8 @@ ffi::Optional<ExprDoc> ContinueDocTranslate(DocTranslatorObj* d, ffi::AnyView in
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<ContinueNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&ContinueDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&ContinueDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> IfDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -160,7 +163,7 @@ ffi::Optional<ExprDoc> IfDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<IfNode>().attr(kDocTranslate,
+  ffi::reflection::TypeAttrDef<IfNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
                                               FDocTranslate::FromNative<&IfDocTranslate>());
 }
 

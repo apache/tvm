@@ -23,13 +23,16 @@
 #include "codegen_c.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/type.h>
 
 #include <cctype>
@@ -122,7 +125,7 @@ void CodeGenC::PrintFunctionParameters(const Function& func, std::ostream& os) {
       PrintType(v->ty, os);
     }
 
-    bool no_alias = func->HasNonzeroAttr(tirx::attr::kNoAlias);
+    bool no_alias = func->HasNonzeroAttr(tvm::tirx::attr::kNoAlias);
     bool is_handle = v->ty.as<PointerTypeNode>();
     auto* ptr = v->ty.as<PointerTypeNode>();
     if (ptr && ptr->element_type.as<tirx::TensorMapTypeNode>()) {
@@ -1286,7 +1289,7 @@ void CodeGenC::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_ca
   stream << ' ' << vid << '[' << constant_size << "];\n";
 
   RegisterHandleType(buffer.get(), PrimType(dtype));
-  if (annotations->dict.count(tirx::attr::kVolatile)) {
+  if (annotations->dict.count(tvm::tirx::attr::kVolatile)) {
     MarkVolatile(buffer.get());
   }
 }

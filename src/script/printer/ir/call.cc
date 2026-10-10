@@ -19,6 +19,7 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ir/op.h>
+#include <tvm/script/printer/doc_translator.h>
 
 #include <algorithm>
 #include <optional>
@@ -37,9 +38,11 @@ namespace {
 // Semantic wrappers register their own Op hooks.
 ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallNode* call) {
   auto maybe_op = call->op.as<Op>();
-  if (!maybe_op || !Op::HasAttrMap("TScriptPrinterName")) return std::nullopt;
+  if (!maybe_op || !Op::HasAttrMap(tvm::script::printer::op_attr::kScriptPrinterName))
+    return std::nullopt;
   const Op& op = maybe_op.value();
-  static const auto& names = Op::GetAttrMap<TScriptPrinterName>("TScriptPrinterName");
+  static const auto& names =
+      Op::GetAttrMap<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName);
   if (!names.count(op) || names[op].empty()) return std::nullopt;
   if (call->attrs.defined() ? op->attrs_type_key != call->attrs->GetTypeKey()
                             : !op->attrs_type_key.empty()) {
@@ -111,8 +114,10 @@ ffi::Optional<ExprDoc> CallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                         const ffi::Object* destination) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (auto op = call->op.as<Op>(); op && Op::HasAttrMap(kOpCallDocTranslate)) {
-    static const auto& overrides = Op::GetAttrMap<ffi::Any>(kOpCallDocTranslate);
+  if (auto op = call->op.as<Op>();
+      op && Op::HasAttrMap(tvm::script::printer::op_attr::kOpCallDocTranslate)) {
+    static const auto& overrides =
+        Op::GetAttrMap<ffi::Any>(tvm::script::printer::op_attr::kOpCallDocTranslate);
     if (overrides.count(op.value())) {
       ffi::Any hook = overrides[op.value()];
       if (hook.type_index() == ffi::TypeIndex::kTVMFFIOpaquePtr) {
@@ -130,7 +135,7 @@ ffi::Optional<ExprDoc> CallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<CallNode>().attr(kDocTranslate,
+  ffi::reflection::TypeAttrDef<CallNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
                                                 FDocTranslate::FromNative<&CallDocTranslate>());
 }
 

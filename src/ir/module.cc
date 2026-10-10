@@ -26,6 +26,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/unique_name_supply.h>
 

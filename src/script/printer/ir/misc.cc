@@ -20,6 +20,7 @@
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/script/printer/doc_translator.h>
 
 #include <algorithm>
 #include <cmath>
@@ -46,7 +47,8 @@ ffi::Optional<ExprDoc> DataTypeImmDocTranslate(DocTranslatorObj*, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<DataTypeImmNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&DataTypeImmDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&DataTypeImmDocTranslate>());
 }
 
 }  // namespace
@@ -147,7 +149,8 @@ ffi::Optional<ExprDoc> ShapeDocTranslate(DocTranslatorObj*, ffi::AnyView input,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<ffi::ShapeObj>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&ShapeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&ShapeDocTranslate>());
 }
 
 }  // namespace

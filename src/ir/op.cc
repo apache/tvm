@@ -320,8 +320,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&OpMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&OpMaybeInplaceMutate>())
-      .def("__data_to_json__", [](const OpNode* node) { return node->name; })
-      .def("__data_from_json__", &Op::Get);
+      .def(tvm::ffi::reflection::type_attr::kDataToJson,
+           [](const OpNode* node) { return node->name; })
+      .def(tvm::ffi::reflection::type_attr::kDataFromJson, &Op::Get);
   // clang-format off
   refl::GlobalDef()
       .def("ir.GetOp", &Op::Get)

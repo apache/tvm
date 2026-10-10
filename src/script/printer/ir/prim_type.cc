@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <tvm/script/printer/doc_translator.h>
+
 #include <algorithm>
 #include <functional>
 #include <optional>
@@ -36,7 +38,8 @@ ffi::Optional<ExprDoc> AnyTypeDocTranslate(DocTranslatorObj*, ffi::AnyView, cons
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<AnyTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&AnyTypeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&AnyTypeDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> MissingTypeDocTranslate(DocTranslatorObj*, ffi::AnyView,
@@ -46,7 +49,8 @@ ffi::Optional<ExprDoc> MissingTypeDocTranslate(DocTranslatorObj*, ffi::AnyView,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<MissingTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&MissingTypeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&MissingTypeDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> IntImmDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -62,7 +66,7 @@ ffi::Optional<ExprDoc> IntImmDocTranslate(DocTranslatorObj* d, ffi::AnyView inpu
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<IntImmNode>().attr(kDocTranslate,
+  ffi::reflection::TypeAttrDef<IntImmNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
                                                   FDocTranslate::FromNative<&IntImmDocTranslate>());
 }
 
@@ -80,7 +84,8 @@ ffi::Optional<ExprDoc> FloatImmDocTranslate(DocTranslatorObj* d, ffi::AnyView in
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<FloatImmNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&FloatImmDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&FloatImmDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> PrimTypeDocTranslate(DocTranslatorObj*, ffi::AnyView input,
@@ -112,7 +117,8 @@ ffi::Optional<ExprDoc> PrimTypeDocTranslate(DocTranslatorObj*, ffi::AnyView inpu
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<PrimTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&PrimTypeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&PrimTypeDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> StringTypeDocTranslate(DocTranslatorObj*, ffi::AnyView, const ffi::Object*) {
@@ -121,7 +127,8 @@ ffi::Optional<ExprDoc> StringTypeDocTranslate(DocTranslatorObj*, ffi::AnyView, c
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<StringTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&StringTypeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&StringTypeDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> TensorRegionTypeDocTranslate(DocTranslatorObj*, ffi::AnyView,
@@ -131,7 +138,8 @@ ffi::Optional<ExprDoc> TensorRegionTypeDocTranslate(DocTranslatorObj*, ffi::AnyV
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<TensorRegionTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TensorRegionTypeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&TensorRegionTypeDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> TupleTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -155,7 +163,8 @@ ffi::Optional<ExprDoc> TupleTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<TupleTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TupleTypeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&TupleTypeDocTranslate>());
 }
 
 }  // namespace

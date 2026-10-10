@@ -23,9 +23,11 @@
 #include "codegen_trn.h"
 
 #include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -39,6 +41,7 @@
 #include "../../../target/build_common.h"
 
 namespace tvm {
+
 namespace codegen {
 using namespace tvm::prim;
 
@@ -297,8 +300,9 @@ void CodeGenTrainium::Dispatch_(const ForNode* op) {
   TVM_FFI_ICHECK(IsZero(op->min));
   if (ctx_.tensorizing) {
     stream << vid << " = nl.arange(" << extent << ")\n";
-    if (op->annotations.count("nki_dim")) {
-      ctx_.loopvar2dim[op->loop_var.get()] = op->annotations["nki_dim"].as_or_throw<ffi::String>();
+    if (op->annotations.count(tvm::backend::trn::attr::kNkiDim)) {
+      ctx_.loopvar2dim[op->loop_var.get()] =
+          op->annotations[tvm::backend::trn::attr::kNkiDim].as_or_throw<ffi::String>();
     }
     ctx_.tensorized_loop_vars.insert(op->loop_var.get());
     TVM_FFI_ICHECK(ctx_.loopvar2dim.empty() ||

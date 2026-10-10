@@ -20,6 +20,7 @@
 #include <tvm/ir/function.h>
 #include <tvm/ir/global_info.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/script/printer/printer.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -81,7 +82,7 @@ void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc 
       decorator_keys.push_back("private");
       decorator_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
     }
-    if (func->attrs->dict.count(tirx::attr::kPersistentKernel)) {
+    if (func->attrs->dict.count(tvm::tirx::attr::kPersistentKernel)) {
       decorator_keys.push_back("persistent");
       decorator_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
     }
@@ -91,7 +92,7 @@ void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc 
     std::vector<std::pair<ffi::String, ffi::Any>> attrs;
     for (const auto& [key, value] : func->attrs->dict) {
       if (key != tvm::attr::kGlobalSymbol && (dialect_attr.empty() || key != dialect_attr) &&
-          key != tirx::attr::kPersistentKernel)
+          key != tvm::tirx::attr::kPersistentKernel)
         attrs.emplace_back(key, value);
     }
     if (!attrs.empty()) {
@@ -137,7 +138,8 @@ ffi::Optional<ExprDoc> TirxFunctionDocTranslate(DocTranslatorObj* d, ffi::AnyVie
 TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterNamespaceAlias("tirx.prefix", "T");
   ffi::reflection::TypeAttrDef<tirx::FunctionNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TirxFunctionDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&TirxFunctionDocTranslate>());
 }
 
 }  // namespace

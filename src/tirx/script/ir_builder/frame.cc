@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>

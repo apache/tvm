@@ -22,6 +22,7 @@
  * \brief Final cleanup stage for TIRx lowering.
  */
 
+#include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>

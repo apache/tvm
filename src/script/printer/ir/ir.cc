@@ -16,10 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/script/printer/printer.h>
 #include <tvm/tirx/function.h>
 
@@ -125,7 +127,8 @@ ffi::Optional<ExprDoc> IRModuleDocTranslate(DocTranslatorObj* d, ffi::AnyView in
 TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterNamespaceAlias("ir.prefix", "I");
   ffi::reflection::TypeAttrDef<IRModuleNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&IRModuleDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&IRModuleDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> DictAttrsDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -137,7 +140,8 @@ ffi::Optional<ExprDoc> DictAttrsDocTranslate(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<DictAttrsNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&DictAttrsDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&DictAttrsDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> GlobalVarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -149,7 +153,8 @@ ffi::Optional<ExprDoc> GlobalVarDocTranslate(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<GlobalVarNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&GlobalVarDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&GlobalVarDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> OpDocTranslate(DocTranslatorObj*, ffi::AnyView input, const ffi::Object*) {
@@ -159,7 +164,7 @@ ffi::Optional<ExprDoc> OpDocTranslate(DocTranslatorObj*, ffi::AnyView input, con
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<OpNode>().attr(kDocTranslate,
+  ffi::reflection::TypeAttrDef<OpNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
                                               FDocTranslate::FromNative<&OpDocTranslate>());
 }
 
@@ -172,7 +177,8 @@ ffi::Optional<ExprDoc> FuncTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView in
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<FuncTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&FuncTypeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&FuncTypeDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> RangeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -185,7 +191,7 @@ ffi::Optional<ExprDoc> RangeDocTranslate(DocTranslatorObj* d, ffi::AnyView input
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<RangeNode>().attr(kDocTranslate,
+  ffi::reflection::TypeAttrDef<RangeNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
                                                  FDocTranslate::FromNative<&RangeDocTranslate>());
 }
 

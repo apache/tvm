@@ -827,8 +827,8 @@ class GlobalVarNode : public ExprNode {
     // A GlobalVar identifies a module-level symbol.  Its type is derived from the
     // corresponding function definition and is not part of the symbol identity.
     refl::TypeAttrDef<GlobalVarNode>()
-        .def("__s_equal__", &GlobalVarNode::SEqual)
-        .def("__s_hash__", &GlobalVarNode::SHash);
+        .def(tvm::ffi::reflection::type_attr::kSEqual, &GlobalVarNode::SEqual)
+        .def(tvm::ffi::reflection::type_attr::kSHash, &GlobalVarNode::SHash);
   }
 
   bool SEqual(const GlobalVarNode* other,
@@ -1142,6 +1142,14 @@ template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, TensorLoadNode> = true;
 
 }  // namespace ffi
+
+namespace op_attr {
+inline constexpr const char* kCallEffectKind = "TCallEffectKind";
+}  // namespace op_attr
+
+namespace type_attr {
+inline constexpr const char* kSubscriptExprRealize = "__subscript_expr_realize__";
+}  // namespace type_attr
 
 }  // namespace tvm
 

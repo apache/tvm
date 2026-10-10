@@ -25,6 +25,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/transform.h>
 
 namespace tvm {
@@ -33,14 +34,14 @@ namespace transform {
 
 // Register build pipeline related options
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.noalias");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>(tvm::tirx::attr::kNoAlias);
   ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.disable_assert");
   ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.disable_vectorize");
   ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.enable_buffer_level_predication");
   ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.disable_cse_tir");
   ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.enable_debug");
   ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.disable_storage_rewrite");
-  ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.is_entry_func");
+  ::tvm::transform::PassContext::RegisterConfigOption<bool>(tvm::tirx::attr::kIsEntryFunc);
   ::tvm::transform::PassContext::RegisterConfigOption<ffi::Array<ffi::Array<ffi::ObjectRef>>>(
       "tirx.add_lower_pass");
   ::tvm::transform::PassContext::RegisterConfigOption<bool>("tirx.debug_keep_trivial_loop");

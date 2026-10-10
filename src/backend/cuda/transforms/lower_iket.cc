@@ -24,6 +24,7 @@
 
 #include <tvm/backend/cuda/op/iket.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/logging.h>
@@ -46,6 +47,7 @@
 #include <vector>
 
 namespace tvm {
+
 namespace tirx {
 
 namespace transform {
@@ -1173,7 +1175,7 @@ class InstrumentOfficialKernel : public StmtExprMutator {
 };
 
 bool IketEnabled(const IRModule& module) {
-  if (module->HasNonzeroAttr("tirx.iket.enabled")) return true;
+  if (module->HasNonzeroAttr(tvm::backend::cuda::attr::kIKetEnabled)) return true;
   const char* child_enable = std::getenv("TVM_IKET_INJECTED_CHILD_ENABLE");
   const char* injection = std::getenv("CUDA_INJECTION64_PATH");
   const char* injection_config = std::getenv("IKET_INJECTION_CONFIG");
