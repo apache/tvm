@@ -148,7 +148,7 @@ class TensorType : public Type {
   TVM_DLL TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
                      ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
                      int data_alignment, int offset_factor,
-                     ffi::Optional<Layout> layout = std::nullopt, Span span = Span());
+                     ffi::Optional<Layout> layout = std::nullopt, Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorType, Type, TensorTypeNode);
 
@@ -177,7 +177,7 @@ class TensorMapTypeNode : public TypeNode {
  */
 class TensorMapType : public Type {
  public:
-  TVM_DLL TensorMapType(Span span = Span());
+  TVM_DLL TensorMapType(Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorMapType, Type, TensorMapTypeNode);
 };

@@ -655,12 +655,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Bind
-Bind::Bind(Var var, Expr value, Span span) : Stmt(ffi::UnsafeInit{}) {
+Bind::Bind(Var var, Expr value, Location loc) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   TVM_FFI_ICHECK(ffi::StructuralEqual()(value->ty, var->ty));
 
   ffi::ObjectPtr<BindNode> node = ffi::make_object<BindNode>(std::move(var), std::move(value));
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -674,7 +674,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&BindMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.Bind",
-                        [](Var var, Expr value, Span span) { return Bind(var, value, span); });
+                        [](Var var, Expr value, Location loc) { return Bind(var, value, loc); });
 }
 
 // RegionStmt
@@ -706,7 +706,7 @@ ffi::Array<Var> GetRegionBodyParams(Op op, ffi::Array<Expr> args, DictAttrs attr
 }
 
 RegionStmt::RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, DictAttrs attrs,
-                       SeqStmt body, ffi::Array<Var> result_vars, Span span)
+                       SeqStmt body, ffi::Array<Var> result_vars, Location loc)
     : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(op.defined() && body.defined(), ValueError)
       << "RegionStmt requires an operator and a body";
@@ -729,7 +729,7 @@ RegionStmt::RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params
   n->body_params = std::move(body_params);
   n->attrs = std::move(attrs);
   n->result_vars = std::move(result_vars);
-  n->span = std::move(span);
+  n->loc = loc;
   if (Op::HasAttrMap(tvm::op_attr::kRegionValidate)) {
     static auto validate = Op::GetAttrMap<FRegionValidate>(tvm::op_attr::kRegionValidate);
     if (validate.count(n->op)) validate[n->op].CallExpected(n.get()).value();
@@ -747,16 +747,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&RegionStmtMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&RegionStmtMaybeInplaceMutate>());
-  refl::GlobalDef().def("ir.RegionStmt",
-                        [](Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params,
-                           DictAttrs attrs, SeqStmt body, ffi::Array<Var> result_vars, Span span) {
-                          return RegionStmt(op, args, body_params, attrs, body, result_vars, span);
-                        });
+  refl::GlobalDef().def(
+      "ir.RegionStmt",
+      [](Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, DictAttrs attrs, SeqStmt body,
+         ffi::Array<Var> result_vars, Location loc) {
+        return RegionStmt(op, args, body_params, attrs, body, result_vars, loc);
+      });
 }
 
 // AssertStmt
 AssertStmt::AssertStmt(PrimExpr condition, StringImm error_kind,
-                       ffi::Array<StringImm> message_parts, Span span)
+                       ffi::Array<StringImm> message_parts, Location loc)
     : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(condition.defined());
   PrimType condition_ty = condition.ty();
@@ -768,7 +769,7 @@ AssertStmt::AssertStmt(PrimExpr condition, StringImm error_kind,
   ffi::ObjectPtr<AssertStmtNode> node =
       ffi::make_object<AssertStmtNode>(std::move(condition), std::move(error_kind));
   node->message_parts = std::move(message_parts);
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -784,14 +785,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&AssertStmtMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.AssertStmt", [](PrimExpr condition, StringImm error_kind,
-                                            ffi::Array<StringImm> message_parts, Span span) {
-    return AssertStmt(condition, error_kind, message_parts, span);
+                                            ffi::Array<StringImm> message_parts, Location loc) {
+    return AssertStmt(condition, error_kind, message_parts, loc);
   });
 }
 
 // For
 For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, SeqStmt body,
-         ffi::Map<ffi::String, Any> annotations, ffi::Optional<PrimExpr> step, Span span)
+         ffi::Map<ffi::String, Any> annotations, ffi::Optional<PrimExpr> step, Location loc)
     : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(loop_var.defined());
   TVM_FFI_ICHECK(min.defined());
@@ -846,7 +847,7 @@ For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, SeqStmt 
   node->kind = kind;
   node->annotations = std::move(annotations);
   node->step = std::move(step);
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -859,13 +860,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&ForMaybeInplaceMutate>());
 
-  refl::GlobalDef().def(
-      "ir.For", [](PrimVar loop_var, PrimExpr min, PrimExpr extent, int kind, SeqStmt body,
-                   ffi::Optional<ffi::Map<ffi::String, Any>> annotations,
-                   ffi::Optional<PrimExpr> step, Span span) {
-        return For(loop_var, min, extent, static_cast<ForKind>(kind), body,
-                   annotations.value_or(ffi::Map<ffi::String, Any>()), step, span);
-      });
+  refl::GlobalDef().def("ir.For",
+                        [](PrimVar loop_var, PrimExpr min, PrimExpr extent, int kind, SeqStmt body,
+                           ffi::Optional<ffi::Map<ffi::String, Any>> annotations,
+                           ffi::Optional<PrimExpr> step, Location loc) {
+                          return For(loop_var, min, extent, static_cast<ForKind>(kind), body,
+                                     annotations.value_or(ffi::Map<ffi::String, Any>()), step, loc);
+                        });
 }
 
 bool ForNode::HasTrivialStep() const { return !step.has_value() || IsOne(*step); }
@@ -889,14 +890,14 @@ std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
 }
 
 // While
-While::While(PrimExpr condition, SeqStmt body, Span span) : Stmt(ffi::UnsafeInit{}) {
+While::While(PrimExpr condition, SeqStmt body, Location loc) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(condition.defined());
   TVM_FFI_ICHECK(condition.ty().IsScalar());
   TVM_FFI_ICHECK(body.defined());
 
   ffi::ObjectPtr<WhileNode> node =
       ffi::make_object<WhileNode>(std::move(condition), std::move(body));
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -909,17 +910,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&WhileMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.While", [](PrimExpr condition, SeqStmt body, Span span) {
-    return While(condition, body, span);
+  refl::GlobalDef().def("ir.While", [](PrimExpr condition, SeqStmt body, Location loc) {
+    return While(condition, body, loc);
   });
 }
 
 // Return
-Return::Return(Expr value, Span span) : Stmt(ffi::UnsafeInit{}) {
+Return::Return(Expr value, Location loc) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
 
   ffi::ObjectPtr<ReturnNode> node = ffi::make_object<ReturnNode>(std::move(value));
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -932,13 +933,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&ReturnMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.Return", [](Expr value, Span span) { return Return(value, span); });
+  refl::GlobalDef().def("ir.Return", [](Expr value, Location loc) { return Return(value, loc); });
 }
 
 // Break
-Break::Break(Span span) : Stmt(ffi::UnsafeInit{}) {
+Break::Break(Location loc) : Stmt(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<BreakNode> node = ffi::make_object<BreakNode>();
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -951,13 +952,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BreakMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.Break", [](Span span) { return Break(span); });
+  refl::GlobalDef().def("ir.Break", [](Location loc) { return Break(loc); });
 }
 
 // Continue
-Continue::Continue(Span span) : Stmt(ffi::UnsafeInit{}) {
+Continue::Continue(Location loc) : Stmt(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<ContinueNode> node = ffi::make_object<ContinueNode>();
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -971,11 +972,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&ContinueMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.Continue", [](Span span) { return Continue(span); });
+  refl::GlobalDef().def("ir.Continue", [](Location loc) { return Continue(loc); });
 }
 
 // SeqStmt
-SeqStmt::SeqStmt(ffi::Array<Stmt> seq, Span span) : Stmt(ffi::UnsafeInit{}) {
+SeqStmt::SeqStmt(ffi::Array<Stmt> seq, Location loc) : Stmt(ffi::UnsafeInit{}) {
   bool requires_flattening = std::any_of(seq.begin(), seq.end(), [](const Stmt& stmt) {
     return stmt.as<SeqStmtNode>() || detail::IsSeqStmtNoOp(stmt);
   });
@@ -993,20 +994,20 @@ SeqStmt::SeqStmt(ffi::Array<Stmt> seq, Span span) : Stmt(ffi::UnsafeInit{}) {
   }
   auto node = ffi::make_object<SeqStmtNode>();
   node->seq = std::move(seq);
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
-SeqStmt::SeqStmt(Stmt stmt, Span span) : Stmt(ffi::UnsafeInit{}) {
+SeqStmt::SeqStmt(Stmt stmt, ffi::Optional<Location> loc) : Stmt(ffi::UnsafeInit{}) {
+  Location location = loc.value_or(stmt->loc);
   if (const auto* sequence = stmt.as<SeqStmtNode>()) {
-    if (!span.defined() || span.same_as(sequence->span)) {
+    if (!loc.has_value() || location.same_as(sequence->loc)) {
       data_ = ffi::GetObjectPtr<SeqStmtNode>(const_cast<SeqStmtNode*>(sequence));
       return;
     }
-    *this = SeqStmt(sequence->seq, std::move(span));
+    *this = SeqStmt(sequence->seq, std::move(location));
   } else {
-    if (!span.defined()) span = stmt->span;
-    *this = SeqStmt(ffi::Array<Stmt>{std::move(stmt)}, std::move(span));
+    *this = SeqStmt(ffi::Array<Stmt>{std::move(stmt)}, std::move(location));
   }
 }
 
@@ -1034,13 +1035,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&SeqStmtMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.SeqStmt", [](SeqStmt seq, Span span) {
-    return SeqStmt(std::move(seq), std::move(span));
+  refl::GlobalDef().def("ir.SeqStmt", [](SeqStmt seq, ffi::Optional<Location> loc) {
+    return SeqStmt(std::move(seq), std::move(loc));
   });
 }
 
 // If
-If::If(PrimExpr condition, SeqStmt then_case, ffi::Optional<SeqStmt> else_case, Span span)
+If::If(PrimExpr condition, SeqStmt then_case, ffi::Optional<SeqStmt> else_case, Location loc)
     : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(condition.defined());
   TVM_FFI_ICHECK(then_case.defined());
@@ -1048,7 +1049,7 @@ If::If(PrimExpr condition, SeqStmt then_case, ffi::Optional<SeqStmt> else_case, 
   ffi::ObjectPtr<IfNode> node =
       ffi::make_object<IfNode>(std::move(condition), std::move(then_case));
   node->else_case = std::move(else_case);
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -1063,11 +1064,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   refl::GlobalDef().def("ir.If",
                         [](PrimExpr condition, SeqStmt then_case, ffi::Optional<SeqStmt> else_case,
-                           Span span) { return If(condition, then_case, else_case, span); });
+                           Location loc) { return If(condition, then_case, else_case, loc); });
 }
 
 // Evaluate
-Evaluate::Evaluate(Expr value, Span span) : Stmt(ffi::UnsafeInit{}) {
+Evaluate::Evaluate(Expr value, Location loc) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   static const ffi::reflection::TypeAttrColumn validate_column(tvm::type_attr::kEvaluateValidate);
   if (auto validate = validate_column[value->ty->type_index()]; validate != nullptr) {
@@ -1075,7 +1076,7 @@ Evaluate::Evaluate(Expr value, Span span) : Stmt(ffi::UnsafeInit{}) {
   }
 
   ffi::ObjectPtr<EvaluateNode> node = ffi::make_object<EvaluateNode>(std::move(value));
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -1089,11 +1090,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&EvaluateMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.Evaluate", [](Expr value, Span span) { return Evaluate(value, span); });
+  refl::GlobalDef().def("ir.Evaluate",
+                        [](Expr value, Location loc) { return Evaluate(value, loc); });
 }
 
 // TensorStore
-TensorStore::TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value, Span span)
+TensorStore::TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value, Location loc)
     : Stmt(ffi::UnsafeInit{}) {
   namespace refl = ffi::reflection;
   static const refl::TypeAttrColumn validate_column(tvm::type_attr::kTensorStoreValidate);
@@ -1103,7 +1105,7 @@ TensorStore::TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value
   validate.cast<ffi::Function>()(dest, indices, value);
   auto node = ffi::make_object<TensorStoreNode>(std::move(dest), std::move(value));
   node->indices = std::move(indices);
-  node->span = std::move(span);
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -1119,8 +1121,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&TensorStoreMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.TensorStore",
-                        [](Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value, Span span) {
-                          return TensorStore(dest, indices, value, span);
+                        [](Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value, Location loc) {
+                          return TensorStore(dest, indices, value, loc);
                         });
 }
 

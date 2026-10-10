@@ -40,7 +40,7 @@ from tvm.script.ir_builder.base import AlreadyEmitted
 
 from . import _ffi_api, frame
 
-_Span = _base.SpanEntry | _ir.Span | None
+_Loc = _base.LocationEntry | _ir.Location | None
 
 
 def _as_expr(value):
@@ -137,60 +137,58 @@ def add_to_parent(stmt: tvm.ir.Stmt) -> None:
     _ffi_api.AddToParent(stmt)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def if_(condition: Any, *, span: _Span = None) -> frame.IfFrame:
+def if_(condition: Any, *, loc: _Loc = None) -> frame.IfFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.if_`."""
     if isinstance(condition, _python.bool):
         condition = IntImm("bool", condition)
-    return _base.at_(span, _ffi_api.If(condition))
+    return _base.at_(loc, _ffi_api.If(condition))
 
 
-def then_(*, span: _Span = None) -> frame.ThenFrame:
+def then_(*, loc: _Loc = None) -> frame.ThenFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.then_`."""
-    return _base.at_(span, _ffi_api.Then())
+    return _base.at_(loc, _ffi_api.Then())
 
 
-def else_(*, span: _Span = None) -> frame.ElseFrame:
+def else_(*, loc: _Loc = None) -> frame.ElseFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.else_`."""
-    return _base.at_(span, _ffi_api.Else())
+    return _base.at_(loc, _ffi_api.Else())
 
 
-def while_(condition: Any, *, span: _Span = None) -> frame.WhileFrame:
+def while_(condition: Any, *, loc: _Loc = None) -> frame.WhileFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.while_`."""
     if isinstance(condition, _python.bool):
         condition = IntImm("bool", condition)
-    return _base.at_(span, _ffi_api.While(condition))
+    return _base.at_(loc, _ffi_api.While(condition))
 
 
-def break_(*, span: _Span = None) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
+def break_(*, loc: _Loc = None) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.break_`.
 
     Legality is checked on the completed function, across loop and function boundaries.
     """
-    return _base.with_at_group_(span, lambda: _base.AlreadyEmitted(_ffi_api.Break()))
+    return _base.with_at_group_(loc, lambda: _base.AlreadyEmitted(_ffi_api.Break()))
 
 
-def continue_(*, span: _Span = None) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
+def continue_(*, loc: _Loc = None) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.continue_`.
 
     Legality is checked on the completed function, across loop and function boundaries.
     """
-    return _base.with_at_group_(span, lambda: _base.AlreadyEmitted(_ffi_api.Continue()))
+    return _base.with_at_group_(loc, lambda: _base.AlreadyEmitted(_ffi_api.Continue()))
 
 
-def return_(value: Any = None, *, span: _Span = None) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
+def return_(value: Any = None, *, loc: _Loc = None) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.return_`."""
     if value is None:
         raise TypeError("A primitive function return requires an expression")
-    return _base.with_at_group_(
-        span, lambda: _base.AlreadyEmitted(_ffi_api.Return(_as_expr(value)))
-    )
+    return _base.with_at_group_(loc, lambda: _base.AlreadyEmitted(_ffi_api.Return(_as_expr(value))))
 
 
 def assert_(
     condition: Any,
     message: str | tuple[str, Sequence[Any]] | Sequence[Any] = "",
     *,
-    span: _Span = None,
+    loc: _Loc = None,
 ) -> None:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.assert_`."""
     kind = "RuntimeError"
@@ -204,7 +202,7 @@ def assert_(
         message = [message]
     if isinstance(condition, _python.bool):
         condition = IntImm("bool", condition)
-    with _base.at_(span, _ffi_api.Assert(condition, kind, message)):
+    with _base.at_(loc, _ffi_api.Assert(condition, kind, message)):
         pass
 
 

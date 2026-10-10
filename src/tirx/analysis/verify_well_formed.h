@@ -247,7 +247,7 @@ class TensorLoadTypeVerifier : public Verifier<TensorLoadTypeVerifier<PathVisito
       return;
     }
 
-    TensorLoad expected = MakeTensorLoad(buffer.value(), op->indices, op->span);
+    TensorLoad expected = MakeTensorLoad(buffer.value(), op->indices, op->loc);
     ffi::Optional<PrimType> asserted_ty = op->ty.as<PrimType>();
     ffi::Optional<PrimType> expected_ty = expected->ty.as<PrimType>();
     auto valid_type = Verify(asserted_ty.has_value() && expected_ty.has_value() &&

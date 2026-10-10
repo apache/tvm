@@ -19,7 +19,7 @@
 Hooks construct native frames and statements using this dialect's IR and operations.
 For example, generated ``X.if_(condition)`` creates the native conditional frame;
 ``X.then_()`` and ``X.else_()`` enter its branches. See the corresponding shared
-``tvm.script.ir_builder.parser_protocol`` hooks for operand and span contracts.
+``tvm.script.ir_builder.parser_protocol`` hooks for operand and loc contracts.
 """
 
 from __future__ import annotations
@@ -103,7 +103,7 @@ from .op import ne_ as ne_
 from .op import not_ as not_
 from .op import or_ as or_
 
-_Span = _base.SpanEntry | _ir.Span | None
+_Loc = _base.LocationEntry | _ir.Location | None
 
 # --------------------------------------
 # Function
@@ -142,7 +142,7 @@ def function_(
     private: bool = False,
     persistent: bool = False,
     decl: bool = False,
-    span: _Span = None,
+    loc: _Loc = None,
 ) -> frame.FunctionFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.function_`.
 
@@ -154,10 +154,10 @@ def function_(
         if decl
         else _ffi_api.Function(private, persistent)
     )
-    return _base.at_(span, native)
+    return _base.at_(loc, native)
 
 
-def arg_(name: str, annotation: Any, *, span: _Span = None) -> _ir.Var:
+def arg_(name: str, annotation: Any, *, loc: _Loc = None) -> _ir.Var:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.arg_`."""
     if getattr(annotation, "__tvm_optional_annotation__", None) is not None:
         raise TypeError("T.Optional is only supported by @T.jit")
@@ -165,7 +165,7 @@ def arg_(name: str, annotation: Any, *, span: _Span = None) -> _ir.Var:
         annotation = annotation()
     if isinstance(annotation, _ir.Type):
         annotation = _ir.Var(name, annotation)
-    return _ffi_api.Arg(name, _base.at_(span, annotation))
+    return _ffi_api.Arg(name, _base.at_(loc, annotation))
 
 
 def func_name_(name: str) -> None:
@@ -173,7 +173,7 @@ def func_name_(name: str) -> None:
     return _ffi_api.FuncName(name)
 
 
-def func_ret_type_(annotation: Any, *, span: _Span = None) -> None:
+def func_ret_type_(annotation: Any, *, loc: _Loc = None) -> None:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.func_ret_type_`."""
     annotation = _base._return_annotation(annotation)
     if callable(annotation) and not isinstance(annotation, _ir.Expr | _ir.Type):
@@ -230,10 +230,10 @@ def call_global_var_(function: _ir.GlobalVar, args: Sequence[Any]) -> _ir.Expr:
     return _op._call_global(function, *args)
 
 
-def _name(value: Any, name: str | None, span: _Span) -> Any:
+def _name(value: Any, name: str | None, loc: _Loc) -> Any:
     if name is not None:
         _IRBuilder.name(name, value)
-    return _base.at_(span, value)
+    return _base.at_(loc, value)
 
 
 def bind_(
@@ -241,57 +241,57 @@ def bind_(
     *,
     ty: Any = None,
     name: str | None = None,
-    span: _Span = None,
-    value_span: _Span = None,
-    name_span: _Span = None,
+    loc: _Loc = None,
+    value_loc: _Loc = None,
+    name_loc: _Loc = None,
     frame_value: bool = False,
 ) -> Any:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.bind_`.
 
-    Returned Vars, including buffers, and metadata retain identity, names and spans.
-    Other expressions create native Bind nodes; value_span belongs to the RHS.
+    Returned Vars, including buffers, and metadata retain identity, names and locs.
+    Other expressions create native Bind nodes; value_loc belongs to the RHS.
     Explicit typed bindings and frame targets retain their separate contracts.
     """
-    name_span = span if name_span is None else name_span
+    name_loc = loc if name_loc is None else name_loc
     if frame_value:
         if isinstance(value, _python.list | _python.tuple | _ir.Array):
             for index, item in enumerate(value):
                 bind_(
                     item,
                     name=None if name is None else f"{name}_{index}",
-                    span=span,
-                    name_span=name_span,
+                    loc=loc,
+                    name_loc=name_loc,
                     frame_value=True,
                 )
         elif isinstance(value, _ir.Var | _tir.Layout):
-            _name(value, name, name_span)
+            _name(value, name, name_loc)
         elif isinstance(value, _ir.TensorLoad) and _tir.is_tensor_var(value.source):
-            _name(value.source, name, name_span)
+            _name(value.source, name, name_loc)
         return value
     if isinstance(ty, _native.LetAnnotation):
         if value is _base.MISSING:
             raise ValueError("An immutable binding requires an initializer")
         value = _op._as_expr(value)
         if not isinstance(value, _ir.Var):
-            _base.at_(value_span, value)
-        variable = _name(ty.as_var(rhs_dtype=value.ty), name, name_span)
-        _base.with_at_group_(span, lambda: bind(value, var=variable))
+            _base.at_(value_loc, value)
+        variable = _name(ty.as_var(rhs_dtype=value.ty), name, name_loc)
+        _base.with_at_group_(loc, lambda: bind(value, var=variable))
         return variable
     if ty is not None:
         annotation = ty() if callable(ty) and not isinstance(ty, _ir.Expr) else ty
         annotation = annotation.ty if isinstance(annotation, _ir.Expr) else annotation
         value = _op._as_expr(value)
         if not isinstance(value, _ir.Var):
-            _base.at_(value_span, value)
+            _base.at_(value_loc, value)
         variable = _ir.Var(name or "", annotation)
-        return _name(_base.with_at_group_(span, lambda: bind(value, var=variable)), name, name_span)
+        return _name(_base.with_at_group_(loc, lambda: bind(value, var=variable)), name, name_loc)
     if value is _base.MISSING:
         raise ValueError("An uninitialized binding requires a scalar type annotation")
     if isinstance(value, _base.AlreadyEmitted):
-        return _base.at_(value_span, value)
+        return _base.at_(value_loc, value)
     if isinstance(value, _base.IRBuilderFrame):
-        frame_span = value_span if value_span is not None else span
-        return _name(_enter_concise(_base.at_(frame_span, value)), name, name_span)
+        frame_loc = value_loc if value_loc is not None else loc
+        return _name(_enter_concise(_base.at_(frame_loc, value)), name, name_loc)
     # a = existing_var and a = producer() share the same runtime value rule.
     # A Var already owns its declaration, including a newly constructed buffer view.
     if isinstance(value, _ir.Var):
@@ -300,8 +300,8 @@ def bind_(
         return value
     if not isinstance(value, _ir.Expr | _python.int | _python.float | _python.bool | str):
         return value
-    value = _base.at_(value_span, _op._as_expr(value))
-    return _name(_base.with_at_group_(span, lambda: bind(value)), name, name_span)
+    value = _base.at_(value_loc, _op._as_expr(value))
+    return _name(_base.with_at_group_(loc, lambda: bind(value)), name, name_loc)
 
 
 def decl_mutable_cell_(
@@ -309,63 +309,63 @@ def decl_mutable_cell_(
     *,
     ty: Any = None,
     name: str | None = None,
-    span: _Span = None,
-    name_span: _Span = None,
+    loc: _Loc = None,
+    name_loc: _Loc = None,
 ) -> Any:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.decl_mutable_cell_`.
 
     Primitive annotations allocate scalar local storage; vector annotations
     allocate their declared shape. Var declaration producers retain their own effects.
     """
-    name_span = span if name_span is None else name_span
+    name_loc = loc if name_loc is None else name_loc
     if isinstance(ty, _native.LocalVectorAnnotation):
         if value is not _base.MISSING:
             raise ValueError("Vector annotation does not support an initializer")
         return _name(
-            _base.with_at_group_(span, lambda: _native.alloc_local(ty.shape, ty.dtype)),
+            _base.with_at_group_(loc, lambda: _native.alloc_local(ty.shape, ty.dtype)),
             name,
-            name_span,
+            name_loc,
         )
     if ty is not None:
         annotation = ty() if callable(ty) and not isinstance(ty, _ir.Expr) else ty
         annotation = annotation.ty if isinstance(annotation, _ir.Expr) else annotation
         if not isinstance(annotation, _ir.PrimType) or str(annotation) == "handle":
             raise TypeError("Mutable scalar annotations require a primitive scalar type")
-        storage = _base.with_at_group_(span, lambda: _native.local_scalar(str(annotation)))
+        storage = _base.with_at_group_(loc, lambda: _native.local_scalar(str(annotation)))
         if value is not _base.MISSING:
-            set_mutable_cell_(storage, value, span=span)
+            set_mutable_cell_(storage, value, loc=loc)
     else:
         storage = value
     if isinstance(storage, _ir.TensorLoad):
-        _name(storage.source, name, name_span)
+        _name(storage.source, name, name_loc)
     elif _tir.is_tensor_var(storage):
-        _name(storage, name, name_span)
+        _name(storage, name, name_loc)
     else:
         raise TypeError("A mutable declaration requires scalar or vector storage")
     return storage
 
 
 def set_mutable_cell_(
-    target: _ir.TensorLoad | _ir.Var, value: Any, *, span: _Span = None
+    target: _ir.TensorLoad | _ir.Var, value: Any, *, loc: _Loc = None
 ) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.set_mutable_cell_`.
 
     Updates emit a scalar buffer store. Targets must denote scalar storage.
     """
     if isinstance(target, _ir.TensorLoad):
-        return _base.at_(span, tensor_store(target.source, list(target.indices), value))
+        return _base.at_(loc, tensor_store(target.source, list(target.indices), value))
     elif (
         _tir.is_tensor_var(target)
         and len(target.ty.shape) == 1
         and isinstance(target.ty.shape[0], _tir.IntImm)
         and target.ty.shape[0].value == 1
     ):
-        return _base.at_(span, tensor_store(target, [0], value))
+        return _base.at_(loc, tensor_store(target, [0], value))
     else:
         raise TypeError("A mutable assignment requires scalar storage")
 
 
-def emit_(value: Any, *, span: _Span = None) -> None:
+def emit_(value: Any, *, loc: _Loc = None) -> None:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.emit_`.
 
     Native statements emit once; receipts are already emitted. Vars, layouts
@@ -374,7 +374,7 @@ def emit_(value: Any, *, span: _Span = None) -> None:
     native expression conversion, retaining its errors for unsupported host values.
     """
     if isinstance(value, _base.AlreadyEmitted):
-        _base.at_(span, value)
+        _base.at_(loc, value)
         return None
     if (
         value is None
@@ -384,32 +384,32 @@ def emit_(value: Any, *, span: _Span = None) -> None:
         return
     if isinstance(value, list | tuple | _ir.Array):
         for item in value:
-            emit_(item, span=span)
+            emit_(item, loc=loc)
         return
     if isinstance(value, _base.IRBuilderFrame):
-        _enter_concise(_base.at_(span, value))
+        _enter_concise(_base.at_(loc, value))
     elif hasattr(value, "frames"):
         for frame in value.frames:
-            _enter_concise(_base.at_(span, frame))
+            _enter_concise(_base.at_(loc, frame))
     elif isinstance(value, tvm.ir.Stmt):
-        add_to_parent(_base.at_(span, value))
+        add_to_parent(_base.at_(loc, value))
     else:
         # Native conversion owns Python literals; annotate the exact expression
         # it stored, as well as the statement, without converting or emitting twice.
         emitted = evaluate(value)
-        _base.at_(span, emitted.value.value)
-        _base.at_(span, emitted)
+        _base.at_(loc, emitted.value.value)
+        _base.at_(loc, emitted)
 
 
 def setitem_(
-    target: Any, key: Any, value: Any, *, span: _Span = None
+    target: Any, key: Any, value: Any, *, loc: _Loc = None
 ) -> _base.AlreadyEmitted[tvm.ir.Stmt]:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.setitem_`."""
-    return _base.at_(span, tensor_store(target, key, value))
+    return _base.at_(loc, tensor_store(target, key, value))
 
 
 def setattr_(
-    target: Any, name: str, value: Any, *, span: _Span = None
+    target: Any, name: str, value: Any, *, loc: _Loc = None
 ) -> _base.AlreadyEmitted[tvm.ir.Stmt] | None:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.setattr_`."""
     previous = getattr(target, name, _base.MISSING)
@@ -417,7 +417,7 @@ def setattr_(
     if _tir.is_tensor_var(buffer):
         shape = buffer.ty.shape
         if len(shape) == 1 and _python.bool(shape[0] == 1):
-            return set_mutable_cell_(previous, value, span=span)
+            return set_mutable_cell_(previous, value, loc=loc)
     _python.setattr(target, name, value)
 
 
@@ -480,7 +480,7 @@ def tensor_store(
 
 
 def for_(
-    iterable: Any, *, names: str | Sequence[str] | None = None, span: _Span = None
+    iterable: Any, *, names: str | Sequence[str] | None = None, loc: _Loc = None
 ) -> frame.ForFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.for_`.
 
@@ -492,7 +492,7 @@ def for_(
     if not isinstance(iterable, frame.ForFrame):
         raise TypeError("A primitive for loop requires an iteration specification")
     iterable.set_names(names)
-    return _base.at_(span, iterable)
+    return _base.at_(loc, iterable)
 
 
 def range_(*args: Any, annotations: dict[str, Any] | None = None) -> frame.ForFrame:

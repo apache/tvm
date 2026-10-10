@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import inspect
+import linecache
 
 import pytest
 
@@ -312,7 +313,7 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
 
 
 def test_written_comparison_order(primitive_language):
-    # A leading host literal must not reverse the written native comparison or its source span.
+    # A leading host literal must not reverse the written native comparison or its source location.
     M = primitive_language.M
     x = ir.Var("x", "int32")
 
@@ -324,7 +325,12 @@ def test_written_comparison_order(primitive_language):
     ir.assert_structural_equal(actual, prim.LT(0, x))
     lines, start = inspect.getsourcelines(test_written_comparison_order)
     line = start + next(i for i, text in enumerate(lines) if text.strip() == "0 < x")
-    assert (actual.span.line, actual.span.end_line, actual.span.column, actual.span.end_column) == (
+    assert (
+        actual.loc.start_line,
+        actual.loc.end_line,
+        actual.loc.start_column,
+        actual.loc.end_column,
+    ) == (
         line,
         line,
         9,
@@ -430,7 +436,14 @@ def test_symbolic_equality_reaches_typed_consumer_once_in_order(primitive_langua
     assert seen == [0, 1]
     assert len(comparisons) == 1
     assert comparisons[0].a.same_as(values[0]) and comparisons[0].b.same_as(values[1])
-    assert comparisons[0].span is not None
+    loc = comparisons[0].loc
+    assert isinstance(loc, ir.SourceLoc)
+    assert loc.source_name.name == __file__
+    assert loc.start_line == loc.end_line
+    assert (
+        linecache.getline(__file__, loc.start_line)[loc.start_column - 1 : loc.end_column - 1]
+        == "operand(0) == operand(1)"
+    )
 
 
 def test_python_comparisons_remain_python_booleans(primitive_language):

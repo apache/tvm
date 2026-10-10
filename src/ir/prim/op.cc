@@ -148,7 +148,7 @@ PrimType PromoteBinaryOpType(PrimType lhs_ty, PrimType rhs_ty) {
 }
 
 // The public function with a quick checking path.
-void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
+void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Location loc) {  // NOLINT(*)
   TVM_FFI_CHECK(lhs.defined(), ValueError) << "`lhs` is null in the binary operator";
   TVM_FFI_CHECK(rhs.defined(), ValueError) << "`rhs` is null in the binary operator";
   const PrimTypeNode* lhs_ty_node = GetPrimTypeNode(lhs);
@@ -176,130 +176,130 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
 
   PrimType promoted_ty = PromoteBinaryOpType(lhs_ty, rhs_ty);
   if (lhs_ty->dtype != promoted_ty->dtype) {
-    lhs = prim::cast(promoted_ty, lhs, span);
+    lhs = prim::cast(promoted_ty, lhs, loc);
   }
   if (rhs_ty->dtype != promoted_ty->dtype) {
-    rhs = prim::cast(promoted_ty, rhs, span);
+    rhs = prim::cast(promoted_ty, rhs, loc);
   }
 }
 
 }  // namespace prim::detail
 namespace prim {
 // maximum and min limits
-PrimExpr max_value(PrimType value_ty, Span span) {
+PrimExpr max_value(PrimType value_ty, Location loc) {
   PrimType dtype = value_ty;
   TVM_FFI_ICHECK_EQ(dtype.lanes(), 1);
   if (dtype.MatchesCode(DLDataTypeCode::kDLInt)) {
     if (dtype.bits() == 64) {
-      return IntImm(value_ty, std::numeric_limits<int64_t>::max(), span);
+      return IntImm(value_ty, std::numeric_limits<int64_t>::max(), loc);
     } else if (dtype.bits() < 64) {
       int64_t val = 1;
       val = (val << (dtype.bits() - 1)) - 1;
-      return IntImm(value_ty, val, span);
+      return IntImm(value_ty, val, loc);
     }
   } else if (dtype.MatchesCode(DLDataTypeCode::kDLUInt)) {
     if (dtype.bits() == 64) {
-      return MakeConst(dtype, std::numeric_limits<uint64_t>::max(), span);
+      return MakeConst(dtype, std::numeric_limits<uint64_t>::max(), loc);
     } else if (dtype.bits() < 64) {
       uint64_t val = 1;
       val = (val << static_cast<uint64_t>(dtype.bits())) - 1;
-      return IntImm(value_ty, static_cast<int64_t>(val), span);
+      return IntImm(value_ty, static_cast<int64_t>(val), loc);
     }
   } else if (IsFloatType(dtype)) {
     if (dtype.bits() == 64) {
-      return FloatImm(value_ty, std::numeric_limits<double>::max(), span);
+      return FloatImm(value_ty, std::numeric_limits<double>::max(), loc);
     } else if (dtype.bits() == 32) {
-      return FloatImm(value_ty, std::numeric_limits<float>::max(), span);
+      return FloatImm(value_ty, std::numeric_limits<float>::max(), loc);
     } else if (dtype.bits() == 16) {
-      return FloatImm(value_ty, 65504.0, span);
+      return FloatImm(value_ty, 65504.0, loc);
     }
   } else if (IsBFloat16Type(dtype)) {
-    return FloatImm(value_ty, std::numeric_limits<float>::max(), span);
+    return FloatImm(value_ty, std::numeric_limits<float>::max(), loc);
   } else if (IsFloat8Type(dtype)) {
     // according to https://arxiv.org/pdf/2209.05433.pdf
     if (dtype.code() == DLDataTypeCode::kDLFloat8_e5m2) {
-      return FloatImm(value_ty, 57344.0, span);
+      return FloatImm(value_ty, 57344.0, loc);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e5m2fnuz) {
-      return FloatImm(value_ty, 57344.0, span);
+      return FloatImm(value_ty, 57344.0, loc);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e4m3fn) {
-      return FloatImm(value_ty, 448.0, span);
+      return FloatImm(value_ty, 448.0, loc);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e4m3fnuz ||
                dtype.code() == DLDataTypeCode::kDLFloat8_e4m3) {
-      return FloatImm(value_ty, 448.0, span);
+      return FloatImm(value_ty, 448.0, loc);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e4m3b11fnuz) {
-      return FloatImm(value_ty, 30.0, span);
+      return FloatImm(value_ty, 30.0, loc);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e3m4) {
-      return FloatImm(value_ty, 31.0, span);
+      return FloatImm(value_ty, 31.0, loc);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e8m0fnu) {
-      return FloatImm(value_ty, 3.4028236692093846e+38, span);
+      return FloatImm(value_ty, 3.4028236692093846e+38, loc);
     }
   } else if (IsFloat6Type(dtype)) {
     if (dtype.code() == DLDataTypeCode::kDLFloat6_e2m3fn) {
-      return FloatImm(value_ty, 7.5, span);
+      return FloatImm(value_ty, 7.5, loc);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat6_e3m2fn) {
-      return FloatImm(value_ty, 28.0, span);
+      return FloatImm(value_ty, 28.0, loc);
     }
   } else if (IsFloat4Type(dtype)) {
-    return FloatImm(value_ty, 6.0, span);
+    return FloatImm(value_ty, 6.0, loc);
   }
   TVM_FFI_THROW(InternalError) << "Cannot decide max_value for type" << dtype;
 }
 
-PrimExpr min_value(PrimType value_ty, Span span) {
+PrimExpr min_value(PrimType value_ty, Location loc) {
   PrimType dtype = value_ty;
   TVM_FFI_ICHECK_EQ(dtype.lanes(), 1);
   if (dtype.MatchesCode(DLDataTypeCode::kDLInt)) {
     if (dtype.bits() == 64) {
-      return IntImm(value_ty, std::numeric_limits<int64_t>::lowest(), span);
+      return IntImm(value_ty, std::numeric_limits<int64_t>::lowest(), loc);
     } else if (dtype.bits() < 64) {
       int64_t val = 1;
       val = -(val << (dtype.bits() - 1));
-      return IntImm(value_ty, val, span);
+      return IntImm(value_ty, val, loc);
     }
   } else if (dtype.MatchesCode(DLDataTypeCode::kDLUInt)) {
-    return IntImm(value_ty, 0, span);
+    return IntImm(value_ty, 0, loc);
   } else if (IsFloatType(dtype)) {
     if (dtype.bits() == 64) {
-      return FloatImm(value_ty, std::numeric_limits<double>::lowest(), span);
+      return FloatImm(value_ty, std::numeric_limits<double>::lowest(), loc);
     } else if (dtype.bits() == 32) {
-      return FloatImm(value_ty, std::numeric_limits<float>::lowest(), span);
+      return FloatImm(value_ty, std::numeric_limits<float>::lowest(), loc);
     } else if (dtype.bits() == 16) {
-      return FloatImm(value_ty, -65504.0, span);
+      return FloatImm(value_ty, -65504.0, loc);
     }
   } else if (IsBFloat16Type(dtype)) {
-    return FloatImm(value_ty, std::numeric_limits<float>::lowest(), span);
+    return FloatImm(value_ty, std::numeric_limits<float>::lowest(), loc);
   } else if (IsFloat8Type(dtype)) {
     // according to https://arxiv.org/pdf/2209.05433.pdf
     if (dtype.code() == DLDataTypeCode::kDLFloat8_e5m2) {
-      return FloatImm(value_ty, -57344.0, span);
+      return FloatImm(value_ty, -57344.0, loc);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e5m2fnuz) {
-      return FloatImm(value_ty, 0.0, span);
+      return FloatImm(value_ty, 0.0, loc);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e4m3fn) {
-      return FloatImm(value_ty, -448.0, span);
+      return FloatImm(value_ty, -448.0, loc);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e4m3fnuz) {
-      return FloatImm(value_ty, 0.0, span);
+      return FloatImm(value_ty, 0.0, loc);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e4m3) {
-      return FloatImm(value_ty, -448.0, span);
+      return FloatImm(value_ty, -448.0, loc);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e4m3b11fnuz) {
-      return FloatImm(value_ty, 0.0, span);
+      return FloatImm(value_ty, 0.0, loc);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e3m4) {
-      return FloatImm(value_ty, -31.0, span);
+      return FloatImm(value_ty, -31.0, loc);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat8_e8m0fnu) {
-      return FloatImm(value_ty, 0.0, span);
+      return FloatImm(value_ty, 0.0, loc);
     }
   } else if (IsFloat6Type(dtype)) {
     if (dtype.code() == DLDataTypeCode::kDLFloat6_e2m3fn) {
-      return FloatImm(value_ty, -7.5, span);
+      return FloatImm(value_ty, -7.5, loc);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat6_e3m2fn) {
-      return FloatImm(value_ty, -28.0, span);
+      return FloatImm(value_ty, -28.0, loc);
     }
   } else if (IsFloat4Type(dtype)) {
-    return FloatImm(value_ty, -6.0, span);
+    return FloatImm(value_ty, -6.0, loc);
   }
   TVM_FFI_THROW(InternalError) << "Cannot decide min_value for type" << dtype;
 }
 
-PrimExpr cast(PrimType t, PrimExpr value, Span span) {
+PrimExpr cast(PrimType t, PrimExpr value, Location loc) {
   PrimType dtype = t;
   if (value.ty() == dtype) return value;
   TVM_FFI_CHECK(!value.ty().IsVoid(), TypeError)
@@ -307,22 +307,22 @@ PrimExpr cast(PrimType t, PrimExpr value, Span span) {
   // const fold IntImm as they are used in index computations
   if (dtype.IsScalar()) {
     if (const IntImmNode* op = value.as<IntImmNode>()) {
-      return MakeConst(dtype, op->value, op->span);
+      return MakeConst(dtype, op->value, op->loc);
     } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
-      return MakeConst(dtype, op->value, op->span);
+      return MakeConst(dtype, op->value, op->loc);
     }
-    return prim::Cast(std::move(t), value, span);
+    return prim::Cast(std::move(t), value, loc);
   } else {
     PrimType elem_ty = dtype.WithLanes(1);
     if (!value.ty().IsScalableVector() && !value.ty().IsFixedLengthVector()) {
       // manually unroll cast
       if (value.ty() != elem_ty) {
         if (const IntImmNode* op = value.as<IntImmNode>()) {
-          value = MakeConst(elem_ty, op->value, op->span);
+          value = MakeConst(elem_ty, op->value, op->loc);
         } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
-          value = MakeConst(elem_ty, op->value, op->span);
+          value = MakeConst(elem_ty, op->value, op->loc);
         } else {
-          value = prim::Cast(elem_ty, value, span);
+          value = prim::Cast(elem_ty, value, loc);
         }
       }
       if (dtype.IsScalableVector()) {
@@ -330,9 +330,9 @@ PrimExpr cast(PrimType t, PrimExpr value, Span span) {
             value,
             prim::Mul(dtype.VScaleFactor(),
                       Call(PrimType::Int(32), prim::vscale_op(), {}).as_or_throw<PrimExpr>()),
-            span);
+            loc);
       } else {
-        return prim::Broadcast(value, dtype.lanes(), span);
+        return prim::Broadcast(value, dtype.lanes(), loc);
       }
     } else { /* value is a vector */
       TVM_FFI_ICHECK(value.ty().IsScalableVector() == dtype.IsScalableVector());
@@ -345,21 +345,21 @@ PrimExpr cast(PrimType t, PrimExpr value, Span span) {
       }
       TVM_FFI_ICHECK(lanes_match);
       if (const auto* broadcast = value.as<prim::BroadcastNode>()) {
-        return prim::Broadcast(cast(elem_ty, broadcast->value, span), broadcast->lanes, span);
+        return prim::Broadcast(cast(elem_ty, broadcast->value, loc), broadcast->lanes, loc);
       } else if (const auto* ramp = value.as<prim::RampNode>()) {
         if (dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
           // only cast to index data type can be folded to ramp
-          return prim::Ramp(cast(elem_ty, ramp->base, span), cast(elem_ty, ramp->stride, span),
-                            ramp->lanes, span);
+          return prim::Ramp(cast(elem_ty, ramp->base, loc), cast(elem_ty, ramp->stride, loc),
+                            ramp->lanes, loc);
         }
       }
-      return prim::Cast(std::move(t), value, span);
+      return prim::Cast(std::move(t), value, loc);
     }
   }
 }
 
-PrimExpr cast(DLDataType dtype, PrimExpr value, Span span) {
-  return cast(PrimType(dtype), std::move(value), std::move(span));
+PrimExpr cast(DLDataType dtype, PrimExpr value, Location loc) {
+  return cast(PrimType(dtype), std::move(value), std::move(loc));
 }
 
 template <typename ValueType>
@@ -388,16 +388,16 @@ bool IsPowerOfTwoInt(const PrimExpr& x, int* shift) {
 
 PrimExpr operator+(PrimExpr a, PrimExpr b) { return add(a, b); }
 
-PrimExpr add(PrimExpr a, PrimExpr b, Span span) {
-  BinaryOpMatchTypes(a, b, span);
+PrimExpr add(PrimExpr a, PrimExpr b, Location loc) {
+  BinaryOpMatchTypes(a, b, loc);
   if (auto ret = prim::detail::TryConstFold<prim::Add>(a, b)) return ret.value();
-  return prim::Add(a, b, span);
+  return prim::Add(a, b, loc);
 }
 
 // negation
 PrimExpr operator-(PrimExpr a) { return neg(a); }
 
-PrimExpr neg(PrimExpr a, Span span) {
+PrimExpr neg(PrimExpr a, Location loc) {
   const IntImmNode* pa = a.as<IntImmNode>();
   const FloatImmNode* fa = a.as<FloatImmNode>();
   if (pa) {
@@ -405,43 +405,43 @@ PrimExpr neg(PrimExpr a, Span span) {
     if (a.ty().MatchesCode(DLDataTypeCode::kDLInt) && a.ty().bits() >= 64) {
       value = prim::detail::GetFoldResult(std::move(value), a.ty());
     }
-    return IntImm(a.ty(), std::move(value), span);
+    return IntImm(a.ty(), std::move(value), loc);
   }
-  if (fa) return FloatImm(a.ty(), -fa->value, span);
-  return MakeConst(a.ty(), 0, span) - a;
+  if (fa) return FloatImm(a.ty(), -fa->value, loc);
+  return MakeConst(a.ty(), 0, loc) - a;
 }
 
 PrimExpr operator-(PrimExpr a, PrimExpr b) { return sub(a, b); }
 
-PrimExpr sub(PrimExpr a, PrimExpr b, Span span) {
-  BinaryOpMatchTypes(a, b, span);
+PrimExpr sub(PrimExpr a, PrimExpr b, Location loc) {
+  BinaryOpMatchTypes(a, b, loc);
   if (auto ret = prim::detail::TryConstFold<prim::Sub>(a, b)) return ret.value();
-  return prim::Sub(a, b, span);
+  return prim::Sub(a, b, loc);
 }
 
 PrimExpr operator*(PrimExpr a, PrimExpr b) { return mul(a, b); }
-PrimExpr mul(PrimExpr a, PrimExpr b, Span span) {
-  BinaryOpMatchTypes(a, b, span);
+PrimExpr mul(PrimExpr a, PrimExpr b, Location loc) {
+  BinaryOpMatchTypes(a, b, loc);
   if (auto ret = prim::detail::TryConstFold<prim::Mul>(a, b)) return ret.value();
-  return prim::Mul(a, b, span);
+  return prim::Mul(a, b, loc);
 }
 
-PrimExpr div(PrimExpr a, PrimExpr b, Span span) {
-  BinaryOpMatchTypes(a, b, span);
+PrimExpr div(PrimExpr a, PrimExpr b, Location loc) {
+  BinaryOpMatchTypes(a, b, loc);
   if (auto ret = prim::detail::TryConstFold<prim::Div>(a, b)) return ret.value();
-  return prim::Div(a, b, span);
+  return prim::Div(a, b, loc);
 }
 
-PrimExpr truncdiv(PrimExpr a, PrimExpr b, Span span) {
+PrimExpr truncdiv(PrimExpr a, PrimExpr b, Location loc) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << a;
   TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << b;
-  return div(a, b, span);
+  return div(a, b, loc);
 }
 
-PrimExpr truncmod(PrimExpr a, PrimExpr b, Span span) {
-  BinaryOpMatchTypes(a, b, span);
+PrimExpr truncmod(PrimExpr a, PrimExpr b, Location loc) {
+  BinaryOpMatchTypes(a, b, loc);
   if (auto ret = prim::detail::TryConstFold<prim::Mod>(a, b)) return ret.value();
-  return prim::Mod(a, b, span);
+  return prim::Mod(a, b, loc);
 }
 
 PrimExpr operator/(PrimExpr a, PrimExpr b) { return div(a, b); }
@@ -449,37 +449,37 @@ PrimExpr operator/(PrimExpr a, PrimExpr b) { return div(a, b); }
 PrimExpr operator%(PrimExpr a, PrimExpr b) { return truncmod(a, b); }
 
 // TODO(tqchen): switch to floordiv
-PrimExpr indexdiv(PrimExpr a, PrimExpr b, Span span) { return floordiv(a, b, span); }
+PrimExpr indexdiv(PrimExpr a, PrimExpr b, Location loc) { return floordiv(a, b, loc); }
 
-PrimExpr shapediv(PrimExpr a, PrimExpr b, Span span) { return ceildiv(a, b, span); }
+PrimExpr shapediv(PrimExpr a, PrimExpr b, Location loc) { return ceildiv(a, b, loc); }
 
-PrimExpr indexmod(PrimExpr a, PrimExpr b, Span span) { return floormod(a, b, span); }
+PrimExpr indexmod(PrimExpr a, PrimExpr b, Location loc) { return floormod(a, b, loc); }
 
-PrimExpr floordiv(PrimExpr a, PrimExpr b, Span span) {
+PrimExpr floordiv(PrimExpr a, PrimExpr b, Location loc) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << a;
   TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << b;
-  BinaryOpMatchTypes(a, b, span);
+  BinaryOpMatchTypes(a, b, loc);
   if (auto ret = prim::detail::TryConstFold<prim::FloorDiv>(a, b)) return ret.value();
-  return prim::FloorDiv(a, b, span);
+  return prim::FloorDiv(a, b, loc);
 }
 
-PrimExpr ceildiv(PrimExpr a, PrimExpr b, Span span) {
+PrimExpr ceildiv(PrimExpr a, PrimExpr b, Location loc) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << a;
   TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << b;
-  BinaryOpMatchTypes(a, b, span);
+  BinaryOpMatchTypes(a, b, loc);
   if (auto ret = prim::detail::TryConstFold<prim::FloorDiv>(a + b - 1, b)) return ret.value();
-  return prim::FloorDiv(a + b - 1, b, span);
+  return prim::FloorDiv(a + b - 1, b, loc);
 }
 
-PrimExpr floormod(PrimExpr a, PrimExpr b, Span span) {
+PrimExpr floormod(PrimExpr a, PrimExpr b, Location loc) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << a;
   TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << b;
-  BinaryOpMatchTypes(a, b, span);
+  BinaryOpMatchTypes(a, b, loc);
   if (auto ret = prim::detail::TryConstFold<prim::FloorMod>(a, b)) return ret.value();
-  return prim::FloorMod(a, b, span);
+  return prim::FloorMod(a, b, loc);
 }
 
-PrimExpr min(PrimExpr a, PrimExpr b, Span span) {
+PrimExpr min(PrimExpr a, PrimExpr b, Location loc) {
   // inf-aware simplificaiton
   using prim::detail::is_neg_inf;
   using prim::detail::is_pos_inf;
@@ -487,12 +487,12 @@ PrimExpr min(PrimExpr a, PrimExpr b, Span span) {
   if (is_neg_inf(a)) return a;
   if (is_pos_inf(b)) return a;
   if (is_neg_inf(b)) return b;
-  BinaryOpMatchTypes(a, b, span);
+  BinaryOpMatchTypes(a, b, loc);
   if (auto ret = prim::detail::TryConstFold<prim::Min>(a, b)) return ret.value();
-  return prim::Min(a, b, span);
+  return prim::Min(a, b, loc);
 }
 
-PrimExpr max(PrimExpr a, PrimExpr b, Span span) {
+PrimExpr max(PrimExpr a, PrimExpr b, Location loc) {
   // inf-aware simplificaiton
   using prim::detail::is_neg_inf;
   using prim::detail::is_pos_inf;
@@ -500,16 +500,16 @@ PrimExpr max(PrimExpr a, PrimExpr b, Span span) {
   if (is_neg_inf(a)) return b;
   if (is_pos_inf(b)) return b;
   if (is_neg_inf(b)) return a;
-  BinaryOpMatchTypes(a, b, span);
+  BinaryOpMatchTypes(a, b, loc);
   if (auto ret = prim::detail::TryConstFold<prim::Max>(a, b)) return ret.value();
-  return prim::Max(a, b, span);
+  return prim::Max(a, b, loc);
 }
 
 // if_then_else
-PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value, Span span) {
+PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value, Location loc) {
   TVM_FFI_ICHECK(cond.ty().MatchesCode(DLDataTypeCode::kDLBool))
       << "if_then_else only accept the condition to be boolean type.";
-  BinaryOpMatchTypes(true_value, false_value, span);
+  BinaryOpMatchTypes(true_value, false_value, loc);
   if (const IntImmNode* op = cond.as<IntImmNode>()) {
     if (op->value != 0) {
       return true_value;
@@ -519,62 +519,62 @@ PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value, 
   }
 
   return Call(true_value.ty(), prim::if_then_else_op(), {cond, true_value, false_value}, {}, {},
-              span)
+              loc)
       .as_or_throw<PrimExpr>();
 }
 
 // likely
-PrimExpr likely(PrimExpr cond, Span span) {
+PrimExpr likely(PrimExpr cond, Location loc) {
   if (IsConstInt(cond)) return cond;
-  return Call(cond.ty(), prim::likely_op(), {cond}, {}, {}, span).as_or_throw<PrimExpr>();
+  return Call(cond.ty(), prim::likely_op(), {cond}, {}, {}, loc).as_or_throw<PrimExpr>();
 }
 
 // operator>
 PrimExpr operator>(PrimExpr a, PrimExpr b) { return greater(a, b); }
-PrimExpr greater(PrimExpr a, PrimExpr b, Span span) {
-  BinaryOpMatchTypes(a, b, span);
+PrimExpr greater(PrimExpr a, PrimExpr b, Location loc) {
+  BinaryOpMatchTypes(a, b, loc);
   if (auto ret = prim::detail::TryConstFold<prim::GT>(a, b)) return ret.value();
-  return prim::GT(a, b, span);
+  return prim::GT(a, b, loc);
 }
 
 PrimExpr operator>=(PrimExpr a, PrimExpr b) { return greater_equal(a, b); }
-PrimExpr greater_equal(PrimExpr a, PrimExpr b, Span span) {
-  BinaryOpMatchTypes(a, b, span);
+PrimExpr greater_equal(PrimExpr a, PrimExpr b, Location loc) {
+  BinaryOpMatchTypes(a, b, loc);
   if (auto ret = prim::detail::TryConstFold<prim::GE>(a, b)) return ret.value();
-  return prim::GE(a, b, span);
+  return prim::GE(a, b, loc);
 }
 
 PrimExpr operator<(PrimExpr a, PrimExpr b) { return less(a, b); }
-PrimExpr less(PrimExpr a, PrimExpr b, Span span) {
-  BinaryOpMatchTypes(a, b, span);
+PrimExpr less(PrimExpr a, PrimExpr b, Location loc) {
+  BinaryOpMatchTypes(a, b, loc);
   if (auto ret = prim::detail::TryConstFold<prim::LT>(a, b)) return ret.value();
-  return prim::LT(a, b, span);
+  return prim::LT(a, b, loc);
 }
 
 PrimExpr operator<=(PrimExpr a, PrimExpr b) { return less_equal(a, b); }
-PrimExpr less_equal(PrimExpr a, PrimExpr b, Span span) {
-  BinaryOpMatchTypes(a, b, span);
+PrimExpr less_equal(PrimExpr a, PrimExpr b, Location loc) {
+  BinaryOpMatchTypes(a, b, loc);
   if (auto ret = prim::detail::TryConstFold<prim::LE>(a, b)) return ret.value();
-  return prim::LE(a, b, span);
+  return prim::LE(a, b, loc);
 }
 
 PrimExpr operator==(PrimExpr a, PrimExpr b) { return equal(a, b); }
-PrimExpr equal(PrimExpr a, PrimExpr b, Span span) {
-  BinaryOpMatchTypes(a, b, span);
+PrimExpr equal(PrimExpr a, PrimExpr b, Location loc) {
+  BinaryOpMatchTypes(a, b, loc);
   if (auto ret = prim::detail::TryConstFold<prim::EQ>(a, b)) return ret.value();
   if (IsVScaleCall(a) && IsVScaleCall(b)) return true;
-  return prim::EQ(a, b, span);
+  return prim::EQ(a, b, loc);
 }
 
 PrimExpr operator!=(PrimExpr a, PrimExpr b) { return not_equal(a, b); }
-PrimExpr not_equal(PrimExpr a, PrimExpr b, Span span) {
-  BinaryOpMatchTypes(a, b, span);
+PrimExpr not_equal(PrimExpr a, PrimExpr b, Location loc) {
+  BinaryOpMatchTypes(a, b, loc);
   if (auto ret = prim::detail::TryConstFold<prim::NE>(a, b)) return ret.value();
-  return prim::NE(a, b, span);
+  return prim::NE(a, b, loc);
 }
 
 PrimExpr operator&&(PrimExpr a, PrimExpr b) { return logical_and(a, b); }
-PrimExpr logical_and(PrimExpr a, PrimExpr b, Span span) {
+PrimExpr logical_and(PrimExpr a, PrimExpr b, Location loc) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLBool))
       << "Expected boolean argument as LHS of && operator (logical AND), but received " << a
       << " of type " << a.ty();
@@ -582,11 +582,11 @@ PrimExpr logical_and(PrimExpr a, PrimExpr b, Span span) {
       << "Expected boolean argument as RHS of && operator (logical AND), but received " << b
       << " of type " << b.ty();
   if (auto ret = prim::detail::TryConstFold<prim::And>(a, b)) return ret.value();
-  return prim::And(a, b, span);
+  return prim::And(a, b, loc);
 }
 
 PrimExpr operator||(PrimExpr a, PrimExpr b) { return logical_or(a, b); }
-PrimExpr logical_or(PrimExpr a, PrimExpr b, Span span) {
+PrimExpr logical_or(PrimExpr a, PrimExpr b, Location loc) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLBool))
       << "Expected boolean argument as LHS of || operator (logical OR), but received " << a
       << " of type " << a.ty();
@@ -594,22 +594,22 @@ PrimExpr logical_or(PrimExpr a, PrimExpr b, Span span) {
       << "Expected boolean argument as RHS of || operator (logical OR), but received " << b
       << " of type " << b.ty();
   if (auto ret = prim::detail::TryConstFold<prim::Or>(a, b)) return ret.value();
-  return prim::Or(a, b, span);
+  return prim::Or(a, b, loc);
 }
 
 PrimExpr operator!(PrimExpr a) { return logical_not(a); }
-PrimExpr logical_not(PrimExpr a, Span span) {
+PrimExpr logical_not(PrimExpr a, Location loc) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLBool))
       << "Expected boolean argument for ! operator (logical NOT), but received " << a << " of type "
       << a.ty();
   if (auto ret = prim::detail::TryConstFold<prim::Not>(a)) return ret.value();
-  return prim::Not(a, span);
+  return prim::Not(a, loc);
 }
 
 // shift right
 PrimExpr operator>>(PrimExpr a, PrimExpr b) { return right_shift(a, b); }
 
-PrimExpr right_shift(PrimExpr a, PrimExpr b, Span span) {
+PrimExpr right_shift(PrimExpr a, PrimExpr b, Location loc) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))
       << "Expected integer argument as LHS of >> operator (right shift), but received " << a
       << " of type " << a.ty();
@@ -617,7 +617,7 @@ PrimExpr right_shift(PrimExpr a, PrimExpr b, Span span) {
       << "Expected integer argument as RHS of >> operator (right shift), but received " << b
       << " of type " << b.ty();
 
-  BinaryOpMatchTypes(a, b, span);
+  BinaryOpMatchTypes(a, b, loc);
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
     if (pb)
@@ -625,26 +625,26 @@ PrimExpr right_shift(PrimExpr a, PrimExpr b, Span span) {
           << "Shift amount must be non-negative and less than " << result_ty.bits() << " for type "
           << result_ty;
     if (pa && pb) {
-      return IntImm(result_ty, (pa->value >> pb->value), span);
+      return IntImm(result_ty, (pa->value >> pb->value), loc);
     }
     if (pb) {
       if (pb->value == 0) return a;
     }
   });
 
-  return prim::RShift(a, b, span);
+  return prim::RShift(a, b, loc);
 }
 
 // shift left
 PrimExpr operator<<(PrimExpr a, PrimExpr b) { return left_shift(a, b); }
-PrimExpr left_shift(PrimExpr a, PrimExpr b, Span span) {
+PrimExpr left_shift(PrimExpr a, PrimExpr b, Location loc) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))
       << "Expected integer argument as LHS of << operator (left shift), but received " << a
       << " of type " << a.ty();
   TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))
       << "Expected integer argument as RHS of << operator (left shift), but received " << b
       << " of type " << b.ty();
-  BinaryOpMatchTypes(a, b, span);
+  BinaryOpMatchTypes(a, b, loc);
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
     if (pb)
@@ -654,18 +654,18 @@ PrimExpr left_shift(PrimExpr a, PrimExpr b, Span span) {
     if (pa && pb) {
       ffi::BigInt value = pa->value << pb->value;
       if (result_ty.bits() >= 64) value = prim::detail::GetFoldResult(std::move(value), result_ty);
-      return IntImm(result_ty, std::move(value), span);
+      return IntImm(result_ty, std::move(value), loc);
     }
     if (pb) {
       if (pb->value == 0) return a;
     }
   });
-  return prim::LShift(a, b, span);
+  return prim::LShift(a, b, loc);
 }
 
 // bitwise and
 PrimExpr operator&(PrimExpr a, PrimExpr b) { return bitwise_and(a, b); }
-PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Span span) {
+PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Location loc) {
   TVM_FFI_ICHECK(
       a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLBool))
       << "Expected integer argument as LHS of & operator (bitwise AND), but received " << a
@@ -674,17 +674,17 @@ PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Span span) {
       b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLBool))
       << "Expected integer argument as RHS of & operator (bitwise AND), but received " << b
       << " of type " << b.ty();
-  BinaryOpMatchTypes(a, b, span);
+  BinaryOpMatchTypes(a, b, loc);
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
-    if (pa && pb) return IntImm(result_ty, (pa->value & pb->value), span);
+    if (pa && pb) return IntImm(result_ty, (pa->value & pb->value), loc);
   });
-  return prim::BitwiseAnd(a, b, span);
+  return prim::BitwiseAnd(a, b, loc);
 }
 
 // bitwise_or
 PrimExpr operator|(PrimExpr a, PrimExpr b) { return bitwise_or(a, b); }
-PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Span span) {
+PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Location loc) {
   TVM_FFI_ICHECK(
       a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLBool))
       << "Expected integer argument as LHS of | operator (bitwise OR), but received " << a
@@ -693,17 +693,17 @@ PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Span span) {
       b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLBool))
       << "Expected integer argument as RHS of | operator (bitwise OR), but received " << b
       << " of type " << b.ty();
-  BinaryOpMatchTypes(a, b, span);
+  BinaryOpMatchTypes(a, b, loc);
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
-    if (pa && pb) return IntImm(result_ty, (pa->value | pb->value), span);
+    if (pa && pb) return IntImm(result_ty, (pa->value | pb->value), loc);
   });
-  return prim::BitwiseOr(a, b, span);
+  return prim::BitwiseOr(a, b, loc);
 }
 
 // bitwise_xor
 PrimExpr operator^(PrimExpr a, PrimExpr b) { return bitwise_xor(a, b); }
-PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Span span) {
+PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Location loc) {
   TVM_FFI_ICHECK(
       a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLBool))
       << "Expected integer argument as LHS of ^ operator (bitwise XOR), but received " << a
@@ -712,39 +712,39 @@ PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Span span) {
       b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLBool))
       << "Expected integer argument as RHS of ^ operator (bitwise XOR), but received " << b
       << " of type " << b.ty();
-  BinaryOpMatchTypes(a, b, span);
+  BinaryOpMatchTypes(a, b, loc);
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
-    if (pa && pb) return IntImm(result_ty, (pa->value ^ pb->value), span);
+    if (pa && pb) return IntImm(result_ty, (pa->value ^ pb->value), loc);
   });
-  return prim::BitwiseXor(a, b, span);
+  return prim::BitwiseXor(a, b, loc);
 }
 
 // bitwise_not
 PrimExpr operator~(PrimExpr a) { return bitwise_neg(a); }
 
-PrimExpr bitwise_neg(PrimExpr a, Span span) {
+PrimExpr bitwise_neg(PrimExpr a, Location loc) {
   TVM_FFI_ICHECK(
       a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLBool))
       << "Expected integer or boolean argument for ~ operator (bitwise NOT), but received " << a
       << " of type " << a.ty();
-  return prim::BitwiseNot(a, span);
+  return prim::BitwiseNot(a, loc);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("prim.bitwise_not",
-                        [](PrimExpr a, Span span) { return bitwise_neg(a, span); });
+                        [](PrimExpr a, Location loc) { return bitwise_neg(a, loc); });
 }
 
-PrimExpr prim::IntegerAbs(PrimExpr x, Span span) {
+PrimExpr prim::IntegerAbs(PrimExpr x, Location loc) {
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt)) {
     if (const IntImmNode* px = x.as<IntImmNode>()) {
       ffi::BigInt value = px->value < 0 ? -px->value : px->value;
       if (x.ty().bits() >= 64) value = prim::detail::GetFoldResult(std::move(value), x.ty());
-      return IntImm(x.ty(), std::move(value), px->span);
+      return IntImm(x.ty(), std::move(value), px->loc);
     }
-    return Select(x >= MakeConst(x.ty(), 0), x, -x, span);
+    return Select(x >= MakeConst(x.ty(), 0), x, -x, loc);
   }
   if (x.ty().MatchesCode(DLDataTypeCode::kDLUInt)) return x;
   TVM_FFI_THROW(InternalError) << "Integer absolute value requires an integer type, got " << x.ty();
@@ -752,27 +752,27 @@ PrimExpr prim::IntegerAbs(PrimExpr x, Span span) {
 
 // operator overloading, smarter than make
 #define DEF_MAKE_BINARY_OP(Node, Func) \
-  def("prim." #Node, [](PrimExpr a, PrimExpr b, Span span) { return (Func(a, b, span)); })
+  def("prim." #Node, [](PrimExpr a, PrimExpr b, Location loc) { return (Func(a, b, loc)); })
 
-#define DEF_MAKE_BIT_OP(Node, Func)                                                            \
-  def_packed("prim." #Node, [](ffi::PackedArgs args, ffi::Any* ret) {                          \
-    bool lhs_is_int = args[0].type_index() == ffi::TypeIndex::kTVMFFIInt;                      \
-    bool rhs_is_int = args[1].type_index() == ffi::TypeIndex::kTVMFFIInt;                      \
-    if (lhs_is_int) {                                                                          \
-      *ret = (Func(args[0].cast<int>(), args[1].cast<PrimExpr>(), args[2].cast<Span>()));      \
-    } else if (rhs_is_int) {                                                                   \
-      *ret = (Func(args[0].cast<PrimExpr>(), args[1].cast<int>(), args[2].cast<Span>()));      \
-    } else {                                                                                   \
-      *ret = (Func(args[0].cast<PrimExpr>(), args[1].cast<PrimExpr>(), args[2].cast<Span>())); \
-    }                                                                                          \
+#define DEF_MAKE_BIT_OP(Node, Func)                                                                \
+  def_packed("prim." #Node, [](ffi::PackedArgs args, ffi::Any* ret) {                              \
+    bool lhs_is_int = args[0].type_index() == ffi::TypeIndex::kTVMFFIInt;                          \
+    bool rhs_is_int = args[1].type_index() == ffi::TypeIndex::kTVMFFIInt;                          \
+    if (lhs_is_int) {                                                                              \
+      *ret = (Func(args[0].cast<int>(), args[1].cast<PrimExpr>(), args[2].cast<Location>()));      \
+    } else if (rhs_is_int) {                                                                       \
+      *ret = (Func(args[0].cast<PrimExpr>(), args[1].cast<int>(), args[2].cast<Location>()));      \
+    } else {                                                                                       \
+      *ret = (Func(args[0].cast<PrimExpr>(), args[1].cast<PrimExpr>(), args[2].cast<Location>())); \
+    }                                                                                              \
   })
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("prim._OpIfThenElse",
-           [](PrimExpr cond, PrimExpr true_value, PrimExpr false_value, Span span) {
-             return if_then_else(cond, true_value, false_value, span);
+           [](PrimExpr cond, PrimExpr true_value, PrimExpr false_value, Location loc) {
+             return if_then_else(cond, true_value, false_value, loc);
            })
       .DEF_MAKE_BINARY_OP(_OpAdd, add)
       .DEF_MAKE_BINARY_OP(_OpSub, sub)
@@ -804,54 +804,54 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // ceil
-PrimExpr ceil(PrimExpr x, Span span) {
+PrimExpr ceil(PrimExpr x, Location loc) {
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt,
                          DLDataTypeCode::kDLBool)) {
     return x;
   }
   const FloatImmNode* fx = x.as<FloatImmNode>();
-  if (fx) return FloatImm(x.ty(), std::ceil(fx->value), fx->span);
-  return Call(x.ty(), prim::ceil_op(), {x}, {}, {}, span).as_or_throw<PrimExpr>();
+  if (fx) return FloatImm(x.ty(), std::ceil(fx->value), fx->loc);
+  return Call(x.ty(), prim::ceil_op(), {x}, {}, {}, loc).as_or_throw<PrimExpr>();
 }
 
-PrimExpr log2(PrimExpr x, Span span) {
+PrimExpr log2(PrimExpr x, Location loc) {
   PrimType x_ty = x.ty();
   if (x_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
     PrimType f32_ty = x_ty.IsScalableVector() ? PrimType::ScalableVector(DLDataTypeCode::kDLFloat,
                                                                          32, x_ty.VScaleFactor())
                                               : PrimType::Float(32, x_ty.lanes());
-    PrimExpr x_fp32 = prim::Cast(f32_ty, x, span);
+    PrimExpr x_fp32 = prim::Cast(f32_ty, x, loc);
     PrimExpr result_fp32 =
-        Call(f32_ty, prim::log2_op(), {x_fp32}, {}, {}, span).as_or_throw<PrimExpr>();
-    return prim::Cast(x_ty, result_fp32, span);
+        Call(f32_ty, prim::log2_op(), {x_fp32}, {}, {}, loc).as_or_throw<PrimExpr>();
+    return prim::Cast(x_ty, result_fp32, loc);
   }
-  return Call(x_ty, prim::log2_op(), {x}, {}, {}, span).as_or_throw<PrimExpr>();
+  return Call(x_ty, prim::log2_op(), {x}, {}, {}, loc).as_or_throw<PrimExpr>();
 }
 
-PrimExpr prim::clz(PrimExpr x, Span span) {
+PrimExpr prim::clz(PrimExpr x, Location loc) {
   PrimType x_ty = x.ty();
-  return Call(x_ty, prim::clz_op(), {x}, {}, {}, span).as_or_throw<PrimExpr>();
+  return Call(x_ty, prim::clz_op(), {x}, {}, {}, loc).as_or_throw<PrimExpr>();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef()
-      .def_packed("ir._const",
-                  [](ffi::PackedArgs args, ffi::Any* ret) {
-                    if (auto opt = args[0].try_cast<ffi::BigInt>(); opt.has_value()) {
-                      *ret = prim::MakeConst(args[1].cast<PrimType>(), *opt, args[2].cast<Span>());
-                    } else if (auto opt = args[0].try_cast<double>()) {
-                      *ret = prim::MakeConst(args[1].cast<PrimType>(), *opt, args[2].cast<Span>());
-                    } else {
-                      TVM_FFI_THROW(InternalError)
-                          << "First argument to tvm.tirx.const must be int, float, or bool, "
-                          << "but instead received argument with type code "
-                          << args[0].GetTypeKey();
-                    }
-                  })
-      .def("prim.max_value", static_cast<PrimExpr (*)(PrimType, Span)>(&prim::max_value))
-      .def("prim._cast",
-           [](PrimType dtype, PrimExpr value, Span span) { return prim::cast(dtype, value, span); })
-      .def("prim.min_value", static_cast<PrimExpr (*)(PrimType, Span)>(&prim::min_value))
+      .def_packed(
+          "ir._const",
+          [](ffi::PackedArgs args, ffi::Any* ret) {
+            if (auto opt = args[0].try_cast<ffi::BigInt>(); opt.has_value()) {
+              *ret = prim::MakeConst(args[1].cast<PrimType>(), *opt, args[2].cast<Location>());
+            } else if (auto opt = args[0].try_cast<double>()) {
+              *ret = prim::MakeConst(args[1].cast<PrimType>(), *opt, args[2].cast<Location>());
+            } else {
+              TVM_FFI_THROW(InternalError)
+                  << "First argument to tvm.tirx.const must be int, float, or bool, "
+                  << "but instead received argument with type code " << args[0].GetTypeKey();
+            }
+          })
+      .def("prim.max_value", static_cast<PrimExpr (*)(PrimType, Location)>(&prim::max_value))
+      .def("prim._cast", [](PrimType dtype, PrimExpr value,
+                            Location loc) { return prim::cast(dtype, value, loc); })
+      .def("prim.min_value", static_cast<PrimExpr (*)(PrimType, Location)>(&prim::min_value))
       .def("prim.likely", tvm::likely)
       .def("prim.ceil", tvm::ceil);
 }

@@ -436,7 +436,7 @@ class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
     if (result.UnchangedOrSameAs(ffi::GetRef<PrimExpr>(op))) return ffi::Unchanged();
     auto load = std::move(result).ValueUnchecked().as_or_throw<TensorLoad>();
     if (auto buffer = load->source.as<TensorVar>()) {
-      return MakeTensorLoad(buffer.value(), load->indices, load->span);
+      return MakeTensorLoad(buffer.value(), load->indices, load->loc);
     }
     return load;
   }

@@ -334,8 +334,8 @@ class BuiltinLower : public StmtExprMutator {
               tvm::Tuple(op->var.as_or_throw<TensorVar>()->shape),
               DataTypeImm(op->var.as_or_throw<TensorVar>()->dtype->dtype),
               StringImm(op->var.as_or_throw<TensorVar>().scope())},
-             {}, buffer_call->ty_args, buffer_call->span),
-        op->span);
+             {}, buffer_call->ty_args, buffer_call->loc),
+        op->loc);
 
     return SeqStmt({alloc_bind, alloc_nullptr_check});
   }
@@ -427,7 +427,7 @@ class BuiltinLower : public StmtExprMutator {
         else_case.same_as(op->else_case)) {
       return ffi::Unchanged();
     }
-    return If(condition, then_case, else_case, op->span);
+    return If(condition, then_case, else_case, op->loc);
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {

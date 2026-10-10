@@ -63,7 +63,7 @@ ffi::ObjectPtr<PrimTypeNode> GetCachedPrimTypeNode(DLDataType dtype) {
 
 TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TypeVisit(
     ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  // Field-less types are leaves; span is ignored debug metadata.
+  // Field-less types are leaves; loc is ignored debug metadata.
   return std::nullopt;
 }
 
@@ -79,7 +79,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TypeMaybeInplaceMutate(
 
 TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> OpaqueTypeVisit(
     ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  // OpaqueType is a field-less construction-time marker; span is ignored debug metadata.
+  // OpaqueType is a field-less construction-time marker; loc is ignored debug metadata.
   return std::nullopt;
 }
 
@@ -275,9 +275,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("ir.MissingType", []() { return MissingType(); });
 }
 
-AnyType::AnyType(Span span) : Type(ffi::UnsafeInit{}) {
+AnyType::AnyType(Location loc) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<AnyTypeNode> n = ffi::make_object<AnyTypeNode>();
-  n->span = std::move(span);
+  n->loc = loc;
   data_ = std::move(n);
 }
 
@@ -289,7 +289,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&TypeMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&TypeMaybeInplaceMutate>());
-  refl::GlobalDef().def("ir.AnyType", [](Span span) { return AnyType(span); });
+  refl::GlobalDef().def("ir.AnyType", [](Location loc) { return AnyType(loc); });
 }
 
 TensorRegionType::TensorRegionType() : Type(ffi::UnsafeInit{}) {
@@ -443,12 +443,12 @@ PointerType PointerType::VoidPointerTy(ffi::String storage_scope) {
   return PointerType(PrimType::Void(), std::move(storage_scope));
 }
 
-FuncType::FuncType(tvm::ffi::Array<Type> arg_types, Type ret_type, Span span)
+FuncType::FuncType(tvm::ffi::Array<Type> arg_types, Type ret_type, Location loc)
     : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<FuncTypeNode> n = ffi::make_object<FuncTypeNode>();
   n->arg_types = std::move(arg_types);
   n->ret_type = std::move(ret_type);
-  n->span = std::move(span);
+  n->loc = loc;
   data_ = std::move(n);
 }
 
@@ -467,10 +467,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-TupleType::TupleType(ffi::Array<Type> fields, Span span) : Type(ffi::UnsafeInit{}) {
+TupleType::TupleType(ffi::Array<Type> fields, Location loc) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<TupleTypeNode> n = ffi::make_object<TupleTypeNode>();
   n->fields = std::move(fields);
-  n->span = std::move(span);
+  n->loc = loc;
   data_ = std::move(n);
 }
 
@@ -484,8 +484,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&TupleTypeMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.TupleType",
-                        [](ffi::Array<Type> fields, Span span) { return TupleType(fields, span); });
+  refl::GlobalDef().def(
+      "ir.TupleType", [](ffi::Array<Type> fields, Location loc) { return TupleType(fields, loc); });
 }
 
 TupleType TupleType::Empty() { return TupleType(ffi::Array<Type>()); }

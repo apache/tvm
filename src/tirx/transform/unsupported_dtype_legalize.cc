@@ -243,7 +243,7 @@ class ComputeLegalizer : public StmtExprMutator {
         auto* node = call.CopyOnWrite();
         node->args.Set(1,
                        DataTypeImm(promote_dtype_.WithLanes(PrimType(dtype->value).lanes())->dtype,
-                                   dtype->span));
+                                   dtype->loc));
       }
       return ReinferMutatedCallType(call, op, inplace_mode);
     }
@@ -268,7 +268,7 @@ class ComputeLegalizer : public StmtExprMutator {
         for (const PrimExpr& index : indices) args.push_back(index);
         args.push_back(predicate);
         Type type = MakeTensorLoad(buffer, indices).ty();
-        return Call(type, op->op, args, op->attrs, op->ty_args, op->span);
+        return Call(type, op->op, args, op->attrs, op->ty_args, op->loc);
       }
       if (MatchType(buffer->dtype)) {
         value = CastTargetToDType(value.value(), MakeTensorLoad(buffer, indices).ty());
@@ -281,7 +281,7 @@ class ComputeLegalizer : public StmtExprMutator {
       args.push_back(value.value());
       for (const PrimExpr& index : indices) args.push_back(index);
       args.push_back(predicate);
-      return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);
+      return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->loc);
     }
     if (!op->ty.as<PrimTypeNode>()) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -299,13 +299,13 @@ class ComputeLegalizer : public StmtExprMutator {
     });
     PrimType op_ty = op->ty.as_or_throw<PrimType>();
     if (MatchType(op_ty)) {
-      return Call(promote_dtype_.WithLanes(op_ty.lanes()), op->op, args, op->attrs, {}, op->span)
+      return Call(promote_dtype_.WithLanes(op_ty.lanes()), op->op, args, op->attrs, {}, op->loc)
           .as_or_throw<PrimExpr>();
     }
     if (args.same_as(op->args)) {
       return ffi::GetRef<Call>(op).as_or_throw<PrimExpr>();
     } else {
-      return Call(op->ty.as_or_throw<PrimType>(), op->op, args, op->attrs, {}, op->span)
+      return Call(op->ty.as_or_throw<PrimType>(), op->op, args, op->attrs, {}, op->loc)
           .as_or_throw<PrimExpr>();
     }
   }
@@ -408,7 +408,7 @@ class ComputeLegalizer : public StmtExprMutator {
     if (buffer.same_as(op->source) && indices.same_as(op->indices)) {
       return ffi::Unchanged();
     }
-    return MakeTensorLoad(buffer, indices, op->span);
+    return MakeTensorLoad(buffer, indices, op->loc);
   }
 
  private:
@@ -417,7 +417,7 @@ class ComputeLegalizer : public StmtExprMutator {
     LambdaExpr combine = op->args[0].as_or_throw<LambdaExpr>();
     auto map_operand = [](const Expr& operand, const auto& transform) -> Expr {
       if (const auto* tuple = operand.as<tvm::TupleNode>()) {
-        return tvm::Tuple(tuple->fields.Map(transform), operand->span);
+        return tvm::Tuple(tuple->fields.Map(transform), operand->loc);
       }
       return transform(operand);
     };
@@ -444,7 +444,7 @@ class ComputeLegalizer : public StmtExprMutator {
     Expr axes = map_operand(op->args[5], mutate);
     return Call(PrimType::Void(), op->op,
                 {legalized_combine, identity, values, predicate, destinations, axes}, op->attrs,
-                op->ty_args, op->span);
+                op->ty_args, op->loc);
   }
 
   /*!
@@ -594,7 +594,7 @@ class StorageLegalizer : public StmtExprMutator {
     if (buffer.same_as(op->source) && indices.same_as(op->indices)) {
       return ffi::Unchanged();
     }
-    return MakeTensorLoad(buffer, indices, op->span);
+    return MakeTensorLoad(buffer, indices, op->loc);
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
@@ -607,7 +607,7 @@ class StorageLegalizer : public StmtExprMutator {
       if (MatchType(PrimType(dtype->value))) {
         call.CopyOnWrite()->args.Set(
             dtype_index,
-            DataTypeImm(GetStorageUIntDType(PrimType(dtype->value))->dtype, dtype->span));
+            DataTypeImm(GetStorageUIntDType(PrimType(dtype->value))->dtype, dtype->loc));
       }
       return ReinferMutatedCallType(call, op, inplace_mode);
     }
@@ -636,9 +636,9 @@ class StorageLegalizer : public StmtExprMutator {
                          .as_or_throw<Expr>());
       if (is_load) {
         Type type = MakeTensorLoad(buffer, indices).ty();
-        return Call(type, op->op, args, op->attrs, op->ty_args, op->span);
+        return Call(type, op->op, args, op->attrs, op->ty_args, op->loc);
       } else {
-        return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);
+        return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->loc);
       }
     }
     if (const auto* pointer_type = op->ty.as<PointerTypeNode>()) {
@@ -650,7 +650,7 @@ class StorageLegalizer : public StmtExprMutator {
       Call call = ret.as_or_throw<Call>();
       Type new_element_type = GetStorageUIntDType(ffi::GetRef<PrimType>(element_type));
       return Call(PointerType(new_element_type, pointer_type->storage_scope), call->op, call->args,
-                  call->attrs, call->ty_args, call->span);
+                  call->attrs, call->ty_args, call->loc);
     }
     if (!op->ty.as<PrimTypeNode>()) {
       return StmtExprMutator::Mutate_(op, inplace_mode);

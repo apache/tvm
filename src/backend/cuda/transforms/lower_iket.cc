@@ -637,10 +637,10 @@ class RemoveStrippedIketNoOps : public StmtExprMutator {
     bool empty_else = branch->else_case.value()->seq.empty();
     if (empty_then && empty_else) return PreserveConditionEffects(branch->condition);
     if (empty_else) {
-      return If(branch->condition, branch->then_case, std::nullopt, branch->span);
+      return If(branch->condition, branch->then_case, std::nullopt, branch->loc);
     }
     if (empty_then) {
-      return If(!branch->condition, branch->else_case.value(), std::nullopt, branch->span);
+      return If(!branch->condition, branch->else_case.value(), std::nullopt, branch->loc);
     }
     return result;
   }

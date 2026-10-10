@@ -147,15 +147,14 @@ def upgrade_json(json_str):
             if not isinstance(fields, dict) or "buffer" not in fields:
                 raise ValueError("Legacy tirx.BufferRegion requires a buffer field")
             fields["source"] = fields.pop("buffer")
-            # Typed BufferRegion already carries type/span.  Before it became
+            # Typed BufferRegion already carries type/loc.  Before it became
             # an Expr, it had only buffer/region; supply that form's defaults
             # by appending a type node so existing graph indices stay intact.
             if "ty" not in fields:
                 if tensor_region_type is None:
                     tensor_region_type = len(nodes)
-                    nodes.append({"type": "ir.TensorRegionType", "data": {"span": 0}})
+                    nodes.append({"type": "ir.TensorRegionType", "data": {}})
                 fields["ty"] = tensor_region_type
-            fields.setdefault("span", 0)
         node["type"] = _PRIM_TYPE_KEY_RENAMES.get(node.get("type"), node.get("type"))
         if node.get("type") == "relax.expr.Var":
             node["type"] = "ir.Var"

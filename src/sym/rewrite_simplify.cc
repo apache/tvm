@@ -2510,7 +2510,7 @@ UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMo
       if (prim::IsConstNumber(inner_else_expr) && prim::IsConstNumber(else_expr) &&
           analyzer_->CanProve(inner_else_expr == else_expr)) {
         return Call(ret_ty, op->op, {cond && inner_cond, inner_then_expr, else_expr}, op->attrs,
-                    op->ty_args, op->span)
+                    op->ty_args, op->loc)
             .as_or_throw<PrimExpr>();
       }
     }
