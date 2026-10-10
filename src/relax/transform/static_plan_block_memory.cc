@@ -154,7 +154,7 @@ class StorageToken : public ffi::ObjectRef {
 
     if (vdevice.has_value()) {
       VDevice vdev = vdevice.value();
-      std::string dev_kind = vdev->target->kind->name;
+      std::string dev_kind = vdev->target.value()->kind->name;
 
       if (vdev->memory_scope != "global") {
         auto device_size_handler =
@@ -166,9 +166,9 @@ class StorageToken : public ffi::ObjectRef {
         auto device_scope_handler =
             tvm::ffi::Function::GetGlobal(std::string("DeviceScopeCompatibility." + dev_kind));
         if (device_scope_handler.has_value()) {
-          ffi::String dev_scope =
-              (*device_scope_handler)(vdevice.value()->target, vdevice.value()->memory_scope)
-                  .cast<ffi::String>();
+          ffi::String dev_scope = (*device_scope_handler)(vdevice.value()->target.value(),
+                                                          vdevice.value()->memory_scope)
+                                      .cast<ffi::String>();
           storage_scope = dev_scope;
         }
       }
@@ -982,7 +982,7 @@ class StorageAllocationRewriter : public ExprMutator {
           Call alloc_storage(Type::Missing(), mem_alloc_storage,
                              {std::move(size), virtual_device_index,
                               StringImm(token->storage_scope), DataTypeImm(dtype)},
-                             Attrs());
+                             std::nullopt);
           Var storage_var = builder_->Emit(alloc_storage, "storage");
           token2storage_var_.insert_or_assign(token.get(), storage_var);
           return storage_var;
@@ -996,7 +996,7 @@ class StorageAllocationRewriter : public ExprMutator {
       DLDataType dtype = ty->dtype.value()->dtype;
       return Call(Type::Missing(), mem_alloc_tensor,
                   {storage_var, offset, ty->shape.value(), DataTypeImm(dtype), call->args[2]},
-                  Attrs());
+                  std::nullopt);
     } else if (plan_dynamic_output_ && call->op.same_as(alloc_tensor_op)) {
       // Case 2. For a `alloc_tensor` that is not planned for memory reuse,
       // we would still like to allocate **static** memory for the tensor.
@@ -1091,7 +1091,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DLDataType dtype,
                                          VDevice vdevice) {
   int image_row_align = static_cast<int>(
-      vdevice->target->GetAttr<int64_t>("image_base_address_alignment").value_or(64));
+      vdevice->target.value()->GetAttr<int64_t>("image_base_address_alignment").value_or(64));
 
   struct Shape {
     const ffi::Array<PrimExpr>& shape;

@@ -104,7 +104,7 @@ inline Tensor instance_norm(const Tensor& data, const Tensor& gamma,
   };
 
   auto temp_x_x2 =
-      tvm::te::compute(target_shape, compute, data->op->name + "_red_temp", kCommReduce);
+      tvm::te::compute(target_shape, compute, data->op.value()->name + "_red_temp", kCommReduce);
 
   auto temp_x = temp_x_x2[0];
   auto temp_x2 = temp_x_x2[1];

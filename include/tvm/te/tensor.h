@@ -62,9 +62,7 @@ class Tensor;
 /*! \brief Operation that produces tensors */
 class Operation : public ffi::ObjectRef {
  public:
-  /*! \brief default constructor  */
-  Operation() {}
-  explicit Operation(ffi::ObjectPtr<ffi::Object> n) : ffi::ObjectRef(n) {}
+  static constexpr bool _type_is_nullable = false;
   explicit Operation(ffi::UnsafeInit tag) : ffi::ObjectRef(tag) {}
   /*!
    * \brief access the internal node container
@@ -89,7 +87,7 @@ class TensorNode : public OpaqueExprNode {
   /*! \brief dtype in the content of the tensor */
   PrimType dtype = PrimType::Void();
   /*! \brief the source operation, can be None */
-  Operation op;
+  ffi::Optional<Operation> op;
   /*! \brief the output index from source operation */
   int value_index{0};
 
@@ -121,7 +119,8 @@ class Tensor : public OpaqueExpr {
   inline PrimExpr IndexTensor(ffi::Array<PrimExpr> indices, bool support_negative_indices) const;
 
  public:
-  TVM_DLL Tensor(ffi::Array<PrimExpr> shape, PrimType dtype, Operation op, int value_index);
+  TVM_DLL Tensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Optional<Operation> op,
+                 int value_index);
 
   /*!
    * \brief check if two tensors equals each other.

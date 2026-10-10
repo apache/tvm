@@ -80,7 +80,7 @@ class VMClosureObj : public ffi::Object {
 class VMClosure : public ffi::ObjectRef {
  public:
   VMClosure(ffi::String func_name, ffi::Function impl);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(VMClosure, ffi::ObjectRef, VMClosureObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(VMClosure, ffi::ObjectRef, VMClosureObj);
 
   /*!
    * \brief Create another ffi::Function with last arguments already bound to last_args.
@@ -109,7 +109,7 @@ class VMExtensionNode : public ffi::Object {
 /*! \brief Managed reference to VM extension. */
 class VMExtension : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(VMExtension, ffi::ObjectRef, VMExtensionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(VMExtension, ffi::ObjectRef, VMExtensionNode);
 };
 
 /*!

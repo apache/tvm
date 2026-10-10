@@ -127,18 +127,27 @@ class InstructionKindNode : public ffi::Object {
  */
 class InstructionKind : public ffi::ObjectRef {
  public:
+  explicit InstructionKind(ffi::UnsafeInit tag, ffi::ObjectPtr<InstructionKindNode> data)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
+  }
+
   /*!
    * \brief Retrieve an InstructionKind using its name
    * \param name The registered name of the InstructionKind
    * \return The InstructionKind retrieved
    */
   static InstructionKind Get(const ffi::String& name);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InstructionKind, ffi::ObjectRef, InstructionKindNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(InstructionKind, ffi::ObjectRef,
+                                                InstructionKindNode);
 };
 
 /*! \brief Schedule instructions each corresponds to a schedule primitive */
 class InstructionNode : public ffi::Object {
  public:
+  explicit InstructionNode(ffi::UnsafeInit tag) : kind(tag) {}
+
+  explicit InstructionNode(InstructionKind kind) : kind(std::move(kind)) {}
   /*! \brief The kind of the instruction */
   InstructionKind kind;
   /*!
@@ -194,7 +203,7 @@ class Instruction : public ffi::ObjectRef {
   explicit Instruction(InstructionKind kind, ffi::Array<Any> inputs, ffi::Array<Any> attrs,
                        ffi::Array<Any> outputs);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Instruction, ffi::ObjectRef, InstructionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Instruction, ffi::ObjectRef, InstructionNode);
 };
 
 /*! \brief Temporary builder for a canonical named instruction kind. */

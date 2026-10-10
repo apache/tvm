@@ -1138,7 +1138,7 @@ class TIRFuseMutator : public ExprMutator {
     // Step b. Create call_tir or call_tir_inplace
     ffi::Array<Expr> call_args = {fused_tir_gv, Tuple(arg_list)};
     Op call_op = call_tir_op_;
-    Attrs call_attrs = call->attrs;
+    ffi::Optional<Attrs> call_attrs = call->attrs;
     if (replacement.inplace_indices.size()) {
       call_op = call_tir_inplace_op_;
       auto inplace_attrs = ffi::make_object<CallTIRInplaceAttrs>();

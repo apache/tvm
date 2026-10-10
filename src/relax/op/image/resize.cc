@@ -231,7 +231,7 @@ InferLayoutOutput InferLayoutResize2d(
   const auto* attrs = call->attrs.as<Resize2DAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
-  LayoutDecision data_layout;
+  LayoutDecision data_layout(ffi::UnsafeInit{});
   ffi::ObjectPtr<Resize2DAttrs> new_attrs = ffi::make_object<Resize2DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
@@ -239,16 +239,19 @@ InferLayoutOutput InferLayoutResize2d(
     SLayout desired_data_layout = (*it).second[0];
     TVM_FFI_ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal())
         << "Axis swap only";
-    data_layout = TransposeLike(InitialLayout(4), attrs->layout, desired_data_layout);
+    data_layout =
+        TransposeLike(InitialLayout(4), SLayout::Create(attrs->layout), desired_data_layout);
     new_attrs->layout = (*it).second[0];
   } else {
     // We dont have a desired layout for resize2d, propagate from the input instead.
     data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
     // Not handling sub indexing now.
-    if (data_layout->layout.ndim() != data_layout->layout.ndim_primal()) {
+    if ((data_layout->layout.has_value() ? data_layout->layout.value().ndim() : 0) !=
+        (data_layout->layout.has_value() ? data_layout->layout.value().ndim_primal() : 0)) {
       data_layout = LayoutDecision(InitialLayout(4));
     }
-    new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(4), data_layout->layout).name();
+    new_attrs->layout =
+        TransposeLike(SLayout::Create(attrs->layout), InitialLayout(4), data_layout->layout).name();
   }
   return InferLayoutOutput({data_layout, InitialNLayout(call->args[1])}, {data_layout},
                            Attrs(new_attrs));
@@ -350,21 +353,24 @@ InferLayoutOutput InferLayoutResize3d(
   const auto* attrs = call->attrs.as<Resize3DAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
-  LayoutDecision data_layout;
+  LayoutDecision data_layout(ffi::UnsafeInit{});
   ffi::ObjectPtr<Resize3DAttrs> new_attrs = ffi::make_object<Resize3DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
     SLayout desired_data_layout = (*it).second[0];
     TVM_FFI_ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal())
         << "Axis swap only";
-    data_layout = TransposeLike(InitialLayout(5), attrs->layout, desired_data_layout);
+    data_layout =
+        TransposeLike(InitialLayout(5), SLayout::Create(attrs->layout), desired_data_layout);
     new_attrs->layout = (*it).second[0];
   } else {
     data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
-    if (data_layout->layout.ndim() != data_layout->layout.ndim_primal()) {
+    if ((data_layout->layout.has_value() ? data_layout->layout.value().ndim() : 0) !=
+        (data_layout->layout.has_value() ? data_layout->layout.value().ndim_primal() : 0)) {
       data_layout = LayoutDecision(InitialLayout(5));
     }
-    new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(5), data_layout->layout).name();
+    new_attrs->layout =
+        TransposeLike(SLayout::Create(attrs->layout), InitialLayout(5), data_layout->layout).name();
   }
   return InferLayoutOutput({data_layout, InitialNLayout(call->args[1])}, {data_layout},
                            Attrs(new_attrs));

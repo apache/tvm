@@ -102,8 +102,8 @@ Definition of a scope that is a stage pipeline:
     SBlock block_;
   };
 
-  StmtSRef scope_root_sref{nullptr};
-  StmtSRef scope_root_subtree{nullptr};
+  StmtSRef scope_root_sref{ffi::UnsafeInit{}};
+  StmtSRef scope_root_subtree{ffi::UnsafeInit{}};
   // Step 1. Find the scope root and the subtree that the given sref is in
   {
     const StmtSRefNode* p = sref->parent;
@@ -1575,7 +1575,8 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
   std::vector<const VarNode*> spatial_block_vars;
   spatial_block_vars.reserve(block->iter_vars.size());
   for (const IterVar& block_var : block->iter_vars) {
-    bool has_trivial_dom = IsZero(block_var->dom->min) && IsOne(block_var->dom->extent);
+    bool has_trivial_dom =
+        IsZero(block_var->dom.value()->min) && IsOne(block_var->dom.value()->extent);
     if (block_var->iter_type == IterVarType::kDataPar && !has_trivial_dom) {
       spatial_block_vars.push_back(block_var->var.get());
     }
@@ -1904,7 +1905,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
     for (int i = 0, n = block_loops.size(); i < n; ++i) {
       // Check if block_bind = block_loops[i]->loop_var + stuff-irrelevant-of-loop-vars
       const ForNode* block_loop = block_loops[i];
-      const tirx::StmtSRef& block_loop_sref = self->stmt2ref[block_loop];
+      const tirx::StmtSRef& block_loop_sref = self->stmt2ref.at(block_loop);
       // Skip i-th loop if it has already been mapped
       if (ret->loop_map.find(block_loop_sref) != ret->loop_map.end()) continue;
 
@@ -2103,7 +2104,7 @@ class AutoTensorizeMappingProposer {
     // Step 1: Collect extents of LHS iters and prepare the initial indices of the IndexMap
     ffi::Map<Var, PrimExpr> lhs_iter_extents;
     for (const auto& iter : extractor_->lhs_iters_) {
-      lhs_iter_extents.Set(iter->var, iter->dom->extent);
+      lhs_iter_extents.Set(iter->var, iter->dom.value()->extent);
       index_map_src.push_back(iter->var.CopyWithSuffix(""));
     }
 

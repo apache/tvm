@@ -73,7 +73,7 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
   ScheduleRule Clone() const final {
     ffi::ObjectPtr<ApplyCustomRuleNode> n = ffi::make_object<ApplyCustomRuleNode>(*this);
     n->target_ = target_;
-    return ScheduleRule(n);
+    return ScheduleRule(ffi::UnsafeInit{}, n);
   }
 
  public:
@@ -89,7 +89,7 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
 
 ScheduleRule ScheduleRule::ApplyCustomRule() {
   ffi::ObjectPtr<ApplyCustomRuleNode> n = ffi::make_object<ApplyCustomRuleNode>();
-  return ScheduleRule(n);
+  return ScheduleRule(ffi::UnsafeInit{}, n);
 }
 
 bool ScheduleRule::IsApplyCustomRule(const ScheduleRule& rule) {

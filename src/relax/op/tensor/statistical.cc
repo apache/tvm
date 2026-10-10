@@ -155,8 +155,10 @@ InferLayoutOutput InferLayoutStatistical(
   }
 
   LayoutDecision exisiting_layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  auto new_axis_str = TransposeSubLayoutStrLike(axis_str, InitialLayout(ndim).name(),
-                                                exisiting_layout->layout.name());
+  auto new_axis_str = TransposeSubLayoutStrLike(
+      axis_str, InitialLayout(ndim).name(),
+      (exisiting_layout->layout.has_value() ? exisiting_layout->layout.value().name()
+                                            : "__undef__"));
   std::string output_layout_ref = new_axis_str;
   new_axis_str.erase(std::remove_if(new_axis_str.begin(), new_axis_str.end(),
                                     [](unsigned char c) { return std::isdigit(c); }),
@@ -178,9 +180,10 @@ InferLayoutOutput InferLayoutStatistical(
 
   ffi::ObjectPtr<StatisticalAttrs> new_attrs = ffi::make_object<StatisticalAttrs>(*attrs);
   new_attrs->axis = new_axis;
-  return InferLayoutOutput({exisiting_layout},
-                           {attrs->keepdims ? exisiting_layout : SLayout(output_layout)},
-                           Attrs(new_attrs));
+  return InferLayoutOutput(
+      {exisiting_layout},
+      {attrs->keepdims ? exisiting_layout : LayoutDecision(SLayout::Create(output_layout))},
+      Attrs(new_attrs));
 }
 
 Type InferTypeScan(const CallNode* call_node) {

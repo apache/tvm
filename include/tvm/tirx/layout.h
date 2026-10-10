@@ -130,7 +130,7 @@ class LayoutNode : public ffi::Object {
 
 class Layout : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Layout, ffi::ObjectRef, LayoutNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Layout, ffi::ObjectRef, LayoutNode);
 };
 
 // target, subscope, scope, iter -> fused_iter
@@ -165,8 +165,6 @@ class AxisNode : public ffi::EnumObj {
 
 class Axis : public ffi::Enum {
  public:
-  Axis() = default;
-
   /*! \brief Return the canonical axis name. */
   const ffi::String& name() const { return get()->_str_index; }
 
@@ -182,10 +180,10 @@ class Axis : public ffi::Enum {
 
 class IterNode : public ffi::Object {
  public:
-  explicit IterNode(ffi::UnsafeInit tag) : extent(tag), stride(tag) {}
+  explicit IterNode(ffi::UnsafeInit tag) : extent(tag), stride(tag), axis(tag) {}
 
-  IterNode(PrimExpr extent, PrimExpr stride)
-      : extent(std::move(extent)), stride(std::move(stride)) {}
+  IterNode(PrimExpr extent, PrimExpr stride, Axis axis)
+      : extent(std::move(extent)), stride(std::move(stride)), axis(std::move(axis)) {}
 
   PrimExpr extent;
   PrimExpr stride;
@@ -206,7 +204,7 @@ class IterNode : public ffi::Object {
 class Iter : public ffi::ObjectRef {
  public:
   TVM_DLL explicit Iter(PrimExpr extent, PrimExpr stride, Axis axis);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Iter, ffi::ObjectRef, IterNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Iter, ffi::ObjectRef, IterNode);
 };
 
 class TileLayoutNode : public LayoutNode {
@@ -306,13 +304,16 @@ class TileLayout : public Layout {
   TVM_DLL explicit TileLayout(ffi::Array<Iter> shard, ffi::Array<Iter> replica,
                               ffi::Map<Axis, PrimExpr> offset);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TileLayout, Layout, TileLayoutNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TileLayout, Layout, TileLayoutNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TileLayoutNode);
 };
 
 // ComposeLayout
 class ComposeLayoutNode : public LayoutNode {
  public:
+  explicit ComposeLayoutNode(TileLayout tile_layout) : tile_layout(std::move(tile_layout)) {}
+  explicit ComposeLayoutNode(ffi::UnsafeInit) : tile_layout(ffi::UnsafeInit{}) {}
+
   int per_element;
   int swizzle_len;
   int atom_len;
@@ -393,7 +394,7 @@ class ComposeLayout : public Layout {
   TVM_DLL explicit ComposeLayout(int per_element, int swizzle_len, int atom_len,
                                  TileLayout tile_layout, bool swizzle_inner = true);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ComposeLayout, Layout, ComposeLayoutNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ComposeLayout, Layout, ComposeLayoutNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComposeLayoutNode);
 };
 

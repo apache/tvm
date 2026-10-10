@@ -210,14 +210,16 @@ InferLayoutOutput InferLayoutUnaryEwise(
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  return InferLayoutOutput({layout}, {layout}, Attrs(call->attrs));
+  return InferLayoutOutput({layout}, {layout}, call->attrs);
 }
 
-bool CanProveLayoutTransform(const SLayout& input_layout, const SLayout& desired_layout,
+bool CanProveLayoutTransform(const ffi::Optional<SLayout>& input_layout,
+                             const ffi::Optional<SLayout>& desired_layout,
                              ffi::Array<PrimExpr> shape) {
+  if (!input_layout.has_value() || !desired_layout.has_value()) return false;
   bool can_prove = true;
   try {
-    tirx::SBijectiveLayout todesired(input_layout, desired_layout);
+    tirx::SBijectiveLayout todesired(input_layout.value(), desired_layout.value());
     ffi::Array<PrimExpr> desired_shape = todesired.ForwardShape(shape);
     ffi::Array<PrimExpr> back_shape = todesired.BackwardShape(desired_shape);
     sym::Analyzer analyzer;

@@ -32,8 +32,8 @@ using namespace tvm::tirx;
 
 Schedule Schedule::Concrete(IRModule mod, LinearCongruentialEngine::TRandState seed, int debug_mask,
                             ScheduleErrorRenderLevel error_render_level, bool enable_check) {
-  ffi::ObjectPtr<ConcreteScheduleNode> n = ffi::make_object<ConcreteScheduleNode>();
-  n->state_ = ScheduleState(mod, debug_mask, enable_check);
+  ffi::ObjectPtr<ConcreteScheduleNode> n =
+      ffi::make_object<ConcreteScheduleNode>(ScheduleState(mod, debug_mask, enable_check));
   n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
   n->analyzer_ = sym::Analyzer();
@@ -44,7 +44,7 @@ Schedule Schedule::Concrete(IRModule mod, LinearCongruentialEngine::TRandState s
   } else {
     n->func_working_on_ = std::nullopt;
   }
-  return Schedule(std::move(n));
+  return Schedule(ffi::UnsafeInit{}, std::move(n));
 }
 
 /******** Copy ********/
@@ -68,7 +68,7 @@ class ScheduleCopier {
     n->stmt2ref = copier.Copy(src_state->stmt2ref);
     n->debug_mask = src_state->debug_mask;
     n->enable_check = src_state->enable_check;
-    *new_state = ScheduleState(std::move(n));
+    *new_state = ScheduleState(ffi::UnsafeInit{}, std::move(n));
     *new_symbol_table = copier.Copy(self->symbol_table_);
   }
 
@@ -101,7 +101,7 @@ class ScheduleCopier {
       return old2new_.at(sref);
     }
     // Handle expired sref
-    return old2new_[sref] = StmtSRef(nullptr, nullptr, -1);
+    return old2new_.emplace(sref, StmtSRef(nullptr, nullptr, -1)).first->second;
   }
 
   /*! \brief Copy ffi::Array<StmtSRef> */
@@ -200,13 +200,13 @@ void ConcreteScheduleNode::Copy(ScheduleState* new_state, TSymbolTable* new_symb
 }
 
 Schedule ConcreteScheduleNode::Copy() {
-  ffi::ObjectPtr<ConcreteScheduleNode> n = ffi::make_object<ConcreteScheduleNode>();
+  ffi::ObjectPtr<ConcreteScheduleNode> n = ffi::make_object<ConcreteScheduleNode>(state_);
   n->func_working_on_ = this->func_working_on_;
   n->error_render_level_ = this->error_render_level_;
   ConcreteScheduleNode::Copy(&n->state_, &n->symbol_table_);
   n->analyzer_ = sym::Analyzer();  // new analyzer needed because it is stateful
   n->rand_state_ = ForkSeed();
-  return Schedule(std::move(n));
+  return Schedule(ffi::UnsafeInit{}, std::move(n));
 }
 
 /*! \brief Macro that guards the beginning of each invocation of TensorIR schedule primitive */
@@ -396,7 +396,7 @@ ffi::Array<SBlockRV> ConcreteScheduleNode::GetOutputBlocks(const SBlockRV& scope
 LoopRV ConcreteScheduleNode::Merge(const ffi::Array<LoopRV>& loop_rvs) {
   TVM_FFI_CHECK(loop_rvs.size() > 1, ValueError) << "'merge' requires at least 2 loop(s)";
   ffi::Array<StmtSRef> loop_srefs = this->GetSRefs(loop_rvs);
-  StmtSRef result{nullptr};
+  StmtSRef result{ffi::UnsafeInit{}};
   TVM_TIR_SCHEDULE_BEGIN();
   result = s_tir::Merge(state_, loop_srefs);
   TVM_TIR_SCHEDULE_END("merge", this->error_render_level_);
@@ -407,7 +407,7 @@ LoopRV ConcreteScheduleNode::Merge(const ffi::Array<LoopRV>& loop_rvs) {
 LoopRV ConcreteScheduleNode::Fuse(const ffi::Array<LoopRV>& loop_rvs, bool preserve_unit_iters) {
   TVM_FFI_CHECK(!loop_rvs.empty(), ValueError) << "'fuse' requires at least 1 loop(s)";
   ffi::Array<StmtSRef> loop_srefs = this->GetSRefs(loop_rvs);
-  StmtSRef result{nullptr};
+  StmtSRef result{ffi::UnsafeInit{}};
   TVM_TIR_SCHEDULE_BEGIN();
   result = s_tir::Fuse(state_, loop_srefs, preserve_unit_iters);
   TVM_TIR_SCHEDULE_END("fuse", this->error_render_level_);
@@ -678,7 +678,7 @@ void ConcreteScheduleNode::Unroll(const LoopRV& loop_rv) {
 SBlockRV ConcreteScheduleNode::CacheRead(const SBlockRV& block_rv, int read_buffer_index,
                                          const ffi::String& storage_scope,
                                          const ffi::Array<SBlockRV> consumer_blocks) {
-  StmtSRef result{nullptr};
+  StmtSRef result{ffi::UnsafeInit{}};
   // Create a new array of SRefs from the consumer block list.
   ffi::Array<StmtSRef> consumer_block_refs = {};
   for (SBlockRV block : consumer_blocks) {
@@ -695,7 +695,7 @@ SBlockRV ConcreteScheduleNode::CacheRead(const SBlockRV& block_rv, int read_buff
 SBlockRV ConcreteScheduleNode::CacheWrite(const SBlockRV& block_rv, int write_buffer_index,
                                           const ffi::String& storage_scope,
                                           const ffi::Array<SBlockRV> consumer_blocks) {
-  StmtSRef result{nullptr};
+  StmtSRef result{ffi::UnsafeInit{}};
   // Create a new array of SRefs from the consumer block list.
   ffi::Array<StmtSRef> consumer_block_refs = {};
   for (SBlockRV block : consumer_blocks) {
@@ -712,7 +712,7 @@ SBlockRV ConcreteScheduleNode::CacheWrite(const SBlockRV& block_rv, int write_bu
 SBlockRV ConcreteScheduleNode::ReindexCacheRead(const SBlockRV& block_rv, int read_buffer_index,
                                                 const ffi::String& storage_scope,
                                                 const IndexMap& index_map) {
-  StmtSRef result{nullptr};
+  StmtSRef result{ffi::UnsafeInit{}};
   TVM_TIR_SCHEDULE_BEGIN();
   result = s_tir::ReindexCacheRead(state_, this->GetSRef(block_rv), read_buffer_index,
                                    storage_scope, index_map);
@@ -724,7 +724,7 @@ SBlockRV ConcreteScheduleNode::ReindexCacheRead(const SBlockRV& block_rv, int re
 SBlockRV ConcreteScheduleNode::ReindexCacheWrite(const SBlockRV& block_rv, int write_buffer_index,
                                                  const ffi::String& storage_scope,
                                                  const IndexMap& index_map) {
-  StmtSRef result{nullptr};
+  StmtSRef result{ffi::UnsafeInit{}};
   TVM_TIR_SCHEDULE_BEGIN();
   result = s_tir::ReindexCacheWrite(state_, this->GetSRef(block_rv), write_buffer_index,
                                     storage_scope, index_map);
@@ -764,7 +764,7 @@ ffi::Array<SBlockRV> ConcreteScheduleNode::CacheIndex(const SBlockRV& block_rv,
 
 SBlockRV ConcreteScheduleNode::ReIndex(const SBlockRV& block_rv, int buffer_index,
                                        BufferIndexType buffer_index_type) {
-  StmtSRef result{nullptr};
+  StmtSRef result{ffi::UnsafeInit{}};
   TVM_TIR_SCHEDULE_BEGIN();
   result = s_tir::ReIndex(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type);
   TVM_TIR_SCHEDULE_END("reindex", this->error_render_level_);
@@ -776,7 +776,7 @@ SBlockRV ConcreteScheduleNode::ReIndex(const SBlockRV& block_rv, int buffer_inde
 
 SBlockRV ConcreteScheduleNode::ReadAt(const LoopRV& loop_rv, const SBlockRV& block_rv,
                                       int read_buffer_index, const ffi::String& storage_scope) {
-  StmtSRef result{nullptr};
+  StmtSRef result{ffi::UnsafeInit{}};
   TVM_TIR_SCHEDULE_BEGIN();
   result = s_tir::ReadAt(state_, this->GetSRef(loop_rv), this->GetSRef(block_rv), read_buffer_index,
                          storage_scope);
@@ -787,7 +787,7 @@ SBlockRV ConcreteScheduleNode::ReadAt(const LoopRV& loop_rv, const SBlockRV& blo
 
 SBlockRV ConcreteScheduleNode::WriteAt(const LoopRV& loop_rv, const SBlockRV& block_rv,
                                        int write_buffer_index, const ffi::String& storage_scope) {
-  StmtSRef result{nullptr};
+  StmtSRef result{ffi::UnsafeInit{}};
   TVM_TIR_SCHEDULE_BEGIN();
   result = s_tir::WriteAt(state_, this->GetSRef(loop_rv), this->GetSRef(block_rv),
                           write_buffer_index, storage_scope);
@@ -888,7 +888,7 @@ void ConcreteScheduleNode::UnsafeSetDType(const SBlockRV& block_rv, int buffer_i
 /******** Schedule: Reduction ********/
 
 SBlockRV ConcreteScheduleNode::DecomposeReduction(const SBlockRV& block_rv, const LoopRV& loop_rv) {
-  StmtSRef result{nullptr};
+  StmtSRef result{ffi::UnsafeInit{}};
   TVM_TIR_SCHEDULE_BEGIN();
   result = s_tir::DecomposeReduction(state_, this->GetSRef(block_rv), this->GetSRef(loop_rv));
   TVM_TIR_SCHEDULE_END("decompose-reduction", this->error_render_level_);
@@ -897,7 +897,7 @@ SBlockRV ConcreteScheduleNode::DecomposeReduction(const SBlockRV& block_rv, cons
 }
 
 SBlockRV ConcreteScheduleNode::RFactor(const LoopRV& loop_rv, int factor_axis) {
-  StmtSRef result{nullptr};
+  StmtSRef result{ffi::UnsafeInit{}};
   TVM_TIR_SCHEDULE_BEGIN();
   result = s_tir::RFactor(state_, this->GetSRef(loop_rv), factor_axis);
   TVM_TIR_SCHEDULE_END("rfactor", this->error_render_level_);
@@ -907,7 +907,7 @@ SBlockRV ConcreteScheduleNode::RFactor(const LoopRV& loop_rv, int factor_axis) {
 
 /******** Schedule: Blockize & Tensorize ********/
 SBlockRV ConcreteScheduleNode::Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) {
-  StmtSRef result{nullptr};
+  StmtSRef result{ffi::UnsafeInit{}};
   TVM_TIR_SCHEDULE_BEGIN();
   result = s_tir::Blockize(state_, this->GetSRef(loop_rv), preserve_unit_iters);
   this->state_->DebugVerify();
@@ -917,7 +917,7 @@ SBlockRV ConcreteScheduleNode::Blockize(const LoopRV& loop_rv, bool preserve_uni
 
 SBlockRV ConcreteScheduleNode::Blockize(const ffi::Array<SBlockRV>& blocks,
                                         bool preserve_unit_iters) {
-  StmtSRef result{nullptr};
+  StmtSRef result{ffi::UnsafeInit{}};
   TVM_TIR_SCHEDULE_BEGIN();
   result = s_tir::Blockize(state_, this->GetSRefs(blocks), preserve_unit_iters);
   this->state_->DebugVerify();
@@ -1069,7 +1069,7 @@ void ConcreteScheduleNode::TransformBlockLayout(const SBlockRV& block_rv,
 /******** Schedule: Padding ********/
 
 SBlockRV ConcreteScheduleNode::DecomposePadding(const SBlockRV& block_rv, const LoopRV& loop_rv) {
-  StmtSRef result{nullptr};
+  StmtSRef result{ffi::UnsafeInit{}};
   TVM_TIR_SCHEDULE_BEGIN();
   result = s_tir::DecomposePadding(state_, this->GetSRef(block_rv), this->GetSRef(loop_rv));
   TVM_TIR_SCHEDULE_END("decompose-padding", this->error_render_level_);

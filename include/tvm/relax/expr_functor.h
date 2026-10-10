@@ -566,7 +566,7 @@ class ExprMutator : public ExprMutatorBase {
  public:
   using ExprMutatorBase::VisitExpr_;
 
-  ExprMutator(ffi::Optional<IRModule> mod = std::nullopt) { builder_ = BlockBuilder::Create(mod); }
+  ExprMutator(ffi::Optional<IRModule> mod = std::nullopt) : builder_(BlockBuilder::Create(mod)) {}
   Expr VisitExpr(const Expr& expr) override;
   Expr VisitExpr_(const VarNode* op) override;
   Expr VisitExpr_(const DataflowVarNode* op) override;

@@ -100,14 +100,14 @@ PlacementSpec PlacementSpec::Sharding(int axis) {
   ffi::ObjectPtr<PlacementSpecNode> n = ffi::make_object<PlacementSpecNode>();
   n->axis = axis;
   n->kind = PlacementSpecKind::kSharding;
-  return PlacementSpec(n);
+  return PlacementSpec(ffi::UnsafeInit{}, std::move(n));
 }
 
 PlacementSpec PlacementSpec::Replica() {
   ffi::ObjectPtr<PlacementSpecNode> n = ffi::make_object<PlacementSpecNode>();
   n->axis = -1;
   n->kind = PlacementSpecKind::kReplica;
-  return PlacementSpec(n);
+  return PlacementSpec(ffi::UnsafeInit{}, std::move(n));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -259,7 +259,7 @@ bool TensorizeComparator::Dispatch_(const SBlockRealizeNode* op, const Stmt& oth
 bool TensorizeComparator::Dispatch_(const SBlockNode* op, const Stmt& other) {
   const auto* rhs = other.as<SBlockNode>();
   for (const IterVar& iter : op->iter_vars) {
-    lhs_analyzer_->Bind(iter->var, iter->dom);
+    lhs_analyzer_->Bind(iter->var, iter->dom.value());
   }
   // Check block equality.
   // All iter vars and buffer regions including the order should match.
@@ -740,12 +740,12 @@ bool AutoTensorizeComparator::Dispatch_(const SBlockNode* op, const Stmt& other)
       return false;
     }
     for (const IterVar& block_iter : op->iter_vars) {
-      inner_iter_dom_map_.Set(block_iter->var, sym::IntSet::FromRange(block_iter->dom));
+      inner_iter_dom_map_.Set(block_iter->var, sym::IntSet::FromRange(block_iter->dom.value()));
     }
   } else {
     auto collect_iter = [&](const SBlockNode* op, std::vector<IterVar>& iters) -> bool {
       for (const auto& iter : op->iter_vars) {
-        analyzer_->Bind(iter->var, iter->dom);
+        analyzer_->Bind(iter->var, iter->dom.value());
         if (iter->iter_type == IterVarType::kDataPar ||
             iter->iter_type == IterVarType::kCommReduce) {
           iters.push_back(iter);

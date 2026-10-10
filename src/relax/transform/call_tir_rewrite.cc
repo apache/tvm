@@ -187,7 +187,7 @@ class CallTIRMutator : public ExprMutator {
                                {tensor_ty->shape.value().as_or_throw<ShapeExpr>(),
                                 DataTypeImm(tensor_ty->dtype.value()->dtype),
                                 IntImm::Int64(dev_index), StringImm(scope)},
-                               Attrs(), {tensor_ty}),
+                               std::nullopt, {tensor_ty}),
                           "alloc");
   }
 

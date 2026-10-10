@@ -101,7 +101,7 @@ static void Update(const PrimExpr& constraint, PresburgerSetNode* intset) {
   }
 }
 
-PresburgerSet::PresburgerSet(const PrimExpr& constraint) {
+PresburgerSet::PresburgerSet(const PrimExpr& constraint) : IntSet(ffi::UnsafeInit{}) {
   ffi::Array<PrimVar> vars;
   ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
       constraint, [&vars](const Var& var) -> ffi::Expected<ffi::WalkResult> {
@@ -125,7 +125,8 @@ PresburgerSet::PresburgerSet(const PrimExpr& constraint) {
 }
 
 PresburgerSet::PresburgerSet(const std::vector<IntegerRelation>& disjuncts,
-                             const ffi::Array<PrimVar>& vars) {
+                             const ffi::Array<PrimVar>& vars)
+    : IntSet(ffi::UnsafeInit{}) {
   auto node = ffi::make_object<PresburgerSetNode>(disjuncts, disjuncts[0].getSpace(), vars);
   data_ = std::move(node);
 }
@@ -251,7 +252,7 @@ IntSet EvalSet(const PrimExpr& e, const PresburgerSet& set) {
 #endif
   }
 
-  IntSet result = IntSet().Nothing();
+  IntSet result = IntSet::Nothing();
   for (const IntegerRelation& it : set->disjuncts) {
     Simplex simplex(it);
     auto range = simplex.computeIntegerBounds(coeffs);

@@ -72,7 +72,7 @@ class MatchResult : public ffi::ObjectRef {
   TVM_DLL explicit MatchResult(TIRPattern pattern, ffi::Array<PrimExpr> symbol_values,
                                ffi::Array<tirx::TensorVar> matched_buffers);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchResult, ffi::ObjectRef, MatchResultNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MatchResult, ffi::ObjectRef, MatchResultNode);
 };
 
 using FCodegen = ffi::TypedFunction<ffi::Array<ffi::Any>(ffi::Array<MatchResult> match_results)>;

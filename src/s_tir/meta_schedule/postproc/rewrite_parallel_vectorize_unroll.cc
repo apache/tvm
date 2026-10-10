@@ -507,7 +507,7 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
   Postproc Clone() const {
     ffi::ObjectPtr<RewriteParallelVectorizeUnrollNode> n =
         ffi::make_object<RewriteParallelVectorizeUnrollNode>(*this);
-    return Postproc(n);
+    return Postproc(ffi::UnsafeInit{}, n);
   }
 
   static void RegisterReflection() {
@@ -522,7 +522,7 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
 Postproc Postproc::RewriteParallelVectorizeUnroll() {
   ffi::ObjectPtr<RewriteParallelVectorizeUnrollNode> n =
       ffi::make_object<RewriteParallelVectorizeUnrollNode>();
-  return Postproc(n);
+  return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

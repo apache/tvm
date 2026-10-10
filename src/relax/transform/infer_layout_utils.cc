@@ -52,30 +52,38 @@ std::string TransposeSubLayoutStrLike(const std::string ref_str, const std::stri
   return out;
 }
 
-SLayout TransposeSubLayoutLike(const SLayout& ref, const SLayout& src, const SLayout& desired) {
+ffi::Optional<SLayout> TransposeSubLayoutLike(const SLayout& ref, const SLayout& src,
+                                              const SLayout& desired) {
   std::string ref_str = ref.name();
   std::string src_str = src.name();
   std::string desired_str = desired.name();
   std::string out = TransposeSubLayoutStrLike(ref_str, src_str, desired_str);
-  return SLayout(out);
+  return SLayout::Create(out);
 }
 
-SLayout TransposeLike(const SLayout& input, const SLayout& src, const SLayout& dst) {
-  TVM_FFI_ICHECK(src.ndim() == dst.ndim() && input.ndim() == src.ndim())
+SLayout TransposeLike(const ffi::Optional<SLayout>& input, const ffi::Optional<SLayout>& src,
+                      const ffi::Optional<SLayout>& dst) {
+  size_t src_ndim = src.has_value() ? src.value().ndim() : 0;
+  size_t dst_ndim = dst.has_value() ? dst.value().ndim() : 0;
+  size_t input_ndim = input.has_value() ? input.value().ndim() : 0;
+  TVM_FFI_ICHECK(src_ndim == dst_ndim && input_ndim == src_ndim)
       << "Layouts must have the same size";
   std::vector<s_tir::IterVar> axes;
-  for (size_t i = 0; i < src.ndim(); ++i) {
-    axes.push_back(input->axes[src.IndexOf(dst[i])]);
+  for (size_t i = 0; i < src_ndim; ++i) {
+    axes.push_back(input.value()->axes[src.value().IndexOf(dst.value()[i])]);
   }
   return SLayout(axes);
 }
 
-ffi::String TransposeStrLike(const ffi::String& input, const SLayout& src, const SLayout& dst) {
-  TVM_FFI_ICHECK(src.ndim() == dst.ndim() && input.size() == src.ndim())
+ffi::String TransposeStrLike(const ffi::String& input, const ffi::Optional<SLayout>& src,
+                             const ffi::Optional<SLayout>& dst) {
+  size_t src_ndim = src.has_value() ? src.value().ndim() : 0;
+  size_t dst_ndim = dst.has_value() ? dst.value().ndim() : 0;
+  TVM_FFI_ICHECK(src_ndim == dst_ndim && input.size() == src_ndim)
       << "Layouts must have the same size";
   std::string axes;
-  for (size_t i = 0; i < src.ndim(); ++i) {
-    axes.push_back(input.at(src.IndexOf(dst[i])));
+  for (size_t i = 0; i < src_ndim; ++i) {
+    axes.push_back(input.at(src.value().IndexOf(dst.value()[i])));
   }
   return axes;
 }
@@ -91,7 +99,7 @@ int FindAxis(const SLayout& dst, int axis) {
 
 SLayout InitialLayout(int ndim) {
   TVM_FFI_ICHECK(ndim >= 0 && ndim <= 26) << "Only support up to 26 dimensions, but got " << ndim;
-  return SLayout("ABCDEFGHIJKLMNOPQRSTUVWXYZ").SubLayout(0, ndim);
+  return SLayout("ABCDEFGHIJKLMNOPQRSTUVWXYZ").SubLayout(0, ndim).value();
 }
 
 LayoutDecision InitialLayoutDecision(int ndim) {
@@ -99,7 +107,7 @@ LayoutDecision InitialLayoutDecision(int ndim) {
     return LayoutDecision::InitUnknownDim();
   }
   TVM_FFI_ICHECK(ndim >= 0 && ndim <= 26) << "Only support up to 26 dimensions, but got " << ndim;
-  return SLayout("ABCDEFGHIJKLMNOPQRSTUVWXYZ").SubLayout(0, ndim);
+  return SLayout("ABCDEFGHIJKLMNOPQRSTUVWXYZ").SubLayout(0, ndim).value();
 }
 
 NLayout InitialNLayout(const Type& ty) {
@@ -147,7 +155,7 @@ bool NoDesiredLayout(const Call& call,
 }
 
 LayoutDecision FollowDecision(const LayoutDecision& src, int dst_ndim) {
-  int src_ndim = src->layout.ndim();
+  int src_ndim = (src->layout.has_value() ? src->layout.value().ndim() : 0);
   // broadcast case
   if (src_ndim == dst_ndim) {
     return src;
@@ -156,9 +164,10 @@ LayoutDecision FollowDecision(const LayoutDecision& src, int dst_ndim) {
         << "Cannot broadcast from " << src_ndim << " to " << dst_ndim;
     std::string layout = InitialLayout(dst_ndim - src_ndim).name();
     for (int i = 0; i < src_ndim; ++i) {
-      layout.push_back(src->layout.name()[i] + dst_ndim - src_ndim);
+      layout.push_back((src->layout.has_value() ? src->layout.value().name() : "__undef__")[i] +
+                       dst_ndim - src_ndim);
     }
-    return LayoutDecision(SLayout(layout));
+    return LayoutDecision(SLayout::Create(layout));
   }
 }
 

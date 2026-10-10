@@ -76,10 +76,15 @@ class MatchBufferRegionNode : public ffi::Object {
  */
 class MatchBufferRegion : public ffi::ObjectRef {
  public:
+  explicit MatchBufferRegion(ffi::UnsafeInit tag, ffi::ObjectPtr<MatchBufferRegionNode> data)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
+  }
+
   TVM_DLL explicit MatchBufferRegion(tirx::TensorVar buffer, TensorRegion source);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchBufferRegion, ffi::ObjectRef,
-                                             MatchBufferRegionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MatchBufferRegion, ffi::ObjectRef,
+                                                MatchBufferRegionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchBufferRegionNode);
 };
 

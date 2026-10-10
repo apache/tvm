@@ -273,7 +273,7 @@ class ScopeReconstructor : public StmtExprMutator {
     iter_values.reserve(n_iters);
     PrimExpr predicate = IntImm::Bool(true);
     for (int i = 0; i < n_iters; ++i) {
-      Range iter_dom = iter_doms[i].dom.CoverRange(block_->iter_vars[i]->dom);
+      Range iter_dom = iter_doms[i].dom.CoverRange(block_->iter_vars[i]->dom.value()).value();
       if (preserve_unit_loops || !IsOne(iter_dom->extent)) {
         int bits = std::max(iter_dom->min.ty().bits(), iter_dom->extent.ty().bits());
         Var var("ax" + std::to_string(loop_vars.size()), PrimType::Int(bits));
@@ -436,7 +436,7 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const sym::IntSet& provid
   PrimExpr provided_max = analyzer->Simplify(provided.max());
   PrimExpr required_min = analyzer->Simplify(required.min());
   PrimExpr required_max = analyzer->Simplify(required.max());
-  sym::IntSet var_dom, var_bound;
+  sym::IntSet var_dom{ffi::UnsafeInit{}}, var_bound{ffi::UnsafeInit{}};
   ffi::Optional<Var> var;
   sym::PVar<Var> p_v;
   sym::PVar<PrimExpr> p_e;
@@ -582,7 +582,7 @@ bool UpdateBlockVarDomainAffine(const VarNode* buffer, const ffi::Array<IterVar>
   // calculate forward mapping (block vars -> provided region point)
   ffi::Map<PrimVar, Range> dom_map;
   for (const IterVar& iter_var : iter_vars) {
-    dom_map.Set(iter_var->var, iter_var->dom);
+    dom_map.Set(iter_var->var, iter_var->dom.value());
   }
   size_t ndim = GetTensorVar(buffer)->shape.size();
   ffi::Array<PrimExpr> provide_indices;
@@ -659,9 +659,9 @@ std::vector<BlockVarDomainInfo> CalculateBlockVarDomain(
   for (const IterVar& iter_var : iter_vars) {
     BlockVarDomainInfo& info = iter_doms.at(iter_var->var.get());
     if (info.bound.IsNothing()) {
-      info.bound = sym::IntSet::FromRange(iter_var->dom);
+      info.bound = sym::IntSet::FromRange(iter_var->dom.value());
     } else {
-      info.bound = sym::Intersect({info.bound, sym::IntSet::FromRange(iter_var->dom)});
+      info.bound = sym::Intersect({info.bound, sym::IntSet::FromRange(iter_var->dom.value())});
     }
     info.Simplify(analyzer);
     TVM_FFI_ICHECK(!info.dom.IsNothing());

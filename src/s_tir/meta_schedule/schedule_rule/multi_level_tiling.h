@@ -113,6 +113,7 @@ class State;
 /*! \brief The state of auto scheduling for the multi-level tiling rule */
 class StateNode : public ffi::Object {
  public:
+  explicit StateNode(s_tir::Schedule sch) : sch(std::move(sch)) {}
   /*! \brief The schedule to date */
   s_tir::Schedule sch;
   /*! \brief The block to be tiled */
@@ -139,10 +140,14 @@ class StateNode : public ffi::Object {
 /*! \brief Managed reference to StateNode */
 class State : public ffi::ObjectRef {
  public:
+  explicit State(ffi::UnsafeInit tag, ffi::ObjectPtr<StateNode> data) : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
+  }
+
   /*! \brief Default constructor */
   explicit State(s_tir::Schedule sch, s_tir::SBlockRV block_rv,
                  ffi::Array<ffi::Array<s_tir::LoopRV>> tiles = {});
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(State, ffi::ObjectRef, StateNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(State, ffi::ObjectRef, StateNode);
 };
 
 /*!

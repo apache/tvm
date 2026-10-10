@@ -361,6 +361,9 @@ TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
  */
 class FusionPatternNode : public ffi::Object {
  public:
+  explicit FusionPatternNode(DFPattern value) : pattern(std::move(value)) {}
+  explicit FusionPatternNode(ffi::UnsafeInit) : pattern(ffi::UnsafeInit{}) {}
+
   /*!
    * \brief The name of pattern. It becomes the value of the kComposite attribute
    * of a fused function after successful matching
@@ -594,9 +597,9 @@ TVM_DLL Pass DecomposeOpsForTraining(ffi::Optional<ffi::String> func_name);
  * tirx::Function i/o buffers.
  * \return The Pass.
  */
-TVM_DLL Pass
-AlterOpImpl(const ffi::Map<ffi::String, tirx::Function>& op_impl_map,
-            const ffi::Map<ffi::String, ffi::Array<tirx::IndexMap>>& op_buffer_transforms);
+TVM_DLL Pass AlterOpImpl(
+    const ffi::Map<ffi::String, tirx::Function>& op_impl_map,
+    const ffi::Map<ffi::String, ffi::Array<ffi::Optional<tirx::IndexMap>>>& op_buffer_transforms);
 
 /*!
  * \brief Layout conversion pass.

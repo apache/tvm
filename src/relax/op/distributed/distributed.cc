@@ -55,9 +55,8 @@ TVM_FFI_STATIC_INIT_BLOCK() { DistributionAttrs::RegisterReflection(); }
 
 Expr annotate_sharding(Expr input, distributed::DeviceMesh device_mesh,
                        distributed::Placement placement) {
-  ffi::ObjectPtr<DistributionAttrs> attrs = ffi::make_object<DistributionAttrs>();
-  attrs->device_mesh = device_mesh;
-  attrs->placement = placement;
+  ffi::ObjectPtr<DistributionAttrs> attrs =
+      ffi::make_object<DistributionAttrs>(device_mesh, placement);
 
   static const Op op = Op::Get("relax.dist.annotate_sharding");
   return Call(Type::Missing(), op, {std::move(input)}, Attrs(attrs), {});
@@ -86,9 +85,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr redistribute(Expr input, distributed::DeviceMesh device_mesh,
                   distributed::Placement placement) {
-  ffi::ObjectPtr<DistributionAttrs> attrs = ffi::make_object<DistributionAttrs>();
-  attrs->device_mesh = device_mesh;
-  attrs->placement = placement;
+  ffi::ObjectPtr<DistributionAttrs> attrs =
+      ffi::make_object<DistributionAttrs>(device_mesh, placement);
 
   static const Op op = Op::Get("relax.dist.redistribute");
   return Call(Type::Missing(), op, {std::move(input)}, Attrs(attrs), {});

@@ -69,7 +69,7 @@ class AddToDatabaseNode : public MeasureCallbackNode {
 
 MeasureCallback MeasureCallback::AddToDatabase() {
   ffi::ObjectPtr<AddToDatabaseNode> n = ffi::make_object<AddToDatabaseNode>();
-  return MeasureCallback(n);
+  return MeasureCallback(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

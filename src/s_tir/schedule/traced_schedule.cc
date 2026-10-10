@@ -26,8 +26,8 @@ using namespace tvm::tirx;
 
 Schedule Schedule::Traced(IRModule mod, LinearCongruentialEngine::TRandState seed, int debug_mask,
                           ScheduleErrorRenderLevel error_render_level, bool enable_check) {
-  ffi::ObjectPtr<TracedScheduleNode> n = ffi::make_object<TracedScheduleNode>();
-  n->state_ = ScheduleState(mod, debug_mask, enable_check);
+  ffi::ObjectPtr<TracedScheduleNode> n =
+      ffi::make_object<TracedScheduleNode>(ScheduleState(mod, debug_mask, enable_check));
   n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
   n->analyzer_ = sym::Analyzer();
@@ -39,18 +39,18 @@ Schedule Schedule::Traced(IRModule mod, LinearCongruentialEngine::TRandState see
   } else {
     n->func_working_on_ = std::nullopt;
   }
-  return Schedule(std::move(n));
+  return Schedule(ffi::UnsafeInit{}, std::move(n));
 }
 
 Schedule TracedScheduleNode::Copy() {
-  ffi::ObjectPtr<TracedScheduleNode> n = ffi::make_object<TracedScheduleNode>();
+  ffi::ObjectPtr<TracedScheduleNode> n = ffi::make_object<TracedScheduleNode>(state_);
   n->error_render_level_ = this->error_render_level_;
   ConcreteScheduleNode::Copy(&n->state_, &n->symbol_table_);
   n->func_working_on_ = this->func_working_on_;
   n->analyzer_ = sym::Analyzer();  // new analyzer needed because it is stateful
   n->rand_state_ = ForkSeed();
   n->trace_ = Trace(this->trace_->insts, this->trace_->decisions);
-  return Schedule(std::move(n));
+  return Schedule(ffi::UnsafeInit{}, std::move(n));
 }
 
 /******** Schedule: Sampling ********/

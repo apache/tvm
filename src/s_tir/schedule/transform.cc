@@ -92,7 +92,7 @@ ffi::Array<MatchBufferRegion> ReplaceBuffer(ffi::Array<MatchBufferRegion> match_
           ffi::ObjectPtr<MatchBufferRegionNode> n =
               ffi::make_object<MatchBufferRegionNode>(*match_buffer.get());
           n->source = BufferRegion(target, n->source->region);
-          return MatchBufferRegion(n);
+          return MatchBufferRegion(ffi::UnsafeInit{}, n);
         }
         return match_buffer;
       });
@@ -120,7 +120,7 @@ ffi::Array<MatchBufferRegion> ReplaceBufferRegion(ffi::Array<MatchBufferRegion> 
       ffi::ObjectPtr<MatchBufferRegionNode> n =
           ffi::make_object<MatchBufferRegionNode>(*match_buffer.get());
       n->source = target;
-      return MatchBufferRegion(n);
+      return MatchBufferRegion(ffi::UnsafeInit{}, n);
     }
     return match_buffer;
   });
@@ -540,7 +540,7 @@ ffi::Optional<ffi::ObjectRef> NormalizeFunction(Schedule sch) {
     for (const IterVar& iter : sch->Get(block)->iter_vars) {
       PrimVar var = iter->var.CopyWithSuffix("");
       index_map_inputs.push_back(var);
-      if (!IsOne(iter->dom->extent)) {
+      if (!IsOne(iter->dom.value()->extent)) {
         index_map_outputs.push_back(var);
         if (iter->iter_type == IterVarType::kDataPar) {
           has_spatial_iter = true;

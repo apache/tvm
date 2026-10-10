@@ -36,8 +36,10 @@ ffi::Optional<ExprDoc> IterVarDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
                                            const ffi::Object*) {
   const auto* iter =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const s_tir::IterVarNode>(input);
-  CallDoc domain = d->Translate(iter->dom).value().as_or_throw<CallDoc>();
-  domain->callee = NamespaceDoc("tirx")->Attr("Range");
+  ExprDoc domain = d->Translate(iter->dom).value();
+  if (iter->dom.has_value()) {
+    domain.as_or_throw<CallDoc>()->callee = NamespaceDoc("tirx")->Attr("Range");
+  }
   return NamespaceDoc("s_tir")
       ->Attr("iter_var")
       ->Call({d->Translate(iter->var).value(), domain,

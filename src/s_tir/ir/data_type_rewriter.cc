@@ -198,13 +198,13 @@ IterVar IndexDataTypeNormalizer::VisitIterVar(const IterVar& iter_var) {
   PrimVar new_var = this->Mutate(iter_var->var, InplaceMode::kDisallow)
                         .ValueOrUnchanged(iter_var->var)
                         .as_or_throw<PrimVar>();
-  PrimExpr min =
-      this->Mutate(iter_var->dom->min, InplaceMode::kDisallow).ValueOrUnchanged(iter_var->dom->min);
-  PrimExpr extent = this->Mutate(iter_var->dom->extent, InplaceMode::kDisallow)
-                        .ValueOrUnchanged(iter_var->dom->extent);
+  PrimExpr min = this->Mutate(iter_var->dom.value()->min, InplaceMode::kDisallow)
+                     .ValueOrUnchanged(iter_var->dom.value()->min);
+  PrimExpr extent = this->Mutate(iter_var->dom.value()->extent, InplaceMode::kDisallow)
+                        .ValueOrUnchanged(iter_var->dom.value()->extent);
   this->is_enabled_ = is_enabled;
-  if (!new_var.same_as(iter_var->var) || !min.same_as(iter_var->dom->min) ||
-      !extent.same_as(iter_var->dom->extent)) {
+  if (!new_var.same_as(iter_var->var) || !min.same_as(iter_var->dom.value()->min) ||
+      !extent.same_as(iter_var->dom.value()->extent)) {
     IterVar new_iter_var = iter_var;
     IterVarNode* n = new_iter_var.CopyOnWrite();
     n->var = std::move(new_var);

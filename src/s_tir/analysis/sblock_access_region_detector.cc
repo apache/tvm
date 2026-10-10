@@ -155,7 +155,7 @@ void BlockReadWriteDetector::operator()(const Stmt& stmt) {
     const Var target_var = match_buffer->buffer.var();
     const Var source_var = match_buffer->source->source.as_or_throw<tvm::tirx::TensorVar>().var();
     if (buffer_var_map_.find(source_var) != buffer_var_map_.end()) {
-      match_buffers_[target_var.get()] = match_buffer;
+      match_buffers_.insert_or_assign(target_var.get(), match_buffer);
       buffer_var_map_.Set(target_var, match_buffer->buffer);
     }
   }
@@ -210,7 +210,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const TensorLoadNod
 
 ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const ForNode* op) {
   Range range = Range::FromMinExtent(op->min, op->extent);
-  dom_map_[op->loop_var.get()] = sym::IntSet::FromRange(range);
+  dom_map_.insert_or_assign(op->loop_var.get(), sym::IntSet::FromRange(range));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
   dom_map_.erase(op->loop_var.get());
   return std::nullopt;
@@ -389,7 +389,7 @@ std::vector<sym::IntSet> BlockReadWriteDetector::ConvertMatchedRegion(
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), int_sets.size());
   for (size_t i = 0; i < int_sets.size(); ++i) {
     const tvm::sym::IntSet& int_set = int_sets[i];
-    region.push_back(int_set.CoverRange(Range::FromMinExtent(0, buffer->shape[i])));
+    region.push_back(int_set.CoverRange(Range::FromMinExtent(0, buffer->shape[i])).value());
   }
 
   region = ConvertRegion(match_buffer, region);
@@ -448,7 +448,7 @@ ffi::Array<TensorRegion> BlockReadWriteDetector::CollectRegions(
         PrimExpr min = range.min();
         region.push_back(Range::FromMinExtent(min, prim::MakeConst(min.ty(), 1)));
       } else {
-        region.push_back(range.CoverRange(Range::FromMinExtent(0, buffers[i]->shape[j])));
+        region.push_back(range.CoverRange(Range::FromMinExtent(0, buffers[i]->shape[j])).value());
       }
     }
     res.push_back(BufferRegion(buffers[i], region));

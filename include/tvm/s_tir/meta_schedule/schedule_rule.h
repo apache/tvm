@@ -80,6 +80,11 @@ class ScheduleRuleNode : public ffi::Object {
  */
 class ScheduleRule : public ffi::ObjectRef {
  public:
+  explicit ScheduleRule(ffi::UnsafeInit tag, ffi::ObjectPtr<ScheduleRuleNode> data)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
+  }
+
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.
    * \param context The tuning context for initialization.
@@ -308,7 +313,7 @@ class ScheduleRule : public ffi::ObjectRef {
   /*! \brief Create default schedule rules for RISCV CPU (RVV) */
   TVM_DLL static ffi::Array<ScheduleRule, void> DefaultRISCV(int vlen);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScheduleRule, ffi::ObjectRef, ScheduleRuleNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ScheduleRule, ffi::ObjectRef, ScheduleRuleNode);
 };
 
 /*! \brief The schedule rule with customized methods on the python-side. */

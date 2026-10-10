@@ -1550,7 +1550,7 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
                                           const ffi::Array<MeasureCandidate>& candidates) {
     auto& target_keys = tune_context->target.value()->keys;
     bool is_gpu = std::find(target_keys.begin(), target_keys.end(), "gpu") != target_keys.end();
-    std::vector<runtime::Tensor> results;
+    std::vector<ffi::Optional<runtime::Tensor>> results;
     results.resize(candidates.size());
     std::unique_ptr<s_tir::group6::Feature> feature_group6 = nullptr;
     if (extract_workload) {
@@ -1568,7 +1568,10 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
       results[task_id] = s_tir::utils::AsTensor(features, this->feature_vector_length);
     };
     support::parallel_for_dynamic(0, candidates.size(), tune_context->num_threads, f);
-    return results;
+    ffi::Array<runtime::Tensor> features;
+    features.reserve(results.size());
+    for (auto& result : results) features.push_back(std::move(result).value());
+    return features;
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.PerStoreFeature", PerStoreFeatureNode,
                                     FeatureExtractorNode);
@@ -1590,7 +1593,7 @@ FeatureExtractor FeatureExtractor::PerStoreFeature(int buffers_per_store,
   if (extract_workload) {
     n->feature_vector_length += s_tir::group6::Feature::kCount;
   }
-  return FeatureExtractor(n);
+  return FeatureExtractor(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { PerStoreFeatureNode::RegisterReflection(); }

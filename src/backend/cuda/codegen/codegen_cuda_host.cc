@@ -215,7 +215,8 @@ class CodeGenCUDAHost : public CodeGenCHost {
       CodeGenCHost::Dispatch_(op, os);
       return;
     }
-    const auto* attr = op->attrs.as<tirx::CallFFIKernelAttr>();
+    const auto* attr =
+        (op->attrs.has_value() ? op->attrs.value().as<tirx::CallFFIKernelAttr>() : nullptr);
     TVM_FFI_CHECK(attr, ValueError) << "cuda_host kernel calls require CallFFIKernelAttr";
     TVM_FFI_CHECK(!op->args.empty() && op->args[0].as<StringImmNode>(), ValueError)
         << "cuda_host kernel calls require a string kernel symbol";
@@ -319,7 +320,9 @@ class CodeGenCUDAHost : public CodeGenCHost {
     stream << ") != 0) return -1;\n";
   }
   void PrintTensorMapEncode(const CallNode* op) {
-    const auto* attr = op->attrs.as<backend::cuda::TensorMapEncodeTiledAttr>();
+    const auto* attr =
+        (op->attrs.has_value() ? op->attrs.value().as<backend::cuda::TensorMapEncodeTiledAttr>()
+                               : nullptr);
     TVM_FFI_CHECK(attr && attr->rank >= 1 && attr->rank <= 5 &&
                       op->args.size() == static_cast<size_t>(4 * attr->rank + 1),
                   ValueError)

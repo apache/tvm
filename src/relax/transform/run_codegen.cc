@@ -121,7 +121,7 @@ class CodeGenRunner : ExprMutator {
 
         static const Op call_op = Op::Get("relax.call_dps_packed");
 
-        return Call(Type::Missing(), call_op, new_args, tvm::Attrs(), {ret_ty});
+        return Call(Type::Missing(), call_op, new_args, std::nullopt, {ret_ty});
       };
 
       auto ret_ty = GetType(call);

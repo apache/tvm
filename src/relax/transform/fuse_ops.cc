@@ -1515,9 +1515,8 @@ FusionPattern::FusionPattern(ffi::String name, DFPattern pattern,
                              ffi::Map<ffi::String, DFPattern> annotation_patterns,
                              ffi::Optional<ffi::Function> check,
                              ffi::Optional<ffi::Function> attrs_getter) {
-  ffi::ObjectPtr<FusionPatternNode> n = ffi::make_object<FusionPatternNode>();
+  ffi::ObjectPtr<FusionPatternNode> n = ffi::make_object<FusionPatternNode>(pattern);
   n->name = std::move(name);
-  n->pattern = std::move(pattern);
   n->annotation_patterns = std::move(annotation_patterns);
   n->check = check;
   n->attrs_getter = attrs_getter;

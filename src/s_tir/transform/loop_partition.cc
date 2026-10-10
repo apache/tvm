@@ -356,7 +356,7 @@ class PartitionFinder : public StmtExprVisitor {
           DeduceBound(current_var_.as_or_throw<PrimExpr>(), cond, hint_map_, relax_map_);
       if (!interval.IsNothing()) {
         // cond is true within interval
-        partitions[{cond, true}] = interval;
+        partitions.insert_or_assign({cond, true}, interval);
       }
 
       if (interval.IsNothing()) {
@@ -370,7 +370,7 @@ class PartitionFinder : public StmtExprVisitor {
           interval = sym::Intersect({part1, part2});
           if (!interval.IsNothing()) {
             // cond is true within interval
-            partitions[{cond, true}] = interval;
+            partitions.insert_or_assign({cond, true}, interval);
             return;
           }
         }
@@ -382,7 +382,7 @@ class PartitionFinder : public StmtExprVisitor {
                                       hint_map_, relax_map_);
         if (!interval.IsNothing()) {
           // cond is false within interval
-          partitions[{cond, false}] = interval;
+          partitions.insert_or_assign({cond, false}, interval);
         }
       }
     }
@@ -713,8 +713,8 @@ ffi::Optional<Stmt> LoopPartitioner::TryPartition(const Stmt& stmt, Var var, Pri
 
   sym::IntervalSet for_interval(min, max);
 
-  auto [middle_interval, cond_set,
-        opt_cond_value] = [&]() -> std::tuple<IntSet, ExpressionSet, std::optional<bool>> {
+  auto [middle_interval, cond_set, opt_cond_value] =
+      [&]() -> std::tuple<ffi::Optional<IntSet>, ExpressionSet, std::optional<bool>> {
     {
       // find an interval in which all conditions on var are true
       auto [middle_interval, cond_set] =
@@ -771,7 +771,7 @@ ffi::Optional<Stmt> LoopPartitioner::TryPartition(const Stmt& stmt, Var var, Pri
     return {{}, {}, std::nullopt};
   }();
 
-  if (middle_interval.IsNothing() && opt_cond_value == false) {
+  if (opt_cond_value == false && middle_interval.value().IsNothing()) {
     return std::nullopt;
   }
 
@@ -788,7 +788,7 @@ ffi::Optional<Stmt> LoopPartitioner::TryPartition(const Stmt& stmt, Var var, Pri
   }
   bool cond_value = opt_cond_value.value();
 
-  IntervalSet middle_interval_i = middle_interval.as_or_throw<IntervalSet>();
+  IntervalSet middle_interval_i = middle_interval.value().as_or_throw<IntervalSet>();
   // middle_interval is the subrange of the loop variable range for which a
   // set of conditions are true (or false resp.)
   // The part of the loop variable range that is before (after resp.) that
@@ -800,7 +800,7 @@ ffi::Optional<Stmt> LoopPartitioner::TryPartition(const Stmt& stmt, Var var, Pri
   ffi::Optional<Stmt> pre_stmt;
   bool pre_stmt_recurse = true;
   if (middle_interval_i->HasLowerBound()) {
-    body_begin = analyzer_->Simplify(middle_interval.min());
+    body_begin = analyzer_->Simplify(middle_interval.value().min());
     if (!analyzer_->CanProve(body_begin == min)) {
       PrimExpr extent = analyzer_->Simplify(body_begin - min);
       if (!analyzer_->CanProve(extent > 0)) {
@@ -833,8 +833,8 @@ ffi::Optional<Stmt> LoopPartitioner::TryPartition(const Stmt& stmt, Var var, Pri
   ffi::Optional<Stmt> post_stmt;
   bool post_stmt_recurse = true;
   if (middle_interval_i->HasUpperBound()) {
-    post_doubt_begin = analyzer_->Simplify(middle_interval.max() + 1);
-    if (!analyzer_->CanProve(middle_interval.max() == max)) {
+    post_doubt_begin = analyzer_->Simplify(middle_interval.value().max() + 1);
+    if (!analyzer_->CanProve(middle_interval.value().max() == max)) {
       // require the extent to be non-negative
       PrimExpr extent = analyzer_->Simplify(max - post_doubt_begin + 1);
       if (!analyzer_->CanProve(extent > 0)) {

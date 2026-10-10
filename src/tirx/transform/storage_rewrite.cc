@@ -410,7 +410,8 @@ class InplaceOpVerifier : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op,
                                                     const CallNode* buffer_call) {
     // reject inplace for volatile buffers
-    if (buffer_call->attrs.as<DictAttrsNode>()->dict.count(tvm::tirx::attr::kVolatile)) {
+    if ((buffer_call->attrs.has_value() ? buffer_call->attrs.value().as<DictAttrsNode>() : nullptr)
+            ->dict.count(tvm::tirx::attr::kVolatile)) {
       result_ = false;
       return std::nullopt;
     }
@@ -780,7 +781,7 @@ class StoragePlanRewriter : public StmtExprMutator {
 
   static bool RequiresExactAllocation(const CallNode* call) {
     if (call->args.size() == 4) return true;
-    const auto& annotations = call->attrs.as_or_throw<DictAttrs>()->dict;
+    const auto& annotations = call->attrs.value().as_or_throw<DictAttrs>()->dict;
     return annotations.count(tvm::s_tir::attr::kFragmentShape) ||
            annotations.count(tvm::s_tir::attr::kFragmentLayout);
   }
@@ -1143,7 +1144,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                           enable_reuse, reuse_require_exact_matched_dtype);
           }
           dst_entry->allocs.emplace_back(alloc);
-          DictAttrs annotations = call->attrs.as_or_throw<DictAttrs>();
+          DictAttrs annotations = call->attrs.value().as_or_throw<DictAttrs>();
           if (annotations->dict.count(tvm::tirx::attr::kVolatile)) {
             dst_entry->is_volatile = true;
           }

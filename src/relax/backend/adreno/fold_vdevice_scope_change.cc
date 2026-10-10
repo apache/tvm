@@ -100,6 +100,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
 
 class CollectConsumerDetails : public ExprVisitor {
  public:
+  explicit CollectConsumerDetails(Target target) : target_(std::move(target)) {}
   using ExprVisitor::VisitExpr_;
 
   ffi::Map<Expr, ffi::Array<Expr>> Collect(const IRModule& mod, Function func,
@@ -166,8 +167,8 @@ namespace transform {
 Pass FoldVDeviceScopeChange() {
   auto pass_func = [=](Function func, IRModule mod, PassContext pc) {
     /* here Target doesn't matter as the consumers we use only to find multiple consumers */
-    auto consumers =
-        CollectConsumerDetails().Collect(mod, func.as_or_throw<Function>(), Target("opencl"));
+    auto consumers = CollectConsumerDetails(Target("opencl"))
+                         .Collect(mod, func.as_or_throw<Function>(), Target("opencl"));
     auto [pattern, rewriter] = CreatePatterns(consumers);
     return RewriteCall(pattern, rewriter, func);
   };

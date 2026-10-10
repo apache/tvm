@@ -886,6 +886,10 @@ class ScheduleNode : public ffi::Object {
  */
 class Schedule : public ffi::ObjectRef {
  public:
+  explicit Schedule(ffi::UnsafeInit tag, ffi::ObjectPtr<ScheduleNode> data) : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
+  }
+
   /*!
    * \brief Construct a concrete TensorIR schedule from an IRModule
    * \param mod The IRModule to be scheduled
@@ -919,7 +923,7 @@ class Schedule : public ffi::ObjectRef {
   TVM_DLL static Schedule Traced(IRModule mod, LinearCongruentialEngine::TRandState seed,
                                  int debug_mask, ScheduleErrorRenderLevel error_render_level,
                                  bool enable_check = true);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Schedule, ffi::ObjectRef, ScheduleNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Schedule, ffi::ObjectRef, ScheduleNode);
 };
 
 }  // namespace s_tir

@@ -163,15 +163,15 @@ tirx::Function WrapBareSBlockBody(const tirx::Function& func) {
 
 bool IsScheduledOnGPU(const BaseFunc& func) {
   // the target from context.
-  tvm::Target target = tvm::Target::Current();
+  ffi::Optional<tvm::Target> target = tvm::Target::Current();
   // the Target in kTarget attribute of Function
   ffi::Optional<tvm::Target> func_target = func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget);
   if (func_target.has_value()) {
     target = func_target.value();
   }
 
-  if (target.defined()) {
-    int dev_type = target->GetTargetDeviceType();
+  if (target.has_value()) {
+    int dev_type = target.value()->GetTargetDeviceType();
     if (!(dev_type == kDLCUDA || dev_type == kDLMetal || dev_type == kDLROCM ||
           dev_type == kDLVulkan || dev_type == kDLOpenCL || dev_type == kDLWebGPU)) {
       return false;
@@ -210,19 +210,19 @@ Pass DefaultGPUSchedule() {
           if (func->IsInstance<tirx::FunctionNode>() &&
               !func->HasNonzeroAttr(tvm::s_tir::attr::kIsScheduled) && IsScheduledOnGPU(func)) {
             // get the target from context.
-            tvm::Target target = tvm::Target::Current();
+            ffi::Optional<tvm::Target> target = tvm::Target::Current();
             // get the target from kTarget attribute
             ffi::Optional<tvm::Target> func_target =
                 func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget);
             if (func_target.has_value()) {
               target = func_target.value();
             }
-            TVM_FFI_ICHECK(target.defined())
+            TVM_FFI_ICHECK(target.has_value())
                 << "The target is missing either in the current context or in "
                    "the function's attribute.";
             // get the max thread per block from target.
             ffi::Optional<int64_t> opt_max_thread_per_block =
-                target->GetAttr<int64_t>("max_num_threads");
+                target.value()->GetAttr<int64_t>("max_num_threads");
             TVM_FFI_ICHECK(opt_max_thread_per_block.has_value())
                 << "max_num_threads is not set for target " << target;
             int64_t max_thread_per_block = opt_max_thread_per_block.value();

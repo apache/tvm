@@ -89,7 +89,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     StringImm storage_scope = call->args[2].as_or_throw<StringImm>();
     DataTypeImm output_dtype = DataTypeImm((DLDataType{kDLUInt, 8, 1}));
     return Call(Type::Missing(), vm_alloc_storage_op_,
-                {call->args[0], runtime_device_index, output_dtype, storage_scope}, Attrs());
+                {call->args[0], runtime_device_index, output_dtype, storage_scope}, std::nullopt);
   }
 
   Expr MakeMemAllocTensor(const Call& call) {
@@ -101,12 +101,12 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
       call_args.push_back(call->args[4]);
     }
 
-    return Call(Type::Missing(), vm_alloc_tensor_op_, call_args, Attrs());
+    return Call(Type::Missing(), vm_alloc_tensor_op_, call_args, std::nullopt);
   }
 
   Expr MakeMemKillObject(const Call& call) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 1);
-    return Call(Type::Missing(), vm_kill_object_op_, {call->args[0]}, Attrs());
+    return Call(Type::Missing(), vm_kill_object_op_, {call->args[0]}, std::nullopt);
   }
 
   Expr CallTIRDyn(const Call& call_node) {
@@ -120,7 +120,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     for (Expr arg : tir_args->fields) {
       args.push_back(arg);
     }
-    return Call(Type::Missing(), builtin_call_tir_dyn_, args, Attrs(), {void_ty_});
+    return Call(Type::Missing(), builtin_call_tir_dyn_, args, std::nullopt, {void_ty_});
   }
 
   Expr Reshape(const Call& call_node) {
@@ -134,20 +134,22 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
         << "However, in expression " << call_node << ", the shape argument " << arg << " has type "
         << arg->ty;
 
-    return Call(Type::Missing(), builtin_reshape_, call_node->args, Attrs(), {GetType(call_node)});
+    return Call(Type::Missing(), builtin_reshape_, call_node->args, std::nullopt,
+                {GetType(call_node)});
   }
 
   Expr ShapeOf(const Call& call_node) {
     TVM_FFI_ICHECK(call_node->args.size() == 1);
     TVM_FFI_ICHECK(!call_node->ty.as<MissingType>().has_value());
-    return Call(Type::Missing(), builtin_shape_of_, call_node->args, Attrs(), {GetType(call_node)});
+    return Call(Type::Missing(), builtin_shape_of_, call_node->args, std::nullopt,
+                {GetType(call_node)});
   }
 
   Expr TensorToShape(const Call& call_node) {
     TVM_FFI_ICHECK(call_node->args.size() == 1);
     TVM_FFI_ICHECK(!call_node->ty.as<MissingType>().has_value());
 
-    return Call(Type::Missing(), builtin_tensor_to_shape_, call_node->args, Attrs(),
+    return Call(Type::Missing(), builtin_tensor_to_shape_, call_node->args, std::nullopt,
                 {GetType(call_node)});
   }
 
@@ -175,7 +177,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     args.push_back(call_node->args[0]);
     // Get the DLDeviceType and device_id from VDevice
     VDevice vdev = attrs->dst_vdevice;
-    int dev_type = vdev->target->GetTargetDeviceType();
+    int dev_type = vdev->target.value()->GetTargetDeviceType();
     int dev_id = vdev->vdevice_id;
     StringImm storage_scope = StringImm(vdev->memory_scope);
     args.push_back(IntImm::Int64(dev_type));
@@ -198,7 +200,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
       args.push_back(arg);
     }
 
-    return Call(Type::Missing(), builtin_make_closure_, args, Attrs(), {object_ty_});
+    return Call(Type::Missing(), builtin_make_closure_, args, std::nullopt, {object_ty_});
   }
 
   Expr InvokeClosure(const Call& call_node) {
@@ -216,7 +218,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
       args.push_back(arg);
     }
     return Call(Type::Missing(), call_builtin_with_ctx_op_, {builtin_invoke_closure_, Tuple(args)},
-                Attrs(), {object_ty_});
+                std::nullopt, {object_ty_});
   }
 
   const Op call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");

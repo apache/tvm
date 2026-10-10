@@ -67,7 +67,7 @@ class IntSet : public ffi::ObjectRef {
    * \param max_range The range to be covered.
    * \return The covering range.
    */
-  Range CoverRange(Range max_range) const;
+  ffi::Optional<Range> CoverRange(ffi::Optional<Range> max_range) const;
   /*! \return Lower bound of the set */
   PrimExpr min() const;
   /*! \return upper bound of the set */
@@ -158,7 +158,7 @@ class IntSet : public ffi::ObjectRef {
    */
   static IntSet Interval(PrimExpr min, PrimExpr max);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntSet, ffi::ObjectRef, IntSetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IntSet, ffi::ObjectRef, IntSetNode);
 };
 
 //-----------------------------------------------

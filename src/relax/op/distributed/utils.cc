@@ -83,12 +83,12 @@ Type InferShardingSpec(const Call& call, const BlockBuilder& ctx, const Type& or
         std::vector<distributed::PlacementSpec>(device_mesh->shape.size(),
                                                 distributed::PlacementSpec::Replica()));
     for (int i = 0; i < orig_output_tensor_tys[idx]->ndim; i++) {
-      distributed::AxisShardingSpec sharding_spec;
+      std::optional<distributed::AxisShardingSpec> sharding_spec;
       bool has_sharding_spec;
       std::tie(sharding_spec, has_sharding_spec) =
           axis_group_graph.GetAxisShardingSpec({output_var.get(), i, idx});
       if (has_sharding_spec) {
-        output_placement_specs.Set(sharding_spec.second, distributed::PlacementSpec::Sharding(i));
+        output_placement_specs.Set(sharding_spec->second, distributed::PlacementSpec::Sharding(i));
       }
     }
     new_output_dtensor_tys.push_back(DTensorType(orig_output_tensor_tys[idx], device_mesh,

@@ -91,6 +91,9 @@ class SeqExprFrame : public RelaxFrame {
 /*! \brief The ir_builder frame for the relax function. */
 class FunctionFrameNode : public SeqExprFrameNode {
  public:
+  explicit FunctionFrameNode(tvm::relax::BlockBuilder builder)
+      : block_builder(std::move(builder)) {}
+  explicit FunctionFrameNode(ffi::UnsafeInit) : block_builder(ffi::UnsafeInit{}) {}
   /*!
    * \brief The function name.
    * \note The name will not be specified in constructor, so it is "Optional",

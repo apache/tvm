@@ -20,6 +20,7 @@
 #include <gtest/gtest.h>
 #include <tvm/ir/op.h>
 
+#include <optional>
 #include <string>
 
 namespace tvm {
@@ -86,7 +87,7 @@ TEST(OpSignature, MetadataAndValidator) {
   EXPECT_EQ(ValidationError(op, Call(AnyType(), op, {ordinary, index}, DictAttrs(), {})),
             "Op `test.op_signature.typed`: Call.ty_args expected at least 1 type argument, got "
             "0");
-  EXPECT_EQ(ValidationError(op, Call(AnyType(), op, {ordinary, index}, Attrs(), {scalar})),
+  EXPECT_EQ(ValidationError(op, Call(AnyType(), op, {ordinary, index}, std::nullopt, {scalar})),
             "Op `test.op_signature.typed`: Call.attrs expected `ir.DictAttrs`, got None");
   EXPECT_EQ(ValidationError(op, Call(AnyType(), op, {ordinary, index},
                                      Attrs(ffi::make_object<AttrsNode>()), {scalar})),
@@ -119,10 +120,10 @@ TEST(OpSignature, DefaultsAndRepeatedRegistration) {
   Op op = plain.op();
   EXPECT_FALSE(op->var_args_info.has_value());
   EXPECT_FALSE(op->var_ty_args_info.has_value());
-  EXPECT_NO_THROW(Call(AnyType(), op, {Var("x", AnyType())}, Attrs(), {AnyType()}));
+  EXPECT_NO_THROW(Call(AnyType(), op, {Var("x", AnyType())}, std::nullopt, {AnyType()}));
   EXPECT_NO_THROW(Call(AnyType(), op, {Var("x", AnyType())}, DictAttrs(), {AnyType()}));
   EXPECT_EQ(ValidationError(op, Call(AnyType(), op, {Var("x", AnyType()), Var("y", AnyType())},
-                                     Attrs(), {AnyType()})),
+                                     std::nullopt, {AnyType()})),
             "Op `test.op_signature.defaults`: Call.args expected 1 argument, got 2");
 
   OpDef unnamed("test.op_signature.unnamed");
@@ -137,8 +138,8 @@ TEST(OpSignature, DefaultsAndRepeatedRegistration) {
   EXPECT_TRUE(tails.op()->ty_args_info.empty());
   EXPECT_EQ(tails.op()->var_args_info.value()->name, "values");
   EXPECT_EQ(tails.op()->var_ty_args_info.value()->name, "types");
-  EXPECT_NO_THROW(Call(AnyType(), tails.op(), {}, Attrs(), {}));
-  EXPECT_NO_THROW(Call(AnyType(), tails.op(), {Var("x", AnyType())}, Attrs(), {AnyType()}));
+  EXPECT_NO_THROW(Call(AnyType(), tails.op(), {}, std::nullopt, {}));
+  EXPECT_NO_THROW(Call(AnyType(), tails.op(), {Var("x", AnyType())}, std::nullopt, {AnyType()}));
 
   OpDef repeated("test.op_signature.repeated");
   EXPECT_NO_THROW(repeated.signature(sig::arg("", "value doc"), sig::var_args("", "tail doc"),
@@ -150,7 +151,7 @@ TEST(OpSignature, DefaultsAndRepeatedRegistration) {
   EXPECT_EQ(repeated.op()->var_ty_args_info.value()->name, "");
   EXPECT_TRUE(repeated.op()->validator != nullptr);
   EXPECT_NO_THROW(repeated.op().Validate(
-      Call(AnyType(), repeated.op(), {Var("x", AnyType())}, Attrs(), {AnyType()}).get()));
+      Call(AnyType(), repeated.op(), {Var("x", AnyType())}, std::nullopt, {AnyType()}).get()));
   EXPECT_NO_THROW(repeated.signature(sig::arg("changed"), sig::arg("")));
   EXPECT_EQ(repeated.op()->args_info.size(), 2);
   EXPECT_EQ(repeated.op()->args_info[0]->name, "changed");

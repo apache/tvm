@@ -123,7 +123,7 @@ void LoadMetaDataFromFile(const std::string& file_name, ffi::Map<ffi::String, Fu
   for (const auto& kv : func_info_obj) {
     auto info_node = ffi::make_object<FunctionInfoObj>();
     info_node->LoadFromJSON(kv.second.cast<json::Object>());
-    fmap->Set(kv.first.cast<ffi::String>(), FunctionInfo(std::move(info_node)));
+    fmap->Set(kv.first.cast<ffi::String>(), FunctionInfo(ffi::UnsafeInit{}, std::move(info_node)));
   }
 }
 
@@ -168,7 +168,7 @@ ffi::Map<ffi::String, Tensor> LoadParams(support::Stream* strm) {
   TVM_FFI_ICHECK(size == names.size()) << "Invalid parameters file format";
   for (size_t i = 0; i < size; ++i) {
     // The data_entry is allocated on device, Tensor.load always load the array into CPU.
-    Tensor temp;
+    Tensor temp(ffi::UnsafeInit{});
     temp.Load(strm);
     params.Set(names[i], temp);
   }
@@ -243,7 +243,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         for (const auto& kv : func_info_obj) {
           auto info_node = ffi::make_object<FunctionInfoObj>();
           info_node->LoadFromJSON(kv.second.cast<json::Object>());
-          fmap.Set(kv.first.cast<ffi::String>(), FunctionInfo(std::move(info_node)));
+          fmap.Set(kv.first.cast<ffi::String>(),
+                   FunctionInfo(ffi::UnsafeInit{}, std::move(info_node)));
         }
         return fmap;
       });

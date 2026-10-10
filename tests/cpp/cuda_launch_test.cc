@@ -94,7 +94,7 @@ TEST(CudaLaunch, MetadataReadsLegacyAndRoundTripsNative) {
   bytes.Write(old->arg_types);
   bytes.Write(old->launch_param_tags);
   bytes.Write(old->arg_extra_tags);
-  runtime::FunctionInfo decoded;
+  runtime::FunctionInfo decoded(ffi::UnsafeInit{});
   ASSERT_TRUE(bytes.Read(&decoded));
   EXPECT_EQ(decoded->name, "kernel");
   EXPECT_EQ(decoded->launch_param_tags.size(), 2);

@@ -301,8 +301,10 @@ InferLayoutOutput InferLayoutPool1d(
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ffi::ObjectPtr<Pool1DAttrs> new_attrs = ffi::make_object<Pool1DAttrs>(*attrs);
-  new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(3), layout->layout).name();
-  new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(3), layout->layout).name();
+  new_attrs->layout =
+      TransposeLike(SLayout::Create(attrs->layout), InitialLayout(3), layout->layout).name();
+  new_attrs->out_layout =
+      TransposeLike(SLayout::Create(attrs->out_layout), InitialLayout(3), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 
@@ -440,26 +442,30 @@ InferLayoutOutput InferLayoutPool2d(
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ffi::ObjectPtr<Pool2DAttrs> new_attrs = ffi::make_object<Pool2DAttrs>(*attrs);
 
-  if (layout->layout.ndim() != layout->layout.ndim_primal()) {
+  if ((layout->layout.has_value() ? layout->layout.value().ndim() : 0) !=
+      (layout->layout.has_value() ? layout->layout.value().ndim_primal() : 0)) {
     tvm::PrimType i64_ty = tvm::PrimType::Int(64);
     tirx::SLayout in_layout(attrs->layout, i64_ty);
-    auto desired_layout = TransposeSubLayoutLike(attrs->layout, InitialLayout(4), layout->layout);
+    auto desired_layout =
+        TransposeSubLayoutLike(attrs->layout, InitialLayout(4), layout->layout.value());
     auto data_si = GetType(call->args[0]);
     TensorType data_ty = data_si.as<TensorType>().value();
     ffi::Optional<ShapeExpr> data_shape =
         ffi::GetRef<ShapeExpr>(data_ty->shape.as<ShapeExprNode>());
     if (CanProveLayoutTransform(in_layout, desired_layout, data_shape.value()->values)) {
       // Not handling out_layout being different from in_layout now. Any use case ?
-      new_attrs->layout = desired_layout.name();
-      new_attrs->out_layout = desired_layout.name();
+      new_attrs->layout = desired_layout.value().name();
+      new_attrs->out_layout = desired_layout.value().name();
       return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
     } else {
       layout = InitialLayout(4);
     }
   }
 
-  new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(4), layout->layout).name();
-  new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(4), layout->layout).name();
+  new_attrs->layout =
+      TransposeLike(SLayout::Create(attrs->layout), InitialLayout(4), layout->layout).name();
+  new_attrs->out_layout =
+      TransposeLike(SLayout::Create(attrs->out_layout), InitialLayout(4), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 
@@ -613,8 +619,10 @@ InferLayoutOutput InferLayoutPool3d(
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ffi::ObjectPtr<Pool3DAttrs> new_attrs = ffi::make_object<Pool3DAttrs>(*attrs);
-  new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(5), layout->layout).name();
-  new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(5), layout->layout).name();
+  new_attrs->layout =
+      TransposeLike(SLayout::Create(attrs->layout), InitialLayout(5), layout->layout).name();
+  new_attrs->out_layout =
+      TransposeLike(SLayout::Create(attrs->out_layout), InitialLayout(5), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 
@@ -759,8 +767,10 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool1D(
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ffi::ObjectPtr<AdaptivePool1DAttrs> new_attrs = ffi::make_object<AdaptivePool1DAttrs>(*attrs);
-  new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(3), layout->layout).name();
-  new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(3), layout->layout).name();
+  new_attrs->layout =
+      TransposeLike(SLayout::Create(attrs->layout), InitialLayout(3), layout->layout).name();
+  new_attrs->out_layout =
+      TransposeLike(SLayout::Create(attrs->out_layout), InitialLayout(3), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 
@@ -847,25 +857,29 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool2D(
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ffi::ObjectPtr<AdaptivePool2DAttrs> new_attrs = ffi::make_object<AdaptivePool2DAttrs>(*attrs);
-  if (layout->layout.ndim() != layout->layout.ndim_primal()) {
+  if ((layout->layout.has_value() ? layout->layout.value().ndim() : 0) !=
+      (layout->layout.has_value() ? layout->layout.value().ndim_primal() : 0)) {
     tvm::PrimType i64_ty = tvm::PrimType::Int(64);
     tirx::SLayout in_layout(attrs->layout, i64_ty);
-    auto desired_layout = TransposeSubLayoutLike(attrs->layout, InitialLayout(4), layout->layout);
+    auto desired_layout =
+        TransposeSubLayoutLike(attrs->layout, InitialLayout(4), layout->layout.value());
     auto data_si = GetType(call->args[0]);
     TensorType data_ty = data_si.as<TensorType>().value();
     ffi::Optional<ShapeExpr> data_shape =
         ffi::GetRef<ShapeExpr>(data_ty->shape.as<ShapeExprNode>());
     if (CanProveLayoutTransform(in_layout, desired_layout, data_shape.value()->values)) {
       // Not handling out_layout being different from in_layout now. Any use case ?
-      new_attrs->layout = desired_layout.name();
-      new_attrs->out_layout = desired_layout.name();
+      new_attrs->layout = desired_layout.value().name();
+      new_attrs->out_layout = desired_layout.value().name();
       return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
     } else {
       layout = InitialLayout(4);
     }
   }
-  new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(4), layout->layout).name();
-  new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(4), layout->layout).name();
+  new_attrs->layout =
+      TransposeLike(SLayout::Create(attrs->layout), InitialLayout(4), layout->layout).name();
+  new_attrs->out_layout =
+      TransposeLike(SLayout::Create(attrs->out_layout), InitialLayout(4), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 
@@ -955,8 +969,10 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool3D(
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ffi::ObjectPtr<AdaptivePool3DAttrs> new_attrs = ffi::make_object<AdaptivePool3DAttrs>(*attrs);
-  new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(5), layout->layout).name();
-  new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(5), layout->layout).name();
+  new_attrs->layout =
+      TransposeLike(SLayout::Create(attrs->layout), InitialLayout(5), layout->layout).name();
+  new_attrs->out_layout =
+      TransposeLike(SLayout::Create(attrs->out_layout), InitialLayout(5), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 

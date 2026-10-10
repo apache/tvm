@@ -93,9 +93,7 @@ DispatchContext::DispatchContext(Target target, ExecScope exec_scope,
                                  ffi::Map<ffi::String, ffi::Array<PrimExpr>> inter,
                                  ffi::Map<ffi::String, ffi::Array<PrimExpr>> intra,
                                  ffi::String scope_kind) {
-  auto n = ffi::make_object<DispatchContextNode>();
-  n->target = std::move(target);
-  n->exec_scope = std::move(exec_scope);
+  auto n = ffi::make_object<DispatchContextNode>(std::move(target), std::move(exec_scope));
   for (const auto& [tag, binding] : launch_params) {
     PrimType var_ty = binding.get<0>().ty();
     PrimType extent_ty = binding.get<1>().ty();

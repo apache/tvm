@@ -72,14 +72,14 @@ class MutateUnrollNode : public MutatorNode {
   // Inherit from `MutatorNode`
   Mutator Clone() const final {
     ffi::ObjectPtr<MutateUnrollNode> n = ffi::make_object<MutateUnrollNode>(*this);
-    return Mutator(n);
+    return Mutator(ffi::UnsafeInit{}, n);
   }
 };
 
 /*! \brief A candidate to be mutated */
 struct MutateUnrollNode::Candidate {
   /*! \brief The sampling instruction to be mutated */
-  Instruction inst;
+  ffi::Optional<Instruction> inst;
   /*! \brief The probability */
   std::vector<double> probs;
   /*! \brief The decision made */
@@ -142,11 +142,13 @@ ffi::Optional<Trace> MutateUnrollNode::Apply(const Trace& trace, TRandState* ran
   if (result >= candidate.decision) {
     result += 1;
   }
-  return trace->WithDecision(candidate.inst, static_cast<int64_t>(result),
+  return trace->WithDecision(candidate.inst.value(), static_cast<int64_t>(result),
                              /*remove_postproc=*/true);
 }
 
-Mutator Mutator::MutateUnroll() { return Mutator(ffi::make_object<MutateUnrollNode>()); }
+Mutator Mutator::MutateUnroll() {
+  return Mutator(ffi::UnsafeInit{}, ffi::make_object<MutateUnrollNode>());
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() { MutateUnrollNode::RegisterReflection(); }
 

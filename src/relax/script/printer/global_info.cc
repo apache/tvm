@@ -38,12 +38,14 @@ ffi::Optional<ffi::String> GlobalInfoSelector(DocTranslatorObj* d, const GlobalI
   if (!module.has_value()) return std::nullopt;
   const auto& infos = module.value()->global_infos;
   if (auto query = info.as<relax::VDevice>()) {
+    if (!query.value()->target.has_value()) return std::nullopt;
     if (auto devices = infos.Get("vdevice")) {
-      ffi::String kind = query.value()->target->kind->name;
+      ffi::String kind = query.value()->target.value()->kind->name;
       size_t index = 0;
       for (const GlobalInfo& entry : devices.value()) {
         if (auto device = entry.as<relax::VDevice>();
-            device && device.value()->target->kind->name == kind) {
+            device && device.value()->target.has_value() &&
+            device.value()->target.value()->kind->name == kind) {
           if (entry.same_as(info)) {
             return ffi::String(std::string(kind) + ":" + std::to_string(index));
           }

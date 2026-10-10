@@ -87,7 +87,7 @@ class TensorIntrin : public ffi::ObjectRef {
    */
   TVM_DLL static ffi::Optional<TensorIntrin> Get(ffi::String name, bool allow_missing = false);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorIntrin, ffi::ObjectRef, TensorIntrinNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorIntrin, ffi::ObjectRef, TensorIntrinNode);
 };
 
 }  // namespace s_tir

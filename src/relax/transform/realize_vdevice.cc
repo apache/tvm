@@ -52,7 +52,7 @@ class VDeviceLookup {
     opt_vdevices_ = opt_global_info.value().Map(downcast_vdevice);
   }
 
-  VDevice operator()(Attrs hint_on_device_attrs) {
+  VDevice operator()(ffi::Optional<Attrs> hint_on_device_attrs) {
     auto attrs = hint_on_device_attrs.as<HintOnDeviceAttrs>();
     TVM_FFI_ICHECK(attrs);
     int32_t device_type = attrs->device_type;
@@ -67,7 +67,7 @@ class VDeviceLookup {
         << "The device id in R.hint_on_device must not be negative";
 
     for (auto vdevice : vdevices) {
-      int dev_type = vdevice->target->GetTargetDeviceType();
+      int dev_type = vdevice->target.value()->GetTargetDeviceType();
       if (dev_type == device_type && vdevice->vdevice_id == device_id &&
           memory_scope == vdevice->memory_scope) {
         return vdevice;
@@ -395,8 +395,7 @@ class VDeviceTypeUpdater : ExprMutator {
     if (input_vdevice.has_value() && input_vdevice.value() == output_vdevice) {
       return arg;
     } else {
-      ffi::ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>();
-      attrs->dst_vdevice = output_vdevice;
+      ffi::ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>(output_vdevice);
       return Call(Type::Missing(), to_vdevice_op_, {arg}, Attrs(attrs), {});
     }
   }

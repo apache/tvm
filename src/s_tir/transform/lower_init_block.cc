@@ -67,7 +67,7 @@ class InitBlockLower : public StmtExprMutator {
     std::vector<PrimExpr> conditions;
     for (const IterVar& var : iter_vars) {
       if (var->iter_type == IterVarType::kCommReduce) {
-        conditions.push_back(equal(var->var, var->dom->min));
+        conditions.push_back(equal(var->var, var->dom.value()->min));
       }
     }
     // Handle the case where there is no condition

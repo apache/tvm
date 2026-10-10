@@ -663,7 +663,7 @@ class NoMatchedReducerError : public ScheduleErrorContextObj {
 std::tuple<te::CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAndCombinerLhsRhs(
     const ffi::Optional<ScheduleState>& self, const ffi::Array<PrimExpr>& identities,
     const ffi::Array<TensorStore>& combiners) {
-  te::CommReducer reducer{nullptr};
+  te::CommReducer reducer{ffi::UnsafeInit{}};
   ffi::Array<PrimExpr> combiner_lhs, combiner_rhs;
   bool matched =
       FromIdentityCombiner(identities, combiners, &reducer, &combiner_lhs, &combiner_rhs);

@@ -38,7 +38,7 @@ namespace relax {
 // TODO(@altanh): LCA binding lifting
 class NormalizeMutator : public ExprMutatorBase {
  public:
-  NormalizeMutator() { builder_ = BlockBuilder::Create(std::nullopt); }
+  NormalizeMutator() : builder_(BlockBuilder::Create(std::nullopt)) {}
 
   Expr VisitExpr(const Expr& expr) override {
     return builder_->Normalize(ExprMutatorBase::VisitExpr(expr));
@@ -109,7 +109,7 @@ class NormalizeMutator : public ExprMutatorBase {
   }
 
   BindingBlock VisitBindingBlock(const BindingBlock& block) final {
-    BindingBlock ret;
+    BindingBlock ret(ffi::UnsafeInit{});
     if (const auto* node = block.as<DataflowBlockNode>()) {
       ret = VisitBindingBlock_(node);
     } else if (const auto* node = block.as<BindingBlockNode>()) {

@@ -709,7 +709,7 @@ bool NeedsRFactorOrCrossThreadReduction(const s_tir::ScheduleState& self,  //
 ffi::Array<sym::IntSet> AnalyzeRegionUpperBound(const TensorRegion& region,
                                                 const PrimExpr& predicate,
                                                 const StmtSRef& dom_low_inclusive,
-                                                const StmtSRef& dom_high_exclusive,
+                                                const ffi::Optional<StmtSRef>& dom_high_exclusive,
                                                 sym::AnalyzerObj* analyzer);
 
 /*!
@@ -725,7 +725,7 @@ ffi::Array<sym::IntSet> AnalyzeRegionUpperBound(const TensorRegion& region,
 ffi::Array<sym::IntSet> AnalyzeRegionLowerBound(const TensorRegion& region,
                                                 const PrimExpr& predicate,
                                                 const StmtSRef& dom_low_inclusive,
-                                                const StmtSRef& dom_high_exclusive,
+                                                const ffi::Optional<StmtSRef>& dom_high_exclusive,
                                                 sym::AnalyzerObj* analyzer);
 
 /*!

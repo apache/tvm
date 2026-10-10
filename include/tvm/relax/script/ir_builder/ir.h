@@ -30,7 +30,7 @@ namespace ir_builder {
 namespace relax {
 
 /*! \brief Find a module virtual device by target kind and index. */
-TVM_DLL tvm::relax::VDevice LookupVDevice(ffi::String target_kind, int device_index);
+TVM_DLL ffi::Optional<tvm::relax::VDevice> LookupVDevice(ffi::String target_kind, int device_index);
 
 /////////////////////////////// Function ////////////////////////////////
 

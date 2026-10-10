@@ -275,7 +275,7 @@ class ShardingConflictHandler : public ExprVisitor {
     std::unordered_set<int> sharded_mesh_dim;
     ffi::Optional<DeviceMesh> device_mesh;
     for (int i = -1; i < ndim; i++) {
-      AxisShardingSpec sharding_spec;
+      std::optional<AxisShardingSpec> sharding_spec;
       int has_sharding_spec;
       std::tie(sharding_spec, has_sharding_spec) =
           axis_group_graph_->GetAxisShardingSpec({var.get(), i});
@@ -284,22 +284,22 @@ class ShardingConflictHandler : public ExprVisitor {
       }
 
       if (device_mesh.has_value()) {
-        TVM_FFI_ICHECK(ffi::StructuralEqual()(device_mesh.value(), sharding_spec.first))
+        TVM_FFI_ICHECK(ffi::StructuralEqual()(device_mesh.value(), sharding_spec->first))
             << "Sharding conflict detected for tensor " << var->name << ": Device Mesh mismatch"
             << ". Conflict Handling logic will be added in the future.";
       } else {
-        device_mesh = sharding_spec.first;
+        device_mesh = sharding_spec->first;
       }
       if (i >= 0) {
-        int sharding_dim = sharding_spec.second;
+        int sharding_dim = sharding_spec->second;
         TVM_FFI_ICHECK(sharded_mesh_dim.count(sharding_dim) == 0)
             << "Sharding conflict detected for tensor " << var->name
             << ": Replicate sharding device mesh axis " << sharding_dim
             << ". Conflict Handling logic will be added in the future.";
         sharded_mesh_dim.insert(sharding_dim);
         if (const auto* val = shape->values[i].as<IntImmNode>()) {
-          if (val->value < device_mesh.value()->shape[sharding_spec.second]) {
-            axis_group_graph_->AddPropagationCutPoint({var.get(), i}, sharding_spec);
+          if (val->value < device_mesh.value()->shape[sharding_spec->second]) {
+            axis_group_graph_->AddPropagationCutPoint({var.get(), i}, sharding_spec.value());
           }
         }
       }
@@ -309,7 +309,7 @@ class ShardingConflictHandler : public ExprVisitor {
   void CheckConstantNoSharding(GenericConst constant) {
     const auto* tensor_ty = GetTypeAs<TensorTypeNode>(constant);
     for (int i = 0; i < tensor_ty->ndim; i++) {
-      AxisShardingSpec sharding_spec;
+      std::optional<AxisShardingSpec> sharding_spec;
       int has_sharding_spec;
       std::tie(sharding_spec, has_sharding_spec) =
           axis_group_graph_->GetAxisShardingSpec({constant.get(), i});
@@ -363,19 +363,20 @@ class DistributedIRBuilder : public ExprMutator {
 
   DTensorType ConvertToDTensorType(TensorType tensor_ty, Expr expr, int tuple_idx = 0) {
     int ndim = tensor_ty->ndim;
-    DeviceMesh device_mesh =
-        std::get<0>(axis_group_graph_.GetAxisShardingSpec({expr.get(), -1, tuple_idx})).first;
-    TVM_FFI_ICHECK(device_mesh.defined())
+    auto mesh_spec =
+        std::get<0>(axis_group_graph_.GetAxisShardingSpec({expr.get(), -1, tuple_idx}));
+    TVM_FFI_ICHECK(mesh_spec.has_value())
         << expr << "[" << tuple_idx << "] is not assigned device mesh";
+    DeviceMesh device_mesh = mesh_spec->first;
     ffi::Array<PlacementSpec> placement_specs(
         std::vector<PlacementSpec>(device_mesh->shape.size(), PlacementSpec::Replica()));
     for (int i = 0; i < ndim; i++) {
-      AxisShardingSpec sharding_spec;
+      std::optional<AxisShardingSpec> sharding_spec;
       bool has_sharding_spec;
       std::tie(sharding_spec, has_sharding_spec) =
           axis_group_graph_.GetAxisShardingSpec({expr.get(), i, tuple_idx});
       if (has_sharding_spec) {
-        int sharding_dim = sharding_spec.second;
+        int sharding_dim = sharding_spec->second;
         placement_specs.Set(sharding_dim, PlacementSpec::Sharding(i));
       }
     }
@@ -534,20 +535,20 @@ class DistributedIRBuilder : public ExprMutator {
       return;
     }
     // Get the annotated output type from the axis group graph.
-    DeviceMesh device_mesh =
-        std::get<0>(axis_group_graph_.GetAxisShardingSpec({binding->var.get(), -1})).first;
-    TVM_FFI_ICHECK(device_mesh.defined());
+    auto mesh_spec = std::get<0>(axis_group_graph_.GetAxisShardingSpec({binding->var.get(), -1}));
+    TVM_FFI_ICHECK(mesh_spec.has_value());
+    DeviceMesh device_mesh = mesh_spec->first;
     ffi::Array<Placement> placements;  // every tuple element has a placement
     for (int idx = 0; idx < static_cast<int>(orig_output_tys.size()); idx++) {
       ffi::Array<PlacementSpec> placement_specs(
           std::vector<PlacementSpec>(device_mesh->shape.size(), PlacementSpec::Replica()));
       for (int i = 0; i < orig_output_tys[idx]->ndim; i++) {
-        AxisShardingSpec sharding_spec;
+        std::optional<AxisShardingSpec> sharding_spec;
         bool has_sharding_spec;
         std::tie(sharding_spec, has_sharding_spec) =
             axis_group_graph_.GetAxisShardingSpec({binding->var.get(), i, idx});
         if (has_sharding_spec) {
-          placement_specs.Set(sharding_spec.second, PlacementSpec::Sharding(i));
+          placement_specs.Set(sharding_spec->second, PlacementSpec::Sharding(i));
         }
       }
       placements.push_back(Placement(placement_specs));

@@ -164,7 +164,7 @@ inline Tensor DoCommReduce(const Tensor& data, FReduce func,
     return func(data(eval_range), r_axes, {}, loc);
   };
 
-  return tvm::te::compute(target_shape, compute, data->op->name + "_red", kCommReduce);
+  return tvm::te::compute(target_shape, compute, data->op.value()->name + "_red", kCommReduce);
 }
 
 /*!
@@ -184,7 +184,7 @@ inline Tensor CommReduce(const Tensor& data, const ffi::Optional<ffi::Array<int6
                          FReduce func, bool keepdims, bool atleast1d) {
   auto ndim = data->shape.size();
   if (ndim == 0) {
-    auto identity = topi::identity(data, data->op->name + "_red", kCommReduce);
+    auto identity = topi::identity(data, data->op.value()->name + "_red", kCommReduce);
     return atleast1d ? topi::expand_dims(identity, 0, 1) : identity;
   }
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
@@ -246,12 +246,12 @@ inline Tensor CommReduceIdx(const Tensor& data, const ffi::Optional<ffi::Array<i
   };
 
   auto temp_idx_val =
-      tvm::te::compute(target_shape, compute, data->op->name + "_red_temp", kCommReduceIdx);
+      tvm::te::compute(target_shape, compute, data->op.value()->name + "_red_temp", kCommReduceIdx);
   auto temp_idx = temp_idx_val[0];
   auto temp_val = temp_idx_val[1];
   return tvm::te::compute(
       target_shape, [&temp_idx](const ffi::Array<PrimVar>& indices) { return temp_idx(indices); },
-      data->op->name + "_red", kCommReduceIdx);
+      data->op.value()->name + "_red", kCommReduceIdx);
 }
 
 /*! \brief A combiner function for a reduction */

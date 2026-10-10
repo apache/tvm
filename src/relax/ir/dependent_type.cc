@@ -296,7 +296,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.TensorType", [](ffi::Optional<Expr> shape, ffi::Optional<PrimType> dtype, int ndim,
-                             VDevice vdevice, Location loc) {
+                             ffi::Optional<VDevice> vdevice, Location loc) {
         if (shape.has_value()) {
           TVM_FFI_CHECK_EQ(ndim, kUnknownNDim, ValueError) << "Cannot both specify shape and ndim";
           return TensorType(shape.value(), dtype, vdevice, loc);

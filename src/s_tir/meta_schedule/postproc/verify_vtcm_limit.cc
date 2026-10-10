@@ -46,10 +46,9 @@ class VerifyVTCMLimitNode : public PostprocNode {
 
   bool Apply(const s_tir::Schedule& sch) final {
     IRModule mod = sch->mod();
-    IRModule lowered{nullptr};
     auto pass_list = s_tir::GetVTCMCompactionPasses();
     tvm::transform::PassContext pass_ctx = tvm::transform::PassContext::Current();
-    lowered = tvm::transform::Sequential(pass_list)(std::move(mod));
+    IRModule lowered = tvm::transform::Sequential(pass_list)(std::move(mod));
     if (!Verify(lowered)) {
       return false;
     }
@@ -58,7 +57,7 @@ class VerifyVTCMLimitNode : public PostprocNode {
 
   Postproc Clone() const {
     ffi::ObjectPtr<VerifyVTCMLimitNode> n = ffi::make_object<VerifyVTCMLimitNode>(*this);
-    return Postproc(n);
+    return Postproc(ffi::UnsafeInit{}, n);
   }
 
   static void RegisterReflection() {
@@ -72,7 +71,7 @@ class VerifyVTCMLimitNode : public PostprocNode {
 
 Postproc Postproc::VerifyVTCMLimit() {
   ffi::ObjectPtr<VerifyVTCMLimitNode> n = ffi::make_object<VerifyVTCMLimitNode>();
-  return Postproc(n);
+  return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

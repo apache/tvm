@@ -844,7 +844,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               *ret = prim::MakeConst(args[1].cast<PrimType>(), *opt, args[2].cast<Location>());
             } else {
               TVM_FFI_THROW(InternalError)
-                  << "First argument to tvm.tirx.const must be int, float, or bool, "
+                  << "First argument to tvm.ir.const must be int, float, or bool, "
                   << "but instead received argument with type code " << args[0].GetTypeKey();
             }
           })

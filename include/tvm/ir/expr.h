@@ -949,7 +949,7 @@ class CallNode : public ExprNode {
   ffi::Array<Expr> args;
 
   /*! \brief The additional attributes. */
-  Attrs attrs;
+  ffi::Optional<Attrs> attrs;
 
   /*! \brief The type information arguments passed to the callee. */
   ffi::Array<Type> ty_args;
@@ -974,7 +974,8 @@ class Call : public Expr {
   /*! \brief Construct a Call, inferring only when ret_ty is absent.
    * Construction preserves provisional IR; invoke Validate separately when needed.
    */
-  TVM_DLL Call(ffi::Optional<Type> ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs = Attrs(),
+  TVM_DLL Call(ffi::Optional<Type> ret_ty, Expr op, ffi::Array<Expr> args,
+               ffi::Optional<Attrs> attrs = std::nullopt,
                ffi::Array<Type> ty_args = ffi::Array<Type>(), Location loc = UnknownLoc());
 
   /*! \brief Check this Call against its registered operator contract. */
@@ -1042,7 +1043,11 @@ class Range : public ffi::ObjectRef {
    */
   TVM_DLL static Range FromMinExtent(PrimExpr min, PrimExpr extent, Location loc = UnknownLoc());
   // declare range.
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Range, ffi::ObjectRef, RangeNode);
+  explicit Range(ffi::UnsafeInit tag, ffi::ObjectPtr<RangeNode> n) : ffi::ObjectRef(tag) {
+    data_ = std::move(n);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Range, ffi::ObjectRef, RangeNode);
 };
 
 /*! \brief A region of an indexed expression source. */

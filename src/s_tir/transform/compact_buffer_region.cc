@@ -56,7 +56,8 @@ NDIntSet NDIntSetEval(ffi::Array<Range> region, PrimExpr predicate,
                       sym::AnalyzerObj* analyzer) {
   std::unordered_map<Var, Range, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_dom;
   for (const auto& it : dom_map) {
-    var_dom[ffi::GetRef<Var>(it.first)] = it.second.CoverRange(Range::FromMinExtent(0, 0));
+    var_dom.insert_or_assign(ffi::GetRef<Var>(it.first),
+                             it.second.CoverRange(Range::FromMinExtent(0, 0)).value());
   }
   sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
   ffi::Optional<ffi::Array<sym::IntSet>> eval_res =
@@ -187,9 +188,9 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     Range loop_range = Range::FromMinExtent(op->min, op->extent);
     IterVar iter = tvm::tirx::GetThreadBinding(op).has_value()
-                       ? IterVar(Range(), op->loop_var, IterVarType::kThreadIndex,
+                       ? IterVar(std::nullopt, op->loop_var, IterVarType::kThreadIndex,
                                  tvm::tirx::GetThreadBinding(op).value())
-                       : IterVar(Range(), op->loop_var, IterVarType::kDataPar);
+                       : IterVar(std::nullopt, op->loop_var, IterVarType::kDataPar);
     ancestor_iters_.push_back(iter);
     dom_analyzer_->Bind(op->loop_var, loop_range);
     dom_map_.emplace(op->loop_var.get(), sym::IntSet::FromRange(loop_range));
@@ -391,7 +392,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       size_t n_ancestor_loops = it->second;
       // Step 1. Stop ancestor loop vars out of the allocation block from
       // being relaxed unless NeedRelaxThread() is true.
-      std::vector<sym::IntSet> non_relaxed(n_ancestor_loops);
+      std::vector<ffi::Optional<sym::IntSet>> non_relaxed(n_ancestor_loops);
       for (size_t i = 0; i < n_ancestor_loops; ++i) {
         const IterVar& iter = ancestor_iters_[i];
         const VarNode* v = iter->var.get();
@@ -421,7 +422,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       // Step 3. Restore the non-relaxed ancestor loops domain
       for (size_t i = 0; i < n_ancestor_loops; ++i) {
         const VarNode* v = ancestor_iters_[i]->var.get();
-        dom_map_.emplace(v, non_relaxed[i]);
+        if (non_relaxed[i].has_value()) dom_map_.emplace(v, non_relaxed[i].value());
       }
       // Step 4. Update relaxed_accesses_ dict
       auto access_it = relaxed_accesses_.find(buffer);
@@ -480,7 +481,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       const sym::IntSet& int_set = nd_int_set[i];
       Range original =
           Range(/*begin=*/IntImm(original_shape[i].ty(), 0), /*end=*/original_shape[i]);
-      Range range = int_set.CoverRange(original);
+      Range range = int_set.CoverRange(original).value();
       PrimExpr min{ffi::UnsafeInit{}};
       PrimExpr extent{ffi::UnsafeInit{}};
       if (collect_inbound_) {

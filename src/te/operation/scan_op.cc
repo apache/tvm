@@ -48,7 +48,8 @@ ffi::Array<PrimExpr> ScanOpNode::output_shape(size_t i) const {
 ScanOp::ScanOp(std::string name, std::string tag,
                ffi::Optional<ffi::Map<ffi::String, ffi::Any>> attrs, IterVar axis,
                ffi::Array<Tensor> init, ffi::Array<Tensor> update,
-               ffi::Array<Tensor> state_placeholder, ffi::Array<Tensor> inputs) {
+               ffi::Array<Tensor> state_placeholder, ffi::Array<Tensor> inputs)
+    : Operation(ffi::UnsafeInit{}) {
   if (!attrs.has_value()) {
     attrs = ffi::Map<ffi::String, ffi::Any>();
   }
@@ -63,9 +64,10 @@ ScanOp::ScanOp(std::string name, std::string tag,
   for (size_t i = 0; i < init.size(); ++i) {
     TVM_FFI_ICHECK_EQ(init[i]->dtype, state_placeholder[i]->dtype);
     TVM_FFI_ICHECK_EQ(init[i]->dtype, update[i]->dtype);
-    TVM_FFI_ICHECK(prove_equal(init[i]->shape[0], axis->dom->min))
+    TVM_FFI_ICHECK(prove_equal(init[i]->shape[0], axis->dom.value()->min))
         << "init.shape[0] need to match scan_axis.dom.min";
-    TVM_FFI_ICHECK(prove_equal(state_placeholder[i]->shape[0], axis->dom->min + axis->dom->extent))
+    TVM_FFI_ICHECK(prove_equal(state_placeholder[i]->shape[0],
+                               axis->dom.value()->min + axis->dom.value()->extent))
         << "state_placeholder.shape[0] need to match"
         << " scan_axis.dom.min + scan_axis.dom.extent";
     TVM_FFI_ICHECK_EQ(state_placeholder[i].ndim(), init[i].ndim())

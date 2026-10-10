@@ -173,7 +173,7 @@ class ConstIntBoundAnalyzer::Impl
              val->second->max_value == everything.max_value))
             << "Detected bound for " << expr << "conflicts with memorization";
       }
-      (*bound_)[prim_expr] = ConstIntBound(res.min_value, res.max_value);
+      bound_->insert_or_assign(prim_expr, ConstIntBound(res.min_value, res.max_value));
     }
     return res;
   }

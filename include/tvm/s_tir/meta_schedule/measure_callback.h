@@ -109,6 +109,11 @@ class PyMeasureCallbackNode : public MeasureCallbackNode {
  */
 class MeasureCallback : public ffi::ObjectRef {
  public:
+  explicit MeasureCallback(ffi::UnsafeInit tag, ffi::ObjectPtr<MeasureCallbackNode> data)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
+  }
+
   /*!
    * \brief Create a measure callback that adds the measurement results into the database
    * \return The measure callback created.
@@ -132,7 +137,8 @@ class MeasureCallback : public ffi::ObjectRef {
   TVM_DLL static MeasureCallback PyMeasureCallback(PyMeasureCallbackNode::FApply f_apply);
   /*! \brief The default list of measure callbacks. */
   TVM_DLL static ffi::Array<MeasureCallback, void> Default();
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MeasureCallback, ffi::ObjectRef, MeasureCallbackNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MeasureCallback, ffi::ObjectRef,
+                                                MeasureCallbackNode);
 };
 
 }  // namespace meta_schedule

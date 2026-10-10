@@ -70,11 +70,16 @@ class CuDNNSDPARunner : public tvm::ffi::ObjectRef {
  public:
   static CuDNNSDPARunner Create() {
     auto n = ffi::make_object<CuDNNSDPARunnerNode>();
-    return CuDNNSDPARunner(n);
+    return CuDNNSDPARunner(ffi::UnsafeInit{}, n);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CuDNNSDPARunner, tvm::ffi::ObjectRef,
-                                             CuDNNSDPARunnerNode);
+  explicit CuDNNSDPARunner(ffi::UnsafeInit tag, ffi::ObjectPtr<CuDNNSDPARunnerNode> n)
+      : tvm::ffi::ObjectRef(tag) {
+    data_ = std::move(n);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CuDNNSDPARunner, tvm::ffi::ObjectRef,
+                                                CuDNNSDPARunnerNode);
 };
 
 }  // namespace contrib

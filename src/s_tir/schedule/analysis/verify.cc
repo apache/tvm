@@ -132,7 +132,7 @@ class SRefTreeVerifier : public StmtExprVisitor {
     int n = static_cast<int>(seq_stmt->seq.size());
     for (int i = 0; i < n; ++i) {
       const Stmt& child = seq_stmt->seq[i];
-      StmtSRef sref{nullptr};
+      StmtSRef sref{ffi::UnsafeInit{}};
       if (const auto* realize = child.as<SBlockRealizeNode>()) {
         const auto* block = realize->block.get();
         TVM_FFI_ICHECK(self_->stmt2ref.count(block));

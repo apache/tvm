@@ -631,7 +631,7 @@ class Select(ExprWithOp):
     Note
     ----
     Select may compute both true_value and false_value.
-    Use :py:class:`tvm.tirx.if_then_else` instead if you want to
+    Use :py:func:`tvm.ir.prim.if_then_else` instead if you want to
     get a conditional expression that only evaluates
     the correct branch.
 

@@ -301,13 +301,13 @@ ffi::Map<ffi::String, PrimExpr> ApplyStructured(const ComposeLayoutNode* layout,
 
 /**************** ComposeLayout ****************/
 ComposeLayout::ComposeLayout(int per_element, int swizzle_len, int atom_len, TileLayout tile_layout,
-                             bool swizzle_inner) {
-  auto n = ffi::make_object<ComposeLayoutNode>();
+                             bool swizzle_inner)
+    : Layout(ffi::UnsafeInit{}) {
+  auto n = ffi::make_object<ComposeLayoutNode>(std::move(tile_layout));
   n->per_element = per_element;
   n->swizzle_len = swizzle_len;
   n->atom_len = atom_len;
   n->swizzle_inner = swizzle_inner;
-  n->tile_layout = std::move(tile_layout);
   TVM_FFI_ICHECK(n->VerifyWellFormed()) << "ValueError: The compose layout is not well-formed";
   int swizzle_mask = (1 << swizzle_len) - 1;
   n->inner_mask = swizzle_mask;

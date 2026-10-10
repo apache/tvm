@@ -443,7 +443,7 @@ class VMShapeLowerMutator
     auto [code, rvalue] = MakeMatchArgs(slot->expr, false);
     ffi::Array<Expr> args = {runtime_var, shape_heap_, IntImm::Int64(static_cast<int>(code)),
                              rvalue, GetErrContext(err_ctx)};
-    builder_->Emit(Call(Type::Missing(), builtin_match_prim_value_, args, Attrs(), {void_ty_}),
+    builder_->Emit(Call(Type::Missing(), builtin_match_prim_value_, args, std::nullopt, {void_ty_}),
                    "_");
     this->EmitOutstandingPrimExprCompute();
   }
@@ -481,7 +481,7 @@ class VMShapeLowerMutator
       Var var("shape_heap", heap_ty);
       // set up the builtin func.
       Call call(Type::Missing(), call_builtin_with_ctx_op_,
-                {builtin_alloc_shape_heap_, Tuple({PrimExpr(heap_size)})}, Attrs(), {heap_ty});
+                {builtin_alloc_shape_heap_, Tuple({PrimExpr(heap_size)})}, std::nullopt, {heap_ty});
       UpdateType(call, heap_ty);
       return VarBinding(var, call);
     } else {
@@ -532,7 +532,7 @@ class VMShapeLowerMutator
     args.push_back(value_or_index);
 
     // make_shape(heap, n, c[0], r[0], c[1], r[1] ..., c[n], r[n])
-    Call call(Type::Missing(), builtin_make_prim_value_, args, Attrs(), {value.ty()});
+    Call call(Type::Missing(), builtin_make_prim_value_, args, std::nullopt, {value.ty()});
     return call;
   }
 
@@ -554,7 +554,7 @@ class VMShapeLowerMutator
     }
 
     // make_shape(heap, n, c[0], r[0], c[1], r[1] ..., c[n], r[n])
-    Call call(Type::Missing(), builtin_make_shape_, args, Attrs(),
+    Call call(Type::Missing(), builtin_make_shape_, args, std::nullopt,
               {ShapeType(static_cast<int>(op->values.size()))});
     return call;
   }
@@ -674,7 +674,7 @@ class VMShapeLowerMutator
       }
       args.push_back(GetErrContext(item.err_ctx));
       if (!all_nop) {
-        Call call(Type::Missing(), match_op, args, Attrs(), {void_ty_});
+        Call call(Type::Missing(), match_op, args, std::nullopt, {void_ty_});
         builder_->Emit(call, "_");
       }
     }
@@ -800,7 +800,7 @@ class VMShapeLowerMutator
                   const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {
     if (always_check || !IsBaseOf(StringType(), GetType(value))) {
       builder_->Emit(Call(Type::Missing(), ExternFunc("vm.builtin.check_string_info"),
-                          {value, GetErrContext(err_ctx)}, Attrs(), {void_ty_}),
+                          {value, GetErrContext(err_ctx)}, std::nullopt, {void_ty_}),
                      "_");
     }
   }
@@ -811,7 +811,7 @@ class VMShapeLowerMutator
     if (always_check || !IsBaseOf(PrimType(op->dtype), GetType(value))) {
       // check_shape_info(value, ndim, err_ctx)
       Call call(Type::Missing(), builtin_check_prim_value_info_,
-                {value, DataTypeImm(op->dtype), GetErrContext(err_ctx)}, Attrs(), {void_ty_});
+                {value, DataTypeImm(op->dtype), GetErrContext(err_ctx)}, std::nullopt, {void_ty_});
       builder_->Emit(call, "_");
     }
   }
@@ -822,7 +822,7 @@ class VMShapeLowerMutator
     if (always_check || !IsBaseOf(ShapeType(op->ndim), GetType(value))) {
       // check_shape_info(value, ndim, err_ctx)
       Call call(Type::Missing(), builtin_check_shape_info_,
-                {value, IntImm::Int64(op->ndim), GetErrContext(err_ctx)}, Attrs(), {void_ty_});
+                {value, IntImm::Int64(op->ndim), GetErrContext(err_ctx)}, std::nullopt, {void_ty_});
       builder_->Emit(call, "_");
     }
     if (op->values.has_value()) {
@@ -845,7 +845,7 @@ class VMShapeLowerMutator
       Expr dtype_arg = op->IsUnknownDtype() ? Expr(Call(Type::Missing(), null_value_op_, {}))
                                             : Expr(DataTypeImm(op->dtype.value()->dtype));
       Call call(Type::Missing(), builtin_check_tensor_info_,
-                {value, IntImm::Int64(op->ndim), dtype_arg, GetErrContext(err_ctx)}, Attrs(),
+                {value, IntImm::Int64(op->ndim), dtype_arg, GetErrContext(err_ctx)}, std::nullopt,
                 {void_ty_});
       builder_->Emit(call, "_");
     }
@@ -873,8 +873,8 @@ class VMShapeLowerMutator
       return TupleGetItem(value, index);
     } else {
       // call runtime tuple get item, and return a object.
-      Call call(Type::Missing(), builtin_tuple_getitem_, {value, IntImm::Int64(index)}, Attrs(),
-                {object_ty_});
+      Call call(Type::Missing(), builtin_tuple_getitem_, {value, IntImm::Int64(index)},
+                std::nullopt, {object_ty_});
       UpdateType(call, ObjectType());
       return call;
     }
@@ -892,7 +892,7 @@ class VMShapeLowerMutator
       Call call(
           Type::Missing(), builtin_check_tuple_info_,
           {value, IntImm::Int64(static_cast<int64_t>(op->fields.size())), GetErrContext(err_ctx)},
-          Attrs(), {void_ty_});
+          std::nullopt, {void_ty_});
       builder_->Emit(call, "_");
     }
     // recursively visit each sub-field and run matching
@@ -907,8 +907,8 @@ class VMShapeLowerMutator
     // we only check function is callable.
     if (!always_check && MatchType<FuncType>(value)) return;
     // check_func_info(value, err_ctx)
-    Call call(Type::Missing(), builtin_check_func_info_, {value, GetErrContext(err_ctx)}, Attrs(),
-              {void_ty_});
+    Call call(Type::Missing(), builtin_check_func_info_, {value, GetErrContext(err_ctx)},
+              std::nullopt, {void_ty_});
     builder_->Emit(call, "_");
   }
 

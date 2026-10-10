@@ -117,7 +117,7 @@ class IntervalSet : public IntSet {
   static IntervalSet Empty() { return IntervalSet(pos_inf(), neg_inf()); }
 
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IntervalSetNode);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntervalSet, IntSet, IntervalSetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IntervalSet, IntSet, IntervalSetNode);
 };
 
 /*!

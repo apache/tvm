@@ -119,7 +119,7 @@ class ReplayFuncNode : public SearchStrategyNode {
     n->mod_ = std::nullopt;
     n->space_generator_ = std::nullopt;
     n->state_ = nullptr;
-    return SearchStrategy(n);
+    return SearchStrategy(ffi::UnsafeInit{}, n);
   }
 };
 
@@ -162,7 +162,7 @@ inline void ReplayFuncNode::State::NotifyRunnerResults(const ffi::Array<RunnerRe
 
 SearchStrategy SearchStrategy::ReplayFunc() {
   ffi::ObjectPtr<ReplayFuncNode> n = ffi::make_object<ReplayFuncNode>();
-  return SearchStrategy(n);
+  return SearchStrategy(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { ReplayFuncNode::RegisterReflection(); }

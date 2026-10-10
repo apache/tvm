@@ -49,7 +49,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IterVarMutate(
   // skips: iter_type, thread_tag
   const IterVarNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IterVarNode>(value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Range>, mapped_dom,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<Range>>, mapped_dom,
                                     mutator->MutateExpected(self->dom));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimVar>, mapped_var,
                                     mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
@@ -70,7 +70,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IterVarMaybeInplaceMuta
   // skips: iter_type, thread_tag
   IterVarNode* self = const_cast<IterVarNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IterVarNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Range>, mapped_dom,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<Range>>, mapped_dom,
                                     mutator->MutateExpected(self->dom, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimVar>, mapped_var,
                                     mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
@@ -86,11 +86,12 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IterVarMaybeInplaceMuta
 }  // namespace
 
 // IterVar
-IterVar::IterVar(Range dom, PrimVar var, IterVarType t, ffi::String thread_tag, Location loc)
+IterVar::IterVar(ffi::Optional<Range> dom, PrimVar var, IterVarType t, ffi::String thread_tag,
+                 Location loc)
     : PrimExpr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>(var);
-  if (dom.defined() && dom->extent.defined()) {
-    PrimType extent_ty = dom->extent.ty();
+  if (dom.has_value() && dom.value()->extent.defined()) {
+    PrimType extent_ty = dom.value()->extent.ty();
     PrimType var_ty = var.ty();
     TVM_FFI_ICHECK(extent_ty.code() == DLDataTypeCode::kDLInt)
         << "The dtype of the domain of an IterVar must be an integer type. However, the domain's "
@@ -120,7 +121,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("s_tir.IterVar", [](Range dom, PrimVar var, int iter_type,
+  refl::GlobalDef().def("s_tir.IterVar", [](ffi::Optional<Range> dom, PrimVar var, int iter_type,
                                             ffi::String thread_tag, Location loc) {
     return IterVar(dom, var, static_cast<IterVarType>(iter_type), thread_tag, loc);
   });

@@ -177,7 +177,7 @@ ExprDoc RawCall(DocTranslatorObj* d, const CallNode* call,
   ffi::Array<ExprDoc> values;
   if (call->attrs.defined()) {
     keys.push_back("attrs");
-    values.push_back(CallAttrsValue(d, call->attrs));
+    values.push_back(CallAttrsValue(d, call->attrs.value()));
   }
   if (!call->ty_args.empty()) {
     ffi::Array<ExprDoc> types;

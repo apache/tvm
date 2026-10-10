@@ -43,7 +43,7 @@ class AddRFactorNode : public ScheduleRuleNode {
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
     ffi::ObjectPtr<AddRFactorNode> n = ffi::make_object<AddRFactorNode>(*this);
-    return ScheduleRule(n);
+    return ScheduleRule(ffi::UnsafeInit{}, n);
   }
 
  public:
@@ -77,7 +77,7 @@ ScheduleRule ScheduleRule::AddRFactor(int max_jobs_per_core,
   n->max_innermost_factor = max_innermost_factor.value_or(-1);
   n->max_parallel_extent_ = -1;
   n->max_parallel_basic_ = -1;
-  return ScheduleRule(n);
+  return ScheduleRule(ffi::UnsafeInit{}, n);
 }
 
 ffi::Array<s_tir::Schedule> AddRFactorNode::Apply(const s_tir::Schedule& sch,

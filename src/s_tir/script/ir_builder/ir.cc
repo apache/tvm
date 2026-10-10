@@ -287,7 +287,7 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, PrimType
     PrimExpr e = bindings[i];
     auto v = e.as<PrimVar>();
     TVM_FFI_ICHECK(v) << "TypeError: Only Var is supported in T.axis.remap";
-    Range dom{nullptr};
+    ffi::Optional<Range> dom;
     for (const auto& frame : IRBuilder::Current()->frames) {
       if (const auto* for_frame = frame.as<ForFrameNode>()) {
         TVM_FFI_ICHECK_EQ(for_frame->doms.size(), for_frame->vars.size());

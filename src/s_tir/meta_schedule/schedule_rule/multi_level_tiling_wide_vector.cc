@@ -54,7 +54,7 @@ class MultiLevelTilingWideVectorNode : public MultiLevelTilingNode {
   ScheduleRule Clone() const final {
     ffi::ObjectPtr<MultiLevelTilingWideVectorNode> n =
         ffi::make_object<MultiLevelTilingWideVectorNode>(*this);
-    return ScheduleRule(n);
+    return ScheduleRule(ffi::UnsafeInit{}, n);
   }
 
   std::pair<ffi::Array<ffi::Optional<s_tir::ExprRV>>, ffi::Array<s_tir::LoopRV>> SplitLoop(
@@ -132,7 +132,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingWideVector(
   auto node = MultiLevelTilingInitCommon<MultiLevelTilingWideVectorNode>(
       structure, std::nullopt, max_innermost_factor, std::nullopt, reuse_read, reuse_write);
   node->vector_length_in_bits = vector_length_in_bits;
-  return ScheduleRule(node);
+  return ScheduleRule(ffi::UnsafeInit{}, node);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

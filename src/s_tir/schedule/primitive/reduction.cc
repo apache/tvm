@@ -232,7 +232,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
       continue;
     }
     // Create a new block var
-    IterVar new_iter_var(/*dom=*/iter_var->dom,
+    IterVar new_iter_var(/*dom=*/iter_var->dom.value(),
                          /*var=*/iter_var->var.CopyWithSuffix(""),
                          /*iter_type=*/iter_var->iter_type,
                          /*thread_tag=*/iter_var->thread_tag);
@@ -1144,7 +1144,7 @@ class WriteBackBlockCreator : public BaseBlockCreator {
   void CreateNormalIters(int idx) final {
     IterVar old_block_iter = old_block_realize_->block->iter_vars[idx];
     if (old_block_iter->iter_type == IterVarType::kDataPar) {
-      iter_vars_.emplace_back(old_block_iter->dom, old_block_iter->var.CopyWithSuffix(""),
+      iter_vars_.emplace_back(old_block_iter->dom.value(), old_block_iter->var.CopyWithSuffix(""),
                               kDataPar);
       iter_values_.push_back(old_block_realize_->iter_values[idx]);
       var_map_.Set(old_block_iter->var, iter_vars_.back()->var);
@@ -1408,7 +1408,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   // will be used when constructing the rfactor block.
   ffi::Array<PrimExpr> init_values{nullptr};
   ffi::Array<TensorStore> updates{nullptr};
-  te::CommReducer reducer{nullptr};
+  te::CommReducer reducer{ffi::UnsafeInit{}};
   ffi::Array<PrimExpr> combiner_lhs{nullptr};
   ffi::Array<PrimExpr> combiner_rhs{nullptr};
   std::tie(init_values, updates) = GetInitValuesAndUpdatesFromReductionBlock(self, block);

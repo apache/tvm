@@ -34,7 +34,7 @@ void TIRVisitorWithPath::Dispatch_(const SBlockNode* op, AccessPath path) {
     for (size_t i = 0; i < op->iter_vars.size(); i++) {
       const IterVar& axis = op->iter_vars[i];
       auto axis_path = iter_path->ArrayItem(i);
-      if (axis->dom.defined()) Visit(axis->dom, axis_path->Attr("dom"));
+      if (axis->dom.has_value()) Visit(axis->dom.value(), axis_path->Attr("dom"));
       context.push_back(WithDef(axis->var.as_or_throw<Var>(), axis_path->Attr("var")));
     }
   }

@@ -48,6 +48,8 @@ struct ExpandDimsAttrs : public AttrsNode {
 
 /*! \brief Attributes used in layout_transform operator */
 struct LayoutTransformAttrs : public AttrsNode {
+  explicit LayoutTransformAttrs(tirx::IndexMap value) : index_map(std::move(value)) {}
+  explicit LayoutTransformAttrs(ffi::UnsafeInit) : index_map(ffi::UnsafeInit{}) {}
   tirx::IndexMap index_map;
   // pad_value is chosen to be of PrimExpr type, as it represents constant TIR POD expression. This
   // needs to be revisited in case PrimExpr is evolved to represent symbolic expression in future.

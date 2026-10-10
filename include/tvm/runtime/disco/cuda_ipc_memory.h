@@ -89,7 +89,12 @@ class CUDAIPCMemory : public ffi::ObjectRef {
    */
   TVM_RUNTIME_DLL static CUDAIPCMemory GetIPCMemoryFromDevicePtr(void* ptr);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CUDAIPCMemory, ffi::ObjectRef, CUDAIPCMemoryObj);
+  explicit CUDAIPCMemory(ffi::UnsafeInit tag, ffi::ObjectPtr<CUDAIPCMemoryObj> n)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(n);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CUDAIPCMemory, ffi::ObjectRef, CUDAIPCMemoryObj);
 };
 
 }  // namespace cuda_ipc

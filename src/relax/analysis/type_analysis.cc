@@ -166,7 +166,7 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
       std::swap(has_undefined_, has_undefined);
     }
 
-    VDevice vdev = op->vdevice.value_or(VDevice());
+    ffi::Optional<VDevice> vdev = op->vdevice;
 
     // erase symbolic shape if we have undefined.
     if (!has_undefined) {
@@ -389,10 +389,10 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
     if (lhs->vdevice.has_value() && rhs->vdevice.has_value()) {
       VDevice lhs_vdevice = lhs->vdevice.value();
       VDevice rhs_vdevice = rhs->vdevice.value();
-      if (lhs_vdevice->target.defined() && !rhs_vdevice->target.defined())
+      if (lhs_vdevice->target.has_value() && !rhs_vdevice->target.has_value())
         return BaseCheckResult::kFailL1;
       // mismatch in either the target, vdevice_id, or memory_scope
-      if ((lhs_vdevice->target.defined() && rhs_vdevice->target.defined()) &&
+      if ((lhs_vdevice->target.has_value() && rhs_vdevice->target.has_value()) &&
           (lhs_vdevice->target != rhs_vdevice->target ||
            lhs_vdevice->vdevice_id != rhs_vdevice->vdevice_id ||
            lhs_vdevice->memory_scope != rhs_vdevice->memory_scope))
@@ -716,11 +716,11 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
     if (lhs->vdevice.has_value() && rhs->vdevice.has_value()) {
       VDevice lhs_vdevice = lhs->vdevice.value();
       VDevice rhs_vdevice = rhs->vdevice.value();
-      if (lhs_vdevice->target.defined() && !rhs_vdevice->target.defined()) {
+      if (lhs_vdevice->target.has_value() && !rhs_vdevice->target.has_value()) {
         return IntImm::Bool(false);
       }
       // mismatch in either the target, vdevice_id, or memory_scope
-      if ((lhs_vdevice->target.defined() && rhs_vdevice->target.defined()) &&
+      if ((lhs_vdevice->target.has_value() && rhs_vdevice->target.has_value()) &&
           (lhs_vdevice->target != rhs_vdevice->target ||
            lhs_vdevice->vdevice_id != rhs_vdevice->vdevice_id ||
            lhs_vdevice->memory_scope != rhs_vdevice->memory_scope)) {
@@ -1051,7 +1051,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
                                         ? ffi::Optional<PrimType>(lhs->dtype.value())
                                         : std::nullopt;
     int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownNDim;
-    VDevice vdev = VDevice();
+    ffi::Optional<VDevice> vdev;
     if (lhs->vdevice.has_value() && rhs->vdevice.has_value() &&
         lhs->vdevice.value() == rhs->vdevice.value()) {
       vdev = lhs->vdevice.value();
@@ -1063,14 +1063,14 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
                             ffi::GetRef<sym::Analyzer>(analyzer_))) {
       // reuse lhs when possible
       if (!lhs->shape.has_value() && lhs->dtype == dtype && lhs->ndim == ndim &&
-          (!lhs->vdevice.has_value() || vdev.defined())) {
+          (!lhs->vdevice.has_value() || vdev.has_value())) {
         return ffi::GetRef<Type>(lhs);
       } else {
         return TensorType(dtype, ndim, vdev, lhs->loc);
       }
     }
     // symbolic shape and vdevice match but dtype mismatch
-    if (lhs->dtype != dtype || (lhs->vdevice.has_value() && !vdev.defined())) {
+    if (lhs->dtype != dtype || (lhs->vdevice.has_value() && !vdev.has_value())) {
       return TensorType(lhs->shape.value(), dtype, vdev, lhs->loc);
     } else {
       return ffi::GetRef<Type>(lhs);

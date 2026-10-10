@@ -196,27 +196,27 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.nn.relu */
 Expr relu(Expr x) {
   static const Op op = Op::Get("relax.nn.relu");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr gelu(Expr x) {
   static const Op op = Op::Get("relax.nn.gelu");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr gelu_tanh(Expr x) {
   static const Op op = Op::Get("relax.nn.gelu_tanh");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr selu(Expr x) {
   static const Op op = Op::Get("relax.nn.selu");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr silu(Expr x) {
   static const Op op = Op::Get("relax.nn.silu");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -386,7 +386,8 @@ InferLayoutOutput InferLayoutPRelu(
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
 
   // TODO(Siva): We could handle if the axis is not the sub indexed one.
-  if (layout->layout.ndim() != layout->layout.ndim_primal()) {
+  if ((layout->layout.has_value() ? layout->layout.value().ndim() : 0) !=
+      (layout->layout.has_value() ? layout->layout.value().ndim_primal() : 0)) {
     const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
     TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support static ndim for now";
@@ -395,7 +396,7 @@ InferLayoutOutput InferLayoutPRelu(
   }
 
   ffi::ObjectPtr<PReluAttrs> new_attrs = ffi::make_object<PReluAttrs>(*attrs);
-  new_attrs->axis = FindAxis(layout->layout, attrs->axis);
+  new_attrs->axis = FindAxis(layout->layout.value(), attrs->axis);
 
   LayoutDecision alpha_layout = GetLayoutDecision(var_layout_map, call->args[1]);
   return InferLayoutOutput({layout, alpha_layout}, {layout}, Attrs(new_attrs));
@@ -457,7 +458,8 @@ InferLayoutOutput InferLayoutSoftmax(
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
 
   // TODO(Siva): We could handle if the axis is not the sub indexed one.
-  if (layout->layout.ndim() != layout->layout.ndim_primal()) {
+  if ((layout->layout.has_value() ? layout->layout.value().ndim() : 0) !=
+      (layout->layout.has_value() ? layout->layout.value().ndim_primal() : 0)) {
     const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
     TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support static ndim for now";
@@ -466,7 +468,7 @@ InferLayoutOutput InferLayoutSoftmax(
   }
 
   ffi::ObjectPtr<SoftmaxAttrs> new_attrs = ffi::make_object<SoftmaxAttrs>(*attrs);
-  new_attrs->axis = FindAxis(layout->layout, attrs->axis);
+  new_attrs->axis = FindAxis(layout->layout.value(), attrs->axis);
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
 }
 
@@ -747,12 +749,13 @@ InferLayoutOutput InferLayoutBatchNorm(
   // This handling is fail safe fallback.
   const auto* input_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   int ndim = input_ty->ndim;
-  if (layout->layout.ndim() != layout->layout.ndim_primal()) {
+  if ((layout->layout.has_value() ? layout->layout.value().ndim() : 0) !=
+      (layout->layout.has_value() ? layout->layout.value().ndim_primal() : 0)) {
     layout = LayoutDecision(InitialLayout(ndim));
   }
 
   ffi::ObjectPtr<BatchNormAttrs> new_attrs = ffi::make_object<BatchNormAttrs>(*attrs);
-  new_attrs->axis = FindAxis(layout->layout, (attrs->axis + ndim) % ndim);
+  new_attrs->axis = FindAxis(layout->layout.value(), (attrs->axis + ndim) % ndim);
   return InferLayoutOutput(
       {layout, initial_layouts[1], initial_layouts[2], initial_layouts[3], initial_layouts[4]},
       {{layout, initial_layouts[3], initial_layouts[4]}}, Attrs(new_attrs));
@@ -821,7 +824,7 @@ InferLayoutOutput InferLayoutLayerNorm(
   int ndim = input_ty->ndim;
   std::vector<int64_t> new_axis;
   for (int64_t axis : attrs->axes) {
-    new_axis.push_back(FindAxis(layout->layout, (axis + ndim) % ndim));
+    new_axis.push_back(FindAxis(layout->layout.value(), (axis + ndim) % ndim));
   }
   new_attrs->axes = ffi::Array<int64_t>(new_axis.begin(), new_axis.end());
   return InferLayoutOutput({layout, initial_layouts[1], initial_layouts[2]}, {layout},
@@ -936,10 +939,10 @@ InferLayoutOutput InferLayoutGroupNorm(
   ffi::ObjectPtr<GroupNormAttrs> new_attrs = ffi::make_object<GroupNormAttrs>(*attrs);
   std::vector<int64_t> new_axes;
   for (int64_t axis : attrs->axes) {
-    new_axes.push_back(FindAxis(layout->layout, axis));
+    new_axes.push_back(FindAxis(layout->layout.value(), axis));
   }
   new_attrs->axes = ffi::Array<int64_t>(new_axes.begin(), new_axes.end());
-  new_attrs->channel_axis = FindAxis(layout->layout, attrs->channel_axis);
+  new_attrs->channel_axis = FindAxis(layout->layout.value(), attrs->channel_axis);
   return InferLayoutOutput({layout, initial_layouts[1], initial_layouts[2]}, {layout},
                            Attrs(new_attrs));
 }
@@ -1040,10 +1043,10 @@ InferLayoutOutput InferLayoutInstanceNorm(
   ffi::ObjectPtr<InstanceNormAttrs> new_attrs = ffi::make_object<InstanceNormAttrs>(*attrs);
   std::vector<int64_t> new_axes;
   for (int64_t axis : attrs->axes) {
-    new_axes.push_back(FindAxis(layout->layout, axis));
+    new_axes.push_back(FindAxis(layout->layout.value(), axis));
   }
   new_attrs->axes = ffi::Array<int64_t>(new_axes.begin(), new_axes.end());
-  new_attrs->channel_axis = FindAxis(layout->layout, attrs->channel_axis);
+  new_attrs->channel_axis = FindAxis(layout->layout.value(), attrs->channel_axis);
   return InferLayoutOutput({layout, initial_layouts[1], initial_layouts[2]}, {layout},
                            Attrs(new_attrs));
 }
@@ -1104,7 +1107,7 @@ InferLayoutOutput InferLayoutRMSNorm(
   ffi::ObjectPtr<RMSNormAttrs> new_attrs = ffi::make_object<RMSNormAttrs>(*attrs);
   std::vector<int64_t> new_axes;
   for (int64_t axis : attrs->axes) {
-    new_axes.push_back(FindAxis(layout->layout, axis));
+    new_axes.push_back(FindAxis(layout->layout.value(), axis));
   }
   new_attrs->axes = ffi::Array<int64_t>(new_axes.begin(), new_axes.end());
   return InferLayoutOutput({layout, initial_layouts[1]}, {layout}, Attrs(new_attrs));

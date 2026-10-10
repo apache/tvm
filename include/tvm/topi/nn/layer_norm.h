@@ -102,7 +102,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const ffi::Opt
         }
         return prim::sum(x, reduce_axes);
       },
-      data->op->name + "_sum", kCommReduce);
+      data->op.value()->name + "_sum", kCommReduce);
 
   PrimType reduce_dtype = is_float16 ? PrimType::Float(32) : PrimType(data->dtype);
   PrimExpr reduce_extent = MakeConst(reduce_dtype, 1);
@@ -114,7 +114,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const ffi::Opt
       [&temp_sum, &reduce_extent](const ffi::Array<PrimVar>& indices) {
         return temp_sum(indices) / reduce_extent;
       },
-      data->op->name + "_mean", kInjective);
+      data->op.value()->name + "_mean", kInjective);
 
   Tensor temp_var_sum = te::compute(
       target_shape,
@@ -128,7 +128,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const ffi::Opt
         PrimExpr diff = x - temp_mean(indices);
         return prim::sum(diff * diff, reduce_axes);
       },
-      data->op->name + "_var_sum", kCommReduce);
+      data->op.value()->name + "_var_sum", kCommReduce);
 
   auto layer_norm_func = [&](const ffi::Array<PrimVar>& indices) {
     ffi::Array<PrimVar> reduce_indices, non_reduce_indices;

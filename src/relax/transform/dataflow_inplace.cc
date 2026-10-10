@@ -614,8 +614,8 @@ class InplaceOpportunity : public ffi::ObjectRef {
     data_ = std::move(node);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InplaceOpportunity, ffi::ObjectRef,
-                                             InplaceOpportunityNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(InplaceOpportunity, ffi::ObjectRef,
+                                                InplaceOpportunityNode);
 };
 
 // Check for in-place eligibility:

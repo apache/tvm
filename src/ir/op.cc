@@ -116,7 +116,7 @@ OpDef& OpDef::add_arg(const ffi::String& name, const ffi::String& doc) {
   auto node = ffi::make_object<ArgumentInfoNode>();
   node->name = name;
   node->doc = doc;
-  get()->args_info.push_back(ArgumentInfo(std::move(node)));
+  get()->args_info.push_back(ArgumentInfo(ffi::UnsafeInit{}, std::move(node)));
   return *this;
 }
 
@@ -124,7 +124,7 @@ OpDef& OpDef::add_ty_arg(const ffi::String& name, const ffi::String& doc) {
   auto node = ffi::make_object<ArgumentInfoNode>();
   node->name = name;
   node->doc = doc;
-  get()->ty_args_info.push_back(ArgumentInfo(std::move(node)));
+  get()->ty_args_info.push_back(ArgumentInfo(ffi::UnsafeInit{}, std::move(node)));
   return *this;
 }
 
@@ -154,7 +154,7 @@ ffi::Array<ArgumentInfo> MakeArgumentInfos(const ffi::Array<ffi::String>& names,
     auto info = ffi::make_object<ArgumentInfoNode>();
     info->name = names[i];
     info->doc = docs[i];
-    infos.push_back(ArgumentInfo(std::move(info)));
+    infos.push_back(ArgumentInfo(ffi::UnsafeInit{}, std::move(info)));
   }
   return infos;
 }
@@ -166,7 +166,7 @@ ffi::Optional<ArgumentInfo> MakeTailInfo(const ffi::Array<ffi::String>& tail) {
   auto info = ffi::make_object<ArgumentInfoNode>();
   info->name = tail[0];
   info->doc = tail[1];
-  return ArgumentInfo(std::move(info));
+  return ArgumentInfo(ffi::UnsafeInit{}, std::move(info));
 }
 
 TVM_FFI_INLINE ffi::Expected<void> ValidateCountSignature(const CallNode* call) noexcept {

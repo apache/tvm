@@ -151,8 +151,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { ComposeLayoutNode::RegisterReflection(); }
 
 /**************** Iter ****************/
 Iter::Iter(PrimExpr extent, PrimExpr stride, Axis axis) {
-  auto n = ffi::make_object<IterNode>(extent, stride);
-  n->axis = axis;
+  auto n = ffi::make_object<IterNode>(extent, stride, axis);
   data_ = std::move(n);
 }
 
@@ -172,7 +171,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /**************** TileLayout ****************/
 TileLayout::TileLayout(ffi::Array<Iter> shard, ffi::Array<Iter> replica,
-                       ffi::Map<Axis, PrimExpr> offset) {
+                       ffi::Map<Axis, PrimExpr> offset)
+    : Layout(ffi::UnsafeInit{}) {
   auto n = ffi::make_object<TileLayoutNode>();
   n->shard = shard;
   n->replica = replica;

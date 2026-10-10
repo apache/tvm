@@ -89,7 +89,7 @@ SLayout::SLayout(const ffi::Array<IterVar>& axes) {
 
     if (is_grouped) repr << "[";
     for (const IterVar& axis : unpacked_axes) {
-      if (const auto* factor = axis->dom->extent.as<IntImmNode>()) {
+      if (const auto* factor = axis->dom.value()->extent.as<IntImmNode>()) {
         TVM_FFI_ICHECK_GT(factor->value, 0);
         repr << factor->value;
       } else {
@@ -113,12 +113,11 @@ SLayout::SLayout(const ffi::Array<IterVar>& axes) {
 SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
   TVM_FFI_CHECK(index_ty.code() == DLDataTypeCode::kDLInt, TypeError)
       << "The input dtype should be integer type";
-  if (name == "__undef__") return;
+  TVM_FFI_CHECK(!name.empty() && name != "__undef__", ValueError)
+      << "Undefined layout requires Optional<SLayout>";
 
   auto node = ffi::make_object<SLayoutNode>();
   node->name = name;
-
-  if (name.empty()) return;  // scalar
 
   // parse layout string
   int32_t factor = 0;
@@ -163,11 +162,11 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
       std::stringstream ss;
       ffi::BigInt extent = 1;
       for (auto& axis : unpacked_axes) {
-        TVM_FFI_ICHECK(axis->dom->extent.as<IntImmNode>())
+        TVM_FFI_ICHECK(axis->dom.value()->extent.as<IntImmNode>())
             << "Invalid SLayout " << name << ": can't have variable sized node(" << axis->var->name
             << ") within a packed axis";
         auto axis_name = axis->var->name.operator std::string();
-        auto factor = axis->dom->extent.as<IntImm>().value();
+        auto factor = axis->dom.value()->extent.as<IntImm>().value();
         ss << axis_name;
         extent *= factor->value;
       }
@@ -212,6 +211,13 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
   data_ = std::move(node);
 }
 
+ffi::Optional<SLayout> SLayout::Create(const std::string& name, PrimType index_ty) {
+  TVM_FFI_CHECK(index_ty.code() == DLDataTypeCode::kDLInt, TypeError)
+      << "The input dtype should be integer type";
+  if (name.empty() || name == "__undef__") return std::nullopt;
+  return SLayout(name, index_ty);
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   SLayoutNode::RegisterReflection();
@@ -221,10 +227,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                        });
 
   refl::GlobalDef().def("s_tir.SLayout",
-                        [](std::string name, PrimType dtype) { return SLayout(name, dtype); });
+                        [](std::string name, PrimType dtype) -> ffi::Optional<SLayout> {
+                          return SLayout::Create(name, dtype);
+                        });
 }
 
-SLayout SLayout::SubLayout(size_t pos, size_t len) const {
+ffi::Optional<SLayout> SLayout::SubLayout(size_t pos, size_t len) const {
   if (!defined() || pos > ndim()) return SLayout::Undef();
   if (len == 0) return SLayout(ffi::Array<IterVar>());
   if (pos + len > ndim()) len = ndim() - pos;
@@ -266,13 +274,14 @@ IterVar SLayout::PackIterVar(ffi::Array<IterVar> iter_vars) {
   std::stringstream name;
   size_t extent = 1;
 
-  PrimType index_ty = iter_vars[0]->dom->extent.as<PrimExpr>().value().ty();
+  PrimType index_ty = iter_vars[0]->dom.value()->extent.as<PrimExpr>().value().ty();
   for (auto itvar : iter_vars) {
-    TVM_FFI_ICHECK(itvar->dom->extent.as<IntImm>())
+    TVM_FFI_ICHECK(itvar->dom.value()->extent.as<IntImm>())
         << "Packed Axis can contain only Subordinate Axes";
-    name << itvar->dom->extent.as<IntImm>().value() << itvar->var->name;
-    extent =
-        (ffi::BigInt(extent) * itvar->dom->extent.as<IntImm>().value()->value).as<size_t>().value();
+    name << itvar->dom.value()->extent.as<IntImm>().value() << itvar->var->name;
+    extent = (ffi::BigInt(extent) * itvar->dom.value()->extent.as<IntImm>().value()->value)
+                 .as<size_t>()
+                 .value();
   }
 
   return IterVar(Range(IntImm(index_ty, 0), IntImm(index_ty, extent)),
@@ -289,7 +298,7 @@ int32_t SLayout::FactorOf(const SLayoutAxis& axis) const {
     for (auto itvar : UnpackIterVar(packed_itvar)) {
       if (sub == SLayoutAxis::Get(itvar)) {
         has_sub = true;
-        int32_t val = itvar->dom->extent.as<IntImmNode>()->value.as<int32_t>().value();
+        int32_t val = itvar->dom.value()->extent.as<IntImmNode>()->value.as<int32_t>().value();
         factor *= val;
       }
     }
@@ -314,7 +323,7 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
   std::vector<PrimExpr> norm_indexes(128, PrimExpr(0));
 
   for (size_t i = 0; i < src_layout.ndim(); i++) {
-    auto factor = src_layout.PackedAxisAt(i)->dom->extent;
+    auto factor = src_layout.PackedAxisAt(i)->dom.value()->extent;
     auto src_unpacked_axes = SLayout::UnpackIterVar(src_layout.PackedAxisAt(i));
 
     if (src_unpacked_axes.size() == 1 && SLayoutAxis::Get(src_unpacked_axes[0]).IsPrimal()) {
@@ -333,7 +342,7 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
       std::vector<ffi::BigInt> index_divs(src_unpacked_axes.size());
       for (size_t j = 0; j < src_unpacked_axes.size(); j++) {
         index_divs[j] = value;
-        const auto* extent = src_unpacked_axes[j]->dom->extent.as<IntImmNode>();
+        const auto* extent = src_unpacked_axes[j]->dom.value()->extent.as<IntImmNode>();
         TVM_FFI_ICHECK(extent) << "Expected Integer Extents for Offset Calculation";
         index_divs.push_back(value);
         value *= extent->value;
@@ -341,7 +350,7 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
       std::reverse(index_divs.begin(), index_divs.end());
 
       for (size_t j = 0; j < src_unpacked_axes.size(); j++) {
-        PrimExpr extent = src_unpacked_axes[j]->dom->extent;
+        PrimExpr extent = src_unpacked_axes[j]->dom.value()->extent;
         const SLayoutAxis& store_axis_impl = SLayoutAxis::Get(src_unpacked_axes[j]);
         const SLayoutAxis& sub_axis = store_axis_impl.ToSubordinate(); /* Not Needed */
         const SLayoutAxis& prim_axis = store_axis_impl.ToPrimal();
@@ -358,7 +367,7 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
           for (; l < inter_unpacked_axes.size(); l++) {
             const SLayoutAxis& axis = SLayoutAxis::Get(inter_unpacked_axes[l]);
             if (axis == sub_axis) {
-              IntImm sub_extent = inter_unpacked_axes[l]->dom->extent.as_or_throw<IntImm>();
+              IntImm sub_extent = inter_unpacked_axes[l]->dom.value()->extent.as_or_throw<IntImm>();
               factor_ij = factor_ij * IntImm(sub_extent.ty(), sub_extent->value);
             }
           }
@@ -394,7 +403,7 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
       for (size_t j = 0; j < dst_unpacked_axes.size(); j++) {
         const auto& prim_axis = SLayoutAxis::Get(dst_unpacked_axes[j]).ToPrimal();
         const auto& sub_axis = SLayoutAxis::Get(dst_unpacked_axes[j]).ToSubordinate();
-        const auto* extent = dst_unpacked_axes[j]->dom->extent.as<IntImmNode>();
+        const auto* extent = dst_unpacked_axes[j]->dom.value()->extent.as<IntImmNode>();
         TVM_FFI_ICHECK(extent) << "Expected extent to be IntImmNode";
 
         size_t divfactor = 1;
@@ -406,7 +415,7 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
           for (; l < inter_unpacked_axes.size(); l++) {
             const auto& axis = SLayoutAxis::Get(inter_unpacked_axes[l]);
             if (sub_axis == axis) {
-              const auto* sub_extent = inter_unpacked_axes[l]->dom->extent.as<IntImmNode>();
+              const auto* sub_extent = inter_unpacked_axes[l]->dom.value()->extent.as<IntImmNode>();
               TVM_FFI_ICHECK(sub_extent) << "Expected Integer Extents for Offset Calculation";
               divfactor = (ffi::BigInt(divfactor) * sub_extent->value).as<size_t>().value();
             }
@@ -416,7 +425,7 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
         factor = factor + indexmod(indexdiv(norm_indexes[prim_axis.name()[0] - 'A'], divfactor),
                                    IntImm(extent->ty.as_or_throw<PrimType>(), extent->value));
         for (size_t k = j + 1; k < dst_unpacked_axes.size(); k++) {
-          factor = factor * dst_unpacked_axes[k]->dom->extent.as<IntImm>().value();
+          factor = factor * dst_unpacked_axes[k]->dom.value()->extent.as<IntImm>().value();
         }
       }
       ana->Simplify(factor);
@@ -500,11 +509,11 @@ inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape
     if (layout.size() != 1 || !SLayoutAxis::Get(layout[0]).IsPrimal()) {
       if (orig_shape.defined()) {
         const auto* orig_shape_const = orig_shape.as<IntImmNode>();
-        const auto* orig_axis_extent = orig_axis->dom->extent.as<IntImmNode>();
+        const auto* orig_axis_extent = orig_axis->dom.value()->extent.as<IntImmNode>();
         if (orig_shape_const) {
           TVM_FFI_ICHECK_EQ(orig_shape_const->value, orig_axis_extent->value)
-              << "Input shape mismatch at index " << i << ". Expected " << orig_axis->dom->extent
-              << ", get " << orig_shape;
+              << "Input shape mismatch at index " << i << ". Expected "
+              << orig_axis->dom.value()->extent << ", get " << orig_shape;
         }
       }
       bind_map.insert_or_assign(orig_axis->var.get(), IntImm(orig_axis->var.ty(), 0));
@@ -531,7 +540,7 @@ inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape
     IterVar axis = target_axis[i];
     auto layout = SLayout::UnpackIterVar(axis);
     if (layout.size() != 1 || !SLayoutAxis::Get(layout[0]).IsPrimal()) {
-      result.push_back(axis->dom->extent);
+      result.push_back(axis->dom.value()->extent);
     } else {
       result.push_back(
           ana->Simplify(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(rule, f_substitute)
@@ -576,17 +585,19 @@ ffi::Array<PrimExpr> SBijectiveLayout::BackwardShape(const ffi::Array<PrimExpr>&
 }
 
 SBijectiveLayout::SBijectiveLayout(SLayout src_layout, SLayout dst_layout) {
-  auto n = ffi::make_object<SBijectiveLayoutNode>();
+  auto result = Create(std::move(src_layout), std::move(dst_layout));
+  TVM_FFI_CHECK(result.has_value(), ValueError) << "Layouts are not bijectively convertible";
+  data_ = result.value().data_;
+}
 
-  n->src_layout = std::move(src_layout);
-  n->dst_layout = std::move(dst_layout);
-  // To be consistent with previous behavior, a nullptr layout is created
-  // when argument is invalid.
-  if (GetStoreRule(&n->index_forward_rule, &n->shape_forward_rule, n->src_layout, n->dst_layout)) {
-    TVM_FFI_ICHECK(GetStoreRule(&n->index_backward_rule, &n->shape_backward_rule, n->dst_layout,
-                                n->src_layout));
-    data_ = std::move(n);
+ffi::Optional<SBijectiveLayout> SBijectiveLayout::Create(SLayout src_layout, SLayout dst_layout) {
+  auto n = ffi::make_object<SBijectiveLayoutNode>(std::move(src_layout), std::move(dst_layout));
+  if (!GetStoreRule(&n->index_forward_rule, &n->shape_forward_rule, n->src_layout, n->dst_layout)) {
+    return std::nullopt;
   }
+  TVM_FFI_ICHECK(
+      GetStoreRule(&n->index_backward_rule, &n->shape_backward_rule, n->dst_layout, n->src_layout));
+  return SBijectiveLayout(ffi::UnsafeInit{}, std::move(n));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -599,8 +610,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 
   refl::GlobalDef().def("s_tir.SBijectiveLayout",
-                        [](SLayout src_layout, SLayout dst_layout) -> SBijectiveLayout {
-                          return SBijectiveLayout(src_layout, dst_layout);
+                        [](ffi::Optional<SLayout> src_layout,
+                           ffi::Optional<SLayout> dst_layout) -> ffi::Optional<SBijectiveLayout> {
+                          if (!src_layout || !dst_layout) return std::nullopt;
+                          return SBijectiveLayout::Create(src_layout.value(), dst_layout.value());
                         });
 }
 

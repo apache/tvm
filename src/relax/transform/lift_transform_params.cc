@@ -653,7 +653,7 @@ class ConsumeBundledParams : public ExprMutator {
       builder_->Emit(
           Call(Type::Missing(), call_pure_packed,
                {builtin_tuple_reset_item, tuple_get_item->tuple, PrimExpr(tuple_get_item->index)},
-               tvm::Attrs(), {TupleType(ffi::Array<Type>{})}));
+               std::nullopt, {TupleType(ffi::Array<Type>{})}));
     } else {
       ExprMutator::VisitBinding_(binding, tuple_get_item);
     }

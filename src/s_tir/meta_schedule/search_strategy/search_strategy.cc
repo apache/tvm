@@ -25,8 +25,7 @@ namespace s_tir {
 namespace meta_schedule {
 
 MeasureCandidate::MeasureCandidate(s_tir::Schedule sch, ffi::Array<ArgInfo> args_info) {
-  ffi::ObjectPtr<MeasureCandidateNode> n = ffi::make_object<MeasureCandidateNode>();
-  n->sch = sch;
+  ffi::ObjectPtr<MeasureCandidateNode> n = ffi::make_object<MeasureCandidateNode>(std::move(sch));
   n->args_info = args_info;
   data_ = std::move(n);
 }
@@ -84,7 +83,7 @@ SearchStrategy SearchStrategy::PySearchStrategy(
   n->f_generate_measure_candidates = f_generate_measure_candidates;
   n->f_notify_runner_results = f_notify_runner_results;
   n->f_clone = f_clone;
-  return SearchStrategy(n);
+  return SearchStrategy(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -61,8 +61,11 @@ TensorRegion GetRelaxedBufferRegion(const SBlockRealize& realize, const TensorRe
   ffi::Array<Range> relaxed_region;
   relaxed_region.reserve(relaxed_intsets.size());
   for (size_t i = 0; i < relaxed_intsets.size(); ++i) {
-    relaxed_region.push_back(relaxed_intsets[i].CoverRange(Range::FromMinExtent(
-        0, buffer_region->source.as_or_throw<tvm::tirx::TensorVar>()->shape[i])));
+    relaxed_region.push_back(
+        relaxed_intsets[i]
+            .CoverRange(Range::FromMinExtent(
+                0, buffer_region->source.as_or_throw<tvm::tirx::TensorVar>()->shape[i]))
+            .value());
   }
   return BufferRegion(buffer_region->source.as_or_throw<tvm::tirx::TensorVar>(), relaxed_region);
 }

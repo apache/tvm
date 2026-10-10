@@ -430,8 +430,8 @@ bool HasReshapePattern(const tirx::Function& func) {
 
       ffi::Map<PrimVar, Range> var_range;
       for (const s_tir::IterVar& v : block->iter_vars) {
-        ana_->Bind(v->var, Range::FromMinExtent(v->dom->min, v->dom->extent));
-        var_range.Set(v->var, Range::FromMinExtent(v->dom->min, v->dom->extent));
+        ana_->Bind(v->var, Range::FromMinExtent(v->dom.value()->min, v->dom.value()->extent));
+        var_range.Set(v->var, Range::FromMinExtent(v->dom.value()->min, v->dom.value()->extent));
       }
 
       // Step 1. Get the load/store pattern of the block body.
@@ -481,9 +481,10 @@ bool HasReshapePattern(const tirx::Function& func) {
         }
         for (int i = 0; i < static_cast<int>(block->iter_vars.size()); ++i) {
           if (!(indices[i].same_as(block->iter_vars[i]->var) &&
-                this->ana_->CanProveEqual(block->iter_vars[i]->dom->min,
+                this->ana_->CanProveEqual(block->iter_vars[i]->dom.value()->min,
                                           IntImm::Int64(/*value=*/0)) &&
-                this->ana_->CanProveEqual(buffer->shape[i], block->iter_vars[i]->dom->extent))) {
+                this->ana_->CanProveEqual(buffer->shape[i],
+                                          block->iter_vars[i]->dom.value()->extent))) {
             return false;
           }
         }
@@ -502,8 +503,9 @@ bool HasReshapePattern(const tirx::Function& func) {
 
       // Skip check 1 on zero-extent iters: the inverse index map would divide by zero.
       bool has_zero_extent = std::any_of(
-          block->iter_vars.begin(), block->iter_vars.end(),
-          [this](const s_tir::IterVar& v) { return this->ana_->CanProveEqual(v->dom->extent, 0); });
+          block->iter_vars.begin(), block->iter_vars.end(), [this](const s_tir::IterVar& v) {
+            return this->ana_->CanProveEqual(v->dom.value()->extent, 0);
+          });
 
       if (nontrivial_indices.defined() && !has_zero_extent) {
         PrimType dtype =
@@ -514,8 +516,8 @@ bool HasReshapePattern(const tirx::Function& func) {
         for (int i = static_cast<int>(block->iter_vars.size()) - 1; i >= 0; --i) {
           inverse_indices_map.Set(block->iter_vars[i]->var,
                                   floormod(floordiv(fused_var.as_or_throw<PrimExpr>(), stride),
-                                           block->iter_vars[i]->dom->extent));
-          stride *= block->iter_vars[i]->dom->extent;
+                                           block->iter_vars[i]->dom.value()->extent));
+          stride *= block->iter_vars[i]->dom.value()->extent;
         }
         auto f_substitute = [&inverse_indices_map](
                                 const tvm::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {

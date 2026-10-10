@@ -77,8 +77,7 @@ bool InstructionKindNode::IsPostproc() const {
 
 Instruction::Instruction(InstructionKind kind, ffi::Array<Any> inputs, ffi::Array<Any> attrs,
                          ffi::Array<Any> outputs) {
-  ffi::ObjectPtr<InstructionNode> n = ffi::make_object<InstructionNode>();
-  n->kind = std::move(kind);
+  ffi::ObjectPtr<InstructionNode> n = ffi::make_object<InstructionNode>(std::move(kind));
   n->inputs = std::move(inputs);
   n->attrs = std::move(attrs);
   n->outputs = std::move(outputs);
@@ -119,7 +118,7 @@ class InstructionKindRegistry {
     if (auto kind = kinds_.Get(name)) {
       return *kind;
     }
-    InstructionKind kind(ffi::make_object<InstructionKindNode>());
+    InstructionKind kind(ffi::UnsafeInit{}, ffi::make_object<InstructionKindNode>());
     kinds_.Set(name, kind);
     return kind;
   }

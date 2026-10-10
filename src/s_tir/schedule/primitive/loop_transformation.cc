@@ -624,7 +624,7 @@ class BlockMutator : public StmtExprMutator {
       IterVar iter = new_block->iter_vars[i];
       // The body still uses the original Vars until substitution below. Their
       // identities distinguish axes even when producer names are empty or equal.
-      index_range_map.Set(_op->iter_vars[i]->var, iter->dom);
+      index_range_map.Set(_op->iter_vars[i]->var, iter->dom.value());
     }
 
     // Get the (TensorVar, indices) map
@@ -887,7 +887,7 @@ StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs) {
   // - The execution order has not changed. (The block executes with the same
   //   args and the same order with before.)
   sym::Analyzer analyzer;
-  StmtSRef scope_root_sref;
+  ffi::Optional<StmtSRef> scope_root_sref;
   StmtSRef lca = GetSRefLowestCommonAncestor(loop_srefs);
   std::vector<std::vector<For>> lca_nest_loops;
   // Step 1. check correctness
@@ -923,7 +923,7 @@ StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs) {
       nest_loop_loops = nest_loop_i_loops;
       nest_loop_extents = nest_loop_i_extents;
     } else {
-      if (scope_root_sref_.get() != scope_root_sref.get()) {
+      if (scope_root_sref_.get() != scope_root_sref.value().get()) {
         TVM_FFI_THROW(ScheduleError) << "Expected the loops to be under the same block scope.";
         throw;
       }
@@ -943,13 +943,13 @@ StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs) {
     }
   }
   // Step 2. Create merged loops and replace the original loops
-  SBlock scope_root = ffi::GetRef<SBlock>(scope_root_sref->StmtAs<SBlockNode>());
+  SBlock scope_root = ffi::GetRef<SBlock>(scope_root_sref.value()->StmtAs<SBlockNode>());
   auto reconstructor = ffi::make_object<LoopReconstructor>(scope_root, lca_nest_loops);
   reconstructor->MakeNewLoop();
   SBlock new_scope_root =
       reconstructor->Mutate(scope_root).ValueOrUnchanged(scope_root).as_or_throw<SBlock>();
   // Step 3. Do the actual replacement
-  self->Replace(scope_root_sref, new_scope_root, {{scope_root, new_scope_root}});
+  self->Replace(scope_root_sref.value(), new_scope_root, {{scope_root, new_scope_root}});
   return self->stmt2ref.at(reconstructor->new_inner_loop_.value().get());
 }
 
@@ -961,7 +961,7 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
   //   args and the same order with before.)
   std::vector<const ForNode*> loops;
   loops.reserve(loop_srefs.size());
-  StmtSRef outer_loop_sref{nullptr};
+  ffi::Optional<StmtSRef> outer_loop_sref;
   const ForNode* outer_loop = nullptr;
   sym::Analyzer analyzer;
   std::unordered_set<const VarNode*> outer_loop_vars;
@@ -971,8 +971,8 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
     if (!loop->annotations.empty()) {
       throw MakeScheduleError<HasAnnotationOrThreadBindingError>(self->mod, ffi::GetRef<For>(loop));
     }
-    if (outer_loop_sref.defined()) {
-      if (sref->parent != outer_loop_sref.get()) {
+    if (outer_loop_sref.has_value()) {
+      if (sref->parent != outer_loop_sref.value().get()) {
         throw MakeScheduleError<OuterNotInnerParent>(self->mod, ffi::GetRef<For>(outer_loop),
                                                      ffi::GetRef<For>(loop));
       }

@@ -154,14 +154,16 @@ PrimExpr Tensor::IndexWithNegativeIndices(ffi::Array<PrimExpr> indices) const {
 }
 
 ffi::String TensorNode::GetNameHint() const {
-  return op->num_outputs() == 1 ? op->name : (op->name + ".v" + std::to_string(value_index));
+  return op.value()->num_outputs() == 1 ? op.value()->name
+                                        : (op.value()->name + ".v" + std::to_string(value_index));
 }
 
 Tensor Operation::output(size_t i) const {
   return Tensor((*this)->output_shape(i), (*this)->output_dtype(i), *this, static_cast<int>(i));
 }
 
-Tensor::Tensor(ffi::Array<PrimExpr> shape, PrimType dtype, Operation op, int value_index)
+Tensor::Tensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Optional<Operation> op,
+               int value_index)
     : OpaqueExpr(ffi::UnsafeInit{}) {
   auto n = ffi::make_object<TensorNode>();
   n->ExprNode::ty = OpaqueType();
@@ -198,10 +200,9 @@ ffi::Array<PrimExpr> GetTensorLoadIndices(const Call& call) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "te.Tensor", [](ffi::Array<PrimExpr> shape, PrimType dtype, Operation op, int value_index) {
-        return Tensor(shape, dtype, op, value_index);
-      });
+  refl::GlobalDef().def("te.Tensor",
+                        [](ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Optional<Operation> op,
+                           int value_index) { return Tensor(shape, dtype, op, value_index); });
 
   // Pattern A (RM): auto-default repr from reflection.
 

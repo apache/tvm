@@ -187,7 +187,6 @@ inline void DiscoProtocol<SubClassType>::ReadFFIAny(TVMFFIAny* out) {
   if (type_index == kRuntimeDiscoDRef) {
     ffi::ObjectPtr<DRefObj> dref = ffi::make_object<DRefObj>();
     self->template Read<int64_t>(&dref->reg_id);
-    dref->session = Session{nullptr};
     result = ffi::ObjectRef(std::move(dref));
   } else if (type_index == ffi::TypeIndex::kTVMFFIStr) {
     uint64_t size = 0;
@@ -256,7 +255,7 @@ inline ffi::ObjectPtr<DiscoDebugObject> DiscoDebugObject::LoadFromStr(std::strin
     support::BytesInStream mstrm(json_str);
     support::Base64InStream b64strm(&mstrm);
     b64strm.InitPosition();
-    runtime::Tensor array;
+    runtime::Tensor array(ffi::UnsafeInit{});
     TVM_FFI_ICHECK(array.Load(&b64strm));
     result->data = std::move(array);
   } else {

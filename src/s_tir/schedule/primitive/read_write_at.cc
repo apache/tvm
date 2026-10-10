@@ -328,7 +328,7 @@ struct ReadWriteAtImpl {
       dom->extent =
           ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(dom->extent), f_substitute)
               .as_or_throw<PrimExpr>();
-      domain.Set(i, Range(dom));
+      domain.Set(i, Range(ffi::UnsafeInit{}, dom));
     }
     for (int i = 0; i < n; ++i) {
       indices.push_back(domain[i]->min + loop_vars[i].as_or_throw<PrimExpr>());

@@ -309,10 +309,10 @@ NestedIterLevels GenerateNestedIterLevels(const ffi::Array<s_tir::IterVar>& axes
       return depth_it->second;
     }
     std::vector<Var> dep_vars;
-    for (const Var& v : UndefinedVars(analyzer->Simplify(axis->dom->min))) {
+    for (const Var& v : UndefinedVars(analyzer->Simplify(axis->dom.value()->min))) {
       dep_vars.push_back(v);
     }
-    for (const Var& v : UndefinedVars(analyzer->Simplify(axis->dom->extent))) {
+    for (const Var& v : UndefinedVars(analyzer->Simplify(axis->dom.value()->extent))) {
       dep_vars.push_back(v);
     }
     int cur_depth = 0;
@@ -612,8 +612,8 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     NestedScopeInfo cur_scope;
     for (size_t j = 0; j < axes.size(); ++j) {
       const s_tir::IterVar& axis = axes[j];
-      PrimType index_type =
-          PrimType::Int(std::max(axis->dom->min.ty().bits(), axis->dom->extent.ty().bits()));
+      PrimType index_type = PrimType::Int(
+          std::max(axis->dom.value()->min.ty().bits(), axis->dom.value()->extent.ty().bits()));
       bool first_times_define =
           std::any_of(axes_levels[i].begin(), axes_levels[i].end(),
                       [&](const s_tir::IterVar& candidate) { return candidate.same_as(axis); });
@@ -623,8 +623,8 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
         }
         Var loop_var = Var(axis->var->name, index_type);
         Var block_var("v_" + axis->var->name, index_type);
-        PrimExpr min = axis->dom->min;
-        PrimExpr extent = axis->dom->extent;
+        PrimExpr min = axis->dom.value()->min;
+        PrimExpr extent = axis->dom.value()->extent;
         if (i > 0) {
           const auto& scope_repl = scopes[i - 1].axes_remap;
           auto f_substitute =
@@ -826,7 +826,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
 ffi::Array<te::Operation> CollectOrderedOps(const ffi::Array<te::Tensor>& arg_list) {
   ffi::Array<te::Operation> arg_ops;
   for (const te::Tensor& arg : arg_list) {
-    arg_ops.push_back(arg->op);
+    arg_ops.push_back(arg->op.value());
   }
   te::ReadGraph g = te::CreateReadGraph(arg_ops);
   ffi::Array<te::Operation> order = te::PostDFSOrder(arg_ops, g);

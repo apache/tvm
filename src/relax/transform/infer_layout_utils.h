@@ -58,7 +58,7 @@ using tirx::SLayout;
 class LayoutDecisionNode : public ffi::Object {
  public:
   /*! \brief The layout decision of the tensor. */
-  SLayout layout;
+  ffi::Optional<SLayout> layout;
   /*! \brief Whether the dim of tensor is unknown. */
   bool is_unknown_dim = false;
 
@@ -74,7 +74,10 @@ class LayoutDecisionNode : public ffi::Object {
 
 class LayoutDecision : public ffi::ObjectRef {
  public:
-  LayoutDecision(SLayout layout, bool is_unknown_dim = false) {  // NOLINT(*)
+  LayoutDecision(SLayout layout, bool is_unknown_dim = false)  // NOLINT(*)
+      : LayoutDecision(ffi::Optional<SLayout>(std::move(layout)), is_unknown_dim) {}
+
+  LayoutDecision(ffi::Optional<SLayout> layout, bool is_unknown_dim = false) {  // NOLINT(*)
     auto n = ffi::make_object<LayoutDecisionNode>();
     n->layout = std::move(layout);
     n->is_unknown_dim = is_unknown_dim;
@@ -87,10 +90,10 @@ class LayoutDecision : public ffi::ObjectRef {
     if (operator->()->is_unknown_dim) {
       return "unknown_dim";
     }
-    return operator->()->layout.name();
+    return operator->()->layout.has_value() ? operator->()->layout.value().name() : "__undef__";
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LayoutDecision, ffi::ObjectRef, LayoutDecisionNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LayoutDecision, ffi::ObjectRef, LayoutDecisionNode);
 };
 
 using NLayout = NestedMsg<LayoutDecision>;
@@ -105,7 +108,7 @@ class InferLayoutOutputNode : public ffi::Object {
  public:
   ffi::Array<NLayout> input_layouts;
   ffi::Array<NLayout> output_layouts;
-  Attrs new_attrs;
+  ffi::Optional<Attrs> new_attrs;
   ffi::Map<IntImm, Expr> new_args;
 
   static void RegisterReflection() {
@@ -124,7 +127,7 @@ class InferLayoutOutputNode : public ffi::Object {
 class InferLayoutOutput : public ffi::ObjectRef {
  public:
   explicit InferLayoutOutput(ffi::Array<NLayout> input_layouts, ffi::Array<NLayout> output_layouts,
-                             Attrs new_attrs, ffi::Map<IntImm, Expr> new_args = {}) {
+                             ffi::Optional<Attrs> new_attrs, ffi::Map<IntImm, Expr> new_args = {}) {
     auto n = ffi::make_object<InferLayoutOutputNode>();
     n->input_layouts = std::move(input_layouts);
     n->output_layouts = std::move(output_layouts);
@@ -132,8 +135,8 @@ class InferLayoutOutput : public ffi::ObjectRef {
     n->new_args = std::move(new_args);
     data_ = n;
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InferLayoutOutput, ffi::ObjectRef,
-                                             InferLayoutOutputNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(InferLayoutOutput, ffi::ObjectRef,
+                                                InferLayoutOutputNode);
 };
 
 struct NLayoutEqual {
@@ -195,7 +198,8 @@ NLayout InitialNLayout(const Expr& expr);
  * \param dst The destination layout.
  * \return The transposed dst layout.
  */
-SLayout TransposeSubLayoutLike(const SLayout& ref, const SLayout& src, const SLayout& desired);
+ffi::Optional<SLayout> TransposeSubLayoutLike(const SLayout& ref, const SLayout& src,
+                                              const SLayout& desired);
 
 /*!
  * \brief Transposing given layout in string format with subindexing
@@ -214,7 +218,8 @@ std::string TransposeSubLayoutStrLike(const std::string ref_str, const std::stri
  * \param dst The destination layout.
  * \return The transposed input layout.
  */
-SLayout TransposeLike(const SLayout& input, const SLayout& src, const SLayout& dst);
+SLayout TransposeLike(const ffi::Optional<SLayout>& input, const ffi::Optional<SLayout>& src,
+                      const ffi::Optional<SLayout>& dst);
 
 /*!
  * \brief Transpose the input string like the src layout to the dst layout.
@@ -223,7 +228,8 @@ SLayout TransposeLike(const SLayout& input, const SLayout& src, const SLayout& d
  * \param dst The destination layout.
  * \return The transposed input str.
  */
-ffi::String TransposeStrLike(const ffi::String& input, const SLayout& src, const SLayout& dst);
+ffi::String TransposeStrLike(const ffi::String& input, const ffi::Optional<SLayout>& src,
+                             const ffi::Optional<SLayout>& dst);
 
 /*!
  * \brief Find axis in the dst layout. 0 represents the first axis, 1 represents the second axis,

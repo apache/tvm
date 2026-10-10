@@ -185,7 +185,11 @@ class ExecBuilderNode : public ffi::Object {
 
 class ExecBuilder : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExecBuilder, ffi::ObjectRef, ExecBuilderNode);
+  explicit ExecBuilder(ffi::UnsafeInit tag, ffi::ObjectPtr<ExecBuilderNode> n)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExecBuilder, ffi::ObjectRef, ExecBuilderNode);
 };
 
 }  // namespace relax

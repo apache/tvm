@@ -106,7 +106,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
         IRModule lowered{ffi::UnsafeInit()};
         try {
           auto pass_list = ffi::Array<tvm::transform::Pass>();
-          pass_list.push_back(tirx::transform::BindTarget(this->target));
+          pass_list.push_back(tirx::transform::BindTarget(this->target.value()));
           pass_list.push_back(s_tir::transform::LowerInitBlock());
           pass_list.push_back(s_tir::transform::PlanAndUpdateBufferAllocationLocation());
           pass_list.push_back(s_tir::transform::ConvertBlocksToOpaque());
@@ -141,7 +141,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
   Postproc Clone() const {
     ffi::ObjectPtr<DisallowAsyncStridedMemCopyNode> n =
         ffi::make_object<DisallowAsyncStridedMemCopyNode>(*this);
-    return Postproc(n);
+    return Postproc(ffi::UnsafeInit{}, n);
   }
 
   static void RegisterReflection() {
@@ -153,13 +153,13 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
                                     DisallowAsyncStridedMemCopyNode, PostprocNode);
 
  private:
-  tvm::Target target;
+  ffi::Optional<tvm::Target> target;
 };
 
 Postproc Postproc::DisallowAsyncStridedMemCopy() {
   ffi::ObjectPtr<DisallowAsyncStridedMemCopyNode> n =
       ffi::make_object<DisallowAsyncStridedMemCopyNode>();
-  return Postproc(n);
+  return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

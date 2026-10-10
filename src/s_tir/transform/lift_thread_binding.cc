@@ -149,8 +149,8 @@ class ThreadBindingLifter : public StmtExprMutator {
       for (const auto& [iter_var, annotation] : it->second) {
         auto annotations = annotation;
         annotations.Set(tvm::tirx::attr::kThreadBinding, iter_var->thread_tag);
-        body = For(iter_var->var, iter_var->dom->min, iter_var->dom->extent, ForKind::kParallel,
-                   std::move(body), std::move(annotations), std::nullopt);
+        body = For(iter_var->var, iter_var->dom.value()->min, iter_var->dom.value()->extent,
+                   ForKind::kParallel, std::move(body), std::move(annotations), std::nullopt);
       }
     }
     if (is_kernel_root) {

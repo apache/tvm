@@ -393,7 +393,8 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const ffi::Array<PrimExpr>& ou
 
           PrimExpr divide_factor = tvm::prim::cast(PrimType(x->dtype), 1);
           for (size_t i = 0; i < n_dim; ++i) {
-            divide_factor *= tvm::prim::cast(PrimType::Int(32), reduce_axes[i]->dom->extent);
+            divide_factor *=
+                tvm::prim::cast(PrimType::Int(32), reduce_axes[i]->dom.value()->extent);
           }
 
           return div(pool_sum(indices), divide_factor);

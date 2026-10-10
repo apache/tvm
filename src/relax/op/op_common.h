@@ -430,10 +430,10 @@ inline ffi::Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call, con
   auto lhs_vdevice = get_vdevice(lhs_ty);
   auto rhs_vdevice = get_vdevice(rhs_ty);
 
-  if (!lhs_vdevice.has_value() || !lhs_vdevice.value()->target.defined()) {
+  if (!lhs_vdevice.has_value() || !lhs_vdevice.value()->target.has_value()) {
     return rhs_vdevice;
   }
-  if (!rhs_vdevice.has_value() || !rhs_vdevice.value()->target.defined()) {
+  if (!rhs_vdevice.has_value() || !rhs_vdevice.value()->target.has_value()) {
     return lhs_vdevice;
   }
 
@@ -642,14 +642,15 @@ inline std::pair<tirx::SLayout, tirx::SBijectiveLayout> CheckTensorLayout(
     const ffi::String& tensor_name) {
   tvm::PrimType i64_ty = tvm::PrimType::Int(64);
   tirx::SLayout _tensor_layout(tensor_layout, i64_ty);
-  tirx::SBijectiveLayout tensor2tgt(_tensor_layout, tirx::SLayout(tgt_layout, i64_ty));
-  if (!tensor2tgt.defined()) {
+  auto tensor2tgt =
+      tirx::SBijectiveLayout::Create(_tensor_layout, tirx::SLayout(tgt_layout, i64_ty));
+  if (!tensor2tgt.has_value()) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << call->op << " requires the given " << tensor_name << " layout to be convertible from "
         << tgt_layout << " layout. However, the given layout " << tensor_layout
         << " is not convertible.";
   }
-  return {_tensor_layout, tensor2tgt};
+  return {_tensor_layout, tensor2tgt.value()};
 }
 
 inline std::pair<tirx::SLayout, tirx::SBijectiveLayout> CheckTensorLayout(
@@ -711,7 +712,8 @@ ffi::Array<Expr> GetCallArgs(const Call& call);
  * \param shape array
  * \return true or false depending on the compatibility
  */
-bool CanProveLayoutTransform(const SLayout& input_layout, const SLayout& desired_layout,
+bool CanProveLayoutTransform(const ffi::Optional<SLayout>& input_layout,
+                             const ffi::Optional<SLayout>& desired_layout,
                              ffi::Array<PrimExpr> shape);
 
 }  // namespace relax

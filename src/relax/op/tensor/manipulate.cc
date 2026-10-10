@@ -224,7 +224,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.broadcast_to */
 Expr broadcast_to(Expr x, Expr shape) {
   static const Op op = Op::Get("relax.broadcast_to");
-  return Call(Type::Missing(), op, {std::move(x), std::move(shape)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x), std::move(shape)}, std::nullopt, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -418,7 +418,7 @@ Type InferTypeConcat(const Call& call, const BlockBuilder& ctx) {
       if (ty->vdevice.has_value()) {
         if (!vdev.has_value()) {
           vdev = ty->vdevice.value();
-        } else if (ty->vdevice.value()->target.defined()) {
+        } else if (ty->vdevice.value()->target.has_value()) {
           // mismatch
           if (ty->vdevice.value() != vdev.value()) {
             vdevice_unknown = true;
@@ -508,7 +508,8 @@ InferLayoutOutput InferLayoutConcat(
   for (auto n_layout : nlayout_array) {
     TVM_FFI_ICHECK(n_layout.IsLeaf());
     LayoutDecision in_layout = n_layout.LeafValue();
-    if (in_layout->layout.ndim() != in_layout->layout.ndim_primal()) {
+    if ((in_layout->layout.has_value() ? in_layout->layout.value().ndim() : 0) !=
+        (in_layout->layout.has_value() ? in_layout->layout.value().ndim_primal() : 0)) {
       const auto* tuple_ty = GetTypeAs<TupleTypeNode>(call->args[0]);
       TVM_FFI_ICHECK(tuple_ty != nullptr)
           << " expects the input to be a Tuple of Tensors. However, the given input is "
@@ -527,8 +528,11 @@ InferLayoutOutput InferLayoutConcat(
                                      t_shape.value()->values)) {
           // Some tensor unhappy with sub indexed layout, lets pick first regular layout
           for (auto pick_layout : nlayout_array) {
-            if (pick_layout.LeafValue()->layout.ndim() ==
-                pick_layout.LeafValue()->layout.ndim_primal()) {
+            if ((pick_layout.LeafValue()->layout.has_value()
+                     ? pick_layout.LeafValue()->layout.value().ndim()
+                     : 0) == (pick_layout.LeafValue()->layout.has_value()
+                                  ? pick_layout.LeafValue()->layout.value().ndim_primal()
+                                  : 0)) {
               in_layout = pick_layout.LeafValue();
               break;
             }
@@ -547,7 +551,7 @@ InferLayoutOutput InferLayoutConcat(
   }
   output_layouts.push_back(layout);
   ffi::ObjectPtr<ConcatAttrs> new_attrs = ffi::make_object<ConcatAttrs>(*attrs);
-  new_attrs->axis = FindAxis(layout->layout, attrs->axis.value_or(0));
+  new_attrs->axis = FindAxis(layout->layout.value(), attrs->axis.value_or(0));
   return InferLayoutOutput({NLayout(input_layouts)}, output_layouts, Attrs(new_attrs));
 }
 
@@ -626,7 +630,8 @@ InferLayoutOutput InferLayoutExpandDims(
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   int ndim = tensor_ty->ndim;
   // Can't handle sub indexed layouts.
-  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+  if ((existing_layout->layout.has_value() ? existing_layout->layout.value().ndim() : 0) !=
+      (existing_layout->layout.has_value() ? existing_layout->layout.value().ndim_primal() : 0)) {
     existing_layout = LayoutDecision(InitialLayout(ndim));
   }
   int n_new_dim = attrs->axis.size();
@@ -650,8 +655,8 @@ InferLayoutOutput InferLayoutExpandDims(
       output_layout.push_back(new_layout.at(j++));
     }
   }
-  return InferLayoutOutput({existing_layout}, {LayoutDecision(SLayout(output_layout))},
-                           Attrs(call->attrs));
+  return InferLayoutOutput({existing_layout}, {LayoutDecision(SLayout::Create(output_layout))},
+                           call->attrs);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -717,7 +722,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr index_tensor(Expr first, Expr tensors) {
   static const Op op = Op::Get("relax.index_tensor");
-  return Call(Type::Missing(), op, {std::move(first), std::move(tensors)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(first), std::move(tensors)}, std::nullopt, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -867,8 +872,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.layout_transform */
 
 Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimExpr> pad_value) {
-  ffi::ObjectPtr<LayoutTransformAttrs> attrs = ffi::make_object<LayoutTransformAttrs>();
-  attrs->index_map = std::move(index_map);
+  ffi::ObjectPtr<LayoutTransformAttrs> attrs =
+      ffi::make_object<LayoutTransformAttrs>(std::move(index_map));
   attrs->pad_value = std::move(pad_value);
 
   static const Op op = Op::Get("relax.layout_transform");
@@ -1021,7 +1026,8 @@ InferLayoutOutput InferLayoutPermuteDims(
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
 
   // permute_dims can't handle sub indexed layouts.
-  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+  if ((existing_layout->layout.has_value() ? existing_layout->layout.value().ndim() : 0) !=
+      (existing_layout->layout.has_value() ? existing_layout->layout.value().ndim_primal() : 0)) {
     existing_layout = LayoutDecision(InitialLayout(ndim));
   }
 
@@ -1038,8 +1044,8 @@ InferLayoutOutput InferLayoutPermuteDims(
   for (int64_t axis : order) {
     order_str.push_back(static_cast<char>(axis + 'A'));
   }
-  ffi::String new_axes =
-      TransposeStrLike(InitialLayout(ndim).name(), existing_layout->layout, order_str);
+  ffi::String new_axes = TransposeStrLike(InitialLayout(ndim).name(), existing_layout->layout,
+                                          SLayout::Create(order_str));
   ffi::Array<int64_t> new_order;
   for (size_t i = 0; i < new_axes.size(); ++i) {
     new_order.push_back(new_axes.at(i) - 'A');
@@ -1166,7 +1172,7 @@ Expr ConvertNewShapeToExpr(const Expr& data,
 Expr reshape(Expr x, ffi::Variant<ffi::Array<PrimExpr>, Expr> shape) {
   Expr shape_in_expr = ConvertNewShapeToExpr(x, shape);
   static const Op op = Op::Get("relax.reshape");
-  return Call(Type::Missing(), op, {std::move(x), std::move(shape_in_expr)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x), std::move(shape_in_expr)}, std::nullopt, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1359,7 +1365,8 @@ InferLayoutOutput InferLayoutSplit(
    * Fallback if the outputs can't be represented in input sub indexed layout
    * This can happen after sub indexing, if we can't split the corresponding primal axis
    */
-  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+  if ((existing_layout->layout.has_value() ? existing_layout->layout.value().ndim() : 0) !=
+      (existing_layout->layout.has_value() ? existing_layout->layout.value().ndim_primal() : 0)) {
     for (const auto& si : out_tuple->fields) {
       TVM_FFI_ICHECK(si->IsInstance<TensorTypeNode>()) << "Fields of TupleType must be TensorType"
                                                           "output structinfo, but got "
@@ -1377,7 +1384,7 @@ InferLayoutOutput InferLayoutSplit(
   }
 
   ffi::ObjectPtr<SplitAttrs> new_attrs = ffi::make_object<SplitAttrs>(*attrs);
-  new_attrs->axis = FindAxis(existing_layout->layout, attrs->axis);
+  new_attrs->axis = FindAxis(existing_layout->layout.value(), attrs->axis);
   TVM_FFI_ICHECK(out_tuple != nullptr) << "Invalid Call";
   NLayout tuple_layouts(ffi::Array<NLayout>(out_tuple->fields.size(), existing_layout));
   return InferLayoutOutput({existing_layout}, {tuple_layouts}, Attrs(new_attrs));
@@ -1524,7 +1531,8 @@ InferLayoutOutput InferLayoutSqueeze(
 
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   // Can't handle sub indexed layouts.
-  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+  if ((existing_layout->layout.has_value() ? existing_layout->layout.value().ndim() : 0) !=
+      (existing_layout->layout.has_value() ? existing_layout->layout.value().ndim_primal() : 0)) {
     existing_layout = LayoutDecision(InitialLayout(ndim));
   }
   ffi::String new_axis_str =
@@ -1541,7 +1549,7 @@ InferLayoutOutput InferLayoutSqueeze(
 
   ffi::ObjectPtr<SqueezeAttrs> new_attrs = ffi::make_object<SqueezeAttrs>(*attrs);
   new_attrs->axis = new_axis;
-  return InferLayoutOutput({existing_layout}, {LayoutDecision(SLayout(output_layout))},
+  return InferLayoutOutput({existing_layout}, {LayoutDecision(SLayout::Create(output_layout))},
                            Attrs(new_attrs));
 }
 
@@ -1787,14 +1795,15 @@ InferLayoutOutput InferLayoutStack(
   }
 
   // For stack, we need to adjust the output layout by inserting a new axis
-  std::string layout_str = layout->layout.name();
+  std::string layout_str =
+      (layout->layout.has_value() ? layout->layout.value().name() : "__undef__");
   int axis = attrs->axis.has_value() ? static_cast<int>(attrs->axis.value()) : 0;
   layout_str.insert(static_cast<size_t>(axis), "S");  // Add stack dimension
   SLayout output_layout = SLayout(layout_str);
   output_layouts.push_back(LayoutDecision(output_layout));
 
   ffi::ObjectPtr<StackAttrs> new_attrs = ffi::make_object<StackAttrs>(*attrs);
-  new_attrs->axis = static_cast<int64_t>(FindAxis(layout->layout, axis));
+  new_attrs->axis = static_cast<int64_t>(FindAxis(layout->layout.value(), axis));
   return InferLayoutOutput({NLayout(input_layouts)}, output_layouts, Attrs(new_attrs));
 }
 
@@ -1812,7 +1821,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.collapse_sum_like */
 Expr collapse_sum_like(Expr data, Expr collapse_target) {
   static const Op op = Op::Get("relax.collapse_sum_like");
-  return Call(Type::Missing(), op, {std::move(data), std::move(collapse_target)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(collapse_target)}, std::nullopt, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1860,7 +1869,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.collapse_sum_to */
 Expr collapse_sum_to(Expr data, Expr shape) {
   static const Op op = Op::Get("relax.collapse_sum_to");
-  return Call(Type::Missing(), op, {std::move(data), std::move(shape)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(shape)}, std::nullopt, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1983,13 +1992,14 @@ InferLayoutOutput InferLayoutRepeat(
   int ndim = tensor_ty->ndim;
 
   // Can't handle sub indexed layouts.
-  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+  if ((existing_layout->layout.has_value() ? existing_layout->layout.value().ndim() : 0) !=
+      (existing_layout->layout.has_value() ? existing_layout->layout.value().ndim_primal() : 0)) {
     existing_layout = LayoutDecision(InitialLayout(ndim));
   }
 
   // When axis is not specified, the output is 1D (flattened)
   if (!attrs->axis.has_value()) {
-    return InferLayoutOutput({existing_layout}, {InitialLayoutDecision(1)}, Attrs(call->attrs));
+    return InferLayoutOutput({existing_layout}, {InitialLayoutDecision(1)}, call->attrs);
   }
 
   // Transform the axis based on the layout
@@ -2109,14 +2119,15 @@ InferLayoutOutput InferLayoutTile(
   int out_ndim = std::max(l, ndim);
 
   // Can't handle sub indexed layouts.
-  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+  if ((existing_layout->layout.has_value() ? existing_layout->layout.value().ndim() : 0) !=
+      (existing_layout->layout.has_value() ? existing_layout->layout.value().ndim_primal() : 0)) {
     existing_layout = LayoutDecision(InitialLayout(ndim));
   }
 
   // Tile operation repeats data along each axis.
   // When layout changes, we need to transform the repeats array to match the new layout.
   SLayout initial_layout = InitialLayout(ndim);
-  SLayout existing_layout_obj = existing_layout->layout;
+  SLayout existing_layout_obj = existing_layout->layout.value();
 
   // Transform repeats array according to layout change.
   // The repeats array semantics:
@@ -2225,7 +2236,8 @@ InferLayoutOutput InferLayoutFlip(
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   int ndim = tensor_ty->ndim;
 
-  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+  if ((existing_layout->layout.has_value() ? existing_layout->layout.value().ndim() : 0) !=
+      (existing_layout->layout.has_value() ? existing_layout->layout.value().ndim_primal() : 0)) {
     existing_layout = LayoutDecision(InitialLayout(ndim));
   }
 
@@ -2234,7 +2246,7 @@ InferLayoutOutput InferLayoutFlip(
     axis += ndim;
   }
 
-  const int new_axis = FindAxis(existing_layout->layout, axis);
+  const int new_axis = FindAxis(existing_layout->layout.value(), axis);
   TVM_FFI_ICHECK_GE(new_axis, 0) << "Failed to find transformed axis";
 
   ffi::ObjectPtr<FlipAttrs> new_attrs = ffi::make_object<FlipAttrs>(*attrs);
@@ -2421,14 +2433,20 @@ InferLayoutOutput InferLayoutGatherElements(
   LayoutDecision layout = data_layout;
   // If data_layout is initial and indices_layout is not, prefer indices_layout.
   bool data_is_initial =
-      data_layout->layout.name() == InitialLayout(data_layout->layout.ndim()).name();
+      (data_layout->layout.has_value() ? data_layout->layout.value().name() : "__undef__") ==
+      InitialLayout((data_layout->layout.has_value() ? data_layout->layout.value().ndim() : 0))
+          .name();
   bool indices_is_initial =
-      indices_layout->layout.name() == InitialLayout(indices_layout->layout.ndim()).name();
+      (indices_layout->layout.has_value() ? indices_layout->layout.value().name() : "__undef__") ==
+      InitialLayout(
+          (indices_layout->layout.has_value() ? indices_layout->layout.value().ndim() : 0))
+          .name();
   if (data_is_initial && !indices_is_initial) {
     layout = indices_layout;
   }
 
-  if (layout->layout.ndim() != layout->layout.ndim_primal()) {
+  if ((layout->layout.has_value() ? layout->layout.value().ndim() : 0) !=
+      (layout->layout.has_value() ? layout->layout.value().ndim_primal() : 0)) {
     const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
     TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support static ndim for now";
@@ -2437,7 +2455,7 @@ InferLayoutOutput InferLayoutGatherElements(
   }
 
   ffi::ObjectPtr<GatherElementsAttrs> new_attrs = ffi::make_object<GatherElementsAttrs>(*attrs);
-  new_attrs->axis = FindAxis(layout->layout, attrs->axis);
+  new_attrs->axis = FindAxis(layout->layout.value(), attrs->axis);
   return InferLayoutOutput({layout, layout}, {layout}, Attrs(new_attrs));
 }
 
@@ -2928,7 +2946,8 @@ InferLayoutOutput InferLayoutScatterElements(
     layout = indices_layout;
   }
 
-  if (layout->layout.ndim() != layout->layout.ndim_primal()) {
+  if ((layout->layout.has_value() ? layout->layout.value().ndim() : 0) !=
+      (layout->layout.has_value() ? layout->layout.value().ndim_primal() : 0)) {
     const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
     TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support static ndim for now";
@@ -2937,7 +2956,7 @@ InferLayoutOutput InferLayoutScatterElements(
   }
 
   ffi::ObjectPtr<ScatterElementsAttrs> new_attrs = ffi::make_object<ScatterElementsAttrs>(*attrs);
-  new_attrs->axis = FindAxis(layout->layout, attrs->axis);
+  new_attrs->axis = FindAxis(layout->layout.value(), attrs->axis);
   return InferLayoutOutput({layout, layout, layout}, {layout}, Attrs(new_attrs));
 }
 
@@ -3101,7 +3120,9 @@ InferLayoutOutput InferLayoutScatterND(
   LayoutDecision out_updates_layout = updates_layout;
 
   // Check if data has a sub-indexed layout
-  bool has_sub_indexed_layout = layout->layout.ndim() != layout->layout.ndim_primal();
+  bool has_sub_indexed_layout =
+      (layout->layout.has_value() ? layout->layout.value().ndim() : 0) !=
+      (layout->layout.has_value() ? layout->layout.value().ndim_primal() : 0);
 
   if (has_sub_indexed_layout) {
     // Fall back to initial layouts for both data and updates
@@ -3116,8 +3137,7 @@ InferLayoutOutput InferLayoutScatterND(
     out_updates_layout = LayoutDecision(InitialLayout(updates_ty->ndim));
   }
 
-  return InferLayoutOutput({layout, indices_layout, out_updates_layout}, {layout},
-                           Attrs(call->attrs));
+  return InferLayoutOutput({layout, indices_layout, out_updates_layout}, {layout}, call->attrs);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

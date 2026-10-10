@@ -502,7 +502,7 @@ class BaseInliner : public StmtExprMutator {
   /*! \brief The body of the block to be inlined */
   const TensorStoreNode* inlined_store_{nullptr};
   /*! \brief The scope root */
-  StmtSRef scope_root_sref_{nullptr};
+  StmtSRef scope_root_sref_;
   /*! \brief Maps a buffer's data field to itself */
   ffi::Map<Var, TensorVar> buffer_var_map_;
   /*! \brief The indices used for indexing the buffer to be inlined */
@@ -555,9 +555,9 @@ class ComputeInliner : public BaseInliner {
       for (size_t i = 0; i < num_iters; ++i) {
         const IterVar& iter = producer_block->iter_vars[i];
         const PrimExpr& e = inlined_store_->indices[i];
-        if (e.same_as(iter->var) ||
-            (analyzer_->CanProveEqual(e, 0) && analyzer_->CanProveEqual(iter->dom->min, 0) &&
-             analyzer_->CanProveEqual(iter->dom->extent, 1))) {
+        if (e.same_as(iter->var) || (analyzer_->CanProveEqual(e, 0) &&
+                                     analyzer_->CanProveEqual(iter->dom.value()->min, 0) &&
+                                     analyzer_->CanProveEqual(iter->dom.value()->extent, 1))) {
           idx_vars.push_back(iter->var);
         } else {
           break;
@@ -574,7 +574,7 @@ class ComputeInliner : public BaseInliner {
     // check bijective mapping from producer iter var to store indices
     ffi::Map<PrimVar, Range> producer_iter_doms;
     for (const auto& iter : producer_block->iter_vars) {
-      producer_iter_doms.Set(iter->var, iter->dom);
+      producer_iter_doms.Set(iter->var, iter->dom.value());
     }
     sym::IterMapResult res = sym::DetectIterMap(
         /*indices=*/inlined_store_->indices,
@@ -597,9 +597,10 @@ class ComputeInliner : public BaseInliner {
     for (const Var& var : idx_vars_) prim_idx_vars.push_back(var.as_or_throw<PrimExpr>());
     auto inverse_iter_map = sym::InverseAffineIterMap(res->indices, prim_idx_vars);
     for (const auto& iter : producer_block->iter_vars) {
-      if (IsConstInt(iter->dom->min) && analyzer_->CanProveEqual(iter->dom->extent, 1)) {
+      if (IsConstInt(iter->dom.value()->min) &&
+          analyzer_->CanProveEqual(iter->dom.value()->extent, 1)) {
         // fallback mapping for constant iters
-        inverse_iter_map.Set(iter->var, iter->dom->min);
+        inverse_iter_map.Set(iter->var, iter->dom.value()->min);
       }
     }
     auto f_substitute =
@@ -714,9 +715,10 @@ class ReverseComputeInliner : public BaseInliner {
     // Initialize the predicates to ensure consumer block iters are in-bound
     consumer_iter_in_bound_ = IntImm::Bool(true);
     for (const IterVar& iter : consumer_block_realize->block->iter_vars) {
-      consumer_iter_in_bound_ = consumer_iter_in_bound_ && (iter->var >= iter->dom->min &&
-                                                            static_cast<PrimExpr>(iter->var) <
-                                                                iter->dom->min + iter->dom->extent);
+      consumer_iter_in_bound_ =
+          consumer_iter_in_bound_ &&
+          (iter->var >= iter->dom.value()->min &&
+           static_cast<PrimExpr>(iter->var) < iter->dom.value()->min + iter->dom.value()->extent);
     }
   }
 
@@ -740,10 +742,10 @@ class ReverseComputeInliner : public BaseInliner {
     // Collect block iter domains and update the substition map
     ffi::Map<PrimVar, Range> consumer_iter_doms;
     for (const auto& iter_var : consumer_block->iter_vars) {
-      consumer_iter_doms.Set(iter_var->var, iter_var->dom);
+      consumer_iter_doms.Set(iter_var->var, iter_var->dom.value());
       // Set default mapping for unit iters
-      if (IsConstInt(iter_var->dom->extent, 1) && IsConstInt(iter_var->dom->min)) {
-        VarRemapSet(iter_var->var, iter_var->dom->min);
+      if (IsConstInt(iter_var->dom.value()->extent, 1) && IsConstInt(iter_var->dom.value()->min)) {
+        VarRemapSet(iter_var->var, iter_var->dom.value()->min);
       }
     }
 
@@ -818,7 +820,8 @@ class ReverseComputeInliner : public BaseInliner {
       const IterVar& iter = producer_block->iter_vars[i];
       const PrimExpr& binding = producer_block_realize->iter_values[i];
       subst_map.Set(iter->var, binding);
-      analyzer_->Bind(iter->var, Range::FromMinExtent(iter->dom->min, iter->dom->extent));
+      analyzer_->Bind(iter->var,
+                      Range::FromMinExtent(iter->dom.value()->min, iter->dom.value()->extent));
     }
     if (producer_block->annotations.count(tvm::s_tir::attr::kAutoCopy) != 0) {
       auto bind = [&](const ForNode* loop) {
@@ -895,15 +898,15 @@ class ReverseComputeInliner : public BaseInliner {
   bool CheckConsumerCovered() {
     ffi::Map<Var, sym::IntSet> producer_iter_doms;
     for (const IterVar& iter_var : producer_block_->iter_vars) {
-      producer_iter_doms.Set(iter_var->var, sym::IntSet::FromRange(iter_var->dom));
+      producer_iter_doms.Set(iter_var->var, sym::IntSet::FromRange(iter_var->dom.value()));
     }
     // For each block iter in the consumer block, find the corresponding expression in the producer
     for (const IterVar& iter : consumer_block_->iter_vars) {
       if (auto producer_iter = VarRemapGet(iter->var).as<PrimExpr>()) {
         sym::IntSet producer_iter_range = sym::EvalSet(producer_iter.value(), producer_iter_doms);
-        if (analyzer_->CanProve(producer_iter_range.min() > iter->dom->min) ||
+        if (analyzer_->CanProve(producer_iter_range.min() > iter->dom.value()->min) ||
             analyzer_->CanProve(producer_iter_range.max() <
-                                iter->dom->min + iter->dom->extent - 1)) {
+                                iter->dom.value()->min + iter->dom.value()->extent - 1)) {
           return false;
         }
       } else {

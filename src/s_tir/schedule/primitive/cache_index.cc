@@ -34,6 +34,7 @@ using namespace tvm::tirx;
 
 /*! \brief The auxiliary info used for the insertion point and content of the cache stage. */
 struct IndexInfo {
+  explicit IndexInfo(StmtSRef target) : target_sblock(std::move(target)) {}
   /*! \brief The target block to perform cache_index */
   StmtSRef target_sblock;
   /*! \brief Record the common subexpr extract threshold */
@@ -484,8 +485,7 @@ ffi::Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
    */
 
   // Step 0. Checking index, getting the target buffer and the parent scope
-  IndexInfo info;
-  info.target_sblock = block_sref;
+  IndexInfo info(block_sref);
   TVM_FFI_ICHECK_GE(cse_thresh, 0) << "cse_thresh should not be negative number";
   info.cse_thresh = cse_thresh;
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);

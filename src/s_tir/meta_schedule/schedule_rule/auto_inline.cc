@@ -82,7 +82,7 @@ class AutoInlineNode : public ScheduleRuleNode {
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
     ffi::ObjectPtr<AutoInlineNode> n = ffi::make_object<AutoInlineNode>(*this);
-    return ScheduleRule(n);
+    return ScheduleRule(ffi::UnsafeInit{}, n);
   }
 
  public:
@@ -219,7 +219,7 @@ ScheduleRule ScheduleRule::AutoInline(bool into_producer,          //
       n->disallow_op.push_back(Op::Get(op_name));
     }
   }
-  return ScheduleRule(n);
+  return ScheduleRule(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { AutoInlineNode::RegisterReflection(); }
@@ -257,7 +257,7 @@ class InlineConstantScalarsNode : public ScheduleRuleNode {
   ScheduleRule Clone() const final {
     ffi::ObjectPtr<InlineConstantScalarsNode> n =
         ffi::make_object<InlineConstantScalarsNode>(*this);
-    return ScheduleRule(n);
+    return ScheduleRule(ffi::UnsafeInit{}, n);
   }
 
   static void RegisterReflection() {
@@ -270,7 +270,7 @@ class InlineConstantScalarsNode : public ScheduleRuleNode {
 
 ScheduleRule ScheduleRule::InlineConstantScalars() {
   ffi::ObjectPtr<InlineConstantScalarsNode> n = ffi::make_object<InlineConstantScalarsNode>();
-  return ScheduleRule(n);
+  return ScheduleRule(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { InlineConstantScalarsNode::RegisterReflection(); }

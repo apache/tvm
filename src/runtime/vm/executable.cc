@@ -348,14 +348,14 @@ void VMExecutable::LoadConstantSection(support::Stream* strm) {
   STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "constant");
 
   size_t size = static_cast<size_t>(sz);
-  runtime::Tensor ndarray;
   DLDataType dtype;
   // Load each of the constants.
   for (size_t i = 0; i < size; i++) {
     int constant_type;
     STREAM_CHECK(strm->Read(&constant_type, sizeof(constant_type)), "constant");
     if (constant_type == ffi::TypeIndex::kTVMFFITensor) {
-      ndarray.Load(strm);
+      runtime::Tensor ndarray(ffi::UnsafeInit{});
+      STREAM_CHECK(ndarray.Load(strm), "constant tensor");
       ffi::Any cell;
       cell = ndarray;
       this->constants.push_back(cell);

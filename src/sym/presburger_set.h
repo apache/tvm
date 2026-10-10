@@ -146,7 +146,7 @@ class PresburgerSet : public IntSet {
   TVM_DLL PresburgerSet(const PrimExpr& constraint);
 
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PresburgerSetNode);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PresburgerSet, IntSet, PresburgerSetNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PresburgerSet, IntSet, PresburgerSetNode);
 };
 #endif  // TVM_MLIR_VERSION >= 150
 #else   // TVM_MLIR_VERSION
@@ -168,7 +168,7 @@ class PresburgerSet : public IntSet {
    * \param constraint The constraint to construct the set.
    * \return The created set.
    */
-  TVM_DLL PresburgerSet(const PrimExpr& constraint) {
+  TVM_DLL PresburgerSet(const PrimExpr& constraint) : IntSet(ffi::UnsafeInit{}) {
     TVM_FFI_THROW(InternalError) << "MLIR is not enabled!";
   }
 };

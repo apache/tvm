@@ -317,6 +317,7 @@ Function SplitHostDevice(Function func, IRModule* device_mod,
 namespace {
 
 struct KernelInfo {
+  explicit KernelInfo(Target target) : target(std::move(target)) {}
   // The device on which the Function runs.
   Target target;
 
@@ -345,14 +346,16 @@ struct KernelInfo {
  */
 class DeviceInfoCollector : public StmtExprVisitor {
  public:
+  explicit DeviceInfoCollector(Target target) : info_(std::move(target)) {}
+
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
     if (value.as<ExprNode>()) return std::nullopt;
     return StmtExprVisitor::Visit(value);
   }
   static KernelInfo Collect(const GlobalVar& gvar, const Function& func,
                             bool allow_placeholder = false) {
-    auto collector = ffi::make_object<DeviceInfoCollector>();
-    collector->info_.target = func->GetAttr<Target>(tvm::attr::kTarget).value().WithoutHost();
+    auto collector = ffi::make_object<DeviceInfoCollector>(
+        func->GetAttr<Target>(tvm::attr::kTarget).value().WithoutHost());
     collector->info_.params = func->params;
     if (func->GetAttr<ffi::Array<ffi::String>>(tvm::backend::cuda::attr::kLaunchFields)) {
       collector->info_.global_symbol =
@@ -871,7 +874,7 @@ IRModule LowerDeviceKernelLaunches(IRModule mod) {
     for (const auto& [gvar, base_func] : mod->functions) {
       if (called_gvars.count(gvar.get())) {
         if (auto function = base_func.as<Function>()) {
-          device_info_map[gvar.get()] = DeviceInfoCollector::Collect(gvar, function.value());
+          device_info_map.emplace(gvar.get(), DeviceInfoCollector::Collect(gvar, function.value()));
         }
       }
     }

@@ -116,7 +116,7 @@ class StmtSRef : public ffi::ObjectRef {
    */
   TVM_DLL explicit StmtSRef(const StmtNode* stmt, StmtSRefNode* parent, int64_t seq_index);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StmtSRef, ffi::ObjectRef, StmtSRefNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StmtSRef, ffi::ObjectRef, StmtSRefNode);
 
  public:
   /*!
@@ -218,6 +218,10 @@ enum class DepKind : int32_t {
  */
 class DependencyNode : public ffi::Object {
  public:
+  explicit DependencyNode(ffi::UnsafeInit tag) : src(tag), dst(tag) {}
+
+  explicit DependencyNode(StmtSRef src, StmtSRef dst, DepKind kind)
+      : src(std::move(src)), dst(std::move(dst)), kind(kind) {}
   /*! \brief The source of the dependency relation */
   StmtSRef src;
   /*! \brief The destination of the dependency relation */

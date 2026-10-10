@@ -183,7 +183,7 @@ class Storage : public ffi::ObjectRef {
  public:
   TVM_RUNTIME_DLL explicit Storage(Buffer buffer, Allocator* allocator);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Storage, ffi::ObjectRef, StorageObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Storage, ffi::ObjectRef, StorageObj);
 };
 
 }  // namespace memory

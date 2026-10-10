@@ -102,7 +102,7 @@ class CodegenResult : public ffi::ObjectRef {
     data_ = std::move(n);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CodegenResult, ffi::ObjectRef, CodegenResultNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CodegenResult, ffi::ObjectRef, CodegenResultNode);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK() { CodegenResultNode::RegisterReflection(); }
