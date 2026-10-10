@@ -153,10 +153,9 @@ ffi::Optional<ExprDoc> ExternFuncDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<relax::ExternFuncNode>()
-      .attr(type_attr::kModuleFunctionOrder, int64_t{0})
-      .attr(tvm::script::printer::type_attr::kDocTranslate,
-            FDocTranslate::FromNative<&ExternFuncDocTranslate>());
+  ffi::reflection::TypeAttrDef<relax::ExternFuncNode>().attr(
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&ExternFuncDocTranslate>());
 }
 
 }  // namespace

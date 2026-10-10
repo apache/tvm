@@ -42,8 +42,7 @@ ffi::Optional<ExprDoc> InvokeDocHook(ffi::AnyView hook, DocTranslatorObj* d, ffi
                                      const ffi::Object* destination);
 ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                        const ffi::Object* destination);
-void EmitVarDefinition(DocTranslatorObj* d, const Var& var, ffi::Optional<ExprDoc> rhs,
-                       ffi::Optional<ExprDoc> annotation);
+void EmitVarDefinition(DocTranslatorObj* d, const Var& var, ExprDoc rhs);
 
 ExprDoc AddMetadata(DocTranslatorObj* d, ffi::Any value);
 IdDoc VarDoc(DocTranslatorObj* d, const Var& var, bool explicit_def = true);

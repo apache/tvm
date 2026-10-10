@@ -123,40 +123,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 ffi::Optional<ExprDoc> PtrTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                               const ffi::Object*) {
+                                           const ffi::Object*) {
   const auto* ty =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PtrTypeNode>(input);
-  bool type_value = d->GetOrCreateExtraState<bool>("ir.type_value");
   ExtraStateScope<bool> annotations(d, "ir.type_value", false);
-  ExprDoc doc = [&]() -> ExprDoc {
-    if (auto primitive = ty->element_type.as<PrimType>()) {
-      if (primitive.value().IsVoid()) {
-        if (ty->storage_scope == "global") return NamespaceDoc("tirx")->Attr("handle");
-        return NamespaceDoc("tirx")->Attr("handle")->Call(
-            {}, {"storage_scope"}, {LiteralDoc::Str(ty->storage_scope, std::nullopt)});
-      }
-      ExprDoc element = LiteralDoc::DataType(primitive.value()->dtype, std::nullopt);
-      if (ty->storage_scope.empty()) return NamespaceDoc("tirx")->Attr("handle")->Call({element});
-      return NamespaceDoc("tirx")->Attr("handle")->Call(
-          {element, LiteralDoc::Str(ty->storage_scope, std::nullopt)});
-    }
-    static ffi::reflection::TypeAttrColumn column(type_attr::kPointerConstructor);
-    if (auto name = column[ty->element_type->type_index()].as<ffi::String>()) {
-      return NamedCallCallee(name.value())->Call({});
-    }
-    return NamespaceDoc("tirx")->Attr("handle")->Call(
-        {d->Translate(ty->element_type).value(), LiteralDoc::Str(ty->storage_scope, std::nullopt)});
-  }();
-  if (!type_value) return doc;
-  if (auto primitive = ty->element_type.as<PrimType>();
-      primitive && primitive.value().IsVoid() && ty->storage_scope == "global") {
-    doc = doc->Call({});
+  ffi::Array<ExprDoc> args{d->Translate(ty->element_type).value()};
+  if (ty->storage_scope != "global") {
+    args.push_back(LiteralDoc::Str(ty->storage_scope, std::nullopt));
   }
-  return doc->Attr("ty");
+  return NamespaceDoc("tirx")->Attr("Ptr")->Call(args);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::EnsureTypeAttrColumn(type_attr::kPointerConstructor);
   ffi::reflection::TypeAttrDef<PtrTypeNode>().attr(
       tvm::script::printer::type_attr::kDocTranslate,
       FDocTranslate::FromNative<&PtrTypeDocTranslate>());

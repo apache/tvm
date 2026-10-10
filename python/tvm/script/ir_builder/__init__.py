@@ -31,6 +31,7 @@ from tvm.ir import (
     TensorRegionType,
     Tuple,
     Type,
+    Var,
     make_node,
 )
 
@@ -84,6 +85,7 @@ __all__ = [
     "TensorRegionType",
     "Tuple",
     "Type",
+    "Var",
     "at_",
     "check_well_formed_",
     "constexpr",

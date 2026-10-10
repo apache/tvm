@@ -384,18 +384,15 @@ namespace type_attr {
  */
 inline constexpr const char* kDocTranslate = "__tvm_doc_translate__";
 /*!
- * \brief Integer ordering rank for module members, followed by their global name.
- * Unregistered function types sort after explicitly ranked declarations and kernels.
+ * \brief Optional hook dispatched by load->source->ty, receiving the TensorLoad and binder.
  */
-inline constexpr const char* kModuleFunctionOrder = "__tvm_doc_module_function_order__";
+inline constexpr const char* kDocTranslateTensorLoadBySourceTy =
+    "__tvm_doc_translate_tensor_load_by_source_ty__";
 /*!
- * \brief Source-Type hook receiving the original TensorLoad and optional binder.
+ * \brief Optional hook dispatched by var->ty, receiving the Var and binder.
+ * Types without an override use the generic Var reference and definition syntax.
  */
-inline constexpr const char* kTensorLoadDocTranslate = "__tvm_doc_translate_tensor_load__";
-/*! \brief Var-Type hook receiving the original Var and optional binder. */
-inline constexpr const char* kVarDocTranslate = "__tvm_doc_translate_var__";
-/*! \brief Qualified pointer constructor name registered by the pointer element type. */
-inline constexpr const char* kPointerConstructor = "__tvm_doc_pointer_constructor__";
+inline constexpr const char* kDocTranslateVarByTy = "__tvm_doc_translate_var_by_ty__";
 }  // namespace type_attr
 
 namespace op_attr {

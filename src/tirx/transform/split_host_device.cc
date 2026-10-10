@@ -257,6 +257,10 @@ class HostDeviceSplitter : public StmtExprMutator {
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tvm::tirx::attr::kNoAlias, true},
                                                      {tvm::tirx::attr::kIsGlobalFunc, true}});
+    if (auto script_namespace = cur_func_->GetAttr<ffi::String>(tvm::attr::kScriptNamespace)) {
+      device_func =
+          WithAttr(std::move(device_func), tvm::attr::kScriptNamespace, script_namespace.value());
+    }
     bool is_stir = cur_func_->attrs->dict.count(tvm::attr::kSTir);
     if (is_stir) {
       device_func = WithAttr(std::move(device_func), tvm::attr::kSTir, true);

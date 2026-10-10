@@ -56,7 +56,7 @@ ffi::Optional<ExprDoc> TensorVarDocTranslate(DocTranslatorObj* d, ffi::AnyView i
     VarDoc(d, var);
     ExprDoc rhs = NamespaceDoc("tirx")->Attr("Var")->Call(
         {LiteralDoc::Str(var->name, std::nullopt), d->Translate(var->ty).value()});
-    EmitVarDefinition(d, var, rhs, std::nullopt);
+    EmitVarDefinition(d, var, rhs);
     return std::nullopt;
   }
   // Mutable scalar syntax binds a TensorLoad; resource uses need its allocation.
@@ -65,7 +65,7 @@ ffi::Optional<ExprDoc> TensorVarDocTranslate(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::TensorTypeNode>().attr(
-      type_attr::kVarDocTranslate, FDocTranslate::FromNative<&TensorVarDocTranslate>());
+      type_attr::kDocTranslateVarByTy, FDocTranslate::FromNative<&TensorVarDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> BufferOperationDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -223,13 +223,8 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
     }
   }
   if (!buffer->layout.has_value()) {
-    bool defaults_to_none = d->GetOrCreateExtraState<bool>("tirx.buffer_default_layout_none") ||
-                            buffer->storage_scope == "trn.sbuf" ||
-                            buffer->storage_scope == "trn.psum";
-    if (!defaults_to_none) {
-      keys.push_back("layout");
-      values.push_back(LiteralDoc::None(std::nullopt));
-    }
+    keys.push_back("layout");
+    values.push_back(LiteralDoc::None(std::nullopt));
   }
   return NamespaceDoc("tirx")->Attr("Tensor")->Call(
       {TupleDoc(shape), LiteralDoc::DataType(buffer->dtype->dtype, std::nullopt)}, keys, values);
@@ -280,7 +275,7 @@ ffi::Optional<ExprDoc> TIRxTensorLoadDocTranslate(DocTranslatorObj* d, ffi::AnyV
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::TensorTypeNode>().attr(
-      tvm::script::printer::type_attr::kTensorLoadDocTranslate,
+      tvm::script::printer::type_attr::kDocTranslateTensorLoadBySourceTy,
       FDocTranslate::FromNative<&TIRxTensorLoadDocTranslate>());
 }
 

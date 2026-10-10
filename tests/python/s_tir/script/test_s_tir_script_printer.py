@@ -46,7 +46,7 @@ def test_function_symbolic_buffer_param_roundtrip():
     func = (
         tirx.Function(params=[A], body=tvm.ir.Evaluate(n))
         .with_attr("global_symbol", "main")
-        .with_attr("s_tir", True)
+        .with_attr({"s_tir": True, "script.namespace": "s_tir"})
     )
 
     source = func.script()
@@ -67,7 +67,7 @@ def test_function_compound_buffer_shape_first_use_roundtrip():
     func = (
         tirx.Function(params=[A], body=tvm.ir.Evaluate(n))
         .with_attr("global_symbol", "main")
-        .with_attr("s_tir", True)
+        .with_attr({"s_tir": True, "script.namespace": "s_tir"})
     )
 
     source = func.script()
@@ -104,10 +104,10 @@ def test_function_symbolic_alloc_buffer_roundtrip():
                 tvm.ir.Evaluate(tirx.TensorLoad(buf, [0])),
             ]
         ),
-    ).with_attr("s_tir", True)
+    ).with_attr({"s_tir": True, "script.namespace": "s_tir"})
 
     source = func.script()
-    assert 'T.alloc_tensor((size,), "float32")' in source
+    assert 'T.alloc_tensor((size,), "float32", layout=None)' in source
     tvm.ir.assert_structural_equal(
         tvm.script.from_source(
             source,
@@ -128,7 +128,7 @@ def test_function():
             body=tvm.ir.Evaluate(0),
         )
         .with_attr("global_symbol", "main")
-        .with_attr("s_tir", True)
+        .with_attr({"s_tir": True, "script.namespace": "s_tir"})
     )
     _assert_print(
         func,
@@ -140,7 +140,8 @@ from __future__ import annotations
 
 @Ts.function
 def main(A: T.Tensor((128, 128), "float32", layout="default"), B: T.Tensor((256, 256), "float32", layout="default")):
-    pass""",
+    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
+""",
     )
 
 
@@ -154,7 +155,7 @@ def test_function_buffer_data_use():
             body=tvm.ir.Evaluate(A.data),
         )
         .with_attr("global_symbol", "main")
-        .with_attr("s_tir", True)
+        .with_attr({"s_tir": True, "script.namespace": "s_tir"})
     )
     _assert_print(
         func,
@@ -166,6 +167,7 @@ from __future__ import annotations
 
 @Ts.function
 def main(A: T.Tensor((128, 128), "float32", layout="default"), B: T.Tensor((256, 256), "float32", layout="default")):
+    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     T.evaluate(A.data)
 """,
     )
@@ -182,7 +184,7 @@ def test_function_buffer_data_argument_is_scope_hint():
             body=tvm.ir.Evaluate(0),
         )
         .with_attr("global_symbol", "main")
-        .with_attr("s_tir", True)
+        .with_attr({"s_tir": True, "script.namespace": "s_tir"})
     )
     _assert_print(
         func,
@@ -194,7 +196,7 @@ from __future__ import annotations
 
 @Ts.function
 def main(A: T.Tensor((128, 128), "float32", layout="default"), B: T.Tensor((256, 256), "float32", layout="default")):
-    pass
+    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
 """,
     )
 
@@ -291,6 +293,7 @@ def test_bind():
 
 @Ts.function(private=True)
 def main():
+    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     v: T.let[T.float32] = T.float32(10.0)
     T.evaluate(1)
 """,
@@ -322,9 +325,11 @@ def test_remap():
 
     expected_output = """
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.function
 def main():
+    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     with Ts.sblock("root"):
         Ts.reads()
         Ts.writes()
@@ -368,13 +373,15 @@ def test_root_block():
 
     expected_output = """
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.function
 def main():
+    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     with Ts.sblock("root"):
         Ts.reads()
         Ts.writes()
-        v = Ts.sblock_alloc_buffer((128, 128), "float32")
+        v = Ts.sblock_alloc_buffer((128, 128), "float32", layout=None)
         for i in range(128):
             for j in range(128):
                 with Ts.sblock(""):
@@ -392,7 +399,7 @@ def test_private_function():
         params=[A, B],
         ret_type=None,
         body=tvm.ir.Evaluate(0),
-    ).with_attr("s_tir", True)
+    ).with_attr({"s_tir": True, "script.namespace": "s_tir"})
     _assert_print(
         func,
         expected="""
@@ -403,7 +410,8 @@ from __future__ import annotations
 
 @Ts.function(private=True)
 def main(A: T.Tensor((128, 128), "float32", layout="default"), B: T.Tensor((256, 256), "float32", layout="default")):
-    pass""",
+    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
+""",
     )
 
 
@@ -422,8 +430,9 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def func(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
-    pass"""
+def func(A: T.Tensor((128, 128), "float32", layout=None), B: T.Tensor((256, 256), "float32", layout=None)):
+    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
+"""
     _assert_print(main, expected_output)
 
 
@@ -436,11 +445,13 @@ def test_return_statement():
 
     expected_output = """
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.function
 def func():
+    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     return 5
-    """
+"""
     _assert_print(func, expected_output)
     assert func.script(verbose_expr=True).strip() == expected_output.strip()
 
@@ -477,6 +488,7 @@ def test_custom_float_types(dtype):
 
 @Ts.function
 def func():
+    T.func_attr({{"s_tir": True, "script.namespace": "s_tir"}})
     T.evaluate(T.{dtype}(0.0))
 """
     _assert_print(func, expected_output)
@@ -517,9 +529,11 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def func(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+def func(A: T.Tensor((128, 128), "float32", layout=None), B: T.Tensor((256, 256), "float32", layout=None)):
+    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     a_load: T.let[T.float32x4] = T.masked_load(A, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4))
-    T.masked_store(A, a_load, 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))"""
+    T.masked_store(A, a_load, 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))
+"""
     _assert_print(main, expected_output)
 
 
@@ -553,7 +567,7 @@ def test_predicated_buffer_load_store():
         params=[buffers[a], buffers[b]],
         ret_type=None,
         body=body,
-    ).with_attr("s_tir", True)
+    ).with_attr({"s_tir": True, "script.namespace": "s_tir"})
 
     expected_output = """
 from __future__ import annotations
@@ -563,7 +577,9 @@ from __future__ import annotations
 
 @Ts.function(private=True)
 def main(A: T.Tensor((128, 128), "float32", layout="default"), B: T.Tensor((256, 256), "float32", layout="default")):
-    T.masked_store(A, T.masked_load(B, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4)), 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))"""
+    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
+    T.masked_store(A, T.masked_load(B, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4)), 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))
+"""
     _assert_print(func, expected_output)
 
 
@@ -597,7 +613,8 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def func(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+def func(A: T.Tensor((128, 128), "float32", layout=None), B: T.Tensor((256, 256), "float32", layout=None)):
+    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     mask: T.let["uint1xvscalex4"] = T.get_active_lane_mask(0, 13, ty="uint1xvscalex4")
     a_load: T.let["float32xvscalex4"] = T.masked_load(A, 0, T.Ramp(0, 4, T.vscale() * 4), mask)
     T.masked_store(A, a_load, 0, T.Ramp(0, 2, T.vscale() * 4), mask)
@@ -638,8 +655,10 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def main(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
-    B[0:T.vscale() * 4] = A[T.Ramp(0, 1, T.vscale() * 4)]"""
+def main(A: T.Tensor((128,), "float32", layout=None), B: T.Tensor((128,), "float32", layout=None)):
+    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
+    B[0:T.vscale() * 4] = A[T.Ramp(0, 1, T.vscale() * 4)]
+"""
     _assert_print(main, expected_output)
 
 
@@ -659,8 +678,10 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def main(A: T.Tensor((4,), "float32"), B: T.Tensor((4,), "float32")):
-    A[0:4] = T.call_llvm_pure_intrin("llvm.sqrt", B[T.Ramp(0, 1, 4)], ty="float32x4")"""
+def main(A: T.Tensor((4,), "float32", layout=None), B: T.Tensor((4,), "float32", layout=None)):
+    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
+    A[0:4] = T.call_llvm_pure_intrin("llvm.sqrt", B[T.Ramp(0, 1, 4)], ty="float32x4")
+"""
     _assert_print(main, expected_output)
 
 
@@ -683,13 +704,15 @@ from __future__ import annotations
 # from tvm.script import tirx as T
 
 @Ts.function
-def main(A: T.Tensor((4,), "float32"), B: T.Tensor((4,), "float32")):
+def main(A: T.Tensor((4,), "float32", layout=None), B: T.Tensor((4,), "float32", layout=None)):
+    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     for i in range(1000):
         if i % 13 == 0:
             A[1] = A[1] + T.float32(1.0)
             continue
         if A[0] >= B[0]:
-            break"""
+            break
+"""
     _assert_print(main, expected_output)
 
 
@@ -1654,7 +1677,7 @@ def test_void_ptr_vs_handle():
 
     tvm.ir.assert_structural_equal(void_ptr.params[0].ty, handle.params[0].ty)
     script = void_ptr.script()
-    assert "out_ret_value: T.handle" in script
+    assert 'out_ret_value: T.Ptr(I.PrimType("void"))' in script
     assert 'T.handle("void")' not in script
     tvm.ir.assert_structural_equal(
         void_ptr,
@@ -1674,7 +1697,7 @@ def test_void_ptr_vs_handle():
         T.evaluate(out_ret_value)
 
     scoped_script = scoped_void_ptr.script()
-    assert 'out_ret_value: T.handle(storage_scope="shared")' in scoped_script
+    assert 'out_ret_value: T.Ptr(I.PrimType("void"), "shared")' in scoped_script
     assert 'T.handle("void"' not in scoped_script
     tvm.ir.assert_structural_equal(
         scoped_void_ptr,
@@ -2038,6 +2061,7 @@ def test_annotation_multi_access_paths():
 
 @Ts.function
 def main():
+    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     T.evaluate(-1)
     T.evaluate(1)  # annotation 1
     T.evaluate(2)
@@ -2065,6 +2089,7 @@ def test_annotate_from_multi_obj():
 
 @Ts.function
 def main():
+    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     T.evaluate(-1)
     T.evaluate(1)  # annotation 1
     T.evaluate(2)
@@ -2097,6 +2122,7 @@ def test_disable_concise_scoping_when_scope_annotated():
 
 @Ts.function
 def main():
+    T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
     x: T.int32 = 1
     y: T.int32 = x + 1  # annotation 1
     T.evaluate(y - 1)"""
@@ -2121,12 +2147,14 @@ def test_ir_module():
         """
 # from tvm.script import ir as I
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @I.ir_module
 class Module:
     @Ts.function
     def foo():
-        pass""",
+        T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
+""",
     )
 
 

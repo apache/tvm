@@ -33,8 +33,7 @@ namespace script {
 namespace printer {
 namespace details {
 
-void EmitVarDefinition(DocTranslatorObj* d, const Var& var, ffi::Optional<ExprDoc> rhs,
-                       ffi::Optional<ExprDoc> annotation) {
+void EmitVarDefinition(DocTranslatorObj* d, const Var& var, ExprDoc rhs) {
   // Only this type's referenced Vars must precede its declaration.
   ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
       var->ty, [&](const Var& dependency) -> ffi::Expected<ffi::WalkResult> {
@@ -45,14 +44,14 @@ void EmitVarDefinition(DocTranslatorObj* d, const Var& var, ffi::Optional<ExprDo
         }
         return ffi::WalkResult::Skip();
       });
-  d->Emit(AssignDoc(VarDoc(d, var), rhs, annotation), var);
+  d->Emit(AssignDoc(VarDoc(d, var), rhs, std::nullopt), var);
 }
 
 ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                        const ffi::Object* destination) {
   const auto* node =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const VarNode>(input);
-  static ffi::reflection::TypeAttrColumn column(type_attr::kVarDocTranslate);
+  static ffi::reflection::TypeAttrColumn column(type_attr::kDocTranslateVarByTy);
   if (auto hook = column[node->ty->type_index()]; hook != nullptr) {
     return InvokeDocHook(hook, d, input, destination);
   }
@@ -61,28 +60,25 @@ ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
   if (destination == node && d->GetImplicitDefs().count(var)) {
     // Promote before translating the type, which may refer back to this Var.
     VarDoc(d, var);
-    ffi::Optional<ExprDoc> rhs = std::nullopt;
-    ffi::Optional<ExprDoc> annotation = std::nullopt;
+    ExprDoc rhs(ffi::UnsafeInit{});
     if (auto primitive = var->ty.as<PrimType>()) {
       rhs = NamespaceDoc("ir")->Attr("dynamic")->Call(
           {LiteralDoc::Str(var->name, std::nullopt)}, {"dtype"},
           {LiteralDoc::DataType(primitive.value()->dtype, std::nullopt)});
     } else {
-      annotation = d->Translate(var->ty).value();
-      if (var->ty.as<PtrTypeNode>()) {
-        // A module-level annotation alone does not bind a Python variable.
-        rhs = annotation.value().as<CallDoc>() ? annotation : annotation.value()->Call({});
-      }
+      // A type expression or annotation alone does not construct a free Var.
+      rhs = NamespaceDoc("ir")->Attr("Var")->Call(
+          {LiteralDoc::Str(var->name, std::nullopt), TypeValue(d, var->ty, false)});
     }
-    EmitVarDefinition(d, var, rhs, annotation);
+    EmitVarDefinition(d, var, rhs);
     return std::nullopt;
   }
   return IdDoc(id->name);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::EnsureTypeAttrColumn(type_attr::kVarDocTranslate);
-  ffi::reflection::EnsureTypeAttrColumn(type_attr::kTensorLoadDocTranslate);
+  ffi::reflection::EnsureTypeAttrColumn(type_attr::kDocTranslateVarByTy);
+  ffi::reflection::EnsureTypeAttrColumn(type_attr::kDocTranslateTensorLoadBySourceTy);
   ffi::reflection::TypeAttrDef<VarNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
                                                FDocTranslate::FromNative<&VarDocTranslate>());
 }
@@ -214,7 +210,7 @@ ffi::Optional<ExprDoc> TensorLoadDocTranslate(DocTranslatorObj* d, ffi::AnyView 
   const auto* load =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorLoadNode>(input);
   static ffi::reflection::TypeAttrColumn column(
-      tvm::script::printer::type_attr::kTensorLoadDocTranslate);
+      tvm::script::printer::type_attr::kDocTranslateTensorLoadBySourceTy);
   ffi::AnyView hook = column[load->source->ty->type_index()];
   ffi::Any value = ffi::GetRef<TensorLoad>(load);
   if (hook != nullptr) return InvokeDocHook(hook, d, value, destination);

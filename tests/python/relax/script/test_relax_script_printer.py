@@ -188,8 +188,8 @@ class Module:
     I.module_attrs({"device_num": 10})
     I.module_global_infos({"mesh": [R.device_mesh((2, 2), I.Range(0, 4)), R.device_mesh((1,), I.Range(4, 5))]})
     @Ts.function
-    def tir_func(x: T.Tensor((T.int64(128), T.int64(128)), "float32"), y: T.Tensor((T.int64(128), T.int64(128)), "float32")):
-        T.func_attr({"tirx.noalias": True})
+    def tir_func(x: T.Tensor((T.int64(128), T.int64(128)), "float32", layout=None), y: T.Tensor((T.int64(128), T.int64(128)), "float32", layout=None)):
+        T.func_attr({"s_tir": True, "script.namespace": "s_tir", "tirx.noalias": True})
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes()
@@ -341,10 +341,11 @@ from __future__ import annotations
 
 @I.ir_module
 class Module:
-    my_ext = R.ExternFunc("my_ext")
     @R.function
     def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
         return a
+
+    my_ext = R.ExternFunc("my_ext")
 """,
     )
 
@@ -642,8 +643,9 @@ def test_var():
         obj,
         """
 x = I.dynamic("x", dtype="int64")
-a: R.Tensor((1, x, 3), dtype="float32")
-a""",
+a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
+a
+""",
     )
 
 
@@ -653,8 +655,9 @@ def test_dataflow_var():
         obj,
         """
 x = I.dynamic("x", dtype="int64")
-a: R.Tensor((1, x, 3), dtype="float32")
-a""",
+a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
+a
+""",
     )
 
 
@@ -670,11 +673,11 @@ def test_tuple():
         obj,
         """
 x = I.dynamic("x", dtype="int64")
-a: R.Tensor((1, x, 3), dtype="float32")
+a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
 y = I.dynamic("y", dtype="int64")
-b: R.Tensor((1, y, 3), dtype="float32")
+b = I.Var("b", R.Tensor((1, y, 3), dtype="float32"))
 z = I.dynamic("z", dtype="int64")
-c: R.Tensor((1, z, 3), dtype="float32")
+c = I.Var("c", R.Tensor((1, z, 3), dtype="float32"))
 (a, b, c)
 """,
     )
@@ -695,11 +698,11 @@ def test_tuple_get_item():
         obj,
         """
 x = I.dynamic("x", dtype="int64")
-a: R.Tensor((1, x, 3), dtype="float32")
+a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
 y = I.dynamic("y", dtype="int64")
-b: R.Tensor((1, y, 3), dtype="float32")
+b = I.Var("b", R.Tensor((1, y, 3), dtype="float32"))
 z = I.dynamic("z", dtype="int64")
-c: R.Tensor((1, z, 3), dtype="float32")
+c = I.Var("c", R.Tensor((1, z, 3), dtype="float32"))
 (a, b, c)[0]
 """,
     )
@@ -719,7 +722,7 @@ def test_call():
         o0,
         """
 x = I.dynamic("x", dtype="int64")
-a: R.Tensor((1, x, 3), dtype="float32")
+a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
 I.Call("relax.call_tir", [Module.tir_func, (a, x)], ty_args=[R.Tensor((1, x, 3), dtype="float32")], ty=R.Tensor((1, x, 3), dtype="float32"))
 """,
     )
@@ -727,7 +730,7 @@ I.Call("relax.call_tir", [Module.tir_func, (a, x)], ty_args=[R.Tensor((1, x, 3),
         o1,
         """
 x = I.dynamic("x", dtype="int64")
-a: R.Tensor((1, x, 3), dtype="float32")
+a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
 R.call_dps_packed("my_dps_func", (a,), ty_args=[R.Tensor((1, x, 3), dtype="float32")])
 """,
     )
@@ -747,7 +750,7 @@ def test_call_tir_with_grad():
     _assert_print_lines(
         v1,
         """
-v0: R.Tensor((54, 96), dtype="float32")
+v0 = I.Var("v0", R.Tensor((54, 96), dtype="float32"))
 x = I.dynamic("x", dtype="int64")
 I.Call("relax.call_tir_with_grad", [Module.tir_func, (v0,)], attrs=I.make_node("relax.attrs.CallTIRWithGradAttrs", te_grad_kwargs={"k": 1.0, "x": x}, te_grad_name="grad_func"), ty_args=[R.Tensor((54, 96), dtype="float32")], ty=R.Tensor((54, 96), dtype="float32"))
 """,
@@ -773,8 +776,8 @@ def test_call_tir_inplace():
     _assert_print_lines(
         call,
         """
-x: R.Tensor((32, 32), dtype="int32")
-y: R.Tensor((32, 32), dtype="int32")
+x = I.Var("x", R.Tensor((32, 32), dtype="int32"))
+y = I.Var("y", R.Tensor((32, 32), dtype="int32"))
 t = I.dynamic("t", dtype="int64")
 I.Call("relax.call_tir_inplace", [Module.tir_func, (x, y, t)], attrs=I.make_node("relax.attrs.CallTIRInplaceAttrs", inplace_indices=[-1, 0]), ty_args=[R.Tuple(R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32"))], ty=R.Tuple(R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32")))
 """,
@@ -802,7 +805,7 @@ def test_seq_expr():
         obj,
         """
 x = I.dynamic("x", dtype="int64")
-a: R.Tensor((1, x, 3), dtype="float32")
+a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
 with R.dataflow():
     b: R.Tensor((1, x, 3), dtype="float32") = R.sin(a)
     c: R.Tensor((1, x, 3), dtype="float32") = R.sin(b)
@@ -827,7 +830,7 @@ def test_binding_block():
         obj,
         """
 x = I.dynamic("x", dtype="int64")
-a: R.Tensor((1, x, 3), dtype="float32")
+a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
 b: R.Tensor((1, x, 3), dtype="float32") = R.sin(a)
 c: R.Tensor((1, x, 3), dtype="float32") = R.sin(b)
 """,
@@ -849,7 +852,7 @@ def test_dataflow_block():
         obj,
         """
 x = I.dynamic("x", dtype="int64")
-a: R.Tensor((1, x, 3), dtype="float32")
+a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
 with R.dataflow():
     b: R.Tensor((1, x, 3), dtype="float32") = R.sin(a)
     c: R.Tensor((1, x, 3), dtype="float32") = R.sin(b)
@@ -871,7 +874,7 @@ def test_match_cast():
         obj,
         """
 x = I.dynamic("x", dtype="int64")
-a: R.Tensor((1, x, 3), dtype="float32")
+a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
 b: R.Tensor((1, 5, 3), dtype="float32") = R.match_cast(a, R.Tensor((1, 5, 3), dtype="float32"))
 """,
     )
@@ -886,7 +889,7 @@ def test_var_binding():
         obj,
         """
 x = I.dynamic("x", dtype="int64")
-a: R.Tensor((1, x, 3), dtype="float32")
+a = I.Var("a", R.Tensor((1, x, 3), dtype="float32"))
 b: R.Tensor((1, x, 3), dtype="float32") = R.sin(a)
 """,
     )
@@ -904,7 +907,7 @@ def test_if():
     _assert_print_lines(
         obj,
         """
-a: R.Tensor((), dtype="bool")
+a = I.Var("a", R.Tensor((), dtype="bool"))
 if a:
     b: R.Tensor((1, 2, 3), dtype="float32")
     if_result = b
@@ -925,7 +928,7 @@ def test_builtin_keywords():
         obj,
         """
 x = I.dynamic("x", dtype="int64")
-R_1: R.Tensor((1, x, 3), dtype="float32")
+R_1 = I.Var("R", R.Tensor((1, x, 3), dtype="float32"))
 T_1: R.Tensor((1, x, 3), dtype="float32") = R.sin(R_1)
 """,
     )
@@ -960,8 +963,8 @@ from __future__ import annotations
 @I.ir_module
 class Module:
     @Ts.function
-    def tir_func(x: T.Tensor((T.int64(128),), "float32"), y: T.Tensor((T.int64(128),), "float32")):
-        pass
+    def tir_func(x: T.Tensor((T.int64(128),), "float32", layout=None), y: T.Tensor((T.int64(128),), "float32", layout=None)):
+        T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
 
     @R.function
     def foo(x: R.Tensor((128,), dtype="float32")) -> R.Tensor((128,), dtype="float32"):
@@ -985,8 +988,8 @@ from __future__ import annotations
 @I.ir_module
 class Module:
     @Ts.function
-    def tir_func(x: T.Tensor((T.int64(128),), "float32"), y: T.Tensor((T.int64(128),), "float32")):
-        pass
+    def tir_func(x: T.Tensor((T.int64(128),), "float32", layout=None), y: T.Tensor((T.int64(128),), "float32", layout=None)):
+        T.func_attr({"s_tir": True, "script.namespace": "s_tir"})
 
     @R.function
     def foo(x: R.Tensor((128,), dtype="float32")) -> R.Tensor((128,), dtype="float32"):
@@ -1121,6 +1124,11 @@ from __future__ import annotations
 
 @I.ir_module
 class Module:
+    @R.function
+    def foo(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+        y: R.Tensor((), dtype="int32") = R.add(x, x, ty=R.Tensor((), dtype="int32"))
+        return y
+
     @R.function(private=True)
     def bar(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
         y: R.Tensor((), dtype="int32") = R.multiply(x, x, ty=R.Tensor((), dtype="int32"))
@@ -1132,11 +1140,6 @@ class Module:
         R.print("Hi there!")
         z: R.Tensor((), dtype="int32") = R.add(x, x, ty=R.Tensor((), dtype="int32"))
         return z
-
-    @R.function
-    def foo(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-        y: R.Tensor((), dtype="int32") = R.add(x, x, ty=R.Tensor((), dtype="int32"))
-        return y
 
     @R.function(private=True)
     def quux(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):

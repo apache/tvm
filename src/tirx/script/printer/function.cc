@@ -40,19 +40,8 @@ namespace printer {
 namespace details {
 
 namespace {
-FunctionDocTranslateHook& FunctionExtension() {
-  static FunctionDocTranslateHook hook = nullptr;
-  return hook;
-}
-}  // namespace
 
-void RegisterFunctionDocTranslate(FunctionDocTranslateHook hook) {
-  TVM_FFI_ICHECK(hook != nullptr && FunctionExtension() == nullptr);
-  FunctionExtension() = hook;
-}
-
-void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc decorator,
-                   const ffi::String& dialect_attr) {
+void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc decorator) {
   VarScope vars(d);
 
   auto bound_name = d->GetOrCreateExtraState<ffi::Optional<ffi::String>>("ir.function_name");
@@ -106,8 +95,7 @@ void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc 
     if (func->body.has_value()) body = Body(func->body.value(), d);
     std::vector<std::pair<ffi::String, ffi::Any>> attrs;
     for (const auto& [key, value] : func->attrs->dict) {
-      if (key != tvm::attr::kGlobalSymbol && (dialect_attr.empty() || key != dialect_attr) &&
-          key != tvm::tirx::attr::kPersistentKernel)
+      if (key != tvm::attr::kGlobalSymbol && key != tvm::tirx::attr::kPersistentKernel)
         attrs.emplace_back(key, value);
     }
     if (!attrs.empty()) {
@@ -142,27 +130,23 @@ void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc 
   d->Emit(doc, ffi::GetRef<ffi::ObjectRef>(func));
 }
 
-namespace {
-
 ffi::Optional<ExprDoc> TirxFunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                                 const ffi::Object* destination) {
   const auto* func =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::FunctionNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
-  if (auto hook = FunctionExtension(); hook && hook(d, func)) return std::nullopt;
-  TVM_FFI_CHECK(!func->attrs->dict.count(tvm::attr::kSTir), TypeError)
-      << "The function's language variant has no registered printer";
-  PrintFunction(d, func, NamespaceDoc("tirx")->Attr("function"), "");
+  auto construction_namespace =
+      func->GetAttr<ffi::String>(tvm::attr::kScriptNamespace).value_or("tirx");
+  PrintFunction(d, func, NamespaceDoc(construction_namespace)->Attr("function"));
   return std::nullopt;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterNamespaceAlias("tirx.prefix", "T");
-  ffi::reflection::TypeAttrDef<tirx::FunctionNode>()
-      .attr(type_attr::kModuleFunctionOrder, int64_t{1})
-      .attr(tvm::script::printer::type_attr::kDocTranslate,
-            FDocTranslate::FromNative<&TirxFunctionDocTranslate>());
+  ffi::reflection::TypeAttrDef<tirx::FunctionNode>().attr(
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&TirxFunctionDocTranslate>());
 }
 
 }  // namespace

@@ -44,19 +44,8 @@ ffi::Optional<ExprDoc> IRModuleDocTranslate(DocTranslatorObj* d, ffi::AnyView in
       << "printer statement-only node cannot fulfill a destination";
   ffi::String module_name = d->GetExtraConfig<ffi::String>("ir.module_name", "Module");
   IdDoc module_id = d->AllocId(module_name);
-  d->SetExtraState("ir.module_id", module_id);
-  d->SetExtraState("ir.module", ffi::GetRef<IRModule>(mod));
-  std::vector<std::pair<GlobalVar, BaseFunc>> functions(mod->functions.begin(),
-                                                        mod->functions.end());
-  auto rank = [](const BaseFunc& func) {
-    static ffi::reflection::TypeAttrColumn column(type_attr::kModuleFunctionOrder);
-    return column[func->type_index()].as<int64_t>().value_or(2);
-  };
-  std::sort(functions.begin(), functions.end(), [&](const auto& a, const auto& b) {
-    int left = rank(a.second);
-    int right = rank(b.second);
-    return left == right ? a.first->name_hint < b.first->name_hint : left < right;
-  });
+  ExtraStateScope<ffi::Optional<IdDoc>> module_scope(d, "ir.module_id", module_id);
+  ExtraStateScope<ffi::Optional<IRModule>> module(d, "ir.module", ffi::GetRef<IRModule>(mod));
   auto body = d->WithDocScope([&]() {
     if (!mod->attrs->dict.empty()) {
       ffi::Array<ExprDoc> keys;
@@ -91,15 +80,13 @@ ffi::Optional<ExprDoc> IRModuleDocTranslate(DocTranslatorObj* d, ffi::AnyView in
                   NamespaceDoc("ir")->Attr("module_global_infos")->Call({DictDoc(keys, values)})),
               ffi::GetRef<ffi::ObjectRef>(mod));
     }
-    for (const auto& [gv, func] : functions) {
+    for (const auto& [gv, func] : mod->functions) {
       ExtraStateScope<ffi::Optional<ffi::String>> name(d, "ir.function_name", gv->name_hint);
       if (auto value = d->Translate(func)) {
         d->Emit(AssignDoc(IdDoc(gv->name_hint), value.value(), std::nullopt), func);
       }
     }
   });
-  d->SetExtraState("ir.module", std::nullopt);
-  d->SetExtraState("ir.module_id", std::nullopt);
   d->Emit(ClassDoc(module_id, {NamespaceDoc("ir")->Attr("ir_module")}, ToStmtDocArray(body)),
           ffi::GetRef<ffi::ObjectRef>(mod));
   return std::nullopt;
@@ -107,7 +94,6 @@ ffi::Optional<ExprDoc> IRModuleDocTranslate(DocTranslatorObj* d, ffi::AnyView in
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterNamespaceAlias("ir.prefix", "I");
-  ffi::reflection::EnsureTypeAttrColumn(type_attr::kModuleFunctionOrder);
   ffi::reflection::TypeAttrDef<IRModuleNode>().attr(
       tvm::script::printer::type_attr::kDocTranslate,
       FDocTranslate::FromNative<&IRModuleDocTranslate>());
