@@ -21,6 +21,7 @@
 
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/analyzer.h>
@@ -148,7 +149,7 @@ class StorageAlignCollector : public StmtExprVisitor {
 
   /*! \brief SBlock: resolve each annotation's buffer index through the write regions. */
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
-    auto it = op->annotations.find(attr::buffer_dim_align);
+    auto it = op->annotations.find(tvm::s_tir::attr::kBufferDimAlign);
     if (it != op->annotations.end()) {
       auto annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
       for (const auto& item : annotation) {
@@ -170,7 +171,7 @@ class StorageAlignCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
     DictAttrs annotations = call->attrs.as_or_throw<DictAttrs>();
-    auto it = annotations->dict.find(attr::buffer_dim_align);
+    auto it = annotations->dict.find(tvm::s_tir::attr::kBufferDimAlign);
     if (it != annotations->dict.end()) {
       auto storage_align_annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
       for (const auto& storage_align_tuple : storage_align_annotation) {

@@ -26,6 +26,8 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
+#include <tvm/relax/op_attr_types.h>
 
 #include <algorithm>
 #include <utility>
@@ -110,8 +112,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               "1-D tensor, must contain a strictly increasing sequence, or the return value is "
               "undefined."),
           sig::call_attrs<BucketizeAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeBucketize>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeBucketize>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.where */
@@ -212,8 +214,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("condition", "When True, yield `x1`; otherwise, yield `x2`."),
                  sig::arg("x1", "The first input tensor."),
                  sig::arg("x2", "The second input tensor."))
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeWhere)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeWhere)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.argmax & relax.argmin */
@@ -298,8 +300,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.argmax")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<ArgmaxArgminAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeArgmaxArgmin>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeArgmaxArgmin>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -307,8 +310,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.argmin")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<ArgmaxArgminAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeArgmaxArgmin>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeArgmaxArgmin>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 };
 
 }  // namespace relax

@@ -63,12 +63,12 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
 
     // Parallelization
     if (max_jobs_per_core != -1) {
-      sch->Annotate(root_rv, s_tir::attr::meta_schedule_parallel,
+      sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleParallel,
                     IntImm::Int32(this->max_parallel_extent_));
     }
     // Vectorization
     if (max_vectorize_extent != -1) {
-      sch->Annotate(root_rv, s_tir::attr::meta_schedule_vectorize,
+      sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleVectorize,
                     IntImm::Int32(max_vectorize_extent));
     }
     // Unroll
@@ -78,9 +78,9 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
       ffi::Array<FloatImm> probs(n, FloatImm(PrimType::Float(32), prob));
       PrimExpr max_step = sch->SampleCategorical(unroll_max_steps, probs);
       if (unroll_explicit) {
-        sch->Annotate(root_rv, s_tir::attr::meta_schedule_unroll_explicit, max_step);
+        sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleUnrollExplicit, max_step);
       } else {
-        sch->Annotate(root_rv, s_tir::attr::meta_schedule_unroll_implicit, max_step);
+        sch->Annotate(root_rv, tvm::s_tir::attr::kMetaScheduleUnrollImplicit, max_step);
       }
     }
     return {sch};

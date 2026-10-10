@@ -36,6 +36,7 @@
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
+#include <tvm/tirx/stmt.h>
 
 #include <list>
 #include <map>
@@ -513,7 +514,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       // 7. Wrap with the merged-buffer AllocTensor.
       ffi::Map<ffi::String, ffi::Any> annotations;
       if (scope.has_volatile_alloc) {
-        annotations.Set(tirx::attr::kVolatile, true);
+        annotations.Set(tvm::tirx::attr::kVolatile, true);
       }
       Stmt alloc_stmt = Bind(scope.merged_buffer.value().var(),
                              Call(scope.merged_buffer.value().type(), tirx::alloc_tensor_op(),
@@ -541,7 +542,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       if (!scope_stack_.empty()) {
         KernelScope& scope = scope_stack_.back();
         if (scope.shmem_allocs.count(op->var.as_or_throw<TensorVar>().get())) {
-          if (call->attrs.as<DictAttrsNode>()->dict.count(tirx::attr::kVolatile)) {
+          if (call->attrs.as<DictAttrsNode>()->dict.count(tvm::tirx::attr::kVolatile)) {
             scope.has_volatile_alloc = true;
           }
           return Evaluate(0);

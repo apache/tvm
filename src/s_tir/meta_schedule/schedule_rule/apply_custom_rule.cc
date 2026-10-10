@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
 
@@ -45,7 +46,7 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
         << "ApplyCustomRule is not initialized with TuneContext that has a Target.";
     ffi::Array<ffi::String> keys = this->target_.value()->keys;
     if (ffi::Optional<ffi::String> ann =
-            s_tir::GetAnn<ffi::String>(sch->GetSRef(block_rv), "schedule_rule")) {
+            s_tir::GetAnn<ffi::String>(sch->GetSRef(block_rv), tvm::s_tir::attr::kScheduleRule)) {
       if (ann.value() != "None") {
         for (const ffi::String& key : keys) {
           if (const auto custom_schedule_fn =
@@ -62,7 +63,7 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
           os << "\n  " << GetCustomRuleName(ann.value(), key);
         }
         LOG(WARNING) << os.str();
-        sch->Unannotate(block_rv, "schedule_rule");
+        sch->Unannotate(block_rv, tvm::s_tir::attr::kScheduleRule);
       }
     }
     return {sch};

@@ -212,7 +212,7 @@ class SharedMemoryLocalStageInserter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    if (op->annotations.count(s_tir::attr::manifest_shared_memory_local_stage)) {
+    if (op->annotations.count(tvm::s_tir::attr::kManifestSharedMemoryLocalStage)) {
       // Rewrite the shared memory access to load from the intermediate buffer.
       // The annotated block must be a leaf block (will be checked during rewriting). No need to
       // visit its body recursively.
@@ -221,7 +221,7 @@ class SharedMemoryLocalStageInserter : public StmtExprMutator {
       auto [target_buffer, new_buffer, new_block, local_stage] = rewriter.Rewrite(op);
       buffer_remap_.Set(target_buffer, new_buffer);
 
-      new_block.CopyOnWrite()->annotations.erase(s_tir::attr::manifest_shared_memory_local_stage);
+      new_block.CopyOnWrite()->annotations.erase(tvm::s_tir::attr::kManifestSharedMemoryLocalStage);
       buffer_local_stage_.Set(target_buffer, local_stage);
       target_buffers_.push_back(target_buffer);
 

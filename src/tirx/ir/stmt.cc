@@ -27,6 +27,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/ir/stmt.h>
 #include <tvm/tirx/op/region.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
@@ -104,8 +105,8 @@ void ValidateTensorEvaluate(Expr value) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = ffi::reflection;
   refl::TypeAttrDef<TensorTypeNode>()
-      .def("__tensor_store_validate__", ValidateTensorStore)
-      .def("__evaluate_validate__", ValidateTensorEvaluate);
+      .def(tvm::type_attr::kTensorStoreValidate, ValidateTensorStore)
+      .def(tvm::type_attr::kEvaluateValidate, ValidateTensorEvaluate);
 }
 
 }  // namespace tirx

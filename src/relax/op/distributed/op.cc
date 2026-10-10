@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/extra/visit_error_context.h>
+#include <tvm/relax/op_attr_types.h>
 
 #include "utils.h"
 
@@ -38,7 +39,7 @@ Type InferDistTypeCallTIR(const Call& call, const BlockBuilder& ctx) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   // clang-format off
   OpDef("relax.call_tir")
-      .set_attr<FInferTypeWithBuilder>("relax.dist.FInferTypeWithBuilder", InferDistTypeCallTIR);
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::distributed::op_attr::kInferTypeWithBuilder, InferDistTypeCallTIR);
   // clang-format on
 }
 
@@ -51,7 +52,7 @@ Type InferDistTypeStopLiftParams(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.builtin.stop_lift_params")
-      .set_attr<FInferTypeWithBuilder>("relax.dist.FInferTypeWithBuilder",
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::distributed::op_attr::kInferTypeWithBuilder,
                                        InferDistTypeStopLiftParams);
 }
 

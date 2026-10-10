@@ -97,6 +97,11 @@ TVM_DLL const Op& iket_sentinel_token_op();
 
 /*! \} */
 
+namespace attr {
+
+constexpr const char* kIKetEnabled = "tirx.iket.enabled";
+}  // namespace attr
+
 }  // namespace cuda
 }  // namespace backend
 }  // namespace tvm

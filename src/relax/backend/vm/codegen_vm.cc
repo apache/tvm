@@ -23,7 +23,9 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/exec_builder.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/runtime/vm/bytecode.h>
@@ -333,11 +335,10 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   Instruction::Arg VisitExpr_(const ExternFuncNode* op) final {
-    static const constexpr char* kCSource = "c_source";
-    static const constexpr char* kCSourceFmt = "c_source_fmt";
-    if (ffi::Optional<ffi::String> opt_code = op->attrs.GetAttr<ffi::String>(kCSource)) {
+    if (ffi::Optional<ffi::String> opt_code =
+            op->attrs.GetAttr<ffi::String>(tvm::relax::attr::kCSource)) {
       ffi::String sym = op->global_symbol;
-      ffi::String fmt = op->attrs.GetAttr<ffi::String>(kCSourceFmt).value_or("c");
+      ffi::String fmt = op->attrs.GetAttr<ffi::String>(tvm::relax::attr::kCSourceFmt).value_or("c");
       ffi::String code = opt_code.value();
       ffi::Module c_source_module =
           codegen::CSourceModuleCreate(/*code=*/code, /*fmt=*/fmt, /*func_names=*/{sym},

@@ -21,6 +21,7 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/script/printer/printer.h>
 
 #include <cmath>
@@ -106,7 +107,8 @@ ffi::Optional<ExprDoc> GenericConstDocTranslate(DocTranslatorObj* d, ffi::AnyVie
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<GenericConstNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&GenericConstDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&GenericConstDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> ShapeExprDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -120,12 +122,14 @@ ffi::Optional<ExprDoc> ShapeExprDocTranslate(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::ShapeExprNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&ShapeExprDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&ShapeExprDocTranslate>());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::DataflowVarNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&VarDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&VarDocTranslate>());
 }
 
 }  // namespace

@@ -19,6 +19,7 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ir/op.h>
 #include <tvm/relax/expr.h>
+#include <tvm/script/printer/doc_translator.h>
 
 #include <optional>
 
@@ -71,7 +72,7 @@ ffi::Optional<ExprDoc> CallDPSPackedDocTranslate(DocTranslatorObj* d, ffi::AnyVi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.call_dps_packed")
-      .set_attr<FDocTranslate>(kOpCallDocTranslate,
+      .set_attr<FDocTranslate>(tvm::script::printer::op_attr::kOpCallDocTranslate,
                                FDocTranslate::FromNative<&CallDPSPackedDocTranslate>());
 }
 

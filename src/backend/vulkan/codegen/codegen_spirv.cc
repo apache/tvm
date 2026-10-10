@@ -26,10 +26,12 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
+#include <tvm/tirx/stmt.h>
 
 #include <string>
 
@@ -80,7 +82,7 @@ runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const Function& f, const std::s
   TVM_FFI_CHECK(f->body.has_value(), ValueError)
       << "Kernel code generation requires a function body";
   this->InitFuncState();
-  TVM_FFI_ICHECK(f->HasNonzeroAttr(tirx::attr::kNoAlias))
+  TVM_FFI_ICHECK(f->HasNonzeroAttr(tvm::tirx::attr::kNoAlias))
       << "SPIRV only takes restricted memory model";
   std::vector<Var> pod_args;
   uint32_t i_buffer = 0;
@@ -905,7 +907,7 @@ void CodeGenSPIRV::DispatchAllocTensor(const BindNode* op, const CallNode* buffe
     case runtime::StorageRank::kWMMAMatrixA:
     case runtime::StorageRank::kWMMAMatrixB:
     case runtime::StorageRank::kWMMAAccumulator: {
-      auto shape = annotations->dict.Get(s_tir::attr::fragment_shape);
+      auto shape = annotations->dict.Get(tvm::s_tir::attr::kFragmentShape);
       TVM_FFI_ICHECK(shape.has_value())
           << "Cannot find shape of the wmma fragment " << buffer.name();
       fragment_info_[var_node] = {shape.value().as_or_throw<ffi::String>()};
@@ -947,7 +949,7 @@ void CodeGenSPIRV::DispatchAllocTensor(const BindNode* op, const CallNode* buffe
 
   TVM_FFI_ICHECK(!var_map_.count(var_node));
   var_map_[var_node] = buf;
-  if (annotations->dict.count(tirx::attr::kVolatile)) {
+  if (annotations->dict.count(tvm::tirx::attr::kVolatile)) {
     storage_info_[var_node].is_volatile = true;
   }
 }

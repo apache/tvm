@@ -24,10 +24,13 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/analysis.h>
+#include <tvm/ir/function.h>
+#include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/backend.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/type.h>
@@ -85,10 +88,10 @@ using LiveVarSet = std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqu
 static bool IsRelaxOwnedCall(const CallNode* call) {
   auto op = call->op.as<Op>();
   if (!op) return true;
-  static auto infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
+  static auto infer_type_map = Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
   static auto infer_type_with_builder_map =
-      Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
-  static auto legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
+      Op::GetAttrMap<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder);
+  static auto legalize_map = Op::GetAttrMap<FLegalize>(tvm::relax::op_attr::kLegalize);
   return infer_type_map.count(op.value()) || infer_type_with_builder_map.count(op.value()) ||
          legalize_map.count(op.value());
 }
@@ -365,7 +368,7 @@ class VMShapeLowerMutator
       this->builder_->EmitNormalized(shape_heap_binding);
       std::vector<MatchShapeTodoItem> match_todos;
       size_t num_input = func->params.size();
-      if (auto opt_num_input = func->attrs.GetAttr<int64_t>(attr::kNumInput)) {
+      if (auto opt_num_input = func->attrs.GetAttr<int64_t>(tvm::relax::attr::kNumInput)) {
         // If the function has the attribute 'num_input', do shape checking on for the real inputs
         // and skip weights.
         num_input = static_cast<size_t>(opt_num_input.value());

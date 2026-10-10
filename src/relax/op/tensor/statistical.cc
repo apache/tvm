@@ -25,6 +25,8 @@
 #include "statistical.h"
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
+#include <tvm/relax/op_attr_types.h>
 
 #include <string>
 #include <vector>
@@ -289,8 +291,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.cumprod")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<ScanopAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeScan>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeScan>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.cumsum */
@@ -311,8 +313,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.cumsum")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<ScanopAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeScan>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeScan>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.median */
@@ -330,8 +332,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.median")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStatisticalExtension>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeStatisticalExtension>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr max(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
@@ -395,57 +398,64 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.max")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStatistical>())
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeStatistical>())
+      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutStatistical)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.mean", mean);
 
   OpDef("relax.mean")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStatistical>())
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeStatistical>())
+      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutStatistical)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.min", min);
 
   OpDef("relax.min")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStatistical>())
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeStatistical>())
+      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutStatistical)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.prod", prod);
 
   OpDef("relax.prod")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStatistical>())
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeStatistical>())
+      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutStatistical)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.std", std);
 
   OpDef("relax.std")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStatistical>())
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeStatistical>())
+      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutStatistical)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.sum", sum);
 
   OpDef("relax.sum")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStatistical>())
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeStatistical>())
+      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutStatistical)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.variance", variance);
 
   OpDef("relax.variance")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStatistical>())
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeStatistical>())
+      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutStatistical)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax

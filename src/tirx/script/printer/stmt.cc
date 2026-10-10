@@ -19,6 +19,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
 #include <tvm/tirx/op_attr_types.h>
@@ -76,7 +77,8 @@ ffi::Optional<ExprDoc> TensorCallDocTranslate(DocTranslatorObj* d, ffi::AnyView 
         keys.push_back(ffi::String(field->name));
         values.push_back(AnyValue(d, value));
       });
-  static const auto& names = Op::GetAttrMap<TScriptPrinterName>("TScriptPrinterName");
+  static const auto& names =
+      Op::GetAttrMap<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName);
   return NamedCallCallee(names[op])->Call(args, keys, values);
 }
 
@@ -105,7 +107,8 @@ ffi::Optional<ExprDoc> EvaluateDocTranslate(DocTranslatorObj* d, ffi::AnyView in
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<EvaluateNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&EvaluateDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&EvaluateDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> SeqStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -154,7 +157,8 @@ ffi::Optional<ExprDoc> SeqStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<SeqStmtNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&SeqStmtDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&SeqStmtDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> RegionStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -232,7 +236,8 @@ ffi::Optional<ExprDoc> RegionStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<RegionStmtNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&RegionStmtDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&RegionStmtDocTranslate>());
 }
 
 }  // namespace

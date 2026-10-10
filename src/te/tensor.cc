@@ -25,6 +25,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/tensor.h>
@@ -103,7 +104,7 @@ PrimVar var(std::string name_hint, PrimType t) { return PrimVar(name_hint, t); }
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("te.tensor_load")
       .signature(sig::arg("tensor", "The input tensor."), sig::var_args("args"))
-      .set_attr<TCallEffectKind>("TCallEffectKind",
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
                                  static_cast<int64_t>(CallEffectKind::kReadState));
 }
 

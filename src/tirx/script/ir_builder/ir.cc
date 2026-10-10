@@ -16,10 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/backend/cuda/attr.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
@@ -200,11 +202,11 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
     TVM_FFI_ICHECK_EQ(doms.size(), 1);
     TVM_FFI_ICHECK(steps.size() == 1 && (!steps[0].has_value() || IsOne(*steps[0])));
     auto loop_annotations = annotations.value_or(ffi::Map<ffi::String, ffi::Any>());
-    if (auto existing = loop_annotations.Get("thread_binding")) {
+    if (auto existing = loop_annotations.Get(tvm::tirx::attr::kThreadBinding)) {
       TVM_FFI_CHECK(existing->cast<ffi::String>() == thread, ValueError)
           << "Conflicting thread_binding annotation and thread argument";
     }
-    loop_annotations.Set("thread_binding", thread);
+    loop_annotations.Set(tvm::tirx::attr::kThreadBinding, thread);
     return For(vars[0].as_or_throw<tvm::PrimVar>(), doms[0]->min, doms[0]->extent,
                ForKind::kParallel, body, std::move(loop_annotations), std::nullopt, span);
   };
@@ -380,9 +382,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                if (auto region = (*it).as<RegionFrame>();
                    region && region.value()->op->name == "tirx.device_entry") {
                  auto attrs = region.value()->attrs->dict;
-                 int64_t previous =
-                     attrs.Get("cuda.smem_required").value_or(int64_t{0}).cast<int64_t>();
-                 attrs.Set("cuda.smem_required", std::max(previous, bytes));
+                 int64_t previous = attrs.Get(tvm::backend::cuda::attr::kSmemRequired)
+                                        .value_or(int64_t{0})
+                                        .cast<int64_t>();
+                 attrs.Set(tvm::backend::cuda::attr::kSmemRequired, std::max(previous, bytes));
                  region.value()->attrs = DictAttrs(attrs);
                  return;
                }

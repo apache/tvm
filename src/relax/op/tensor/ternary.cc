@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/relax/op_attr_types.h>
 
 namespace tvm {
 namespace relax {
@@ -138,10 +139,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("x2", "The right hand operand of the multiplication"),
           sig::arg("x3", "The operand of the addition"),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeEwiseFMA)
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutEwiseFMA)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
+                                       InferTypeEwiseFMA)
+      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutEwiseFMA)
+      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
+                                       MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr ewise_fma(Expr x1, Expr x2, Expr x3) {

@@ -26,6 +26,8 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
+#include <tvm/relax/op_attr_types.h>
 
 namespace tvm {
 namespace relax {
@@ -398,10 +400,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("dtype", "The view's data type."),
                  sig::arg("relative_byte_offset",
                           "The view's byte offset, relative to the input tensor's byte offset."))
-      .set_attr<bool>("RequiresArgumentShapes", false)
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeView)
-      .set_attr<bool>("FPurity", true)
-      .set_attr<FLowerBuiltin>("FLowerBuiltin", LowerBuiltinView);
+      .set_attr<bool>(tvm::relax::op_attr::kRequiresArgumentShapes, false)
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeView)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true)
+      .set_attr<FLowerBuiltin>(tvm::relax::op_attr::kLowerBuiltin, LowerBuiltinView);
 }
 
 Expr ensure_zero_offset(const Expr& x) {
@@ -432,10 +434,11 @@ Expr LowerBuiltinEnsureZeroOffset(const BlockBuilder& bb, const Call& call) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.memory.ensure_zero_offset")
       .signature(sig::arg("x", "The input tensor."))
-      .set_attr<bool>("RequiresArgumentShapes", false)
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeEnsureZeroOffset>())
-      .set_attr<bool>("FPurity", true)
-      .set_attr<FLowerBuiltin>("FLowerBuiltin", LowerBuiltinEnsureZeroOffset);
+      .set_attr<bool>(tvm::relax::op_attr::kRequiresArgumentShapes, false)
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeEnsureZeroOffset>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true)
+      .set_attr<FLowerBuiltin>(tvm::relax::op_attr::kLowerBuiltin, LowerBuiltinEnsureZeroOffset);
 }
 
 }  // namespace relax

@@ -27,6 +27,8 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
+#include <tvm/relax/op_attr_types.h>
 
 #include <utility>
 
@@ -256,10 +258,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.resize2d")
       .signature(sig::arg("data", "The input tensor."), sig::arg("size", "The output image shape."),
                  sig::call_attrs<Resize2DAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeResize2D>())
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutResize2d)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeResize2D>())
+      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutResize2d)
+      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
+                                       MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.resize3d */
@@ -371,10 +374,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.resize3d")
       .signature(sig::arg("data", "The input tensor."), sig::arg("size", "The output image shape."),
                  sig::call_attrs<Resize3DAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeResize3D>())
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutResize3d)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeResize3D>())
+      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutResize3d)
+      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
+                                       MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 
   /* relax.grid_sample */
 
@@ -464,9 +468,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("data", "The input tensor."),
                  sig::arg("grid", "The grid tensor for sampling."),
                  sig::call_attrs<GridSampleAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeGridSample>())
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeGridSample>())
+      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
+                                       MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.image.affine_grid */
@@ -565,9 +571,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("data", "The input affine matrix tensor."),
                  sig::arg("size", "The target output shape (H, W)."),
                  sig::call_attrs<AffineGridAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAffineGrid>())
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeAffineGrid>())
+      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
+                                       MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax

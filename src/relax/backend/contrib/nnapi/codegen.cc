@@ -22,6 +22,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
 
@@ -155,7 +156,7 @@ class NNAPIJSONSerializer : public JSONSerializer {
     const auto fn = bindings_[ffi::GetRef<Var>(fn_var)].as_or_throw<Function>();
     TVM_FFI_ICHECK(fn.defined()) << "Expects the callee to be a function.";
 
-    auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);
+    auto composite_opt = fn->GetAttr<ffi::String>(tvm::relax::attr::kComposite);
     TVM_FFI_ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
 
     std::string composite_name = composite_opt.value();

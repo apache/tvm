@@ -43,7 +43,8 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* call_node) final {
-    static const auto& lower_builtin_fmap = Op::GetAttrMap<FLowerBuiltin>("FLowerBuiltin");
+    static const auto& lower_builtin_fmap =
+        Op::GetAttrMap<FLowerBuiltin>(tvm::relax::op_attr::kLowerBuiltin);
     // post-order mutation
     Call call = VisitExprPostOrder_(call_node).as_or_throw<Call>();
 

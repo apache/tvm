@@ -19,6 +19,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/tirx/stmt.h>
 
 #include "../utils.h"
 
@@ -181,9 +182,9 @@ void ParallelizeComputation(const ScheduleState& self, const StmtSRef& loop_sref
   ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
   new_loop->kind = for_kind;
   if (thread_axis.has_value()) {
-    new_loop->annotations.Set("thread_binding", thread_axis.value());
+    new_loop->annotations.Set(tvm::tirx::attr::kThreadBinding, thread_axis.value());
   } else {
-    new_loop->annotations.erase("thread_binding");
+    new_loop->annotations.erase(tvm::tirx::attr::kThreadBinding);
   }
   self->Replace(loop_sref, For(new_loop), {});
 }
@@ -204,7 +205,7 @@ void Unroll(ScheduleState self, const StmtSRef& loop_sref) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
   new_loop->kind = ForKind::kUnrolled;
-  new_loop->annotations.erase("thread_binding");
+  new_loop->annotations.erase(tvm::tirx::attr::kThreadBinding);
   self->Replace(loop_sref, For(new_loop), {});
 }
 

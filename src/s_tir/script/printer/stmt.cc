@@ -18,6 +18,7 @@
  */
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/script/printer/doc_translator.h>
 
 #include "../../../script/printer/utils.h"
 #include "../../../tirx/script/printer/utils.h"
@@ -104,11 +105,11 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
     d->Emit(ExprStmtDoc(NamespaceDoc("s_tir")->Attr("writes")->Call(writes)), block->writes);
     auto annotations = block->annotations;
     ffi::Map<Var, ffi::Array<PrimExpr>> addresses;
-    if (auto value = annotations.Get(s_tir::attr::buffer_allocated_addr)) {
+    if (auto value = annotations.Get(tvm::s_tir::attr::kBufferAllocatedAddr)) {
       for (const auto& entry : value.value().cast<s_tir::BufferAllocatedAddresses>()) {
         addresses.Set(entry.get<0>(), entry.get<1>());
       }
-      annotations.erase(s_tir::attr::buffer_allocated_addr);
+      annotations.erase(tvm::s_tir::attr::kBufferAllocatedAddr);
     }
     if (!annotations.empty()) {
       d->Emit(
@@ -168,7 +169,8 @@ ffi::Optional<ExprDoc> SBlockRealizeDocTranslate(DocTranslatorObj* d, ffi::AnyVi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<s_tir::SBlockRealizeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&SBlockRealizeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&SBlockRealizeDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> SBlockDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -188,7 +190,8 @@ ffi::Optional<ExprDoc> SBlockDocTranslate(DocTranslatorObj* d, ffi::AnyView inpu
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<s_tir::SBlockNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&SBlockDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&SBlockDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> MatchBufferRegionDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -203,7 +206,8 @@ ffi::Optional<ExprDoc> MatchBufferRegionDocTranslate(DocTranslatorObj* d, ffi::A
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<s_tir::MatchBufferRegionNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&MatchBufferRegionDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&MatchBufferRegionDocTranslate>());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

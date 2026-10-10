@@ -26,8 +26,13 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
+#include <tvm/ir/module.h>
+#include <tvm/ir/op.h>
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
 
 #include "../../support/ordered_set.h"
@@ -60,7 +65,7 @@ class CodeGenRunner : ExprMutator {
       std::vector<GlobalVar> attr_entry_functions;
       for (const auto& [gv, func] : mod->functions) {
         if (func->GetLinkageType() == LinkageType::kExternal &&
-            !func->GetAttr<ffi::String>(attr::kCodegen) &&
+            !func->GetAttr<ffi::String>(tvm::relax::attr::kCodegen) &&
             func->IsInstance<relax::FunctionNode>()) {
           attr_entry_functions.push_back(gv);
         }
@@ -132,7 +137,7 @@ class CodeGenRunner : ExprMutator {
           // Remove the global symbol and codegen attributes from the function so that it can be
           // removed the module.
           func = WithoutAttr(std::move(func), tvm::attr::kGlobalSymbol);
-          func = WithoutAttr(std::move(func), attr::kCodegen);
+          func = WithoutAttr(std::move(func), tvm::relax::attr::kCodegen);
           builder_->UpdateFunction(gvar, func);
           return create_call_dps_packed(new_func, ret_ty);
         }
@@ -146,9 +151,9 @@ class CodeGenRunner : ExprMutator {
     Type ret_ty = Type::Missing();
     if (call_node->ty.as<PrimTypeNode>()) {
       if (auto op = call_node->op.as<Op>()) {
-        static auto infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
+        static auto infer_type_map = Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
         static auto infer_type_with_builder_map =
-            Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
+            Op::GetAttrMap<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder);
         if (!infer_type_map.count(op.value()) && !infer_type_with_builder_map.count(op.value())) {
           ret_ty = call_node->ty.as_or_throw<Type>();
         }
@@ -160,7 +165,7 @@ class CodeGenRunner : ExprMutator {
 
   Expr VisitExpr_(const FunctionNode* func_node) override {
     Function func = ffi::GetRef<Function>(func_node);
-    auto opt_codegen = func->GetAttr<ffi::String>(attr::kCodegen);
+    auto opt_codegen = func->GetAttr<ffi::String>(tvm::relax::attr::kCodegen);
     if (opt_codegen) {
       auto ext_symbol = GetExtSymbol(func);
       size_t count = 0;
@@ -190,7 +195,7 @@ class CodeGenRunner : ExprMutator {
       PostOrderVisit(entry.second, [&target_functions](Expr e) {
         if (e->IsInstance<FunctionNode>()) {
           auto f = e.as_or_throw<Function>();
-          if (auto target_opt = f->GetAttr<ffi::String>(attr::kCodegen)) {
+          if (auto target_opt = f->GetAttr<ffi::String>(tvm::relax::attr::kCodegen)) {
             ffi::String target = target_opt.value();
             target_functions[target].push_back(f);
           }

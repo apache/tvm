@@ -19,6 +19,8 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/analysis.h>
+#include <tvm/ir/function.h>
+#include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
@@ -36,10 +38,10 @@ namespace {
 bool HasRelaxCallCapabilities(const CallNode* call) {
   auto op = call->op.as<Op>();
   if (!op) return true;
-  static auto infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
+  static auto infer_type_map = Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
   static auto infer_type_with_builder_map =
-      Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
-  static auto legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
+      Op::GetAttrMap<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder);
+  static auto legalize_map = Op::GetAttrMap<FLegalize>(tvm::relax::op_attr::kLegalize);
   return infer_type_map.count(op.value()) || infer_type_with_builder_map.count(op.value()) ||
          legalize_map.count(op.value());
 }
@@ -114,8 +116,9 @@ class PrimExprComputeInjector : public ExprMutator {
     auto param_vars = tvm::UndefinedVars(node);
     tvm::Stmt body = tvm::Return(node);
 
-    tirx::Function func(param_vars, tvm::SeqStmt(body), ret_ty,
-                        DictAttrs({{tirx::attr::kIsHostFunc, true}, {tvm::attr::kSTir, true}}));
+    tirx::Function func(
+        param_vars, tvm::SeqStmt(body), ret_ty,
+        DictAttrs({{tvm::tirx::attr::kIsHostFunc, true}, {tvm::attr::kSTir, true}}));
     func = tirx::RenewDef(func);
 
     auto callee = builder_->AddFunction(func, "compute_symbolic_expr");

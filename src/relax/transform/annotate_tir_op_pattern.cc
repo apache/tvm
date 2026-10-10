@@ -24,6 +24,7 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/transform.h>
 #include <tvm/tirx/transform.h>
 
@@ -31,11 +32,11 @@ namespace tvm {
 namespace relax {
 
 tirx::Function AnnotateOpPattern(tirx::Function f) {
-  if (f->HasNonzeroAttr("op_pattern")) {
+  if (f->HasNonzeroAttr(tvm::relax::attr::kOpPattern)) {
     return f;
   } else {
     OpPatternKind kind = AnalyzeOpPatternKind(f);
-    return WithAttr(std::move(f), "op_pattern", static_cast<int>(kind));
+    return WithAttr(std::move(f), tvm::relax::attr::kOpPattern, static_cast<int>(kind));
   }
 }
 

@@ -150,8 +150,8 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
       buffer_map_.insert({match_buffer->buffer.var(), match_buffer->buffer});
     }
 
-    if (op->annotations.count("permuted_layout") == 0 ||
-        !CheckAnnotation(op->annotations.at("permuted_layout"))) {
+    if (op->annotations.count(tvm::s_tir::attr::kPermutedLayout) == 0 ||
+        !CheckAnnotation(op->annotations.at(tvm::s_tir::attr::kPermutedLayout))) {
       return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
     }
 
@@ -166,7 +166,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
 
     // Erase the permuted_layout annotation after the pass
     auto block_node = block.CopyOnWrite();
-    block_node->annotations.erase("permuted_layout");
+    block_node->annotations.erase(tvm::s_tir::attr::kPermutedLayout);
     return block;
   }
 

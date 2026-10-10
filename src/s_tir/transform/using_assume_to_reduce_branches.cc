@@ -385,8 +385,8 @@ Pass UseAssumeToReduceBranches() {
     // The pass runs & eliminates pad branch with overcompute only if,
     // the function has op_pattern defined and is an elementwise op.
     // AnnotateTIROpPattern pass will set op_pattern in op attributes of the function.
-    if (n->attrs.GetAttr<int64_t>("op_pattern").has_value()) {
-      ffi::Optional<int64_t> opt_pattern = f->GetAttr<int64_t>("op_pattern");
+    if (n->attrs.GetAttr<int64_t>(tvm::relax::attr::kOpPattern).has_value()) {
+      ffi::Optional<int64_t> opt_pattern = f->GetAttr<int64_t>(tvm::relax::attr::kOpPattern);
       if (opt_pattern.has_value()) {
         relax::OpPatternKind pattern;
         pattern = static_cast<relax::OpPatternKind>(opt_pattern.value());

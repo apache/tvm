@@ -78,8 +78,10 @@ ffi::Optional<FAxisSplitter> AxisNode::GetSplitter() const {
 TVM_FFI_STATIC_INIT_BLOCK() {
   refl::ObjectDef<AxisNode>(refl::init(false));
   refl::TypeAttrDef<AxisNode>()
-      .def("__data_to_json__", [](const AxisNode* node) -> ffi::String { return node->_str_index; })
-      .def("__data_from_json__", [](const ffi::String& name) -> Axis { return Axis::Get(name); });
+      .def(tvm::ffi::reflection::type_attr::kDataToJson,
+           [](const AxisNode* node) -> ffi::String { return node->_str_index; })
+      .def(tvm::ffi::reflection::type_attr::kDataFromJson,
+           [](const ffi::String& name) -> Axis { return Axis::Get(name); });
 
   refl::GlobalDef()
       .def("tirx.AxisIsThreadAxis", [](Axis axis) { return axis->IsThreadAxis(); })

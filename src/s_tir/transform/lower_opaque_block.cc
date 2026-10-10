@@ -28,6 +28,7 @@
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/stmt.h>
 
 #include <optional>
 
@@ -80,7 +81,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     }
     // Step 3. Handle allocations in reverse order
     ffi::Map<Var, ffi::Array<PrimExpr>> addresses;
-    if (auto value = new_block->annotations.Get(s_tir::attr::buffer_allocated_addr)) {
+    if (auto value = new_block->annotations.Get(tvm::s_tir::attr::kBufferAllocatedAddr)) {
       for (const auto& entry : value.value().cast<BufferAllocatedAddresses>()) {
         addresses.Set(entry.get<0>(), entry.get<1>());
       }
@@ -95,9 +96,9 @@ class OpaqueBlockLower : public StmtExprMutator {
           tuple.Set<0>(-1);
           allocate_aligns.push_back(tuple);
         }
-        allocate_annotations.Set(s_tir::attr::buffer_dim_align, allocate_aligns);
+        allocate_annotations.Set(tvm::s_tir::attr::kBufferDimAlign, allocate_aligns);
       }
-      allocate_annotations.Set(tirx::attr::buffer_data_alignment,
+      allocate_annotations.Set(tvm::tirx::attr::kBufferDataAlignment,
                                IntImm::Int32(buffer->data_alignment));
       ffi::Array<Expr> args{tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                             StringImm(buffer.scope())};
@@ -131,10 +132,10 @@ class OpaqueBlockLower : public StmtExprMutator {
       UpdateUnrollPolicy(op->annotations);
       const auto& policy = unroll_policy_.Current();
       if (policy.auto_unroll_max_step.has_value()) {
-        annotations.Set(tirx::attr::auto_unroll_max_step, policy.auto_unroll_max_step.value());
+        annotations.Set(tvm::tirx::attr::kAutoUnrollMaxStep, policy.auto_unroll_max_step.value());
       }
       if (policy.unroll_explicit.has_value()) {
-        annotations.Set(tirx::attr::unroll_explicit, policy.unroll_explicit.value());
+        annotations.Set(tvm::tirx::attr::kUnrollExplicit, policy.unroll_explicit.value());
       }
       // Rewrite annotations before visiting body-local definitions.
       new_annotations = HandleAnnotations(annotations);
@@ -144,7 +145,7 @@ class OpaqueBlockLower : public StmtExprMutator {
 
     // Step 2. Keep thread-binding loops until LowerThreadBinding.
     if (!tvm::tirx::GetThreadBinding(op).has_value() && IsOne(extent) && op->annotations.empty() &&
-        !op->annotations.count(s_tir::attr::irregular_loop_mark)) {
+        !op->annotations.count(tvm::s_tir::attr::kIrregularLoopMark)) {
       return body;
     }
     return For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body),
@@ -153,11 +154,11 @@ class OpaqueBlockLower : public StmtExprMutator {
 
   void UpdateUnrollPolicy(const ffi::Map<ffi::String, ffi::Any>& annotations) {
     auto& policy = unroll_policy_.Current();
-    if (auto value = annotations.Get(tirx::attr::auto_unroll_max_step);
+    if (auto value = annotations.Get(tvm::tirx::attr::kAutoUnrollMaxStep);
         value.has_value() && value.value() != nullptr) {
       policy.auto_unroll_max_step = value.value();
     }
-    if (auto value = annotations.Get(tirx::attr::unroll_explicit);
+    if (auto value = annotations.Get(tvm::tirx::attr::kUnrollExplicit);
         value.has_value() && value.value() != nullptr) {
       policy.unroll_explicit = value.value();
     }
@@ -172,8 +173,8 @@ class OpaqueBlockLower : public StmtExprMutator {
       const ffi::Map<ffi::String, ffi::Any>& annotations) {
     ffi::Map<ffi::String, ffi::Any> preserved;
     for (const auto& [key, value] : annotations) {
-      if ((key == tirx::attr::auto_unroll_max_step || key == tirx::attr::unroll_explicit ||
-           key == "pragma_unroll") &&
+      if ((key == tvm::tirx::attr::kAutoUnrollMaxStep || key == tvm::tirx::attr::kUnrollExplicit ||
+           key == tvm::tirx::attr::kPragmaUnroll) &&
           value == nullptr) {
         continue;
       }

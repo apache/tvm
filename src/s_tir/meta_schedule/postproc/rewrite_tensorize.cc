@@ -41,7 +41,7 @@ void CollectTensorizationJobs(
     tirx::StmtSRef block_sref = sch->GetSRef(block.get());
     std::string block_name = block_sref->StmtAs<s_tir::SBlockNode>()->name_hint;
     if (ffi::Optional<ffi::String> intrin_name =
-            s_tir::GetAnn<ffi::String>(block_sref, s_tir::attr::meta_schedule_auto_tensorize)) {
+            s_tir::GetAnn<ffi::String>(block_sref, tvm::s_tir::attr::kMetaScheduleAutoTensorize)) {
       if (intrin_name.value() != "") {
         jobs->emplace_back(block_name, func_name, [sch, intrin_name](s_tir::SBlockRV block) {
           try {
@@ -102,7 +102,7 @@ bool RewriteTensorizeNode::Apply(const s_tir::Schedule& sch) {
     const ffi::String& func_name = std::get<1>(job);
     const auto& job_func = std::get<2>(job);
     SBlockRV block = sch->GetSBlock(block_name, func_name);
-    sch->Unannotate(block, s_tir::attr::meta_schedule_auto_tensorize);
+    sch->Unannotate(block, tvm::s_tir::attr::kMetaScheduleAutoTensorize);
     job_func(block);
   }
   return true;

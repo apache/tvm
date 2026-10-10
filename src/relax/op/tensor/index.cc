@@ -26,7 +26,9 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/topi/transform.h>
 
@@ -152,8 +154,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("x", "The source tensor."),
                  sig::arg("indices", "The indices of the values to extract."),
                  sig::call_attrs<TakeAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeTake>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeTake>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.strided_slice */
@@ -512,10 +514,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("x", "The source tensor to be sliced."), sig::arg("axes", "The axes."),
                  sig::arg("begin", "The start index."), sig::arg("end", "The end index."),
                  sig::var_args("args"), sig::call_attrs<StridedSliceAttrs>())
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeStridedSlice)
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStridedSlice)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
+                                       InferTypeStridedSlice)
+      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutStridedSlice)
+      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
+                                       MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.dynamic_strided_slice */
@@ -614,11 +618,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("begin", "The indices to begin with in the slicing."),
                  sig::arg("end", "Indices indicating end of the slice."),
                  sig::arg("strides", "The stride values."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeDynStridedSlice>())
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutDynStridedSlice)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-      .set_attr<bool>("FPurity", true)
-      .set_attr<bool>("FDataDependent", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeDynStridedSlice>())
+      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutDynStridedSlice)
+      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
+                                       MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true)
+      .set_attr<bool>(tvm::relax::op_attr::kDataDependent, true);
 }
 
 }  // namespace relax

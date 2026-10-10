@@ -206,7 +206,7 @@ class LayoutConvertMutator : public ExprMutator {
     const OpNode* op_node = call_node->op.as<OpNode>();
     if (op_node == nullptr) return std::nullopt;
     Op op = ffi::GetRef<Op>(op_node).as_or_throw<Op>();
-    const auto attr_map = Op::GetAttrMap<FRelaxInferLayout>("FRelaxInferLayout");
+    const auto attr_map = Op::GetAttrMap<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout);
     if (attr_map.count(op) && !HasUnknownDimTensor(call_node->args)) {
       // If the op has FRelaxInferLayout, and all the input tensors have known ndim
       FRelaxInferLayout f = attr_map[op];

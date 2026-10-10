@@ -26,6 +26,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/tirx/stmt.h>
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../tirx/transform/ir_utils.h"
@@ -147,7 +148,7 @@ class ThreadBindingLifter : public StmtExprMutator {
     if (auto it = iter_lca.find(op); it != iter_lca.end()) {
       for (const auto& [iter_var, annotation] : it->second) {
         auto annotations = annotation;
-        annotations.Set("thread_binding", iter_var->thread_tag);
+        annotations.Set(tvm::tirx::attr::kThreadBinding, iter_var->thread_tag);
         body = For(iter_var->var, iter_var->dom->min, iter_var->dom->extent, ForKind::kParallel,
                    std::move(body), std::move(annotations), std::nullopt);
       }

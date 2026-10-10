@@ -68,6 +68,8 @@
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr_functor.h>
+#include <tvm/ir/function.h>
+#include <tvm/ir/op.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -279,11 +281,11 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
     is_dataflow_ = false;
 
     // ensure the purity attributes are valid
-    if (op->GetAttr<bool>(relax::attr::kForcePure).value_or(false) && !op->is_pure) {
+    if (op->GetAttr<bool>(tvm::relax::attr::kForcePure).value_or(false) && !op->is_pure) {
       TVM_FFI_VISIT_THROW(ValueError, op->span)
-          << "Function " << ffi::GetRef<Expr>(op) << " has true for " << relax::attr::kForcePure
-          << " but false for is_pure; " << relax::attr::kForcePure
-          << " should be true only if is_pure is also true.";
+          << "Function " << ffi::GetRef<Expr>(op) << " has true for "
+          << tvm::relax::attr::kForcePure << " but false for is_pure; "
+          << tvm::relax::attr::kForcePure << " should be true only if is_pure is also true.";
     }
 
     // Bare symbolic occurrences in parameter types are signature definitions,
@@ -336,11 +338,12 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
 
     // if we are not forcing purity and the function is annotated as pure, it must not contain an
     // impure call
-    if (check_ty && !op->GetAttr<bool>(relax::attr::kForcePure).value_or(false) && op->is_pure) {
+    if (check_ty && !op->GetAttr<bool>(tvm::relax::attr::kForcePure).value_or(false) &&
+        op->is_pure) {
       if (auto impure = FindImpureCall(op->body)) {
         TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Expr>(op))
             << "Function " << op << " is annotated as pure but contains an impure call: " << impure
-            << ".  Please set " << relax::attr::kForcePure << " to true "
+            << ".  Please set " << tvm::relax::attr::kForcePure << " to true "
             << "or use a pure operator variant (e.g., call_pure_packed) "
             << "if it is necessary to override this judgment.";
       }
@@ -724,10 +727,12 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
   std::unordered_set<DataflowVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> dataflow_var_set_;
   std::unordered_map<Var, const FunctionNode*> param_var_func_map_;
 
-  tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
-  tvm::OpAttrMap<FInferType> op_map_infer_type_ = Op::GetAttrMap<FInferType>("FInferType");
+  tvm::OpAttrMap<FNormalize> op_map_normalize_ =
+      Op::GetAttrMap<FNormalize>(tvm::relax::op_attr::kNormalize);
+  tvm::OpAttrMap<FInferType> op_map_infer_type_ =
+      Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
   tvm::OpAttrMap<FInferTypeWithBuilder> op_map_infer_type_with_builder_ =
-      Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
+      Op::GetAttrMap<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder);
 };
 
 void WellFormed(ffi::Variant<IRModule, Function> obj, bool check_ty) {

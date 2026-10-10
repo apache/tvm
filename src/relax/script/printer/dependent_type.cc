@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/tirx/type.h>
 
 #include <optional>
@@ -46,7 +47,8 @@ ffi::Optional<ExprDoc> ShapeTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::ShapeTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&ShapeTypeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&ShapeTypeDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -88,7 +90,8 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::TensorTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TensorTypeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&TensorTypeDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> RelaxFuncTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -123,7 +126,8 @@ ffi::Optional<ExprDoc> RelaxFuncTypeDocTranslate(DocTranslatorObj* d, ffi::AnyVi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::FuncTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&RelaxFuncTypeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&RelaxFuncTypeDocTranslate>());
 }
 
 }  // namespace

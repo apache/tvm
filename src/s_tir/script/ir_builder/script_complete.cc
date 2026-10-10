@@ -90,7 +90,7 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
     // Get access detection mask
     // 0 for provided region, 1 and 3 for need detect read, 2 and 3 for need detect write
     int mask = 0;
-    auto it = op->annotations.find(s_tir::attr::script_parsing_detect_access);
+    auto it = op->annotations.find(tvm::s_tir::attr::kScriptParsingDetectAccess);
     if (it != op->annotations.end()) {
       mask = (*it).second.as_or_throw<IntImm>()->value.as<int>().value();
     }
@@ -109,7 +109,7 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
         if (mask & 2) n->writes = writes;
       }
       n->annotations = op->annotations;
-      n->annotations.erase(s_tir::attr::script_parsing_detect_access);
+      n->annotations.erase(tvm::s_tir::attr::kScriptParsingDetectAccess);
       return block;
     } else {
       return block;
@@ -167,7 +167,7 @@ Function ScriptComplete(Function func, const ffi::Array<TensorVar>& root_allocat
   if (should_insert_root) {
     ffi::Map<ffi::String, ffi::Any> annotations;
     if (!root_addresses.empty()) {
-      annotations.Set(s_tir::attr::buffer_allocated_addr, root_addresses);
+      annotations.Set(tvm::s_tir::attr::kBufferAllocatedAddr, root_addresses);
     }
     s_tir::SBlock root_block({}, {}, {}, "root", std::move(res), std::nullopt, root_allocates, {},
                              annotations);

@@ -27,7 +27,9 @@
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
+#include <tvm/ir/function.h>
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op/manipulate.h>
 #include <tvm/relax/transform.h>
@@ -41,7 +43,6 @@ namespace tvm {
 namespace relax {
 
 using namespace tirx;
-static constexpr const char* kOperatorName = "operator_name";
 
 /*! \brief Construct ranges from shape dimensions */
 static ffi::Array<Range> ConstructRangeFromShape(const ffi::Array<PrimExpr>& shape) {
@@ -116,7 +117,8 @@ class AlterOpImplMutator : public ExprMutator {
     TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>());
     const tirx::Function& old_func =
         mod_->Lookup(call->args[0].as_or_throw<GlobalVar>()).as_or_throw<tirx::Function>();
-    ffi::Optional<ffi::String> maybe_op_kind = old_func->attrs.GetAttr<ffi::String>(kOperatorName);
+    ffi::Optional<ffi::String> maybe_op_kind =
+        old_func->attrs.GetAttr<ffi::String>(tvm::relax::attr::kOperatorName);
 
     // If the callee does not have kOperatorName attribute or no replacement is requested for
     // it, nothing to do here.
@@ -218,12 +220,13 @@ class AlterOpImplMutator : public ExprMutator {
     ffi::String op_name = "remove_pad";
     // Create tirx::Function and add op_name to func.attrs
     tirx::Function remove_pad_with_frozen_layout =
-        WithAttr(CreateFunction({placeholder_tensor, output_tensor}), kOperatorName, op_name);
+        WithAttr(CreateFunction({placeholder_tensor, output_tensor}),
+                 tvm::relax::attr::kOperatorName, op_name);
     // Add tirx::Function to module
     GlobalVar gv_remove_pad = builder_->AddFunction(remove_pad_with_frozen_layout, op_name);
     // Mark the remove_pad tirx::Function as private by removing it from global scope
     builder_->UpdateFunction(gv_remove_pad,
-                             WithoutAttr(remove_pad_with_frozen_layout, "global_symbol"));
+                             WithoutAttr(remove_pad_with_frozen_layout, tvm::attr::kGlobalSymbol));
 
     remove_pad_map_.insert_or_assign(t_shape, gv_remove_pad);
     return gv_remove_pad;
@@ -265,7 +268,7 @@ class AlterOpImplMutator : public ExprMutator {
     // future passes that use kOperatorName attribute to identify operator represented by a
     // tirx::Function.
     tirx::Function replacement_func_with_frozen_layout =
-        WithAttr(replacement_func, kOperatorName, op_kind);
+        WithAttr(replacement_func, tvm::relax::attr::kOperatorName, op_kind);
 
     GlobalVar gv_replacement =
         builder_->AddFunction(replacement_func_with_frozen_layout, op_kind + "_replacement");

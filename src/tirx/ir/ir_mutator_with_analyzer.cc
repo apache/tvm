@@ -22,6 +22,7 @@
  */
 #include "ir_mutator_with_analyzer.h"
 
+#include <tvm/backend/cuda/attr.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
@@ -222,7 +223,7 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const RegionStmtNode* op,
     }
     // Native CUDA coordinates are ordinary calls. Their bounds come from the
     // enclosing launch configuration, including when no variable binds them.
-    if (auto description = op->attrs->dict.Get("cuda.launch_fields")) {
+    if (auto description = op->attrs->dict.Get(tvm::backend::cuda::attr::kLaunchFields)) {
       auto fields = description->as_or_throw<ffi::Array<ffi::String>>();
       for (size_t i = 0; i < fields.size(); ++i) {
         std::string field(fields[i]);

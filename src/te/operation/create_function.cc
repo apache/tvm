@@ -25,14 +25,17 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/analysis.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/unique_name_supply.h>
+#include <tvm/s_tir/function.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
+#include <tvm/topi/tags.h>
 
 #include <algorithm>
 #include <set>
@@ -243,7 +246,7 @@ class LayoutFreePlaceholdersNormalizer : public s_tir::StmtExprMutator {
     for (int i : this->layout_free_buffer_indices_) {
       indices.push_back(i);
     }
-    return WithAttr(std::move(func), s_tir::attr::layout_free_buffers, indices);
+    return WithAttr(std::move(func), tvm::s_tir::attr::kLayoutFreeBuffers, indices);
   }
 
   UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* _block, InplaceMode inplace_mode) final {
@@ -278,9 +281,10 @@ class LayoutFreePlaceholdersNormalizer : public s_tir::StmtExprMutator {
 
   std::unordered_map<tirx::TensorVar, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer2index_;
   std::set<int> layout_free_buffer_indices_;
-  ffi::String topi_attr = "layout_free_placeholders";
-  std::vector<ffi::String> blocklist = {"const_matrix",
-                                        "auto_scheduler_simplify_const_tensor_indices", "workload"};
+  ffi::String topi_attr = tvm::topi::attr::kLayoutFreePlaceholders;
+  std::vector<ffi::String> blocklist = {tvm::topi::attr::kConstMatrix,
+                                        tvm::topi::attr::kAutoSchedulerSimplifyConstTensorIndices,
+                                        tvm::topi::attr::kWorkload};
 };
 
 /**!
@@ -421,7 +425,7 @@ ffi::Map<ffi::String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& co
     }
   }
   // Set script_parsing_detect_access
-  annotations.Set(s_tir::attr::script_parsing_detect_access, IntImm::Int32(3));
+  annotations.Set(tvm::s_tir::attr::kScriptParsingDetectAccess, IntImm::Int32(3));
   return annotations;
 }
 
@@ -895,11 +899,12 @@ Function GenerateAndCompleteFunction(const ffi::Array<te::Tensor>& arg_list,
   }
   SeqStmt body(root_stmts);
   body = info->transformer->Mutate(body, InplaceMode::kAllow).ValueOrUnchanged(body);
-  Function func = WithAttrs(
-      Function(/*params=*/std::move(parameters),
-               /*body=*/std::move(body),
-               /*ret_type=*/VoidType()),
-      {{"global_symbol", ffi::String("main")}, {"tirx.noalias", true}, {tvm::attr::kSTir, true}});
+  Function func = WithAttrs(Function(/*params=*/std::move(parameters),
+                                     /*body=*/std::move(body),
+                                     /*ret_type=*/VoidType()),
+                            {{tvm::attr::kGlobalSymbol, ffi::String("main")},
+                             {tvm::tirx::attr::kNoAlias, true},
+                             {tvm::attr::kSTir, true}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("s_tir.script.Complete");
   TVM_FFI_ICHECK(fcomplete.has_value());
   func = (*fcomplete)(std::move(func), info->root_alloc).cast<Function>();
@@ -966,11 +971,12 @@ Function GenerateAndCompleteFunction(const ffi::Array<ffi::ObjectRef>& arg_tir_v
   }
   SeqStmt body(root_stmts);
   body = info->transformer->Mutate(body, InplaceMode::kAllow).ValueOrUnchanged(body);
-  Function func = WithAttrs(
-      Function(/*params=*/std::move(parameters),
-               /*body=*/std::move(body),
-               /*ret_type=*/VoidType()),
-      {{"global_symbol", ffi::String("main")}, {"tirx.noalias", true}, {tvm::attr::kSTir, true}});
+  Function func = WithAttrs(Function(/*params=*/std::move(parameters),
+                                     /*body=*/std::move(body),
+                                     /*ret_type=*/VoidType()),
+                            {{tvm::attr::kGlobalSymbol, ffi::String("main")},
+                             {tvm::tirx::attr::kNoAlias, true},
+                             {tvm::attr::kSTir, true}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("s_tir.script.Complete");
   TVM_FFI_ICHECK(fcomplete.has_value());
   func = (*fcomplete)(std::move(func), info->root_alloc).cast<Function>();

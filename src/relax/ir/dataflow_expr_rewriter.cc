@@ -25,6 +25,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/analysis.h>

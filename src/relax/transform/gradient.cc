@@ -27,6 +27,8 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
+#include <tvm/ir/op.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
@@ -269,9 +271,9 @@ class CheckpointGenerator : private ExprMutator {
     Type ret_ty = Type::Missing();
     if (call_node->ty.as<PrimTypeNode>()) {
       if (auto op = call_node->op.as<Op>()) {
-        static auto infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
+        static auto infer_type_map = Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
         static auto infer_type_with_builder_map =
-            Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
+            Op::GetAttrMap<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder);
         if (!infer_type_map.count(op.value()) && !infer_type_with_builder_map.count(op.value())) {
           ret_ty = call_node->ty.as_or_throw<Type>();
         }
@@ -365,7 +367,7 @@ class BackwardBindingGenerator : private ExprVisitor {
     }
 
     static const OpAttrMap<FPrimalGradient>& gradient_op_map =
-        Op::GetAttrMap<FPrimalGradient>("FPrimalGradient");
+        Op::GetAttrMap<FPrimalGradient>(tvm::relax::op_attr::kPrimalGradient);
     static const constexpr char* te_grad_func_prefix = "tvm.relax.te_grad._register.";
 
     Var adjoint_var = adjoint_var_map_[binding->var];

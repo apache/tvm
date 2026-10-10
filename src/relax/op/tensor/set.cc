@@ -26,6 +26,8 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
+#include <tvm/relax/op_attr_types.h>
 
 #include <algorithm>
 #include <utility>
@@ -158,9 +160,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("return_counts",
                    "Whether to return an additional tensor with counts of each unique elements"),
           sig::var_args("args"))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeUnique>())
-      .set_attr<FCallPacked>("FCallPacked", "relax.run.unique")
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeUnique>())
+      .set_attr<FCallPacked>(tvm::relax::op_attr::kCallPacked, "relax.run.unique")
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nonzero */
@@ -183,9 +185,9 @@ Type InferTypeNonzero(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nonzero")
       .signature(sig::arg("x", "The input tensor"))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeNonzero>())
-      .set_attr<FCallPacked>("FCallPacked", "relax.run.nonzero")
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeNonzero>())
+      .set_attr<FCallPacked>(tvm::relax::op_attr::kCallPacked, "relax.run.nonzero")
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax

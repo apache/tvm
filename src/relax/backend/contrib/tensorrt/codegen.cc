@@ -246,7 +246,7 @@ class TensorRTJSONSerializer : public JSONSerializer {
     TVM_FFI_ICHECK(fn_var);
     const auto fn = bindings_[ffi::GetRef<Var>(fn_var)].as_or_throw<Function>();
 
-    auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
+    auto opt_composite = fn->GetAttr<ffi::String>(tvm::relax::attr::kComposite);
     TVM_FFI_ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 

@@ -27,6 +27,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/data_layout.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/index_map.h>
@@ -1856,11 +1857,12 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
 
   ffi::Array<PrimExpr> dst_shape = layout_converter.ForwardShape(src->shape);
 
-  ffi::Map<ffi::String, ffi::Any> attrs = {{"schedule_rule", ffi::String(schedule_rule)},
-                                           // Information about layouts needed for the schedule rule
-                                           {"src_layout", ffi::String(src_layout)},
-                                           {"dst_layout", ffi::String(dst_layout)},
-                                           {"input_shape", src->shape}};
+  ffi::Map<ffi::String, ffi::Any> attrs = {
+      {tvm::s_tir::attr::kScheduleRule, ffi::String(schedule_rule)},
+      // Information about layouts needed for the schedule rule
+      {tvm::topi::attr::kSrcLayout, ffi::String(src_layout)},
+      {tvm::topi::attr::kDstLayout, ffi::String(dst_layout)},
+      {tvm::topi::attr::kInputShape, src->shape}};
 
   return compute(
       dst_shape,

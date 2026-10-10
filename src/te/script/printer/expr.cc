@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/te/operation.h>
 
 #include "../../../script/printer/ir/utils.h"
@@ -52,7 +53,8 @@ ffi::Optional<ExprDoc> CommReducerDocTranslate(DocTranslatorObj* d, ffi::AnyView
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<te::CommReducerNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&CommReducerDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&CommReducerDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> ReduceDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -86,7 +88,8 @@ ffi::Optional<ExprDoc> ReduceDocTranslate(DocTranslatorObj* d, ffi::AnyView inpu
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<te::ReduceNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&ReduceDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&ReduceDocTranslate>());
 }
 
 }  // namespace

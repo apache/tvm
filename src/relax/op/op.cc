@@ -20,10 +20,12 @@
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr_functor.h>
+#include <tvm/ir/op.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/distributed/type.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/op/op.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/utils.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>
@@ -188,7 +190,7 @@ Expr NormalizeCallPurePacked(const BlockBuilder& ctx, Call call) {
   if (call->args.empty() || !call->args[0].same_as(Op::Get("relax.call_tir_packed"))) return call;
   Call inner(call->ty, call->args[0], ffi::Array<Expr>(call->args.begin() + 1, call->args.end()),
              call->attrs, call->ty_args, call->span);
-  static const auto& normalizers = Op::GetAttrMap<FNormalize>("FNormalize");
+  static const auto& normalizers = Op::GetAttrMap<FNormalize>(tvm::relax::op_attr::kNormalize);
   inner = normalizers[inner->op.as_or_throw<Op>()](ctx, inner).as_or_throw<Call>();
   for (size_t i = 0; i < inner->args.size(); ++i) {
     if (!call->args[i + 1].same_as(inner->args[i])) {
@@ -207,10 +209,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                           "arguments to that function."),
                  sig::var_args("args"),
                  sig::var_ty_args("type_args", "Optional type arguments forwarded to the callee."))
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeCallPurePacked)
-      .set_attr<FNormalize>("FNormalize", NormalizeCallPurePacked)
-      .set_attr<bool>("RequiresArgumentShapes", false)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
+                                       InferTypeCallPurePacked)
+      .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeCallPurePacked)
+      .set_attr<bool>(tvm::relax::op_attr::kRequiresArgumentShapes, false)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr MakeCallPurePacked(const Expr& callee, ffi::Array<Expr> args, const Attrs& attrs,
@@ -324,12 +327,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::var_args("args"),
                  sig::var_ty_args("type_args", "Optional type arguments forwarded to the callee."),
                  sig::call_attrs<CallInplacePackedAttrs>())
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeCallInplacePacked)
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
+                                       InferTypeCallInplacePacked)
       // Warning: considered pure, but it has the potential to create visible effects!
       // This should only be used if it has been *checked* that it is safe (no aliases, in-place
       // arguments will no longer be live) and the user believes the packed func to have no
       // side effects other than modifying the arguments specified as "inplace"
-      .set_attr<bool>("FPurity", true);
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr MakeCallInplacePacked(Expr func, ffi::Array<Expr> args, ffi::Array<int64_t> inplace_indices,
@@ -573,9 +577,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                          const CallNode*)>::FromNative<&ValidateCallTIRPacked>())
       .signature(sig::arg("func", "The native TIRx function."),
                  sig::arg("args", "Every native argument, in parameter order."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCallTIRPacked>())
-      .set_attr<FNormalize>("FNormalize", NormalizeCallTIRPacked)
-      .set_attr<bool>("FPurity", false);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeCallTIRPacked>())
+      .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeCallTIRPacked)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, false);
 }
 
 // call_tir
@@ -904,9 +909,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("func", "The destination-passing-style function."),
                  sig::arg("args", "The input arguments."),
                  sig::ty_arg("out_type", "The output type."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCallTIR>())
-      .set_attr<FNormalize>("FNormalize", NormalizeCallTIR)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeCallTIR>())
+      .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeCallTIR)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr MakeCallTIR(Expr func, Tuple args, ffi::Array<TensorType> out_ty_list) {
@@ -942,9 +947,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("args", "The input arguments."),
                  sig::ty_arg("out_type", "The output type."),
                  sig::call_attrs<CallTIRWithGradAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCallTIR>())
-      .set_attr<FNormalize>("FNormalize", NormalizeCallTIR)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeCallTIR>())
+      .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeCallTIR)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr MakeCallTIRWithGrad(Expr func, Tuple args, ffi::Array<TensorType> out_ty_list,
@@ -1074,12 +1079,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("args", "The input arguments."),
                  sig::ty_arg("out_type", "The output type."),
                  sig::call_attrs<CallTIRInplaceAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCallTIR>())
-      .set_attr<FNormalize>("FNormalize", NormalizeCallTIRInPlace)
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeCallTIR>())
+      .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeCallTIRInPlace)
       // Warning: considered pure, but it has the potential to create visible effects!
       // This should only be used if it has been *checked* that it is safe (no aliases, in-place
       // arguments will no longer be live)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr MakeCallTIRInplace(Expr func, Tuple args, ffi::Array<int64_t> inplace_indices,
@@ -1126,10 +1131,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("func", "The destination-passing-style function."),
                  sig::arg("args", "The input arguments."),
                  sig::ty_arg("out_type", "The output type."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCallDPSPacked>())
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeCallDPSPacked>())
       // technically, an impure op could be used with this, but there is
       // little reason to use DPS with an impure op
-      .set_attr<bool>("FPurity", true);
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr MakeCallDPSPacked(Expr func, Tuple args, ffi::Array<TensorType> out_ty_list) {
@@ -1194,8 +1200,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("func_name", "The name of the Python function to call."),
                  sig::arg("args", "The input arguments."),
                  sig::ty_arg("out_type", "The output type."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCallPyFunc>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeCallPyFunc>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr MakeCallPyFunc(StringImm func_name, Tuple args, ffi::Array<TensorType> out_ty_list) {
@@ -1240,9 +1247,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("func", "The builtin packed func."),
                  sig::arg("args", "The input arguments."),
                  sig::var_ty_args("out_type", "Optional output type; omitted for void."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCallBuiltinWithCtx>())
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeCallBuiltinWithCtx>())
       // Most builtins are pure, but some are not, like `vm.builtin.attention_kv_cache_append`
-      .set_attr<bool>("FPurity", false);
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, false);
 }
 
 Expr MakeCallBuiltinWithCtx(Expr func, Tuple args, ffi::Array<Type> ty_args) {
@@ -1255,8 +1263,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.call_builtin_with_ctx", MakeCallBuiltinWithCtx);
 
   OpDef("relax.null_value")
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnAnyType>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&ReturnAnyType>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr MakeCallNullValue() {
@@ -1276,9 +1284,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                    "The first value is Python-style format string to use to print. The others "
                    "are values to print"),
           sig::var_args("args"))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnVoidType>())
-      .set_attr<FCallPacked>("FCallPacked", "relax.run.print")
-      .set_attr<bool>("FPurity", false);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&ReturnVoidType>())
+      .set_attr<FCallPacked>(tvm::relax::op_attr::kCallPacked, "relax.run.print")
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, false);
 }
 
 Expr MakePrint(ffi::Array<Expr> vals, StringImm format) {
@@ -1320,9 +1328,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("condition", "The boolean assertion condition."),
                  sig::arg("format", "The Python-style error format string."),
                  sig::var_args("values", "The values substituted into the error format."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferAssertType>())
-      .set_attr<FCallPacked>("FCallPacked", "relax.run.assert_op")
-      .set_attr<bool>("FPurity", false);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferAssertType>())
+      .set_attr<FCallPacked>(tvm::relax::op_attr::kCallPacked, "relax.run.assert_op")
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, false);
 }
 
 // make_closure
@@ -1330,8 +1338,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.make_closure")
       .signature(sig::arg("func", "The closure."), sig::arg("args", "The captured variables."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnAnyType>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&ReturnAnyType>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr MakeClosure(Expr func, Tuple args) {
@@ -1362,9 +1370,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("closure", "The VMClosure."), sig::arg("args", "The captured variables."),
                  sig::var_ty_args("out_types",
                                   "Zero or more output types; multiple entries form a tuple."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeInvokeClosure>())
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeInvokeClosure>())
       // Not all closures are pure. Use invoke_pure_closure for specifying purity
-      .set_attr<bool>("FPurity", false);
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, false);
 }
 
 Expr InvokeClosure(Expr closure, Tuple args, ffi::Array<Type> ty_args) {
@@ -1382,8 +1391,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("closure", "The VMClosure."), sig::arg("args", "The captured variables."),
                  sig::var_ty_args("out_types",
                                   "Zero or more output types; multiple entries form a tuple."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeInvokeClosure>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeInvokeClosure>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr InvokePureClosure(Expr closure, Tuple args, ffi::Array<Type> ty_args) {
@@ -1399,8 +1409,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.shape_of")
       .signature(sig::arg("input", "The input expression"))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeShapeOf>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeShapeOf>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr MakeShapeOf(Expr expr) {
@@ -1427,8 +1437,8 @@ Type InferTypeSize(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.size")
       .signature(sig::arg("input", "The input tensor"))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeSize>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeSize>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr MakeSize(Expr expr) {
@@ -1466,8 +1476,9 @@ Type ReturnTensorToShapeType(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.tensor_to_shape")
       .signature(sig::arg("input", "The input expression"))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnTensorToShapeType>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&ReturnTensorToShapeType>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr MakeTensorToShape(Expr expr) {
@@ -1494,9 +1505,10 @@ Type ReturnShapeToTensorType(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.shape_to_tensor")
       .signature(sig::arg("input", "The input expression"))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnShapeToTensorType>())
-      .set_attr<FCallPacked>("FCallPacked", "relax.run.shape_to_tensor")
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&ReturnShapeToTensorType>())
+      .set_attr<FCallPacked>(tvm::relax::op_attr::kCallPacked, "relax.run.shape_to_tensor")
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr MakeShapeToTensor(Expr expr) {
@@ -1544,10 +1556,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("storage_scope",
                    "The storage scope of the storage to allocate. Default is global."),
           sig::var_ty_args("out_type", "Optional output type used by allocation rewrites."))
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeAllocateTensor)
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
+                                       InferTypeAllocateTensor)
       // memory allocation isn't considered a "visible effect" as far as purity is concerned
-      .set_attr<bool>("FPurity", true)
-      .set_attr<bool>("TAllocator", true);
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true)
+      .set_attr<bool>(tvm::relax::op_attr::kAllocator, true);
 }
 
 Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimExpr runtime_device_index,
@@ -1573,10 +1586,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("storage_scope",
                    "The storage scope of the storage to allocate. Default is global."),
           sig::arg("dtype", "The dtype of the tensor to allocate."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnAnyType>())
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&ReturnAnyType>())
       // memory allocation isn't considered a "visible effect" as far as purity is concerned
-      .set_attr<bool>("FPurity", true)
-      .set_attr<bool>("TAllocator", true);
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true)
+      .set_attr<bool>(tvm::relax::op_attr::kAllocator, true);
 }
 
 Expr MakeAllocStorage(Expr size, PrimExpr virtual_device_index, StringImm storage_scope,
@@ -1625,10 +1638,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg<IntExpr>("runtime_device_index",
                             "The device index indicating on which device the tensor is to be "
                             "allocated at runtime. Index -1 is reserved for the host device."))
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeMemAllocTensor)
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
+                                       InferTypeMemAllocTensor)
       // memory allocation isn't considered a "visible effect" as far as purity is concerned
-      .set_attr<bool>("FPurity", true)
-      .set_attr<bool>("TAllocator", true);
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true)
+      .set_attr<bool>(tvm::relax::op_attr::kAllocator, true);
 }
 
 Expr MakeMemAllocTensor(Expr storage, PrimExpr offset, Expr shape, DataTypeImm dtype,
@@ -1657,9 +1671,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.memory.kill_storage")
       .signature(sig::arg("storage", "The storage to be killed."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnVoidType>())
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&ReturnVoidType>())
       // We mark this as impure so it wouldn't be removed by "remove_all_unused"
-      .set_attr<bool>("FPurity", false);
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, false);
 }
 
 Expr MakeMemKillStorage(Expr storage) {
@@ -1675,9 +1689,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.memory.kill_tensor")
       .signature(sig::arg("tensor", "The tensor to be killed."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnVoidType>())
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&ReturnVoidType>())
       // We mark this as impure so it wouldn't be removed by "remove_all_unused"
-      .set_attr<bool>("FPurity", false);
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, false);
 }
 
 Expr MakeMemKillTensor(Expr tensor) {
@@ -1699,10 +1713,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("dtype", "The dtype of the tensor to allocate."),
                  sig::arg("storage_scope",
                           "The storage scope of the storage to allocate. Default is global."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnAnyType>())
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&ReturnAnyType>())
       // memory allocation isn't considered a "visible effect" as far as purity is concerned
-      .set_attr<bool>("FPurity", true)
-      .set_attr<bool>("TAllocator", true);
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true)
+      .set_attr<bool>(tvm::relax::op_attr::kAllocator, true);
 }
 
 Expr MakeVMAllocStorage(Expr size, PrimExpr runtime_device_index, DataTypeImm dtype,
@@ -1751,10 +1765,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("runtime_device_index",
                                    "The device index indicating on which device the tensor is "
                                    "to be allocated at runtime."))
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeVMAllocTensor)
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
+                                       InferTypeVMAllocTensor)
       // memory allocation isn't considered a "visible effect" as far as purity is concerned
-      .set_attr<bool>("FPurity", true)
-      .set_attr<bool>("TAllocator", true);
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true)
+      .set_attr<bool>(tvm::relax::op_attr::kAllocator, true);
 }
 
 Expr MakeVMAllocTensor(Expr storage, PrimExpr offset, Expr shape, DataTypeImm dtype,
@@ -1780,9 +1795,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.vm.kill_object")
       .signature(sig::arg("obj", "The object to be killed."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnVoidType>())
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&ReturnVoidType>())
       // We mark this as impure so it wouldn't be removed by "remove_all_unused"
-      .set_attr<bool>("FPurity", false);
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, false);
 }
 
 Expr MakeVMKillObject(Expr obj) {
@@ -1800,9 +1815,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(
           sig::arg("func", "The destination-passing-style function."),
           sig::arg("args", "The input arguments (list of tensors and last argument is ShapeExpr)"))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnVoidType>())
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&ReturnVoidType>())
       // "relax.vm.call_tir_dyn" works in an in-place way, which is impure.
-      .set_attr<bool>("FPurity", false);
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, false);
 }
 
 Expr MakeCallTIRDyn(Expr func, Tuple args) {
@@ -1824,8 +1839,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.builtin.stop_lift_params")
       .signature(sig::arg("x", "The input data"),
                  sig::var_ty_args("out_type", "Optional output type."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStopLiftParams>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferTypeStopLiftParams>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr MakeStopLiftParams(Expr x) {
@@ -1857,8 +1873,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.to_vdevice")
       .signature(sig::arg("data", "The input expression to be copied"),
                  sig::call_attrs<ToVDeviceAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferToVDeviceType>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferToVDeviceType>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr MakeToVDevice(Expr data, VDevice dst_vdev) {
@@ -1886,8 +1902,9 @@ Type InferHintOnDeviceType(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.hint_on_device")
       .signature(sig::arg("data", "The input expression"), sig::call_attrs<HintOnDeviceAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferHintOnDeviceType>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType,
+                            FInferType::FromNative<&InferHintOnDeviceType>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr MakeHintOnDevice(Expr data, Device device, ffi::String memory_scope = "global") {

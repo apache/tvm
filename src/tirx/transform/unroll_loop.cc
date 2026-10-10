@@ -30,6 +30,7 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -115,11 +116,11 @@ class LoopUnroller : public StmtExprMutator {
     return unroll_policy_.WithNewScope([&]() {
       auto& policy = unroll_policy_.Current();
       policy = parent_policy;
-      if (auto value = op->annotations.Get(attr::auto_unroll_max_step);
+      if (auto value = op->annotations.Get(tvm::tirx::attr::kAutoUnrollMaxStep);
           value.has_value() && value.value() != nullptr) {
         policy.auto_unroll_max_step = value.value().cast<IntImm>()->value.as<int>().value();
       }
-      if (auto value = op->annotations.Get(attr::unroll_explicit);
+      if (auto value = op->annotations.Get(tvm::tirx::attr::kUnrollExplicit);
           value.has_value() && value.value() != nullptr) {
         policy.unroll_explicit = static_cast<bool>(value.value().cast<IntImm>()->value);
       }
@@ -136,8 +137,8 @@ class LoopUnroller : public StmtExprMutator {
         inplace_mode = InplaceMode::kDisallow;
       }
     }
-    if (op->annotations.count(attr::auto_unroll_max_step) ||
-        op->annotations.count(attr::unroll_explicit)) {
+    if (op->annotations.count(tvm::tirx::attr::kAutoUnrollMaxStep) ||
+        op->annotations.count(tvm::tirx::attr::kUnrollExplicit)) {
       ForNode* node;
       if (inplace_mode == InplaceMode::kAllow) {
         node = const_cast<ForNode*>(op);
@@ -146,8 +147,8 @@ class LoopUnroller : public StmtExprMutator {
         node = copy.get();
         result = For(std::move(copy));
       }
-      node->annotations.erase(attr::auto_unroll_max_step);
-      node->annotations.erase(attr::unroll_explicit);
+      node->annotations.erase(tvm::tirx::attr::kAutoUnrollMaxStep);
+      node->annotations.erase(tvm::tirx::attr::kUnrollExplicit);
       op = node;
     }
     if (tvm::tirx::GetThreadBinding(op).has_value()) {

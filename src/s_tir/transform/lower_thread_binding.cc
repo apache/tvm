@@ -19,9 +19,11 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/op/region.h>
+#include <tvm/tirx/stmt.h>
 
 namespace tvm {
 namespace s_tir {
@@ -58,8 +60,8 @@ class ThreadBindingLowerer : public StmtExprMutator {
     PrimExpr extent = Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
     TVM_FFI_ICHECK(IsZero(min)) << "Thread binding loops must start at zero";
     TVM_FFI_ICHECK(tvm::tirx::GetThreadBinding(op).has_value());
-    TVM_FFI_ICHECK(!op->annotations.count("loop_partition_hint") ||
-                   op->annotations.at("loop_partition_hint") == nullptr)
+    TVM_FFI_ICHECK(!op->annotations.count(tvm::s_tir::attr::kLoopPartitionHint) ||
+                   op->annotations.at(tvm::s_tir::attr::kLoopPartitionHint) == nullptr)
         << "Run LoopPartition before LowerThreadBinding";
     PrimVar launch_var(op->loop_var->name, extent.ty());
     auto previous_remap = VarRemapGet(op->loop_var);
@@ -69,7 +71,7 @@ class ThreadBindingLowerer : public StmtExprMutator {
                            .ValueOrUnchanged(op->annotations);
     Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     VarRemapSet(op->loop_var, previous_remap);
-    annotations.erase("thread_binding");
+    annotations.erase(tvm::tirx::attr::kThreadBinding);
     if (!annotations.empty()) {
       PrimType ty = op->loop_var.ty();
       body = For(PrimVar("annotation", ty), IntImm(ty, 0), IntImm(ty, 1), ForKind::kDefault,

@@ -50,6 +50,7 @@
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/analysis.h>
+#include <tvm/ir/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
@@ -1176,7 +1177,8 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
       parallel_env_.in_parallel_loop = true;
       PrimExpr end = IsZero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
       bool stride_pattern = false;
-      if (auto it = op->annotations.find("parallel_stride_pattern"); it != op->annotations.end()) {
+      if (auto it = op->annotations.find(tvm::codegen::attr::kParallelStridePattern);
+          it != op->annotations.end()) {
         ffi::Any annotation = (*it).second;
         if (auto value = annotation.as<bool>()) {
           stride_pattern = value.value();

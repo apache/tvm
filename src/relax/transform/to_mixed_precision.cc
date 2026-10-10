@@ -46,7 +46,7 @@ int GetMixedPrecisionInfo(const CallNode* call_node) {
     return -1;
   }
   Op op = ffi::GetRef<Op>(op_node);
-  auto attr_map = Op::GetAttrMap<TMixedPrecisionPolicy>("TMixedPrecisionPolicy");
+  auto attr_map = Op::GetAttrMap<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy);
   return attr_map.count(op) ? attr_map[op] : MixedPrecisionPolicyKind::kNever;
 }
 
@@ -486,7 +486,8 @@ class ToMixedPrecisionRewriter : public ExprMutator {
 
     if (policy == kAlways) {
       opt_new_dtype = fp16_;
-      auto attr_map = Op::GetAttrMap<FInferMixedPrecision>("FInferMixedPrecision");
+      auto attr_map =
+          Op::GetAttrMap<FInferMixedPrecision>(tvm::relax::op_attr::kInferMixedPrecision);
       TVM_FFI_ICHECK(attr_map.count(op));
       new_call = attr_map[op](new_call, output_dtype_);
     } else if (policy == kFollow) {

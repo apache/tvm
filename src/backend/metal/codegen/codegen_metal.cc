@@ -26,9 +26,12 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/op/memory.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -183,7 +186,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const Function& func) {
   TVM_FFI_ICHECK_EQ(name_supply_->FreshName("blockIdx"), "blockIdx");
   int work_dim = 0;
   auto launch_params =
-      func->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kKernelLaunchParams).value();
+      func->GetAttr<ffi::Array<ffi::String>>(tvm::tirx::attr::kKernelLaunchParams).value();
   for (const auto& tag : launch_params) {
     if (tag != runtime::launch_param::kUseDynamicSharedMemoryTag) {
       runtime::ThreadScope scope = runtime::ThreadScope::Create(tag);
@@ -431,7 +434,7 @@ void CodeGenMetal::DispatchAllocTensor(const BindNode* op, const CallNode* buffe
   }
 
   RegisterHandleType(buffer.get(), PrimType(dtype));
-  if (annotations->dict.count(tirx::attr::kVolatile)) {
+  if (annotations->dict.count(tvm::tirx::attr::kVolatile)) {
     MarkVolatile(buffer.get());
   }
 }

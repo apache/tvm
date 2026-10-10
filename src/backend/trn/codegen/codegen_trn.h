@@ -88,6 +88,15 @@ class CodeGenTrainium final : public CodeGenC {
   bool is_outermost_loop_ = true;
 };
 }  // namespace codegen
+namespace backend {
+namespace trn {
+namespace attr {
+
+constexpr const char* kNkiDim = "nki_dim";
+}  // namespace attr
+}  // namespace trn
+}  // namespace backend
+
 }  // namespace tvm
 
 #endif  // TVM_TARGET_SOURCE_CODEGEN_TRN_H_

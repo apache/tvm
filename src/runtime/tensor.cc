@@ -271,7 +271,7 @@ using namespace tvm::runtime;
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::TypeAttrDef<tvm::ffi::TensorObj>()
-      .def("__data_to_json__",
+      .def(tvm::ffi::reflection::type_attr::kDataToJson,
            [](const tvm::ffi::TensorObj* node) {
              std::string result;
              tvm::support::BytesOutStream mstrm(&result);
@@ -280,7 +280,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              b64strm.Finish();
              return tvm::ffi::String(std::move(result));
            })
-      .def("__data_from_json__", [](const std::string& blob) {
+      .def(tvm::ffi::reflection::type_attr::kDataFromJson, [](const std::string& blob) {
         tvm::support::BytesInStream mstrm(blob);
         tvm::support::Base64InStream b64strm(&mstrm);
         b64strm.InitPosition();

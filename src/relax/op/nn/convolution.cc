@@ -27,6 +27,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/relax/op_attr_types.h>
 
 #include <vector>
 
@@ -452,11 +453,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("data", "The input tensor."), sig::arg("weight", "The weight tensor."),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
           sig::call_attrs<Conv1DAttrs>())
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeConv1d)
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1d)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-      .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv1d)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeConv1d)
+      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutConv1d)
+      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
+                                       MixedPrecisionPolicyKind::kAlways)
+      .set_attr<FInferMixedPrecision>(tvm::relax::op_attr::kInferMixedPrecision,
+                                      InferMixedPrecisionConv1d)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.conv2d */
@@ -666,11 +669,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("data", "The input tensor."), sig::arg("weight", "The weight tensor."),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
           sig::call_attrs<Conv2DAttrs>())
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeConv2d)
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2d)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-      .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv2d)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeConv2d)
+      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutConv2d)
+      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
+                                       MixedPrecisionPolicyKind::kAlways)
+      .set_attr<FInferMixedPrecision>(tvm::relax::op_attr::kInferMixedPrecision,
+                                      InferMixedPrecisionConv2d)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.conv3d */
@@ -854,11 +859,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("data", "The input tensor."), sig::arg("weight", "The weight tensor."),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
           sig::call_attrs<Conv3DAttrs>())
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeConv3d)
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3d)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-      .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv3d)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeConv3d)
+      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutConv3d)
+      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
+                                       MixedPrecisionPolicyKind::kAlways)
+      .set_attr<FInferMixedPrecision>(tvm::relax::op_attr::kInferMixedPrecision,
+                                      InferMixedPrecisionConv3d)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 Expr conv1d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
@@ -1036,11 +1043,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("data", "The input tensor."), sig::arg("weight", "The weight tensor."),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
           sig::call_attrs<Conv1DTransposeAttrs>())
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeConv1dTranspose)
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1dTranspose)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-      .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv1dTranspose)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
+                                       InferTypeConv1dTranspose)
+      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutConv1dTranspose)
+      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
+                                       MixedPrecisionPolicyKind::kAlways)
+      .set_attr<FInferMixedPrecision>(tvm::relax::op_attr::kInferMixedPrecision,
+                                      InferMixedPrecisionConv1dTranspose)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.conv2d_transpose */
@@ -1267,11 +1277,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("data", "The input tensor."), sig::arg("weight", "The weight tensor."),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
           sig::call_attrs<Conv2DTransposeAttrs>())
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeConv2dTranspose)
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2dTranspose)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-      .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv2dTranspose)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
+                                       InferTypeConv2dTranspose)
+      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutConv2dTranspose)
+      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
+                                       MixedPrecisionPolicyKind::kAlways)
+      .set_attr<FInferMixedPrecision>(tvm::relax::op_attr::kInferMixedPrecision,
+                                      InferMixedPrecisionConv2dTranspose)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.nn.conv3d_transpose */
@@ -1509,11 +1522,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("data", "The input tensor."), sig::arg("weight", "The weight tensor."),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
           sig::call_attrs<Conv3DTransposeAttrs>())
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeConv3dTranspose)
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3dTranspose)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-      .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv3dTranspose)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
+                                       InferTypeConv3dTranspose)
+      .set_attr<FRelaxInferLayout>(tvm::relax::op_attr::kInferLayout, InferLayoutConv3dTranspose)
+      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
+                                       MixedPrecisionPolicyKind::kAlways)
+      .set_attr<FInferMixedPrecision>(tvm::relax::op_attr::kInferMixedPrecision,
+                                      InferMixedPrecisionConv3dTranspose)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax

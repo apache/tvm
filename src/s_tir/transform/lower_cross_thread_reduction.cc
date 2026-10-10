@@ -34,6 +34,7 @@
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op/gpu.h>
+#include <tvm/tirx/stmt.h>
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/utils.h"
@@ -948,7 +949,8 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
           /*extent=*/unbound_thread2range[i].second->extent,  //
           /*kind=*/ForKind::kParallel,                        //
           /*body=*/body,                                      //
-          /*annotations=*/{{"thread_binding", ffi::String("threadIdx." + dim_index)}},
+                                                              /*annotations=*/
+          {{tvm::tirx::attr::kThreadBinding, ffi::String("threadIdx." + dim_index)}},
           /*step=*/std::nullopt);
     }
     return body;

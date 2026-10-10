@@ -91,7 +91,7 @@ class MatchBufferLower : public StmtExprMutator {
       auto* n = stmt.CopyOnWrite();
       // Match buffers are aliases of their source region. Their placement belongs
       // to that alias definition, which disappears along with the match buffer.
-      if (auto value = n->annotations.Get(s_tir::attr::buffer_allocated_addr)) {
+      if (auto value = n->annotations.Get(tvm::s_tir::attr::kBufferAllocatedAddr)) {
         BufferAllocatedAddresses addresses;
         for (const auto& entry : value.value().cast<BufferAllocatedAddresses>()) {
           bool is_alias = false;
@@ -101,9 +101,9 @@ class MatchBufferLower : public StmtExprMutator {
           if (!is_alias) addresses.push_back(entry);
         }
         if (addresses.empty()) {
-          n->annotations.erase(s_tir::attr::buffer_allocated_addr);
+          n->annotations.erase(tvm::s_tir::attr::kBufferAllocatedAddr);
         } else {
-          n->annotations.Set(s_tir::attr::buffer_allocated_addr, addresses);
+          n->annotations.Set(tvm::s_tir::attr::kBufferAllocatedAddr, addresses);
         }
       }
       n->match_buffers = {};

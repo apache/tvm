@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ir/module.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/target/target.h>
 
 #include <optional>
@@ -75,7 +76,8 @@ ffi::Optional<ExprDoc> VDeviceDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::VDeviceNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&VDeviceDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&VDeviceDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> DummyGlobalInfoDocTranslate(DocTranslatorObj*, ffi::AnyView,
@@ -85,7 +87,8 @@ ffi::Optional<ExprDoc> DummyGlobalInfoDocTranslate(DocTranslatorObj*, ffi::AnyVi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::DummyGlobalInfoNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&DummyGlobalInfoDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&DummyGlobalInfoDocTranslate>());
 }
 
 }  // namespace

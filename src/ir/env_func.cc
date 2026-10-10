@@ -49,12 +49,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   EnvFuncNode::RegisterReflection();
   // override EnvFuncNode to use name as the repr
   refl::TypeAttrDef<EnvFuncNode>()
-      .def("__data_to_json__",
+      .def(tvm::ffi::reflection::type_attr::kDataToJson,
            [](const EnvFuncNode* node) {
              // simply save as the string
              return node->name;
            })
-      .def("__data_from_json__", EnvFunc::Get);
+      .def(tvm::ffi::reflection::type_attr::kDataFromJson, EnvFunc::Get);
 
   refl::GlobalDef().def("ir.EnvFuncGet", EnvFunc::Get);
 }

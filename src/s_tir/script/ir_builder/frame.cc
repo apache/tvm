@@ -16,7 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/function.h>
 #include <tvm/s_tir/script/ir_builder/frame.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/function.h>
 
 #include "./script_complete.h"
@@ -77,12 +79,12 @@ void SBlockFrameNode::ExitWithScope() {
   }
   ffi::Map<ffi::String, Any> attrs = annotations.value_or({});
   if (!allocated_addresses.empty()) {
-    TVM_FFI_CHECK(!attrs.count(tvm::s_tir::attr::buffer_allocated_addr), ValueError)
+    TVM_FFI_CHECK(!attrs.count(tvm::s_tir::attr::kBufferAllocatedAddr), ValueError)
         << "Buffer placement must be specified on its allocation or match_buffer";
-    attrs.Set(tvm::s_tir::attr::buffer_allocated_addr, allocated_addresses);
+    attrs.Set(tvm::s_tir::attr::kBufferAllocatedAddr, allocated_addresses);
   }
   if (int detect_access = (!reads.has_value()) | (!writes.has_value() << 1)) {
-    attrs.Set("tirx.script_parsing_detect_access", tvm::IntImm::Int64(detect_access));
+    attrs.Set(tvm::s_tir::attr::kScriptParsingDetectAccess, tvm::IntImm::Int64(detect_access));
   }
   tvm::s_tir::SBlock block(iter_vars, reads.value_or(ffi::Array<tvm::TensorRegion>()),
                            writes.value_or(ffi::Array<tvm::TensorRegion>()), name, AsStmt(stmts),

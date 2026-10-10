@@ -17,32 +17,20 @@
  * under the License.
  */
 
-#include <tvm/script/printer/doc_translator.h>
-
-#include "../../../script/printer/ir/utils.h"
-#include "utils.h"
+#ifndef TVM_BACKEND_CUDA_ATTR_H_
+#define TVM_BACKEND_CUDA_ATTR_H_
 
 namespace tvm {
-namespace script {
-namespace printer {
-namespace details {
-
-namespace {
-
-ffi::Optional<ExprDoc> PackedFuncTypeDocTranslate(DocTranslatorObj*, ffi::AnyView,
-                                                  const ffi::Object*) {
-  return NamespaceDoc("relax")->Attr("PackedFunc");
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<relax::PackedFuncTypeNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
-      FDocTranslate::FromNative<&PackedFuncTypeDocTranslate>());
-}
-
-}  // namespace
-
-}  // namespace details
-}  // namespace printer
-}  // namespace script
+namespace backend {
+namespace cuda {
+namespace attr {
+inline constexpr const char* kLaunchFields = "cuda.launch_fields";
+inline constexpr const char* kKernelAttrs = "cuda.kernel_attrs";
+inline constexpr const char* kSmemRequired = "cuda.smem_required";
+inline constexpr const char* kLaunchDimensions = "cuda.launch_dimensions";
+}  // namespace attr
+}  // namespace cuda
+}  // namespace backend
 }  // namespace tvm
+
+#endif  // TVM_BACKEND_CUDA_ATTR_H_

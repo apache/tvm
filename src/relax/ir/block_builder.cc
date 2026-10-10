@@ -24,6 +24,7 @@
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr_functor.h>
@@ -1048,13 +1049,15 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
   /*! \brief Operator type inference map. */
   tvm::OpAttrMap<FInferType> op_map_context_free_infer_ty =
-      Op::GetAttrMap<FInferType>("FInferType");
+      Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
   tvm::OpAttrMap<FInferTypeWithBuilder> op_map_infer_ty =
-      Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
+      Op::GetAttrMap<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder);
   tvm::OpAttrMap<FInferTypeWithBuilder> op_map_dist_infer_ty =
-      Op::GetAttrMap<FInferTypeWithBuilder>("relax.dist.FInferTypeWithBuilder");
+      Op::GetAttrMap<FInferTypeWithBuilder>(
+          tvm::relax::distributed::op_attr::kInferTypeWithBuilder);
   /*! \brief Operator normalization function */
-  tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
+  tvm::OpAttrMap<FNormalize> op_map_normalize_ =
+      Op::GetAttrMap<FNormalize>(tvm::relax::op_attr::kNormalize);
 
   /*! \brief Whether the FNormalize function should be applied */
   bool apply_f_normalize_{true};

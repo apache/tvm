@@ -26,6 +26,8 @@
 
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/topi/einsum.h>
 
 #include <algorithm>
@@ -179,10 +181,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.matmul")
       .signature(sig::arg("x1", "The first input tensor."),
                  sig::arg("x2", "The second input tensor."), sig::call_attrs<MatmulAttrs>())
-      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeMatmul)
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-      .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionMatmul)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder, InferTypeMatmul)
+      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
+                                       MixedPrecisionPolicyKind::kAlways)
+      .set_attr<FInferMixedPrecision>(tvm::relax::op_attr::kInferMixedPrecision,
+                                      InferMixedPrecisionMatmul)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.einsum */
@@ -269,8 +273,8 @@ Type InferTypeEinsum(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.einsum")
       .signature(sig::arg("operands", "The input tensors."), sig::call_attrs<EinsumAttrs>())
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeEinsum>())
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeEinsum>())
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 /* relax.outer */
@@ -310,9 +314,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.outer")
       .signature(sig::arg("x1", "The first input tensor."),
                  sig::arg("x2", "The second input tensor."))
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeOuter>())
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-      .set_attr<bool>("FPurity", true);
+      .set_attr<FInferType>(tvm::op_attr::kInferType, FInferType::FromNative<&InferTypeOuter>())
+      .set_attr<TMixedPrecisionPolicy>(tvm::relax::op_attr::kMixedPrecisionPolicy,
+                                       MixedPrecisionPolicyKind::kAlways)
+      .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
 }  // namespace relax

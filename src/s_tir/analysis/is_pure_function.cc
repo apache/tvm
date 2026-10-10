@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/analysis.h>
@@ -81,7 +82,7 @@ class PurityChecker : TIRVisitorWithPath {
     TIRVisitorWithPath::Dispatch_(call, path);
     if (allocation_calls_.count(call)) return;
 
-    static auto op_call_effect = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
+    static auto op_call_effect = Op::GetAttrMap<TCallEffectKind>(tvm::op_attr::kCallEffectKind);
     CallEffectKind effect = [&]() {
       if (auto opt = call->op.as<Op>()) {
         return static_cast<CallEffectKind>(op_call_effect[opt.value()]);

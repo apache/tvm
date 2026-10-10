@@ -237,80 +237,79 @@ namespace attr {
  * \brief SBlock annotation selecting a write-buffer index for double buffering in
  * InjectSoftwarePipeline.
  */
-constexpr const char* double_buffer_scope = "double_buffer_scope";
+constexpr const char* kDoubleBufferScope = "double_buffer_scope";
 
 /*!
  * \brief String-valued allocation Call attribute containing the TensorCore fragment shape
  */
-constexpr const char* fragment_shape = "fragment_shape";
+constexpr const char* kFragmentShape = "fragment_shape";
 
 /*!
  * \brief String-valued allocation Call attribute containing the TensorCore fragment layout
  */
-constexpr const char* fragment_layout = "fragment_layout";
+constexpr const char* kFragmentLayout = "fragment_layout";
 
 /*!
  * \brief For annotation requesting partitioning when its PrimExpr value is provably true.
  */
-constexpr const char* loop_partition_hint = "loop_partition_hint";
+constexpr const char* kLoopPartitionHint = "loop_partition_hint";
 
 // -----------------------------------------------------------------------
 // meta_schedule annotations
 // -----------------------------------------------------------------------
 
 /*! \brief Mark the tiling structure of blocks that are applied by rule Multi-Level-Tiling */
-constexpr const char* meta_schedule_tiling_structure = "meta_schedule.tiling_structure";
+constexpr const char* kMetaScheduleTilingStructure = "meta_schedule.tiling_structure";
 
 /*!
  * \brief Mark that the loop should be further skip and bound to environment threads to enable
  * cooperative fetching.
  */
-constexpr const char* meta_schedule_cooperative_fetch = "meta_schedule.cooperative_fetch";
+constexpr const char* kMetaScheduleCooperativeFetch = "meta_schedule.cooperative_fetch";
 
 /*! \brief The allowed range of thread extent in thread bindings */
-constexpr const char* meta_schedule_thread_extent_low_inclusive =
+constexpr const char* kMetaScheduleThreadExtentLowInclusive =
     "meta_schedule.thread_extent_low_inclusive";
 
 /*! \brief The allowed range of thread extent in thread bindings */
-constexpr const char* meta_schedule_thread_extent_high_inclusive =
+constexpr const char* kMetaScheduleThreadExtentHighInclusive =
     "meta_schedule.thread_extent_high_inclusive";
 
 /*! \brief Mark the block whose producer needs to be applied by rule Random-Compute-Location */
-constexpr const char* meta_schedule_random_compute_producer =
-    "meta_schedule.random_compute_producer";
+constexpr const char* kMetaScheduleRandomComputeProducer = "meta_schedule.random_compute_producer";
 
 /*! \brief Mark auto-parallel setting on the block. */
-constexpr const char* meta_schedule_parallel = "meta_schedule.parallel";
+constexpr const char* kMetaScheduleParallel = "meta_schedule.parallel";
 
 /*! \brief Mark auto-vectorize setting on the block. */
-constexpr const char* meta_schedule_vectorize = "meta_schedule.vectorize";
+constexpr const char* kMetaScheduleVectorize = "meta_schedule.vectorize";
 
 /*! \brief Mark auto-unroll setting on the block. */
-constexpr const char* meta_schedule_unroll_explicit = "meta_schedule.unroll_explicit";
+constexpr const char* kMetaScheduleUnrollExplicit = "meta_schedule.unroll_explicit";
 
 /*! \brief Mark auto-unroll setting on the block. */
-constexpr const char* meta_schedule_unroll_implicit = "meta_schedule.unroll_implicit";
+constexpr const char* kMetaScheduleUnrollImplicit = "meta_schedule.unroll_implicit";
 
 /*! \brief Mark that a block should be further rewritten using tensorization. */
-constexpr const char* meta_schedule_auto_tensorize = "meta_schedule.auto_tensorize";
+constexpr const char* kMetaScheduleAutoTensorize = "meta_schedule.auto_tensorize";
 
 /*! \brief Mark that a block is a preprocessor block for layout rewrite. */
-constexpr const char* meta_schedule_layout_rewrite_preproc = "meta_schedule.layout_rewrite_preproc";
+constexpr const char* kMetaScheduleLayoutRewritePreproc = "meta_schedule.layout_rewrite_preproc";
 
 /*!
  * \brief Mark that the init statement of a block should be further rewritten using tensorization.
  */
-constexpr const char* meta_schedule_auto_tensorize_init = "meta_schedule.auto_tensorize_init";
+constexpr const char* kMetaScheduleAutoTensorizeInit = "meta_schedule.auto_tensorize_init";
 
 /*! \brief Mark that a block is disallowed in auto inline. */
-constexpr const char* meta_schedule_inline_rule = "meta_schedule.inline_rule";
+constexpr const char* kMetaScheduleInlineRule = "meta_schedule.inline_rule";
 
 // -----------------------------------------------------------------------
 // Schedule primitive / SBlock annotations
 // -----------------------------------------------------------------------
 
 /*! \brief BufferAllocatedAddresses for block-owned allocations and match buffers. */
-constexpr const char* buffer_allocated_addr = "s_tir.buffer_allocated_addr";
+constexpr const char* kBufferAllocatedAddr = "s_tir.buffer_allocated_addr";
 
 /*!
  * \brief Mark whether the script-completer need to fill in missing access region
@@ -319,31 +318,27 @@ constexpr const char* buffer_allocated_addr = "s_tir.buffer_allocated_addr";
  *       if (mask & 1) the read region should be detected,
  *       if (mask & 2) the write region should be detected.
  */
-constexpr const char* script_parsing_detect_access = "tirx.script_parsing_detect_access";
+constexpr const char* kScriptParsingDetectAccess = "tirx.script_parsing_detect_access";
 
 /*!
  * \brief Mark that the block need to add predicate for block var bounds during lowering
  */
-constexpr const char* require_block_var_bound_predicate = "require_bound_predicate";
+constexpr const char* kRequireBlockVarBoundPredicate = "require_bound_predicate";
 
 /*! \brief Mark the stage of a statement in the software pipeline */
-constexpr const char* software_pipeline_stage = "software_pipeline_stage";
+constexpr const char* kSoftwarePipelineStage = "software_pipeline_stage";
 
 /*! \brief Mark the order of a statement in the software pipeline */
-constexpr const char* software_pipeline_order = "software_pipeline_order";
+constexpr const char* kSoftwarePipelineOrder = "software_pipeline_order";
 
 /*! \brief List stages in the software pipeline that should run asynchronously
  * \note All statements in the provided stages are assumed to have asynchronous
  *       semantics (e.g. CUDA async global to shared memory copy).
  */
-constexpr const char* software_pipeline_async_stages = "software_pipeline_async_stages";
-
-/*! \brief Mark the buffers which is const access and can be transformed layout. */
-constexpr const char* layout_free_buffers = "layout_free_buffers";
+constexpr const char* kSoftwarePipelineAsyncStages = "software_pipeline_async_stages";
 
 /*! \brief Mark the local stage for the shared memory access should be added. */
-constexpr const char* manifest_shared_memory_local_stage =
-    "tirx.manifest_shared_memory_local_stage";
+constexpr const char* kManifestSharedMemoryLocalStage = "tirx.manifest_shared_memory_local_stage";
 
 /*!
  * \brief Mark alignment of buffer dimension
@@ -351,43 +346,41 @@ constexpr const char* manifest_shared_memory_local_stage =
  *  (buffer_index, axis, factor, offset).
  *  This requires the stride of an axis to be k * factor + offset.
  */
-constexpr const char* buffer_dim_align = "buffer_dim_align";
+constexpr const char* kBufferDimAlign = "buffer_dim_align";
 
 /*! \brief Mark that a block has an explicitly specified read region.
  * This is used to override the default read region inference in TIR.
  */
-constexpr const char* explicit_read_region = "explicit_read_region";
+constexpr const char* kExplicitReadRegion = "explicit_read_region";
 
 /*! \brief Mark that a block has an explicitly specified write region.
  * This is used to override the default write region inference in TIR.
  */
-constexpr const char* explicit_write_region = "explicit_write_region";
+constexpr const char* kExplicitWriteRegion = "explicit_write_region";
 
 /*! \brief ,ark a ForNode represent an irregular loop of non-structural control flow edges. */
-constexpr const char* irregular_loop_mark = "irregular_loop_mark";
+constexpr const char* kIrregularLoopMark = "irregular_loop_mark";
 
 /*! \brief Mark auto copy for memhammer */
-constexpr const char* auto_copy = "auto_copy";
+constexpr const char* kAutoCopy = "auto_copy";
 
 /*! \brief Mark local stage constraint on data copy */
-constexpr const char* local_stage = "local_stage";
+constexpr const char* kLocalStage = "local_stage";
 
 /*! \brief Mark vectorization length constraint on block */
-constexpr const char* vector_bytes = "vector_bytes";
+constexpr const char* kVectorBytes = "vector_bytes";
 
 /*!
  * \brief Mark that a block is executed by a warp. This implies the extend of threadIdx.x is
  * warp size.
  */
-constexpr const char* warp_execution = "warp_execution";
+constexpr const char* kWarpExecution = "warp_execution";
 
-/*!
- * \brief Marks the layout transforms to be used for a tensor.
- *
- * Only applies to a tensor-like input, as it should be made part of the
- * Function attributes for TIR.
- */
-constexpr const char* layout_transforms = "layout_transforms";
+constexpr const char* kPermutedLayout = "permuted_layout";
+
+constexpr const char* kScheduleRule = "schedule_rule";
+
+constexpr const char* kMetaScheduleWriteCacheLevel = "s_tir.meta_schedule.write_cache_level";
 
 }  // namespace attr
 }  // namespace s_tir

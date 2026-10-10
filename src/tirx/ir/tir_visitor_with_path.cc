@@ -25,6 +25,7 @@
 
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/accessor.h>
+#include <tvm/ir/function.h>
 #include <tvm/tirx/stmt.h>
 
 #include <algorithm>
