@@ -35,7 +35,7 @@ using namespace prim::detail;
 PrimExpr logaddexp(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLFloat)) << a;
   TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLFloat)) << b;
-  BinaryOpMatchTypes(a, b, loc);
+  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
   PrimExpr exp_sum = add(exp(a), exp(b));
   PrimExpr log_exp_sum = log(exp_sum);
   return log_exp_sum;
