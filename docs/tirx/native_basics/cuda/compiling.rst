@@ -59,7 +59,10 @@ are rejected. Entry-level architecture overrides are allowed.
 
 Online builds can detect the GPU architecture. Offline builds require an
 explicit architecture, either in the build configuration or in every device
-entry. No fallback architecture is guessed. Architecture-dependent Python
+entry. No fallback architecture is guessed. A generic ``Target("cuda")`` may
+remain without an architecture for backend discovery and IR construction;
+compilation resolves or validates its architecture before lowering.
+Architecture-dependent Python
 factories must receive the configuration before tracing and record the chosen
 architecture on their entry; later build defaults cannot change that choice.
 

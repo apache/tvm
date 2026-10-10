@@ -421,7 +421,45 @@ def test_legacy_payloads_and_removed_environment(monkeypatch):
         reject_legacy_compile_environment()
 
 
-@pytest.mark.parametrize("target", [None, "cuda", {"kind": "cuda"}])
+def test_generic_cuda_target_without_gpu(tmp_path):
+    script = """
+import tvm
+import tvm.testing
+from tvm.backend.cuda import CompileConfig
+from tvm.backend.cuda.compile_config import prepare_target
+from tvm.backend.cuda.transforms import BindCompileConfig
+from tvm.script import tirx as T
+
+target = tvm.target.Target("cuda", host="llvm")
+assert "arch" not in target.attrs
+assert not tvm.testing.device_enabled("cuda")
+resolved = prepare_target(target, CompileConfig(arch="sm_100a"))
+assert resolved.arch == "sm_100a"
+assert resolved.host.kind.name == "llvm"
+
+@T.function
+def main(A: T.Tensor((32,), "float32")):
+    T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=32))
+    A[T.cuda.thread_idx("x")] = T.float32(1)
+
+mod = tvm.tirx.transform.BindTarget(target)(tvm.IRModule({"main": main}))
+try:
+    BindCompileConfig()(mod)
+except ValueError as error:
+    assert "explicit" in str(error)
+else:
+    raise AssertionError("offline compilation must not guess an architecture")
+"""
+    path = tmp_path / "generic_cuda.py"
+    path.write_text(script)
+    environment = dict(os.environ, CUDA_VISIBLE_DEVICES="", TVM_TEST_TARGETS="llvm;cuda")
+    result = subprocess.run(
+        [sys.executable, str(path)], env=environment, text=True, capture_output=True
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("target", [None, "cuda", {"kind": "cuda"}, "target_object"])
 def test_entry_architectures_compile_without_gpu_detection(tmp_path, target):
     _require_compiler("nvcc")
     script = """
@@ -433,15 +471,13 @@ def main(A: T.Tensor((32,), "float32")):
     T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=32),
                    compile_config=T.cuda.CompileConfig(arch="sm_100a", compiler="nvcc"))
     A[T.cuda.thread_idx("x")] = T.float32(1)
-module = tvm.compile(main, target=TARGET)
+target = TARGET
+if target == "target_object":
+    target = tvm.target.Target("cuda", host="llvm")
+module = tvm.compile(main, target=target)
 metadata = module.mod.imports[0].inspect_source("cuda.compile_config")
 assert CompileConfig.from_json(metadata).arch == "sm_100a"
-try:
-    tvm.target.Target("cuda")
-except ValueError as error:
-    assert "explicit" in str(error)
-else:
-    raise AssertionError("offline target detection must not guess an architecture")
+assert "arch" not in tvm.target.Target("cuda").attrs
 """
     # Use a source file because the TIRx construction decorator reads its definition.
     path = tmp_path / "offline.py"

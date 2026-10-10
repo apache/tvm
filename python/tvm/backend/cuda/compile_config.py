@@ -208,7 +208,8 @@ class CompileConfig:
         if config.arch is None:
             if arch is None:
                 raise ValueError(
-                    "CUDA compilation requires CompileConfig(arch=...) or a CUDA Target"
+                    "CUDA compilation requires an explicit CompileConfig(arch=...) "
+                    "or CUDA Target arch when no CUDA device is available"
                 )
             config = config.with_overrides(arch=arch)
         return config
@@ -262,6 +263,8 @@ def prepare_target(target, config, mod=None):
     if config is not None:
         pack_compile_config(config)
     active = Target.current() if target is None else target
+    if isinstance(active, Target) and active.kind.name == "cuda" and "arch" not in active.attrs:
+        active = dict(active.export())
     generic_cuda = (
         active is None
         or active == "cuda"

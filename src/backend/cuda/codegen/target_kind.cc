@@ -76,9 +76,11 @@ ffi::Map<ffi::String, ffi::Any> UpdateCUDAAttrs(ffi::Map<ffi::String, ffi::Any> 
   } else {
     int archInt;
     ffi::Any version;
-    TVM_FFI_CHECK(DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version), ValueError)
-        << "Cannot detect a CUDA device; offline compilation requires an explicit "
-        << "CompileConfig(arch=...) or CUDA Target arch";
+    if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
+      // Generic targets are also used for backend discovery and IR construction.
+      // Require an explicit architecture when resolving compilation, not here.
+      return target;
+    }
     archInt = std::stod(version.cast<std::string>()) * 10 + 0.1;
     if (archInt >= 90) {
       target.Set("arch", ffi::String("sm_") + std::to_string(archInt) + "a");
