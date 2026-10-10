@@ -187,7 +187,6 @@ inline void DiscoProtocol<SubClassType>::ReadFFIAny(TVMFFIAny* out) {
   if (type_index == kRuntimeDiscoDRef) {
     ffi::ObjectPtr<DRefObj> dref = ffi::make_object<DRefObj>();
     self->template Read<int64_t>(&dref->reg_id);
-    dref->session = Session{nullptr};
     result = ffi::ObjectRef(std::move(dref));
   } else if (type_index == ffi::TypeIndex::kTVMFFIStr) {
     uint64_t size = 0;

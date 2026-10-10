@@ -206,7 +206,7 @@ class SocketSessionObj : public BcastSessionObj {
   TCPSocket socket_;
   std::vector<TCPSocket> remote_sockets_;
   std::vector<std::unique_ptr<DiscoSocketChannel>> remote_channels_;
-  BcastSession local_session_{nullptr};
+  BcastSession local_session_{ffi::UnsafeInit{}};
 };
 
 class RemoteSocketSession {
@@ -282,7 +282,7 @@ class RemoteSocketSession {
   }
 
   TCPSocket socket_;
-  BcastSession local_session_{nullptr};
+  BcastSession local_session_{ffi::UnsafeInit{}};
   std::unique_ptr<DiscoSocketChannel> channel_;
   int num_nodes_{-1};
   int node_id_{-1};
