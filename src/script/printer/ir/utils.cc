@@ -154,33 +154,6 @@ ExprDoc CallAttrsValue(DocTranslatorObj* d, const Attrs& attrs) {
 
 }  // namespace
 
-// Translate operands as IR values when a dialect offers compact expression sugar.
-ExprDoc MaterializeCallArgument(DocTranslatorObj* d, const Expr& arg, ExprDoc doc) {
-  if (const auto* tuple = arg.as<TupleNode>()) {
-    ffi::Array<ExprDoc> fields;
-    for (const Expr& field : tuple->fields) {
-      fields.push_back(MaterializeCallArgument(d, field, d->Translate(field).value()));
-    }
-    doc = NamespaceDoc("ir")->Attr("Tuple")->Call({ListDoc(fields)});
-  }
-  if (const auto* region = arg.as<TensorRegionNode>()) {
-    ffi::Array<ExprDoc> ranges;
-    for (const Range& range : region->region) {
-      ranges.push_back(
-          NamespaceDoc("ir")
-              ->Attr("Range")
-              ->Attr("from_min_extent")
-              ->Call({d->Translate(range->min).value(), d->Translate(range->extent).value()}));
-    }
-    doc = NamespaceDoc("ir")
-              ->Attr("TensorRegion")
-              ->Call({d->Translate(region->source).value(), ListDoc(ranges)}, {"ty"},
-                     {TypeValue(d, region->ty, false)});
-  }
-  d->RecordOrigin(doc, arg);
-  return doc;
-}
-
 // The explicit fallback retains every field, including typed attribute objects.
 ExprDoc RawCall(DocTranslatorObj* d, const CallNode* call,
                 ffi::Optional<ffi::Array<ExprDoc>> translated_args) {
@@ -190,9 +163,6 @@ ExprDoc RawCall(DocTranslatorObj* d, const CallNode* call,
     args = translated_args.value();
   } else {
     for (const Expr& arg : call->args) args.push_back(d->Translate(arg).value());
-  }
-  for (size_t i = 0; i < args.size(); ++i) {
-    args.Set(i, MaterializeCallArgument(d, call->args[i], args[i]));
   }
   ExprDoc callee = op.has_value()                 ? LiteralDoc::Str(op.value()->name, std::nullopt)
                    : call->op.as<StringImmNode>() ? AnyValue(d, call->op)
@@ -215,24 +185,19 @@ ExprDoc RawCall(DocTranslatorObj* d, const CallNode* call,
 }
 
 // The query aliases the active frame; candidate classification must own a copy.
-ffi::Dict<Var, IdDoc> CopyImplicitDefs(DocTranslatorObj* d) {
-  ffi::Dict<Var, IdDoc> candidates;
+ffi::Map<Var, IdDoc> CopyImplicitDefs(DocTranslatorObj* d) {
+  ffi::Map<Var, IdDoc> candidates;
   for (const auto& [var, id] : d->GetImplicitDefs()) candidates.Set(var, id);
   return candidates;
 }
 
-void FinalizeFunctionDefinitions(DocTranslatorObj* d, const ffi::Dict<Var, IdDoc>& signature,
+void FinalizeFunctionDefinitions(DocTranslatorObj* d, const ffi::Map<Var, IdDoc>& signature,
                                  const FunctionDoc& function) {
   auto module = d->GetOrCreateExtraState<ffi::Optional<IRModule>>("ir.module");
   auto pending = d->GetImplicitDefs();
-  std::vector<Var> parameters;
   if (!module.has_value()) {
-    for (const auto& [var, id] : signature) {
-      if (pending.count(var) && var->ty.as<PrimTypeNode>()) parameters.push_back(var);
-    }
-    std::sort(parameters.begin(), parameters.end(),
-              [&](const Var& a, const Var& b) { return signature[a]->name < signature[b]->name; });
-    for (const Var& var : parameters) {
+    for (const auto& [var, signature_id] : signature) {
+      if (!pending.count(var) || !var->ty.as<PrimTypeNode>()) continue;
       IdDoc id = VarDoc(d, var);
       if (var->ty.as_or_throw<PrimType>()->dtype == (DLDataType{kDLInt, 64, 1})) {
         function->type_params.push_back(id);

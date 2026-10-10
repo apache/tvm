@@ -27,7 +27,7 @@ from tvm.ir import Attrs, Call, Op
 from tvm.ir.attrs import make_node as _make_attrs
 from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.op import _make_op_api
-from tvm.runtime import Object, ObjectConvertible
+from tvm.runtime import DataTypeCode, Object, ObjectConvertible
 
 from ..expr import Expr, ExternFunc, GlobalVar, Var
 from ..type import Type
@@ -86,7 +86,7 @@ def _wrap_inline_arg_tuple(args) -> Expr:
 
     """
     if isinstance(args, tuple | list):
-        return tvm.relax.Tuple([convert_to_expr(a) for a in args])
+        return tvm.ir.Tuple([convert_to_expr(arg) for arg in args])
     elif (
         isinstance(args, Expr)
         and not isinstance(args, tvm.relax.Tuple)
@@ -95,6 +95,26 @@ def _wrap_inline_arg_tuple(args) -> Expr:
         return tvm.relax.Tuple([args])
     else:
         return args
+
+
+def _wrap_tir_arg_tuple(func, args) -> Expr:
+    """Bind native scalar literals without changing explicit IR arguments."""
+    if not isinstance(args, tuple | list):
+        return _wrap_inline_arg_tuple(args)
+    signature = getattr(func, "ty", None)
+    arg_types = signature.arg_types if isinstance(signature, tvm.ir.FuncType) else ()
+    values = []
+    for i, value in enumerate(args):
+        ty = arg_types[i] if i < len(arg_types) else None
+        if isinstance(ty, tvm.ir.PrimType) and ty.dtype.lanes == 1:
+            if type(value) in (int, bool) and ty.matches_code(
+                DataTypeCode.INT, DataTypeCode.UINT, DataTypeCode.BOOL
+            ):
+                value = tvm.tirx.IntImm(ty, value)
+            elif type(value) is float and ty.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT):
+                value = tvm.tirx.FloatImm(ty, value)
+        values.append(convert_to_expr(value))
+    return tvm.ir.Tuple(values)
 
 
 _call_tir = _make_op_api(Op.get("relax.call_tir"), __name__)
@@ -111,7 +131,13 @@ def call_tir(
     and locs are forwarded unchanged.
     """
     return _call_tir(
-        func, _wrap_inline_arg_tuple(args), ty_args=ty_args, attrs=attrs, ty=ty, loc=loc, **kwargs
+        func,
+        _wrap_tir_arg_tuple(func, args),
+        ty_args=ty_args,
+        attrs=attrs,
+        ty=ty,
+        loc=loc,
+        **kwargs,
     )
 
 
@@ -187,7 +213,7 @@ def call_tir_packed(gvar: GlobalVar, args: Expr, *, ty=None, loc: Location = UNK
 
         relax.call_tir_packed(copy, (source, destination))
     """
-    args = _wrap_inline_arg_tuple(args)
+    args = _wrap_tir_arg_tuple(gvar, args)
     return Call("relax.call_tir_packed", [gvar, args], ty=ty, loc=loc)
 
 
@@ -212,7 +238,13 @@ def call_tir_with_grad(
     if attrs is None and kwargs.get("te_grad_kwargs") is None:
         kwargs["te_grad_kwargs"] = {}
     return _call_tir_with_grad(
-        func, _wrap_inline_arg_tuple(args), ty_args=ty_args, attrs=attrs, ty=ty, loc=loc, **kwargs
+        func,
+        _wrap_tir_arg_tuple(func, args),
+        ty_args=ty_args,
+        attrs=attrs,
+        ty=ty,
+        loc=loc,
+        **kwargs,
     )
 
 
@@ -242,7 +274,13 @@ def call_tir_inplace(
     if isinstance(kwargs.get("inplace_indices"), int):
         kwargs["inplace_indices"] = [kwargs["inplace_indices"]]
     return _call_tir_inplace(
-        func, _wrap_inline_arg_tuple(args), ty_args=ty_args, attrs=attrs, ty=ty, loc=loc, **kwargs
+        func,
+        _wrap_tir_arg_tuple(func, args),
+        ty_args=ty_args,
+        attrs=attrs,
+        ty=ty,
+        loc=loc,
+        **kwargs,
     )
 
 
@@ -263,9 +301,8 @@ def call_dps_packed(
     """
     if isinstance(func, str):
         func = ExternFunc(func)
-    return _call_dps_packed(
-        func, _wrap_inline_arg_tuple(args), ty_args=ty_args, attrs=attrs, ty=ty, loc=loc, **kwargs
-    )
+    args = _wrap_inline_arg_tuple(args)
+    return _call_dps_packed(func, args, ty_args=ty_args, attrs=attrs, ty=ty, loc=loc, **kwargs)
 
 
 def call_py_func(
