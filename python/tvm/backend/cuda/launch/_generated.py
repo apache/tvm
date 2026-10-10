@@ -90,10 +90,10 @@ class LaunchConfig(Config):
 
 
 @dataclass(frozen=True, kw_only=True)
-class KernelOptions(Config):
-    """CUDA KernelOptions configuration. See the generated launch reference."""
+class KernelAttributes(Config):
+    """Compile-time CUDA kernel attributes. See the generated launch reference."""
 
-    _config_type: ClassVar[str] = "KernelOptions"
+    _config_type: ClassVar[str] = "KernelAttributes"
     min_blocks_per_sm: Any = None
     max_blocks_per_cluster: Any = None
     max_registers_per_thread: Any = None
@@ -102,7 +102,7 @@ class KernelOptions(Config):
 
 __all__ = [
     "AccessPolicyWindow",
-    "KernelOptions",
+    "KernelAttributes",
     "LaunchCompletionEvent",
     "LaunchConfig",
     "MemSyncDomainMap",

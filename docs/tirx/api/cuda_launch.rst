@@ -20,6 +20,8 @@ CUDA kernel configuration reference
 ===================================
 
 Both CUDA module launches and exported ``cuda_host`` wrappers use this registry.
+``LaunchConfig`` describes each launch; ``KernelAttributes`` describes compile-time
+CUDA kernel attributes.
 Optional launch attributes default to unspecified, preserving CUDA's inherited defaults.
 
 LaunchConfig
@@ -109,8 +111,8 @@ LaunchConfig
      - ``None``
      - Record an event associated with blocks beginning execution. Encoder requires CUDA 12.4+.
 
-KernelOptions
--------------
+KernelAttributes
+----------------
 
 .. list-table::
    :header-rows: 1

@@ -212,7 +212,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_ro("arg_extra_tags", &FunctionInfoObj::arg_extra_tags)
       .def_ro("cuda_launch_fields", &FunctionInfoObj::cuda_launch_fields,
               refl::DefaultValue(ffi::Array<ffi::String>()))
-      .def_ro("cuda_kernel_options", &FunctionInfoObj::cuda_kernel_options,
+      .def_ro("cuda_kernel_attrs", &FunctionInfoObj::cuda_kernel_attrs,
               refl::DefaultValue(ffi::Map<ffi::String, int64_t>()));
   refl::GlobalDef()
       .def("runtime.SaveParams",

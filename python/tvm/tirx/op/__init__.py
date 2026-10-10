@@ -351,13 +351,13 @@ class CallFFIKernelAttr(tvm.ir.Attrs):
 
     launch_params: list[str]
 
-    def __init__(self, launch_params=(), launch_fields=(), num_kernel_args=-1, kernel_options=None):
+    def __init__(self, launch_params=(), launch_fields=(), num_kernel_args=-1, kernel_attrs=None):
         self.__init_handle_by_constructor__(
             _ffi_api.CallFFIKernelAttr,
             launch_params,
             launch_fields,
             num_kernel_args,
-            kernel_options or {},
+            kernel_attrs or {},
         )
 
 

@@ -242,7 +242,7 @@ trailing dimensions are one.
 
     Tx.device_entry(
         launch=Tx.cuda.LaunchConfig(grid=(GM, GN), block=128),
-        options=Tx.cuda.KernelOptions(min_blocks_per_sm=2),
+        kernel_attrs=Tx.cuda.KernelAttributes(min_blocks_per_sm=2),
     )
     bx, by = Tx.cuda.block_idx("x"), Tx.cuda.block_idx("y")
     warp = Tx.cuda.warp_id()
@@ -280,9 +280,9 @@ Cluster-scope tensor instructions require one static cluster shape. Use explicit
 CUDA/PTX instructions when the cluster shape is dynamic or its preferred shape
 differs. CTA-, warp-, and thread-scope instructions remain available.
 
-``KernelOptions`` contains compile-time choices: ``min_blocks_per_sm``,
+``KernelAttributes`` contains compile-time CUDA kernel attributes: ``min_blocks_per_sm``,
 ``max_blocks_per_cluster`` (requires ``min_blocks_per_sm``),
-``max_registers_per_thread``, and ``required_block_size``. The last option fixes
+``max_registers_per_thread``, and ``required_block_size``. The last attribute fixes
 both block and cluster dimensions using CUDA 13's ``__block_size__`` declaration.
 ``max_registers_per_thread`` conflicts with explicit launch bounds and required
 block size. Runtime values belong in ``LaunchConfig``.

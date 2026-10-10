@@ -234,7 +234,7 @@ class CUDAWrappedFunc {
     func_name_ = func_name;
     num_kernel_args_ = info->arg_types.size();
     plan_ = tvm_cuda_launch::PackedLaunchPlan(info->cuda_launch_fields, info->launch_param_tags,
-                                              info->cuda_kernel_options);
+                                              info->cuda_kernel_attrs);
     devices_ = std::make_shared<std::array<DeviceState, kMaxNumGPUs>>();
   }
 

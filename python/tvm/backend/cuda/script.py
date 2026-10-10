@@ -22,7 +22,7 @@ from tvm import ir as _ir
 from tvm.backend.cuda import op as _cuda_op
 
 from .launch import AccessPolicyWindow as AccessPolicyWindow
-from .launch import KernelOptions as KernelOptions
+from .launch import KernelAttributes as KernelAttributes
 from .launch import LaunchCompletionEvent as LaunchCompletionEvent
 from .launch import LaunchConfig as LaunchConfig
 from .launch import MemSyncDomainMap as MemSyncDomainMap

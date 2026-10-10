@@ -20,7 +20,7 @@ import math
 from dataclasses import fields, replace
 from numbers import Integral, Real
 
-from .table import COMPOSITES, KERNEL_FIELDS, LAUNCH_FIELDS
+from .table import COMPOSITES, KERNEL_ATTR_FIELDS, LAUNCH_FIELDS
 
 
 def _integer(value):
@@ -99,8 +99,8 @@ class Config:
     def __post_init__(self):
         if self._config_type == "LaunchConfig":
             specs = LAUNCH_FIELDS
-        elif self._config_type == "KernelOptions":
-            specs = KERNEL_FIELDS
+        elif self._config_type == "KernelAttributes":
+            specs = KERNEL_ATTR_FIELDS
         else:
             specs = COMPOSITES[self._config_type]
         for spec in specs:
@@ -118,17 +118,17 @@ class Config:
                     raise TypeError(f"{spec.name} must be a {spec.kind}")
             else:
                 normalized = _scalar(value, spec, spec.name)
-                if self._config_type == "KernelOptions":
+                if self._config_type == "KernelAttributes":
                     constant = _integer(normalized)
                     if constant is None:
                         raise TypeError(
-                            f"KernelOptions.{spec.name} must be a compile-time constant"
+                            f"KernelAttributes.{spec.name} must be a compile-time constant"
                         )
                     if spec.kind == "int" and constant <= 0:
-                        raise ValueError(f"KernelOptions.{spec.name} must be positive")
+                        raise ValueError(f"KernelAttributes.{spec.name} must be positive")
         if self._config_type == "LaunchConfig":
             self._validate_launch()
-        elif self._config_type == "KernelOptions":
+        elif self._config_type == "KernelAttributes":
             if self.max_blocks_per_cluster is not None and self.min_blocks_per_sm is None:
                 raise ValueError("max_blocks_per_cluster requires min_blocks_per_sm")
             if self.max_registers_per_thread is not None and (
@@ -227,21 +227,21 @@ def pack_launch(config):
     return names, values
 
 
-def pack_options(options, launch=None):
-    if options is None:
+def pack_kernel_attrs(kernel_attrs, launch=None):
+    if kernel_attrs is None:
         return {}
-    if getattr(options, "_config_type", None) != "KernelOptions":
-        raise TypeError("options must be CUDA KernelOptions")
-    if options.min_blocks_per_sm is not None and (
+    if getattr(kernel_attrs, "_config_type", None) != "KernelAttributes":
+        raise TypeError("kernel_attrs must be CUDA KernelAttributes")
+    if kernel_attrs.min_blocks_per_sm is not None and (
         launch is None or any(_integer(extent) is None for extent in launch.block)
     ):
         raise ValueError("min_blocks_per_sm requires static block dimensions")
     result = {
-        field.name: int(getattr(options, field.name))
-        for field in fields(options)
-        if getattr(options, field.name) is not None
+        field.name: int(getattr(kernel_attrs, field.name))
+        for field in fields(kernel_attrs)
+        if getattr(kernel_attrs, field.name) is not None
     }
-    if options.required_block_size:
+    if kernel_attrs.required_block_size:
         if launch is None:
             raise ValueError("required_block_size needs a LaunchConfig")
         for name in ("block", "cluster"):

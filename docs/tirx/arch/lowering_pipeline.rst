@@ -165,7 +165,7 @@ launch configuration independently of the index bindings:
 
     with Tx.region("tirx.device_scope", [1, 1, 1, 256, 1, 1], attrs={
         "cuda.launch_fields": ["grid.x", "grid.y", "grid.z", "block.x", "block.y", "block.z"],
-        "cuda.kernel_options": {},
+        "cuda.kernel_attrs": {},
     }):
         bx: Tx.let = 0
         tx: Tx.let = Tx.cuda.thread_idx("x")

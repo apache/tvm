@@ -220,7 +220,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
     const auto& symbol = op->args[0].as<StringImmNode>()->value;
 
     tvm_cuda_launch::PackedLaunchPlan plan(attr->launch_fields, attr->launch_params,
-                                           attr->kernel_options);
+                                           attr->kernel_attrs);
     TVM_FFI_CHECK_GE(op->args.size(), plan.num_values + 1, ValueError)
         << "cuda_host kernel call is missing launch arguments";
     size_t launch_begin = op->args.size() - plan.num_values;

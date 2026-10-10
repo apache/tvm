@@ -29,11 +29,11 @@ import tvm
 import tvm.testing
 from tvm.backend.cuda.launch import (
     AccessPolicyWindow,
-    KernelOptions,
+    KernelAttributes,
     LaunchConfig,
     ProgrammaticEvent,
 )
-from tvm.backend.cuda.launch._impl import pack_launch, pack_options
+from tvm.backend.cuda.launch._impl import pack_kernel_attrs, pack_launch
 from tvm.script import tirx as T
 
 
@@ -100,11 +100,13 @@ def test_dynamic_values_are_operands_with_their_original_types():
         assert values[name].same_as(value)
     assert all(isinstance(field, str) for field in fields)
     with pytest.raises(TypeError, match="compile-time"):
-        KernelOptions(min_blocks_per_sm=grid)
+        KernelAttributes(min_blocks_per_sm=grid)
     with pytest.raises(ValueError, match="static"):
-        pack_options(KernelOptions(required_block_size=True), LaunchConfig(grid=1, block=grid))
+        pack_kernel_attrs(
+            KernelAttributes(required_block_size=True), LaunchConfig(grid=1, block=grid)
+        )
     with pytest.raises(ValueError, match="static"):
-        pack_options(KernelOptions(min_blocks_per_sm=1), LaunchConfig(grid=1, block=grid))
+        pack_kernel_attrs(KernelAttributes(min_blocks_per_sm=1), LaunchConfig(grid=1, block=grid))
     with pytest.raises(TypeError):
         AccessPolicyWindow(base_ptr=stream)
     with pytest.raises(ValueError, match="hit_ratio"):
@@ -229,7 +231,7 @@ def test_cluster_launch_and_required_block_dimensions(host, required, tmp_path):
     def clusters(A: T.Tensor((8, 3), "int32")):
         T.device_entry(
             launch=T.cuda.LaunchConfig(grid=(4, 2), block=32, cluster=(2, 1)),
-            options=T.cuda.KernelOptions(required_block_size=required),
+            kernel_attrs=T.cuda.KernelAttributes(required_block_size=required),
         )
         bx, by = T.cuda.block_idx("x"), T.cuda.block_idx("y")
         if T.cuda.thread_idx("x") == 0:

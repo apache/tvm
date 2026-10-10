@@ -44,12 +44,12 @@ class PackedLaunchPlan {
   PackedLaunchPlan() = default;
   PackedLaunchPlan(const tvm::ffi::Array<tvm::ffi::String>& fields,
                    const tvm::ffi::Array<tvm::ffi::String>& legacy_tags,
-                   const tvm::ffi::Map<tvm::ffi::String, int64_t>& options) {
-    auto option = [&](const std::string& key) { return options.Get(key).value_or(0); };
-    requirements.required_block_size = option("required_block_size") != 0;
+                   const tvm::ffi::Map<tvm::ffi::String, int64_t>& kernel_attrs) {
+    auto attribute = [&](const std::string& key) { return kernel_attrs.Get(key).value_or(0); };
+    requirements.required_block_size = attribute("required_block_size") != 0;
     for (int axis = 0; axis != 3; ++axis) {
-      requirements.block[axis] = option("required_block_" + std::string(1, 'x' + axis));
-      requirements.cluster[axis] = option("required_cluster_" + std::string(1, 'x' + axis));
+      requirements.block[axis] = attribute("required_block_" + std::string(1, 'x' + axis));
+      requirements.cluster[axis] = attribute("required_cluster_" + std::string(1, 'x' + axis));
     }
     std::unordered_set<std::string> seen;
     if (!fields.empty()) {

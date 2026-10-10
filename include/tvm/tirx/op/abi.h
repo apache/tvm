@@ -180,7 +180,7 @@ struct CallFFIKernelAttr : public AttrsNode {
   /*! \brief Exact number of device parameters, excluding symbol and launch operands. */
   int64_t num_kernel_args{-1};
   /*! \brief Compile-time CUDA kernel requirements. */
-  ffi::Map<ffi::String, int64_t> kernel_options;
+  ffi::Map<ffi::String, int64_t> kernel_attrs;
 
   static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.CallFFIKernelAttr", CallFFIKernelAttr, AttrsNode);

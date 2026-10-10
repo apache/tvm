@@ -576,8 +576,8 @@ Stmt MakeCudaKernelLaunch(const GlobalVar& symbol, Function* func, ffi::Array<Ex
                           const RegionStmtNode* region) {
   auto fields = region->attrs->dict.at("cuda.launch_fields").as_or_throw<ffi::Array<ffi::String>>();
   ffi::Array<Expr> values = region->args;
-  auto options =
-      region->attrs->dict.at("cuda.kernel_options").as_or_throw<ffi::Map<ffi::String, int64_t>>();
+  auto kernel_attrs =
+      region->attrs->dict.at("cuda.kernel_attrs").as_or_throw<ffi::Map<ffi::String, int64_t>>();
   auto info = DeviceInfoCollector::Collect(symbol, *func, true);
   ffi::Array<Stmt> host_stmts;
   auto required_bytes = info.dynamic_smem_requirement;
@@ -632,11 +632,11 @@ Stmt MakeCudaKernelLaunch(const GlobalVar& symbol, Function* func, ffi::Array<Ex
       WithAttrs(std::move(*func), {{tvm::attr::kCallingConv, tvm::CallingConv::kDeviceKernelLaunch},
                                    {tvm::attr::kGlobalSymbol, symbol->name_hint},
                                    {"cuda.launch_fields", fields},
-                                   {"cuda.kernel_options", options},
+                                   {"cuda.kernel_attrs", kernel_attrs},
                                    {"cuda.launch_dimensions", dimensions}});
   auto attrs = ffi::make_object<CallFFIKernelAttr>();
   attrs->launch_fields = fields;
-  attrs->kernel_options = options;
+  attrs->kernel_attrs = kernel_attrs;
   attrs->num_kernel_args = args.size();
   ffi::Array<Expr> call_args{StringImm(symbol->name_hint)};
   call_args.insert(call_args.end(), args.begin(), args.end());

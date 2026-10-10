@@ -107,11 +107,11 @@ TEST(CudaLaunch, MetadataReadsLegacyAndRoundTripsNative) {
   native_bytes.Write(native);
   ASSERT_TRUE(native_bytes.Read(&decoded));
   EXPECT_EQ(decoded->cuda_launch_fields.size(), 6);
-  EXPECT_EQ(decoded->cuda_kernel_options.at("min_blocks_per_sm"), 2);
+  EXPECT_EQ(decoded->cuda_kernel_attrs.at("min_blocks_per_sm"), 2);
   auto json_decoded = ffi::make_object<runtime::FunctionInfoObj>();
   json_decoded->LoadFromJSON(native->SaveToJSON().cast<ffi::json::Object>());
   EXPECT_EQ(json_decoded->cuda_launch_fields.size(), 6);
-  EXPECT_EQ(json_decoded->cuda_kernel_options.at("min_blocks_per_sm"), 2);
+  EXPECT_EQ(json_decoded->cuda_kernel_attrs.at("min_blocks_per_sm"), 2);
 }
 }  // namespace
 

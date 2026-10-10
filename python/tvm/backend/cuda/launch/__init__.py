@@ -18,7 +18,7 @@
 
 from ._generated import (
     AccessPolicyWindow,
-    KernelOptions,
+    KernelAttributes,
     LaunchCompletionEvent,
     LaunchConfig,
     MemSyncDomainMap,
@@ -27,7 +27,7 @@ from ._generated import (
 
 __all__ = [
     "AccessPolicyWindow",
-    "KernelOptions",
+    "KernelAttributes",
     "LaunchCompletionEvent",
     "LaunchConfig",
     "MemSyncDomainMap",

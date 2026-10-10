@@ -472,7 +472,7 @@ def test_cuda_required_block_size_coexists_with_launch_bounds():
             T.func_attr({"target": T.target("cuda", host="llvm")})
             T.device_entry(
                 launch=T.cuda.LaunchConfig(grid=4, block=128),
-                options=T.cuda.KernelOptions(required_block_size=True, min_blocks_per_sm=1),
+                kernel_attrs=T.cuda.KernelAttributes(required_block_size=True, min_blocks_per_sm=1),
             )
             bx = T.cuda.block_idx("x")
             tx = T.cuda.thread_idx("x")
@@ -483,10 +483,10 @@ def test_cuda_required_block_size_coexists_with_launch_bounds():
         after = tvm.tirx.transform.LowerTIRx()(Before)
         after = tvm.tirx.transform.SplitHostDevice()(after)
     kernel = after["main_kernel"]
-    options = kernel.attrs["cuda.kernel_options"]
-    assert options["required_block_size"] == 1
-    assert options["required_block_x"] == 128
-    assert options["min_blocks_per_sm"] == 1
+    kernel_attrs = kernel.attrs["cuda.kernel_attrs"]
+    assert kernel_attrs["required_block_size"] == 1
+    assert kernel_attrs["required_block_x"] == 128
+    assert kernel_attrs["min_blocks_per_sm"] == 1
     assert list(kernel.attrs["cuda.launch_fields"]) == [
         "grid.x",
         "grid.y",
@@ -505,7 +505,7 @@ def test_cuda_required_block_size_coexists_with_launch_bounds():
     tvm_ffi.structural_walk(after["main"], collect_launch)
     assert len(launches) == 1
     launch = launches[0]
-    # Compile-time options reach metadata without becoming packed operands.
+    # Compile-time kernel attributes reach metadata without becoming packed operands.
     assert launch.attrs.num_kernel_args == 1
     assert len(launch.args) == 8
     assert [int(arg) for arg in launch.args[-6:]] == [4, 1, 1, 128, 1, 1]

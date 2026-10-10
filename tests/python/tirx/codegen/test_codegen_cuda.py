@@ -194,7 +194,7 @@ def test_tirx_launch_bounds_min_blocks_sets_one_block_per_sm():
     def main(A: T.Tensor((4,), "int32")):
         T.device_entry(
             launch=T.cuda.LaunchConfig(grid=(4,), block=(128,)),
-            options=T.cuda.KernelOptions(min_blocks_per_sm=1),
+            kernel_attrs=T.cuda.KernelAttributes(min_blocks_per_sm=1),
         )
         bx = T.cuda.block_idx("x")
         tx = T.cuda.thread_idx("x")
@@ -211,7 +211,7 @@ def test_single_thread_block_preserves_explicit_launch_bounds():
     def main(A: T.Tensor((1,), "int32")):
         T.device_entry(
             launch=T.cuda.LaunchConfig(grid=1, block=1),
-            options=T.cuda.KernelOptions(min_blocks_per_sm=2),
+            kernel_attrs=T.cuda.KernelAttributes(min_blocks_per_sm=2),
         )
         A[0] = 1
 
@@ -224,7 +224,7 @@ def test_tirx_launch_bounds_max_blocks_per_cluster_emits_third_operand():
     def main(A: T.Tensor((4,), "int32")):
         T.device_entry(
             launch=T.cuda.LaunchConfig(grid=(4,), block=(384,)),
-            options=T.cuda.KernelOptions(min_blocks_per_sm=1, max_blocks_per_cluster=1),
+            kernel_attrs=T.cuda.KernelAttributes(min_blocks_per_sm=1, max_blocks_per_cluster=1),
         )
         bx = T.cuda.block_idx("x")
         tx = T.cuda.thread_idx("x")
@@ -241,7 +241,7 @@ def test_tirx_max_registers_emits_cuda_maxnreg():
     def main(A: T.Tensor((4,), "int32")):
         T.device_entry(
             launch=T.cuda.LaunchConfig(grid=(4,), block=(128,)),
-            options=T.cuda.KernelOptions(max_registers_per_thread=92),
+            kernel_attrs=T.cuda.KernelAttributes(max_registers_per_thread=92),
         )
         bx = T.cuda.block_idx("x")
         tx = T.cuda.thread_idx("x")
@@ -256,7 +256,7 @@ def test_tirx_max_registers_emits_cuda_maxnreg():
 
 def test_tirx_max_registers_rejects_launch_bounds():
     with pytest.raises(ValueError, match="conflicts"):
-        T.cuda.KernelOptions(max_registers_per_thread=92, min_blocks_per_sm=1)
+        T.cuda.KernelAttributes(max_registers_per_thread=92, min_blocks_per_sm=1)
 
 
 def test_tirx_required_block_size_emits_cuda_block_size():
@@ -264,7 +264,7 @@ def test_tirx_required_block_size_emits_cuda_block_size():
     def main(A: T.Tensor((8,), "int32")):
         T.device_entry(
             launch=T.cuda.LaunchConfig(grid=(4, 2), block=(128,), cluster=(1, 2)),
-            options=T.cuda.KernelOptions(required_block_size=True),
+            kernel_attrs=T.cuda.KernelAttributes(required_block_size=True),
         )
         bx, by = (T.cuda.block_idx("x"), T.cuda.block_idx("y"))
         _, cy = (T.cuda.cluster_cta_id("x"), T.cuda.cluster_cta_id("y"))
@@ -283,7 +283,7 @@ def test_tirx_required_block_size_emits_launch_bounds_when_requested():
     def main(A: T.Tensor((4,), "int32")):
         T.device_entry(
             launch=T.cuda.LaunchConfig(grid=(4,), block=(128,)),
-            options=T.cuda.KernelOptions(required_block_size=True, min_blocks_per_sm=1),
+            kernel_attrs=T.cuda.KernelAttributes(required_block_size=True, min_blocks_per_sm=1),
         )
         bx = T.cuda.block_idx("x")
         tx = T.cuda.thread_idx("x")

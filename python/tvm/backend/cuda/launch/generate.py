@@ -60,13 +60,18 @@ def python_api():
     classes = [
         *table.COMPOSITES.items(),
         ("LaunchConfig", table.LAUNCH_FIELDS),
-        ("KernelOptions", table.KERNEL_FIELDS),
+        ("KernelAttributes", table.KERNEL_ATTR_FIELDS),
     ]
     for name, fields in classes:
+        description = (
+            "Compile-time CUDA kernel attributes"
+            if name == "KernelAttributes"
+            else f"CUDA {name} configuration"
+        )
         out += [
             "\n@dataclass(frozen=True, kw_only=True)",
             f"class {name}(Config):",
-            f'    """CUDA {name} configuration. See the generated launch reference."""',
+            f'    """{description}. See the generated launch reference."""',
             f'    _config_type: ClassVar[str] = "{name}"',
         ]
         for field in fields:
@@ -237,12 +242,14 @@ def documentation():
         "===================================",
         "",
         "Both CUDA module launches and exported ``cuda_host`` wrappers use this registry.",
+        "``LaunchConfig`` describes each launch; ``KernelAttributes`` describes compile-time",
+        "CUDA kernel attributes.",
         "Optional launch attributes default to unspecified, preserving CUDA's inherited defaults.",
         "",
     ]
     for name, fields in [
         ("LaunchConfig", table.LAUNCH_FIELDS),
-        ("KernelOptions", table.KERNEL_FIELDS),
+        ("KernelAttributes", table.KERNEL_ATTR_FIELDS),
         *table.COMPOSITES.items(),
     ]:
         out += [

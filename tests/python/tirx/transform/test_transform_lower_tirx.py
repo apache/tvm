@@ -135,7 +135,7 @@ def test_lower_view_get():
                     "block.y",
                     "block.z",
                 ],
-                "cuda.kernel_options": {},
+                "cuda.kernel_attrs": {},
             },
         ):
             bx: T.let[T.int32] = 0
@@ -194,7 +194,7 @@ def test_lower_view_get():
                     "block.y",
                     "block.z",
                 ],
-                "cuda.kernel_options": {},
+                "cuda.kernel_attrs": {},
             },
         ):
             bx: T.let[T.int32] = 0
@@ -280,7 +280,7 @@ def test_lower_view_get():
                     "block.y",
                     "block.z",
                 ],
-                "cuda.kernel_options": {},
+                "cuda.kernel_attrs": {},
             },
         ):
             warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
@@ -363,7 +363,7 @@ def test_lower_view_get():
                     "block.y",
                     "block.z",
                 ],
-                "cuda.kernel_options": {},
+                "cuda.kernel_attrs": {},
             },
         ):
             bx: T.let[T.int32] = 0
@@ -409,7 +409,7 @@ def test_lower_scope_id():
                     "block.y",
                     "block.z",
                 ],
-                "cuda.kernel_options": {},
+                "cuda.kernel_attrs": {},
             },
         ):
             bx: T.let[T.int32] = T.cuda.block_idx("x")
@@ -450,7 +450,7 @@ def test_lower_scope_id():
                     "cluster.y",
                     "cluster.z",
                 ],
-                "cuda.kernel_options": {},
+                "cuda.kernel_attrs": {},
             },
         ):
             warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
@@ -506,7 +506,7 @@ def test_lower_scope_id():
                     "cluster.y",
                     "cluster.z",
                 ],
-                "cuda.kernel_options": {},
+                "cuda.kernel_attrs": {},
             },
         ):
             warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
@@ -681,7 +681,7 @@ def test_lower_scope_id2():
                     "block.y",
                     "block.z",
                 ],
-                "cuda.kernel_options": {},
+                "cuda.kernel_attrs": {},
             },
         ):
             warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(
@@ -790,7 +790,7 @@ def test_lower_layout():
                     "block.y",
                     "block.z",
                 ],
-                "cuda.kernel_options": {},
+                "cuda.kernel_attrs": {},
             },
         ):
             bx: T.let[T.int32] = 0
@@ -883,7 +883,7 @@ def test_lower_decl_buffer_pointer():
                     "block.y",
                     "block.z",
                 ],
-                "cuda.kernel_options": {},
+                "cuda.kernel_attrs": {},
             },
         ):
             buf = T.alloc_tensor((1024,), "uint8", scope="shared.dyn", layout=None)
@@ -917,7 +917,7 @@ def test_lower_separate_scope_id_def():
                     "block.y",
                     "block.z",
                 ],
-                "cuda.kernel_options": {},
+                "cuda.kernel_attrs": {},
             },
         ):
             tx: T.let[T.int32] = T.cuda.thread_idx("x")
@@ -951,7 +951,7 @@ def test_lower_uint32_scope_id_casts_at_bind():
                     "block.y",
                     "block.z",
                 ],
-                "cuda.kernel_options": {},
+                "cuda.kernel_attrs": {},
             },
         ):
             tx: T.let[T.uint32] = T.Cast("uint32", T.cuda.thread_idx("x"))
@@ -1697,7 +1697,7 @@ def test_lower_buffer_offset():
                     "block.y",
                     "block.z",
                 ],
-                "cuda.kernel_options": {},
+                "cuda.kernel_attrs": {},
             },
         ):
             A = T.alloc_local((4096,), "float16", layout=None)
@@ -1811,7 +1811,7 @@ def test_alloc_buffer_with_thread_axis_layout():
                     "block.y",
                     "block.z",
                 ],
-                "cuda.kernel_options": {},
+                "cuda.kernel_attrs": {},
             },
         ):
             warp_id_in_cta: T.let[T.int32] = T.gpu_warp_shuffle(

@@ -233,7 +233,7 @@ LAUNCH_FIELDS = (
     ),
 )
 
-KERNEL_FIELDS = (
+KERNEL_ATTR_FIELDS = (
     Field(
         "min_blocks_per_sm", "int", "Second launch-bounds operand: minimum resident CTAs per SM."
     ),

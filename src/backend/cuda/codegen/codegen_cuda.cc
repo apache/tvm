@@ -264,18 +264,18 @@ void CodeGenCUDA::InitFuncState(const Function& func) {
     for (size_t i = 0; i < launch_dimensions_.size(); ++i)
       launch_dimensions_[i] = dimensions.value()[i];
   }
-  if (auto options = func->GetAttr<ffi::Map<ffi::String, int64_t>>("cuda.kernel_options")) {
-    if (auto value = options.value().Get("min_blocks_per_sm")) min_blocks_per_sm_ = *value;
-    if (auto value = options.value().Get("max_blocks_per_cluster"))
+  if (auto kernel_attrs = func->GetAttr<ffi::Map<ffi::String, int64_t>>("cuda.kernel_attrs")) {
+    if (auto value = kernel_attrs.value().Get("min_blocks_per_sm")) min_blocks_per_sm_ = *value;
+    if (auto value = kernel_attrs.value().Get("max_blocks_per_cluster"))
       max_blocks_per_cluster_ = *value;
-    if (auto value = options.value().Get("max_registers_per_thread"))
+    if (auto value = kernel_attrs.value().Get("max_registers_per_thread"))
       max_registers_per_thread_ = *value;
-    if (options.value().Get("required_block_size").value_or(0)) {
+    if (kernel_attrs.value().Get("required_block_size").value_or(0)) {
       std::array<int64_t, 6> dimensions;
       size_t i = 0;
       for (const char* prefix : {"required_block_", "required_cluster_"}) {
         for (char axis : {'x', 'y', 'z'})
-          dimensions[i++] = options.value().at(std::string(prefix) + axis);
+          dimensions[i++] = kernel_attrs.value().at(std::string(prefix) + axis);
       }
       required_block_size_ = dimensions;
     }
