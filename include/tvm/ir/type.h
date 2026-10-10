@@ -93,14 +93,14 @@ class StringType : public Type {
 /*!
  * \brief Low-level raw pointer type.
  *
- *  PointerType represents type hints in the TIR to be
+ *  PtrType represents type hints in the TIR to be
  *  passed to the final code generator.
  *
- *  PointerType should not occur in the high-level analysis.
+ *  PtrType should not occur in the high-level analysis.
  *
- * \sa PointerType
+ * \sa PtrType
  */
-class PointerTypeNode : public TypeNode {
+class PtrTypeNode : public TypeNode {
  public:
   /*!
    * \brief The type of the element which the pointer points to.
@@ -113,30 +113,30 @@ class PointerTypeNode : public TypeNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PointerTypeNode>()
-        .def_ro("element_type", &PointerTypeNode::element_type)
-        .def_ro("storage_scope", &PointerTypeNode::storage_scope);
+    refl::ObjectDef<PtrTypeNode>()
+        .def_ro("element_type", &PtrTypeNode::element_type)
+        .def_ro("storage_scope", &PtrTypeNode::storage_scope);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.PointerType", PointerTypeNode, TypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.PtrType", PtrTypeNode, TypeNode);
 };
 
 /*
- * \brief Managed reference to PointerTypeNode.
- * \sa PointerTypeNode
+ * \brief Managed reference to PtrTypeNode.
+ * \sa PtrTypeNode
  */
-class PointerType : public Type {
+class PtrType : public Type {
  public:
   /*!
    * \brief Constructor
    * \param element_type The type of the element which the pointer points to.
    * \param storage_scope The storage scope into which the pointer addresses
    */
-  TVM_DLL explicit PointerType(Type element_type, ffi::String storage_scope = "");
+  TVM_DLL explicit PtrType(Type element_type, ffi::String storage_scope = "");
 
   /*! \brief Construct an opaque pointer with void element type. */
-  TVM_DLL static PointerType VoidPointerTy(ffi::String storage_scope = "");
+  TVM_DLL static PtrType VoidPointerTy(ffi::String storage_scope = "");
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PointerType, Type, PointerTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PtrType, Type, PtrTypeNode);
 };
 
 /*!

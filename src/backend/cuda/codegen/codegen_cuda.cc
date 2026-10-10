@@ -1042,7 +1042,7 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
           if (auto prim_type = arg_type.as<PrimType>()) {
             PrintVecElemLoad(sargs[j], prim_type.value(), i, scall);
           } else {
-            TVM_FFI_ICHECK(arg_type.as<PointerTypeNode>());
+            TVM_FFI_ICHECK(arg_type.as<PtrTypeNode>());
             scall << sargs[j];
           }
         }
@@ -1250,9 +1250,9 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     // template encoded at address 0): emit C++-style reinterpret_cast<T*>(...)
     // to match the encoded template. Runtime pointer reinterprets fall through
     // to CodeGenC, which emits the C-style (T*)... cast.
-    if (op->ty.as<PointerTypeNode>() && op->args[0].as<IntImmNode>()) {
+    if (op->ty.as<PtrTypeNode>() && op->args[0].as<IntImmNode>()) {
       os << "reinterpret_cast<";
-      if (const auto* pt = op->ty.as<PointerTypeNode>()) {
+      if (const auto* pt = op->ty.as<PtrTypeNode>()) {
         if (const auto* et = pt->element_type.as<PrimTypeNode>()) {
           this->PrintType(ffi::GetRef<PrimType>(et), os);
         } else {
@@ -1265,8 +1265,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     auto tgt_prim_type = op->ty.as<PrimType>();
     auto src_prim_type = op->args[0]->ty.as<PrimType>();
 
-    if (op->args[0]->ty.as<PointerTypeNode>() && tgt_prim_type &&
-        tgt_prim_type.value().IsScalar() &&
+    if (op->args[0]->ty.as<PtrTypeNode>() && tgt_prim_type && tgt_prim_type.value().IsScalar() &&
         tgt_prim_type.value().MatchesCode(DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt) &&
         tgt_prim_type.value().bits() == 64) {
       os << "reinterpret_cast<";

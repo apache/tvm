@@ -137,7 +137,7 @@ ffi::Optional<ExprDoc> ConsumedPTXAddressDocTranslate(DocTranslatorObj* d, const
   if (const auto* nested = base.as<CallNode>(); nested && IsPTXAddressCall(nested)) {
     return std::nullopt;
   }
-  if ((!base->ty.as<PointerType>() && !ffi::StructuralEqual()(base->ty, PrimType::UInt(32))) ||
+  if ((!base->ty.as<PtrType>() && !ffi::StructuralEqual()(base->ty, PrimType::UInt(32))) ||
       !ffi::StructuralEqual()(call->ty, base->ty)) {
     return std::nullopt;
   }

@@ -28,7 +28,7 @@ import tvm_ffi
 
 from tvm import __version__ as tvm_version
 from tvm import libinfo, tirx
-from tvm.ir import Expr, PointerType, const, is_prim_expr
+from tvm.ir import Expr, PtrType, const, is_prim_expr
 from tvm.runtime import Module
 from tvm.support import nvcc
 
@@ -136,7 +136,7 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
         runtime_args = [arg if isinstance(arg, Expr) else const(arg) for arg in args]
         kernel_arg_types = []
         for arg in runtime_args:
-            if isinstance(arg.ty, PointerType):
+            if isinstance(arg.ty, PtrType):
                 kernel_arg_types.append("handle")
             else:
                 assert is_prim_expr(arg)

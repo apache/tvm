@@ -107,7 +107,7 @@ ffi::Optional<ExprDoc> BufferOperationDocTranslate(DocTranslatorObj* d, ffi::Any
   }
   ffi::Optional<Expr> data = is_alloc ? std::nullopt : ffi::Optional<Expr>(call->args[0]);
   if (!is_alloc) {
-    const auto* pointer = data.value()->ty.as<PointerTypeNode>();
+    const auto* pointer = data.value()->ty.as<PtrTypeNode>();
     if (!pointer || pointer->storage_scope != scope->value) return RawCall(d, call);
   }
   CallDoc rhs = d->Translate(buffer.value()).value().as_or_throw<CallDoc>();

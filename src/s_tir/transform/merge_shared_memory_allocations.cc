@@ -693,7 +693,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
         dtype = typed_buffer->dtype->dtype;
         is_shared = IsAppropriateSharedMemory(typed_buffer);
       } else {
-        const auto* ptr_type = buffer->ty.as<PointerTypeNode>();
+        const auto* ptr_type = buffer->ty.as<PtrTypeNode>();
         TVM_FFI_ICHECK(ptr_type) << "The buffer should be a pointer type.";
         const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>();
         TVM_FFI_ICHECK(prim_type) << "The buffer should be a pointer to a primitive type.";

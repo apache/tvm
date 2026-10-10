@@ -41,7 +41,7 @@ def _scalar(value, spec, name):
             raise ValueError(f"{name}: expected one of {tuple(choices)}, got {value!r}")
         return choices[value]
     if spec.kind == "handle":
-        if not isinstance(value, ir.Expr) or not isinstance(value.ty, ir.PointerType):
+        if not isinstance(value, ir.Expr) or not isinstance(value.ty, ir.PtrType):
             raise TypeError(f"{name} must be a host pointer or handle expression")
         return value
     if isinstance(value, bool) and spec.kind != "bool":

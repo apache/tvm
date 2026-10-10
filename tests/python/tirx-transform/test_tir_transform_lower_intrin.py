@@ -87,7 +87,7 @@ def check_value(expr, variables, data, fref):
 
 
 def test_nested_byte_pointer_offset():
-    data = tvm.tirx.Var("data", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
+    data = tvm.tirx.Var("data", tvm.ir.PtrType(tvm.ir.PrimType("float32")))
     inner = tvm.tirx.ptr_byte_offset(data, 8, ty=data.ty)
     outer = tvm.tirx.ptr_byte_offset(inner, 12, ty=data.ty)
     body = tvm.ir.Evaluate(tvm.tirx.call_extern("void", "consume", outer))

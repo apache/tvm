@@ -41,8 +41,8 @@ Type InferTypePointerOffset(const CallNode* call) {
     element_type = call->args[ElementIndex]->ty;
     if (element_type.as<MissingType>()) return Type::Missing();
   }
-  auto pointer = call->args[DataIndex]->ty.as<PointerType>();
-  return PointerType(element_type, pointer ? pointer.value()->storage_scope : "global");
+  auto pointer = call->args[DataIndex]->ty.as<PtrType>();
+  return PtrType(element_type, pointer ? pointer.value()->storage_scope : "global");
 }
 
 Type InferTypeAddressOf(const CallNode* call) {
@@ -51,11 +51,11 @@ Type InferTypeAddressOf(const CallNode* call) {
     return load->source.as_or_throw<TensorVar>().type()->DataPointerType();
   }
   Var variable = call->args[0].as_or_throw<Var>();
-  if (auto pointer = variable->ty.as<PointerType>();
+  if (auto pointer = variable->ty.as<PtrType>();
       pointer && pointer.value()->element_type.as<TensorMapType>()) {
     return PrimType::UInt(64);
   }
-  return PointerType(variable->ty.as_or_throw<PrimType>());
+  return PtrType(variable->ty.as_or_throw<PrimType>());
 }
 
 Type InferTypeMaskedLoad(const CallNode* call) {
@@ -137,7 +137,7 @@ const Op& reinterpret_op() {
 
 Expr reinterpret(Type target_ty, Expr value, Location loc) {
   if (value.as<StringImmNode>()) {
-    TVM_FFI_CHECK(target_ty.as<PointerTypeNode>(), TypeError)
+    TVM_FFI_CHECK(target_ty.as<PtrTypeNode>(), TypeError)
         << "String reinterpret requires a pointer target, but got " << target_ty;
     return Call(std::move(target_ty), tirx::reinterpret_op(), {std::move(value)}, {}, {},
                 std::move(loc));
@@ -157,8 +157,8 @@ Expr reinterpret(Type target_ty, Expr value, Location loc) {
             << "Reinterpret requires size match " << target_prim << " vs " << value_dtype;
       }
     } else {
-      TVM_FFI_CHECK(value->ty.as<PointerTypeNode>(), TypeError)
-          << "Reinterpret source must be PrimType or PointerType, but got " << value->ty;
+      TVM_FFI_CHECK(value->ty.as<PtrTypeNode>(), TypeError)
+          << "Reinterpret source must be PrimType or PtrType, but got " << value->ty;
       TVM_FFI_CHECK(
           target_dtype.value().IsScalar() && target_dtype.value().bits() == 64 &&
               target_dtype.value().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt),
@@ -167,8 +167,8 @@ Expr reinterpret(Type target_ty, Expr value, Location loc) {
           << target_dtype.value();
     }
   } else {
-    TVM_FFI_CHECK(target_ty.as<PointerTypeNode>(), TypeError)
-        << "Reinterpret target must be PrimType or PointerType, but got " << target_ty;
+    TVM_FFI_CHECK(target_ty.as<PtrTypeNode>(), TypeError)
+        << "Reinterpret target must be PrimType or PtrType, but got " << target_ty;
     if (auto source_dtype = value->ty.as<PrimType>()) {
       TVM_FFI_CHECK(
           source_dtype.value().IsScalar() && source_dtype.value().bits() == 64 &&
@@ -177,8 +177,8 @@ Expr reinterpret(Type target_ty, Expr value, Location loc) {
           << "Pointer reinterpret requires a scalar 64-bit integer source, but got "
           << source_dtype.value();
     } else {
-      TVM_FFI_CHECK(value->ty.as<PointerTypeNode>(), TypeError)
-          << "Reinterpret source must be PrimType or PointerType, but got " << value->ty;
+      TVM_FFI_CHECK(value->ty.as<PtrTypeNode>(), TypeError)
+          << "Reinterpret source must be PrimType or PtrType, but got " << value->ty;
     }
   }
   return Call(std::move(target_ty), tirx::reinterpret_op(), {std::move(value)}, {}, {},

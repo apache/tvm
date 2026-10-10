@@ -387,7 +387,7 @@ a: T.handle = T.handle()
 a""",
     )
 
-    a = tirx.Var("a", ir.PointerType(ir.PrimType("void"), "shared"))
+    a = tirx.Var("a", ir.PtrType(ir.PrimType("void"), "shared"))
     _assert_print(
         a,
         """
@@ -634,13 +634,13 @@ def test_prim_type():
 
 
 def test_pointer_type():
-    obj = ir.PointerType(ir.PrimType("int32"), "global")
+    obj = ir.PtrType(ir.PrimType("int32"), "global")
     _assert_print(obj, 'T.handle("int32", "global")')
 
-    obj = ir.PointerType(ir.PrimType("void"))
+    obj = ir.PtrType(ir.PrimType("void"))
     _assert_print(obj, "T.handle")
 
-    obj = ir.PointerType(ir.PrimType("void"), "shared")
+    obj = ir.PtrType(ir.PrimType("void"), "shared")
     _assert_print(obj, 'T.handle(storage_scope="shared")')
 
 

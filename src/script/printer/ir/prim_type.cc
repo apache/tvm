@@ -122,10 +122,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       FDocTranslate::FromNative<&PrimTypeDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> PointerTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+ffi::Optional<ExprDoc> PtrTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                                const ffi::Object*) {
   const auto* ty =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PointerTypeNode>(input);
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PtrTypeNode>(input);
   bool type_value = d->GetOrCreateExtraState<bool>("ir.type_value");
   ExtraStateScope<bool> annotations(d, "ir.type_value", false);
   ExprDoc doc = [&]() -> ExprDoc {
@@ -157,9 +157,9 @@ ffi::Optional<ExprDoc> PointerTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::EnsureTypeAttrColumn(type_attr::kPointerConstructor);
-  ffi::reflection::TypeAttrDef<PointerTypeNode>().attr(
+  ffi::reflection::TypeAttrDef<PtrTypeNode>().attr(
       tvm::script::printer::type_attr::kDocTranslate,
-      FDocTranslate::FromNative<&PointerTypeDocTranslate>());
+      FDocTranslate::FromNative<&PtrTypeDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> StringTypeDocTranslate(DocTranslatorObj*, ffi::AnyView, const ffi::Object*) {
@@ -195,7 +195,7 @@ ffi::Optional<ExprDoc> TupleTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView i
   ffi::Array<ExprDoc> fields;
   for (const Type& field : ty->fields) fields.push_back(d->Translate(field).value());
   std::function<bool(const Type&)> is_primitive = [&](const Type& field) {
-    if (field.as<PrimType>() || field.as<PointerType>()) return true;
+    if (field.as<PrimType>() || field.as<PtrType>()) return true;
     if (const auto* tuple = field.as<TupleTypeNode>()) {
       return std::all_of(tuple->fields.begin(), tuple->fields.end(), is_primitive);
     }

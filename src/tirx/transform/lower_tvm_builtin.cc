@@ -121,8 +121,8 @@ class BuiltinLower : public StmtExprMutator {
   // Record stack frame for existing scope.
   struct AllocaScope {
     ffi::Optional<TensorVar> stack_shape;
-    Var stack_array = Var("stack_array", PointerType::VoidPointerTy());
-    Var stack_ffi_any = Var("stack_ffi_any", PointerType::VoidPointerTy());
+    Var stack_array = Var("stack_array", PtrType::VoidPointerTy());
+    Var stack_ffi_any = Var("stack_ffi_any", PtrType::VoidPointerTy());
 
     StackSizes max_sizes;
     StackSizes run_sizes;
@@ -547,7 +547,7 @@ class BuiltinLower : public StmtExprMutator {
                                        prim::cast(PrimType::Int(32), device_id_.value())));
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, kDLTensorDeviceType,
                                        prim::cast(PrimType::Int(32), device_type_.value())));
-    return TVMStructGet(PointerType::VoidPointerTy(), scope.stack_array, idx, kDLTensorAddr);
+    return TVMStructGet(PtrType::VoidPointerTy(), scope.stack_array, idx, kDLTensorAddr);
   }
 
   void SetPackedArg(Expr arg, const Var& args_stack, size_t stack_offset,
@@ -555,8 +555,8 @@ class BuiltinLower : public StmtExprMutator {
     int arg_type_index;
     if (arg.as<StringImmNode>()) {
       arg_type_index = ffi::TypeIndex::kTVMFFIRawStr;
-      arg = tirx::reinterpret(PointerType::VoidPointerTy(), std::move(arg));
-    } else if (arg->ty.as<PointerTypeNode>()) {
+      arg = tirx::reinterpret(PtrType::VoidPointerTy(), std::move(arg));
+    } else if (arg->ty.as<PtrTypeNode>()) {
       arg_type_index = IsArrayHandle(arg) ? ffi::TypeIndex::kTVMFFIDLTensorPtr
                                           : ffi::TypeIndex::kTVMFFIOpaquePtr;
     } else {
@@ -628,7 +628,7 @@ class BuiltinLower : public StmtExprMutator {
 
     for (size_t i = 0; i < num_args; ++i) {
       const Expr& arg = op->args[args_begin + i];
-      TVM_FFI_CHECK(arg.as<PrimExpr>() || arg->ty.as<PointerTypeNode>() || arg.as<StringImmNode>(),
+      TVM_FFI_CHECK(arg.as<PrimExpr>() || arg->ty.as<PtrTypeNode>() || arg.as<StringImmNode>(),
                     TypeError)
           << "Packed call argument must have a primitive, pointer, or string type, but got "
           << arg->ty;
@@ -662,7 +662,7 @@ class BuiltinLower : public StmtExprMutator {
     Stmt throw_last_error =
         Evaluate(Call(PrimType::Int(32), throw_last_error_op(), {}).as_or_throw<PrimExpr>());
 
-    const auto* dtype_node = let->var->ty.as<PointerTypeNode>()->element_type.as<PrimTypeNode>();
+    const auto* dtype_node = let->var->ty.as<PtrTypeNode>()->element_type.as<PrimTypeNode>();
     TVM_FFI_ICHECK(dtype_node);
     PrimType dtype = ffi::GetRef<PrimType>(dtype_node);
 

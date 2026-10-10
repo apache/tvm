@@ -1642,12 +1642,12 @@ def let_expression():
 def test_void_ptr_vs_handle():
     """An untyped handle is the canonical void-pointer type."""
 
-    # Generates PointerType(PrimType::Void())
+    # Generates PtrType(PrimType::Void())
     @Ts.function
     def void_ptr(out_ret_value: T.handle("void")):
         T.evaluate(out_ret_value)
 
-    # Generates PointerType::VoidPointerTy()
+    # Generates PtrType::VoidPointerTy()
     @Ts.function
     def handle(out_ret_value: T.handle):
         T.evaluate(out_ret_value)

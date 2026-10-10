@@ -483,7 +483,7 @@ class FusedTIRConstructor : public ExprVisitor {
         // printed, it's more readable when done explicitly.  Since
         // TensorVar is used more than param it gets the name with better
         // readability.
-        tvm::Var param = tvm::Var("p_" + buffer.name(), PointerType::VoidPointerTy());
+        tvm::Var param = tvm::Var("p_" + buffer.name(), PtrType::VoidPointerTy());
         func_info_.params.push_back(param);
         func_info_.buffer_map.Set(param, buffer);
       } else if (auto var = param.as<PrimVar>()) {
@@ -530,7 +530,7 @@ class FusedTIRConstructor : public ExprVisitor {
         continue;
       }
 
-      tvm::Var param = tvm::Var("p_output" + std::to_string(out_idx), PointerType::VoidPointerTy());
+      tvm::Var param = tvm::Var("p_output" + std::to_string(out_idx), PtrType::VoidPointerTy());
       out_idx++;
       func_info_.buffer_map.Set(param, buffers[i]);
       func_info_.params.push_back(param);

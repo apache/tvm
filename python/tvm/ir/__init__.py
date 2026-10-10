@@ -30,7 +30,7 @@ from .type import (
     FuncType,
     MissingType,
     OpaqueType,
-    PointerType,
+    PtrType,
     PrimType,
     StringType,
     TensorRegionType,

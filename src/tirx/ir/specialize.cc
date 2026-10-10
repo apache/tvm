@@ -191,7 +191,7 @@ class FunctionSpecializer : public StmtExprMutator {
       if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
     }
     if (!op->op.same_as(tirx::tensor_data_ptr_op()) || op->args.size() != 1) return result;
-    PointerType type = op->args[0].as_or_throw<TensorVar>().type()->DataPointerType();
+    PtrType type = op->args[0].as_or_throw<TensorVar>().type()->DataPointerType();
     if (ffi::StructuralEqual()(op->ty, type)) return result;
     if (inplace_mode == InplaceMode::kAllow) {
       const_cast<CallNode*>(op)->ty = std::move(type);

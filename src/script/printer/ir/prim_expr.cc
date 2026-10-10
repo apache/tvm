@@ -69,7 +69,7 @@ ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
           {LiteralDoc::DataType(primitive.value()->dtype, std::nullopt)});
     } else {
       annotation = d->Translate(var->ty).value();
-      if (var->ty.as<PointerTypeNode>()) {
+      if (var->ty.as<PtrTypeNode>()) {
         // A module-level annotation alone does not bind a Python variable.
         rhs = annotation.value().as<CallDoc>() ? annotation : annotation.value()->Call({});
       }

@@ -44,7 +44,7 @@ from tvm.backend.cuda.codegen.utils import parse_str
 from tvm.backend.cuda.op import cuda_cvta_generic_to_shared, cuda_func_call
 from tvm.ir import Call, Op, StringImm, TensorLoad, const
 from tvm.ir.op import register_op_attr
-from tvm.ir.type import PointerType, PrimType
+from tvm.ir.type import PrimType, PtrType
 from tvm.tirx.expr import CallEffectKind, IntImm
 from tvm.tirx.op import call_intrin, reinterpret
 
@@ -571,7 +571,7 @@ def _coerce_address(entry, slot, value, mod_map):
     """Coerce an address-like operand (``role`` addr or ptr)."""
     ty = getattr(value, "ty", None)
     if slot.kind == "ptr":
-        if isinstance(ty, PointerType):
+        if isinstance(ty, PtrType):
             return value
         raise ValueError(f"{entry.name}: operand '{slot.name}' must be a pointer")
     space = operand_space(slot, mod_map)
@@ -586,7 +586,7 @@ def _coerce_address(entry, slot, value, mod_map):
             f"(compose it with T.cuda.get_tmem_addr)"
         )
     if space.startswith("shared"):
-        if isinstance(ty, PointerType):
+        if isinstance(ty, PtrType):
             # Any pointer is accepted and converted, which is what the legacy
             # helpers did. The pointer's storage_scope is not a reliable
             # discriminator here: a shared buffer's ptr_to() reports 'global',
@@ -598,7 +598,7 @@ def _coerce_address(entry, slot, value, mod_map):
             f"{entry.name}: operand '{slot.name}' must be a shared-scope pointer "
             f"or a uint32 shared address"
         )
-    if isinstance(ty, PointerType):
+    if isinstance(ty, PtrType):
         if ty.storage_scope.startswith("shared"):
             raise ValueError(
                 f"{entry.name}: operand '{slot.name}' is a {space or 'generic'} address "

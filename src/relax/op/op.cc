@@ -367,7 +367,7 @@ Type TIRxPackedValueType(const Type& type, bool is_result) {
         << "R.call_tir_packed does not support packed scalar type " << type;
     return type;
   }
-  if (type.as<PointerTypeNode>()) return AnyType();
+  if (type.as<PtrTypeNode>()) return AnyType();
   if (!is_result) {
     if (const auto* tensor = type.as<tirx::TensorTypeNode>()) {
       bool default_layout =
@@ -457,7 +457,7 @@ tvm::FuncType ContextualTIRxSignature(const BlockBuilder& ctx, const Expr& calle
 
 void CheckTIRxCarrier(const Type& native, const Type& actual,
                       bool allow_storage_specialization = false) {
-  if (native.as<PointerTypeNode>()) {
+  if (native.as<PtrTypeNode>()) {
     TVM_FFI_CHECK(!actual.as<PrimTypeNode>() && !actual.as<StringTypeNode>(), TypeError)
         << "A Relax-to-TIRx pointer argument requires a handle-compatible object or Any, received "
         << actual;
@@ -533,7 +533,7 @@ void ValidateCallTIRPacked(const CallNode* call) {
   TVM_FFI_CHECK_EQ(native->arg_types.size(), arguments->fields.size(), TypeError)
       << "R.call_tir_packed requires one argument for each native parameter";
   for (size_t i = 0; i < native->arg_types.size(); ++i) {
-    if (native->arg_types[i].as<PointerTypeNode>()) {
+    if (native->arg_types[i].as<PtrTypeNode>()) {
       const Type& argument = arguments->fields[i];
       TVM_FFI_CHECK(!argument.as<PrimTypeNode>() && !argument.as<StringTypeNode>(), TypeError)
           << "R.call_tir_packed pointer parameter " << i

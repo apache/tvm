@@ -23,7 +23,7 @@ from typing import ClassVar
 import tvm_ffi
 
 import tvm
-from tvm.ir import Call, PointerType, PrimType, Type, Var
+from tvm.ir import Call, PrimType, PtrType, Type, Var
 from tvm.ir.location import UNKNOWN_LOC, Location
 
 from . import _buffer_view, _ffi_api
@@ -335,8 +335,8 @@ def decl_tensor(
         elem_offset = Var(f"{name}_elem_offset", shape_ty)
     storage_scope = scope
     if data is not None:
-        if not isinstance(data, tvm.ir.Expr) or not isinstance(data.ty, PointerType):
-            raise TypeError("Tensor data must be an Expr with PointerType")
+        if not isinstance(data, tvm.ir.Expr) or not isinstance(data.ty, PtrType):
+            raise TypeError("Tensor data must be an Expr with PtrType")
         if not isinstance(data.ty.element_type, PrimType):
             raise TypeError("Tensor data must point to a primitive type")
         storage_scope = data.ty.storage_scope

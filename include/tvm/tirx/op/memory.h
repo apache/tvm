@@ -85,7 +85,7 @@ inline PrimExpr reinterpret(PrimType t, PrimExpr value, Location loc = UnknownLo
 
 /*! \brief Construct an opaque pointer from its integer payload. */
 inline Expr ConstHandle(int64_t value, Location loc = UnknownLoc()) {
-  return reinterpret(PointerType::VoidPointerTy(), IntImm(PrimType::UInt(64), value, loc), loc);
+  return reinterpret(PtrType::VoidPointerTy(), IntImm(PrimType::UInt(64), value, loc), loc);
 }
 
 /*!

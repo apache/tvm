@@ -21,7 +21,7 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm.ir import PointerType, PrimType, assert_structural_equal
+from tvm.ir import PrimType, PtrType, assert_structural_equal
 from tvm.script import tirx as T
 
 
@@ -106,7 +106,7 @@ def test_ptx_cp_async_bulk_s2c_codegen_address_conversion():
 
 
 def test_mapa_pointer_bind_codegen():
-    ptr_ty = PointerType(PrimType("uint64"), "shared")
+    ptr_ty = PtrType(PrimType("uint64"), "shared")
 
     # fmt: off
     @T.function
@@ -129,14 +129,14 @@ def test_mapa_pointer_bind_codegen():
     def collect(node):
         if _is_buffer_binding(node, "tirx.decl_tensor"):
             decl_buffers.append(node)
-        elif isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PointerType):
+        elif isinstance(node, tvm.ir.Bind) and isinstance(node.var.ty, PtrType):
             binds.append(node)
         elif isinstance(node, tvm.ir.TensorLoad):
             loads.append(node)
 
     tvm_ffi.structural_walk(main.body, collect)
     assert len(binds) == 1
-    assert isinstance(binds[0].var.ty, PointerType)
+    assert isinstance(binds[0].var.ty, PtrType)
     assert binds[0].var.ty.storage_scope == "shared"
     assert binds[0].value.ty.storage_scope == "shared"
     assert_structural_equal(binds[0].var.ty, binds[0].value.ty)

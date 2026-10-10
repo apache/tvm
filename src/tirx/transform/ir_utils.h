@@ -117,7 +117,7 @@ inline PrimExpr TVMStructGet(PrimType type, Var handle, int index, tirx::TVMStru
 inline Call AddressOffset(Var handle, PrimType dtype, int offset) {
   PrimExpr offset_expr = IntImm::Int32(offset * dtype.lanes());
   ffi::Array<PrimExpr> shape = {offset_expr + 1};
-  auto pointer_type = handle->ty.as_or_throw<PointerType>();
+  auto pointer_type = handle->ty.as_or_throw<PtrType>();
   TensorVar dummy_buf(handle->name,
                       TensorType(pointer_type->storage_scope, dtype, shape, {}, 0, 0, 0));
   TensorLoad buf_load = MakeTensorLoad(dummy_buf, {offset_expr});
@@ -139,7 +139,7 @@ inline Call AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
   }
 
   ffi::Array<PrimExpr> shape = {offset + 1};
-  auto pointer_type = handle->ty.as_or_throw<PointerType>();
+  auto pointer_type = handle->ty.as_or_throw<PtrType>();
   TensorVar dummy_buf(handle->name, TensorType(pointer_type->storage_scope, dtype.WithLanes(1),
                                                shape, {}, 0, 0, 0));
   TensorLoad buf_load = MakeTensorLoad(dummy_buf, {offset});

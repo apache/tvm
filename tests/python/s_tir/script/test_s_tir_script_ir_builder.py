@@ -97,7 +97,7 @@ def test_ir_builder_tir_function_complete():
     e_buffer = tirx.decl_tensor((1024,), "int8", name="e", layout=None)
     function_expected = tirx.Function(
         params=[
-            tirx.Var("a", tvm.ir.PointerType(tvm.ir.PrimType("void"))),
+            tirx.Var("a", tvm.ir.PtrType(tvm.ir.PrimType("void"))),
             tirx.Var("b", "int64"),
             c_buffer,
             d_buffer,

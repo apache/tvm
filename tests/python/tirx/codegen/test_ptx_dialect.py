@@ -529,7 +529,7 @@ def test_ptx_93_sm103a_exact_renderings():
 def test_ptx_92_cp_reduce_negative_grids():
     from tvm.backend.cuda.ptx.render import render_variant
     from tvm.backend.cuda.ptx.table import TABLE, tokens_for
-    from tvm.ir.type import PointerType, PrimType
+    from tvm.ir.type import PrimType, PtrType
 
     shared_reduce = TABLE["cp_reduce_async_bulk_s2c"]
     with pytest.raises(ValueError, match=r"\.add to \.shared::cluster takes"):
@@ -559,8 +559,8 @@ def test_ptx_92_cp_reduce_negative_grids():
             type="f16",
         )
 
-    shared_ptr = tvm.tirx.Var("shared_ptr", PointerType(PrimType("uint32"), "shared"))
-    global_ptr = tvm.tirx.Var("global_ptr", PointerType(PrimType("uint32"), "global"))
+    shared_ptr = tvm.tirx.Var("shared_ptr", PtrType(PrimType("uint32"), "shared"))
+    global_ptr = tvm.tirx.Var("global_ptr", PtrType(PrimType("uint32"), "global"))
     size = tvm.tirx.Var("size", "uint32")
     with pytest.raises(ValueError, match=r"\.add to \.shared::cluster takes"):
         T.ptx[
@@ -3133,10 +3133,10 @@ def test_ptx_tcgen05_mapa_address_rendering():
 
 def test_ptx_tcgen05_mapa_address_coercion():
     """Bare forms preserve generic pointers; explicit shared forms coerce only addresses."""
-    from tvm.ir.type import PointerType, PrimType
+    from tvm.ir.type import PrimType, PtrType
 
-    generic_ptr = tvm.tirx.Var("g", PointerType(PrimType("uint64"), "global"))
-    shared_ptr = tvm.tirx.Var("s", PointerType(PrimType("uint64"), "shared"))
+    generic_ptr = tvm.tirx.Var("g", PtrType(PrimType("uint64"), "global"))
+    shared_ptr = tvm.tirx.Var("s", PtrType(PrimType("uint64"), "shared"))
     raw_u32 = tvm.tirx.Var("a32", "uint32")
     raw_u64 = tvm.tirx.Var("a64", "uint64")
     ncols = tvm.tirx.Var("n", "uint32")
@@ -3751,10 +3751,10 @@ def test_ptx_helper_source_golden():
 
 def test_ptx_coercion_ir_forms():
     """The trace-time addr coercion, written down as IR-level assertions."""
-    from tvm.ir.type import PointerType, PrimType
+    from tvm.ir.type import PrimType, PtrType
 
-    shared_ptr = tvm.tirx.Var("p", PointerType(PrimType("uint32"), "shared"))
-    global_ptr = tvm.tirx.Var("g", PointerType(PrimType("uint32"), "global"))
+    shared_ptr = tvm.tirx.Var("p", PtrType(PrimType("uint32"), "shared"))
+    global_ptr = tvm.tirx.Var("g", PtrType(PrimType("uint32"), "global"))
     raw_u32 = tvm.tirx.Var("a", "uint32")
     val = tvm.tirx.Var("v", "uint32")
 

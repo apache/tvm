@@ -178,7 +178,7 @@ class HostDeviceSplitter : public StmtExprMutator {
         std::sort(params.begin(), params.end(), [](const Var& a, const Var& b) {
           auto sort_key = [](const Var& var) {
             bool is_handle =
-                var->ty.as<PointerTypeNode>() != nullptr || var->ty.as<TensorTypeNode>() != nullptr;
+                var->ty.as<PtrTypeNode>() != nullptr || var->ty.as<TensorTypeNode>() != nullptr;
             return std::tuple{
                 !is_handle,
                 var->name,
