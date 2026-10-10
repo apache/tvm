@@ -380,7 +380,7 @@ Stmt InsertIndexStage(const Stmt& stmt, int pos, const Stmt& stage) {
   if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
     ffi::Array<Stmt> result = seq_stmt->seq;
     result.insert(result.begin() + pos, stage);
-    return SeqStmt(result, seq_stmt->span);
+    return SeqStmt(result, seq_stmt->loc);
   }
   if (pos == 0) {
     return SeqStmt({stage, stmt});

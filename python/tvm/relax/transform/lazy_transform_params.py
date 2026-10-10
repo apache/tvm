@@ -253,7 +253,7 @@ class LazyInputMutator(PyExprMutator):
             func.ret_ty,
             is_pure=False,
             attrs=func.attrs,
-            span=func.span,
+            loc=func.loc,
         ).without_attr("relax.force_pure")
         output = super().visit_function_(func)
         self.tuple_param = None

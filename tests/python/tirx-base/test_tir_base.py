@@ -103,11 +103,11 @@ def test_return_const():
 
 def test_return_accepts_expr_and_roundtrips():
     value = tvm.relax.ShapeExpr([2, 3])
-    span = tvm.ir.Span(tvm.ir.SourceName("return_test"), 1, 1, 1, 9)
-    stmt = tvm.ir.Return(value, span)
+    loc = tvm.ir.SourceLoc(tvm.ir.SourceName("return_test"), 1, 1, 1, 9)
+    stmt = tvm.ir.Return(value, loc)
 
     assert stmt.value.same_as(value)
-    assert stmt.span.same_as(span)
+    assert stmt.loc.same_as(loc)
     assert not tvm.ir.is_prim_expr(stmt.value)
 
     restored = tvm.ir.load_json(tvm.ir.save_json(stmt))
@@ -118,11 +118,11 @@ def test_return_accepts_expr_and_roundtrips():
         tvm.ir.Return(None)
 
 
-def test_stmt_span_not_structural():
-    span_a = tvm.ir.Span(tvm.ir.SourceName("a.py"), 1, 1, 1, 2)
-    span_b = tvm.ir.Span(tvm.ir.SourceName("b.py"), 10, 10, 3, 4)
-    stmt_a = tvm.ir.Evaluate(tirx.IntImm("int32", 0), span_a)
-    stmt_b = tvm.ir.Evaluate(tirx.IntImm("int32", 0), span_b)
+def test_stmt_loc_not_structural():
+    loc_a = tvm.ir.SourceLoc(tvm.ir.SourceName("a.py"), 1, 1, 1, 2)
+    loc_b = tvm.ir.SourceLoc(tvm.ir.SourceName("b.py"), 10, 3, 10, 4)
+    stmt_a = tvm.ir.Evaluate(tirx.IntImm("int32", 0), loc_a)
+    stmt_b = tvm.ir.Evaluate(tirx.IntImm("int32", 0), loc_b)
 
     assert tvm_ffi.structural_equal(stmt_a, stmt_b)
     assert tvm_ffi.structural_hash(stmt_a) == tvm_ffi.structural_hash(stmt_b)
@@ -130,8 +130,8 @@ def test_stmt_span_not_structural():
 
 def test_return_stmt_functor_traversal_and_mutation():
     x = tirx.Var("x", "int32")
-    span = tvm.ir.Span(tvm.ir.SourceName("return_test"), 1, 1, 1, 9)
-    stmt = tvm.ir.Return(x + 1, span)
+    loc = tvm.ir.SourceLoc(tvm.ir.SourceName("return_test"), 1, 1, 1, 9)
+    stmt = tvm.ir.Return(x + 1, loc)
     visited = []
 
     tvm_ffi.structural_walk(stmt, visited.append)
@@ -143,9 +143,9 @@ def test_return_stmt_functor_traversal_and_mutation():
         (tirx.Var, lambda var: tirx.IntImm("int32", 4) if var.same_as(x) else var),
         order="post",
     )
-    expected = tvm.ir.Return(tirx.Add(tirx.IntImm("int32", 4), tirx.IntImm("int32", 1)), span)
+    expected = tvm.ir.Return(tirx.Add(tirx.IntImm("int32", 4), tirx.IntImm("int32", 1)), loc)
     tvm.ir.assert_structural_equal(rewritten, expected)
-    assert rewritten.span.same_as(span)
+    assert rewritten.loc.same_as(loc)
 
 
 def test_control_flow_jump():

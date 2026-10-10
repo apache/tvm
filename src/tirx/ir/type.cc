@@ -168,7 +168,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorTypeMaybeInplaceM
 TensorType::TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
                        ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
                        int data_alignment, int offset_factor, ffi::Optional<Layout> layout,
-                       Span span)
+                       Location loc)
     : Type(ffi::UnsafeInit{}) {
   PrimExpr offset = elem_offset.value_or(
       IntImm(shape.empty() ? PrimType(tvm::tirx::DefaultIndexType()) : shape[0].ty(), 0));
@@ -181,7 +181,7 @@ TensorType::TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<Pri
       data_alignment <= 0 ? static_cast<int>(runtime::kAllocAlignment) : data_alignment;
   n->offset_factor = offset_factor == 0 ? 1 : offset_factor;
   n->layout = std::move(layout);
-  n->span = std::move(span);
+  n->loc = loc;
   data_ = std::move(n);
 }
 
@@ -200,16 +200,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "tirx.TensorType",
       [](ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
          ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset, int data_alignment,
-         int offset_factor, ffi::Optional<Layout> layout, Span span) {
+         int offset_factor, ffi::Optional<Layout> layout, Location loc) {
         return TensorType(std::move(storage_scope), std::move(dtype), std::move(shape),
                           std::move(strides), std::move(elem_offset), data_alignment, offset_factor,
-                          std::move(layout), std::move(span));
+                          std::move(layout), std::move(loc));
       });
 }
 
-TensorMapType::TensorMapType(Span span) : Type(ffi::UnsafeInit{}) {
+TensorMapType::TensorMapType(Location loc) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<TensorMapTypeNode> n = ffi::make_object<TensorMapTypeNode>();
-  n->span = std::move(span);
+  n->loc = loc;
   data_ = std::move(n);
 }
 
@@ -224,7 +224,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&TensorMapTypeMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("tirx.TensorMapType", [](Span span) { return TensorMapType(span); });
+  refl::GlobalDef().def("tirx.TensorMapType", [](Location loc) { return TensorMapType(loc); });
 }
 
 }  // namespace tvm::tirx

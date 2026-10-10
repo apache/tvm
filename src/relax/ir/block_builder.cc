@@ -624,14 +624,14 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       unchanged &= new_field.same_as(field);
     }
 
-    Tuple tuple = unchanged ? ffi::GetRef<Tuple>(op) : Tuple(new_fields, op->span);
+    Tuple tuple = unchanged ? ffi::GetRef<Tuple>(op) : Tuple(new_fields, op->loc);
     // Update tuple fields.
     if (tuple->ty.as<MissingType>().has_value()) {
       ffi::Array<Type> tuple_ty;
       for (Expr field : tuple->fields) {
         tuple_ty.push_back(GetType(field));
       }
-      UpdateType(tuple, TupleType(tuple_ty, op->span));
+      UpdateType(tuple, TupleType(tuple_ty, op->loc));
     }
     return tuple;
   }
@@ -727,7 +727,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       if (unchanged) {
         return ffi::GetRef<SeqExpr>(op);
       } else {
-        return SeqExpr(normalized_blocks, new_body, op->span);
+        return SeqExpr(normalized_blocks, new_body, op->loc);
       }
     }();
 
@@ -748,7 +748,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
           new_false.same_as(op->false_branch)) {
         return ffi::GetRef<IfExpr>(op);
       } else {
-        return IfExpr(new_cond, new_true, new_false, op->span);
+        return IfExpr(new_cond, new_true, new_false, op->loc);
       }
     }();
     if (if_node->ty.as<MissingType>().has_value()) {
@@ -788,7 +788,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   VarBinding VisitVarBinding(VarBinding binding) {
     Expr new_value = this->VisitExpr(binding->value);
     if (!new_value.same_as(binding->value)) {
-      binding = VarBinding(binding->var, new_value, binding->span);
+      binding = VarBinding(binding->var, new_value, binding->loc);
     }
     if (binding->var->ty.as<MissingType>().has_value()) {
       UpdateType(binding->var, GetType(new_value));
@@ -799,7 +799,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   MatchCast VisitMatchCast(MatchCast binding) {
     Expr new_value = this->VisitExpr(binding->value);
     if (!new_value.same_as(binding->value)) {
-      binding = MatchCast(binding->var, new_value, binding->ty, binding->span);
+      binding = MatchCast(binding->var, new_value, binding->ty, binding->loc);
     }
     if (binding->var->ty.as<MissingType>().has_value()) {
       UpdateType(binding->var, binding->ty);

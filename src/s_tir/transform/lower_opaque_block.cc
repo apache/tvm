@@ -149,7 +149,7 @@ class OpaqueBlockLower : public StmtExprMutator {
       return body;
     }
     return For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body),
-               std::move(new_annotations), std::move(step), op->span);
+               std::move(new_annotations), std::move(step), op->loc);
   }
 
   void UpdateUnrollPolicy(const ffi::Map<ffi::String, ffi::Any>& annotations) {

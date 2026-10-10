@@ -57,9 +57,9 @@ class VDeviceMutator : public ExprMutator {
       if (!unchanged) {
         if (tinfo->shape.has_value()) {
           visited_expr->ty =
-              TensorType(tinfo->shape.value(), tinfo->dtype, new_vdevice_, tinfo->span);
+              TensorType(tinfo->shape.value(), tinfo->dtype, new_vdevice_, tinfo->loc);
         } else {
-          visited_expr->ty = TensorType(tinfo->dtype, tinfo->ndim, new_vdevice_, tinfo->span);
+          visited_expr->ty = TensorType(tinfo->dtype, tinfo->ndim, new_vdevice_, tinfo->loc);
         }
       }
     }

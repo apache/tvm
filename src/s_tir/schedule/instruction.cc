@@ -45,7 +45,7 @@ ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
       inputs.push_back(obj);
     } else if (auto expr = obj.as<PrimExpr>()) {
       auto f_substitute = [](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-        return ffi::Any(Var("_", var->ty, var->span).as_or_throw<PrimExpr>());
+        return ffi::Any(Var("_", var->ty, var->loc).as_or_throw<PrimExpr>());
       };
       PrimExpr new_expr = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(expr.value(), f_substitute)
                               .as_or_throw<PrimExpr>();

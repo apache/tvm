@@ -24,6 +24,7 @@ from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir import PrimType as _PrimType
 from tvm.ir.attrs import make_node as _make_attrs
+from tvm.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr
 from ..expr import Tuple as RxTuple
@@ -41,7 +42,7 @@ def matmul(
     out_dtype: str | DataType | None = None,
     *,
     ty=None,
-    span=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """General matrix multiplication of two tensors, with broadcasting on batched dimensions.
 
@@ -73,7 +74,7 @@ def matmul(
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -121,7 +122,7 @@ class EinsumAttrs(Attrs):
     """Attributes for einsum operator"""
 
 
-def einsum(operands, subscripts, *, ty=None, span=None):
+def einsum(operands, subscripts, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Evaluates the Einstein summation convention on data
 
     Parameters
@@ -145,11 +146,11 @@ def einsum(operands, subscripts, *, ty=None, span=None):
         [operands],
         attrs=_make_attrs("relax.attrs.EinsumAttrs", subscripts=subscripts),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
-def outer(x1: Expr, x2: Expr, *, ty=None, span=None) -> Expr:
+def outer(x1: Expr, x2: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     """
     Computes the outer product of two input expressions.
 
@@ -173,4 +174,4 @@ def outer(x1: Expr, x2: Expr, *, ty=None, span=None) -> Expr:
     result : relax.Expr
         The resulting expression representing the outer product.
     """
-    return _Call("relax.outer", [x1, x2], ty=ty, span=span)
+    return _Call("relax.outer", [x1, x2], ty=ty, loc=loc)

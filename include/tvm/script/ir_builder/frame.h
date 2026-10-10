@@ -118,7 +118,7 @@ class ForFrameNode : public StmtFrameNode {
    */
   using FMakeForLoop = ffi::TypedFunction<tvm::Stmt(
       ffi::Array<tvm::Var> loop_vars, ffi::Array<Range> loop_extents,
-      ffi::Array<ffi::Optional<PrimExpr>> loop_steps, tvm::SeqStmt loop_body, Span span)>;
+      ffi::Array<ffi::Optional<PrimExpr>> loop_steps, tvm::SeqStmt loop_body, Location loc)>;
   /*! \brief The loop variable. */
   ffi::Array<tvm::Var> vars;
   /*! \brief The domains of iteration. */

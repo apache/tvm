@@ -171,12 +171,12 @@ def test_provisional_call_constructor():
     with pytest.raises(Exception, match="Call.args expected 2 arguments, got 1"):
         tvm.ir.Call(op, [x]).validate()
 
-    span = tvm.ir.Span(tvm.ir.SourceName("provisional.py"), 1, 1, 0, 1)
-    call = tvm.ir.Call("relax.add", [x], attrs={"key": 1}, span=span)
+    loc = tvm.ir.SourceLoc(tvm.ir.SourceName("provisional.py"), 1, 0, 1, 1)
+    call = tvm.ir.Call("relax.add", [x], attrs={"key": 1}, loc=loc)
     assert isinstance(call, tvm.ir.Call)
     assert call.op.same_as(op)
     assert isinstance(call.ty, tvm.ir.MissingType)
-    assert call.span.same_as(span)
+    assert call.loc.same_as(loc)
     assert isinstance(call.attrs, tvm.ir.DictAttrs)
     assert len(call.ty_args) == 0
     assert isinstance(tvm.ir.Call(op, [x], ty="handle").ty, tvm.ir.PointerType)

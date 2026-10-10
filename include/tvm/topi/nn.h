@@ -233,12 +233,12 @@ inline tvm::te::Tensor pad(
     if (sel.size() != 0) {
       if (pad_mode == "constant") {
         return tvm::if_then_else(
-            foldl([](PrimExpr a, PrimExpr b, Span span) { return tvm::logical_and(a, b, span); },
+            foldl([](PrimExpr a, PrimExpr b, Location loc) { return tvm::logical_and(a, b, loc); },
                   IntImm::Bool(true), sel),
             t(indices), pad_value.value());
       } else if (pad_mode == "edge" || pad_mode == "reflect") {
         return tvm::if_then_else(
-            foldl([](PrimExpr a, PrimExpr b, Span span) { return tvm::logical_and(a, b, span); },
+            foldl([](PrimExpr a, PrimExpr b, Location loc) { return tvm::logical_and(a, b, loc); },
                   IntImm::Bool(true), sel),
             t(indices), t(pad_idx));
       }

@@ -23,6 +23,7 @@ from tvm import DataType
 from tvm.ir import Attrs, PrimType
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
+from tvm.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr
 
@@ -42,7 +43,7 @@ def max(
     keepdims: bool = False,
     *,
     ty=None,
-    span=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Computes the max of tensor elements over given axes.
 
@@ -73,7 +74,7 @@ def max(
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -83,7 +84,7 @@ def mean(
     keepdims: bool = False,
     *,
     ty=None,
-    span=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Computes the mean of tensor elements over given axes.
 
@@ -114,7 +115,7 @@ def mean(
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -124,7 +125,7 @@ def min(
     keepdims: bool = False,
     *,
     ty=None,
-    span=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Computes the min of tensor elements over given axes.
 
@@ -155,7 +156,7 @@ def min(
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -165,7 +166,7 @@ def prod(
     keepdims: bool = False,
     *,
     ty=None,
-    span=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Computes the product of tensor elements over given axes.
 
@@ -196,7 +197,7 @@ def prod(
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -206,7 +207,7 @@ def std(
     keepdims: bool = False,
     *,
     ty=None,
-    span=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Computes the standard deviation of tensor elements over given axes.
 
@@ -237,7 +238,7 @@ def std(
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -247,7 +248,7 @@ def sum(
     keepdims: bool = False,
     *,
     ty=None,
-    span=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Computes the sum of tensor elements over given axes.
 
@@ -278,7 +279,7 @@ def sum(
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -294,7 +295,7 @@ def cumprod(
     exclusive: bool = False,
     *,
     ty=None,
-    span=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     """Numpy style cumprod op. Return the cumulative product of the elements along
     a given axis.
@@ -356,7 +357,7 @@ def cumprod(
             "relax.attrs.ScanopAttrs", axis=axis, dtype=_raw_dtype(dtype), exclusive=exclusive
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -367,7 +368,7 @@ def cumsum(
     exclusive: bool = False,
     *,
     ty=None,
-    span=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     """Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
     a given axis.
@@ -429,7 +430,7 @@ def cumsum(
             "relax.attrs.ScanopAttrs", axis=axis, dtype=_raw_dtype(dtype), exclusive=exclusive
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -439,7 +440,7 @@ def variance(
     keepdims: bool = False,
     *,
     ty=None,
-    span=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Computes the variance of tensor elements over given axes.
 
@@ -470,7 +471,7 @@ def variance(
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -480,7 +481,7 @@ def median(
     keepdims: bool = False,
     *,
     ty=None,
-    span=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Computes the median of tensor elements over given axes.
 
@@ -510,5 +511,5 @@ def median(
         [x],
         attrs=_make_attrs("relax.attrs.StatisticalAttrs", axis=axis, keepdims=keepdims),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore

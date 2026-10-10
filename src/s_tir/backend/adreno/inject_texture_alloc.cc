@@ -109,8 +109,8 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
                         tvm::Tuple(op->var.as_or_throw<TensorVar>()->shape),
                         DataTypeImm(op->var.as_or_throw<TensorVar>()->dtype->dtype),
                         StringImm(op->var.as_or_throw<TensorVar>().scope())},
-                       {}, allocation->ty_args, allocation->span),
-                  op->span);
+                       {}, allocation->ty_args, allocation->loc),
+                  op->loc);
     }
     return stmt;
   }

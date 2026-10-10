@@ -174,7 +174,7 @@ class CommonSubexprEliminator : public ExprMutator {
         op->false_branch.same_as(false_branch) && VisitAndCheckTypeFieldUnchanged(op->ty)) {
       return ffi::GetRef<Expr>(op);
     } else {
-      return IfExpr(cond, true_branch, false_branch, op->span);
+      return IfExpr(cond, true_branch, false_branch, op->loc);
     }
   }
 

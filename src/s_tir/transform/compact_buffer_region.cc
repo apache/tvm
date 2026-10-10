@@ -638,7 +638,7 @@ class BufferCompactor : public StmtExprMutator {
     TensorVar buffer = load->source.as_or_throw<tvm::tirx::TensorVar>();
     ffi::Array<PrimExpr> indices = load->indices;
     RewriteBufferAccess(original_buffer, &buffer, &indices);
-    return MakeTensorLoad(buffer, indices, load->span);
+    return MakeTensorLoad(buffer, indices, load->loc);
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
@@ -676,10 +676,10 @@ class BufferCompactor : public StmtExprMutator {
     // Update the producer before generic Bind mutation propagates its result type.
     size_t shape_index = is_alloc ? 0 : 1;
     ffi::Array<Expr> args = call->args;
-    args.Set(shape_index, tvm::Tuple(new_buffer->shape, args[shape_index]->span));
+    args.Set(shape_index, tvm::Tuple(new_buffer->shape, args[shape_index]->loc));
     auto rewritten = ffi::make_object<BindNode>(*op);
     rewritten->value =
-        Call(new_buffer.type(), call->op, args, call->attrs, call->ty_args, call->span);
+        Call(new_buffer.type(), call->op, args, call->attrs, call->ty_args, call->loc);
     tvm::Bind binding(std::move(rewritten));
     return StmtExprMutator::Mutate_(binding.get(), inplace_mode).ValueOrUnchanged(binding);
   }

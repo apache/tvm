@@ -37,7 +37,9 @@ from typing import Literal
 from tvm import DataType, ir
 from tvm import tirx as tir
 from tvm.ir import Range, Type, is_prim_expr
+from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.script.ir_builder.base import MISSING, IRBuilder
+from tvm.script.ir_builder.base import LocationEntry as _LocationEntry
 from tvm.script.ir_builder.ir import Lambda, meta_var
 from tvm.script.parser.protocol_registry import (
     register_mutable_decl as _register_mutable_decl,
@@ -221,7 +223,7 @@ def _tensor_type(
     offset_factor: int = 0,
     layout: str | Layout | None = MISSING,
     *,
-    span=None,
+    loc: _LocationEntry | Location = UNKNOWN_LOC,
 ) -> tir.TensorType:
     """Construct a tensor type for annotations and explicit type-valued fields.
 
@@ -279,7 +281,7 @@ def _tensor_type(
         offset_factor,
         _get_layout(layout, shape, scope),
     )
-    return _at(span, result)
+    return _at(loc, result)
 
 
 def Tuple(*fields: Type) -> Type:  # pylint: disable=invalid-name
@@ -1404,7 +1406,7 @@ else:
         return _install_meta_class(cls)
 
 
-def Ptr(dtype, storage_scope="global", *, span=None):
+def Ptr(dtype, storage_scope="global", *, loc: _LocationEntry | Location = UNKNOWN_LOC):
     """The pointer declaration function.
 
     Parameters
@@ -1415,7 +1417,7 @@ def Ptr(dtype, storage_scope="global", *, span=None):
     storage_scope : str
         The storage scope of the pointer.
 
-    span : SpanEntry, Span or None, optional
+    loc : LocationEntry or Location, optional
         Source location attached to the constructed IR.
 
     Returns
@@ -1429,7 +1431,7 @@ def Ptr(dtype, storage_scope="global", *, span=None):
         dtype = dtype.ty
     if isinstance(dtype, _ir.PrimType):
         dtype = dtype.dtype
-    return _at(span, ptr(dtype, storage_scope))
+    return _at(loc, ptr(dtype, storage_scope))
 
 
 Tensor = _tensor_type

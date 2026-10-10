@@ -45,7 +45,7 @@ class ExprBinder : public ExprMutator {
   Expr VisitExpr_(const ShapeExprNode* op) final {
     ffi::Array<PrimExpr> values =
         op->values.Map([this](const PrimExpr& value) { return BindShapeValue(value); });
-    return values.same_as(op->values) ? ffi::GetRef<Expr>(op) : ShapeExpr(values, op->span);
+    return values.same_as(op->values) ? ffi::GetRef<Expr>(op) : ShapeExpr(values, op->loc);
   }
 
   Expr VisitExpr_(const FunctionNode* op) final {

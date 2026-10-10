@@ -62,7 +62,7 @@ class NormalizeMutator : public ExprMutatorBase {
         op->false_branch.same_as(false_b)) {
       return ffi::GetRef<Expr>(op);
     } else {
-      return IfExpr(guard, true_b, false_b, op->span);
+      return IfExpr(guard, true_b, false_b, op->loc);
     }
   }
 

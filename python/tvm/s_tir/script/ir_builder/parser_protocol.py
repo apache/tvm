@@ -38,23 +38,23 @@ def function(is_private=False, persistent=False, *, private=None):
     return _ffi_api.Function(is_private if private is None else private, persistent)
 
 
-def function_(*, private=False, persistent=False, decl=False, span=None):
+def function_(*, private=False, persistent=False, decl=False, loc=None):
     """Enter an S-TIR declaration or definition frame."""
     native = (
         _ffi_api.DeclFunction(private, persistent)
         if decl
         else _ffi_api.Function(private, persistent)
     )
-    return _base.at_(span, native)
+    return _base.at_(loc, native)
 
 
-def arg_(name, annotation, *, span=None):
+def arg_(name, annotation, *, loc=None):
     """Preserve parameter annotations, including explicitly constructed layouts.
 
     Tensor annotations are evaluated inside the function frame, which already
     supplies the S-TIR default layout when the constructor omits it.
     """
-    return _shared_arg(name, annotation, span=span)
+    return _shared_arg(name, annotation, loc=loc)
 
 
 def check_well_formed_(function):

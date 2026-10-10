@@ -601,7 +601,7 @@ class CodeGenLLVM : public tvm::ExprFunctor<llvm::Value*(const Expr&)>,
   const Op& builtin_tvm_call_cpacked_lowered_ = tirx::call_cpacked_lowered_op();
 
   void EmitDebugLocation();
-  void EmitDebugLocation(const ffi::Optional<Span>& span);
+  void EmitDebugLocation(const Location& location);
   void EmitDebugLocation(const StmtNode* op);
 
   // Get the DWARF type corresponding to the LLVM type |ty|. The current API in practice only

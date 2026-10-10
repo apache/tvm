@@ -21,6 +21,8 @@ from typing import ClassVar
 
 import tvm_ffi
 
+from tvm.ir.location import UNKNOWN_LOC, Location
+
 from . import _ffi_api
 from .base import Node, Scriptable
 
@@ -79,8 +81,8 @@ class MissingType(Type):
 class AnyType(Type):
     """The top type, which admits any value."""
 
-    def __init__(self, span=None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.AnyType, span)
+    def __init__(self, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.AnyType, loc)
 
 
 @tvm_ffi.register_object("ir.TensorRegionType")
@@ -177,8 +179,8 @@ class TupleType(Type):
         The fields in the tuple
     """
 
-    def __init__(self, fields, span=None):
-        self.__init_handle_by_constructor__(_ffi_api.TupleType, fields, span)
+    def __init__(self, fields, loc: Location = UNKNOWN_LOC):
+        self.__init_handle_by_constructor__(_ffi_api.TupleType, fields, loc)
 
 
 @tvm_ffi.register_object("ir.FuncType")

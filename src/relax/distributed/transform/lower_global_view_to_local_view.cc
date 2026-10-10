@@ -151,7 +151,7 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
       new_body = DistBufferReplacer::BufferReplace(new_body.value(), replace_buffer_map);
     }
     tirx::Function new_func(new_params, new_body, function->ret_type, function->attrs,
-                            function->span);
+                            function->loc);
     return std::make_tuple(new_func, compactor->add_allreduce_kind_);
   }
 
@@ -263,7 +263,7 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
     TensorType new_type(buffer->storage_scope, buffer->dtype, std::move(shape), buffer->strides,
                         buffer->elem_offset, buffer->data_alignment, buffer->offset_factor,
                         buffer->layout);
-    return TensorVar(buffer.name(), std::move(new_type), buffer.span());
+    return TensorVar(buffer.name(), std::move(new_type), buffer.loc());
   }
 
   UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* op, InplaceMode inplace_mode) final {

@@ -115,10 +115,11 @@ class Function : public BaseFunc {
    *
    * \param attrs Additional function attributes.
    *
-   * \param span The location of this object in the source code.
+   * \param loc The location of this object in the source code.
    */
   TVM_DLL Function(ffi::Array<tvm::Var> params, ffi::Optional<SeqStmt> body,
-                   Type ret_type = VoidType(), DictAttrs attrs = DictAttrs(), Span span = Span());
+                   Type ret_type = VoidType(), DictAttrs attrs = DictAttrs(),
+                   Location loc = UnknownLoc());
 
   explicit Function(ffi::ObjectPtr<FunctionNode> node) : BaseFunc(std::move(node)) {}
 

@@ -50,7 +50,7 @@ namespace tirx {
 class TensorVar : public Var {
  public:
   /*! \brief Construct a fresh buffer variable from an explicit TensorType. */
-  TVM_DLL explicit TensorVar(ffi::String name, TensorType type, Span span = Span());
+  TVM_DLL explicit TensorVar(ffi::String name, TensorType type, Location loc = UnknownLoc());
 
   /*! \brief Create a checked buffer view over an existing ordinary Var. */
   explicit TensorVar(Var var) : Var(std::move(var)) {
@@ -67,8 +67,8 @@ class TensorVar : public Var {
   /*! \brief Return the buffer's diagnostic name. */
   const ffi::String& name() const { return get()->name; }
 
-  /*! \brief Return the source span carried by the ordinary Var. */
-  const Span& span() const { return get()->span; }
+  /*! \brief Return the source location carried by the ordinary Var. */
+  const Location& loc() const { return get()->loc; }
 
   /*! \brief Project the physical pointer established by the definition site. */
   Expr data() const { return Call(type()->DataPointerType(), tensor_data_ptr_op(), {var()}); }
@@ -125,7 +125,7 @@ inline ffi::ObjectPtr<TensorTypeNode> CopyTensorType(const TensorVar& var) {
 
 inline TensorVar RebuildTensorVar(const TensorVar& var, ffi::ObjectPtr<TensorTypeNode> type,
                                   ffi::Optional<ffi::String> name = std::nullopt) {
-  return TensorVar(name.value_or(var.name()), TensorType(std::move(type)), var.span());
+  return TensorVar(name.value_or(var.name()), TensorType(std::move(type)), var.loc());
 }
 
 /*!
@@ -134,13 +134,13 @@ inline TensorVar RebuildTensorVar(const TensorVar& var, ffi::ObjectPtr<TensorTyp
  * \param dtype The content data type.
  * \param name The name of the buffer
  * \param storage_scope The storage scope associated with this buffer
- * \param span The location of this object in the source code.
+ * \param loc The location of this object in the source code.
  * \return The created buffer.
  * \sa TensorVar for complete constructor.
  */
 TVM_DLL TensorVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
                               ffi::String name = "buffer", ffi::String storage_scope = "",
-                              Span span = Span());
+                              Location loc = UnknownLoc());
 
 /*!
  * \brief Creates a TIR buffer for the provided parameters.
@@ -166,10 +166,11 @@ TVM_DLL tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, Pr
  * TensorLoad is required to have a TensorVar source.
  */
 TVM_DLL TensorLoad MakeTensorLoad(TensorVar buffer, ffi::Array<PrimExpr> indices,
-                                  Span span = Span());
+                                  Location loc = UnknownLoc());
 
 /*! \brief Construct a region with buffer rank validation and TensorRegionType. */
-TVM_DLL TensorRegion BufferRegion(TensorVar buffer, ffi::Array<Range> region, Span span = Span());
+TVM_DLL TensorRegion BufferRegion(TensorVar buffer, ffi::Array<Range> region,
+                                  Location loc = UnknownLoc());
 /*! \brief Select the entire buffer. */
 TVM_DLL TensorRegion FullBufferRegion(TensorVar buffer);
 /*! \brief Construct unit or vector-lane ranges from point indices. */

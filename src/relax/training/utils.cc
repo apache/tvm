@@ -193,7 +193,7 @@ class AppendLossMutator : private ExprMutator {
     for (int i = 0; i < num_backbone_outputs_; ++i) {
       auto var = backbone_return_arr_[i];
       if (other_outputs_var.count(var) == 0 && !var->ty.as<PrimTypeNode>()) {
-        auto new_var = DataflowVar(var->name, GetType(var), var->span);
+        auto new_var = DataflowVar(var->name, GetType(var), var->loc);
         this->var_remap_.insert_or_assign(var, new_var);
         backbone_return_arr_.Set(i, new_var);
       }

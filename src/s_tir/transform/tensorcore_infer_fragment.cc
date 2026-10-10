@@ -231,7 +231,7 @@ class InferFragmenter : public s_tir::StmtExprMutator {
       if (annotations.same_as(attrs->dict)) return ffi::Unchanged();
       auto value = ffi::GetRef<Call>(call);
       value.CopyOnWrite()->attrs = DictAttrs(std::move(annotations));
-      return Bind(op->var, std::move(value), op->span);
+      return Bind(op->var, std::move(value), op->loc);
     }
     return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
   }

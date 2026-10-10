@@ -579,7 +579,7 @@ class BlockRemover : public s_tir::StmtExprMutator {
     }
     // Let enclosing loops disappear when their only subtree was removed.
     erased_ = erased_all;
-    return SeqStmt(seq, op->span);
+    return SeqStmt(seq, op->loc);
   }
 
   bool erased_ = false;

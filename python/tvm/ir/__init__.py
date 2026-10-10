@@ -20,17 +20,8 @@
 
 from ._constant import const
 from .attrs import Attrs, DictAttrs, make_node
-from .base import (
-    EnvFunc,
-    Node,
-    Scriptable,
-    SourceName,
-    Span,
-    SequentialSpan,
-    assert_structural_equal,
-    load_json,
-    save_json,
-)
+from .base import EnvFunc, Node, Scriptable, assert_structural_equal, load_json, save_json
+from .location import UNKNOWN_LOC, SourceName, Location, SourceLoc, UnknownLoc, CallSiteLoc
 
 # Register Type before Expr.  Expr's reflected ``ty`` field otherwise creates
 # an auto-generated Type wrapper before the concrete Python class is available.

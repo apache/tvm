@@ -48,14 +48,14 @@ SBlock WithAnnotation(const SBlockNode* block, const ffi::String& attr_key,
 TensorVar WithScope(const TensorVar& buffer, const ffi::String& scope) {
   TensorType new_type(scope, buffer->dtype, buffer->shape, buffer->strides, buffer->elem_offset,
                       buffer->data_alignment, buffer->offset_factor, buffer->layout);
-  return TensorVar(buffer.name() + "_" + scope, new_type, buffer.span());
+  return TensorVar(buffer.name() + "_" + scope, new_type, buffer.loc());
 }
 
 TensorVar WithDType(const TensorVar& buffer, PrimType dtype) {
   TensorType new_type(buffer->storage_scope, dtype, buffer->shape, buffer->strides,
                       buffer->elem_offset, buffer->data_alignment, buffer->offset_factor,
                       buffer->layout);
-  return TensorVar(buffer.name(), new_type, buffer.span());
+  return TensorVar(buffer.name(), new_type, buffer.loc());
 }
 
 ffi::Array<TensorRegion> ReplaceBuffer(ffi::Array<TensorRegion> regions, const TensorVar& source,

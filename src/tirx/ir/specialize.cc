@@ -64,7 +64,7 @@ inline bool IsParam(const Function& func, const Var& param) {
     if (a_unchanged && b_unchanged) {                                                   \
       return ffi::Unchanged();                                                          \
     } else {                                                                            \
-      return BinaryFunc(a, b, op->span);                                                \
+      return BinaryFunc(a, b, op->loc);                                                 \
     }                                                                                   \
   }
 #define DEFINE_SPECIALIZER_UNARY_OP_MUTATE(UnaryNode, UnaryFunc)                       \
@@ -75,7 +75,7 @@ inline bool IsParam(const Function& func, const Var& param) {
     if (a_unchanged) {                                                                 \
       return ffi::Unchanged();                                                         \
     } else {                                                                           \
-      return UnaryFunc(a, op->span);                                                   \
+      return UnaryFunc(a, op->loc);                                                    \
     }                                                                                  \
   }
 
@@ -143,7 +143,7 @@ class FunctionSpecializer : public StmtExprMutator {
     auto body = std::move(body_result).ValueOrUnchanged(f->body);
 
     if (param_updated || !body_unchanged) {
-      return Function(params, body, f->ret_type, f->attrs, f->span);
+      return Function(params, body, f->ret_type, f->attrs, f->loc);
     } else {
       return f;
     }
@@ -207,7 +207,7 @@ class FunctionSpecializer : public StmtExprMutator {
     if (result.UnchangedOrSameAs(ffi::GetRef<PrimExpr>(op))) return ffi::Unchanged();
     auto load = std::move(result).ValueUnchecked().as_or_throw<TensorLoad>();
     if (auto buffer = load->source.as<TensorVar>()) {
-      return MakeTensorLoad(buffer.value(), load->indices, load->span);
+      return MakeTensorLoad(buffer.value(), load->indices, load->loc);
     }
     return load;
   }
@@ -217,7 +217,7 @@ class FunctionSpecializer : public StmtExprMutator {
     if (result.UnchangedOrSameAs(ffi::GetRef<Expr>(op))) return ffi::Unchanged();
     auto region = std::move(result).ValueUnchecked().as_or_throw<TensorRegion>();
     if (auto buffer = region->source.as<TensorVar>()) {
-      return BufferRegion(buffer.value(), region->region, region->span);
+      return BufferRegion(buffer.value(), region->region, region->loc);
     }
     return region;
   }

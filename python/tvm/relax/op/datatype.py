@@ -22,6 +22,7 @@ from tvm import DataType
 from tvm.ir import Attrs, PrimType
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
+from tvm.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr
 
@@ -35,7 +36,9 @@ class AstypeAttrs(Attrs):
     """Attributes used in astype operator"""
 
 
-def astype(x: Expr, dtype: str | DataType | PrimType, *, ty=None, span=None) -> Expr:
+def astype(
+    x: Expr, dtype: str | DataType | PrimType, *, ty=None, loc: Location = UNKNOWN_LOC
+) -> Expr:
     """Cast input tensor to the given data type.
 
     Parameters
@@ -56,7 +59,7 @@ def astype(x: Expr, dtype: str | DataType | PrimType, *, ty=None, span=None) -> 
         [x],
         attrs=_make_attrs("relax.attrs.AstypeAttrs", dtype=_raw_dtype(dtype)),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -70,7 +73,7 @@ def wrap_param(
     dtype: str | DataType | PrimType = "float32",
     *,
     ty=None,
-    span=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Cast input tensor which is model param to data type if the dtype of the input data is not
     the same as the given dtype.
@@ -90,5 +93,5 @@ def wrap_param(
         [data],
         attrs=_make_attrs("relax.attrs.WrapParamAttrs", dtype=_raw_dtype(dtype)),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore

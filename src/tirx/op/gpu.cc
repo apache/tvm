@@ -44,8 +44,8 @@ const Op& gpu_thread_return_op() {
   return op;
 }
 
-PrimExpr gpu_thread_return(Span span) {
-  return Call(PrimType::Void(), tirx::gpu_thread_return_op(), {}, {}, {}, span)
+PrimExpr gpu_thread_return(Location loc) {
+  return Call(PrimType::Void(), tirx::gpu_thread_return_op(), {}, {}, {}, loc)
       .as_or_throw<PrimExpr>();
 }
 

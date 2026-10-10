@@ -28,6 +28,7 @@ from tvm import ir as _ir
 from tvm import relax
 from tvm import relax as _relax
 from tvm.ir import IRModule
+from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.relax import Expr, ExternFunc, ShapeExpr, TupleGetItem, const
 from tvm.relax.distributed import DeviceMesh as _DeviceMesh
 from tvm.relax.distributed import DTensorType as _DTensorType
@@ -48,7 +49,7 @@ from tvm.runtime._tensor import (
     vulkan,
     webgpu,
 )
-from tvm.script.ir_builder.base import SpanEntry as _SpanEntry
+from tvm.script.ir_builder.base import LocationEntry as _LocationEntry
 from tvm.script.ir_builder.base import resolve_global_info_args as _resolve_global_info_args
 from tvm.script.ir_builder.ir import _global_infos
 from tvm.script.ir_builder.ir import dtype as dtype
@@ -81,7 +82,7 @@ def resolve_global_info_(content: py_str) -> _ir.GlobalInfo:
     Missing context, malformed selectors or unmatched devices raise ValueError; missing map
     entries or out-of-range indices propagate KeyError/IndexError. Non-string inputs
     raise TypeError; constructor argument handling preserves concrete objects before
-    calling this hook. No source span is attached to an existing metadata object.
+    calling this hook. No source location is attached to an existing metadata object.
 
     .. code:: python
 
@@ -261,7 +262,9 @@ str = _ir.StringImm
 
 
 @_resolve_global_info_args("vdevice", resolver=resolve_global_info_)
-def Tensor(shape=None, dtype=None, vdevice=None, ndim=-1, *, span=None):
+def Tensor(
+    shape=None, dtype=None, vdevice=None, ndim=-1, *, loc: _LocationEntry | Location = UNKNOWN_LOC
+):
     """Construct a Relax tensor type.
 
     Parameters
@@ -280,8 +283,8 @@ def Tensor(shape=None, dtype=None, vdevice=None, ndim=-1, *, span=None):
     ndim : int, optional
         Rank when shape is unknown; -1 means unknown rank. Do not supply
         an explicit rank together with a known shape.
-    span : SpanEntry, Span or None, optional
-        Source location attached to the constructed IR; None leaves it unspecified.
+    loc : LocationEntry or Location, optional
+        Source location attached to the constructed IR; UnknownLoc leaves it unspecified.
 
     Returns
     -------
@@ -292,12 +295,20 @@ def Tensor(shape=None, dtype=None, vdevice=None, ndim=-1, *, span=None):
     if isinstance(shape, _python.str) and dtype is None:
         dtype, shape = shape, None
     return _relax.TensorType(
-        shape, dtype, vdevice, ndim, span.span if isinstance(span, _SpanEntry) else span
+        shape, dtype, vdevice, ndim, loc.loc if isinstance(loc, _LocationEntry) else loc
     )
 
 
 @_resolve_global_info_args("device_mesh", resolver=resolve_global_info_)
-def DTensor(shape=None, dtype=None, device_mesh=None, placement="", *, ndim=-1, span=None):
+def DTensor(
+    shape=None,
+    dtype=None,
+    device_mesh=None,
+    placement="",
+    *,
+    ndim=-1,
+    loc: _LocationEntry | Location = UNKNOWN_LOC,
+):
     """Construct a Relax distributed tensor type.
 
     Parameters
@@ -316,8 +327,8 @@ def DTensor(shape=None, dtype=None, device_mesh=None, placement="", *, ndim=-1, 
         parsed with Placement.from_text.
     ndim : int, optional
         Global rank when shape is unknown; -1 means unknown rank.
-    span : SpanEntry, Span or None, optional
-        Source location attached to the constructed IR; None leaves it unspecified.
+    loc : LocationEntry or Location, optional
+        Source location attached to the constructed IR; UnknownLoc leaves it unspecified.
 
     Returns
     -------
@@ -333,11 +344,11 @@ def DTensor(shape=None, dtype=None, device_mesh=None, placement="", *, ndim=-1, 
         Tensor(shape, dtype, ndim=ndim),
         device_mesh,
         placement,
-        span.span if isinstance(span, _SpanEntry) else span,
+        loc.loc if isinstance(loc, _LocationEntry) else loc,
     )
 
 
-def Shape(values=None, ndim=-1, *, span=None):
+def Shape(values=None, ndim=-1, *, loc: _LocationEntry | Location = UNKNOWN_LOC):
     """Construct a Relax shape type.
 
     Parameters
@@ -348,15 +359,15 @@ def Shape(values=None, ndim=-1, *, span=None):
     ndim : int, optional
         Number of dimensions when values is None; -1 leaves it unknown.
         Do not supply an explicit count together with known values.
-    span : SpanEntry, Span or None, optional
-        Source location attached to the constructed IR; None leaves it unspecified.
+    loc : LocationEntry or Location, optional
+        Source location attached to the constructed IR; UnknownLoc leaves it unspecified.
 
     Returns
     -------
     result : ShapeType
         The constructed shape type.
     """
-    return _relax.ShapeType(values, ndim, span.span if isinstance(span, _SpanEntry) else span)
+    return _relax.ShapeType(values, ndim, loc.loc if isinstance(loc, _LocationEntry) else loc)
 
 
 def _type(value):
@@ -371,7 +382,14 @@ def _type(value):
     return value
 
 
-def Callable(params=None, ret=None, purity=None, derive_func=None, *, span=None):
+def Callable(
+    params=None,
+    ret=None,
+    purity=None,
+    derive_func=None,
+    *,
+    loc: _LocationEntry | Location = UNKNOWN_LOC,
+):
     """Construct a concrete or opaque Relax function type.
 
     Parameters
@@ -388,8 +406,8 @@ def Callable(params=None, ret=None, purity=None, derive_func=None, *, span=None)
     derive_func : str or EnvFunc, optional
         Custom result-type derivation for an opaque callable. It is not
         accepted when params supplies a concrete parameter list.
-    span : SpanEntry, Span or None, optional
-        Source location attached to the constructed IR; None leaves it unspecified.
+    loc : LocationEntry or Location, optional
+        Source location attached to the constructed IR; UnknownLoc leaves it unspecified.
 
     Returns
     -------
@@ -409,7 +427,7 @@ def Callable(params=None, ret=None, purity=None, derive_func=None, *, span=None)
             ret=None if ret is None else _type(ret),
             derive_func=derive_func,
             purity=purity,
-            span=span.span if isinstance(span, _SpanEntry) else span,
+            loc=loc.loc if isinstance(loc, _LocationEntry) else loc,
         )
     if derive_func is not None:
         raise ValueError("A derivation function requires an opaque callable")
@@ -419,11 +437,11 @@ def Callable(params=None, ret=None, purity=None, derive_func=None, *, span=None)
         [_type(param) for param in params],
         _type(ret),
         purity,
-        span.span if isinstance(span, _SpanEntry) else span,
+        loc.loc if isinstance(loc, _LocationEntry) else loc,
     )
 
 
-def Tuple(*fields, span=None):
+def Tuple(*fields, loc: _LocationEntry | Location = UNKNOWN_LOC):
     """Construct a Relax tuple type.
 
     Parameters
@@ -431,8 +449,8 @@ def Tuple(*fields, span=None):
     fields : Type or callable
         Field annotations as positional arguments, or one list or tuple.
         Each annotation is normalized to a type; None denotes an empty tuple.
-    span : SpanEntry, Span or None, optional
-        Source location attached to the constructed IR; None leaves it unspecified.
+    loc : LocationEntry or Location, optional
+        Source location attached to the constructed IR; UnknownLoc leaves it unspecified.
 
     Returns
     -------
@@ -442,27 +460,27 @@ def Tuple(*fields, span=None):
     if len(fields) == 1 and isinstance(fields[0], list | _python.tuple):
         fields = fields[0]
     return _ir.TupleType(
-        [_type(field) for field in fields], span.span if isinstance(span, _SpanEntry) else span
+        [_type(field) for field in fields], loc.loc if isinstance(loc, _LocationEntry) else loc
     )
 
 
-def Object(*, span=None):
+def Object(*, loc: _LocationEntry | Location = UNKNOWN_LOC):
     """Construct the unconstrained Relax value type.
 
     Parameters
     ----------
-    span : SpanEntry, Span or None, optional
-        Source location attached to the constructed IR; None leaves it unspecified.
+    loc : LocationEntry or Location, optional
+        Source location attached to the constructed IR; UnknownLoc leaves it unspecified.
 
     Returns
     -------
     result : AnyType
         A type accepting any Relax value.
     """
-    return _relax.AnyType(span.span if isinstance(span, _SpanEntry) else span)
+    return _relax.AnyType(loc.loc if isinstance(loc, _LocationEntry) else loc)
 
 
-def type_var(name, *, dtype=None, span=None):
+def type_var(name, *, dtype=None, loc: _LocationEntry | Location = UNKNOWN_LOC):
     """Construct a fresh standalone primitive symbol.
 
     Parameters
@@ -471,8 +489,8 @@ def type_var(name, *, dtype=None, span=None):
         Name of the symbol.
     dtype : str or PrimType, optional
         Primitive type of the symbol; None selects "int64".
-    span : SpanEntry, Span or None, optional
-        Source location attached to the constructed IR; None leaves it unspecified.
+    loc : LocationEntry or Location, optional
+        Source location attached to the constructed IR; UnknownLoc leaves it unspecified.
 
     Returns
     -------
@@ -487,7 +505,7 @@ def type_var(name, *, dtype=None, span=None):
     return _ir.Var(
         name,
         "int64" if dtype is None else dtype,
-        span.span if isinstance(span, _SpanEntry) else span,
+        loc.loc if isinstance(loc, _LocationEntry) else loc,
     )
 
 
@@ -501,7 +519,7 @@ def _value(value, ty=None):
     return value
 
 
-def match_cast(value, ty, *, span=None):
+def match_cast(value, ty, *, loc: _LocationEntry | Location = UNKNOWN_LOC):
     """Construct a match-cast descriptor for the binding hook.
 
     Parameters
@@ -511,8 +529,8 @@ def match_cast(value, ty, *, span=None):
         are converted to Relax expressions; None is not accepted.
     ty : Type or callable
         Asserted type, or a zero-argument factory producing its annotation.
-    span : SpanEntry, Span or None, optional
-        Source location attached to the constructed IR; None leaves it unspecified.
+    loc : LocationEntry or Location, optional
+        Source location attached to the constructed IR; UnknownLoc leaves it unspecified.
 
     Returns
     -------
@@ -524,7 +542,7 @@ def match_cast(value, ty, *, span=None):
         raise ValueError("The match-cast value cannot be None")
     ty = _type(ty)
     return _relax.MatchCast(
-        _ir.Var("", ty), _value(value), ty, span.span if isinstance(span, _SpanEntry) else span
+        _ir.Var("", ty), _value(value), ty, loc.loc if isinstance(loc, _LocationEntry) else loc
     )
 
 

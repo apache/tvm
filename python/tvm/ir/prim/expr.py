@@ -18,8 +18,9 @@
 
 import tvm_ffi
 
+from tvm.ir.location import UNKNOWN_LOC, Location
+
 from .. import _ffi_api as _ir_ffi_api
-from ..base import Span
 from ..expr import Constant, Expr, ExprWithOp, Var
 from ..type import PrimType
 from . import _ffi_api as _prim_ffi_api
@@ -51,20 +52,20 @@ class FloatImm(Constant):
     value : float
         The constant value.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
     value: float
 
-    def __init__(self, dtype: str | PrimType, value: float, span: Span | None = None) -> None:
+    def __init__(self, dtype: str | PrimType, value: float, loc: Location = UNKNOWN_LOC) -> None:
         if isinstance(dtype, PrimType):
             dtype = dtype.dtype
         self.__init_handle_by_constructor__(
             _ir_ffi_api.FloatImm,
             dtype,
             value,
-            span,  # type: ignore
+            loc,  # type: ignore
         )
 
     def __float__(self) -> float:
@@ -83,20 +84,20 @@ class IntImm(Constant):
     value : int
         The constant value.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
     value: int
 
-    def __init__(self, dtype: str | PrimType, value: int, span: Span | None = None) -> None:
+    def __init__(self, dtype: str | PrimType, value: int, loc: Location = UNKNOWN_LOC) -> None:
         if isinstance(dtype, PrimType):
             dtype = dtype.dtype
         self.__init_handle_by_constructor__(
             _ir_ffi_api.IntImm,
             dtype,
             value,
-            span,  # type: ignore
+            loc,  # type: ignore
         )
 
     def __hash__(self) -> int:
@@ -109,10 +110,10 @@ class IntImm(Constant):
         return self.value != 0
 
     def __eq__(self, other: Expr) -> Expr:
-        return _prim_ffi_api._OpEQ(self, other, None)  # type: ignore
+        return _prim_ffi_api._OpEQ(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __ne__(self, other: Expr) -> Expr:
-        return _prim_ffi_api._OpNE(self, other, None)  # type: ignore
+        return _prim_ffi_api._OpNE(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __bool__(self) -> bool:
         return self.__nonzero__()
@@ -130,16 +131,16 @@ class Cast(ExprWithOp):
     value : Expr
         The value of the function.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
     value: Expr
 
-    def __init__(self, dtype: str | PrimType, value, span: Span | None = None) -> None:
+    def __init__(self, dtype: str | PrimType, value, loc: Location = UNKNOWN_LOC) -> None:
         if isinstance(dtype, PrimType):
             dtype = dtype.dtype
-        self.__init_handle_by_constructor__(_prim_ffi_api.Cast, dtype, value, span)  # type: ignore
+        self.__init_handle_by_constructor__(_prim_ffi_api.Cast, dtype, value, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.LShift")
@@ -154,12 +155,12 @@ class LShift(BinaryOpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.LShift, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.LShift, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.RShift")
@@ -174,12 +175,12 @@ class RShift(BinaryOpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.RShift, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.RShift, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.BitwiseAnd")
@@ -194,12 +195,12 @@ class BitwiseAnd(BinaryOpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.BitwiseAnd, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.BitwiseAnd, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.BitwiseOr")
@@ -214,12 +215,12 @@ class BitwiseOr(BinaryOpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.BitwiseOr, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.BitwiseOr, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.BitwiseXor")
@@ -234,12 +235,12 @@ class BitwiseXor(BinaryOpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.BitwiseXor, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.BitwiseXor, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.BitwiseNot")
@@ -251,14 +252,14 @@ class BitwiseNot(ExprWithOp):
     a : Expr
         The input value.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
     a: Expr
 
-    def __init__(self, a: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.BitwiseNot, a, span)  # type: ignore
+    def __init__(self, a: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.BitwiseNot, a, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.Add")
@@ -273,12 +274,12 @@ class Add(BinaryOpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.Add, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.Add, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.Sub")
@@ -293,12 +294,12 @@ class Sub(BinaryOpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.Sub, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.Sub, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.Mul")
@@ -313,12 +314,12 @@ class Mul(BinaryOpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.Mul, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.Mul, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.Div")
@@ -333,12 +334,12 @@ class Div(BinaryOpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.Div, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.Div, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.Mod")
@@ -353,12 +354,12 @@ class Mod(BinaryOpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.Mod, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.Mod, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.FloorDiv")
@@ -373,12 +374,12 @@ class FloorDiv(BinaryOpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.FloorDiv, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.FloorDiv, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.FloorMod")
@@ -393,12 +394,12 @@ class FloorMod(BinaryOpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.FloorMod, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.FloorMod, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.Min")
@@ -413,12 +414,12 @@ class Min(BinaryOpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.Min, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.Min, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.Max")
@@ -433,12 +434,12 @@ class Max(BinaryOpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.Max, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.Max, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.EQ")
@@ -453,12 +454,12 @@ class EQ(CmpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.EQ, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.EQ, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.NE")
@@ -473,12 +474,12 @@ class NE(CmpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.NE, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.NE, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.LT")
@@ -493,12 +494,12 @@ class LT(CmpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.LT, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.LT, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.LE")
@@ -513,12 +514,12 @@ class LE(CmpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.LE, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.LE, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.GT")
@@ -533,12 +534,12 @@ class GT(CmpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.GT, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.GT, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.GE")
@@ -553,12 +554,12 @@ class GE(CmpExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.GE, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.GE, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.And")
@@ -573,12 +574,12 @@ class And(LogicalExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.And, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.And, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.Or")
@@ -593,15 +594,15 @@ class Or(LogicalExpr):
     b : Expr
         The right hand operand.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
     a: Expr
     b: Expr
 
-    def __init__(self, a: Expr, b: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.Or, a, b, span)  # type: ignore
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.Or, a, b, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.Not")
@@ -613,14 +614,14 @@ class Not(LogicalExpr):
     a : Expr
         The input value
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
     a: Expr
 
-    def __init__(self, a: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.Not, a, span)  # type: ignore
+    def __init__(self, a: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.Not, a, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.Select")
@@ -645,7 +646,7 @@ class Select(ExprWithOp):
     false_value : Expr
         The value to take when condition is false.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
@@ -658,7 +659,7 @@ class Select(ExprWithOp):
         condition: Expr,
         true_value: Expr,
         false_value: Expr,
-        span: Span | None = None,
+        loc: Location = UNKNOWN_LOC,
     ) -> None:
         if isinstance(condition, bool):
             condition = IntImm("bool", condition)
@@ -667,7 +668,7 @@ class Select(ExprWithOp):
             condition,
             true_value,
             false_value,
-            span,  # type: ignore
+            loc,  # type: ignore
         )
 
 
@@ -686,7 +687,7 @@ class Ramp(ExprWithOp):
     lanes : Expr
         The lanes of the expression.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
@@ -694,13 +695,13 @@ class Ramp(ExprWithOp):
     stride: Expr
     lanes: Expr
 
-    def __init__(self, base: Expr, stride: Expr, lanes: Expr, span: Span | None = None) -> None:
+    def __init__(self, base: Expr, stride: Expr, lanes: Expr, loc: Location = UNKNOWN_LOC) -> None:
         self.__init_handle_by_constructor__(
             _prim_ffi_api.Ramp,
             base,
             stride,
             lanes,
-            span,  # type: ignore
+            loc,  # type: ignore
         )
 
 
@@ -716,15 +717,15 @@ class Broadcast(ExprWithOp):
     lanes : Expr
         The lanes of the expression.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
     value: Expr
     lanes: Expr
 
-    def __init__(self, value: Expr, lanes: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.Broadcast, value, lanes, span)  # type: ignore
+    def __init__(self, value: Expr, lanes: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.Broadcast, value, lanes, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("prim.Shuffle")
@@ -739,19 +740,21 @@ class Shuffle(ExprWithOp):
     indices : List[Expr]
         The indices
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
     vectors: list[Expr]
     indices: list[Expr]
 
-    def __init__(self, vectors: list[Expr], indices: list[Expr], span: Span | None = None) -> None:
+    def __init__(
+        self, vectors: list[Expr], indices: list[Expr], loc: Location = UNKNOWN_LOC
+    ) -> None:
         self.__init_handle_by_constructor__(
             _prim_ffi_api.Shuffle,
             vectors,
             indices,
-            span,  # type: ignore
+            loc,  # type: ignore
         )
 
 
@@ -770,7 +773,7 @@ class Let(ExprWithOp):
     body : Expr
         The body expression.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
@@ -778,5 +781,5 @@ class Let(ExprWithOp):
     value: Expr
     body: Expr
 
-    def __init__(self, var: Var, value: Expr, body: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_prim_ffi_api.Let, var, value, body, span)  # type: ignore
+    def __init__(self, var: Var, value: Expr, body: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_prim_ffi_api.Let, var, value, body, loc)  # type: ignore

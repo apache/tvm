@@ -211,7 +211,7 @@ class CallSubstitutor : public StmtExprMutator {
     is_under_gpu_scope_ = true;
     Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     is_under_gpu_scope_ = previous_scope;
-    return RegionStmt(op->op, args, op->body_params, op->attrs, body, op->result_vars, op->span);
+    return RegionStmt(op->op, args, op->body_params, op->attrs, body, op->result_vars, op->loc);
   }
 
   /*! \brief Whether the current statement is under a GPU scope */

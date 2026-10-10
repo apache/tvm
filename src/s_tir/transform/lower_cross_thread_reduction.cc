@@ -486,7 +486,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
         IterVar new_iter_var{ffi::UnsafeInit{}};
         {
           ffi::ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>(*iter_var.get());
-          Var v(iter_var->var->name, iter_var->var->ty, iter_var->var->span);
+          Var v(iter_var->var->name, iter_var->var->ty, iter_var->var->loc);
           n->var = v.as_or_throw<PrimVar>();
           new_iter_var = IterVar(n);
         }

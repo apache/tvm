@@ -315,17 +315,17 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
                                .ValueOrUnchanged(op->args[op->args.size() - 1])
                                .as_or_throw<PrimExpr>();
       if (is_load) {
-        TensorLoad access = VisitBufferAccess(MakeTensorLoad(buffer, indices, op->span));
+        TensorLoad access = VisitBufferAccess(MakeTensorLoad(buffer, indices, op->loc));
         ffi::Array<Expr> args{access->source.as_or_throw<tvm::tirx::TensorVar>().var()};
         for (const PrimExpr& index : access->indices) args.push_back(index);
         args.push_back(predicate);
-        return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
+        return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->loc);
       }
-      TensorStore access = VisitBufferAccess(TensorStore(buffer, indices, value.value(), op->span));
+      TensorStore access = VisitBufferAccess(TensorStore(buffer, indices, value.value(), op->loc));
       ffi::Array<Expr> args{access->dest.as_or_throw<TensorVar>().var(), access->value};
       for (const PrimExpr& index : access->indices) args.push_back(index);
       args.push_back(predicate);
-      return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
+      return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->loc);
     } else if (op->op.same_as(tirx::tensor_data_ptr_op())) {
       auto buffer = GetBufferDataVar(ffi::GetRef<Call>(op)).value();
       auto it = alloc_remap_.find(buffer.get());
@@ -339,7 +339,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
       return Call(op->ty, tirx::ptr_byte_offset_op(),
                   {GetRemappedBuffer(tensor, it->second).data(),
                    RewriteIndex(PrimExpr(0), it->second) * bytes},
-                  {}, {}, op->span);
+                  {}, {}, op->loc);
     } else {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
@@ -433,7 +433,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
     }
     return RegionStmt(op->op, std::move(args).ValueOrUnchanged(op->args), op->body_params,
                       op->attrs, std::move(body).ValueOrUnchanged(op->body), op->result_vars,
-                      op->span);
+                      op->loc);
   }
 
   // Bind
@@ -555,7 +555,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
           for (size_t j = i; j < op->seq.size(); ++j) {
             group.push_back(op->seq[j]);
           }
-          Stmt grouped = SeqStmt(group, op->span);
+          Stmt grouped = SeqStmt(group, op->loc);
           // before_mutation=true: InjectVTLoop will re-visit the entire group
           // with vt_loop_injected_=true, properly substituting vt_var.
           Stmt wrapped = InjectVTLoop(grouped, true);
@@ -577,7 +577,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
       new_seq.push_back(child);
     }
     if (!changed) return ffi::Unchanged();
-    return SeqStmt(new_seq, op->span);
+    return SeqStmt(new_seq, op->loc);
   }
   // Allocate
   // AllocTensor
@@ -615,13 +615,13 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
       type->shape = new_shape;
       TensorVar new_buffer = RebuildTensorVar(op->var.as_or_throw<TensorVar>(), std::move(type));
       VarRemapSet(op->var.as_or_throw<TensorVar>(), new_buffer);
-      args.Set(0, tvm::Tuple(new_buffer->shape, call->args[0]->span));
-      args.Set(1, DataTypeImm(new_buffer->dtype->dtype, call->args[1]->span));
-      args.Set(2, StringImm(new_buffer.scope(), call->args[2]->span));
+      args.Set(0, tvm::Tuple(new_buffer->shape, call->args[0]->loc));
+      args.Set(1, DataTypeImm(new_buffer->dtype->dtype, call->args[1]->loc));
+      args.Set(2, StringImm(new_buffer.scope(), call->args[2]->loc));
       return Bind(new_buffer.var(),
                   Call(new_buffer.type(), tirx::alloc_tensor_op(), args, call->attrs, call->ty_args,
-                       call->span),
-                  op->span);
+                       call->loc),
+                  op->loc);
     }
   }
 

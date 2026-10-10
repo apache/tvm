@@ -55,18 +55,18 @@ inline IRModuleFrame FindModuleFrame() {
 /*!
  * \brief Add a core IR statement to the top frame in IRBuilder frame stack.
  * \param stmt The Stmt.
- * \param span The stored result location, which may be undefined.
+ * \param loc The stored result location, which may be undefined.
  */
-inline void AddToParent(tvm::Stmt stmt, Span span) {
+inline void AddToParent(tvm::Stmt stmt, Location loc) {
   IRBuilder builder = IRBuilder::Current();
   // A deferred frame owns its location even when that location is undefined.
   // Preserve an existing body location when flattening returns the body itself.
-  if (stmt.defined() && !stmt->span.defined()) stmt->span = std::move(span);
+  if (stmt.defined() && stmt->loc.as<UnknownLocNode>()) stmt->loc = std::move(loc);
   if (builder->frames.empty()) {
     if (!builder->result.has_value()) {
       if (stmt.as<tvm::SeqStmtNode>()) {
         auto normalized = tvm::SeqStmt(stmt);
-        if (!normalized->span.defined()) normalized->span = stmt->span;
+        if (normalized->loc.as<UnknownLocNode>()) normalized->loc = stmt->loc;
         builder->result = std::move(normalized);
       } else {
         builder->result = std::move(stmt);
@@ -98,8 +98,8 @@ inline void AddToParent(tvm::Stmt stmt, Span span) {
 /*! \brief Add an eager statement under the current source-call context. */
 inline void AddToParent(tvm::Stmt stmt) {
   // Some builder paths use an undefined statement as an omitted branch.
-  if (stmt.defined()) IRBuilder::Current()->SetCurrentSourceSpan(stmt);
-  AddToParent(std::move(stmt), Span());
+  if (stmt.defined()) IRBuilder::Current()->SetCurrentLoc(stmt);
+  AddToParent(std::move(stmt), UnknownLoc());
 }
 
 /*!

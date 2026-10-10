@@ -35,7 +35,7 @@ class ToNonDFMutator : public ExprMutator {
  public:
   Var VisitVarDef(const Var& var) final {
     if (var.as<DataflowVarNode>()) {
-      Var new_var = Var(var->name, GetType(var), var->span);
+      Var new_var = Var(var->name, GetType(var), var->loc);
       this->var_remap_.insert_or_assign(var, new_var);
       return new_var;
     }

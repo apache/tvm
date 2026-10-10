@@ -65,10 +65,10 @@ class CommReducerNode : public ffi::Object {
   /*! \brief Function call operator to combine a and b */
   ffi::Array<PrimExpr> operator()(ffi::Array<PrimExpr> a, ffi::Array<PrimExpr> b) const;
   /*!
-   * \brief Span that points to the original source code.
+   * \brief Location that points to the original source code.
    *        Reserved debug information.
    */
-  mutable Span span;
+  mutable Location loc = UnknownLoc();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -77,7 +77,7 @@ class CommReducerNode : public ffi::Object {
         .def_ro("rhs", &CommReducerNode::rhs, refl::AttachFieldFlag::SEqHashDefPattern())
         .def_ro("result", &CommReducerNode::result)
         .def_ro("identity_element", &CommReducerNode::identity_element)
-        .def_ro("span", &CommReducerNode::span, refl::AttachFieldFlag::SEqHashIgnore());
+        .def_ro("loc", &CommReducerNode::loc, refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
@@ -91,7 +91,7 @@ class CommReducerNode : public ffi::Object {
 class CommReducer : public ffi::ObjectRef {
  public:
   TVM_DLL CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs, ffi::Array<PrimExpr> result,
-                      ffi::Array<PrimExpr> identity_element, Span span = Span());
+                      ffi::Array<PrimExpr> identity_element, Location loc = UnknownLoc());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CommReducer, ffi::ObjectRef, CommReducerNode);
 };
 
@@ -138,7 +138,7 @@ class Reduce : public PrimExpr {
  public:
   TVM_DLL Reduce(CommReducer combiner, ffi::Array<PrimExpr> src, ffi::Array<s_tir::IterVar> rdom,
                  ffi::Optional<PrimExpr> condition, int value_index, ffi::Array<PrimExpr> init,
-                 Span span = Span());
+                 Location loc = UnknownLoc());
   explicit Reduce(ffi::ObjectPtr<ReduceNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Reduce, PrimExpr, ReduceNode);

@@ -803,7 +803,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
     def visit_function_(self, f):
         if "Composite" not in f.attrs:
             body = super().visit_expr(f.body)
-            return relax.Function(f.params, body, f.ret_ty, f.is_pure, f.attrs, f.span)
+            return relax.Function(f.params, body, f.ret_ty, f.is_pure, f.attrs, f.loc)
 
         op_type = f.attrs["Composite"]
 
@@ -820,8 +820,8 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
 
         raise ValueError(f"Unsupported composite {op_type}")
 
-    def visit_span(self, span):
-        return span
+    def visit_loc(self, loc):
+        return loc
 
 
 @register_global_func("contrib.cutlass.tune_relax_function")

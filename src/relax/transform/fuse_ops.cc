@@ -1385,8 +1385,8 @@ class CompositeFunctionAnnotator : public ExprMutator {
 
         auto new_body = VisitWithNewScope(func->body, func->params);
         if (!new_body.same_as(func->body)) {
-          auto new_func = Function(func->params, new_body, func->ret_ty, func->is_pure, func->attrs,
-                                   func->span);
+          auto new_func =
+              Function(func->params, new_body, func->ret_ty, func->is_pure, func->attrs, func->loc);
           builder_->UpdateFunction(gv, new_func);
         }
       }

@@ -189,7 +189,7 @@ void ValidateCallPurePacked(const CallNode* call) {
 Expr NormalizeCallPurePacked(const BlockBuilder& ctx, Call call) {
   if (call->args.empty() || !call->args[0].same_as(Op::Get("relax.call_tir_packed"))) return call;
   Call inner(call->ty, call->args[0], ffi::Array<Expr>(call->args.begin() + 1, call->args.end()),
-             call->attrs, call->ty_args, call->span);
+             call->attrs, call->ty_args, call->loc);
   static const auto& normalizers = Op::GetAttrMap<FNormalize>(tvm::relax::op_attr::kNormalize);
   inner = normalizers[inner->op.as_or_throw<Op>()](ctx, inner).as_or_throw<Call>();
   for (size_t i = 0; i < inner->args.size(); ++i) {
@@ -1864,9 +1864,9 @@ Type InferToVDeviceType(const CallNode* call_node) {
   auto attrs = call->attrs.as<ToVDeviceAttrs>();
   VDevice vdev = attrs->dst_vdevice;
   if (data_ty->shape.has_value()) {
-    return TensorType(data_ty->shape.value(), data_ty->dtype, vdev, data_ty->span);
+    return TensorType(data_ty->shape.value(), data_ty->dtype, vdev, data_ty->loc);
   }
-  return TensorType(data_ty->dtype, data_ty->ndim, vdev, data_ty->span);
+  return TensorType(data_ty->dtype, data_ty->ndim, vdev, data_ty->loc);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

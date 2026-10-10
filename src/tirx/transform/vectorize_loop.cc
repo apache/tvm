@@ -251,7 +251,7 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
       predicate = allow_offset_predication_ ? predicate & lane_mask.value() : lane_mask.value();
       ffi::Array<Expr> args = call->args;
       args.Set(args.size() - 1, predicate);
-      return Call(call->ty, call->op, args, call->attrs, call->ty_args, call->span);
+      return Call(call->ty, call->op, args, call->attrs, call->ty_args, call->loc);
     }
     return call;
   }
@@ -297,7 +297,7 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
       ffi::Array<Expr> args{load->source.as_or_throw<tvm::tirx::TensorVar>().var()};
       for (const PrimExpr& index : load->indices) args.push_back(index);
       args.push_back(mask.value());
-      return Call(load->ty, tirx::masked_load_op(), args, {}, {}, load->span);
+      return Call(load->ty, tirx::masked_load_op(), args, {}, {}, load->loc);
     }
     return load;
   }
@@ -307,8 +307,8 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
       ffi::Array<Expr> args{store->dest.as_or_throw<TensorVar>().var(), store->value};
       for (const PrimExpr& index : store->indices) args.push_back(index);
       args.push_back(mask.value());
-      return Evaluate(Call(PrimType::Void(), tirx::masked_store_op(), args, {}, {}, store->span),
-                      store->span);
+      return Evaluate(Call(PrimType::Void(), tirx::masked_store_op(), args, {}, {}, store->loc),
+                      store->loc);
     }
     return store;
   }
@@ -349,7 +349,7 @@ class VecAllocAccess : public StmtExprMutator {
     TensorLoad load = indices.UnchangedOrSameAs(op->indices)
                           ? ffi::GetRef<TensorLoad>(op)
                           : MakeTensorLoad(op->source.as_or_throw<TensorVar>(),
-                                           std::move(indices).ValueUnchecked(), op->span);
+                                           std::move(indices).ValueUnchecked(), op->loc);
     return UpdateBufferAccess(load);
   }
 
@@ -361,7 +361,7 @@ class VecAllocAccess : public StmtExprMutator {
                             ? ffi::GetRef<TensorStore>(op)
                             : TensorStore(op->dest.as_or_throw<TensorVar>(),
                                           std::move(indices).ValueOrUnchanged(op->indices),
-                                          std::move(value).ValueOrUnchanged(op->value), op->span);
+                                          std::move(value).ValueOrUnchanged(op->value), op->loc);
     return UpdateBufferAccess(store);
   }
 
@@ -446,7 +446,7 @@ class VecAllocAccess : public StmtExprMutator {
     ffi::Array<PrimExpr> indices = node->indices;
     indices.Set(indices.size() - 1,
                 analyzer_->Simplify(indices.back() * var_lanes_ + var_.as_or_throw<PrimExpr>()));
-    return MakeTensorLoad(buf, indices, node->span);
+    return MakeTensorLoad(buf, indices, node->loc);
   }
 
   // buffer var
@@ -625,7 +625,7 @@ class Vectorizer : public StmtExprMutator {
   UnchangedOr<PrimExpr> Mutate_(const prim::BitwiseNotNode* op, InplaceMode inplace_mode) final {
     auto a = this->Mutate(op->a, inplace_mode);
     if (a.UnchangedOrSameAs(op->a)) return ffi::Unchanged();
-    return prim::BitwiseNot(std::move(a).ValueOrUnchanged(op->a), op->span);
+    return prim::BitwiseNot(std::move(a).ValueOrUnchanged(op->a), op->loc);
   }
 
   UnchangedOr<PrimExpr> Mutate_(const prim::NotNode* op, InplaceMode inplace_mode) final {
@@ -749,10 +749,10 @@ class Vectorizer : public StmtExprMutator {
       PrimType op_ty = op->ty.as_or_throw<PrimType>();
       if (is_scalable) {
         return Call(PrimType::ScalableVector(op_ty.code(), op_ty.bits(), lanes), op->op,
-                    {cond, t, f}, op->attrs, {}, op->span)
+                    {cond, t, f}, op->attrs, {}, op->loc)
             .as_or_throw<PrimExpr>();
       } else {
-        return Call(op_ty.WithLanes(lanes), op->op, {cond, t, f}, op->attrs, {}, op->span)
+        return Call(op_ty.WithLanes(lanes), op->op, {cond, t, f}, op->attrs, {}, op->loc)
             .as_or_throw<PrimExpr>();
       }
     }
@@ -769,14 +769,14 @@ class Vectorizer : public StmtExprMutator {
       PrimType op_ty = op->ty.as_or_throw<PrimType>();
       if (value.ty().IsScalableVector()) {
         return Call(PrimType::ScalableVector(op_ty.code(), op_ty.bits(), lanes), op->op, {value},
-                    op->attrs, {}, op->span)
+                    op->attrs, {}, op->loc)
             .as_or_throw<PrimExpr>();
       } else {
         int new_lanes = (op_ty.code() != DLDataTypeCode::kDLFloat4_e2m1fn &&
                          input.ty().code() != DLDataTypeCode::kDLFloat4_e2m1fn)
                             ? (value.ty().bits() * value.ty().lanes()) / op_ty.bits()
                             : value.ty().lanes();
-        return Call(op_ty.WithLanes(new_lanes), op->op, {value}, op->attrs, {}, op->span)
+        return Call(op_ty.WithLanes(new_lanes), op->op, {value}, op->attrs, {}, op->loc)
             .as_or_throw<PrimExpr>();
       }
     }
@@ -802,7 +802,7 @@ class Vectorizer : public StmtExprMutator {
       if (op->args.same_as(new_args)) {
         return ffi::Unchanged();
       }
-      return Call(op->ty, op->op, new_args, op->attrs, op->ty_args, op->span);
+      return Call(op->ty, op->op, new_args, op->attrs, op->ty_args, op->loc);
     }
     PrimType ret_ty = optional_ret_ty.value();
     if (op->op.same_as(prim::if_then_else_op())) {
@@ -818,7 +818,7 @@ class Vectorizer : public StmtExprMutator {
       auto new_args = op->args;
       new_args.pop_back();
       new_args.push_back(fcd[0]);
-      return Call(ret_ty.WithLanes(lane), op->op, new_args, op->attrs, {}, op->span);
+      return Call(ret_ty.WithLanes(lane), op->op, new_args, op->attrs, {}, op->loc);
     } else if (op->op.same_as(backend::opencl::texture2d_store_op())) {
       int lane = 0;
       // Vectorize the value to store
@@ -829,7 +829,7 @@ class Vectorizer : public StmtExprMutator {
           << "Expected Data to be Written equal to Texture Store length";
       ffi::Array<Expr> new_args = op->args;
       new_args.Set(new_args.size() - 1, mutated_value[0]);
-      return Call(ret_ty, op->op, new_args, op->attrs, {}, op->span);
+      return Call(ret_ty, op->op, new_args, op->attrs, {}, op->loc);
     } else if (op->op.same_as(tirx::reinterpret_op())) {
       return MutateReinterpretExpr_(op, inplace_mode);
     }
@@ -853,7 +853,7 @@ class Vectorizer : public StmtExprMutator {
       if (op->args.same_as(new_args)) {
         return ffi::Unchanged();
       } else {
-        return Call(ret_ty, op->op, new_args, op->attrs, {}, op->span);
+        return Call(ret_ty, op->op, new_args, op->attrs, {}, op->loc);
       }
     } else {
       int lane = 0;
@@ -879,7 +879,7 @@ class Vectorizer : public StmtExprMutator {
       if (op->args.same_as(new_args)) {
         return ffi::Unchanged();
       } else {
-        return Call(ret_ty.WithLanes(lane), op->op, new_args, op->attrs, {}, op->span);
+        return Call(ret_ty.WithLanes(lane), op->op, new_args, op->attrs, {}, op->loc);
       }
     }
   }
@@ -893,7 +893,7 @@ class Vectorizer : public StmtExprMutator {
     ffi::Array<PrimExpr> indices = op->indices.Map(fmutate);
 
     if (!indices.same_as(op->indices)) {
-      return MakeTensorLoad(op->source.as_or_throw<tvm::tirx::TensorVar>(), indices, op->span);
+      return MakeTensorLoad(op->source.as_or_throw<tvm::tirx::TensorVar>(), indices, op->loc);
     }
 
     return load;
@@ -1160,7 +1160,7 @@ class Vectorizer : public StmtExprMutator {
       if (value.same_as(op->value)) {
         return ffi::Unchanged();
       } else {
-        return Bind(op->var, value, op->span);
+        return Bind(op->var, value, op->loc);
       }
     }
   }
@@ -1270,7 +1270,7 @@ class Vectorizer : public StmtExprMutator {
       int b_lanes = GetLanesOrVScaleFactor(b.ty());
       int lanes = std::max(a_lanes, b_lanes);
       bool is_scalable = a.ty().IsScalableVector() || b.ty().IsScalableVector();
-      return TOp(BroadcastTo(a, lanes, is_scalable), BroadcastTo(b, lanes, is_scalable), op->span);
+      return TOp(BroadcastTo(a, lanes, is_scalable), BroadcastTo(b, lanes, is_scalable), op->loc);
     }
   }
   template <typename T, typename FCompute>
@@ -1375,11 +1375,11 @@ class LoopVectorizer : public StmtExprMutator {
     auto substituter = ffi::make_object<StmtExprMutator>();
     substituter->VarRemapSet(op->loop_var, index);
     Stmt body = substituter->Mutate(op->body).ValueOrUnchanged(op->body);
-    Stmt guarded_body = If(index < fixed_extent, body, std::nullopt, op->span);
+    Stmt guarded_body = If(index < fixed_extent, body, std::nullopt, op->loc);
     Stmt vector_loop = For(inner, IntImm(lane_dtype, 0), scalable_lanes, ForKind::kVectorized,
-                           guarded_body, op->annotations, std::nullopt, op->span);
+                           guarded_body, op->annotations, std::nullopt, op->loc);
     Stmt loop =
-        For(outer, zero, num_chunks, ForKind::kDefault, vector_loop, {}, std::nullopt, op->span);
+        For(outer, zero, num_chunks, ForKind::kDefault, vector_loop, {}, std::nullopt, op->loc);
 
     return this->Mutate(loop, InplaceMode::kDisallow).ValueOrUnchanged(loop);
   }

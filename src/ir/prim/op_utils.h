@@ -21,7 +21,7 @@
 #define TVM_IR_PRIM_OP_UTILS_H_
 #include <tvm/ir/prim/op.h>
 namespace tvm::prim::detail {
-TVM_DLL void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span);
+TVM_DLL void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Location loc);
 
 }  // namespace tvm::prim::detail
 #endif  // TVM_IR_PRIM_OP_UTILS_H_

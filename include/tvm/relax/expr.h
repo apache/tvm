@@ -25,9 +25,9 @@
 #include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
+#include <tvm/ir/location.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
-#include <tvm/ir/source_map.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/tensor.h>
 
@@ -58,7 +58,7 @@ class ShapeExprNode : public ExprNode {
 
 class ShapeExpr : public Expr {
  public:
-  TVM_DLL explicit ShapeExpr(ffi::Array<PrimExpr> values, Span span = Span());
+  TVM_DLL explicit ShapeExpr(ffi::Array<PrimExpr> values, Location loc = UnknownLoc());
   explicit ShapeExpr(ffi::ObjectPtr<ShapeExprNode> node) : Expr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ShapeExpr, Expr, ShapeExprNode);
@@ -82,7 +82,7 @@ class DataflowVarNode : public VarNode {
 class DataflowVar : public Var {
  public:
   TVM_DLL explicit DataflowVar(ffi::String name, ffi::Optional<Type> ty_annotation,
-                               Span span = Span());
+                               Location loc = UnknownLoc());
 
   explicit DataflowVar(ffi::ObjectPtr<DataflowVarNode> node) : Var(std::move(node)) {}
 
@@ -92,7 +92,7 @@ class DataflowVar : public Var {
 /*! \brief Construct a tensor constant, inferring shape and dtype when type is omitted. */
 TVM_DLL GenericConst MakeTensorConst(runtime::Tensor data,
                                      ffi::Optional<Type> ty_annotation = std::nullopt,
-                                     Span span = Span());
+                                     Location loc = UnknownLoc());
 
 /*! \brief The base class of a variable binding in Relax. */
 class BindingNode : public ffi::Object {
@@ -100,14 +100,14 @@ class BindingNode : public ffi::Object {
   explicit BindingNode(Var var) : var(std::move(var)) {}
   explicit BindingNode(ffi::UnsafeInit) : var(ffi::UnsafeInit{}) {}
 
-  mutable Span span;
+  mutable Location loc = UnknownLoc();
   /*! \brief The return variable to bound to. */
   Var var;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BindingNode>()
-        .def_ro("span", &BindingNode::span, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("loc", &BindingNode::loc, refl::AttachFieldFlag::SEqHashIgnore())
         // TODO(tqchen): use SEqHashDefSimple after the next pypi tvm-ffi release
         .def_ro("var", &BindingNode::var, refl::AttachFieldFlag::SEqHashDefPattern());
   }
@@ -168,7 +168,7 @@ class MatchCastNode : public BindingNode {
  */
 class MatchCast : public Binding {
  public:
-  TVM_DLL explicit MatchCast(Var var, Expr value, Type ty, Span span = Span());
+  TVM_DLL explicit MatchCast(Var var, Expr value, Type ty, Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchCast, Binding, MatchCastNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchCastNode);
@@ -201,7 +201,7 @@ class VarBindingNode : public BindingNode {
 
 class VarBinding : public Binding {
  public:
-  TVM_DLL explicit VarBinding(Var var, Expr value, Span span = Span());
+  TVM_DLL explicit VarBinding(Var var, Expr value, Location loc = UnknownLoc());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(VarBinding, Binding, VarBindingNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(VarBindingNode);
 };
@@ -209,14 +209,14 @@ class VarBinding : public Binding {
 class BindingBlockNode : public ffi::Object {
  public:
   ffi::Array<Binding> bindings;
-  mutable Span span;
+  mutable Location loc = UnknownLoc();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BindingBlockNode>()
         .def_ro("bindings", &BindingBlockNode::bindings)
-        .def_ro("span", &BindingBlockNode::span, refl::AttachFieldFlag::SEqHashIgnore(),
-                refl::DefaultValue(Span()));
+        .def_ro("loc", &BindingBlockNode::loc, refl::AttachFieldFlag::SEqHashIgnore(),
+                refl::DefaultValue(UnknownLoc()));
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
@@ -225,7 +225,7 @@ class BindingBlockNode : public ffi::Object {
 
 class BindingBlock : public ffi::ObjectRef {
  public:
-  TVM_DLL explicit BindingBlock(ffi::Array<Binding> bindings, Span span = Span());
+  TVM_DLL explicit BindingBlock(ffi::Array<Binding> bindings, Location loc = UnknownLoc());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BindingBlock, ffi::ObjectRef, BindingBlockNode);
 
   BindingBlockNode* CopyOnWrite();
@@ -243,7 +243,7 @@ class DataflowBlockNode : public BindingBlockNode {
 
 class DataflowBlock : public BindingBlock {
  public:
-  TVM_DLL explicit DataflowBlock(ffi::Array<Binding> bindings, Span span = Span());
+  TVM_DLL explicit DataflowBlock(ffi::Array<Binding> bindings, Location loc = UnknownLoc());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowBlock, BindingBlock, DataflowBlockNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DataflowBlockNode);
 };
@@ -303,7 +303,7 @@ class SeqExpr : public Expr {
    */
   TVM_DLL SeqExpr(Expr body);  // NOLINT(*)
 
-  TVM_DLL explicit SeqExpr(ffi::Array<BindingBlock> blocks, Expr body, Span span = Span());
+  TVM_DLL explicit SeqExpr(ffi::Array<BindingBlock> blocks, Expr body, Location loc = UnknownLoc());
   explicit SeqExpr(ffi::ObjectPtr<SeqExprNode> node) : Expr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SeqExpr, Expr, SeqExprNode);
@@ -366,9 +366,9 @@ class IfExpr : public Expr {
    *     SeqExpr, to satisfy the Relax IR requirement that all scopes
    *     be contained in a SeqExpr.
    *
-   * \param span The source span of the expression.
+   * \param loc The source location of the expression.
    */
-  TVM_DLL IfExpr(Expr cond, Expr true_branch, Expr false_branch, Span span = Span());
+  TVM_DLL IfExpr(Expr cond, Expr true_branch, Expr false_branch, Location loc = UnknownLoc());
 
   explicit IfExpr(ffi::ObjectPtr<IfExprNode> node) : Expr(std::move(node)) {}
 
@@ -425,17 +425,18 @@ class Function : public BaseFunc {
    * \param attrs Any attributes associated with the function.
    *     Defaults to an empty dictionary.
    *
-   * \param span The source span of the expression.
+   * \param loc The source location of the expression.
    */
   TVM_DLL explicit Function(ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty,
-                            bool is_pure = true, DictAttrs attrs = DictAttrs(), Span span = Span());
+                            bool is_pure = true, DictAttrs attrs = DictAttrs(),
+                            Location loc = UnknownLoc());
 
   /*!
    * \brief Mimics the constructor but without body Expr.
    * \note ret_ty is required, since it can not deduced by the body.
    */
   TVM_DLL static Function CreateEmpty(ffi::Array<Var> params, Type ret_ty, bool is_pure = true,
-                                      DictAttrs attrs = DictAttrs(), Span span = Span());
+                                      DictAttrs attrs = DictAttrs(), Location loc = UnknownLoc());
 
   explicit Function(ffi::ObjectPtr<FunctionNode> node) : BaseFunc(std::move(node)) {}
 
@@ -458,8 +459,8 @@ class ExternFuncNode : public BaseFuncNode {
 
 class ExternFunc : public BaseFunc {
  public:
-  TVM_DLL ExternFunc(ffi::String global_symbol, Span span = Span());
-  TVM_DLL ExternFunc(ffi::String global_symbol, Type ty, Span span = Span());
+  TVM_DLL ExternFunc(ffi::String global_symbol, Location loc = UnknownLoc());
+  TVM_DLL ExternFunc(ffi::String global_symbol, Type ty, Location loc = UnknownLoc());
 
   explicit ExternFunc(ffi::ObjectPtr<ExternFuncNode> node) : BaseFunc(std::move(node)) {}
 

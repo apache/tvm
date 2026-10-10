@@ -89,7 +89,7 @@ Type TypeMutator::VisitType_(const ShapeTypeNode* op) {
   if (values.same_as(op->values)) {
     return ffi::GetRef<Type>(op);
   } else {
-    return ShapeType(values.value(), op->span);
+    return ShapeType(values.value(), op->loc);
   }
 }
 
@@ -104,7 +104,7 @@ Type TypeMutator::VisitType_(const TensorTypeNode* op) {
   if (shape.same_as(op->shape)) {
     return ffi::GetRef<Type>(op);
   } else {
-    return TensorType(shape.value(), op->dtype, vdev, op->span);
+    return TensorType(shape.value(), op->dtype, vdev, op->loc);
   }
 }
 
@@ -119,7 +119,7 @@ Type TypeMutator::VisitType_(const TupleTypeNode* op) {
   if (fields.same_as(op->fields)) {
     return ffi::GetRef<Type>(op);
   } else {
-    return TupleType(fields, op->span);
+    return TupleType(fields, op->loc);
   }
 }
 
@@ -142,9 +142,9 @@ Type TypeMutator::VisitType_(const FuncTypeNode* op) {
   } else {
     TVM_FFI_ICHECK(ret.defined()) << "FuncType must contain ret";
     if (params.has_value()) {
-      return FuncType(params.value(), ret, op->purity, op->span);
+      return FuncType(params.value(), ret, op->purity, op->loc);
     } else {
-      return FuncType::OpaqueFunc(ret, op->purity, op->span);
+      return FuncType::OpaqueFunc(ret, op->purity, op->loc);
     }
   }
 }

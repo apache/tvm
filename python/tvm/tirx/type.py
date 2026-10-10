@@ -19,6 +19,7 @@
 import tvm_ffi
 
 from tvm.ir import Type
+from tvm.ir.location import UNKNOWN_LOC, Location
 
 from . import _ffi_api
 
@@ -29,12 +30,12 @@ class TensorMapType(Type):
 
     Parameters
     ----------
-    span : tvm.ir.Span
-        The span information.
+    loc : tvm.ir.Location
+        The loc information.
     """
 
-    def __init__(self, span=None):
+    def __init__(self, loc: Location = UNKNOWN_LOC):
         self.__init_handle_by_constructor__(
             _ffi_api.TensorMapType,
-            span,  # pylint: disable=no-member
+            loc,  # pylint: disable=no-member
         )

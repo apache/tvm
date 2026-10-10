@@ -382,7 +382,7 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
   virtual void VisitVarDef_(const VarNode* var);
   virtual void VisitVarDef_(const DataflowVarNode* var);
 
-  virtual void VisitSpan(const Span& span);
+  virtual void VisitLoc(const Location& loc);
   virtual void VisitTypePrimExprField(const PrimExpr& expr);
 
  private:

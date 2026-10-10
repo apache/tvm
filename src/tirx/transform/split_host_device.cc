@@ -90,7 +90,7 @@ class DeviceRegionAnnotater : public StmtExprMutator {
       auto attrs = op->attrs->dict;
       attrs.Set(tvm::attr::kTarget, device_target_);
       return RegionStmt(op->op, op->args, op->body_params, DictAttrs(attrs), op->body,
-                        op->result_vars, op->span);
+                        op->result_vars, op->loc);
     }
     if (op->op.same_as(tirx::launch_thread_op())) {
       return RegionStmt(device_scope, {}, {}, DictAttrs({{tvm::attr::kTarget, device_target_}}),
@@ -208,7 +208,7 @@ class HostDeviceSplitter : public StmtExprMutator {
     for (const Var& param : params) {
       if (param->ty.as<TensorTypeNode>()) {
         TensorVar buffer = param.as_or_throw<TensorVar>();
-        TensorVar kernel_buffer(buffer.name(), buffer.type(), buffer.span());
+        TensorVar kernel_buffer(buffer.name(), buffer.type(), buffer.loc());
         Var data_param(buffer.name() + "_ptr", buffer.type()->DataPointerType());
         kernel_params.push_back(data_param);
         call_args.push_back(buffer.data());

@@ -24,11 +24,12 @@ from numbers import Number
 import tvm_ffi
 
 import tvm
+from tvm.ir.location import UNKNOWN_LOC, Location
 
 from ..runtime import Object
 from . import _ffi_api, _tensor_expr_overload
 from ._constant import const
-from .base import Node, Scriptable, Span
+from .base import Node, Scriptable
 
 _ATTRIBUTE_MISSING = object()
 
@@ -52,7 +53,7 @@ def _convert_subscript_index(index):
 class Expr(Node):
     """Base class of all the expressions."""
 
-    span: Span | None
+    loc: Location
     ty: "tvm.ir.Type"
 
     def __getattr__(self, name):
@@ -112,7 +113,7 @@ class Expr(Node):
 
         indices = tuple(index) if isinstance(index, tuple | list) else (index,)
         return _ffi_api.SubscriptExprRealize(
-            self, [_convert_subscript_index(item) for item in indices], None
+            self, [_convert_subscript_index(item) for item in indices], UNKNOWN_LOC
         )
 
 
@@ -390,21 +391,21 @@ class ExprOperand:
     def __bool__(self):
         return self.__nonzero__()
 
-    def equal(self, other, span=None):
+    def equal(self, other, loc: Location = UNKNOWN_LOC):
         if not is_prim_expr(self):
             raise TypeError(f"Operator overloading is not supported for expression type {self.ty}")
-        result = _overload_prim_expr.equal(self, other, span)
+        result = _overload_prim_expr.equal(self, other, loc)
         if result is NotImplemented:
             raise TypeError("Primitive expression overload equal is not registered")
         return result
 
-    def astype(self, dtype, span=None):
+    def astype(self, dtype, loc: Location = UNKNOWN_LOC):
         if is_prim_expr(self):
-            result = _overload_prim_expr.astype(self, dtype, span)
+            result = _overload_prim_expr.astype(self, dtype, loc)
             if result is NotImplemented:
                 raise TypeError("Primitive expression overload astype is not registered")
             return result
-        result = _tensor_expr_overload.astype(self, dtype, span)
+        result = _tensor_expr_overload.astype(self, dtype, loc)
         if result is NotImplemented:
             raise TypeError(f"Operator overloading is not supported for expression type {self.ty}")
         return result
@@ -443,20 +444,20 @@ class Tuple(_CallableExprWithOp):
     fields : list[Expr] | tuple[Expr, ...]
         The fields in the tuple.
 
-    span : Span | None
-        Span that points to the original source code.
+    loc : Location, optional
+        Location that points to the original source code.
     """
 
     fields: list[Expr]
-    span: Span | None
+    loc: Location
 
-    def __init__(self, fields: list[Expr] | tuple[Expr, ...], span: Span | None = None):
+    def __init__(self, fields: list[Expr] | tuple[Expr, ...], loc: Location = UNKNOWN_LOC):
         if isinstance(fields, Tuple):
             fields = fields.fields
         elif isinstance(getattr(fields, "ty", None), tvm.ir.TupleType):
             fields = [*fields]
 
-        self.__init_handle_by_constructor__(_ffi_api.Tuple, fields, span)
+        self.__init_handle_by_constructor__(_ffi_api.Tuple, fields, loc)
 
     def __getitem__(self, index: int) -> Expr:
         if index >= len(self) or index < -len(self):
@@ -479,16 +480,16 @@ class TupleGetItem(_CallableExprWithOp):
     index : int
         The field index.
 
-    span : Span | None
-        Span that points to the original source code.
+    loc : Location, optional
+        Location that points to the original source code.
     """
 
     tuple_value: Expr
     index: int
-    span: Span | None
+    loc: Location
 
-    def __init__(self, tuple_value: Expr, index: int, span: Span | None = None):
-        self.__init_handle_by_constructor__(_ffi_api.TupleGetItem, tuple_value, index, span)
+    def __init__(self, tuple_value: Expr, index: int, loc: Location = UNKNOWN_LOC):
+        self.__init_handle_by_constructor__(_ffi_api.TupleGetItem, tuple_value, index, loc)
 
 
 @tvm_ffi.register_object("ir.TensorLoad")
@@ -501,7 +502,7 @@ class TensorLoad(_CallableExprWithOp):
 
     source: Expr
     indices: list[Expr]
-    span: Span | None
+    loc: Location
 
     def __init__(self, *args, **kwargs):
         raise TypeError(
@@ -518,8 +519,8 @@ class Constant(ExprWithOp):
 class GenericConst(_ExprCallable, Constant):
     """A literal payload with an explicit expression type."""
 
-    def __init__(self, value, ty: "tvm.ir.Type", span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.GenericConst, value, ty, span)
+    def __init__(self, value, ty: "tvm.ir.Type", loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.GenericConst, value, ty, loc)
 
     def __bool__(self) -> bool:
         return True
@@ -533,14 +534,14 @@ class DataTypeImm(Constant):
     ----------
     value : str or tvm.DataType
         The represented data type.
-    span : Span, optional
-        The source span of the literal.
+    loc : Location, optional
+        The source location of the literal.
     """
 
     value: tvm.DataType
 
-    def __init__(self, value: str | tvm.DataType, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.DataTypeImm, value, span)
+    def __init__(self, value: str | tvm.DataType, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.DataTypeImm, value, loc)
 
 
 @tvm_ffi.register_object("ir.StringImm")
@@ -549,8 +550,8 @@ class StringImm(Constant):
 
     value: str
 
-    def __init__(self, value: str, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.StringImm, value, span)
+    def __init__(self, value: str, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.StringImm, value, loc)
 
     def __eq__(self, other) -> bool:
         return self.value == (other.value if isinstance(other, StringImm) else other)
@@ -576,7 +577,7 @@ class Call(_CallableExprWithOp):
     args: list[Expr]
     attrs: "tvm.ir.Attrs | None"
     ty_args: list["tvm.ir.Type"]
-    span: Span | None
+    loc: Location
 
     def __init__(
         self,
@@ -584,15 +585,15 @@ class Call(_CallableExprWithOp):
         args: list[Expr] | tuple[Expr, ...],
         attrs: "tvm.ir.Attrs | dict | None" = None,
         ty_args: list["tvm.ir.Type"] | tuple["tvm.ir.Type", ...] | None = None,
-        span: Span | None = None,
+        loc: Location = UNKNOWN_LOC,
         ty: "tvm.ir.Type | str | None" = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.Call, *self._normalize_constructor_args(op, args, attrs, ty_args, span, ty)
+            _ffi_api.Call, *self._normalize_constructor_args(op, args, attrs, ty_args, loc, ty)
         )
 
     @staticmethod
-    def _normalize_constructor_args(op, args, attrs, ty_args, span, ty):
+    def _normalize_constructor_args(op, args, attrs, ty_args, loc, ty):
         # pylint: disable=import-outside-toplevel
         from .attrs import DictAttrs
         from .op import Op
@@ -608,7 +609,7 @@ class Call(_CallableExprWithOp):
             ty = PrimType(ty)
         if ty_args is None:
             ty_args = []
-        return ty, op, args, attrs, ty_args, span
+        return ty, op, args, attrs, ty_args, loc
 
     def validate(self) -> None:
         """Check the registered operator contract without changing this Call."""
@@ -639,7 +640,7 @@ class TensorRegion(Expr, Scriptable):
     ty : tvm.ir.Type
         The result type, including any dialect-specific subscript semantics.
 
-    span : Span | None
+    loc : Location, optional
         The location of the expression in the source code.
     """
 
@@ -651,9 +652,9 @@ class TensorRegion(Expr, Scriptable):
         source: Expr,
         region: list["Range"],
         ty: "tvm.ir.Type",
-        span: Span | None = None,
+        loc: Location = UNKNOWN_LOC,
     ) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.TensorRegion, source, region, ty, span)
+        self.__init_handle_by_constructor__(_ffi_api.TensorRegion, source, region, ty, loc)
 
 
 @tvm_ffi.register_object("ir.Var")
@@ -668,19 +669,19 @@ class Var(_CallableExprWithOp):
     ty : Optional[Type or str]
         The exact type of the variable.  A string denotes a primitive dtype.
 
-    span : Optional[Span]
-        Span that points to the original source code.
+    loc : Location, optional
+        Location that points to the original source code.
 
     """
 
     name: str
-    span: Span | None
+    loc: Location
 
     def __init__(
         self,
         name: str | None = None,
         ty: "tvm.ir.Type | str | None" = None,
-        span: Span | None = None,
+        loc: Location = UNKNOWN_LOC,
         *,
         name_hint: str | None = None,
     ) -> None:
@@ -700,7 +701,7 @@ class Var(_CallableExprWithOp):
             ty = tvm.runtime.convert(ty)
             if not isinstance(ty, Type):
                 raise TypeError("ty must be a Type or primitive dtype string")
-        self.__init_handle_by_constructor__(_ffi_api.Var, name, ty, span)
+        self.__init_handle_by_constructor__(_ffi_api.Var, name, ty, loc)
 
 
 def _lambda_type(annotation):
@@ -796,7 +797,7 @@ class Range(Node, Scriptable):
     end : Optional[Expr]
         The end value of the range.
 
-    span : Optional[Span]
+    loc : Location, optional
         The location of this node in the source code.
 
     Note
@@ -807,13 +808,13 @@ class Range(Node, Scriptable):
 
     min: Expr
     extent: Expr
-    span: Span | None
+    loc: Location
 
-    def __init__(self, begin: Expr, end: Expr | None = None, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.Range, begin, end, span)
+    def __init__(self, begin: Expr, end: Expr | None = None, loc: Location = UNKNOWN_LOC) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.Range, begin, end, loc)
 
     @staticmethod
-    def from_min_extent(min_value: Expr, extent: Expr, span: Span | None = None) -> "Range":
+    def from_min_extent(min_value: Expr, extent: Expr, loc: Location = UNKNOWN_LOC) -> "Range":
         """Construct a Range by min and extent.
 
         This constructs a range in [min_value, min_value + extent)
@@ -826,7 +827,7 @@ class Range(Node, Scriptable):
         extent : Expr
             The extent of the range.
 
-        span : Optional[Span]
+        loc : Location, optional
             The location of this node in the source code.
 
         Returns
@@ -834,7 +835,7 @@ class Range(Node, Scriptable):
         rng : Range
             The constructed range.
         """
-        return _ffi_api.Range_from_min_extent(min_value, extent, span)
+        return _ffi_api.Range_from_min_extent(min_value, extent, loc)
 
     def __eq__(self, other: Object) -> bool:
         return tvm_ffi.structural_equal(self, other)

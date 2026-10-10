@@ -239,7 +239,7 @@ def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
     )
 
 
-def test_function_return_tensor_source_span():
+def test_function_return_tensor_loc():
     x = relax.Var("x", relax.TensorType((4,), "float32"))
     func = relax.Function([x], x, ret_ty=x.ty).with_attr("global_symbol", "main")
     script = func.script(path_to_underline=[AccessPath.root().attr("ret_ty")])
@@ -251,7 +251,7 @@ def test_function_return_tensor_source_span():
     assert underline == " " * start + "^" * (end - start)
 
 
-def test_function_dependent_shape_source_spans():
+def test_function_dependent_shape_locs():
     n = tirx.Var("n", "int64")
     cast = tirx.Cast("int64", n)
     x = relax.Var("x", relax.TensorType([cast], "float32"))

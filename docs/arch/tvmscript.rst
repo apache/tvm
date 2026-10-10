@@ -104,7 +104,7 @@ declarations. Entry factories populate ``DEFINITION_KIND`` with ``DefinitionKind
 values: ``FUNCTION`` for regular and JIT IR definitions, ``MACRO`` for inline and macro
 expansion, and ``PYTHON`` for retained ``I.pyfunc`` runtime callables. Macro bodies
 construct IR in the caller's context; Python bodies retain ordinary execution and do
-not need builder span context.
+not need builder loc context.
 All calls retain their source context, with binding hooks owning result attachment.
 Symbolic shapes use concrete expressions. Source aliases resolve to those paths;
 ordinary Python calls remain calls in the generated program. Explicit ``constexpr``
@@ -138,7 +138,7 @@ protocol.
 
 Ordinary IR constructors can be used directly in parsed source. Shared exports
 such as ``I.Call`` and ``T.Range`` use the same constructor contracts as
-``tvm.ir.Call`` and ``tvm.ir.Range``, including keyword arguments, source spans
+``tvm.ir.Call`` and ``tvm.ir.Range``, including keyword arguments, source locations
 and validation. ``Call(..., ty=...)`` preserves an explicit result type, including
 ``Type.missing()``. Omitted or ``None`` results use available inference and retain
 ``Type.missing()`` when no deduction is available; inference errors propagate.

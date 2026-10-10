@@ -105,5 +105,5 @@ def __call__(_value, *_args, **_kwargs):
     return NotImplemented
 
 
-def astype(_value, _dtype, _span=None):
+def astype(_value, _dtype, _loc=None):
     return NotImplemented

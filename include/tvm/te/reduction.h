@@ -31,43 +31,43 @@ namespace tvm::prim {
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  * \param init The value with which to initialize the output.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result.
  */
 TVM_DLL PrimExpr sum(PrimExpr source, ffi::Array<s_tir::IterVar> axis,
-                     ffi::Array<PrimExpr> init = {}, Span span = Span());
+                     ffi::Array<PrimExpr> init = {}, Location loc = UnknownLoc());
 
 /*!
  * \brief logical And of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  * \param init The value with which to initialize the output.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  */
 TVM_DLL PrimExpr all(PrimExpr source, ffi::Array<s_tir::IterVar> axis,
-                     ffi::Array<PrimExpr> init = {}, Span span = Span());
+                     ffi::Array<PrimExpr> init = {}, Location loc = UnknownLoc());
 
 /*!
  * \brief logical Or of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  * \param init The value with which to initialize the output.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result.
  */
 TVM_DLL PrimExpr any(PrimExpr source, ffi::Array<s_tir::IterVar> axis,
-                     ffi::Array<PrimExpr> init = {}, Span span = Span());
+                     ffi::Array<PrimExpr> init = {}, Location loc = UnknownLoc());
 
 /*!
  * \brief product of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  * \param init The value with which to initialize the output.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result.
  */
 TVM_DLL PrimExpr prod(PrimExpr source, ffi::Array<s_tir::IterVar> axis,
-                      ffi::Array<PrimExpr> init = {}, Span span = Span());
+                      ffi::Array<PrimExpr> init = {}, Location loc = UnknownLoc());
 
 }  // namespace tvm::prim
 
@@ -77,22 +77,22 @@ namespace tvm {
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  * \param init The value with which to initialize the output.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result.
  */
 TVM_DLL PrimExpr max(PrimExpr source, ffi::Array<s_tir::IterVar> axis,
-                     ffi::Array<PrimExpr> init = {}, Span span = Span());
+                     ffi::Array<PrimExpr> init = {}, Location loc = UnknownLoc());
 
 /*!
  * \brief max of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  * \param init The value with which to initialize the output.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result.
  */
 TVM_DLL PrimExpr min(PrimExpr source, ffi::Array<s_tir::IterVar> axis,
-                     ffi::Array<PrimExpr> init = {}, Span span = Span());
+                     ffi::Array<PrimExpr> init = {}, Location loc = UnknownLoc());
 
 }  // namespace tvm
 #endif  // TVM_TE_REDUCTION_H_

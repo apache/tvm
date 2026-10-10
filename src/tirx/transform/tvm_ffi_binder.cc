@@ -681,7 +681,7 @@ void TVMFFIABIBuilder::BindCompactStrides(const TensorVar& buffer, const Var& st
   if (conds.size() != 0) {
     int param_index = GetParamIndex(param_path);
     Stmt check = AssertStmt(
-        foldl([](PrimExpr a, PrimExpr b, Span span) { return logical_and(a, b, span); },
+        foldl([](PrimExpr a, PrimExpr b, Location loc) { return logical_and(a, b, loc); },
               IntImm::Bool(true), conds),
         StringImm("ValueError"),
         ffi::Array<StringImm>({StringImm("Mismatched "), StringImm(buffer.name()),

@@ -24,6 +24,8 @@ from types import ModuleType, SimpleNamespace
 
 import tvm_ffi
 
+from tvm.ir.location import UNKNOWN_LOC, Location
+
 from . import _ffi_api
 from .expr import Expr
 
@@ -37,7 +39,7 @@ def _make_op_api(op, module_name):
         *args,
         attrs=None,
         ty_args=None,
-        span=None,
+        loc: Location = UNKNOWN_LOC,
         ty=None,
         **kwargs,
     ):
@@ -58,7 +60,7 @@ def _make_op_api(op, module_name):
             if attrs is not None:
                 raise TypeError(f"{op.name}: cannot mix attrs with attribute keywords")
             attrs = make_node(op.attrs_type_key, **kwargs)
-        return Call(op, operands, attrs=attrs, ty_args=ty_args, span=span, ty=ty)
+        return Call(op, operands, attrs=attrs, ty_args=ty_args, loc=loc, ty=ty)
 
     call.__name__ = op.name.rsplit(".", 1)[-1]
     call.__module__ = module_name
@@ -77,7 +79,7 @@ def _init_op_api(namespace, target_module_name=None):
     module or SimpleNamespace containers; underscores are ordinary name parts.
 
     Generated functions accept registered positional/named operands plus
-    ``attrs``, ``ty_args``, ``span`` and ``ty``.
+    ``attrs``, ``ty_args``, ``loc`` and ``ty``.
     Omitting the result invokes an available Op inference hook; without one,
     Call retains a missing type.
     Explicit results and inference errors are preserved; Call.validate checks

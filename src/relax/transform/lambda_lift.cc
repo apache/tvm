@@ -287,7 +287,7 @@ class LambdaLifter : public ExprMutator {
     ffi::Array<Var> typed_captured_vars;
     ffi::Map<Var, Expr> rebinding_map;
     for (auto free_var : captured_vars) {
-      Var var = Var(free_var->name, GetType(free_var), free_var->span);
+      Var var = Var(free_var->name, GetType(free_var), free_var->loc);
       typed_captured_vars.push_back(var);
       rebinding_map.Set(free_var, var);
     }

@@ -355,7 +355,7 @@ void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const Function& f) 
   // before reaching them. Keep them as llvm.assume instead of strengthening
   // the function's parameter contract retroactively.
 
-  EmitDebugLocation(f->span);
+  EmitDebugLocation(f->loc);
 
   if (IsVoidType(f->ret_type)) {
     // All other return types are handled when encountering Return.
@@ -750,7 +750,7 @@ llvm::GlobalVariable* CodeGenLLVM::AllocateSharedMemory(PrimType dtype, size_t s
 std::unique_ptr<CodeGenLLVM::DebugInfo> CodeGenLLVM::CreateDebugInfo(llvm::Module* module) {
   auto debug_info = std::make_unique<CodeGenLLVM::DebugInfo>();
   debug_info->di_builder_ = std::make_unique<llvm::DIBuilder>(*module);
-  // TODO(tulloch): pass this information through Span classes to the IRModule instance?
+  // TODO(tulloch): pass this information through Location classes to the IRModule instance?
   debug_info->file_ = debug_info->di_builder_->createFile("IRModule.CodeGenLLVM", ".");
   const int runtime_version = 0;
   const bool is_optimized = false;
@@ -872,7 +872,7 @@ void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Va
   auto lt = CreateLT(loop_var_type, loop_value, end);
   builder_->CreateCondBr(lt, for_body, for_end, md_very_likely_branch_);
   builder_->SetInsertPoint(for_body);
-  EmitDebugLocation(body->span);
+  EmitDebugLocation(body->loc);
 
   // Facts established inside a loop do not dominate its exit.
   auto outer_storage_info = alloc_storage_info_;
@@ -2373,7 +2373,7 @@ void CodeGenLLVM::Dispatch_(const EvaluateNode* op) {
   MakeValue(op->value);
 }
 
-void CodeGenLLVM::EmitDebugLocation(const ffi::Optional<Span>& span) {
+void CodeGenLLVM::EmitDebugLocation(const Location& location) {
   if (di_subprogram_ == nullptr) {
     // debug info is not always generated outside of CPU codegen
     return;
@@ -2382,10 +2382,9 @@ void CodeGenLLVM::EmitDebugLocation(const ffi::Optional<Span>& span) {
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
   int line = 0;
   int column = 0;
-  if (span) {
-    auto ptr = span.as<SpanNode>();
-    line = ptr->line;
-    column = ptr->column;
+  if (const auto* source = location.as<SourceLocNode>()) {
+    line = source->start_line;
+    column = source->start_column;
   }
 
   auto loc = llvm::DebugLoc(llvm::DILocation::get(*ctx, line, column, di_subprogram_));
@@ -2393,7 +2392,7 @@ void CodeGenLLVM::EmitDebugLocation(const ffi::Optional<Span>& span) {
 }
 
 void CodeGenLLVM::EmitDebugLocation() { builder_->SetCurrentDebugLocation(nullptr); }
-void CodeGenLLVM::EmitDebugLocation(const StmtNode* op) { EmitDebugLocation(op->span); }
+void CodeGenLLVM::EmitDebugLocation(const StmtNode* op) { EmitDebugLocation(op->loc); }
 
 // Following Glow |DebugInfo::generateFunctionDebugInfo|, https://git.io/fjadv
 void CodeGenLLVM::AddDebugInformation(llvm::Function* f_llvm,

@@ -44,16 +44,16 @@ using namespace tvm::prim;
 //--------------------------
 class StaticTypeDeriver : public TypeFunctor<Type(const Type&)> {
  public:
-  Type VisitType_(const AnyTypeNode* op) final { return AnyType(op->span); }
+  Type VisitType_(const AnyTypeNode* op) final { return AnyType(op->loc); }
 
   Type VisitType_(const PrimTypeNode* op) final { return tvm::PrimType(op->dtype); }
 
   Type VisitType_(const StringTypeNode* op) final { return StringType(); }
 
-  Type VisitType_(const ShapeTypeNode* op) final { return ShapeType(op->ndim, op->span); }
+  Type VisitType_(const ShapeTypeNode* op) final { return ShapeType(op->ndim, op->loc); }
 
   Type VisitType_(const TensorTypeNode* op) final {
-    return TensorType(op->dtype, op->ndim, op->vdevice, op->span);
+    return TensorType(op->dtype, op->ndim, op->vdevice, op->loc);
   }
 
   // module: distributed
@@ -63,15 +63,15 @@ class StaticTypeDeriver : public TypeFunctor<Type(const Type&)> {
   Type VisitType_(const TupleTypeNode* op) final {
     ffi::Array<Type> fields =
         op->fields.Map([this](const Type& ty) { return this->VisitType(ty); });
-    return TupleType(fields, op->span);
+    return TupleType(fields, op->loc);
   }
 
   Type VisitType_(const FuncTypeNode* op) final {
-    if (op->IsOpaque()) return PackedFuncType(op->span);
+    if (op->IsOpaque()) return PackedFuncType(op->loc);
     ffi::Array<Type> params =
         op->params.value().Map([this](const Type& ty) { return this->VisitType(ty); });
     Type ret = this->VisitType(op->ret);
-    return FuncType(params, ret, op->purity, op->span);
+    return FuncType(params, ret, op->purity, op->loc);
   }
 };
 
@@ -89,7 +89,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type TypeFromStaticType(const Type& type) {
   if (type.as<AnyTypeNode>()) {
-    return AnyType(type->span);
+    return AnyType(type->loc);
   } else if (type.as<StringTypeNode>()) {
     return StringType();
   } else if (const PrimTypeNode* prim_type = type.as<PrimTypeNode>()) {
@@ -97,7 +97,7 @@ Type TypeFromStaticType(const Type& type) {
   } else if (const tvm::PrimTypeNode* prim_type = type.as<tvm::PrimTypeNode>()) {
     return tvm::PrimType(prim_type->dtype);
   } else if (const ShapeTypeNode* shape_type = type.as<ShapeTypeNode>()) {
-    return ShapeType(shape_type->ndim, type->span);
+    return ShapeType(shape_type->ndim, type->loc);
   } else if (const TensorTypeNode* tensor_type = type.as<TensorTypeNode>()) {
     return TensorType(tensor_type->dtype, tensor_type->ndim);
   } else if (const TupleTypeNode* tuple_type = type.as<TupleTypeNode>()) {
@@ -105,19 +105,19 @@ Type TypeFromStaticType(const Type& type) {
     for (const Type& field : tuple_type->fields) {
       fields.push_back(TypeFromStaticType(field));
     }
-    return TupleType(fields, type->span);
+    return TupleType(fields, type->loc);
   } else if (const FuncTypeNode* func_type = type.as<FuncTypeNode>()) {
     if (func_type->IsOpaque()) return FuncType::OpaqueFunc(func_type->ret, func_type->purity);
     ffi::Array<Type> params =
         func_type->params.value().Map([](const Type& param) { return TypeFromStaticType(param); });
     Type ret = TypeFromStaticType(func_type->ret);
-    return FuncType(params, ret, func_type->purity, func_type->span);
+    return FuncType(params, ret, func_type->purity, func_type->loc);
   } else if (const tvm::FuncTypeNode* func_type = type.as<tvm::FuncTypeNode>()) {
     ffi::Array<Type> params =
         func_type->arg_types.Map([](const Type& param) { return TypeFromStaticType(param); });
     Type ret = TypeFromStaticType(func_type->ret_type);
     // TODO(relax-team): Maybe add purity into the type as well
-    return FuncType(params, ret, true, func_type->span);
+    return FuncType(params, ret, true, func_type->loc);
   } else {
     TVM_FFI_THROW(InternalError) << "Unsupported type: " << type;
     return Type::Missing();
@@ -149,10 +149,10 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
       if (values.same_as(op->values)) {
         return ffi::GetRef<Type>(op);
       } else {
-        return ShapeType(values.value(), op->span);
+        return ShapeType(values.value(), op->loc);
       }
     } else {
-      return ShapeType(op->ndim, op->span);
+      return ShapeType(op->ndim, op->loc);
     }
   }
 
@@ -174,13 +174,13 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
         return ffi::GetRef<Type>(op);
       } else {
         if (shape.has_value()) {
-          return TensorType(shape.value(), op->dtype, vdev, op->span);
+          return TensorType(shape.value(), op->dtype, vdev, op->loc);
         } else {
-          return TensorType(op->dtype, op->ndim, vdev, op->span);
+          return TensorType(op->dtype, op->ndim, vdev, op->loc);
         }
       }
     } else {
-      return TensorType(op->dtype, op->ndim, vdev, op->span);
+      return TensorType(op->dtype, op->ndim, vdev, op->loc);
     }
   }
 
@@ -226,7 +226,7 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
   Expr VisitExpr_(const ShapeExprNode* op) final {
     ffi::Array<PrimExpr> values =
         op->values.Map([this](const PrimExpr& expr) { return VisitPrimitiveExpr(expr); });
-    return values.same_as(op->values) ? ffi::GetRef<Expr>(op) : ShapeExpr(values, op->span);
+    return values.same_as(op->values) ? ffi::GetRef<Expr>(op) : ShapeExpr(values, op->loc);
   }
 
   Expr VisitExpr_(const VarNode* var) final {
@@ -1008,23 +1008,23 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
   }
 
   Type VisitType_(const StringTypeNode* lhs, const Type& other) final {
-    return other.as<StringTypeNode>() ? ffi::GetRef<Type>(lhs) : AnyType(lhs->span);
+    return other.as<StringTypeNode>() ? ffi::GetRef<Type>(lhs) : AnyType(lhs->loc);
   }
 
   Type VisitType_(const PrimTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<PrimTypeNode>();
-    if (rhs == nullptr) return AnyType(lhs->span);
+    if (rhs == nullptr) return AnyType(lhs->loc);
     if (lhs->dtype != rhs->dtype) {
       // PrimType will be treated as their boxed Any values
       // as a result we can unify to Any.
-      return AnyType(lhs->span);
+      return AnyType(lhs->loc);
     }
     return ffi::GetRef<Type>(lhs);
   }
 
   Type VisitType_(const ShapeTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<ShapeTypeNode>();
-    if (rhs == nullptr) return AnyType(lhs->span);
+    if (rhs == nullptr) return AnyType(lhs->loc);
 
     int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownNDim;
     if (lhs->ndim != rhs->ndim || !lhs->values.has_value() || !rhs->values.has_value() ||
@@ -1034,7 +1034,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
       if (!lhs->values.has_value() && lhs->ndim == ndim) {
         return ffi::GetRef<Type>(lhs);
       } else {
-        return ShapeType(ndim, lhs->span);
+        return ShapeType(ndim, lhs->loc);
       }
     }
     // equals to each other
@@ -1043,7 +1043,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
 
   Type VisitType_(const TensorTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<TensorTypeNode>();
-    if (rhs == nullptr) return AnyType(lhs->span);
+    if (rhs == nullptr) return AnyType(lhs->loc);
 
     // find the target dtype, ndim, and vdevice.
     ffi::Optional<PrimType> dtype = (!lhs->IsUnknownDtype() && !rhs->IsUnknownDtype() &&
@@ -1066,12 +1066,12 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
           (!lhs->vdevice.has_value() || vdev.defined())) {
         return ffi::GetRef<Type>(lhs);
       } else {
-        return TensorType(dtype, ndim, vdev, lhs->span);
+        return TensorType(dtype, ndim, vdev, lhs->loc);
       }
     }
     // symbolic shape and vdevice match but dtype mismatch
     if (lhs->dtype != dtype || (lhs->vdevice.has_value() && !vdev.defined())) {
-      return TensorType(lhs->shape.value(), dtype, vdev, lhs->span);
+      return TensorType(lhs->shape.value(), dtype, vdev, lhs->loc);
     } else {
       return ffi::GetRef<Type>(lhs);
     }
@@ -1079,14 +1079,14 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
 
   Type VisitType_(const TupleTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<TupleTypeNode>();
-    if (rhs == nullptr) return AnyType(lhs->span);
+    if (rhs == nullptr) return AnyType(lhs->loc);
     ffi::Optional<ffi::Array<Type>> fields = UnifyArray(lhs->fields, rhs->fields);
     // tuple length not the same.
-    if (!fields.has_value()) return AnyType(lhs->span);
+    if (!fields.has_value()) return AnyType(lhs->loc);
 
     // same length tuple.
     if (!fields.same_as(lhs->fields)) {
-      return TupleType(fields.value(), lhs->span);
+      return TupleType(fields.value(), lhs->loc);
     } else {
       return ffi::GetRef<Type>(lhs);
     }
@@ -1094,7 +1094,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
 
   Type VisitType_(const FuncTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<FuncTypeNode>();
-    if (rhs == nullptr) return AnyType(lhs->span);
+    if (rhs == nullptr) return AnyType(lhs->loc);
 
     // the unified function is pure only if both are pure
     bool purity = lhs->purity && rhs->purity;
@@ -1106,13 +1106,13 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
           return ffi::GetRef<Type>(lhs);
         } else {
           // Create a new opaque with object return
-          return FuncType::OpaqueFunc(AnyType(), purity, lhs->span);
+          return FuncType::OpaqueFunc(AnyType(), purity, lhs->loc);
         }
       } else {
         // no derivation function, only depends on ret
         Type ret = this->VisitType(lhs->ret, rhs->ret);
         if (ret.same_as(lhs->ret)) return ffi::GetRef<Type>(lhs);
-        return FuncType::OpaqueFunc(ret, purity, lhs->span);
+        return FuncType::OpaqueFunc(ret, purity, lhs->loc);
       }
     }
     // rhs is opaque, lhs is not
@@ -1120,7 +1120,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
       // unify ret value, note that rhs's ret is context free(because it is opaque)
       // so result of the unify is also context-free.
       Type ret = this->VisitType(lhs->ret, rhs->ret);
-      return FuncType::OpaqueFunc(ret, purity, lhs->span);
+      return FuncType::OpaqueFunc(ret, purity, lhs->loc);
     }
 
     // Both lhs and rhs are not opaque
@@ -1150,9 +1150,9 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
     } else {
       // fail to unify the params
       if (!params.has_value()) {
-        return FuncType::OpaqueFunc(ret, purity, lhs->span);
+        return FuncType::OpaqueFunc(ret, purity, lhs->loc);
       } else {
-        return FuncType(params.value(), ret, purity, lhs->span);
+        return FuncType(params.value(), ret, purity, lhs->loc);
       }
     }
   }

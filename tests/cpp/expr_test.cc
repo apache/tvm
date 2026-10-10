@@ -20,8 +20,8 @@
 #include <gtest/gtest.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ir/location.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/ir/source_map.h>
 #include <tvm/relax/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
@@ -118,31 +118,31 @@ TEST(Expr, VarCopyHelpers) {
   using namespace tvm;
   using namespace tvm::tirx;
 
-  Span span(SourceName::Get("test.cc"), 1, 1, 1, 10);
+  SourceLoc loc(SourceName::Get("test.cc"), 1, 1, 1, 10);
   Type pointer_type = PointerType(PrimType::Float(32), "global");
-  Var var("x", pointer_type, span);
+  Var var("x", pointer_type, loc);
 
   Var renamed = var.CopyWithName("y");
   EXPECT_FALSE(renamed.same_as(var));
   EXPECT_EQ(renamed->name, "y");
   EXPECT_TRUE(renamed->ty.same_as(pointer_type));
-  EXPECT_TRUE(renamed->span.same_as(span));
+  EXPECT_TRUE(renamed->loc.same_as(loc));
 
   PrimType dtype = PrimType::Int(64);
   Var retyped = var.CopyWithDType(dtype);
   EXPECT_FALSE(retyped.same_as(var));
   EXPECT_EQ(retyped->name, "x");
   EXPECT_TRUE(retyped->ty.same_as(dtype));
-  EXPECT_TRUE(retyped->span.same_as(span));
+  EXPECT_TRUE(retyped->loc.same_as(loc));
 
-  PrimVar prim_var("i", PrimType::Int(32), span);
+  PrimVar prim_var("i", PrimType::Int(32), loc);
   static_assert(std::is_same_v<decltype(prim_var.CopyWithDType(PrimType::Float(32))), PrimVar>);
   PrimType prim_dtype = PrimType::Float(32);
   PrimVar retyped_prim_var = prim_var.CopyWithDType(prim_dtype);
   EXPECT_FALSE(retyped_prim_var.same_as(prim_var));
   EXPECT_EQ(retyped_prim_var->name, "i");
   EXPECT_TRUE(retyped_prim_var.ty().same_as(prim_dtype));
-  EXPECT_TRUE(retyped_prim_var->span.same_as(span));
+  EXPECT_TRUE(retyped_prim_var->loc.same_as(loc));
 }
 
 TEST(Expr, PrimTypeBoolLanes) {

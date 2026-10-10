@@ -432,18 +432,18 @@ def test_call_tir_canonical_roundtrip(name, tuple_result, result_kind, namespace
         kwargs = {"te_grad_name": "gradient", "te_grad_kwargs": {"scale": 2}}
     elif inplace:
         kwargs = {"inplace_indices": [0, -1] if tuple_result else [0]}
-    span = tvm.ir.Span(tvm.ir.SourceName("native_call"), 1, 2, 3, 4)
+    loc = tvm.ir.SourceLoc(tvm.ir.SourceName("native_call"), 1, 3, 2, 4)
     builder = getattr(namespace, name)
-    call = builder(callee, (x,), ty_args=[output_type], ty=result_type, span=span, **kwargs)
+    call = builder(callee, (x,), ty_args=[output_type], ty=result_type, loc=loc, **kwargs)
     call.validate()
-    assert call.span.same_as(span)
+    assert call.loc.same_as(loc)
     assert call.args[0].same_as(callee)
     assert call.args[1].fields[0].same_as(x)
     tvm.ir.assert_structural_equal(call.ty_args[0], output_type)
     tvm.ir.assert_structural_equal(call.ty, output_type if result_type is None else result_type)
     # An attrs object and semantic keywords construct the same canonical Call.
     with_attrs = builder(
-        callee, call.args[1], ty_args=[output_type], attrs=call.attrs, ty=result_type, span=span
+        callee, call.args[1], ty_args=[output_type], attrs=call.attrs, ty=result_type, loc=loc
     )
     tvm.ir.assert_structural_equal(call, with_attrs)
     printed = call.script()
@@ -476,17 +476,17 @@ def test_call_dps_packed_canonical_roundtrip(tuple_size, callee_kind, result_kin
     }[callee_kind]
     expected_callee = relax.ExternFunc("packed") if callee_kind == "string" else callee
     x = relax.Var("x", tensor_type)
-    span = tvm.ir.Span(tvm.ir.SourceName("packed_call"), 1, 2, 3, 4)
-    call = relax.op.call_dps_packed(callee, (x,), ty_args=[output_type], ty=result_type, span=span)
+    loc = tvm.ir.SourceLoc(tvm.ir.SourceName("packed_call"), 1, 3, 2, 4)
+    call = relax.op.call_dps_packed(callee, (x,), ty_args=[output_type], ty=result_type, loc=loc)
     expected = tvm.ir.Call(
         "relax.call_dps_packed",
         [expected_callee, (x,)],
         ty_args=[output_type],
         ty=result_type,
-        span=span,
+        loc=loc,
     )
     tvm.ir.assert_structural_equal(call, expected)
-    assert call.span.same_as(span)
+    assert call.loc.same_as(loc)
     if callee_kind != "string":
         assert call.args[0].same_as(callee)
     else:
@@ -513,12 +513,12 @@ def test_call_dps_packed_raw_roundtrip(exception):
         callee = relax.ExternFunc("packed", ty=relax.FuncType([tensor_type], tensor_type))
     else:
         args = relax.Var("args", tvm.ir.TupleType([tensor_type]))
-    span = tvm.ir.Span(tvm.ir.SourceName("packed_raw"), 1, 2, 3, 4)
+    loc = tvm.ir.SourceLoc(tvm.ir.SourceName("packed_raw"), 1, 3, 2, 4)
     call = R.call_dps_packed(
-        callee, args, ty_args=[tensor_type], attrs=attrs, ty=tvm.ir.Type.missing(), span=span
+        callee, args, ty_args=[tensor_type], attrs=attrs, ty=tvm.ir.Type.missing(), loc=loc
     )
     assert call.args[0].same_as(callee)
-    assert call.span.same_as(span)
+    assert call.loc.same_as(loc)
     if attrs is not None:
         assert call.attrs.same_as(attrs)
     printed = call.script()
@@ -540,14 +540,14 @@ def test_call_py_func_canonical_roundtrip(tuple_size, result_kind, builder):
         "missing": tvm.ir.Type.missing(),
         "explicit": R.Tensor((3,), "float64"),
     }[result_kind]
-    span = tvm.ir.Span(tvm.ir.SourceName("callback"), 1, 2, 3, 4)
+    loc = tvm.ir.SourceLoc(tvm.ir.SourceName("callback"), 1, 3, 2, 4)
     x = relax.Var("x", tensor_type)
-    call = builder("callback", (x,), ty_args=[output_type], ty=result_type, span=span)
+    call = builder("callback", (x,), ty_args=[output_type], ty=result_type, loc=loc)
     expected = tvm.ir.Call(
-        "relax.call_py_func", ["callback", (x,)], ty_args=[output_type], ty=result_type, span=span
+        "relax.call_py_func", ["callback", (x,)], ty_args=[output_type], ty=result_type, loc=loc
     )
     tvm.ir.assert_structural_equal(call, expected)
-    assert call.span.same_as(span)
+    assert call.loc.same_as(loc)
     assert call.args[0].value == "callback"
     assert len(call.args[1].fields) == 1 and call.args[1].fields[0].same_as(x)
     tvm.ir.assert_structural_equal(call.ty_args[0], output_type)

@@ -205,13 +205,13 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
         args.same_as(buffer_call->args)) {
       return ffi::Unchanged();
     }
-    args.Set(0, tvm::Tuple(info.flattened->shape, buffer_call->args[0]->span));
-    args.Set(1, DataTypeImm(info.flattened->dtype->dtype, buffer_call->args[1]->span));
-    args.Set(2, StringImm(info.flattened.scope(), buffer_call->args[2]->span));
+    args.Set(0, tvm::Tuple(info.flattened->shape, buffer_call->args[0]->loc));
+    args.Set(1, DataTypeImm(info.flattened->dtype->dtype, buffer_call->args[1]->loc));
+    args.Set(2, StringImm(info.flattened.scope(), buffer_call->args[2]->loc));
     return Bind(info.flattened.var(),
                 Call(info.flattened.type(), tirx::alloc_tensor_op(), args, buffer_call->attrs,
-                     buffer_call->ty_args, buffer_call->span),
-                op->span);
+                     buffer_call->ty_args, buffer_call->loc),
+                op->loc);
   }
 
   UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, const CallNode* buffer_call,
@@ -237,8 +237,8 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
                 Call(info.flattened.type(), decl_tensor_op(),
                      {std::move(data), tvm::Tuple(info.flattened->shape),
                       DataTypeImm(info.flattened->dtype->dtype), StringImm(info.flattened.scope())},
-                     buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
-                op->span);
+                     buffer_call->attrs, buffer_call->ty_args, buffer_call->loc),
+                op->loc);
   }
 
   UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
@@ -283,7 +283,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
       args.push_back(this->Mutate(op->args[op->args.size() - 1])
                          .ValueOrUnchanged(op->args[op->args.size() - 1])
                          .as_or_throw<Expr>());
-      return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
+      return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->loc);
     }
     if (op->op.same_as(tensor_data_ptr_op()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>()) {
@@ -318,7 +318,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
   TensorLoad VisitBufferAccess(TensorLoad node, const TensorVar& original_buffer) {
     buffers_used_.insert(original_buffer);
     const FlatInfo& info = Lookup(original_buffer);
-    return MakeTensorLoad(info.flattened, FoldIndices(info, node->indices), node->span);
+    return MakeTensorLoad(info.flattened, FoldIndices(info, node->indices), node->loc);
   }
 
   /*! \brief Set of buffers accessed during visitation (used to emit DeclTensor for param buffers).

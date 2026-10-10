@@ -226,9 +226,9 @@ def test_missing_host_binding_raises_before_use(language):
                 x = 3
 
 
-def test_nested_function_failure_preserves_error_and_recovers(spanned_language):
+def test_nested_function_failure_preserves_error_and_recovers(located_language):
     # A nested failure keeps the original error/call sites and leaves the next script clean.
-    language = spanned_language
+    language = located_language
     M = language.M
     seen = []
     failure = ValueError("inner body failure")
@@ -301,10 +301,10 @@ def test_nested_function_failure_preserves_error_and_recovers(spanned_language):
         (i, line) for i, line in enumerate(lines) if line.strip() == "M.record(M.node(23))"
     )
     column = line.index("M.node(23)") + 1
-    span = fresh.span
-    assert not isinstance(span, ir.SequentialSpan)
-    assert span.source_name.name == __file__
-    assert (span.line, span.column, span.end_line, span.end_column) == (
+    loc = fresh.loc
+    assert not isinstance(loc, ir.CallSiteLoc)
+    assert loc.source_name.name == __file__
+    assert (loc.start_line, loc.start_column, loc.end_line, loc.end_column) == (
         start + index,
         column,
         start + index,

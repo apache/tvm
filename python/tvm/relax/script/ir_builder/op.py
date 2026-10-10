@@ -30,6 +30,7 @@ import tvm
 from tvm import ir as _ir
 from tvm import relax as _relax
 from tvm import tirx as _tir
+from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.op import _init_op_api
 from tvm.ir.prim import _ffi_api as _prim_ffi
 from tvm.relax import Call, Expr, ExternFunc
@@ -244,7 +245,7 @@ from .ir import _value, lookup_vdevice
 py_print = builtins.print
 py_tuple = tuple
 py_str = str
-_Span = _base.SpanEntry | _ir.Span | None
+_Loc = _base.LocationEntry | _ir.Location | None
 
 
 def to_vdevice(
@@ -252,7 +253,7 @@ def to_vdevice(
     dst_vdevice: py_str | VDevice = None,
     *,
     ty=None,
-    span=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Copy data to the destination device.
 
@@ -276,7 +277,7 @@ def to_vdevice(
         else:
             dst_vdevice = lookup_vdevice(dst_vdevice, 0)
 
-    return _to_vdevice(data, dst_vdevice, ty=ty, span=span)
+    return _to_vdevice(data, dst_vdevice, ty=ty, loc=loc)
 
 
 def call_packed(
@@ -361,7 +362,7 @@ def _logical_pair(lhs, rhs, operation, primitive, python_operation):
     return operation(_value(lhs), _value(rhs))
 
 
-def logical_and(*values, ty_args=None, ty=None, span=None):
+def logical_and(*values, ty_args=None, ty=None, loc=None):
     """Construct conjunction of host, primitive, or tensor values.
 
     Parameters
@@ -381,8 +382,11 @@ def logical_and(*values, ty_args=None, ty=None, span=None):
     All arguments are evaluated before this call; it does not provide Python
     short-circuit evaluation of the argument expressions.
     """
-    if any(field is not None for field in (ty_args, ty, span)):
-        return _logical_and(*values, ty_args=ty_args, ty=ty, span=span)
+    # Omitted metadata retains host/primitive dispatch; explicit metadata selects Relax.
+    if any(field is not None for field in (ty_args, ty, loc)):
+        return _logical_and(
+            *values, ty_args=ty_args, ty=ty, loc=UNKNOWN_LOC if loc is None else loc
+        )
     if not values:
         raise TypeError("logical_and requires at least one operand")
     result = values[0]
@@ -391,7 +395,7 @@ def logical_and(*values, ty_args=None, ty=None, span=None):
     return result
 
 
-def logical_or(*values, ty_args=None, ty=None, span=None):
+def logical_or(*values, ty_args=None, ty=None, loc=None):
     """Construct disjunction of host, primitive, or tensor values.
 
     Parameters
@@ -411,8 +415,9 @@ def logical_or(*values, ty_args=None, ty=None, span=None):
     All arguments are evaluated before this call; it does not provide Python
     short-circuit evaluation of the argument expressions.
     """
-    if any(field is not None for field in (ty_args, ty, span)):
-        return _logical_or(*values, ty_args=ty_args, ty=ty, span=span)
+    # Omitted metadata retains host/primitive dispatch; explicit metadata selects Relax.
+    if any(field is not None for field in (ty_args, ty, loc)):
+        return _logical_or(*values, ty_args=ty_args, ty=ty, loc=UNKNOWN_LOC if loc is None else loc)
     if not values:
         raise TypeError("logical_or requires at least one operand")
     result = values[0]
@@ -421,7 +426,7 @@ def logical_or(*values, ty_args=None, ty=None, span=None):
     return result
 
 
-def logical_not(value, *, ty_args=None, ty=None, span=None):
+def logical_not(value, *, ty_args=None, ty=None, loc=None):
     """Negate a host, primitive, or tensor condition.
 
     Parameters
@@ -435,8 +440,9 @@ def logical_not(value, *, ty_args=None, ty=None, span=None):
     result : Expr or bool
         The logical negation without testing an IR expression as a Python bool.
     """
-    if any(field is not None for field in (ty_args, ty, span)):
-        return _logical_not(value, ty_args=ty_args, ty=ty, span=span)
+    # Omitted metadata retains host/primitive dispatch; explicit metadata selects Relax.
+    if any(field is not None for field in (ty_args, ty, loc)):
+        return _logical_not(value, ty_args=ty_args, ty=ty, loc=UNKNOWN_LOC if loc is None else loc)
     if _ir.is_prim_expr(value):
         return _tir.Not(value)
     if isinstance(value, _ir.Expr):
@@ -510,58 +516,64 @@ def not_(value: Any) -> Any:
     return logical_not(value)
 
 
-def lt_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
+def lt_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.lt_`."""
     if any(isinstance(value, _ir.Expr) and not _ir.is_prim_expr(value) for value in (lhs, rhs)):
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
-        return _base.at_(span, _relax.op.less(lhs, rhs))
-    return _prim_ffi._OpLT(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
+        return _base.at_(loc, _relax.op.less(lhs, rhs))
+    loc = UNKNOWN_LOC if loc is None else loc
+    return _prim_ffi._OpLT(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
-def le_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
+def le_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.le_`."""
     if any(isinstance(value, _ir.Expr) and not _ir.is_prim_expr(value) for value in (lhs, rhs)):
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
-        return _base.at_(span, _relax.op.less_equal(lhs, rhs))
-    return _prim_ffi._OpLE(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
+        return _base.at_(loc, _relax.op.less_equal(lhs, rhs))
+    loc = UNKNOWN_LOC if loc is None else loc
+    return _prim_ffi._OpLE(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
-def gt_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
+def gt_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.gt_`."""
     if any(isinstance(value, _ir.Expr) and not _ir.is_prim_expr(value) for value in (lhs, rhs)):
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
-        return _base.at_(span, _relax.op.greater(lhs, rhs))
-    return _prim_ffi._OpGT(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
+        return _base.at_(loc, _relax.op.greater(lhs, rhs))
+    loc = UNKNOWN_LOC if loc is None else loc
+    return _prim_ffi._OpGT(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
-def ge_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
+def ge_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.ge_`."""
     if any(isinstance(value, _ir.Expr) and not _ir.is_prim_expr(value) for value in (lhs, rhs)):
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
-        return _base.at_(span, _relax.op.greater_equal(lhs, rhs))
-    return _prim_ffi._OpGE(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
+        return _base.at_(loc, _relax.op.greater_equal(lhs, rhs))
+    loc = UNKNOWN_LOC if loc is None else loc
+    return _prim_ffi._OpGE(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
-def eq_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
+def eq_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.eq_`."""
     if any(isinstance(value, _ir.Expr) and not _ir.is_prim_expr(value) for value in (lhs, rhs)):
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
-        return _base.at_(span, _relax.op.equal(lhs, rhs))
-    return _prim_ffi._OpEQ(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
+        return _base.at_(loc, _relax.op.equal(lhs, rhs))
+    loc = UNKNOWN_LOC if loc is None else loc
+    return _prim_ffi._OpEQ(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
-def ne_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
+def ne_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.ne_`."""
     if any(isinstance(value, _ir.Expr) and not _ir.is_prim_expr(value) for value in (lhs, rhs)):
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
-        return _base.at_(span, _relax.op.not_equal(lhs, rhs))
-    return _prim_ffi._OpNE(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
+        return _base.at_(loc, _relax.op.not_equal(lhs, rhs))
+    loc = UNKNOWN_LOC if loc is None else loc
+    return _prim_ffi._OpNE(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
 inspect = _Namespace()

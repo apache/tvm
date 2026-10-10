@@ -161,13 +161,13 @@ class AutoPadder {
                    (32 * 32 / data_bits))
                       .as<int>()
                       .value();
-              std::vector<int> span;
+              std::vector<int> loc;
               for (int v1 : iter_space) {
                 for (int v2 : low_dim_iter_space[i]) {
-                  span.push_back(((v1 * padded_stride + v2) * data_bits) % (32 * 32 / data_bits));
+                  loc.push_back(((v1 * padded_stride + v2) * data_bits) % (32 * 32 / data_bits));
                 }
               }
-              low_dim_iter_space[i] = span;
+              low_dim_iter_space[i] = loc;
             }
           }
           stride = stride * buffer->shape[k + 1] + min_conflict_pad;
@@ -213,7 +213,7 @@ class AutoPadder {
                               .as_or_throw<TensorLoad>();
         TensorVar buffer = load->source.as_or_throw<tvm::tirx::TensorVar>();
         if (auto replacement = VarRemapGet(buffer).as<TensorVar>()) {
-          return MakeTensorLoad(replacement.value(), load->indices, load->span);
+          return MakeTensorLoad(replacement.value(), load->indices, load->loc);
         }
         return load;
       }
@@ -770,7 +770,7 @@ class AutoCopyMutator : public StmtExprMutator {
     for (RewriteRule* rule : rules) {
       rewritten = rule->Apply(rewritten, constraints, &outputs);
     }
-    n->body = SeqStmt(rewritten, n->body->span);
+    n->body = SeqStmt(rewritten, n->body->loc);
     for (const TensorVar& buffer : outputs.alloc_tensor) {
       n->alloc_buffers.push_back(buffer);
     }

@@ -34,10 +34,10 @@ namespace tirx {
  *
  * \param a Left operand.
  * \param b Right operand.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr logaddexp(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr logaddexp(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(logaddexp);
 

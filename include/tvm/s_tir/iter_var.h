@@ -146,7 +146,7 @@ class IterVarNode : public OpaqueExprNode {
 class IterVar : public PrimExpr {
  public:
   TVM_DLL IterVar(Range dom, PrimVar var, IterVarType iter_type, ffi::String thread_tag = "",
-                  Span span = Span());
+                  Location loc = UnknownLoc());
 
   explicit IterVar(ffi::ObjectPtr<IterVarNode> node) : PrimExpr(std::move(node)) {}
 

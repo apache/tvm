@@ -106,7 +106,7 @@ def _inject_private_allocations(
                 for allocation in reversed(alloc_buffers):
                     body = SeqStmt([allocation, body])
                 return RegionStmt(
-                    op.op, op.args, op.body_params, op.attrs, body, op.result_vars, op.span
+                    op.op, op.args, op.body_params, op.attrs, body, op.result_vars, op.loc
                 )
         return op
 

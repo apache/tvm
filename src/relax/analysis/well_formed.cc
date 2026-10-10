@@ -181,7 +181,7 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
     // check name in global var and gsymbol
     ffi::Optional<ffi::String> gsymbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     if (gsymbol.has_value() && gsymbol != var->name_hint) {
-      TVM_FFI_VISIT_THROW(ValueError, func->span)
+      TVM_FFI_VISIT_THROW(ValueError, func->loc)
           << "Name in GlobalVar is not equal to name in gsymbol: " << var
           << " != " << gsymbol.value();
     }
@@ -282,7 +282,7 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
 
     // ensure the purity attributes are valid
     if (op->GetAttr<bool>(tvm::relax::attr::kForcePure).value_or(false) && !op->is_pure) {
-      TVM_FFI_VISIT_THROW(ValueError, op->span)
+      TVM_FFI_VISIT_THROW(ValueError, op->loc)
           << "Function " << ffi::GetRef<Expr>(op) << " has true for "
           << tvm::relax::attr::kForcePure << " but false for is_pure; "
           << tvm::relax::attr::kForcePure << " should be true only if is_pure is also true.";
@@ -322,7 +322,7 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
 
       auto it = param_var_func_map_.find(param);
       if (it != param_var_func_map_.end() && it->second != cur_visited_func_) {
-        TVM_FFI_VISIT_THROW(ValueError, param->span)
+        TVM_FFI_VISIT_THROW(ValueError, param->loc)
             << "Relax variable " << param << " is used as a parameter in both function "
             << FuncName(it->second) << " and function " << FuncName(cur_visited_func_) << ".";
       }
@@ -380,7 +380,7 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
       if (IsLeafOrTuple(arg)) {
         this->VisitExpr(arg);
       } else {
-        TVM_FFI_VISIT_THROW(ValueError, arg->span)
+        TVM_FFI_VISIT_THROW(ValueError, arg->loc)
             << "Call is not in ANF form, arg " << i << " gets " << arg->GetTypeKey();
       }
     }
@@ -683,7 +683,7 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
     }
     auto it = param_var_func_map_.find(var);
     if (it != param_var_func_map_.end() && it->second != cur_visited_func_) {
-      TVM_FFI_VISIT_THROW(ValueError, var->span)
+      TVM_FFI_VISIT_THROW(ValueError, var->loc)
           << "Var " << var << " is defined in both function " << FuncName(it->second)
           << " and function " << FuncName(cur_visited_func_) << ".";
     }

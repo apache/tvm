@@ -160,10 +160,10 @@ class DTensorType : public Type {
    * \param tensor_ty The tensor type carried by the DTensor type.
    * \param device_mesh The device mesh of the tensor.
    * \param placement The placement of the tensor among the device mesh.
-   * \param span The span of the AST.
+   * \param loc The loc of the AST.
    */
   TVM_DLL DTensorType(TensorType tensor_ty, DeviceMesh device_mesh, Placement placement,
-                      Span span = Span());
+                      Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DTensorType, Type, DTensorTypeNode);
 };

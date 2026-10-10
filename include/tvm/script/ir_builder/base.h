@@ -47,11 +47,11 @@ class IRBuilderFrameNode : public ffi::Object {
   /*! \brief A list of callbacks used when exiting the frame. */
   std::vector<ffi::TypedFunction<void()>> callbacks;
   /*! \brief Source context retained until this frame constructs its result. */
-  mutable Span source_span;
+  mutable Location loc = UnknownLoc();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<IRBuilderFrameNode>().def_ro("source_span", &IRBuilderFrameNode::source_span);
+    refl::ObjectDef<IRBuilderFrameNode>().def_ro("loc", &IRBuilderFrameNode::loc);
     // `callbacks` is not registered as it's not visited.
   }
 
@@ -139,8 +139,8 @@ class IRBuilderNode : public ffi::Object {
   ffi::Array<IRBuilderFrame> frames;
   /*! \brief The outcome of IR construction */
   ffi::Optional<ffi::ObjectRef> result;
-  /*! \brief Active frontend source spans, from outermost to innermost. */
-  std::vector<Span> source_spans;
+  /*! \brief Active frontend source locations, from outermost to innermost. */
+  std::vector<Location> locs;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -175,16 +175,16 @@ class IRBuilderNode : public ffi::Object {
    */
   template <typename TObjectRef>
   inline TObjectRef Get() const;
-  /*! \brief Push a frontend source span for IR constructed in the nested scope. */
-  void PushSourceSpan(Span span);
-  /*! \brief Pop the innermost frontend source span. */
-  void PopSourceSpan();
-  /*! \brief Return the normalized active source span, including expansion history. */
-  Span GetCurrentSourceSpan(Span location = Span()) const;
+  /*! \brief Push a frontend source location for IR constructed in the nested scope. */
+  void PushLoc(Location loc);
+  /*! \brief Pop the innermost frontend source location. */
+  void PopLoc();
+  /*! \brief Return the normalized active source loc, including expansion history. */
+  Location GetCurrentLoc(Location location = UnknownLoc()) const;
   /*! \brief Compose active source context onto a supported node or construction frame. */
-  ffi::ObjectRef SetCurrentSourceSpan(ffi::ObjectRef obj) const;
+  ffi::ObjectRef SetCurrentLoc(ffi::ObjectRef obj) const;
   /*! \brief Attach an explicit location composed with the active source-call context. */
-  ffi::ObjectRef SetSourceSpan(ffi::ObjectRef obj, Span span) const;
+  ffi::ObjectRef SetLoc(ffi::ObjectRef obj, Location loc) const;
 };
 
 /*!
@@ -247,10 +247,10 @@ class IRBuilder : public ffi::ObjectRef {
 
 namespace details {
 
-/*! \brief Language variant extensible access to an object's mutable source span. */
-class SourceSpanAccessor {
+/*! \brief Language variant extensible access to an object's mutable source location. */
+class LocationAccessor {
  public:
-  using FType = ObjectFunctor<Span*(const ffi::ObjectRef&)>;
+  using FType = ObjectFunctor<Location*(const ffi::ObjectRef&)>;
   static FType& vtable();
 };
 
