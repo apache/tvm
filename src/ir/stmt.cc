@@ -650,8 +650,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorStoreMaybeInplace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   StmtNode::RegisterReflection();
-  ffi::reflection::EnsureTypeAttrColumn("__tensor_store_validate__");
-  ffi::reflection::EnsureTypeAttrColumn("__evaluate_validate__");
+  ffi::reflection::EnsureTypeAttrColumn(tvm::type_attr::kTensorStoreValidate);
+  ffi::reflection::EnsureTypeAttrColumn(tvm::type_attr::kEvaluateValidate);
 }
 
 // Bind
@@ -679,8 +679,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // RegionStmt
 bool IsRegionOp(const Op& op) {
-  if (!Op::HasAttrMap("FRegionGetBodyParams")) return false;
-  static auto get_body_params = Op::GetAttrMap<FRegionGetBodyParams>("FRegionGetBodyParams");
+  if (!Op::HasAttrMap(tvm::op_attr::kRegionGetBodyParams)) return false;
+  static auto get_body_params =
+      Op::GetAttrMap<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams);
   return get_body_params.count(op);
 }
 
@@ -691,7 +692,8 @@ ffi::Array<Var> GetRegionBodyParams(Op op, ffi::Array<Expr> args, DictAttrs attr
   signature.args = std::move(args);
   signature.attrs = std::move(attrs);
   op.Validate(&signature);
-  static auto get_body_params = Op::GetAttrMap<FRegionGetBodyParams>("FRegionGetBodyParams");
+  static auto get_body_params =
+      Op::GetAttrMap<FRegionGetBodyParams>(tvm::op_attr::kRegionGetBodyParams);
   ffi::Array<Var> params = get_body_params[op].CallExpected(&signature).value();
   std::unordered_set<const VarNode*> definitions;
   for (const Var& param : params) {
@@ -728,8 +730,8 @@ RegionStmt::RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params
   n->attrs = std::move(attrs);
   n->result_vars = std::move(result_vars);
   n->span = std::move(span);
-  if (Op::HasAttrMap("FRegionValidate")) {
-    static auto validate = Op::GetAttrMap<FRegionValidate>("FRegionValidate");
+  if (Op::HasAttrMap(tvm::op_attr::kRegionValidate)) {
+    static auto validate = Op::GetAttrMap<FRegionValidate>(tvm::op_attr::kRegionValidate);
     if (validate.count(n->op)) validate[n->op].CallExpected(n.get()).value();
   }
   data_ = std::move(n);
@@ -1067,7 +1069,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // Evaluate
 Evaluate::Evaluate(Expr value, Span span) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
-  static const ffi::reflection::TypeAttrColumn validate_column("__evaluate_validate__");
+  static const ffi::reflection::TypeAttrColumn validate_column(tvm::type_attr::kEvaluateValidate);
   if (auto validate = validate_column[value->ty->type_index()]; validate != nullptr) {
     validate.cast<ffi::Function>()(value);
   }
@@ -1094,7 +1096,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TensorStore::TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value, Span span)
     : Stmt(ffi::UnsafeInit{}) {
   namespace refl = ffi::reflection;
-  static const refl::TypeAttrColumn validate_column("__tensor_store_validate__");
+  static const refl::TypeAttrColumn validate_column(tvm::type_attr::kTensorStoreValidate);
   auto validate = validate_column[dest->ty->type_index()];
   TVM_FFI_CHECK(validate != nullptr, TypeError)
       << "Type " << dest->ty->GetTypeKey() << " does not support TensorStore";

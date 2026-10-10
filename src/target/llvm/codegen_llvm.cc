@@ -29,11 +29,14 @@
 #include <llvm/ADT/StringRef.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/op/gpu.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
 #include <tvm/tirx/op/vector.h>
+#include <tvm/tirx/stmt.h>
 #if LLVM_VERSION_MAJOR >= 17
 #include <llvm/TargetParser/Triple.h>
 #else
@@ -282,7 +285,7 @@ llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, cons
   }
 
   std::vector<llvm::Type*> param_types;
-  is_restricted_ = func->HasNonzeroAttr(tirx::attr::kNoAlias);
+  is_restricted_ = func->HasNonzeroAttr(tvm::tirx::attr::kNoAlias);
   for (Var param : func->params) {
     param_types.push_back(GetLLVMType(param->ty));
     if (!is_restricted_ && param->ty.as<PointerTypeNode>()) {
@@ -2240,7 +2243,7 @@ void CodeGenLLVM::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
 
   TVM_FFI_ICHECK(!var_map_.count(buffer.get()));
   var_map_[buffer.get()] = buf;
-  if (annotations->dict.count(tirx::attr::kVolatile)) {
+  if (annotations->dict.count(tvm::tirx::attr::kVolatile)) {
     volatile_buf_.insert(buffer.get());
   }
 }

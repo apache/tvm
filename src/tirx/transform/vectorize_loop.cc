@@ -27,6 +27,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/logging.h>
@@ -1187,7 +1188,8 @@ class Vectorizer : public StmtExprMutator {
   // flag to mark requirment of scalarization.
   bool need_scalarize_{false};
   // vectorizable property
-  OpAttrMap<TVectorizable> op_vectorizable_ = Op::GetAttrMap<TVectorizable>("TVectorizable");
+  OpAttrMap<TVectorizable> op_vectorizable_ =
+      Op::GetAttrMap<TVectorizable>(tvm::tirx::op_attr::kVectorizable);
   /*! \brief The current target context. */
   Target target_;
 

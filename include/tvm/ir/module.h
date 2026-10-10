@@ -141,8 +141,8 @@ class IRModuleNode : public ffi::Object {
         .def_ro("global_infos", &IRModuleNode::global_infos);
     // register custom structural equal and hash.
     refl::TypeAttrDef<IRModuleNode>()
-        .def("__s_equal__", &IRModuleNode::SEqual)
-        .def("__s_hash__", &IRModuleNode::SHash);
+        .def(tvm::ffi::reflection::type_attr::kSEqual, &IRModuleNode::SEqual)
+        .def(tvm::ffi::reflection::type_attr::kSHash, &IRModuleNode::SHash);
   }
 
   TVM_DLL bool SEqual(const IRModuleNode* other,
@@ -360,6 +360,8 @@ constexpr const char* kSystemLibPrefix = "system_lib_prefix";
  * Type: ffi::Map<ffi::String, runtime::Tensor>
  */
 constexpr const char* kConstNameToConstant = "const_name_to_constant";
+
+constexpr const char* kDeviceContexts = "device_contexts";
 
 }  // namespace attr
 }  // namespace tvm

@@ -18,6 +18,7 @@
  */
 
 #include <tvm/backend/opencl/op/memory.h>
+#include <tvm/ir/expr.h>
 #include <tvm/tirx/op_attr_types.h>
 
 namespace tvm {
@@ -38,9 +39,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("z", "The third input value."),
                  sig::arg<IntExpr>("channel_size", "The number of channels."),
                  sig::arg<PrimExpr>("value", "The value to use."))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TVectorizable>("TVectorizable", true)
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
+      .set_attr<TVectorizable>(tvm::tirx::op_attr::kVectorizable, true)
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
+                                 static_cast<int64_t>(CallEffectKind::kOpaque));
 }
 
 const Op& texture2d_load_op() {
@@ -55,9 +57,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("z", "The third input value."),
                  sig::arg<IntExpr>("channel_size", "The number of channels."),
                  sig::arg<PrimExpr>("element_index", "The element index within a texture channel."))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TVectorizable>("TVectorizable", true)
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
+      .set_attr<TVectorizable>(tvm::tirx::op_attr::kVectorizable, true)
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
+                                 static_cast<int64_t>(CallEffectKind::kOpaque));
 }
 
 const Op& nd_mem_alloc_with_scope_op() {
@@ -70,8 +73,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("storage_scope", "The storage scope."),
                  sig::arg<IntExpr>("ndim", "The number of dimensions."),
                  sig::arg("shape", "The shape."), sig::var_args("args"))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
+                                 static_cast<int64_t>(CallEffectKind::kOpaque));
 }
 
 }  // namespace opencl

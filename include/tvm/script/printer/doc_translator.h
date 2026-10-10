@@ -38,19 +38,6 @@ namespace printer {
 class DocTranslatorObj;
 
 /*!
- * \brief Type attribute containing a native or packed translation hook.
- */
-inline constexpr const char* kDocTranslate = "__tvm_doc_translate__";
-/*!
- * \brief Op-specific Call translation hook with the FDocTranslate contract.
- */
-inline constexpr const char* kOpCallDocTranslate = "__tvm_doc_translate_op_call__";
-/*!
- * \brief Source-Type hook receiving the original TensorLoad and optional binder.
- */
-inline constexpr const char* kTensorLoadDocTranslate = "__tvm_doc_translate_tensor_load__";
-
-/*!
  * \brief Engine callbacks borrowed for the translator's lifetime.
  */
 struct DocTranslatorVTable {
@@ -308,27 +295,7 @@ class DocTranslatorObj : public ffi::Object {
    * \return An expression for the caller, or None after completed emission.
    */
   ffi::Optional<ExprDoc> DefaultTranslate(ffi::AnyView value,
-                                          const ffi::Object* destination = nullptr) {
-    static ffi::reflection::TypeAttrColumn column(kDocTranslate);
-    ffi::AnyView attr = column[value.type_index()];
-    if (attr.type_index() == ffi::TypeIndex::kTVMFFIOpaquePtr) {
-      return ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<ffi::Optional<ExprDoc>>(
-                 reinterpret_cast<decltype(DocTranslatorVTable::translate)>(attr.cast<void*>())(
-                     this, value, destination))
-          .value();
-    }
-    if (attr.type_index() == ffi::TypeIndex::kTVMFFIFunction) {
-      ffi::Any destination_arg = nullptr;
-      if (destination) destination_arg = ffi::GetRef<ffi::ObjectRef>(destination);
-      return attr.cast<ffi::Function>()
-          .CallExpected<ffi::Optional<ExprDoc>>(this, value, destination_arg)
-          .value();
-    }
-    TVM_FFI_THROW(TypeError) << (attr.type_index() == ffi::TypeIndex::kTVMFFINone
-                                     ? std::string("printer has no Doc hook for ") +
-                                           value.GetTypeKey()
-                                     : "printer Doc hook must be a native pointer or ffi.Function");
-  }
+                                          const ffi::Object* destination = nullptr);
 
   static constexpr bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO("script.printer.DocTranslator", DocTranslatorObj, ffi::Object);
@@ -410,6 +377,49 @@ class DocTranslator : public ffi::ObjectRef {
  */
 TVM_DLL Doc DocTranslate(ffi::AnyView ir, ffi::Dict<Doc, ffi::ObjectRef>* doc_origins = nullptr,
                          ffi::Map<ffi::String, ffi::Any> extra_config = {});
+
+namespace type_attr {
+/*!
+ * \brief Type attribute containing a native or packed translation hook.
+ */
+inline constexpr const char* kDocTranslate = "__tvm_doc_translate__";
+/*!
+ * \brief Source-Type hook receiving the original TensorLoad and optional binder.
+ */
+inline constexpr const char* kTensorLoadDocTranslate = "__tvm_doc_translate_tensor_load__";
+}  // namespace type_attr
+
+namespace op_attr {
+inline constexpr const char* kScriptPrinterName = "TScriptPrinterName";
+
+/*!
+ * \brief Op-specific Call translation hook with the FDocTranslate contract.
+ */
+inline constexpr const char* kOpCallDocTranslate = "__tvm_doc_translate_op_call__";
+}  // namespace op_attr
+
+inline ffi::Optional<ExprDoc> DocTranslatorObj::DefaultTranslate(ffi::AnyView value,
+                                                                 const ffi::Object* destination) {
+  static ffi::reflection::TypeAttrColumn column(tvm::script::printer::type_attr::kDocTranslate);
+  ffi::AnyView attr = column[value.type_index()];
+  if (attr.type_index() == ffi::TypeIndex::kTVMFFIOpaquePtr) {
+    return ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<ffi::Optional<ExprDoc>>(
+               reinterpret_cast<decltype(DocTranslatorVTable::translate)>(attr.cast<void*>())(
+                   this, value, destination))
+        .value();
+  }
+  if (attr.type_index() == ffi::TypeIndex::kTVMFFIFunction) {
+    ffi::Any destination_arg = nullptr;
+    if (destination) destination_arg = ffi::GetRef<ffi::ObjectRef>(destination);
+    return attr.cast<ffi::Function>()
+        .CallExpected<ffi::Optional<ExprDoc>>(this, value, destination_arg)
+        .value();
+  }
+  TVM_FFI_THROW(TypeError) << (attr.type_index() == ffi::TypeIndex::kTVMFFINone
+                                   ? std::string("printer has no Doc hook for ") +
+                                         value.GetTypeKey()
+                                   : "printer Doc hook must be a native pointer or ffi.Function");
+}
 
 }  // namespace printer
 }  // namespace script

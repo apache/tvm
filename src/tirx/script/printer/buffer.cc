@@ -20,6 +20,7 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/prim/vector_expr.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/op/memory.h>
 
@@ -138,7 +139,7 @@ ffi::Optional<ExprDoc> BufferOperationDocTranslate(DocTranslatorObj* d, ffi::Any
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   for (const char* name : {"tirx.alloc_tensor", "tirx.decl_tensor"}) {
-    OpDef(name).set_attr<FDocTranslate>(kOpCallDocTranslate,
+    OpDef(name).set_attr<FDocTranslate>(tvm::script::printer::op_attr::kOpCallDocTranslate,
                                         FDocTranslate::FromNative<&BufferOperationDocTranslate>());
   }
 }
@@ -216,7 +217,8 @@ ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::TensorTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TensorTypeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&TensorTypeDocTranslate>());
 }
 
 }  // namespace
@@ -241,7 +243,8 @@ ffi::Optional<ExprDoc> TensorStoreDocTranslate(DocTranslatorObj* d, ffi::AnyView
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<TensorStoreNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TensorStoreDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&TensorStoreDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> TIRxTensorLoadDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -257,7 +260,8 @@ ffi::Optional<ExprDoc> TIRxTensorLoadDocTranslate(DocTranslatorObj* d, ffi::AnyV
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::TensorTypeNode>().attr(
-      kTensorLoadDocTranslate, FDocTranslate::FromNative<&TIRxTensorLoadDocTranslate>());
+      tvm::script::printer::type_attr::kTensorLoadDocTranslate,
+      FDocTranslate::FromNative<&TIRxTensorLoadDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> IterDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -272,7 +276,8 @@ ffi::Optional<ExprDoc> IterDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::IterNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&IterDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&IterDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> TileLayoutDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -307,7 +312,8 @@ ffi::Optional<ExprDoc> TileLayoutDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::TileLayoutNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TileLayoutDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&TileLayoutDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> ComposeLayoutDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -332,7 +338,8 @@ ffi::Optional<ExprDoc> ComposeLayoutDocTranslate(DocTranslatorObj* d, ffi::AnyVi
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::ComposeLayoutNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&ComposeLayoutDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&ComposeLayoutDocTranslate>());
 }
 
 }  // namespace

@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -35,7 +36,7 @@ const FunctionNode* FindEntryFunc(const IRModule& mod, GlobalVar* result_g_var) 
     if (const auto* func = base_func.as<tirx::FunctionNode>()) {
       last_func = func;
       last_gvar = gv;
-      if (func->HasNonzeroAttr(tirx::attr::kIsEntryFunc)) {
+      if (func->HasNonzeroAttr(tvm::tirx::attr::kIsEntryFunc)) {
         if (result_g_var != nullptr) {
           *result_g_var = gv;
         }

@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/type.h>
 
@@ -54,7 +55,8 @@ ffi::Optional<ExprDoc> PointerTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<PointerTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&PointerTypeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&PointerTypeDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> TargetDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -65,7 +67,7 @@ ffi::Optional<ExprDoc> TargetDocTranslate(DocTranslatorObj* d, ffi::AnyView inpu
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<TargetNode>().attr(kDocTranslate,
+  ffi::reflection::TypeAttrDef<TargetNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
                                                   FDocTranslate::FromNative<&TargetDocTranslate>());
 }
 

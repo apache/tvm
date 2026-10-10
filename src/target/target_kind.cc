@@ -43,12 +43,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TargetKindNode::RegisterReflection();
   refl::TypeAttrDef<TargetKindNode>()
-      .def("__data_to_json__",
+      .def(tvm::ffi::reflection::type_attr::kDataToJson,
            [](const TargetKindNode* node) {
              // simply save as the string
              return node->name;
            })
-      .def("__data_from_json__", [](const ffi::String& name) {
+      .def(tvm::ffi::reflection::type_attr::kDataFromJson, [](const ffi::String& name) {
         auto kind = TargetKind::Get(name);
         TVM_FFI_ICHECK(kind.has_value()) << "Cannot find target kind \'" << name << '\'';
         return kind.value();

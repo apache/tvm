@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ir/prim/op.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/tirx/exec_scope.h>
 
 #include <optional>
@@ -42,7 +43,8 @@ ffi::Optional<ExprDoc> ExecScopeDocTranslate(DocTranslatorObj*, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::ExecScopeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&ExecScopeDocTranslate>());
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&ExecScopeDocTranslate>());
 }
 
 }  // namespace

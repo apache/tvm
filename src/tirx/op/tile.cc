@@ -202,7 +202,8 @@ ffi::Expected<void> ValidateTensorInstruction(const CallNode* call) noexcept try
   TVM_FFI_CHECK(call->ty_args.empty(), TypeError) << op->name << " does not take type arguments";
   TVM_FFI_CHECK(call->attrs.defined() && call->attrs->GetTypeKey() == op->attrs_type_key, TypeError)
       << op->name << " requires its registered static attributes";
-  static const auto& validators = Op::GetAttrMap<ffi::Function>("FTensorCallValidate");
+  static const auto& validators =
+      Op::GetAttrMap<ffi::Function>(tvm::tirx::op_attr::kTensorCallValidate);
   validators[op](ffi::GetRef<Call>(call));
   return {};
 } catch (const ffi::Error& error) {
@@ -223,7 +224,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::GlobalDef().def(
       "tirx.ConfigureTensorInstruction", [](Op op, ffi::Function validator) {
         OpDef(op->name)
-            .set_attr("FTensorCallValidate", validator)
+            .set_attr(tvm::tirx::op_attr::kTensorCallValidate, validator)
             .set_validator(ffi::reflection::NativeFunctionView<void(
                                const CallNode*)>::FromNative<&ValidateTensorInstruction>(),
                            true);

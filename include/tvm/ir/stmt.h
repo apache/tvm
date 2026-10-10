@@ -671,5 +671,15 @@ inline const char* ForKind2String(ForKind t) {
   TVM_FFI_UNREACHABLE();
 }
 
+namespace op_attr {
+inline constexpr const char* kRegionGetBodyParams = "FRegionGetBodyParams";
+inline constexpr const char* kRegionValidate = "FRegionValidate";
+}  // namespace op_attr
+
+namespace type_attr {
+inline constexpr const char* kEvaluateValidate = "__evaluate_validate__";
+inline constexpr const char* kTensorStoreValidate = "__tensor_store_validate__";
+}  // namespace type_attr
+
 }  // namespace tvm
 #endif  // TVM_IR_STMT_H_

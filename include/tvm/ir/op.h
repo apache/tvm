@@ -702,5 +702,10 @@ OpAttrMap<ValueType> Op::GetAttrMap(const ffi::String& attr_name) {
   return OpAttrMap<ValueType>(GetAttrColumn(attr_name), attr_name);
 }
 
+namespace op_attr {
+inline constexpr const char* kInferType = "FInferType";
+inline constexpr const char* kFixedReturnType = "TFixedReturnType";
+}  // namespace op_attr
+
 }  // namespace tvm
 #endif  // TVM_IR_OP_H_

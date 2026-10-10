@@ -26,6 +26,7 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/type.h>
@@ -36,6 +37,7 @@
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/op/memory.h>
 #include <tvm/tirx/op/region.h>
+#include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -408,7 +410,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op,
                                                     const CallNode* buffer_call) {
     // reject inplace for volatile buffers
-    if (buffer_call->attrs.as<DictAttrsNode>()->dict.count(attr::kVolatile)) {
+    if (buffer_call->attrs.as<DictAttrsNode>()->dict.count(tvm::tirx::attr::kVolatile)) {
       result_ = false;
       return std::nullopt;
     }
@@ -779,8 +781,8 @@ class StoragePlanRewriter : public StmtExprMutator {
   static bool RequiresExactAllocation(const CallNode* call) {
     if (call->args.size() == 4) return true;
     const auto& annotations = call->attrs.as_or_throw<DictAttrs>()->dict;
-    return annotations.count(s_tir::attr::fragment_shape) ||
-           annotations.count(s_tir::attr::fragment_layout);
+    return annotations.count(tvm::s_tir::attr::kFragmentShape) ||
+           annotations.count(tvm::s_tir::attr::kFragmentLayout);
   }
 
   // Checks whether the storage_scope is especially tagged for a specific memory.
@@ -863,7 +865,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           TensorVar buf = RemapBuffer(e->allocs[0]->var.as_or_throw<TensorVar>(), e->alloc_var);
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
-            annotations.Set(attr::kVolatile, true);
+            annotations.Set(tvm::tirx::attr::kVolatile, true);
           }
           e->alloc_nest.push_back(Bind(
               buf.var(),
@@ -911,7 +913,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           TensorVar buf = RemapBuffer(e->allocs[0]->var.as_or_throw<TensorVar>(), e->alloc_var);
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
-            annotations.Set(attr::kVolatile, true);
+            annotations.Set(tvm::tirx::attr::kVolatile, true);
           }
           e->alloc_nest.push_back(Bind(
               buf.var(),
@@ -966,7 +968,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           e->alloc_var = buf.var();
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
-            annotations.Set(attr::kVolatile, true);
+            annotations.Set(tvm::tirx::attr::kVolatile, true);
           }
           e->alloc_nest.push_back(Bind(
               buf.var(),
@@ -1018,7 +1020,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
     ffi::Map<ffi::String, ffi::Any> annotations;
     if (any_volatile) {
-      annotations.Set(attr::kVolatile, true);
+      annotations.Set(tvm::tirx::attr::kVolatile, true);
     }
     e->alloc_nest.push_back(
         Bind(buf.var(),
@@ -1142,7 +1144,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           }
           dst_entry->allocs.emplace_back(alloc);
           DictAttrs annotations = call->attrs.as_or_throw<DictAttrs>();
-          if (annotations->dict.count(attr::kVolatile)) {
+          if (annotations->dict.count(tvm::tirx::attr::kVolatile)) {
             dst_entry->is_volatile = true;
           }
           alloc_map_[var] = dst_entry;
@@ -2175,7 +2177,7 @@ Pass StorageRewrite() {
       enable_reuse = false;
     }
 
-    ffi::Optional<Target> target = f->GetAttr<Target>("target");
+    ffi::Optional<Target> target = f->GetAttr<Target>(tvm::attr::kTarget);
     if (target.has_value() &&
         (target.value()->kind->name == "vulkan" || target.value()->kind->name == "webgpu")) {
       // Require exactly same-dtype matching in smem reuse for Vulkan and WebGPU

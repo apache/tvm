@@ -34,9 +34,9 @@ using SubscriptSlice = ffi::Array<ffi::Variant<
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::EnsureTypeAttrColumn("__subscript_expr_realize__");
+  refl::EnsureTypeAttrColumn(tvm::type_attr::kSubscriptExprRealize);
   refl::TypeAttrDef<TupleTypeNode>().def(
-      "__subscript_expr_realize__",
+      tvm::type_attr::kSubscriptExprRealize,
       [](Expr value, SubscriptSlice slice, Span span) -> ffi::ObjectRef {
         TVM_FFI_CHECK_EQ(slice.size(), 1, IndexError)
             << "A tuple expression requires exactly one index";
@@ -50,7 +50,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "ir.SubscriptExprRealize", [](Expr value, SubscriptSlice slice, Span span) -> ffi::ObjectRef {
         TVM_FFI_CHECK(value.defined(), TypeError) << "Cannot subscript an undefined expression";
-        static refl::TypeAttrColumn realize_column("__subscript_expr_realize__");
+        static refl::TypeAttrColumn realize_column(tvm::type_attr::kSubscriptExprRealize);
         ffi::AnyView packed_realize = realize_column[value->ty->type_index()];
         TVM_FFI_CHECK(packed_realize != nullptr, TypeError)
             << "Type " << value->ty->GetTypeKey() << " does not support subscript";

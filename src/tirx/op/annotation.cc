@@ -22,7 +22,10 @@
  * \brief TIRx annotation operations.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ir/expr.h>
+#include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/tirx/op/annotation.h>
 #include <tvm/tirx/op_attr_types.h>
 
@@ -36,10 +39,12 @@ const Op& kernel_replace_point_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.kernel_replace_point")
-      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.kernel_replace_point"))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
+      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
+                                    ffi::String("tirx.kernel_replace_point"))
+      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
+                                 static_cast<int64_t>(CallEffectKind::kOpaque));
 }
 
 const Op& ignore_loop_partition_op() {
@@ -49,11 +54,13 @@ const Op& ignore_loop_partition_op() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.ignore_loop_partition")
-      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Bool())
+      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Bool())
       .signature(sig::arg<PrimExpr>("predicate", "The predicate."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.ignore_loop_partition"))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
+                                    ffi::String("tirx.ignore_loop_partition"))
+      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
+                                 static_cast<int64_t>(CallEffectKind::kPure));
 }
 
 }  // namespace tirx

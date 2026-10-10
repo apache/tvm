@@ -22,7 +22,10 @@
  * \brief TIRx cpu operations.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ir/expr.h>
+#include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/script/printer/doc_translator.h>
 #include <tvm/tirx/op/cpu.h>
 #include <tvm/tirx/op_attr_types.h>
 
@@ -37,10 +40,12 @@ const Op& cpu_parallel_barrier_op() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.cpu_parallel_barrier")
       .signature()
-      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cpu_parallel_barrier"))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+      .set_attr<TFixedReturnType>(tvm::op_attr::kFixedReturnType, PrimType::Void())
+      .set_attr<TScriptPrinterName>(tvm::script::printer::op_attr::kScriptPrinterName,
+                                    ffi::String("tirx.cpu_parallel_barrier"))
+      .set_attr<TIRxOpCategory>(tvm::tirx::op_attr::kOpCategory, ffi::String("builtin"))
+      .set_attr<TCallEffectKind>(tvm::op_attr::kCallEffectKind,
+                                 static_cast<int64_t>(CallEffectKind::kOpaque));
 }
 
 }  // namespace tirx

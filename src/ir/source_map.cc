@@ -63,12 +63,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   SourceNameNode::RegisterReflection();
   // overrride SourceNameNode to serialization mechanism
   refl::TypeAttrDef<SourceNameNode>()
-      .def("__data_to_json__",
+      .def(tvm::ffi::reflection::type_attr::kDataToJson,
            [](const SourceNameNode* node) {
              // simply save as the string
              return node->name;
            })
-      .def("__data_from_json__", SourceName::Get);
+      .def(tvm::ffi::reflection::type_attr::kDataFromJson, SourceName::Get);
   refl::TypeAttrDef<SourceNameNode>().def(
       refl::type_attr::kRepr, [](SourceName sn, ffi::Function) -> ffi::String {
         std::ostringstream os;

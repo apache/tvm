@@ -81,70 +81,6 @@ enum class LinkageType : int {
 };
 
 /*!
- * \brief Generic attribute names that can be attached to any function.
- *
- * \sa tvm::tirx::attr, tvm::relax::attr
- */
-namespace attr {
-/*!
- * \brief Indicates the special calling convention.
- *
- * Type: IntImm
- *
- * \sa tvm::CallingConv
- */
-constexpr const char* kCallingConv = "calling_conv";
-
-/*!
- * \brief Compilation target of the function.
- *
- * Type: Target
- *
- * \sa tvm::Target
- */
-constexpr const char* kTarget = "target";
-
-/*!
- * \brief Global linker symbol of the function in generated code.
- *
- *  This option forces the code generator to name the
- *  function with the given.
- *
- *  For example, we could set a global_symbol of a function
- *  early to make sure that we can always refer to it by
- *  the symbol name in the generated DLL.
- *
- *  We should not set the attribute for local functions,
- *  so that the compiler can freely rename them.
- *
- *  A unique global symbol will be automatically assigned
- *  to each function in the module before the target code
- *  generation phase.
- *
- * Type: String
- */
-constexpr const char* kGlobalSymbol = "global_symbol";
-
-/*!
- * \brief The function uses s_tir (apache-derived TIR) semantics:
- *        parser fills layout=None, ScriptComplete wraps body in a root SBlock,
- *        and the printer emits the S-TIR `Ts.function` entry point.
- *        Default (attr absent or False) is tirx semantics.
- *
- * Type: IntImm (bool dtype)
- */
-constexpr const char* kSTir = "s_tir";
-
-/*!
- * \brief Number of inputs of the Function
- *
- * Type: Int
- */
-constexpr const char* kNumInputs = "num_inputs";
-
-}  // namespace attr
-
-/*!
  * \brief Base node of all functions.
  *
  * We support several variants of functions throughout the stack.
@@ -227,12 +163,7 @@ class BaseFuncNode : public ExprNode {
    * \endcode
    */
 
-  LinkageType GetLinkageType() const {
-    if (GetAttr<ffi::String>(attr::kGlobalSymbol))
-      return LinkageType::kExternal;
-    else
-      return LinkageType::kInternal;
-  }
+  LinkageType GetLinkageType() const;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -253,6 +184,77 @@ class BaseFunc : public Expr {
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BaseFunc, Expr, BaseFuncNode);
 };
+
+/*!
+ * \brief Generic attribute names that can be attached to any function.
+ *
+ * \sa tvm::tirx::attr, tvm::relax::attr
+ */
+namespace attr {
+/*!
+ * \brief Indicates the special calling convention.
+ *
+ * Type: IntImm
+ *
+ * \sa tvm::CallingConv
+ */
+constexpr const char* kCallingConv = "calling_conv";
+
+/*!
+ * \brief Compilation target of the function.
+ *
+ * Type: Target
+ *
+ * \sa tvm::Target
+ */
+constexpr const char* kTarget = "target";
+
+/*!
+ * \brief Global linker symbol of the function in generated code.
+ *
+ *  This option forces the code generator to name the
+ *  function with the given.
+ *
+ *  For example, we could set a global_symbol of a function
+ *  early to make sure that we can always refer to it by
+ *  the symbol name in the generated DLL.
+ *
+ *  We should not set the attribute for local functions,
+ *  so that the compiler can freely rename them.
+ *
+ *  A unique global symbol will be automatically assigned
+ *  to each function in the module before the target code
+ *  generation phase.
+ *
+ * Type: String
+ */
+constexpr const char* kGlobalSymbol = "global_symbol";
+
+/*!
+ * \brief The function uses s_tir (apache-derived TIR) semantics:
+ *        parser fills layout=None, ScriptComplete wraps body in a root SBlock,
+ *        and the printer emits the S-TIR `Ts.function` entry point.
+ *        Default (attr absent or False) is tirx semantics.
+ *
+ * Type: IntImm (bool dtype)
+ */
+constexpr const char* kSTir = "s_tir";
+
+/*!
+ * \brief Number of inputs of the Function
+ *
+ * Type: Int
+ */
+constexpr const char* kNumInputs = "num_inputs";
+
+}  // namespace attr
+
+inline LinkageType BaseFuncNode::GetLinkageType() const {
+  if (GetAttr<ffi::String>(tvm::attr::kGlobalSymbol))
+    return LinkageType::kExternal;
+  else
+    return LinkageType::kInternal;
+}
 
 }  // namespace tvm
 #endif  // TVM_IR_FUNCTION_H_
