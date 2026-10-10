@@ -45,7 +45,7 @@ TensorRegion ffi::TypeTraits<TensorRegion>::ConvertFallbackValue(TensorLoad valu
   for (const PrimExpr& index : value->indices) {
     ranges.push_back(Range::FromMinExtent(index, IntImm(index.ty(), 1)));
   }
-  return tirx::BufferRegion(value->source.as_or_throw<tirx::TensorVar>(), ranges, value->loc);
+  return tirx::MakeTensorRegion(value->source.as_or_throw<tirx::TensorVar>(), ranges, value->loc);
 }
 
 namespace tirx {
