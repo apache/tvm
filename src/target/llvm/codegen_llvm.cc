@@ -1575,10 +1575,11 @@ DEFINE_CODEGEN_BINARY_OP(Mul);
 
 #define DEFINE_CODEGEN_CMP_OP(Op)                                                       \
   llvm::Value* CodeGenLLVM::Create##Op(PrimType t, llvm::Value* a, llvm::Value* b) {    \
-    if (t.MatchesCode(DLDataTypeCode::kDLInt)) {                                        \
-      return builder_->CreateICmpS##Op(a, b);                                           \
-    } else if (t.MatchesCode(DLDataTypeCode::kDLUInt)) {                                \
-      return builder_->CreateICmpU##Op(a, b);                                           \
+    if (t.MatchesCode(DLDataTypeCode::kDLInt)) {                                      \
+      return builder_->CreateICmpS##Op(a, b);                                         \
+    } else if (t.MatchesCode(DLDataTypeCode::kDLUInt) ||                              \
+               t.MatchesCode(DLDataTypeCode::kDLBool)) {                              \
+      return builder_->CreateICmpU##Op(a, b);                                         \
     } else {                                                                            \
       TVM_FFI_ICHECK(t.MatchesCode(DLDataTypeCode::kDLFloat));                          \
       return builder_->CreateFCmpO##Op(a, b);                                           \
@@ -1637,7 +1638,7 @@ llvm::Value* CodeGenLLVM::Dispatch_(const prim::EQNode* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   PrimType dtype(op->a.ty()->dtype);
-  if (dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
+  if (dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLBool)) {
     return builder_->CreateICmpEQ(a, b);
   } else {
     return builder_->CreateFCmpOEQ(a, b);
@@ -1648,7 +1649,7 @@ llvm::Value* CodeGenLLVM::Dispatch_(const prim::NENode* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   PrimType dtype(op->a.ty()->dtype);
-  if (dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
+  if (dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLBool)) {
     return builder_->CreateICmpNE(a, b);
   } else {
     return builder_->CreateFCmpONE(a, b);
