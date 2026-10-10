@@ -91,7 +91,7 @@ static bool IsRelaxOwnedCall(const CallNode* call) {
   static auto infer_type_map = Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
   static auto infer_type_with_builder_map =
       Op::GetAttrMap<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder);
-  static auto legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
+  static auto legalize_map = Op::GetAttrMap<FLegalize>(tvm::relax::op_attr::kLegalize);
   return infer_type_map.count(op.value()) || infer_type_with_builder_map.count(op.value()) ||
          legalize_map.count(op.value());
 }

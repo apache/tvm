@@ -316,7 +316,7 @@ class ConstantFolder : public ExprMutator {
     static const auto& infer_type_map = Op::GetAttrMap<FInferType>(tvm::op_attr::kInferType);
     static const auto& infer_type_with_builder_map =
         Op::GetAttrMap<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder);
-    static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
+    static const auto& legalize_map = Op::GetAttrMap<FLegalize>(tvm::relax::op_attr::kLegalize);
     auto* op_node = post_call->op.as<OpNode>();
 
     // Not an OpNode

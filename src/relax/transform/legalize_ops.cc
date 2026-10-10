@@ -242,7 +242,7 @@ class LegalizeMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) final {
     Call visited_call = this->VisitExprPostOrder_(call).as_or_throw<Call>();
-    static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
+    static const auto& legalize_map = Op::GetAttrMap<FLegalize>(tvm::relax::op_attr::kLegalize);
     static const auto& call_packed_map =
         Op::GetAttrMap<FCallPacked>(tvm::relax::op_attr::kCallPacked);
     static const auto& requires_arg_shapes_map =

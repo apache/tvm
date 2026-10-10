@@ -136,7 +136,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("tensor", "The tensor to be inspected"))
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeTensorDtypeCode)
-      .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeCode)
+      .set_attr<FLegalize>(tvm::relax::op_attr::kLegalize, LegalizeTensorDtypeCode)
       .set_attr<bool>(tvm::relax::op_attr::kRequiresArgumentShapes, false)
       .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
@@ -166,7 +166,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("tensor", "The tensor to be inspected"))
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeTensorDtypeBits)
-      .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeBits)
+      .set_attr<FLegalize>(tvm::relax::op_attr::kLegalize, LegalizeTensorDtypeBits)
       .set_attr<bool>(tvm::relax::op_attr::kRequiresArgumentShapes, false)
       .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
@@ -196,7 +196,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("tensor", "The tensor to be inspected"))
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeTensorDtypeLanes)
-      .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeLanes)
+      .set_attr<FLegalize>(tvm::relax::op_attr::kLegalize, LegalizeTensorDtypeLanes)
       .set_attr<bool>(tvm::relax::op_attr::kRequiresArgumentShapes, false)
       .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
@@ -226,7 +226,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("tensor", "The tensor to be inspected"))
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeTensorNDim)
-      .set_attr<FLegalize>("FLegalize", LegalizeTensorNDim)
+      .set_attr<FLegalize>(tvm::relax::op_attr::kLegalize, LegalizeTensorNDim)
       .set_attr<bool>(tvm::relax::op_attr::kRequiresArgumentShapes, false)
       .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
@@ -309,7 +309,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg<IntExpr>("axis", "The axis whose extent should be returned"))
       .set_attr<FInferTypeWithBuilder>(tvm::relax::op_attr::kInferTypeWithBuilder,
                                        InferTypeTensorShape)
-      .set_attr<FLegalize>("FLegalize", LegalizeTensorShape)
+      .set_attr<FLegalize>(tvm::relax::op_attr::kLegalize, LegalizeTensorShape)
       .set_attr<bool>(tvm::relax::op_attr::kRequiresArgumentShapes, false)
       .set_attr<FNormalize>(tvm::relax::op_attr::kNormalize, NormalizeToKnownPrimExpr)
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
