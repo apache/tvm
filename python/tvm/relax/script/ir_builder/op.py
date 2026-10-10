@@ -30,7 +30,6 @@ import tvm
 from tvm import ir as _ir
 from tvm import relax as _relax
 from tvm import tirx as _tir
-from tvm.ir.base import UnknownLoc
 from tvm.ir.op import _init_op_api
 from tvm.ir.prim import _ffi_api as _prim_ffi
 from tvm.relax import Call, Expr, ExternFunc
@@ -382,7 +381,7 @@ def logical_and(*values, ty_args=None, ty=None, loc=None):
     All arguments are evaluated before this call; it does not provide Python
     short-circuit evaluation of the argument expressions.
     """
-    if any(field is not None for field in (ty_args, ty)) or not isinstance(loc, UnknownLoc):
+    if any(field is not None for field in (ty_args, ty, loc)):
         return _logical_and(*values, ty_args=ty_args, ty=ty, loc=loc)
     if not values:
         raise TypeError("logical_and requires at least one operand")
@@ -412,7 +411,7 @@ def logical_or(*values, ty_args=None, ty=None, loc=None):
     All arguments are evaluated before this call; it does not provide Python
     short-circuit evaluation of the argument expressions.
     """
-    if any(field is not None for field in (ty_args, ty)) or not isinstance(loc, UnknownLoc):
+    if any(field is not None for field in (ty_args, ty, loc)):
         return _logical_or(*values, ty_args=ty_args, ty=ty, loc=loc)
     if not values:
         raise TypeError("logical_or requires at least one operand")
@@ -436,7 +435,7 @@ def logical_not(value, *, ty_args=None, ty=None, loc=None):
     result : Expr or bool
         The logical negation without testing an IR expression as a Python bool.
     """
-    if any(field is not None for field in (ty_args, ty)) or not isinstance(loc, UnknownLoc):
+    if any(field is not None for field in (ty_args, ty, loc)):
         return _logical_not(value, ty_args=ty_args, ty=ty, loc=loc)
     if _ir.is_prim_expr(value):
         return _tir.Not(value)
