@@ -29,7 +29,7 @@ from tvm.ir import Op
 from tvm.script import tirx as T
 from tvm.testing import env
 
-TARGET = tvm.target.Target("cuda")
+TARGET = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch() or "sm_90"})
 
 requires_nvcc = pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc not available")
 

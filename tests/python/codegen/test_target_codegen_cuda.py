@@ -1306,7 +1306,7 @@ def test_thread_return(*, compile_config):
                         T.gpu_thread_return()
                     B[bx, tx] = A[bx, tx]
 
-    lib = tvm.compile(Module, target="cuda", compile_config=compile_config)
+    lib = tvm.compile(Module, compile_config=compile_config.with_overrides(arch="sm_80"))
     cuda_code = lib.mod.imports[0].inspect_source()
     assert "return;" in cuda_code
     assert "return 0;" not in cuda_code

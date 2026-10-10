@@ -24,7 +24,7 @@ from tvm.script import tirx as T
 from tvm.testing import env
 from tvm.tirx.cuda.tile_primitive.copy._common import copy_ptx_form
 
-TARGET = tvm.target.Target("cuda")
+TARGET = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch() or "sm_90"})
 
 # num_bytes → kernel layout. ``fill_offset`` fills lane i with ``i + fill_offset``.
 _SHARED_COPY_CASES = {
@@ -121,7 +121,7 @@ def test_ptx_ld_st_codegen_emits_shared_asm():
         T.cuda.tile.st(D[0:4], reg[:])
     # fmt: on
 
-    target = tvm.target.Target("cuda")
+    target = TARGET
     with target:
         mod = tvm.compile(tvm.IRModule({"main": copy_kernel}), target=target, tir_pipeline="tirx")
     src = mod.mod.imports[0].inspect_source("cuda")
@@ -193,7 +193,7 @@ def test_ptx_ld_global_nc_v8_codegen():
             for i in T.unroll(8):
                 out[i] = tmp[i]
 
-    target = tvm.target.Target("cuda")
+    target = TARGET
     with target:
         mod = tvm.compile(tvm.IRModule({"main": copy_kernel}), target=target, tir_pipeline="tirx")
     src = mod.mod.imports[0].inspect_source("cuda")
@@ -220,7 +220,7 @@ def test_ptx_ld_global_nc_v4_u64_256b_codegen():
             for i in T.unroll(4):
                 out[i] = tmp[i]
 
-    target = tvm.target.Target("cuda")
+    target = TARGET
     with target:
         mod = tvm.compile(tvm.IRModule({"main": copy_kernel}), target=target, tir_pipeline="tirx")
     src = mod.mod.imports[0].inspect_source("cuda")
@@ -246,7 +246,7 @@ def test_ptx_ld_vector_scatter_dst_codegen():
             out[2] = tmp2[0]
             out[3] = tmp3[0]
 
-    target = tvm.target.Target("cuda")
+    target = TARGET
     with target:
         mod = tvm.compile(tvm.IRModule({"main": copy_kernel}), target=target, tir_pipeline="tirx")
     src = mod.mod.imports[0].inspect_source("cuda")
