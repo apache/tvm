@@ -254,11 +254,6 @@ class DocPrinter {
   virtual void PrintTypedDoc(const DocStringDoc& doc) = 0;
 
   /*!
-   * \brief Virtual method to print a OpCallDoc
-   */
-  virtual void PrintTypedDoc(const OpCallDoc& doc) = 0;
-
-  /*!
    * \brief Increase the indent level of any content to be
    *        printed after this call
    */
@@ -660,7 +655,6 @@ void DocPrinter::PrintDoc(const Doc& doc) {
     TVM_SCRIPT_PRINT_DISPATCH(ClassDoc);
     TVM_SCRIPT_PRINT_DISPATCH(CommentDoc);
     TVM_SCRIPT_PRINT_DISPATCH(DocStringDoc);
-    TVM_SCRIPT_PRINT_DISPATCH(OpCallDoc);
 #undef TVM_SCRIPT_PRINT_DISPATCH
     table.Finalize();
     return table;
@@ -940,7 +934,6 @@ class PythonDocPrinter : public DocPrinter {
   void PrintTypedDoc(const ClassDoc& doc) final;
   void PrintTypedDoc(const CommentDoc& doc) final;
   void PrintTypedDoc(const DocStringDoc& doc) final;
-  void PrintTypedDoc(const OpCallDoc& doc) final;
 
   void PrintAssignment(const ExprDoc& lhs, const ffi::Optional<ExprDoc>& rhs,
                        const ffi::Optional<ExprDoc>& annotation);
@@ -1541,70 +1534,6 @@ void PythonDocPrinter::PrintTypedDoc(const DocStringDoc& doc) {
   if (doc->comment.has_value() && !doc->comment.value().empty()) {
     PrintDocString(doc->comment.value());
   }
-}
-
-void PythonDocPrinter::PrintTypedDoc(const OpCallDoc& doc) {
-  PrintDoc(doc->callee);
-
-  output_ << "(";
-
-  // Print positional args
-  bool wrote_any = false;
-  for (const Doc& arg : doc->args) {
-    if (wrote_any) {
-      output_ << ", ";
-    }
-    wrote_any = true;
-    PrintDoc(arg);
-  }
-  // workspace first (if present and non-empty)
-  if (doc->workspace.has_value() && !doc->workspace.value()->keys.empty()) {
-    if (wrote_any) output_ << ", ";
-    wrote_any = true;
-    output_ << "workspace=";
-    PrintDoc(doc->workspace.value());
-  }
-  // dispatch next (if present)
-  if (doc->dispatch.has_value()) {
-    if (wrote_any) output_ << ", ";
-    wrote_any = true;
-    output_ << "dispatch=";
-    PrintDoc(doc->dispatch.value());
-  }
-  // Flatten config as keyword args: key=value
-  if (doc->config.has_value() && !doc->config.value()->keys.empty()) {
-    const auto* dict = doc->config.value().as<DictDocNode>();
-    // Only flatten if all keys are literal strings; otherwise, fallback to config={...}
-    bool all_str_keys = true;
-    for (const ExprDoc& k : dict->keys) {
-      if (!k.as<LiteralDocNode>()) {
-        all_str_keys = false;
-        break;
-      }
-      const auto* lit = k.as<LiteralDocNode>();
-      if (!lit->value.as<ffi::String>()) {
-        all_str_keys = false;
-        break;
-      }
-    }
-    if (all_str_keys) {
-      int n = dict->keys.size();
-      for (int i = 0; i < n; ++i) {
-        const auto* lit = dict->keys[i].as<LiteralDocNode>();
-        std::string key = lit->value.as_or_throw<ffi::String>();
-        if (wrote_any) output_ << ", ";
-        wrote_any = true;
-        output_ << key << "=";
-        PrintDoc(dict->values[i]);
-      }
-    } else {
-      if (wrote_any) output_ << ", ";
-      wrote_any = true;
-      output_ << "config=";
-      PrintDoc(doc->config.value());
-    }
-  }
-  output_ << ")";
 }
 
 // Associate each recovered path with its nearest statement container.  Expression
