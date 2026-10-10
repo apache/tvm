@@ -230,28 +230,6 @@ TVM_DLL Pass LoopPartition();
 TVM_DLL Pass InjectVirtualThread();
 
 /*!
- * \brief Hoist loop-invariant If nodes to
- * outside the eligible loops.
- *
- * \param variant The variant of the pass.
- *        variant can have any one of following values ["basic", ""(Default)].
- * \return The pass.
- */
-TVM_DLL Pass HoistIfThenElse(tvm::ffi::String variant = "");
-
-/*!
- * \brief Hoist loop-invariant expressions to outside the eligible loops.
- *
- * Can hoist conditionals used in If statements and
- * expressions, bindings of variables in Let statements and
- * expressions, or boolean expressions, configurable to enable/disable
- * each hoistable type.
- *
- * \return The pass.
- */
-TVM_DLL Pass HoistExpression();
-
-/*!
  * \brief Detect and rewrite unsafe select that contains memory access.
  * \return The pass.
  */

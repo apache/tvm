@@ -40,8 +40,6 @@ constexpr const char* kLayoutFreeBuffers = "layout_free_buffers";
 constexpr const char* kLayoutTransforms = "layout_transforms";
 constexpr const char* kEstimatedFlops = "estimated_flops";
 
-constexpr const char* kHoistIfThenElseExprWithBlock = "tirx.HoistIfThenElseExprWithBlock";
-
 }  // namespace attr
 }  // namespace s_tir
 }  // namespace tvm

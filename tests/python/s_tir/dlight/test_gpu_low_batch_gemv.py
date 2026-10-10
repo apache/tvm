@@ -34,7 +34,7 @@ def test_batch_decode_gemv():
 
     @Ts.function(private=True)
     def before(lv429: T.Tensor((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Tensor((T.int64(4096), T.int64(896)), "float16"), lv807: T.Tensor((batch_size, T.int64(1), T.int64(28672)), 'float16'), NT_matmul_intermediate: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16')):
-        T.func_attr({"tirx.noalias": True, "tirx.HoistIfThenElseExprWithBlock": 1})
+        T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):
         compute = Ts.sblock_alloc_buffer((T.int64(4096), T.int64(28672)), "float16")
@@ -64,7 +64,7 @@ def test_batch_decode_gemv():
 
     @Ts.function(private=True)
     def expected(lv429: T.Tensor((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Tensor((T.int64(4096), T.int64(896)), "float16"), lv807: T.Tensor((batch_size, T.int64(1), T.int64(28672)), 'float16'), NT_matmul_intermediate: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16')):
-        T.func_attr({"tirx.HoistIfThenElseExprWithBlock": 1, "tirx.is_scheduled": True, "tirx.noalias": True})
+        T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
         dequantize_intermediate_intermediate_local = Ts.sblock_alloc_buffer((T.int64(4096), T.int64(28672)), "float16", scope="local")
@@ -162,7 +162,7 @@ def test_batch_gemv():
 
     @Ts.function(private=True)
     def before(A: T.Tensor((batch_size, T.int64(1), T.int64(K)), 'float16'), B: T.Tensor((T.int64(N), T.int64(K)), "float16"), NT_matmul: T.Tensor((batch_size, T.int64(1), T.int64(N)), 'float16')):
-        T.func_attr({"tirx.noalias": True, "tirx.HoistIfThenElseExprWithBlock": 1})
+        T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):
         for i0, i1, i2, k in T.grid(batch_size, T.int64(1), T.int64(N), T.int64(K)):
@@ -178,7 +178,7 @@ def test_batch_gemv():
 
     @Ts.function(private=True)
     def expected(A: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16'), B: T.Tensor((T.int64(4096), T.int64(4096)), "float16"), NT_matmul: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16')):
-        T.func_attr({"tirx.HoistIfThenElseExprWithBlock": 1, "tirx.is_scheduled": True, "tirx.noalias": True})
+        T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
         NT_matmul_pad_local = Ts.sblock_alloc_buffer(((batch_size + T.int64(3)) // T.int64(4) * T.int64(4), T.int64(1), T.int64(4096)), "float16", scope="local")
