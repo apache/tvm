@@ -51,6 +51,9 @@ class Location(Object):
     IR constructors default to the shared :data:`UNKNOWN_LOC`.
     """
 
+    def __init__(self):
+        raise TypeError("Location is a base class; use SourceLoc, UnknownLoc, or CallSiteLoc")
+
 
 @register_object("ir.UnknownLoc")
 class UnknownLoc(Location):
