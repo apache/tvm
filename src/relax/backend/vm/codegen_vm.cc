@@ -513,8 +513,8 @@ void LinkModules(ffi::ObjectPtr<VMExecutable> exec,
 /*!
  * \brief Link the libraries together.
  */
-ffi::Module VMLink(ExecBuilder builder, Target target, ffi::Optional<ffi::Module> lib,
-                   ffi::Array<ffi::Module> ext_libs,
+ffi::Module VMLink(ExecBuilder builder, ffi::Optional<Target> target,
+                   ffi::Optional<ffi::Module> lib, ffi::Array<ffi::Module> ext_libs,
                    ffi::Map<ffi::String, runtime::Tensor> params) {
   ffi::ObjectPtr<VMExecutable> executable = builder->Get();
   if (!lib.has_value()) {
