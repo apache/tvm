@@ -132,13 +132,20 @@ class WorkspaceProvider : ExprMutator {
       builder_->GetContextIRModule()->Remove(ffi::GetRef<GlobalVar>(gvar));
     }
 
-    for (const auto& [gvar, f] : mod_->functions) {
+    IRModule updated_mod = builder_->GetContextIRModule();
+    for (const auto& [gvar, f] : updated_mod->functions) {
       workspace_var_main_ = std::nullopt;
-      if (!f->IsInstance<relax::FunctionNode>() || f->GetAttr<ffi::String>(attr::kCodegen) ||
-          f->GetAttr<ffi::String>(attr::kComposite)) {
+      if (!f->IsInstance<relax::FunctionNode>()) {
         continue;
       }
-      auto func = mod_->Lookup(gvar).as_or_throw<Function>();
+      auto func = updated_mod->Lookup(gvar).as_or_throw<Function>();
+      if (new_gvars_.count(gvar)) {
+        TVM_FFI_ICHECK(!func->params.empty());
+        workspace_var_main_ = func->params.back();
+      } else if (f->GetAttr<ffi::String>(attr::kCodegen) ||
+                 f->GetAttr<ffi::String>(attr::kComposite)) {
+        continue;
+      }
       auto new_func =
           Function(func->params, VisitExpr(func->body), func->ret_ty, func->is_pure, func->attrs);
       builder_->UpdateFunction(gvar, new_func);
