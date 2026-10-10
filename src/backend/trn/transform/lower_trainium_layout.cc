@@ -38,6 +38,7 @@
 #include <vector>
 
 #include "../../../tirx/ir/ir_mutator_with_analyzer.h"
+#include "../../../tirx/transform/flattened_tensor.h"
 
 namespace tvm {
 namespace tirx {
@@ -194,11 +195,11 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
         type->shape = {ana->Simplify(mem_span)};
         type->strides = {};
       } else {
-        flattened = buf.GetFlattenedTensor();
+        flattened = FlattenedTensor(buf);
         type = CopyTensorType(flattened);
       }
     } else {
-      flattened = buf.GetFlattenedTensor();
+      flattened = FlattenedTensor(buf);
       type = CopyTensorType(flattened);
     }
     if (flattened->dtype->dtype == DLDataType{kDLBool, 8, 1}) {

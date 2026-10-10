@@ -697,13 +697,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             16,
                                             C.ty.elem_offset // C_s0_1 // 16 * (C_s0_1 // 16)
                                             + C.ty.elem_offset % C_s0_1 // 16,
-                                            T.access_ptr(
-                                                "float16",
-                                                A_1.data,
-                                                A_1.ty.elem_offset,
-                                                A_s0_0 * 16,
-                                                1,
-                                            ),
+                                            A_1.ptr_to([0] * len(A_1.shape)),
                                             A_s0_0,
                                             "row_major",
                                         )
@@ -754,13 +748,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                             16,
                                             C.ty.elem_offset // C_s0_2 // 16 * (C_s0_2 // 16)
                                             + C.ty.elem_offset % C_s0_2 // 16,
-                                            T.access_ptr(
-                                                "float16",
-                                                A_1.data,
-                                                A_1.ty.elem_offset,
-                                                A_s0_1 * 16,
-                                                1,
-                                            ),
+                                            A_1.ptr_to([0] * len(A_1.shape)),
                                             A_s0_1,
                                             "col_major",
                                         )
@@ -872,13 +860,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
                                     16,
                                     A_1.ty.elem_offset // A_s0_3 // 16 * (A_s0_3 // 16)
                                     + A_1.ty.elem_offset % A_s0_3 // 16,
-                                    T.access_ptr(
-                                        "float16",
-                                        C.data,
-                                        C.ty.elem_offset,
-                                        C_s0_4 * 16,
-                                        2,
-                                    ),
+                                    C.ptr_to([0] * len(C.shape)),
                                     C_s0_4,
                                     "row_major",
                                 )

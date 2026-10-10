@@ -23,11 +23,11 @@ from enum import Enum
 
 import tvm_ffi
 
-from tvm import tirx
+from tvm import DataType, tirx
 from tvm.ir import Attrs, Call, Op, StringImm, const
 from tvm.ir.op import _init_op_api, _make_op_api
 from tvm.ir.type import PointerType, PrimType
-from tvm.tirx.op import access_ptr, bitwise_and, call_intrin
+from tvm.tirx.op import bitwise_and, call_intrin, ptr_byte_offset
 from tvm.tirx.operator.intrinsics._common import (
     CP_ASYNC_BULK_CACHE_HINT as _CP_ASYNC_BULK_CACHE_HINT,
 )
@@ -374,8 +374,10 @@ def ptx_cp_async_legacy(
 
     ``elem_dtype`` scales element offsets independently of the call's result ``ty``.
     """
-    dst_ptr = _wrap_or_fold_access_ptr(dst_ptr, dst_offset, elem_dtype)
-    src_ptr = _wrap_or_fold_access_ptr(src_ptr, src_offset, elem_dtype)
+    dtype = DataType(elem_dtype)
+    elem_bits = dtype.bits * dtype.lanes
+    dst_ptr = ptr_byte_offset(dst_ptr, dst_offset * elem_bits // 8, ty=dst_ptr.ty)
+    src_ptr = ptr_byte_offset(src_ptr, src_offset * elem_bits // 8, ty=src_ptr.ty)
     return _cp_async_raw(dst_ptr, 0, src_ptr, 0, cp_size, ty=ty, span=span)
 
 
@@ -548,46 +550,10 @@ _PTX_TO_NUMPY_DTYPE = {
 
 def _ptx_to_numpy_dtype(dtype_str):
     """Map a PTX-abbreviation or numpy dtype string to a numpy dtype string
-    suitable for ``access_ptr`` (which scales the offset by the element
-    bit width). Unknown strings pass through unchanged so a caller may also
-    pass an already-numpy dtype."""
+    used by the legacy intrinsic wrappers. Unknown strings pass through unchanged
+    so a caller may also pass an already-numpy dtype."""
     s = dtype_str if isinstance(dtype_str, str) else str(dtype_str)
     return _PTX_TO_NUMPY_DTYPE.get(s, s)
-
-
-def _wrap_or_fold_access_ptr(ptr, offset, elem_dtype):
-    """Wrap ``ptr`` with ``access_ptr`` unless it already is one.
-
-    Several s_tir tensor intrinsics already pass ``buffer.access_ptr(...)``
-    (an ``access_ptr`` Call) for the pointer argument. Naively wrapping
-    that again yields a nested ``access_ptr(... access_ptr(...) ...)``
-    whose ``args[0]`` is a Call rather than a Var, which crashes the
-    lowering rule (Downcast<Var> at intrin_rule.cc) and several s_tir
-    passes that assume a raw buffer var. Detect that case and fold the
-    outer offset into the inner one.
-    """
-
-    is_access_ptr_call = (
-        isinstance(ptr, Call) and isinstance(ptr.op, Op) and ptr.op.name == "tirx.access_ptr"
-    )
-    if is_access_ptr_call:
-        # Inner Call already wraps the buffer var. Reuse its inner var and
-        # inner access element type, and add the
-        # outer offset (which is in `elem_dtype` units, same convention as
-        # the inner since both come from the same buffer).
-        inner_args = ptr.args
-        inner_var = inner_args[0]
-        inner_offset = inner_args[1]
-        rw_mask = inner_args[3]
-        return Call(
-            "tirx.access_ptr",
-            [inner_var, inner_offset + offset, 1, rw_mask],
-            ty=ptr.ty,
-            attrs=ptr.attrs,
-            ty_args=ptr.ty_args,
-            span=ptr.span,
-        )
-    return access_ptr(elem_dtype, ptr, offset, 1, 1)
 
 
 _legacy_ldmatrix = _make_op_api(Op.get("tirx.ptx_legacy.ldmatrix"), __name__)

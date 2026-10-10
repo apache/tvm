@@ -269,7 +269,7 @@ def test_alloc_apis():
         C += D
         D += E + C + D
         T.evaluate(T.address_of(C))
-        T.evaluate(C.source.access_ptr("rw", offset=0))
+        T.evaluate(C.source.ptr_to([0] * len(C.source.shape)))
         T.evaluate(C.source.data)
         T.evaluate(D)
         T.evaluate(T.address_of(D))

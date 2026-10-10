@@ -188,16 +188,16 @@ def test_codegen_nvshmem():
                     T.if_then_else(scope == "thread", tid, warp_id * 32),
                 )
                 op_func(
-                    dst=B.access_ptr("w", offset=offset),
-                    src=A.access_ptr("r", offset=offset),
+                    dst=B.ptr_to([offset]),
+                    src=A.ptr_to([offset]),
                     nelems=nelems,
-                    sig_addr=signal_array.access_ptr("w", offset=0),
+                    sig_addr=signal_array.ptr_to([0] * len(signal_array.shape)),
                     signal=1,
                     sig_op="set",
                     pe=dst_pe,
                 )
                 T.nvshmem.wait_until(
-                    ivar=signal_array.access_ptr("r", offset=0),
+                    ivar=signal_array.ptr_to([0] * len(signal_array.shape)),
                     cmp="eq",
                     cmp_value=cmp_value,
                 )

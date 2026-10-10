@@ -34,6 +34,7 @@
 #include <unordered_set>
 
 #include "../ir/ir_mutator_with_analyzer.h"
+#include "flattened_tensor.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -153,7 +154,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
 
     // buf': the storage husk. The linearized indices carry layout and
     // elem_offset, so the husk keeps neither.
-    auto flat = fold_view.GetFlattenedTensor();
+    auto flat = FlattenedTensor(fold_view);
     auto type = CopyTensorType(flat);
     for (size_t i = 0; i < type->shape.size(); ++i) {
       type->shape.Set(i, analyzer_->canonical_simplify(type->shape[i]));
