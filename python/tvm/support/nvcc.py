@@ -568,7 +568,7 @@ namespace std {
             b"-U__CUDA_NO_BFLOAT16_CONVERSIONS__",
             b"-U__CUDA_NO_BFLOAT162_OPERATORS__",
             b"-U__CUDA_NO_BFLOAT162_CONVERSIONS__",
-            b"--use_fast_math",
+            *([] if os.environ.get("TVM_CUDA_NVRTC_NO_FAST_MATH") else [b"--use_fast_math"]),
         ]
     )
 
@@ -930,6 +930,10 @@ def tvm_callback_cuda_compile(code):
         Forwarded to ptxas ``--register-usage-level`` (default ``10``).
     TVM_CUDA_PTXAS_EXTRA_OPTS : str
         Extra ptxas flags (shell-tokenized), e.g. ``"-O1"`` or ``"-O2"``.
+    TVM_CUDA_NVRTC_NO_FAST_MATH : str
+        If set, omit ``--use_fast_math`` when compiling with NVRTC.
+        When changing this setting, set ``CUDA_CACHE_DISABLE=1`` or use a fresh
+        ``CUDA_CACHE_PATH`` to avoid reusing code compiled with the previous setting.
 
     Parameters
     ----------
