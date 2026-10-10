@@ -130,7 +130,17 @@ ffi::Optional<ExprDoc> RegionStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView 
   for (const Expr& arg : stmt->args) args.push_back(d->Translate(arg).value());
   ffi::Array<ffi::String> keys;
   ffi::Array<ExprDoc> values;
-  if (!stmt->body_params.empty()) {
+  bool infer_params = false;
+  try {
+    auto inferred = GetRegionBodyParams(stmt->op, stmt->args, stmt->attrs);
+    infer_params = inferred.size() == stmt->body_params.size();
+    for (size_t i = 0; infer_params && i < inferred.size(); ++i) {
+      infer_params = ffi::StructuralEqual()(inferred[i]->ty, stmt->body_params[i]->ty);
+    }
+  } catch (const ffi::Error&) {
+    // Explicit parameters preserve regions whose inference is unavailable.
+  }
+  if (!infer_params) {
     ffi::Array<ExprDoc> params;
     for (const Var& param : stmt->body_params) {
       ExprDoc value = NamespaceDoc("tirx")->Attr("Var")->Call(

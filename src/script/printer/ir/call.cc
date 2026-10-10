@@ -32,7 +32,6 @@ namespace tvm {
 namespace script {
 namespace printer {
 namespace details {
-namespace {
 
 // The name is published only for a callable implementing the shared Op contract.
 // Semantic wrappers register their own Op hooks.
@@ -110,6 +109,8 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
   }
   return NamedCallCallee(names[op])->Call(args, keys, values);
 }
+
+namespace {
 
 ffi::Optional<ExprDoc> CallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                         const ffi::Object* destination) {

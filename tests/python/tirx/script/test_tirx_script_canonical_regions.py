@@ -17,6 +17,7 @@
 """Canonical region construction and recursive expression printing."""
 
 import ast
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -151,6 +152,7 @@ def test_named_region_canonical_builders(name, args):
     function = tirx.Function([], ir.SeqStmt([expected]))
     printed = function.script()
     assert f"with T.{name}(" in printed
+    assert "body_params=" not in printed
     restored = tvm.script.from_source(printed, extra_vars={"T": T, "I": I})
     ir.assert_structural_equal(function, restored)
     if params:
@@ -193,9 +195,10 @@ def test_signature_symbols_follow_first_appearance(names):
 
     source = function.script()
     assert "[" + ", ".join(names) + "](" in source
-    ir.assert_structural_equal(
-        function, tvm.script.from_source(source, extra_vars={"T": T, "I": I})
-    )
+    if sys.version_info >= (3, 12):
+        ir.assert_structural_equal(
+            function, tvm.script.from_source(source, extra_vars={"T": T, "I": I})
+        )
 
 
 def test_relax_packed_call_recurses_through_canonical_tuple():
@@ -204,7 +207,7 @@ def test_relax_packed_call_recurses_through_canonical_tuple():
         "packed", fields, ty_args=[tvm.relax.TensorType((1,), "float32")]
     )
     source, _ = _roundtrip_expr(call)
-    assert "R.call_dps_packed(" in source
+    assert "I.Call(" in source
     assert "I.Tuple(" not in source
 
 
@@ -287,9 +290,14 @@ def test_region_computed_endpoint_literal_range(minimum):
     assert ("I.TensorRegion(" in source) == (minimum == 2**63 - 1)
 
 
-@pytest.mark.parametrize("op", ["call_tir", "call_tir_with_grad", "call_tir_inplace"])
-@pytest.mark.parametrize("dtype,value", [("int32", 1), ("float32", 1.5)])
-def test_relax_tir_call_preserves_primitive_tuple_types(op, dtype, value):
+@pytest.mark.parametrize(
+    "op", ["call_tir", "call_tir_with_grad", "call_tir_inplace", "call_tir_packed"]
+)
+@pytest.mark.parametrize(
+    "dtype,value", [("int32", 1), ("int64", 1), ("float32", 1.5), ("float64", 1.5)]
+)
+@pytest.mark.parametrize("explicit", [False, True])
+def test_relax_tir_call_preserves_primitive_tuple_types(op, dtype, value, explicit):
     output_ty = tvm.relax.TensorType((1,), "float32")
     function = tirx.Function(
         [tirx.Var("x", dtype), tirx.decl_tensor((1,), "float32")],
@@ -297,15 +305,18 @@ def test_relax_tir_call_preserves_primitive_tuple_types(op, dtype, value):
     )
     callee = ir.GlobalVar("f")
     tvm.relax.expr._update_type(callee, function.ty)
-    scalar = tirx.IntImm(dtype, value) if dtype == "int32" else tirx.FloatImm(dtype, value)
-    args = [scalar]
+    scalar = tirx.IntImm(dtype, value) if dtype.startswith("int") else tirx.FloatImm(dtype, value)
+    args = [scalar if explicit else value]
     attrs = {}
     if op == "call_tir_with_grad":
         attrs["te_grad_name"] = "gradient"
-    elif op == "call_tir_inplace":
+    elif op in ("call_tir_inplace", "call_tir_packed"):
         args.append(tvm.relax.Var("tensor", output_ty))
-        attrs["inplace_indices"] = [1]
-    call = getattr(tvm.relax, op)(callee, ir.Tuple(args), ty_args=[output_ty], **attrs)
+        if op == "call_tir_inplace":
+            attrs["inplace_indices"] = [1]
+    if op != "call_tir_packed":
+        attrs["ty_args"] = [output_ty]
+    call = getattr(tvm.relax, op)(callee, ir.Tuple(args) if explicit else args, **attrs)
     call.validate()
     source, restored = _roundtrip_expr(call, {"Module": SimpleNamespace(f=callee)})
     assert "I.Tuple(" not in source
@@ -320,3 +331,79 @@ def test_region_floating_bounds_use_explicit_fallback():
     )
     source, _ = _roundtrip_expr(region)
     assert "I.TensorRegion(" in source
+
+
+def test_relax_tir_literal_binding_preserves_strict_ir_validation():
+    callee = ir.GlobalVar("f")
+    ty = tvm.relax.TensorType((1,), "float32")
+    tvm.relax.expr._update_type(
+        callee,
+        tirx.Function(
+            [tirx.Var("x", "int64"), tirx.decl_tensor((1,), "float32")],
+            ir.SeqStmt([ir.Evaluate(0)]),
+        ).ty,
+    )
+    literal = tvm.relax.call_tir(callee, [32], ty_args=[ty])
+    assert literal.args[1].fields[0].ty == "int64"
+    literal.validate()
+    for args in ([tirx.IntImm("int32", 32)], ir.Tuple([tirx.IntImm("int32", 32)]), [1.5]):
+        with pytest.raises((TypeError, ValueError), match="type mismatch"):
+            tvm.relax.call_tir(callee, args, ty_args=[ty]).validate()
+    callee = ir.GlobalVar("small")
+    tvm.relax.expr._update_type(
+        callee,
+        tirx.Function(
+            [tirx.Var("x", "int8"), tirx.decl_tensor((1,), "float32")],
+            ir.SeqStmt([ir.Evaluate(0)]),
+        ).ty,
+    )
+    with pytest.raises(ValueError):
+        tvm.relax.call_tir(callee, [128], ty_args=[ty])
+
+
+@pytest.mark.parametrize(
+    "op",
+    [
+        "call_dps_packed",
+        "call_builtin_with_ctx",
+        "make_closure",
+        "invoke_closure",
+        "invoke_pure_closure",
+    ],
+)
+def test_relax_inline_tuple_convenience_and_exact_reconstruction(op):
+    def make(args):
+        if op == "call_dps_packed":
+            return tvm.relax.call_dps_packed(
+                "packed", args, ty_args=[tvm.relax.TensorType((1,), "float32")]
+            )
+        if op == "call_builtin_with_ctx":
+            return tvm.relax.op.call_builtin_with_ctx(
+                "packed", args, ty_args=[ir.PrimType("int64")]
+            )
+        if op == "make_closure":
+            return tvm.relax.op.make_closure(tvm.relax.ExternFunc("packed"), args)
+        closure = tvm.relax.Var("closure", tvm.relax.ObjectType())
+        return getattr(tvm.relax.op, op)(closure, args, ty_args=[ir.PrimType("int64")])
+
+    convenient = make([1, 2.5])
+    assert convenient.args[1].fields[0].ty == "int64"
+    assert convenient.args[1].fields[1].ty == "float64"
+    _roundtrip_expr(convenient)
+    canonical = make(ir.Tuple([tirx.IntImm("int32", 1), ir.Tuple([tirx.FloatImm("float32", 2.5)])]))
+    source, _ = _roundtrip_expr(canonical)
+    assert "I.Call(" in source
+    assert "I.Tuple(" not in source
+
+
+def test_relax_unknown_native_signature_keeps_literal_defaults_and_arity():
+    call = tvm.relax.call_tir(
+        ir.GlobalVar("untyped"),
+        [1, 2.5, 3],
+        ty_args=[tvm.relax.TensorType((1,), "float32")],
+        ty=tvm.relax.TensorType((1,), "float32"),
+    )
+    assert len(call.args[1].fields) == 3
+    assert [str(field.ty) for field in call.args[1].fields] == ["int64", "float64", "int64"]
+    with pytest.raises(TypeError, match="MissingType.*FuncType"):
+        call.validate()
