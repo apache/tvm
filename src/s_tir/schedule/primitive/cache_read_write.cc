@@ -76,7 +76,6 @@ class NotSingleWriteBlock : public ScheduleErrorContextObj {
 
 /*! \brief The auxiliary info used for the insertion point and content of the cache stage. */
 struct CacheStageInfo {
-  explicit CacheStageInfo(StmtSRef loc) : loc_sref(std::move(loc)) {}
   /*! \brief The buffer to be read. */
   TensorVar read_buffer{ffi::UnsafeInit{}};
   /*! \brief The buffer to be written. */
@@ -84,7 +83,7 @@ struct CacheStageInfo {
   /*! \brief The buffer allocation to be inserted into the block signature. */
   ffi::Optional<TensorVar> alloc;
   /*! \brief The AST node whose body is where the cache stage should be inserted. */
-  StmtSRef loc_sref;
+  ffi::Optional<StmtSRef> loc_sref;
   /*! \brief The index to insert the cache_read/cache_write stage. */
   size_t loc_pos;
   /*! \brief The cache_read/cache_write stage to be inserted. */
@@ -111,7 +110,6 @@ ffi::Optional<TensorRegion> GetBufferRegionFromBuffer(
 }
 
 struct ReindexCacheStageInfo : CacheStageInfo {
-  using CacheStageInfo::CacheStageInfo;
   /* Indices used to access the allocated cache buffer. */
   ffi::Array<PrimExpr> indices;
   /* Touched loop variable related information. */
@@ -664,7 +662,7 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const TensorVar& 
  */
 TensorRegion RelaxBufferRegion(ScheduleState self, const TensorRegion& buffer_region,
                                const StmtSRef& block_sref, const StmtSRef& dom_low_inclusive,
-                               const StmtSRef& dom_high_exclusive,
+                               const ffi::Optional<StmtSRef>& dom_high_exclusive,
                                PrimExpr extra_predicate = IntImm::Bool(true)) {
   SBlockRealize realize = GetSBlockRealize(self, block_sref);
   ffi::Map<Var, PrimExpr> binding = GetBindings(realize);
@@ -752,7 +750,7 @@ class CacheLocDetector : public StmtExprVisitor {
       auto detector =
           ffi::make_object<CacheLocDetector>(self, block_sref, scope_sref, related_blocks);
       detector->Visit(ffi::GetRef<Stmt>(scope_sref->stmt));
-      info->loc_sref = detector->loc_sref_.value();
+      info->loc_sref = detector->loc_sref_;
       info->loc_pos = detector->loc_pos_;
     } else {
       info->loc_sref = scope_sref;
@@ -878,7 +876,7 @@ class CacheInplaceLocDetector : public StmtExprVisitor {
                      const StmtSRef& scope_sref, CacheStageInfo* info) {
     auto detector = ffi::make_object<CacheInplaceLocDetector>(self, block_sref, scope_sref);
     detector->Visit(ffi::GetRef<Stmt>(scope_sref->stmt));
-    info->loc_sref = detector->loc_sref_.value();
+    info->loc_sref = detector->loc_sref_;
     info->loc_pos = detector->loc_pos_;
   }
 
@@ -1033,7 +1031,7 @@ class CacheReadRewriter : public StmtExprMutator {
     Stmt stmt =
         StmtExprMutator::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
     // Check the insertion point
-    if (loop == info_->loc_sref->stmt) {
+    if (loop == info_->loc_sref.value()->stmt) {
       // Insert cache stage into the loop if it is the right place
       ffi::ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*stmt.as<ForNode>());
       n->body = InsertCacheStage(n->body, info_->loc_pos, info_->cache_stage);
@@ -1072,7 +1070,7 @@ class CacheReadRewriter : public StmtExprMutator {
                       .as_or_throw<SBlock>();
     stmt.CopyOnWrite()->alloc_buffers = block->alloc_buffers;
     // Check the insertion point
-    if (block == info_->loc_sref->stmt) {
+    if (block == info_->loc_sref.value()->stmt) {
       // Insert cache stage into the block if it is the right place
       ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
       n->body = InsertCacheStage(n->body, info_->loc_pos, info_->cache_stage);
@@ -1343,7 +1341,7 @@ class CacheWriteRewriter : public StmtExprMutator {
     Stmt stmt =
         StmtExprMutator::Mutate_(loop, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
     // Check the insertion point
-    if (loop == info_->loc_sref->stmt) {
+    if (loop == info_->loc_sref.value()->stmt) {
       // Insert cache stage into the loop if it is the right place
       ffi::ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*stmt.as<ForNode>());
       n->body = InsertCacheStage(n->body, info_->loc_pos, info_->cache_stage);
@@ -1398,7 +1396,7 @@ class CacheWriteRewriter : public StmtExprMutator {
     std::swap(under_scope, under_writer_block_);
 
     // Find the insertion point
-    if (block == info_->loc_sref->stmt) {
+    if (block == info_->loc_sref.value()->stmt) {
       ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
       n->body = InsertCacheStage(n->body, info_->loc_pos, info_->cache_stage);
       stmt = SBlock(n);
@@ -1977,7 +1975,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   const SBlockNode* scope_block = TVM_SREF_TO_SBLOCK(scope_sref);
 
   // Step 2. Create CacheStageInfo
-  CacheStageInfo info(scope_sref);
+  CacheStageInfo info;
   info.read_buffer = read_buffer;
 
   // info.consumer_blocks indicates which buffers should consume the cache.
@@ -2031,8 +2029,9 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   }();
 
   // Step 4. Making new cache stage block and rewrite readers.
-  bool cache_full_region = info.loc_sref->StmtAs<SBlockNode>() == nullptr ||
-                           !AllConsumersUnderStmt(self, read_buffer, scope_sref, info.loc_sref);
+  bool cache_full_region =
+      info.loc_sref.value()->StmtAs<SBlockNode>() == nullptr ||
+      !AllConsumersUnderStmt(self, read_buffer, scope_sref, info.loc_sref.value());
   info.cache_region = cache_region;
   info.write_buffer = WithScope(read_buffer, storage_scope);
   if (!cache_full_region) {
@@ -2085,7 +2084,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
 
   // Step 2. Creating CacheStageInfo
-  CacheStageInfo info(scope_sref);
+  CacheStageInfo info;
   // Create the corresponding buffer to be written, i.e. result of cache_write
   info.write_buffer = write_buffer;
 
@@ -2121,8 +2120,9 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
     cache_region = region;
   }
 
-  bool cache_full_region = info.loc_sref->StmtAs<SBlockNode>() == nullptr ||
-                           !AllConsumersUnderStmt(self, write_buffer, scope_sref, info.loc_sref);
+  bool cache_full_region =
+      info.loc_sref.value()->StmtAs<SBlockNode>() == nullptr ||
+      !AllConsumersUnderStmt(self, write_buffer, scope_sref, info.loc_sref.value());
   info.cache_region = cache_region;
   info.read_buffer = WithScope(write_buffer, storage_scope);
   if (!cache_full_region) {
@@ -2154,11 +2154,12 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   return result_block_sref;
 }
 
-ffi::Array<StmtSRef> GetLoopsUnderScope(const StmtSRef& block_sref, const StmtSRef& top_sref) {
+ffi::Array<StmtSRef> GetLoopsUnderScope(const StmtSRef& block_sref,
+                                        const ffi::Optional<StmtSRef>& top_sref) {
   std::vector<StmtSRef> result;
   for (StmtSRefNode* parent = block_sref->parent; parent && parent->stmt->IsInstance<ForNode>();
        parent = parent->parent) {
-    if (parent == top_sref.get()) break;
+    if (top_sref.has_value() && parent == top_sref.value().get()) break;
     result.push_back(ffi::GetRef<StmtSRef>(parent));
   }
   return {result.rbegin(), result.rend()};
@@ -2324,7 +2325,7 @@ StmtSRef ReindexCacheRead(ScheduleState self, const StmtSRef& block_sref, int re
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
 
   // Step 2. Create CacheStageInfo
-  ReindexCacheStageInfo info(scope_sref);
+  ReindexCacheStageInfo info;
   info.read_buffer = read_buffer;
   info.consumer_blocks.insert(block_sref);
 
@@ -2396,7 +2397,7 @@ StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sref, int w
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
 
   // Step 2. Creating CacheStageInfo
-  ReindexCacheStageInfo info(scope_sref);
+  ReindexCacheStageInfo info;
   info.write_buffer = write_buffer;
 
   // Step 3. Check the only writer block.
@@ -2490,7 +2491,7 @@ ffi::Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref
 
   // Do cache read
   // Cache read step 0. Create CacheStageInfo
-  CacheStageInfo info(scope_sref);
+  CacheStageInfo info;
   info.read_buffer = buffer;
   // Create the corresponding buffer to be written for cache_read
   info.write_buffer = new_buffer;
@@ -2577,7 +2578,7 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
   }
 
   // Step 2. Creating CacheStageInfo
-  CacheStageInfo info(scope_sref);
+  CacheStageInfo info;
   // Create the corresponding buffer to be read(write), i.e. the result of reindex read(write)
   if (buffer_index_type == BufferIndexType::kWrite) {
     info.read_buffer = CreateReindexBuffer(buffer, block->iter_vars, covered);

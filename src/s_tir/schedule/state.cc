@@ -43,11 +43,12 @@ using SMap = std::unordered_map<K, V, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
  * \param dom_high_exclusive The highest node in the sref tree path
  * \return An n-dimensional integer set
  */
-ffi::Array<sym::IntSet> AnalyzeRegionUpperBound(const TensorRegion& region,          //
-                                                const PrimExpr& predicate,           //
-                                                const StmtSRef& dom_low_inclusive,   //
-                                                const StmtSRef& dom_high_exclusive,  //
-                                                sym::AnalyzerObj* analyzer) {
+ffi::Array<sym::IntSet> AnalyzeRegionUpperBound(
+    const TensorRegion& region,                         //
+    const PrimExpr& predicate,                          //
+    const StmtSRef& dom_low_inclusive,                  //
+    const ffi::Optional<StmtSRef>& dom_high_exclusive,  //
+    sym::AnalyzerObj* analyzer) {
   ffi::Map<Var, Range> var_dom = LoopDomainOfSRefTreePath(
       /*low_inclusive=*/dom_low_inclusive,
       /*high_exclusive=*/dom_high_exclusive,
@@ -70,11 +71,12 @@ ffi::Array<sym::IntSet> AnalyzeRegionUpperBound(const TensorRegion& region,     
  * \param analyzer The analyzer
  * \return An n-dimensional integer set
  */
-ffi::Array<sym::IntSet> AnalyzeRegionLowerBound(const TensorRegion& region,          //
-                                                const PrimExpr& predicate,           //
-                                                const StmtSRef& dom_low_inclusive,   //
-                                                const StmtSRef& dom_high_exclusive,  //
-                                                sym::AnalyzerObj* analyzer) {
+ffi::Array<sym::IntSet> AnalyzeRegionLowerBound(
+    const TensorRegion& region,                         //
+    const PrimExpr& predicate,                          //
+    const StmtSRef& dom_low_inclusive,                  //
+    const ffi::Optional<StmtSRef>& dom_high_exclusive,  //
+    sym::AnalyzerObj* analyzer) {
   ffi::Map<Var, Range> var_dom = LoopDomainOfSRefTreePath(
       /*low_inclusive=*/dom_low_inclusive,
       /*high_exclusive=*/dom_high_exclusive,
