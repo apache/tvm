@@ -239,21 +239,6 @@ namespace attr {
  */
 constexpr const char* kDoubleBufferScope = "double_buffer_scope";
 
-/*!
- * \brief String-valued allocation Call attribute containing the TensorCore fragment shape
- */
-constexpr const char* kFragmentShape = "fragment_shape";
-
-/*!
- * \brief String-valued allocation Call attribute containing the TensorCore fragment layout
- */
-constexpr const char* kFragmentLayout = "fragment_layout";
-
-/*!
- * \brief For annotation requesting partitioning when its PrimExpr value is provably true.
- */
-constexpr const char* kLoopPartitionHint = "loop_partition_hint";
-
 // -----------------------------------------------------------------------
 // meta_schedule annotations
 // -----------------------------------------------------------------------

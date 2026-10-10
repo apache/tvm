@@ -48,6 +48,26 @@ bool IsScalarBuffer(DocTranslatorObj* d, const Expr& source) {
 
 namespace {
 
+ffi::Optional<ExprDoc> TensorVarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                             const ffi::Object* destination) {
+  Var var = input.cast<Var>();
+  IdDoc id = d->VarGetOrAllocId(var, false);
+  if (destination == var.get() && d->GetImplicitDefs().count(var)) {
+    VarDoc(d, var);
+    ExprDoc rhs = NamespaceDoc("tirx")->Attr("Var")->Call(
+        {LiteralDoc::Str(var->name, std::nullopt), d->Translate(var->ty).value()});
+    EmitVarDefinition(d, var, rhs, std::nullopt);
+    return std::nullopt;
+  }
+  // Mutable scalar syntax binds a TensorLoad; resource uses need its allocation.
+  return IsScalarBuffer(d, var) ? IdDoc(id->name)->Attr("source") : ExprDoc(IdDoc(id->name));
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<tirx::TensorTypeNode>().attr(
+      type_attr::kVarDocTranslate, FDocTranslate::FromNative<&TensorVarDocTranslate>());
+}
+
 ffi::Optional<ExprDoc> BufferOperationDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                                    const ffi::Object* destination) {
   const auto* call =

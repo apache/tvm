@@ -46,54 +46,6 @@ namespace script {
 namespace printer {
 namespace details {
 
-ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                       const ffi::Object* destination) {
-  const auto* node =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const VarNode>(input);
-  Var var = ffi::GetRef<Var>(node);
-  IdDoc id = d->VarGetOrAllocId(var, false);
-  if (destination == node && d->GetImplicitDefs().count(var)) {
-    // Promote before translating the type, which may refer back to this Var.
-    VarDoc(d, var);
-    ffi::Optional<ExprDoc> rhs = std::nullopt;
-    ffi::Optional<ExprDoc> annotation = std::nullopt;
-    if (auto primitive = var->ty.as<PrimType>()) {
-      rhs = NamespaceDoc("ir")->Attr("dynamic")->Call(
-          {LiteralDoc::Str(var->name, std::nullopt)}, {"dtype"},
-          {LiteralDoc::DataType(primitive.value()->dtype, std::nullopt)});
-    } else if (var->ty.as<tirx::TensorTypeNode>()) {
-      rhs = NamespaceDoc("tirx")->Attr("Var")->Call(
-          {LiteralDoc::Str(var->name, std::nullopt), d->Translate(var->ty).value()});
-    } else {
-      annotation = d->Translate(var->ty).value();
-      if (var->ty.as<PointerTypeNode>()) {
-        // A module-level annotation alone does not bind a Python variable.
-        rhs = annotation.value().as<CallDoc>() ? annotation : annotation.value()->Call({});
-      }
-    }
-    // Only this type's referenced Vars must precede its declaration.
-    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-        var->ty, [&](const Var& dependency) -> ffi::Expected<ffi::WalkResult> {
-          if (d->GetImplicitDefs().count(dependency)) {
-            if (auto rhs = d->Translate(dependency, dependency)) {
-              d->Emit(AssignDoc(VarDoc(d, dependency), rhs.value(), std::nullopt), dependency);
-            }
-          }
-          return ffi::WalkResult::Skip();
-        });
-    d->Emit(AssignDoc(VarDoc(d, var), rhs, annotation), var);
-    return std::nullopt;
-  }
-  // Mutable scalar syntax binds a TensorLoad; resource uses need its buffer.
-  if (IsScalarBuffer(d, var)) return IdDoc(id->name)->Attr("source");
-  return IdDoc(id->name);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<VarNode>().attr(tvm::script::printer::type_attr::kDocTranslate,
-                                               FDocTranslate::FromNative<&VarDocTranslate>());
-}
-
 bool CanTranslateExplicitResultCall(const CallNode* call) {
   return !call->attrs.defined() && call->ty_args.empty() && call->ty.as<PrimType>() &&
          std::all_of(call->args.begin(), call->args.end(), [](const Expr& arg) {

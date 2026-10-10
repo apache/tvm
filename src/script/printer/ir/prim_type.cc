@@ -32,8 +32,9 @@ namespace details {
 
 namespace {
 
-ffi::Optional<ExprDoc> AnyTypeDocTranslate(DocTranslatorObj*, ffi::AnyView, const ffi::Object*) {
-  return NamespaceDoc("relax")->Attr("Any");
+ffi::Optional<ExprDoc> AnyTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView, const ffi::Object*) {
+  ExprDoc doc = NamespaceDoc("relax")->Attr("Any");
+  return d->GetOrCreateExtraState<bool>("ir.type_value") ? doc->Call({}) : doc;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -121,6 +122,46 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       FDocTranslate::FromNative<&PrimTypeDocTranslate>());
 }
 
+ffi::Optional<ExprDoc> PointerTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                               const ffi::Object*) {
+  const auto* ty =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PointerTypeNode>(input);
+  bool type_value = d->GetOrCreateExtraState<bool>("ir.type_value");
+  ExtraStateScope<bool> annotations(d, "ir.type_value", false);
+  ExprDoc doc = [&]() -> ExprDoc {
+    if (auto primitive = ty->element_type.as<PrimType>()) {
+      if (primitive.value().IsVoid()) {
+        if (ty->storage_scope == "global") return NamespaceDoc("tirx")->Attr("handle");
+        return NamespaceDoc("tirx")->Attr("handle")->Call(
+            {}, {"storage_scope"}, {LiteralDoc::Str(ty->storage_scope, std::nullopt)});
+      }
+      ExprDoc element = LiteralDoc::DataType(primitive.value()->dtype, std::nullopt);
+      if (ty->storage_scope.empty()) return NamespaceDoc("tirx")->Attr("handle")->Call({element});
+      return NamespaceDoc("tirx")->Attr("handle")->Call(
+          {element, LiteralDoc::Str(ty->storage_scope, std::nullopt)});
+    }
+    static ffi::reflection::TypeAttrColumn column(type_attr::kPointerConstructor);
+    if (auto name = column[ty->element_type->type_index()].as<ffi::String>()) {
+      return NamedCallCallee(name.value())->Call({});
+    }
+    return NamespaceDoc("tirx")->Attr("handle")->Call(
+        {d->Translate(ty->element_type).value(), LiteralDoc::Str(ty->storage_scope, std::nullopt)});
+  }();
+  if (!type_value) return doc;
+  if (auto primitive = ty->element_type.as<PrimType>();
+      primitive && primitive.value().IsVoid() && ty->storage_scope == "global") {
+    doc = doc->Call({});
+  }
+  return doc->Attr("ty");
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::EnsureTypeAttrColumn(type_attr::kPointerConstructor);
+  ffi::reflection::TypeAttrDef<PointerTypeNode>().attr(
+      tvm::script::printer::type_attr::kDocTranslate,
+      FDocTranslate::FromNative<&PointerTypeDocTranslate>());
+}
+
 ffi::Optional<ExprDoc> StringTypeDocTranslate(DocTranslatorObj*, ffi::AnyView, const ffi::Object*) {
   return NamespaceDoc("ir")->Attr("StringType")->Call({});
 }
@@ -146,7 +187,11 @@ ffi::Optional<ExprDoc> TupleTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView i
                                              const ffi::Object*) {
   const auto* ty =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleTypeNode>(input);
-  if (ty->fields.empty()) return NamespaceDoc("relax")->Attr("Tuple");
+  if (ty->fields.empty()) {
+    ExprDoc doc = NamespaceDoc("relax")->Attr("Tuple");
+    return d->GetOrCreateExtraState<bool>("ir.type_value") ? doc->Call({}) : doc;
+  }
+  ExtraStateScope<bool> annotations(d, "ir.type_value", false);
   ffi::Array<ExprDoc> fields;
   for (const Type& field : ty->fields) fields.push_back(d->Translate(field).value());
   std::function<bool(const Type&)> is_primitive = [&](const Type& field) {

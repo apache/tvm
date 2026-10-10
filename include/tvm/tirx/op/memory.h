@@ -192,6 +192,20 @@ TVM_DLL const Op& masked_store_op();
  */
 TVM_DLL const Op& tensor_data_ptr_op();
 
+namespace attr {
+
+/*!
+ * \brief String-valued allocation Call attribute containing the TensorCore fragment shape
+ */
+constexpr const char* kFragmentShape = "fragment_shape";
+
+/*!
+ * \brief String-valued allocation Call attribute containing the TensorCore fragment layout
+ */
+constexpr const char* kFragmentLayout = "fragment_layout";
+
+}  // namespace attr
+
 }  // namespace tirx
 }  // namespace tvm
 

@@ -31,7 +31,6 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/s_tir/stmt.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/layout.h>
@@ -781,8 +780,8 @@ class StoragePlanRewriter : public StmtExprMutator {
   static bool RequiresExactAllocation(const CallNode* call) {
     if (call->args.size() == 4) return true;
     const auto& annotations = call->attrs.as_or_throw<DictAttrs>()->dict;
-    return annotations.count(tvm::s_tir::attr::kFragmentShape) ||
-           annotations.count(tvm::s_tir::attr::kFragmentLayout);
+    return annotations.count(tvm::tirx::attr::kFragmentShape) ||
+           annotations.count(tvm::tirx::attr::kFragmentLayout);
   }
 
   // Checks whether the storage_scope is especially tagged for a specific memory.

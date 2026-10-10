@@ -19,18 +19,22 @@
 #include <tvm/ir/function.h>
 
 #include "../../../tirx/script/printer/utils.h"
-#include "utils.h"
 
 namespace tvm {
 namespace script {
 namespace printer {
 namespace details {
 
-void PrintSTirFunction(DocTranslatorObj* d, const tirx::FunctionNode* func) {
-  d->SetExtraState("tirx.buffer_default_layout_none", true);
+namespace {
+bool PrintSTirFunction(DocTranslatorObj* d, const tirx::FunctionNode* func) {
+  if (!func->attrs->dict.count(tvm::attr::kSTir)) return false;
+  ExtraStateScope<bool> layout(d, "tirx.buffer_default_layout_none", true);
   PrintFunction(d, func, NamespaceDoc("s_tir")->Attr("function"), tvm::attr::kSTir);
-  d->SetExtraState("tirx.buffer_default_layout_none", std::nullopt);
+  return true;
 }
+
+TVM_FFI_STATIC_INIT_BLOCK() { RegisterFunctionDocTranslate(PrintSTirFunction); }
+}  // namespace
 
 }  // namespace details
 }  // namespace printer

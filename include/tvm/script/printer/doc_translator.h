@@ -384,9 +384,18 @@ namespace type_attr {
  */
 inline constexpr const char* kDocTranslate = "__tvm_doc_translate__";
 /*!
+ * \brief Integer ordering rank for module members, followed by their global name.
+ * Unregistered function types sort after explicitly ranked declarations and kernels.
+ */
+inline constexpr const char* kModuleFunctionOrder = "__tvm_doc_module_function_order__";
+/*!
  * \brief Source-Type hook receiving the original TensorLoad and optional binder.
  */
 inline constexpr const char* kTensorLoadDocTranslate = "__tvm_doc_translate_tensor_load__";
+/*! \brief Var-Type hook receiving the original Var and optional binder. */
+inline constexpr const char* kVarDocTranslate = "__tvm_doc_translate_var__";
+/*! \brief Qualified pointer constructor name registered by the pointer element type. */
+inline constexpr const char* kPointerConstructor = "__tvm_doc_pointer_constructor__";
 }  // namespace type_attr
 
 namespace op_attr {

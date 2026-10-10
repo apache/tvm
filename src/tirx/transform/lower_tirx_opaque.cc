@@ -29,7 +29,6 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/op/region.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -106,8 +105,8 @@ class TIRxOpaqueLower : public StmtExprMutator {
     // Step 2. Create the lowered loop or launch region.
     if (tvm::tirx::GetThreadBinding(op).has_value()) {
       // Case 1. Thread binding → RegionStmt(launch_thread)
-      TVM_FFI_ICHECK(!op->annotations.count(tvm::s_tir::attr::kLoopPartitionHint) ||
-                     op->annotations.at(tvm::s_tir::attr::kLoopPartitionHint) == nullptr)
+      TVM_FFI_ICHECK(!op->annotations.count(tvm::tirx::attr::kLoopPartitionHint) ||
+                     op->annotations.at(tvm::tirx::attr::kLoopPartitionHint) == nullptr)
           << "Run LoopPartition before opaque lowering of a thread-binding loop with "
              "loop_partition_hint";
       TVM_FFI_ICHECK(tvm::tirx::GetThreadBinding(op).has_value());

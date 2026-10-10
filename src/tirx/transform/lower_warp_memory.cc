@@ -33,7 +33,6 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
-#include <tvm/s_tir/stmt.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/pattern.h>
 #include <tvm/target/target.h>

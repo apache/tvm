@@ -225,9 +225,9 @@ class InferFragmenter : public s_tir::StmtExprMutator {
         }
       };
       set_annotation(
-          tvm::s_tir::attr::kFragmentShape,
+          tvm::tirx::attr::kFragmentShape,
           std::to_string(info.m) + ", " + std::to_string(info.n) + ", " + std::to_string(info.k));
-      if (!info.layout.empty()) set_annotation(tvm::s_tir::attr::kFragmentLayout, info.layout);
+      if (!info.layout.empty()) set_annotation(tvm::tirx::attr::kFragmentLayout, info.layout);
       if (annotations.same_as(attrs->dict)) return ffi::Unchanged();
       auto value = ffi::GetRef<Call>(call);
       value.CopyOnWrite()->attrs = DictAttrs(std::move(annotations));

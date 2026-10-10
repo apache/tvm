@@ -32,12 +32,15 @@ namespace script {
 namespace printer {
 namespace details {
 
+// An owning language variant may handle a Function before the ordinary TIRx printer.
+// The hook returns true after emission, or false without changing the translation context.
+using FunctionDocTranslateHook = bool (*)(DocTranslatorObj*, const tirx::FunctionNode*);
+void RegisterFunctionDocTranslate(FunctionDocTranslateHook hook);
+
 void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc decorator,
                    const ffi::String& dialect_attr);
 bool CanTranslateExplicitResultCall(const CallNode* call);
 bool IsScalarBuffer(DocTranslatorObj* d, const Expr& source);
-ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                       const ffi::Object* destination);
 
 }  // namespace details
 }  // namespace printer

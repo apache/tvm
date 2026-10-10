@@ -31,7 +31,6 @@
 #include <utility>
 #include <vector>
 
-#include "../../../s_tir/script/printer/utils.h"
 #include "../../../script/printer/ir/utils.h"
 #include "utils.h"
 
@@ -40,11 +39,27 @@ namespace script {
 namespace printer {
 namespace details {
 
+namespace {
+FunctionDocTranslateHook& FunctionExtension() {
+  static FunctionDocTranslateHook hook = nullptr;
+  return hook;
+}
+}  // namespace
+
+void RegisterFunctionDocTranslate(FunctionDocTranslateHook hook) {
+  TVM_FFI_ICHECK(hook != nullptr && FunctionExtension() == nullptr);
+  FunctionExtension() = hook;
+}
+
 void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc decorator,
                    const ffi::String& dialect_attr) {
   VarScope vars(d);
 
-  ffi::String name = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or("main");
+  auto bound_name = d->GetOrCreateExtraState<ffi::Optional<ffi::String>>("ir.function_name");
+  // A nested function must not inherit the enclosing module member's binding.
+  ExtraStateScope<ffi::Optional<ffi::String>> name_scope(d, "ir.function_name", std::nullopt);
+  auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+  ffi::String name = bound_name.value_or(global_symbol.value_or("main"));
   FunctionDoc doc(ffi::UnsafeInit{});
   {
     ffi::Array<AssignDoc> args;
@@ -108,6 +123,14 @@ void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc 
           body.begin(),
           ExprStmtDoc(NamespaceDoc("tirx")->Attr("func_attr")->Call({DictDoc(keys, values)})));
     }
+    if (bound_name && global_symbol && global_symbol.value() != bound_name.value()) {
+      body.insert(body.begin(),
+                  ExprStmtDoc(NamespaceDoc("tirx")
+                                  ->Attr("func_attr")
+                                  ->Call({DictDoc(
+                                      {LiteralDoc::Str(tvm::attr::kGlobalSymbol, std::nullopt)},
+                                      {LiteralDoc::Str(global_symbol.value(), std::nullopt)})})));
+    }
     ffi::Optional<ExprDoc> ret_type = std::nullopt;
     if (!func->ret_type.as<MissingType>().has_value() && !IsVoidType(func->ret_type)) {
       ret_type = d->Translate(func->ret_type).value();
@@ -127,19 +150,19 @@ ffi::Optional<ExprDoc> TirxFunctionDocTranslate(DocTranslatorObj* d, ffi::AnyVie
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::FunctionNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
-  if (func->attrs->dict.count(tvm::attr::kSTir)) {
-    PrintSTirFunction(d, func);
-  } else {
-    PrintFunction(d, func, NamespaceDoc("tirx")->Attr("function"), "");
-  }
+  if (auto hook = FunctionExtension(); hook && hook(d, func)) return std::nullopt;
+  TVM_FFI_CHECK(!func->attrs->dict.count(tvm::attr::kSTir), TypeError)
+      << "The function's language variant has no registered printer";
+  PrintFunction(d, func, NamespaceDoc("tirx")->Attr("function"), "");
   return std::nullopt;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterNamespaceAlias("tirx.prefix", "T");
-  ffi::reflection::TypeAttrDef<tirx::FunctionNode>().attr(
-      tvm::script::printer::type_attr::kDocTranslate,
-      FDocTranslate::FromNative<&TirxFunctionDocTranslate>());
+  ffi::reflection::TypeAttrDef<tirx::FunctionNode>()
+      .attr(type_attr::kModuleFunctionOrder, int64_t{1})
+      .attr(tvm::script::printer::type_attr::kDocTranslate,
+            FDocTranslate::FromNative<&TirxFunctionDocTranslate>());
 }
 
 }  // namespace

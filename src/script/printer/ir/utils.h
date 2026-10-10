@@ -39,6 +39,13 @@ ffi::Array<Doc> TensorIndices(DocTranslatorObj* d, const ffi::Array<PrimExpr>& i
                               bool store = false);
 ExprDoc TensorRegionValue(DocTranslatorObj* d, const TensorRegionNode* region, bool require_region);
 
+ffi::Optional<ExprDoc> InvokeDocHook(ffi::AnyView hook, DocTranslatorObj* d, ffi::AnyView input,
+                                     const ffi::Object* destination);
+ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                       const ffi::Object* destination);
+void EmitVarDefinition(DocTranslatorObj* d, const Var& var, ffi::Optional<ExprDoc> rhs,
+                       ffi::Optional<ExprDoc> annotation);
+
 ExprDoc AddMetadata(DocTranslatorObj* d, ffi::Any value);
 IdDoc VarDoc(DocTranslatorObj* d, const Var& var, bool explicit_def = true);
 ExprDoc GlobalReference(DocTranslatorObj* d, const ffi::String& name);
@@ -52,6 +59,23 @@ ExprDoc AnyValue(DocTranslatorObj* d, ffi::AnyView value);
 ffi::Dict<Var, IdDoc> CopyImplicitDefs(DocTranslatorObj* d);
 void FinalizeFunctionDefinitions(DocTranslatorObj* d, const ffi::Dict<Var, IdDoc>& signature,
                                  const FunctionDoc& function);
+
+// Owner hooks use these scoped values while translating a nested function or type.
+// Keep the existing value when recursion returns, including exceptional returns.
+template <typename T>
+class ExtraStateScope {
+ public:
+  ExtraStateScope(DocTranslatorObj* d, const ffi::String& key, T value)
+      : d_(d), key_(key), saved_(d->GetOrCreateExtraState<T>(key)) {
+    d_->SetExtraState(key_, std::move(value));
+  }
+  ~ExtraStateScope() { d_->SetExtraState(key_, std::move(saved_)); }
+
+ private:
+  DocTranslatorObj* d_;
+  ffi::String key_;
+  T saved_;
+};
 
 class VarScope {
  public:
