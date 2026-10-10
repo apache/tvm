@@ -31,7 +31,7 @@ NVCC 13.2.51, NVRTC 13.2, and the installed CUDA 13.2 ``ptxas --help``.
 The current implementation was inspected in ``backend/cuda/compile_config.py``,
 ``backend/cuda/compiler.py``, and ``support/nvcc.py``.
 
-The :download:`complete option inventory <cuda_compile_options.json>` contains
+The :download:`complete option inventory <../../_static/tirx/cuda_compile_options.json>` contains
 147 NVCC options, 59 NVRTC options, and 57 ptxas options. Each JSON entry records long
 and short spellings, its intended category, the current API route, and whether
 the current raw-option validator accepts each spelling. These are option names,
