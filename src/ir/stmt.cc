@@ -1005,15 +1005,14 @@ SeqStmt::SeqStmt(ffi::Array<Stmt> seq, ffi::Optional<Location> loc) : Stmt(ffi::
 }
 
 SeqStmt::SeqStmt(Stmt stmt, ffi::Optional<Location> loc) : Stmt(ffi::UnsafeInit{}) {
-  Location location = loc.value_or(Location());
+  Location location = loc.value_or(stmt->loc);
   if (const auto* sequence = stmt.as<SeqStmtNode>()) {
-    if (location.as<UnknownLocNode>() || location.same_as(sequence->loc)) {
+    if (!loc.has_value() || location.same_as(sequence->loc)) {
       data_ = ffi::GetObjectPtr<SeqStmtNode>(const_cast<SeqStmtNode*>(sequence));
       return;
     }
     *this = SeqStmt(sequence->seq, std::move(location));
   } else {
-    if (location.as<UnknownLocNode>()) location = stmt->loc;
     *this = SeqStmt(ffi::Array<Stmt>{std::move(stmt)}, std::move(location));
   }
 }
