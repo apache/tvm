@@ -148,9 +148,9 @@ whole block sees the writes, then read it back:
     @Tx.function
     def smem_demo(A: Tx.Tensor((128,), "float32"), B: Tx.Tensor((128,), "float32")):
 
-        Tx.device_entry()
-        bx = Tx.cta_id([1])
-        tx = Tx.thread_id([128])
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        bx = Tx.cuda.block_idx("x")
+        tx = Tx.cuda.thread_idx("x")
         sm = Tx.alloc_shared((128,), "float32")  # static shared memory
         sm[tx] = A[tx]
         Tx.cuda.cta_sync()
@@ -206,23 +206,12 @@ with views decl'd at offsets inside it.
 
 .. note::
 
-   **How TVM annotates the dynamic-shared size.** The arena's size is known at
-   compile time (here ``128`` floats = ``512`` bytes). During lowering TVM appends
-   a ``"tirx.use_dyn_shared_memory"`` tag to the device kernel's
-   ``tirx.kernel_launch_params``, and the host launcher computes the total bytes and
-   passes them as the last launch argument:
-
-   .. code-block:: python
-
-       # device kernel attribute:
-       "tirx.kernel_launch_params": ["blockIdx.x", "threadIdx.x", "tirx.use_dyn_shared_memory"]
-
-       # host-side launch call  (..., gridDim.x, blockDim.x, dyn_shared_bytes):
-       Tx.call_packed("dyn_kernel", A.data, B.data, C.data, 1, 64, 512)
-
-   At run time that ``512`` becomes ``config.sharedMemBytes`` in the
-   ``cuLaunchKernelEx`` call. You never set it by hand — it is derived from the
-   ``shared.dyn`` allocation's size.
+   The compiler infers the required bytes from the ``shared.dyn`` allocation
+   or ``SMEMPool.commit()`` and passes them as a typed launch operand.
+   ``LaunchConfig.dynamic_smem_bytes`` can reserve more space; a value smaller
+   than the allocation requirement raises an error. The shared launch support
+   applies the same resource policy to Driver and Runtime launches, including
+   repeated calls whose dynamic shared-memory requirement grows.
 
 Pool sugar
 ~~~~~~~~~~

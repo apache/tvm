@@ -114,10 +114,9 @@ def _build_warp_kernel(num, direction, trans, swizzle=False):
         @T.function
         def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
 
-            T.device_entry()
-            T.cta_id([1])
-            T.lane_id([32])
-            tid = T.thread_id([32])
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+            _lane = T.cuda.lane_id()
+            tid = T.cuda.thread_idx('x')
             A_smem = T.alloc_tensor(s_shape, "float16", scope="shared", layout=s_layout)
             row = tid // 4
             cp = tid % 4
@@ -137,10 +136,9 @@ def _build_warp_kernel(num, direction, trans, swizzle=False):
         @T.function
         def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
 
-            T.device_entry()
-            T.cta_id([1])
-            T.lane_id([32])
-            tid = T.thread_id([32])
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+            _lane = T.cuda.lane_id()
+            tid = T.cuda.thread_idx('x')
             A_smem = T.alloc_tensor(s_shape, "float16", scope="shared", layout=s_layout)
             row = tid // 4
             cp = tid % 4
@@ -180,13 +178,9 @@ def _build_warpgroup_kernel(num, direction, trans, swizzle=False):
         @T.function
         def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
 
-            T.device_entry()
-            T.cta_id([1])
-            T.warpgroup_id([1])
-            T.warp_id_in_wg([4])
-            T.lane_id([32])
-            T.thread_id_in_wg([128])
-            tid = T.thread_id([128])
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+            _lane = T.cuda.lane_id()
+            tid = T.cuda.thread_idx('x')
             A_smem = T.alloc_tensor(s_shape, "float16", scope="shared", layout=s_layout)
             wid = tid // 32
             lid = tid % 32
@@ -208,13 +202,9 @@ def _build_warpgroup_kernel(num, direction, trans, swizzle=False):
         @T.function
         def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
 
-            T.device_entry()
-            T.cta_id([1])
-            T.warpgroup_id([1])
-            T.warp_id_in_wg([4])
-            T.lane_id([32])
-            T.thread_id_in_wg([128])
-            tid = T.thread_id([128])
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+            _lane = T.cuda.lane_id()
+            tid = T.cuda.thread_idx('x')
             A_smem = T.alloc_tensor(s_shape, "float16", scope="shared", layout=s_layout)
             wid = tid // 32
             lid = tid % 32
@@ -256,11 +246,9 @@ def _build_cta_kernel(num, direction, trans, swizzle=False):
         @T.function
         def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
 
-            T.device_entry()
-            T.cta_id([1])
-            T.warp_id([4])
-            T.lane_id([32])
-            tid = T.thread_id([128])
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+            _lane = T.cuda.lane_id()
+            tid = T.cuda.thread_idx('x')
             A_smem = T.alloc_tensor(s_shape, "float16", scope="shared", layout=s_layout)
             wid = tid // 32
             lid = tid % 32
@@ -282,11 +270,9 @@ def _build_cta_kernel(num, direction, trans, swizzle=False):
         @T.function
         def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
 
-            T.device_entry()
-            T.cta_id([1])
-            T.warp_id([4])
-            T.lane_id([32])
-            tid = T.thread_id([128])
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+            _lane = T.cuda.lane_id()
+            tid = T.cuda.thread_idx('x')
             A_smem = T.alloc_tensor(s_shape, "float16", scope="shared", layout=s_layout)
             wid = tid // 32
             lid = tid % 32
@@ -394,10 +380,9 @@ def _build_multi_iter_kernel(outer_ext: int):
 
     @T.function
     def kernel(A: T.Tensor(shape, "float16"), B: T.Tensor(shape, "float16")) -> None:
-        T.device_entry()
-        T.cta_id([1])
-        T.lane_id([32])
-        tid = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        _lane = T.cuda.lane_id()
+        tid = T.cuda.thread_idx("x")
         A_smem = T.alloc_tensor(shape, "float16", scope="shared", layout=s_layout)
         for a in range(outer_ext):
             for c in range(2):
@@ -475,12 +460,8 @@ def test_ldstmatrix_tcgen05_warpgroup_atom_emits_ldmatrix():
 
     @T.function
     def kernel(smem: T.Tensor((m, k), "bfloat16", scope="shared", layout=smem_layout)) -> None:
-        T.device_entry()
-        T.cta_id([1])
-        T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 128))
+        _lane = T.cuda.lane_id()
         a_reg = T.alloc_tensor((m, k), "bfloat16", scope="local", layout=reg_layout)
         T.cuda.tile.ldmatrix(a_reg, smem, scope="warpgroup")
 

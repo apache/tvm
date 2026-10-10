@@ -29,7 +29,7 @@ from tvm import ir
 from tvm import ir as _ir
 from tvm import tirx as _tir
 from tvm import tirx as tir
-from tvm.ir import Call
+from tvm.ir import Call, Var
 from tvm.ir.prim import _ffi_api as _prim_ffi
 from tvm.ir.prim import _ffi_api as _prim_ffi_api
 from tvm.script.ir_builder import base as _base
@@ -41,7 +41,6 @@ from tvm.script.ir_builder.stmt import _as_expr as _as_expr
 from tvm.target.codegen import llvm_lookup_intrinsic_id
 from tvm.tirx import Expr, is_tensor_var
 from tvm.tirx import op as _tir_op
-from tvm.tirx.exec_scope import Var
 
 # import tirx.expr for direct ir construction to pass structural_equal comparison
 from tvm.tirx.expr import (
@@ -452,7 +451,14 @@ stack_make_dltensor = _tir_op.stack_make_dltensor
 call_packed = _tir_op.call_packed
 
 
-call_ffi_kernel = _ir.op._make_op_api(_ir.Op.get("tirx.call_ffi_kernel"), __name__)
+_call_ffi_kernel_raw = _ir.op._make_op_api(_ir.Op.get("tirx.call_ffi_kernel"), __name__)
+
+
+def call_ffi_kernel(*args, launch=None, **kwargs):
+    """Call a kernel with a CUDA LaunchConfig, or read a printed low-level call."""
+    if launch is not None:
+        return _tir_op.call_ffi_kernel(*args, launch=launch, **kwargs)
+    return _call_ffi_kernel_raw(*args, **kwargs)
 
 
 call_cpacked = _tir_op.call_cpacked

@@ -45,9 +45,9 @@ def test_break_continue1():
     @T.function
     def func(A: T.Tensor((10,), 'int32')):
 
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tid = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        cta_id = T.cuda.block_idx('x')
+        tid = T.cuda.thread_idx('x')
         for i in T.serial(10):
             if i == 2:
                 continue
@@ -67,9 +67,9 @@ def test_break_continue2():
     @T.function
     def func(A: T.Tensor((9,), 'int32')):
 
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tid = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        cta_id = T.cuda.block_idx('x')
+        tid = T.cuda.thread_idx('x')
         idx = T.alloc_tensor((1,), "int32", scope="local")
         idx[0] = 0
         for i in T.serial(3):
@@ -94,9 +94,9 @@ def test_break_continue3():
     @T.function
     def func(A: T.Tensor((10,), 'int32')):
 
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tid = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        cta_id = T.cuda.block_idx('x')
+        tid = T.cuda.thread_idx('x')
         i = T.alloc_tensor((1,), "int32", scope="local")
         i[0] = 0
         while i[0] < 10:

@@ -175,6 +175,12 @@ struct CallFFIKernelAttr : public AttrsNode {
    * bytes, when present, are last. Runtime expressions remain in Call.args.
    */
   ffi::Array<ffi::String> launch_params;
+  /*! \brief CUDA configuration field names, one per trailing operand. */
+  ffi::Array<ffi::String> launch_fields;
+  /*! \brief Exact number of device parameters, excluding symbol and launch operands. */
+  int64_t num_kernel_args{-1};
+  /*! \brief Compile-time CUDA kernel requirements. */
+  ffi::Map<ffi::String, int64_t> kernel_options;
 
   static void RegisterReflection();
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.CallFFIKernelAttr", CallFFIKernelAttr, AttrsNode);

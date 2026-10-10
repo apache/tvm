@@ -23,6 +23,13 @@ repos:
   # ---------- Local hooks ----------
   - repo: local
     hooks:
+      - id: cuda-launch-generated
+        name: check CUDA launch generated files
+        entry: python python/tvm/backend/cuda/launch/generate.py --check
+        language: python
+        additional_dependencies: [ruff==0.12.3, clang-format==20.1.8]
+        pass_filenames: false
+        files: ^(python/tvm/backend/cuda/launch/|src/backend/cuda/launch/|docs/tirx/api/cuda_launch.rst)
       - id: check-asf-header
         name: check ASF Header
         entry: python tests/lint/check_asf_header.py --check

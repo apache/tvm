@@ -59,7 +59,7 @@ TVM_DLL ScopeKind StringToScopeKind(const ffi::String& name);
 
 /*!
  * \brief The binding between a parent scope and a child scope as used by a
- * `ScopeIdDef`. The closed enum of valid (parent -> cur) pairs.
+ * CUDA index call. The closed enum of valid (parent -> cur) pairs.
  *
  * Single-axis bindings (target one ActiveSet box axis -- ``laneid`` /
  * ``warpid`` / ``cta_id``, possibly via a warpid factor lane):
@@ -95,105 +95,6 @@ TVM_DLL std::pair<ffi::String, ffi::String> ScopeBindingToStringPair(ScopeBindin
 
 /*! \brief Parse a (parent, cur) string pair to a ScopeBinding. FATAL if unknown. */
 TVM_DLL ScopeBinding StringPairToScopeBinding(const ffi::String& parent, const ffi::String& cur);
-
-/******** Definition of ScopeId ********/
-class ScopeIdDefNode : public ffi::Object {
- public:
-  /*! \brief The ScopeId defined */
-  ffi::Array<PrimVar> def_ids;
-  /*!
-   * \brief The extents of the ScopeId.
-   *
-   * NullOpt means the extent is *deferred*: the user wrote e.g.
-   * ``bx = T.cta_id()`` without specifying the extent, and the value will be
-   * inferred from sibling ScopeIdDefs at LowerTIRx entry via the verifier's
-   * BFS closure. Deferred form requires ``def_ids.size() == 1`` (single axis
-   * only -- multi-axis defers have no well-defined recovery).
-   *
-   * Explicit (Some) form preserves the per-axis shape, e.g. ``[3, 4, 5]``
-   * for ``T.cta_id([3, 4, 5])``.
-   */
-  ffi::Optional<ffi::Array<PrimExpr>> extents;
-  /*! \brief The (parent, cur) binding of this scope id as a closed enum. */
-  ScopeBinding scope;
-  /*!
-   * \brief Optional preferred extents (cluster→cta only).
-   * Maps to cudaLaunchAttributePreferredClusterDimension (CUDA 12.8+).
-   */
-  ffi::Optional<ffi::Array<PrimExpr>> preferred_extents;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ScopeIdDefNode>()
-        .def_ro("def_ids", &ScopeIdDefNode::def_ids, refl::AttachFieldFlag::SEqHashDefSimple())
-        .def_ro("extents", &ScopeIdDefNode::extents)
-        .def_ro("scope", &ScopeIdDefNode::scope)
-        .def_ro("preferred_extents", &ScopeIdDefNode::preferred_extents);
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.ScopeIdDef", ScopeIdDefNode, ffi::Object);
-};
-
-class ScopeIdDef : public ffi::ObjectRef {
- public:
-  TVM_DLL explicit ScopeIdDef(ffi::Array<PrimVar> def_ids,
-                              ffi::Optional<ffi::Array<PrimExpr>> extents, ScopeBinding scope,
-                              ffi::Optional<ffi::Array<PrimExpr>> preferred_extents =
-                                  ffi::Optional<ffi::Array<PrimExpr>>(std::nullopt));
-
-  /*! \brief Whether this def has a deferred (unknown) extent. */
-  bool is_deferred() const { return !get()->extents.has_value(); }
-
-  /*! \brief Product of all extent dimensions. PRECONDITION: !is_deferred(). */
-  PrimExpr fused_extent() const;
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScopeIdDef, ffi::ObjectRef, ScopeIdDefNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ScopeIdDefNode);
-};
-
-class ScopeIdDefVerifier {
- public:
-  using ScopeIdSet = std::unordered_map<ScopeBinding, ScopeIdDef>;
-
-  /*!
-   * \brief Verification mode.
-   *
-   * - kRelaxed: tolerate deferred (extent=None) ScopeIdDefs. Used for partial
-   *   programs in the well-formedness check at Function construction time.
-   * - kStrict: every original ScopeIdDef must end with a resolved extent
-   *   (either explicit at construction, or inferred via closure). Used at
-   *   LowerTIRx entry where downstream resolve/codegen needs concrete values.
-   */
-  enum class Mode { kRelaxed, kStrict };
-
-  /*! \brief Verify the scope id definitions are well formed. */
-  bool Verify(const ffi::Array<ScopeIdDef>& defs, Mode mode = Mode::kStrict);
-
-  /*!
-   * \brief The resolved scope id set; ``id_set[binding]`` is the best-known
-   * def for that binding (extents filled in from closure when possible).
-   */
-  ScopeIdSet id_set;
-};
-
-/*!
- * \brief Static resolver for ScopeIdDef values. Replaces the former
- * ScopeIdResolveTable runtime registry with a closed-enum switch.
- */
-class ScopeIdResolve {
- public:
-  using LaunchParams = std::unordered_map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>>;
-
-  /*! \brief Resolve a ScopeIdDef for a given canonical binding + target. */
-  TVM_DLL static ffi::Array<PrimExpr> Resolve(ScopeBinding binding,
-                                              const ffi::Optional<ffi::Array<PrimExpr>>& extents,
-                                              int out_dim, const ffi::String& target_kind,
-                                              const LaunchParams& params);
-
-  /*! \brief Compute the warp_id_in_cta shuffle expression from threadIdx in launch params */
-  TVM_DLL static PrimExpr ComputeWarpIdInCta(const LaunchParams& params);
-};
 
 /*!
  * \brief Strict-weak "a is wider than b" on scope kinds: ``world > kernel >

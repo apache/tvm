@@ -77,9 +77,9 @@ Rung 2 in full — a 256-element block sum via a shared-memory tree reduction
     @Tx.function
     def block_sum(A: Tx.Tensor((256,), "float32"), out: Tx.Tensor((1,), "float32")):
 
-        Tx.device_entry()
-        bx = Tx.cta_id([1])
-        tx = Tx.thread_id([256])
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(256,)))
+        bx = Tx.cuda.block_idx("x")
+        tx = Tx.cuda.thread_idx("x")
 
         sm = Tx.alloc_shared((256,), "float32")
         sm[tx] = A[tx]

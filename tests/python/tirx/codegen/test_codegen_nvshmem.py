@@ -78,9 +78,9 @@ def test_codegen_nvshmem():
         def test_thread_info(sess):
             @T.function
             def main(res: T.Tensor((2,), "int32")):
-                T.device_entry()
-                cta_id = T.cta_id([1])
-                tid = T.thread_id([nwarps * 32])
+                T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(nwarps * 32,)))
+                cta_id = T.cuda.block_idx("x")
+                tid = T.cuda.thread_idx("x")
                 res[0] = T.nvshmem.my_pe()
                 res[1] = T.nvshmem.n_pes()
 
@@ -98,11 +98,11 @@ def test_codegen_nvshmem():
             # fmt: off
             @T.function
             def main(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)):
-                T.device_entry()
-                cta_id = T.cta_id([1])
-                warp_id = T.warp_id([nwarps])
-                lane_id = T.lane_id([32])
-                tid = T.thread_id([nwarps * 32])
+                T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(nwarps * 32,)))
+                cta_id = T.cuda.block_idx('x')
+                warp_id = T.cuda.warp_id()
+                lane_id = T.cuda.lane_id()
+                tid = T.cuda.thread_idx('x')
 
                 my_pe = T.nvshmem.my_pe()
                 n_pes = T.nvshmem.n_pes()
@@ -137,9 +137,9 @@ def test_codegen_nvshmem():
             # fmt: off
             @T.function
             def main(res: T.Tensor((1,), "uint64")):
-                T.device_entry()
-                cta_id = T.cta_id([1])
-                tid = T.thread_id([nwarps * 32])
+                T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(nwarps * 32,)))
+                cta_id = T.cuda.block_idx('x')
+                tid = T.cuda.thread_idx('x')
                 my_pe = T.nvshmem.my_pe()
                 n_pes = T.nvshmem.n_pes()
                 dst_pe = (my_pe + 1) % n_pes
@@ -174,11 +174,11 @@ def test_codegen_nvshmem():
                 B: T.Tensor(shape, dtype),
                 signal_array: T.Tensor((1,), "uint64"),
             ):
-                T.device_entry()
-                cta_id = T.cta_id([1])
-                warp_id = T.warp_id([nwarps])
-                lane_id = T.lane_id([32])
-                tid = T.thread_id([nwarps * 32])
+                T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(nwarps * 32,)))
+                cta_id = T.cuda.block_idx("x")
+                warp_id = T.cuda.warp_id()
+                lane_id = T.cuda.lane_id()
+                tid = T.cuda.thread_idx("x")
                 my_pe = T.nvshmem.my_pe()
                 n_pes = T.nvshmem.n_pes()
                 dst_pe = (my_pe + 1) % n_pes
@@ -226,11 +226,11 @@ def test_codegen_nvshmem():
             # fmt: off
             @T.function
             def main(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype), res: T.Tensor((1,), "uint64")):  # noqa: E501
-                T.device_entry()
-                cta_id = T.cta_id([1])
-                warp_id = T.warp_id([nwarps])
-                lane_id = T.lane_id([32])
-                tid = T.thread_id([2 * 32])
+                T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(2 * 32,)))
+                cta_id = T.cuda.block_idx('x')
+                warp_id = T.cuda.warp_id()
+                lane_id = T.cuda.lane_id()
+                tid = T.cuda.thread_idx('x')
                 my_pe = T.nvshmem.my_pe()
                 n_pes = T.nvshmem.n_pes()
                 dst_pe = (my_pe + 1) % n_pes

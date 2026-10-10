@@ -71,6 +71,15 @@ void ValidateDeclTmem(const CallNode* call) {
   TVM_FFI_CHECK(!call->attrs.defined(), ValueError) << "decl_tmem does not accept attributes";
 }
 
+Type InferTypeCudaAxis(const CallNode* call) {
+  TVM_FFI_CHECK_EQ(call->args.size(), 1U, ValueError);
+  const auto* axis = call->args[0].as<StringImmNode>();
+  TVM_FFI_CHECK(axis && (axis->value == "x" || axis->value == "y" || axis->value == "z"),
+                ValueError)
+      << "CUDA index axis must be x, y, or z";
+  return PrimType::Int(32);
+}
+
 template <size_t N>
 static Type InferTypeReturnArgType(const CallNode* call) {
   TVM_FFI_CHECK_GT(call->args.size(), N, ValueError)
@@ -185,15 +194,6 @@ void RegisterCudaTargetBuiltins() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-  OpDef("tirx.cuda.dyn_smem_bytes",
-        "Declare the dynamic shared memory size in bytes for the kernel launch.")
-      .signature(sig::arg<IntImm>("bytes", "The constant byte count."))
-      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.dyn_smem_bytes"))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
-      .set_attr<TCallEffectKind>("TCallEffectKind",
-                                 static_cast<int64_t>(CallEffectKind::kEmbedInfo));
-
   RegisterDeviceIntrinsics();
 }
 
@@ -226,21 +226,17 @@ OpDef& RegisterDeviceIntrinsic(OpDef&& def, const char* op_namespace, CallEffect
 }
 
 void RegisterDeviceIntrinsics() {
-  // Kernel configuration declarations survive lowering until CUDA body generation.
-  RegisterDeviceIntrinsic(OpDef("tirx.cuda.launch_bounds_min_blocks_per_sm"), "cuda",
-                          CallEffectKind::kEmbedInfo, sig::arg<IntImm>("value"))
-      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
-  RegisterDeviceIntrinsic(OpDef("tirx.cuda.launch_bounds_max_blocks_per_cluster"), "cuda",
-                          CallEffectKind::kEmbedInfo, sig::arg<IntImm>("value"))
-      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
-  RegisterDeviceIntrinsic(OpDef("tirx.cuda.max_registers_per_thread"), "cuda",
-                          CallEffectKind::kEmbedInfo, sig::arg<IntImm>("value"))
-      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
-  RegisterDeviceIntrinsic(
-      OpDef("tirx.cuda.required_block_size"), "cuda", CallEffectKind::kEmbedInfo,
-      sig::arg<IntImm>("thread_x"), sig::arg<IntImm>("thread_y"), sig::arg<IntImm>("thread_z"),
-      sig::arg<IntImm>("cluster_x"), sig::arg<IntImm>("cluster_y"), sig::arg<IntImm>("cluster_z"))
-      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
+  for (const char* name : {"block_idx", "thread_idx", "cluster_id", "cluster_cta_id", "grid_dim",
+                           "block_dim", "cluster_dim"}) {
+    RegisterDeviceIntrinsic(OpDef(std::string("tirx.cuda.") + name), "cuda", CallEffectKind::kPure,
+                            sig::arg<StringImm>("axis"))
+        .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCudaAxis>());
+  }
+  for (const char* name : {"linear_thread_id", "warp_id", "lane_id", "warpgroup_id",
+                           "warp_in_warpgroup", "thread_in_warpgroup", "cta_pair_id"}) {
+    RegisterDeviceIntrinsic(OpDef(std::string("tirx.cuda.") + name), "cuda", CallEffectKind::kPure)
+        .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32));
+  }
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.any_sync"), "cuda", CallEffectKind::kPure,
                           sig::arg<IntExpr>("mask"), sig::arg("pred"))
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32));

@@ -56,7 +56,7 @@ class WarpRole:
     Parameters
     ----------
     warp_id_var : Var
-        The warp_id variable (from ``T.warp_id(...)``).
+        The warp_id variable (from ``T.cuda.warp_id()``).
     warp_id_val : int
         Which warp index this role corresponds to.
     regs : int, optional
@@ -113,7 +113,7 @@ class WarpgroupRole:
     Parameters
     ----------
     wg_id_var : Var
-        The warpgroup_id variable (from ``T.warpgroup_id(...)``).
+        The warpgroup_id variable (from ``T.cuda.warpgroup_id()``).
     wg_id_val : int or tuple[int, int]
         Which warpgroup index (int) or range ``(start, stop)`` this role
         corresponds to.

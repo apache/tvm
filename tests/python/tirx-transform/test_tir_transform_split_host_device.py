@@ -470,30 +470,45 @@ def test_cuda_required_block_size_coexists_with_launch_bounds():
         @T.function
         def main(A: T.Tensor(4, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
-            T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")})
-            T.cuda.required_block_size(128, 1, 1, 1, 1, 1)
-            T.cuda.launch_bounds_min_blocks_per_sm(1)
-            bx = T.launch_thread("blockIdx.x", 4)
-            tx = T.launch_thread("threadIdx.x", 128)
+            T.device_entry(
+                launch=T.cuda.LaunchConfig(grid=4, block=128),
+                options=T.cuda.KernelOptions(required_block_size=True, min_blocks_per_sm=1),
+            )
+            bx = T.cuda.block_idx("x")
+            tx = T.cuda.thread_idx("x")
             if tx == 0:
                 A[bx] = 0.0
 
-    after = tvm.tirx.transform.SplitHostDevice()(Before)
+    with tvm.target.Target("cuda"):
+        after = tvm.tirx.transform.LowerTIRx()(Before)
+        after = tvm.tirx.transform.SplitHostDevice()(after)
     kernel = after["main_kernel"]
-    assert "T.cuda.required_block_size(128, 1, 1, 1, 1, 1)" in kernel.script()
-    assert "T.cuda.launch_bounds_min_blocks_per_sm(1)" in kernel.script()
-    assert list(kernel.attrs["tirx.kernel_launch_params"]) == [
-        "blockIdx.x",
-        "threadIdx.x",
-        "tirx.use_required_block_dimension",
+    options = kernel.attrs["cuda.kernel_options"]
+    assert options["required_block_size"] == 1
+    assert options["required_block_x"] == 128
+    assert options["min_blocks_per_sm"] == 1
+    assert list(kernel.attrs["cuda.launch_fields"]) == [
+        "grid.x",
+        "grid.y",
+        "grid.z",
+        "block.x",
+        "block.y",
+        "block.z",
     ]
 
-    launch = after["main"].body[0].value
-    assert isinstance(launch, tvm.ir.Call)
-    # The required-block flag reaches FunctionInfo metadata but adds no packed operand.
-    assert len(launch.args) == 4
-    assert int(launch.args[-2]) == 4
-    assert int(launch.args[-1]) == 128
+    launches = []
+
+    def collect_launch(node):
+        if isinstance(node, tvm.ir.Call) and getattr(node.op, "name", "") == "tirx.call_ffi_kernel":
+            launches.append(node)
+
+    tvm_ffi.structural_walk(after["main"], collect_launch)
+    assert len(launches) == 1
+    launch = launches[0]
+    # Compile-time options reach metadata without becoming packed operands.
+    assert launch.attrs.num_kernel_args == 1
+    assert len(launch.args) == 8
+    assert [int(arg) for arg in launch.args[-6:]] == [4, 1, 1, 128, 1, 1]
 
 
 def test_cuda_launch_preserves_singleton_cluster_dimensions():

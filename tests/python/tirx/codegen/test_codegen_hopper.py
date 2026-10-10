@@ -65,9 +65,9 @@ def test_ptx_setmaxnreg(inc):
     # fmt: off
     @T.function
     def func(A: T.Tensor(1)):
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tid = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        cta_id = T.cuda.block_idx('x')
+        tid = T.cuda.thread_idx('x')
         T.ptx[f"setmaxnreg.{'inc' if T.constexpr(inc) else 'dec'}.sync.aligned.u32"](32)
         # fmt: on
 
@@ -86,9 +86,9 @@ def test_stmatrix_sync_aligned(trans):
     # fmt: off
     @T.function
     def func(A: T.Tensor((16, 16), "float16")):
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        cta_id = T.cuda.block_idx('x')
+        tx = T.cuda.thread_idx('x')
         A_smem = T.alloc_tensor((16, 16), "float16", scope="shared", align=16)
         reg = T.alloc_tensor((8,), "float16", scope="local")
         for i in range(8):
@@ -153,9 +153,9 @@ def test_ptx_stmatrix(trans, num):
     # fmt: off
     @T.function
     def main(A: T.Tensor((16, 16), "float16")):
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        cta_id = T.cuda.block_idx('x')
+        tx = T.cuda.thread_idx('x')
         A_shared = T.alloc_shared([16, 16], "float16")
         if tx == 0:
             for i, j in T.grid(16, 16):
@@ -228,9 +228,9 @@ def test_ptx_stmatrix_noncontiguous(trans, num):
     # fmt: off
     @T.function
     def main(A: T.Tensor((16, 16), "float16")):
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        cta_id = T.cuda.block_idx('x')
+        tx = T.cuda.thread_idx('x')
         A_shared = T.alloc_shared([16, 16], "float16")
         if tx == 0:
             for i, j in T.grid(16, 16):
@@ -295,9 +295,9 @@ def test_bar_arrive():
     # fmt: off
     @T.function
     def func(A: T.Tensor(1)):
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tid = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        cta_id = T.cuda.block_idx('x')
+        tid = T.cuda.thread_idx('x')
         T.ptx.bar.arrive(0, 128)
         # fmt: on
 
@@ -312,9 +312,9 @@ def test_bar_sync():
     # fmt: off
     @T.function
     def func(A: T.Tensor(1)):
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tid = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        cta_id = T.cuda.block_idx('x')
+        tid = T.cuda.thread_idx('x')
         T.ptx.bar.sync(0, 128)
         # fmt: on
 
@@ -329,9 +329,9 @@ def test_barrier_sync_unaligned():
     # fmt: off
     @T.function
     def func(A: T.Tensor(1)):
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tid = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        cta_id = T.cuda.block_idx('x')
+        tid = T.cuda.thread_idx('x')
         T.ptx.barrier.sync(0, 128)
         # fmt: on
 
@@ -346,9 +346,9 @@ def test_fence_mbarrier_init_release_clsuter():
     # fmt: off
     @T.function
     def func(A: T.Tensor(1)):
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tid = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        cta_id = T.cuda.block_idx('x')
+        tid = T.cuda.thread_idx('x')
         T.ptx.fence.mbarrier_init.release.cluster()
         # fmt: on
 
@@ -362,9 +362,9 @@ def test_ptx_elect_sync():
     # fmt: off
     @T.function
     def func(A: T.Tensor(1)):
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tx = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        cta_id = T.cuda.block_idx('x')
+        tx = T.cuda.thread_idx('x')
         if (T.cuda.elect_sync()):
             A[tx] = tx
         # fmt: on
@@ -383,9 +383,9 @@ def test_ptx_fence(sem, scope):
     # fmt: off
     @T.function
     def func(A: T.Tensor(1)):
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tid = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        cta_id = T.cuda.block_idx('x')
+        tid = T.cuda.thread_idx('x')
         T.ptx[f"fence.{sem}.{scope}"]()
         # fmt: on
 
@@ -399,9 +399,9 @@ def test_fence_proxy_async():
     # fmt: off
     @T.function
     def func(A: T.Tensor(1)):
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tid = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        cta_id = T.cuda.block_idx('x')
+        tid = T.cuda.thread_idx('x')
         T.ptx.fence.proxy.async_.global_()
         T.ptx.fence.proxy.async_.shared__cta()
 
@@ -983,9 +983,9 @@ def test_cp_async_bulk_tensor_shared_to_global(inputs):
             A_map: T.let[T.handle("tensormap")] = T.stack_alloca("tensormap", 1)
             T.call_packed("runtime.cuTensorMapEncodeTiled", A_map, "float32", len(shape), A.data, *tma_args)  # noqa: E501
 
-            T.device_entry()
-            cta_id = T.cta_id([1])
-            tx = T.thread_id([128])
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+            cta_id = T.cuda.block_idx('x')
+            tx = T.cuda.thread_idx('x')
 
             A_smem = T.alloc_tensor(elems, "float32", scope="shared", align=128)
 
@@ -1075,9 +1075,9 @@ def test_wgmma_ss_nt():
                 "runtime.cuTensorMapEncodeTiled", B_map, in_dtype, len(shapeB), B.data, *B_tma_args
             )
 
-            T.device_entry()
-            cta_id = T.cta_id([1])
-            tx = T.thread_id([128])  # A warpgroup is 128 threads
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+            cta_id = T.cuda.block_idx('x')
+            tx = T.cuda.thread_idx('x')  # A warpgroup is 128 threads
 
             A_smem = T.alloc_tensor(shapeA, in_dtype, scope="shared", align=1024)
             B_smem = T.alloc_tensor(shapeB, in_dtype, scope="shared", align=1024)
@@ -1246,9 +1246,9 @@ def test_wgmma_rs_nt():
                 "runtime.cuTensorMapEncodeTiled", B_map, in_dtype, len(shapeB), B.data, *B_tma_args
             )
 
-            T.device_entry()
-            cta_id = T.cta_id([1])
-            tx = T.thread_id([128])  # A warpgroup is 128 threads
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+            cta_id = T.cuda.block_idx('x')
+            tx = T.cuda.thread_idx('x')  # A warpgroup is 128 threads
 
             B_smem = T.alloc_tensor(shapeB, in_dtype, scope="shared", align=1024)
             # bar = T.alloc_tensor((1,), "uint64", scope="shared", align=8)
@@ -1384,10 +1384,10 @@ def test_wgmma_rs_nt():
 def test_mapa():
     @T.function
     def func(A: T.Tensor(1)):
-        T.device_entry()
-        cbx = T.cta_id_in_cluster([2])
-        cta_id = T.cta_id([2])
-        tx = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,), cluster=(2,)))
+        cbx = T.cuda.cluster_cta_id("x")
+        cta_id = T.cuda.block_idx("x")
+        tx = T.cuda.thread_idx("x")
         A_smem = T.alloc_tensor([1], "uint32", scope="shared")
         mapped = T.alloc_local([1], "uint64")
         if cbx == 0 and tx == 0:

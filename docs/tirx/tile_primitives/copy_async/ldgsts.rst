@@ -96,11 +96,11 @@ shared, then commits and waits before reading it back (from ``test_ldgsts.py``):
     @Tx.function
     def copy_async(A: Tx.Tensor(shape, dtype), B: Tx.Tensor(shape, dtype)):
 
-        Tx.device_entry()
-        Tx.cta_id([1])
-        Tx.warp_id([4])
-        Tx.lane_id([32])
-        tid = Tx.thread_id([128])
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        _index = Tx.cuda.block_idx("x")
+        _index = Tx.cuda.warp_id()
+        _lane = Tx.cuda.lane_id()
+        tid = Tx.cuda.thread_idx("x")
         A_smem = Tx.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
         Tx.cuda.tile.cp_async(A_smem[full], A[full], scope="cta")  # async global -> shared
         Tx.ptx.cp.async_.commit_group()  # caller commits ...

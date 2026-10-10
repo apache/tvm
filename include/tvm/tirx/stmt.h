@@ -45,37 +45,6 @@ inline ffi::Optional<ffi::String> GetThreadBinding(const For& loop) {
   return GetThreadBinding(loop.get());
 }
 
-/*!
- * \brief Standalone statement that declares a scope-id binding (e.g. cta_id,
- * warp_id, lane_id). Carries a ``ScopeIdDef`` value.
- *
- * Each declaration is a flat stmt within the device-region body. The declared
- * ``Var``\ s are visible in subsequent stmts in the same enclosing scope
- * (the ``tirx.device_entry`` region body), analogous to ``BindNode``.
- */
-class ScopeIdDefStmtNode : public StmtNode {
- public:
-  /*! \brief The scope-id definition (Vars + extents + binding). */
-  ScopeIdDef def;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ScopeIdDefStmtNode>().def_ro("def", &ScopeIdDefStmtNode::def);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.ScopeIdDefStmt", ScopeIdDefStmtNode, StmtNode);
-};
-
-/*! \brief Managed reference to ScopeIdDefStmtNode. */
-class ScopeIdDefStmt : public Stmt {
- public:
-  TVM_DLL ScopeIdDefStmt(ScopeIdDef def, Span span = Span());
-
-  explicit ScopeIdDefStmt(ffi::ObjectPtr<ScopeIdDefStmtNode> node) : Stmt(std::move(node)) {}
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ScopeIdDefStmt, Stmt, ScopeIdDefStmtNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ScopeIdDefStmtNode);
-};
-
 /*! \brief Statement attribute and loop annotation keys. */
 namespace attr {
 /*!

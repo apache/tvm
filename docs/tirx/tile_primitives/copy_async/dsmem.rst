@@ -73,10 +73,10 @@ mbarrier and writes the result out (from ``test_dsmem.py``):
     @Tx.function
     def dsmem_copy(A: Tx.Tensor(shape, dtype), B: Tx.Tensor(shape, dtype)):
 
-        Tx.device_entry()
-        cbx = Tx.cta_id_in_cluster([CLUSTER_N])
-        Tx.cta_id([CLUSTER_N])
-        tid = Tx.thread_id([1])
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(CLUSTER_N,), block=(1,), cluster=(CLUSTER_N,)))
+        cbx = Tx.cuda.cluster_cta_id("x")
+        _index = Tx.cuda.block_idx("x")
+        tid = Tx.cuda.thread_idx("x")
         pool = Tx.SMEMPool()
         src_raw = pool.alloc([8192], dtype, align=128)
         src_smem = Tx.decl_tensor(

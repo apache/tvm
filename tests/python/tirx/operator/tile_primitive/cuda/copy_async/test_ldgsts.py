@@ -84,9 +84,9 @@ def test_copy_g2s_s2g_cta_vec_load(task, dtype):
         A: T.Tensor(g_shape, dtype, layout=layoutA), B: T.Tensor(g_shape, dtype, layout=layoutB)
     ) -> None:
 
-        T.device_entry()
-        cta_id = T.cta_id([1])
-        tid = T.thread_id([thread_cnt])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(thread_cnt,)))
+        cta_id = T.cuda.block_idx('x')
+        tid = T.cuda.thread_idx('x')
         A_smem = T.alloc_tensor(s_shape, dtype, scope="shared", layout=layoutS)
 
         T.cuda.tile.cp_async(A_smem[tuple(r_smem)], A[tuple(r_gmem)], scope='cta')
@@ -156,8 +156,8 @@ def test_copy_ldgsts_predicate_zero_fill_codegen():
 
     @T.function
     def copy_async(A: T.Tensor((32, 16), "uint8", layout=TileLayout(S[32, 16]))) -> None:
-        T.device_entry()
-        tid = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
+        tid = T.cuda.thread_idx("x")
         A_smem = T.alloc_tensor((32, 16), "uint8", scope="shared", layout=TileLayout(S[32, 16]))
 
         T.cuda.tile.cp_async(

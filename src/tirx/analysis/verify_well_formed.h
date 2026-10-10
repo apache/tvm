@@ -305,82 +305,12 @@ class LoopControlVerifier : public Verifier<LoopControlVerifier<PathVisitor>, Pa
   int loop_depth_{0};
 };
 
-template <typename PathVisitor>
-class ScopeIdVerifier : public Verifier<ScopeIdVerifier<PathVisitor>, PathVisitor> {
-  using Verifier = tirx::Verifier<ScopeIdVerifier<PathVisitor>, PathVisitor>;
-
- public:
-  using Verifier::Verifier;
-  using Verifier::Verify;
-
- private:
-  using Verifier::Visit;
-
-  void Visit(const Function& function, AccessPath path) override {
-    Array<ScopeIdDef> enclosing_defs = std::exchange(scope_id_def_, {});
-    Verifier::Visit(function, path);
-    scope_id_def_ = std::move(enclosing_defs);
-  }
-
-  void Dispatch_(const RegionStmtNode* op, ffi::reflection::AccessPath path) override {
-    if (op->op.same_as(tirx::device_entry_op())) {
-      // Device-region marker: defs gathered from the body are verified when
-      // the region exits, with launch-param sanity enforced as ``is_root``.
-      size_t baseline = scope_id_def_.size();
-      Verifier::Dispatch_(op, path);
-      size_t total = scope_id_def_.size();
-      if (total > baseline) {
-        RunScopeIdVerify(path, baseline, /*is_root=*/true);
-      }
-      while (scope_id_def_.size() > baseline) {
-        scope_id_def_.pop_back();
-      }
-      return;
-    }
-    Verifier::Dispatch_(op, path);
-  }
-
-  void RunScopeIdVerify(ffi::reflection::AccessPath path, size_t baseline, bool is_root) {
-    ScopeIdDefVerifier verifier;
-    Verify(verifier.Verify(scope_id_def_, ScopeIdDefVerifier::Mode::kRelaxed))
-        << "TIRxError: Scope at " << path << " has invalid scope_id_def";
-    if (is_root) {
-      // Enforce launch-parameter sanity at the device-region root.
-      auto cta_thread_it = verifier.id_set.find(ScopeBinding::kCtaThread);
-      if (cta_thread_it != verifier.id_set.end() && !(*cta_thread_it).second.is_deferred()) {
-        PrimExpr ext = (*cta_thread_it).second.fused_extent();
-        if (const auto* imm = ext.as<IntImmNode>()) {
-          Verify(imm->value > 0) << "TIRxError: kernel at " << path
-                                 << " has non-positive thread count " << imm->value;
-          bool needs_warp_align = verifier.id_set.count(ScopeBinding::kCtaWarp) ||
-                                  verifier.id_set.count(ScopeBinding::kWarpThread) ||
-                                  verifier.id_set.count(ScopeBinding::kCtaWarpgroup) ||
-                                  verifier.id_set.count(ScopeBinding::kWarpgroupWarp);
-          if (needs_warp_align) {
-            Verify(imm->value % 32 == 0)
-                << "TIRxError: kernel at " << path << " uses warp-granular bindings"
-                << " but has thread count " << imm->value << " not a multiple of 32";
-          }
-        }
-      }
-    }
-  }
-
-  void Dispatch_(const ScopeIdDefStmtNode* op, ffi::reflection::AccessPath path) override {
-    scope_id_def_.push_back(op->def);
-    Verifier::Dispatch_(op, path);
-  }
-
-  Array<ScopeIdDef> scope_id_def_;
-};
-
 template <typename PathVisitor, typename NodeRef>
 bool VerifyWellFormedCommon(const NodeRef& node, bool assert_mode) {
   return UndefinedVarVerifier<PathVisitor>::Verify(node, assert_mode) &&
          UndefinedBufferVerifier<PathVisitor>::Verify(node, assert_mode) &&
          TensorLoadTypeVerifier<PathVisitor>::Verify(node, assert_mode) &&
-         LoopControlVerifier<PathVisitor>::Verify(node, assert_mode) &&
-         ScopeIdVerifier<PathVisitor>::Verify(node, assert_mode);
+         LoopControlVerifier<PathVisitor>::Verify(node, assert_mode);
 }
 }  // namespace tirx
 }  // namespace tvm

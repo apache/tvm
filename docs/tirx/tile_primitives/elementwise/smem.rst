@@ -80,11 +80,11 @@ round):
     @Tx.function
     def unary_op(A: Tx.Tensor((32, 32), "float32", layout=s_layout)):
 
-        Tx.device_entry()
-        Tx.cta_id([1])
-        Tx.warp_id([8])
-        Tx.lane_id([32])
-        tid = Tx.thread_id([256])
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(256,)))
+        _index = Tx.cuda.block_idx("x")
+        _index = Tx.cuda.warp_id()
+        _lane = Tx.cuda.lane_id()
+        tid = Tx.cuda.thread_idx("x")
         A_smem = Tx.alloc_tensor((32, 32), "float32", scope="shared", layout=s_layout)
         for k in Tx.serial(4):
             index = tid + k * 256

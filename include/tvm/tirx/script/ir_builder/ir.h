@@ -119,37 +119,6 @@ void FuncAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
 Type FuncRet(Type ret_type);
 
 /*!
- * \brief Define a scope id. Pass `extents=std::nullopt` to defer the extent; it is
- *        inferred at LowerTIRx from the sibling ScopeIdDef closure.
- * \param extents The optional extents of the scope id.
- * \param parent The parent scope name.
- * \param name The user-facing API name, used in error messages.
- * \param cur The current scope name.
- * \param dtype The dtype of the introduced scope id vars ("int32" or "uint32").
- * \return The introduced scope id vars.
- */
-ffi::Array<tvm::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                             ffi::String name, ffi::String cur, PrimType dtype = PrimType::Int(32));
-
-ffi::Array<tvm::Var> ClusterId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                               PrimType dtype = PrimType::Int(32));
-
-ffi::Array<tvm::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                           ffi::Optional<ffi::Array<PrimExpr>> preferred = std::nullopt,
-                           PrimType dtype = PrimType::Int(32));
-
-ffi::Array<tvm::Var> CtaIdInPair(PrimType dtype = PrimType::Int(32));
-
-ffi::Array<tvm::Var> WarpgroupId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                                 PrimType dtype = PrimType::Int(32));
-
-ffi::Array<tvm::Var> WarpId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                            PrimType dtype = PrimType::Int(32));
-
-ffi::Array<tvm::Var> ThreadId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                              PrimType dtype = PrimType::Int(32));
-
-/*!
  * \brief The serial For statement.
  * \param start The minimum value of iteration.
  * \param stop The maximum value of iteration.

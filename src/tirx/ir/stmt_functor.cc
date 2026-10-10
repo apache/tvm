@@ -55,7 +55,6 @@ void StmtExprVisitor::InitVTable(VTable* vtable) {
   SetDispatch<StmtExprVisitor, AssertStmtNode>(vtable);
   SetDispatch<StmtExprVisitor, SeqStmtNode>(vtable);
   SetDispatch<StmtExprVisitor, EvaluateNode>(vtable);
-  SetDispatch<StmtExprVisitor, ScopeIdDefStmtNode>(vtable);
 }
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const VarNode* op) {
@@ -195,22 +194,6 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const EvaluateNode* op) {
   return this->Visit(op->value);
 }
 
-ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const ScopeIdDefStmtNode* op) {
-  // Flat stmt -- no body. Visit extents (skip deferred defs whose extents
-  // are NullOpt) and any preferred_extents.
-  if (op->def->extents.has_value()) {
-    for (const auto& child : op->def->extents.value()) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
-    }
-  }
-  if (op->def->preferred_extents.has_value()) {
-    for (const auto& child : op->def->preferred_extents.value()) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
-    }
-  }
-  return std::nullopt;
-}
-
 void StmtExprMutator::InitVTable(VTable* vtable) {
   tvm::ExprMutator::InitVTable(vtable);
   SetDispatch<StmtExprMutator, BindNode>(vtable);
@@ -225,7 +208,6 @@ void StmtExprMutator::InitVTable(VTable* vtable) {
   SetDispatch<StmtExprMutator, AssertStmtNode>(vtable);
   SetDispatch<StmtExprMutator, SeqStmtNode>(vtable);
   SetDispatch<StmtExprMutator, EvaluateNode>(vtable);
-  SetDispatch<StmtExprMutator, ScopeIdDefStmtNode>(vtable);
 }
 
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
@@ -430,27 +412,6 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const SeqStmtNode* op, InplaceMode in
                                     [this](ffi::AnyView element, InplaceMode mode) {
                                       return Mutate(element, mode).as_or_throw<UnchangedOr<Stmt>>();
                                     });
-}
-
-UnchangedOr<Stmt> StmtExprMutator::Mutate_(const ScopeIdDefStmtNode* op, InplaceMode inplace_mode) {
-  // The definition owns both optional arrays; it is skipped by this semantic hook.
-  InplaceMode def_mode = op->def.unique() ? inplace_mode : InplaceMode::kDisallow;
-  auto extents = Mutate(op->def->extents, def_mode)
-                     .as_or_throw<UnchangedOr<ffi::Optional<ffi::Array<PrimExpr>>>>();
-  auto preferred = Mutate(op->def->preferred_extents, def_mode)
-                       .as_or_throw<UnchangedOr<ffi::Optional<ffi::Array<PrimExpr>>>>();
-  if (extents.UnchangedOrSameAs(op->def->extents) &&
-      preferred.UnchangedOrSameAs(op->def->preferred_extents))
-    return ffi::Unchanged();
-  ScopeIdDef def(op->def->def_ids, std::move(extents).ValueOrUnchanged(op->def->extents),
-                 op->def->scope, std::move(preferred).ValueOrUnchanged(op->def->preferred_extents));
-  if (inplace_mode == InplaceMode::kAllow) {
-    const_cast<ScopeIdDefStmtNode*>(op)->def = std::move(def);
-    return ffi::Unchanged();
-  }
-  auto copy = ffi::make_object<ScopeIdDefStmtNode>(*op);
-  copy->def = std::move(def);
-  return Stmt(std::move(copy));
 }
 
 class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {

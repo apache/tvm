@@ -59,7 +59,7 @@ void ValidateDeviceScopeRegion(const RegionStmtNode* region) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.device_scope", "Internal host/device splitting boundary.")
-      .signature(sig::call_attrs<DictAttrsNode>())
+      .signature(sig::var_args<Expr>("launch_values"), sig::call_attrs<DictAttrsNode>())
       .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
       .set_attr<FRegionValidate>("FRegionValidate",
@@ -83,8 +83,9 @@ class DeviceRegionAnnotater : public StmtExprMutator {
     static const Op device_scope = Op::Get("tirx.device_scope");
     if (op->op.same_as(device_scope)) {
       if (op->attrs->dict.count(tvm::attr::kTarget)) return ffi::Unchanged();
-      return RegionStmt(op->op, op->args, op->body_params,
-                        DictAttrs({{tvm::attr::kTarget, device_target_}}), op->body,
+      auto attrs = op->attrs->dict;
+      attrs.Set(tvm::attr::kTarget, device_target_);
+      return RegionStmt(op->op, op->args, op->body_params, DictAttrs(attrs), op->body,
                         op->result_vars, op->span);
     }
     if (op->op.same_as(tirx::launch_thread_op())) {
@@ -116,6 +117,10 @@ Function AnnotateDeviceRegionsForSplit(Function func) {
   return func;
 }
 
+// Launch operands belong to the host region, independently of device captures.
+Stmt MakeCudaKernelLaunch(const GlobalVar& symbol, Function* func, ffi::Array<Expr> args,
+                          const RegionStmtNode* region);
+
 // Host/device function extraction
 
 class HostDeviceSplitter : public StmtExprMutator {
@@ -136,7 +141,7 @@ class HostDeviceSplitter : public StmtExprMutator {
       auto target = op->attrs->dict.Get(tvm::attr::kTarget);
       if (!target) return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
       Target device_target = target.value().as_or_throw<Target>();
-      return SplitDeviceFunc(op->body, device_target.WithoutHost());
+      return SplitDeviceFunc(op->body, device_target.WithoutHost(), op);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
@@ -154,7 +159,7 @@ class HostDeviceSplitter : public StmtExprMutator {
     }
   };
 
-  Stmt SplitDeviceFunc(Stmt body, Target device_target) {
+  Stmt SplitDeviceFunc(Stmt body, Target device_target, const RegionStmtNode* region) {
     auto [params,
           buffers_to_declare] = [&]() -> std::tuple<ffi::Array<Var>, ffi::Array<TensorVar>> {
       ffi::Array<Var> undefined = UndefinedVars(body);
@@ -262,6 +267,11 @@ class HostDeviceSplitter : public StmtExprMutator {
       device_func = WithAttr(std::move(device_func), tvm::attr::kNumInputs, num_inputs);
     }
     GlobalVar kernel_symbol_global = var_supply_();
+    if (region->attrs->dict.count("cuda.launch_fields")) {
+      Stmt launch = MakeCudaKernelLaunch(kernel_symbol_global, &device_func, call_args, region);
+      (*device_mod_)->Add(kernel_symbol_global, device_func);
+      return launch;
+    }
     (*device_mod_)->Add(kernel_symbol_global, device_func);
     if (can_propagate_errors) {
       Var kernel_error_code("kernel_error_code", success.ty());
@@ -323,6 +333,7 @@ struct KernelInfo {
   // (e.g. a function that computes the average of `N` elements, and
   // which must be launched with `N` CUDA threads).
   ffi::Array<PrimExpr> launch_args;
+  ffi::Optional<PrimExpr> dynamic_smem_requirement;
 };
 
 /*!
@@ -334,10 +345,16 @@ class DeviceInfoCollector : public StmtExprVisitor {
     if (value.as<ExprNode>()) return std::nullopt;
     return StmtExprVisitor::Visit(value);
   }
-  static KernelInfo Collect(const GlobalVar& gvar, const Function& func) {
+  static KernelInfo Collect(const GlobalVar& gvar, const Function& func,
+                            bool allow_placeholder = false) {
     auto collector = ffi::make_object<DeviceInfoCollector>();
     collector->info_.target = func->GetAttr<Target>(tvm::attr::kTarget).value().WithoutHost();
     collector->info_.params = func->params;
+    if (func->GetAttr<ffi::Array<ffi::String>>("cuda.launch_fields")) {
+      collector->info_.global_symbol =
+          func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
+      return collector->info_;
+    }
 
     if (auto requested = func->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kKernelLaunchParams)) {
       for (const ffi::String& tag : requested.value()) {
@@ -358,22 +375,13 @@ class DeviceInfoCollector : public StmtExprVisitor {
     if (collector->use_cooperative_launch_) {
       collector->info_.launch_params.push_back(tvm::runtime::launch_param::kUseCooperativeLaunch);
     }
-    if (collector->use_required_block_dimension_) {
-      collector->info_.launch_params.push_back(
-          tvm::runtime::launch_param::kUseRequiredBlockDimension);
-    }
-    // The dynamic shared memory is required to be the last of the kernel
-    // launch parameters. An explicit tirx.cuda.dyn_smem_bytes declaration wins;
-    // otherwise fall back to the size inferred from the allocation extent.
-    // A zero-extent allocation is a pool-style extern placeholder, so having
-    // neither a declaration nor a usable extent is an authoring error.
+    // Dynamic shared memory remains the final legacy launch operand.
     if (!collector->dyn_shmem_size.has_value() && collector->inferred_shmem_size_.has_value()) {
       const auto* inferred = collector->inferred_shmem_size_.value().as<IntImmNode>();
-      TVM_FFI_ICHECK(!(inferred && inferred->value == 0))
+      TVM_FFI_ICHECK(allow_placeholder || !(inferred && inferred->value == 0))
           << "Function " << gvar->name_hint
           << " allocates dynamic shared memory with a placeholder extent but does not declare "
-             "its size; annotate the kernel with tirx.cuda.dyn_smem_bytes (SMEMPool.commit() emits "
-             "it).";
+             "its size; use LaunchConfig.dynamic_smem_bytes or SMEMPool.commit().";
       collector->dyn_shmem_size = collector->inferred_shmem_size_;
     }
     if (collector->dyn_shmem_size) {
@@ -393,6 +401,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
       collector->info_.launch_args.push_back(collector->GetArgument(param));
     }
 
+    collector->info_.dynamic_smem_requirement = collector->dyn_shmem_size;
     return collector->info_;
   }
 
@@ -401,7 +410,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
     if (launch_param == tvm::runtime::launch_param::kUseDynamicSharedMemoryTag) {
       TVM_FFI_ICHECK(dyn_shmem_size.has_value())
           << "Compute kernel requires launch parameter \"" << launch_param
-          << "\", but Function did not declare tirx.cuda.dyn_smem_bytes.";
+          << "\", but Function has no dynamic shared memory requirement.";
       return dyn_shmem_size.value();
     }
 
@@ -433,23 +442,6 @@ class DeviceInfoCollector : public StmtExprVisitor {
                                             .as_or_throw<PrimExpr>()
                                       : prim_value.value();
     bind_map_.Set(op->var, value);
-    return StmtExprVisitor::Visit_(op);
-  }
-
-  ffi::Optional<VisitInterrupt> Visit_(const EvaluateNode* op) final {
-    static const Op required_block_size = Op::Get("tirx.cuda.required_block_size");
-    static const Op dyn_smem_bytes = Op::Get("tirx.cuda.dyn_smem_bytes");
-    if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(required_block_size)) {
-      use_required_block_dimension_ = true;
-    }
-    if (const auto* call = op->value.as<CallNode>(); call && call->op.same_as(dyn_smem_bytes)) {
-      // The declaration supplies the launch size even when the backing
-      // shared.dyn allocation is an extern placeholder.
-      TVM_FFI_ICHECK(!dyn_shmem_size.has_value())
-          << "Only one tirx.cuda.dyn_smem_bytes declaration is allowed per kernel.";
-      dyn_shmem_size = call->args[0].as_or_throw<IntImm>();
-    }
     return StmtExprVisitor::Visit_(op);
   }
 
@@ -489,10 +481,8 @@ class DeviceInfoCollector : public StmtExprVisitor {
           << "Only one dynamic shared memory allocation is allowed.";
       saw_dyn_shared_alloc_ = true;
 
-      // Fallback launch size inferred from the allocation extent, used when
-      // no tirx.cuda.dyn_smem_bytes declaration is present (e.g. s_tir schedules
-      // allocate shared.dyn with a concrete extent). A zero extent is a
-      // pool-style extern placeholder and carries no size information.
+      // A zero extent is an extern placeholder; native launch regions supply
+      // its resource requirement independently of the backing allocation.
       tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
       DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
       PrimType element_type(dtype);
@@ -523,13 +513,11 @@ class DeviceInfoCollector : public StmtExprVisitor {
   ffi::Optional<PrimExpr> dyn_shmem_size{std::nullopt};
   // Whether a shared.dyn allocation was seen.
   bool saw_dyn_shared_alloc_{false};
-  // Launch size inferred from the allocation extent (fallback when no
-  // tirx.cuda.dyn_smem_bytes declaration is present).
+  // Launch size inferred from the allocation extent.
   ffi::Optional<PrimExpr> inferred_shmem_size_{std::nullopt};
   // Flag-only launch attributes requested by the original Function.
   bool use_programmatic_dependent_launch_{false};
   bool use_cooperative_launch_{false};
-  bool use_required_block_dimension_{false};
   // Accumulated Bind definitions for inlining into extent/size expressions.
   ffi::Map<Var, PrimExpr> bind_map_;
 };
@@ -583,6 +571,80 @@ class GlobalVarCallCollector : public StmtExprVisitor {
 };
 
 }  // namespace
+
+Stmt MakeCudaKernelLaunch(const GlobalVar& symbol, Function* func, ffi::Array<Expr> args,
+                          const RegionStmtNode* region) {
+  auto fields = region->attrs->dict.at("cuda.launch_fields").as_or_throw<ffi::Array<ffi::String>>();
+  ffi::Array<Expr> values = region->args;
+  auto options =
+      region->attrs->dict.at("cuda.kernel_options").as_or_throw<ffi::Map<ffi::String, int64_t>>();
+  auto info = DeviceInfoCollector::Collect(symbol, *func, true);
+  ffi::Array<Stmt> host_stmts;
+  auto required_bytes = info.dynamic_smem_requirement;
+  if (auto pool_bytes = region->attrs->dict.Get("cuda.smem_required")) {
+    PrimExpr pool = IntImm::Int64(pool_bytes->cast<int64_t>());
+    required_bytes = required_bytes ? prim::Max(required_bytes.value(), pool) : pool;
+  }
+  if (auto required = required_bytes) {
+    sym::Analyzer analyzer;
+    auto bytes = analyzer->Simplify(required.value());
+    int index = -1;
+    for (size_t i = 0; i < fields.size(); ++i) {
+      if (fields[i] == "dynamic_smem_bytes") index = i;
+    }
+    if (index < 0) {
+      TVM_FFI_CHECK(!prim::IsZero(bytes) || region->attrs->dict.count("cuda.smem_required"),
+                    ValueError)
+          << "A shared.dyn placeholder requires LaunchConfig.dynamic_smem_bytes or "
+             "SMEMPool.commit()";
+      fields.push_back("dynamic_smem_bytes");
+      values.push_back(bytes);
+    } else {
+      auto available = values[index].as_or_throw<PrimExpr>();
+      auto condition = analyzer->Simplify(available >= bytes);
+      TVM_FFI_CHECK(!prim::IsZero(condition), ValueError)
+          << "LaunchConfig.dynamic_smem_bytes is smaller than the kernel allocation";
+      if (!prim::IsOne(condition)) {
+        host_stmts.push_back(AssertStmt(
+            condition, StringImm("ValueError"),
+            {StringImm("LaunchConfig.dynamic_smem_bytes is smaller than the kernel allocation")}));
+      }
+    }
+  }
+  // Only constants needed for code generation enter the device function's metadata.
+  // Dynamic geometry, streams and event handles remain host-side call operands.
+  ffi::Array<PrimExpr> dimensions;
+  for (const char* prefix : {"block.", "cluster."}) {
+    for (char axis : {'x', 'y', 'z'}) {
+      PrimExpr dimension = IntImm::Int32(1);
+      for (size_t i = 0; i < fields.size(); ++i) {
+        if (fields[i] == std::string(prefix) + axis) {
+          sym::Analyzer analyzer;
+          auto value = analyzer->Simplify(values[i].as_or_throw<PrimExpr>());
+          // Zero denotes a dynamic dimension; never emit static launch bounds for it.
+          dimension = value.as<IntImmNode>() ? value : IntImm::Int32(0);
+        }
+      }
+      dimensions.push_back(dimension);
+    }
+  }
+  *func =
+      WithAttrs(std::move(*func), {{tvm::attr::kCallingConv, tvm::CallingConv::kDeviceKernelLaunch},
+                                   {tvm::attr::kGlobalSymbol, symbol->name_hint},
+                                   {"cuda.launch_fields", fields},
+                                   {"cuda.kernel_options", options},
+                                   {"cuda.launch_dimensions", dimensions}});
+  auto attrs = ffi::make_object<CallFFIKernelAttr>();
+  attrs->launch_fields = fields;
+  attrs->kernel_options = options;
+  attrs->num_kernel_args = args.size();
+  ffi::Array<Expr> call_args{StringImm(symbol->name_hint)};
+  call_args.insert(call_args.end(), args.begin(), args.end());
+  call_args.insert(call_args.end(), values.begin(), values.end());
+  host_stmts.push_back(
+      Evaluate(Call(PrimType::Int(32), call_ffi_kernel_op(), call_args, Attrs(attrs))));
+  return SeqStmt(host_stmts);
+}
 
 class DeviceKernelMutator : public StmtExprMutator {
  public:
@@ -648,29 +710,6 @@ class DeviceKernelMutator : public StmtExprMutator {
         Target target = func->GetAttr<Target>(tvm::attr::kTarget).value();
         bool preserve_early_returns = target->kind->name == "cuda";
         write_ptr->body = ReturnRemover::Apply(write_ptr->body.value(), !preserve_early_returns);
-        // The dyn-smem size declaration was consumed by DeviceInfoCollector;
-        // it has no meaning inside the kernel body.
-        class StripDynSmemDeclaration : public StmtExprMutator {
-         public:
-          using StmtExprMutator::Mutate;
-          using StmtExprMutator::Mutate_;
-          UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) override {
-            if (input.as<ExprNode>()) return ffi::Unchanged();
-            return StmtExprMutator::Mutate(input, inplace_mode);
-          }
-
-          UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
-            static const Op dyn_smem_bytes = Op::Get("tirx.cuda.dyn_smem_bytes");
-            if (const auto* call = op->value.as<CallNode>();
-                call && call->op.same_as(dyn_smem_bytes)) {
-              return Evaluate(0);
-            }
-            return ffi::Unchanged();
-          }
-        };
-        write_ptr->body = ffi::make_object<StripDynSmemDeclaration>()
-                              ->Mutate(write_ptr->body, InplaceMode::kAllow)
-                              .ValueOrUnchanged(write_ptr->body);
       }
 
       func = WithAttrs(std::move(func),

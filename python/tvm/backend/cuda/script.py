@@ -21,6 +21,12 @@ from __future__ import annotations
 from tvm import ir as _ir
 from tvm.backend.cuda import op as _cuda_op
 
+from .launch import AccessPolicyWindow as AccessPolicyWindow
+from .launch import KernelOptions as KernelOptions
+from .launch import LaunchCompletionEvent as LaunchCompletionEvent
+from .launch import LaunchConfig as LaunchConfig
+from .launch import MemSyncDomainMap as MemSyncDomainMap
+from .launch import ProgrammaticEvent as ProgrammaticEvent
 from .tensor_instructions import make_namespace as _make_tensor_namespace
 
 # pylint: disable=protected-access

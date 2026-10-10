@@ -66,13 +66,26 @@ const Op& device_entry_op() {
   return op;
 }
 
+void ValidateDeviceEntry(const RegionStmtNode* region) {
+  TVM_FFI_CHECK(region->result_vars.empty() && region->body_params.empty(), ValueError)
+      << "device_entry expects no results or body parameters";
+  if (auto fields = region->attrs->dict.Get("cuda.launch_fields")) {
+    TVM_FFI_CHECK_EQ(fields->as_or_throw<ffi::Array<ffi::String>>().size(), region->args.size(),
+                     ValueError)
+        << "device_entry launch fields must describe every configuration operand";
+  } else {
+    TVM_FFI_CHECK(region->args.empty(), ValueError)
+        << "device_entry configuration operands require cuda.launch_fields";
+  }
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.device_entry", "Mark a device entry containing scope definitions.")
-      .signature()
+  OpDef("tirx.device_entry", "Enter a device kernel with independent launch configuration.")
+      .signature(sig::var_args("launch_values"), sig::call_attrs<DictAttrsNode>())
       .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
                                       FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
       .set_attr<FRegionValidate>("FRegionValidate",
-                                 FRegionValidate::FromNative<&ValidateBuiltinRegion>())
+                                 FRegionValidate::FromNative<&ValidateDeviceEntry>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
 }
 

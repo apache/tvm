@@ -361,31 +361,19 @@ def _choose_vec_len(elem_bits: int, atoms, r_p, s_p, max_vec_len: int | None = N
 
 
 def _axis_decl(axis_name: str, sctx: DispatchContext):
-    """Declare the runtime Var for one thread axis (called inside impl body).
-
-    Each scope_id declarator emits a ``ScopeIdDef`` stmt at the current
-    builder frame. ``TileDispatch`` re-gathers + resolves all
-    ScopeIdDefs after dispatch (see ``ResolveAllScopeBinds`` in
-    ``tile_dispatch.cc``), so dispatch-introduced vars are bound
-    alongside kernel-declared ones.
-
-    Extents are deferred: the kernel header is expected to declare the full
-    scope-id chain (``cta_id`` / ``warpgroup_id`` / ``warp_id_in_wg`` /
-    ``lane_id`` / ``thread_id`` / ``thread_id_in_wg``) — the verifier then
-    fills our deferred defs from those siblings.
-    """
+    """Return the ordinary CUDA index expression for one thread axis."""
     if axis_name == "tx":
         return sctx.launch_params["threadIdx.x"][0]
     if axis_name == "laneid":
-        return T.lane_id()
+        return T.cuda.lane_id()
     if axis_name == "wid_in_wg":
-        return T.warp_id_in_wg()
+        return T.cuda.warp_in_warpgroup()
     if axis_name == "tid_in_wg":
-        return T.thread_id_in_wg()
+        return T.cuda.thread_in_warpgroup()
     if axis_name == "warpid":
-        return T.warp_id()
+        return T.cuda.warp_id()
     if axis_name == "wgid":
-        return T.warpgroup_id()
+        return T.cuda.warpgroup_id()
     raise ValueError(f"unsupported thread axis {axis_name}")
 
 

@@ -52,10 +52,10 @@ def test_roundtrip_layout():
     @T.function
     def test(_: T.Tensor((64,), 'float32', scope='global')) -> None:
 
-        T.device_entry()
-        bx, by, bz = T.cta_id([1, 1, 1])
-        warp_id = T.warp_id([1])
-        lane_id = T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1, 1, 1), block=1 * 32))
+        bx, by, bz = (T.cuda.block_idx('x'), T.cuda.block_idx('y'), T.cuda.block_idx('z'))
+        warp_id = T.cuda.warp_id()
+        lane_id = T.cuda.lane_id()
         C = T.alloc_tensor([128, 128], dtype="float16", scope="shared", layout=get_layout3())
         D = T.alloc_tensor([128, 32], dtype="float16", scope="shared", layout=get_layout4())
         A_warp = T.alloc_tensor([64, 64], dtype="float16", scope="shared", layout=get_layout1())
@@ -134,11 +134,11 @@ def test_roundtrip_buffer_view_get2():
     @T.function
     def test(out: T.Tensor(2, 'float32', scope='global')) -> None:
 
-        T.device_entry()
-        bx, by, bz = T.cta_id([32, 32, 1])
-        tx, ty, tz = T.thread_id([16, 8, 1])
-        warp_id = T.warp_id([4])
-        lane_id = T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(32, 32, 1), block=(16, 8, 1)))
+        bx, by, bz = (T.cuda.block_idx('x'), T.cuda.block_idx('y'), T.cuda.block_idx('z'))
+        tx, ty, tz = (T.cuda.thread_idx('x'), T.cuda.thread_idx('y'), T.cuda.thread_idx('z'))
+        warp_id = T.cuda.warp_id()
+        lane_id = T.cuda.lane_id()
         A = T.alloc_tensor([2,], dtype="float16", scope="local")
         A_layout = T.TileLayout(T.S[(1, 2) : (2, 1)])
         B_layout = A_layout.tile(L_LANE, (8, 4), (1, 2))
@@ -313,7 +313,6 @@ def test_buffer():
         _C1 = T.alloc_tensor((10, 11), "float32", layout="default")
         _D1 = T.alloc_tensor((10, 11), "float32", layout=T.TileLayout(T.S[(10, 11) : (1, 10)]))
 
-        pass
     # fmt: on
     code = test.script()
     assert from_source(code).script() == code

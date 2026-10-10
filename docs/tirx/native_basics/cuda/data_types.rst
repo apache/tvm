@@ -34,9 +34,9 @@ shared buffers across several dtypes, plus a vectorized ``float32x4`` load/store
     @Tx.function
     def dtypes(A: Tx.Tensor((256,), "float32"), O: Tx.Tensor((256,), "float32")):
 
-        Tx.device_entry()
-        bx = Tx.cta_id([1])
-        tx = Tx.thread_id([64])
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(64,)))
+        bx = Tx.cuda.block_idx("x")
+        tx = Tx.cuda.thread_idx("x")
         f16 = Tx.alloc_local((1,), "float16")  # per-thread locals ...
         bf16 = Tx.alloc_local((1,), "bfloat16")
         i32 = Tx.alloc_local((1,), "int32")

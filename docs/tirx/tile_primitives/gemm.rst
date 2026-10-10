@@ -85,10 +85,10 @@ accumulate) — one ``m16n8k16`` atom (from ``test_gemm_mma_m16n8k_.py``):
         D_g: Tx.Tensor((16, 8), "float32"),
     ):
 
-        Tx.device_entry()
-        Tx.cta_id([1])
-        Tx.warp_id([1])
-        lane = Tx.lane_id([32])
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=((1) * 32,)))
+        _index = Tx.cuda.block_idx("x")
+        _index = Tx.cuda.warp_id()
+        lane = Tx.cuda.lane_id()
         A_f = Tx.alloc_tensor((16, 16), "float16", scope="local", layout=A_FRAG)
         B_f = Tx.alloc_tensor((16, 8), "float16", scope="local", layout=B_FRAG)
         D_f = Tx.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)

@@ -301,14 +301,12 @@ def _emit(op_call: TensorCall, sctx: DispatchContext) -> Function:
     # Step 10: emit one ldmatrix/stmatrix per mm, per warp.
 
     def _get_warp_idx_in_T():
-        # T.warp_id_in_wg() / T.warp_id() must be called from inside a
-        # @T.function body — wrap so the function parser calls us at parse
-        # time (Python `if` here is plain control flow, not TIR-intercepted).
+        # Pick the CUDA index call while parsing the instruction implementation.
         if r_lane_axis == "laneid":
             return 0
         if r_lane_axis == "tid_in_wg":
-            return T.warp_id_in_wg()
-        return T.warp_id()  # "tx"
+            return T.cuda.warp_in_warpgroup()
+        return T.cuda.warp_id()  # "tx"
 
     def _seg4_coord(laneid_expr):
         # num=1: seg 4 trivially extent-1, pass 0. num>1: use lane//8 (tile
@@ -363,7 +361,7 @@ def _emit(op_call: TensorCall, sctx: DispatchContext) -> Function:
     @T.function(check_well_formed=False)
     def impl():
         r_local = r_buf.local(m_total, layout=TileLayout(S[(m_total,)]))
-        laneid = T.lane_id()
+        laneid = T.cuda.lane_id()
         warp_idx_in_T = _get_warp_idx_in_T()
         for mm in T.unroll(m_outer):
             smem_off = _apply_s_layout(warp_idx_in_T, laneid, mm)
