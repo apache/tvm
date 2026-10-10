@@ -24,6 +24,7 @@
 #include <tvm/tirx/expr.h>
 
 #include <cstring>
+#include <limits>
 #include <optional>
 
 #include "utils.h"
@@ -100,6 +101,14 @@ ffi::Optional<ExprDoc> TensorRegionDocTranslate(DocTranslatorObj* d, ffi::AnyVie
       } else {
         try {
           PrimExpr stop = range->min + range->extent;
+          // Scalar constructors accept signed 64-bit Python literals. A computed
+          // endpoint outside that range cannot reconstruct through indexing.
+          if (const auto* imm = stop.as<IntImmNode>();
+              imm && (imm->value > std::numeric_limits<int64_t>::max() ||
+                      imm->value < std::numeric_limits<int64_t>::min())) {
+            indexable = false;
+            break;
+          }
           // Subscription simplifies stop - start. Use sugar only when that
           // reconstruction retains the stored extent, including its type.
           if (!ffi::StructuralEqual()(analyzer->Simplify(stop - range->min), range->extent)) {

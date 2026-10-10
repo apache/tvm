@@ -86,7 +86,7 @@ def _wrap_inline_arg_tuple(args) -> Expr:
 
     """
     if isinstance(args, tuple | list):
-        return tvm.relax.Tuple([convert_to_expr(a) for a in args])
+        return tvm.ir.Tuple(args)
     elif (
         isinstance(args, Expr)
         and not isinstance(args, tvm.relax.Tuple)
@@ -263,10 +263,7 @@ def call_dps_packed(
     """
     if isinstance(func, str):
         func = ExternFunc(func)
-    if isinstance(args, tuple | list):
-        args = tvm.ir.Tuple(args)
-    else:
-        args = _wrap_inline_arg_tuple(args)
+    args = _wrap_inline_arg_tuple(args)
     return _call_dps_packed(func, args, ty_args=ty_args, attrs=attrs, ty=ty, loc=loc, **kwargs)
 
 

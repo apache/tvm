@@ -17,6 +17,7 @@
 """Canonical region construction and recursive expression printing."""
 
 import ast
+from types import SimpleNamespace
 
 import pytest
 import tvm_ffi
@@ -30,11 +31,11 @@ from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 
 
-def _roundtrip_expr(value):
+def _roundtrip_expr(value, extra_vars=None):
     # Standalone printers declare free variables before the final expression.
     source = value.script()
     tree = ast.parse(source)
-    env = {"I": I, "T": T, "R": R}
+    env = {"I": I, "T": T, "R": R, **(extra_vars or {})}
     tvm_ffi.structural_walk(value, (ir.Var, lambda var: env.update({var.name: var})))
     exec(compile(ast.Module(tree.body[:-1], []), "<script>", "exec"), env)
     restored = eval(compile(ast.Expression(tree.body[-1].value), "<script>", "eval"), env)
@@ -261,3 +262,40 @@ def test_typed_region_binding_preserves_span_and_source():
     call = T.cuda.tile.sqrt(load, load, span=span)
     assert call.span.same_as(span)
     assert all(arg.span.same_as(span) for arg in call.args)
+
+
+@pytest.mark.parametrize("minimum", [2**63 - 2, 2**63 - 1])
+def test_region_computed_endpoint_literal_range(minimum):
+    a = tirx.decl_tensor((16,), "float32", name="A")
+    region = ir.TensorRegion(
+        a,
+        [ir.Range.from_min_extent(tirx.IntImm("uint64", minimum), tirx.IntImm("uint64", 1))],
+        ty=ir.TensorRegionType(),
+    )
+    source, _ = _roundtrip_expr(region)
+    assert ("I.TensorRegion(" in source) == (minimum == 2**63 - 1)
+
+
+@pytest.mark.parametrize("op", ["call_tir", "call_tir_with_grad", "call_tir_inplace"])
+@pytest.mark.parametrize("dtype,value", [("int32", 1), ("float32", 1.5)])
+def test_relax_tir_call_preserves_primitive_tuple_types(op, dtype, value):
+    output_ty = tvm.relax.TensorType((1,), "float32")
+    function = tirx.Function(
+        [tirx.Var("x", dtype), tirx.decl_tensor((1,), "float32")],
+        ir.SeqStmt([ir.Evaluate(0)]),
+    )
+    callee = ir.GlobalVar("f")
+    tvm.relax.expr._update_type(callee, function.ty)
+    scalar = tirx.IntImm(dtype, value) if dtype == "int32" else tirx.FloatImm(dtype, value)
+    args = [scalar]
+    attrs = {}
+    if op == "call_tir_with_grad":
+        attrs["te_grad_name"] = "gradient"
+    elif op == "call_tir_inplace":
+        args.append(tvm.relax.Var("tensor", output_ty))
+        attrs["inplace_indices"] = [1]
+    call = getattr(tvm.relax, op)(callee, ir.Tuple(args), ty_args=[output_ty], **attrs)
+    call.validate()
+    source, restored = _roundtrip_expr(call, {"Module": SimpleNamespace(f=callee)})
+    assert "I.Tuple(" not in source
+    restored.validate()
