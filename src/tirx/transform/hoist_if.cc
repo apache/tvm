@@ -58,12 +58,16 @@ class IfHoister : public StmtExprMutator {
 
  private:
   struct LoopState {
-    int else_depth;
+    // Enclosing alternate-branch depth at loop entry, before visiting its body.
+    int else_depth_at_entry;
+    // Predicates lifted to this loop, in traversal order; bool retains a false-path copy.
     std::vector<std::pair<PrimExpr, bool>> conditions;
   };
 
   struct ScopeState {
+    // Active destination loops, outermost first, within the current motion boundary.
     std::vector<LoopState*> loops;
+    // Identity-based indices into loops for variables defined by those loops.
     std::unordered_map<const VarNode*, size_t> loop_depths;
   };
 
@@ -73,36 +77,11 @@ class IfHoister : public StmtExprMutator {
     return scopes_.WithNewScope([&] { return StmtExprMutator::Mutate_(op, inplace_mode); });
   }
 
-  // An early placement rejection does not establish whether evaluation can be
-  // omitted. Check effects separately, pruning shared nodes in this walk too.
-  static bool HasEffects(const PrimExpr& expr) {
-    static auto effects = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
-    std::unordered_set<const ExprNode*> visited;
-    auto advance = [&](const ExprNode* op) -> ffi::Expected<ffi::WalkResult> {
-      return visited.insert(op).second ? ffi::WalkResult::Advance() : ffi::WalkResult::Skip();
-    };
-    return ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-               expr,
-               [](const VarNode*) -> ffi::Expected<ffi::WalkResult> {
-                 return ffi::WalkResult::Skip();
-               },
-               [](const TypeNode*) -> ffi::Expected<ffi::WalkResult> {
-                 return ffi::WalkResult::Skip();
-               },
-               [&](const CallNode* op) -> ffi::Expected<ffi::WalkResult> {
-                 auto kind = static_cast<CallEffectKind>(
-                     effects.get(op->op, static_cast<TCallEffectKind>(CallEffectKind::kOpaque)));
-                 if (kind > CallEffectKind::kReadState) return ffi::WalkResult::Interrupt();
-                 return advance(op);
-               },
-               advance)
-        .has_value();
-  }
-
   // Purity alone does not permit evaluating a predicate before its guards or
   // before a zero-trip loop.  Check safety and loop dependencies in one walk.
   size_t FindLiftDestination(const PrimExpr& condition) const {
     const auto& scope = scopes_.Current();
+    // First loop the predicate can cross: loops [i, j, k] and i + j select index 2 (k).
     size_t destination = 0;
     std::unordered_set<const ExprNode*> visited;
     auto advance = [&](const ExprNode* op) -> ffi::Expected<ffi::WalkResult> {
@@ -171,8 +150,9 @@ class IfHoister : public StmtExprMutator {
     if (GetThreadBinding(op).has_value()) return ffi::Unchanged();
     // Only ordinary serial loops permit code motion across their execution scope.
     // Hoisting must not suppress evaluation of an effectful loop header either.
-    if (op->kind != ForKind::kDefault || HasEffects(op->min) || HasEffects(op->extent) ||
-        (op->step && HasEffects(op->step.value()))) {
+    if (op->kind != ForKind::kDefault || SideEffect(op->min) > CallEffectKind::kReadState ||
+        SideEffect(op->extent) > CallEffectKind::kReadState ||
+        (op->step && SideEffect(op->step.value()) > CallEffectKind::kReadState)) {
       return scopes_.WithNewScope([&] { return StmtExprMutator::Mutate_(op, inplace_mode); });
     }
     auto& scope = scopes_.Current();
@@ -187,7 +167,8 @@ class IfHoister : public StmtExprMutator {
     --active_loops_;
     for (auto it = loop.conditions.rbegin(); it != loop.conditions.rend(); ++it) {
       // Duplicate only when an alternate branch must remain reachable.
-      stmt = it->second ? If(it->first, stmt, SeqStmt(stmt)) : If(it->first, stmt);
+      const auto& [condition, preserve_else] = *it;
+      stmt = preserve_else ? If(condition, stmt, SeqStmt(stmt)) : If(condition, stmt);
     }
     return stmt;
   }
@@ -195,7 +176,7 @@ class IfHoister : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const IfNode* op, InplaceMode inplace_mode) final {
     auto& scope = scopes_.Current();
     // Moving a one-sided inner If could otherwise skip this predicate's effects.
-    if (!scope.loops.empty() && HasEffects(op->condition)) {
+    if (!scope.loops.empty() && SideEffect(op->condition) > CallEffectKind::kReadState) {
       return scopes_.WithNewScope([&] { return StmtExprMutator::Mutate_(op, inplace_mode); });
     }
     bool has_else = op->else_case.has_value();
@@ -205,7 +186,8 @@ class IfHoister : public StmtExprMutator {
         // A false predicate must still execute an enclosing alternate branch
         // inside the destination loop, even when this If has no else of its own.
         // Branches outside that loop remain guarded and need no extra loop copy.
-        bool preserve_else = has_else || else_depth_ > scope.loops[destination]->else_depth;
+        bool preserve_else =
+            has_else || else_depth_ > scope.loops[destination]->else_depth_at_entry;
         auto* loop = scope.loops[destination];
         // Each two-sided predicate doubles the enclosing loop subtree. Limit
         // splitting to once per loop nest, even across code-motion barriers.
@@ -223,8 +205,12 @@ class IfHoister : public StmtExprMutator {
 
   // Number of enclosing Ifs with an else; each loop saves its entry baseline.
   int else_depth_{0};
+  // Active eligible loops across motion boundaries; zero starts a new split budget.
+  // Unlike scoped destinations, this stays nonzero inside a nested SeqStmt barrier.
   int active_loops_{0};
+  // Whether this loop nest has used its one two-sided split, bounding subtree growth.
   bool split_in_nest_{false};
+  // Scoped destinations/dependencies; barriers hide outer loops without resetting the budget.
   ScopeStack<ScopeState> scopes_;
 };
 
