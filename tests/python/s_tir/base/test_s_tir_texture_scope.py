@@ -69,7 +69,7 @@ def test_texture_scope():
     lowered = pipeline(lowered)
     _, device_mods = split_host_device_mods(lowered)
     assert len(device_mods) == 1
-    device_target, device_mod = next(iter(device_mods.items()))
+    (device_target, _compile_config), device_mod = next(iter(device_mods.items()))
     device_mod = finalize_device_passes()(device_mod)
     source = tvm.get_global_func("target.build.opencl")(device_mod, device_target).inspect_source()
     assert "__read_only image2d_array_t" in source

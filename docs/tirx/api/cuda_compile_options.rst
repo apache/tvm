@@ -31,8 +31,8 @@ NVCC 13.2.51, NVRTC 13.2, and the installed CUDA 13.2 ``ptxas --help``.
 The current implementation was inspected in ``backend/cuda/compile_config.py``,
 ``backend/cuda/compiler.py``, and ``support/nvcc.py``.
 
-The :download:`complete option inventory <cuda_compile_options.csv>` contains
-147 NVCC options, 59 NVRTC options, and 57 ptxas options. Each row records long
+The :download:`complete option inventory <cuda_compile_options.json>` contains
+147 NVCC options, 59 NVRTC options, and 57 ptxas options. Each JSON entry records long
 and short spellings, its intended category, the current API route, and whether
 the current raw-option validator accepts each spelling. These are option names,
 not all possible values or every historical alias. NVCC's inventory combines its
@@ -40,7 +40,7 @@ not all possible values or every historical alias. NVCC's inventory combines its
 Options belonging to nvlink itself are outside this inventory; the NVCC forwarding
 option is included.
 
-The ``raw_validation`` column probes argument ownership only. It does not run
+The ``raw_validation`` field probes argument ownership only. It does not run
 NVCC, NVRTC, or ptxas and does not certify a value, platform, or combination.
 The inventory is a snapshot to review when changing the validator or supported
 toolkit baseline; it is not a second runtime registry.

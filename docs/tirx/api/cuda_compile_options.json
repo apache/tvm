@@ -1,0 +1,2632 @@
+[
+  {
+    "tool": "nvcc",
+    "option": "--cubin",
+    "aliases": "-cubin",
+    "category": "artifact",
+    "current_route": "field: target_format",
+    "raw_validation": "--cubin: rejected; -cubin: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--fatbin",
+    "aliases": "-fatbin",
+    "category": "artifact",
+    "current_route": "field: target_format",
+    "raw_validation": "--fatbin: rejected; -fatbin: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--ptx",
+    "aliases": "-ptx",
+    "category": "artifact",
+    "current_route": "field: target_format",
+    "raw_validation": "--ptx: rejected; -ptx: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--device-stack-protector",
+    "aliases": "-device-stack-protector",
+    "category": "compiler-specific",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--device-stack-protector: accepted; -device-stack-protector: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--dont-use-profile",
+    "aliases": "-noprof",
+    "category": "compiler-specific",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--dont-use-profile: accepted; -noprof: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--objdir-as-tempdir",
+    "aliases": "-objtemp",
+    "category": "compiler-specific",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--objdir-as-tempdir: accepted; -objtemp: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--output-directory",
+    "aliases": "-odir",
+    "category": "compiler-specific",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--output-directory: accepted; -odir: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--qpp-config",
+    "aliases": "-qpp-config",
+    "category": "compiler-specific",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--qpp-config: accepted; -qpp-config: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--skip-ptx-semantics-check",
+    "aliases": "-skip-ptx-semantics-check",
+    "category": "compiler-specific",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--skip-ptx-semantics-check: accepted; -skip-ptx-semantics-check: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--Wdefault-stream-launch",
+    "aliases": "-Wdefault-stream-launch",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--Wdefault-stream-launch: accepted; -Wdefault-stream-launch: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--Werror",
+    "aliases": "-Werror",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--Werror: accepted; -Werror: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--Wext-lambda-captures-this",
+    "aliases": "-Wext-lambda-captures-this",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--Wext-lambda-captures-this: accepted; -Wext-lambda-captures-this: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--Wmissing-launch-bounds",
+    "aliases": "-Wmissing-launch-bounds",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--Wmissing-launch-bounds: accepted; -Wmissing-launch-bounds: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--Wno-deprecated-declarations",
+    "aliases": "-Wno-deprecated-declarations",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--Wno-deprecated-declarations: accepted; -Wno-deprecated-declarations: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--Wno-deprecated-gpu-targets",
+    "aliases": "-Wno-deprecated-gpu-targets",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--Wno-deprecated-gpu-targets: accepted; -Wno-deprecated-gpu-targets: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--Wreorder",
+    "aliases": "-Wreorder",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--Wreorder: accepted; -Wreorder: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--brief-diagnostics",
+    "aliases": "-brief-diag",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--brief-diagnostics: accepted; -brief-diag: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--diag-error",
+    "aliases": "-diag-error",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--diag-error: accepted; -diag-error: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--diag-suppress",
+    "aliases": "-diag-suppress",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--diag-suppress: accepted; -diag-suppress: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--diag-warn",
+    "aliases": "-diag-warn",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--diag-warn: accepted; -diag-warn: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--disable-warnings",
+    "aliases": "-w",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--disable-warnings: accepted; -w: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--display-error-number",
+    "aliases": "-err-no",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--display-error-number: accepted; -err-no: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--fdevice-sanitize",
+    "aliases": "-fdevice-sanitize",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--fdevice-sanitize: accepted; -fdevice-sanitize: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--fdevice-time-trace",
+    "aliases": "-fdevice-time-trace",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--fdevice-time-trace: accepted; -fdevice-time-trace: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--keep",
+    "aliases": "-keep",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--keep: accepted; -keep: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--keep-dir",
+    "aliases": "-keep-dir",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--keep-dir: accepted; -keep-dir: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--no-display-error-number",
+    "aliases": "-no-err-no",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--no-display-error-number: accepted; -no-err-no: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--optimization-info",
+    "aliases": "-opt-info",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--optimization-info: accepted; -opt-info: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--resource-usage",
+    "aliases": "-res-usage",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--resource-usage: accepted; -res-usage: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--sanitize",
+    "aliases": "-sanitize",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--sanitize: accepted; -sanitize: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--save-temps",
+    "aliases": "-save-temps",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--save-temps: accepted; -save-temps: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--source-in-ptx",
+    "aliases": "-src-in-ptx",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--source-in-ptx: accepted; -src-in-ptx: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--time",
+    "aliases": "-time",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--time: accepted; -time: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--verbose",
+    "aliases": "-v",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--verbose: accepted; -v: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--verbose2",
+    "aliases": "-v2",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--verbose2: accepted; -v2: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--entries",
+    "aliases": "-e",
+    "category": "driver/artifact ownership",
+    "current_route": "driver policy or unsupported artifact shape",
+    "raw_validation": "--entries: accepted; -e: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--generate-code",
+    "aliases": "-gencode",
+    "category": "driver/artifact ownership",
+    "current_route": "driver policy or unsupported artifact shape",
+    "raw_validation": "--generate-code: rejected; -gencode: rejected",
+    "notes": "One real architecture per group; no multi-architecture fatbin API",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--gpu-code",
+    "aliases": "-code",
+    "category": "driver/artifact ownership",
+    "current_route": "driver policy or unsupported artifact shape",
+    "raw_validation": "--gpu-code: rejected; -code: rejected",
+    "notes": "One real architecture per group; no multi-architecture fatbin API",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--m64",
+    "aliases": "-m64",
+    "category": "driver/artifact ownership",
+    "current_route": "driver policy or unsupported artifact shape",
+    "raw_validation": "--m64: accepted; -m64: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--machine",
+    "aliases": "-m",
+    "category": "driver/artifact ownership",
+    "current_route": "driver policy or unsupported artifact shape",
+    "raw_validation": "--machine: accepted; -m: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--options-file",
+    "aliases": "-optf",
+    "category": "driver/artifact ownership",
+    "current_route": "driver policy or unsupported artifact shape",
+    "raw_validation": "--options-file: rejected; -optf: rejected",
+    "notes": "Intentionally blocked: hides effective arguments from configuration identity",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--output-file",
+    "aliases": "-o",
+    "category": "driver/artifact ownership",
+    "current_route": "driver policy or unsupported artifact shape",
+    "raw_validation": "--output-file: rejected; -o: rejected",
+    "notes": "Temporary output path is controlled by the driver",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--x",
+    "aliases": "-x",
+    "category": "driver/artifact ownership",
+    "current_route": "driver policy or unsupported artifact shape",
+    "raw_validation": "--x: accepted; -x: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--allow-unsupported-compiler",
+    "aliases": "-allow-unsupported-compiler",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--allow-unsupported-compiler: accepted; -allow-unsupported-compiler: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--archive-options",
+    "aliases": "-Xarchive",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--archive-options: accepted; -Xarchive: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--archiver-binary",
+    "aliases": "-arbin",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--archiver-binary: accepted; -arbin: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--augment-host-linker-script",
+    "aliases": "-aug-hls",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--augment-host-linker-script: accepted; -aug-hls: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--compiler-bindir",
+    "aliases": "-ccbin",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--compiler-bindir: accepted; -ccbin: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--compiler-options",
+    "aliases": "-Xcompiler",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--compiler-options: accepted; -Xcompiler: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--cudart",
+    "aliases": "-cudart",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--cudart: accepted; -cudart: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--debug",
+    "aliases": "-g",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--debug: accepted; -g: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--default-stream",
+    "aliases": "-default-stream",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--default-stream: accepted; -default-stream: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--device-entity-has-hidden-visibility",
+    "aliases": "-device-entity-has-hidden-visibility",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--device-entity-has-hidden-visibility: accepted; -device-entity-has-hidden-visibility: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--drive-prefix",
+    "aliases": "-dp",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--drive-prefix: accepted; -dp: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--force-cl-env-setup",
+    "aliases": "-force-cl-env-setup",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--force-cl-env-setup: accepted; -force-cl-env-setup: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--forward-slash-prefix-opts",
+    "aliases": "-forward-slash-prefix-opts",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--forward-slash-prefix-opts: accepted; -forward-slash-prefix-opts: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--forward-unknown-opts",
+    "aliases": "-forward-unknown-opts",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--forward-unknown-opts: accepted; -forward-unknown-opts: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--forward-unknown-to-host-compiler",
+    "aliases": "-forward-unknown-to-host-compiler",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--forward-unknown-to-host-compiler: accepted; -forward-unknown-to-host-compiler: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--forward-unknown-to-host-linker",
+    "aliases": "-forward-unknown-to-host-linker",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--forward-unknown-to-host-linker: accepted; -forward-unknown-to-host-linker: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--host-linker-script",
+    "aliases": "-hls",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--host-linker-script: accepted; -hls: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--input-drive-prefix",
+    "aliases": "-idp",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--input-drive-prefix: accepted; -idp: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--linker-options",
+    "aliases": "-Xlinker",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--linker-options: accepted; -Xlinker: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--no-align-double",
+    "aliases": "",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--no-align-double: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--no-exceptions",
+    "aliases": "-noeh",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--no-exceptions: accepted; -noeh: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--profile",
+    "aliases": "-pg",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--profile: accepted; -pg: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--static-global-template-stub",
+    "aliases": "-static-global-template-stub",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--static-global-template-stub: accepted; -static-global-template-stub: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--use-local-env",
+    "aliases": "-use-local-env",
+    "category": "host",
+    "current_route": "NVCC host-toolchain concern",
+    "raw_validation": "--use-local-env: accepted; -use-local-env: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--optimize",
+    "aliases": "-O",
+    "category": "host optimization",
+    "current_route": "driver currently inserts -O3",
+    "raw_validation": "--optimize: accepted; -O: rejected",
+    "notes": "NVCC -O is host optimization; it is not ptxas_opt_level",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--expt-extended-lambda",
+    "aliases": "-expt-extended-lambda",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--expt-extended-lambda: accepted; -expt-extended-lambda: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--expt-relaxed-constexpr",
+    "aliases": "-expt-relaxed-constexpr",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--expt-relaxed-constexpr: accepted; -expt-relaxed-constexpr: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--extended-lambda",
+    "aliases": "-extended-lambda",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--extended-lambda: accepted; -extended-lambda: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--ftemplate-backtrace-limit",
+    "aliases": "-ftemplate-backtrace-limit",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--ftemplate-backtrace-limit: accepted; -ftemplate-backtrace-limit: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--ftemplate-depth",
+    "aliases": "-ftemplate-depth",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--ftemplate-depth: accepted; -ftemplate-depth: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--libdevice-directory",
+    "aliases": "-ldir",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--libdevice-directory: accepted; -ldir: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--no-host-device-initializer-list",
+    "aliases": "-nohdinitlist",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--no-host-device-initializer-list: accepted; -nohdinitlist: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--no-host-device-move-forward",
+    "aliases": "-nohdmoveforward",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--no-host-device-move-forward: accepted; -nohdmoveforward: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--pre-include",
+    "aliases": "-include",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--pre-include: accepted; -include: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--restrict",
+    "aliases": "-restrict",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--restrict: accepted; -restrict: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--system-include",
+    "aliases": "-isystem",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--system-include: accepted; -isystem: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--target-directory",
+    "aliases": "-target-dir",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--target-directory: accepted; -target-dir: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--undefine-macro",
+    "aliases": "-U",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--undefine-macro: accepted; -U: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--Ofast-compile",
+    "aliases": "-Ofc",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--Ofast-compile: accepted; -Ofc: rejected",
+    "notes": "Short alias -Ofc is incorrectly rejected by the current prefix check",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--compress-mode",
+    "aliases": "-compress-mode",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--compress-mode: accepted; -compress-mode: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--dopt",
+    "aliases": "-dopt",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--dopt: accepted; -dopt: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--extra-device-vectorization",
+    "aliases": "-extra-device-vectorization",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--extra-device-vectorization: accepted; -extra-device-vectorization: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--frandom-seed",
+    "aliases": "-frandom-seed",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--frandom-seed: accepted; -frandom-seed: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--jobserver",
+    "aliases": "-jobserver",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--jobserver: accepted; -jobserver: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--jump-table-density",
+    "aliases": "-jtd",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--jump-table-density: accepted; -jtd: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--no-compress",
+    "aliases": "-no-compress",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--no-compress: accepted; -no-compress: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--relocatable-ptx",
+    "aliases": "-reloc-ptx",
+    "category": "optimization/build-time",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--relocatable-ptx: accepted; -reloc-ptx: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--split-compile",
+    "aliases": "-split-compile",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--split-compile: accepted; -split-compile: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--split-compile-extended",
+    "aliases": "-split-compile-extended",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--split-compile-extended: accepted; -split-compile-extended: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--threads",
+    "aliases": "-t",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--threads: accepted; -t: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--maxrregcount",
+    "aliases": "-maxrregcount",
+    "category": "resource/declaration policy",
+    "current_route": "needs explicit precedence with KernelAttributes/LaunchConfig",
+    "raw_validation": "--maxrregcount: rejected; -maxrregcount: rejected",
+    "notes": "A compilation-wide cap differs from a kernel declaration attribute",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--define-macro",
+    "aliases": "-D",
+    "category": "structured",
+    "current_route": "field: defines",
+    "raw_validation": "--define-macro: rejected; -D: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--device-debug",
+    "aliases": "-G",
+    "category": "structured",
+    "current_route": "field: device_debug",
+    "raw_validation": "--device-debug: rejected; -G: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--fmad",
+    "aliases": "-fmad",
+    "category": "structured",
+    "current_route": "field: fmad",
+    "raw_validation": "--fmad: rejected; -fmad: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--ftz",
+    "aliases": "-ftz",
+    "category": "structured",
+    "current_route": "field: ftz",
+    "raw_validation": "--ftz: rejected; -ftz: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--generate-line-info",
+    "aliases": "-lineinfo",
+    "category": "structured",
+    "current_route": "field: lineinfo",
+    "raw_validation": "--generate-line-info: rejected; -lineinfo: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--gpu-architecture",
+    "aliases": "-arch",
+    "category": "structured",
+    "current_route": "field: arch",
+    "raw_validation": "--gpu-architecture: rejected; -arch: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--include-path",
+    "aliases": "-I",
+    "category": "structured",
+    "current_route": "field: include_dirs",
+    "raw_validation": "--include-path: rejected; -I: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--prec-div",
+    "aliases": "-prec-div",
+    "category": "structured",
+    "current_route": "field: prec_div",
+    "raw_validation": "--prec-div: rejected; -prec-div: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--prec-sqrt",
+    "aliases": "-prec-sqrt",
+    "category": "structured",
+    "current_route": "field: prec_sqrt",
+    "raw_validation": "--prec-sqrt: rejected; -prec-sqrt: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--ptxas-options",
+    "aliases": "-Xptxas",
+    "category": "structured",
+    "current_route": "field: ptxas_options",
+    "raw_validation": "--ptxas-options: rejected; -Xptxas: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--std",
+    "aliases": "-std",
+    "category": "structured",
+    "current_route": "field: cxx_standard",
+    "raw_validation": "--std: rejected; -std: rejected",
+    "notes": "Only C++11/14/17/20 accepted by the current field",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--use_fast_math",
+    "aliases": "-use_fast_math",
+    "category": "structured",
+    "current_route": "field: fast_math",
+    "raw_validation": "--use_fast_math: rejected; -use_fast_math: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--clean-targets",
+    "aliases": "-clean",
+    "category": "utility",
+    "current_route": "driver utility; not a kernel compilation setting",
+    "raw_validation": "--clean-targets: accepted; -clean: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--dependency-drive-prefix",
+    "aliases": "-ddp",
+    "category": "utility",
+    "current_route": "driver utility; not a kernel compilation setting",
+    "raw_validation": "--dependency-drive-prefix: accepted; -ddp: accepted",
+    "notes": "Does not configure the separate cuda_host C++ export build or runtime launch stream",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--dependency-output",
+    "aliases": "-MF",
+    "category": "utility",
+    "current_route": "driver utility; not a kernel compilation setting",
+    "raw_validation": "--dependency-output: accepted; -MF: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--dependency-target-name",
+    "aliases": "-MT",
+    "category": "utility",
+    "current_route": "driver utility; not a kernel compilation setting",
+    "raw_validation": "--dependency-target-name: accepted; -MT: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--dryrun",
+    "aliases": "-dryrun",
+    "category": "utility",
+    "current_route": "driver utility; not a kernel compilation setting",
+    "raw_validation": "--dryrun: accepted; -dryrun: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--generate-dependencies",
+    "aliases": "-M",
+    "category": "utility",
+    "current_route": "driver utility; not a kernel compilation setting",
+    "raw_validation": "--generate-dependencies: accepted; -M: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--generate-dependencies-with-compile",
+    "aliases": "-MD",
+    "category": "utility",
+    "current_route": "driver utility; not a kernel compilation setting",
+    "raw_validation": "--generate-dependencies-with-compile: accepted; -MD: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--generate-dependency-targets",
+    "aliases": "-MP",
+    "category": "utility",
+    "current_route": "driver utility; not a kernel compilation setting",
+    "raw_validation": "--generate-dependency-targets: accepted; -MP: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--generate-nonsystem-dependencies",
+    "aliases": "-MM",
+    "category": "utility",
+    "current_route": "driver utility; not a kernel compilation setting",
+    "raw_validation": "--generate-nonsystem-dependencies: accepted; -MM: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--generate-nonsystem-dependencies-with-compile",
+    "aliases": "-MMD",
+    "category": "utility",
+    "current_route": "driver utility; not a kernel compilation setting",
+    "raw_validation": "--generate-nonsystem-dependencies-with-compile: accepted; -MMD: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--help",
+    "aliases": "-h",
+    "category": "utility",
+    "current_route": "driver utility; not a kernel compilation setting",
+    "raw_validation": "--help: accepted; -h: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--list-gpu-arch",
+    "aliases": "-arch-ls",
+    "category": "utility",
+    "current_route": "driver utility; not a kernel compilation setting",
+    "raw_validation": "--list-gpu-arch: accepted; -arch-ls: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--list-gpu-code",
+    "aliases": "-code-ls",
+    "category": "utility",
+    "current_route": "driver utility; not a kernel compilation setting",
+    "raw_validation": "--list-gpu-code: accepted; -code-ls: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--run-args",
+    "aliases": "-run-args",
+    "category": "utility",
+    "current_route": "driver utility; not a kernel compilation setting",
+    "raw_validation": "--run-args: accepted; -run-args: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--version",
+    "aliases": "-V",
+    "category": "utility",
+    "current_route": "driver utility; not a kernel compilation setting",
+    "raw_validation": "--version: accepted; -V: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--compile",
+    "aliases": "-c",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--compile: accepted; -c: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--compile-as-tools-patch",
+    "aliases": "-astoolspatch",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--compile-as-tools-patch: accepted; -astoolspatch: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--cuda",
+    "aliases": "-cuda",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--cuda: accepted; -cuda: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--cudadevrt",
+    "aliases": "-cudadevrt",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--cudadevrt: accepted; -cudadevrt: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--device-c",
+    "aliases": "-dc",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--device-c: accepted; -dc: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--device-link",
+    "aliases": "-dlink",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--device-link: accepted; -dlink: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--device-w",
+    "aliases": "-dw",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--device-w: accepted; -dw: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--dlink-time-opt",
+    "aliases": "-dlto",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--dlink-time-opt: accepted; -dlto: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--extensible-whole-program",
+    "aliases": "-ewp",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--extensible-whole-program: accepted; -ewp: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--fdevice-syntax-only",
+    "aliases": "-fdevice-syntax-only",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--fdevice-syntax-only: accepted; -fdevice-syntax-only: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--gen-opt-lto",
+    "aliases": "-gen-opt-lto",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--gen-opt-lto: accepted; -gen-opt-lto: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--keep-device-functions",
+    "aliases": "-keep-device-functions",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--keep-device-functions: accepted; -keep-device-functions: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--lib",
+    "aliases": "-lib",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--lib: accepted; -lib: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--library",
+    "aliases": "-l",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--library: accepted; -l: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--library-path",
+    "aliases": "-L",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--library-path: accepted; -L: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--link",
+    "aliases": "-link",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--link: accepted; -link: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--lto",
+    "aliases": "-lto",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--lto: accepted; -lto: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--ltoir",
+    "aliases": "-ltoir",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--ltoir: accepted; -ltoir: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--no-device-link",
+    "aliases": "-nodlink",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--no-device-link: accepted; -nodlink: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--nvlink-options",
+    "aliases": "-Xnvlink",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--nvlink-options: accepted; -Xnvlink: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--optix-ir",
+    "aliases": "-optix-ir",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--optix-ir: accepted; -optix-ir: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--preprocess",
+    "aliases": "-E",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--preprocess: accepted; -E: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--relocatable-device-code",
+    "aliases": "-rdc",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--relocatable-device-code: accepted; -rdc: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--relocatable-link",
+    "aliases": "-r",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--relocatable-link: accepted; -r: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--run",
+    "aliases": "-run",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--run: accepted; -run: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvcc",
+    "option": "--shared",
+    "aliases": "-shared",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--shared: accepted; -shared: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation; local 13.2 help"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--device-stack-protector",
+    "aliases": "-device-stack-protector",
+    "category": "compiler-specific",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--device-stack-protector: accepted; -device-stack-protector: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--Wreorder",
+    "aliases": "-Wreorder",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--Wreorder: accepted; -Wreorder: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--brief-diagnostics",
+    "aliases": "-brief-diag",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--brief-diagnostics: accepted; -brief-diag: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--diag-error",
+    "aliases": "-diag-error",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--diag-error: accepted; -diag-error: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--diag-suppress",
+    "aliases": "-diag-suppress",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--diag-suppress: accepted; -diag-suppress: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--diag-warn",
+    "aliases": "-diag-warn",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--diag-warn: accepted; -diag-warn: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--disable-warnings",
+    "aliases": "-w",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--disable-warnings: accepted; -w: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--display-error-number",
+    "aliases": "-err-no",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--display-error-number: accepted; -err-no: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--fdevice-time-trace",
+    "aliases": "-fdevice-time-trace",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--fdevice-time-trace: accepted; -fdevice-time-trace: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--no-display-error-number",
+    "aliases": "-no-err-no",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--no-display-error-number: accepted; -no-err-no: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--optimization-info",
+    "aliases": "-opt-info",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--optimization-info: accepted; -opt-info: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--time",
+    "aliases": "-time",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--time: accepted; -time: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--warning-as-error",
+    "aliases": "-Werror",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--warning-as-error: accepted; -Werror: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--device-as-default-execution-space",
+    "aliases": "-default-device",
+    "category": "driver defaults",
+    "current_route": "inserted by the current NVRTC driver",
+    "raw_validation": "--device-as-default-execution-space: accepted; -default-device: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--device-int128",
+    "aliases": "-device-int128",
+    "category": "driver defaults",
+    "current_route": "inserted by the current NVRTC driver",
+    "raw_validation": "--device-int128: accepted; -device-int128: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--no-cache",
+    "aliases": "-no-cache",
+    "category": "driver defaults",
+    "current_route": "inserted by the current NVRTC driver",
+    "raw_validation": "--no-cache: accepted; -no-cache: accepted",
+    "notes": "Added for NVRTC >=12.9; avoids implicit driver initialization and measured FTZ cache reuse",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--builtin-initializer-list",
+    "aliases": "-builtin-initializer-list",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--builtin-initializer-list: accepted; -builtin-initializer-list: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--builtin-move-forward",
+    "aliases": "-builtin-move-forward",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--builtin-move-forward: accepted; -builtin-move-forward: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--device-float128",
+    "aliases": "-device-float128",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--device-float128: accepted; -device-float128: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--minimal",
+    "aliases": "-minimal",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--minimal: accepted; -minimal: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--no-source-include",
+    "aliases": "-no-source-include",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--no-source-include: accepted; -no-source-include: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--pre-include",
+    "aliases": "-include",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--pre-include: accepted; -include: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--restrict",
+    "aliases": "-restrict",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--restrict: accepted; -restrict: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--undefine-macro",
+    "aliases": "-U",
+    "category": "language/preprocessing",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--undefine-macro: accepted; -U: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--Ofast-compile",
+    "aliases": "-Ofc",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--Ofast-compile: accepted; -Ofc: rejected",
+    "notes": "Short alias -Ofc is incorrectly rejected by the current prefix check",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--dopt",
+    "aliases": "-dopt",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--dopt: accepted; -dopt: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--extra-device-vectorization",
+    "aliases": "-extra-device-vectorization",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--extra-device-vectorization: accepted; -extra-device-vectorization: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--frandom-seed",
+    "aliases": "-frandom-seed",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--frandom-seed: accepted; -frandom-seed: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--jump-table-density",
+    "aliases": "-jtd",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--jump-table-density: accepted; -jtd: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--modify-stack-limit",
+    "aliases": "-modify-stack-limit",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--modify-stack-limit: accepted; -modify-stack-limit: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--split-compile",
+    "aliases": "-split-compile",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--split-compile: accepted; -split-compile: accepted",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--create-pch",
+    "aliases": "-create-pch",
+    "category": "precompiled headers",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--create-pch: accepted; -create-pch: accepted",
+    "notes": "Needs external-file lifetime and cache-identity policy",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--instantiate-templates-in-pch",
+    "aliases": "-instantiate-templates-in-pch",
+    "category": "precompiled headers",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--instantiate-templates-in-pch: accepted; -instantiate-templates-in-pch: accepted",
+    "notes": "Needs external-file lifetime and cache-identity policy",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--pch",
+    "aliases": "-pch",
+    "category": "precompiled headers",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--pch: accepted; -pch: accepted",
+    "notes": "Needs external-file lifetime and cache-identity policy",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--pch-dir",
+    "aliases": "-pch-dir",
+    "category": "precompiled headers",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--pch-dir: accepted; -pch-dir: accepted",
+    "notes": "Needs external-file lifetime and cache-identity policy",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--pch-messages",
+    "aliases": "-pch-messages",
+    "category": "precompiled headers",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--pch-messages: accepted; -pch-messages: accepted",
+    "notes": "Needs external-file lifetime and cache-identity policy",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--pch-verbose",
+    "aliases": "-pch-verbose",
+    "category": "precompiled headers",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--pch-verbose: accepted; -pch-verbose: accepted",
+    "notes": "Needs external-file lifetime and cache-identity policy",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--use-pch",
+    "aliases": "-use-pch",
+    "category": "precompiled headers",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--use-pch: accepted; -use-pch: accepted",
+    "notes": "Needs external-file lifetime and cache-identity policy",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--maxrregcount",
+    "aliases": "-maxrregcount",
+    "category": "resource/declaration policy",
+    "current_route": "needs explicit precedence with KernelAttributes/LaunchConfig",
+    "raw_validation": "--maxrregcount: rejected; -maxrregcount: rejected",
+    "notes": "A compilation-wide cap differs from a kernel declaration attribute",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--define-macro",
+    "aliases": "-D",
+    "category": "structured",
+    "current_route": "field: defines",
+    "raw_validation": "--define-macro: rejected; -D: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--device-debug",
+    "aliases": "-G",
+    "category": "structured",
+    "current_route": "field: device_debug",
+    "raw_validation": "--device-debug: rejected; -G: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--fmad",
+    "aliases": "-fmad",
+    "category": "structured",
+    "current_route": "field: fmad",
+    "raw_validation": "--fmad: rejected; -fmad: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--ftz",
+    "aliases": "-ftz",
+    "category": "structured",
+    "current_route": "field: ftz",
+    "raw_validation": "--ftz: rejected; -ftz: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--generate-line-info",
+    "aliases": "-lineinfo",
+    "category": "structured",
+    "current_route": "field: lineinfo",
+    "raw_validation": "--generate-line-info: rejected; -lineinfo: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--gpu-architecture",
+    "aliases": "-arch",
+    "category": "structured",
+    "current_route": "field: arch",
+    "raw_validation": "--gpu-architecture: rejected; -arch: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--include-path",
+    "aliases": "-I",
+    "category": "structured",
+    "current_route": "field: include_dirs",
+    "raw_validation": "--include-path: rejected; -I: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--prec-div",
+    "aliases": "-prec-div",
+    "category": "structured",
+    "current_route": "field: prec_div",
+    "raw_validation": "--prec-div: rejected; -prec-div: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--prec-sqrt",
+    "aliases": "-prec-sqrt",
+    "category": "structured",
+    "current_route": "field: prec_sqrt",
+    "raw_validation": "--prec-sqrt: rejected; -prec-sqrt: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--ptxas-options",
+    "aliases": "-Xptxas",
+    "category": "structured",
+    "current_route": "field: ptxas_options",
+    "raw_validation": "--ptxas-options: rejected; -Xptxas: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--std",
+    "aliases": "-std",
+    "category": "structured",
+    "current_route": "field: cxx_standard",
+    "raw_validation": "--std: rejected; -std: rejected",
+    "notes": "Only C++11/14/17/20 accepted by the current field",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--use_fast_math",
+    "aliases": "-use_fast_math",
+    "category": "structured",
+    "current_route": "field: fast_math",
+    "raw_validation": "--use_fast_math: rejected; -use_fast_math: rejected",
+    "notes": "",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--device-c",
+    "aliases": "-dc",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--device-c: accepted; -dc: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--device-w",
+    "aliases": "-dw",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--device-w: accepted; -dw: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--dlink-time-opt",
+    "aliases": "-dlto",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--dlink-time-opt: accepted; -dlto: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--extensible-whole-program",
+    "aliases": "-ewp",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--extensible-whole-program: accepted; -ewp: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--fdevice-syntax-only",
+    "aliases": "-fdevice-syntax-only",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--fdevice-syntax-only: accepted; -fdevice-syntax-only: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--gen-opt-lto",
+    "aliases": "-gen-opt-lto",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--gen-opt-lto: accepted; -gen-opt-lto: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--optix-ir",
+    "aliases": "-optix-ir",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--optix-ir: accepted; -optix-ir: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "nvrtc",
+    "option": "--relocatable-device-code",
+    "aliases": "-rdc",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--relocatable-device-code: accepted; -rdc: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "CUDA 13.2 documentation"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--device-debug",
+    "aliases": "-g",
+    "category": "compiler-specific",
+    "current_route": "use frontend field; separate ptxas override has no policy",
+    "raw_validation": "--device-debug: rejected; -g: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--device-stack-protector",
+    "aliases": "-device-stack-protector",
+    "category": "compiler-specific",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--device-stack-protector: accepted; -device-stack-protector: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--fmad",
+    "aliases": "-fmad",
+    "category": "compiler-specific",
+    "current_route": "use frontend field; separate ptxas override has no policy",
+    "raw_validation": "--fmad: rejected; -fmad: rejected",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--g-tensor-memory-access-check",
+    "aliases": "-g-tmem-access-check",
+    "category": "compiler-specific",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--g-tensor-memory-access-check: accepted; -g-tmem-access-check: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--generate-line-info",
+    "aliases": "-lineinfo",
+    "category": "compiler-specific",
+    "current_route": "use frontend field; separate ptxas override has no policy",
+    "raw_validation": "--generate-line-info: rejected; -lineinfo: rejected",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--gno-tensor-memory-access-check",
+    "aliases": "-gno-tmem-access-check",
+    "category": "compiler-specific",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--gno-tensor-memory-access-check: accepted; -gno-tmem-access-check: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--legacy-bar-warp-wide-behavior",
+    "aliases": "-legacy-bar-warp-wide-behavior",
+    "category": "compiler-specific",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--legacy-bar-warp-wide-behavior: accepted; -legacy-bar-warp-wide-behavior: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--sp-bounds-check",
+    "aliases": "-sp-bounds-check",
+    "category": "compiler-specific",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--sp-bounds-check: accepted; -sp-bounds-check: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--suppress-debug-info",
+    "aliases": "-suppress-debug-info",
+    "category": "compiler-specific",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--suppress-debug-info: accepted; -suppress-debug-info: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--suppress-sparse-mma-advisory-info",
+    "aliases": "-suppress-sparse-mma-advisory-info",
+    "category": "compiler-specific",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--suppress-sparse-mma-advisory-info: accepted; -suppress-sparse-mma-advisory-info: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--compiler-annotations",
+    "aliases": "-annotate",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--compiler-annotations: accepted; -annotate: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--disable-warnings",
+    "aliases": "-w",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--disable-warnings: accepted; -w: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--make-errors-visible-at-exit",
+    "aliases": "-make-errors-visible-at-exit",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--make-errors-visible-at-exit: accepted; -make-errors-visible-at-exit: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--sanitize",
+    "aliases": "-sanitize",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--sanitize: accepted; -sanitize: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--suppress-async-bulk-multicast-advisory-warning",
+    "aliases": "-suppress-async-bulk-multicast-advisory-warning",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--suppress-async-bulk-multicast-advisory-warning: accepted; -suppress-async-bulk-multicast-advisory-warning: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--suppress-double-demote-warning",
+    "aliases": "-suppress-double-demote-warning",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--suppress-double-demote-warning: accepted; -suppress-double-demote-warning: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--suppress-stack-size-warning",
+    "aliases": "-suppress-stack-size-warning",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--suppress-stack-size-warning: accepted; -suppress-stack-size-warning: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--verbose",
+    "aliases": "-v",
+    "category": "diagnostics",
+    "current_route": "always inserted into ptxas options by compiler_options()",
+    "raw_validation": "--verbose: accepted; -v: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--verbose2",
+    "aliases": "-v2",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--verbose2: accepted; -v2: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--warn-on-double-precision-use",
+    "aliases": "-warn-double-usage",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--warn-on-double-precision-use: accepted; -warn-double-usage: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--warn-on-local-memory-usage",
+    "aliases": "-warn-lmem-usage",
+    "category": "diagnostics",
+    "current_route": "always inserted into ptxas options by compiler_options()",
+    "raw_validation": "--warn-on-local-memory-usage: accepted; -warn-lmem-usage: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--warn-on-spills",
+    "aliases": "-warn-spills",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--warn-on-spills: accepted; -warn-spills: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--warning-as-error",
+    "aliases": "-Werror",
+    "category": "diagnostics",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--warning-as-error: accepted; -Werror: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--entry",
+    "aliases": "-e",
+    "category": "driver/artifact ownership",
+    "current_route": "driver policy or unsupported artifact shape",
+    "raw_validation": "--entry: accepted; -e: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--gpu-name",
+    "aliases": "-arch",
+    "category": "driver/artifact ownership",
+    "current_route": "driver policy or unsupported artifact shape",
+    "raw_validation": "--gpu-name: accepted; -arch: rejected",
+    "notes": "Long spelling currently bypasses the arch guard; -arch is blocked",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--input-as-string",
+    "aliases": "-ias",
+    "category": "driver/artifact ownership",
+    "current_route": "driver policy or unsupported artifact shape",
+    "raw_validation": "--input-as-string: accepted; -ias: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--machine",
+    "aliases": "-m",
+    "category": "driver/artifact ownership",
+    "current_route": "driver policy or unsupported artifact shape",
+    "raw_validation": "--machine: accepted; -m: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--options-file",
+    "aliases": "-optf",
+    "category": "driver/artifact ownership",
+    "current_route": "driver policy or unsupported artifact shape",
+    "raw_validation": "--options-file: rejected; -optf: rejected",
+    "notes": "Intentionally blocked: hides effective arguments from configuration identity",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--output-file",
+    "aliases": "-o",
+    "category": "driver/artifact ownership",
+    "current_route": "driver policy or unsupported artifact shape",
+    "raw_validation": "--output-file: rejected; -o: rejected",
+    "notes": "Temporary output path is controlled by the driver",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--def-load-cache",
+    "aliases": "-dlcm",
+    "category": "memory code generation",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--def-load-cache: accepted; -dlcm: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--def-store-cache",
+    "aliases": "-dscm",
+    "category": "memory code generation",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--def-store-cache: accepted; -dscm: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--force-load-cache",
+    "aliases": "-flcm",
+    "category": "memory code generation",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--force-load-cache: accepted; -flcm: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--force-store-cache",
+    "aliases": "-fscm",
+    "category": "memory code generation",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--force-store-cache: accepted; -fscm: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--Ofast-compile",
+    "aliases": "-Ofc",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--Ofast-compile: accepted; -Ofc: rejected",
+    "notes": "Short alias -Ofc is incorrectly rejected by the current prefix check",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--allow-expensive-optimizations",
+    "aliases": "-allow-expensive-optimizations",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--allow-expensive-optimizations: accepted; -allow-expensive-optimizations: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--disable-optimizer-constants",
+    "aliases": "-disable-optimizer-consts",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--disable-optimizer-constants: accepted; -disable-optimizer-consts: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--dont-merge-basicblocks",
+    "aliases": "-no-bb-merge",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--dont-merge-basicblocks: accepted; -no-bb-merge: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--jobserver",
+    "aliases": "-jobserver",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--jobserver: accepted; -jobserver: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--optimize-float-atomics",
+    "aliases": "-opt-fp-atomics",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--optimize-float-atomics: accepted; -opt-fp-atomics: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--return-at-end",
+    "aliases": "-ret-end",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--return-at-end: accepted; -ret-end: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--split-compile",
+    "aliases": "-split-compile",
+    "category": "optimization/build-time",
+    "current_route": "raw argument; compilation not certified",
+    "raw_validation": "--split-compile: accepted; -split-compile: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--device-function-maxrregcount",
+    "aliases": "-func-maxrregcount",
+    "category": "resource/declaration policy",
+    "current_route": "needs explicit precedence with KernelAttributes/LaunchConfig",
+    "raw_validation": "--device-function-maxrregcount: accepted; -func-maxrregcount: accepted",
+    "notes": "A compilation-wide cap differs from a kernel declaration attribute",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--maxntid",
+    "aliases": "-maxntid",
+    "category": "resource/declaration policy",
+    "current_route": "needs explicit precedence with KernelAttributes/LaunchConfig",
+    "raw_validation": "--maxntid: accepted; -maxntid: accepted",
+    "notes": "A compilation-wide cap differs from a kernel declaration attribute",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--maxrregcount",
+    "aliases": "-maxrregcount",
+    "category": "resource/declaration policy",
+    "current_route": "needs explicit precedence with KernelAttributes/LaunchConfig",
+    "raw_validation": "--maxrregcount: rejected; -maxrregcount: rejected",
+    "notes": "A compilation-wide cap differs from a kernel declaration attribute",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--minnctapersm",
+    "aliases": "-minnctapersm",
+    "category": "resource/declaration policy",
+    "current_route": "needs explicit precedence with KernelAttributes/LaunchConfig",
+    "raw_validation": "--minnctapersm: accepted; -minnctapersm: accepted",
+    "notes": "A compilation-wide cap differs from a kernel declaration attribute",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--override-directive-values",
+    "aliases": "-override-directive-values",
+    "category": "resource/declaration policy",
+    "current_route": "needs explicit precedence with KernelAttributes/LaunchConfig",
+    "raw_validation": "--override-directive-values: accepted; -override-directive-values: accepted",
+    "notes": "A compilation-wide cap differs from a kernel declaration attribute",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--opt-level",
+    "aliases": "-O",
+    "category": "structured",
+    "current_route": "field: ptxas_opt_level",
+    "raw_validation": "--opt-level: rejected; -O: rejected",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--register-usage-level",
+    "aliases": "-regUsageLevel",
+    "category": "structured",
+    "current_route": "field: ptxas_reg_usage_level",
+    "raw_validation": "--register-usage-level: rejected; -regUsageLevel: accepted",
+    "notes": "Alias -regUsageLevel currently bypasses the structured-field guard",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--help",
+    "aliases": "-h",
+    "category": "utility",
+    "current_route": "driver utility; not a kernel compilation setting",
+    "raw_validation": "--help: accepted; -h: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--list-arch",
+    "aliases": "-arch-ls",
+    "category": "utility",
+    "current_route": "driver utility; not a kernel compilation setting",
+    "raw_validation": "--list-arch: accepted; -arch-ls: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--list-version",
+    "aliases": "-version-ls",
+    "category": "utility",
+    "current_route": "driver utility; not a kernel compilation setting",
+    "raw_validation": "--list-version: accepted; -version-ls: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--version",
+    "aliases": "-V",
+    "category": "utility",
+    "current_route": "driver utility; not a kernel compilation setting",
+    "raw_validation": "--version: accepted; -V: accepted",
+    "notes": "",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--compile-as-tools-patch",
+    "aliases": "-astoolspatch",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--compile-as-tools-patch: accepted; -astoolspatch: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--compile-only",
+    "aliases": "-c",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--compile-only: accepted; -c: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--extensible-whole-program",
+    "aliases": "-ewp",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--extensible-whole-program: accepted; -ewp: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--position-independent-code",
+    "aliases": "-pic",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--position-independent-code: accepted; -pic: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "local 13.2 help"
+  },
+  {
+    "tool": "ptxas",
+    "option": "--preserve-relocs",
+    "aliases": "-preserve-relocs",
+    "category": "workflow",
+    "current_route": "requires compilation/link/artifact workflow",
+    "raw_validation": "--preserve-relocs: accepted; -preserve-relocs: accepted",
+    "notes": "General workflow is not exposed; NVSHMEM has a separate internal linking path",
+    "source": "local 13.2 help"
+  }
+]
