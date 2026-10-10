@@ -48,10 +48,10 @@ A complete, runnable example — a warp all-reduce via ``Tx.gpu_warp_shuffle_xor
     @Tx.function
     def warp_reduce(A: Tx.Tensor((32,), "float32", align=16)):
 
-        Tx.device_entry()
-        cta_id = Tx.cta_id([1])
-        warp_id = Tx.warp_id([1])
-        lane_id = Tx.lane_id([32])
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=((1) * 32,)))
+        cta_id = Tx.cuda.block_idx("x")
+        warp_id = Tx.cuda.warp_id()
+        lane_id = Tx.cuda.lane_id()
         v = Tx.alloc_local((1,), "float32")
         i = Tx.alloc_local((1,), "int32")
         v[0] = Tx.float32(31 - lane_id)
@@ -88,9 +88,9 @@ source string with ``Tx.cuda.func_call(name, *args, ..., ty=...)``:
     @Tx.function
     def k(A: Tx.Tensor((256,), "float32"), B: Tx.Tensor((256,), "float32")):
 
-        Tx.device_entry()
-        bx = Tx.cta_id([1])
-        tx = Tx.thread_id([256])
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(256,)))
+        bx = Tx.cuda.block_idx("x")
+        tx = Tx.cuda.thread_idx("x")
         B[tx] = Tx.cuda.func_call("my_relu", A[tx], SRC, ty="float32")
 
 The source is emitted verbatim and the call is wired in:

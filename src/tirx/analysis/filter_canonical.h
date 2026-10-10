@@ -69,7 +69,7 @@ enum class FilterAtomKind {
  * \brief One atomic predicate. Variant keyed by `kind`.
  *
  * For `kRange`:
- *   - `scopeid_var`: the ScopeIdDef-declared variable on the LHS of the
+ *   - `scopeid_var`: the CUDA-index-bound variable on the LHS of the
  *     comparison (mirrored automatically if the input had `const <op> var`).
  *   - `lo`, `hi`: half-open bounds. `lo` may be
  *     `sym::ConstIntBound::kNegInf` for an unbounded lower side; `hi` may
@@ -103,13 +103,13 @@ struct CanonicalForm {
 };
 
 /*!
- * \brief Callback: returns true iff `var` is a ScopeIdDef-declared scope id.
+ * \brief Callback: returns true iff `var` is a CUDA-index-bound scope id.
  *
  * The classifier consults this for every variable that appears on the LHS
  * of a comparison atom. The callback abstracts over how scope ids are
  * tracked in the caller's context:
  *   - TileDispatcher passes a lambda that walks its
- *     `scope_id_defs_at_level_` stack.
+ *     index binding provenance map.
  *   - Tests may pass a simpler lambda over a fixed allow-list of vars.
  *
  * A var that fails this check causes the enclosing predicate to be classified

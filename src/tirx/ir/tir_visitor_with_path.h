@@ -152,7 +152,6 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   void Dispatch_(const AssertStmtNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const SeqStmtNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const EvaluateNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const ScopeIdDefStmtNode* op, ffi::reflection::AccessPath path) override;
 
   using ExprFunctor::Dispatch;
   void Dispatch_(const VarNode* op, ffi::reflection::AccessPath path) override;

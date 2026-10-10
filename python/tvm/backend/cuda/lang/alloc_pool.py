@@ -204,7 +204,7 @@ class TMEMPool:
         # in the chosen warp must participate, and exactly one warp in the
         # CTA must execute them. The pool emits its own
         # ``if warp_id() == target_warp: tcgen05.alloc(...)``
-        # guard, using the cta->warp scope id ``T.warp_id()``.
+        # guard, using the cta->warp scope id ``T.cuda.warp_id()``.
         # NOTE: synccheck currently false-deadlocks on kernels that declare a
         # second warp-scope id (cpusim binds only one warp var); the generated
         # CUDA is equivalent to ``thread_rank() // 32 == target_warp``.
@@ -233,7 +233,7 @@ class TMEMPool:
     def _emit_warp_guard(self, target_warp, emit):
         from tvm.script import tirx as T
 
-        warp_id = T.warp_id()
+        warp_id = T.cuda.warp_id()
         with T.if_(warp_id == target_warp):
             with T.then_():
                 emit()
@@ -488,7 +488,7 @@ class SMEMPool:
             self.max_offset = max(self.max_offset, self.offset)
 
     def commit(self, size=None):
-        """Emit the dynamic shared memory byte-count declaration into the IR.
+        """Record the pool resource requirement on the enclosing kernel entry.
 
         Must be called after all ``alloc()`` / ``move_base_to()`` calls.
 
@@ -505,8 +505,6 @@ class SMEMPool:
             f"Specified smem size ({resolved}) is smaller than "
             f"the pool high-water mark ({self.max_offset})"
         )
-        import tvm.tirx
-        from tvm.backend.cuda.op import dyn_smem_bytes
-        from tvm.tirx.script.ir_builder.parser_protocol import add_to_parent
+        from tvm.tirx.script.ir_builder import _ffi_api
 
-        add_to_parent(tvm.ir.Evaluate(dyn_smem_bytes(tvm.tirx.IntImm("int64", resolved))))
+        _ffi_api.CudaSharedMemoryRequirement(resolved)

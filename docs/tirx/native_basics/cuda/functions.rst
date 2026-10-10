@@ -72,7 +72,9 @@ order. For example, a kernel with a scalar parameter::
     def scal(A: Tx.Tensor((256,), 'float32'), B: Tx.Tensor((256,), 'float32'), s: Tx.float32):
 
 
-        Tx.device_entry(); bx = Tx.cta_id([1]); tx = Tx.thread_id([256])
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(256,)))
+        bx = Tx.cuda.block_idx("x")
+        tx = Tx.cuda.thread_idx("x")
         B[tx] = A[tx] * s
 
     exe(a, b, 3.0)        # pass the scalar as a Python float
@@ -93,9 +95,9 @@ passed tensor** at run time, so a *single compiled kernel* handles any size:
 
     @Tx.function
     def scale_dyn(A: Tx.Tensor((n,), "float32"), B: Tx.Tensor((n,), "float32")):
-        Tx.device_entry()
-        bx = Tx.cta_id([1])
-        tx = Tx.thread_id([1])
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(1,)))
+        bx = Tx.cuda.block_idx("x")
+        tx = Tx.cuda.thread_idx("x")
         for i in range(n):  # loop / launch bounds may use n
             B[i] = A[i] * Tx.float32(2.0)
 
@@ -202,9 +204,9 @@ device checks (e.g. asserting ``B.shape[0] == n``)::
         *,
         N: Tx.constexpr,
     ):
-        Tx.device_entry()
-        bx = Tx.cta_id([1])
-        tx = Tx.thread_id([N])
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(N,)))
+        bx = Tx.cuda.block_idx("x")
+        tx = Tx.cuda.thread_idx("x")
         C[tx] = A[tx] + B[tx]
 
 
@@ -217,191 +219,85 @@ time.
 Launch parameters
 -----------------
 
-``Tx.device_entry()``
-~~~~~~~~~~~~~~~~~~~~~
+``Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(32,)))``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``Tx.device_entry()`` starts the authored device region: parameter binding and
+``Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(32,)))`` starts the authored device region: parameter binding and
 shape reads precede it, while the kernel body follows it. A flat call scopes the
-remaining statements in the enclosing body; ``with Tx.device_entry():`` gives
+remaining statements in the enclosing body; ``with Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(32,))):`` gives
 an explicit boundary. Both forms create a ``RegionStmt`` with the
 ``tirx.device_entry`` op. ``LowerTIRx`` removes this region, resolves scope ids,
-and wraps the device body in single-axis ``launch_thread`` regions. Target
-binding and ``SplitHostDevice`` use those resulting device regions to extract
-the kernel shown above.
+and retains its launch operands on a ``device_scope`` region.
+``SplitHostDevice`` separates the host configuration from the device body.
 
-Scope ids
-~~~~~~~~~
+CUDA indices and launch configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-After ``device_entry`` you declare the thread hierarchy with *scope-id* intrinsics
-— each takes its launch extent as a list:
-
-.. code-block:: python
-
-    Tx.device_entry()
-    bx, by = Tx.cta_id([GM, GN])     # blockIdx.x / .y  (grid extents)
-    warp_id = Tx.warp_id([4])        # cta -> warp
-    lane_id = Tx.lane_id([32])       # warp -> thread
-    tx = Tx.thread_id([128])         # cta -> flat thread id
-
-Available ids include ``cta_id``, ``thread_id``, ``warp_id``, ``warpgroup_id``,
-``warp_id_in_wg``, ``thread_id_in_wg``, ``lane_id``, ``cluster_id``,
-``cta_id_in_cluster``, and ``cta_id_in_pair``. (The legacy ``Tx.launch_thread``
-exists but native TIRx uses ``device_entry`` + scope ids.)
-
-**Thread-block clusters** (Hopper/Blackwell) are declared with ``cluster_id``
-(kernel → cluster) and ``cta_id_in_cluster`` (cluster → cta). The
-``cta_id_in_cluster`` extent is the cluster's CTA dimension; its ``preferred=``
-argument sets the *preferred* cluster dimension (CUDA 12.8+):
+Launch geometry is explicit and independent of the indices read by the kernel.
+``grid`` counts CTAs, ``block`` counts threads per CTA, and ``cluster`` counts
+CTAs per cluster. Each accepts an integer or one to three dimensions; omitted
+trailing dimensions are one.
 
 .. code-block:: python
 
-    cid  = Tx.cluster_id([NUM_CLUSTERS])                  # kernel -> cluster (grid of clusters)
-    rank = Tx.cta_id_in_cluster([CLUSTER_SIZE],           # cluster -> cta
-                               preferred=[CLUSTER_SIZE])
-    # -> cluster_dim = CLUSTER_SIZE, preferred_cluster_dim = CLUSTER_SIZE
+    Tx.device_entry(
+        launch=Tx.cuda.LaunchConfig(grid=(GM, GN), block=128),
+        kernel_attrs=Tx.cuda.KernelAttributes(min_blocks_per_sm=2),
+    )
+    bx, by = Tx.cuda.block_idx("x"), Tx.cuda.block_idx("y")
+    warp = Tx.cuda.warp_id()
+    lane = Tx.cuda.lane_id()
+    tid = Tx.cuda.linear_thread_id()
 
-These become the ``CLUSTER_DIMENSION`` / ``PREFERRED_CLUSTER_DIMENSION`` launch
-attributes in the config below. (``cta_id`` and ``cta_id_in_cluster`` also take an
-optional ``preferred=``.) In the device code they lower to reads of the cluster
-PTX special registers:
+Every assignment above is an ordinary let binding. Tuple assignments produce
+separate bindings. Reading an index does not declare or infer launch dimensions,
+and unused indices do not remove launch configuration.
 
-.. code-block:: c++
+The finite index API includes ``block_idx(axis)``, ``thread_idx(axis)``,
+``cluster_id(axis)``, ``cluster_cta_id(axis)``, ``grid_dim(axis)``,
+``block_dim(axis)``, ``cluster_dim(axis)``, ``linear_thread_id()``, ``warp_id()``,
+``lane_id()``, ``warpgroup_id()``, ``warp_in_warpgroup()``,
+``thread_in_warpgroup()``, and ``cta_pair_id()``. The axis is ``"x"``, ``"y"``,
+or ``"z"``. Linear thread IDs use CUDA's x-major order, including 2D and 3D blocks.
+Warp index helpers require a static block size divisible by 32; their shared
+full-mask shuffle is emitted at kernel entry, before divergent control flow.
 
-    int cid  = ...;   // mov.u32 %0, %clusterid.x;      (cluster index)
-    int rank = ...;   // mov.u32 %0, %cluster_ctarank;  (CTA rank within the cluster)
-
-The cluster *dimensions* themselves are not in the device code — they are set at
-launch time via the attributes above.
-
-Launching the kernel
-~~~~~~~~~~~~~~~~~~~~~
-
-During lowering the compiler **extracts every launch parameter** the kernel uses —
-the grid and block dimensions, plus the dynamic shared-memory size if any — into
-the device function's ``tirx.kernel_launch_params`` attribute. For the ``scale``
-kernel that list is ``["blockIdx.x", "threadIdx.x"]``; the host launcher computes
-each one's extent (from the scope-id extents and any symbolic shapes) and supplies
-them alongside the kernel arguments.
-
-By default, the block size also drives the kernel's ``__launch_bounds__``. The
-first argument (max threads per block) is set automatically from the thread
-extent. To also set the second argument — the minimum blocks per SM, an
-occupancy hint — add
-``Tx.cuda.launch_bounds_min_blocks_per_sm(N)`` in the device region:
+For a cluster launch:
 
 .. code-block:: python
 
-    Tx.device_entry()
-    Tx.cuda.launch_bounds_min_blocks_per_sm(2)   # second launch-bounds arg
-    bx = Tx.cta_id([1]); tx = Tx.thread_id([256])
-    ...
+    Tx.device_entry(launch=Tx.cuda.LaunchConfig(
+        grid=(NUM_CLUSTERS * 2,), block=128, cluster=(2,),
+    ))
+    cid = Tx.cuda.cluster_id("x")
+    cx = Tx.cuda.cluster_cta_id("x")
 
-.. code-block:: c++
+Cluster coordinates read the corresponding PTX special registers, including
+``%cluster_ctaid.x`` for the CTA's x coordinate. An omitted cluster and an explicit
+unit cluster remain distinct. ``preferred_cluster`` requests CUDA's substitute
+cluster dimensions; kernels that use it must handle either permitted shape.
+Cluster-scope tensor instructions require one static cluster shape. Use explicit
+CUDA/PTX instructions when the cluster shape is dynamic or its preferred shape
+differs. CTA-, warp-, and thread-scope instructions remain available.
 
-    extern "C" __global__ void __launch_bounds__(256, 2) scale_kernel(...) { ... }
+``KernelAttributes`` contains compile-time CUDA kernel attributes: ``min_blocks_per_sm``,
+``max_blocks_per_cluster`` (requires ``min_blocks_per_sm``),
+``max_registers_per_thread``, and ``required_block_size``. The last attribute fixes
+both block and cluster dimensions using CUDA 13's ``__block_size__`` declaration.
+``max_registers_per_thread`` conflicts with explicit launch bounds and required
+block size. Runtime values belong in ``LaunchConfig``.
 
-Without this declaration the second argument is omitted (just ``__launch_bounds__(256)``).
+Both host backends consume the same validated launch description. The normal
+CUDA module calls the Driver API's ``cuLaunchKernelEx``; exported ``cuda_host``
+code calls the Runtime API's ``cudaLaunchKernelEx`` and needs only CUDA and
+tvm-ffi. They share field decoding, attribute encoding, and resource setup.
+Dynamic grid sizes, stream handles, event handles, and other launch values are
+host-side call operands, not device kernel parameters or expression-valued attrs.
 
-``Tx.cuda.launch_bounds_max_blocks_per_cluster(N)`` supplies the third operand
-and requires a minimum-blocks declaration. ``Tx.cuda.max_registers_per_thread(N)``
-emits ``__maxnreg__(N)`` and cannot accompany launch bounds. These declarations
-accept positive integer constants. Matching repetitions are allowed; conflicting
-values are rejected. They configure the containing kernel and produce no runtime
-instructions at their textual position.
-
-Some kernels require an exact block and cluster shape instead of an advisory
-maximum. Use ``Tx.cuda.required_block_size`` with the three thread dimensions followed
-by the three cluster dimensions to declare a compile-time launch contract:
-
-.. code-block:: python
-
-    Tx.device_entry()
-    Tx.cuda.required_block_size(128, 1, 1, 1, 2, 1)
-    bx, by = Tx.cta_id([4, 2])
-    _, cy = Tx.cta_id_in_cluster([1, 2])
-    tx = Tx.thread_id([128])
-    ...
-
-.. code-block:: c++
-
-    extern "C" __global__ void __block_size__((128, 1, 1), (1, 2, 1)) kernel(...) { ... }
-
-This requires CUDA Toolkit 13 or newer. All thread and cluster dimensions must
-be positive constants matching the declared launch extents; CUDA lowers ``__block_size__`` to PTX ``.reqntid`` and checks the
-same dimensions at launch. A preferred cluster dimension must be absent or
-equal to the required cluster dimension, and each logical block-grid dimension
-must be divisible by its cluster dimension.
-
-``Tx.cuda.required_block_size`` can be combined with the launch-bounds declarations
-when an occupancy hint is also needed; code generation then emits both
-``__block_size__`` and ``__launch_bounds__``. It cannot be combined with
-``Tx.cuda.max_registers_per_thread``.
-
-At run time the kernel is launched through the **CUDA Driver API**. TVM's CUDA
-runtime loads the module (``cuModuleLoadData``), fetches the function
-(``cuModuleGetFunction``, cached), and calls ``cuLaunchKernelEx`` with a
-``CUlaunchConfig``. Besides the grid/block dims, dynamic shared size, and stream,
-the config carries a list of launch *attributes* — the thread-block **cluster
-dimension** and **preferred cluster dimension** (Hopper/Blackwell), plus optional
-programmatic-dependent-launch and cooperative-launch flags. Kernels with
-``Tx.cuda.required_block_size`` instead use CUDA's required-block sentinel; their
-compile-time cluster shape replaces the ordinary runtime cluster attribute. In
-outline, ``src/backend/cuda/runtime/cuda_module.cc`` follows this path:
-
-.. code-block:: c++
-
-    std::array<CUlaunchAttribute, 4> attrs{};
-    unsigned int num_attrs = 0;
-    bool use_required_block_dimension =
-        launch_param_config_.use_required_block_dimension();
-
-    // 1) thread-block cluster dimension
-    if (!use_required_block_dimension &&
-        launch_param_config_.use_cluster_launch()) {
-      CUlaunchAttribute attr{};
-      attr.id = CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION;
-      attr.value.clusterDim.x = wl.cluster_dim(0);
-      attr.value.clusterDim.y = wl.cluster_dim(1);
-      attr.value.clusterDim.z = wl.cluster_dim(2);
-      attrs[num_attrs++] = attr;
-    }
-    // 1b) preferred cluster dimension (CUDA 12.8+); (2) programmatic stream
-    //     serialization and (3) cooperative launch are appended the same way
-    if (!use_required_block_dimension &&
-        (wl.preferred_cluster_dim(0) != 1 || wl.preferred_cluster_dim(1) != 1 ||
-         wl.preferred_cluster_dim(2) != 1)) {
-      CUlaunchAttribute attr{};
-      attr.id = CU_LAUNCH_ATTRIBUTE_PREFERRED_CLUSTER_DIMENSION;
-      attr.value.clusterDim.x = wl.preferred_cluster_dim(0);
-      attr.value.clusterDim.y = wl.preferred_cluster_dim(1);
-      attr.value.clusterDim.z = wl.preferred_cluster_dim(2);
-      attrs[num_attrs++] = attr;
-    }
-
-    CUlaunchConfig config{};
-    if (use_required_block_dimension) {
-      config.gridDimX = wl.grid_dim(0) / wl.cluster_dim(0);
-      config.gridDimY = wl.grid_dim(1) / wl.cluster_dim(1);
-      config.gridDimZ = wl.grid_dim(2) / wl.cluster_dim(2);
-      config.blockDimX = CU_LAUNCH_KERNEL_REQUIRED_BLOCK_DIM;
-      config.blockDimY = 1;
-      config.blockDimZ = 1;
-    } else {
-      config.gridDimX = wl.grid_dim(0);
-      config.gridDimY = wl.grid_dim(1);
-      config.gridDimZ = wl.grid_dim(2);
-      config.blockDimX = wl.block_dim(0);
-      config.blockDimY = wl.block_dim(1);
-      config.blockDimZ = wl.block_dim(2);
-    }
-    config.sharedMemBytes = wl.dyn_shmem_size;
-    config.hStream = strm;
-    config.attrs = num_attrs == 0 ? nullptr : attrs.data();
-    config.numAttrs = num_attrs;
-
-    CUresult result = cuLaunchKernelEx(&config, fcache_[device_id], void_args, nullptr);
-
-Here ``wl`` is the resolved workload (the grid/block/cluster extents derived from
-the launch parameters), ``fcache_[device_id]`` is the cached ``CUfunction``, and
-``void_args`` are the kernel arguments — the data pointers plus scalars like the
-symbolic ``n``.
+The declaration table in ``python/tvm/backend/cuda/launch/table.py`` generates
+the public records, native attribute encoders, and :doc:`launch reference
+<../../api/cuda_launch>`. Run ``python python/tvm/backend/cuda/launch/generate.py``
+with the repository's pinned Ruff and clang-format versions after editing the
+table or shared launch header; pre-commit checks that these files are current.
+Historical launch tags are translated only at the packed-call compatibility
+boundary. New kernels should use the configuration API above.

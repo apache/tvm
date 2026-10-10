@@ -1125,9 +1125,9 @@ def test_dispatch_propagates_flat_bind_to_auto_coordinate_proof():
 @T.function
 def bind_coordinate(D: T.Tensor((33360, 6144), 'bfloat16')):
 
-    T.device_entry()
-    block = T.cta_id([192])
-    tid = T.thread_id([1])
+    T.device_entry(launch=T.cuda.LaunchConfig(grid=192, block=1))
+    block = T.cuda.block_idx("x")
+    tid = T.cuda.thread_idx("x")
     tile_index = T.alloc_local((1,), "int32")
     D_smem = T.alloc_tensor(
         (2, 16, 128),
@@ -1533,11 +1533,9 @@ def test_explicit_allows_different_operand_ranks_with_equal_payload_bytes():
 @T.function
 def rank_change(A: T.Tensor((8, 8), 'float16')):
 
-    T.device_entry()
-    T.cta_id([1])
-    tid = T.thread_id([1])
+    T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=1))
+    tid = T.cuda.thread_idx("x")
     dyn = T.alloc_tensor((65,), "uint64", scope="shared.dyn")
-    T.cuda.dyn_smem_bytes(65 * 8)
     A_smem = T.decl_tensor((64,), "float16", dyn.data, layout=T.TileLayout(T.S[64]))
     mbar = T.decl_tensor((1,), "uint64", dyn.data, elem_offset=16)
     if tid == 0:
@@ -1560,11 +1558,9 @@ def selector_gather(
 
 
     B_view = B.sub[16:512, 8:72]
-    T.device_entry()
-    T.cta_id([1])
-    tid = T.thread_id([128])
+    T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=128))
+    tid = T.cuda.thread_idx("x")
     dyn = T.alloc_tensor((520,), "uint64", scope="shared.dyn")
-    T.cuda.dyn_smem_bytes(520 * 8)
     A_smem = T.decl_tensor(
         (4, 64), "bfloat16", dyn.data, layout=T.TileLayout(T.S[4, 64])
     )
@@ -1731,11 +1727,11 @@ def _build_sparse_decode_qo_tma_regression():
                 T.S[(1, 1, 64, 512) : (o_stride_b, o_stride_s, o_stride_h, 1)]
             ),
         )
-        T.device_entry()
-        T.cta_id([1])
-        tid = T.thread_id([128])
+        T.device_entry(
+            launch=T.cuda.LaunchConfig(grid=(1,), block=(128,), dynamic_smem_bytes=shared_bytes + 8)
+        )
+        tid = T.cuda.thread_idx('x')
         dyn = T.alloc_tensor((shared_bytes + 8,), "uint8", scope="shared.dyn")
-        T.cuda.dyn_smem_bytes(shared_bytes + 8)
         q_smem = T.decl_tensor(
             (64, 512), "bfloat16", dyn.data, scope="shared.dyn", layout=q_layout
         )
@@ -2005,11 +2001,13 @@ def _build_selector_gather_gpu_kernel(dtype="float16"):
         Out: T.Tensor((4, cols), dtype),
     ):
 
-        T.device_entry()
-        T.cta_id([1])
-        tid = T.thread_id([128])
+        T.device_entry(
+            launch=T.cuda.LaunchConfig(
+                grid=1, block=128, dynamic_smem_bytes=shared_bytes + 64
+            )
+        )
+        tid = T.cuda.thread_idx('x')
         dyn = T.alloc_tensor((shared_bytes + 64,), "uint8", scope="shared.dyn")
-        T.cuda.dyn_smem_bytes(shared_bytes + 64)
         A_smem = T.decl_tensor(
             (4, cols), dtype, dyn.data, layout=T.TileLayout(T.S[4, cols])
         )

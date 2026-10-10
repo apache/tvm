@@ -42,13 +42,9 @@ def _build_kernel(scope, n_threads, shape, dtype):
 
         @T.function
         def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
-            T.device_entry()
-            T.cta_id([1])
-            T.warpgroup_id([n_threads // 128])
-            T.warp_id_in_wg([4])
-            T.lane_id([32])
-            T.thread_id_in_wg([128])
-            copy_thread_id = T.thread_id([n_threads])
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(n_threads,)))
+            _lane = T.cuda.lane_id()
+            copy_thread_id = T.cuda.thread_idx("x")
             A_smem = T.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
             copy_src_6 = T.meta_var(A[full_slices])
             copy_src_tensor_6 = T.meta_var(copy_src_6.source)
@@ -120,10 +116,9 @@ def _build_kernel(scope, n_threads, shape, dtype):
 
         @T.function
         def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
-            T.device_entry()
-            T.cta_id([1])
-            T.lane_id([32])
-            copy_thread_id = T.thread_id([n_threads])
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(n_threads,)))
+            _lane = T.cuda.lane_id()
+            copy_thread_id = T.cuda.thread_idx("x")
             A_smem = T.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
             copy_src_8 = T.meta_var(A[full_slices])
             copy_src_tensor_8 = T.meta_var(copy_src_8.source)
@@ -195,11 +190,9 @@ def _build_kernel(scope, n_threads, shape, dtype):
 
         @T.function
         def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
-            T.device_entry()
-            T.cta_id([1])
-            T.warp_id([n_threads // 32])
-            T.lane_id([32])
-            copy_thread_id = T.thread_id([n_threads])
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(n_threads,)))
+            _lane = T.cuda.lane_id()
+            copy_thread_id = T.cuda.thread_idx("x")
             A_smem = T.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
             copy_src_10 = T.meta_var(A[full_slices])
             copy_src_tensor_10 = T.meta_var(copy_src_10.source)
@@ -396,9 +389,8 @@ def test_copy_g2s_s2g(task, dtype, scope):
     def copy_sync(
         A: T.Tensor(g_shape, dtype, layout=layoutA), B: T.Tensor(g_shape, dtype, layout=layoutB)
     ) -> None:
-        T.device_entry()
-        T.cta_id([2])
-        copy_thread_id = T.thread_id([thread_cnt])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(thread_cnt,)))
+        copy_thread_id = T.cuda.thread_idx("x")
 
         A_smem = T.alloc_tensor(s_shape, dtype, scope="shared", layout=layoutS)
         # `scope` is parametrized at runtime; select the scope namespace
@@ -600,13 +592,9 @@ def test_swizzled_smem_emit_must_be_swizzle_aware():
 
     @T.function
     def kernel(A: T.Tensor(shape, "float16")) -> None:
-        T.device_entry()
-        T.cta_id([1])
-        T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        T.thread_id_in_wg([128])
-        copy_thread_id = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        _lane = T.cuda.lane_id()
+        copy_thread_id = T.cuda.thread_idx("x")
         A_smem = T.alloc_tensor(shape, "float16", scope="shared", layout=s_layout)
         copy_src_3 = T.meta_var(A[0:128, 0:32])
         copy_src_tensor_3 = T.meta_var(copy_src_3.source)

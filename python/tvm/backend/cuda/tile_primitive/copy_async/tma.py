@@ -2096,13 +2096,11 @@ def _prefetch_main_descriptor(tensor_map, key: str, sctx: DispatchContext) -> No
     cache_key = f"prefetch_tensormap:{key}"
     if sctx.cache_get(cache_key) is not None:
         return
-    if "warp_id_in_cta" not in sctx.launch_params:
-        fail("prefetch_tensormap requires warp_id_in_cta launch param")
-    warp_id = sctx.launch_params["warp_id_in_cta"][0]
 
     # fmt: off
     @T.function(check_well_formed=False)
     def prefetch_tensor_map():
+        warp_id = T.cuda.warp_id()
         if warp_id == 0:
             if T.cuda.elect_sync() != T.uint32(0):
                 T.ptx.prefetch.tensormap(T.address_of(tensor_map))

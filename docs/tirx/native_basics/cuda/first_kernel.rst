@@ -31,9 +31,9 @@ with one block of 256 threads.
     @Tx.function
     def scale(A: Tx.Tensor((256,), "float32"), B: Tx.Tensor((256,), "float32")):
 
-        Tx.device_entry()  # everything below runs on the device
-        bx = Tx.cta_id([1])  # 1 block  (blockIdx)
-        tx = Tx.thread_id([256])  # 256 threads per block (threadIdx)
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(256,)))  # everything below runs on the device
+        bx = Tx.cuda.block_idx("x")  # 1 block  (blockIdx)
+        tx = Tx.cuda.thread_idx("x")  # 256 threads per block (threadIdx)
 
         B[tx] = A[tx] * Tx.float32(2.0)
 

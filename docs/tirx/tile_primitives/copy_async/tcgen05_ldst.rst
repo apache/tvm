@@ -76,10 +76,10 @@ fp16):
         A: Tx.Tensor((128, WIDTH), "float16"), B: Tx.Tensor((128, WIDTH), "float16")
     ):
 
-        Tx.device_entry()
-        warp_id = Tx.warp_id([4])
-        wg_id = Tx.warpgroup_id([1])
-        tid = Tx.thread_id([128])
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        warp_id = Tx.cuda.warp_id()
+        wg_id = Tx.cuda.warpgroup_id()
+        tid = Tx.cuda.thread_idx("x")
         tmem_addr = Tx.alloc_shared([1], "uint32")
         if wg_id == 0:
             if warp_id == 0:

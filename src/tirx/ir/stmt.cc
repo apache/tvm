@@ -40,42 +40,6 @@
 namespace tvm {
 namespace tirx {
 namespace {
-TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> ScopeIdDefStmtVisit(
-    ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
-  const ScopeIdDefStmtNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ScopeIdDefStmtNode>(value);
-  // ScopeIdDef reflection marks only def_ids as definitions; its extent fields remain uses.
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->def));
-  return std::nullopt;
-}
-
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> ScopeIdDefStmtMutate(
-    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  const ScopeIdDefStmtNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ScopeIdDefStmtNode>(value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ScopeIdDef>, mapped_def,
-                                    mutator->MutateExpected(self->def));
-  if (mapped_def.UnchangedOrSameAs(self->def)) {
-    return ffi::Unchanged();
-  }
-  ffi::ObjectPtr<ScopeIdDefStmtNode> copy = ffi::make_object<ScopeIdDefStmtNode>(*self);
-  copy->def = std::move(mapped_def).ValueOrUnchanged(std::move(copy->def));
-  return ffi::Any(std::move(copy));
-}
-
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> ScopeIdDefStmtMaybeInplaceMutate(
-    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  ScopeIdDefStmtNode* self = const_cast<ScopeIdDefStmtNode*>(
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ScopeIdDefStmtNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ScopeIdDef>, mapped_def,
-                                    mutator->MutateExpected(self->def, ffi::InplaceMode::kAllow));
-  if (mapped_def.UnchangedOrSameAs(self->def)) {
-    return ffi::Unchanged();
-  }
-  if (!mapped_def.IsUnchanged()) self->def = std::move(mapped_def).ValueUnchecked();
-  return ffi::Unchanged();
-}
-
 TVM_FFI_INLINE int GetLanesOrVScaleFactor(const PrimType& ty) {
   return ty.IsScalableVector() ? ty.VScaleFactor() : ty.lanes();
 }
@@ -142,30 +106,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::TypeAttrDef<TensorTypeNode>()
       .def("__tensor_store_validate__", ValidateTensorStore)
       .def("__evaluate_validate__", ValidateTensorEvaluate);
-}
-
-// ScopeIdDefStmt
-ScopeIdDefStmt::ScopeIdDefStmt(ScopeIdDef def, Span span) : Stmt(ffi::UnsafeInit{}) {
-  TVM_FFI_ICHECK(def.defined());
-  ffi::ObjectPtr<ScopeIdDefStmtNode> node = ffi::make_object<ScopeIdDefStmtNode>();
-  node->def = std::move(def);
-  node->span = std::move(span);
-  data_ = std::move(node);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  ScopeIdDefStmtNode::RegisterReflection();
-  refl::TypeAttrDef<ScopeIdDefStmtNode>()
-      .attr(refl::type_attr::kStructuralVisit,
-            ffi::FStructuralVisit::FromNative<&ScopeIdDefStmtVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
-            ffi::FStructuralMutate::FromNative<&ScopeIdDefStmtMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            ffi::FStructuralMutate::FromNative<&ScopeIdDefStmtMaybeInplaceMutate>());
-
-  refl::GlobalDef().def("tirx.ScopeIdDefStmt",
-                        [](ScopeIdDef def, Span span) { return ScopeIdDefStmt(def, span); });
 }
 
 }  // namespace tirx

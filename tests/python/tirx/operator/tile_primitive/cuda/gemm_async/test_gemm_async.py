@@ -242,11 +242,11 @@ def test_gemm_tcgen05_cta_group_1(task):
         A: T.Tensor(A_shape, A_dtype), B: T.Tensor(B_shape, B_dtype), C: T.Tensor(C_shape, C_dtype)
     ) -> None:
 
-        T.device_entry()
-        warp_id = T.warp_id([(1) * 4])
-        cta_id = T.cta_id([1])
-        wg_id = T.warpgroup_id([1])
-        tid_in_wg = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 4 * 32))
+        warp_id = T.cuda.warp_id()
+        cta_id = T.cuda.block_idx('x')
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
 
         A_smem = T.alloc_tensor(A_shape, A_dtype, scope="shared", layout=A_layout)
         B_smem = T.alloc_tensor(B_shape, B_dtype, scope="shared", layout=B_layout)
@@ -374,12 +374,12 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
         A: T.Tensor(A_shape, A_dtype), B: T.Tensor(B_shape, B_dtype), C: T.Tensor(C_shape, C_dtype)
     ) -> None:
 
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        cta_id = T.cta_id([1])
-        wg_id = T.warpgroup_id([1])
-        tid_in_wg = T.thread_id_in_wg([128])
-        lane_id = T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=4 * 32))
+        warp_id = T.cuda.warp_id()
+        cta_id = T.cuda.block_idx('x')
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
+        lane_id = T.cuda.lane_id()
 
         A_smem = T.alloc_tensor(A_shape, A_dtype, scope="shared", layout=A_layout)
         B_smem = T.alloc_tensor(B_shape, B_dtype, scope="shared", layout=B_layout)
@@ -529,12 +529,12 @@ def test_gemm_tcgen05_cta_group_2(task):
         A: T.Tensor(A_shape, A_dtype), B: T.Tensor(B_shape, B_dtype), C: T.Tensor(C_shape, C_dtype)
     ) -> None:
 
-        T.device_entry()
-        warp_id = T.warp_id([(1) * 4])
-        cbx, cby = T.cta_id_in_cluster([2, 1])
-        cta_id = T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        tid_in_wg = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=1 * 4 * 32, cluster=(2, 1)))
+        warp_id = T.cuda.warp_id()
+        cbx, cby = (T.cuda.cluster_cta_id('x'), T.cuda.cluster_cta_id('y'))
+        cta_id = T.cuda.block_idx('x')
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
 
         A_smem = T.alloc_tensor(A_shape_per_cta, A_dtype, scope="shared", layout=A_layout)
         B_smem = T.alloc_tensor(B_shape_per_cta, B_dtype, scope="shared", layout=B_layout)
@@ -702,12 +702,12 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
         C: T.Tensor(C_shape, C_dtype),
     ) -> None:
 
-        T.device_entry()
-        warp_id = T.warp_id([(1) * 4])
-        cbx, cby = T.cta_id_in_cluster([2, 1])
-        cta_id = T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        tid_in_wg = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=1 * 4 * 32, cluster=(2, 1)))
+        warp_id = T.cuda.warp_id()
+        cbx, cby = (T.cuda.cluster_cta_id('x'), T.cuda.cluster_cta_id('y'))
+        cta_id = T.cuda.block_idx('x')
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
 
         A_smem = T.alloc_tensor(A_shape, A_dtype, scope="shared", layout=A_layout)
         B_smem = T.alloc_tensor(B_shape, B_dtype, scope="shared", layout=B_layout)
@@ -863,12 +863,11 @@ def test_gemm_tcgen05_cta_group_2_datapath_b_readback():
         C: T.Tensor(c_shape, c_dtype),
     ) -> None:
 
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        cbx, cby = T.cta_id_in_cluster([2, 1])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        tid = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=4 * 32, cluster=(2, 1)))
+        warp_id = T.cuda.warp_id()
+        cbx, cby = (T.cuda.cluster_cta_id('x'), T.cuda.cluster_cta_id('y'))
+        wg_id = T.cuda.warpgroup_id()
+        tid = T.cuda.thread_in_warpgroup()
 
         A_smem = T.alloc_tensor(a_shape, a_dtype, scope="shared", layout=a_layout)
         B_smem = T.alloc_tensor(b_shape, b_dtype, scope="shared", layout=b_layout)
@@ -1039,11 +1038,11 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
     @T.function
     def gemm_async_fn(A: T.Tensor(A_shape, A_dtype), B: T.Tensor(B_shape, B_dtype), C: T.Tensor(C_shape, C_dtype), SFA_in: T.Tensor((128,), 'uint32'), SFB_in: T.Tensor((128,), 'uint32')) -> None:  # noqa: E501
 
-        T.device_entry()
-        warp_id = T.warp_id([(1) * 4])
-        cta_id = T.cta_id([1])
-        wg_id = T.warpgroup_id([1])
-        tid_in_wg = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 4 * 32))
+        warp_id = T.cuda.warp_id()
+        cta_id = T.cuda.block_idx('x')
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
 
         A_smem = T.alloc_tensor(A_shape, A_dtype, scope="shared", layout=A_layout)
         B_smem = T.alloc_tensor(B_shape, B_dtype, scope="shared", layout=B_layout)
@@ -1261,12 +1260,12 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
     @T.function
     def gemm_async_fn(A: T.Tensor(A_shape, A_dtype), B: T.Tensor(B_shape, B_dtype), C: T.Tensor(C_shape, C_dtype), SFA_in: T.Tensor((M_total,), 'uint32'), SFB_in: T.Tensor((128,), 'uint32')) -> None:  # noqa: E501
 
-        T.device_entry()
-        warp_id = T.warp_id([(1) * 4])
-        cbx, cby = T.cta_id_in_cluster([2, 1])
-        cta_id = T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        tid_in_wg = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=1 * 4 * 32, cluster=(2, 1)))
+        warp_id = T.cuda.warp_id()
+        cbx, cby = (T.cuda.cluster_cta_id('x'), T.cuda.cluster_cta_id('y'))
+        cta_id = T.cuda.block_idx('x')
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
 
         A_smem = T.alloc_tensor(A_shape_per_cta, A_dtype, scope="shared", layout=A_layout)
         B_smem = T.alloc_tensor(B_shape_per_cta, B_dtype, scope="shared", layout=B_layout)
@@ -1481,11 +1480,11 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
     @T.function
     def gemm_async_fn(A_packed: T.Tensor(A_packed_shape, 'uint8'), B_packed: T.Tensor(B_packed_shape, 'uint8'), C: T.Tensor(C_shape, C_dtype), SFA_in: T.Tensor((128,), 'uint32'), SFB_in: T.Tensor((128,), 'uint32')) -> None:  # noqa: E501
 
-        T.device_entry()
-        warp_id = T.warp_id([(1) * 4])
-        cta_id = T.cta_id([1])
-        wg_id = T.warpgroup_id([1])
-        tid_in_wg = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 4 * 32))
+        warp_id = T.cuda.warp_id()
+        cta_id = T.cuda.block_idx('x')
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
 
         A_smem_packed = T.alloc_tensor(A_packed_shape, "uint8", scope="shared", layout=A_uint8_layout)  # noqa: E501
         B_smem_packed = T.alloc_tensor(B_packed_shape, "uint8", scope="shared", layout=B_uint8_layout)  # noqa: E501
@@ -1683,12 +1682,12 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
     @T.function
     def gemm_async_fn(A_packed: T.Tensor(A_packed_shape, 'uint8'), B_packed: T.Tensor(B_packed_shape, 'uint8'), C: T.Tensor(C_shape, C_dtype), SFA_in: T.Tensor((M_total,), 'uint32'), SFB_in: T.Tensor((128,), 'uint32')) -> None:  # noqa: E501
 
-        T.device_entry()
-        warp_id = T.warp_id([(1) * 4])
-        cbx, cby = T.cta_id_in_cluster([2, 1])
-        cta_id = T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        tid_in_wg = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=1 * 4 * 32, cluster=(2, 1)))
+        warp_id = T.cuda.warp_id()
+        cbx, cby = (T.cuda.cluster_cta_id('x'), T.cuda.cluster_cta_id('y'))
+        cta_id = T.cuda.block_idx('x')
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
 
         A_smem_packed = T.alloc_tensor(A_packed_per_cta, "uint8", scope="shared", layout=A_uint8_layout)  # noqa: E501
         B_smem_packed = T.alloc_tensor(B_packed_per_cta, "uint8", scope="shared", layout=B_uint8_layout)  # noqa: E501
@@ -1914,11 +1913,11 @@ def test_gemm_block_scaled_fp8_sf_id():
     @T.function
     def gemm_async_fn(A: T.Tensor(A_shape, A_dtype), B: T.Tensor(B_shape, B_dtype), C: T.Tensor(C_shape, C_dtype), SFA_in: T.Tensor((128,), 'uint32'), SFB_in: T.Tensor((128,), 'uint32')) -> None:  # noqa: E501
 
-        T.device_entry()
-        warp_id = T.warp_id([(1) * 4])
-        cta_id = T.cta_id([1])
-        wg_id = T.warpgroup_id([1])
-        tid_in_wg = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 4 * 32))
+        warp_id = T.cuda.warp_id()
+        cta_id = T.cuda.block_idx('x')
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
 
         A_smem = T.alloc_tensor(A_shape, A_dtype, scope="shared", layout=A_layout)
         B_smem = T.alloc_tensor(B_shape, B_dtype, scope="shared", layout=B_layout)
@@ -2288,11 +2287,11 @@ def test_gemm_tcgen05_arbitrary_tiles(task):
         C: T.Tensor(C_shape, C_dtype),
     ) -> None:
 
-        T.device_entry()
-        warp_id = T.warp_id([(1) * 4])
-        cta_id = T.cta_id([1])
-        wg_id = T.warpgroup_id([1])
-        tid_in_wg = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 4 * 32))
+        warp_id = T.cuda.warp_id()
+        cta_id = T.cuda.block_idx('x')
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
 
         A_smem = T.alloc_tensor(A_shape, A_dtype, scope="shared", layout=A_layout, align=1024)
         B_smem = T.alloc_tensor(B_shape, B_dtype, scope="shared", layout=B_layout, align=1024)
@@ -2433,10 +2432,9 @@ def test_gemm_tcgen05_no_swizzle_smem_descriptor_codegen(a_layout_kind):
     def gemm_async_no_swizzle(
         A: T.Tensor((M, K), dtype, layout=A_layout), B: T.Tensor((K, B_N), dtype, layout=B_layout)
     ) -> None:
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        T.thread_id([128])
-        tid_in_wg = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(128,)))
+        warp_id = T.cuda.warp_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
         A_smem = T.alloc_tensor((M, K), dtype, scope="shared", layout=A_layout)
         B_smem = T.alloc_tensor((K, B_N), dtype, scope="shared", layout=B_layout)
         tmem_addr = T.alloc_shared([1], "uint32")
@@ -2484,10 +2482,9 @@ def test_gemm_tcgen05_cta_group_2_accepts_replicated_tmem_a_codegen():
 
     @T.function
     def gemm_async_replicated_a() -> None:
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        T.thread_id([128])
-        tid_in_wg = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(128,)))
+        warp_id = T.cuda.warp_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
         B_smem = T.alloc_tensor((N_half, K), dtype, scope="shared", layout=B_layout)
         tmem_addr = T.alloc_shared([1], "uint32")
         if warp_id == 0:
@@ -2533,10 +2530,9 @@ def test_gemm_tcgen05_cta_group_2_rejects_flat_tmem_a_codegen():
 
     @T.function
     def gemm_async_flat_a() -> None:
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        T.thread_id([128])
-        tid_in_wg = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(128,)))
+        warp_id = T.cuda.warp_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
         B_smem = T.alloc_tensor((N_half, K), dtype, scope="shared", layout=B_layout)
         tmem_addr = T.alloc_shared([1], "uint32")
         if warp_id == 0:
@@ -2599,10 +2595,10 @@ def test_gemm_tcgen05_no_swizzle_col_major_a_ws_local_idesc():
         C: T.Tensor((128, N // 2), "float32"),
     ) -> None:
 
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        wg_id = T.warpgroup_id([1])
-        tid_in_wg = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=4 * 32))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
         A_smem = T.alloc_tensor((M, K), dtype, scope="shared", layout=A_layout)
         B_smem = T.alloc_tensor((K, N), dtype, scope="shared", layout=B_layout)
         tmem_addr = T.alloc_shared([1], "uint32")
@@ -2733,10 +2729,10 @@ def test_gemm_tcgen05_contiguous_kslice_partial_k(k_lo, k_hi):
         A: T.Tensor(A_shape, dtype), B: T.Tensor(B_shape, dtype), C: T.Tensor(C_shape, "float32")
     ) -> None:
 
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        wg_id = T.warpgroup_id([1])
-        tid_in_wg = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=4 * 32))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
         A_smem = T.alloc_tensor(A_shape, dtype, scope="shared", layout=A_layout)
         B_smem = T.alloc_tensor(B_shape, dtype, scope="shared", layout=B_layout)
         tmem_addr = T.alloc_shared([1], "uint32")
@@ -2840,11 +2836,10 @@ def _run_dense_gemm(
     def gemm_async(
         A: T.Tensor(A_shape, A_dtype), B: T.Tensor(B_shape, B_dtype), C: T.Tensor(C_shape, C_dtype)
     ) -> None:
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        T.cta_id([1])
-        wg_id = T.warpgroup_id([1])
-        tid_in_wg = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=4 * 32))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
         A_smem = T.alloc_tensor(A_shape, A_dtype, scope="shared", layout=A_layout)
         B_smem = T.alloc_tensor(B_shape, B_dtype, scope="shared", layout=B_layout)
         tmem_addr = T.alloc_shared([1], "uint32")
@@ -2971,11 +2966,10 @@ def _run_dense_gemm(
     def gemm_async(
         A: T.Tensor(A_shape, A_dtype), B: T.Tensor(B_shape, B_dtype), C: T.Tensor(C_shape, C_dtype)
     ) -> None:
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        T.cta_id([1])
-        wg_id = T.warpgroup_id([1])
-        tid_in_wg = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=4 * 32))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
         A_smem = T.alloc_tensor(A_shape, A_dtype, scope="shared", layout=A_layout)
         B_smem = T.alloc_tensor(B_shape, B_dtype, scope="shared", layout=B_layout)
         tmem_addr = T.alloc_shared([1], "uint32")
@@ -3075,11 +3069,11 @@ def _build_smem_desc_kernel(smem_desc, weight_stationary=False, pass_descI=False
         A: T.Tensor(A_shape, A_dtype), B: T.Tensor(B_shape, B_dtype), C: T.Tensor(C_shape, C_dtype)
     ) -> None:
 
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        cta_id = T.cta_id([1])
-        wg_id = T.warpgroup_id([1])
-        tid_in_wg = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=4 * 32))
+        warp_id = T.cuda.warp_id()
+        cta_id = T.cuda.block_idx('x')
+        wg_id = T.cuda.warpgroup_id()
+        tid_in_wg = T.cuda.thread_in_warpgroup()
         A_smem = T.alloc_tensor(A_shape, A_dtype, scope="shared", layout=A_layout)
         B_smem = T.alloc_tensor(B_shape, B_dtype, scope="shared", layout=B_layout)
         tmem_addr = T.alloc_shared([1], "uint32")
@@ -3186,11 +3180,11 @@ def _build_explicit_cta2_dense_kernel(M_per_cta, mma_m):
     # fmt: off
     @T.function
     def kernel() -> None:
-        T.device_entry()
-        cta_id = T.cta_id([2])
-        cbx, cby = T.cta_id_in_cluster([2, 1])
-        thread_id = T.thread_id([128])
-        tid = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,), cluster=(2, 1)))
+        cta_id = T.cuda.block_idx('x')
+        cbx, cby = (T.cuda.cluster_cta_id('x'), T.cuda.cluster_cta_id('y'))
+        thread_id = T.cuda.thread_idx('x')
+        tid = T.cuda.thread_in_warpgroup()
         A_smem = T.alloc_tensor(A_shape, "float16", scope="shared", layout=A_layout)
         B_smem = T.alloc_tensor(B_shape, "float16", scope="shared", layout=B_layout)
         C_tmem = T.cuda.decl_tmem(0, ty_args=[T.Tensor((M_per_cta, N), "float32", scope="tmem", layout=C_layout)])  # noqa: E501
@@ -3214,11 +3208,11 @@ def _build_explicit_block_scaled_split_n_kernel():
     # fmt: off
     @T.function
     def kernel() -> None:
-        T.device_entry()
-        cta_id = T.cta_id([2])
-        cbx, cby = T.cta_id_in_cluster([2, 1])
-        thread_id = T.thread_id([128])
-        tid = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,), cluster=(2, 1)))
+        cta_id = T.cuda.block_idx('x')
+        cbx, cby = (T.cuda.cluster_cta_id('x'), T.cuda.cluster_cta_id('y'))
+        thread_id = T.cuda.thread_idx('x')
+        tid = T.cuda.thread_in_warpgroup()
         A_smem = T.alloc_tensor(A_shape, "float8_e4m3fn", scope="shared", layout=A_layout)
         B_smem = T.alloc_tensor(B_shape, "float8_e4m3fn", scope="shared", layout=B_layout)
         C_tmem = T.cuda.decl_tmem(
@@ -3434,10 +3428,10 @@ def _build_cta1_m64_packed_c_kernel(weight_stationary=None, mma_config=None):
 
     @T.function
     def gemm_packed_c(B: T.Tensor((N, K), B_dtype)) -> None:
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        copy_thread_id = T.thread_id([128])
-        tid = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(128,)))
+        warp_id = T.cuda.warp_id()
+        copy_thread_id = T.cuda.thread_idx("x")
+        tid = T.cuda.thread_in_warpgroup()
         B_smem = T.alloc_tensor((N, K), B_dtype, scope="shared", layout=B_layout)
         tmem_addr = T.alloc_shared([1], "uint32")
         if warp_id == 0:
@@ -3550,10 +3544,10 @@ def _build_cta1_m64_batched_c_kernel():
 
     @T.function
     def gemm_batched_c(B: T.Tensor((N, K), B_dtype)) -> None:
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        copy_thread_id = T.thread_id([128])
-        tid = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(128,)))
+        warp_id = T.cuda.warp_id()
+        copy_thread_id = T.cuda.thread_idx("x")
+        tid = T.cuda.thread_in_warpgroup()
         B_smem = T.alloc_tensor((N, K), B_dtype, scope="shared", layout=B_layout)
         tmem_addr = T.alloc_shared([1], "uint32")
         if warp_id == 0:
@@ -3626,10 +3620,10 @@ def _build_cta1_m64_identity_c_ws_kernel():
 
     @T.function
     def gemm_identity_c(B: T.Tensor((N, K), B_dtype)) -> None:
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        copy_thread_id = T.thread_id([128])
-        tid = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(128,)))
+        warp_id = T.cuda.warp_id()
+        copy_thread_id = T.cuda.thread_idx("x")
+        tid = T.cuda.thread_in_warpgroup()
         B_smem = T.alloc_tensor((N, K), B_dtype, scope="shared", layout=B_layout)
         tmem_addr = T.alloc_shared([1], "uint32")
         if warp_id == 0:
@@ -3727,10 +3721,10 @@ def _build_cta1_m64_flat_a_ws_kernel():
 
     @T.function
     def gemm_flat_a(B: T.Tensor((N, K), B_dtype)) -> None:
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        copy_thread_id = T.thread_id([128])
-        tid = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(128,)))
+        warp_id = T.cuda.warp_id()
+        copy_thread_id = T.cuda.thread_idx("x")
+        tid = T.cuda.thread_in_warpgroup()
         B_smem = T.alloc_tensor((N, K), B_dtype, scope="shared", layout=B_layout)
         tmem_addr = T.alloc_shared([1], "uint32")
         if warp_id == 0:
@@ -3820,10 +3814,10 @@ def _build_m128_batched_a_kernel():
 
     @T.function
     def gemm_m128_batched_a(B: T.Tensor((N, K), B_dtype)) -> None:
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        copy_thread_id = T.thread_id([128])
-        tid = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(128,)))
+        warp_id = T.cuda.warp_id()
+        copy_thread_id = T.cuda.thread_idx("x")
+        tid = T.cuda.thread_in_warpgroup()
         B_smem = T.alloc_tensor((N, K), B_dtype, scope="shared", layout=B_layout)
         tmem_addr = T.alloc_shared([1], "uint32")
         if warp_id == 0:

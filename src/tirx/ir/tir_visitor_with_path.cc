@@ -233,24 +233,6 @@ void TIRVisitorWithPath::Dispatch_(const EvaluateNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
 }
 
-void TIRVisitorWithPath::Dispatch_(const ScopeIdDefStmtNode* op, AccessPath path) {
-  // Flat stmt -- no body. Visit extents and preferred_extents (if present),
-  // then push the bound Var(s) into the current scope so subsequent siblings
-  // see them as defined.
-  auto def_path = path->Attr("def");
-  if (op->def->extents.has_value()) {
-    Visit(op->def->extents.value(), def_path->Attr("extents"));
-  }
-  if (op->def->preferred_extents.has_value()) {
-    Visit(op->def->preferred_extents.value(), def_path->Attr("preferred_extents"));
-  }
-  auto def_ids_path = def_path->Attr("def_ids");
-  for (size_t i = 0; i < op->def->def_ids.size(); ++i) {
-    bind_scope_.Current().push_back(
-        WithDef(static_cast<Var>(op->def->def_ids[i]), def_ids_path->ArrayItem(i)));
-  }
-}
-
 void TIRVisitorWithPath::Dispatch_(const VarNode* op, AccessPath path) {}
 
 void TIRVisitorWithPath::Dispatch_(const TensorLoadNode* op, AccessPath path) {

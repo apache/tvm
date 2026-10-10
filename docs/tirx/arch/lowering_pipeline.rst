@@ -21,7 +21,7 @@ TIRx lowering pipeline
 ``tvm.compile(mod, target, tir_pipeline="tirx")`` runs an authored TIRx module
 through the **tirx pipeline** — an ordered sequence of IR passes that turns the
 high-level constructs you write (tile primitives, ``TileLayout``-typed buffers,
-execution-scope ids) into split **host** + **device** functions, which the CUDA
+CUDA index calls) into split **host** + **device** functions, which the CUDA
 backend then renders to source. The pipeline is defined in
 ``python/tvm/tirx/compilation_pipeline.py`` (``tirx_pipeline``); this page walks the
 passes in order.
@@ -98,7 +98,7 @@ The ``tirx_pipeline`` module pass applies this exact sequence (a few are gated b
      - ``SplitHostDevice``
      - extracts target-annotated device regions into **device** functions and
        leaves launch calls in the **host** function; the regions originate from
-       the thread extents produced while lowering ``Tx.device_entry`` and scope ids
+       the explicit ``LaunchConfig`` attached to ``Tx.device_entry``
    * - 15
      - ``LowerIket``
      - lowers CUDA IKET instrumentation after host/device splitting
@@ -130,17 +130,16 @@ Inside LowerTIRx
 
 - **``TileDispatch``** replaces every tensor ``Evaluate(Call)`` with the body emitted by its
   instruction lowerer, including delayed mathematical composites as described in
-  :doc:`tile_dispatch`.  In the same pass it removes the ``device_entry``
-  marker, resolves standalone scope-id definitions to ``Bind`` statements,
-  and wraps the device body in the corresponding thread-extent attributes.
+  :doc:`tile_dispatch`. In the same pass it converts ``device_entry`` to a
+  ``device_scope`` region retaining launch values as operands, and lowers the
+  finite CUDA index calls inside ordinary ``Bind`` statements.
 - **``LowerTIRxCleanup``** then runs the ``LayoutApplier``: it resolves every
   ``TileLayout``-typed buffer access into concrete physical address arithmetic
   (``addr = data + elem_offset + layout.apply(coord)``), flattens the buffers,
   and removes buffer offsets that have been folded into the resulting views.
 
 After ``LowerTIRx`` the module remains a ``tvm.tirx.Function``, but contains no
-tile primitives or ``TileLayout`` indirection, and scope ids have been resolved
-to thread axes.  Later TIRx passes lower the remaining opaque constructs and
+tile primitives or ``TileLayout`` indirection, and CUDA indices read hardware coordinates.  Later TIRx passes lower the remaining opaque constructs and
 the target code generators consume ``tirx::Function`` directly; there is no
 conversion to the separate ``tvm.tir`` object model.
 
@@ -154,21 +153,23 @@ Take a one-line scale kernel:
     @Tx.function
     def scale(A: Tx.Tensor((256,), "float32"), B: Tx.Tensor((256,), "float32")):
 
-        Tx.device_entry()
-        bx = Tx.cta_id([1])
-        tx = Tx.thread_id([256])
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(256,)))
+        bx = Tx.cuda.block_idx("x")
+        tx = Tx.cuda.thread_idx("x")
         B[tx] = A[tx] * Tx.float32(2.0)
 
-**After ``LowerTIRx``** the scope ids are real thread axes and the layout is applied
-(``A_1`` / ``B_1`` are the flattened 1-D views):
+**After ``LowerTIRx``** the layout is applied and the device region retains its
+launch configuration independently of the index bindings:
 
 .. code-block:: python
 
-    with Tx.launch_thread("blockIdx.x", 1) as blockIdx_x:
-        threadIdx_x = Tx.launch_thread("threadIdx.x", 256)
-        bx: Tx.let = blockIdx_x
-        tx: Tx.let = threadIdx_x
-        B_1[threadIdx_x] = A_1[threadIdx_x] * Tx.float32(2.0)
+    with Tx.region("tirx.device_scope", [1, 1, 1, 256, 1, 1], attrs={
+        "cuda.launch_fields": ["grid.x", "grid.y", "grid.z", "block.x", "block.y", "block.z"],
+        "cuda.kernel_attrs": {},
+    }):
+        bx: Tx.let = 0
+        tx: Tx.let = Tx.cuda.thread_idx("x")
+        B_1[tx] = A_1[tx] * Tx.float32(2.0)
 
 **After ``SplitHostDevice`` and the later ``MakePackedAPI`` pass** the one function
 has become two —

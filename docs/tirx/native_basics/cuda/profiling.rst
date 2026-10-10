@@ -73,9 +73,9 @@ are a plain ``enum.Enum`` whose integer values start at 0 and index a names list
         prof: Tx.Tensor((PROF_SIZE,), "uint64"),
     ):
 
-        Tx.device_entry()
-        bid = Tx.cta_id([NUM_BLOCKS])
-        tid = Tx.thread_id([BLOCK])
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(NUM_BLOCKS,), block=(BLOCK,)))
+        bid = Tx.cuda.block_idx("x")
+        tid = Tx.cuda.thread_idx("x")
         idx = bid * BLOCK + tid
 
         # Construct the profiler inside the kernel; only the leader thread writes.

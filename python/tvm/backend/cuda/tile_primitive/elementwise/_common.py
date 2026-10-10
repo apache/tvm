@@ -38,7 +38,7 @@ from tvm.tirx.layout import Axis, Iter, TileLayout
 
 from ..common import get_indices, get_st_extent
 
-# Re-use copy's primitives (PR-640) — same algorithm, same scope_id machinery.
+# Re-use copy's primitives (PR-640) — same algorithm and CUDA index calls.
 from ..copy._common import _TID_AXIS_FOR_SCOPE, _extract_tile, _thread_cnt
 from ..copy.vec_auto_reg import _all_threads_active, _axis_decl, _compute_perm_r
 

@@ -70,9 +70,8 @@ def test_smem_descriptor_matches_runtime_encoder(ldo, sdo, swizzle):
 
     @T.function
     def kernel(out: T.Tensor((2,), "uint64")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         smem = T.alloc_tensor((64,), "uint32", scope="shared")
         smem[tx] = T.uint32(0)
         smem[tx + 32] = T.uint32(0)
@@ -113,9 +112,8 @@ def test_instr_descriptor_block_scaled_matches_runtime_encoder(
 ):
     @T.function
     def kernel(out: T.Tensor((1,), "uint64")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         if tx == 0:
             desc = T.local_scalar("uint32")
             T.cuda.tcgen05.encode_instr_descriptor_block_scaled(

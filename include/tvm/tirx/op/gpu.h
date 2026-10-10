@@ -47,7 +47,7 @@ TVM_DLL PrimExpr gpu_thread_return(Span span = Span());
  * \brief Mark an opaque predicate that selects one thread on an active-set axis.
  *
  * Arguments, in order:
- * - args[0]: var, The ScopeIdDef-declared thread-axis variable.
+ * - args[0]: var, The CUDA-index-bound thread-axis variable.
  * - args[1]: pred, The runtime predicate used as an If condition.
  * Canonical thread predicates can be used directly without this wrapper.
  */

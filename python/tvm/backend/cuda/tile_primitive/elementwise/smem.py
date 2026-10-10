@@ -146,9 +146,10 @@ def emit_smem(op_call: TensorCall, spec, sctx: DispatchContext) -> Function:
     thread_cnt = int(thread_cnt)
     if thread_cnt <= 0:
         fail(f"non-positive thread_cnt {thread_cnt}")
-    assert "threadIdx.y" not in sctx.launch_params and "threadIdx.z" not in sctx.launch_params, (
-        "smem emit currently assumes 1D threadIdx"
-    )
+    assert all(
+        axis not in sctx.launch_params or int(sctx.launch_params[axis][1]) == 1
+        for axis in ("threadIdx.y", "threadIdx.z")
+    ), "smem emit currently assumes 1D threadIdx"
 
     total = n_elements(plan.dst)
     vec_max = _max_layout_vec(plan, total, thread_cnt)

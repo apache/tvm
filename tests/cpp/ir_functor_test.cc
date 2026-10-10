@@ -628,14 +628,12 @@ TEST(IRF, StructuralMapPreservesSeqStmtElementUniqueness) {
   }
 }
 
-TEST(IRF, StructuralHooksPreserveScopeIdDefRegions) {
+TEST(IRF, StructuralHooksPreserveIndexBindRegions) {
   using namespace tvm;
   using namespace tvm::tirx;
 
   auto make_input = []() -> Stmt {
-    return ScopeIdDefStmt(ScopeIdDef({PrimVar("binder")}, ffi::Array<PrimExpr>{PrimVar("extent")},
-                                     ScopeBinding::kCtaThread,
-                                     ffi::Array<PrimExpr>{PrimVar("preferred")}));
+    return Bind(PrimVar("binder"), PrimVar("extent") + PrimVar("preferred"));
   };
   auto check_kinds = [](int binder, int extent, int preferred) {
     EXPECT_EQ(binder, kTVMFFIDefRegionKindSimple);

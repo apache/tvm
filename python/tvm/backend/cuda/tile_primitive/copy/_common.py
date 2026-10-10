@@ -53,7 +53,7 @@ def _alignment_ok(vec_len: int, terms) -> bool:
     return True
 
 
-# scope_kind → name of the scope_id that decomposes the scope into per-thread.
+# scope_kind → CUDA index call that decomposes the scope into individual threads.
 _TID_AXIS_FOR_SCOPE = {
     "warp": "laneid",
     "warpgroup": "tid_in_wg",

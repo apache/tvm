@@ -90,10 +90,10 @@ contiguous elements). From ``test_reg.py``:
     @Tx.function
     def kernel(B: Tx.Tensor(shape, dtype)):
 
-        Tx.device_entry()
-        Tx.cta_id([1])
-        Tx.lane_id([32])
-        tid = Tx.thread_id([32])
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        _index = Tx.cuda.block_idx("x")
+        _lane = Tx.cuda.lane_id()
+        tid = Tx.cuda.thread_idx("x")
         A_smem = Tx.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
         for kk in range(8):
             A_smem[tid, kk] = Tx.cast(tid * 100 + kk + 1, dtype)
@@ -121,7 +121,7 @@ which thread owns which element — and never appear in a single thread's physic
 address). For ``8`` contiguous ``float32`` that is ``vec = 4``, so ``outer = 2``.
 
 **3. Per-thread base offset + serial loop.** The shared-side base offset is built
-from thread-axis placeholders (substituted with the real ``Tx.lane_id()`` etc.),
+from thread-axis placeholders (substituted with the real ``Tx.cuda.lane_id()`` etc.),
 and the register side is a flat per-thread ``local`` buffer. The emit is a serial
 loop to limit generated code size:
 

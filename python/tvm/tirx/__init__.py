@@ -43,7 +43,6 @@ from .expr import CallEffectKind, Let
 
 
 from .stmt import BufferRegion
-from .stmt import ScopeIdDefStmt
 from .tile_dispatch import DispatchContext
 
 from .function import Function, IndexMap, renew_def
@@ -82,7 +81,7 @@ from .op import gpu_dp4a
 from .op import ignore_loop_partition
 
 # TIRX-specific imports (must come before subpackage imports to avoid circular imports)
-from .exec_scope import ExecScope, ScopeIdDef
+from .exec_scope import ExecScope
 from .layout import TileLayout, Layout, ComposeLayout
 from . import transform
 from . import analysis

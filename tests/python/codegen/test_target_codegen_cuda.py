@@ -213,8 +213,8 @@ def test_cuda_host_bundle_tensor_map_parameter(tmp_path, monkeypatch):
 
     @T.function
     def main(A_map: T.TensorMap()):
-        T.device_entry()
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
+        tx = T.cuda.thread_idx("x")
         if tx == 0:
             T.evaluate(T.address_of(A_map))
 

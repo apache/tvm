@@ -69,6 +69,8 @@ class FunctionInfoObj : public ffi::Object {
   ffi::Array<DLDataType> arg_types;
   ffi::Array<ffi::String> launch_param_tags;
   ffi::Array<ArgExtraTags> arg_extra_tags;
+  ffi::Array<ffi::String> cuda_launch_fields;
+  ffi::Map<ffi::String, int64_t> cuda_kernel_attrs;
 
   ffi::json::Value SaveToJSON() const {
     namespace json = ::tvm::ffi::json;
@@ -89,11 +91,23 @@ class FunctionInfoObj : public ffi::Object {
       iarg_extra_tags.push_back(static_cast<int64_t>(t));
     }
     obj.Set("arg_extra_tags", std::move(iarg_extra_tags));
+    if (!cuda_launch_fields.empty()) {
+      json::Array fields;
+      for (const auto& field : cuda_launch_fields) fields.push_back(field);
+      obj.Set("cuda_launch_fields", std::move(fields));
+    }
+    if (!cuda_kernel_attrs.empty()) {
+      json::Object kernel_attrs;
+      for (const auto& [key, value] : cuda_kernel_attrs) kernel_attrs.Set(key, value);
+      obj.Set("cuda_kernel_attrs", std::move(kernel_attrs));
+    }
     return obj;
   }
 
   void LoadFromJSON(ffi::json::Object src) {
     namespace json = ::tvm::ffi::json;
+    cuda_launch_fields = {};
+    cuda_kernel_attrs = {};
     name = src.at("name").cast<ffi::String>();
     auto sarg_types_arr = src.at("arg_types").cast<json::Array>();
     arg_types = ffi::Array<DLDataType>();
@@ -122,6 +136,14 @@ class FunctionInfoObj : public ffi::Object {
         arg_extra_tags.push_back(static_cast<ArgExtraTags>(earr[i].cast<int64_t>()));
       }
     }
+    if (auto it = src.find("cuda_launch_fields"); it != src.end()) {
+      for (const auto& field : (*it).second.cast<json::Array>())
+        cuda_launch_fields.push_back(field.cast<ffi::String>());
+    }
+    if (auto it = src.find("cuda_kernel_attrs"); it != src.end()) {
+      for (const auto& [key, value] : (*it).second.cast<json::Object>())
+        cuda_kernel_attrs.Set(key.cast<ffi::String>(), value.cast<int64_t>());
+    }
   }
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.FunctionInfo", FunctionInfoObj, ffi::Object);
@@ -130,12 +152,16 @@ class FunctionInfoObj : public ffi::Object {
 class FunctionInfo : public ffi::ObjectRef {
  public:
   FunctionInfo(ffi::String name, ffi::Array<DLDataType> arg_types,
-               ffi::Array<ffi::String> launch_param_tags, ffi::Array<ArgExtraTags> arg_extra_tags) {
+               ffi::Array<ffi::String> launch_param_tags, ffi::Array<ArgExtraTags> arg_extra_tags,
+               ffi::Array<ffi::String> cuda_launch_fields = {},
+               ffi::Map<ffi::String, int64_t> cuda_kernel_attrs = {}) {
     auto n = ffi::make_object<FunctionInfoObj>();
     n->name = std::move(name);
     n->arg_types = std::move(arg_types);
     n->launch_param_tags = std::move(launch_param_tags);
     n->arg_extra_tags = std::move(arg_extra_tags);
+    n->cuda_launch_fields = std::move(cuda_launch_fields);
+    n->cuda_kernel_attrs = std::move(cuda_kernel_attrs);
     data_ = std::move(n);
   }
 
@@ -152,19 +178,29 @@ struct Serializer<runtime::FunctionInfo> {
   static constexpr bool enabled = true;
 
   static void Write(Stream* strm, const runtime::FunctionInfo& info) {
+    Serializer<ffi::String>::Write(strm, "__tvm_function_info_v2__");
     Serializer<ffi::String>::Write(strm, info->name);
     Serializer<ffi::Array<DLDataType>>::Write(strm, info->arg_types);
     Serializer<ffi::Array<ffi::String>>::Write(strm, info->launch_param_tags);
     Serializer<ffi::Array<runtime::ArgExtraTags>>::Write(strm, info->arg_extra_tags);
+    Serializer<ffi::Array<ffi::String>>::Write(strm, info->cuda_launch_fields);
+    Serializer<ffi::Map<ffi::String, int64_t>>::Write(strm, info->cuda_kernel_attrs);
   }
 
   static bool Read(Stream* strm, runtime::FunctionInfo* info) {
     auto n = ffi::make_object<runtime::FunctionInfoObj>();
     if (!Serializer<ffi::String>::Read(strm, &(n->name))) return false;
+    bool version2 = n->name == "__tvm_function_info_v2__";
+    if (version2 && !Serializer<ffi::String>::Read(strm, &(n->name))) return false;
     if (!Serializer<ffi::Array<DLDataType>>::Read(strm, &(n->arg_types))) return false;
     if (!Serializer<ffi::Array<ffi::String>>::Read(strm, &(n->launch_param_tags))) return false;
     if (!Serializer<ffi::Array<runtime::ArgExtraTags>>::Read(strm, &(n->arg_extra_tags)))
       return false;
+    if (version2) {
+      if (!Serializer<ffi::Array<ffi::String>>::Read(strm, &(n->cuda_launch_fields))) return false;
+      if (!Serializer<ffi::Map<ffi::String, int64_t>>::Read(strm, &(n->cuda_kernel_attrs)))
+        return false;
+    }
     *info = runtime::FunctionInfo(std::move(n));
     return true;
   }

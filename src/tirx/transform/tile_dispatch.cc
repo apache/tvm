@@ -19,8 +19,7 @@
 
 /*!
  * \file tile_dispatch.cc
- * \brief Lower tensor instruction Evaluate(Call) nodes (also resolves ScopeIdDef
- * declarations and emits launch params).
+ * \brief Lower tensor instructions and CUDA index calls using independent launch configuration.
  */
 
 #include <tvm/ir/op.h>
@@ -42,6 +41,7 @@
 #include <tvm/tirx/tile_dispatch.h>
 #include <tvm/tirx/transform.h>
 
+#include <limits>
 #include <optional>
 #include <unordered_map>
 #include <utility>
@@ -54,65 +54,6 @@ namespace tvm {
 namespace tirx {
 
 namespace {
-
-// Gather ScopeIdDefs with their enclosing device-entry marker, preserving
-// nested-before-direct declaration order for launch parameter resolution.
-struct ScopeIdDefWithSource {
-  ScopeIdDef def;
-  const StmtNode* source_stmt;
-};
-
-class ScopeIdDefGather : public StmtExprVisitor {
- public:
-  static std::vector<ScopeIdDefWithSource> Gather(const Stmt& stmt) {
-    auto gather = ffi::make_object<ScopeIdDefGather>();
-    gather->Visit(stmt);
-    return std::move(gather->out_);
-  }
-
-  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) override {
-    if (op->op.same_as(tirx::device_entry_op())) {
-      return EnterSourceAndPartition(op, [&]() { return StmtExprVisitor::Visit_(op); });
-    }
-    return StmtExprVisitor::Visit_(op);
-  }
-
-  ffi::Optional<VisitInterrupt> Visit_(const ScopeIdDefStmtNode* op) override {
-    out_.push_back({op->def, source_stmt_});
-    return StmtExprVisitor::Visit_(op);
-  }
-
- private:
-  // Visit body with ``src`` as the source-stmt context, then re-order
-  // newly-added defs so direct-children defs come after nested ones —
-  // preserves LIFO order required by ExtractKernelLaunchParams.
-  template <typename F>
-  ffi::Optional<VisitInterrupt> EnterSourceAndPartition(const StmtNode* src, F&& visit_body) {
-    const StmtNode* prev_source = source_stmt_;
-    size_t baseline = out_.size();
-    source_stmt_ = src;
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visit_body());
-    source_stmt_ = prev_source;
-
-    std::vector<ScopeIdDefWithSource> direct;
-    std::vector<ScopeIdDefWithSource> nested;
-    direct.reserve(out_.size() - baseline);
-    for (size_t i = baseline; i < out_.size(); ++i) {
-      if (out_[i].source_stmt == src) {
-        direct.push_back(out_[i]);
-      } else {
-        nested.push_back(out_[i]);
-      }
-    }
-    out_.resize(baseline);
-    out_.insert(out_.end(), nested.begin(), nested.end());
-    out_.insert(out_.end(), direct.begin(), direct.end());
-    return std::nullopt;
-  }
-
-  std::vector<ScopeIdDefWithSource> out_;
-  const StmtNode* source_stmt_ = nullptr;
-};
 
 class ElectSyncFinder : public StmtExprVisitor {
  public:
@@ -167,31 +108,138 @@ class ScopeIdVarFinder : public StmtExprVisitor {
   bool found_{false};
 };
 
-// Remove resolved scope definitions and device-entry boundaries after gathering.
-// Their values are bound at kernel scope via Bind statements emitted separately.
-class ScopeIdDefRemover : public StmtExprMutator {
+using CudaLaunchParams = std::unordered_map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>>;
+
+// CUDA indices are ordinary pure calls. Lower them after instruction dispatch so
+// implementations can introduce indices without changing the launch configuration.
+class CudaIndexLowerer : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
-  static Stmt Remove(const Stmt& stmt) {
-    return ffi::make_object<ScopeIdDefRemover>()
-        ->Mutate(stmt, InplaceMode::kAllow)
-        .ValueOrUnchanged(stmt);
+  explicit CudaIndexLowerer(CudaLaunchParams params) : params_(std::move(params)) {}
+
+  static PrimExpr Register(const std::string& name) {
+    std::string operation;
+    if (name.rfind("ctaid.", 0) == 0) operation = "block_idx";
+    if (name.rfind("tid.", 0) == 0) operation = "thread_idx";
+    if (name.rfind("ntid.", 0) == 0) operation = "block_dim";
+    if (name.rfind("nctaid.", 0) == 0) operation = "grid_dim";
+    if (!operation.empty()) {
+      return Call(PrimType::Int(32), Op::Get("tirx.cuda." + operation),
+                  {StringImm(name.substr(name.size() - 1))})
+          .as_or_throw<PrimExpr>();
+    }
+    return Call(PrimType::Int(32), Op::Get("tirx.cuda.mov_sreg"),
+                {IntImm::Int32(32), StringImm(name)})
+        .as_or_throw<PrimExpr>();
   }
 
-  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) override {
-    if (op->op.same_as(tirx::device_entry_op())) {
-      return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+  static Stmt Lower(const Stmt& body, const CudaLaunchParams& params) {
+    auto lowerer = ffi::make_object<CudaIndexLowerer>(params);
+    for (const auto& [tag, iv] : params) {
+      std::string name(tag);
+      std::string reg;
+      if (name.rfind("blockIdx.", 0) == 0) reg = "ctaid." + name.substr(9);
+      if (name.rfind("threadIdx.", 0) == 0) reg = "tid." + name.substr(10);
+      if (name.rfind("clusterCtaIdx.", 0) == 0) reg = "cluster_ctaid." + name.substr(14);
+      if (!reg.empty()) lowerer->VarRemapSet(iv.get<0>(), Register(reg));
+    }
+    auto result = lowerer->Mutate(body).ValueOrUnchanged(body);
+    ffi::Array<Stmt> prefix;
+    if (lowerer->needs_warp_) {
+      int64_t threads = 1;
+      for (int axis = 0; axis < 3; ++axis) {
+        auto extent = lowerer->BlockDimension(axis).as<IntImmNode>();
+        TVM_FFI_CHECK(extent, ValueError) << "Warp indices require a static block size";
+        auto dimension = extent->value.as<int64_t>();
+        TVM_FFI_CHECK(dimension && *dimension > 0 && *dimension <= 1024 / threads, ValueError)
+            << "Block size must be positive and contain at most 1024 threads";
+        threads *= *dimension;
+      }
+      TVM_FFI_CHECK(threads % 32 == 0, ValueError)
+          << "Warp indices require a block size divisible by 32";
+      prefix.push_back(Bind(
+          lowerer->warp_,
+          Call(PrimType::Int(32), tirx::gpu_warp_shuffle_op(),
+               {IntImm(PrimType::UInt(32), 0xffffffff), prim::FloorDiv(lowerer->LinearThread(), 32),
+                IntImm::Int32(0), IntImm::Int32(32), IntImm::Int32(32)})));
+    }
+    prefix.push_back(result);
+    return SeqStmt(prefix);
+  }
+
+ private:
+  PrimExpr Axis(const std::string& tag, int axis) {
+    auto it = params_.find(tag + std::string(1, 'x' + axis));
+    if (it == params_.end()) return IntImm::Int32(0);
+    // An explicit singleton cluster still needs a hardware index when preferred
+    // clusters are enabled, so do not constant-fold cluster coordinates.
+    if (tag != "clusterCtaIdx." && prim::IsOne(it->second.get<1>())) return IntImm::Int32(0);
+    std::string reg = tag == "blockIdx."    ? "ctaid."
+                      : tag == "threadIdx." ? "tid."
+                                            : "cluster_ctaid.";
+    return Register(reg + std::string(1, 'x' + axis));
+  }
+  PrimExpr BlockDimension(int axis) {
+    auto it = params_.find("threadIdx." + std::string(1, 'x' + axis));
+    if (it != params_.end() && it->second.get<1>().as<IntImmNode>()) return it->second.get<1>();
+    return Register("ntid." + std::string(1, 'x' + axis));
+  }
+  PrimExpr LinearThread() {
+    sym::Analyzer analyzer;
+    return analyzer->Simplify(
+        Axis("threadIdx.", 0) +
+        BlockDimension(0) * (Axis("threadIdx.", 1) + BlockDimension(1) * Axis("threadIdx.", 2)));
+  }
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
+    const auto* name_op = op->op.as<OpNode>();
+    if (!name_op) return StmtExprMutator::Mutate_(op, inplace_mode);
+    std::string name(name_op->name);
+    if (name.rfind("tirx.cuda.", 0) != 0) return StmtExprMutator::Mutate_(op, inplace_mode);
+    name = name.substr(10);
+    auto axis = [&]() { return op->args[0].as_or_throw<StringImm>()->value.c_str()[0] - 'x'; };
+    if (name == "block_idx") return Axis("blockIdx.", axis());
+    if (name == "thread_idx") return Axis("threadIdx.", axis());
+    if (name == "cluster_cta_id") {
+      TVM_FFI_CHECK(params_.count("clusterCtaIdx.x"), ValueError)
+          << "cluster_cta_id requires an explicit launch cluster";
+      return Axis("clusterCtaIdx.", axis());
+    }
+    std::string reg;
+    if (name == "cluster_id") reg = "clusterid.";
+    if (name == "grid_dim") reg = "nctaid.";
+    if (name == "block_dim") reg = "ntid.";
+    if (name == "cluster_dim") reg = "cluster_nctaid.";
+    if (!reg.empty()) {
+      if (name == "cluster_id" || name == "cluster_dim") {
+        TVM_FFI_CHECK(params_.count("clusterCtaIdx.x"), ValueError)
+            << name << " requires an explicit launch cluster";
+      }
+      return Register(reg + std::string(1, 'x' + axis()));
+    }
+    if (name == "linear_thread_id") return LinearThread();
+    if (name == "lane_id") return prim::FloorMod(LinearThread(), 32);
+    if (name == "thread_in_warpgroup") return prim::FloorMod(LinearThread(), 128);
+    if (name == "warp_id" || name == "warpgroup_id" || name == "warp_in_warpgroup") {
+      needs_warp_ = true;
+      if (name == "warp_id") return warp_;
+      if (name == "warpgroup_id") return prim::FloorDiv(warp_, 4);
+      return prim::FloorMod(warp_, 4);
+    }
+    if (name == "cta_pair_id") {
+      TVM_FFI_CHECK(params_.count("clusterCtaIdx.x"), ValueError)
+          << "cta_pair_id requires an explicit launch cluster";
+      return prim::FloorMod(Axis("clusterCtaIdx.", 0) +
+                                Register("cluster_nctaid.x") *
+                                    (Axis("clusterCtaIdx.", 1) +
+                                     Register("cluster_nctaid.y") * Axis("clusterCtaIdx.", 2)),
+                            2);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
-
-  UnchangedOr<Stmt> Mutate_(const ScopeIdDefStmtNode* op, InplaceMode inplace_mode) override {
-    // Drop the def stmt by replacing with a no-op Evaluate(0). It will be
-    // removed by sequence construction or mutation, or stay as a benign
-    // no-op for downstream passes.
-    return Evaluate(IntImm::Int32(0));
-  }
+  CudaLaunchParams params_;
+  PrimVar warp_{"warp_id_in_cta", PrimType::Int(32)};
+  bool needs_warp_{false};
 };
 
 }  // namespace
@@ -279,27 +327,19 @@ class TileDispatcher : public StmtExprMutator {
     bool is_first_block = false;
     std::swap(is_first_block, is_first_block_);
 
-    std::vector<std::pair<Var, PrimExpr>> scope_binds;
-
     launch_params_.clear();
-    // Pre-dispatch: only populate ``launch_params_`` + synthesize
-    // ``warp_id_in_cta``. The dispatch impls (run via ``Dispatch`` below)
-    // read ``launch_params_`` through ``sctx``, so this much must happen
-    // first. The per-def Bind resolution is deferred to AFTER dispatch so
-    // it can pick up any ``ScopeIdDef`` declared inside dispatched impls.
-    PrepareLaunchParams(entry_node, body_to_visit, &scope_binds);
+    scope_aliases_.clear();
+    cluster_bounds_.clear();
+    variable_cluster_ = false;
+    native_launch_ = entry_node->attrs->dict.count("cuda.launch_fields");
+    TVM_FFI_CHECK(is_first_block || !native_launch_, ValueError)
+        << "Nested CUDA device_entry regions are not supported";
+    if (native_launch_) PrepareCudaLaunchParams(entry_node);
     bool pushed_base_ctx = PushKernelEntryCtx();
 
-    // Direct ScopeIdDefStmt children of the device-entry marker live here.
-    scope_id_defs_at_level_.push_back({});
     auto body_result = Mutate(body_to_visit, InplaceMode::kDisallow);
     bool body_unchanged = body_result.UnchangedOrSameAs(body_to_visit);
     Stmt body = std::move(body_result).ValueOrUnchanged(body_to_visit);
-    scope_id_defs_at_level_.pop_back();
-
-    // Post-dispatch: re-gather the now-inlined body and resolve every
-    // ``ScopeIdDef`` (kernel-side + dispatch-introduced) into ``scope_binds``.
-    ResolveAllScopeBinds(body, &scope_binds);
 
     auto pop_exec_contexts = [&]() {
       if (pushed_base_ctx) ctx_stack_.pop_back();
@@ -331,36 +371,10 @@ class TileDispatcher : public StmtExprMutator {
     }
     alloc_buffers_.clear();
 
-    // Strip the device-entry marker; its only role was to scope this
-    // processing. Downstream passes consume the bound launch params and
-    // alloc buffers wrapping ``body`` directly.
     Stmt res = body;
-
-    // Strip standalone ScopeIdDefStmt nodes -- their values are now bound at
-    // kernel scope via the Bind statements below.
-    res = ScopeIdDefRemover::Remove(res);
-
-    // Prepend Bind(var, value) for every resolved scope id (and the derived
-    // warp_id_in_cta var when threadIdx is present).
-    ffi::Array<Stmt> bind_stmts;
-    bind_stmts.reserve(scope_binds.size());
-    for (const auto& [var, value] : scope_binds) {
-      bind_stmts.push_back(Bind(var, value));
-    }
-    bind_stmts.push_back(res);
-    res = SeqStmt(bind_stmts);
-
-    // Launch extents come from ScopeIdDefs, independently of whether their
-    // returned Vars are named or used. Downstream codegen consumes these launch regions.
-    for (const auto& [tag, iv] : launch_params_) {
-      if (tag == "warp_id_in_cta") continue;
-      PrimVar launch_var(iv.get<0>()->name, iv.get<1>().ty());
-      res = SubstituteWithDataTypeLegalization(res, [&](const Var& var) -> ffi::Optional<PrimExpr> {
-        if (var.same_as(iv.get<0>())) return launch_var;
-        return std::nullopt;
-      });
-      res = RegionStmt(tirx::launch_thread_op(), {StringImm(tag), iv.get<1>()}, {launch_var},
-                       DictAttrs(), res);
+    if (native_launch_) {
+      res = CudaIndexLowerer::Lower(res, launch_params_);
+      res = RegionStmt(Op::Get("tirx.device_scope"), entry_node->args, {}, entry_node->attrs, res);
     }
 
     // Insert host init stmts outside the outermost thread binding or block.
@@ -378,16 +392,6 @@ class TileDispatcher : public StmtExprMutator {
     std::swap(is_first_block, is_first_block_);
     pop_exec_contexts();
     return res;
-  }
-
-  UnchangedOr<Stmt> Mutate_(const ScopeIdDefStmtNode* op, InplaceMode inplace_mode) final {
-    // Register the def at the current (innermost) ExecScope's level so
-    // ResolveScopeIdTarget / ScopeIdTargets can find it. The def remains
-    // visible to subsequent sibling stmts within this scope.
-    if (!scope_id_defs_at_level_.empty()) {
-      scope_id_defs_at_level_.back().push_back(op->def);
-    }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
@@ -429,6 +433,9 @@ class TileDispatcher : public StmtExprMutator {
     const auto* bind = stmt.as<BindNode>();
     TVM_FFI_ICHECK(bind);
     if (auto value = bind->value.as<PrimExpr>()) {
+      if (auto target = ResolveScopeIdTarget(value.value())) {
+        scope_aliases_.insert_or_assign(bind->var, *target);
+      }
       // Bind is flat: the definition is visible to subsequent statements in
       // its enclosing scope.  Under SSA, an inner-scope Var cannot be
       // referenced after leaving that scope or rebound elsewhere, so stale
@@ -575,6 +582,9 @@ class TileDispatcher : public StmtExprMutator {
     op->op.as_or_throw<Op>().Validate(op);
     static auto get_scope = ffi::Function::GetGlobalRequired("tirx.TensorCallScope");
     ExecScope scope = get_scope(ffi::GetRef<Call>(op)).cast<ExecScope>();
+    TVM_FFI_CHECK(!variable_cluster_ || scope->kind != ScopeKind::kCluster, ValueError)
+        << "Cluster tensor instructions require one static cluster shape; "
+           "use explicit CUDA/PTX instructions for variable or preferred cluster shapes";
     // Scope is a static attribute of this Call. Derive the (inter, intra) split
     // on the spot from the current active set ``A`` (tracked through control
     // flow on ``ctx_stack_``) under this call's own scope.
@@ -632,125 +642,42 @@ class TileDispatcher : public StmtExprMutator {
 
   // --- Scope-id resolution at kernel scope ----------------------------------
 
-  // PRE-DISPATCH step: gather + verify ScopeIdDefs on the original kernel
-  // body, populate ``launch_params_`` from the canonical bindings, and
-  // synthesize the ``warp_id_in_cta`` helper bind. The per-def Bind
-  // resolution that used to live here is now in ``ResolveAllScopeBinds``,
-  // which runs AFTER dispatch so it sees ScopeIdDefs introduced by
-  // dispatched impls too.
-  void PrepareLaunchParams(const RegionStmtNode* entry_node, Stmt body,
-                           std::vector<std::pair<Var, PrimExpr>>* scope_binds) {
-    Stmt gather_target = RegionStmt(tirx::device_entry_op(), {}, {}, DictAttrs(), body);
-    std::vector<ScopeIdDefWithSource> gathered = ScopeIdDefGather::Gather(gather_target);
-    Array<ScopeIdDef> defs;
-    defs.reserve(gathered.size());
-    for (const auto& g : gathered) defs.push_back(g.def);
-    ScopeIdDefVerifier verifier;
-    TVM_FFI_ICHECK(verifier.Verify(defs)) << "Inconsistent ScopeIdDef";
-
-    ExtractKernelLaunchParams(verifier.id_set);
-
-    // Synthesize the warp_id_in_cta helper (CUDA only) when threadIdx is set.
-    if (launch_params_.count("threadIdx.x") > 0) {
-      PrimExpr shuffled = ScopeIdResolve::ComputeWarpIdInCta(launch_params_);
-      Var warp_id_in_cta_var("warp_id_in_cta", shuffled.ty());
-      scope_binds->push_back({warp_id_in_cta_var, shuffled});
-      ffi::Tuple<PrimVar, PrimExpr> warp_iv(warp_id_in_cta_var.as_or_throw<PrimVar>(),
-                                            IntImm(shuffled.ty(), 1));
-      launch_params_.insert({"warp_id_in_cta", warp_iv});
-    }
-  }
-
-  // POST-DISPATCH step: re-gather the now-inlined body (which includes any
-  // ScopeIdDefs introduced inside dispatched impls), verify against the
-  // current launch_params, resolve each def, and push (Var, value) pairs
-  // into ``*scope_binds``.
-  void ResolveAllScopeBinds(Stmt body, std::vector<std::pair<Var, PrimExpr>>* scope_binds) {
-    // Gather from a temporary stmt synthesized as the device-entry marker
-    // to retain nested-before-direct declaration order.
-    Stmt gather_target = RegionStmt(tirx::device_entry_op(), {}, {}, DictAttrs(), body);
-    std::vector<ScopeIdDefWithSource> gathered = ScopeIdDefGather::Gather(gather_target);
-    Array<ScopeIdDef> defs;
-    defs.reserve(gathered.size());
-    for (const auto& g : gathered) defs.push_back(g.def);
-
-    ScopeIdDefVerifier verifier;
-    TVM_FFI_ICHECK(verifier.Verify(defs)) << "Inconsistent ScopeIdDef";
-
-    for (const auto& g : gathered) {
-      ScopeIdDef def = g.def;
-      // Deferred extents: resolved via closure into verifier.id_set.
-      if (def.is_deferred()) {
-        auto it = verifier.id_set.find(def->scope);
-        TVM_FFI_ICHECK(it != verifier.id_set.end() && !(*it).second.is_deferred())
-            << "Internal Error: deferred def not resolved";
-        def = ScopeIdDef(def->def_ids, (*it).second->extents, def->scope, def->preferred_extents);
-      }
-      const auto& extents = def->extents.value();
-      auto resolved = ScopeIdResolve::Resolve(def->scope, def->extents, extents.size(),
-                                              target_->kind->name, launch_params_);
-      TVM_FFI_ICHECK_EQ(resolved.size(), extents.size())
-          << "Internal Error: Inconsistent resolved size";
-      for (size_t i = 0; i < def->def_ids.size(); i++) {
-        // Reuse the original Var as the bind target -- no rename, no
-        // substitution. The IR already references this Var directly, and
-        // dispatch's filter resolution walks ScopeIdDefStmt::def
-        // to map Vars back to their ScopeBinding.
-        Var bind_var = def->def_ids[i];
-        PrimExpr value = resolved[i];
-        PrimType bind_var_ty = bind_var->ty.as_or_throw<PrimType>();
-        if (bind_var_ty != value.ty()) {
-          value = prim::Cast(bind_var_ty, value);
-        }
-        scope_binds->push_back({bind_var, value});
+  void PrepareCudaLaunchParams(const RegionStmtNode* entry) {
+    TVM_FFI_CHECK(target_->kind->name == "cuda", ValueError)
+        << "CUDA LaunchConfig requires a CUDA target";
+    auto fields =
+        entry->attrs->dict.at("cuda.launch_fields").as_or_throw<ffi::Array<ffi::String>>();
+    TVM_FFI_ICHECK_EQ(fields.size(), entry->args.size());
+    for (size_t i = 0; i < fields.size(); ++i) {
+      std::string field(fields[i]);
+      std::string tag;
+      if (field.rfind("grid.", 0) == 0) tag = "blockIdx." + field.substr(5);
+      if (field.rfind("block.", 0) == 0) tag = "threadIdx." + field.substr(6);
+      if (field.rfind("cluster.", 0) == 0) tag = "clusterCtaIdx." + field.substr(8);
+      if (!tag.empty()) {
+        auto extent = analyzer_->Simplify(entry->args[i].as_or_throw<PrimExpr>());
+        launch_params_.insert(
+            {tag, ffi::Tuple<PrimVar, PrimExpr>(PrimVar(tag, PrimType::Int(32)), extent)});
       }
     }
-  }
-
-  // Translate the canonical ScopeBinding -> launch parameter variable/extent pairs
-  // (blockIdx.{x,y,z}, clusterCtaIdx.*, threadIdx.{x,y,z}, etc.).
-  void ExtractKernelLaunchParams(const ScopeIdDefVerifier::ScopeIdSet& id_set) {
-    auto add_launch_param = [&](ScopeBinding binding, const std::string& prefix) {
-      auto it = id_set.find(binding);
-      if (it == id_set.end()) return;
-      const auto& def = (*it).second;
-      TVM_FFI_ICHECK(!def.is_deferred()) << "Internal Error: launch param built from deferred def";
-      const auto& extents = def->extents.value();
-      TVM_FFI_ICHECK_LE(extents.size(), 3) << "ValueError: Only up to 3 extents are supported";
-      for (size_t i = 0; i < extents.size(); i++) {
-        std::string thread_tag = prefix + static_cast<char>('x' + i);
-        ffi::Tuple<PrimVar, PrimExpr> iv(PrimVar(thread_tag, extents[i].ty()), extents[i]);
-        launch_params_.insert({ffi::String(thread_tag), iv});
-      }
-    };
-    auto cluster_cta_it = id_set.find(ScopeBinding::kClusterCta);
-    if (cluster_cta_it == id_set.end()) {
-      // no cluster
-      add_launch_param(ScopeBinding::kKernelCta, "blockIdx.");
-    } else {
-      // use cluster
-      TVM_FFI_ICHECK(target_->kind->name == "cuda")
-          << "ValueError: cluster is only supported in CUDA";
-      TVM_FFI_ICHECK_EQ(target_->kind->default_device_type, kDLCUDA)
-          << "ValueError: cluster is only supported in CUDA";
-      add_launch_param(ScopeBinding::kClusterCta, "clusterCtaIdx.");
-      // Preferred cluster size (CUDA 12.8+)
-      const auto& cta_def = (*cluster_cta_it).second;
-      if (cta_def->preferred_extents.has_value()) {
-        const auto& pref = cta_def->preferred_extents.value();
-        for (size_t i = 0; i < pref.size(); i++) {
-          std::string tag = "preferredClusterCtaIdx." + std::string(1, 'x' + i);
-          ffi::Tuple<PrimVar, PrimExpr> iv(PrimVar(tag, pref[i].ty()), pref[i]);
-          launch_params_.insert({ffi::String(tag), iv});
+    TVM_FFI_CHECK(launch_params_.count("blockIdx.x") && launch_params_.count("threadIdx.x"),
+                  ValueError)
+        << "LaunchConfig requires grid and block dimensions";
+    variable_cluster_ = false;
+    cluster_bounds_.clear();
+    for (char axis : {'x', 'y', 'z'}) {
+      auto it = launch_params_.find(std::string("clusterCtaIdx.") + axis);
+      if (it == launch_params_.end()) continue;
+      PrimExpr extent = it->second.get<1>();
+      variable_cluster_ |= !extent.as<IntImmNode>();
+      for (size_t i = 0; i < fields.size(); ++i) {
+        if (fields[i] == std::string("preferred_cluster.") + axis) {
+          auto preferred = entry->args[i].as_or_throw<PrimExpr>();
+          variable_cluster_ |= !analyzer_->CanProveEqual(extent, preferred);
+          extent = analyzer_->Simplify(prim::Max(extent, preferred));
         }
       }
-      add_launch_param(ScopeBinding::kKernelCta, "blockIdx.");
-    }
-    add_launch_param(ScopeBinding::kCtaThread, "threadIdx.");
-    if (!id_set.empty()) {
-      TVM_FFI_ICHECK(launch_params_.count("threadIdx.x") > 0)
-          << "ValueError: kernel has no thread launch parameters. "
-          << "At minimum, declare cta->thread extent (e.g., Tx.thread_id([128]))";
+      cluster_bounds_.emplace(std::string("clusterCtaIdx.") + axis, extent);
     }
   }
 
@@ -775,7 +702,10 @@ class TileDispatcher : public StmtExprMutator {
       for (const auto& [thread_key, axis_name] : keys) {
         auto it = launch_params_.find(ffi::String(thread_key));
         if (it == launch_params_.end()) continue;
-        const auto* imm = it->second.get<1>().as<IntImmNode>();
+        PrimExpr extent = it->second.get<1>();
+        if (auto bound = cluster_bounds_.find(thread_key); bound != cluster_bounds_.end())
+          extent = bound->second;
+        const auto* imm = extent.as<IntImmNode>();
         if (imm == nullptr) return std::vector<std::pair<std::string, int64_t>>();
         auto value = imm->value.as<int64_t>();
         if (!value.has_value()) return std::vector<std::pair<std::string, int64_t>>();
@@ -793,6 +723,9 @@ class TileDispatcher : public StmtExprMutator {
     int64_t warp_ext = thread_ext / 32;
     auto cluster_cta_axes = collect_extents(
         {{"clusterCtaIdx.x", "cbx"}, {"clusterCtaIdx.y", "cby"}, {"clusterCtaIdx.z", "cbz"}});
+    if (!cluster_bounds_.empty() && cluster_cta_axes.empty()) return false;
+    while (cluster_cta_axes.size() > 1 && cluster_cta_axes.back().second == 1)
+      cluster_cta_axes.pop_back();
     cluster_cta_axis_extents_ = cluster_cta_axes;
     auto cta_axes = cluster_cta_axes;
     if (cta_axes.empty()) {
@@ -800,8 +733,11 @@ class TileDispatcher : public StmtExprMutator {
           collect_extents({{"blockIdx.x", "bx"}, {"blockIdx.y", "by"}, {"blockIdx.z", "bz"}});
       cluster_cta_axis_extents_.clear();
     }
+    while (cta_axes.size() > 1 && cta_axes.back().second == 1) cta_axes.pop_back();
     int64_t cta_ext = 1;
     for (const auto& axis : cta_axes) {
+      if (axis.second <= 0 || axis.second > std::numeric_limits<int64_t>::max() / cta_ext)
+        return false;
       cta_ext *= axis.second;
     }
     // Preserve the old flattened cta_id split for 0-D/1-D declarations. Multi-dimensional
@@ -839,27 +775,64 @@ class TileDispatcher : public StmtExprMutator {
   }
 
   std::optional<ScopeIdTarget> ResolveScopeIdTarget(const PrimExpr& expr) const {
+    if (auto cast = expr.as<prim::CastNode>()) return ResolveScopeIdTarget(cast->value);
+    if (auto call = expr.as<CallNode>()) {
+      const auto* op = call->op.as<OpNode>();
+      if (!op) return std::nullopt;
+      std::string name(op->name);
+      ScopeBinding binding;
+      std::string tag;
+      if (name == "tirx.cuda.block_idx") {
+        binding = ScopeBinding::kKernelCta;
+        tag = "blockIdx.";
+      } else if (name == "tirx.cuda.cluster_cta_id") {
+        binding = ScopeBinding::kClusterCta;
+        tag = "clusterCtaIdx.";
+      } else if (name == "tirx.cuda.thread_idx") {
+        binding = ScopeBinding::kCtaThread;
+        tag = "threadIdx.";
+      } else if (name == "tirx.cuda.cluster_id")
+        return ScopeIdTarget{ScopeBinding::kKernelCluster, 0, 3};
+      else if (name == "tirx.cuda.warp_id")
+        return ScopeIdTarget{ScopeBinding::kCtaWarp};
+      else if (name == "tirx.cuda.warpgroup_id")
+        return ScopeIdTarget{ScopeBinding::kCtaWarpgroup};
+      else if (name == "tirx.cuda.warp_in_warpgroup")
+        return ScopeIdTarget{ScopeBinding::kWarpgroupWarp};
+      else if (name == "tirx.cuda.lane_id")
+        return ScopeIdTarget{ScopeBinding::kWarpThread};
+      else if (name == "tirx.cuda.thread_in_warpgroup")
+        return ScopeIdTarget{ScopeBinding::kWarpgroupThread};
+      else if (name == "tirx.cuda.cta_pair_id")
+        return ScopeIdTarget{ScopeBinding::kClusterCtaPair};
+      else if (name == "tirx.cuda.linear_thread_id")
+        return ScopeIdTarget{ScopeBinding::kCtaThread};
+      else
+        return std::nullopt;
+      int dim = call->args[0].as_or_throw<StringImm>()->value.c_str()[0] - 'x';
+      int ndim = 1;
+      for (int i = 1; i < 3; ++i) {
+        auto key = tag + std::string(1, 'x' + i);
+        auto it = launch_params_.find(key);
+        if (it != launch_params_.end()) {
+          auto bound = cluster_bounds_.find(key);
+          const auto& extent = bound == cluster_bounds_.end() ? it->second.get<1>() : bound->second;
+          if (!prim::IsOne(extent)) ndim = i + 1;
+        }
+      }
+      return ScopeIdTarget{binding, dim, std::max(ndim, dim + 1)};
+    }
     const auto* var_node = expr.as<VarNode>();
     if (var_node == nullptr) return std::nullopt;
     Var var = ffi::GetRef<Var>(var_node);
-    // Walk the parallel ScopeIdDef stack (defs visible at each nesting
-    // level) innermost-first.
-    for (auto it = scope_id_defs_at_level_.rbegin(); it != scope_id_defs_at_level_.rend(); ++it) {
-      for (const auto& def : *it) {
-        for (size_t i = 0; i < def->def_ids.size(); ++i) {
-          if (def->def_ids[i].same_as(var)) {
-            return ScopeIdTarget{def->scope, static_cast<int>(i),
-                                 static_cast<int>(def->def_ids.size())};
-          }
-        }
-      }
-    }
+    if (auto it = scope_aliases_.find(var); it != scope_aliases_.end()) return it->second;
     return std::nullopt;
   }
 
   bool TryPushRangeForTarget(const ScopeIdTarget& target, int64_t lo, int64_t hi) {
     if (ctx_stack_.empty()) return false;
     if (target.binding == ScopeBinding::kClusterCtaPair) {
+      if (variable_cluster_) return false;
       if (hi != lo + 1 || lo < 0 || lo > 1) return false;
       return TryPushCtaPairValue(lo);
     }
@@ -988,14 +961,8 @@ class TileDispatcher : public StmtExprMutator {
 
   std::vector<std::pair<PrimVar, ScopeIdTarget>> ScopeIdTargets() const {
     std::vector<std::pair<PrimVar, ScopeIdTarget>> out;
-    for (auto it = scope_id_defs_at_level_.rbegin(); it != scope_id_defs_at_level_.rend(); ++it) {
-      for (const auto& def : *it) {
-        for (size_t i = 0; i < def->def_ids.size(); ++i) {
-          out.push_back({def->def_ids[i], ScopeIdTarget{def->scope, static_cast<int>(i),
-                                                        static_cast<int>(def->def_ids.size())}});
-        }
-      }
-    }
+    for (const auto& [var, target] : scope_aliases_)
+      out.push_back({var.as_or_throw<PrimVar>(), target});
     return out;
   }
 
@@ -1379,13 +1346,8 @@ class TileDispatcher : public StmtExprMutator {
   }
 
   std::optional<PrimVar> FindLaneScopeVar() const {
-    // Walk innermost-first; the first single-axis kWarpThread def wins.
-    for (auto it = scope_id_defs_at_level_.rbegin(); it != scope_id_defs_at_level_.rend(); ++it) {
-      for (const auto& def : *it) {
-        if (def->scope != ScopeBinding::kWarpThread) continue;
-        if (def->def_ids.size() != 1) continue;
-        return def->def_ids[0];
-      }
+    for (const auto& [var, target] : scope_aliases_) {
+      if (target.binding == ScopeBinding::kWarpThread) return var.as_or_throw<PrimVar>();
     }
     return std::nullopt;
   }
@@ -1485,13 +1447,13 @@ class TileDispatcher : public StmtExprMutator {
     return pred != IntImm(pred.ty(), 0);
   }
 
+  bool native_launch_{false};
+  bool variable_cluster_{false};
+  std::unordered_map<std::string, PrimExpr> cluster_bounds_;
+  std::unordered_map<Var, ScopeIdTarget, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> scope_aliases_;
   ffi::Map<Var, Range> var_range_map_;
   sym::Analyzer analyzer_;
   const Target& target_;
-  // List of ScopeIdDefs visible at each nesting level (one entry for the
-  // device-entry body itself, plus one per ScopeIdDefStmt-bearing region).
-  // Grows as ScopeIdDefStmt nodes are visited.
-  std::vector<std::vector<ScopeIdDef>> scope_id_defs_at_level_;
   std::vector<ExecContext> ctx_stack_;
   std::unordered_map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>> launch_params_;
   std::vector<Bind> alloc_buffers_;

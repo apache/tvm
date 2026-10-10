@@ -155,17 +155,10 @@ class MBarrier:
         Boolean predicate selecting the single thread that runs
         ``mbarrier.init``. Defaults to ``T.cuda.thread_rank() == 0`` --
         thread 0 of the enclosing CTA, which always picks exactly one
-        thread regardless of which scope_id vars the caller declared.
+        thread regardless of which index variables the caller binds.
         Override only when you want a different CTA-local thread to do
         the init.
 
-        Note: the default deliberately avoids ``T.warp_id()`` /
-        ``T.lane_id()``. Those introduce deferred ``cta->warp`` /
-        ``warp->thread`` ScopeIdDefs that the verifier cannot pin down
-        unless the kernel header declares the full warp/lane chain (e.g. a
-        single-CTA DSMEM kernel that only declares ``thread_id``). It also
-        avoids the synccheck false-deadlock on kernels that declare a
-        second warp-scope id. The generated CUDA is equivalent.
     """
 
     def __init__(self, pool, depth, phase_offset=0, leader=None):

@@ -87,10 +87,10 @@ A warp takes the elementwise ``sqrt`` of a ``32×8`` ``float32`` local tile
     @Tx.function
     def k(A: Tx.Tensor((32, 8), "float32"), B: Tx.Tensor((32, 8), "float32")):
 
-        Tx.device_entry()
-        Tx.cta_id([1])
-        Tx.lane_id([32])
-        tid = Tx.thread_id([32])
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        _index = Tx.cuda.block_idx("x")
+        _lane = Tx.cuda.lane_id()
+        tid = Tx.cuda.thread_idx("x")
         A_smem = Tx.alloc_tensor((32, 8), "float32", scope="shared", layout=TileLayout(S[(32, 8)]))
         for k in Tx.serial(8):
             value = A[tid, k]

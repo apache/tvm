@@ -113,10 +113,10 @@ register, from ``test_ld_stmatrix.py`` (register layout = the m8n8 fragment,
     @Tx.function
     def kernel(A: Tx.Tensor((M, N), "float16"), B: Tx.Tensor((M, N), "float16")):
 
-        Tx.device_entry()
-        Tx.cta_id([1])
-        Tx.lane_id([32])
-        tid = Tx.thread_id([32])
+        Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        _index = Tx.cuda.block_idx("x")
+        _lane = Tx.cuda.lane_id()
+        tid = Tx.cuda.thread_idx("x")
         A_smem = Tx.alloc_tensor((8, 4, num, 2), "float16", scope="shared", layout=s_layout)
         # ... stage A into A_smem (row = tid//4, cp = tid%4) ...
         Tx.cuda.cta_sync()
