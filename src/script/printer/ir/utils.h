@@ -21,6 +21,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/stmt.h>
 #include <tvm/ir/type.h>
 #include <tvm/script/printer/doc_translator.h>
 
@@ -32,6 +33,11 @@ namespace script {
 namespace printer {
 
 namespace details {
+
+ffi::Array<StmtDoc> Body(const Stmt& stmt, DocTranslatorObj* d);
+ffi::Array<Doc> TensorIndices(DocTranslatorObj* d, const ffi::Array<PrimExpr>& indices,
+                              bool store = false);
+ExprDoc TensorRegionValue(DocTranslatorObj* d, const TensorRegionNode* region, bool require_region);
 
 ExprDoc AddMetadata(DocTranslatorObj* d, ffi::Any value);
 IdDoc VarDoc(DocTranslatorObj* d, const Var& var, bool explicit_def = true);

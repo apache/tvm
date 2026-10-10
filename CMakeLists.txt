@@ -318,6 +318,7 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/script/printer/ir/misc.cc
     src/script/printer/ir/prim_type.cc
     src/script/printer/ir/prim_expr.cc
+    src/script/printer/ir/stmt.cc
     src/script/printer/printer.cc
     src/script/printer/doc_printer.cc
     src/script/printer/script_printer.cc
