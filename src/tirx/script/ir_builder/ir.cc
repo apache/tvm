@@ -326,8 +326,8 @@ TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String ten
                           StringImm(tensor.scope())};
     if (allocated_addr.has_value()) args.push_back(tvm::Tuple({allocated_addr.value()}));
     AddToParent(tvm::Bind(
-        tensor.var(),
-        Call(tensor.type(), tvm::tirx::alloc_tensor_op(), args, DictAttrs(), {}, loc), loc));
+        tensor.var(), Call(tensor.type(), tvm::tirx::alloc_tensor_op(), args, DictAttrs(), {}, loc),
+        loc));
   }
   return tensor;
 }

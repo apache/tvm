@@ -142,6 +142,7 @@ def upgrade_json(json_str):
     # nodes in place preserves node indices and shared references.
     nodes = data.get("nodes", [])
     tensor_region_type = None
+    renamed_metadata = {}
     for node in nodes:
         if node.get("type") == "tirx.BufferRegion":
             fields = node.get("data")
@@ -171,6 +172,56 @@ def upgrade_json(json_str):
             ):
                 if old in fields:
                     fields[new] = fields.pop(old)
+        # Rename only keys in owning IR metadata maps. Strings and maps may be
+        # shared with unrelated payloads, so retain the original graph nodes.
+        fields = node.get("data", {})
+        metadata_field = None
+        if node.get("type") == "s_tir.SBlock":
+            metadata_field = "annotations"
+            key_renames = {
+                "s_tir.buffer_allocated_addr": "s_tir.tensor_allocated_addr",
+                "buffer_dim_align": "tensor_dim_align",
+            }
+        elif node.get("type") == "tirx.Function":
+            metadata_field = "attrs"
+            key_renames = {"layout_free_buffers": "layout_free_tensors"}
+        elif node.get("type") == "ir.Call" and nodes[fields["op"]] == {
+            "type": "ir.Op",
+            "data": "tirx.alloc_tensor",
+        }:
+            metadata_field = "attrs"
+            key_renames = {
+                "buffer_data_alignment": "tensor_data_alignment",
+                "buffer_dim_align": "tensor_dim_align",
+            }
+        if metadata_field and isinstance(fields, dict) and metadata_field in fields:
+            metadata_index = fields[metadata_field]
+            policy = (metadata_index, tuple(key_renames.items()))
+            if policy in renamed_metadata:
+                fields[metadata_field] = renamed_metadata[policy]
+                continue
+            metadata = nodes[metadata_index]
+            map_index = metadata_index
+            if metadata.get("type") == "ir.DictAttrs":
+                map_index = metadata["data"]["__dict__"]
+            mapping = nodes[map_index]
+            if mapping.get("type") == "ffi.Map":
+                entries = list(mapping["data"])
+                changed = False
+                for index in range(0, len(entries), 2):
+                    key = nodes[entries[index]]
+                    if key.get("type") == "ffi.String" and key["data"] in key_renames:
+                        entries[index] = len(nodes)
+                        nodes.append({"type": "ffi.String", "data": key_renames[key["data"]]})
+                        changed = True
+                if changed:
+                    replacement = len(nodes)
+                    nodes.append({"type": "ffi.Map", "data": entries})
+                    if metadata.get("type") == "ir.DictAttrs":
+                        nodes.append({"type": "ir.DictAttrs", "data": {"__dict__": replacement}})
+                        replacement = len(nodes) - 1
+                    fields[metadata_field] = replacement
+                    renamed_metadata[policy] = replacement
         if node.get("type") == "relax.expr.Var":
             node["type"] = "ir.Var"
         elif node.get("type") == "tirx.Var":
