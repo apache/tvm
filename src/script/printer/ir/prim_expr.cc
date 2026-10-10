@@ -180,7 +180,7 @@ ffi::Optional<ExprDoc> TensorRegionDocTranslate(DocTranslatorObj* d, ffi::AnyVie
       // Ask the existing type-directed subscription owner whether this syntax
       // reconstructs the exact region, without depending on a dialect type.
       static const auto realize = ffi::Function::GetGlobalRequired("ir.SubscriptExprRealize");
-      auto restored = realize(region->source, indices, region->loc).cast<TensorRegion>();
+      ffi::Any restored = realize(region->source, indices, region->loc);
       if (ffi::StructuralEqual()(restored, ffi::GetRef<TensorRegion>(region))) {
         return d->Translate(region->source).value()[slices];
       }
