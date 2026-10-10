@@ -220,7 +220,7 @@ Launch parameters
 -----------------
 
 ``Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(32,)))``
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``Tx.device_entry(launch=Tx.cuda.LaunchConfig(grid=(1,), block=(32,)))`` starts the authored device region: parameter binding and
 shape reads precede it, while the kernel body follows it. A flat call scopes the
