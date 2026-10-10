@@ -17,6 +17,7 @@
 
 from tvm.ir import Call, DataTypeImm, GenericConst, StringImm
 from tvm.ir import Call as _Call
+from tvm.ir.location import UNKNOWN_LOC, Location
 
 from ...expr import Expr, prim_value
 from ...utils import convert_to_expr
@@ -30,7 +31,7 @@ def alloc_tensor(
     *,
     ty_args=None,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Call:
     """Construct a Call to allocate a tensor with specific shape, dtype, runtime_device_index.
 
@@ -77,7 +78,7 @@ def alloc_tensor(
     )  # type: ignore
 
 
-def stop_lift_params(x: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
+def stop_lift_params(x: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     """
     An indicator that the consumers of input tensor should not be
     lifted to transform_params function

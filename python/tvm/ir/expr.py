@@ -24,11 +24,12 @@ from numbers import Number
 import tvm_ffi
 
 import tvm
+from tvm.ir.location import UNKNOWN_LOC, Location
 
 from ..runtime import Object
 from . import _ffi_api, _tensor_expr_overload
 from ._constant import const
-from .base import Location, Node, Scriptable
+from .base import Node, Scriptable
 
 _ATTRIBUTE_MISSING = object()
 
@@ -390,7 +391,7 @@ class ExprOperand:
     def __bool__(self):
         return self.__nonzero__()
 
-    def equal(self, other, loc=None):
+    def equal(self, other, loc: Location = UNKNOWN_LOC):
         if not is_prim_expr(self):
             raise TypeError(f"Operator overloading is not supported for expression type {self.ty}")
         result = _overload_prim_expr.equal(self, other, loc)
@@ -398,7 +399,7 @@ class ExprOperand:
             raise TypeError("Primitive expression overload equal is not registered")
         return result
 
-    def astype(self, dtype, loc=None):
+    def astype(self, dtype, loc: Location = UNKNOWN_LOC):
         if is_prim_expr(self):
             result = _overload_prim_expr.astype(self, dtype, loc)
             if result is NotImplemented:
@@ -443,14 +444,14 @@ class Tuple(_CallableExprWithOp):
     fields : list[Expr] | tuple[Expr, ...]
         The fields in the tuple.
 
-    loc : Location or None, optional
+    loc : Location, optional
         Location that points to the original source code.
     """
 
     fields: list[Expr]
     loc: Location
 
-    def __init__(self, fields: list[Expr] | tuple[Expr, ...], loc: Location | None = None):
+    def __init__(self, fields: list[Expr] | tuple[Expr, ...], loc: Location = UNKNOWN_LOC):
         if isinstance(fields, Tuple):
             fields = fields.fields
         elif isinstance(getattr(fields, "ty", None), tvm.ir.TupleType):
@@ -479,7 +480,7 @@ class TupleGetItem(_CallableExprWithOp):
     index : int
         The field index.
 
-    loc : Location or None, optional
+    loc : Location, optional
         Location that points to the original source code.
     """
 
@@ -487,7 +488,7 @@ class TupleGetItem(_CallableExprWithOp):
     index: int
     loc: Location
 
-    def __init__(self, tuple_value: Expr, index: int, loc: Location | None = None):
+    def __init__(self, tuple_value: Expr, index: int, loc: Location = UNKNOWN_LOC):
         self.__init_handle_by_constructor__(_ffi_api.TupleGetItem, tuple_value, index, loc)
 
 
@@ -518,7 +519,7 @@ class Constant(ExprWithOp):
 class GenericConst(_ExprCallable, Constant):
     """A literal payload with an explicit expression type."""
 
-    def __init__(self, value, ty: "tvm.ir.Type", loc: Location | None = None) -> None:
+    def __init__(self, value, ty: "tvm.ir.Type", loc: Location = UNKNOWN_LOC) -> None:
         self.__init_handle_by_constructor__(_ffi_api.GenericConst, value, ty, loc)
 
     def __bool__(self) -> bool:
@@ -533,13 +534,13 @@ class DataTypeImm(Constant):
     ----------
     value : str or tvm.DataType
         The represented data type.
-    loc : Location or None, optional
+    loc : Location, optional
         The source location of the literal.
     """
 
     value: tvm.DataType
 
-    def __init__(self, value: str | tvm.DataType, loc: Location | None = None) -> None:
+    def __init__(self, value: str | tvm.DataType, loc: Location = UNKNOWN_LOC) -> None:
         self.__init_handle_by_constructor__(_ffi_api.DataTypeImm, value, loc)
 
 
@@ -549,7 +550,7 @@ class StringImm(Constant):
 
     value: str
 
-    def __init__(self, value: str, loc: Location | None = None) -> None:
+    def __init__(self, value: str, loc: Location = UNKNOWN_LOC) -> None:
         self.__init_handle_by_constructor__(_ffi_api.StringImm, value, loc)
 
     def __eq__(self, other) -> bool:
@@ -584,7 +585,7 @@ class Call(_CallableExprWithOp):
         args: list[Expr] | tuple[Expr, ...],
         attrs: "tvm.ir.Attrs | dict | None" = None,
         ty_args: list["tvm.ir.Type"] | tuple["tvm.ir.Type", ...] | None = None,
-        loc: Location | None = None,
+        loc: Location = UNKNOWN_LOC,
         ty: "tvm.ir.Type | str | None" = None,
     ) -> None:
         self.__init_handle_by_constructor__(
@@ -639,7 +640,7 @@ class TensorRegion(Expr, Scriptable):
     ty : tvm.ir.Type
         The result type, including any dialect-specific subscript semantics.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of the expression in the source code.
     """
 
@@ -651,7 +652,7 @@ class TensorRegion(Expr, Scriptable):
         source: Expr,
         region: list["Range"],
         ty: "tvm.ir.Type",
-        loc: Location | None = None,
+        loc: Location = UNKNOWN_LOC,
     ) -> None:
         self.__init_handle_by_constructor__(_ffi_api.TensorRegion, source, region, ty, loc)
 
@@ -668,7 +669,7 @@ class Var(_CallableExprWithOp):
     ty : Optional[Type or str]
         The exact type of the variable.  A string denotes a primitive dtype.
 
-    loc : Location or None, optional
+    loc : Location, optional
         Location that points to the original source code.
 
     """
@@ -680,7 +681,7 @@ class Var(_CallableExprWithOp):
         self,
         name: str | None = None,
         ty: "tvm.ir.Type | str | None" = None,
-        loc: Location | None = None,
+        loc: Location = UNKNOWN_LOC,
         *,
         name_hint: str | None = None,
     ) -> None:
@@ -796,7 +797,7 @@ class Range(Node, Scriptable):
     end : Optional[Expr]
         The end value of the range.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this node in the source code.
 
     Note
@@ -809,11 +810,11 @@ class Range(Node, Scriptable):
     extent: Expr
     loc: Location
 
-    def __init__(self, begin: Expr, end: Expr | None = None, loc: Location | None = None) -> None:
+    def __init__(self, begin: Expr, end: Expr | None = None, loc: Location = UNKNOWN_LOC) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Range, begin, end, loc)
 
     @staticmethod
-    def from_min_extent(min_value: Expr, extent: Expr, loc: Location | None = None) -> "Range":
+    def from_min_extent(min_value: Expr, extent: Expr, loc: Location = UNKNOWN_LOC) -> "Range":
         """Construct a Range by min and extent.
 
         This constructs a range in [min_value, min_value + extent)
@@ -826,7 +827,7 @@ class Range(Node, Scriptable):
         extent : Expr
             The extent of the range.
 
-        loc : Location or None, optional
+        loc : Location, optional
             The location of this node in the source code.
 
         Returns

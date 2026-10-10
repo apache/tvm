@@ -35,7 +35,7 @@ namespace tvm::prim {
  * \return The result.
  */
 TVM_DLL PrimExpr sum(PrimExpr source, ffi::Array<s_tir::IterVar> axis,
-                     ffi::Array<PrimExpr> init = {}, ffi::Optional<Location> loc = std::nullopt);
+                     ffi::Array<PrimExpr> init = {}, Location loc = UnknownLoc());
 
 /*!
  * \brief logical And of source expression over axis
@@ -45,7 +45,7 @@ TVM_DLL PrimExpr sum(PrimExpr source, ffi::Array<s_tir::IterVar> axis,
  * \param loc The location of this operation in the source.
  */
 TVM_DLL PrimExpr all(PrimExpr source, ffi::Array<s_tir::IterVar> axis,
-                     ffi::Array<PrimExpr> init = {}, ffi::Optional<Location> loc = std::nullopt);
+                     ffi::Array<PrimExpr> init = {}, Location loc = UnknownLoc());
 
 /*!
  * \brief logical Or of source expression over axis
@@ -56,7 +56,7 @@ TVM_DLL PrimExpr all(PrimExpr source, ffi::Array<s_tir::IterVar> axis,
  * \return The result.
  */
 TVM_DLL PrimExpr any(PrimExpr source, ffi::Array<s_tir::IterVar> axis,
-                     ffi::Array<PrimExpr> init = {}, ffi::Optional<Location> loc = std::nullopt);
+                     ffi::Array<PrimExpr> init = {}, Location loc = UnknownLoc());
 
 /*!
  * \brief product of source expression over axis
@@ -67,7 +67,7 @@ TVM_DLL PrimExpr any(PrimExpr source, ffi::Array<s_tir::IterVar> axis,
  * \return The result.
  */
 TVM_DLL PrimExpr prod(PrimExpr source, ffi::Array<s_tir::IterVar> axis,
-                      ffi::Array<PrimExpr> init = {}, ffi::Optional<Location> loc = std::nullopt);
+                      ffi::Array<PrimExpr> init = {}, Location loc = UnknownLoc());
 
 }  // namespace tvm::prim
 
@@ -81,7 +81,7 @@ namespace tvm {
  * \return The result.
  */
 TVM_DLL PrimExpr max(PrimExpr source, ffi::Array<s_tir::IterVar> axis,
-                     ffi::Array<PrimExpr> init = {}, ffi::Optional<Location> loc = std::nullopt);
+                     ffi::Array<PrimExpr> init = {}, Location loc = UnknownLoc());
 
 /*!
  * \brief max of source expression over axis
@@ -92,7 +92,7 @@ TVM_DLL PrimExpr max(PrimExpr source, ffi::Array<s_tir::IterVar> axis,
  * \return The result.
  */
 TVM_DLL PrimExpr min(PrimExpr source, ffi::Array<s_tir::IterVar> axis,
-                     ffi::Array<PrimExpr> init = {}, ffi::Optional<Location> loc = std::nullopt);
+                     ffi::Array<PrimExpr> init = {}, Location loc = UnknownLoc());
 
 }  // namespace tvm
 #endif  // TVM_TE_REDUCTION_H_

@@ -21,7 +21,7 @@ import tvm_ffi
 
 from tvm import ir
 from tvm.ir import ExprWithOp, OpaqueExpr, Var
-from tvm.ir.base import Location
+from tvm.ir.location import UNKNOWN_LOC, Location
 
 from . import _ffi_api
 
@@ -49,7 +49,7 @@ class IterVar(OpaqueExpr, ExprWithOp):
     thread_tag : str
         The thread type tag.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this expression in the source code.
 
     See Also
@@ -79,7 +79,7 @@ class IterVar(OpaqueExpr, ExprWithOp):
         var: Var | str,
         iter_type: int,
         thread_tag: str = "",
-        loc: Location | None = None,
+        loc: Location = UNKNOWN_LOC,
     ) -> None:
         if dom is not None:
             if isinstance(dom, list | tuple):

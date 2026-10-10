@@ -41,7 +41,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // CommReducer
 CommReducer::CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs,
                          ffi::Array<PrimExpr> result, ffi::Array<PrimExpr> identity_element,
-                         ffi::Optional<Location> loc) {
+                         Location loc) {
   size_t n_group = result.size();
   TVM_FFI_CHECK_EQ(lhs.size(), n_group, ValueError)
       << "The number of vars in `lhs` must equal to the "
@@ -89,7 +89,7 @@ CommReducer::CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs,
   node->rhs = rhs;
   node->result = result;
   node->identity_element = identity_element;
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -123,16 +123,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("te.CommReducer",
            [](ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs, ffi::Array<PrimExpr> result,
-              ffi::Array<PrimExpr> identity_element, ffi::Optional<Location> loc) {
-             return CommReducer(lhs, rhs, result, identity_element, loc);
-           })
+              ffi::Array<PrimExpr> identity_element,
+              Location loc) { return CommReducer(lhs, rhs, result, identity_element, loc); })
       .def_method("te.CommReducerCombine", &te::CommReducerNode::operator());
 }
 
 // Reduce
 Reduce::Reduce(CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<IterVar> axis,
                ffi::Optional<PrimExpr> condition, int value_index, ffi::Array<PrimExpr> init,
-               ffi::Optional<Location> loc)
+               Location loc)
     : PrimExpr(ffi::UnsafeInit{}) {
   for (size_t i = 0; i < axis.size(); ++i) {
     TVM_FFI_ICHECK_EQ(axis[i]->iter_type, kCommReduce)
@@ -162,18 +161,17 @@ Reduce::Reduce(CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<Ite
   n->init = std::move(init);
   n->axis = std::move(axis);
   n->value_index = value_index;
-  n->loc = loc.value_or(UnknownLoc());
+  n->loc = loc;
   data_ = std::move(n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "te.Reduce", [](CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<IterVar> axis,
-                      ffi::Optional<PrimExpr> condition, int value_index, ffi::Array<PrimExpr> init,
-                      ffi::Optional<Location> loc) {
-        return Reduce(combiner, source, axis, condition, value_index, init, loc);
-      });
+  refl::GlobalDef().def("te.Reduce", [](CommReducer combiner, ffi::Array<PrimExpr> source,
+                                        ffi::Array<IterVar> axis, ffi::Optional<PrimExpr> condition,
+                                        int value_index, ffi::Array<PrimExpr> init, Location loc) {
+    return Reduce(combiner, source, axis, condition, value_index, init, loc);
+  });
 }
 
 }  // namespace te

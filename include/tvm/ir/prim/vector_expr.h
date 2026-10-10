@@ -67,8 +67,7 @@ class RampNode : public ExprNode {
  */
 class Ramp : public PrimExpr {
  public:
-  TVM_DLL Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes,
-               ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Location loc = UnknownLoc());
   explicit Ramp(ffi::ObjectPtr<RampNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Ramp, PrimExpr, RampNode);
@@ -102,7 +101,7 @@ class BroadcastNode : public ExprNode {
  */
 class Broadcast : public PrimExpr {
  public:
-  TVM_DLL Broadcast(PrimExpr value, PrimExpr lanes, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL Broadcast(PrimExpr value, PrimExpr lanes, Location loc = UnknownLoc());
   explicit Broadcast(ffi::ObjectPtr<BroadcastNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Broadcast, PrimExpr, BroadcastNode);
@@ -137,11 +136,9 @@ class ShuffleNode : public ExprNode {
 class Shuffle : public PrimExpr {
  public:
   TVM_DLL Shuffle(ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices,
-                  ffi::Optional<Location> loc = std::nullopt);
-  TVM_DLL static PrimExpr Concat(ffi::Array<PrimExpr> vectors,
-                                 ffi::Optional<Location> loc = std::nullopt);
-  TVM_DLL static PrimExpr ExtractElement(PrimExpr vector, int index,
-                                         ffi::Optional<Location> loc = std::nullopt);
+                  Location loc = UnknownLoc());
+  TVM_DLL static PrimExpr Concat(ffi::Array<PrimExpr> vectors, Location loc = UnknownLoc());
+  TVM_DLL static PrimExpr ExtractElement(PrimExpr vector, int index, Location loc = UnknownLoc());
   explicit Shuffle(ffi::ObjectPtr<ShuffleNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Shuffle, PrimExpr, ShuffleNode);

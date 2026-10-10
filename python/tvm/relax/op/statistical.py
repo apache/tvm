@@ -23,6 +23,7 @@ from tvm import DataType
 from tvm.ir import Attrs, PrimType
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
+from tvm.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr
 
@@ -42,7 +43,7 @@ def max(
     keepdims: bool = False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Computes the max of tensor elements over given axes.
 
@@ -83,7 +84,7 @@ def mean(
     keepdims: bool = False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Computes the mean of tensor elements over given axes.
 
@@ -124,7 +125,7 @@ def min(
     keepdims: bool = False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Computes the min of tensor elements over given axes.
 
@@ -165,7 +166,7 @@ def prod(
     keepdims: bool = False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Computes the product of tensor elements over given axes.
 
@@ -206,7 +207,7 @@ def std(
     keepdims: bool = False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Computes the standard deviation of tensor elements over given axes.
 
@@ -247,7 +248,7 @@ def sum(
     keepdims: bool = False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Computes the sum of tensor elements over given axes.
 
@@ -294,7 +295,7 @@ def cumprod(
     exclusive: bool = False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     """Numpy style cumprod op. Return the cumulative product of the elements along
     a given axis.
@@ -367,7 +368,7 @@ def cumsum(
     exclusive: bool = False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     """Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
     a given axis.
@@ -439,7 +440,7 @@ def variance(
     keepdims: bool = False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Computes the variance of tensor elements over given axes.
 
@@ -480,7 +481,7 @@ def median(
     keepdims: bool = False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Computes the median of tensor elements over given axes.
 

@@ -91,8 +91,7 @@ class CommReducerNode : public ffi::Object {
 class CommReducer : public ffi::ObjectRef {
  public:
   TVM_DLL CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs, ffi::Array<PrimExpr> result,
-                      ffi::Array<PrimExpr> identity_element,
-                      ffi::Optional<Location> loc = std::nullopt);
+                      ffi::Array<PrimExpr> identity_element, Location loc = UnknownLoc());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CommReducer, ffi::ObjectRef, CommReducerNode);
 };
 
@@ -139,7 +138,7 @@ class Reduce : public PrimExpr {
  public:
   TVM_DLL Reduce(CommReducer combiner, ffi::Array<PrimExpr> src, ffi::Array<s_tir::IterVar> rdom,
                  ffi::Optional<PrimExpr> condition, int value_index, ffi::Array<PrimExpr> init,
-                 ffi::Optional<Location> loc = std::nullopt);
+                 Location loc = UnknownLoc());
   explicit Reduce(ffi::ObjectPtr<ReduceNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Reduce, PrimExpr, ReduceNode);

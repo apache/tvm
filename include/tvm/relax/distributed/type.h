@@ -163,7 +163,7 @@ class DTensorType : public Type {
    * \param loc The loc of the AST.
    */
   TVM_DLL DTensorType(TensorType tensor_ty, DeviceMesh device_mesh, Placement placement,
-                      ffi::Optional<Location> loc = std::nullopt);
+                      Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DTensorType, Type, DTensorTypeNode);
 };

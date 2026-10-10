@@ -655,12 +655,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Bind
-Bind::Bind(Var var, Expr value, ffi::Optional<Location> loc) : Stmt(ffi::UnsafeInit{}) {
+Bind::Bind(Var var, Expr value, Location loc) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   TVM_FFI_ICHECK(ffi::StructuralEqual()(value->ty, var->ty));
 
   ffi::ObjectPtr<BindNode> node = ffi::make_object<BindNode>(std::move(var), std::move(value));
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -673,9 +673,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BindMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.Bind", [](Var var, Expr value, ffi::Optional<Location> loc) {
-    return Bind(var, value, loc);
-  });
+  refl::GlobalDef().def("ir.Bind",
+                        [](Var var, Expr value, Location loc) { return Bind(var, value, loc); });
 }
 
 // RegionStmt
@@ -707,7 +706,7 @@ ffi::Array<Var> GetRegionBodyParams(Op op, ffi::Array<Expr> args, DictAttrs attr
 }
 
 RegionStmt::RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, DictAttrs attrs,
-                       SeqStmt body, ffi::Array<Var> result_vars, ffi::Optional<Location> loc)
+                       SeqStmt body, ffi::Array<Var> result_vars, Location loc)
     : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(op.defined() && body.defined(), ValueError)
       << "RegionStmt requires an operator and a body";
@@ -730,7 +729,7 @@ RegionStmt::RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params
   n->body_params = std::move(body_params);
   n->attrs = std::move(attrs);
   n->result_vars = std::move(result_vars);
-  n->loc = loc.value_or(UnknownLoc());
+  n->loc = loc;
   if (Op::HasAttrMap(tvm::op_attr::kRegionValidate)) {
     static auto validate = Op::GetAttrMap<FRegionValidate>(tvm::op_attr::kRegionValidate);
     if (validate.count(n->op)) validate[n->op].CallExpected(n.get()).value();
@@ -751,14 +750,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "ir.RegionStmt",
       [](Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, DictAttrs attrs, SeqStmt body,
-         ffi::Array<Var> result_vars, ffi::Optional<Location> loc) {
+         ffi::Array<Var> result_vars, Location loc) {
         return RegionStmt(op, args, body_params, attrs, body, result_vars, loc);
       });
 }
 
 // AssertStmt
 AssertStmt::AssertStmt(PrimExpr condition, StringImm error_kind,
-                       ffi::Array<StringImm> message_parts, ffi::Optional<Location> loc)
+                       ffi::Array<StringImm> message_parts, Location loc)
     : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(condition.defined());
   PrimType condition_ty = condition.ty();
@@ -770,7 +769,7 @@ AssertStmt::AssertStmt(PrimExpr condition, StringImm error_kind,
   ffi::ObjectPtr<AssertStmtNode> node =
       ffi::make_object<AssertStmtNode>(std::move(condition), std::move(error_kind));
   node->message_parts = std::move(message_parts);
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -785,17 +784,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&AssertStmtMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.AssertStmt",
-                        [](PrimExpr condition, StringImm error_kind,
-                           ffi::Array<StringImm> message_parts, ffi::Optional<Location> loc) {
-                          return AssertStmt(condition, error_kind, message_parts, loc);
-                        });
+  refl::GlobalDef().def("ir.AssertStmt", [](PrimExpr condition, StringImm error_kind,
+                                            ffi::Array<StringImm> message_parts, Location loc) {
+    return AssertStmt(condition, error_kind, message_parts, loc);
+  });
 }
 
 // For
 For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, SeqStmt body,
-         ffi::Map<ffi::String, Any> annotations, ffi::Optional<PrimExpr> step,
-         ffi::Optional<Location> loc)
+         ffi::Map<ffi::String, Any> annotations, ffi::Optional<PrimExpr> step, Location loc)
     : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(loop_var.defined());
   TVM_FFI_ICHECK(min.defined());
@@ -850,7 +847,7 @@ For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, SeqStmt 
   node->kind = kind;
   node->annotations = std::move(annotations);
   node->step = std::move(step);
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -866,7 +863,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("ir.For",
                         [](PrimVar loop_var, PrimExpr min, PrimExpr extent, int kind, SeqStmt body,
                            ffi::Optional<ffi::Map<ffi::String, Any>> annotations,
-                           ffi::Optional<PrimExpr> step, ffi::Optional<Location> loc) {
+                           ffi::Optional<PrimExpr> step, Location loc) {
                           return For(loop_var, min, extent, static_cast<ForKind>(kind), body,
                                      annotations.value_or(ffi::Map<ffi::String, Any>()), step, loc);
                         });
@@ -893,15 +890,14 @@ std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
 }
 
 // While
-While::While(PrimExpr condition, SeqStmt body, ffi::Optional<Location> loc)
-    : Stmt(ffi::UnsafeInit{}) {
+While::While(PrimExpr condition, SeqStmt body, Location loc) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(condition.defined());
   TVM_FFI_ICHECK(condition.ty().IsScalar());
   TVM_FFI_ICHECK(body.defined());
 
   ffi::ObjectPtr<WhileNode> node =
       ffi::make_object<WhileNode>(std::move(condition), std::move(body));
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -914,18 +910,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&WhileMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.While",
-                        [](PrimExpr condition, SeqStmt body, ffi::Optional<Location> loc) {
-                          return While(condition, body, loc);
-                        });
+  refl::GlobalDef().def("ir.While", [](PrimExpr condition, SeqStmt body, Location loc) {
+    return While(condition, body, loc);
+  });
 }
 
 // Return
-Return::Return(Expr value, ffi::Optional<Location> loc) : Stmt(ffi::UnsafeInit{}) {
+Return::Return(Expr value, Location loc) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
 
   ffi::ObjectPtr<ReturnNode> node = ffi::make_object<ReturnNode>(std::move(value));
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -938,14 +933,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&ReturnMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.Return",
-                        [](Expr value, ffi::Optional<Location> loc) { return Return(value, loc); });
+  refl::GlobalDef().def("ir.Return", [](Expr value, Location loc) { return Return(value, loc); });
 }
 
 // Break
-Break::Break(ffi::Optional<Location> loc) : Stmt(ffi::UnsafeInit{}) {
+Break::Break(Location loc) : Stmt(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<BreakNode> node = ffi::make_object<BreakNode>();
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -958,13 +952,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&BreakMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.Break", [](ffi::Optional<Location> loc) { return Break(loc); });
+  refl::GlobalDef().def("ir.Break", [](Location loc) { return Break(loc); });
 }
 
 // Continue
-Continue::Continue(ffi::Optional<Location> loc) : Stmt(ffi::UnsafeInit{}) {
+Continue::Continue(Location loc) : Stmt(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<ContinueNode> node = ffi::make_object<ContinueNode>();
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -978,11 +972,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&ContinueMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.Continue", [](ffi::Optional<Location> loc) { return Continue(loc); });
+  refl::GlobalDef().def("ir.Continue", [](Location loc) { return Continue(loc); });
 }
 
 // SeqStmt
-SeqStmt::SeqStmt(ffi::Array<Stmt> seq, ffi::Optional<Location> loc) : Stmt(ffi::UnsafeInit{}) {
+SeqStmt::SeqStmt(ffi::Array<Stmt> seq, Location loc) : Stmt(ffi::UnsafeInit{}) {
   bool requires_flattening = std::any_of(seq.begin(), seq.end(), [](const Stmt& stmt) {
     return stmt.as<SeqStmtNode>() || detail::IsSeqStmtNoOp(stmt);
   });
@@ -1000,7 +994,7 @@ SeqStmt::SeqStmt(ffi::Array<Stmt> seq, ffi::Optional<Location> loc) : Stmt(ffi::
   }
   auto node = ffi::make_object<SeqStmtNode>();
   node->seq = std::move(seq);
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -1047,8 +1041,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // If
-If::If(PrimExpr condition, SeqStmt then_case, ffi::Optional<SeqStmt> else_case,
-       ffi::Optional<Location> loc)
+If::If(PrimExpr condition, SeqStmt then_case, ffi::Optional<SeqStmt> else_case, Location loc)
     : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(condition.defined());
   TVM_FFI_ICHECK(then_case.defined());
@@ -1056,7 +1049,7 @@ If::If(PrimExpr condition, SeqStmt then_case, ffi::Optional<SeqStmt> else_case,
   ffi::ObjectPtr<IfNode> node =
       ffi::make_object<IfNode>(std::move(condition), std::move(then_case));
   node->else_case = std::move(else_case);
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -1069,14 +1062,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&IfMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.If", [](PrimExpr condition, SeqStmt then_case,
-                                    ffi::Optional<SeqStmt> else_case, ffi::Optional<Location> loc) {
-    return If(condition, then_case, else_case, loc);
-  });
+  refl::GlobalDef().def("ir.If",
+                        [](PrimExpr condition, SeqStmt then_case, ffi::Optional<SeqStmt> else_case,
+                           Location loc) { return If(condition, then_case, else_case, loc); });
 }
 
 // Evaluate
-Evaluate::Evaluate(Expr value, ffi::Optional<Location> loc) : Stmt(ffi::UnsafeInit{}) {
+Evaluate::Evaluate(Expr value, Location loc) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   static const ffi::reflection::TypeAttrColumn validate_column(tvm::type_attr::kEvaluateValidate);
   if (auto validate = validate_column[value->ty->type_index()]; validate != nullptr) {
@@ -1084,7 +1076,7 @@ Evaluate::Evaluate(Expr value, ffi::Optional<Location> loc) : Stmt(ffi::UnsafeIn
   }
 
   ffi::ObjectPtr<EvaluateNode> node = ffi::make_object<EvaluateNode>(std::move(value));
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -1098,13 +1090,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&EvaluateMaybeInplaceMutate>());
 
-  refl::GlobalDef().def(
-      "ir.Evaluate", [](Expr value, ffi::Optional<Location> loc) { return Evaluate(value, loc); });
+  refl::GlobalDef().def("ir.Evaluate",
+                        [](Expr value, Location loc) { return Evaluate(value, loc); });
 }
 
 // TensorStore
-TensorStore::TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value,
-                         ffi::Optional<Location> loc)
+TensorStore::TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value, Location loc)
     : Stmt(ffi::UnsafeInit{}) {
   namespace refl = ffi::reflection;
   static const refl::TypeAttrColumn validate_column(tvm::type_attr::kTensorStoreValidate);
@@ -1114,7 +1105,7 @@ TensorStore::TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value
   validate.cast<ffi::Function>()(dest, indices, value);
   auto node = ffi::make_object<TensorStoreNode>(std::move(dest), std::move(value));
   node->indices = std::move(indices);
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -1129,10 +1120,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&TensorStoreMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.TensorStore", [](Expr dest, ffi::Array<PrimExpr> indices,
-                                             PrimExpr value, ffi::Optional<Location> loc) {
-    return TensorStore(dest, indices, value, loc);
-  });
+  refl::GlobalDef().def("ir.TensorStore",
+                        [](Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value, Location loc) {
+                          return TensorStore(dest, indices, value, loc);
+                        });
 }
 
 }  // namespace tvm

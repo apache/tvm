@@ -76,16 +76,15 @@ TVM_DLL const Op& reinterpret_op();
  * \return The result expression.
  * \note This function may return value if the type is the same.
  */
-TVM_DLL Expr reinterpret(Type target_ty, Expr value, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL Expr reinterpret(Type target_ty, Expr value, Location loc = UnknownLoc());
 
-inline PrimExpr reinterpret(PrimType t, PrimExpr value,
-                            ffi::Optional<Location> loc = std::nullopt) {
+inline PrimExpr reinterpret(PrimType t, PrimExpr value, Location loc = UnknownLoc()) {
   return reinterpret(Type(std::move(t)), Expr(std::move(value)), std::move(loc))
       .as_or_throw<PrimExpr>();
 }
 
 /*! \brief Construct an opaque pointer from its integer payload. */
-inline Expr ConstHandle(int64_t value, ffi::Optional<Location> loc = std::nullopt) {
+inline Expr ConstHandle(int64_t value, Location loc = UnknownLoc()) {
   return reinterpret(PointerType::VoidPointerTy(), IntImm(PrimType::UInt(64), value, loc), loc);
 }
 

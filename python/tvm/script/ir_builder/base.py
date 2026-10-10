@@ -26,7 +26,7 @@ from tvm_ffi import register_object as _register_object
 from tvm_ffi.dataclasses import MISSING as MISSING
 
 from tvm import ir
-from tvm.ir.base import UnknownLoc
+from tvm.ir.location import UnknownLoc
 from tvm.runtime import Object as _Object
 
 from . import _ffi_api

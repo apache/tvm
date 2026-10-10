@@ -26,7 +26,7 @@ import tvm
 from tvm import ir
 from tvm import tirx as tir
 from tvm.ir import Expr, Scriptable, Var, const
-from tvm.ir.base import Location
+from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.prim import _ffi_api as _prim_ffi_api
 from tvm.ir.prim import max_value, min_value
 from tvm.runtime import Object
@@ -62,7 +62,7 @@ class CommReducer(Object, Scriptable):
     identity_element : List[Expr]
        The identity elements.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
@@ -77,7 +77,7 @@ class CommReducer(Object, Scriptable):
         rhs: list[Var],
         result: list[Expr],
         identity_element: list[Expr],
-        loc: Location | None = None,
+        loc: Location = UNKNOWN_LOC,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.CommReducer,
@@ -113,7 +113,7 @@ class Reduce(ir.ExprWithOp):
     init : list of Expr
         The initial value for output. This can be an int, float, or TE tensor-load Call.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this expression in the source code.
     """
 
@@ -132,7 +132,7 @@ class Reduce(ir.ExprWithOp):
         condition: Expr,
         value_index: int,
         init: list[Expr] | None = None,
-        loc: Location | None = None,
+        loc: Location = UNKNOWN_LOC,
     ) -> None:
         init = [] if init is None else init
         self.__init_handle_by_constructor__(

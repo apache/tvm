@@ -28,8 +28,7 @@ namespace tvm {
 namespace tirx {
 
 // TensorLoad
-TensorLoad MakeTensorLoad(TensorVar buffer, ffi::Array<PrimExpr> indices,
-                          ffi::Optional<Location> loc) {
+TensorLoad MakeTensorLoad(TensorVar buffer, ffi::Array<PrimExpr> indices, Location loc) {
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), indices.size())
       << "TensorVar " << buffer.name() << " is " << buffer->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
@@ -64,16 +63,16 @@ TensorLoad MakeTensorLoad(TensorVar buffer, ffi::Array<PrimExpr> indices,
   ffi::ObjectPtr<TensorLoadNode> node = ffi::make_object<TensorLoadNode>(std::move(buffer));
   node->ty = std::move(result_ty);
   node->indices = std::move(indices);
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   return TensorLoad(std::move(node));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.TensorLoad", [](TensorVar buffer, ffi::Array<PrimExpr> indices,
-                                              ffi::Optional<Location> loc) {
-    return MakeTensorLoad(buffer, indices, loc);
-  });
+  refl::GlobalDef().def("tirx.TensorLoad",
+                        [](TensorVar buffer, ffi::Array<PrimExpr> indices, Location loc) {
+                          return MakeTensorLoad(buffer, indices, loc);
+                        });
 }
 
 }  // namespace tirx

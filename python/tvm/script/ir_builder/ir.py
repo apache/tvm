@@ -20,6 +20,7 @@ from typing import NoReturn, TypeVar
 
 from tvm import DataType
 from tvm.ir import DataTypeImm, GlobalInfo, LambdaExpr, Location, Var
+from tvm.ir.location import UNKNOWN_LOC
 from tvm.runtime import Object as tvm_Object
 
 from . import _ffi_api
@@ -38,7 +39,7 @@ def dtype(value: str | DataType) -> DataTypeImm:
     return DataTypeImm(value)
 
 
-def dynamic(name: str, dtype: str = "int64", *, loc: LocationEntry | Location | None = None) -> Var:
+def dynamic(name: str, dtype: str = "int64", *, loc: LocationEntry | Location = UNKNOWN_LOC) -> Var:
     """Create a fresh primitive symbolic variable, independently of builder scope.
 
     Parameters
@@ -47,7 +48,7 @@ def dynamic(name: str, dtype: str = "int64", *, loc: LocationEntry | Location | 
         The symbol's display name. Repeated names do not share identity.
     dtype : str
         Primitive dtype, defaulting to int64.
-    loc : LocationEntry, Location or None, optional
+    loc : LocationEntry or Location, optional
         Source location of the symbol.
 
     Returns

@@ -24,6 +24,7 @@ from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir import PrimType as _PrimType
 from tvm.ir.attrs import make_node as _make_attrs
+from tvm.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr
 from ..expr import Tuple as RxTuple
@@ -41,7 +42,7 @@ def matmul(
     out_dtype: str | DataType | None = None,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """General matrix multiplication of two tensors, with broadcasting on batched dimensions.
 
@@ -121,7 +122,7 @@ class EinsumAttrs(Attrs):
     """Attributes for einsum operator"""
 
 
-def einsum(operands, subscripts, *, ty=None, loc=None):
+def einsum(operands, subscripts, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Evaluates the Einstein summation convention on data
 
     Parameters
@@ -149,7 +150,7 @@ def einsum(operands, subscripts, *, ty=None, loc=None):
     )  # type: ignore
 
 
-def outer(x1: Expr, x2: Expr, *, ty=None, loc=None) -> Expr:
+def outer(x1: Expr, x2: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     """
     Computes the outer product of two input expressions.
 

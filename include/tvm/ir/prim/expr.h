@@ -73,7 +73,7 @@ class CastNode : public ExprNode {
  */
 class Cast : public PrimExpr {
  public:
-  TVM_DLL Cast(PrimType value_ty, PrimExpr value, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL Cast(PrimType value_ty, PrimExpr value, Location loc = UnknownLoc());
   explicit Cast(ffi::ObjectPtr<CastNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Cast, PrimExpr, CastNode);
@@ -117,7 +117,7 @@ class AddNode : public BinaryOpNode<AddNode> {
  */
 class Add : public PrimExpr {
  public:
-  TVM_DLL Add(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL Add(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit Add(ffi::ObjectPtr<AddNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Add, PrimExpr, AddNode);
@@ -138,7 +138,7 @@ class LShiftNode : public BinaryOpNode<LShiftNode> {
  */
 class LShift : public PrimExpr {
  public:
-  TVM_DLL LShift(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL LShift(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit LShift(ffi::ObjectPtr<LShiftNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LShift, PrimExpr, LShiftNode);
@@ -159,7 +159,7 @@ class RShiftNode : public BinaryOpNode<RShiftNode> {
  */
 class RShift : public PrimExpr {
  public:
-  TVM_DLL RShift(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL RShift(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit RShift(ffi::ObjectPtr<RShiftNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RShift, PrimExpr, RShiftNode);
@@ -180,7 +180,7 @@ class BitwiseAndNode : public BinaryOpNode<BitwiseAndNode> {
  */
 class BitwiseAnd : public PrimExpr {
  public:
-  TVM_DLL BitwiseAnd(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL BitwiseAnd(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit BitwiseAnd(ffi::ObjectPtr<BitwiseAndNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BitwiseAnd, PrimExpr, BitwiseAndNode);
@@ -201,7 +201,7 @@ class BitwiseOrNode : public BinaryOpNode<BitwiseOrNode> {
  */
 class BitwiseOr : public PrimExpr {
  public:
-  TVM_DLL BitwiseOr(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL BitwiseOr(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit BitwiseOr(ffi::ObjectPtr<BitwiseOrNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BitwiseOr, PrimExpr, BitwiseOrNode);
@@ -222,7 +222,7 @@ class BitwiseXorNode : public BinaryOpNode<BitwiseXorNode> {
  */
 class BitwiseXor : public PrimExpr {
  public:
-  TVM_DLL BitwiseXor(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL BitwiseXor(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit BitwiseXor(ffi::ObjectPtr<BitwiseXorNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BitwiseXor, PrimExpr, BitwiseXorNode);
@@ -243,7 +243,7 @@ class SubNode : public BinaryOpNode<SubNode> {
  */
 class Sub : public PrimExpr {
  public:
-  TVM_DLL Sub(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL Sub(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
   explicit Sub(ffi::ObjectPtr<SubNode> node) : PrimExpr(std::move(node)) {}
 
@@ -265,7 +265,7 @@ class MulNode : public BinaryOpNode<MulNode> {
  */
 class Mul : public PrimExpr {
  public:
-  TVM_DLL Mul(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL Mul(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit Mul(ffi::ObjectPtr<MulNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Mul, PrimExpr, MulNode);
@@ -289,7 +289,7 @@ class DivNode : public BinaryOpNode<DivNode> {
  */
 class Div : public PrimExpr {
  public:
-  TVM_DLL Div(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL Div(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit Div(ffi::ObjectPtr<DivNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Div, PrimExpr, DivNode);
@@ -313,7 +313,7 @@ class ModNode : public BinaryOpNode<ModNode> {
  */
 class Mod : public PrimExpr {
  public:
-  TVM_DLL Mod(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL Mod(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit Mod(ffi::ObjectPtr<ModNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Mod, PrimExpr, ModNode);
@@ -334,7 +334,7 @@ class FloorDivNode : public BinaryOpNode<FloorDivNode> {
  */
 class FloorDiv : public PrimExpr {
  public:
-  TVM_DLL FloorDiv(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL FloorDiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit FloorDiv(ffi::ObjectPtr<FloorDivNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FloorDiv, PrimExpr, FloorDivNode);
@@ -355,7 +355,7 @@ class FloorModNode : public BinaryOpNode<FloorModNode> {
  */
 class FloorMod : public PrimExpr {
  public:
-  TVM_DLL FloorMod(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL FloorMod(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit FloorMod(ffi::ObjectPtr<FloorModNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FloorMod, PrimExpr, FloorModNode);
@@ -376,7 +376,7 @@ class MinNode : public BinaryOpNode<MinNode> {
  */
 class Min : public PrimExpr {
  public:
-  TVM_DLL Min(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL Min(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit Min(ffi::ObjectPtr<MinNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Min, PrimExpr, MinNode);
@@ -397,7 +397,7 @@ class MaxNode : public BinaryOpNode<MaxNode> {
  */
 class Max : public PrimExpr {
  public:
-  TVM_DLL Max(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL Max(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit Max(ffi::ObjectPtr<MaxNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Max, PrimExpr, MaxNode);
@@ -441,7 +441,7 @@ class EQNode : public CmpOpNode<EQNode> {
  */
 class EQ : public PrimExpr {
  public:
-  TVM_DLL EQ(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL EQ(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit EQ(ffi::ObjectPtr<EQNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(EQ, PrimExpr, EQNode);
@@ -462,7 +462,7 @@ class NENode : public CmpOpNode<NENode> {
  */
 class NE : public PrimExpr {
  public:
-  TVM_DLL NE(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL NE(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit NE(ffi::ObjectPtr<NENode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(NE, PrimExpr, NENode);
@@ -483,7 +483,7 @@ class LTNode : public CmpOpNode<LTNode> {
  */
 class LT : public PrimExpr {
  public:
-  TVM_DLL LT(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL LT(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit LT(ffi::ObjectPtr<LTNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LT, PrimExpr, LTNode);
@@ -504,7 +504,7 @@ struct LENode : public CmpOpNode<LENode> {
  */
 class LE : public PrimExpr {
  public:
-  TVM_DLL LE(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL LE(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit LE(ffi::ObjectPtr<LENode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LE, PrimExpr, LENode);
@@ -525,7 +525,7 @@ class GTNode : public CmpOpNode<GTNode> {
  */
 class GT : public PrimExpr {
  public:
-  TVM_DLL GT(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL GT(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit GT(ffi::ObjectPtr<GTNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(GT, PrimExpr, GTNode);
@@ -546,7 +546,7 @@ class GENode : public CmpOpNode<GENode> {
  */
 class GE : public PrimExpr {
  public:
-  TVM_DLL GE(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL GE(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit GE(ffi::ObjectPtr<GENode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(GE, PrimExpr, GENode);
@@ -577,7 +577,7 @@ class AndNode : public ExprNode {
  */
 class And : public PrimExpr {
  public:
-  TVM_DLL And(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL And(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit And(ffi::ObjectPtr<AndNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(And, PrimExpr, AndNode);
@@ -608,7 +608,7 @@ class OrNode : public ExprNode {
  */
 class Or : public PrimExpr {
  public:
-  TVM_DLL Or(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL Or(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
   explicit Or(ffi::ObjectPtr<OrNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Or, PrimExpr, OrNode);
@@ -637,7 +637,7 @@ class NotNode : public ExprNode {
  */
 class Not : public PrimExpr {
  public:
-  TVM_DLL Not(PrimExpr a, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL Not(PrimExpr a, Location loc = UnknownLoc());
   explicit Not(ffi::ObjectPtr<NotNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Not, PrimExpr, NotNode);
@@ -666,7 +666,7 @@ class BitwiseNotNode : public ExprNode {
  */
 class BitwiseNot : public PrimExpr {
  public:
-  TVM_DLL BitwiseNot(PrimExpr a, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL BitwiseNot(PrimExpr a, Location loc = UnknownLoc());
   explicit BitwiseNot(ffi::ObjectPtr<BitwiseNotNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BitwiseNot, PrimExpr, BitwiseNotNode);
@@ -712,7 +712,7 @@ class SelectNode : public ExprNode {
 class Select : public PrimExpr {
  public:
   TVM_DLL Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value,
-                 ffi::Optional<Location> loc = std::nullopt);
+                 Location loc = UnknownLoc());
 
   explicit Select(ffi::ObjectPtr<SelectNode> node) : PrimExpr(std::move(node)) {}
 
@@ -752,7 +752,7 @@ class LetNode : public ExprNode {
  */
 class Let : public PrimExpr {
  public:
-  TVM_DLL Let(Var var, PrimExpr value, PrimExpr body, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL Let(Var var, PrimExpr value, PrimExpr body, Location loc = UnknownLoc());
   explicit Let(ffi::ObjectPtr<LetNode> node) : PrimExpr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Let, PrimExpr, LetNode);

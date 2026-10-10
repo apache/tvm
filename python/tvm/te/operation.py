@@ -27,6 +27,7 @@ import tvm.sym._ffi_api
 import tvm.tirx
 import tvm.tirx._ffi_api
 from tvm.ir import is_prim_expr
+from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.runtime import convert
 
 from . import _ffi_api
@@ -438,7 +439,7 @@ def extern_function(input_tensors: list[_tensor.Tensor], function: tvm.tirx.Func
     return output
 
 
-def var(name="tindex", dtype="int32", loc=None):
+def var(name="tindex", dtype="int32", loc: Location = UNKNOWN_LOC):
     """Create a new variable with specified name and dtype
 
     Parameters
@@ -449,7 +450,7 @@ def var(name="tindex", dtype="int32", loc=None):
     dtype : str
         The data type
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this variable in the source.
 
     Returns
@@ -460,7 +461,7 @@ def var(name="tindex", dtype="int32", loc=None):
     return tvm.tirx.Var(name, dtype, loc)
 
 
-def const(value, dtype="int32", loc=None):
+def const(value, dtype="int32", loc: Location = UNKNOWN_LOC):
     """Create a new constant with specified value and dtype
 
     Parameters
@@ -471,7 +472,7 @@ def const(value, dtype="int32", loc=None):
     dtype : str
         The data type
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this variable in the source.
 
     Returns
@@ -482,7 +483,7 @@ def const(value, dtype="int32", loc=None):
     return tvm.tirx.const(value, dtype, loc)
 
 
-def thread_axis(dom=None, tag="", name="", loc=None):
+def thread_axis(dom=None, tag="", name="", loc: Location = UNKNOWN_LOC):
     """Create a new IterVar to represent thread index.
 
     Parameters
@@ -497,7 +498,7 @@ def thread_axis(dom=None, tag="", name="", loc=None):
     name : str, optional
         The name of the var.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this variable in the source.
 
     Returns
@@ -513,7 +514,7 @@ def thread_axis(dom=None, tag="", name="", loc=None):
     return _iter_var_type()(dom, name, 1, tag, loc)
 
 
-def reduce_axis(dom, name="rv", thread_tag="", loc=None):
+def reduce_axis(dom, name="rv", thread_tag="", loc: Location = UNKNOWN_LOC):
     """Create a new IterVar for reduction.
 
     Parameters
@@ -527,7 +528,7 @@ def reduce_axis(dom, name="rv", thread_tag="", loc=None):
     thread_tag : Optional[str]
         The name of the thread_tag.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this variable in the source.
 
     Returns

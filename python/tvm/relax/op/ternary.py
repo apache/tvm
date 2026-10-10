@@ -18,11 +18,14 @@
 """Relax ternary arithmetic operators."""
 
 from tvm.ir import Call as _Call
+from tvm.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr
 
 
-def ewise_fma(x1: Expr, x2: Expr, x3: Expr, *, ty_args=None, ty=None, loc=None) -> Expr:
+def ewise_fma(
+    x1: Expr, x2: Expr, x3: Expr, *, ty_args=None, ty=None, loc: Location = UNKNOWN_LOC
+) -> Expr:
     """Elementwise fused multiply-add operator
     Returns elementwise result of :math:`x1 * x2 + x3`
 

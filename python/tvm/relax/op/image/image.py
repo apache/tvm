@@ -25,6 +25,7 @@ from tvm.ir import Attrs, is_prim_expr
 from tvm.ir import Call as _Call
 from tvm.ir import PrimType as _PrimType
 from tvm.ir.attrs import make_node as _make_attrs
+from tvm.ir.location import UNKNOWN_LOC, Location
 
 from ...expr import Expr, ShapeExpr
 
@@ -51,7 +52,7 @@ def resize2d(
     out_dtype: str | DataType | None = None,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Image resize2d operator.
 
@@ -164,7 +165,7 @@ def resize3d(
     out_dtype: str | DataType | None = None,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Image resize3d operator.
 
@@ -219,7 +220,7 @@ def grid_sample(
     align_corners: bool = False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Applies grid sampling to input feature map.
 
@@ -273,7 +274,7 @@ def affine_grid(
     align_corners: bool = True,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Generate a 2D or 3D sampling grid using an affine transformation matrix.
 

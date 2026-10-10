@@ -27,6 +27,7 @@ import tvm_ffi
 import tvm
 import tvm.runtime
 from tvm.ir import BaseFunc, Range, Scriptable, SeqStmt, Stmt, Var
+from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.runtime import Object
 
 from ..runtime._tensor import Tensor
@@ -52,7 +53,7 @@ class Function(BaseFunc, Scriptable):
     attrs: Optional[tvm.Attrs]
         Attributes of the function, can be None
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this itervar in the source code.
     """
 
@@ -64,7 +65,7 @@ class Function(BaseFunc, Scriptable):
         body: Stmt | Sequence[Stmt] | None,
         ret_type=None,
         attrs=None,
-        loc=None,
+        loc: Location = UNKNOWN_LOC,
     ):
         if ret_type is None:
             ret_type = tvm.ir.Type.missing()
@@ -92,7 +93,7 @@ class Function(BaseFunc, Scriptable):
         """Whether this primitive function uses the TIRx dialect."""
         return not bool(self.attrs.get("s_tir", False))
 
-    def with_body(self, new_body: Stmt | Sequence[Stmt] | None, loc=None):
+    def with_body(self, new_body: Stmt | Sequence[Stmt] | None, loc: Location = UNKNOWN_LOC):
         """Create a new Function with the same set signatures but a new body.
 
         Parameters
@@ -100,7 +101,7 @@ class Function(BaseFunc, Scriptable):
         new_body : Stmt | Sequence[Stmt] | None
             The new body, or None for a declaration.
 
-        loc : Location or None, optional
+        loc : Location, optional
             The location of this itervar in the source code.
 
         Returns

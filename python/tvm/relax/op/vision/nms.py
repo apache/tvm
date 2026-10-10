@@ -21,6 +21,7 @@ import tvm_ffi
 from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
+from tvm.ir.location import UNKNOWN_LOC, Location
 
 
 @tvm_ffi.register_object("relax.attrs.AllClassNonMaximumSuppressionAttrs")
@@ -37,7 +38,7 @@ def all_class_non_max_suppression(
     output_format="onnx",
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     """Non-maximum suppression operator for object detection, corresponding to ONNX
     NonMaxSuppression and TensorFlow combined_non_max_suppression.
@@ -103,7 +104,7 @@ def get_valid_counts(
     score_index=1,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     """Get valid count of bounding boxes given a score threshold.
     Also moves valid boxes to the top of input data.
@@ -166,7 +167,7 @@ def non_max_suppression(
     score_threshold=0.0,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     """Non-maximum suppression operator for object detection.
 

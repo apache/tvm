@@ -21,6 +21,7 @@ import numpy as np  # type: ignore
 
 import tvm
 from tvm.ir import Call as _Call
+from tvm.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr, prim_value
 
@@ -34,7 +35,7 @@ def unique(
     axis: int | Expr | None = None,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Find the unique elements in a given tensor.
     In addition, it optionally returns
@@ -185,7 +186,7 @@ def numpy_unique(
     return tuple(output_list)
 
 
-def nonzero(x: Expr, *, ty=None, loc=None) -> Expr:
+def nonzero(x: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     """Find the indices of elements of a tensor that are non-zero.
 
     Parameters

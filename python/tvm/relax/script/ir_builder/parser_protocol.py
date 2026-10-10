@@ -32,7 +32,7 @@ import tvm_ffi as _ffi
 
 from tvm import ir as _ir
 from tvm import relax as _relax
-from tvm.ir.base import UnknownLoc
+from tvm.ir.location import UnknownLoc
 from tvm.relax import Call, Expr, Var, VarBinding
 from tvm.relax.type import Type
 from tvm.relax.utils import gen_call_tir_inputs

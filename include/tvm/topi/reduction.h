@@ -139,8 +139,7 @@ inline ffi::Array<PrimExpr> MakeReduceTargetShape(const std::vector<int>& real_a
 inline Tensor DoCommReduce(const Tensor& data, FReduce func,
                            const ffi::Array<PrimExpr>& target_shape,
                            const std::vector<int>& reduce_axes,
-                           const std::vector<int>& squeeze_axes,
-                           ffi::Optional<Location> loc = std::nullopt) {
+                           const std::vector<int>& squeeze_axes, Location loc = UnknownLoc()) {
   auto r_axes = MakeReduceAxes(reduce_axes, data);
   auto compute = [&](const ffi::Array<PrimVar>& indices) {
     ffi::Array<PrimExpr> eval_range;
@@ -162,7 +161,7 @@ inline Tensor DoCommReduce(const Tensor& data, FReduce func,
       arg_counter++;
     }
 
-    return func(data(eval_range), r_axes, {}, loc.value_or(UnknownLoc()));
+    return func(data(eval_range), r_axes, {}, loc);
   };
 
   return tvm::te::compute(target_shape, compute, data->op->name + "_red", kCommReduce);
@@ -305,19 +304,19 @@ inline FCommReduce MakeCommReducer(FCombine fcombine, FIdentity fidentity,
 
 /*! \brief Wrap tvm::min to ensure we get the correct overload */
 inline PrimExpr MinOp(PrimExpr source, ffi::Array<IterVar> axis, ffi::Array<PrimExpr> init = {},
-                      ffi::Optional<Location> loc = std::nullopt) {
+                      Location loc = UnknownLoc()) {
   return tvm::min(source, axis, init, loc);
 }
 
 /*! \brief Wrap tvm::max to ensure we get the correct overload */
 inline PrimExpr MaxOp(PrimExpr source, ffi::Array<IterVar> axis, ffi::Array<PrimExpr> init = {},
-                      ffi::Optional<Location> loc = std::nullopt) {
+                      Location loc = UnknownLoc()) {
   return tvm::max(source, axis, init, loc);  // NOLINT(*)
 }
 
 /*! \brief Wrap tvm::prim::prod to ensure we get the correct overload */
 inline PrimExpr ProdOp(PrimExpr source, ffi::Array<IterVar> axis, ffi::Array<PrimExpr> init = {},
-                       ffi::Optional<Location> loc = std::nullopt) {
+                       Location loc = UnknownLoc()) {
   return tvm::prim::prod(source, axis, init, loc);  // NOLINT(*)
 }
 

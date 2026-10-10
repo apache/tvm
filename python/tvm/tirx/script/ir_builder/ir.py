@@ -37,7 +37,9 @@ from typing import Literal
 from tvm import DataType, ir
 from tvm import tirx as tir
 from tvm.ir import Range, Type, is_prim_expr
+from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.script.ir_builder.base import MISSING, IRBuilder
+from tvm.script.ir_builder.base import LocationEntry as _LocationEntry
 from tvm.script.ir_builder.ir import Lambda, meta_var
 from tvm.script.parser.protocol_registry import (
     register_mutable_decl as _register_mutable_decl,
@@ -221,7 +223,7 @@ def _tensor_type(
     offset_factor: int = 0,
     layout: str | Layout | None = MISSING,
     *,
-    loc=None,
+    loc: _LocationEntry | Location = UNKNOWN_LOC,
 ) -> tir.TensorType:
     """Construct a tensor type for annotations and explicit type-valued fields.
 
@@ -1404,7 +1406,7 @@ else:
         return _install_meta_class(cls)
 
 
-def Ptr(dtype, storage_scope="global", *, loc=None):
+def Ptr(dtype, storage_scope="global", *, loc: _LocationEntry | Location = UNKNOWN_LOC):
     """The pointer declaration function.
 
     Parameters
@@ -1415,7 +1417,7 @@ def Ptr(dtype, storage_scope="global", *, loc=None):
     storage_scope : str
         The storage scope of the pointer.
 
-    loc : LocationEntry, Location or None, optional
+    loc : LocationEntry or Location, optional
         Source location attached to the constructed IR.
 
     Returns

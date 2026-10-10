@@ -172,7 +172,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 template <typename T, OperationDocNode::Kind kind,
-          PrimExpr (*operation)(PrimExpr, PrimExpr, ffi::Optional<Location>)>
+          PrimExpr (*operation)(PrimExpr, PrimExpr, Location)>
 ffi::Optional<ExprDoc> BinaryOpDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                             const ffi::Object*) {
   const auto* node = ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const T>(input);
@@ -194,8 +194,7 @@ ffi::Optional<ExprDoc> BinaryOpDocTranslate(DocTranslatorObj* d, ffi::AnyView in
   return NamespaceDoc("tirx")->Attr(std::strrchr(T::_type_key, '.') + 1)->Call({a, b});
 }
 
-template <typename T, OperationDocNode::Kind kind,
-          PrimExpr (*operation)(PrimExpr, ffi::Optional<Location>)>
+template <typename T, OperationDocNode::Kind kind, PrimExpr (*operation)(PrimExpr, Location)>
 ExprDoc UnaryOpDocTranslate(DocTranslatorObj* d, const T* node) {
   ExprDoc value = d->Translate(node->a).value();
   if (!value.as<LiteralDocNode>()) {
@@ -211,7 +210,7 @@ ExprDoc UnaryOpDocTranslate(DocTranslatorObj* d, const T* node) {
   return NamespaceDoc("tirx")->Attr(std::strrchr(T::_type_key, '.') + 1)->Call({value});
 }
 
-template <typename T, PrimExpr (*operation)(PrimExpr, PrimExpr, ffi::Optional<Location>)>
+template <typename T, PrimExpr (*operation)(PrimExpr, PrimExpr, Location)>
 ExprDoc BinaryHelperDocTranslate(DocTranslatorObj* d, const T* node, const char* helper) {
   ExprDoc a = d->Translate(node->a).value();
   ExprDoc b = d->Translate(node->b).value();

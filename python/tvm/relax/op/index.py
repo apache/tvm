@@ -22,6 +22,7 @@ from tvm.error import InternalError as _InternalError
 from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
+from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.relax.expr import Tuple as _Tuple
 
 from ..expr import Expr
@@ -42,7 +43,7 @@ def take(
     mode: str = "fast",
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Take elements from a tensor along an axis.
     Its semantic is mostly similar to `numpy.take`
@@ -96,7 +97,7 @@ def strided_slice(
     assume_inbound: bool = False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Strided slice of a tensor.
 
@@ -152,7 +153,7 @@ def strided_slice(
 
 
 def dynamic_strided_slice(
-    x: Expr, begin: Expr, end: Expr, strides: Expr, *, ty=None, loc=None
+    x: Expr, begin: Expr, end: Expr, strides: Expr, *, ty=None, loc: Location = UNKNOWN_LOC
 ) -> Expr:
     """Dynamic strided slice of a tensor. `begin`, `end`, `strides` can be computed at runtime.
 

@@ -30,6 +30,7 @@ from collections.abc import Sequence
 
 from tvm.ir import Call as _Call
 from tvm.ir import DataTypeImm, GenericConst
+from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.relax import Expr, ShapeExpr, Tuple
 from tvm.relax.expr import prim_value
 
@@ -45,7 +46,7 @@ def view(
     relative_byte_offset: Expr | None = None,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Provide a view into an existing tensor
 
@@ -115,7 +116,7 @@ def view(
     )  # type: ignore
 
 
-def ensure_zero_offset(data: Expr, *, ty=None, loc=None) -> Expr:
+def ensure_zero_offset(data: Expr, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     """
     Ensure the tensor has elem_offset == 0. A copy will be made if necessary.
 

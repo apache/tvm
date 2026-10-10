@@ -49,15 +49,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
   refl::GlobalDef().def(
       "ir.SubscriptExprRealize",
-      [](Expr value, SubscriptSlice slice, ffi::Optional<Location> loc) -> ffi::ObjectRef {
+      [](Expr value, SubscriptSlice slice, Location loc) -> ffi::ObjectRef {
         TVM_FFI_CHECK(value.defined(), TypeError) << "Cannot subscript an undefined expression";
         static refl::TypeAttrColumn realize_column(tvm::type_attr::kSubscriptExprRealize);
         ffi::AnyView packed_realize = realize_column[value->ty->type_index()];
         TVM_FFI_CHECK(packed_realize != nullptr, TypeError)
             << "Type " << value->ty->GetTypeKey() << " does not support subscript";
         ffi::ObjectRef result =
-            packed_realize.cast<ffi::Function>()(value, slice, loc.value_or(UnknownLoc()))
-                .cast<ffi::ObjectRef>();
+            packed_realize.cast<ffi::Function>()(value, slice, loc).cast<ffi::ObjectRef>();
         TVM_FFI_CHECK(result.defined(), TypeError)
             << "__subscript_expr_realize__ for type " << value->ty->GetTypeKey()
             << " returned an undefined object";

@@ -37,7 +37,7 @@ from tvm.ir._overload_prim_expr import (  # noqa: F401
     NotEqualOp,
     div_ambiguity_error,
 )
-from tvm.ir.base import Location
+from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.prim import convert as convert
 
 # Retain historical imports as aliases of the canonical shared definitions.
@@ -92,11 +92,11 @@ class IntImmEnum(ObjectConvertible):
     value : int
         The enum value
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of the cast in the source.
     """
 
-    def __init__(self, value: int, loc: Location | None = None) -> None:
+    def __init__(self, value: int, loc: Location = UNKNOWN_LOC) -> None:
         self.value = value
         self.loc = loc
 
@@ -108,7 +108,7 @@ class IntImmEnum(ObjectConvertible):
 Var = ir.Var
 
 
-def TensorLoad(buffer: Var, indices: list[Expr], loc: Location | None = None) -> ir.TensorLoad:
+def TensorLoad(buffer: Var, indices: list[Expr], loc: Location = UNKNOWN_LOC) -> ir.TensorLoad:
     """Construct a validated buffer load.
 
     Parameters
@@ -119,7 +119,7 @@ def TensorLoad(buffer: Var, indices: list[Expr], loc: Location | None = None) ->
     indices : List[Expr]
         The buffer indices to load values from.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this expression in the source code.
 
     """

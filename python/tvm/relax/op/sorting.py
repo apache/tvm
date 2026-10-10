@@ -21,6 +21,7 @@ import tvm_ffi
 from tvm.ir import Attrs, GenericConst
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
+from tvm.ir.location import UNKNOWN_LOC, Location
 
 from ..expr import Expr
 
@@ -36,7 +37,7 @@ def sort(
     descending: bool = False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     """Performs sorting along the given axis and returns an array
     in sorted order.
@@ -80,7 +81,7 @@ def argsort(
     dtype: str = "int32",
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     """Performs sorting along the given axis and returns an array of indices
     having same shape as an input array that index data in sorted order.
@@ -129,7 +130,7 @@ def topk(
     dtype: str = "int32",
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     """Get the top k elements in an input tensor along the given axis.
 

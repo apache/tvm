@@ -40,6 +40,7 @@ from tvm.ir import (
     const,
     make_node,
 )
+from tvm.ir.location import UNKNOWN_LOC
 from tvm.ir.op import register_op_attr
 from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.expr import IntImm
@@ -121,7 +122,7 @@ class Instruction:
     def make(self, *values, **kw):
         if len(values) > len(self.operands):
             raise TypeError(f"{self.name} expects at most {len(self.operands)} operands")
-        loc = kw.pop("loc", None)
+        loc = kw.pop("loc", UNKNOWN_LOC)
         explicit_attrs = kw.pop("attrs", None)
         result_ty = kw.pop("ty", "void")
         if kw.pop("ty_args", ()):

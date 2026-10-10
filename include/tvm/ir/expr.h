@@ -76,7 +76,7 @@ class GenericConstNode : public ConstantNode {
 /*! \brief Managed reference to a generic constant. */
 class GenericConst : public Constant {
  public:
-  TVM_DLL GenericConst(ffi::Any value, Type ty, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL GenericConst(ffi::Any value, Type ty, Location loc = UnknownLoc());
 
   explicit GenericConst(ffi::ObjectPtr<GenericConstNode> node) : Constant(std::move(node)) {}
 
@@ -98,7 +98,7 @@ class StringImmNode : public ConstantNode {
 /*! \brief Managed reference to a string literal. */
 class StringImm : public Constant {
  public:
-  TVM_DLL explicit StringImm(ffi::String value, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL explicit StringImm(ffi::String value, Location loc = UnknownLoc());
 
   explicit StringImm(ffi::ObjectPtr<StringImmNode> node) : Constant(std::move(node)) {}
 
@@ -120,7 +120,7 @@ class DataTypeImmNode : public ConstantNode {
 /*! \brief Managed reference to a data type literal. */
 class DataTypeImm : public Constant {
  public:
-  TVM_DLL explicit DataTypeImm(DLDataType value, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL explicit DataTypeImm(DLDataType value, Location loc = UnknownLoc());
 
   explicit DataTypeImm(ffi::ObjectPtr<DataTypeImmNode> node) : Constant(std::move(node)) {}
 
@@ -157,10 +157,10 @@ class IntImm : public PrimExpr {
    * \param value The internal value.
    * \param loc The location of this object in the source code.
    */
-  TVM_DLL IntImm(PrimType value_ty, ffi::BigInt value, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL IntImm(PrimType value_ty, ffi::BigInt value, Location loc = UnknownLoc());
 
   template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, int> = 0>
-  IntImm(PrimType value_ty, Enum value, ffi::Optional<Location> loc = std::nullopt)
+  IntImm(PrimType value_ty, Enum value, Location loc = UnknownLoc())
       : IntImm(std::move(value_ty), ffi::BigInt(static_cast<std::underlying_type_t<Enum>>(value)),
                std::move(loc)) {}
 
@@ -169,7 +169,7 @@ class IntImm : public PrimExpr {
    * \param value The boolean value.
    * \param loc The location of this object in the source code.
    */
-  static IntImm Bool(bool value, ffi::Optional<Location> loc = std::nullopt) {
+  static IntImm Bool(bool value, Location loc = UnknownLoc()) {
     return IntImm(PrimType::Bool(), value, loc);
   }
 
@@ -178,12 +178,12 @@ class IntImm : public PrimExpr {
    * \param value The integer value.
    * \param loc The location of this object in the source code.
    */
-  static IntImm Int32(ffi::BigInt value, ffi::Optional<Location> loc = std::nullopt) {
+  static IntImm Int32(ffi::BigInt value, Location loc = UnknownLoc()) {
     return IntImm(PrimType::Int(32), std::move(value), loc);
   }
 
   template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, int> = 0>
-  static IntImm Int32(Enum value, ffi::Optional<Location> loc = std::nullopt) {
+  static IntImm Int32(Enum value, Location loc = UnknownLoc()) {
     return IntImm(PrimType::Int(32), value, std::move(loc));
   }
 
@@ -192,12 +192,12 @@ class IntImm : public PrimExpr {
    * \param value The integer value.
    * \param loc The location of this object in the source code.
    */
-  static IntImm Int64(ffi::BigInt value, ffi::Optional<Location> loc = std::nullopt) {
+  static IntImm Int64(ffi::BigInt value, Location loc = UnknownLoc()) {
     return IntImm(PrimType::Int(64), std::move(value), loc);
   }
 
   template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, int> = 0>
-  static IntImm Int64(Enum value, ffi::Optional<Location> loc = std::nullopt) {
+  static IntImm Int64(Enum value, Location loc = UnknownLoc()) {
     return IntImm(PrimType::Int(64), value, std::move(loc));
   }
 
@@ -237,7 +237,7 @@ class FloatImm : public PrimExpr {
    * \param value The internal value.
    * \param loc The location in the source code.
    */
-  TVM_DLL FloatImm(PrimType value_ty, double value, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL FloatImm(PrimType value_ty, double value, Location loc = UnknownLoc());
 
   explicit FloatImm(ffi::ObjectPtr<FloatImmNode> node) : PrimExpr(std::move(node)) {}
 
@@ -381,7 +381,7 @@ class Tuple : public Expr {
    * \param fields The fields of the tuple.
    * \param loc The source location of the expression.
    */
-  TVM_DLL explicit Tuple(ffi::Array<Expr> fields, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL explicit Tuple(ffi::Array<Expr> fields, Location loc = UnknownLoc());
 
   explicit Tuple(ffi::ObjectPtr<TupleNode> node) : Expr(std::move(node)) {}
 
@@ -431,7 +431,7 @@ class TupleGetItem : public Expr {
    * \param index The field index.
    * \param loc The source location of the expression.
    */
-  TVM_DLL TupleGetItem(Expr tuple, int index, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL TupleGetItem(Expr tuple, int index, Location loc = UnknownLoc());
 
   explicit TupleGetItem(ffi::ObjectPtr<TupleGetItemNode> node) : Expr(std::move(node)) {}
 
@@ -714,7 +714,7 @@ class VarNode : public ExprNode {
 class Var : public Expr {
  public:
   TVM_DLL explicit Var(ffi::String name, ffi::Optional<Type> ty_annotation,
-                       ffi::Optional<Location> loc = std::nullopt);
+                       Location loc = UnknownLoc());
 
   /*! \brief Return a fresh ordinary Var with the same type and a new name. */
   TVM_DLL Var CopyWithName(const ffi::String& name) const;
@@ -743,12 +743,11 @@ class PrimVar : public PrimExpr {
  public:
   /*! \brief Construct a scalar variable directly from a primitive type. */
   explicit PrimVar(ffi::String name, PrimType dtype = PrimType::Int(32),
-                   ffi::Optional<Location> loc = std::nullopt)
+                   Location loc = UnknownLoc())
       : PrimExpr(Var(std::move(name), std::move(dtype), std::move(loc)).as_or_throw<PrimExpr>()) {}
 
   /*! \brief Construct a scalar variable directly from a checked type annotation. */
-  explicit PrimVar(ffi::String name, Type type_annotation,
-                   ffi::Optional<Location> loc = std::nullopt)
+  explicit PrimVar(ffi::String name, Type type_annotation, Location loc = UnknownLoc())
       : PrimExpr(Var(std::move(name), std::move(type_annotation), std::move(loc))
                      .as_or_throw<PrimExpr>()) {}
 
@@ -853,7 +852,7 @@ class GlobalVarNode : public ExprNode {
  */
 class GlobalVar : public Expr {
  public:
-  TVM_DLL explicit GlobalVar(ffi::String name_hint, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL explicit GlobalVar(ffi::String name_hint, Location loc = UnknownLoc());
 
   explicit GlobalVar(ffi::ObjectPtr<GlobalVarNode> node) : Expr(std::move(node)) {}
 
@@ -976,8 +975,7 @@ class Call : public Expr {
    * Construction preserves provisional IR; invoke Validate separately when needed.
    */
   TVM_DLL Call(ffi::Optional<Type> ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs = Attrs(),
-               ffi::Array<Type> ty_args = ffi::Array<Type>(),
-               ffi::Optional<Location> loc = std::nullopt);
+               ffi::Array<Type> ty_args = ffi::Array<Type>(), Location loc = UnknownLoc());
 
   /*! \brief Check this Call against its registered operator contract. */
   TVM_DLL void Validate() const;
@@ -1031,7 +1029,7 @@ class Range : public ffi::ObjectRef {
    * \param end The end of the range.
    * \param loc The location of the Range in the source.
    */
-  TVM_DLL Range(PrimExpr begin, PrimExpr end, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL Range(PrimExpr begin, PrimExpr end, Location loc = UnknownLoc());
   /*!
    * \brief construct a new range with min and extent
    *  The corresponding constructor is removed,
@@ -1042,8 +1040,7 @@ class Range : public ffi::ObjectRef {
    * \param extent The extent of the range.
    * \param loc The location of the Range in the source.
    */
-  TVM_DLL static Range FromMinExtent(PrimExpr min, PrimExpr extent,
-                                     ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL static Range FromMinExtent(PrimExpr min, PrimExpr extent, Location loc = UnknownLoc());
   // declare range.
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Range, ffi::ObjectRef, RangeNode);
 };
@@ -1075,8 +1072,7 @@ class TensorRegionNode : public ExprNode {
 /*! \brief Managed reference to TensorRegionNode. */
 class TensorRegion : public Expr {
  public:
-  TVM_DLL TensorRegion(Expr source, ffi::Array<Range> region, Type ty,
-                       ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL TensorRegion(Expr source, ffi::Array<Range> region, Type ty, Location loc = UnknownLoc());
 
   explicit TensorRegion(ffi::ObjectPtr<TensorRegionNode> node) : Expr(std::move(node)) {}
 

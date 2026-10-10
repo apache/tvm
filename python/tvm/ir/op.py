@@ -24,6 +24,8 @@ from types import ModuleType, SimpleNamespace
 
 import tvm_ffi
 
+from tvm.ir.location import UNKNOWN_LOC, Location
+
 from . import _ffi_api
 from .expr import Expr
 
@@ -37,7 +39,7 @@ def _make_op_api(op, module_name):
         *args,
         attrs=None,
         ty_args=None,
-        loc=None,
+        loc: Location = UNKNOWN_LOC,
         ty=None,
         **kwargs,
     ):

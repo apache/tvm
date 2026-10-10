@@ -405,7 +405,7 @@ SBlock::SBlock(ffi::Array<IterVar> iter_vars, ffi::Array<TensorRegion> reads,
                ffi::Array<TensorRegion> writes, ffi::String name_hint, SeqStmt body,
                ffi::Optional<SeqStmt> init, ffi::Array<TensorVar> alloc_buffers,
                ffi::Array<MatchBufferRegion> match_buffers, ffi::Map<ffi::String, Any> annotations,
-               ffi::Optional<Location> loc)
+               Location loc)
     : Stmt(ffi::UnsafeInit{}) {
   for (const auto& regions : {reads, writes}) {
     for (const TensorRegion& region : regions) {
@@ -423,12 +423,12 @@ SBlock::SBlock(ffi::Array<IterVar> iter_vars, ffi::Array<TensorRegion> reads,
   node->alloc_buffers = std::move(alloc_buffers);
   node->match_buffers = std::move(match_buffers);
   node->annotations = std::move(annotations);
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
 SBlock::SBlock(ffi::String name_hint, SeqStmt body, ffi::Array<TensorVar> alloc_buffers,
-               ffi::Optional<Location> loc)
+               Location loc)
     : Stmt(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<SBlockNode> node = ffi::make_object<SBlockNode>(std::move(body));
   node->iter_vars = {};
@@ -439,7 +439,7 @@ SBlock::SBlock(ffi::String name_hint, SeqStmt body, ffi::Array<TensorVar> alloc_
   node->alloc_buffers = std::move(alloc_buffers);
   node->match_buffers = {};
   node->annotations = {};
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -457,7 +457,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                            ffi::Array<TensorRegion> writes, ffi::String name_hint, SeqStmt body,
                            ffi::Optional<SeqStmt> init, ffi::Array<TensorVar> alloc_buffers,
                            ffi::Array<MatchBufferRegion> match_buffers,
-                           ffi::Map<ffi::String, Any> annotations, ffi::Optional<Location> loc) {
+                           ffi::Map<ffi::String, Any> annotations, Location loc) {
                           return SBlock(iter_vars, reads, writes, name_hint, body, init,
                                         alloc_buffers, match_buffers, annotations, loc);
                         });
@@ -465,7 +465,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // BlockRealize
 SBlockRealize::SBlockRealize(ffi::Array<PrimExpr> values, PrimExpr predicate, SBlock block,
-                             ffi::Optional<Location> loc)
+                             Location loc)
     : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK_EQ(block->iter_vars.size(), values.size(), ValueError)
       << "BlockRealize needs to have the same number of iter_vars and binding values";
@@ -475,7 +475,7 @@ SBlockRealize::SBlockRealize(ffi::Array<PrimExpr> values, PrimExpr predicate, SB
   ffi::ObjectPtr<SBlockRealizeNode> node =
       ffi::make_object<SBlockRealizeNode>(std::move(predicate), std::move(block));
   node->iter_values = std::move(values);
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -490,11 +490,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&SBlockRealizeMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("s_tir.SBlockRealize",
-                        [](ffi::Array<PrimExpr> iter_values, PrimExpr predicate, SBlock block,
-                           ffi::Optional<Location> loc) {
-                          return SBlockRealize(iter_values, predicate, block, loc);
-                        });
+  refl::GlobalDef().def("s_tir.SBlockRealize", [](ffi::Array<PrimExpr> iter_values,
+                                                  PrimExpr predicate, SBlock block, Location loc) {
+    return SBlockRealize(iter_values, predicate, block, loc);
+  });
 }
 
 }  // namespace s_tir

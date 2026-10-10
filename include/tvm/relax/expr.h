@@ -58,8 +58,7 @@ class ShapeExprNode : public ExprNode {
 
 class ShapeExpr : public Expr {
  public:
-  TVM_DLL explicit ShapeExpr(ffi::Array<PrimExpr> values,
-                             ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL explicit ShapeExpr(ffi::Array<PrimExpr> values, Location loc = UnknownLoc());
   explicit ShapeExpr(ffi::ObjectPtr<ShapeExprNode> node) : Expr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ShapeExpr, Expr, ShapeExprNode);
@@ -83,7 +82,7 @@ class DataflowVarNode : public VarNode {
 class DataflowVar : public Var {
  public:
   TVM_DLL explicit DataflowVar(ffi::String name, ffi::Optional<Type> ty_annotation,
-                               ffi::Optional<Location> loc = std::nullopt);
+                               Location loc = UnknownLoc());
 
   explicit DataflowVar(ffi::ObjectPtr<DataflowVarNode> node) : Var(std::move(node)) {}
 
@@ -93,7 +92,7 @@ class DataflowVar : public Var {
 /*! \brief Construct a tensor constant, inferring shape and dtype when type is omitted. */
 TVM_DLL GenericConst MakeTensorConst(runtime::Tensor data,
                                      ffi::Optional<Type> ty_annotation = std::nullopt,
-                                     ffi::Optional<Location> loc = std::nullopt);
+                                     Location loc = UnknownLoc());
 
 /*! \brief The base class of a variable binding in Relax. */
 class BindingNode : public ffi::Object {
@@ -169,8 +168,7 @@ class MatchCastNode : public BindingNode {
  */
 class MatchCast : public Binding {
  public:
-  TVM_DLL explicit MatchCast(Var var, Expr value, Type ty,
-                             ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL explicit MatchCast(Var var, Expr value, Type ty, Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchCast, Binding, MatchCastNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchCastNode);
@@ -203,7 +201,7 @@ class VarBindingNode : public BindingNode {
 
 class VarBinding : public Binding {
  public:
-  TVM_DLL explicit VarBinding(Var var, Expr value, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL explicit VarBinding(Var var, Expr value, Location loc = UnknownLoc());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(VarBinding, Binding, VarBindingNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(VarBindingNode);
 };
@@ -227,8 +225,7 @@ class BindingBlockNode : public ffi::Object {
 
 class BindingBlock : public ffi::ObjectRef {
  public:
-  TVM_DLL explicit BindingBlock(ffi::Array<Binding> bindings,
-                                ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL explicit BindingBlock(ffi::Array<Binding> bindings, Location loc = UnknownLoc());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BindingBlock, ffi::ObjectRef, BindingBlockNode);
 
   BindingBlockNode* CopyOnWrite();
@@ -246,8 +243,7 @@ class DataflowBlockNode : public BindingBlockNode {
 
 class DataflowBlock : public BindingBlock {
  public:
-  TVM_DLL explicit DataflowBlock(ffi::Array<Binding> bindings,
-                                 ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL explicit DataflowBlock(ffi::Array<Binding> bindings, Location loc = UnknownLoc());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowBlock, BindingBlock, DataflowBlockNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DataflowBlockNode);
 };
@@ -307,8 +303,7 @@ class SeqExpr : public Expr {
    */
   TVM_DLL SeqExpr(Expr body);  // NOLINT(*)
 
-  TVM_DLL explicit SeqExpr(ffi::Array<BindingBlock> blocks, Expr body,
-                           ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL explicit SeqExpr(ffi::Array<BindingBlock> blocks, Expr body, Location loc = UnknownLoc());
   explicit SeqExpr(ffi::ObjectPtr<SeqExprNode> node) : Expr(std::move(node)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SeqExpr, Expr, SeqExprNode);
@@ -373,8 +368,7 @@ class IfExpr : public Expr {
    *
    * \param loc The source location of the expression.
    */
-  TVM_DLL IfExpr(Expr cond, Expr true_branch, Expr false_branch,
-                 ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL IfExpr(Expr cond, Expr true_branch, Expr false_branch, Location loc = UnknownLoc());
 
   explicit IfExpr(ffi::ObjectPtr<IfExprNode> node) : Expr(std::move(node)) {}
 
@@ -435,15 +429,14 @@ class Function : public BaseFunc {
    */
   TVM_DLL explicit Function(ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty,
                             bool is_pure = true, DictAttrs attrs = DictAttrs(),
-                            ffi::Optional<Location> loc = std::nullopt);
+                            Location loc = UnknownLoc());
 
   /*!
    * \brief Mimics the constructor but without body Expr.
    * \note ret_ty is required, since it can not deduced by the body.
    */
   TVM_DLL static Function CreateEmpty(ffi::Array<Var> params, Type ret_ty, bool is_pure = true,
-                                      DictAttrs attrs = DictAttrs(),
-                                      ffi::Optional<Location> loc = std::nullopt);
+                                      DictAttrs attrs = DictAttrs(), Location loc = UnknownLoc());
 
   explicit Function(ffi::ObjectPtr<FunctionNode> node) : BaseFunc(std::move(node)) {}
 
@@ -466,9 +459,8 @@ class ExternFuncNode : public BaseFuncNode {
 
 class ExternFunc : public BaseFunc {
  public:
-  TVM_DLL ExternFunc(ffi::String global_symbol, ffi::Optional<Location> loc = std::nullopt);
-  TVM_DLL ExternFunc(ffi::String global_symbol, Type ty,
-                     ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL ExternFunc(ffi::String global_symbol, Location loc = UnknownLoc());
+  TVM_DLL ExternFunc(ffi::String global_symbol, Type ty, Location loc = UnknownLoc());
 
   explicit ExternFunc(ffi::ObjectPtr<ExternFuncNode> node) : BaseFunc(std::move(node)) {}
 

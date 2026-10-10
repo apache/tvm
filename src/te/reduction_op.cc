@@ -22,8 +22,7 @@
 
 namespace tvm::prim {
 using s_tir::IterVar;
-PrimExpr sum(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init,
-             ffi::Optional<Location> loc) {
+PrimExpr sum(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Location loc) {
   PrimVar x("x", source.ty(), loc), y("y", source.ty(), loc);
   PrimExpr result = prim::Add(x, y, loc);
   PrimExpr identity_element = MakeConst(source.ty(), 0, loc);
@@ -31,8 +30,7 @@ PrimExpr sum(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
   return te::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, loc);
 }
 
-PrimExpr all(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init,
-             ffi::Optional<Location> loc) {
+PrimExpr all(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Location loc) {
   TVM_FFI_ICHECK(source.ty().MatchesCode(DLDataTypeCode::kDLBool))
       << "Expected boolean argument for tvm::all, but received " << source << " of type "
       << source.ty();
@@ -43,8 +41,7 @@ PrimExpr all(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
   return te::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, loc);
 }
 
-PrimExpr any(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init,
-             ffi::Optional<Location> loc) {
+PrimExpr any(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Location loc) {
   TVM_FFI_ICHECK(source.ty().MatchesCode(DLDataTypeCode::kDLBool))
       << "Expected boolean argument for tvm::any, but received " << source << " of type "
       << source.ty();
@@ -59,7 +56,7 @@ PrimExpr any(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
 
 namespace tvm {
 PrimExpr max(PrimExpr source, ffi::Array<s_tir::IterVar> rdom, ffi::Array<PrimExpr> init,
-             ffi::Optional<Location> loc) {
+             Location loc) {
   PrimVar x("x", source.ty(), loc), y("y", source.ty(), loc);
   PrimExpr result = prim::Max(x, y, loc);
   PrimExpr identity_element = prim::min_value(source.ty(), loc);
@@ -68,7 +65,7 @@ PrimExpr max(PrimExpr source, ffi::Array<s_tir::IterVar> rdom, ffi::Array<PrimEx
 }
 
 PrimExpr min(PrimExpr source, ffi::Array<s_tir::IterVar> rdom, ffi::Array<PrimExpr> init,
-             ffi::Optional<Location> loc) {
+             Location loc) {
   PrimVar x("x", source.ty(), loc), y("y", source.ty(), loc);
   PrimExpr result = prim::Min(x, y, loc);
   PrimExpr identity_element = prim::max_value(source.ty(), loc);
@@ -79,8 +76,7 @@ PrimExpr min(PrimExpr source, ffi::Array<s_tir::IterVar> rdom, ffi::Array<PrimEx
 }  // namespace tvm
 
 namespace tvm::prim {
-PrimExpr prod(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init,
-              ffi::Optional<Location> loc) {
+PrimExpr prod(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Location loc) {
   if (source.ty().MatchesCode(DLDataTypeCode::kDLBool)) {
     // Bool product (prod) has the same truth table as logical AND.  Reuse all() to
     // avoid lowering bool prod through Mul, which LLVM codegen does not support.

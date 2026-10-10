@@ -19,12 +19,15 @@
 from __future__ import annotations
 
 from tvm.ir import Call, Expr, Op, Var
+from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.op import _make_op_api
 from tvm.tirx import is_tensor_var
 from tvm.tirx.op import call_intrin
 
 
-def make_filled_simdgroup_matrix(d, index, value, col=8, row=8, *, ty=None, loc=None):
+def make_filled_simdgroup_matrix(
+    d, index, value, col=8, row=8, *, ty=None, loc: Location = UNKNOWN_LOC
+):
     """Create a filled SIMDGroup matrix."""
 
     return Call(
@@ -45,7 +48,7 @@ def simdgroup_load(
     transpose_matrix=False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     """Load data from device or threadgroup memory to simdgroup."""
 
@@ -67,7 +70,7 @@ def simdgroup_store(
     transpose_matrix=False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     """Store data from simdgroup to device or threadgroup memory."""
 
@@ -80,7 +83,7 @@ def simdgroup_store(
 
 
 def simdgroup_multiply_accumulate(
-    d, index_d, a, index_a, b, index_b, c, index_c, *, ty=None, loc=None
+    d, index_d, a, index_a, b, index_b, c, index_c, *, ty=None, loc: Location = UNKNOWN_LOC
 ):
     """Multiply and accumulate two matrices in simdgroup."""
 
@@ -97,21 +100,21 @@ _simd_shuffle_up = _make_op_api(Op.get("tirx.metal.simd_shuffle_up"), __name__)
 _simd_shuffle_down = _make_op_api(Op.get("tirx.metal.simd_shuffle_down"), __name__)
 
 
-def simd_shuffle(var, lane, *, ty=None, loc=None):
+def simd_shuffle(var, lane, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Shuffle a value from the selected SIMD lane."""
     if is_tensor_var(var):
         var = var[0]
     return _simd_shuffle(var, lane, ty=ty, loc=loc)
 
 
-def simd_shuffle_up(var, delta, *, ty=None, loc=None):
+def simd_shuffle_up(var, delta, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Shuffle a value from a lower SIMD lane."""
     if is_tensor_var(var):
         var = var[0]
     return _simd_shuffle_up(var, delta, ty=ty, loc=loc)
 
 
-def simd_shuffle_down(var, delta, *, ty=None, loc=None):
+def simd_shuffle_down(var, delta, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Shuffle a value from a higher SIMD lane."""
     if is_tensor_var(var):
         var = var[0]
@@ -141,7 +144,7 @@ def cooperative_tensor_fill(
     cols: int,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     return call_intrin(
         ty,
@@ -169,7 +172,7 @@ def cooperative_tensor_load(
     operand_role: int = 0,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     return call_intrin(
         ty,
@@ -203,7 +206,7 @@ def cooperative_tensor_store(
     operand_role: int = 0,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     return call_intrin(
         ty,
@@ -239,7 +242,7 @@ def cooperative_tensor_multiply_accumulate(
     transpose_b: bool = False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     return call_intrin(
         ty,

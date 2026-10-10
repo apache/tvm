@@ -23,6 +23,7 @@ from typing import Any
 import tvm_ffi
 
 from tvm.ir import DictAttrs, Expr, Location, Op, Scriptable, StringImm, Var, make_node
+from tvm.ir.location import UNKNOWN_LOC
 from tvm.runtime import Object
 
 from . import _ffi_api
@@ -50,7 +51,7 @@ class Bind(Stmt):
     value : Expr
         The value to be bound.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of the stmt in the source code.
     """
 
@@ -58,7 +59,7 @@ class Bind(Stmt):
     value: Expr
     loc: Location
 
-    def __init__(self, var: Var, value: Expr, loc: Location | None = None) -> None:
+    def __init__(self, var: Var, value: Expr, loc: Location = UNKNOWN_LOC) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.Bind,
             var,
@@ -82,7 +83,7 @@ class AssertStmt(Stmt):
     message_parts : list[StringImm]
         Error message fragments, concatenated at runtime when assertion fails.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of the stmt in the source code.
     """
 
@@ -96,7 +97,7 @@ class AssertStmt(Stmt):
         kind: StringImm,
         condition: Expr,
         message_parts: list | None = None,
-        loc: Location | None = None,
+        loc: Location = UNKNOWN_LOC,
     ) -> None:
         if message_parts is None:
             message_parts = []
@@ -151,7 +152,7 @@ class For(Stmt):
     step : Expr
         The loop step. Defaults to None, which represents one.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of the stmt in the source code.
     """
 
@@ -173,7 +174,7 @@ class For(Stmt):
         body: Stmt | Sequence[Stmt],
         annotations: Mapping[str, Object] | None = None,
         step: Expr | None = None,
-        loc: Location | None = None,
+        loc: Location = UNKNOWN_LOC,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.For,  # type: ignore
@@ -200,7 +201,7 @@ class While(Stmt):
     body : Stmt | Sequence[Stmt]
         The body statement.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of the stmt in the source code.
     """
 
@@ -209,7 +210,7 @@ class While(Stmt):
     loc: Location
 
     def __init__(
-        self, condition: Expr, body: Stmt | Sequence[Stmt], loc: Location | None = None
+        self, condition: Expr, body: Stmt | Sequence[Stmt], loc: Location = UNKNOWN_LOC
     ) -> None:
         self.__init_handle_by_constructor__(_ffi_api.While, condition, body, loc)  # type: ignore
 
@@ -229,7 +230,7 @@ class TensorStore(Stmt):
     value : Expr
         The primitive value to be stored.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of the stmt in the source code.
     """
 
@@ -243,7 +244,7 @@ class TensorStore(Stmt):
         dest: Expr,
         indices: list[Expr],
         value: Expr,
-        loc: Location | None = None,
+        loc: Location = UNKNOWN_LOC,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.TensorStore,
@@ -285,7 +286,7 @@ class RegionStmt(Stmt):
         attrs: DictAttrs | Mapping[str, Any] | None,
         body: Stmt | Sequence[Stmt],
         result_vars: Sequence[Var] | None = None,
-        loc: Location | None = None,
+        loc: Location = UNKNOWN_LOC,
     ) -> None:
         if isinstance(op, str):
             op = Op.get(op)
@@ -313,7 +314,8 @@ class SeqStmt(Stmt):
         The statements, flattened into one sequence. Empty and singleton sequences are valid.
 
     loc : Location or None, optional
-        The location of the stmt in the source code.
+        None inherits the location when seq is an existing statement.
+        Explicit UNKNOWN_LOC replaces that location with unknown.
     """
 
     seq: list[Stmt]
@@ -344,7 +346,7 @@ class If(Stmt):
     else_case : Stmt | Sequence[Stmt] | None
         The statement to execute if condition is false.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of the stmt in the source code.
     """
 
@@ -357,7 +359,7 @@ class If(Stmt):
         condition: Expr,
         then_case: Stmt | Sequence[Stmt],
         else_case: Stmt | Sequence[Stmt] | None,
-        loc: Location | None = None,
+        loc: Location = UNKNOWN_LOC,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.If,
@@ -377,14 +379,14 @@ class Evaluate(Stmt):
     value : Expr
         The expression to be evaluated.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of the stmt in the source code.
     """
 
     value: Expr
     loc: Location
 
-    def __init__(self, value: Expr, loc: Location | None = None) -> None:
+    def __init__(self, value: Expr, loc: Location = UNKNOWN_LOC) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Evaluate, value, loc)  # type: ignore
 
 
@@ -396,7 +398,7 @@ class Break(Stmt):
     ----------
     """
 
-    def __init__(self, loc: Location | None = None) -> None:
+    def __init__(self, loc: Location = UNKNOWN_LOC) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Break, loc)  # type: ignore
 
 
@@ -409,14 +411,14 @@ class Return(Stmt):
     value : Expr
         The value to return.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this statement in the source code.
     """
 
     value: Expr
     loc: Location
 
-    def __init__(self, value: Expr, loc: Location | None = None) -> None:
+    def __init__(self, value: Expr, loc: Location = UNKNOWN_LOC) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Return, value, loc)  # type: ignore
 
 
@@ -428,7 +430,7 @@ class Continue(Stmt):
     ----------
     """
 
-    def __init__(self, loc: Location | None = None) -> None:
+    def __init__(self, loc: Location = UNKNOWN_LOC) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Continue, loc)  # type: ignore
 
 

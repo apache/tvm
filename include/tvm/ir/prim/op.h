@@ -71,7 +71,7 @@ TVM_DLL const Op& likely_op();
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr add(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr add(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief subtraction operator
@@ -83,7 +83,7 @@ TVM_DLL PrimExpr add(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr sub(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr sub(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief negation.
@@ -94,7 +94,7 @@ TVM_DLL PrimExpr sub(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr neg(PrimExpr a, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr neg(PrimExpr a, Location loc = UnknownLoc());
 
 /*!
  * \brief multiplication operator
@@ -106,7 +106,7 @@ TVM_DLL PrimExpr neg(PrimExpr a, ffi::Optional<Location> loc = std::nullopt);
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr mul(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr mul(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief left shift operator
@@ -118,7 +118,7 @@ TVM_DLL PrimExpr mul(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr left_shift(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr left_shift(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief right shift operator
@@ -130,7 +130,7 @@ TVM_DLL PrimExpr left_shift(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc 
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr right_shift(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr right_shift(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief greater
@@ -142,7 +142,7 @@ TVM_DLL PrimExpr right_shift(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr greater(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr greater(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief greater_equal
@@ -154,7 +154,7 @@ TVM_DLL PrimExpr greater(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = s
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr greater_equal(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr greater_equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief less
@@ -166,7 +166,7 @@ TVM_DLL PrimExpr greater_equal(PrimExpr a, PrimExpr b, ffi::Optional<Location> l
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr less(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr less(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief less_equal
@@ -178,7 +178,7 @@ TVM_DLL PrimExpr less(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std:
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr less_equal(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr less_equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief equal
@@ -190,7 +190,7 @@ TVM_DLL PrimExpr less_equal(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc 
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr equal(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief not_equal
@@ -202,7 +202,7 @@ TVM_DLL PrimExpr equal(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr not_equal(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr not_equal(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief and
@@ -213,7 +213,7 @@ TVM_DLL PrimExpr not_equal(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc =
  * \return The result expression.
  * \note This operator does eager constant folding.
  */
-TVM_DLL PrimExpr logical_and(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr logical_and(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief or
@@ -224,7 +224,7 @@ TVM_DLL PrimExpr logical_and(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc
  * \return The result expression.
  * \note This operator does eager constant folding.
  */
-TVM_DLL PrimExpr logical_or(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr logical_or(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief not
@@ -234,7 +234,7 @@ TVM_DLL PrimExpr logical_or(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc 
  * \return The result expression.
  * \note This operator does eager constant folding.
  */
-TVM_DLL PrimExpr logical_not(PrimExpr a, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr logical_not(PrimExpr a, Location loc = UnknownLoc());
 
 /*!
  * \brief compute division in C semantics.
@@ -250,7 +250,7 @@ TVM_DLL PrimExpr logical_not(PrimExpr a, ffi::Optional<Location> loc = std::null
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr div(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr div(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute trunc(a / b)
@@ -264,7 +264,7 @@ TVM_DLL PrimExpr div(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr truncdiv(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr truncdiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute the remainder of truncdiv
@@ -278,7 +278,7 @@ TVM_DLL PrimExpr truncdiv(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = 
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr truncmod(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr truncmod(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute floor(a / b) where a and b are non-negative.
@@ -295,7 +295,7 @@ TVM_DLL PrimExpr truncmod(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = 
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr indexdiv(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr indexdiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute ceil(a / b) where a and b are non-negative.
@@ -312,7 +312,7 @@ TVM_DLL PrimExpr indexdiv(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = 
  * \note this function does eager constant folding for
  *       shape types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr shapediv(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr shapediv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute the remainder floor(a / b) where a and b are non-negative.
@@ -328,7 +328,7 @@ TVM_DLL PrimExpr shapediv(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = 
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr indexmod(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr indexmod(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute floor(a / b)
@@ -340,7 +340,7 @@ TVM_DLL PrimExpr indexmod(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = 
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr floordiv(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr floordiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute ceil(a / b)
@@ -353,7 +353,7 @@ TVM_DLL PrimExpr floordiv(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = 
  *       index types(int32, int64) when possible.
  */
 
-TVM_DLL PrimExpr ceildiv(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr ceildiv(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief compute the remainder of floordiv
@@ -365,7 +365,7 @@ TVM_DLL PrimExpr ceildiv(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = s
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr floormod(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr floormod(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief take maximum of two values
@@ -377,7 +377,7 @@ TVM_DLL PrimExpr floormod(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = 
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr max(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr max(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief take minimum of two values
@@ -389,7 +389,7 @@ TVM_DLL PrimExpr max(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr min(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr min(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief take bitwise and of two values
@@ -401,7 +401,7 @@ TVM_DLL PrimExpr min(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr bitwise_and(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief take bitwise or of two values
@@ -413,7 +413,7 @@ TVM_DLL PrimExpr bitwise_and(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr bitwise_or(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief take bitwise xor of two values
@@ -425,7 +425,7 @@ TVM_DLL PrimExpr bitwise_or(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc 
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Location loc = UnknownLoc());
 
 /*!
  * \brief take bitwise negation of two values
@@ -436,7 +436,7 @@ TVM_DLL PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr bitwise_neg(PrimExpr a, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr bitwise_neg(PrimExpr a, Location loc = UnknownLoc());
 
 /*!
  * \brief Conditional expression.
@@ -450,7 +450,7 @@ TVM_DLL PrimExpr bitwise_neg(PrimExpr a, ffi::Optional<Location> loc = std::null
  *       index types(int32, int64) when possible.
  */
 TVM_DLL PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value,
-                              ffi::Optional<Location> loc = std::nullopt);
+                              Location loc = UnknownLoc());
 
 /*!
  * \brief Mark condition as likely.
@@ -458,21 +458,21 @@ TVM_DLL PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false
  * \param loc The location of this operation in the source.
  * \return The marked expression.
  */
-TVM_DLL PrimExpr likely(PrimExpr cond, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr likely(PrimExpr cond, Location loc = UnknownLoc());
 /*! \brief Round up to the nearest integral value, preserving the input type. */
-TVM_DLL PrimExpr ceil(PrimExpr x, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr ceil(PrimExpr x, Location loc = UnknownLoc());
 /*! \brief Construct a base-two logarithm with the input's primitive type. */
-TVM_DLL PrimExpr log2(PrimExpr x, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr log2(PrimExpr x, Location loc = UnknownLoc());
 namespace prim {
 /*! \brief Count leading zero bits, preserving the input primitive type. */
-TVM_DLL PrimExpr clz(PrimExpr x, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr clz(PrimExpr x, Location loc = UnknownLoc());
 /*!
  * Query the minimum possible value of dtype.
  * \param dtype The primitive type.
  * \param loc The location of this operation in the source.
  * \return the minimum possible value in this format.
  */
-TVM_DLL PrimExpr min_value(PrimType dtype, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr min_value(PrimType dtype, Location loc = UnknownLoc());
 
 /*!
  * Query the maximum possible value of dtype.
@@ -480,7 +480,7 @@ TVM_DLL PrimExpr min_value(PrimType dtype, ffi::Optional<Location> loc = std::nu
  * \param loc The location of this operation in the source.
  * \return the maximum possible value in this format.
  */
-TVM_DLL PrimExpr max_value(PrimType dtype, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr max_value(PrimType dtype, Location loc = UnknownLoc());
 
 /*!
  * \brief cast value to type.
@@ -492,10 +492,10 @@ TVM_DLL PrimExpr max_value(PrimType dtype, ffi::Optional<Location> loc = std::nu
  * \note This function may return value if the type is the same. Constant folding
  * uses MakeConst for scalar and vector constants.
  */
-TVM_DLL PrimExpr cast(PrimType t, PrimExpr value, ffi::Optional<Location> loc = std::nullopt);
-TVM_DLL PrimExpr cast(DLDataType t, PrimExpr value, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr cast(PrimType t, PrimExpr value, Location loc = UnknownLoc());
+TVM_DLL PrimExpr cast(DLDataType t, PrimExpr value, Location loc = UnknownLoc());
 /*! \brief Construct integer absolute value; floating absolute value belongs to TIRX. */
-TVM_DLL PrimExpr IntegerAbs(PrimExpr x, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr IntegerAbs(PrimExpr x, Location loc = UnknownLoc());
 /*!
  * \brief Make a const value with certain data type.
  *
@@ -515,12 +515,10 @@ template <typename ValueType,
           typename = typename std::enable_if<(std::is_standard_layout<ValueType>::value &&
                                               std::is_trivial<ValueType>::value) ||
                                              std::is_same<ValueType, ffi::BigInt>::value>::type>
-inline PrimExpr MakeConst(PrimType dtype, ValueType value,
-                          ffi::Optional<Location> loc = std::nullopt);
+inline PrimExpr MakeConst(PrimType dtype, ValueType value, Location loc = UnknownLoc());
 
 template <typename ValueType>
-inline PrimExpr MakeConstScalar(PrimType dtype, ValueType value,
-                                ffi::Optional<Location> loc = std::nullopt) {
+inline PrimExpr MakeConstScalar(PrimType dtype, ValueType value, Location loc = UnknownLoc()) {
   if constexpr (std::is_enum_v<ValueType>) {
     return MakeConstScalar(dtype, static_cast<std::underlying_type_t<ValueType>>(value), loc);
   } else {
@@ -547,12 +545,12 @@ inline PrimExpr MakeConstScalar(PrimType dtype, ValueType value,
 }
 
 template <>
-inline PrimExpr MakeConstScalar(PrimType dtype, bool value, ffi::Optional<Location> loc) {
+inline PrimExpr MakeConstScalar(PrimType dtype, bool value, Location loc) {
   return MakeConstScalar(dtype, static_cast<int>(value), loc);
 }
 
 template <typename ValueType, typename>
-inline PrimExpr MakeConst(PrimType dtype, ValueType value, ffi::Optional<Location> loc) {
+inline PrimExpr MakeConst(PrimType dtype, ValueType value, Location loc) {
   if (!dtype.IsScalableVector() && !dtype.IsFixedLengthVector()) {
     return MakeConstScalar(dtype, value, loc);
   }
@@ -583,45 +581,45 @@ inline PrimExpr MakeConst(PrimType dtype, ValueType value, ffi::Optional<Locatio
     return Name(a, FloatImm(PrimType::Float(64), b));                                            \
   }
 
-#define TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD_SPANNED(Name)                                         \
-  inline PrimExpr Name(const PrimExpr& a, float b, ffi::Optional<Location> loc = std::nullopt) {  \
-    return Name(a, PrimExpr(b), loc);                                                             \
-  }                                                                                               \
-  inline PrimExpr Name(float a, const PrimExpr& b, ffi::Optional<Location> loc = std::nullopt) {  \
-    return Name(PrimExpr(a), b, loc);                                                             \
-  }                                                                                               \
-  inline PrimExpr Name(int a, const PrimExpr& b, ffi::Optional<Location> loc = std::nullopt) {    \
-    return Name(prim::MakeConst(b.ty(), a), b, loc);                                              \
-  }                                                                                               \
-  inline PrimExpr Name(const PrimExpr& a, int b, ffi::Optional<Location> loc = std::nullopt) {    \
-    return Name(a, prim::MakeConst(a.ty(), b), loc);                                              \
-  }                                                                                               \
-  inline PrimExpr Name(const PrimExpr& a, double b, ffi::Optional<Location> loc = std::nullopt) { \
-    return Name(a, FloatImm(PrimType::Float(64), b), loc);                                        \
+#define TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD_SPANNED(Name)                          \
+  inline PrimExpr Name(const PrimExpr& a, float b, Location loc = UnknownLoc()) {  \
+    return Name(a, PrimExpr(b), loc);                                              \
+  }                                                                                \
+  inline PrimExpr Name(float a, const PrimExpr& b, Location loc = UnknownLoc()) {  \
+    return Name(PrimExpr(a), b, loc);                                              \
+  }                                                                                \
+  inline PrimExpr Name(int a, const PrimExpr& b, Location loc = UnknownLoc()) {    \
+    return Name(prim::MakeConst(b.ty(), a), b, loc);                               \
+  }                                                                                \
+  inline PrimExpr Name(const PrimExpr& a, int b, Location loc = UnknownLoc()) {    \
+    return Name(a, prim::MakeConst(a.ty(), b), loc);                               \
+  }                                                                                \
+  inline PrimExpr Name(const PrimExpr& a, double b, Location loc = UnknownLoc()) { \
+    return Name(a, FloatImm(PrimType::Float(64), b), loc);                         \
   }
 
 #define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(Name)                             \
   inline PrimExpr Name(const PrimExpr& a, bool b) { return Name(a, PrimExpr(b)); } \
   inline PrimExpr Name(bool a, const PrimExpr& b) { return Name(PrimExpr(a), b); }
 
-#define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD_SPANNED(Name)                                  \
-  inline PrimExpr Name(const PrimExpr& a, bool b, ffi::Optional<Location> loc = std::nullopt) { \
-    return Name(a, PrimExpr(b), loc);                                                           \
-  }                                                                                             \
-  inline PrimExpr Name(bool a, const PrimExpr& b, ffi::Optional<Location> loc = std::nullopt) { \
-    return Name(PrimExpr(a), b, loc);                                                           \
+#define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD_SPANNED(Name)                   \
+  inline PrimExpr Name(const PrimExpr& a, bool b, Location loc = UnknownLoc()) { \
+    return Name(a, PrimExpr(b), loc);                                            \
+  }                                                                              \
+  inline PrimExpr Name(bool a, const PrimExpr& b, Location loc = UnknownLoc()) { \
+    return Name(PrimExpr(a), b, loc);                                            \
   }
 
 #define TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(Name)                                               \
   inline PrimExpr Name(const PrimExpr& a, int b) { return Name(a, prim::MakeConst(a.ty(), b)); } \
   inline PrimExpr Name(int a, const PrimExpr& b) { return Name(prim::MakeConst(b.ty(), a), b); }
 
-#define TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(Name)                                     \
-  inline PrimExpr Name(const PrimExpr& a, int b, ffi::Optional<Location> loc = std::nullopt) { \
-    return Name(a, prim::MakeConst(a.ty(), b), loc);                                           \
-  }                                                                                            \
-  inline PrimExpr Name(int a, const PrimExpr& b, ffi::Optional<Location> loc = std::nullopt) { \
-    return Name(prim::MakeConst(b.ty(), a), b, loc);                                           \
+#define TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(Name)                      \
+  inline PrimExpr Name(const PrimExpr& a, int b, Location loc = UnknownLoc()) { \
+    return Name(a, prim::MakeConst(a.ty(), b), loc);                            \
+  }                                                                             \
+  inline PrimExpr Name(int a, const PrimExpr& b, Location loc = UnknownLoc()) { \
+    return Name(prim::MakeConst(b.ty(), a), b, loc);                            \
   }
 
 TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator+=, operator+);
@@ -801,7 +799,7 @@ inline bool IsZero(const PrimExpr& x) { return IsConstInt(x, 0); }
  * \param loc The location of this operation in the source.
  * \return the infinity value in this format.
  */
-TVM_DLL PrimExpr infinity(PrimType dtype, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr infinity(PrimType dtype, Location loc = UnknownLoc());
 
 /*!
  * \brief Calculate power(x, y)
@@ -809,7 +807,7 @@ TVM_DLL PrimExpr infinity(PrimType dtype, ffi::Optional<Location> loc = std::nul
  * \param y The right operand.
  * \param loc The location of this operation in the source.
  */
-TVM_DLL PrimExpr pow(PrimExpr x, PrimExpr y, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr pow(PrimExpr x, PrimExpr y, Location loc = UnknownLoc());
 
 /*!
  * \brief Calculate absolute value of x.
@@ -818,7 +816,7 @@ TVM_DLL PrimExpr pow(PrimExpr x, PrimExpr y, ffi::Optional<Location> loc = std::
  *
  * \return The absolute value of input data x
  */
-TVM_DLL PrimExpr abs(PrimExpr x, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr abs(PrimExpr x, Location loc = UnknownLoc());
 
 /*!
  * \brief Check if x is NaN.
@@ -826,7 +824,7 @@ TVM_DLL PrimExpr abs(PrimExpr x, ffi::Optional<Location> loc = std::nullopt);
  * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr isnan(PrimExpr x, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr isnan(PrimExpr x, Location loc = UnknownLoc());
 
 /*!
  * \brief Check if x is finite.
@@ -834,7 +832,7 @@ TVM_DLL PrimExpr isnan(PrimExpr x, ffi::Optional<Location> loc = std::nullopt);
  * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr isfinite(PrimExpr x, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr isfinite(PrimExpr x, Location loc = UnknownLoc());
 
 /*!
  * \brief Check if x is infinite.
@@ -842,7 +840,7 @@ TVM_DLL PrimExpr isfinite(PrimExpr x, ffi::Optional<Location> loc = std::nullopt
  * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr isinf(PrimExpr x, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr isinf(PrimExpr x, Location loc = UnknownLoc());
 
 /*!
  * \brief Calculate floor(x)
@@ -850,7 +848,7 @@ TVM_DLL PrimExpr isinf(PrimExpr x, ffi::Optional<Location> loc = std::nullopt);
  * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr floor(PrimExpr x, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr floor(PrimExpr x, Location loc = UnknownLoc());
 
 /*!
  * \brief Round x to the nearest integer, ties to even.
@@ -862,7 +860,7 @@ TVM_DLL PrimExpr floor(PrimExpr x, ffi::Optional<Location> loc = std::nullopt);
  * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr round(PrimExpr x, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr round(PrimExpr x, Location loc = UnknownLoc());
 
 /*!
  * \brief Round x to the nearest integer, ties to even.
@@ -873,7 +871,7 @@ TVM_DLL PrimExpr round(PrimExpr x, ffi::Optional<Location> loc = std::nullopt);
  * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr nearbyint(PrimExpr x, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr nearbyint(PrimExpr x, Location loc = UnknownLoc());
 
 /*!
  * \brief Calculate trunc(x)
@@ -881,10 +879,10 @@ TVM_DLL PrimExpr nearbyint(PrimExpr x, ffi::Optional<Location> loc = std::nullop
  * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr trunc(PrimExpr x, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr trunc(PrimExpr x, Location loc = UnknownLoc());
 
 /*! \brief Floating-point remainder of x divided by y. */
-TVM_DLL PrimExpr fmod(PrimExpr x, PrimExpr y, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr fmod(PrimExpr x, PrimExpr y, Location loc = UnknownLoc());
 /*! \brief Raise x to the power y. Arguments: x, y. */
 TVM_DLL const Op& pow_op();
 /*! \brief Absolute value. Argument: x. */
@@ -962,11 +960,10 @@ TVM_DLL const Op& fma_op();
 /*! \brief Record a known condition for simplification. Argument: condition. */
 TVM_DLL const Op& assume_op();
 /*! \brief Record a known condition for compile-time simplification. */
-TVM_DLL PrimExpr assume(PrimExpr condition, ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr assume(PrimExpr condition, Location loc = UnknownLoc());
 
 /*! \brief Fused multiply-add of x, y and z, in that order. */
-inline PrimExpr fma(PrimExpr x, PrimExpr y, PrimExpr z,
-                    ffi::Optional<Location> loc = std::nullopt) {
+inline PrimExpr fma(PrimExpr x, PrimExpr y, PrimExpr z, Location loc = UnknownLoc()) {
   return Call(x.ty(), fma_op(), {x, y, z}, {}, {}, loc).as_or_throw<PrimExpr>();
 }
 
@@ -979,7 +976,7 @@ inline void CheckMathUnaryOpInputDType(const char* op_name, const PrimType& dtyp
 
 // Intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)                          \
-  inline PrimExpr OpName(PrimExpr x, ffi::Optional<Location> loc = std::nullopt) {            \
+  inline PrimExpr OpName(PrimExpr x, Location loc = UnknownLoc()) {                           \
     static const Op op = Op::Get("prim." #OpName);                                            \
     PrimType x_ty = x.ty();                                                                   \
     CheckInputDType(#OpName, x_ty);                                                           \
@@ -1027,10 +1024,10 @@ TVM_DECLARE_FLOAT_INTRIN_UNARY(acosh);
 TVM_DECLARE_FLOAT_INTRIN_UNARY(asinh);
 TVM_DECLARE_FLOAT_INTRIN_UNARY(atanh);
 
-#define TVM_DECLARE_INTRIN_BINARY(OpName)                                                      \
-  inline PrimExpr OpName(PrimExpr x, PrimExpr y, ffi::Optional<Location> loc = std::nullopt) { \
-    static const Op op = Op::Get("prim." #OpName);                                             \
-    return Call(x.ty(), op, {x, y}, {}, {}, loc).as_or_throw<PrimExpr>();                      \
+#define TVM_DECLARE_INTRIN_BINARY(OpName)                                       \
+  inline PrimExpr OpName(PrimExpr x, PrimExpr y, Location loc = UnknownLoc()) { \
+    static const Op op = Op::Get("prim." #OpName);                              \
+    return Call(x.ty(), op, {x, y}, {}, {}, loc).as_or_throw<PrimExpr>();       \
   }
 
 TVM_DECLARE_INTRIN_BINARY(atan2);
@@ -1041,9 +1038,9 @@ TVM_DECLARE_INTRIN_BINARY(ldexp);
 
 template <typename FReduce>
 inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const ffi::Array<PrimExpr>& values,
-                      ffi::Optional<Location> loc = std::nullopt) {
+                      Location loc = UnknownLoc()) {
   for (PrimExpr val : values) {
-    init_value = freduce(init_value, val, loc.value_or(UnknownLoc()));
+    init_value = freduce(init_value, val, loc);
   }
   return init_value;
 }

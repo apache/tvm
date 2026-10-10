@@ -16,6 +16,7 @@
 # under the License.
 """Normal IR constructors retain their contracts in TVMScript."""
 
+import inspect
 import linecache
 
 import pytest
@@ -36,8 +37,11 @@ def test_call_type_and_validation_contract():
         assert isinstance(call, I.Call)
         assert call.ty == ir.PrimType("float32")
         assert call.loc.same_as(loc)
-        unlocated = constructor("prim.exp", [x], ty="float32", loc=None)
-        assert unlocated.loc.same_as(ir.UnknownLoc())
+        unlocated = constructor("prim.exp", [x], ty="float32")
+        assert unlocated.loc.same_as(ir.UNKNOWN_LOC)
+        assert inspect.signature(constructor).parameters["loc"].default is ir.UNKNOWN_LOC
+        with pytest.raises(TypeError):
+            constructor("prim.exp", [x], ty="float32", loc=None)
         ir.assert_structural_equal(
             unlocated,
             ir.Call("prim.exp", [x], ty=ir.PrimType("float32")),

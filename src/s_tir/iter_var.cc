@@ -86,8 +86,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IterVarMaybeInplaceMuta
 }  // namespace
 
 // IterVar
-IterVar::IterVar(Range dom, PrimVar var, IterVarType t, ffi::String thread_tag,
-                 ffi::Optional<Location> loc)
+IterVar::IterVar(Range dom, PrimVar var, IterVarType t, ffi::String thread_tag, Location loc)
     : PrimExpr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>(var);
   if (dom.defined() && dom->extent.defined()) {
@@ -104,7 +103,7 @@ IterVar::IterVar(Range dom, PrimVar var, IterVarType t, ffi::String thread_tag,
   n->dom = dom;
   n->iter_type = t;
   n->thread_tag = thread_tag;
-  n->loc = loc.value_or(UnknownLoc());
+  n->loc = loc;
   data_ = std::move(n);
 }
 
@@ -122,7 +121,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("s_tir.IterVar", [](Range dom, PrimVar var, int iter_type,
-                                            ffi::String thread_tag, ffi::Optional<Location> loc) {
+                                            ffi::String thread_tag, Location loc) {
     return IterVar(dom, var, static_cast<IterVarType>(iter_type), thread_tag, loc);
   });
 }

@@ -30,6 +30,7 @@ from tvm import ir as _ir
 from tvm import tirx as _tir
 from tvm import tirx as tir
 from tvm.ir import Call, Var
+from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.prim import _ffi_api as _prim_ffi
 from tvm.ir.prim import _ffi_api as _prim_ffi_api
 from tvm.script.ir_builder import base as _base
@@ -98,7 +99,7 @@ def _call_global(func: ir.GlobalVar, *args: Expr) -> Call:
     return Call(func, args)
 
 
-def cast(value, dtype, loc=None):
+def cast(value, dtype, loc: Location = UNKNOWN_LOC):
     """Cast an expression to the requested data type."""
     return _prim_ffi_api._cast(dtype, value, loc)  # type: ignore[attr-defined]
 
@@ -155,7 +156,7 @@ def _llvm_result_type(func):
     """Keep symbolic intrinsic-name conversion when spelling the result as ty."""
 
     @functools.wraps(func)
-    def wrapped(name, *args, ty, loc=None):
+    def wrapped(name, *args, ty, loc: Location = UNKNOWN_LOC):
         return func(ty, name, *args, loc=loc)
 
     return wrapped
@@ -165,7 +166,7 @@ class WebGPUNamespace:
     """The WebGPU intrinsics submodule."""
 
     @staticmethod
-    def subgroup_shuffle(var, lane, *, ty=None, loc=None):
+    def subgroup_shuffle(var, lane, *, ty=None, loc: Location = UNKNOWN_LOC):
         if is_tensor_var(var):
             var = var[0]
         return Call(
@@ -176,7 +177,7 @@ class WebGPUNamespace:
         )
 
     @staticmethod
-    def subgroup_shuffle_up(var, delta, *, ty=None, loc=None):
+    def subgroup_shuffle_up(var, delta, *, ty=None, loc: Location = UNKNOWN_LOC):
         if is_tensor_var(var):
             var = var[0]
         return Call(
@@ -187,7 +188,7 @@ class WebGPUNamespace:
         )
 
     @staticmethod
-    def subgroup_shuffle_down(var, delta, *, ty=None, loc=None):
+    def subgroup_shuffle_down(var, delta, *, ty=None, loc: Location = UNKNOWN_LOC):
         if is_tensor_var(var):
             var = var[0]
         return Call(
@@ -547,7 +548,7 @@ reinterpret = _ir.op._make_op_api(_ir.Op.get("tirx.reinterpret"), __name__)
 call_extern = _ir.op._make_op_api(_ir.Op.get("tirx.call_extern"), __name__)
 
 
-def call_intrin(func_name, *args, ty, attrs=None, loc=None):
+def call_intrin(func_name, *args, ty, attrs=None, loc: Location = UNKNOWN_LOC):
     """Call an intrinsic with an explicit result type."""
     return _tir_op.call_intrin(ty, func_name, *args, attrs=attrs, loc=loc)
 
@@ -896,31 +897,37 @@ def not_(value: Any) -> Any:
 
 def lt_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.lt_`."""
+    loc = UNKNOWN_LOC if loc is None else loc
     return _prim_ffi._OpLT(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
 def le_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.le_`."""
+    loc = UNKNOWN_LOC if loc is None else loc
     return _prim_ffi._OpLE(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
 def gt_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.gt_`."""
+    loc = UNKNOWN_LOC if loc is None else loc
     return _prim_ffi._OpGT(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
 def ge_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.ge_`."""
+    loc = UNKNOWN_LOC if loc is None else loc
     return _prim_ffi._OpGE(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
 def eq_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.eq_`."""
+    loc = UNKNOWN_LOC if loc is None else loc
     return _prim_ffi._OpEQ(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
 def ne_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.ne_`."""
+    loc = UNKNOWN_LOC if loc is None else loc
     return _prim_ffi._OpNE(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 

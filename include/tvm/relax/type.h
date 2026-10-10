@@ -66,7 +66,7 @@ class PackedFuncTypeNode : public TypeNode {
 
 class PackedFuncType : public Type {
  public:
-  TVM_DLL PackedFuncType(ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL PackedFuncType(Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PackedFuncType, Type, PackedFuncTypeNode);
 };
@@ -132,13 +132,13 @@ class ShapeType : public Type {
    * \param values The symbolic shape values
    * \param loc The loc of the AST.
    */
-  TVM_DLL ShapeType(ffi::Array<PrimExpr> values, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL ShapeType(ffi::Array<PrimExpr> values, Location loc = UnknownLoc());
   /*!
    * \brief Construction with known unknown symbolic shape patterns.
    * \param ndim Number of dimensions -- can be kUnknownNDim
    * \param loc The loc of the AST.
    */
-  TVM_DLL ShapeType(int ndim, ffi::Optional<Location> loc = std::nullopt);
+  TVM_DLL ShapeType(int ndim, Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ShapeType, Type, ShapeTypeNode);
 };
@@ -214,8 +214,7 @@ class TensorType : public Type {
    * \note shape must already be normalized.
    */
   TVM_DLL TensorType(Expr shape, ffi::Optional<tvm::PrimType> dtype = std::nullopt,
-                     ffi::Optional<VDevice> vdevice = std::nullopt,
-                     ffi::Optional<Location> loc = std::nullopt);
+                     ffi::Optional<VDevice> vdevice = std::nullopt, Location loc = UnknownLoc());
 
   /*!
    * \brief Construction with an unknown shape expression.
@@ -225,8 +224,7 @@ class TensorType : public Type {
    * \param loc The loc of the AST.
    */
   TVM_DLL TensorType(ffi::Optional<tvm::PrimType> dtype, int ndim,
-                     ffi::Optional<VDevice> vdevice = std::nullopt,
-                     ffi::Optional<Location> loc = std::nullopt);
+                     ffi::Optional<VDevice> vdevice = std::nullopt, Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorType, Type, TensorTypeNode);
 };
@@ -308,7 +306,7 @@ class FuncType : public Type {
    * params. If you are unsure, you can always erase ret to static.
    */
   TVM_DLL FuncType(ffi::Array<Type> params, Type ret, bool purity = true,
-                   ffi::Optional<Location> loc = std::nullopt);
+                   Location loc = UnknownLoc());
 
   /*!
    * \brief Constructing an opaque function type using derive_func.
@@ -322,7 +320,7 @@ class FuncType : public Type {
    * \note Defaults to an derive func that always return AnyType if not specified.
    */
   TVM_DLL static FuncType OpaqueFunc(TypeDeriveFunc derive_func, bool purity = false,
-                                     ffi::Optional<Location> loc = std::nullopt);
+                                     Location loc = UnknownLoc());
 
   /*!
    * \brief Construct an opaque function using from return type.
@@ -336,7 +334,7 @@ class FuncType : public Type {
    * \note Defaults to an derive func that always return AnyType if not specified.
    */
   TVM_DLL static FuncType OpaqueFunc(Type ret = AnyType(), bool purity = false,
-                                     ffi::Optional<Location> loc = std::nullopt);
+                                     Location loc = UnknownLoc());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FuncType, Type, FuncTypeNode);
 };

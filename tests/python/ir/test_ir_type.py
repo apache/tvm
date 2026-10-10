@@ -62,7 +62,7 @@ def test_tuple_type():
     tt = tvm.ir.PrimType("float32")
     fields = tvm.runtime.convert([tf, tt])
 
-    tup_ty = tvm.ir.TupleType(fields, loc=None)
+    tup_ty = tvm.ir.TupleType(fields)
     assert tup_ty.loc.same_as(tvm.ir.UnknownLoc())
     assert tup_ty.fields == fields
     str(tup_ty)

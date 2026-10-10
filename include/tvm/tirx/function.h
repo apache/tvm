@@ -119,7 +119,7 @@ class Function : public BaseFunc {
    */
   TVM_DLL Function(ffi::Array<tvm::Var> params, ffi::Optional<SeqStmt> body,
                    Type ret_type = VoidType(), DictAttrs attrs = DictAttrs(),
-                   ffi::Optional<Location> loc = std::nullopt);
+                   Location loc = UnknownLoc());
 
   explicit Function(ffi::ObjectPtr<FunctionNode> node) : BaseFunc(std::move(node)) {}
 

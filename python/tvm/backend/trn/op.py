@@ -19,21 +19,22 @@
 from __future__ import annotations
 
 from tvm.ir import Call
+from tvm.ir.location import UNKNOWN_LOC, Location
 
 
-def nki_load(res, data, *, ty=None, loc=None):
+def nki_load(res, data, *, ty=None, loc: Location = UNKNOWN_LOC):
     return Call("tirx.nki.load", [res, data], ty=ty, loc=loc)
 
 
-def nki_store(res, data, *, ty=None, loc=None):
+def nki_store(res, data, *, ty=None, loc: Location = UNKNOWN_LOC):
     return Call("tirx.nki.store", [res, data], ty=ty, loc=loc)
 
 
-def nki_tensor_copy(res, data, *, ty=None, loc=None):
+def nki_tensor_copy(res, data, *, ty=None, loc: Location = UNKNOWN_LOC):
     return Call("tirx.nki.tensor_copy", [res, data], ty=ty, loc=loc)
 
 
-def nki_matmul(res, lhs, rhs, accum=True, *, ty=None, loc=None):
+def nki_matmul(res, lhs, rhs, accum=True, *, ty=None, loc: Location = UNKNOWN_LOC):
     return Call(
         "tirx.nki.matmul",
         [res, lhs, rhs, accum],
@@ -42,7 +43,9 @@ def nki_matmul(res, lhs, rhs, accum=True, *, ty=None, loc=None):
     )
 
 
-def nki_activation(result, data, opcode, bias=0.0, scale=1.0, *, ty=None, loc=None):
+def nki_activation(
+    result, data, opcode, bias=0.0, scale=1.0, *, ty=None, loc: Location = UNKNOWN_LOC
+):
     return Call(
         "tirx.nki.activation",
         [result, data, opcode, bias, scale],
@@ -51,7 +54,7 @@ def nki_activation(result, data, opcode, bias=0.0, scale=1.0, *, ty=None, loc=No
     )
 
 
-def nki_reciprocal(result, data, *, ty=None, loc=None):
+def nki_reciprocal(result, data, *, ty=None, loc: Location = UNKNOWN_LOC):
     return Call(
         "tirx.nki.reciprocal",
         [result, data],
@@ -60,7 +63,7 @@ def nki_reciprocal(result, data, *, ty=None, loc=None):
     )
 
 
-def nki_tensorreduce(result, data, opcode, negate, *axes, ty=None, loc=None):
+def nki_tensorreduce(result, data, opcode, negate, *axes, ty=None, loc: Location = UNKNOWN_LOC):
     return Call(
         "tirx.nki.tensorreduce",
         [result, data, opcode, negate, *axes],
@@ -69,7 +72,7 @@ def nki_tensorreduce(result, data, opcode, negate, *axes, ty=None, loc=None):
     )
 
 
-def nki_tensortensor(result, operand0, operand1, opcode, *, ty=None, loc=None):
+def nki_tensortensor(result, operand0, operand1, opcode, *, ty=None, loc: Location = UNKNOWN_LOC):
     return Call(
         "tirx.nki.tensortensor",
         [result, operand0, operand1, opcode],
@@ -86,7 +89,7 @@ def nki_tensorscalar(
     reverse=False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     return Call(
         "tirx.nki.tensorscalar",
@@ -96,7 +99,7 @@ def nki_tensorscalar(
     )
 
 
-def nki_memset(result, value, *, ty=None, loc=None):
+def nki_memset(result, value, *, ty=None, loc: Location = UNKNOWN_LOC):
     return Call("tirx.nki.memset", [result, value], ty=ty, loc=loc)
 
 
@@ -110,7 +113,7 @@ def nki_activation_reduce(
     scale=1.0,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     return Call(
         "tirx.nki.activation_reduce",
@@ -130,7 +133,7 @@ def nki_tensorscalar_reduce(
     reverse=False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     return Call(
         "tirx.nki.tensorscalar_reduce",
@@ -140,7 +143,7 @@ def nki_tensorscalar_reduce(
     )
 
 
-def nki_identity(result, size, *, ty=None, loc=None):
+def nki_identity(result, size, *, ty=None, loc: Location = UNKNOWN_LOC):
     return Call("tirx.nki.identity", [result, size], ty=ty, loc=loc)
 
 
@@ -155,7 +158,7 @@ def nki_scalar_tensor_tensor(
     reverse1=False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     return Call(
         "tirx.nki.scalar_tensor_tensor",
@@ -176,7 +179,7 @@ def nki_scalar_tensor_scalar(
     reverse1=False,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     return Call(
         "tirx.nki.scalar_tensor_scalar",
@@ -186,7 +189,9 @@ def nki_scalar_tensor_scalar(
     )
 
 
-def nki_affine_select(result, pred, true_value, false_value, *, ty=None, loc=None):
+def nki_affine_select(
+    result, pred, true_value, false_value, *, ty=None, loc: Location = UNKNOWN_LOC
+):
     return Call(
         "tirx.nki.affine_select",
         [result, pred, true_value, false_value],

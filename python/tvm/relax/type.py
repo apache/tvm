@@ -22,7 +22,7 @@ import tvm_ffi
 from tvm_ffi import Array
 
 from tvm.ir import AnyType, EnvFunc, Location, PrimType, TupleType
-from tvm.ir.base import UnknownLoc
+from tvm.ir.location import UNKNOWN_LOC, UnknownLoc
 from tvm.relax.global_info import VDevice
 
 from . import _ffi_api
@@ -54,7 +54,7 @@ class ShapeType(Type):
     loc: Location
 
     def __init__(
-        self, values: list[Expr] | None = None, ndim: int = -1, loc: Location | None = None
+        self, values: list[Expr] | None = None, ndim: int = -1, loc: Location = UNKNOWN_LOC
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ShapeType,
@@ -99,7 +99,7 @@ class TensorType(Type):
         dtype: str | PrimType | None = "float32",
         vdevice: VDevice | None | str = None,
         ndim: int = -1,
-        loc: Location | None = None,
+        loc: Location = UNKNOWN_LOC,
     ) -> None:
         if isinstance(shape, list | tuple | Array):
             shape = ShapeExpr(shape)
@@ -141,7 +141,7 @@ class FuncType(Type):
     loc: Location
 
     def __init__(
-        self, params: list[Type], ret: Type, purity: bool = True, loc: Location | None = None
+        self, params: list[Type], ret: Type, purity: bool = True, loc: Location = UNKNOWN_LOC
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.FuncType,
@@ -157,7 +157,7 @@ class FuncType(Type):
         ret: Type | None = None,
         derive_func: str | EnvFunc | None = None,
         purity: bool = False,
-        loc: Location | None = None,
+        loc: Location = UNKNOWN_LOC,
     ) -> "FuncType":
         """
         Create an opaque FuncType.

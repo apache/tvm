@@ -18,6 +18,7 @@
 
 from tvm import te
 from tvm.ir import _overload_prim_expr as _expr
+from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.runtime import DataTypeCode
 from tvm.te import _te_tensor_overload as _overload
 
@@ -56,7 +57,7 @@ _overload.__truediv__ = _overload.__div__
 _overload.__rtruediv__ = _overload.__rdiv__
 
 
-def _astype(value, dtype, loc=None):
+def _astype(value, dtype, loc: Location = UNKNOWN_LOC):
     if not isinstance(value, te.Tensor):
         return NotImplemented
     return _math.cast(value, dtype, loc)

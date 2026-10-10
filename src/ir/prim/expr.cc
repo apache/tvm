@@ -380,53 +380,53 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> LetMaybeInplaceMutate(
  * `expr.dtype` field), this function allows the FFI conversions to be
  * explicitly invoked.
  */
-#define TVM_DEFINE_BINOP_CONSTRUCTOR(Name)                                                        \
-  Name::Name(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) : PrimExpr(ffi::UnsafeInit{}) { \
-    using T = Name::ContainerType;                                                                \
-    TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined\n";                                 \
-    TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined\n";                                 \
-    const PrimTypeNode* a_ty = GetPrimTypeNode(a);                                                \
-    const PrimTypeNode* b_ty = GetPrimTypeNode(b);                                                \
-    TVM_FFI_CHECK(a_ty->dtype == b_ty->dtype, TypeError)                                          \
-        << "mismatched types. " << a_ty->dtype << " vs. " << b_ty->dtype << "\n";                 \
-    ffi::ObjectPtr<T> node = ffi::make_object<T>(a, b);                                           \
-    node->ExprNode::ty = a.get()->ExprNode::ty;                                                   \
-    node->loc = loc.value_or(UnknownLoc());                                                       \
-    data_ = std::move(node);                                                                      \
+#define TVM_DEFINE_BINOP_CONSTRUCTOR(Name)                                         \
+  Name::Name(PrimExpr a, PrimExpr b, Location loc) : PrimExpr(ffi::UnsafeInit{}) { \
+    using T = Name::ContainerType;                                                 \
+    TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined\n";                  \
+    TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined\n";                  \
+    const PrimTypeNode* a_ty = GetPrimTypeNode(a);                                 \
+    const PrimTypeNode* b_ty = GetPrimTypeNode(b);                                 \
+    TVM_FFI_CHECK(a_ty->dtype == b_ty->dtype, TypeError)                           \
+        << "mismatched types. " << a_ty->dtype << " vs. " << b_ty->dtype << "\n";  \
+    ffi::ObjectPtr<T> node = ffi::make_object<T>(a, b);                            \
+    node->ExprNode::ty = a.get()->ExprNode::ty;                                    \
+    node->loc = loc;                                                               \
+    data_ = std::move(node);                                                       \
   }
 
-#define TVM_DEFINE_BITWISE_CONSTRUCTOR(Name, AllowBool)                                           \
-  Name::Name(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) : PrimExpr(ffi::UnsafeInit{}) { \
-    using T = Name::ContainerType;                                                                \
-    TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined\n";                                 \
-    TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined\n";                                 \
-    const PrimTypeNode* a_ty = GetPrimTypeNode(a);                                                \
-    const PrimTypeNode* b_ty = GetPrimTypeNode(b);                                                \
-    TVM_FFI_CHECK(a_ty->dtype == b_ty->dtype, TypeError)                                          \
-        << "mismatched types. " << a_ty->dtype << " vs. " << b_ty->dtype << "\n";                 \
-    TVM_FFI_CHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) ||          \
-                      (AllowBool && a.ty().MatchesCode(DLDataTypeCode::kDLBool)),                 \
-                  TypeError)                                                                      \
-        << #Name << " requires integer" << (AllowBool ? " or boolean" : "") << " operands";       \
-    ffi::ObjectPtr<T> node = ffi::make_object<T>(a, b);                                           \
-    node->ExprNode::ty = a.get()->ExprNode::ty;                                                   \
-    node->loc = loc.value_or(UnknownLoc());                                                       \
-    data_ = std::move(node);                                                                      \
+#define TVM_DEFINE_BITWISE_CONSTRUCTOR(Name, AllowBool)                                     \
+  Name::Name(PrimExpr a, PrimExpr b, Location loc) : PrimExpr(ffi::UnsafeInit{}) {          \
+    using T = Name::ContainerType;                                                          \
+    TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined\n";                           \
+    TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined\n";                           \
+    const PrimTypeNode* a_ty = GetPrimTypeNode(a);                                          \
+    const PrimTypeNode* b_ty = GetPrimTypeNode(b);                                          \
+    TVM_FFI_CHECK(a_ty->dtype == b_ty->dtype, TypeError)                                    \
+        << "mismatched types. " << a_ty->dtype << " vs. " << b_ty->dtype << "\n";           \
+    TVM_FFI_CHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) ||    \
+                      (AllowBool && a.ty().MatchesCode(DLDataTypeCode::kDLBool)),           \
+                  TypeError)                                                                \
+        << #Name << " requires integer" << (AllowBool ? " or boolean" : "") << " operands"; \
+    ffi::ObjectPtr<T> node = ffi::make_object<T>(a, b);                                     \
+    node->ExprNode::ty = a.get()->ExprNode::ty;                                             \
+    node->loc = loc;                                                                        \
+    data_ = std::move(node);                                                                \
   }
 
-#define TVM_DEFINE_CMPOP_CONSTRUCTOR(Name)                                                        \
-  Name::Name(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) : PrimExpr(ffi::UnsafeInit{}) { \
-    using T = Name::ContainerType;                                                                \
-    TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined\n";                                 \
-    TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined\n";                                 \
-    const PrimTypeNode* a_ty = GetPrimTypeNode(a);                                                \
-    const PrimTypeNode* b_ty = GetPrimTypeNode(b);                                                \
-    TVM_FFI_CHECK(a_ty->dtype == b_ty->dtype, TypeError)                                          \
-        << "mismatched types. " << a_ty->dtype << " vs. " << b_ty->dtype << "\n";                 \
-    ffi::ObjectPtr<T> node = ffi::make_object<T>(a, b);                                           \
-    node->ExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});                     \
-    node->loc = loc.value_or(UnknownLoc());                                                       \
-    data_ = std::move(node);                                                                      \
+#define TVM_DEFINE_CMPOP_CONSTRUCTOR(Name)                                         \
+  Name::Name(PrimExpr a, PrimExpr b, Location loc) : PrimExpr(ffi::UnsafeInit{}) { \
+    using T = Name::ContainerType;                                                 \
+    TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined\n";                  \
+    TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined\n";                  \
+    const PrimTypeNode* a_ty = GetPrimTypeNode(a);                                 \
+    const PrimTypeNode* b_ty = GetPrimTypeNode(b);                                 \
+    TVM_FFI_CHECK(a_ty->dtype == b_ty->dtype, TypeError)                           \
+        << "mismatched types. " << a_ty->dtype << " vs. " << b_ty->dtype << "\n";  \
+    ffi::ObjectPtr<T> node = ffi::make_object<T>(a, b);                            \
+    node->ExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});      \
+    node->loc = loc;                                                               \
+    data_ = std::move(node);                                                       \
   }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -437,14 +437,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Cast
-Cast::Cast(PrimType value_ty, PrimExpr value, ffi::Optional<Location> loc)
-    : PrimExpr(ffi::UnsafeInit{}) {
+Cast::Cast(PrimType value_ty, PrimExpr value, Location loc) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   PrimType value_expr_ty = value.ty();
   TVM_FFI_ICHECK_EQ(value_ty->dtype.lanes, value_expr_ty->dtype.lanes);
   ffi::ObjectPtr<CastNode> node = ffi::make_object<CastNode>(value);
   node->ExprNode::ty = std::move(value_ty);
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -457,10 +456,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&CastMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("prim.Cast",
-                        [](PrimType dtype, PrimExpr value, ffi::Optional<Location> loc) {
-                          return Cast(dtype, value, loc);
-                        });
+  refl::GlobalDef().def("prim.Cast", [](PrimType dtype, PrimExpr value, Location loc) {
+    return Cast(dtype, value, loc);
+  });
 }
 
 // Add
@@ -469,9 +467,8 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Add);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   AddNode::RegisterReflection();
-  refl::GlobalDef().def("prim.Add", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-    return Add(a, b, loc);
-  });
+  refl::GlobalDef().def("prim.Add",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return Add(a, b, loc); });
   refl::TypeAttrDef<AddNode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<AddNode>>())
@@ -487,9 +484,8 @@ TVM_DEFINE_BITWISE_CONSTRUCTOR(LShift, false);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   LShiftNode::RegisterReflection();
-  refl::GlobalDef().def("prim.LShift", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-    return LShift(a, b, loc);
-  });
+  refl::GlobalDef().def("prim.LShift",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return LShift(a, b, loc); });
   refl::TypeAttrDef<LShiftNode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<LShiftNode>>())
@@ -505,9 +501,8 @@ TVM_DEFINE_BITWISE_CONSTRUCTOR(RShift, false);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   RShiftNode::RegisterReflection();
-  refl::GlobalDef().def("prim.RShift", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-    return RShift(a, b, loc);
-  });
+  refl::GlobalDef().def("prim.RShift",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return RShift(a, b, loc); });
   refl::TypeAttrDef<RShiftNode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<RShiftNode>>())
@@ -523,9 +518,8 @@ TVM_DEFINE_BITWISE_CONSTRUCTOR(BitwiseAnd, true);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   BitwiseAndNode::RegisterReflection();
-  refl::GlobalDef().def("prim.BitwiseAnd", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-    return BitwiseAnd(a, b, loc);
-  });
+  refl::GlobalDef().def("prim.BitwiseAnd",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return BitwiseAnd(a, b, loc); });
   refl::TypeAttrDef<BitwiseAndNode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<BitwiseAndNode>>())
@@ -541,9 +535,8 @@ TVM_DEFINE_BITWISE_CONSTRUCTOR(BitwiseOr, true);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   BitwiseOrNode::RegisterReflection();
-  refl::GlobalDef().def("prim.BitwiseOr", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-    return BitwiseOr(a, b, loc);
-  });
+  refl::GlobalDef().def("prim.BitwiseOr",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return BitwiseOr(a, b, loc); });
   refl::TypeAttrDef<BitwiseOrNode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<BitwiseOrNode>>())
@@ -559,9 +552,8 @@ TVM_DEFINE_BITWISE_CONSTRUCTOR(BitwiseXor, true);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   BitwiseXorNode::RegisterReflection();
-  refl::GlobalDef().def("prim.BitwiseXor", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-    return BitwiseXor(a, b, loc);
-  });
+  refl::GlobalDef().def("prim.BitwiseXor",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return BitwiseXor(a, b, loc); });
   refl::TypeAttrDef<BitwiseXorNode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<BitwiseXorNode>>())
@@ -577,9 +569,8 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Sub);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   SubNode::RegisterReflection();
-  refl::GlobalDef().def("prim.Sub", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-    return Sub(a, b, loc);
-  });
+  refl::GlobalDef().def("prim.Sub",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return Sub(a, b, loc); });
   refl::TypeAttrDef<SubNode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<SubNode>>())
@@ -595,9 +586,8 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Mul);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   MulNode::RegisterReflection();
-  refl::GlobalDef().def("prim.Mul", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-    return Mul(a, b, loc);
-  });
+  refl::GlobalDef().def("prim.Mul",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return Mul(a, b, loc); });
   refl::TypeAttrDef<MulNode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<MulNode>>())
@@ -613,9 +603,8 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Div);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   DivNode::RegisterReflection();
-  refl::GlobalDef().def("prim.Div", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-    return Div(a, b, loc);
-  });
+  refl::GlobalDef().def("prim.Div",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return Div(a, b, loc); });
   refl::TypeAttrDef<DivNode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<DivNode>>())
@@ -631,9 +620,8 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Mod);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   ModNode::RegisterReflection();
-  refl::GlobalDef().def("prim.Mod", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-    return Mod(a, b, loc);
-  });
+  refl::GlobalDef().def("prim.Mod",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return Mod(a, b, loc); });
   refl::TypeAttrDef<ModNode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<ModNode>>())
@@ -649,9 +637,8 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(FloorDiv);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   FloorDivNode::RegisterReflection();
-  refl::GlobalDef().def("prim.FloorDiv", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-    return FloorDiv(a, b, loc);
-  });
+  refl::GlobalDef().def("prim.FloorDiv",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return FloorDiv(a, b, loc); });
   refl::TypeAttrDef<FloorDivNode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<FloorDivNode>>())
@@ -667,9 +654,8 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(FloorMod);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   FloorModNode::RegisterReflection();
-  refl::GlobalDef().def("prim.FloorMod", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-    return FloorMod(a, b, loc);
-  });
+  refl::GlobalDef().def("prim.FloorMod",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return FloorMod(a, b, loc); });
   refl::TypeAttrDef<FloorModNode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<FloorModNode>>())
@@ -685,9 +671,8 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Min);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   MinNode::RegisterReflection();
-  refl::GlobalDef().def("prim.Min", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-    return Min(a, b, loc);
-  });
+  refl::GlobalDef().def("prim.Min",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return Min(a, b, loc); });
   refl::TypeAttrDef<MinNode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<MinNode>>())
@@ -703,9 +688,8 @@ TVM_DEFINE_BINOP_CONSTRUCTOR(Max);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   MaxNode::RegisterReflection();
-  refl::GlobalDef().def("prim.Max", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-    return Max(a, b, loc);
-  });
+  refl::GlobalDef().def("prim.Max",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return Max(a, b, loc); });
   refl::TypeAttrDef<MaxNode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<MaxNode>>())
@@ -721,8 +705,8 @@ TVM_DEFINE_CMPOP_CONSTRUCTOR(EQ);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   EQNode::RegisterReflection();
-  refl::GlobalDef().def(
-      "prim.EQ", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) { return EQ(a, b, loc); });
+  refl::GlobalDef().def("prim.EQ",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return EQ(a, b, loc); });
   refl::TypeAttrDef<EQNode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<EQNode>>())
@@ -738,8 +722,8 @@ TVM_DEFINE_CMPOP_CONSTRUCTOR(NE);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   NENode::RegisterReflection();
-  refl::GlobalDef().def(
-      "prim.NE", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) { return NE(a, b, loc); });
+  refl::GlobalDef().def("prim.NE",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return NE(a, b, loc); });
   refl::TypeAttrDef<NENode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<NENode>>())
@@ -755,8 +739,8 @@ TVM_DEFINE_CMPOP_CONSTRUCTOR(LT);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   LTNode::RegisterReflection();
-  refl::GlobalDef().def(
-      "prim.LT", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) { return LT(a, b, loc); });
+  refl::GlobalDef().def("prim.LT",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return LT(a, b, loc); });
   refl::TypeAttrDef<LTNode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<LTNode>>())
@@ -772,8 +756,8 @@ TVM_DEFINE_CMPOP_CONSTRUCTOR(LE);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   LENode::RegisterReflection();
-  refl::GlobalDef().def(
-      "prim.LE", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) { return LE(a, b, loc); });
+  refl::GlobalDef().def("prim.LE",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return LE(a, b, loc); });
   refl::TypeAttrDef<LENode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<LENode>>())
@@ -789,8 +773,8 @@ TVM_DEFINE_CMPOP_CONSTRUCTOR(GT);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   GTNode::RegisterReflection();
-  refl::GlobalDef().def(
-      "prim.GT", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) { return GT(a, b, loc); });
+  refl::GlobalDef().def("prim.GT",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return GT(a, b, loc); });
   refl::TypeAttrDef<GTNode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<GTNode>>())
@@ -806,8 +790,8 @@ TVM_DEFINE_CMPOP_CONSTRUCTOR(GE);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   GENode::RegisterReflection();
-  refl::GlobalDef().def(
-      "prim.GE", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) { return GE(a, b, loc); });
+  refl::GlobalDef().def("prim.GE",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return GE(a, b, loc); });
   refl::TypeAttrDef<GENode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<GENode>>())
@@ -818,7 +802,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // And
-And::And(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) : PrimExpr(ffi::UnsafeInit{}) {
+And::And(PrimExpr a, PrimExpr b, Location loc) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined";
   TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined";
   PrimType a_ty = a.ty();
@@ -829,16 +813,15 @@ And::And(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) : PrimExpr(ffi::Un
 
   ffi::ObjectPtr<AndNode> node = ffi::make_object<AndNode>(a, b);
   node->ExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   AndNode::RegisterReflection();
-  refl::GlobalDef().def("prim.And", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-    return And(a, b, loc);
-  });
+  refl::GlobalDef().def("prim.And",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return And(a, b, loc); });
   refl::TypeAttrDef<AndNode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<AndNode>>())
@@ -849,7 +832,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Or
-Or::Or(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) : PrimExpr(ffi::UnsafeInit{}) {
+Or::Or(PrimExpr a, PrimExpr b, Location loc) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined";
   TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined";
   PrimType a_ty = a.ty();
@@ -860,15 +843,15 @@ Or::Or(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) : PrimExpr(ffi::Unsa
 
   ffi::ObjectPtr<OrNode> node = ffi::make_object<OrNode>(a, b);
   node->ExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   OrNode::RegisterReflection();
-  refl::GlobalDef().def(
-      "prim.Or", [](PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) { return Or(a, b, loc); });
+  refl::GlobalDef().def("prim.Or",
+                        [](PrimExpr a, PrimExpr b, Location loc) { return Or(a, b, loc); });
   refl::TypeAttrDef<OrNode>()
       .attr(refl::type_attr::kStructuralVisit,
             ffi::FStructuralVisit::FromNative<&BinaryVisit<OrNode>>())
@@ -879,14 +862,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Not
-Not::Not(PrimExpr a, ffi::Optional<Location> loc) : PrimExpr(ffi::UnsafeInit{}) {
+Not::Not(PrimExpr a, Location loc) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined";
   PrimType a_ty = a.ty();
   TVM_FFI_ICHECK(a_ty.MatchesCode(DLDataTypeCode::kDLBool));
 
   ffi::ObjectPtr<NotNode> node = ffi::make_object<NotNode>(a);
   node->ExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -899,12 +882,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&NotMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("prim.Not",
-                        [](PrimExpr a, ffi::Optional<Location> loc) { return Not(a, loc); });
+  refl::GlobalDef().def("prim.Not", [](PrimExpr a, Location loc) { return Not(a, loc); });
 }
 
 // BitwiseNot
-BitwiseNot::BitwiseNot(PrimExpr a, ffi::Optional<Location> loc) : PrimExpr(ffi::UnsafeInit{}) {
+BitwiseNot::BitwiseNot(PrimExpr a, Location loc) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined";
   PrimType a_ty = a.ty();
   TVM_FFI_CHECK(a_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) ||
@@ -914,7 +896,7 @@ BitwiseNot::BitwiseNot(PrimExpr a, ffi::Optional<Location> loc) : PrimExpr(ffi::
 
   ffi::ObjectPtr<BitwiseNotNode> node = ffi::make_object<BitwiseNotNode>(a);
   node->ExprNode::ty = a_ty;
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -930,12 +912,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&BitwiseNotMaybeInplaceMutate>());
 
   refl::GlobalDef().def("prim.BitwiseNot",
-                        [](PrimExpr a, ffi::Optional<Location> loc) { return BitwiseNot(a, loc); });
+                        [](PrimExpr a, Location loc) { return BitwiseNot(a, loc); });
 }
 
 // Select
-Select::Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value,
-               ffi::Optional<Location> loc)
+Select::Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Location loc)
     : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(condition.defined(), ValueError) << "condition is undefined";
   TVM_FFI_CHECK(true_value.defined(), ValueError) << "true_value is undefined";
@@ -953,7 +934,7 @@ Select::Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value,
   ffi::ObjectPtr<SelectNode> node =
       ffi::make_object<SelectNode>(condition, true_value, false_value);
   node->ExprNode::ty = true_ty;
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -966,22 +947,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&SelectMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("prim.Select", [](PrimExpr condition, PrimExpr true_value,
-                                          PrimExpr false_value, ffi::Optional<Location> loc) {
-    return Select(condition, true_value, false_value, loc);
-  });
+  refl::GlobalDef().def(
+      "prim.Select", [](PrimExpr condition, PrimExpr true_value, PrimExpr false_value,
+                        Location loc) { return Select(condition, true_value, false_value, loc); });
 }
 
 // Let
-Let::Let(Var var, PrimExpr value, PrimExpr body, ffi::Optional<Location> loc)
-    : PrimExpr(ffi::UnsafeInit{}) {
+Let::Let(Var var, PrimExpr value, PrimExpr body, Location loc) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   TVM_FFI_ICHECK(body.defined());
   TVM_FFI_ICHECK(value.ty() == var->ty.as_or_throw<PrimType>());
 
   ffi::ObjectPtr<LetNode> node = ffi::make_object<LetNode>(var, value, body);
   node->ExprNode::ty = body.ty();
-  node->loc = loc.value_or(UnknownLoc());
+  node->loc = loc;
   data_ = std::move(node);
 }
 
@@ -994,10 +973,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&LetMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("prim.Let",
-                        [](Var var, PrimExpr value, PrimExpr body, ffi::Optional<Location> loc) {
-                          return Let(var, value, body, loc);
-                        });
+  refl::GlobalDef().def("prim.Let", [](Var var, PrimExpr value, PrimExpr body, Location loc) {
+    return Let(var, value, body, loc);
+  });
 }
 
 }  // namespace prim

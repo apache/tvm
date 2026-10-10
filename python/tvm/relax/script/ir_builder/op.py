@@ -30,6 +30,7 @@ import tvm
 from tvm import ir as _ir
 from tvm import relax as _relax
 from tvm import tirx as _tir
+from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.op import _init_op_api
 from tvm.ir.prim import _ffi_api as _prim_ffi
 from tvm.relax import Call, Expr, ExternFunc
@@ -252,7 +253,7 @@ def to_vdevice(
     dst_vdevice: py_str | VDevice = None,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Copy data to the destination device.
 
@@ -381,8 +382,11 @@ def logical_and(*values, ty_args=None, ty=None, loc=None):
     All arguments are evaluated before this call; it does not provide Python
     short-circuit evaluation of the argument expressions.
     """
+    # Omitted metadata retains host/primitive dispatch; explicit metadata selects Relax.
     if any(field is not None for field in (ty_args, ty, loc)):
-        return _logical_and(*values, ty_args=ty_args, ty=ty, loc=loc)
+        return _logical_and(
+            *values, ty_args=ty_args, ty=ty, loc=UNKNOWN_LOC if loc is None else loc
+        )
     if not values:
         raise TypeError("logical_and requires at least one operand")
     result = values[0]
@@ -411,8 +415,9 @@ def logical_or(*values, ty_args=None, ty=None, loc=None):
     All arguments are evaluated before this call; it does not provide Python
     short-circuit evaluation of the argument expressions.
     """
+    # Omitted metadata retains host/primitive dispatch; explicit metadata selects Relax.
     if any(field is not None for field in (ty_args, ty, loc)):
-        return _logical_or(*values, ty_args=ty_args, ty=ty, loc=loc)
+        return _logical_or(*values, ty_args=ty_args, ty=ty, loc=UNKNOWN_LOC if loc is None else loc)
     if not values:
         raise TypeError("logical_or requires at least one operand")
     result = values[0]
@@ -435,8 +440,9 @@ def logical_not(value, *, ty_args=None, ty=None, loc=None):
     result : Expr or bool
         The logical negation without testing an IR expression as a Python bool.
     """
+    # Omitted metadata retains host/primitive dispatch; explicit metadata selects Relax.
     if any(field is not None for field in (ty_args, ty, loc)):
-        return _logical_not(value, ty_args=ty_args, ty=ty, loc=loc)
+        return _logical_not(value, ty_args=ty_args, ty=ty, loc=UNKNOWN_LOC if loc is None else loc)
     if _ir.is_prim_expr(value):
         return _tir.Not(value)
     if isinstance(value, _ir.Expr):
@@ -516,6 +522,7 @@ def lt_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
         return _base.at_(loc, _relax.op.less(lhs, rhs))
+    loc = UNKNOWN_LOC if loc is None else loc
     return _prim_ffi._OpLT(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
@@ -525,6 +532,7 @@ def le_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
         return _base.at_(loc, _relax.op.less_equal(lhs, rhs))
+    loc = UNKNOWN_LOC if loc is None else loc
     return _prim_ffi._OpLE(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
@@ -534,6 +542,7 @@ def gt_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
         return _base.at_(loc, _relax.op.greater(lhs, rhs))
+    loc = UNKNOWN_LOC if loc is None else loc
     return _prim_ffi._OpGT(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
@@ -543,6 +552,7 @@ def ge_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
         return _base.at_(loc, _relax.op.greater_equal(lhs, rhs))
+    loc = UNKNOWN_LOC if loc is None else loc
     return _prim_ffi._OpGE(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
@@ -552,6 +562,7 @@ def eq_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
         return _base.at_(loc, _relax.op.equal(lhs, rhs))
+    loc = UNKNOWN_LOC if loc is None else loc
     return _prim_ffi._OpEQ(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
@@ -561,6 +572,7 @@ def ne_(lhs: Any, rhs: Any, *, loc: _Loc = None) -> _ir.Expr:
         lhs = _relax.const(lhs) if isinstance(lhs, _numbers.Number) else lhs
         rhs = _relax.const(rhs) if isinstance(rhs, _numbers.Number) else rhs
         return _base.at_(loc, _relax.op.not_equal(lhs, rhs))
+    loc = UNKNOWN_LOC if loc is None else loc
     return _prim_ffi._OpNE(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 

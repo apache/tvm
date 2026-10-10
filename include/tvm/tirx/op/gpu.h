@@ -41,7 +41,7 @@ TVM_DLL const Op& gpu_thread_return_op();
  * \param loc The location of this operation in the source.
  * \return The thread return expression.
  */
-TVM_DLL PrimExpr gpu_thread_return(ffi::Optional<Location> loc = std::nullopt);
+TVM_DLL PrimExpr gpu_thread_return(Location loc = UnknownLoc());
 
 /*!
  * \brief Mark an opaque predicate that selects one thread on an active-set axis.

@@ -39,7 +39,7 @@ from tvm.ir import (
     Var,
     const,
 )
-from tvm.ir.base import Location, UnknownLoc
+from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.prim import clz as clz
 from tvm.ir.prim import max_value as max_value
 from tvm.ir.prim import min_value as min_value
@@ -211,7 +211,7 @@ def _primexpr_dtype(expr):
     return ty.dtype
 
 
-def _pack_buffer(buf, loc=None):
+def _pack_buffer(buf, loc: Location = UNKNOWN_LOC):
     """Build intrinsics that packs the buffer."""
     shape = Call(
         "tirx.stack_make_shape",
@@ -240,7 +240,7 @@ def _pack_buffer(buf, loc=None):
     return Call("tirx.stack_make_dltensor", pack_args, loc=loc, ty="handle")
 
 
-def call_packed_lowered(*args, loc=None, ty=None):
+def call_packed_lowered(*args, loc: Location = UNKNOWN_LOC, ty=None):
     """Lowered version of call packed.
     The argument to a packed function can be an Expr or a tensor variable.
     The argument is the corresponding POD type when Expr is presented.
@@ -253,7 +253,7 @@ def call_packed_lowered(*args, loc=None, ty=None):
     args : list of Expr or Var.
         Positional arguments.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this operator in the source code.
 
     Returns
@@ -277,7 +277,7 @@ def call_packed_lowered(*args, loc=None, ty=None):
     )
 
 
-def call_cpacked_lowered(*args, loc=None, ty=None):
+def call_cpacked_lowered(*args, loc: Location = UNKNOWN_LOC, ty=None):
     """Lowered version of call c-packed.
     Same as call_packed, except that the first argument is the function name
     (as in call_extern), and the last argument is the resource handle.
@@ -287,7 +287,7 @@ def call_cpacked_lowered(*args, loc=None, ty=None):
     args : list of Expr or Var.
         Positional arguments.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this operator in the source code.
 
     Returns
@@ -311,7 +311,7 @@ def call_cpacked_lowered(*args, loc=None, ty=None):
     )
 
 
-def call_packed(*args, loc=None, ty=None):
+def call_packed(*args, loc: Location = UNKNOWN_LOC, ty=None):
     """Build expression by call an external packed function.
 
     The argument to a packed function can be an Expr or a tensor variable.
@@ -326,7 +326,7 @@ def call_packed(*args, loc=None, ty=None):
     args : list of Expr or Var.
         Positional arguments.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this operator in the source code.
 
     Returns
@@ -361,7 +361,9 @@ class CallFFIKernelAttr(tvm.ir.Attrs):
         )
 
 
-def call_ffi_kernel(*args, launch=None, launch_params=None, ty="int32", loc=None):
+def call_ffi_kernel(
+    *args, launch=None, launch_params=None, ty="int32", loc: Location = UNKNOWN_LOC
+):
     """Call a kernel with its symbol, kernel operands, then launch values.
 
     ``launch_params`` contains ordered tags for the launch-value suffix.
@@ -390,7 +392,7 @@ def call_ffi_kernel(*args, launch=None, launch_params=None, ty="int32", loc=None
     )
 
 
-def call_cpacked(*args, loc=None, ty=None):
+def call_cpacked(*args, loc: Location = UNKNOWN_LOC, ty=None):
     """Build expression by call an external packed function.
 
     Same as call_packed, except that the first argument is the function name
@@ -401,7 +403,7 @@ def call_cpacked(*args, loc=None, ty=None):
     args : list of Expr or Var.
         Positional arguments.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this operator in the source code.
 
     Returns
@@ -420,7 +422,9 @@ def call_cpacked(*args, loc=None, ty=None):
     return Call("tirx.call_cpacked", call_args, ty=ty, loc=loc)
 
 
-def call_intrin(dtype: str | tvm.ir.Type, func_name, *args, attrs=None, loc=None):
+def call_intrin(
+    dtype: str | tvm.ir.Type, func_name, *args, attrs=None, loc: Location = UNKNOWN_LOC
+):
     """Build expression by calling an intrinsic function.
 
     Intrinsics can be overloaded with multiple data types via
@@ -440,7 +444,7 @@ def call_intrin(dtype: str | tvm.ir.Type, func_name, *args, attrs=None, loc=None
     attrs : Optional[tvm.ir.Attrs or Dict[str, Object]]
         Additional attributes for the call.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this operator in the source code.
 
     Returns
@@ -454,7 +458,7 @@ def call_intrin(dtype: str | tvm.ir.Type, func_name, *args, attrs=None, loc=None
     return Call(func_name, args, attrs=attrs, loc=loc, ty=dtype)
 
 
-def call_pure_extern(dtype, func_name, *args, loc=None):
+def call_pure_extern(dtype, func_name, *args, loc: Location = UNKNOWN_LOC):
     """Build expression by calling a pure extern function.
 
     Parameters
@@ -468,7 +472,7 @@ def call_pure_extern(dtype, func_name, *args, loc=None):
     args : list
         Positional arguments.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this operator in the source code.
 
     Returns
@@ -484,7 +488,7 @@ def call_pure_extern(dtype, func_name, *args, loc=None):
     )
 
 
-def call_extern(dtype, func_name, *args, loc=None):
+def call_extern(dtype, func_name, *args, loc: Location = UNKNOWN_LOC):
     """Build expression by calling a extern function.
 
     Parameters
@@ -498,7 +502,7 @@ def call_extern(dtype, func_name, *args, loc=None):
     args : list
         Positional arguments.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this operator in the source code.
 
     Returns
@@ -514,7 +518,7 @@ def call_extern(dtype, func_name, *args, loc=None):
     )
 
 
-def call_llvm_intrin(dtype, name, *args, loc=None):
+def call_llvm_intrin(dtype, name, *args, loc: Location = UNKNOWN_LOC):
     """Build expression by calling a llvm intrinsic function
 
     Parameters
@@ -528,7 +532,7 @@ def call_llvm_intrin(dtype, name, *args, loc=None):
     args : list
        Positional arguments.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this operator in the source code.
 
     Returns
@@ -558,7 +562,7 @@ def call_llvm_intrin(dtype, name, *args, loc=None):
     )
 
 
-def call_llvm_pure_intrin(dtype, name, *args, loc=None):
+def call_llvm_pure_intrin(dtype, name, *args, loc: Location = UNKNOWN_LOC):
     """Build expression by calling a pure llvm intrinsic function
 
     Parameters
@@ -572,7 +576,7 @@ def call_llvm_pure_intrin(dtype, name, *args, loc=None):
     args : list
        Positional arguments.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this operator in the source code.
 
     Returns
@@ -602,7 +606,7 @@ def call_llvm_pure_intrin(dtype, name, *args, loc=None):
     )
 
 
-def stack_alloca(dtype_str, num, *, ty=None, loc=None):
+def stack_alloca(dtype_str, num, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Return new on stack dtype[num]
 
     Parameters
@@ -621,7 +625,7 @@ def stack_alloca(dtype_str, num, *, ty=None, loc=None):
     return call_intrin(ty, "tirx.stack_alloca", dtype_str, num, loc=loc)
 
 
-def stack_make_shape(*args, ty=None, loc=None):
+def stack_make_shape(*args, ty=None, loc: Location = UNKNOWN_LOC):
     """Allocate a shape tuple on stack, return the handle
 
     Parameters
@@ -646,7 +650,7 @@ def stack_make_dltensor(
     elem_offset,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     """Allocate a Tensor(DLTensor) on stack, return the handle
 
@@ -691,7 +695,7 @@ def stack_make_dltensor(
     )
 
 
-def assume_aligned(tensor, alignment_bytes, *, ty=None, loc=None):
+def assume_aligned(tensor, alignment_bytes, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Assume the tensor's base address is aligned to ``alignment_bytes``.
 
     This compiler fact does not check or modify the address. The tensor must
@@ -701,7 +705,7 @@ def assume_aligned(tensor, alignment_bytes, *, ty=None, loc=None):
     return call_intrin(ty, "tirx.assume_aligned", tensor, alignment_bytes, loc=loc)
 
 
-def undef(*, ty=None, loc=None):
+def undef(*, ty=None, loc: Location = UNKNOWN_LOC):
     """Returns an initialized but arbitrary value
 
     Returns
@@ -712,7 +716,7 @@ def undef(*, ty=None, loc=None):
     return call_intrin(ty, "tirx.undef", loc=loc)
 
 
-def handle_add_byte_offset(handle, offset, *, ty=None, loc=None):
+def handle_add_byte_offset(handle, offset, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Add offset to handle
 
     Parameters
@@ -756,7 +760,7 @@ def abi_field_get(arr, index, field, dtype):
     return call_intrin(dtype, "tirx.abi_field_get", arr, index, field)
 
 
-def abi_field_set(arr, index, field, value, *, ty=None, loc=None):
+def abi_field_set(arr, index, field, value, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Set value in struct field in array
 
     Parameters
@@ -785,7 +789,7 @@ def _is_tensormap_var(obj: Var) -> bool:
     return isinstance(obj.ty, PointerType) and isinstance(obj.ty.element_type, TensorMapType)
 
 
-def address_of(obj: Var | TensorLoad, loc: Location | None = None, *, ty=None) -> Expr:
+def address_of(obj: Var | TensorLoad, loc: Location = UNKNOWN_LOC, *, ty=None) -> Expr:
     """Returns the address of a buffer element or addressable variable.
 
     Parameters
@@ -793,7 +797,7 @@ def address_of(obj: Var | TensorLoad, loc: Location | None = None, *, ty=None) -
     obj: Union[Var, TensorLoad]
         The buffer, buffer load, or addressable variable.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this operator in the source code.
 
     Returns
@@ -826,7 +830,7 @@ def gpu_thread_allreduce(
     thread_axes,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     """Perform an all-reduce inside a thread block.
 
@@ -870,7 +874,7 @@ def gpu_thread_allreduce(
     )
 
 
-def gpu_thread_invariant(cond, *, ty=None, loc=None):
+def gpu_thread_invariant(cond, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Mark condition as thread invariant.
 
     Parameters
@@ -887,7 +891,7 @@ def gpu_thread_invariant(cond, *, ty=None, loc=None):
     return call_intrin(ty, "tirx.gpu_thread_invariant", cond, loc=loc)
 
 
-def gpu_storage_sync(storage_scope, *, ty=None, loc=None):
+def gpu_storage_sync(storage_scope, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Synchronize accesses in the specified storage scope.
 
     Parameters
@@ -902,7 +906,7 @@ def gpu_storage_sync(storage_scope, *, ty=None, loc=None):
     return call_intrin(ty, "tirx.gpu_storage_sync", storage_scope, loc=loc)
 
 
-def cpu_parallel_barrier(*, ty=None, loc=None):
+def cpu_parallel_barrier(*, ty=None, loc: Location = UNKNOWN_LOC):
     """Synchronize all workers in the current CPU parallel launch.
 
     Every worker must reach this operation at the same program point. Place it
@@ -916,12 +920,14 @@ def cpu_parallel_barrier(*, ty=None, loc=None):
     return call_intrin(ty, "tirx.cpu_parallel_barrier", loc=loc)
 
 
-def kernel_replace_point(*, ty=None, loc=None):
+def kernel_replace_point(*, ty=None, loc: Location = UNKNOWN_LOC):
     """Mark where a transform should replace generated kernel initialization."""
     return call_intrin(ty, "tirx.kernel_replace_point", loc=loc)
 
 
-def gpu_warp_shuffle(mask, value, warp_id, width, warp_size, *, ty=None, loc=None):
+def gpu_warp_shuffle(
+    mask, value, warp_id, width, warp_size, *, ty=None, loc: Location = UNKNOWN_LOC
+):
     """Exchange value between threads inside a warp.
 
     Parameters
@@ -954,7 +960,9 @@ def gpu_warp_shuffle(mask, value, warp_id, width, warp_size, *, ty=None, loc=Non
     )
 
 
-def gpu_warp_shuffle_up(mask, value, offset, width, warp_size, *, ty=None, loc=None):
+def gpu_warp_shuffle_up(
+    mask, value, offset, width, warp_size, *, ty=None, loc: Location = UNKNOWN_LOC
+):
     """Copy value from a lane with lower (by offset) index relative to caller.
 
     Parameters
@@ -988,7 +996,9 @@ def gpu_warp_shuffle_up(mask, value, offset, width, warp_size, *, ty=None, loc=N
     )
 
 
-def gpu_warp_shuffle_down(mask, value, offset, width, warp_size, *, ty=None, loc=None):
+def gpu_warp_shuffle_down(
+    mask, value, offset, width, warp_size, *, ty=None, loc: Location = UNKNOWN_LOC
+):
     """Copy value from a lane with higher (by offset) index relative to caller.
 
     Parameters
@@ -1022,7 +1032,9 @@ def gpu_warp_shuffle_down(mask, value, offset, width, warp_size, *, ty=None, loc
     )
 
 
-def gpu_warp_shuffle_xor(mask, value, lane_mask, width, warp_size, *, ty=None, loc=None):
+def gpu_warp_shuffle_xor(
+    mask, value, lane_mask, width, warp_size, *, ty=None, loc: Location = UNKNOWN_LOC
+):
     """Copy value from a lane with index computed by `src_lane_idx ^ lane_mask`.
 
     Parameters
@@ -1055,7 +1067,7 @@ def gpu_warp_shuffle_xor(mask, value, lane_mask, width, warp_size, *, ty=None, l
     )
 
 
-def gpu_warp_activemask(*, ty=None, loc=None):
+def gpu_warp_activemask(*, ty=None, loc: Location = UNKNOWN_LOC):
     """Return a 32-bit mask indicates currently active threads in a calling warp.
 
     Returns
@@ -1066,7 +1078,7 @@ def gpu_warp_activemask(*, ty=None, loc=None):
     return call_intrin(ty, "tirx.gpu_warp_activemask", loc=loc)
 
 
-def ptr_byte_offset(data, byte_offset, *, ty, loc=None):
+def ptr_byte_offset(data, byte_offset, *, ty, loc: Location = UNKNOWN_LOC):
     """Return ``data + byte_offset`` with pointer type ``ty``.
 
     ``byte_offset`` is always in bytes. ``ty`` specifies both the result
@@ -1075,7 +1087,7 @@ def ptr_byte_offset(data, byte_offset, *, ty, loc=None):
     return call_intrin(ty, "tirx.ptr_byte_offset", data, byte_offset, loc=loc)
 
 
-def throw_last_error(*, ty=None, loc=None):
+def throw_last_error(*, ty=None, loc: Location = UNKNOWN_LOC):
     """Throw TVMGetLastError()
 
     Returns
@@ -1165,7 +1177,7 @@ def gpu_dp4a(vec1, vec2, acc=0, **kwargs):
     return Call("tirx.gpu_dp4a", [vec1, vec2, acc], **kwargs)
 
 
-def reinterpret(dtype, value, loc: Location | None = None) -> Expr:
+def reinterpret(dtype, value, loc: Location = UNKNOWN_LOC) -> Expr:
     """Reinterpret a value as an exact primitive or pointer type.
 
     Parameters
@@ -1176,7 +1188,7 @@ def reinterpret(dtype, value, loc: Location | None = None) -> Expr:
     value : Expr
         The input value.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this operator in the source code.
 
     Returns
@@ -1191,7 +1203,7 @@ def reinterpret(dtype, value, loc: Location | None = None) -> Expr:
     return _ffi_api.reinterpret(dtype, value, loc)  # type: ignore
 
 
-def gpu_thread_filter(var, pred, *, loc=None, ty=None):
+def gpu_thread_filter(var, pred, *, loc: Location = UNKNOWN_LOC, ty=None):
     """Thread-set filter escape hatch.
 
     Use this wrapper only when the predicate is *not* in the canonical
@@ -1210,7 +1222,7 @@ def gpu_thread_filter(var, pred, *, loc=None, ty=None):
     return call_intrin(ty, "tirx.gpu_thread_filter", var, pred, loc=loc)
 
 
-def gpu_active_thread_selector(var, pred, loc=None, *, ty=None):
+def gpu_active_thread_selector(var, pred, loc: Location = UNKNOWN_LOC, *, ty=None):
     """Analysis-only active-thread selector.
 
     ``gpu_active_thread_selector(var, pred)`` denotes the unique value of ``var`` in the current
@@ -1220,7 +1232,7 @@ def gpu_active_thread_selector(var, pred, loc=None, *, ty=None):
     return call_intrin(ty, "tirx.gpu_active_thread_selector", var, pred, loc=loc)
 
 
-def isnullptr(x, loc=None, *, ty=None):
+def isnullptr(x, loc: Location = UNKNOWN_LOC, *, ty=None):
     """Check if input value is nullptr.
 
     Parameters
@@ -1228,7 +1240,7 @@ def isnullptr(x, loc=None, *, ty=None):
     x : Expr
         Input argument.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this operator in the source code.
 
     Returns
@@ -1239,7 +1251,7 @@ def isnullptr(x, loc=None, *, ty=None):
     return call_intrin(ty, "tirx.isnullptr", x, loc=loc)  # type: ignore
 
 
-def logaddexp(a, b, loc=None):
+def logaddexp(a, b, loc: Location = UNKNOWN_LOC):
     """Compute the logaddexp of two expressions.
 
     Parameters
@@ -1250,7 +1262,7 @@ def logaddexp(a, b, loc=None):
     b : Expr
         The right hand operand
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of this operator in the source.
 
     Returns
@@ -1269,7 +1281,7 @@ def alloc_workspace(
     dtype_bits_hint,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     """Backend function to allocate temporal workspace
 
@@ -1307,7 +1319,7 @@ def alloc_workspace(
     )
 
 
-def free_workspace(device_type, device_id, ptr, *, ty=None, loc=None):
+def free_workspace(device_type, device_id, ptr, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Backend function to free temporal workspace.
 
     Parameters
@@ -1380,7 +1392,7 @@ def masked_load(dtype, buffer, *indices_and_mask):
     return call_intrin(dtype, "tirx.masked_load", buffer, *indices_and_mask)
 
 
-def masked_store(buffer, value, *indices_and_mask, ty=None, loc=None):
+def masked_store(buffer, value, *indices_and_mask, ty=None, loc: Location = UNKNOWN_LOC):
     """Store vector lanes selected by a predicate mask.
 
     Parameters
@@ -1426,7 +1438,7 @@ def get_vscale_expr(dtype: str | tvm_ffi.dtype, min_size: int = 128) -> Expr:
     return min_size // dtype.bits * vscale()
 
 
-def ignore_loop_partition(predicate, *, ty=None, loc=None) -> Expr:
+def ignore_loop_partition(predicate, *, ty=None, loc: Location = UNKNOWN_LOC) -> Expr:
     """
     Annotate a predicate not be considered as target condition of loop partition.
 
@@ -1449,7 +1461,7 @@ def gpu_load_matrix_sync(
     layout,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     """TVM intrinsic for tensor core load operators
 
@@ -1510,7 +1522,7 @@ def gpu_mma_sync(
     index_c,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     """TVM intrinsic for tensor core mma_sync operators
 
@@ -1560,7 +1572,7 @@ def gpu_mma_sync(
     )
 
 
-def gpu_fill_fragment(fragment, m, n, k, index, value, *, ty=None, loc=None):
+def gpu_fill_fragment(fragment, m, n, k, index, value, *, ty=None, loc: Location = UNKNOWN_LOC):
     """TVM intrinsic for tensor core fill_fragment operators
 
     Parameters
@@ -1612,7 +1624,7 @@ def gpu_store_matrix_sync(
     layout,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ):
     """TVM intrinsic for tensor core store operators
 
@@ -1662,7 +1674,7 @@ def gpu_store_matrix_sync(
     )
 
 
-def gpu_thread_return(*, ty=None, loc=None):
+def gpu_thread_return(*, ty=None, loc: Location = UNKNOWN_LOC):
     """Return from the current GPU thread without a function value."""
     return call_intrin(ty, "tirx.gpu_thread_return", loc=loc)
 

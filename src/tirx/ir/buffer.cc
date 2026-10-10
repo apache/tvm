@@ -162,7 +162,7 @@ ffi::ObjectRef RealizeBufferRegionSubscript(Expr value, SubscriptSlice slice, Lo
 using IndexMod = prim::FloorModNode;
 using IndexDiv = prim::FloorDivNode;
 
-TensorRegion BufferRegion(TensorVar buffer, ffi::Array<Range> region, ffi::Optional<Location> loc) {
+TensorRegion BufferRegion(TensorVar buffer, ffi::Array<Range> region, Location loc) {
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), region.size())
       << "Buffer rank and region dimension mismatch";
   return TensorRegion(std::move(buffer), std::move(region), TensorRegionType(), std::move(loc));
@@ -212,7 +212,7 @@ ffi::Array<PrimExpr> SimplifyArray(sym::AnalyzerObj* ana, ffi::Array<PrimExpr> a
 }
 
 TensorVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String name,
-                      ffi::String storage_scope, ffi::Optional<Location> loc) {
+                      ffi::String storage_scope, Location loc) {
   return TensorVar(name, TensorType(storage_scope, dtype, shape, {}, std::nullopt, 0, 0), loc);
 }
 
@@ -447,7 +447,7 @@ ffi::Array<PrimExpr> TensorTypeNode::ElemOffset(ffi::Array<PrimExpr> input_indic
   return SimplifyArray(ana.get(), {output_index});
 }
 
-TensorVar::TensorVar(ffi::String name, TensorType type, ffi::Optional<Location> loc)
+TensorVar::TensorVar(ffi::String name, TensorType type, Location loc)
     : Var(Var(std::move(name), std::move(type), std::move(loc))) {}
 
 tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
@@ -468,7 +468,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tirx.TensorVar",
-           [](ffi::String name, TensorType type, ffi::Optional<Location> loc) {
+           [](ffi::String name, TensorType type, Location loc) {
              return TensorVar(std::move(name), std::move(type), std::move(loc));
            })
       .def_method("tirx.TensorStorageScope", &TensorVar::scope)

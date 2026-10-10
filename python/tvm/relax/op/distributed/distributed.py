@@ -19,6 +19,7 @@
 
 from tvm.ir import Call, Op
 from tvm.ir.attrs import make_node
+from tvm.ir.location import UNKNOWN_LOC, Location
 from tvm.ir.op import _make_op_api
 from tvm.relax.distributed import DeviceMesh, Placement
 
@@ -31,7 +32,7 @@ def annotate_sharding(
     placement: Placement,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Annotate sharding plan for tensor
 
@@ -66,7 +67,7 @@ def redistribute(
     placement: Placement,
     *,
     ty=None,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
 ) -> Expr:
     """Redistribute tensor
 
@@ -98,7 +99,7 @@ call_tir_local_view = _make_op_api(Op.get("relax.dist.call_tir_local_view"), __n
 
 
 def redistribute_replica_to_shard(
-    input: Expr, num_workers: int, axis: int, *, ty=None, loc=None
+    input: Expr, num_workers: int, axis: int, *, ty=None, loc: Location = UNKNOWN_LOC
 ) -> Expr:
     """Slice tensor into several parts along one axis,
         and each worker takes one part.

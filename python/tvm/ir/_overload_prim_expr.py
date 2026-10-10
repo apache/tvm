@@ -16,11 +16,10 @@
 # under the License.
 """Primitive-expression overloads for shared IR expressions."""
 
-from tvm.ir.base import UnknownLoc
+from tvm.ir.location import UNKNOWN_LOC, Location
 
 from ..runtime import DataTypeCode, ObjectConvertible
 from ._constant import const
-from .base import Location
 from .expr import Expr, TensorRegion, is_prim_expr
 from .prim import _ffi_api as _prim_ffi_api
 from .type import PrimType
@@ -210,7 +209,7 @@ class ExprOp:
     def __bool__(self) -> bool:
         return self.__nonzero__()
 
-    def equal(self, other: Expr, loc: Location | None = None) -> bool:
+    def equal(self, other: Expr, loc: Location = UNKNOWN_LOC) -> bool:
         """Build an equal check expression with other expr.
 
         Parameters
@@ -218,7 +217,7 @@ class ExprOp:
         other : Expr
             The other expression
 
-        loc : Location or None, optional
+        loc : Location, optional
             The location of the cast in the source.
 
         Returns
@@ -228,7 +227,7 @@ class ExprOp:
         """
         return _prim_ffi_api._OpEQ(self, other, loc)  # type: ignore
 
-    def astype(self, dtype: str | PrimType, loc: Location | None = None) -> Expr:
+    def astype(self, dtype: str | PrimType, loc: Location = UNKNOWN_LOC) -> Expr:
         """Cast the expression to other type.
 
         Parameters
@@ -236,7 +235,7 @@ class ExprOp:
         dtype : str
             The type of new expression
 
-        loc : Location or None, optional
+        loc : Location, optional
             The location of the cast in the source.
 
         Returns
@@ -261,16 +260,16 @@ class EqualOp(ObjectConvertible, ExprOp):
     b : Expr
         Right operand.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of the cast in the source.
     """
 
     # This class is not manipulated by C++. So use python's identity check function is sufficient
     same_as = object.__eq__
 
-    def __init__(self, a: Expr, b: Expr, loc: Location | None = None):
-        if loc is None:
-            loc = UnknownLoc()
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC):
+        if not isinstance(loc, Location):
+            raise TypeError("loc must be a Location")
         self.a = a
         self.b = b
         self.loc = loc
@@ -307,16 +306,16 @@ class NotEqualOp(ObjectConvertible, ExprOp):
     b : Expr
         Right operand.
 
-    loc : Location or None, optional
+    loc : Location, optional
         The location of the cast in the source.
     """
 
     # This class is not manipulated by C++. So use python's identity check function is sufficient
     same_as = object.__eq__
 
-    def __init__(self, a: Expr, b: Expr, loc: Location | None = None) -> None:
-        if loc is None:
-            loc = UnknownLoc()
+    def __init__(self, a: Expr, b: Expr, loc: Location = UNKNOWN_LOC) -> None:
+        if not isinstance(loc, Location):
+            raise TypeError("loc must be a Location")
         self.a = a
         self.b = b
         self.loc = loc

@@ -24,6 +24,7 @@ import tvm_ffi
 
 import tvm
 from tvm.ir import Call, PointerType, PrimType, Type, Var
+from tvm.ir.location import UNKNOWN_LOC, Location
 
 from . import _buffer_view, _ffi_api
 
@@ -315,7 +316,7 @@ def decl_tensor(
     scope="",
     data_alignment=-1,
     offset_factor=0,
-    loc=None,
+    loc: Location = UNKNOWN_LOC,
     layout="default",
 ):
     # pylint: disable=import-outside-toplevel
@@ -353,7 +354,7 @@ def decl_tensor(
     return _ffi_api.TensorVar(name, buffer_type, loc)  # type: ignore
 
 
-def tensor_data_ptr(tensor, *, ty=None, loc=None):
+def tensor_data_ptr(tensor, *, ty=None, loc: Location = UNKNOWN_LOC):
     """Project a tensor variable's physical pointer.
 
     The result type is inferred from its element type and storage scope.

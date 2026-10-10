@@ -107,7 +107,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMaybeInplaceMut
 
 // Get the function type of a Function
 Function::Function(ffi::Array<tvm::Var> params, ffi::Optional<SeqStmt> body, Type ret_type,
-                   DictAttrs attrs, ffi::Optional<Location> loc)
+                   DictAttrs attrs, Location loc)
     : BaseFunc(ffi::UnsafeInit{}) {
   if (ret_type.as<MissingType>().has_value()) {
     ret_type = VoidType();
@@ -118,7 +118,7 @@ Function::Function(ffi::Array<tvm::Var> params, ffi::Optional<SeqStmt> body, Typ
   n->body = std::move(body);
   n->ret_type = std::move(ret_type);
   n->attrs = std::move(attrs);
-  n->loc = loc.value_or(UnknownLoc());
+  n->loc = loc;
   n->ty = n->func_type_annotation();
   data_ = std::move(n);
 }
@@ -164,7 +164,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "tirx.Function",
       [](ffi::Array<tvm::Var> params, ffi::Optional<SeqStmt> body, Type ret_type, DictAttrs attrs,
-         ffi::Optional<Location> loc) { return Function(params, body, ret_type, attrs, loc); });
+         Location loc) { return Function(params, body, ret_type, attrs, loc); });
   refl::GlobalDef().def("tirx.RenewDef", RenewDef);
 }
 
