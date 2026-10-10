@@ -32,12 +32,50 @@ namespace printer {
 namespace details {
 namespace {
 
+// These semantic wrappers convert bare Python scalar tuple fields to 64-bit
+// values. Use raw construction when ordinary tuple syntax would change the IR.
+bool InlineTupleNeedsRawCall(DocTranslatorObj* d, const Expr& expr) {
+  if (const auto* tuple = expr.as<TupleNode>()) {
+    for (const Expr& field : tuple->fields) {
+      if (InlineTupleNeedsRawCall(d, field)) return true;
+    }
+  } else if (const auto* imm = expr.as<IntImmNode>()) {
+    DLDataType dtype = imm->ty.as_or_throw<PrimType>()->dtype;
+    auto implicit =
+        ffi::StringToDLDataType(d->GetExtraConfig<ffi::String>("ir.int_dtype", "int32"));
+    return dtype == implicit && dtype != ffi::StringToDLDataType("int64");
+  } else if (const auto* imm = expr.as<FloatImmNode>()) {
+    DLDataType dtype = imm->ty.as_or_throw<PrimType>()->dtype;
+    auto implicit =
+        ffi::StringToDLDataType(d->GetExtraConfig<ffi::String>("ir.float_dtype", "void"));
+    return dtype == implicit && dtype != ffi::StringToDLDataType("float64");
+  }
+  return false;
+}
+
+ffi::Optional<ExprDoc> InlineTupleCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                   const ffi::Object*) {
+  const auto* call =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
+  if (call->args.size() > 1 && InlineTupleNeedsRawCall(d, call->args[1])) return RawCall(d, call);
+  if (auto doc = StandardCallDocTranslate(d, call)) return doc;
+  return RawCall(d, call);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  for (const char* name : {"relax.call_builtin_with_ctx", "relax.make_closure",
+                           "relax.invoke_closure", "relax.invoke_pure_closure"}) {
+    OpDef(name).set_attr<FDocTranslate>(tvm::script::printer::op_attr::kOpCallDocTranslate,
+                                        FDocTranslate::FromNative<&InlineTupleCallDocTranslate>());
+  }
+}
+
 ffi::Optional<ExprDoc> CallDPSPackedDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                                  const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   if (call->attrs.defined() || call->args.size() != 2 || !call->args[1].as<TupleNode>() ||
-      call->ty_args.size() != 1) {
+      call->ty_args.size() != 1 || InlineTupleNeedsRawCall(d, call->args[1])) {
     return RawCall(d, call);
   }
   ExprDoc callee = d->Translate(call->args[0]).value();
@@ -49,11 +87,9 @@ ffi::Optional<ExprDoc> CallDPSPackedDocTranslate(DocTranslatorObj* d, ffi::AnyVi
   } else if (call->args[0].as<StringImmNode>()) {
     // A bare Python string now constructs ExternFunc, so retain this explicit IR value.
     callee = AnyValue(d, call->args[0]);
-  } else {
-    callee = MaterializeCallArgument(d, call->args[0], callee);
   }
   d->RecordOrigin(callee, call->args[0]);
-  ExprDoc args = MaterializeCallArgument(d, call->args[1], d->Translate(call->args[1]).value());
+  ExprDoc args = d->Translate(call->args[1]).value();
   ffi::Array<ffi::String> keys = {"ty_args"};
   ffi::Array<ExprDoc> values = {ListDoc({TypeValue(d, call->ty_args[0], false)})};
   bool omit_result = false;

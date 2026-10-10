@@ -293,17 +293,6 @@ DocStringDoc::DocStringDoc(ffi::String docs) {
   this->data_ = std::move(n);
 }
 
-OpCallDoc::OpCallDoc(ExprDoc callee, ffi::Array<Doc> args, ffi::Optional<DictDoc> workspace,
-                     ffi::Optional<DictDoc> config, ffi::Optional<ExprDoc> dispatch) {
-  ffi::ObjectPtr<OpCallDocNode> n = ffi::make_object<OpCallDocNode>();
-  n->callee = callee;
-  n->args = args;
-  n->workspace = workspace;
-  n->config = config;
-  n->dispatch = dispatch;
-  this->data_ = std::move(n);
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
@@ -511,15 +500,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("script.printer.DocStringDoc",
                         [](ffi::String docs) { return DocStringDoc(docs); });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.printer.OpCallDoc",
-                        [](ExprDoc callee, ffi::Array<Doc> args, DictDoc workspace, DictDoc config,
-                           ffi::Optional<ExprDoc> dispatch) {
-                          return OpCallDoc(callee, args, workspace, config, dispatch);
-                        });
 }
 
 NamespaceDoc::NamespaceDoc(ffi::String canonical_name) {

@@ -37,7 +37,6 @@ namespace details {
 ffi::Array<StmtDoc> Body(const Stmt& stmt, DocTranslatorObj* d);
 ffi::Array<Doc> TensorIndices(DocTranslatorObj* d, const ffi::Array<PrimExpr>& indices,
                               bool store = false);
-ExprDoc TensorRegionValue(DocTranslatorObj* d, const TensorRegionNode* region, bool require_region);
 
 ExprDoc AddMetadata(DocTranslatorObj* d, ffi::Any value);
 IdDoc VarDoc(DocTranslatorObj* d, const Var& var, bool explicit_def = true);
@@ -45,12 +44,12 @@ ExprDoc GlobalReference(DocTranslatorObj* d, const ffi::String& name);
 ExprDoc NamedCallCallee(const ffi::String& canonical_name);
 
 ExprDoc TypeValue(DocTranslatorObj* d, const Type& type, bool dtype_literal = true);
-ExprDoc MaterializeCallArgument(DocTranslatorObj* d, const Expr& arg, ExprDoc doc);
+ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallNode* call);
 ExprDoc RawCall(DocTranslatorObj* d, const CallNode* call,
                 ffi::Optional<ffi::Array<ExprDoc>> translated_args = std::nullopt);
 ExprDoc AnyValue(DocTranslatorObj* d, ffi::AnyView value);
-ffi::Dict<Var, IdDoc> CopyImplicitDefs(DocTranslatorObj* d);
-void FinalizeFunctionDefinitions(DocTranslatorObj* d, const ffi::Dict<Var, IdDoc>& signature,
+ffi::Map<Var, IdDoc> CopyImplicitDefs(DocTranslatorObj* d);
+void FinalizeFunctionDefinitions(DocTranslatorObj* d, const ffi::Map<Var, IdDoc>& signature,
                                  const FunctionDoc& function);
 
 class VarScope {

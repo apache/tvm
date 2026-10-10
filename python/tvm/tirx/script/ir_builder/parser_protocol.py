@@ -34,7 +34,6 @@ import tvm
 # isort: on
 from tvm import ir as _ir
 from tvm import tirx as _tir
-from tvm.ir import StringImm as _StringImm
 from tvm.ir import is_prim_expr
 from tvm.script.ir_builder import base as _base
 from tvm.script.ir_builder.base import AlreadyEmitted
@@ -755,18 +754,23 @@ def thread_binding(
     )
 
 
-def device_entry(*, launch=None, kernel_attrs=None) -> frame.RegionFrame:
+def device_entry(
+    *launch_values, launch=None, kernel_attrs=None, attrs=None, body_params=None
+) -> frame.RegionFrame:
     """Enter a device kernel with an independent CUDA launch configuration.
 
     CUDA entries use ``LaunchConfig(grid=..., block=...)`` and optional
     ``KernelAttributes``. Configuration values are ordinary region operands, so
     host expressions remain visible to substitution and free-variable analysis.
+    Canonical operands and attributes are also accepted for IR reconstruction.
     Other backends may use the argument-free device entry.
     """
     if launch is None:
         if kernel_attrs is not None:
             raise ValueError("device_entry kernel_attrs require a launch configuration")
-        return region("tirx.device_entry", [])
+        return region("tirx.device_entry", launch_values, attrs=attrs, body_params=body_params)
+    if launch_values or attrs is not None:
+        raise ValueError("device_entry launch cannot be combined with canonical operands or attrs")
     from tvm.backend.cuda.launch._impl import pack_kernel_attrs, pack_launch
 
     names, values = pack_launch(launch)
@@ -777,28 +781,35 @@ def device_entry(*, launch=None, kernel_attrs=None) -> frame.RegionFrame:
             "cuda.launch_fields": names,
             "cuda.kernel_attrs": pack_kernel_attrs(kernel_attrs, launch),
         },
+        body_params=body_params,
     )
 
 
-def device_context(device_type: Expr, device_id: Expr) -> frame.RegionFrame:
+def device_context(
+    device_type: Expr, device_id: Expr, *, attrs=None, body_params=None
+) -> frame.RegionFrame:
     """Supply lexical device context for allocation and packed-call lowering.
 
     This region does not change the active runtime device.
     """
-    return region("tirx.device_context", [device_type, device_id])
+    return region(
+        "tirx.device_context", [device_type, device_id], attrs=attrs, body_params=body_params
+    )
 
 
-def compute_scope(name: str) -> frame.RegionFrame:
+def compute_scope(name: str, *, attrs=None, body_params=None) -> frame.RegionFrame:
     """Outline the body as a named CPU compute helper."""
-    return region("tirx.compute_scope", [_StringImm(name)])
+    return region("tirx.compute_scope", [name], attrs=attrs, body_params=body_params)
 
 
-def parallel_launch() -> frame.RegionFrame:
+def parallel_launch(*, attrs=None, body_params=None) -> frame.RegionFrame:
     """Launch a CPU worker team around parallel loops and team barriers."""
-    return region("tirx.parallel_launch", [])
+    return region("tirx.parallel_launch", [], attrs=attrs, body_params=body_params)
 
 
-def launch_thread(thread_tag: str, extent: Expr) -> frame.RegionFrame:
+def launch_thread(
+    thread_tag: str, extent: Expr, *, attrs=None, body_params=None
+) -> frame.RegionFrame:
     """Launch a hardware or virtual thread with a fresh lexical variable.
 
     The extent determines the variable's scalar integer type. Tags starting with
@@ -812,7 +823,7 @@ def launch_thread(thread_tag: str, extent: Expr) -> frame.RegionFrame:
         with T.launch_thread("threadIdx.x", 32) as tx:
             T.evaluate(tx)
     """
-    return region("tirx.launch_thread", [_StringImm(thread_tag), extent])
+    return region("tirx.launch_thread", [thread_tag, extent], attrs=attrs, body_params=body_params)
 
 
 # --------------------------------------
