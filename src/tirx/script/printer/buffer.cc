@@ -223,69 +223,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 namespace {
 
-ffi::Array<Doc> TensorIndices(DocTranslatorObj* d, const ffi::Array<PrimExpr>& indices,
-                              bool store = false) {
-  ffi::Array<Doc> docs;
-  for (const PrimExpr& index : indices) {
-    if (const auto* ramp = index.as<prim::RampNode>(); store && ramp) {
-      if (const auto* stride = ramp->stride.as<IntImmNode>()) {
-        ffi::Optional<ExprDoc> step = std::nullopt;
-        if (stride->value != 1) step = d->Translate(ramp->stride).value();
-        SliceDoc slice(d->Translate(ramp->base).value(),
-                       d->Translate(ramp->base + ramp->lanes * ramp->stride).value(), step);
-        d->RecordOrigin(slice, index);
-        docs.push_back(slice);
-        continue;
-      }
-    }
-    docs.push_back(d->Translate(index).value());
-  }
-  return docs;
-}
-
-}  // namespace
-
-ExprDoc TensorRegionValue(DocTranslatorObj* d, const TensorRegionNode* region,
-                          bool require_region) {
-  ffi::Array<Doc> slices;
-  for (const Range& range : region->region) {
-    ExprDoc start = d->Translate(range->min).value();
-    if (const auto* extent = range->extent.as<IntImmNode>();
-        !require_region && extent && extent->value == 1) {
-      slices.push_back(start);
-    } else {
-      ExprDoc end = [&]() -> ExprDoc {
-        auto lower = range->min.as<IntImmNode>();
-        auto length = range->extent.as<IntImmNode>();
-        if (lower && length) {
-          auto last = (lower->value + length->value).as<int64_t>();
-          if (last) {
-            return LiteralDoc::Int(*last, std::nullopt);
-          }
-        }
-        return OperationDoc(OperationDocNode::Kind::kAdd,
-                            {start, d->Translate(range->extent).value()});
-      }();
-      slices.push_back(SliceDoc(start, end, std::nullopt));
-    }
-  }
-  return d->Translate(region->source).value()[slices];
-}
-
-namespace {
-
-ffi::Optional<ExprDoc> TensorRegionDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                                const ffi::Object*) {
-  const auto* region =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorRegionNode>(input);
-  return TensorRegionValue(d, region, false);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<TensorRegionNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TensorRegionDocTranslate>());
-}
-
 ffi::Optional<ExprDoc> TensorStoreDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                                const ffi::Object* destination) {
   const auto* store =
@@ -321,35 +258,6 @@ ffi::Optional<ExprDoc> TIRxTensorLoadDocTranslate(DocTranslatorObj* d, ffi::AnyV
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::TensorTypeNode>().attr(
       kTensorLoadDocTranslate, FDocTranslate::FromNative<&TIRxTensorLoadDocTranslate>());
-}
-
-ffi::Optional<ExprDoc> TensorLoadDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                              const ffi::Object* destination) {
-  const auto* load =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorLoadNode>(input);
-  static ffi::reflection::TypeAttrColumn column(kTensorLoadDocTranslate);
-  ffi::AnyView hook = column[load->source->ty->type_index()];
-  ffi::Any value = ffi::GetRef<TensorLoad>(load);
-  if (hook.type_index() == ffi::TypeIndex::kTVMFFIOpaquePtr) {
-    return ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<ffi::Optional<ExprDoc>>(
-               reinterpret_cast<decltype(DocTranslatorVTable::translate)>(hook.cast<void*>())(
-                   d, value, destination))
-        .value();
-  }
-  if (hook.type_index() == ffi::TypeIndex::kTVMFFIFunction) {
-    ffi::Any binder = destination ? ffi::Any(ffi::GetRef<ffi::ObjectRef>(destination)) : nullptr;
-    return hook.cast<ffi::Function>()
-        .CallExpected<ffi::Optional<ExprDoc>>(d, value, binder)
-        .value();
-  }
-  TVM_FFI_CHECK(hook.type_index() == ffi::TypeIndex::kTVMFFINone, TypeError)
-      << "TensorLoad type hook must be a native pointer or ffi.Function";
-  return IndexDoc(d->Translate(load->source).value(), TensorIndices(d, load->indices));
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<TensorLoadNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TensorLoadDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> IterDocTranslate(DocTranslatorObj* d, ffi::AnyView input,

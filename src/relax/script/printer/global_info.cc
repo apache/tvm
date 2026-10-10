@@ -63,6 +63,21 @@ ffi::Optional<ffi::String> GlobalInfoSelector(DocTranslatorObj* d, const GlobalI
 
 namespace {
 
+ffi::Optional<ExprDoc> VDeviceDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                           const ffi::Object*) {
+  const auto* device =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::VDeviceNode>(input);
+  return NamespaceDoc("relax")->Attr("vdevice")->Call(
+      {d->Translate(device->target).value()}, {"vdevice_id", "memory_scope"},
+      {LiteralDoc::Int(device->vdevice_id, std::nullopt),
+       LiteralDoc::Str(device->memory_scope, std::nullopt)});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<relax::VDeviceNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&VDeviceDocTranslate>());
+}
+
 ffi::Optional<ExprDoc> DummyGlobalInfoDocTranslate(DocTranslatorObj*, ffi::AnyView,
                                                    const ffi::Object*) {
   return NamespaceDoc("relax")->Attr("dummy_global_info")->Call({});

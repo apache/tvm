@@ -21,9 +21,13 @@
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/tirx/exec_scope.h>
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/index_map.h>
+#include <tvm/tirx/layout.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op_attr_types.h>
+#include <tvm/tirx/stmt.h>
 
 #include <algorithm>
 #include <limits>
@@ -33,6 +37,7 @@
 #include <vector>
 
 #include "../../../script/printer/ir/utils.h"
+#include "../../../script/printer/utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -283,4 +288,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }  // namespace details
 }  // namespace printer
 }  // namespace script
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  using script::printer::details::RegisterScriptRepr;
+  RegisterScriptRepr<tirx::TensorTypeNode>();
+  RegisterScriptRepr<tirx::ComposeLayoutNode>();
+  RegisterScriptRepr<tirx::ExecScopeNode>();
+  RegisterScriptRepr<tirx::IndexMapNode>();
+  RegisterScriptRepr<tirx::IterNode>();
+  RegisterScriptRepr<tirx::FunctionNode>();
+  RegisterScriptRepr<tirx::ScopeIdDefNode>();
+  RegisterScriptRepr<tirx::ScopeIdDefStmtNode>();
+  RegisterScriptRepr<tirx::TileLayoutNode>();
+}
+
 }  // namespace tvm

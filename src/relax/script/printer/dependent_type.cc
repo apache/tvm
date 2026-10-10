@@ -31,15 +31,6 @@ namespace details {
 
 namespace {
 
-ffi::Optional<ExprDoc> AnyTypeDocTranslate(DocTranslatorObj*, ffi::AnyView, const ffi::Object*) {
-  return NamespaceDoc("relax")->Attr("Any");
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<AnyTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&AnyTypeDocTranslate>());
-}
-
 ffi::Optional<ExprDoc> ShapeTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                              const ffi::Object*) {
   const auto* ty =

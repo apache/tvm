@@ -24,16 +24,8 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/vector_expr.h>
-#include <tvm/relax/distributed/type.h>
-#include <tvm/relax/expr.h>
-#include <tvm/relax/type.h>
+#include <tvm/ir/stmt.h>
 #include <tvm/script/printer/printer.h>
-#include <tvm/te/operation.h>
-#include <tvm/tirx/exec_scope.h>
-#include <tvm/tirx/function.h>
-#include <tvm/tirx/index_map.h>
-#include <tvm/tirx/layout.h>
-#include <tvm/tirx/stmt.h>
 
 #include <utility>
 
@@ -46,11 +38,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   using script::printer::details::RegisterScriptRepr;
   refl::GlobalDef()
       .def("node.TVMScriptPrinterScript", tvm::Script)
-      .def("script.printer.Script", tvm::Script)
-      .def("script.printer.ReprPrintRelax",
-           [](const ffi::ObjectRef& obj, const PrinterConfig& config) {
-             return tvm::Script(obj, config);
-           });
+      .def("script.printer.Script", tvm::Script);
 
   RegisterScriptRepr<DataTypeImmNode>();
   RegisterScriptRepr<GenericConstNode>();
@@ -69,6 +57,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterScriptRepr<StringImmNode>();
   RegisterScriptRepr<TensorLoadNode>();
   RegisterScriptRepr<TensorRegionTypeNode>();
+  RegisterScriptRepr<TupleNode>();
+  RegisterScriptRepr<TupleGetItemNode>();
   RegisterScriptRepr<TupleTypeNode>();
   RegisterScriptRepr<VarNode>();
   RegisterScriptRepr<prim::AddNode>();
@@ -101,49 +91,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterScriptRepr<prim::SelectNode>();
   RegisterScriptRepr<prim::ShuffleNode>();
   RegisterScriptRepr<prim::SubNode>();
-  RegisterScriptRepr<relax::BindingBlockNode>();
-  RegisterScriptRepr<relax::DataflowBlockNode>();
-  RegisterScriptRepr<relax::DataflowVarNode>();
-  RegisterScriptRepr<relax::ExternFuncNode>();
-  RegisterScriptRepr<relax::FuncTypeNode>();
-  RegisterScriptRepr<relax::FunctionNode>();
-  RegisterScriptRepr<relax::IfExprNode>();
-  RegisterScriptRepr<relax::MatchCastNode>();
-  RegisterScriptRepr<relax::PackedFuncTypeNode>();
-  RegisterScriptRepr<relax::SeqExprNode>();
-  RegisterScriptRepr<relax::ShapeExprNode>();
-  RegisterScriptRepr<relax::ShapeTypeNode>();
-  RegisterScriptRepr<relax::TensorTypeNode>();
-  RegisterScriptRepr<relax::TupleGetItemNode>();
-  RegisterScriptRepr<relax::TupleNode>();
-  RegisterScriptRepr<relax::VarBindingNode>();
-  RegisterScriptRepr<relax::distributed::DTensorTypeNode>();
-  RegisterScriptRepr<relax::distributed::DeviceMeshNode>();
-  RegisterScriptRepr<relax::distributed::PlacementNode>();
-  RegisterScriptRepr<te::CommReducerNode>();
-  RegisterScriptRepr<te::ReduceNode>();
   RegisterScriptRepr<AssertStmtNode>();
   RegisterScriptRepr<RegionStmtNode>();
   RegisterScriptRepr<BindNode>();
   RegisterScriptRepr<BreakNode>();
   RegisterScriptRepr<TensorStoreNode>();
-  RegisterScriptRepr<tirx::TensorTypeNode>();
-  RegisterScriptRepr<tirx::ComposeLayoutNode>();
   RegisterScriptRepr<ContinueNode>();
   RegisterScriptRepr<EvaluateNode>();
-  RegisterScriptRepr<tirx::ExecScopeNode>();
   RegisterScriptRepr<ForNode>();
   RegisterScriptRepr<IfNode>();
-  RegisterScriptRepr<tirx::IndexMapNode>();
-  RegisterScriptRepr<tirx::IterNode>();
-  RegisterScriptRepr<s_tir::IterVarNode>();
   RegisterScriptRepr<LambdaExprNode>();
-  RegisterScriptRepr<tirx::FunctionNode>();
   RegisterScriptRepr<ReturnNode>();
-  RegisterScriptRepr<tirx::ScopeIdDefNode>();
-  RegisterScriptRepr<tirx::ScopeIdDefStmtNode>();
   RegisterScriptRepr<SeqStmtNode>();
-  RegisterScriptRepr<tirx::TileLayoutNode>();
   RegisterScriptRepr<WhileNode>();
   RegisterScriptRepr<TensorRegionNode>();
 }
