@@ -1295,7 +1295,10 @@ def test_device_host_call_same_func(*, compile_config):
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-def test_thread_return(*, compile_config):
+def test_thread_return(monkeypatch, *, compile_config):
+    if not env.has_cuda():
+        monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+
     @I.ir_module
     class Module:
         @T.function

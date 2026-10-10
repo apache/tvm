@@ -31,6 +31,14 @@ from tvm.testing import env
 
 TARGET = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch() or "sm_90"})
 
+
+@pytest.fixture(autouse=True)
+def source_codegen_without_cuda(monkeypatch):
+    # Source checks do not require a CUDA compiler on CPU-only CI workers.
+    if not env.has_cuda():
+        monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+
+
 requires_nvcc = pytest.mark.skipif(shutil.which("nvcc") is None, reason="nvcc not available")
 
 

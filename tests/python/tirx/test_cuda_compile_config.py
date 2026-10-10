@@ -399,12 +399,12 @@ assert 'tvm' not in sys.modules
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_legacy_payloads_and_removed_environment(monkeypatch):
+def test_legacy_payloads():
     import struct
 
-    from tvm.backend.cuda.compile_config import reject_legacy_compile_environment
-
-    load = tvm.get_global_func("ffi.Module.load_from_bytes.cuda")
+    load = tvm.get_global_func("ffi.Module.load_from_bytes.cuda", allow_missing=True)
+    if load is None:
+        pytest.skip("CUDA runtime module loader is not linked")
 
     def string(value):
         return struct.pack("<Q", len(value)) + value
@@ -416,6 +416,11 @@ def test_legacy_payloads_and_removed_environment(monkeypatch):
     old_source = string(b"cuda") + struct.pack("<Q", 0) + string(b"// legacy source")
     with pytest.raises(ValueError, match="regenerate"):
         load(old_source)
+
+
+def test_removed_compile_environment(monkeypatch):
+    from tvm.backend.cuda.compile_config import reject_legacy_compile_environment
+
     monkeypatch.setenv("TVM_CUDA_COMPILE_MODE", "nvcc")
     with pytest.raises(ValueError, match="CompileConfig.*compiler"):
         reject_legacy_compile_environment()

@@ -26,6 +26,14 @@ from tvm.tirx.cuda.tile_primitive.copy._common import copy_ptx_form
 
 TARGET = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch() or "sm_90"})
 
+
+@pytest.fixture(autouse=True)
+def source_codegen_without_cuda(monkeypatch):
+    # Source checks do not require a CUDA compiler on CPU-only CI workers.
+    if not env.has_cuda():
+        monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+
+
 # num_bytes → kernel layout. ``fill_offset`` fills lane i with ``i + fill_offset``.
 _SHARED_COPY_CASES = {
     16: {"nelems": 4, "smem_dtype": "uint32", "tmp_dtype": "uint32", "fill_offset": 1},
