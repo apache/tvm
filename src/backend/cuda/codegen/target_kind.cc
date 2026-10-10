@@ -76,12 +76,10 @@ ffi::Map<ffi::String, ffi::Any> UpdateCUDAAttrs(ffi::Map<ffi::String, ffi::Any> 
   } else {
     int archInt;
     ffi::Any version;
-    if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
-      LOG(WARNING) << "Unable to detect CUDA version, default to \"-arch=sm_50\" instead";
-      archInt = 50;
-    } else {
-      archInt = std::stod(version.cast<std::string>()) * 10 + 0.1;
-    }
+    TVM_FFI_CHECK(DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version), ValueError)
+        << "Cannot detect a CUDA device; offline compilation requires an explicit "
+        << "CompileConfig(arch=...) or CUDA Target arch";
+    archInt = std::stod(version.cast<std::string>()) * 10 + 0.1;
     if (archInt >= 90) {
       target.Set("arch", ffi::String("sm_") + std::to_string(archInt) + "a");
     } else {

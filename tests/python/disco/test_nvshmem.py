@@ -18,7 +18,6 @@
 
 # pylint: disable=missing-docstring
 import multiprocessing
-import os
 import shutil
 import socket
 import subprocess
@@ -288,11 +287,10 @@ extern "C" __global__ void nvshmem_query_kernel(int* my_pe_out, int* n_pes_out) 
 
 
 def _kernel_compile(compile_mode):
-    """Compile and run a kernel that calls NVSHMEM functions.
+    """Compile and run a kernel with an explicit NVSHMEM compiler configuration."""
+    from tvm.backend.cuda import CompileConfig
 
-    Runs in a fresh process, so setting the env var is safe.
-    """
-    os.environ["TVM_CUDA_COMPILE_MODE"] = compile_mode
+    compile_config = CompileConfig(compiler=compile_mode)
 
     num_workers = 2
     sess = di.ProcessSession(num_workers=num_workers)
@@ -321,6 +319,7 @@ def _kernel_compile(compile_mode):
                         my_pe_out.data,
                         n_pes_out.data,
                         kernel_name="nvshmem_query_kernel",
+                        compile_config=compile_config,
                     )
 
             @R.function
@@ -340,7 +339,9 @@ def _kernel_compile(compile_mode):
             path = tmpdir + "/test_nvshmem_kernel.so"
 
             target = tvm.target.Target("cuda")
-            tvm.compile(NvshmemQueryModule, target=target).export_library(path)
+            tvm.compile(
+                NvshmemQueryModule, target=target, compile_config=compile_config
+            ).export_library(path)
             mod = sess.load_vm_module(path)
             result = mod["main"]()
 

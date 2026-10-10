@@ -38,4 +38,22 @@ def LowerIket():
     return get_global_func("tirx.backend.cuda.transforms.LowerIket")()
 
 
-__all__ = ["LowerIket"]
+def BindCompileConfig(compile_config=None):
+    """Resolve per-entry compilation settings and targets before tile dispatch."""
+    from ..compile_config import pack_compile_config
+
+    config = "" if compile_config is None else pack_compile_config(compile_config)
+    return get_global_func("tirx.backend.cuda.transforms.BindCompileConfig")(config)
+
+
+def SpecializeDeviceHelpers():
+    """Clone private device helpers into each independently compiled CUDA group."""
+    return get_global_func("tirx.backend.cuda.transforms.SpecializeDeviceHelpers")()
+
+
+def SpecializeEntryHelpers():
+    """Specialize shared helper calls before target-sensitive tile dispatch."""
+    return get_global_func("tirx.backend.cuda.transforms.SpecializeEntryHelpers")()
+
+
+__all__ = ["BindCompileConfig", "LowerIket", "SpecializeDeviceHelpers", "SpecializeEntryHelpers"]

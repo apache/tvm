@@ -165,6 +165,7 @@ def _compile(kernel, host, tmp_path):
         name="launch_" + kernel.attrs["global_symbol"],
         cuda_sources=source,
         extra_cuda_cflags=[f"-arch={arch}"],
+        extra_ldflags=["-lcuda"],
         build_directory=str(tmp_path),
         backend="cuda",
     )

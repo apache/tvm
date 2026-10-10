@@ -1817,6 +1817,15 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
   // builds a real CUDAModuleNode.  Otherwise it stores the source in a
   // CUDAFallbackModuleNode for later cross-compile.
   ffi::Map<ffi::String, ffi::String> source_map;
+  auto config = mod->GetAttr<ffi::String>("cuda.compile_config");
+  if (!config.has_value()) {
+    // Direct codegen callers still resolve an explicit target, without relying
+    // on a current Target scope or compiler environment variables.
+    auto resolve = ffi::Function::GetGlobalRequired("cuda.resolve_compile_config");
+    auto resolved = resolve("", "", target).cast<ffi::Array<ffi::Any>>();
+    config = resolved[1].cast<ffi::String>();
+  }
+  source_map.Set("cuda.compile_config", config.value());
   return ::tvm::target::CUDAModuleCreateWithFallback(
       ffi::Bytes(code.data(), code.size()), ffi::String("cuda"), ExtractFuncInfo(mod), source_map);
 }

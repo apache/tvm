@@ -52,7 +52,12 @@ def _assert_ptxas_ok(src: str, rdc: bool = False, arch: str = PTX_ARCH) -> None:
     from tvm.support import nvcc
 
     options = ["-rdc=true"] if rdc else None
-    nvcc.compile_cuda(src, target_format="cubin", arch=arch, options=options, compiler="nvcc")
+    nvcc.compile_cuda(
+        src,
+        compile_config=T.cuda.CompileConfig(
+            arch=arch, target_format="cubin", compiler="nvcc", nvcc_options=options
+        ),
+    )
 
 
 def test_ptx_registration():

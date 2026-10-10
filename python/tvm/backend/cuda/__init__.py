@@ -23,6 +23,7 @@ from tvm_ffi.libinfo import load_lib_ctypes
 
 from tvm.base import _LOADED_LIBS
 
+from .compile_config import CompileConfig
 from .host import export_cuda_host
 
 _LAZY_SUBMODULES = {
@@ -115,6 +116,7 @@ def __getattr__(name: str):
 
 
 __all__ = [
+    "CompileConfig",
     "codegen",
     "cpp",
     "export_cuda_host",

@@ -326,6 +326,11 @@ class TileDispatcher : public StmtExprMutator {
 
   Stmt ProcessDeviceEntry(const RegionStmtNode* entry_node) {
     Stmt body_to_visit = entry_node->body;
+    Target saved_target = target_;
+    if (auto target = entry_node->attrs->dict.Get(tvm::attr::kTarget)) {
+      target_ = target.value().cast<Target>();
+    }
+    With<Target> target_scope(target_);
 
     bool is_first_block = false;
     std::swap(is_first_block, is_first_block_);
@@ -346,6 +351,7 @@ class TileDispatcher : public StmtExprMutator {
 
     auto pop_exec_contexts = [&]() {
       if (pushed_base_ctx) ctx_stack_.pop_back();
+      target_ = saved_target;
     };
 
     if (!is_first_block) {
@@ -375,8 +381,8 @@ class TileDispatcher : public StmtExprMutator {
     alloc_buffers_.clear();
 
     Stmt res = body;
-    if (native_launch_) {
-      res = CudaIndexLowerer::Lower(res, launch_params_);
+    if (native_launch_) res = CudaIndexLowerer::Lower(res, launch_params_);
+    if (native_launch_ || entry_node->attrs->dict.count("cuda.compile_config")) {
       res = RegionStmt(Op::Get("tirx.device_scope"), entry_node->args, {}, entry_node->attrs, res);
     }
 
@@ -1456,7 +1462,7 @@ class TileDispatcher : public StmtExprMutator {
   std::unordered_map<Var, ScopeIdTarget, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> scope_aliases_;
   ffi::Map<Var, Range> var_range_map_;
   sym::Analyzer analyzer_;
-  const Target& target_;
+  Target target_;
   std::vector<ExecContext> ctx_stack_;
   std::unordered_map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>> launch_params_;
   std::vector<Bind> alloc_buffers_;

@@ -18,23 +18,94 @@
 Compiling and inspecting
 ========================
 
-Wrap the ``Function`` in an ``IRModule`` and compile with
-``tvm.compile(mod, target=..., tir_pipeline="tirx")``; it runs the TIRx lowering
-pipeline and returns an ``Executable`` you call directly. With an active CUDA
-device, target ``"cuda"`` auto-detects its architecture (for example
-``sm_100a``). If no device is available during compilation, TVM warns and falls
-back to ``sm_50``; specify ``-arch=...`` when cross-compiling or when the emitted
-instructions require a newer architecture.
+CUDA compilation uses one immutable ``CompileConfig``. It is available as
+``tvm.backend.cuda.CompileConfig``, ``T.cuda.CompileConfig`` and
+``txl.cuda.CompileConfig``. Build settings provide defaults; a device entry
+can override individual fields:
 
 .. code-block:: python
 
-    target = tvm.target.Target("cuda")
-    exe = tvm.compile(tvm.IRModule({"main": scale}), target=target, tir_pipeline="tirx")
+    from tvm.backend.cuda import CompileConfig
 
-``tir_pipeline="tirx"`` selects the TIRx lowering pipeline (tile-primitive
-dispatch and cleanup inside ``LowerTIRx`` → host/device split → finalize).
-Compiling inside a ``with target:`` block also works and lets the kernel pick
-up the target context.
+    @T.function
+    def pipeline(A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float32")):
+        with T.device_entry(
+            launch=T.cuda.LaunchConfig(grid=1, block=32),
+            compile_config=T.cuda.CompileConfig(ftz=False),
+        ):
+            x = T.cuda.thread_idx("x")
+            B[x] = A[x] * T.float32(0.5)
+        with T.device_entry(
+            launch=T.cuda.LaunchConfig(grid=1, block=32),
+            compile_config=T.cuda.CompileConfig(compiler="nvcc", lineinfo=True),
+        ):
+            y = T.cuda.thread_idx("x")
+            A[y] = B[y] + T.float32(1)
+
+    exe = tvm.compile(pipeline, compile_config=CompileConfig(arch="sm_100a"))
+
+Each entry resolves its configuration before architecture-sensitive lowering.
+Entries with different resolved targets or options compile as separate CUDA
+modules; their shared device helpers are copied into each group. A single
+function can therefore contain kernels with different architectures and
+compiler settings. Such kernels must still be compatible with the device on
+which the function is executed.
+
+``None`` means unspecified. Explicit ``False``, ``0`` and empty sequences
+replace inherited settings. Sequences replace rather than append. Use
+``config.with_overrides(ftz=False)`` to derive another immutable configuration.
+An explicit ``Target.arch`` and a conflicting build-level ``CompileConfig.arch``
+are rejected. Entry-level architecture overrides are allowed.
+
+Online builds can detect the GPU architecture. Offline builds require an
+explicit architecture, either in the build configuration or in every device
+entry. No fallback architecture is guessed. Architecture-dependent Python
+factories must receive the configuration before tracing and record the chosen
+architecture on their entry; later build defaults cannot change that choice.
+
+The default compiler is NVRTC, with fast math enabled and ptxas register usage
+level 10. NVRTC produces cubin by default, NVCC produces fatbin, and NVSHMEM
+requires cubin. Individual ``ftz``, ``prec_div``, ``prec_sqrt`` and ``fmad``
+settings override the fast-math preset. Raw ``nvcc_options``, ``nvrtc_options``
+and ``ptxas_options`` are escape hatches for options without a structured field;
+repeating a structured option there is an error.
+
+``LaunchConfig`` controls each runtime launch (grid, block, cluster, stream).
+``KernelAttributes`` describes CUDA kernel declaration attributes.
+``CompileConfig`` controls the CUDA compiler. The three objects have separate
+lifetimes and all are accepted explicitly where they apply.
+
+Artifacts and standalone hosts
+------------------------------
+
+Compiled CUDA modules save the effective configuration, source and diagnostics.
+Source-only fallback artifacts also save their configuration, so replay does
+not depend on the producing process's environment. Old binary artifacts remain
+loadable; old source-only artifacts without configuration must be regenerated.
+
+``CompileConfig(dump_dir="...")`` writes source, binary, resolved JSON and the
+compiler log under a content-derived name. The identity includes source,
+effective compiler options and toolchain version; the dump directory is excluded.
+Dumping never enables debug or line information implicitly.
+
+For ``target=Target({"kind": "cuda", "arch": "sm_100a"}, host="cuda_host")``,
+``tvm.backend.cuda.export_cuda_host(exe.mod)`` returns ordinary C++ host source
+with embedded independently compiled device binaries. Compile it with a C++
+compiler and CUDA headers, and link with tvm-ffi, cudart and the CUDA driver.
+The exported library uses ``cuLaunchKernelEx`` and requires no TVM installation
+or device compiler at runtime. Compiling the host does not recompile kernels.
+
+Migration
+---------
+
+Replace ``@txl.kernel(arch=...)``, ``Kernel.arch`` and ``tirx.cuda_arch`` with
+``compile_config=CompileConfig(arch=...)`` on ``device_entry`` or ``compile``.
+Replace compiler/math/ptxas environment variables with the corresponding fields.
+``TIRX_PREPARE_CUDA_ARCH`` is removed; CPU benchmark preparation receives an
+explicit configuration and defaults to NVCC. Removed environment options raise
+an error with the replacement field, instead of being silently ignored.
+
+See :doc:`../../api/cuda_compile` for the complete configuration API.
 
 Inspecting the result
 ---------------------
@@ -44,8 +115,8 @@ compiled module.
 
 .. code-block:: python
 
-    scale.show()                          # pretty-print the TIRx (TVMScript)
-    print(scale.script())                 # ... the same, as a string
+    pipeline.show()                       # pretty-print the TIRx (TVMScript)
+    print(pipeline.script())              # ... the same, as a string
 
     # the generated CUDA C source, from the compiled Executable:
     print(exe.mod.imports[0].inspect_source())

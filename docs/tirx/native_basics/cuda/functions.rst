@@ -288,9 +288,9 @@ both block and cluster dimensions using CUDA 13's ``__block_size__`` declaration
 block size. Runtime values belong in ``LaunchConfig``.
 
 Both host backends consume the same validated launch description. The normal
-CUDA module calls the Driver API's ``cuLaunchKernelEx``; exported ``cuda_host``
-code calls the Runtime API's ``cudaLaunchKernelEx`` and needs only CUDA and
-tvm-ffi. They share field decoding, attribute encoding, and resource setup.
+CUDA module and exported ``cuda_host`` code both call the Driver API's
+``cuLaunchKernelEx``. The exported code embeds compiled device binaries and
+needs only CUDA and tvm-ffi. They share field decoding, attribute encoding, and resource setup.
 Dynamic grid sizes, stream handles, event handles, and other launch values are
 host-side call operands, not device kernel parameters or expression-valued attrs.
 

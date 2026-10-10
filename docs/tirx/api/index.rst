@@ -38,6 +38,7 @@ Target APIs
    :maxdepth: 1
 
    cuda
+   cuda_compile
    cuda_launch
    ptx
    trainium

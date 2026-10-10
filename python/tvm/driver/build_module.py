@@ -42,6 +42,7 @@ def compile(  # pylint: disable=redefined-builtin
     *,
     relax_pipeline: tvm.transform.Pass | Callable | str | None = "default",
     tir_pipeline: tvm.transform.Pass | Callable | str | None = "default",
+    compile_config=None,
 ) -> Executable:
     """
     Compile an IRModule to a runtime executable.
@@ -61,6 +62,8 @@ def compile(  # pylint: disable=redefined-builtin
         Only used if the module contains Relax functions.
     tir_pipeline : Optional[Union[tvm.transform.Pass, Callable, str]]
         The compilation pipeline to use for TIR functions.
+    compile_config : Optional[tvm.backend.cuda.CompileConfig]
+        CUDA compiler defaults, overridden field by field by each device entry.
 
     Returns
     -------
@@ -74,6 +77,7 @@ def compile(  # pylint: disable=redefined-builtin
             target,
             relax_pipeline=relax_pipeline,
             tir_pipeline=tir_pipeline,
+            compile_config=compile_config,
         )
-    lib = tvm.tirx.build(mod, target, pipeline=tir_pipeline)
+    lib = tvm.tirx.build(mod, target, pipeline=tir_pipeline, compile_config=compile_config)
     return Executable(lib)
