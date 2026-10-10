@@ -62,11 +62,6 @@ constexpr const char* kVolatile = "tirx.volatile";
 /*! \brief Mark buffer initial addr alignment in bytes */
 constexpr const char* kBufferDataAlignment = "buffer_data_alignment";
 
-/*!
- * \brief For annotation requesting partitioning when its PrimExpr value is provably true.
- */
-constexpr const char* kLoopPartitionHint = "loop_partition_hint";
-
 }  // namespace attr
 
 /*! \brief Interpret and validate TIRx thread placement on a shared loop. */

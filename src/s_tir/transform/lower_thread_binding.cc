@@ -60,8 +60,8 @@ class ThreadBindingLowerer : public StmtExprMutator {
     PrimExpr extent = Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
     TVM_FFI_ICHECK(IsZero(min)) << "Thread binding loops must start at zero";
     TVM_FFI_ICHECK(tvm::tirx::GetThreadBinding(op).has_value());
-    TVM_FFI_ICHECK(!op->annotations.count(tvm::tirx::attr::kLoopPartitionHint) ||
-                   op->annotations.at(tvm::tirx::attr::kLoopPartitionHint) == nullptr)
+    TVM_FFI_ICHECK(!op->annotations.count(tvm::s_tir::attr::kLoopPartitionHint) ||
+                   op->annotations.at(tvm::s_tir::attr::kLoopPartitionHint) == nullptr)
         << "Run LoopPartition before LowerThreadBinding";
     PrimVar launch_var(op->loop_var->name, extent.ty());
     auto previous_remap = VarRemapGet(op->loop_var);

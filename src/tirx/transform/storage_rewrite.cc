@@ -761,7 +761,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     PrimType elem_type = PrimType::Void();
     // Whether any constituent allocation was marked volatile.
     bool is_volatile{false};
-    // Explicit placement and fragment metadata belong to this exact allocation.
+    // Explicit placement and opaque metadata belong to this exact allocation.
     bool requires_exact_allocation{false};
     // This is non-zero if this alloc_tensor is folded into another one
     // the address(in bits) becomes alloc_var + bits_offset;
@@ -780,8 +780,12 @@ class StoragePlanRewriter : public StmtExprMutator {
   static bool RequiresExactAllocation(const CallNode* call) {
     if (call->args.size() == 4) return true;
     const auto& annotations = call->attrs.as_or_throw<DictAttrs>()->dict;
-    return annotations.count(tvm::tirx::attr::kFragmentShape) ||
-           annotations.count(tvm::tirx::attr::kFragmentLayout);
+    // Rebuilt allocations only preserve volatile metadata.  Other owners may attach
+    // constraints that cannot be transferred to merged or resized storage.
+    for (const auto& [key, value] : annotations) {
+      if (key != tvm::tirx::attr::kVolatile) return true;
+    }
+    return false;
   }
 
   // Checks whether the storage_scope is especially tagged for a specific memory.

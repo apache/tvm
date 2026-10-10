@@ -105,10 +105,16 @@ class TIRxOpaqueLower : public StmtExprMutator {
     // Step 2. Create the lowered loop or launch region.
     if (tvm::tirx::GetThreadBinding(op).has_value()) {
       // Case 1. Thread binding → RegionStmt(launch_thread)
-      TVM_FFI_ICHECK(!op->annotations.count(tvm::tirx::attr::kLoopPartitionHint) ||
-                     op->annotations.at(tvm::tirx::attr::kLoopPartitionHint) == nullptr)
-          << "Run LoopPartition before opaque lowering of a thread-binding loop with "
-             "loop_partition_hint";
+      // Binding and unroll policy are handled by this lowering.  Other live loop
+      // annotations must be consumed by their owner before their loop is erased.
+      for (const auto& [key, value] : op->annotations) {
+        TVM_FFI_ICHECK(
+            value == nullptr || key == tvm::tirx::attr::kThreadBinding ||
+            key == tvm::tirx::attr::kAutoUnrollMaxStep || key == tvm::tirx::attr::kUnrollExplicit ||
+            key == tvm::tirx::attr::kPragmaUnroll || key == tvm::tirx::attr::kDisableUnroll)
+            << "Cannot lower a thread-binding loop with unresolved annotation " << key
+            << "; run its owning pass before opaque lowering";
+      }
       TVM_FFI_ICHECK(tvm::tirx::GetThreadBinding(op).has_value());
     } else if (IsOne(extent) && op->annotations.empty()) {
       // Case 2. Unit loop elimination

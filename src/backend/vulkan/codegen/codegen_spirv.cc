@@ -25,6 +25,7 @@
 
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/prim/op.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op/abi.h>
 #include <tvm/tirx/op/gpu.h>
@@ -906,7 +907,7 @@ void CodeGenSPIRV::DispatchAllocTensor(const BindNode* op, const CallNode* buffe
     case runtime::StorageRank::kWMMAMatrixA:
     case runtime::StorageRank::kWMMAMatrixB:
     case runtime::StorageRank::kWMMAAccumulator: {
-      auto shape = annotations->dict.Get(tvm::tirx::attr::kFragmentShape);
+      auto shape = annotations->dict.Get(tvm::s_tir::attr::kFragmentShape);
       TVM_FFI_ICHECK(shape.has_value())
           << "Cannot find shape of the wmma fragment " << buffer.name();
       fragment_info_[var_node] = {shape.value().as_or_throw<ffi::String>()};
