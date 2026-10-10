@@ -28,13 +28,6 @@ from tvm.tirx.expr import Broadcast, CallEffectKind
 TARGET = tvm.target.Target({"kind": "cuda", "arch": env.cuda_arch() or "sm_90"})
 
 
-@pytest.fixture(autouse=True)
-def source_codegen_without_cuda(monkeypatch):
-    # Source checks do not require a CUDA compiler on CPU-only CI workers.
-    if not env.has_cuda():
-        monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
-
-
 def _cuda_source(func) -> str:
     with TARGET:
         mod = tvm.compile(tvm.IRModule({"main": func}), target=TARGET, tir_pipeline="tirx")

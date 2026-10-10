@@ -1845,7 +1845,7 @@ def test_thread_broadcast_rewrite_2():
 
 def test_thread_broadcast_rewrite_2_full_pipeline():
     target_host = "llvm" if tvm.runtime.enabled("llvm") else "c"
-    target = tvm.target.Target("cuda").with_host(target_host)
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"}).with_host(target_host)
     mod = tvm.IRModule.from_expr(thread_broadcast_2.with_attr("global_symbol", "main"))
     mod = tvm.tirx.transform.BindTarget(target)(mod)
     pipeline, _, _ = tvm.tirx.get_tir_pipeline("s_tir")
