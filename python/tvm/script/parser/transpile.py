@@ -155,11 +155,11 @@ class ModuleContext:
         filename: str,
         environment: Mapping[str, object],
         ir_prefix: str,
-        make_span_expr: Callable[[ast.AST], ast.expr],
+        make_loc_expr: Callable[[ast.AST], ast.expr],
         make_fresh_name: Callable[[str], str],
         *,
         prescan_ctx: PrescanContext,
-        track_span: bool,
+        track_loc: bool,
         enable_jit_map: bool = False,
         definition_scope: Mapping[str, Any],
         original_func_map: Mapping[str, FunctionType],
@@ -173,11 +173,11 @@ class ModuleContext:
         self.environment = environment
         # Generated name of the shared IR namespace used for module frames and MISSING.
         self.ir_prefix = ir_prefix
-        # Entry callback creates/reuses a SpanEntry and emits its AST table reference
+        # Entry callback creates/reuses a LocationEntry and emits its AST table reference
         # for _call_dialect, binding locations and expression instrumentation.
-        self.make_span_expr = make_span_expr
-        # _call and _attach_span omit native source instrumentation when false.
-        self.track_span = track_span
+        self.make_loc_expr = make_loc_expr
+        # _call and _attach_loc omit native source instrumentation when false.
+        self.track_loc = track_loc
         # Emit reading/use of the selected root JIT map, including an empty map;
         # create_function_builder_fragments leaves nested signatures unspecialized.
         self.enable_jit_map = enable_jit_map
@@ -251,14 +251,14 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         # Macro return policy is fixed for one invocation.
         self.preserve_return = preserve_return
         # Bypass syntax-to-builder lowering.
-        # Still traverse children and instrument source calls with spans.
+        # Still traverse children and instrument source calls with locs.
         self.bypass_ast_rewrite = False
         # Only free reads that cross a scope boundary use the definition snapshot.
         self.annotation_reads: set[ast.Name] = set()
         # Only this expression's result is already located by its enclosing emit_.
         # Child operations retain their locations; restore the borrowed node on exit.
         self.emitted_expression: ast.expr | None = None
-        # An ordinary binding owns this RHS's attachment through value_span;
+        # An ordinary binding owns this RHS's attachment through value_loc;
         # nested operations still receive their own locations and call contexts.
         self.binding_expression: ast.expr | None = None
 
@@ -288,19 +288,19 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         node: ast.AST,
         *,
         keywords: Mapping[str, ast.expr] | None = None,
-        span: ast.expr | None = None,
-        name_span: ast.expr | None = None,
-        value_span: ast.expr | None = None,
+        loc: ast.expr | None = None,
+        name_loc: ast.expr | None = None,
+        value_loc: ast.expr | None = None,
     ) -> ast.Call:
         """Build a generated operation with its source range and named arguments."""
         arguments = [ast.keyword(key, value) for key, value in keywords.items()] if keywords else []
-        if self.module.track_span:
-            if span is not None:
-                arguments.append(ast.keyword("span", span))
-            if name_span is not None:
-                arguments.append(ast.keyword("name_span", name_span))
-            if value_span is not None:
-                arguments.append(ast.keyword("value_span", value_span))
+        if self.module.track_loc:
+            if loc is not None:
+                arguments.append(ast.keyword("loc", loc))
+            if name_loc is not None:
+                arguments.append(ast.keyword("name_loc", name_loc))
+            if value_loc is not None:
+                arguments.append(ast.keyword("value_loc", value_loc))
         return ast.copy_location(
             ast.Call(
                 ast.Attribute(ast.Name(namespace, ast.Load()), member, ast.Load()),
@@ -317,34 +317,34 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         node: ast.AST,
         *,
         keywords: Mapping[str, ast.expr] | None = None,
-        span: ast.expr | None = None,
-        name_span: ast.expr | None = None,
-        value_span: ast.expr | None = None,
+        loc: ast.expr | None = None,
+        name_loc: ast.expr | None = None,
+        value_loc: ast.expr | None = None,
     ) -> ast.Call:
-        # Dialect calls evaluate their span, name span, builder arguments, then value span.
+        # Dialect calls evaluate their loc, name loc, builder arguments, then value loc.
         call = self._call(
             self.function.dialect_prefix,
             member,
             args,
             node,
-            span=self.module.make_span_expr(node) if span is None else span,
-            name_span=name_span,
+            loc=self.module.make_loc_expr(node) if loc is None else loc,
+            name_loc=name_loc,
         )
         if keywords:
             call.keywords.extend(ast.keyword(key, value) for key, value in keywords.items())
-        if self.module.track_span and value_span is not None:
-            call.keywords.append(ast.keyword("value_span", value_span))
+        if self.module.track_loc and value_loc is not None:
+            call.keywords.append(ast.keyword("value_loc", value_loc))
         return call
 
-    def _attach_span(self, value: ast.expr, node: ast.AST) -> ast.expr:
+    def _attach_loc(self, value: ast.expr, node: ast.AST) -> ast.expr:
         if (
-            not self.module.track_span
+            not self.module.track_loc
             or node is self.emitted_expression
             or node is self.binding_expression
         ):
             return value
-        # _S[i](value)
-        return ast.copy_location(ast.Call(self.module.make_span_expr(node), [value], []), node)
+        # _L[i](value)
+        return ast.copy_location(ast.Call(self.module.make_loc_expr(node), [value], []), node)
 
     @staticmethod
     def _assign(name: str, value: ast.expr, node: ast.AST) -> ast.Assign:
@@ -461,7 +461,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         #     Module.f
         #
         # Builder:
-        #     _S[i](Module.f)
+        #     _L[i](Module.f)
         # -------------------------------------------------
         # Keeping the module owner prevents a local f from shadowing its GlobalVar.
         root = node
@@ -472,7 +472,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         )
         result = self.generic_visit(node)
         return (
-            self._attach_span(result, node)
+            self._attach_loc(result, node)
             if isinstance(node.ctx, ast.Load)
             and not self.bypass_ast_rewrite
             and not fixed_namespace
@@ -495,10 +495,10 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         #     [a, b]
         #
         # Builder:
-        #     _S[i]([a, b])
+        #     _L[i]([a, b])
         # -------------------------------------------------
         result = self.generic_visit(node)
-        return result if self.bypass_ast_rewrite else self._attach_span(result, node)
+        return result if self.bypass_ast_rewrite else self._attach_loc(result, node)
 
     visit_Tuple = visit_List
     visit_Set = visit_List
@@ -526,12 +526,12 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         #     buffer[index]
         #
         # Builder:
-        #     _S[i](buffer[index])
+        #     _L[i](buffer[index])
         # -------------------------------------------------
         node.value = self.visit(node.value)
         node.slice = self._rewrite_index(node.slice)
         if not self.bypass_ast_rewrite and isinstance(node.ctx, ast.Load):
-            return self._attach_span(node, node)
+            return self._attach_loc(node, node)
         return node
 
     def _is_module_owner(self, node: ast.expr) -> bool:
@@ -548,7 +548,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         return bool(records) and all(item.kind == BindingKind.MODULE_ALIAS for item in records)
 
     def _visit_direct_operand(self, node: ast.expr) -> ast.expr:
-        """Preserve an existing payload's span without bypassing child operations."""
+        """Preserve an existing payload's loc without bypassing child operations."""
         if isinstance(node, ast.Name):
             return self.visit(node)
         if isinstance(node, ast.Attribute):
@@ -612,14 +612,14 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         #     f(a)
         #
         # Builder:
-        #     _S[i].ctx(lambda: f(a))
+        #     _L[i].ctx(lambda: f(a))
         # -------------------------------------------------
         # Calls retain their construction context; bind_ owns ordinary RHS attribution.
-        if self.module.track_span and callee is None:
-            # _S[i].ctx(lambda: callee(*args, **keywords))
+        if self.module.track_loc and callee is None:
+            # _L[i].ctx(lambda: callee(*args, **keywords))
             return ast.copy_location(
                 ast.Call(
-                    ast.Attribute(self.module.make_span_expr(node), "ctx", ast.Load()),
+                    ast.Attribute(self.module.make_loc_expr(node), "ctx", ast.Load()),
                     [self._create_lambda([], node)],
                     [ast.keyword("attach_result", ast.Constant(False))] if binding_value else [],
                 ),
@@ -638,10 +638,10 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         # An explicit constexpr operand retains ordinary Python not.
         node = self.generic_visit(node)
         if isinstance(node.op, ast.Not) and not self.bypass_ast_rewrite:
-            return self._attach_span(
+            return self._attach_loc(
                 self._call(self.function.dialect_prefix, "not_", [node.operand], node), node
             )
-        return self._attach_span(node, node) if not self.bypass_ast_rewrite else node
+        return self._attach_loc(node, node) if not self.bypass_ast_rewrite else node
 
     def visit_BinOp(self, node: ast.BinOp) -> ast.expr:
         # -------------------- Pattern --------------------
@@ -649,10 +649,10 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         #     a + b
         #
         # Builder:
-        #     _S[i](a + b)
+        #     _L[i](a + b)
         # -------------------------------------------------
         return (
-            self._attach_span(self.generic_visit(node), node)
+            self._attach_loc(self.generic_visit(node), node)
             if not self.bypass_ast_rewrite
             else self.generic_visit(node)
         )
@@ -693,7 +693,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                 )
             return left
 
-        return self._attach_span(lower(0), node)
+        return self._attach_loc(lower(0), node)
 
     def visit_IfExp(self, node: ast.IfExp) -> ast.expr:
         # -------------------- Pattern --------------------
@@ -713,7 +713,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             return ast.copy_location(
                 ast.IfExp(test, self.visit(node.body), self.visit(node.orelse)), node
             )
-        return self._attach_span(
+        return self._attach_loc(
             self._call(
                 self.function.dialect_prefix,
                 "if_then_else_",
@@ -774,7 +774,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             if len(comparisons) == 1
             else self._call(self.function.dialect_prefix, "and_", comparisons, node)
         )
-        return self._attach_span(result, node)
+        return self._attach_loc(result, node)
 
     def visit_NamedExpr(self, node: ast.NamedExpr) -> NoReturn:
         # -------------------- Pattern --------------------
@@ -863,7 +863,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         *,
         ty: ast.expr | None = None,
         frame_value: bool = False,
-        value_span: ast.expr | None = None,
+        value_loc: ast.expr | None = None,
     ) -> list[ast.stmt]:
         # Declaration syntax has precedence; no previous/existence tracking.
         if isinstance(target, ast.Name):
@@ -885,7 +885,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                     "decl_mutable_cell_",
                     [value],
                     statement,
-                    name_span=self.module.make_span_expr(target),
+                    name_loc=self.module.make_loc_expr(target),
                     keywords=keywords,
                 )
             elif kind == BindingKind.MODULE_ALIAS and not frame_value:
@@ -924,25 +924,25 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                 #     y = value
                 #
                 # Builder:
-                #     y = X.bind_(value, name="y", span=target_span, value_span=rhs_span)
+                #     y = X.bind_(value, name="y", loc=target_loc, value_loc=rhs_loc)
                 # -------------------------------------------------
                 value = (
                     self._call_dialect(
                         "bind_",
                         [value],
                         statement,
-                        name_span=self.module.make_span_expr(target),
+                        name_loc=self.module.make_loc_expr(target),
                         keywords=keywords,
-                        value_span=value_span,
+                        value_loc=value_loc,
                     )
                     if frame_value
                     else self._call_dialect(
-                        "bind_", [value], target, keywords=keywords, value_span=value_span
+                        "bind_", [value], target, keywords=keywords, value_loc=value_loc
                     )
                 )
             if frame_value:
                 # Binding an entered frame originates at the source as-target;
-                # retain the existing native span argument while locating this call.
+                # retain the existing native loc argument while locating this call.
                 ast.copy_location(value, target)
             return [ast.copy_location(ast.Assign([target], value), statement)]
         if isinstance(target, ast.Attribute):
@@ -1006,7 +1006,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                         ast.Name(name, ast.Load()),
                         statement,
                         frame_value=frame_value,
-                        value_span=value_span,
+                        value_loc=value_loc,
                     )
                 )
             return result
@@ -1026,11 +1026,11 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         if self.bypass_ast_rewrite:
             return self.generic_visit(node)
         ordinary = any(self._uses_ordinary_binding(target) for target in node.targets)
-        value_span = self.module.make_span_expr(node.value) if ordinary else None
+        value_loc = self.module.make_loc_expr(node.value) if ordinary else None
         if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
             target = node.targets[0]
             value = self._rewrite_assignment_value(node.value, ordinary=ordinary)
-            return self._bind(target, value, node, value_span=value_span)
+            return self._bind(target, value, node, value_loc=value_loc)
         if len(node.targets) == 1 and isinstance(node.targets[0], ast.Subscript):
             # -------------------- Pattern --------------------
             # Python source:
@@ -1054,7 +1054,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                             "target": self.visit(target.value),
                             "key": self._rewrite_index(target.slice),
                         },
-                        span=self.module.make_span_expr(node),
+                        loc=self.module.make_loc_expr(node),
                     )
                 ),
                 node,
@@ -1071,7 +1071,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                     target,
                     ast.Name(temporary, ast.Load()),
                     node,
-                    value_span=value_span,
+                    value_loc=value_loc,
                 )
             )
         return result
@@ -1089,7 +1089,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         if not isinstance(node.target, ast.Name):
             self._raise_error(node.target, "An annotated binding requires a name")
         ordinary = self._uses_ordinary_binding(node.target)
-        value_span = self.module.make_span_expr(node.value) if ordinary and node.value else None
+        value_loc = self.module.make_loc_expr(node.value) if ordinary and node.value else None
         value = (
             self._rewrite_assignment_value(node.value, ordinary=ordinary)
             if node.value
@@ -1097,7 +1097,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         )
         with self._rewrite_annotation(self._body_annotation_captures(node)):
             annotation = self.visit(node.annotation)
-        return self._bind(node.target, value, node, ty=annotation, value_span=value_span)
+        return self._bind(node.target, value, node, ty=annotation, value_loc=value_loc)
 
     def visit_AugAssign(self, node: ast.AugAssign) -> ast.AugAssign | list[ast.stmt]:
         key: ast.expr
@@ -1123,9 +1123,9 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             )
             if self._uses_ordinary_binding(node.target):
                 return self._bind(
-                    node.target, value, node, value_span=self.module.make_span_expr(node)
+                    node.target, value, node, value_loc=self.module.make_loc_expr(node)
                 )
-            return self._bind(node.target, self._attach_span(value, node), node)
+            return self._bind(node.target, self._attach_loc(value, node), node)
         if not isinstance(node.target, ast.Subscript | ast.Attribute):
             self._raise_error(
                 node.target, "An augmented assignment requires a name, attribute, or index"
@@ -1143,8 +1143,8 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             load = ast.Subscript(ast.Name(base, ast.Load()), key, ast.Load())
             operation = "setitem_"
         old = self.module.make_fresh_name("_old")
-        statements.append(self._assign(old, self._attach_span(load, node.target), node))
-        value = self._attach_span(
+        statements.append(self._assign(old, self._attach_loc(load, node.target), node))
+        value = self._attach_loc(
             ast.BinOp(ast.Name(old, ast.Load()), node.op, self.visit(node.value)), node
         )
         statements.append(
@@ -1163,7 +1163,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         #     f()
         #
         # Builder:
-        #     X.emit_(_S[i].ctx(lambda: f()), span=_S[i])
+        #     X.emit_(_L[i].ctx(lambda: f()), loc=_L[i])
         # -------------------------------------------------
         if self.bypass_ast_rewrite:
             return self.generic_visit(node)
@@ -1385,7 +1385,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             self._raise_error(node.target, "Loop targets must be names or a flat tuple of names")
         context = self._call_dialect("for_", [iterable], node, keywords={"names": names})
         # The generated iteration check originates at the source iterable, not
-        # the final body line. Its native frame span still covers the whole loop.
+        # the final body line. Its native frame loc still covers the whole loop.
         ast.copy_location(context, node.iter)
         # A sequence target unpacks stable frame.vars after entry, including a
         # one-dimensional loop whose public entry returns a scalar variable.
@@ -1725,7 +1725,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                         "dynamic",
                         [ast.Constant(parameter.name), ast.Constant(dtype)],
                         parameter,
-                        span=self.module.make_span_expr(parameter),
+                        loc=self.module.make_loc_expr(parameter),
                     ),
                     parameter,
                 )
@@ -1796,7 +1796,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                 "dynamic",
                 [ast.Constant(name), ast.Constant(dtype)],
                 parameter,
-                span=self.module.make_span_expr(parameter),
+                loc=self.module.make_loc_expr(parameter),
             )
             if const_args is not None:
                 created = self._select_specialized_value(
@@ -1879,7 +1879,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
                         [translated, ast.Name(const_args, ast.Load())],
                         [],
                     )
-                # x = X.arg_("x", annotation, span=_S[i])
+                # x = X.arg_("x", annotation, loc=_L[i])
                 fallback = self._call_dialect("arg_", [ast.Constant(name), translated], parameter)
             # Specialized parameters have no runtime ABI slot. The annotation
             # thunk is absent from the selected generated Python branch.
@@ -1924,8 +1924,8 @@ class IRBuilderTranspiler(ast.NodeTransformer):
             keywords.append(ast.keyword("decl", ast.Constant(True)))
         if local_function:
             keywords.append(ast.keyword("local", ast.Constant(True)))
-        if self.module.track_span:
-            keywords.append(ast.keyword("span", self.module.make_span_expr(node)))
+        if self.module.track_loc:
+            keywords.append(ast.keyword("loc", self.module.make_loc_expr(node)))
         constructor = ast.copy_location(
             ast.Call(
                 ast.Attribute(

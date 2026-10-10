@@ -29,10 +29,10 @@ from functools import wraps
 from types import CodeType, FrameType, FunctionType
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from tvm.ir import SourceName, Span
+from tvm.ir import SourceLoc, SourceName
 from tvm.script import ir_builder as builder_ir
 from tvm.script.ir_builder import base
-from tvm.script.ir_builder.base import SpanEntry
+from tvm.script.ir_builder.base import LocationEntry
 
 from . import _NAMESPACES, _initialize, jit_support, protocol_registry
 from . import register_namespace as register_namespace
@@ -556,7 +556,7 @@ def _prepare_transpiler(
     definition_scope: Mapping[str, Any],
     filename: str,
     *,
-    track_span: bool = True,
+    track_loc: bool = True,
     enable_jit_map: bool = False,
     root_function_kwargs: Mapping[str, Any] | None = None,
     **options: Any,
@@ -601,32 +601,32 @@ def _prepare_transpiler(
 
     builder_name, ir_prefix = make_fresh_name("_X"), make_fresh_name("_I")
     namespace[ir_prefix] = builder_ir
-    span_table_name = make_fresh_name("_S") if track_span else None
-    if track_span:
+    loc_table_name = make_fresh_name("_L") if track_loc else None
+    if track_loc:
         # Entries contain fixed native metadata only. The existing rewrite creates
         # them on demand; there is no location collection pass or retained AST.
         source_name = SourceName(filename)
-        span_entries: list[SpanEntry] = []
-        span_indices: dict[tuple[int, int, int, int], int] = {}
-        namespace[span_table_name] = span_entries
+        loc_entries: list[LocationEntry] = []
+        loc_indices: dict[tuple[int, int, int, int], int] = {}
+        namespace[loc_table_name] = loc_entries
 
-    def make_span_expr(node: ast.AST) -> ast.expr:
+    def make_loc_expr(node: ast.AST) -> ast.expr:
         """Materialize a needed location and emit its injected table reference."""
-        if not track_span:
+        if not track_loc:
             return ast.copy_location(ast.Constant(None), node)
         coordinates = (
             node.lineno,
-            node.end_lineno,
             node.col_offset + 1,
+            node.end_lineno,
             node.end_col_offset + 1,
         )
-        index = span_indices.get(coordinates)
+        index = loc_indices.get(coordinates)
         if index is None:
-            index = len(span_entries)
-            span_indices[coordinates] = index
-            span_entries.append(SpanEntry(Span(source_name, *coordinates)))
+            index = len(loc_entries)
+            loc_indices[coordinates] = index
+            loc_entries.append(LocationEntry(SourceLoc(source_name, *coordinates)))
         location = ast.Subscript(
-            ast.Name(span_table_name, ast.Load()), ast.Constant(index), ast.Load()
+            ast.Name(loc_table_name, ast.Load()), ast.Constant(index), ast.Load()
         )
         return ast.copy_location(location, node)
 
@@ -634,9 +634,9 @@ def _prepare_transpiler(
         filename,
         metadata,
         ir_prefix,
-        make_span_expr,
+        make_loc_expr,
         make_fresh_name,
-        track_span=track_span,
+        track_loc=track_loc,
         enable_jit_map=enable_jit_map,
         definition_scope=definition_scope,
         original_func_map=(
@@ -739,7 +739,7 @@ def parse(
     extra_vars: Mapping[str, Any] | None = None,
     *,
     filename: str | None = None,
-    track_span: bool = True,
+    track_loc: bool = True,
     definition_scope: Mapping[str, Any] | None = None,
     root_function_kwargs: Mapping[str, Any] | None = None,
     **options: Any,
@@ -756,7 +756,7 @@ def parse(
     filename : str, optional
         Source filename override. Default is None, which uses the inspected
         filename for objects and ``"<str>"`` for text.
-    track_span : bool, optional
+    track_loc : bool, optional
         Enable shared source metadata and IR location instrumentation.
         Default is True. False retains Python source locations only.
     definition_scope : mapping of str to object, optional
@@ -840,7 +840,7 @@ def parse(
             env,
             definition_scope,
             filename,
-            track_span=track_span,
+            track_loc=track_loc,
             enable_jit_map=const_args is not None and root_name is not None,
             root_function_kwargs=root_function_kwargs,
         )

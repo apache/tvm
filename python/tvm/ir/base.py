@@ -17,7 +17,7 @@
 """Common base structures."""
 
 import tvm_ffi
-from tvm_ffi import get_global_func, register_object
+from tvm_ffi import register_object
 from tvm_ffi.serialization import from_json_graph_str, to_json_graph_str
 
 from tvm.runtime import Object
@@ -32,70 +32,6 @@ class Scriptable:
 
 class Node(Object):
     """Base class of all IR Nodes."""
-
-
-@register_object("ir.SourceMap")
-class SourceMap(Object):
-    def add(self, name, content):
-        return get_global_func("SourceMapAdd")(self, name, content)
-
-
-@register_object("ir.SourceName")
-class SourceName(Object):
-    """A identifier for a source location.
-
-    Parameters
-    ----------
-    name : str
-        The name of the source.
-    """
-
-    def __init__(self, name):
-        self.__init_handle_by_constructor__(_ffi_api.SourceName, name)  # type: ignore # pylint: disable=no-member
-
-
-@register_object("ir.Span")
-class Span(Object):
-    """Specifies a location in a source program.
-
-    Parameters
-    ----------
-    source : SourceName
-        The source name.
-
-    lineno : int
-        The line number.
-
-    col_offset : int
-        The column offset of the location.
-    """
-
-    def __init__(self, source_name, line, end_line, column, end_column):
-        self.__init_handle_by_constructor__(
-            _ffi_api.Span,
-            source_name,
-            line,
-            end_line,
-            column,
-            end_column,  # type: ignore # pylint: disable=no-member
-        )
-
-
-@register_object("ir.SequentialSpan")
-class SequentialSpan(Object):
-    """A sequence of source spans
-
-    This span is specific for an expression, which is from multiple expressions
-    after an IR transform.
-
-    Parameters
-    ----------
-    spans : Array
-        The array of spans.
-    """
-
-    def __init__(self, spans):
-        self.__init_handle_by_constructor__(_ffi_api.SequentialSpan, spans)
 
 
 @register_object("ir.EnvFunc")

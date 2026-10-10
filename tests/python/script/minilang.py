@@ -18,7 +18,7 @@
 
 Values record which protocol hook the generated program called and its operands.
 Their addition records only operand order; no type inference, folding or runtime
-evaluation is implemented. Tests of expression semantics and span composition use
+evaluation is implemented. Tests of expression semantics and loc composition use
 real common IR/Prim nodes. Frames record entry, parameters, outputs and identity;
 they deliberately implement no TVM type system or parser.
 Each test creates a fresh language so recorded effects cannot leak across cases.
@@ -41,7 +41,7 @@ class Value:
     op: str
     args: tuple = ()
     name: str = ""
-    span: object = None
+    loc: object = None
 
     def __add__(self, other):
         return Value("add", (self, other))
@@ -68,7 +68,7 @@ class Module(dict):
 class Frame:
     """Native-style frame: declarations and body reuse the same params/result."""
 
-    def __init__(self, language, kind, *, decl=False, values=(), span=None, local=False, **options):
+    def __init__(self, language, kind, *, decl=False, values=(), loc=None, local=False, **options):
         self.language, self.kind, self.decl = language, kind, decl
         self.values = values
         self.vars = (
@@ -83,7 +83,7 @@ class Frame:
         self.result = None
         self.branches = []
         self.names = None
-        self.span = None
+        self.loc = None
 
     def __enter__(self):
         self.language.stack.append(self)
@@ -116,16 +116,16 @@ class Frame:
         raise AttributeError(name)
 
 
-class RecordingSpanEntry:
-    """Use the recording hooks for opaque dummy values, with a real fixed span."""
+class RecordingLocationEntry:
+    """Use the recording hooks for opaque dummy values, with a real fixed loc."""
 
-    def __init__(self, language, span):
-        self.language, self.span = language, span
+    def __init__(self, language, loc):
+        self.language, self.loc = language, loc
 
     @property
     def location(self):
-        span = self.span
-        return (span.source_name, span.line, span.end_line, span.column, span.end_column)
+        loc = self.loc
+        return (loc.source_name, loc.start_line, loc.start_column, loc.end_line, loc.end_column)
 
     def __call__(self, value):
         return self.language.I.at_(self.location, value)
@@ -206,8 +206,8 @@ class Language:
         def Tensor(shape=None, dtype="float32", device=None, placement="S[0]"):
             return Value("tensor", (shape, dtype, device, placement))
 
-        def dynamic(name, dtype="int64", *, span=None):
-            return self.at(span, Value("symbol", (dtype,), name))
+        def dynamic(name, dtype="int64", *, loc=None):
+            return self.at(loc, Value("symbol", (dtype,), name))
 
         def cell(value=None):
             return Value("cell", (value,))
@@ -234,10 +234,10 @@ class Language:
         self.frame().function.name = name
         self.frame().global_var = self.references.setdefault(name, Value("global", (name,)))
 
-    def arg_(self, name, annotation, *, span=None, **kwargs):
+    def arg_(self, name, annotation, *, loc=None, **kwargs):
         value = Value("arg", (annotation,), name)
-        if span is not None:
-            value = span(value)
+        if loc is not None:
+            value = loc(value)
         frame = self.frame()
         frame.params.append(value)
         frame.function.params.append(value)
@@ -259,11 +259,11 @@ class Language:
             self.stack[-1].result = value
         return value
 
-    def emit(self, value, *, span=None):
+    def emit(self, value, *, loc=None):
         if isinstance(value, AlreadyEmitted):
             return
-        if span is not None:
-            value = span(value)
+        if loc is not None:
+            value = loc(value)
         self.frame().function.body.append(("emit", value))
 
     def record(self, value):
@@ -277,7 +277,7 @@ class Language:
     def set_mutable(self, variable, value, **kwargs):
         return self.statement("set", variable, value)
 
-    def for_frame(self, frame, *, names=None, span=None, **kwargs):
+    def for_frame(self, frame, *, names=None, loc=None, **kwargs):
         frame.names = names
         if names is not None:
             if isinstance(names, str):
@@ -296,13 +296,13 @@ class Language:
                     expanded.append(name)
             for variable, name in zip(frame.vars, expanded):
                 variable.name = name
-        if span is not None:
-            span(frame)
+        if loc is not None:
+            loc(frame)
         return frame
 
     def at(self, location, value):
         if isinstance(value, Value | Frame):
-            value.span = tuple([*self.source_stack, location])
+            value.loc = tuple([*self.source_stack, location])
         return value
 
     def with_at_group(self, location, thunk, *, attach_result=True):

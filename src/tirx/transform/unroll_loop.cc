@@ -256,7 +256,7 @@ class LoopUnroller : public StmtExprMutator {
       unroll_depth_ = std::max(unroll_depth_, unroll_depth);
     }
     if (!changed) return ffi::Unchanged();
-    return SeqStmt(seq, op->span);
+    return SeqStmt(seq, op->loc);
   }
 
   Stmt Unroll(const ForNode* op) {

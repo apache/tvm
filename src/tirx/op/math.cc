@@ -32,10 +32,10 @@ namespace tirx {
 using namespace prim;
 using namespace prim::detail;
 
-PrimExpr logaddexp(PrimExpr a, PrimExpr b, Span span) {
+PrimExpr logaddexp(PrimExpr a, PrimExpr b, Location loc) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLFloat)) << a;
   TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLFloat)) << b;
-  BinaryOpMatchTypes(a, b, span);
+  BinaryOpMatchTypes(a, b, loc);
   PrimExpr exp_sum = add(exp(a), exp(b));
   PrimExpr log_exp_sum = log(exp_sum);
   return log_exp_sum;
@@ -85,8 +85,9 @@ PrimExpr fast_erf_float_expr(PrimExpr arg, int bits) {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::GlobalDef().def(
-      "tirx._OpLogAddExp", [](PrimExpr a, PrimExpr b, Span span) { return logaddexp(a, b, span); });
+  ffi::reflection::GlobalDef().def("tirx._OpLogAddExp", [](PrimExpr a, PrimExpr b, Location loc) {
+    return logaddexp(a, b, loc);
+  });
 }
 
 }  // namespace tirx

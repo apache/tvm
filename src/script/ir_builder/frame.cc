@@ -76,7 +76,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 void ForFrameNode::ExitWithScope() {
   StmtFrameNode::ExitWithScope();
-  AddToParent(this->f_make_for_loop(vars, doms, steps, AsStmt(stmts), source_span), source_span);
+  AddToParent(this->f_make_for_loop(vars, doms, steps, AsStmt(stmts), loc), loc);
 }
 
 void ForFrameNode::SetNames(
@@ -130,26 +130,25 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 void AssertFrameNode::ExitWithScope() {
   StmtFrameNode::ExitWithScope();
   if (stmts.empty()) {
-    AddToParent(tvm::AssertStmt(condition, error_kind, message_parts, source_span), source_span);
+    AddToParent(tvm::AssertStmt(condition, error_kind, message_parts, loc), loc);
   } else {
     ffi::Array<tvm::Stmt> seq;
-    seq.push_back(tvm::AssertStmt(condition, error_kind, message_parts, source_span));
+    seq.push_back(tvm::AssertStmt(condition, error_kind, message_parts, loc));
     for (const auto& stmt : stmts) {
       seq.push_back(stmt);
     }
-    AddToParent(tvm::SeqStmt(seq, source_span), source_span);
+    AddToParent(tvm::SeqStmt(seq, loc), loc);
   }
 }
 
 void RegionFrameNode::ExitWithScope() {
   StmtFrameNode::ExitWithScope();
-  AddToParent(tvm::RegionStmt(op, args, body_params, attrs, AsStmt(stmts), {}, source_span),
-              source_span);
+  AddToParent(tvm::RegionStmt(op, args, body_params, attrs, AsStmt(stmts), {}, loc), loc);
 }
 
 void WhileFrameNode::ExitWithScope() {
   StmtFrameNode::ExitWithScope();
-  AddToParent(tvm::While(condition, AsStmt(stmts), source_span), source_span);
+  AddToParent(tvm::While(condition, AsStmt(stmts), loc), loc);
 }
 
 void IfFrameNode::ExitWithScope() {
@@ -165,8 +164,8 @@ void IfFrameNode::ExitWithScope() {
       tvm::If(condition, AsStmt(then_stmts.value()),
               else_stmts.has_value() ? ffi::Optional<tvm::SeqStmt>(AsStmt(else_stmts.value()))
                                      : std::nullopt,
-              source_span),
-      source_span);
+              loc),
+      loc);
 }
 
 void ThenFrameNode::EnterWithScope() {

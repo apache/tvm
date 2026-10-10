@@ -35,15 +35,20 @@ from tvm.script import ir as I
 from tvm.script.parser.inspect_source import Source, acquire_source
 
 
-def span_lines(value):
-    spans = value.span.spans if isinstance(value.span, ir.SequentialSpan) else [value.span]
-    return [span.line for span in spans]
+def loc_lines(value):
+    locs = []
+    loc = value.loc
+    while isinstance(loc, ir.CallSiteLoc):
+        locs.append(loc.callee)
+        loc = loc.caller
+    locs.append(loc)
+    return [loc.start_line for loc in reversed(locs)]
 
 
 @pytest.fixture
-def spanned(spanned_language):
-    spanned_language.M.node = lambda value: prim.IntImm("int32", value)
-    return spanned_language
+def located(located_language):
+    located_language.M.node = lambda value: prim.IntImm("int32", value)
+    return located_language
 
 
 def source_line(test, fragment):
@@ -51,10 +56,10 @@ def source_line(test, fragment):
     return start + next(i for i, line in enumerate(lines) if line.strip() == fragment)
 
 
-def test_module_source_calls_have_context_before_annotations(spanned):
+def test_module_source_calls_have_context_before_annotations(located):
     # Module construction calls must receive the class-body source context, including calls
     # before member annotations.
-    M = spanned.M
+    M = located.M
     seen = []
 
     def record():
@@ -74,17 +79,17 @@ def test_module_source_calls_have_context_before_annotations(spanned):
     # The ordinary Python class body runs before the decorator; only the parsed
     # class call has a source range attached to its returned expression.
     assert len(seen) == 2
-    assert seen[0].span is None
-    assert seen[1].span is not None
-    assert seen[1].span.line == source_line(
+    assert isinstance(seen[0].loc, ir.UnknownLoc)
+    assert isinstance(seen[1].loc, ir.SourceLoc)
+    assert seen[1].loc.start_line == source_line(
         test_module_source_calls_have_context_before_annotations, "record()"
     )
 
 
-def test_source_inline_keeps_caller_and_each_definition_location(spanned):
+def test_source_inline_keeps_caller_and_each_definition_location(located):
     # A macro emitting twice must retain both original definition lines under the caller,
-    # without reusing the first emission span.
-    M = spanned.M
+    # without reusing the first emission loc.
+    M = located.M
 
     @M.inline
     def inner(x):
@@ -100,16 +105,18 @@ def test_source_inline_keeps_caller_and_each_definition_location(spanned):
     assert [int(value) for value in statements] == [1, 2]
     test = test_source_inline_keeps_caller_and_each_definition_location
     caller = source_line(test, "inner(1)")
-    assert span_lines(statements[0]) == [caller, source_line(test, "M.record(M.node(x))")]
-    assert span_lines(statements[1]) == [caller, source_line(test, "M.record(M.node(x + 1))")]
+    assert loc_lines(statements[0]) == [caller, source_line(test, "M.record(M.node(x))")]
+    assert loc_lines(statements[1]) == [caller, source_line(test, "M.record(M.node(x + 1))")]
     assert all(
-        str(span.source_name.name) == __file__ for value in statements for span in value.span.spans
+        str(loc.source_name.name) == __file__
+        for value in statements
+        for loc in (value.loc.caller, value.loc.callee)
     )
 
 
 @pytest.fixture
-def calls(spanned_language):
-    M = spanned_language.M
+def calls(located_language):
+    M = located_language.M
     M.evaluate = lambda value: value
     M.call_extern = lambda dtype, name: ir.Call(ir.GlobalVar(name), [], ty=dtype)
     return M
@@ -122,11 +129,11 @@ def _position(test, statement, expression):
     return start + index, column, start + index, column + len(expression)
 
 
-def _span_position(span):
-    return span.line, span.column, span.end_line, span.end_column
+def _loc_position(loc):
+    return loc.start_line, loc.start_column, loc.end_line, loc.end_column
 
 
-def test_source_and_ir_call_spans_use_one_based_columns(calls):
+def test_source_and_ir_call_locs_use_one_based_columns(calls):
     # Generated expression calls must retain the original one-based start/end columns on the
     # emitted IR.
     M = calls
@@ -136,16 +143,16 @@ def test_source_and_ir_call_spans_use_one_based_columns(calls):
         M.evaluate(M.call_extern("int32", "direct"))
 
     expected = _position(
-        test_source_and_ir_call_spans_use_one_based_columns,
+        test_source_and_ir_call_locs_use_one_based_columns,
         'M.evaluate(M.call_extern("int32", "direct"))',
         'M.call_extern("int32", "direct")',
     )
-    span = direct.body[0][1].span
-    assert _span_position(span) == expected
-    assert span.source_name.name == __file__
+    loc = direct.body[0][1].loc
+    assert _loc_position(loc) == expected
+    assert loc.source_name.name == __file__
 
 
-def test_nested_helper_spans_preserve_caller_and_definition_columns(calls):
+def test_nested_helper_locs_preserve_caller_and_definition_columns(calls):
     # Nested macros must compose all caller and definition ranges instead of replacing or
     # duplicating them.
     M = calls
@@ -163,7 +170,7 @@ def test_nested_helper_spans_preserve_caller_and_definition_columns(calls):
         outer()
         outer()
 
-    test = test_nested_helper_spans_preserve_caller_and_definition_columns
+    test = test_nested_helper_locs_preserve_caller_and_definition_columns
     expected = [
         _position(test, "outer()", "outer()"),
         _position(test, "inner()", "inner()"),
@@ -176,22 +183,24 @@ def test_nested_helper_spans_preserve_caller_and_definition_columns(calls):
     calls = [value for _, value in main.body if isinstance(value, ir.Call)]
     assert len(calls) == 2
     for index, value in enumerate(calls):
-        span = value.span
-        assert isinstance(span, ir.SequentialSpan)
+        loc = value.loc
+        assert isinstance(loc, ir.CallSiteLoc)
         caller = expected[0]
         actual_expected = [
             (caller[0] + index, caller[1], caller[2] + index, caller[3]),
             *expected[1:],
         ]
-        assert [_span_position(item) for item in span.spans] == actual_expected
-        assert all(item.source_name.name == __file__ for item in span.spans)
+        assert isinstance(loc.caller, ir.CallSiteLoc)
+        chain = (loc.caller.caller, loc.caller.callee, loc.callee)
+        assert [_loc_position(item) for item in chain] == actual_expected
+        assert all(item.source_name.name == __file__ for item in chain)
 
 
 @pytest.fixture
-def gallery(monkeypatch, spanned_language):
+def gallery(monkeypatch, located_language):
     monkeypatch.setitem(sys.modules, "__main__", ModuleType("__main__"))
     monkeypatch.setitem(globals(), "__name__", "__main__")
-    M = spanned_language.M
+    M = located_language.M
     M.store = lambda value: ir.Call(
         ir.GlobalVar("store"), [ir.prim.IntImm("int32", value)], ty="int32"
     )
@@ -225,8 +234,8 @@ def test_gallery_classes_retain_distinct_source_locations(gallery):
         store = function.body[0][1]
         line = next(i for i, text in enumerate(source) if text.strip() == f"M.store({value})")
         assert store.args[0].value == value
-        assert store.span.line == start + line
-        assert store.span.source_name.name == __file__
+        assert store.loc.start_line == start + line
+        assert store.loc.source_name.name == __file__
 
 
 def _line_of(function, statement):
@@ -260,7 +269,7 @@ def test_callee_arguments_and_keywords_evaluate_once_with_caller_context(languag
 
     assert seen == ["callee", 1, 2, (1, 2)]
     assert main.body[0][1] is result_value
-    assert result_value.span[-1][1] == _line_of(
+    assert result_value.loc[-1][1] == _line_of(
         test_callee_arguments_and_keywords_evaluate_once_with_caller_context,
         "callee()(operand(1), b=operand(2))",
     )
@@ -289,9 +298,9 @@ def test_minilang_callable_source_introspection():
     line = source.start_line + 1
     expected = (line, 5, line, 19)
     assert source.location(assignment) == expected
-    span = source.to_span(assignment)
-    assert _span_position(span) == expected
-    assert span.source_name.name == source.source_name
+    loc = source.to_loc(assignment)
+    assert _loc_position(loc) == expected
+    assert loc.source_name.name == source.source_name
 
 
 def test_minilang_source_preserves_multiline_literal():

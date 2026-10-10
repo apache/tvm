@@ -230,7 +230,7 @@ llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const GlobalVar& gvar, const
 
 void CodeGenCPU::AddFunction(const GlobalVar& gvar, const Function& func) {
   di_subprogram_ = CreateDebugFunction(gvar, func);
-  EmitDebugLocation(func->span);
+  EmitDebugLocation(func->loc);
   CodeGenLLVM::AddFunction(gvar, func);
   if (f_tvm_register_system_symbol_ != nullptr) {
     if (auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {

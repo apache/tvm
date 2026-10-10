@@ -135,12 +135,12 @@ const Op& reinterpret_op() {
   return op;
 }
 
-Expr reinterpret(Type target_ty, Expr value, Span span) {
+Expr reinterpret(Type target_ty, Expr value, Location loc) {
   if (value.as<StringImmNode>()) {
     TVM_FFI_CHECK(target_ty.as<PointerTypeNode>(), TypeError)
         << "String reinterpret requires a pointer target, but got " << target_ty;
     return Call(std::move(target_ty), tirx::reinterpret_op(), {std::move(value)}, {}, {},
-                std::move(span));
+                std::move(loc));
   }
   if (auto target_dtype = target_ty.as<PrimType>()) {
     if (auto prim_value = value.as<PrimExpr>()) {
@@ -182,7 +182,7 @@ Expr reinterpret(Type target_ty, Expr value, Span span) {
     }
   }
   return Call(std::move(target_ty), tirx::reinterpret_op(), {std::move(value)}, {}, {},
-              std::move(span));
+              std::move(loc));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -421,8 +421,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::GlobalDef().def("tirx.reinterpret", [](Type dtype, Expr value, Span span) {
-    return reinterpret(dtype, value, span);
+  ffi::reflection::GlobalDef().def("tirx.reinterpret", [](Type dtype, Expr value, Location loc) {
+    return reinterpret(dtype, value, loc);
   });
 }
 

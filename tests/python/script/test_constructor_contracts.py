@@ -16,6 +16,9 @@
 # under the License.
 """Normal IR constructors retain their contracts in TVMScript."""
 
+import inspect
+import linecache
+
 import pytest
 
 import tvm
@@ -28,21 +31,26 @@ from tvm.script import tirx as T
 
 def test_call_type_and_validation_contract():
     x = ir.Var("x", "float32")
-    span = ir.Span(ir.SourceName("constructor"), 1, 1, 1, 5)
+    loc = ir.SourceLoc(ir.SourceName("constructor"), 1, 1, 1, 5)
     for constructor in (ir.Call, I.Call):
-        call = constructor("prim.exp", [x], span=span)
+        call = constructor("prim.exp", [x], loc=loc)
         assert isinstance(call, I.Call)
         assert call.ty == ir.PrimType("float32")
-        assert call.span.same_as(span)
+        assert call.loc.same_as(loc)
+        unlocated = constructor("prim.exp", [x], ty="float32")
+        assert unlocated.loc.same_as(ir.UNKNOWN_LOC)
+        assert inspect.signature(constructor).parameters["loc"].default is ir.UNKNOWN_LOC
+        with pytest.raises(TypeError):
+            constructor("prim.exp", [x], ty="float32", loc=None)
         ir.assert_structural_equal(
-            constructor("prim.exp", [x], ty="float32"),
+            unlocated,
             ir.Call("prim.exp", [x], ty=ir.PrimType("float32")),
         )
         with pytest.raises(TypeError):
             constructor("prim.exp", [], ty="float32").validate()
-        provisional = constructor("prim.exp", [], ty="float32", span=span)
+        provisional = constructor("prim.exp", [], ty="float32", loc=loc)
         assert not provisional.args
-        assert provisional.span.same_as(span)
+        assert provisional.loc.same_as(loc)
         assert provisional.ty.dtype == "float32"
 
 
@@ -64,18 +72,18 @@ def test_raw_call_preserves_checked_fields():
 
 
 def test_range_and_value_constructor_parameters():
-    span = ir.Span(ir.SourceName("constructor"), 1, 1, 1, 5)
+    loc = ir.SourceLoc(ir.SourceName("constructor"), 1, 1, 1, 5)
     for args in [(5,), (2, 5)]:
-        actual = T.Range(*args, span=span)
-        ir.assert_structural_equal(actual, ir.Range(*args, span=span))
-        assert actual.span.same_as(span)
+        actual = T.Range(*args, loc=loc)
+        ir.assert_structural_equal(actual, ir.Range(*args, loc=loc))
+        assert actual.loc.same_as(loc)
     ir.assert_structural_equal(T.Range.from_min_extent(2, 3), ir.Range(2, 5))
     for actual, expected in [
-        (R.shape([2, 3], span=span), relax.ShapeExpr([2, 3], span=span)),
-        (R.str("value", span=span), ir.StringImm("value", span=span)),
+        (R.shape([2, 3], loc=loc), relax.ShapeExpr([2, 3], loc=loc)),
+        (R.str("value", loc=loc), ir.StringImm("value", loc=loc)),
     ]:
         ir.assert_structural_equal(actual, expected)
-        assert actual.span.same_as(span)
+        assert actual.loc.same_as(loc)
     ir.assert_structural_equal(R.prim_value(3, dtype="int32"), relax.prim_value(3, dtype="int32"))
 
 
@@ -101,7 +109,14 @@ def test_normal_constructors_in_parsed_function():
     ir.assert_structural_equal(
         call, ir.Call("prim.exp", [function.params[0]], ty=ir.PrimType("float32"))
     )
-    assert call.span is not None
+    loc = call.loc
+    assert isinstance(loc, ir.SourceLoc)
+    assert loc.source_name.name == __file__
+    assert loc.start_line == loc.end_line
+    assert (
+        linecache.getline(__file__, loc.start_line)[loc.start_column - 1 : loc.end_column - 1]
+        == 'ir.Call("prim.exp", [x], ty="float32")'
+    )
 
     @R.function
     def identity(x: relax.TensorType([2], "float32")) -> relax.TensorType([2], "float32"):

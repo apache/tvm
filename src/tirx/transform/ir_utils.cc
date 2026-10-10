@@ -63,7 +63,7 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
       body = Stmt(n);
     } else if (const auto* seq = s.as<SeqStmtNode>()) {
       // A sequence nest is a prefix, followed by the accumulated body.
-      body = SeqStmt({s, body}, seq->span);
+      body = SeqStmt({s, body}, seq->loc);
     } else if (s.as<AssertStmtNode>()) {
       body = SeqStmt({s, body});
     } else {
@@ -269,11 +269,11 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const RegionStmtNode* op, InplaceMode in
   ffi::Array<Var> results;
   for (const Var& var : op->result_vars) results.push_back(DefineVar(var));
   return RegionStmt(op->op, std::move(args), std::move(params), std::move(attrs), std::move(body),
-                    std::move(results), op->span);
+                    std::move(results), op->loc);
 }
 
 Var IRConvertSSA::MakeNewVar(const Var& old_var) {
-  return Var(old_var->name, old_var->ty, old_var->span);
+  return Var(old_var->name, old_var->ty, old_var->loc);
 }
 
 void IRConvertSSA::PushVarRemap(const Var& old_var, const Var& new_var) {
