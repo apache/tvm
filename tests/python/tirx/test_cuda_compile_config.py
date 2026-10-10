@@ -17,6 +17,7 @@
 """Explicit CUDA compile settings, independent device groups and artifact replay."""
 
 import os
+import shutil
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -32,6 +33,22 @@ from tvm.backend.cuda import CompileConfig
 from tvm.backend.cuda.transforms import BindCompileConfig
 from tvm.script import tirx as T
 from tvm.testing import env
+
+
+def _require_compiler(compiler):
+    if compiler == "nvcc":
+        if shutil.which("nvcc") is None:
+            pytest.skip("NVCC is not installed")
+        from tvm.support.nvcc import get_cuda_version
+
+        version = get_cuda_version()
+    else:
+        nvrtc = pytest.importorskip("cuda.bindings.nvrtc")
+        status, major, minor = nvrtc.nvrtcVersion()
+        assert status == nvrtc.nvrtcResult.NVRTC_SUCCESS
+        version = (major, minor)
+    if version < (12, 8):
+        pytest.skip("sm_100a compile tests require CUDA 12.8 or newer")
 
 
 def test_presence_validation_and_roundtrip():
@@ -127,6 +144,8 @@ def test_target_arch_conflict():
 @pytest.mark.skipif(not tvm.cuda().exist, reason="requires CUDA")
 @pytest.mark.parametrize("compiler", ["nvrtc", "nvcc"])
 def test_compile_config_controls_actual_ftz(compiler):
+    _require_compiler(compiler)
+
     @T.function
     def kernel(A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=32))
@@ -155,6 +174,9 @@ def test_compile_config_controls_actual_ftz(compiler):
 @pytest.mark.gpu
 @pytest.mark.skipif(not tvm.cuda().exist, reason="requires CUDA")
 def test_two_entries_keep_compilers_math_and_order():
+    _require_compiler("nvrtc")
+    _require_compiler("nvcc")
+
     @T.function
     def kernel(
         A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float32"), C: T.Tensor((32,), "float32")
@@ -190,6 +212,7 @@ def test_two_entries_keep_compilers_math_and_order():
 
 @pytest.mark.parametrize("compiler", ["nvrtc", "nvcc"])
 def test_concurrent_source_compilation_and_diagnostics(tmp_path, compiler):
+    _require_compiler(compiler)
     from tvm.backend.cuda.compiler import compile_source
 
     source = 'extern "C" __global__ void half_value(float* x) { x[0] = x[0] * 0.5f; }'
@@ -212,6 +235,8 @@ def test_concurrent_source_compilation_and_diagnostics(tmp_path, compiler):
 @pytest.mark.skipif(not tvm.cuda().exist, reason="requires CUDA")
 @pytest.mark.parametrize("fallback", [False, True])
 def test_serialized_config_replays_in_fresh_process(tmp_path, monkeypatch, fallback):
+    _require_compiler("nvrtc")
+
     @T.function
     def main(A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float32")):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=32))
@@ -245,6 +270,7 @@ np.testing.assert_array_equal(b.numpy(), x * np.float32(0.5))
 
 
 def test_device_helpers_are_cloned_per_configuration():
+    _require_compiler("nvrtc")
     from tvm.backend.cuda.transforms import SpecializeDeviceHelpers
     from tvm.script import ir as I
 
@@ -312,6 +338,8 @@ def test_device_helpers_are_cloned_per_configuration():
 @pytest.mark.gpu
 @pytest.mark.skipif(not tvm.cuda().exist, reason="requires CUDA")
 def test_cuda_host_embeds_independent_binaries_in_plain_cpp(tmp_path):
+    _require_compiler("nvrtc")
+    _require_compiler("nvcc")
     import tvm_ffi.cpp
 
     from tvm.backend.cuda.host import export_cuda_host
@@ -395,6 +423,7 @@ def test_legacy_payloads_and_removed_environment(monkeypatch):
 
 @pytest.mark.parametrize("target", [None, "cuda", {"kind": "cuda"}])
 def test_entry_architectures_compile_without_gpu_detection(tmp_path, target):
+    _require_compiler("nvcc")
     script = """
 import tvm
 from tvm.script import tirx as T
