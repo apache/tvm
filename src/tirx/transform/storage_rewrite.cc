@@ -690,9 +690,9 @@ class StoragePlanRewriter : public StmtExprMutator {
 
   UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* buffer_call,
                                       InplaceMode inplace_mode) {
-    // Placement is evaluated at the allocation's original definition site.
-    // Preserve that binding while remapping any storage reads in its operands.
-    if (buffer_call->args.size() == 4) {
+    // Placement and opaque metadata can depend on the original definition site.
+    // Preserve that binding while remapping storage reads in its operands and attrs.
+    if (RequiresExactAllocation(buffer_call)) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     // AllocTensor combines allocation and buffer declaration.
@@ -847,9 +847,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           TVM_FFI_ICHECK_EQ(e->allocs.size(), 1U);
           TVM_FFI_ICHECK(e->merged_children.empty());
           e->alloc_var = e->allocs[0]->var;
-          if (e->allocs[0]->value.as_or_throw<Call>()->args.size() != 4) {
-            e->alloc_nest.push_back(ffi::GetRef<Bind>(e->allocs[0]));
-          }
+          // The original binding stays in place, including metadata dependencies.
           continue;
         }
         // already merged
