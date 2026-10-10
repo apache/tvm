@@ -185,7 +185,7 @@ def slayout(layout_str: str, dtype: str = "int32") -> SLayout | None:
     Returns
     -------
     layout : SLayout or None
-        The created layout, or None for "__undef__".
+        The created layout, or None for an empty string or "__undef__".
     """
     return _ffi_api.SLayout(layout_str, dtype)  # type: ignore
 

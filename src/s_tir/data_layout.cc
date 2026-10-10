@@ -113,15 +113,11 @@ SLayout::SLayout(const ffi::Array<IterVar>& axes) {
 SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
   TVM_FFI_CHECK(index_ty.code() == DLDataTypeCode::kDLInt, TypeError)
       << "The input dtype should be integer type";
-  TVM_FFI_CHECK(name != "__undef__", ValueError) << "Undefined layout requires Optional<SLayout>";
+  TVM_FFI_CHECK(!name.empty() && name != "__undef__", ValueError)
+      << "Undefined layout requires Optional<SLayout>";
 
   auto node = ffi::make_object<SLayoutNode>();
   node->name = name;
-
-  if (name.empty()) {
-    data_ = std::move(node);
-    return;  // scalar
-  }
 
   // parse layout string
   int32_t factor = 0;
@@ -215,6 +211,13 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
   data_ = std::move(node);
 }
 
+ffi::Optional<SLayout> SLayout::Create(const std::string& name, PrimType index_ty) {
+  TVM_FFI_CHECK(index_ty.code() == DLDataTypeCode::kDLInt, TypeError)
+      << "The input dtype should be integer type";
+  if (name.empty() || name == "__undef__") return std::nullopt;
+  return SLayout(name, index_ty);
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   SLayoutNode::RegisterReflection();
@@ -225,8 +228,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   refl::GlobalDef().def("s_tir.SLayout",
                         [](std::string name, PrimType dtype) -> ffi::Optional<SLayout> {
-                          if (name == "__undef__") return std::nullopt;
-                          return SLayout(name, dtype);
+                          return SLayout::Create(name, dtype);
                         });
 }
 

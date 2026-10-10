@@ -90,7 +90,7 @@ class LayoutDecision : public ffi::ObjectRef {
     if (operator->()->is_unknown_dim) {
       return "unknown_dim";
     }
-    return operator->()->layout.value().name();
+    return operator->()->layout.has_value() ? operator->()->layout.value().name() : "__undef__";
   }
 
   explicit LayoutDecision(ffi::ObjectPtr<LayoutDecisionNode> n)
@@ -208,7 +208,8 @@ NLayout InitialNLayout(const Expr& expr);
  * \param dst The destination layout.
  * \return The transposed dst layout.
  */
-SLayout TransposeSubLayoutLike(const SLayout& ref, const SLayout& src, const SLayout& desired);
+ffi::Optional<SLayout> TransposeSubLayoutLike(const SLayout& ref, const SLayout& src,
+                                              const SLayout& desired);
 
 /*!
  * \brief Transposing given layout in string format with subindexing
@@ -227,7 +228,8 @@ std::string TransposeSubLayoutStrLike(const std::string ref_str, const std::stri
  * \param dst The destination layout.
  * \return The transposed input layout.
  */
-SLayout TransposeLike(const SLayout& input, const SLayout& src, const SLayout& dst);
+SLayout TransposeLike(const ffi::Optional<SLayout>& input, const ffi::Optional<SLayout>& src,
+                      const ffi::Optional<SLayout>& dst);
 
 /*!
  * \brief Transpose the input string like the src layout to the dst layout.
@@ -236,7 +238,8 @@ SLayout TransposeLike(const SLayout& input, const SLayout& src, const SLayout& d
  * \param dst The destination layout.
  * \return The transposed input str.
  */
-ffi::String TransposeStrLike(const ffi::String& input, const SLayout& src, const SLayout& dst);
+ffi::String TransposeStrLike(const ffi::String& input, const ffi::Optional<SLayout>& src,
+                             const ffi::Optional<SLayout>& dst);
 
 /*!
  * \brief Find axis in the dst layout. 0 represents the first axis, 1 represents the second axis,

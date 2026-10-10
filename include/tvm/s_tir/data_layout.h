@@ -150,6 +150,8 @@ class SLayout : public ffi::ObjectRef {
    *        It is required to be integer type.
    */
   TVM_DLL SLayout(const std::string& name, PrimType index_ty = PrimType::Int(32));  // NOLINT(*)
+  TVM_DLL static ffi::Optional<SLayout> Create(const std::string& name,
+                                               PrimType index_ty = PrimType::Int(32));
 
   /*!
    * \brief access the internal node container
@@ -224,7 +226,7 @@ class SLayout : public ffi::ObjectRef {
    * \param dst_layout The dst layout to which current layout has to be expanded.
    * \return The expanded SLayout.
    */
-  inline SLayout ExpandPrimal(const SLayout& dst_layout) {
+  inline ffi::Optional<SLayout> ExpandPrimal(const SLayout& dst_layout) {
     // 1) Find the axis which are missing in the current layout. Make them the prefix.
     std::string new_src_layout_str = "";
     for (auto packed_axis : dst_layout->axes) {
@@ -239,7 +241,7 @@ class SLayout : public ffi::ObjectRef {
     }
     // 2) Now, add the primal axis of the current layout.
     new_src_layout_str += this->name();
-    return SLayout(new_src_layout_str);
+    return SLayout::Create(new_src_layout_str);
   }
 
   /*!
@@ -349,6 +351,8 @@ class SLayout : public ffi::ObjectRef {
 // Internal node container SBijectiveLayout
 class SBijectiveLayoutNode : public ffi::Object {
  public:
+  explicit SBijectiveLayoutNode(ffi::UnsafeInit tag) : src_layout(tag), dst_layout(tag) {}
+
   SBijectiveLayoutNode(SLayout src, SLayout dst)
       : src_layout(std::move(src)), dst_layout(std::move(dst)) {}
   /*! \brief Describes how source axes can be mapped to the destination axes,

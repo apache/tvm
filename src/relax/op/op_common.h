@@ -712,7 +712,8 @@ ffi::Array<Expr> GetCallArgs(const Call& call);
  * \param shape array
  * \return true or false depending on the compatibility
  */
-bool CanProveLayoutTransform(const SLayout& input_layout, const SLayout& desired_layout,
+bool CanProveLayoutTransform(const ffi::Optional<SLayout>& input_layout,
+                             const ffi::Optional<SLayout>& desired_layout,
                              ffi::Array<PrimExpr> shape);
 
 }  // namespace relax

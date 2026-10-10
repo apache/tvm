@@ -488,7 +488,8 @@ InferLayoutOutput InferLayoutStridedSlice(
       << " of unknown dimensionality.";
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   // Can't handle sub indexed layouts.
-  if (existing_layout->layout.value().ndim() != existing_layout->layout.value().ndim_primal()) {
+  if ((existing_layout->layout.has_value() ? existing_layout->layout.value().ndim() : 0) !=
+      (existing_layout->layout.has_value() ? existing_layout->layout.value().ndim_primal() : 0)) {
     existing_layout = LayoutDecision(InitialLayout(tensor_ty->ndim));
   }
 

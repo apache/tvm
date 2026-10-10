@@ -418,9 +418,12 @@ InferLayoutOutput InferLayoutConv1d(
         << "Axis swap only";
     TVM_FFI_ICHECK_EQ(desired_output_layout.ndim(), desired_output_layout.ndim_primal())
         << "Axis swap only";
-    data_layout = TransposeLike(InitialLayout(3), attrs->data_layout, desired_data_layout);
-    weight_layout = TransposeLike(InitialLayout(3), attrs->kernel_layout, desired_weight_layout);
-    output_layout = TransposeLike(InitialLayout(3), attrs->out_layout, desired_output_layout);
+    data_layout =
+        TransposeLike(InitialLayout(3), SLayout::Create(attrs->data_layout), desired_data_layout);
+    weight_layout = TransposeLike(InitialLayout(3), SLayout::Create(attrs->kernel_layout),
+                                  desired_weight_layout);
+    output_layout =
+        TransposeLike(InitialLayout(3), SLayout::Create(attrs->out_layout), desired_output_layout);
     new_attrs->data_layout = (*it).second[0];
     new_attrs->kernel_layout = (*it).second[1];
     new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
@@ -431,11 +434,14 @@ InferLayoutOutput InferLayoutConv1d(
     weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
     output_layout = data_layout;
     new_attrs->data_layout =
-        TransposeLike(attrs->data_layout, InitialLayout(3), data_layout->layout.value()).name();
-    new_attrs->kernel_layout =
-        TransposeLike(attrs->kernel_layout, InitialLayout(3), weight_layout->layout.value()).name();
+        TransposeLike(SLayout::Create(attrs->data_layout), InitialLayout(3), data_layout->layout)
+            .name();
+    new_attrs->kernel_layout = TransposeLike(SLayout::Create(attrs->kernel_layout),
+                                             InitialLayout(3), weight_layout->layout)
+                                   .name();
     new_attrs->out_layout =
-        TransposeLike(attrs->out_layout, InitialLayout(3), output_layout->layout.value()).name();
+        TransposeLike(SLayout::Create(attrs->out_layout), InitialLayout(3), output_layout->layout)
+            .name();
   }
   return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
 }
@@ -605,9 +611,12 @@ InferLayoutOutput InferLayoutConv2d(
         (desired_weight_layout.ndim() == kernel_layout.ndim()) &&
         (desired_output_layout.ndim() == out_layout.ndim())) {
       // Just a transpose
-      data_layout = TransposeLike(InitialLayout(4), attrs->data_layout, desired_data_layout);
-      weight_layout = TransposeLike(InitialLayout(4), attrs->kernel_layout, desired_weight_layout);
-      output_layout = TransposeLike(InitialLayout(4), attrs->out_layout, desired_output_layout);
+      data_layout =
+          TransposeLike(InitialLayout(4), SLayout::Create(attrs->data_layout), desired_data_layout);
+      weight_layout = TransposeLike(InitialLayout(4), SLayout::Create(attrs->kernel_layout),
+                                    desired_weight_layout);
+      output_layout = TransposeLike(InitialLayout(4), SLayout::Create(attrs->out_layout),
+                                    desired_output_layout);
       new_attrs->data_layout = (*it).second[0];
       new_attrs->kernel_layout = (*it).second[1];
       new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
@@ -649,11 +658,14 @@ InferLayoutOutput InferLayoutConv2d(
 
   output_layout = data_layout;
   new_attrs->data_layout =
-      TransposeLike(attrs->data_layout, InitialLayout(4), data_layout->layout.value()).name();
+      TransposeLike(SLayout::Create(attrs->data_layout), InitialLayout(4), data_layout->layout)
+          .name();
   new_attrs->kernel_layout =
-      TransposeLike(attrs->kernel_layout, InitialLayout(4), weight_layout->layout.value()).name();
+      TransposeLike(SLayout::Create(attrs->kernel_layout), InitialLayout(4), weight_layout->layout)
+          .name();
   new_attrs->out_layout =
-      TransposeLike(attrs->out_layout, InitialLayout(4), output_layout->layout.value()).name();
+      TransposeLike(SLayout::Create(attrs->out_layout), InitialLayout(4), output_layout->layout)
+          .name();
   return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
 }
 
@@ -826,9 +838,12 @@ InferLayoutOutput InferLayoutConv3d(
         << "Axis swap only";
     TVM_FFI_ICHECK_EQ(desired_output_layout.ndim(), desired_output_layout.ndim_primal())
         << "Axis swap only";
-    data_layout = TransposeLike(InitialLayout(5), attrs->data_layout, desired_data_layout);
-    weight_layout = TransposeLike(InitialLayout(5), attrs->kernel_layout, desired_weight_layout);
-    output_layout = TransposeLike(InitialLayout(5), attrs->out_layout, desired_output_layout);
+    data_layout =
+        TransposeLike(InitialLayout(5), SLayout::Create(attrs->data_layout), desired_data_layout);
+    weight_layout = TransposeLike(InitialLayout(5), SLayout::Create(attrs->kernel_layout),
+                                  desired_weight_layout);
+    output_layout =
+        TransposeLike(InitialLayout(5), SLayout::Create(attrs->out_layout), desired_output_layout);
     new_attrs->data_layout = (*it).second[0];
     new_attrs->kernel_layout = (*it).second[1];
     new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
@@ -839,11 +854,14 @@ InferLayoutOutput InferLayoutConv3d(
     weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
     output_layout = data_layout;
     new_attrs->data_layout =
-        TransposeLike(attrs->data_layout, InitialLayout(5), data_layout->layout.value()).name();
-    new_attrs->kernel_layout =
-        TransposeLike(attrs->kernel_layout, InitialLayout(5), weight_layout->layout.value()).name();
+        TransposeLike(SLayout::Create(attrs->data_layout), InitialLayout(5), data_layout->layout)
+            .name();
+    new_attrs->kernel_layout = TransposeLike(SLayout::Create(attrs->kernel_layout),
+                                             InitialLayout(5), weight_layout->layout)
+                                   .name();
     new_attrs->out_layout =
-        TransposeLike(attrs->out_layout, InitialLayout(5), output_layout->layout.value()).name();
+        TransposeLike(SLayout::Create(attrs->out_layout), InitialLayout(5), output_layout->layout)
+            .name();
   }
   return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
 }
@@ -1010,9 +1028,12 @@ InferLayoutOutput InferLayoutConv1dTranspose(
         << "Axis swap only";
     TVM_FFI_ICHECK_EQ(desired_output_layout.ndim(), desired_output_layout.ndim_primal())
         << "Axis swap only";
-    data_layout = TransposeLike(InitialLayout(3), attrs->data_layout, desired_data_layout);
-    weight_layout = TransposeLike(InitialLayout(3), attrs->kernel_layout, desired_weight_layout);
-    output_layout = TransposeLike(InitialLayout(3), attrs->out_layout, desired_output_layout);
+    data_layout =
+        TransposeLike(InitialLayout(3), SLayout::Create(attrs->data_layout), desired_data_layout);
+    weight_layout = TransposeLike(InitialLayout(3), SLayout::Create(attrs->kernel_layout),
+                                  desired_weight_layout);
+    output_layout =
+        TransposeLike(InitialLayout(3), SLayout::Create(attrs->out_layout), desired_output_layout);
     new_attrs->data_layout = (*it).second[0];
     new_attrs->kernel_layout = (*it).second[1];
     new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
@@ -1021,11 +1042,14 @@ InferLayoutOutput InferLayoutConv1dTranspose(
     weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
     output_layout = data_layout;
     new_attrs->data_layout =
-        TransposeLike(attrs->data_layout, InitialLayout(3), data_layout->layout.value()).name();
-    new_attrs->kernel_layout =
-        TransposeLike(attrs->kernel_layout, InitialLayout(3), weight_layout->layout.value()).name();
+        TransposeLike(SLayout::Create(attrs->data_layout), InitialLayout(3), data_layout->layout)
+            .name();
+    new_attrs->kernel_layout = TransposeLike(SLayout::Create(attrs->kernel_layout),
+                                             InitialLayout(3), weight_layout->layout)
+                                   .name();
     new_attrs->out_layout =
-        TransposeLike(attrs->out_layout, InitialLayout(3), output_layout->layout.value()).name();
+        TransposeLike(SLayout::Create(attrs->out_layout), InitialLayout(3), output_layout->layout)
+            .name();
   }
   return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
 }
@@ -1216,9 +1240,12 @@ InferLayoutOutput InferLayoutConv2dTranspose(
     if (desired_data_layout.ndim_primal() == input_layout.ndim() &&
         desired_weight_layout.ndim_primal() == kernel_layout.ndim() &&
         desired_output_layout.ndim_primal() == out_layout.ndim()) {
-      data_layout = TransposeLike(InitialLayout(4), attrs->data_layout, desired_data_layout);
-      weight_layout = TransposeLike(InitialLayout(4), attrs->kernel_layout, desired_weight_layout);
-      output_layout = TransposeLike(InitialLayout(4), attrs->out_layout, desired_output_layout);
+      data_layout =
+          TransposeLike(InitialLayout(4), SLayout::Create(attrs->data_layout), desired_data_layout);
+      weight_layout = TransposeLike(InitialLayout(4), SLayout::Create(attrs->kernel_layout),
+                                    desired_weight_layout);
+      output_layout = TransposeLike(InitialLayout(4), SLayout::Create(attrs->out_layout),
+                                    desired_output_layout);
       new_attrs->data_layout = (*it).second[0];
       new_attrs->kernel_layout = (*it).second[1];
       new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
@@ -1256,11 +1283,14 @@ InferLayoutOutput InferLayoutConv2dTranspose(
 
   output_layout = data_layout;
   new_attrs->data_layout =
-      TransposeLike(attrs->data_layout, InitialLayout(4), data_layout->layout.value()).name();
+      TransposeLike(SLayout::Create(attrs->data_layout), InitialLayout(4), data_layout->layout)
+          .name();
   new_attrs->kernel_layout =
-      TransposeLike(attrs->kernel_layout, InitialLayout(4), weight_layout->layout.value()).name();
+      TransposeLike(SLayout::Create(attrs->kernel_layout), InitialLayout(4), weight_layout->layout)
+          .name();
   new_attrs->out_layout =
-      TransposeLike(attrs->out_layout, InitialLayout(4), output_layout->layout.value()).name();
+      TransposeLike(SLayout::Create(attrs->out_layout), InitialLayout(4), output_layout->layout)
+          .name();
   return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
 }
 
@@ -1461,9 +1491,12 @@ InferLayoutOutput InferLayoutConv3dTranspose(
     if (desired_data_layout.ndim_primal() == input_layout.ndim() &&
         desired_weight_layout.ndim_primal() == kernel_layout.ndim() &&
         desired_output_layout.ndim_primal() == out_layout.ndim()) {
-      data_layout = TransposeLike(InitialLayout(5), attrs->data_layout, desired_data_layout);
-      weight_layout = TransposeLike(InitialLayout(5), attrs->kernel_layout, desired_weight_layout);
-      output_layout = TransposeLike(InitialLayout(5), attrs->out_layout, desired_output_layout);
+      data_layout =
+          TransposeLike(InitialLayout(5), SLayout::Create(attrs->data_layout), desired_data_layout);
+      weight_layout = TransposeLike(InitialLayout(5), SLayout::Create(attrs->kernel_layout),
+                                    desired_weight_layout);
+      output_layout = TransposeLike(InitialLayout(5), SLayout::Create(attrs->out_layout),
+                                    desired_output_layout);
       new_attrs->data_layout = (*it).second[0];
       new_attrs->kernel_layout = (*it).second[1];
       new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
@@ -1501,11 +1534,14 @@ InferLayoutOutput InferLayoutConv3dTranspose(
 
   output_layout = data_layout;
   new_attrs->data_layout =
-      TransposeLike(attrs->data_layout, InitialLayout(5), data_layout->layout.value()).name();
+      TransposeLike(SLayout::Create(attrs->data_layout), InitialLayout(5), data_layout->layout)
+          .name();
   new_attrs->kernel_layout =
-      TransposeLike(attrs->kernel_layout, InitialLayout(5), weight_layout->layout.value()).name();
+      TransposeLike(SLayout::Create(attrs->kernel_layout), InitialLayout(5), weight_layout->layout)
+          .name();
   new_attrs->out_layout =
-      TransposeLike(attrs->out_layout, InitialLayout(5), output_layout->layout.value()).name();
+      TransposeLike(SLayout::Create(attrs->out_layout), InitialLayout(5), output_layout->layout)
+          .name();
   return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
 }
 

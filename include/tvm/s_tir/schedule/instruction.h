@@ -145,6 +145,8 @@ class InstructionKind : public ffi::ObjectRef {
 /*! \brief Schedule instructions each corresponds to a schedule primitive */
 class InstructionNode : public ffi::Object {
  public:
+  explicit InstructionNode(ffi::UnsafeInit tag) : kind(tag) {}
+
   explicit InstructionNode(InstructionKind kind) : kind(std::move(kind)) {}
   /*! \brief The kind of the instruction */
   InstructionKind kind;

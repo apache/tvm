@@ -115,7 +115,9 @@ class LayoutConvertMutator : public ExprMutator {
   Expr RewriteExpr(const Expr& expr, const NLayout& to) {
     auto fvisitleaf = [&](const Expr& expr, std::array<NLayout, 2> layouts) -> Expr {
       NLayout from = layouts[0], to = layouts[1];
-      if (NLayoutEqual()(from, to) || layouts[0].LeafValue()->layout.value().name() == "")
+      if (NLayoutEqual()(from, to) || (layouts[0].LeafValue()->layout.has_value()
+                                           ? layouts[0].LeafValue()->layout.value().name()
+                                           : "__undef__") == "")
         return expr;
       // If not both from and to are unknown, then none of them can be unknown.
       TVM_FFI_ICHECK(!NLayoutEqual()(from, LayoutDecision::InitUnknownDim()) &&
@@ -124,15 +126,15 @@ class LayoutConvertMutator : public ExprMutator {
       const auto* tensor = GetTypeAs<TensorTypeNode>(expr);
       TVM_FFI_ICHECK(tensor != nullptr) << "Expect a tensor, but got: " << expr;
 
-      if (from.LeafValue()->layout.value().ndim() == to.LeafValue()->layout.value().ndim()) {
-        SLayout axes =
-            TransposeLike(InitialLayoutDecision(tensor->ndim)->layout.value(),
-                          from.LeafValue()->layout.value(), to.LeafValue()->layout.value());
+      if ((from.LeafValue()->layout.has_value() ? from.LeafValue()->layout.value().ndim() : 0) ==
+          (to.LeafValue()->layout.has_value() ? to.LeafValue()->layout.value().ndim() : 0)) {
+        SLayout axes = TransposeLike(InitialLayoutDecision(tensor->ndim)->layout,
+                                     from.LeafValue()->layout, to.LeafValue()->layout);
         return permute_dims(expr, LayoutToIntegers(axes));
       } else {
-        auto index_map =
-            LayoutIndexMap(from.LeafValue()->layout.value().ndim(),
-                           from.LeafValue()->layout.value(), to.LeafValue()->layout.value());
+        auto index_map = LayoutIndexMap(
+            (from.LeafValue()->layout.has_value() ? from.LeafValue()->layout.value().ndim() : 0),
+            from.LeafValue()->layout.value(), to.LeafValue()->layout.value());
         ffi::ObjectPtr<LayoutTransformAttrs> attrs = ffi::make_object<LayoutTransformAttrs>(
             ffi::FromJSONGraph(ffi::ToJSONGraph(index_map)).as_or_throw<IndexMap>());
         const Op layout_transform_op_ = Op::Get("relax.layout_transform");
@@ -321,7 +323,9 @@ class LayoutConvertMutator : public ExprMutator {
       if (!tensor_ty->shape.has_value()) return ty;
       const ShapeExprNode* shape = tensor_ty->shape.value().as<ShapeExprNode>();
       if (shape == nullptr) return ty;
-      TVM_FFI_ICHECK_EQ(shape->values.size(), to.LeafValue()->layout.value().ndim());
+      TVM_FFI_ICHECK_EQ(
+          shape->values.size(),
+          (to.LeafValue()->layout.has_value() ? to.LeafValue()->layout.value().ndim() : 0));
       std::vector<PrimExpr> new_shape;
       for (size_t i = 0; i < shape->values.size(); ++i) {
         new_shape.push_back(shape->values[from.LeafValue()->layout.value().IndexOf(

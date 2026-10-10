@@ -386,7 +386,8 @@ InferLayoutOutput InferLayoutPRelu(
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
 
   // TODO(Siva): We could handle if the axis is not the sub indexed one.
-  if (layout->layout.value().ndim() != layout->layout.value().ndim_primal()) {
+  if ((layout->layout.has_value() ? layout->layout.value().ndim() : 0) !=
+      (layout->layout.has_value() ? layout->layout.value().ndim_primal() : 0)) {
     const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
     TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support static ndim for now";
@@ -457,7 +458,8 @@ InferLayoutOutput InferLayoutSoftmax(
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
 
   // TODO(Siva): We could handle if the axis is not the sub indexed one.
-  if (layout->layout.value().ndim() != layout->layout.value().ndim_primal()) {
+  if ((layout->layout.has_value() ? layout->layout.value().ndim() : 0) !=
+      (layout->layout.has_value() ? layout->layout.value().ndim_primal() : 0)) {
     const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
     TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support static ndim for now";
@@ -747,7 +749,8 @@ InferLayoutOutput InferLayoutBatchNorm(
   // This handling is fail safe fallback.
   const auto* input_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   int ndim = input_ty->ndim;
-  if (layout->layout.value().ndim() != layout->layout.value().ndim_primal()) {
+  if ((layout->layout.has_value() ? layout->layout.value().ndim() : 0) !=
+      (layout->layout.has_value() ? layout->layout.value().ndim_primal() : 0)) {
     layout = LayoutDecision(InitialLayout(ndim));
   }
 

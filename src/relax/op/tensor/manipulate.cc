@@ -508,7 +508,8 @@ InferLayoutOutput InferLayoutConcat(
   for (auto n_layout : nlayout_array) {
     TVM_FFI_ICHECK(n_layout.IsLeaf());
     LayoutDecision in_layout = n_layout.LeafValue();
-    if (in_layout->layout.value().ndim() != in_layout->layout.value().ndim_primal()) {
+    if ((in_layout->layout.has_value() ? in_layout->layout.value().ndim() : 0) !=
+        (in_layout->layout.has_value() ? in_layout->layout.value().ndim_primal() : 0)) {
       const auto* tuple_ty = GetTypeAs<TupleTypeNode>(call->args[0]);
       TVM_FFI_ICHECK(tuple_ty != nullptr)
           << " expects the input to be a Tuple of Tensors. However, the given input is "
@@ -523,12 +524,15 @@ InferLayoutOutput InferLayoutConcat(
         auto t_ty = ffi::GetRef<TensorType>(field_tensor_ty);
         ffi::Optional<ShapeExpr> t_shape = ffi::GetRef<ShapeExpr>(t_ty->shape.as<ShapeExprNode>());
         LayoutDecision curr_layout = nlayout_array[i].LeafValue();
-        if (!CanProveLayoutTransform(curr_layout->layout.value(), in_layout->layout.value(),
+        if (!CanProveLayoutTransform(curr_layout->layout, in_layout->layout,
                                      t_shape.value()->values)) {
           // Some tensor unhappy with sub indexed layout, lets pick first regular layout
           for (auto pick_layout : nlayout_array) {
-            if (pick_layout.LeafValue()->layout.value().ndim() ==
-                pick_layout.LeafValue()->layout.value().ndim_primal()) {
+            if ((pick_layout.LeafValue()->layout.has_value()
+                     ? pick_layout.LeafValue()->layout.value().ndim()
+                     : 0) == (pick_layout.LeafValue()->layout.has_value()
+                                  ? pick_layout.LeafValue()->layout.value().ndim_primal()
+                                  : 0)) {
               in_layout = pick_layout.LeafValue();
               break;
             }
@@ -626,7 +630,8 @@ InferLayoutOutput InferLayoutExpandDims(
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   int ndim = tensor_ty->ndim;
   // Can't handle sub indexed layouts.
-  if (existing_layout->layout.value().ndim() != existing_layout->layout.value().ndim_primal()) {
+  if ((existing_layout->layout.has_value() ? existing_layout->layout.value().ndim() : 0) !=
+      (existing_layout->layout.has_value() ? existing_layout->layout.value().ndim_primal() : 0)) {
     existing_layout = LayoutDecision(InitialLayout(ndim));
   }
   int n_new_dim = attrs->axis.size();
@@ -641,7 +646,7 @@ InferLayoutOutput InferLayoutExpandDims(
       new_layout.push_back('A' + i);
     }
   }
-  new_layout = TransposeStrLike(new_layout, InitialLayout(ndim), existing_layout->layout.value());
+  new_layout = TransposeStrLike(new_layout, InitialLayout(ndim), existing_layout->layout);
   std::string output_layout;
   for (int i = 0, j = 0; i < output_ndim; ++i) {
     if (is_new_dim[i]) {
@@ -650,7 +655,7 @@ InferLayoutOutput InferLayoutExpandDims(
       output_layout.push_back(new_layout.at(j++));
     }
   }
-  return InferLayoutOutput({existing_layout}, {LayoutDecision(SLayout(output_layout))},
+  return InferLayoutOutput({existing_layout}, {LayoutDecision(SLayout::Create(output_layout))},
                            call->attrs);
 }
 
@@ -1021,7 +1026,8 @@ InferLayoutOutput InferLayoutPermuteDims(
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
 
   // permute_dims can't handle sub indexed layouts.
-  if (existing_layout->layout.value().ndim() != existing_layout->layout.value().ndim_primal()) {
+  if ((existing_layout->layout.has_value() ? existing_layout->layout.value().ndim() : 0) !=
+      (existing_layout->layout.has_value() ? existing_layout->layout.value().ndim_primal() : 0)) {
     existing_layout = LayoutDecision(InitialLayout(ndim));
   }
 
@@ -1038,8 +1044,8 @@ InferLayoutOutput InferLayoutPermuteDims(
   for (int64_t axis : order) {
     order_str.push_back(static_cast<char>(axis + 'A'));
   }
-  ffi::String new_axes =
-      TransposeStrLike(InitialLayout(ndim).name(), existing_layout->layout.value(), order_str);
+  ffi::String new_axes = TransposeStrLike(InitialLayout(ndim).name(), existing_layout->layout,
+                                          SLayout::Create(order_str));
   ffi::Array<int64_t> new_order;
   for (size_t i = 0; i < new_axes.size(); ++i) {
     new_order.push_back(new_axes.at(i) - 'A');
@@ -1359,7 +1365,8 @@ InferLayoutOutput InferLayoutSplit(
    * Fallback if the outputs can't be represented in input sub indexed layout
    * This can happen after sub indexing, if we can't split the corresponding primal axis
    */
-  if (existing_layout->layout.value().ndim() != existing_layout->layout.value().ndim_primal()) {
+  if ((existing_layout->layout.has_value() ? existing_layout->layout.value().ndim() : 0) !=
+      (existing_layout->layout.has_value() ? existing_layout->layout.value().ndim_primal() : 0)) {
     for (const auto& si : out_tuple->fields) {
       TVM_FFI_ICHECK(si->IsInstance<TensorTypeNode>()) << "Fields of TupleType must be TensorType"
                                                           "output structinfo, but got "
@@ -1368,7 +1375,7 @@ InferLayoutOutput InferLayoutSplit(
       ffi::Optional<ShapeExpr> shape_expr = ffi::GetRef<ShapeExpr>(ty->shape.as<ShapeExprNode>());
       TVM_FFI_ICHECK(shape_expr.has_value());
       auto shape_arr = shape_expr.value();
-      if (!CanProveLayoutTransform(InitialLayout(tensor_ty->ndim), existing_layout->layout.value(),
+      if (!CanProveLayoutTransform(InitialLayout(tensor_ty->ndim), existing_layout->layout,
                                    shape_arr->values)) {
         existing_layout = InitialLayout(tensor_ty->ndim);
         break;
@@ -1524,11 +1531,12 @@ InferLayoutOutput InferLayoutSqueeze(
 
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   // Can't handle sub indexed layouts.
-  if (existing_layout->layout.value().ndim() != existing_layout->layout.value().ndim_primal()) {
+  if ((existing_layout->layout.has_value() ? existing_layout->layout.value().ndim() : 0) !=
+      (existing_layout->layout.has_value() ? existing_layout->layout.value().ndim_primal() : 0)) {
     existing_layout = LayoutDecision(InitialLayout(ndim));
   }
   ffi::String new_axis_str =
-      TransposeStrLike(axis_str, InitialLayout(ndim), existing_layout->layout.value());
+      TransposeStrLike(axis_str, InitialLayout(ndim), existing_layout->layout);
   ffi::Array<int64_t> new_axis;
   for (size_t i = 0; i < new_axis_str.size(); ++i) {
     if (new_axis_str.at(i) == '1') {
@@ -1541,7 +1549,7 @@ InferLayoutOutput InferLayoutSqueeze(
 
   ffi::ObjectPtr<SqueezeAttrs> new_attrs = ffi::make_object<SqueezeAttrs>(*attrs);
   new_attrs->axis = new_axis;
-  return InferLayoutOutput({existing_layout}, {LayoutDecision(SLayout(output_layout))},
+  return InferLayoutOutput({existing_layout}, {LayoutDecision(SLayout::Create(output_layout))},
                            Attrs(new_attrs));
 }
 
@@ -1787,7 +1795,8 @@ InferLayoutOutput InferLayoutStack(
   }
 
   // For stack, we need to adjust the output layout by inserting a new axis
-  std::string layout_str = layout->layout.value().name();
+  std::string layout_str =
+      (layout->layout.has_value() ? layout->layout.value().name() : "__undef__");
   int axis = attrs->axis.has_value() ? static_cast<int>(attrs->axis.value()) : 0;
   layout_str.insert(static_cast<size_t>(axis), "S");  // Add stack dimension
   SLayout output_layout = SLayout(layout_str);
@@ -1983,7 +1992,8 @@ InferLayoutOutput InferLayoutRepeat(
   int ndim = tensor_ty->ndim;
 
   // Can't handle sub indexed layouts.
-  if (existing_layout->layout.value().ndim() != existing_layout->layout.value().ndim_primal()) {
+  if ((existing_layout->layout.has_value() ? existing_layout->layout.value().ndim() : 0) !=
+      (existing_layout->layout.has_value() ? existing_layout->layout.value().ndim_primal() : 0)) {
     existing_layout = LayoutDecision(InitialLayout(ndim));
   }
 
@@ -2008,7 +2018,7 @@ InferLayoutOutput InferLayoutRepeat(
   }
 
   ffi::String new_axis_str =
-      TransposeStrLike(axis_str, InitialLayout(ndim), existing_layout->layout.value());
+      TransposeStrLike(axis_str, InitialLayout(ndim), existing_layout->layout);
 
   int64_t new_axis = -1;
   for (size_t i = 0; i < new_axis_str.size(); ++i) {
@@ -2109,7 +2119,8 @@ InferLayoutOutput InferLayoutTile(
   int out_ndim = std::max(l, ndim);
 
   // Can't handle sub indexed layouts.
-  if (existing_layout->layout.value().ndim() != existing_layout->layout.value().ndim_primal()) {
+  if ((existing_layout->layout.has_value() ? existing_layout->layout.value().ndim() : 0) !=
+      (existing_layout->layout.has_value() ? existing_layout->layout.value().ndim_primal() : 0)) {
     existing_layout = LayoutDecision(InitialLayout(ndim));
   }
 
@@ -2225,7 +2236,8 @@ InferLayoutOutput InferLayoutFlip(
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   int ndim = tensor_ty->ndim;
 
-  if (existing_layout->layout.value().ndim() != existing_layout->layout.value().ndim_primal()) {
+  if ((existing_layout->layout.has_value() ? existing_layout->layout.value().ndim() : 0) !=
+      (existing_layout->layout.has_value() ? existing_layout->layout.value().ndim_primal() : 0)) {
     existing_layout = LayoutDecision(InitialLayout(ndim));
   }
 
@@ -2420,15 +2432,21 @@ InferLayoutOutput InferLayoutGatherElements(
 
   LayoutDecision layout = data_layout;
   // If data_layout is initial and indices_layout is not, prefer indices_layout.
-  bool data_is_initial = data_layout->layout.value().name() ==
-                         InitialLayout(data_layout->layout.value().ndim()).name();
-  bool indices_is_initial = indices_layout->layout.value().name() ==
-                            InitialLayout(indices_layout->layout.value().ndim()).name();
+  bool data_is_initial =
+      (data_layout->layout.has_value() ? data_layout->layout.value().name() : "__undef__") ==
+      InitialLayout((data_layout->layout.has_value() ? data_layout->layout.value().ndim() : 0))
+          .name();
+  bool indices_is_initial =
+      (indices_layout->layout.has_value() ? indices_layout->layout.value().name() : "__undef__") ==
+      InitialLayout(
+          (indices_layout->layout.has_value() ? indices_layout->layout.value().ndim() : 0))
+          .name();
   if (data_is_initial && !indices_is_initial) {
     layout = indices_layout;
   }
 
-  if (layout->layout.value().ndim() != layout->layout.value().ndim_primal()) {
+  if ((layout->layout.has_value() ? layout->layout.value().ndim() : 0) !=
+      (layout->layout.has_value() ? layout->layout.value().ndim_primal() : 0)) {
     const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
     TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support static ndim for now";
@@ -2928,7 +2946,8 @@ InferLayoutOutput InferLayoutScatterElements(
     layout = indices_layout;
   }
 
-  if (layout->layout.value().ndim() != layout->layout.value().ndim_primal()) {
+  if ((layout->layout.has_value() ? layout->layout.value().ndim() : 0) !=
+      (layout->layout.has_value() ? layout->layout.value().ndim_primal() : 0)) {
     const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
     TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
     TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support static ndim for now";
@@ -3102,7 +3121,8 @@ InferLayoutOutput InferLayoutScatterND(
 
   // Check if data has a sub-indexed layout
   bool has_sub_indexed_layout =
-      layout->layout.value().ndim() != layout->layout.value().ndim_primal();
+      (layout->layout.has_value() ? layout->layout.value().ndim() : 0) !=
+      (layout->layout.has_value() ? layout->layout.value().ndim_primal() : 0);
 
   if (has_sub_indexed_layout) {
     // Fall back to initial layouts for both data and updates

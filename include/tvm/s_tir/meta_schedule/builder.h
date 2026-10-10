@@ -37,6 +37,8 @@ namespace meta_schedule {
 /*! \brief The builder's input, containing an IRModule and the target. */
 class BuilderInputNode : public ffi::Object {
  public:
+  explicit BuilderInputNode(ffi::UnsafeInit tag) : target(tag) {}
+
   explicit BuilderInputNode(Target target) : target(std::move(target)) {}
   /*! \brief The IRModule to be built. */
   IRModule mod;

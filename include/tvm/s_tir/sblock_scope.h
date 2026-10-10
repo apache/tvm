@@ -222,6 +222,8 @@ enum class DepKind : int32_t {
  */
 class DependencyNode : public ffi::Object {
  public:
+  explicit DependencyNode(ffi::UnsafeInit tag) : src(tag), dst(tag) {}
+
   explicit DependencyNode(StmtSRef src, StmtSRef dst, DepKind kind)
       : src(std::move(src)), dst(std::move(dst)), kind(kind) {}
   /*! \brief The source of the dependency relation */
