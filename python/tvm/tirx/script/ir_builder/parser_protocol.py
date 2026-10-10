@@ -755,14 +755,29 @@ def thread_binding(
     )
 
 
-def device_entry() -> frame.RegionFrame:
-    """Mark a device-entry region containing scope definitions.
+def device_entry(*, launch=None, kernel_attrs=None) -> frame.RegionFrame:
+    """Enter a device kernel with an independent CUDA launch configuration.
 
-    Use a flat ``T.device_entry()`` to scope the remaining statements in the
-    enclosing body, or ``with T.device_entry():`` for an explicit boundary.
-    Statements before the region remain host code.
+    CUDA entries use ``LaunchConfig(grid=..., block=...)`` and optional
+    ``KernelAttributes``. Configuration values are ordinary region operands, so
+    host expressions remain visible to substitution and free-variable analysis.
+    Other backends may use the argument-free device entry.
     """
-    return region("tirx.device_entry", [])
+    if launch is None:
+        if kernel_attrs is not None:
+            raise ValueError("device_entry kernel_attrs require a launch configuration")
+        return region("tirx.device_entry", [])
+    from tvm.backend.cuda.launch._impl import pack_kernel_attrs, pack_launch
+
+    names, values = pack_launch(launch)
+    return region(
+        "tirx.device_entry",
+        values,
+        attrs={
+            "cuda.launch_fields": names,
+            "cuda.kernel_attrs": pack_kernel_attrs(kernel_attrs, launch),
+        },
+    )
 
 
 def device_context(device_type: Expr, device_id: Expr) -> frame.RegionFrame:

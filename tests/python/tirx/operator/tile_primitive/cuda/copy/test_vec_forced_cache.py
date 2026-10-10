@@ -39,9 +39,7 @@ def _build_g2l2g_kernel(n_elements, dtype, dispatch, **copy_config):
 
     @T.function
     def kernel(A: T.Tensor((n_elements,), dtype), B: T.Tensor((n_elements,), dtype)) -> None:
-        T.device_entry()
-        T.cta_id([1])
-        T.thread_id([1])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
         reg = T.alloc_local((n_elements,), dtype)
         T.cuda.tile.ld(
             reg[:],
@@ -60,9 +58,8 @@ def _build_g2s2g_kernel(n_elements, dtype, dispatch, **copy_config):
 
     @T.function
     def kernel(A: T.Tensor((n_elements,), dtype), B: T.Tensor((n_elements,), dtype)) -> None:
-        T.device_entry()
-        T.cta_id([1])
-        copy_thread_id = T.thread_id([1])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
+        copy_thread_id = T.cuda.thread_idx("x")
         smem = T.alloc_tensor((n_elements,), dtype, scope="shared")
         reg = T.alloc_local((n_elements,), dtype)
         T.cuda.tile.ld(
@@ -161,9 +158,7 @@ def test_copy_vec_128b_nc_global_to_shared():
 def test_copy_vec_nc_rejects_non_global_src():
     @T.function
     def kernel(B: T.Tensor((4,), "float32")) -> None:
-        T.device_entry()
-        T.cta_id([1])
-        T.thread_id([1])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
         smem = T.alloc_tensor((4,), "float32", scope="shared")
         reg = T.alloc_local((4,), "float32")
         T.cuda.tile.ld(reg[:], smem[:], cache="nc", vec_bits=128)

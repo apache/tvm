@@ -259,6 +259,27 @@ void CodeGenCUDA::InitFuncState(const Function& func) {
   launch_dimensions_ = {extractor->threadIdx_x_ext,     extractor->threadIdx_y_ext,
                         extractor->threadIdx_z_ext,     extractor->clusterCtaIdx_x_ext,
                         extractor->clusterCtaIdx_y_ext, extractor->clusterCtaIdx_z_ext};
+  if (auto dimensions = func->GetAttr<ffi::Array<PrimExpr>>("cuda.launch_dimensions")) {
+    TVM_FFI_ICHECK_EQ(dimensions.value().size(), launch_dimensions_.size());
+    for (size_t i = 0; i < launch_dimensions_.size(); ++i)
+      launch_dimensions_[i] = dimensions.value()[i];
+  }
+  if (auto kernel_attrs = func->GetAttr<ffi::Map<ffi::String, int64_t>>("cuda.kernel_attrs")) {
+    if (auto value = kernel_attrs.value().Get("min_blocks_per_sm")) min_blocks_per_sm_ = *value;
+    if (auto value = kernel_attrs.value().Get("max_blocks_per_cluster"))
+      max_blocks_per_cluster_ = *value;
+    if (auto value = kernel_attrs.value().Get("max_registers_per_thread"))
+      max_registers_per_thread_ = *value;
+    if (kernel_attrs.value().Get("required_block_size").value_or(0)) {
+      std::array<int64_t, 6> dimensions;
+      size_t i = 0;
+      for (const char* prefix : {"required_block_", "required_cluster_"}) {
+        for (char axis : {'x', 'y', 'z'})
+          dimensions[i++] = kernel_attrs.value().at(std::string(prefix) + axis);
+      }
+      required_block_size_ = dimensions;
+    }
+  }
   sym::Analyzer analyzer;
   cluster_cta_x_is_linear_rank_ =
       IsOne(analyzer->Simplify(launch_dimensions_[4] * launch_dimensions_[5]));
@@ -281,7 +302,7 @@ void CodeGenCUDA::AddFunction(const GlobalVar& gvar, const Function& func) {
   std::ostringstream parameters;
   PrintFunctionParameters(func, parameters);
 
-  // Generate the body once, retaining the settings declared by its leaf ops.
+  // Generate the body once before assembling the complete definition.
   std::ostringstream previous_functions;
   stream.swap(previous_functions);
   stream << " {\n";
@@ -329,7 +350,10 @@ void CodeGenCUDA::PrintExtraAttrs(const Function& f, std::ostream& os) {
   sym::Analyzer analyzer;
   PrimExpr threads =
       analyzer->Simplify(launch_dimensions_[0] * launch_dimensions_[1] * launch_dimensions_[2]);
-  if (const auto* count = threads.as<IntImmNode>(); count && count->value != 1) {
+  const auto* count = threads.as<IntImmNode>();
+  TVM_FFI_CHECK(!min_blocks_per_sm_ || (count && count->value > 0), ValueError)
+      << "min_blocks_per_sm requires static block dimensions";
+  if (count && count->value > 0 && (count->value != 1 || min_blocks_per_sm_)) {
     os << " __launch_bounds__(" << count->value;
     if (min_blocks_per_sm_) {
       os << ", " << *min_blocks_per_sm_;
@@ -1027,6 +1051,19 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
 }
 
 void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
+  if (auto intrinsic = op->op.as<OpNode>()) {
+    const std::string name(intrinsic->name);
+    const char* vector = nullptr;
+    if (name == "tirx.cuda.block_idx") vector = "blockIdx";
+    if (name == "tirx.cuda.thread_idx") vector = "threadIdx";
+    if (name == "tirx.cuda.block_dim") vector = "blockDim";
+    if (name == "tirx.cuda.grid_dim") vector = "gridDim";
+    if (vector) {
+      os << "((int)" << vector << "." << op->args[0].as_or_throw<StringImm>()->value << ")";
+      return;
+    }
+  }
+
   if (op->op.same_as(prim::isnan_op()) && op->ty.as_or_throw<PrimType>().lanes() > 1) {
     // CUDA vector comparisons do not produce a lane-wise boolean vector.
     // Reuse the scalar comparison path for every lane, including packed half.
@@ -1383,39 +1420,6 @@ void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
 }
 
 void CodeGenCUDA::Dispatch_(const EvaluateNode* op) {
-  if (const auto* call = op->value.as<CallNode>()) {
-    static const Op min_blocks = Op::Get("tirx.cuda.launch_bounds_min_blocks_per_sm");
-    static const Op max_blocks = Op::Get("tirx.cuda.launch_bounds_max_blocks_per_cluster");
-    static const Op max_registers = Op::Get("tirx.cuda.max_registers_per_thread");
-    static const Op required_block = Op::Get("tirx.cuda.required_block_size");
-    std::optional<int64_t>* setting = nullptr;
-    if (call->op.same_as(min_blocks)) {
-      setting = &min_blocks_per_sm_;
-    } else if (call->op.same_as(max_blocks)) {
-      setting = &max_blocks_per_cluster_;
-    } else if (call->op.same_as(max_registers)) {
-      setting = &max_registers_per_thread_;
-    }
-    if (setting) {
-      int64_t value = static_cast<int64_t>(call->args[0].as_or_throw<IntImm>()->value);
-      TVM_FFI_ICHECK_GT(value, 0) << call->op << " must be positive";
-      TVM_FFI_ICHECK(!setting->has_value() || setting->value() == value)
-          << "Conflicting " << call->op << " values";
-      *setting = value;
-      return;
-    }
-    if (call->op.same_as(required_block)) {
-      std::array<int64_t, 6> dimensions;
-      for (size_t i = 0; i < dimensions.size(); ++i) {
-        dimensions[i] = static_cast<int64_t>(call->args[i].as_or_throw<IntImm>()->value);
-        TVM_FFI_ICHECK_GT(dimensions[i], 0) << "Required block dimensions must be positive";
-      }
-      TVM_FFI_ICHECK(!required_block_size_ || *required_block_size_ == dimensions)
-          << "Conflicting required block size values";
-      required_block_size_ = dimensions;
-      return;
-    }
-  }
   if (auto value = op->value.as<PrimExpr>(); value && IsConstInt(value.value())) return;
   CodeGenC::Dispatch_(op);
 }

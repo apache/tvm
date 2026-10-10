@@ -163,10 +163,11 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
     @T.function
     def dsmem_copy(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
 
-        T.device_entry()
-        cbx = T.cta_id_in_cluster([CLUSTER_N])
-        T.cta_id([CLUSTER_N])
-        tid = T.thread_id([1])
+        T.device_entry(
+            launch=T.cuda.LaunchConfig(grid=(CLUSTER_N,), block=(1,), cluster=(CLUSTER_N,))
+        )
+        cbx = T.cuda.cluster_cta_id('x')
+        tid = T.cuda.thread_idx('x')
         pool = T.SMEMPool()
                 # src_smem: CTA 0 writes here, dispatch reads from here
         src_raw = pool.alloc([src_phys], dtype, align=128)

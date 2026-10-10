@@ -105,10 +105,10 @@ def _build_tiled(Mt, Nt, Kt, kinst, *, beta=0.0, dtype="float16", store=False):
 
         @T.function
         def gemm():
-            T.device_entry()
-            _cta = T.cta_id([1])
-            _warp = T.warp_id([1])
-            _lane = T.lane_id([32])
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+            _cta = T.cuda.block_idx("x")
+            _warp = T.cuda.warp_id()
+            _lane = T.cuda.lane_id()
             A = T.alloc_tensor((M, K), dtype, scope="local", layout=Al)
             B = T.alloc_tensor((K, N), dtype, scope="local", layout=Bl)
             C = T.alloc_tensor((M, N), "float32", scope="local", layout=Dl)
@@ -121,10 +121,10 @@ def _build_tiled(Mt, Nt, Kt, kinst, *, beta=0.0, dtype="float16", store=False):
 
     @T.function
     def gemm(D_g: T.Tensor((M, N), "float32")):
-        T.device_entry()
-        _cta = T.cta_id([1])
-        _warp = T.warp_id([1])
-        lane = T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+        _cta = T.cuda.block_idx("x")
+        _warp = T.cuda.warp_id()
+        lane = T.cuda.lane_id()
         A = T.alloc_tensor((M, K), dtype, scope="local", layout=Al)
         B = T.alloc_tensor((K, N), dtype, scope="local", layout=Bl)
         C = T.alloc_tensor((M, N), "float32", scope="local", layout=Dl)
@@ -150,9 +150,9 @@ def _build_gemm(alpha=1.0, beta=0.0, dtype="bfloat16"):
 
     @T.function
     def gemm_min():
-        T.device_entry()
-        _cta = T.cta_id([1])
-        _tid = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        _cta = T.cuda.block_idx("x")
+        _tid = T.cuda.thread_idx("x")
         D = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
         C = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
         A = T.alloc_tensor((16, 16), dtype, scope="local", layout=A_FRAG)
@@ -175,10 +175,10 @@ def _build_transpose(transpose_A, transpose_B, *, store=False):
 
         @T.function
         def gemm():
-            T.device_entry()
-            _cta = T.cta_id([1])
-            _warp = T.warp_id([1])
-            _lane = T.lane_id([32])
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+            _cta = T.cuda.block_idx("x")
+            _warp = T.cuda.warp_id()
+            _lane = T.cuda.lane_id()
             A = T.alloc_tensor(A_shape, "float16", scope="local", layout=Al)
             B = T.alloc_tensor(B_shape, "float16", scope="local", layout=Bl)
             C = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
@@ -199,10 +199,10 @@ def _build_transpose(transpose_A, transpose_B, *, store=False):
 
     @T.function
     def gemm(D_g: T.Tensor((16, 8), "float32")):
-        T.device_entry()
-        _cta = T.cta_id([1])
-        _warp = T.warp_id([1])
-        lane = T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+        _cta = T.cuda.block_idx("x")
+        _warp = T.cuda.warp_id()
+        lane = T.cuda.lane_id()
         A = T.alloc_tensor(A_shape, "float16", scope="local", layout=Al)
         B = T.alloc_tensor(B_shape, "float16", scope="local", layout=Bl)
         C = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
@@ -230,9 +230,9 @@ def _build_dtypes(a_dtype, b_dtype, c_dtype, d_dtype):
 
     @T.function
     def gemm_min():
-        T.device_entry()
-        _cta = T.cta_id([1])
-        _tid = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        _cta = T.cuda.block_idx("x")
+        _tid = T.cuda.thread_idx("x")
         D = T.alloc_tensor((16, 8), d_dtype, scope="local", layout=D_FRAG)
         C = T.alloc_tensor((16, 8), c_dtype, scope="local", layout=D_FRAG)
         A = T.alloc_tensor((16, 16), a_dtype, scope="local", layout=A_FRAG)
@@ -267,10 +267,10 @@ def _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype):
         C_g: T.Tensor((M, N), "float32"),
         D_g: T.Tensor((M, N), "float32"),
     ):
-        T.device_entry()
-        _cta = T.cta_id([1])
-        _warp = T.warp_id([1])
-        lane = T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+        _cta = T.cuda.block_idx("x")
+        _warp = T.cuda.warp_id()
+        lane = T.cuda.lane_id()
         A_f = T.alloc_tensor((M, K), dtype, scope="local", layout=Al)
         B_f = T.alloc_tensor((K, N), dtype, scope="local", layout=Bl)
         C_f = T.alloc_tensor((M, N), "float32", scope="local", layout=Dl)
@@ -329,10 +329,10 @@ def _build_transpose_numeric(transpose_A, transpose_B, dtype="float16"):
         B_g: T.Tensor(B_shape, dtype),
         D_g: T.Tensor((16, 8), "float32"),
     ):
-        T.device_entry()
-        _cta = T.cta_id([1])
-        _warp = T.warp_id([1])
-        lane = T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+        _cta = T.cuda.block_idx("x")
+        _warp = T.cuda.warp_id()
+        lane = T.cuda.lane_id()
         A_f = T.alloc_tensor(A_shape, dtype, scope="local", layout=Al)
         B_f = T.alloc_tensor(B_shape, dtype, scope="local", layout=Bl)
         D_f = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
@@ -476,10 +476,10 @@ def test_cuda_gemm_mma_numerical(dtype):
         B_g: T.Tensor((16, 8), dtype),
         D_g: T.Tensor((16, 8), "float32"),
     ):
-        T.device_entry()
-        _cta = T.cta_id([1])
-        _warp = T.warp_id([1])
-        lane = T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 32))
+        _cta = T.cuda.block_idx("x")
+        _warp = T.cuda.warp_id()
+        lane = T.cuda.lane_id()
         A_f = T.alloc_tensor((16, 16), dtype, scope="local", layout=A_FRAG)
         B_f = T.alloc_tensor((16, 8), dtype, scope="local", layout=B_FRAG)
         D_f = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
