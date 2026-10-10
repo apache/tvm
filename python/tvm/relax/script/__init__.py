@@ -26,8 +26,6 @@ from collections.abc import Callable as _Callable
 from typing import TYPE_CHECKING
 from typing import Any as _Any
 
-from tvm.ir.base import UnknownLoc
-
 if TYPE_CHECKING:
     from tvm.ir import IRModule
     from tvm.relax.base_py_module import BasePyModule
@@ -184,7 +182,7 @@ def py_module(
         for name, function in result.__pyfuncs__.items():
             tree, filename, _ = acquire_source(function)
             node = tree.body[-1]
-            loc = UnknownLoc()
+            loc = ir.UnknownLoc()
             if options.get("track_loc", True):
                 loc = ir.SourceLoc(
                     ir.SourceName(filename),
