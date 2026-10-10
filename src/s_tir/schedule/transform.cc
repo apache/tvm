@@ -540,7 +540,7 @@ ffi::Optional<ffi::ObjectRef> NormalizeFunction(Schedule sch) {
     for (const IterVar& iter : sch->Get(block)->iter_vars) {
       PrimVar var = iter->var.CopyWithSuffix("");
       index_map_inputs.push_back(var);
-      if (!IsOne(iter->dom->extent)) {
+      if (!IsOne(iter->dom.value()->extent)) {
         index_map_outputs.push_back(var);
         if (iter->iter_type == IterVarType::kDataPar) {
           has_spatial_iter = true;

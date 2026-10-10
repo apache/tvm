@@ -71,8 +71,9 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
     return buffer_access_map_;
   }
 
-  ffi::Array<Range> FindUnion(const TensorVar& buffer, bool consider_loads, bool consider_stores) {
-    ffi::Array<Range> ret;
+  ffi::Array<ffi::Optional<Range>> FindUnion(const TensorVar& buffer, bool consider_loads,
+                                             bool consider_stores) {
+    ffi::Array<ffi::Optional<Range>> ret;
     auto kv = buffer_access_map_.find(buffer.get());
     if (kv == buffer_access_map_.end()) {
       LOG(WARNING) << "[s_tir::BufferDomainTouched] "
@@ -80,7 +81,6 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
       return ret;
     }
 
-    Range none;
     BufferTouches bounds;
     if (consider_loads && consider_stores) {
       bounds = std::get<CombinedAccess>(kv->second).set;
@@ -93,7 +93,7 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
           << "Must consider at least on of either loads and stores, but both are false";
     }
     for (size_t i = 0; i < bounds.size(); ++i) {
-      ret.push_back(sym::Union(bounds[i]).CoverRange(none));
+      ret.push_back(sym::Union(bounds[i]).CoverRange(std::nullopt));
     }
     return ret;
   }
@@ -137,8 +137,8 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
   std::unordered_map<const VarNode*, BufferDomainAccess> buffer_access_map_;
 };
 
-ffi::Array<Range> DomainTouched(const Stmt& stmt, const TensorVar& buffer, bool consider_loads,
-                                bool consider_stores) {
+ffi::Array<ffi::Optional<Range>> DomainTouched(const Stmt& stmt, const TensorVar& buffer,
+                                               bool consider_loads, bool consider_stores) {
   auto visitor = ffi::make_object<BufferTouchedDomain>();
   visitor->Visit(stmt);
   return visitor->FindUnion(buffer, consider_loads, consider_stores);

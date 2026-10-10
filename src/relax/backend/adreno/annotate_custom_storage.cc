@@ -276,6 +276,7 @@ static ffi::Array<PrimExpr> GetShapeFromTensorType(const TensorType& tensor_ty) 
  */
 class CollectConsumerScopeInfo : public ExprVisitor {
  public:
+  explicit CollectConsumerScopeInfo(Target target) : target_(std::move(target)) {}
   using ExprVisitor::VisitExpr_;
 
   std::pair<ffi::Map<Expr, ffi::Array<ffi::String>>,
@@ -352,7 +353,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
       op_attrs = ExtractAttrs<tirx::Function>(pfunc);
       op_pattern = ExtractPattern<tirx::Function>(pfunc);
     } else {
-      op_attrs = {call->attrs};
+      if (call->attrs.has_value()) op_attrs = {call->attrs.value()};
       op_pattern = static_cast<int64_t>(OpPatternKind::kOpaque);
     }
 
@@ -479,6 +480,8 @@ class CollectConsumerScopeInfo : public ExprVisitor {
  */
 class CollectProducerScopeInfo : public ExprVisitor {
  public:
+  CollectProducerScopeInfo(Target target, BlockBuilder builder)
+      : target_(std::move(target)), builder_(std::move(builder)) {}
   using ExprVisitor::VisitExpr_;
 
   ffi::Map<Expr, Type> Collect(
@@ -600,11 +603,13 @@ class DefineVDevice : ExprMutator {
         if (base_func->HasNonzeroAttr(tvm::relax::attr::kPrimitive)) {
           continue;
         }
-        auto info = CollectConsumerScopeInfo().Collect(mod_, func.as_or_throw<Function>(), target_);
+        auto info =
+            CollectConsumerScopeInfo(target_).Collect(mod_, func.as_or_throw<Function>(), target_);
         call_scope_info_ = info.first;
         scope_info_ = info.second;
-        producer_ty_ = CollectProducerScopeInfo().Collect(mod_, func.as_or_throw<Function>(),
-                                                          scope_info_, target_, builder_);
+        producer_ty_ =
+            CollectProducerScopeInfo(target_, builder_)
+                .Collect(mod_, func.as_or_throw<Function>(), scope_info_, target_, builder_);
         relax::Function update_func = VisitExpr(func).as_or_throw<Function>();
         updates_->Add(gv, update_func);
       }
@@ -708,9 +713,9 @@ class DefineVDevice : ExprMutator {
 
  private:
   VDevice MakeGlobalVDevice(VDevice vdev) {
-    int device_type = vdev->target->GetTargetDeviceType();
+    int device_type = vdev->target.value()->GetTargetDeviceType();
     for (size_t i = 0; i < vdevices_.size(); ++i) {
-      int dev_type = vdevices_[i]->target->GetTargetDeviceType();
+      int dev_type = vdevices_[i]->target.value()->GetTargetDeviceType();
       if (dev_type == device_type && vdevices_[i]->vdevice_id == vdev->vdevice_id &&
           vdevices_[i]->memory_scope == vdev->memory_scope) {
         return vdevices_[i];
@@ -734,7 +739,7 @@ class DefineVDevice : ExprMutator {
     }
     ffi::ObjectPtr<HintOnDeviceAttrs> attrs = ffi::make_object<HintOnDeviceAttrs>();
     const VDevice& vdev = MakeGlobalVDevice(VDevice(target_, 0, scope));
-    attrs->device_type = vdev->target->GetTargetDeviceType();
+    attrs->device_type = vdev->target.value()->GetTargetDeviceType();
     attrs->index = vdev->vdevice_id;
     attrs->memory_scope = vdev->memory_scope;
 
@@ -747,7 +752,7 @@ class DefineVDevice : ExprMutator {
     auto tinfo = ty.as<TensorTypeNode>();
     if (tinfo->vdevice.has_value()) {
       auto vdevice = tinfo->vdevice.value();
-      if (vdevice->target.defined()) {
+      if (vdevice->target.has_value()) {
         return vdevice->target;
       }
     }

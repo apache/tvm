@@ -127,7 +127,11 @@ class IterMark : public ffi::ObjectRef {
    */
   TVM_DLL IterMark(PrimExpr source, PrimExpr extent);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IterMark, ffi::ObjectRef, IterMarkNode);
+  explicit IterMark(ffi::ObjectPtr<IterMarkNode> node) : ffi::ObjectRef(std::move(node)) {
+    TVM_FFI_ICHECK(data_ != nullptr);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IterMark, ffi::ObjectRef, IterMarkNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterMarkNode);
 };
 
@@ -138,10 +142,17 @@ class IterMark : public ffi::ObjectRef {
  */
 class IterSplitExprNode : public IterMapExprNode {
  public:
-  explicit IterSplitExprNode(PrimExpr lower_factor, PrimExpr extent, PrimExpr scale)
-      : lower_factor(std::move(lower_factor)), extent(std::move(extent)), scale(std::move(scale)) {}
+  explicit IterSplitExprNode(IterMark source, PrimExpr lower_factor, PrimExpr extent,
+                             PrimExpr scale)
+      : source(std::move(source)),
+        lower_factor(std::move(lower_factor)),
+        extent(std::move(extent)),
+        scale(std::move(scale)) {}
   explicit IterSplitExprNode(ffi::UnsafeInit)
-      : lower_factor(ffi::UnsafeInit{}), extent(ffi::UnsafeInit{}), scale(ffi::UnsafeInit{}) {}
+      : source(ffi::UnsafeInit{}),
+        lower_factor(ffi::UnsafeInit{}),
+        extent(ffi::UnsafeInit{}),
+        scale(ffi::UnsafeInit{}) {}
 
   /*! \brief The source marked iterator. */
   IterMark source;
@@ -302,6 +313,7 @@ class IterMapResultNode : public ffi::Object {
  */
 class IterMapResult : public ffi::ObjectRef {
  public:
+  static constexpr bool _type_is_nullable = false;
   // constructor
   IterMapResult() { data_ = ffi::make_object<IterMapResultNode>(); }
 

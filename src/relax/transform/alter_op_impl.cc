@@ -82,8 +82,9 @@ bool IsTransformBijective(const Expr& expr, const IndexMap& transform) {
  */
 class AlterOpImplMutator : public ExprMutator {
  public:
-  AlterOpImplMutator(const IRModule& mod, const ffi::Map<ffi::String, tirx::Function>& op_impl_map,
-                     const ffi::Map<ffi::String, ffi::Array<IndexMap>>& op_buffer_transforms_)
+  AlterOpImplMutator(
+      const IRModule& mod, const ffi::Map<ffi::String, tirx::Function>& op_impl_map,
+      const ffi::Map<ffi::String, ffi::Array<ffi::Optional<IndexMap>>>& op_buffer_transforms_)
       : ExprMutator(mod),
         mod_(mod),
         op_impl_map_(op_impl_map),
@@ -127,7 +128,7 @@ class AlterOpImplMutator : public ExprMutator {
 
     const auto& replacement_func = op_impl_map_[op_kind];
 
-    ffi::Array<IndexMap> buffer_transforms;
+    ffi::Array<ffi::Optional<IndexMap>> buffer_transforms;
     if (op_buffer_transforms__.count(op_kind)) buffer_transforms = op_buffer_transforms__[op_kind];
 
     TVM_FFI_ICHECK(buffer_transforms.empty() ||
@@ -177,15 +178,14 @@ class AlterOpImplMutator : public ExprMutator {
     return false;
   }
 
-  Expr TransformLayout(const Expr& expr, const IndexMap& index_map) {
-    if (IsScalarConstant(expr) || index_map.get() == nullptr) {
+  Expr TransformLayout(const Expr& expr, const ffi::Optional<IndexMap>& index_map) {
+    if (IsScalarConstant(expr) || !index_map.has_value()) {
       return expr;
     }
-    ffi::ObjectPtr<LayoutTransformAttrs> attrs = ffi::make_object<LayoutTransformAttrs>();
     // We want to avoid two layout_transform ops to share the same index map even if they are
     // identical. The scope of vars used in index map initial indices is local to the op. Not doing
     // so would confuse the structural equality check.
-    attrs->index_map = DeepCopyIndexMap(index_map);
+    auto attrs = ffi::make_object<LayoutTransformAttrs>(DeepCopyIndexMap(index_map.value()));
     return Call(Type::Missing(), layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});
   }
 
@@ -232,16 +232,16 @@ class AlterOpImplMutator : public ExprMutator {
     return gv_remove_pad;
   }
 
-  Expr TransformLayoutInverse(const Expr& expr, const IndexMap& index_map,
+  Expr TransformLayoutInverse(const Expr& expr, const ffi::Optional<IndexMap>& index_map,
                               const TensorType& old_tensor_ty) {
-    if (IsScalarConstant(expr) || index_map.get() == nullptr) {
+    if (IsScalarConstant(expr) || !index_map.has_value()) {
       return expr;
     }
     ffi::Array<PrimExpr> old_shape = GetShapeFromTensorType(old_tensor_ty);
     ffi::Array<Range> initial_ranges = ConstructRangeFromShape(old_shape);
     sym::Analyzer analyzer;
     auto [inverse_index_map, padding_predicate] =
-        index_map.NonSurjectiveInverse(initial_ranges, analyzer);
+        index_map.value().NonSurjectiveInverse(initial_ranges, analyzer);
 
     if (tvm::prim::IsZero(padding_predicate)) {
       return TransformLayout(expr, inverse_index_map);
@@ -279,7 +279,7 @@ class AlterOpImplMutator : public ExprMutator {
   /*!
    * \brief Updates call inputs with layout transformed inputs
    */
-  Tuple UpdateInputs(const Tuple& inputs, const ffi::Array<IndexMap>& transforms) {
+  Tuple UpdateInputs(const Tuple& inputs, const ffi::Array<ffi::Optional<IndexMap>>& transforms) {
     if (transforms.empty()) return inputs;
 
     ffi::Array<Expr> updated_inputs;
@@ -292,7 +292,8 @@ class AlterOpImplMutator : public ExprMutator {
   }
 
   /*! \brief Updates the call_tir output type after applying buffer transforms. */
-  Type UpdateOutputType(const Type& out_ty, const ffi::Array<IndexMap>& buffer_transforms) {
+  Type UpdateOutputType(const Type& out_ty,
+                        const ffi::Array<ffi::Optional<IndexMap>>& buffer_transforms) {
     if (buffer_transforms.empty()) return out_ty;
 
     if (out_ty->IsInstance<TensorTypeNode>())
@@ -320,18 +321,19 @@ class AlterOpImplMutator : public ExprMutator {
   }
 
   /*! \brief Returns the TensorType after applying the \p transform on its shape */
-  Type UpdateOutputType(const TensorType& tensor_ty, const IndexMap& transform) {
-    if (transform.get() == nullptr) return tensor_ty;
+  Type UpdateOutputType(const TensorType& tensor_ty, const ffi::Optional<IndexMap>& transform) {
+    if (!transform.has_value()) return tensor_ty;
     auto shape = GetShapeFromTensorType(tensor_ty);
     sym::Analyzer analyzer;
-    auto new_shape = transform->MapShape(shape, analyzer);
+    auto new_shape = transform.value()->MapShape(shape, analyzer);
     if (tensor_ty->vdevice.has_value()) {
       return TensorType(ShapeExpr(new_shape), tensor_ty->dtype, tensor_ty->vdevice.value());
     }
     return TensorType(ShapeExpr(new_shape), tensor_ty->dtype);
   }
 
-  Expr TransformOutputs(const Expr& expr, const ffi::Array<IndexMap>& buffer_transforms,
+  Expr TransformOutputs(const Expr& expr,
+                        const ffi::Array<ffi::Optional<IndexMap>>& buffer_transforms,
                         const Type& old_ty) {
     if (buffer_transforms.empty()) return expr;
 
@@ -343,7 +345,7 @@ class AlterOpImplMutator : public ExprMutator {
     size_t first_output_index = buffer_transforms.size() - num_outputs;
     // If there is a single output, return the transformed output.
     if (num_outputs == 1) {
-      IndexMap output_map = buffer_transforms[first_output_index];
+      auto output_map = buffer_transforms[first_output_index];
       return TransformLayoutInverse(expr, output_map, old_output_ty[0]);
     }
 
@@ -368,7 +370,7 @@ class AlterOpImplMutator : public ExprMutator {
   /*! \brief Map from kOperatorName attribute to the replacement tirx::Function */
   const ffi::Map<ffi::String, tirx::Function>& op_impl_map_;
   /*! \brief Map from kOperatorName attribute to the layout transforms on i/o buffers */
-  const ffi::Map<ffi::String, ffi::Array<IndexMap>>& op_buffer_transforms__;
+  const ffi::Map<ffi::String, ffi::Array<ffi::Optional<IndexMap>>>& op_buffer_transforms__;
 
   const Op call_tir_op_ = Op::Get("relax.call_tir");
   const Op layout_transform_op_ = Op::Get("relax.layout_transform");
@@ -376,8 +378,9 @@ class AlterOpImplMutator : public ExprMutator {
 
 namespace transform {
 
-Pass AlterOpImpl(const ffi::Map<ffi::String, tirx::Function>& op_impl_map,
-                 const ffi::Map<ffi::String, ffi::Array<IndexMap>>& op_buffer_transforms_) {
+Pass AlterOpImpl(
+    const ffi::Map<ffi::String, tirx::Function>& op_impl_map,
+    const ffi::Map<ffi::String, ffi::Array<ffi::Optional<IndexMap>>>& op_buffer_transforms_) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     return AlterOpImplMutator(mod, op_impl_map, op_buffer_transforms_).Run();
   };

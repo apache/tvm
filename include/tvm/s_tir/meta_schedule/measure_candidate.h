@@ -34,6 +34,7 @@ namespace meta_schedule {
 /*! \brief The schedule (with input shapes) to be measured. */
 class MeasureCandidateNode : public ffi::Object {
  public:
+  explicit MeasureCandidateNode(s_tir::Schedule sch) : sch(std::move(sch)) {}
   /*! \brief The schedule for measurement. */
   s_tir::Schedule sch;
   /*! \brief The argument information, e.g., (shape, dtype) for tensors. */

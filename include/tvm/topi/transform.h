@@ -1851,11 +1851,11 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
   TVM_FFI_ICHECK(src_layout_struct.defined() && dst_layout_struct.defined())
       << "cannot convert from/to undefined layout";
 
-  auto layout_converter = tirx::SBijectiveLayout(src_layout_struct, dst_layout_struct);
+  auto layout_converter = tirx::SBijectiveLayout::Create(src_layout_struct, dst_layout_struct);
   TVM_FFI_ICHECK(layout_converter.defined())
       << "cannot convert from " << src_layout << " to " << dst_layout;
 
-  ffi::Array<PrimExpr> dst_shape = layout_converter.ForwardShape(src->shape);
+  ffi::Array<PrimExpr> dst_shape = layout_converter.value().ForwardShape(src->shape);
 
   ffi::Map<ffi::String, ffi::Any> attrs = {
       {tvm::s_tir::attr::kScheduleRule, ffi::String(schedule_rule)},
@@ -1869,7 +1869,7 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
       [&](const ffi::Array<PrimVar>& dst_indices) {
         ffi::Array<PrimExpr> dst_indices_expr =
             dst_indices.Map([](const PrimVar& var) { return var.as_or_throw<PrimExpr>(); });
-        ffi::Array<PrimExpr> src_indices = layout_converter.BackwardIndex(dst_indices_expr);
+        ffi::Array<PrimExpr> src_indices = layout_converter.value().BackwardIndex(dst_indices_expr);
         PrimExpr in_range = PrimExpr(1) > PrimExpr(0);  // init with dtype=bool and value=true
         for (size_t i = 0; i < src.ndim(); ++i) {
           in_range = in_range && (src_indices[i] < src->shape[i]);

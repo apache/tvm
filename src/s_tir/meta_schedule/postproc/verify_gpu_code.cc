@@ -131,7 +131,7 @@ IntImm Extract(const Target& target, const char* name) {
 /*! \brief Verify the correctness of the generated GPU code. */
 class VerifyGPUCodeNode : public PostprocNode {
  public:
-  Target target_{ffi::UnsafeInit()};
+  ffi::Optional<Target> target_;
   ffi::Map<ffi::String, PrimExpr> target_constraints_{ffi::UnsafeInit()};
   int thread_warp_size_ = -1;
 
@@ -139,12 +139,13 @@ class VerifyGPUCodeNode : public PostprocNode {
     TVM_FFI_ICHECK(context->target.has_value());
     this->target_ = context->target.value();
     this->target_constraints_ = ffi::Map<ffi::String, PrimExpr>{
-        {"max_shared_memory_per_block", Extract(this->target_, "max_shared_memory_per_block")},
-        {"max_threads_per_block", Extract(this->target_, "max_threads_per_block")},
+        {"max_shared_memory_per_block",
+         Extract(this->target_.value(), "max_shared_memory_per_block")},
+        {"max_threads_per_block", Extract(this->target_.value(), "max_threads_per_block")},
         {"max_vthread", IntImm::Int32(8)},
         {"max_vector_bytes", IntImm::Int32(16)},
     };
-    thread_warp_size_ = Extract(this->target_, "thread_warp_size")->value.as<int>().value();
+    thread_warp_size_ = Extract(this->target_.value(), "thread_warp_size")->value.as<int>().value();
   }
 
   bool Verify(const IRModule& mod) const {
@@ -199,7 +200,7 @@ class VerifyGPUCodeNode : public PostprocNode {
           tvm::transform::PassContext pass_ctx = tvm::transform::PassContext::Current();
           tirx::Function f = WithAttr(ffi::GetRef<tirx::Function>(function),
                                       tvm::attr::kGlobalSymbol, ffi::String(g_var->name_hint));
-          f = WithAttr(f, tvm::attr::kTarget, this->target_);  // Required for LowerIntrin
+          f = WithAttr(f, tvm::attr::kTarget, this->target_.value());  // Required for LowerIntrin
           bool noalias = pass_ctx->GetConfig<bool>(tvm::tirx::attr::kNoAlias).value_or(true);
           if (noalias) {
             f = WithAttr(std::move(f), tvm::tirx::attr::kNoAlias, true);

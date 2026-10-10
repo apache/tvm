@@ -38,7 +38,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.DummyGlobalInfo", make_dummy);
 }
 
-VDevice::VDevice(Target tgt, int dev_id, MemoryScope mem_scope) {
+VDevice::VDevice(ffi::Optional<Target> tgt, int dev_id, MemoryScope mem_scope)
+    : GlobalInfo(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<VDeviceNode> n = ffi::make_object<VDeviceNode>();
   n->target = std::move(tgt);
   n->vdevice_id = std::move(dev_id);
@@ -48,7 +49,7 @@ VDevice::VDevice(Target tgt, int dev_id, MemoryScope mem_scope) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  auto make_vdevice = [](Target tgt, int dev_id, MemoryScope mem_scope) {
+  auto make_vdevice = [](ffi::Optional<Target> tgt, int dev_id, MemoryScope mem_scope) {
     return VDevice(tgt, dev_id, mem_scope);
   };
   refl::GlobalDef().def("relax.VDevice", make_vdevice);

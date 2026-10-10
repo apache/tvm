@@ -142,6 +142,11 @@ class SearchStrategyNode : public ffi::Object {
  */
 class SearchStrategy : public ffi::ObjectRef {
  public:
+  explicit SearchStrategy(ffi::ObjectPtr<SearchStrategyNode> data)
+      : ffi::ObjectRef(std::move(data)) {
+    TVM_FFI_ICHECK(data_ != nullptr);
+  }
+
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.
    * \param context The tuning context for initialization.
@@ -219,7 +224,7 @@ class SearchStrategy : public ffi::ObjectRef {
                                                    int genetic_max_fail_count,  //
                                                    double eps_greedy);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SearchStrategy, ffi::ObjectRef, SearchStrategyNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SearchStrategy, ffi::ObjectRef, SearchStrategyNode);
 };
 
 /*! \brief The python side customizable class for measure candidate generation */

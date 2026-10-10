@@ -65,8 +65,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { MultiLevelTilingNode::RegisterReflection(); }
 
 State::State(s_tir::Schedule sch, s_tir::SBlockRV block_rv,
              ffi::Array<ffi::Array<s_tir::LoopRV>> tiles) {
-  ffi::ObjectPtr<StateNode> node = ffi::make_object<StateNode>();
-  node->sch = std::move(sch);
+  ffi::ObjectPtr<StateNode> node = ffi::make_object<StateNode>(std::move(sch));
   node->block_rv = std::move(block_rv);
   node->tiles = std::move(tiles);
   data_ = std::move(node);

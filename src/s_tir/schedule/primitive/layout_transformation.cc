@@ -1463,7 +1463,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
 
   // Step 2: Check the all outer loops have a single child and the block bindings are trivial (all
   // binding values are loop vars)
-  StmtSRef scope_sref{nullptr};  // the scope statement for replacement
+  StmtSRef scope_sref{ffi::UnsafeInit{}};  // the scope statement for replacement
   if (!loops.empty()) {
     scope_sref = loops.front();
     CheckGetSingleChildBlockRealizeOnSRefTree(self, loops.front());
@@ -1483,10 +1483,10 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
       block_iter_range_array;  // array of block iter extents in the same order as block iters
   for (const auto& iter_var : block->iter_vars) {
     block_vars.push_back(iter_var->var);
-    block_iter_dom.Set(iter_var->var, iter_var->dom);
+    block_iter_dom.Set(iter_var->var, iter_var->dom.value());
     block_iter_type[iter_var->var.get()] = iter_var->iter_type;
-    TVM_FFI_ICHECK(IsZero(iter_var->dom->min));
-    block_iter_range_array.push_back(iter_var->dom->extent);
+    TVM_FFI_ICHECK(IsZero(iter_var->dom.value()->min));
+    block_iter_range_array.push_back(iter_var->dom.value()->extent);
   }
 
   // Step 4: Apply the IndexMap to block iters.
@@ -1528,7 +1528,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
     for (const PrimExpr& extent : block_iter_range_array) {
       initial_ranges.push_back(Range::FromMinExtent(IntImm(extent.ty(), 0), extent));
     }
-    IndexMap inverse_index_map{nullptr};
+    IndexMap inverse_index_map{ffi::UnsafeInit{}};
     try {
       inverse_index_map = index_map.Inverse(initial_ranges, analyzer);
     } catch (...) {

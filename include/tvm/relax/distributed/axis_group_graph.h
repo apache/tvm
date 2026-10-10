@@ -29,6 +29,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <unordered_map>
@@ -167,7 +168,7 @@ class BufferAxisGraphExtractor : public s_tir::StmtExprVisitor {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
     iter_var_range_.clear();
     for (const auto& iter_var : op->iter_vars) {
-      iter_var_range_.Set(iter_var->var, iter_var->dom);
+      iter_var_range_.Set(iter_var->var, iter_var->dom.value());
     }
     sym::Analyzer analyzer;
     for (const auto& access_pr : buffer_access_indices_) {
@@ -369,7 +370,7 @@ class AxisGroupGraph {
    * \param spec The axis's sharding spec
    */
   void AddSrcShardingPoint(Axis axis, AxisShardingSpec spec) {
-    src_axis_sharding_spec_[axis] = spec;
+    src_axis_sharding_spec_.insert_or_assign(axis, spec);
   }
 
   /*!
@@ -391,7 +392,7 @@ class AxisGroupGraph {
    * \param spec The spec to stop propagation
    */
   void AddPropagationCutPoint(Axis axis, AxisShardingSpec spec) {
-    cutpoint_axis_sharding_spec_[axis] = spec;
+    cutpoint_axis_sharding_spec_.insert_or_assign(axis, spec);
   }
 
   /*!
@@ -399,13 +400,13 @@ class AxisGroupGraph {
    *
    * \param axis the specified axis
    * \return if a sharding spec is found, return (axis_sharding_spec, true)
-   *         otherwise, return (null axis_sharding_spec, false)
+   *         otherwise, return (std::nullopt, false)
    */
-  std::tuple<AxisShardingSpec, bool> GetAxisShardingSpec(Axis axis) {
+  std::tuple<std::optional<AxisShardingSpec>, bool> GetAxisShardingSpec(Axis axis) {
     if (axis_sharding_specs_priority_.count(axis)) {
       return {axis_sharding_specs_priority_[axis].begin()->first, true};
     } else {
-      return {{DeviceMesh(), -1}, false};
+      return {std::nullopt, false};
     }
   }
 
@@ -421,7 +422,7 @@ class AxisGroupGraph {
                              std::unordered_set<Axis, AxisHash>* visited) {
     if (cutpoint_axis_sharding_spec_.count(axis) ||
         (src_axis_sharding_spec_.count(axis) &&
-         !AxisShardingSpecEqual()(src_axis_sharding_spec_[axis], spec)) ||
+         !AxisShardingSpecEqual()(src_axis_sharding_spec_.at(axis), spec)) ||
         visited->count(axis)) {
       return;
     }

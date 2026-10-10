@@ -149,7 +149,7 @@ void UpdateSRef(ScheduleStateNode* self, StmtSRefNode* sref, const StmtNode* new
   TVM_FFI_ICHECK(new_stmt->IsInstance<SBlockNode>() || new_stmt->IsInstance<ForNode>());
   const StmtNode* old_stmt = sref->stmt;
   TVM_FFI_ICHECK_NE(new_stmt, old_stmt);
-  self->stmt2ref[new_stmt] = ffi::GetRef<StmtSRef>(sref);
+  self->stmt2ref.insert_or_assign(new_stmt, ffi::GetRef<StmtSRef>(sref));
   self->stmt2ref.erase(sref->stmt);
   sref->stmt = new_stmt;
 }
@@ -298,8 +298,9 @@ class SBlockInfoCollector : public StmtExprVisitor {
       }
       // Step 2.3. For each LCA, gather the produced regions,
       // then check if it could cover the consumed region
-      for (StmtSRef lca = consumer_block_sref; region_cover && lca.get() != limit;
-           lca = ffi::GetRef<StmtSRef>(lca->parent)) {
+      for (const StmtSRefNode* lca_node = consumer_block_sref.get();
+           region_cover && lca_node != limit; lca_node = lca_node->parent) {
+        StmtSRef lca = ffi::GetRef<StmtSRef>(lca_node);
         const std::vector<const StmtSRefNode*>& producer_block_srefs = lca_loc.at(lca.get());
         // Skip empty LCA positions
         if (producer_block_srefs.empty()) {
@@ -691,13 +692,15 @@ class SRefUpdater : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
-    StmtSRef& sref = self_->stmt2ref[op];
+    auto existing = self_->stmt2ref.find(op);
     // Detect intact reuse
-    if (sref.defined()) {
+    if (existing != self_->stmt2ref.end()) {
+      const StmtSRef& sref = existing->second;
       sref->parent = ancestors_.back();
       sref->seq_index = -1;  // `seq_index` will be set properly in SetSeqIndex
       return std::nullopt;
     }
+    StmtSRef sref{ffi::UnsafeInit{}};
     // Detect loop reuse
     auto it = reused_srefs_.find(op->loop_var.get());
     if (it != reused_srefs_.end()) {
@@ -711,6 +714,7 @@ class SRefUpdater : public StmtExprVisitor {
       sref = StmtSRef(/*stmt=*/op, /*parent=*/ancestors_.back(),
                       /*seq_index=*/-1);  // `seq_index` will be set properly in SetSeqIndex
     }
+    self_->stmt2ref.emplace(op, sref);
     // Recursive visit
     ancestors_.push_back(sref.get());
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->body));
@@ -719,13 +723,15 @@ class SRefUpdater : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
-    StmtSRef& sref = self_->stmt2ref[op];
+    auto existing = self_->stmt2ref.find(op);
     // Detect intact
-    if (sref.defined()) {
+    if (existing != self_->stmt2ref.end()) {
+      const StmtSRef& sref = existing->second;
       sref->parent = ancestors_.back();
       sref->seq_index = -1;  // `seq_index` will be set properly in SetSeqIndex
       return std::nullopt;
     }
+    StmtSRef sref{ffi::UnsafeInit{}};
     // Detect block reuse
     auto it = reused_srefs_.find(op);
     if (it != reused_srefs_.end()) {
@@ -739,6 +745,7 @@ class SRefUpdater : public StmtExprVisitor {
       sref = StmtSRef(/*stmt=*/op, /*parent=*/ancestors_.back(),
                       /*seq_index=*/-1);  // `seq_index` will be set properly in SetSeqIndex
     }
+    self_->stmt2ref.emplace(op, sref);
     // Recursive visit
     ancestors_.push_back(sref.get());
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->body));

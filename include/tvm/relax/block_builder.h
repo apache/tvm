@@ -311,7 +311,11 @@ class BlockBuilder : public ffi::ObjectRef {
   TVM_DLL static BlockBuilder Create(ffi::Optional<IRModule> ctx_mod,
                                      DisableOperatorSpecificNormalizationForTVMScript tag);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BlockBuilder, ffi::ObjectRef, BlockBuilderNode);
+  explicit BlockBuilder(ffi::ObjectPtr<BlockBuilderNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockBuilder, ffi::ObjectRef, BlockBuilderNode);
 };
 
 }  // namespace relax

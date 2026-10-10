@@ -490,7 +490,7 @@ GenericConst MakeTensorConst(runtime::Tensor data, ffi::Optional<Type> ty_annota
   for (int64_t dim : data.Shape()) {
     shape.push_back(IntImm::Int64(dim));
   }
-  TensorType ty(ShapeExpr(shape), PrimType(data.DataType()), VDevice(), loc);
+  TensorType ty(ShapeExpr(shape), PrimType(data.DataType()), std::nullopt, loc);
   return GenericConst(std::move(data), std::move(ty), std::move(loc));
 }
 
@@ -595,7 +595,7 @@ BindingBlockNode* BindingBlock::CopyOnWrite() {
   return static_cast<BindingBlockNode*>(data_.get());
 }
 
-DataflowBlock::DataflowBlock(ffi::Array<Binding> bindings, Location loc) {
+DataflowBlock::DataflowBlock(ffi::Array<Binding> bindings, Location loc) : BindingBlock(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<DataflowBlockNode> n = ffi::make_object<DataflowBlockNode>();
   n->bindings = std::move(bindings);
   n->loc = loc;
@@ -779,8 +779,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // Get the derive function.
 FuncType GetExternFuncType() {
   EnvFunc fn = EnvFunc::Get("tvm.relax.type.infer_by_ty_args");
-  TypeDeriveFunc derive;
-  derive = fn;
+  TypeDeriveFunc derive(fn);
   return FuncType::OpaqueFunc(derive);
 }
 

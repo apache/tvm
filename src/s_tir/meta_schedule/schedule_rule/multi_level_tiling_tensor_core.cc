@@ -79,6 +79,7 @@ TensorCoreIntrinGroup TensorCoreIntrinGroup::FromConfig(
 
 class TensorCoreStateNode : public StateNode {
  public:
+  explicit TensorCoreStateNode(Schedule sch) : StateNode(std::move(sch)) {}
   /*! \brief The tensor core intrinsic group. */
   TensorCoreIntrinGroup intrin_group;
   /*! \brief The auto tensorization maping info. */
@@ -107,22 +108,26 @@ class TensorCoreStateNode : public StateNode {
 
 class TensorCoreState : public State {
  public:
+  explicit TensorCoreState(ffi::ObjectPtr<TensorCoreStateNode> data) : State(std::move(data)) {
+    TVM_FFI_ICHECK(data_ != nullptr);
+  }
+
   explicit TensorCoreState(TensorCoreIntrinGroup intrin_group,
                            s_tir::AutoTensorizeMappingInfo mapping_info, Schedule sch,
                            SBlockRV block_rv, bool use_async,
                            ffi::Array<ffi::Array<s_tir::LoopRV>> tiles = {});
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorCoreState, State, TensorCoreStateNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorCoreState, State, TensorCoreStateNode);
 };
 
 TensorCoreState::TensorCoreState(TensorCoreIntrinGroup intrin_group,
                                  s_tir::AutoTensorizeMappingInfo mapping_info, Schedule sch,
                                  SBlockRV block_rv, bool use_async,
-                                 ffi::Array<ffi::Array<LoopRV>> tiles) {
-  ffi::ObjectPtr<TensorCoreStateNode> node = ffi::make_object<TensorCoreStateNode>();
+                                 ffi::Array<ffi::Array<LoopRV>> tiles)
+    : State(ffi::UnsafeInit{}) {
+  ffi::ObjectPtr<TensorCoreStateNode> node = ffi::make_object<TensorCoreStateNode>(std::move(sch));
   node->intrin_group = intrin_group;
   node->mapping_info = mapping_info;
-  node->sch = std::move(sch);
   node->block_rv = std::move(block_rv);
   node->tiles = std::move(tiles);
   node->is_mma = support::StartsWith(intrin_group.compute_intrin, "mma_sync");

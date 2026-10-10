@@ -251,7 +251,7 @@ IntSet EvalSet(const PrimExpr& e, const PresburgerSet& set) {
 #endif
   }
 
-  IntSet result = IntSet().Nothing();
+  IntSet result = IntSet::Nothing();
   for (const IntegerRelation& it : set->disjuncts) {
     Simplex simplex(it);
     auto range = simplex.computeIntegerBounds(coeffs);

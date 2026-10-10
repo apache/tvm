@@ -87,7 +87,6 @@ class TargetKindNode : public ffi::Object {
  */
 class TargetKind : public ffi::ObjectRef {
  public:
-  TargetKind() = default;
   explicit TargetKind(ffi::ObjectPtr<TargetKindNode> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }

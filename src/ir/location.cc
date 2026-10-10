@@ -93,8 +93,7 @@ UnknownLoc::UnknownLoc() : Location(ffi::UnsafeInit{}) { data_ = UnknownLocation
 SourceLoc::SourceLoc(SourceName source_name, int start_line, int start_column, int end_line,
                      int end_column)
     : Location(ffi::UnsafeInit{}) {
-  auto n = ffi::make_object<SourceLocNode>();
-  n->source_name = std::move(source_name);
+  auto n = ffi::make_object<SourceLocNode>(std::move(source_name));
   n->start_line = start_line;
   n->start_column = start_column;
   n->end_line = end_line;
@@ -155,8 +154,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /*! \brief Construct a source from a string. */
 Source::Source(SourceName src_name, std::string source) {
-  auto n = ffi::make_object<SourceNode>();
-  n->source_name = std::move(src_name);
+  auto n = ffi::make_object<SourceNode>(std::move(src_name));
   n->source = std::move(source);
 
   int index = 0;

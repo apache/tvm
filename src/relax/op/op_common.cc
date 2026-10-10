@@ -210,7 +210,7 @@ InferLayoutOutput InferLayoutUnaryEwise(
     const VarLayoutMap& var_layout_map) {
   TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  return InferLayoutOutput({layout}, {layout}, Attrs(call->attrs));
+  return InferLayoutOutput({layout}, {layout}, call->attrs);
 }
 
 bool CanProveLayoutTransform(const SLayout& input_layout, const SLayout& desired_layout,

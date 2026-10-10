@@ -263,21 +263,23 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     ffi::String name = args[0].cast<ffi::String>();
                     bool is_override = args.size() == 2 ? false : args[2].cast<bool>();
 
-                    Tensor arr;
-                    if (auto opt_nd = args[1].as<Tensor>()) {
-                      arr = opt_nd.value();
-                    } else {
-                      // We support converting DLTensors to Tensors as RPC references are always
-                      // DLTensors
-                      auto tensor = args[1].cast<DLTensor*>();
-                      std::vector<int64_t> shape;
-                      for (int64_t i = 0; i < tensor->ndim; i++) {
-                        shape.push_back(tensor->shape[i]);
+                    Tensor arr = [&]() {
+                      if (auto opt_nd = args[1].as<Tensor>()) {
+                        return opt_nd.value();
+                      } else {
+                        // We support converting DLTensors to Tensors as RPC references are always
+                        // DLTensors
+                        auto tensor = args[1].cast<DLTensor*>();
+                        std::vector<int64_t> shape;
+                        for (int64_t i = 0; i < tensor->ndim; i++) {
+                          shape.push_back(tensor->shape[i]);
+                        }
+                        Tensor arr = Tensor::Empty(shape, tensor->dtype, tensor->device);
+                        arr.CopyFrom(tensor);
+                        DeviceAPI::Get(arr->device)->StreamSync(arr->device, nullptr);
+                        return arr;
                       }
-                      arr = Tensor::Empty(shape, tensor->dtype, tensor->device);
-                      arr.CopyFrom(tensor);
-                      DeviceAPI::Get(arr->device)->StreamSync(arr->device, nullptr);
-                    }
+                    }();
 
                     TensorCache::Update(name, arr, is_override);
                   })

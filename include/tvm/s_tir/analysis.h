@@ -154,8 +154,8 @@ TVM_DLL std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop, const sym::
  * \param consider_stores Whether to include stores.
  * \return The domain covering the selected accesses.
  */
-TVM_DLL ffi::Array<Range> DomainTouched(const Stmt& body, const TensorVar& buffer,
-                                        bool consider_loads, bool consider_stores);
+TVM_DLL ffi::Array<ffi::Optional<Range>> DomainTouched(const Stmt& body, const TensorVar& buffer,
+                                                       bool consider_loads, bool consider_stores);
 
 /*!
  * \brief Calculate the allocated memory per scope in bytes needed inside the TIR Function

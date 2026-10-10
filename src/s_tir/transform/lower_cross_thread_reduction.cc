@@ -667,7 +667,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
         continue;
       }
       for (auto [scope, range] : buf_it->second) {
-        thread2range[scope] = range;
+        thread2range.insert_or_assign(scope, range);
       }
     }
 
@@ -742,7 +742,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     // the reduction identities and the reduction combiner.
     ffi::Array<PrimExpr> init_values{nullptr};
     ffi::Array<TensorStore> updates{nullptr};
-    te::CommReducer reducer{nullptr};
+    te::CommReducer reducer{ffi::UnsafeInit{}};
     ffi::Array<PrimExpr> combiner_lhs{nullptr};
     ffi::Array<PrimExpr> combiner_rhs{nullptr};
     std::tie(init_values, updates) =
@@ -875,7 +875,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     // Step 1. Check whether cross-thread reduction can be applied. If no, throw an exception on
     // which condition the block violates.
     int n_bound_reduction_loops = 0;
-    te::CommReducer reducer{nullptr};
+    te::CommReducer reducer{ffi::UnsafeInit{}};
     ffi::Array<TensorVar> reduction_buffers{nullptr};
     ffi::Array<PrimExpr> combiner_rhs{nullptr};
     ffi::Array<PrimExpr> wb_indices{nullptr};

@@ -34,10 +34,10 @@ namespace relax {
 class VDeviceMutator : public ExprMutator {
  public:
   VDeviceMutator(const IRModule& mod, VDevice new_vdevice, int64_t index)
-      : ExprMutator(mod), mod_(mod), new_vdevice_(new_vdevice) {
-    ffi::Array<GlobalInfo> vdevices = mod->global_infos["vdevice"];
-    old_vdevice_ = vdevices[index].as_or_throw<VDevice>();
-  }
+      : ExprMutator(mod),
+        mod_(mod),
+        new_vdevice_(new_vdevice),
+        old_vdevice_(mod->global_infos["vdevice"][index].as_or_throw<VDevice>()) {}
 
   using ExprMutator::VisitExpr_;
 

@@ -134,6 +134,10 @@ class PyCostModelNode : public CostModelNode {
  */
 class CostModel : public ffi::ObjectRef {
  public:
+  explicit CostModel(ffi::ObjectPtr<CostModelNode> data) : ffi::ObjectRef(std::move(data)) {
+    TVM_FFI_ICHECK(data_ != nullptr);
+  }
+
   /*!
    * \brief Create a cost model with customized methods on the python-side.
    * \param f_load The packed function of `Load`.
@@ -146,7 +150,7 @@ class CostModel : public ffi::ObjectRef {
                                        PyCostModelNode::FSave f_save,      //
                                        PyCostModelNode::FUpdate f_update,  //
                                        PyCostModelNode::FPredict f_predict);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CostModel, ffi::ObjectRef, CostModelNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CostModel, ffi::ObjectRef, CostModelNode);
 };
 
 }  // namespace meta_schedule

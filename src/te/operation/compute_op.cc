@@ -94,7 +94,7 @@ ffi::Array<PrimExpr> BaseComputeOpNode::output_shape(size_t idx) const {
   // for now, all outputs of a BaseComputeOp have the same shape
   ffi::Array<PrimExpr> shape;
   for (const auto& ivar : this->axis) {
-    const Range& r = ivar->dom;
+    const Range& r = ivar->dom.value();
     shape.push_back(r->extent);
   }
   return shape;
@@ -140,7 +140,8 @@ ffi::Array<Tensor> compute(ffi::Array<PrimExpr> shape, FBatchCompute fcompute, s
 }
 
 ComputeOp::ComputeOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi::Any> attrs,
-                     ffi::Array<IterVar> axis, ffi::Array<PrimExpr> body) {
+                     ffi::Array<IterVar> axis, ffi::Array<PrimExpr> body)
+    : Operation(ffi::UnsafeInit{}) {
   if (!attrs.defined()) {
     attrs = ffi::Map<ffi::String, ffi::Any>();
   }
@@ -198,8 +199,8 @@ ffi::Array<Tensor> ComputeOpNode::InputTensors() const {
   for (const PrimExpr& e : body) {
     if (const auto* reduce = e.as<te::ReduceNode>()) {
       for (const IterVar& axis : reduce->axis) {
-        visit(axis->dom->min);
-        visit(axis->dom->extent);
+        visit(axis->dom.value()->min);
+        visit(axis->dom.value()->extent);
       }
       for (const PrimExpr& source : reduce->source) visit(source);
       for (const PrimExpr& init : reduce->init) visit(init);

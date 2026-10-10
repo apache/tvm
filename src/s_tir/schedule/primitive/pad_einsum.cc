@@ -309,7 +309,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     for (const IterVar& iter_var : block->iter_vars) {
       if (ffi::Optional<PrimExpr> new_dom = iter2padded_extents.Get(iter_var->var)) {
         ffi::ObjectPtr<IterVarNode> new_iter_var = ffi::make_object<IterVarNode>(*iter_var.get());
-        new_iter_var->dom = Range::FromMinExtent(iter_var->dom->min, new_dom.value());
+        new_iter_var->dom = Range::FromMinExtent(iter_var->dom.value()->min, new_dom.value());
         iter_vars.push_back(IterVar(new_iter_var));
       } else {
         iter_vars.push_back(iter_var);
@@ -398,7 +398,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   auto replacer = ffi::make_object<PadEinsumBufferReplacer>();
   for (int i = 0, n = padding.size(); i < n; ++i) {
     const IterVar& iter = block->iter_vars[i];
-    PrimExpr dom = iter->dom->extent;
+    PrimExpr dom = iter->dom.value()->extent;
     PrimExpr pad_imm = IntImm(dom.ty(), padding[i]);
     PrimExpr new_dom = analyzer->Simplify(ceildiv(dom, pad_imm) * pad_imm);
     if (!analyzer->CanProveEqual(new_dom, dom)) {

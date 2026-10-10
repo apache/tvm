@@ -112,8 +112,9 @@ class RemoveLayoutRewriteBlock : public StmtExprMutator {
       TVM_FFI_ICHECK(ind.as<PrimVar>());
       load_indices.push_back(ind.as_or_throw<PrimVar>());
     }
-    buffer_var_to_index_map_[load->source.as_or_throw<tvm::tirx::TensorVar>().get()] =
-        IndexMap(load_indices, store->indices);
+    buffer_var_to_index_map_.insert_or_assign(
+        load->source.as_or_throw<tvm::tirx::TensorVar>().get(),
+        IndexMap(load_indices, store->indices));
 
     buffer_var_to_rewritten_shape_[load->source.as_or_throw<tvm::tirx::TensorVar>().get()] =
         store->dest.as_or_throw<TensorVar>()->shape;

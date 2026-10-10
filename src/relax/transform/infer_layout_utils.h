@@ -58,7 +58,7 @@ using tirx::SLayout;
 class LayoutDecisionNode : public ffi::Object {
  public:
   /*! \brief The layout decision of the tensor. */
-  SLayout layout;
+  ffi::Optional<SLayout> layout;
   /*! \brief Whether the dim of tensor is unknown. */
   bool is_unknown_dim = false;
 
@@ -74,7 +74,10 @@ class LayoutDecisionNode : public ffi::Object {
 
 class LayoutDecision : public ffi::ObjectRef {
  public:
-  LayoutDecision(SLayout layout, bool is_unknown_dim = false) {  // NOLINT(*)
+  LayoutDecision(SLayout layout, bool is_unknown_dim = false)  // NOLINT(*)
+      : LayoutDecision(ffi::Optional<SLayout>(std::move(layout)), is_unknown_dim) {}
+
+  LayoutDecision(ffi::Optional<SLayout> layout, bool is_unknown_dim = false) {  // NOLINT(*)
     auto n = ffi::make_object<LayoutDecisionNode>();
     n->layout = std::move(layout);
     n->is_unknown_dim = is_unknown_dim;
@@ -87,10 +90,15 @@ class LayoutDecision : public ffi::ObjectRef {
     if (operator->()->is_unknown_dim) {
       return "unknown_dim";
     }
-    return operator->()->layout.name();
+    return operator->()->layout.value().name();
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LayoutDecision, ffi::ObjectRef, LayoutDecisionNode);
+  explicit LayoutDecision(ffi::ObjectPtr<LayoutDecisionNode> n)
+      : ffi::ObjectRef(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LayoutDecision, ffi::ObjectRef, LayoutDecisionNode);
 };
 
 using NLayout = NestedMsg<LayoutDecision>;
@@ -105,7 +113,7 @@ class InferLayoutOutputNode : public ffi::Object {
  public:
   ffi::Array<NLayout> input_layouts;
   ffi::Array<NLayout> output_layouts;
-  Attrs new_attrs;
+  ffi::Optional<Attrs> new_attrs;
   ffi::Map<IntImm, Expr> new_args;
 
   static void RegisterReflection() {
@@ -124,7 +132,7 @@ class InferLayoutOutputNode : public ffi::Object {
 class InferLayoutOutput : public ffi::ObjectRef {
  public:
   explicit InferLayoutOutput(ffi::Array<NLayout> input_layouts, ffi::Array<NLayout> output_layouts,
-                             Attrs new_attrs, ffi::Map<IntImm, Expr> new_args = {}) {
+                             ffi::Optional<Attrs> new_attrs, ffi::Map<IntImm, Expr> new_args = {}) {
     auto n = ffi::make_object<InferLayoutOutputNode>();
     n->input_layouts = std::move(input_layouts);
     n->output_layouts = std::move(output_layouts);
@@ -132,8 +140,13 @@ class InferLayoutOutput : public ffi::ObjectRef {
     n->new_args = std::move(new_args);
     data_ = n;
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(InferLayoutOutput, ffi::ObjectRef,
-                                             InferLayoutOutputNode);
+  explicit InferLayoutOutput(ffi::ObjectPtr<InferLayoutOutputNode> n)
+      : ffi::ObjectRef(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(InferLayoutOutput, ffi::ObjectRef,
+                                                InferLayoutOutputNode);
 };
 
 struct NLayoutEqual {

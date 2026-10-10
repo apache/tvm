@@ -202,7 +202,7 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
     }
     ffi::Map<Var, Range> iter_var_range;
     for (const auto& iter_var : block->iter_vars) {
-      iter_var_range.Set(iter_var->var, iter_var->dom);
+      iter_var_range.Set(iter_var->var, iter_var->dom.value());
     }
     sym::Analyzer analyzer;
     for (const auto& buffer : buffers) {
@@ -232,7 +232,7 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
       if (iter_var_shards_.count(iter_var->var)) {
         int shard = iter_var_shards_[iter_var->var];
         if (shard > 1) {
-          Range dom = iter_var->dom;
+          Range dom = iter_var->dom.value();
           TVM_FFI_ICHECK(IsZero(dom->min));
           sym::Analyzer analyzer;
           TVM_FFI_ICHECK(analyzer->CanProve(floormod(dom->extent, shard) == 0));

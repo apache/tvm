@@ -48,15 +48,21 @@ namespace runtime {
  */
 class Tensor : public tvm::ffi::Tensor {
  public:
-  Tensor() = default;
+  static constexpr bool _type_is_nullable = false;
   /*!
    * \brief constructor.
    * \param data ffi::ObjectPtr to the data container.
    */
-  explicit Tensor(ffi::ObjectPtr<ffi::TensorObj> data) : tvm::ffi::Tensor(data) {}
+  explicit Tensor(ffi::ObjectPtr<ffi::TensorObj> data) : tvm::ffi::Tensor(data) {
+    TVM_FFI_ICHECK(data != nullptr);
+  }
   explicit Tensor(ffi::UnsafeInit tag) : tvm::ffi::Tensor(tag) {}
-  Tensor(ffi::Tensor&& other) : tvm::ffi::Tensor(std::move(other)) {}  // NOLINT(*)
-  Tensor(const ffi::Tensor& other) : tvm::ffi::Tensor(other) {}        // NOLINT(*)
+  Tensor(ffi::Tensor&& other) : tvm::ffi::Tensor(std::move(other)) {
+    TVM_FFI_ICHECK(defined());
+  }  // NOLINT(*)
+  Tensor(const ffi::Tensor& other) : tvm::ffi::Tensor(other) {
+    TVM_FFI_ICHECK(defined());
+  }  // NOLINT(*)
 
   ffi::ShapeView Shape() const { return this->shape(); }
   DLDataType DataType() const { return this->dtype(); }

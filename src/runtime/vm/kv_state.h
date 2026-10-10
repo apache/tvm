@@ -112,7 +112,7 @@ class KVStateObj : public ffi::Object {
 
 class KVState : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(KVState, ffi::ObjectRef, KVStateObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(KVState, ffi::ObjectRef, KVStateObj);
 };
 
 /*!
@@ -365,7 +365,7 @@ class AttentionKVCacheObj : public KVStateObj {
 
 class AttentionKVCache : public KVState {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AttentionKVCache, KVState, AttentionKVCacheObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AttentionKVCache, KVState, AttentionKVCacheObj);
 };
 
 /*!
@@ -408,7 +408,7 @@ class RNNStateObj : public KVStateObj {
 
 class RNNState : public KVState {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(RNNState, KVState, RNNStateObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RNNState, KVState, RNNStateObj);
 };
 
 }  // namespace vm

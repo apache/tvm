@@ -254,6 +254,7 @@ class IRModuleNode : public ffi::Object {
  */
 class IRModule : public ffi::ObjectRef {
  public:
+  static constexpr bool _type_is_nullable = false;
   /*!
    * \brief constructor
    * \param functions Functions in the module.
@@ -271,7 +272,9 @@ class IRModule : public ffi::ObjectRef {
    * \brief constructor
    * \param n The object pointer.
    */
-  explicit IRModule(ffi::ObjectPtr<IRModuleNode> n) : ffi::ObjectRef(n) {}
+  explicit IRModule(ffi::ObjectPtr<IRModuleNode> n) : ffi::ObjectRef(n) {
+    TVM_FFI_ICHECK(n != nullptr);
+  }
   /*!
    * \brief constructor with UnsafeInit
    */

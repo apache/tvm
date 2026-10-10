@@ -155,18 +155,19 @@ InferLayoutOutput InferLayoutBinaryEwise(
   ffi::Optional<ShapeExpr> shape1 = x1_ty->shape.as<ShapeExpr>();
   ffi::Optional<ShapeExpr> shape2 = x2_ty->shape.as<ShapeExpr>();
   // Lets handle sub indexing as long as primal dims are matching
-  if ((layout1->layout.ndim() != layout1->layout.ndim_primal()) ||
-      (layout2->layout.ndim() != layout2->layout.ndim_primal())) {
-    if (layout1->layout.ndim_primal() == layout2->layout.ndim_primal()) {
-      if ((layout1->layout.ndim() >= layout2->layout.ndim()) && shape2.has_value()) {
-        if (CanProveLayoutTransform(InitialLayout(shape2.value()->values.size()), layout1->layout,
-                                    shape2.value()->values)) {
-          return InferLayoutOutput({layout1, layout1}, {layout1}, Attrs(call->attrs));
+  if ((layout1->layout.value().ndim() != layout1->layout.value().ndim_primal()) ||
+      (layout2->layout.value().ndim() != layout2->layout.value().ndim_primal())) {
+    if (layout1->layout.value().ndim_primal() == layout2->layout.value().ndim_primal()) {
+      if ((layout1->layout.value().ndim() >= layout2->layout.value().ndim()) &&
+          shape2.has_value()) {
+        if (CanProveLayoutTransform(InitialLayout(shape2.value()->values.size()),
+                                    layout1->layout.value(), shape2.value()->values)) {
+          return InferLayoutOutput({layout1, layout1}, {layout1}, call->attrs);
         }
       } else if (shape1.has_value()) {
-        if (CanProveLayoutTransform(InitialLayout(shape1.value()->values.size()), layout2->layout,
-                                    shape1.value()->values)) {
-          return InferLayoutOutput({layout2, layout2}, {layout2}, Attrs(call->attrs));
+        if (CanProveLayoutTransform(InitialLayout(shape1.value()->values.size()),
+                                    layout2->layout.value(), shape1.value()->values)) {
+          return InferLayoutOutput({layout2, layout2}, {layout2}, call->attrs);
         }
       }
     }
@@ -175,18 +176,18 @@ InferLayoutOutput InferLayoutBinaryEwise(
   if (x1_ty->ndim <= x2_ty->ndim) {
     if (x1_ty->ndim == 0) {
       LayoutDecision out_layout = layout2;
-      return InferLayoutOutput({LayoutDecision(""), layout2}, {out_layout}, Attrs(call->attrs));
+      return InferLayoutOutput({LayoutDecision(""), layout2}, {out_layout}, call->attrs);
     }
     LayoutDecision out_layout = FollowDecision(layout1, x2_ty->ndim);
-    return InferLayoutOutput({layout1, out_layout}, {out_layout}, Attrs(call->attrs));
+    return InferLayoutOutput({layout1, out_layout}, {out_layout}, call->attrs);
   } else {
     if (x2_ty->ndim == 0) {
       LayoutDecision out_layout = layout1;
-      return InferLayoutOutput({layout1, LayoutDecision("")}, {out_layout}, Attrs(call->attrs));
+      return InferLayoutOutput({layout1, LayoutDecision("")}, {out_layout}, call->attrs);
     }
     LayoutDecision out_layout = FollowDecision(layout2, x1_ty->ndim);
 
-    return InferLayoutOutput({out_layout, layout2}, {out_layout}, Attrs(call->attrs));
+    return InferLayoutOutput({out_layout, layout2}, {out_layout}, call->attrs);
   }
 }
 

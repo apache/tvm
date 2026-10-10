@@ -168,7 +168,7 @@ ffi::Map<ffi::String, Tensor> LoadParams(support::Stream* strm) {
   TVM_FFI_ICHECK(size == names.size()) << "Invalid parameters file format";
   for (size_t i = 0; i < size; ++i) {
     // The data_entry is allocated on device, Tensor.load always load the array into CPU.
-    Tensor temp;
+    Tensor temp(ffi::UnsafeInit{});
     temp.Load(strm);
     params.Set(names[i], temp);
   }

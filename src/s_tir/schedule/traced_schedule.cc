@@ -26,8 +26,8 @@ using namespace tvm::tirx;
 
 Schedule Schedule::Traced(IRModule mod, LinearCongruentialEngine::TRandState seed, int debug_mask,
                           ScheduleErrorRenderLevel error_render_level, bool enable_check) {
-  ffi::ObjectPtr<TracedScheduleNode> n = ffi::make_object<TracedScheduleNode>();
-  n->state_ = ScheduleState(mod, debug_mask, enable_check);
+  ffi::ObjectPtr<TracedScheduleNode> n =
+      ffi::make_object<TracedScheduleNode>(ScheduleState(mod, debug_mask, enable_check));
   n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
   n->analyzer_ = sym::Analyzer();
@@ -43,7 +43,7 @@ Schedule Schedule::Traced(IRModule mod, LinearCongruentialEngine::TRandState see
 }
 
 Schedule TracedScheduleNode::Copy() {
-  ffi::ObjectPtr<TracedScheduleNode> n = ffi::make_object<TracedScheduleNode>();
+  ffi::ObjectPtr<TracedScheduleNode> n = ffi::make_object<TracedScheduleNode>(state_);
   n->error_render_level_ = this->error_render_level_;
   ConcreteScheduleNode::Copy(&n->state_, &n->symbol_table_);
   n->func_working_on_ = this->func_working_on_;

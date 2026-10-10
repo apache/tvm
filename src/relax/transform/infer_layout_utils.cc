@@ -91,7 +91,7 @@ int FindAxis(const SLayout& dst, int axis) {
 
 SLayout InitialLayout(int ndim) {
   TVM_FFI_ICHECK(ndim >= 0 && ndim <= 26) << "Only support up to 26 dimensions, but got " << ndim;
-  return SLayout("ABCDEFGHIJKLMNOPQRSTUVWXYZ").SubLayout(0, ndim);
+  return SLayout("ABCDEFGHIJKLMNOPQRSTUVWXYZ").SubLayout(0, ndim).value();
 }
 
 LayoutDecision InitialLayoutDecision(int ndim) {
@@ -99,7 +99,7 @@ LayoutDecision InitialLayoutDecision(int ndim) {
     return LayoutDecision::InitUnknownDim();
   }
   TVM_FFI_ICHECK(ndim >= 0 && ndim <= 26) << "Only support up to 26 dimensions, but got " << ndim;
-  return SLayout("ABCDEFGHIJKLMNOPQRSTUVWXYZ").SubLayout(0, ndim);
+  return SLayout("ABCDEFGHIJKLMNOPQRSTUVWXYZ").SubLayout(0, ndim).value();
 }
 
 NLayout InitialNLayout(const Type& ty) {
@@ -147,7 +147,7 @@ bool NoDesiredLayout(const Call& call,
 }
 
 LayoutDecision FollowDecision(const LayoutDecision& src, int dst_ndim) {
-  int src_ndim = src->layout.ndim();
+  int src_ndim = src->layout.value().ndim();
   // broadcast case
   if (src_ndim == dst_ndim) {
     return src;
@@ -156,7 +156,7 @@ LayoutDecision FollowDecision(const LayoutDecision& src, int dst_ndim) {
         << "Cannot broadcast from " << src_ndim << " to " << dst_ndim;
     std::string layout = InitialLayout(dst_ndim - src_ndim).name();
     for (int i = 0; i < src_ndim; ++i) {
-      layout.push_back(src->layout.name()[i] + dst_ndim - src_ndim);
+      layout.push_back(src->layout.value().name()[i] + dst_ndim - src_ndim);
     }
     return LayoutDecision(SLayout(layout));
   }

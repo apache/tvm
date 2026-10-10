@@ -216,7 +216,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
-Expr MakeCallPurePacked(const Expr& callee, ffi::Array<Expr> args, const Attrs& attrs,
+Expr MakeCallPurePacked(const Expr& callee, ffi::Array<Expr> args, const ffi::Optional<Attrs>& attrs,
                         ffi::Array<Type> ty_args) {
   static const Op op = Op::Get("relax.call_pure_packed");
   ffi::Array<Expr> call_args = {callee};
@@ -525,7 +525,7 @@ void CheckFreshTIRxDestination(const tirx::TensorTypeNode* tensor) {
 void ValidateCallTIRPacked(const CallNode* call) {
   TVM_FFI_CHECK(call->args.size() == 2 && call->ty_args.empty(), TypeError)
       << "R.call_tir_packed expects a callee and an argument tuple, without type arguments";
-  TVM_FFI_CHECK(!call->attrs.defined(), TypeError)
+  TVM_FFI_CHECK(!call->attrs.has_value(), TypeError)
       << "R.call_tir_packed does not accept attributes";
   const auto* native = NativeTIRxSignature(call->args[0]);
   const auto* arguments = call->args[1]->ty.as<TupleTypeNode>();
@@ -1255,7 +1255,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr MakeCallBuiltinWithCtx(Expr func, Tuple args, ffi::Array<Type> ty_args) {
   static const Op op = Op::Get("relax.call_builtin_with_ctx");
-  return Call(Type::Missing(), op, {func, args}, Attrs(), ty_args);
+  return Call(Type::Missing(), op, {func, args}, std::nullopt, ty_args);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1566,8 +1566,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimExpr runtime_device_index,
                      StringImm storage_scope) {
   static const Op op = Op::Get("relax.builtin.alloc_tensor");
-  return Call(Type::Missing(), op, {shape, dtype, runtime_device_index, storage_scope}, Attrs(),
-              {});
+  return Call(Type::Missing(), op, {shape, dtype, runtime_device_index, storage_scope},
+              std::nullopt, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1595,7 +1595,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Expr MakeAllocStorage(Expr size, PrimExpr virtual_device_index, StringImm storage_scope,
                       DataTypeImm dtype) {
   static const Op op = Op::Get("relax.memory.alloc_storage");
-  return Call(Type::Missing(), op, {size, virtual_device_index, storage_scope, dtype}, Attrs(), {});
+  return Call(Type::Missing(), op, {size, virtual_device_index, storage_scope, dtype}, std::nullopt,
+              {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1648,8 +1649,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Expr MakeMemAllocTensor(Expr storage, PrimExpr offset, Expr shape, DataTypeImm dtype,
                         PrimExpr virtual_device_index) {
   static const Op op = Op::Get("relax.memory.alloc_tensor");
-  return Call(Type::Missing(), op, {storage, offset, shape, dtype, virtual_device_index}, Attrs(),
-              {});
+  return Call(Type::Missing(), op, {storage, offset, shape, dtype, virtual_device_index},
+              std::nullopt, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1722,7 +1723,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Expr MakeVMAllocStorage(Expr size, PrimExpr runtime_device_index, DataTypeImm dtype,
                         StringImm storage_scope) {
   static const Op op = Op::Get("relax.vm.alloc_storage");
-  return Call(Type::Missing(), op, {size, runtime_device_index, dtype, storage_scope}, Attrs(), {});
+  return Call(Type::Missing(), op, {size, runtime_device_index, dtype, storage_scope}, std::nullopt,
+              {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1775,8 +1777,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Expr MakeVMAllocTensor(Expr storage, PrimExpr offset, Expr shape, DataTypeImm dtype,
                        PrimExpr runtime_device_index) {
   static const Op op = Op::Get("relax.vm.alloc_tensor");
-  return Call(Type::Missing(), op, {storage, offset, shape, dtype, runtime_device_index}, Attrs(),
-              {});
+  return Call(Type::Missing(), op, {storage, offset, shape, dtype, runtime_device_index},
+              std::nullopt, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1802,7 +1804,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr MakeVMKillObject(Expr obj) {
   static const Op op = Op::Get("relax.vm.kill_object");
-  return Call(Type::Missing(), op, {std::move(obj)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(obj)}, std::nullopt, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1822,7 +1824,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr MakeCallTIRDyn(Expr func, Tuple args) {
   static const Op op = Op::Get("relax.vm.call_tir_dyn");
-  return Call(Type::Missing(), op, {func, args}, Attrs(), {});
+  return Call(Type::Missing(), op, {func, args}, std::nullopt, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1846,7 +1848,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr MakeStopLiftParams(Expr x) {
   static const Op op = Op::Get("relax.builtin.stop_lift_params");
-  return Call(Type::Missing(), op, {x}, Attrs(), {});
+  return Call(Type::Missing(), op, {x}, std::nullopt, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1879,8 +1881,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr MakeToVDevice(Expr data, VDevice dst_vdev) {
   static const Op op = Op::Get("relax.to_vdevice");
-  ffi::ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>();
-  attrs->dst_vdevice = dst_vdev;
+  ffi::ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>(dst_vdev);
   return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 

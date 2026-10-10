@@ -160,7 +160,7 @@ class LegalizeMutator : public ExprMutator {
       if (const auto* tinfo = ty.as<TensorTypeNode>()) {
         if (tinfo->vdevice.has_value()) {
           auto vdevice = tinfo->vdevice.value();
-          if (vdevice->target.defined()) {
+          if (vdevice->target.has_value()) {
             return vdevice->target;
           }
         }
@@ -341,7 +341,7 @@ class LegalizeMutator : public ExprMutator {
       // Third choice, use an explicit ffi::String replacement.  This does not require the shape
       ffi::String packed_func_name = call_packed_map[op];
       legalization_func = [packed_func_name](const BlockBuilder& bb, const Call& call) -> Expr {
-        return Call(Type::Missing(), ExternFunc(packed_func_name), call->args, Attrs(),
+        return Call(Type::Missing(), ExternFunc(packed_func_name), call->args, std::nullopt,
                     {GetType(call)});
       };
     } else {

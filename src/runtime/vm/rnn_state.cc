@@ -21,6 +21,7 @@
  * \brief Runtime RNN state object for space state models.
  */
 
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 
 #include <cstdint>
@@ -122,14 +123,14 @@ class RNNStateImpObj : public RNNStateObj {
    * \brief The view of the device array of the sequence ids.
    * The view is used to reuse the memory but with different shape.
    */
-  Tensor seq_slot_ids_view_;
+  ffi::Optional<Tensor> seq_slot_ids_view_;
   /*! \brief The device array of the history slot ids. */
   Tensor history_slot_ids_device_;
   /*!
    * \brief The view of the device array of the history slot ids.
    * The view is used to reuse the memory but with different shape.
    */
-  Tensor history_slot_ids_view_;
+  ffi::Optional<Tensor> history_slot_ids_view_;
 
   /******************* Interaction Functions *******************/
 
@@ -167,6 +168,8 @@ class RNNStateImpObj : public RNNStateObj {
         num_states_per_layer_(init_layer_value.size()),
         max_history_(max_history),
         init_layer_value_(init_layer_value),
+        seq_slot_ids_device_(Tensor::Empty({reserved_num_seqs}, dtype_aux_, device)),
+        history_slot_ids_device_(Tensor::Empty({reserved_num_seqs}, dtype_aux_, device)),
         f_gets_(std::move(f_gets)),
         f_sets_(std::move(f_sets)) {
     // Allocate the storage for the space state models.
@@ -186,10 +189,6 @@ class RNNStateImpObj : public RNNStateObj {
     }
 
     TVM_FFI_ICHECK_GT(max_history_, 0) << "At least 1 history slot to store the current state";
-
-    // Allocate the auxiliary arrays on device.
-    seq_slot_ids_device_ = Tensor::Empty({reserved_num_seqs}, dtype_aux_, device);
-    history_slot_ids_device_ = Tensor::Empty({reserved_num_seqs}, dtype_aux_, device);
 
     Clear();
   }
@@ -270,7 +269,7 @@ class RNNStateImpObj : public RNNStateObj {
     // TODO(siyuan): support zero-copy when seq_len is one
     // Copy the state data to the return array.
     Tensor state = storages_[layer_id][state_id];
-    f_gets_[state_id](state, seq_slot_ids_view_, history_slot_ids_view_, o_data);
+    f_gets_[state_id](state, seq_slot_ids_view_.value(), history_slot_ids_view_.value(), o_data);
   }
 
   void Set(int64_t layer_id, int64_t state_id, Tensor data) final {
@@ -283,7 +282,7 @@ class RNNStateImpObj : public RNNStateObj {
     TVM_FFI_ICHECK_GT(cur_batch_size_, 0) << "The curent batch size should be greater than 0.";
 
     Tensor state = storages_[layer_id][state_id];
-    f_sets_[state_id](state, seq_slot_ids_view_, history_slot_ids_view_, data);
+    f_sets_[state_id](state, seq_slot_ids_view_.value(), history_slot_ids_view_.value(), data);
   }
 
   Tensor DebugGet(int64_t layer_id, int64_t state_id, int64_t seq_id) {
@@ -451,8 +450,8 @@ class RNNStateImpObj : public RNNStateObj {
     seq_slot_ids_view_ = seq_slot_ids_device_.CreateView({cur_batch_size_}, dtype_aux_);
     history_slot_ids_view_ = history_slot_ids_device_.CreateView({cur_batch_size_}, dtype_aux_);
 
-    fcopy_from_vec(seq_slot_ids_view_, seq_slot_ids);
-    fcopy_from_vec(history_slot_ids_view_, history_slot_ids);
+    fcopy_from_vec(seq_slot_ids_view_.value(), seq_slot_ids);
+    fcopy_from_vec(history_slot_ids_view_.value(), history_slot_ids);
 
     // Reset the dirty flag to false.
     dirty_aux_data_device_ = false;
@@ -496,7 +495,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     ffi::ObjectPtr<RNNStateImpObj> n =
         ffi::make_object<RNNStateImpObj>(num_layers, reserved_num_seqs, max_history, device,
                                          std::move(f_gets), std::move(f_sets), init_layer_value);
-    return RNNState(std::move(n));
+    return ffi::GetRef<RNNState>(n.get());
   });
 }
 

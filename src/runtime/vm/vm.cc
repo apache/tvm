@@ -593,7 +593,7 @@ void VirtualMachineImpl::SaveClosure(const ffi::String& func_name, const ffi::St
       impl.CallPacked(args, &temp);
     });
   }
-  saved_closures_[save_name] = VMClosure(save_name, impl);
+  saved_closures_.insert_or_assign(save_name, VMClosure(save_name, impl));
 }
 
 ffi::Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const ffi::String& func_name,

@@ -79,6 +79,10 @@ class MutatorNode : public ffi::Object {
  */
 class Mutator : public ffi::ObjectRef {
  public:
+  explicit Mutator(ffi::ObjectPtr<MutatorNode> data) : ffi::ObjectRef(std::move(data)) {
+    TVM_FFI_ICHECK(data_ != nullptr);
+  }
+
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.
    * \param context The tuning context for initialization.
@@ -137,7 +141,7 @@ class Mutator : public ffi::ObjectRef {
   /*! \brief Create default mutators for Hexagon */
   TVM_DLL static ffi::Map<Mutator, FloatImm, void> DefaultHexagon();
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Mutator, ffi::ObjectRef, MutatorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Mutator, ffi::ObjectRef, MutatorNode);
 };
 
 /*! \brief The mutator with customized methods on the python-side. */

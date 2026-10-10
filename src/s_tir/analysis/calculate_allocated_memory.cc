@@ -180,10 +180,10 @@ bool VerifyVTCMLimit(const Function& func, int64_t limit) {
   return true;
 }
 
-int64_t GetVTCMCapacity(Target target, const tvm::transform::PassContext& pass_ctx) {
-  if (!target.defined()) target = Target::Current(/*allow_not_defined=*/true);
-  if (target.defined() && target->kind->name == "hexagon") {
-    auto value = target->GetAttr<int64_t>("vtcm-capacity").value();
+int64_t GetVTCMCapacity(ffi::Optional<Target> target, const tvm::transform::PassContext& pass_ctx) {
+  if (!target.has_value()) target = Target::Current(/*allow_not_defined=*/true);
+  if (target.has_value() && target.value()->kind->name == "hexagon") {
+    auto value = target.value()->GetAttr<int64_t>("vtcm-capacity").value();
     if (value > 0) return value;
   }
   return pass_ctx->GetConfig<int64_t>("tirx.vtcm_capacity").value_or(0);

@@ -106,10 +106,11 @@ inline NDIntSet NDIntSetUnion(const std::vector<NDIntSet>& nd_int_sets) {
   }
   NDIntSet result;
   result.reserve(ndim);
-  ffi::Array<sym::IntSet> int_sets(n, sym::IntSet{nullptr});
+  ffi::Array<sym::IntSet> int_sets;
   for (int dim = 0; dim < ndim; ++dim) {
+    int_sets.clear();
     for (int i = 0; i < n; ++i) {
-      int_sets.Set(i, nd_int_sets[i][dim]);
+      int_sets.push_back(nd_int_sets[i][dim]);
     }
     result.push_back(sym::Union(int_sets));
   }

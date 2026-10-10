@@ -57,6 +57,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  */
 class FunctionPassNode : public PassNode {
  public:
+  explicit FunctionPassNode(PassInfo pass_info) : pass_info(std::move(pass_info)) {}
+  explicit FunctionPassNode(ffi::UnsafeInit) : pass_info(ffi::UnsafeInit{}) {}
+
   /* \brief The pass meta data.*/
   PassInfo pass_info;
 
@@ -96,15 +99,19 @@ class FunctionPass : public Pass {
       std::function<ffi::Optional<Function>(Function, IRModule, PassContext)> pass_func,
       PassInfo pass_info);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FunctionPass, Pass, FunctionPassNode);
+  explicit FunctionPass(ffi::ObjectPtr<FunctionPassNode> node) : Pass(std::move(node)) {
+    TVM_FFI_ICHECK(data_ != nullptr);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionPass, Pass, FunctionPassNode);
 };
 
 FunctionPass::FunctionPass(
     std::function<ffi::Optional<Function>(Function, IRModule, PassContext)> pass_func,
-    PassInfo pass_info) {
-  auto n = ffi::make_object<FunctionPassNode>();
+    PassInfo pass_info)
+    : Pass(ffi::UnsafeInit{}) {
+  auto n = ffi::make_object<FunctionPassNode>(std::move(pass_info));
   n->pass_func = std::move(pass_func);
-  n->pass_info = std::move(pass_info);
   data_ = std::move(n);
 }
 

@@ -77,7 +77,9 @@ class DocNode : public ffi::Object {
 class Doc : public ffi::ObjectRef {
  protected:
   Doc() = default;
-  explicit Doc(ffi::ObjectPtr<DocNode> data) : ffi::ObjectRef(data) {}
+  explicit Doc(ffi::ObjectPtr<DocNode> data) : ffi::ObjectRef(std::move(data)) {
+    TVM_FFI_ICHECK(data_ != nullptr);
+  }
 
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Doc, ffi::ObjectRef, DocNode);

@@ -64,7 +64,8 @@ ffi::Optional<ExprDoc> BufferOperationDocTranslate(DocTranslatorObj* d, ffi::Any
   auto buffer = call->ty.as<tirx::TensorType>();
   if (!buffer || (call->args.size() != shape_index + 3 && !(is_alloc && call->args.size() == 4)) ||
       !call->ty_args.empty() || call->attrs.defined() != is_alloc ||
-      (call->attrs.defined() && !call->attrs.as<DictAttrsNode>())) {
+      (call->attrs.defined() &&
+       !(call->attrs.has_value() ? call->attrs.value().as<DictAttrsNode>() : nullptr))) {
     return RawCall(d, call);
   }
   auto shape = call->args[shape_index].as<TupleNode>();
@@ -77,7 +78,7 @@ ffi::Optional<ExprDoc> BufferOperationDocTranslate(DocTranslatorObj* d, ffi::Any
     return RawCall(d, call);
   }
   ffi::Map<ffi::String, ffi::Any> annotations;
-  if (is_alloc) annotations = call->attrs.as_or_throw<DictAttrs>()->dict;
+  if (is_alloc) annotations = call->attrs.value().as_or_throw<DictAttrs>()->dict;
   for (const auto& [key, value] : annotations) {
     if (value.type_index() == ffi::TypeIndex::kTVMFFIInt ||
         value.type_index() == ffi::TypeIndex::kTVMFFIBool ||

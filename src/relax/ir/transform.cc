@@ -64,7 +64,7 @@ class FunctionPassNode : public tvm::transform::PassNode {
    */
   std::function<Function(Function, IRModule, PassContext)> pass_func;
 
-  FunctionPassNode() = default;
+  explicit FunctionPassNode(PassInfo info) : pass_info(std::move(info)) {}
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -100,14 +100,18 @@ class FunctionPass : public Pass {
   TVM_DLL FunctionPass(std::function<Function(Function, IRModule, PassContext)> pass_func,
                        PassInfo pass_info);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FunctionPass, Pass, FunctionPassNode);
+  explicit FunctionPass(ffi::ObjectPtr<FunctionPassNode> n) : Pass(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionPass, Pass, FunctionPassNode);
 };
 
 FunctionPass::FunctionPass(std::function<Function(Function, IRModule, PassContext)> pass_func,
-                           PassInfo pass_info) {
-  auto n = ffi::make_object<FunctionPassNode>();
+                           PassInfo pass_info)
+    : Pass(ffi::UnsafeInit{}) {
+  auto n = ffi::make_object<FunctionPassNode>(std::move(pass_info));
   n->pass_func = std::move(pass_func);
-  n->pass_info = std::move(pass_info);
   data_ = std::move(n);
 }
 
@@ -194,7 +198,7 @@ class DataflowBlockPassNode : public tvm::transform::PassNode {
    */
   std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func;
 
-  DataflowBlockPassNode() = default;
+  explicit DataflowBlockPassNode(PassInfo info) : pass_info(std::move(info)) {}
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -280,15 +284,19 @@ class DataflowBlockPass : public Pass {
       std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func,
       PassInfo pass_info);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowBlockPass, Pass, DataflowBlockPassNode);
+  explicit DataflowBlockPass(ffi::ObjectPtr<DataflowBlockPassNode> n) : Pass(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DataflowBlockPass, Pass, DataflowBlockPassNode);
 };
 
 DataflowBlockPass::DataflowBlockPass(
     std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func,
-    PassInfo pass_info) {
-  auto n = ffi::make_object<DataflowBlockPassNode>();
+    PassInfo pass_info)
+    : Pass(ffi::UnsafeInit{}) {
+  auto n = ffi::make_object<DataflowBlockPassNode>(std::move(pass_info));
   n->pass_func = std::move(pass_func);
-  n->pass_info = std::move(pass_info);
   data_ = std::move(n);
 }
 

@@ -41,6 +41,9 @@ namespace relax {
 /*! \brief Statement rewriter for relax.DataflowBlock. */
 class DataflowBlockRewriteNode : public ffi::Object {
  public:
+  explicit DataflowBlockRewriteNode(DataflowBlock value) : dfb_(std::move(value)) {}
+  explicit DataflowBlockRewriteNode(ffi::UnsafeInit) : dfb_(ffi::UnsafeInit{}) {}
+
   /*! \brief Replace all uses of old_var with new_var. */
   void ReplaceAllUses(Var old_var, Var new_var);
   /*! \brief Insert a Binding statement. */
@@ -107,8 +110,13 @@ class DataflowBlockRewrite : public ffi::ObjectRef {
     return static_cast<DataflowBlockRewriteNode*>(get_mutable());
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowBlockRewrite, ffi::ObjectRef,
-                                             DataflowBlockRewriteNode);
+  explicit DataflowBlockRewrite(ffi::ObjectPtr<DataflowBlockRewriteNode> n)
+      : ffi::ObjectRef(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DataflowBlockRewrite, ffi::ObjectRef,
+                                                DataflowBlockRewriteNode);
 };
 
 }  // namespace relax

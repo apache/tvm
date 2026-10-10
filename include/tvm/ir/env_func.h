@@ -68,8 +68,10 @@ class EnvFuncNode : public ffi::Object {
  */
 class EnvFunc : public ffi::ObjectRef {
  public:
-  EnvFunc() {}
-  explicit EnvFunc(ffi::ObjectPtr<ffi::Object> n) : ffi::ObjectRef(n) {}
+  static constexpr bool _type_is_nullable = false;
+  explicit EnvFunc(ffi::ObjectPtr<ffi::Object> n) : ffi::ObjectRef(n) {
+    TVM_FFI_ICHECK(n != nullptr);
+  }
   /*!
    * \brief constructor with UnsafeInit
    */
@@ -118,8 +120,11 @@ class TypedEnvFunc<R(Args...)> : public ffi::ObjectRef {
  public:
   /*! \brief short hand for this function type */
   using TSelf = TypedEnvFunc<R(Args...)>;
-  TypedEnvFunc() {}
-  explicit TypedEnvFunc(ffi::ObjectPtr<ffi::Object> n) : ffi::ObjectRef(n) {}
+  static constexpr bool _type_is_nullable = false;
+  TypedEnvFunc(const EnvFunc& other) : ffi::ObjectRef(other) {}
+  explicit TypedEnvFunc(ffi::ObjectPtr<ffi::Object> n) : ffi::ObjectRef(n) {
+    TVM_FFI_ICHECK(n != nullptr);
+  }
   /*!
    * \brief constructor with UnsafeInit
    */

@@ -164,7 +164,7 @@ class SBijectiveLayout(Object):
         return _ffi_api.SBijectiveLayoutBackwardShape(self, shape)  # type: ignore
 
 
-def slayout(layout_str: str, dtype: str = "int32") -> SLayout:
+def slayout(layout_str: str, dtype: str = "int32") -> SLayout | None:
     """Create a layout node from a string.
 
     Parameters
@@ -184,13 +184,15 @@ def slayout(layout_str: str, dtype: str = "int32") -> SLayout:
 
     Returns
     -------
-    layout : SLayout
-        The created layout
+    layout : SLayout or None
+        The created layout, or None for "__undef__".
     """
     return _ffi_api.SLayout(layout_str, dtype)  # type: ignore
 
 
-def sbijective_layout(src_layout: str | SLayout, dst_layout: str | SLayout) -> SBijectiveLayout:
+def sbijective_layout(
+    src_layout: str | SLayout | None, dst_layout: str | SLayout | None
+) -> SBijectiveLayout | None:
     """Create a bijective layout mapping.
 
     Parameters
@@ -203,8 +205,8 @@ def sbijective_layout(src_layout: str | SLayout, dst_layout: str | SLayout) -> S
 
     Returns
     -------
-    sbijective_layout : SBijectiveLayout
-        The created bijective layout
+    sbijective_layout : SBijectiveLayout or None
+        The created bijective layout, or None when the layouts are not convertible.
     """
     if isinstance(src_layout, str):
         src_layout = slayout(src_layout)

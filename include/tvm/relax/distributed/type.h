@@ -68,7 +68,11 @@ class PlacementSpec : public ffi::ObjectRef {
 
   TVM_DLL static PlacementSpec Replica();
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PlacementSpec, ffi::ObjectRef, PlacementSpecNode);
+  explicit PlacementSpec(ffi::ObjectPtr<PlacementSpecNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PlacementSpec, ffi::ObjectRef, PlacementSpecNode);
 };
 
 class ShardingNode : public PlacementSpecNode {
@@ -110,7 +114,11 @@ class Placement : public ffi::ObjectRef {
   TVM_DLL explicit Placement(ffi::Array<PlacementSpec> dim_specs);
   /*! \brief replica dim is printed as "R" and sharding dim is printed as "S[i]".]*/
   static Placement FromText(ffi::String text_repr);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Placement, ffi::ObjectRef, PlacementNode);
+  explicit Placement(ffi::ObjectPtr<PlacementNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Placement, ffi::ObjectRef, PlacementNode);
 };
 
 /*!
@@ -119,7 +127,9 @@ class Placement : public ffi::ObjectRef {
 class DTensorTypeNode : public TypeNode {
  public:
   explicit DTensorTypeNode(ffi::UnsafeInit)
-      : tensor_ty(ffi::UnsafeInit{}), device_mesh(), placement() {}
+      : tensor_ty(ffi::UnsafeInit{}),
+        device_mesh(ffi::UnsafeInit{}),
+        placement(ffi::UnsafeInit{}) {}
 
   DTensorTypeNode(TensorType tensor_ty, DeviceMesh device_mesh, Placement placement)
       : tensor_ty(std::move(tensor_ty)),

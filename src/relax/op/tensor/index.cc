@@ -488,7 +488,7 @@ InferLayoutOutput InferLayoutStridedSlice(
       << " of unknown dimensionality.";
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   // Can't handle sub indexed layouts.
-  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+  if (existing_layout->layout.value().ndim() != existing_layout->layout.value().ndim_primal()) {
     existing_layout = LayoutDecision(InitialLayout(tensor_ty->ndim));
   }
 
@@ -501,7 +501,7 @@ InferLayoutOutput InferLayoutStridedSlice(
 
   ffi::Array<Expr> new_axes;
   for (const auto& axis : axes_tuple) {
-    int new_axis = FindAxis(existing_layout->layout, axis->value.as<int>().value());
+    int new_axis = FindAxis(existing_layout->layout.value(), axis->value.as<int>().value());
     new_axes.push_back(IntImm::Int64(new_axis));
   }
 
@@ -609,7 +609,7 @@ InferLayoutOutput InferLayoutDynStridedSlice(
   // Since begin/end/strides are dynamic tensors, we cannot transform
   // them at compile time. Fall back to the initial layout.
   LayoutDecision initial = LayoutDecision(InitialLayout(ndim));
-  return InferLayoutOutput({initial}, {initial}, Attrs());
+  return InferLayoutOutput({initial}, {initial}, std::nullopt);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

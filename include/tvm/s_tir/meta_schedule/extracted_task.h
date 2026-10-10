@@ -42,6 +42,7 @@ namespace meta_schedule {
 /*! \brief A tuning task extracted from the high-level IR */
 class ExtractedTaskNode : public ffi::Object {
  public:
+  explicit ExtractedTaskNode(Target target) : target(std::move(target)) {}
   /*! \brief The name of the task extracted */
   ffi::String task_name;
   /*! \brief The high-level IR */

@@ -133,7 +133,12 @@ class Timer : public ffi::ObjectRef {
    */
   static TVM_RUNTIME_DLL Timer Start(Device dev);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Timer, ffi::ObjectRef, TimerNode);
+  explicit Timer(ffi::ObjectPtr<TimerNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Timer, ffi::ObjectRef, TimerNode);
 };
 
 /*!

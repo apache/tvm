@@ -93,7 +93,7 @@ class Mutator : public ExprMutator {
       ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
       if (vdevice.has_value()) {
-        std::string dev_kind = vdevice.value()->target->kind->name;
+        std::string dev_kind = vdevice.value()->target.value()->kind->name;
         PrimExpr dev_size = IntImm::Int64(1);
         if (vdevice.value()->memory_scope != "global") {
           auto device_size_handler =
@@ -106,9 +106,9 @@ class Mutator : public ExprMutator {
           auto device_scope_handler =
               tvm::ffi::Function::GetGlobal(std::string("DeviceScopeCompatibility.") + dev_kind);
           if (device_scope_handler.has_value()) {
-            ffi::String dev_scope =
-                (*device_scope_handler)(vdevice.value()->target, vdevice.value()->memory_scope)
-                    .cast<ffi::String>();
+            ffi::String dev_scope = (*device_scope_handler)(vdevice.value()->target.value(),
+                                                            vdevice.value()->memory_scope)
+                                        .cast<ffi::String>();
             storage_scope = StringImm(dev_scope);
           }
         }

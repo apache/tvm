@@ -110,7 +110,7 @@ ffi::Array<Range> RelaxIndices(const ffi::Array<PrimExpr>& indices,
   ffi::Array<Range> region;
   region.reserve(ndim);
   for (int i = 0; i < ndim; ++i) {
-    region.push_back(int_set[i].CoverRange(Range::FromMinExtent(0, shape[i])));
+    region.push_back(int_set[i].CoverRange(Range::FromMinExtent(0, shape[i])).value());
   }
   return region;
 }

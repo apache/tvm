@@ -122,7 +122,9 @@ class Binding : public ffi::ObjectRef {
   Binding() = default;
 
  public:
-  explicit Binding(ffi::ObjectPtr<BindingNode> n) : ffi::ObjectRef(n) {}
+  explicit Binding(ffi::ObjectPtr<BindingNode> n) : ffi::ObjectRef(std::move(n)) {
+    TVM_FFI_ICHECK(data_ != nullptr);
+  }
   explicit Binding(ffi::UnsafeInit tag) : ffi::ObjectRef(tag) {}
   Binding(const Binding&) = default;
   Binding(Binding&&) = default;
@@ -130,6 +132,7 @@ class Binding : public ffi::ObjectRef {
   Binding& operator=(Binding&&) = default;
   const BindingNode* operator->() const { return static_cast<const BindingNode*>(data_.get()); }
   const BindingNode* get() const { return operator->(); }
+  static constexpr bool _type_is_nullable = false;
   using ContainerType = BindingNode;
 };
 
@@ -170,7 +173,11 @@ class MatchCast : public Binding {
  public:
   TVM_DLL explicit MatchCast(Var var, Expr value, Type ty, Location loc = UnknownLoc());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchCast, Binding, MatchCastNode);
+  explicit MatchCast(ffi::ObjectPtr<MatchCastNode> n) : Binding(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MatchCast, Binding, MatchCastNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchCastNode);
 };
 
@@ -202,7 +209,11 @@ class VarBindingNode : public BindingNode {
 class VarBinding : public Binding {
  public:
   TVM_DLL explicit VarBinding(Var var, Expr value, Location loc = UnknownLoc());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(VarBinding, Binding, VarBindingNode);
+  explicit VarBinding(ffi::ObjectPtr<VarBindingNode> n) : Binding(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(VarBinding, Binding, VarBindingNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(VarBindingNode);
 };
 
@@ -226,7 +237,11 @@ class BindingBlockNode : public ffi::Object {
 class BindingBlock : public ffi::ObjectRef {
  public:
   TVM_DLL explicit BindingBlock(ffi::Array<Binding> bindings, Location loc = UnknownLoc());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BindingBlock, ffi::ObjectRef, BindingBlockNode);
+  explicit BindingBlock(ffi::ObjectPtr<BindingBlockNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BindingBlock, ffi::ObjectRef, BindingBlockNode);
 
   BindingBlockNode* CopyOnWrite();
 };
@@ -244,7 +259,11 @@ class DataflowBlockNode : public BindingBlockNode {
 class DataflowBlock : public BindingBlock {
  public:
   TVM_DLL explicit DataflowBlock(ffi::Array<Binding> bindings, Location loc = UnknownLoc());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowBlock, BindingBlock, DataflowBlockNode);
+  explicit DataflowBlock(ffi::ObjectPtr<DataflowBlockNode> n) : BindingBlock(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DataflowBlock, BindingBlock, DataflowBlockNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DataflowBlockNode);
 };
 

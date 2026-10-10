@@ -61,7 +61,7 @@ class PassContextNode;
  */
 class PassContext : public ffi::ObjectRef {
  public:
-  PassContext() {}
+  static constexpr bool _type_is_nullable = false;
   /*!
    * \brief constructor with UnsafeInit
    */
@@ -257,7 +257,12 @@ class PassInfo : public ffi::ObjectRef {
    */
   TVM_DLL PassInfo(int opt_level, ffi::String name);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PassInfo, ffi::ObjectRef, PassInfoNode);
+  explicit PassInfo(ffi::ObjectPtr<PassInfoNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PassInfo, ffi::ObjectRef, PassInfoNode);
 };
 
 /*!
@@ -324,7 +329,12 @@ class Pass : public ffi::ObjectRef {
    */
   IRModule operator()(IRModule mod, const PassContext& pass_ctx) const;
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Pass, ffi::ObjectRef, PassNode);
+  explicit Pass(ffi::ObjectPtr<PassNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Pass, ffi::ObjectRef, PassNode);
 
  private:
   IRModule static AssertImmutableModule(const IRModule& mod, const PassNode* node,
@@ -341,6 +351,8 @@ class Pass : public ffi::ObjectRef {
  */
 class SequentialNode : public PassNode {
  public:
+  explicit SequentialNode(PassInfo pass_info) : pass_info(std::move(pass_info)) {}
+  explicit SequentialNode(ffi::UnsafeInit tag) : pass_info(tag) {}
   /* \brief The pass meta data.*/
   PassInfo pass_info;
 
@@ -394,8 +406,11 @@ class Sequential : public Pass {
    */
   TVM_DLL Sequential(ffi::Array<Pass> passes, ffi::String name = "sequential");
 
-  Sequential() = default;
-  explicit Sequential(ffi::ObjectPtr<SequentialNode> n) : Pass(n) {}
+  explicit Sequential(ffi::UnsafeInit tag) : Pass(tag) {}
+  explicit Sequential(ffi::ObjectPtr<SequentialNode> n) : Pass(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
 
   const SequentialNode* operator->() const;
   using ContainerType = SequentialNode;
@@ -551,7 +566,13 @@ class PassInstrumentNode : public ffi::Object {
  */
 class PassInstrument : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PassInstrument, ffi::ObjectRef, PassInstrumentNode);
+  explicit PassInstrument(ffi::ObjectPtr<PassInstrumentNode> n)
+      : ffi::ObjectRef(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PassInstrument, ffi::ObjectRef, PassInstrumentNode);
 };
 
 /*!
@@ -620,7 +641,9 @@ class PassContextNode : public ffi::Object {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("transform.PassContext", PassContextNode, ffi::Object);
 };
 
-inline PassContext::PassContext(ffi::ObjectPtr<PassContextNode> n) : ffi::ObjectRef(n) {}
+inline PassContext::PassContext(ffi::ObjectPtr<PassContextNode> n) : ffi::ObjectRef(n) {
+  TVM_FFI_ICHECK(n != nullptr);
+}
 
 inline const PassContextNode* PassContext::operator->() const {
   TVM_FFI_ICHECK(get() != nullptr);

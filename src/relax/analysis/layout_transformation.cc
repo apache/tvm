@@ -394,8 +394,8 @@ class BlockAnalyzer : public s_tir::StmtExprVisitor {
     block_transformation_ = maybe_block_transformation.value();
 
     ffi::Array<Range> block_ranges =
-        block_->iter_vars.Map([](const s_tir::IterVar& i) { return i->dom; });
-    if (!IsBijectiveAffine(block_transformation_, block_ranges)) {
+        block_->iter_vars.Map([](const s_tir::IterVar& i) { return i->dom.value(); });
+    if (!IsBijectiveAffine(block_transformation_.value(), block_ranges)) {
       can_transform_block_ = false;
       LOG(WARNING) << "[LayoutInference] Inferred block transformation is not bijective affine, "
                       "transformation: ("
@@ -473,7 +473,7 @@ class BlockAnalyzer : public s_tir::StmtExprVisitor {
   void ComputeBlockSpatialDomain() {
     for (const s_tir::IterVar& v : block_->iter_vars) {
       if (v->iter_type == s_tir::kDataPar) {
-        spatial_dom_.Set(v->var, v->dom);
+        spatial_dom_.Set(v->var, v->dom.value());
         continue;
       }
       if (v->iter_type == s_tir::kCommReduce) continue;
@@ -544,7 +544,7 @@ class BlockAnalyzer : public s_tir::StmtExprVisitor {
 
  public:
   bool CanBeTransformed() { return can_transform_block_; }
-  IndexMap GetSBlockTransformation() { return block_transformation_; }
+  IndexMap GetSBlockTransformation() { return block_transformation_.value(); }
   ffi::Map<TensorVar, IndexMap> GetReadBufferTransformations() {
     return read_buffer_transformations_;
   }
@@ -556,7 +556,7 @@ class BlockAnalyzer : public s_tir::StmtExprVisitor {
   sym::Analyzer sym_analyzer_;
 
   s_tir::SBlock block_;
-  IndexMap block_transformation_;
+  ffi::Optional<IndexMap> block_transformation_;
 
   ffi::Map<TensorVar, IndexMap> read_buffer_transformations_;
   const ffi::Map<TensorVar, IndexMap>& buffer_transformation_cache_;

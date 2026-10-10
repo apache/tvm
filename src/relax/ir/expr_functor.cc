@@ -975,7 +975,7 @@ void ExprMutator::VisitBinding(const Binding& binding) {
 }
 
 BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
-  BindingBlock ret;
+  BindingBlock ret(ffi::UnsafeInit{});
   if (const auto* node = block.as<DataflowBlockNode>()) {
     ret = VisitBindingBlock_(node);
   } else if (const auto* node = block.as<BindingBlockNode>()) {

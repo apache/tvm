@@ -25,8 +25,7 @@ namespace s_tir {
 namespace meta_schedule {
 
 MeasureCandidate::MeasureCandidate(s_tir::Schedule sch, ffi::Array<ArgInfo> args_info) {
-  ffi::ObjectPtr<MeasureCandidateNode> n = ffi::make_object<MeasureCandidateNode>();
-  n->sch = sch;
+  ffi::ObjectPtr<MeasureCandidateNode> n = ffi::make_object<MeasureCandidateNode>(std::move(sch));
   n->args_info = args_info;
   data_ = std::move(n);
 }

@@ -1198,7 +1198,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Call construction intentionally does not validate: passes and raw script
 // reconstruction may need to represent provisional or invalid input exactly.
-Call::Call(ffi::Optional<Type> ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs,
+Call::Call(ffi::Optional<Type> ret_ty, Expr op, ffi::Array<Expr> args, ffi::Optional<Attrs> attrs,
            ffi::Array<Type> ty_args, Location loc)
     : Expr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(op.defined(), ValueError) << "Call expects a defined operator";
@@ -1244,10 +1244,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&CallMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("ir.Call", [](ffi::Optional<Type> ret_ty, Expr op, ffi::Array<Expr> args,
-                                      Attrs attrs, ffi::Array<Type> ty_args, Location loc) {
-    return Call(ret_ty, op, args, attrs, ty_args, loc);
-  });
+  refl::GlobalDef().def("ir.Call",
+                        [](ffi::Optional<Type> ret_ty, Expr op, ffi::Array<Expr> args,
+                           ffi::Optional<Attrs> attrs, ffi::Array<Type> ty_args,
+                           Location loc) { return Call(ret_ty, op, args, attrs, ty_args, loc); });
   refl::GlobalDef().def("ir.CallValidate", [](const Call& call) { call.Validate(); });
   refl::GlobalDef().def("ir.reinfer_type",
                         [](const Call& call) { return Call::ReinferType(call.get()); });

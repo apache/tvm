@@ -367,11 +367,13 @@ class HostMemoryVector {
     TVM_FFI_ICHECK_LE(current_size_, reserved_size_);
     if (current_size_ == reserved_size_) {
       reserved_size_ *= 2;
-      Tensor new_data = Tensor::Empty({reserved_size_}, data_->dtype, data_->device);
-      std::memcpy(new_data->data, data_->data, current_size_ * (((data_->dtype).bits + 7) / 8));
+      Tensor new_data =
+          Tensor::Empty({reserved_size_}, data_.value()->dtype, data_.value()->device);
+      std::memcpy(new_data->data, data_.value()->data,
+                  current_size_ * (((data_.value()->dtype).bits + 7) / 8));
       data_ = new_data;
     }
-    static_cast<int32_t*>(data_->data)[current_size_++] = value;
+    static_cast<int32_t*>(data_.value()->data)[current_size_++] = value;
   }
 
   void push_back_vec(const std::vector<int32_t>& values) {
@@ -381,11 +383,13 @@ class HostMemoryVector {
       while (current_size_ + num_new_elements > reserved_size_) {
         reserved_size_ *= 2;
       }
-      Tensor new_data = Tensor::Empty({reserved_size_}, data_->dtype, data_->device);
-      std::memcpy(new_data->data, data_->data, current_size_ * (((data_->dtype).bits + 7) / 8));
+      Tensor new_data =
+          Tensor::Empty({reserved_size_}, data_.value()->dtype, data_.value()->device);
+      std::memcpy(new_data->data, data_.value()->data,
+                  current_size_ * (((data_.value()->dtype).bits + 7) / 8));
       data_ = new_data;
     }
-    std::memcpy(static_cast<int32_t*>(data_->data) + current_size_, values.data(),
+    std::memcpy(static_cast<int32_t*>(data_.value()->data) + current_size_, values.data(),
                 num_new_elements * sizeof(int32_t));
     current_size_ += num_new_elements;
   }
@@ -393,17 +397,17 @@ class HostMemoryVector {
   const int32_t& operator[](int64_t idx) const {
     TVM_FFI_ICHECK_GE(idx, 0) << "Index " << idx << " is negative.";
     TVM_FFI_ICHECK_LT(idx, current_size_) << "Index " << idx << " out of bounds " << current_size_;
-    return static_cast<int32_t*>(data_->data)[idx];
+    return static_cast<int32_t*>(data_.value()->data)[idx];
   }
 
   int32_t back() const {
     TVM_FFI_ICHECK_GT(current_size_, 0) << "Vector is empty";
-    return static_cast<int32_t*>(data_->data)[current_size_ - 1];
+    return static_cast<int32_t*>(data_.value()->data)[current_size_ - 1];
   }
 
   void fill(int32_t value) {
-    std::fill(static_cast<int32_t*>(data_->data),
-              static_cast<int32_t*>(data_->data) + current_size_, value);
+    std::fill(static_cast<int32_t*>(data_.value()->data),
+              static_cast<int32_t*>(data_.value()->data) + current_size_, value);
   }
 
   void resize(size_t new_size) {
@@ -414,23 +418,23 @@ class HostMemoryVector {
   void set(int64_t idx, int32_t value) {
     TVM_FFI_ICHECK_GE(idx, 0) << "Index " << idx << " is negative.";
     TVM_FFI_ICHECK_LT(idx, current_size_) << "Index " << idx << " out of bounds " << current_size_;
-    static_cast<int32_t*>(data_->data)[idx] = value;
+    static_cast<int32_t*>(data_.value()->data)[idx] = value;
   }
 
   size_t size() const { return static_cast<size_t>(current_size_); }
 
-  int32_t* data() const { return static_cast<int32_t*>(data_->data); }
+  int32_t* data() const { return static_cast<int32_t*>(data_.value()->data); }
 
   void clear() { current_size_ = 0; }
 
   /*! \brief Return the vector as an Tensor. */
-  Tensor as_tensor() { return data_.CreateView({current_size_}, data_->dtype); }
+  Tensor as_tensor() { return data_.value().CreateView({current_size_}, data_.value()->dtype); }
 
   ffi::Shape as_int_tuple() const {
     std::vector<int64_t> values;
     values.reserve(current_size_);
     for (int i = 0; i < current_size_; ++i) {
-      values.push_back(static_cast<int32_t*>(data_->data)[i]);
+      values.push_back(static_cast<int32_t*>(data_.value()->data)[i]);
     }
     return ffi::Shape(values);
   }
@@ -438,7 +442,7 @@ class HostMemoryVector {
  private:
   int64_t reserved_size_ = 0;
   int64_t current_size_ = 0;
-  Tensor data_{nullptr};
+  ffi::Optional<Tensor> data_;
 };
 
 /*!
@@ -559,7 +563,26 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
                                            int64_t prefill_chunk_size, DLDataType dtype_aux,
                                            Device device, Device preferred_host_device,
                                            TVMStreamHandle copy_stream)
-      : PagedKVCacheAuxDataManager(dtype_aux, device, preferred_host_device, copy_stream) {
+      : PagedKVCacheAuxDataManager(dtype_aux, device, preferred_host_device, copy_stream),
+        cur_append_length_indptr_device_(
+            Tensor::Empty({reserved_num_seqs + 1}, dtype_aux_, device)),
+        k_ragged_rope_pos_offset_device_(Tensor::Empty({reserved_num_seqs}, dtype_aux_, device)),
+        q_rope_position_map_device_(Tensor::Empty({prefill_chunk_size}, dtype_aux_, device)),
+        append_position_map_device_(Tensor::Empty({prefill_chunk_size}, dtype_aux_, device)),
+        kv_transfer_remote_position_map_device(
+            Tensor::Empty({prefill_chunk_size}, dtype_aux_, device)),
+        kv_transfer_recver_id_device(Tensor::Empty({prefill_chunk_size}, dtype_aux_, device)),
+        kv_transfer_page_to_page_local_position_map_device(
+            Tensor::Empty({prefill_chunk_size}, dtype_aux_, device)),
+        kv_transfer_page_to_page_remote_position_map_device(
+            kv_transfer_page_to_page_local_position_map_device),
+        kv_transfer_page_to_page_recver_id_device(
+            Tensor::Empty({prefill_chunk_size}, dtype_aux_, device)),
+        commit_copy_length_indptr_device_(
+            Tensor::Empty({reserved_num_seqs + 1}, dtype_aux_, device)),
+        commit_copy_src_dst_pos_in_page_table_device_(Tensor::Empty(
+            {2, std::min(kTreeAttnMaxTreeSize * reserved_num_seqs, prefill_chunk_size)}, dtype_aux_,
+            device)) {
     for (int d = 0; d < kPagedKVCacheMaxBlockDepth; ++d) {
       qo_indptr_on_depths_device_.push_back(
           Tensor::Empty({reserved_num_seqs + 1}, dtype_aux_, device));
@@ -576,22 +599,6 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
       tree_attn_mn_indptr_device_.push_back(
           Tensor::Empty({reserved_num_seqs + 1}, dtype_aux_, device));
     }
-    cur_append_length_indptr_device_ = Tensor::Empty({reserved_num_seqs + 1}, dtype_aux_, device);
-    k_ragged_rope_pos_offset_device_ = Tensor::Empty({reserved_num_seqs}, dtype_aux_, device);
-    q_rope_position_map_device_ = Tensor::Empty({prefill_chunk_size}, dtype_aux_, device);
-    append_position_map_device_ = Tensor::Empty({prefill_chunk_size}, dtype_aux_, device);
-    kv_transfer_remote_position_map_device =
-        Tensor::Empty({prefill_chunk_size}, dtype_aux_, device);
-    kv_transfer_recver_id_device = Tensor::Empty({prefill_chunk_size}, dtype_aux_, device);
-    kv_transfer_page_to_page_local_position_map_device =
-        kv_transfer_page_to_page_remote_position_map_device =
-            Tensor::Empty({prefill_chunk_size}, dtype_aux_, device);
-    kv_transfer_page_to_page_recver_id_device =
-        Tensor::Empty({prefill_chunk_size}, dtype_aux_, device);
-    commit_copy_length_indptr_device_ = Tensor::Empty({reserved_num_seqs + 1}, dtype_aux_, device);
-    commit_copy_src_dst_pos_in_page_table_device_ =
-        Tensor::Empty({2, std::min(kTreeAttnMaxTreeSize * reserved_num_seqs, prefill_chunk_size)},
-                      dtype_aux_, device);
   }
 
   // The reset of the plain auxiliary data manager is no-op.
@@ -819,7 +826,11 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
                                             TVMStreamHandle copy_stream)
       : PagedKVCacheAuxDataManager(dtype_aux, device, preferred_host_device, copy_stream),
         elem_byte_size_((dtype_aux.bits * dtype_aux.lanes + 7) / 8),
-        offset_alignment_(cuda_byte_alignment_ / elem_byte_size_) {
+        offset_alignment_(cuda_byte_alignment_ / elem_byte_size_),
+        merged_attn_aux_data_device_(Tensor::Empty({32 * 1024 * 1024}, dtype_aux, device)),
+        merged_compact_kv_aux_data_device_(Tensor::Empty(
+            {CalculateCompactKVAuxDataCacheSize(reserved_num_seqs, prefill_chunk_size)}, dtype_aux,
+            device)) {
     // - Calculate cache size of all the attention auxiliary arrays in
     // local cache and the large on-device array.
     // int64_t attn_aux_data_cache_size =
@@ -828,9 +839,6 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     // - Initialize the host auxiliary data buffer.
     merged_attn_aux_data_host_ =
         HostMemoryVector(attn_aux_data_cache_size, dtype_aux, preferred_host_device);
-    // - Initialize the device auxiliary data buffer.
-    merged_attn_aux_data_device_ = Tensor::Empty({attn_aux_data_cache_size}, dtype_aux, device);
-
     // - Calculate cache size of all the compact KV auxiliary arrays in
     // local cache and the large on-device array.
     int64_t compact_kv_aux_data_cache_size =
@@ -838,8 +846,6 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     // - Initialize the host auxiliary data buffer.
     merged_compact_kv_aux_data_host_ =
         HostMemoryVector(compact_kv_aux_data_cache_size, dtype_aux, preferred_host_device);
-    merged_compact_kv_aux_data_device_ =
-        Tensor::Empty({compact_kv_aux_data_cache_size}, dtype_aux, device);
   }
 
   void ResetAttnAuxDataCopy() final { attn_aux_data_copy_offset_ = 0; }

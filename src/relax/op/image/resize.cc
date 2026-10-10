@@ -231,7 +231,7 @@ InferLayoutOutput InferLayoutResize2d(
   const auto* attrs = call->attrs.as<Resize2DAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
-  LayoutDecision data_layout;
+  LayoutDecision data_layout(ffi::UnsafeInit{});
   ffi::ObjectPtr<Resize2DAttrs> new_attrs = ffi::make_object<Resize2DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
@@ -245,10 +245,11 @@ InferLayoutOutput InferLayoutResize2d(
     // We dont have a desired layout for resize2d, propagate from the input instead.
     data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
     // Not handling sub indexing now.
-    if (data_layout->layout.ndim() != data_layout->layout.ndim_primal()) {
+    if (data_layout->layout.value().ndim() != data_layout->layout.value().ndim_primal()) {
       data_layout = LayoutDecision(InitialLayout(4));
     }
-    new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(4), data_layout->layout).name();
+    new_attrs->layout =
+        TransposeLike(attrs->layout, InitialLayout(4), data_layout->layout.value()).name();
   }
   return InferLayoutOutput({data_layout, InitialNLayout(call->args[1])}, {data_layout},
                            Attrs(new_attrs));
@@ -350,7 +351,7 @@ InferLayoutOutput InferLayoutResize3d(
   const auto* attrs = call->attrs.as<Resize3DAttrs>();
   TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
-  LayoutDecision data_layout;
+  LayoutDecision data_layout(ffi::UnsafeInit{});
   ffi::ObjectPtr<Resize3DAttrs> new_attrs = ffi::make_object<Resize3DAttrs>(*attrs);
 
   if (it != desired_layouts.end()) {
@@ -361,10 +362,11 @@ InferLayoutOutput InferLayoutResize3d(
     new_attrs->layout = (*it).second[0];
   } else {
     data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
-    if (data_layout->layout.ndim() != data_layout->layout.ndim_primal()) {
+    if (data_layout->layout.value().ndim() != data_layout->layout.value().ndim_primal()) {
       data_layout = LayoutDecision(InitialLayout(5));
     }
-    new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(5), data_layout->layout).name();
+    new_attrs->layout =
+        TransposeLike(attrs->layout, InitialLayout(5), data_layout->layout.value()).name();
   }
   return InferLayoutOutput({data_layout, InitialNLayout(call->args[1])}, {data_layout},
                            Attrs(new_attrs));

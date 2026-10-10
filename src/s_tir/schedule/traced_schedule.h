@@ -35,6 +35,8 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   Trace trace_;
 
  public:
+  using ConcreteScheduleNode::ConcreteScheduleNode;
+
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TracedScheduleNode>();

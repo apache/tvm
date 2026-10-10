@@ -99,7 +99,7 @@ Type TypeMutator::VisitType_(const TensorTypeNode* op) {
   }
 
   ffi::Optional<Expr> shape = this->VisitTypeExprField(op->shape.value());
-  VDevice vdev = op->vdevice.value_or(VDevice());
+  ffi::Optional<VDevice> vdev = op->vdevice;
 
   if (shape.same_as(op->shape)) {
     return ffi::GetRef<Type>(op);

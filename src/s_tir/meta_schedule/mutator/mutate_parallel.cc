@@ -207,7 +207,7 @@ class MutateParallelNode : public MutatorNode {
 /*! \brief The candidate to be mutated */
 struct MutateParallelNode::Candidate {
   /*! \brief The annotation instruction */
-  Instruction inst;
+  ffi::Optional<Instruction> inst;
   /*! \brief The current parallel extent */
   int64_t parallel_extent;
   /*! \brief The name of the root block */
@@ -303,8 +303,8 @@ ffi::Optional<Trace> MutateParallelNode::Apply(const Trace& trace, TRandState* r
   ffi::Array<Instruction> insts;
   insts.reserve(trace->insts.size());
   for (const Instruction& inst : trace->insts) {
-    if (inst.same_as(candidate.inst)) {
-      insts.push_back(s_tir::ReplaceAnnValue(candidate.inst, limit));
+    if (inst.same_as(candidate.inst.value())) {
+      insts.push_back(s_tir::ReplaceAnnValue(candidate.inst.value(), limit));
     } else if (inst->kind->IsPostproc()) {
       break;
     } else {

@@ -76,6 +76,10 @@ class PostprocNode : public ffi::Object {
  */
 class Postproc : public ffi::ObjectRef {
  public:
+  explicit Postproc(ffi::ObjectPtr<PostprocNode> data) : ffi::ObjectRef(std::move(data)) {
+    TVM_FFI_ICHECK(data_ != nullptr);
+  }
+
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.
    * \param context The tuning context for initialization.
@@ -171,7 +175,7 @@ class Postproc : public ffi::ObjectRef {
   /*! \brief Create default postprocessors for Hexagon */
   TVM_DLL static ffi::Array<Postproc, void> DefaultHexagon();
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Postproc, ffi::ObjectRef, PostprocNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Postproc, ffi::ObjectRef, PostprocNode);
 };
 
 /*! \brief The postprocessor with customized methods on the python-side. */

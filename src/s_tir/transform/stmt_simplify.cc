@@ -44,8 +44,8 @@ class StmtSimplifier final : public tirx::StmtSimplifier {
     // while the analyzer state is protected by its owning base class.
     return constraint_scope_.WithNewScope([&]() -> UnchangedOr<Stmt> {
       for (const auto& iter_var : op->iter_vars) {
-        analyzer_->Bind(iter_var->var, iter_var->dom);
-        iter_vars_.Set(iter_var->var, iter_var->dom);
+        analyzer_->Bind(iter_var->var, iter_var->dom.value());
+        iter_vars_.Set(iter_var->var, iter_var->dom.value());
       }
       return s_tir::StmtExprMutator::MutateBlock(this, op, inplace_mode);
     });

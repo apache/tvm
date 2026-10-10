@@ -332,7 +332,7 @@ struct ThreadedTraceApply {
    */
   ffi::Optional<s_tir::Schedule> Apply(const IRModule& mod, const s_tir::Trace& trace,
                                        TRandState* rand_state) {
-    s_tir::Schedule sch{nullptr};
+    s_tir::Schedule sch{ffi::UnsafeInit{}};
     try {
       sch = s_tir::Schedule::Traced(mod,
                                     /*rand_state=*/ForkSeed(rand_state),

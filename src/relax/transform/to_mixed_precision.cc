@@ -286,7 +286,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       if (fp16_input_names_.count(var->name)) {
         auto ty = GetType(var);
         if (auto tensor_ty = ty.as<TensorTypeNode>()) {
-          VDevice vdev = VDevice();
+          ffi::Optional<VDevice> vdev;
           if (tensor_ty->vdevice.has_value()) {
             vdev = tensor_ty->vdevice.value();
           }

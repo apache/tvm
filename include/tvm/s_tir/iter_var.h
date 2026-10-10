@@ -23,6 +23,7 @@
 #ifndef TVM_S_TIR_ITER_VAR_H_
 #define TVM_S_TIR_ITER_VAR_H_
 
+#include <tvm/ffi/optional.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
 
@@ -114,7 +115,7 @@ class IterVarNode : public OpaqueExprNode {
    * \brief the domain of iteration, if known, can be None
    *  For the intermediate schedule node, before schedule.
    */
-  Range dom;
+  ffi::Optional<Range> dom;
   /*! \brief The looping variable */
   PrimVar var;
   /*! \brief The type of the IterVar */
@@ -145,8 +146,8 @@ class IterVarNode : public OpaqueExprNode {
  */
 class IterVar : public PrimExpr {
  public:
-  TVM_DLL IterVar(Range dom, PrimVar var, IterVarType iter_type, ffi::String thread_tag = "",
-                  Location loc = UnknownLoc());
+  TVM_DLL IterVar(ffi::Optional<Range> dom, PrimVar var, IterVarType iter_type,
+                  ffi::String thread_tag = "", Location loc = UnknownLoc());
 
   explicit IterVar(ffi::ObjectPtr<IterVarNode> node) : PrimExpr(std::move(node)) {}
 

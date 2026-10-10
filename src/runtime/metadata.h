@@ -165,7 +165,12 @@ class FunctionInfo : public ffi::ObjectRef {
     data_ = std::move(n);
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FunctionInfo, ffi::ObjectRef, FunctionInfoObj);
+  explicit FunctionInfo(ffi::ObjectPtr<FunctionInfoObj> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionInfo, ffi::ObjectRef, FunctionInfoObj);
 };
 
 }  // namespace runtime

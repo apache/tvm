@@ -840,7 +840,7 @@ class TileDispatcher : public StmtExprMutator {
       return TryPushCtaPairValue(lo);
     }
     if (KernelCtaPredicateOverlapsClusterCta(target)) return false;
-    ExecContext new_ctx;
+    ExecContext new_ctx = ctx_stack_.back();
     std::string err;
     if (target.ndim != 1) {
       auto cta_axis = CtaAxisName(target);
@@ -858,7 +858,7 @@ class TileDispatcher : public StmtExprMutator {
     if (ctx_stack_.empty()) return false;
     if (target.binding == ScopeBinding::kClusterCtaPair) return false;
     if (KernelCtaPredicateOverlapsClusterCta(target)) return false;
-    ExecContext new_ctx;
+    ExecContext new_ctx = ctx_stack_.back();
     std::string err;
     if (target.ndim != 1) {
       auto cta_axis = CtaAxisName(target);
@@ -883,7 +883,7 @@ class TileDispatcher : public StmtExprMutator {
     if (ctx_stack_.empty()) return false;
     if (cluster_cta_axis_extents_.empty()) return false;
     if (cluster_cta_axis_extents_.size() <= 1) {
-      ExecContext new_ctx;
+      ExecContext new_ctx = ctx_stack_.back();
       std::string err;
       if (!ctx_stack_.back().WithCtaAxisModulo("cta_id", 2, value, &new_ctx, &err)) return false;
       ctx_stack_.push_back(new_ctx);
@@ -919,7 +919,7 @@ class TileDispatcher : public StmtExprMutator {
       return true;
     }
 
-    ExecContext new_ctx;
+    ExecContext new_ctx = ctx_stack_.back();
     std::string err;
     if (!ctx_stack_.back().WithCtaAxisModulo(*parity_axis, 2, residue, &new_ctx, &err)) {
       return false;
@@ -945,7 +945,7 @@ class TileDispatcher : public StmtExprMutator {
     if (ctx_stack_.empty()) return false;
     if (target.ndim != 1) return false;
     if (KernelCtaPredicateOverlapsClusterCta(target)) return false;
-    ExecContext new_ctx;
+    ExecContext new_ctx = ctx_stack_.back();
     std::string err;
     if (!ctx_stack_.back().WithSelector(target.binding, selector, &new_ctx, &err)) return false;
     ctx_stack_.push_back(new_ctx);
@@ -1503,7 +1503,7 @@ namespace {
 Target ResolveTarget(const Function& f) {
   auto target = f->GetAttr<Target>(tvm::attr::kTarget);
   if (!target.has_value()) {
-    target = Target::Current(false);
+    target = Target::Current(false).value();
   }
   return target.value();
 }

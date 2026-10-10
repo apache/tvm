@@ -68,7 +68,7 @@ struct IntGroupBounds {
         << "Coefficient in IntGroupBounds must be integers";
   }
 
-  Range FindBestRange(const ffi::Map<Var, Range>& vranges_addl) const;
+  ffi::Optional<Range> FindBestRange(const ffi::Map<Var, Range>& vranges_addl) const;
   IntGroupBounds operator+(const Range& range);
 };
 
@@ -150,13 +150,13 @@ IntGroupBounds IntGroupBounds::operator+(const Range& r) {
   return IntGroupBounds(coef, lower, equal, upper);
 }
 
-Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) const {
+ffi::Optional<Range> IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) const {
   Analyzer analyzer;
   analyzer->Bind(vranges_addl);
 
   std::unordered_map<const VarNode*, IntSet> var_intsets;
   for (auto kv : vranges_addl) {
-    var_intsets[kv.first.get()] = IntSet::FromRange(kv.second);
+    var_intsets.insert_or_assign(kv.first.get(), IntSet::FromRange(kv.second));
   }
 
   const ffi::Array<PrimExpr>& equal = this->equal;
@@ -222,7 +222,7 @@ Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) co
 
   if (!best_lower.has_value()) {
     TVM_FFI_ICHECK(!best_diff_over.has_value());
-    return Range();
+    return std::nullopt;
   }
   return Range::FromMinExtent(best_lower.value(), analyzer->Simplify(best_diff_over.value() + 1));
 }
@@ -583,14 +583,14 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
 
       auto best_range = bnd.FindBestRange(vranges);
 
-      if (best_range.defined()) {
-        if (analyzer->CanProveGreaterEqual(-best_range->extent, 0)) {
+      if (best_range.has_value()) {
+        if (analyzer->CanProveGreaterEqual(-best_range.value()->extent, 0)) {
           // range.extent <= 0 implies the input inequality system is unsolvable
           return IntConstraints(/*variables=*/{}, /*ranges=*/{},
                                 /*relations=*/{IntImm::Bool(false)});
         }
-        res_ranges.Set(var, best_range);
-        vranges.Set(var, best_range);
+        res_ranges.Set(var, best_range.value());
+        vranges.Set(var, best_range.value());
       }
     }
   }
@@ -676,7 +676,7 @@ ffi::Optional<ffi::Map<Var, Range>> ConditionalBoundsContext::TrySolveCondition(
   // build dom ranges for related vars
   ffi::Map<Var, Range> ranges;
   for (const Var& v : vars) {
-    sym::IntSet dom;
+    sym::IntSet dom{ffi::UnsafeInit{}};
     auto relax_it = relax_map_->find(v.get());
     if (relax_it != relax_map_->end()) {
       dom = relax_it->second;

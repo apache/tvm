@@ -385,8 +385,7 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
     relative_byte_offset = IntImm::Int64(0);
   }
 
-  TypeDeriveFunc infer_ty_env_func;
-  infer_ty_env_func = EnvFunc::Get("tvm.relax.type.infer_view_ty");
+  TypeDeriveFunc infer_ty_env_func(EnvFunc::Get("tvm.relax.type.infer_view_ty"));
   auto runtime_view_ty = FuncType::OpaqueFunc(infer_ty_env_func, true);
 
   ExternFunc runtime_view_func("runtime.TVMTensorCreateView", runtime_view_ty);
@@ -428,7 +427,8 @@ Type InferTypeEnsureZeroOffset(const CallNode* call_node) {
 
 Expr LowerBuiltinEnsureZeroOffset(const BlockBuilder& bb, const Call& call) {
   const ExternFunc builtin_ensure_zero_offset_{"vm.builtin.ensure_zero_offset"};
-  return Call(Type::Missing(), builtin_ensure_zero_offset_, call->args, Attrs(), {GetType(call)});
+  return Call(Type::Missing(), builtin_ensure_zero_offset_, call->args, std::nullopt,
+              {GetType(call)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

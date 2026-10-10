@@ -92,14 +92,20 @@ class CommReducer : public ffi::ObjectRef {
  public:
   TVM_DLL CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs, ffi::Array<PrimExpr> result,
                       ffi::Array<PrimExpr> identity_element, Location loc = UnknownLoc());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CommReducer, ffi::ObjectRef, CommReducerNode);
+  explicit CommReducer(ffi::ObjectPtr<CommReducerNode> node) : ffi::ObjectRef(std::move(node)) {
+    TVM_FFI_ICHECK(data_ != nullptr);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CommReducer, ffi::ObjectRef, CommReducerNode);
 };
 
 /*! \brief Reduction operator */
 class ReduceNode : public OpaqueExprNode {
  public:
-  explicit ReduceNode(PrimExpr condition) : condition(std::move(condition)) {}
-  explicit ReduceNode(ffi::UnsafeInit) : condition(ffi::UnsafeInit{}) {}
+  explicit ReduceNode(CommReducer combiner, PrimExpr condition)
+      : combiner(std::move(combiner)), condition(std::move(condition)) {}
+  explicit ReduceNode(ffi::UnsafeInit)
+      : combiner(ffi::UnsafeInit{}), condition(ffi::UnsafeInit{}) {}
 
   /*! \brief The commutative combiner */
   CommReducer combiner;
@@ -232,7 +238,11 @@ class PlaceholderOp : public Operation {
  public:
   TVM_DLL PlaceholderOp(std::string name, ffi::Array<PrimExpr> shape, PrimType dtype);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PlaceholderOp, Operation, PlaceholderOpNode);
+  explicit PlaceholderOp(ffi::ObjectPtr<PlaceholderOpNode> node) : Operation(std::move(node)) {
+    TVM_FFI_ICHECK(data_ != nullptr);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PlaceholderOp, Operation, PlaceholderOpNode);
 };
 
 /*!
@@ -287,7 +297,11 @@ class ComputeOp : public Operation {
   TVM_DLL ComputeOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi::Any> attrs,
                     ffi::Array<IterVar> axis, ffi::Array<PrimExpr> body);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ComputeOp, Operation, ComputeOpNode);
+  explicit ComputeOp(ffi::ObjectPtr<ComputeOpNode> node) : Operation(std::move(node)) {
+    TVM_FFI_ICHECK(data_ != nullptr);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ComputeOp, Operation, ComputeOpNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeOpNode);
 };
 
@@ -351,7 +365,11 @@ class ScanOp : public Operation {
                  ffi::Array<Tensor> init, ffi::Array<Tensor> update,
                  ffi::Array<Tensor> state_placeholder, ffi::Array<Tensor> input);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScanOp, Operation, ScanOpNode);
+  explicit ScanOp(ffi::ObjectPtr<ScanOpNode> node) : Operation(std::move(node)) {
+    TVM_FFI_ICHECK(data_ != nullptr);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ScanOp, Operation, ScanOpNode);
 };
 
 /*!
@@ -398,7 +416,11 @@ class ExternOp : public Operation {
                    ffi::Array<Tensor> inputs, ffi::Array<TensorVar> input_placeholders,
                    ffi::Array<TensorVar> output_placeholders, SeqStmt body);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExternOp, Operation, ExternOpNode);
+  explicit ExternOp(ffi::ObjectPtr<ExternOpNode> node) : Operation(std::move(node)) {
+    TVM_FFI_ICHECK(data_ != nullptr);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExternOp, Operation, ExternOpNode);
 };
 
 /*!

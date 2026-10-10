@@ -1023,7 +1023,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
         changed = true;
       } else if (!ret.empty() && ret.back()->type_index() == block->type_index()) {
         // Case 2. Merge with previous block if possible
-        BindingBlock merged;
+        BindingBlock merged(ffi::UnsafeInit{});
         // NOTE: should check DataflowBlockNode first.
         if (const auto* dataflow_block = ret.back().as<DataflowBlockNode>()) {
           auto n = ffi::make_object<DataflowBlockNode>(*dataflow_block);

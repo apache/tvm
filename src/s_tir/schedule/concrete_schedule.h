@@ -39,6 +39,8 @@ class ConcreteScheduleNode : public ScheduleNode {
   friend class ScheduleCopier;
 
  public:
+  explicit ConcreteScheduleNode(ScheduleState state) : state_(std::move(state)) {}
+
   using TSymbolTable = ffi::Map<ffi::ObjectRef, ffi::ObjectRef>;
 
  protected:

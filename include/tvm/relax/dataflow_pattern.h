@@ -130,7 +130,11 @@ class DFPattern : public ffi::ObjectRef {
   /*! \brief Implicit conversion from DFPattern to PatternSeq */
   TVM_DLL operator PatternSeq() const;
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DFPattern, ffi::ObjectRef, DFPatternNode);
+  explicit DFPattern(ffi::ObjectPtr<DFPatternNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DFPattern, ffi::ObjectRef, DFPatternNode);
 };
 
 /*! \brief Constraint of a DFPattern edge (producer -> consumer) in graph-level matching */
@@ -203,7 +207,11 @@ class DFConstraintNode : public ffi::Object {
 
 class DFConstraint : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DFConstraint, ffi::ObjectRef, DFConstraintNode);
+  explicit DFConstraint(ffi::ObjectPtr<DFConstraintNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DFConstraint, ffi::ObjectRef, DFConstraintNode);
 };
 
 /*!
@@ -241,7 +249,11 @@ class PatternSeq final : public ffi::ObjectRef {
   friend PatternSeq UsedBy(const PatternSeq& lhs, const PatternSeq& rhs, int index);
   friend PatternSeq OnlyUsedBy(const PatternSeq& lhs, const PatternSeq& rhs, int index);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PatternSeq, ffi::ObjectRef, PatternSeqNode);
+  explicit PatternSeq(ffi::ObjectPtr<PatternSeqNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PatternSeq, ffi::ObjectRef, PatternSeqNode);
 };
 
 /*!
@@ -276,7 +288,10 @@ class PatternContextNode : public ffi::Object {
 class PatternContext : public ffi::ObjectRef {
  public:
   explicit PatternContext(ffi::UnsafeInit tag) : ffi::ObjectRef(tag) {}
-  TVM_DLL explicit PatternContext(ffi::ObjectPtr<ffi::Object> n) : ffi::ObjectRef(n) {}
+  explicit PatternContext(ffi::ObjectPtr<ffi::Object> n) : ffi::ObjectRef(std::move(n)) {
+    TVM_FFI_ICHECK(data_ != nullptr);
+  }
+  static constexpr bool _type_is_nullable = false;
   TVM_DLL explicit PatternContext(bool incremental = false);
 
   const PatternContextNode* operator->() const {
@@ -361,7 +376,11 @@ class ExprPatternNode : public DFPatternNode {
 class ExprPattern : public DFPattern {
  public:
   TVM_DLL explicit ExprPattern(Expr expr);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExprPattern, DFPattern, ExprPatternNode);
+  explicit ExprPattern(ffi::ObjectPtr<ExprPatternNode> n) : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExprPattern, DFPattern, ExprPatternNode);
 };
 
 /*!
@@ -395,7 +414,11 @@ class VarPattern : public DFPattern {
    * \param name_hint Variable name to match. Any if empty ("").
    */
   TVM_DLL VarPattern(ffi::String name_hint);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(VarPattern, DFPattern, VarPatternNode);
+  explicit VarPattern(ffi::ObjectPtr<VarPatternNode> n) : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(VarPattern, DFPattern, VarPatternNode);
 };
 
 /*!
@@ -420,7 +443,13 @@ class DataflowVarPattern : public DFPattern {
  public:
   /*! \sa VarPattern::VarPattern */
   TVM_DLL DataflowVarPattern(ffi::String name_hint);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowVarPattern, DFPattern, DataflowVarPatternNode);
+  explicit DataflowVarPattern(ffi::ObjectPtr<DataflowVarPatternNode> n)
+      : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DataflowVarPattern, DFPattern,
+                                                DataflowVarPatternNode);
 };
 
 /*!
@@ -440,7 +469,11 @@ class GlobalVarPatternNode : public VarPatternNode {
 class GlobalVarPattern : public DFPattern {
  public:
   TVM_DLL GlobalVarPattern(ffi::String name_hint);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GlobalVarPattern, DFPattern, GlobalVarPatternNode);
+  explicit GlobalVarPattern(ffi::ObjectPtr<GlobalVarPatternNode> n) : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(GlobalVarPattern, DFPattern, GlobalVarPatternNode);
 };
 
 /*!
@@ -463,7 +496,11 @@ class ConstantPatternNode : public DFPatternNode {
  */
 class ConstantPattern : public DFPattern {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ConstantPattern, DFPattern, ConstantPatternNode);
+  explicit ConstantPattern(ffi::ObjectPtr<ConstantPatternNode> n) : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ConstantPattern, DFPattern, ConstantPatternNode);
 };
 
 /*!
@@ -472,6 +509,9 @@ class ConstantPattern : public DFPattern {
  */
 class CallPatternNode : public DFPatternNode {
  public:
+  explicit CallPatternNode(DFPattern op) : op(std::move(op)) {}
+  explicit CallPatternNode(ffi::UnsafeInit) : op(ffi::UnsafeInit{}) {}
+
   /*!
    * \note The op field can be:
    *  - relax::Op which corresponds to the primitive operators.
@@ -501,7 +541,11 @@ class CallPatternNode : public DFPatternNode {
 class CallPattern : public DFPattern {
  public:
   TVM_DLL CallPattern(DFPattern op, ffi::Array<DFPattern> args, bool varg_default_wildcard = false);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CallPattern, DFPattern, CallPatternNode);
+  explicit CallPattern(ffi::ObjectPtr<CallPatternNode> n) : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CallPattern, DFPattern, CallPatternNode);
 };
 
 /*!
@@ -527,7 +571,11 @@ class PrimArrPatternNode : public DFPatternNode {
 class PrimArrPattern : public DFPattern {
  public:
   TVM_DLL PrimArrPattern(ffi::Array<PrimExpr> arr);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimArrPattern, DFPattern, PrimArrPatternNode);
+  explicit PrimArrPattern(ffi::ObjectPtr<PrimArrPatternNode> n) : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimArrPattern, DFPattern, PrimArrPatternNode);
 };
 
 /*!
@@ -537,6 +585,9 @@ class PrimArrPattern : public DFPattern {
  */
 class FunctionPatternNode : public DFPatternNode {
  public:
+  explicit FunctionPatternNode(DFPattern body) : body(std::move(body)) {}
+  explicit FunctionPatternNode(ffi::UnsafeInit) : body(ffi::UnsafeInit{}) {}
+
   tvm::ffi::Array<DFPattern> params; /*!< The parameters of the function */
   /*!
    * \note Note that in Relax, the function body is a SeqExpr which contains
@@ -569,7 +620,11 @@ class FunctionPattern : public DFPattern {
    */
   TVM_DLL FunctionPattern(tvm::ffi::Array<DFPattern> params, DFPattern body);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FunctionPattern, DFPattern, FunctionPatternNode);
+  explicit FunctionPattern(ffi::ObjectPtr<FunctionPatternNode> n) : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionPattern, DFPattern, FunctionPatternNode);
 };
 
 /*!
@@ -594,7 +649,11 @@ class TuplePatternNode : public DFPatternNode {
 class TuplePattern : public DFPattern {
  public:
   TVM_DLL explicit TuplePattern(tvm::ffi::Array<DFPattern> fields);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TuplePattern, DFPattern, TuplePatternNode);
+  explicit TuplePattern(ffi::ObjectPtr<TuplePatternNode> n) : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TuplePattern, DFPattern, TuplePatternNode);
 };
 
 /*!
@@ -621,8 +680,13 @@ class UnorderedTuplePatternNode : public DFPatternNode {
 class UnorderedTuplePattern : public DFPattern {
  public:
   TVM_DLL explicit UnorderedTuplePattern(tvm::ffi::Array<DFPattern> fields);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(UnorderedTuplePattern, DFPattern,
-                                             UnorderedTuplePatternNode);
+  explicit UnorderedTuplePattern(ffi::ObjectPtr<UnorderedTuplePatternNode> n)
+      : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(UnorderedTuplePattern, DFPattern,
+                                                UnorderedTuplePatternNode);
 };
 
 /*!
@@ -632,6 +696,9 @@ class UnorderedTuplePattern : public DFPattern {
  */
 class TupleGetItemPatternNode : public DFPatternNode {
  public:
+  explicit TupleGetItemPatternNode(DFPattern tuple) : tuple(std::move(tuple)) {}
+  explicit TupleGetItemPatternNode(ffi::UnsafeInit) : tuple(ffi::UnsafeInit{}) {}
+
   DFPattern tuple; /*!< The tuple Expression */
   int index;       /*!< The index of the tuple with -1 meaning arbitrary */
 
@@ -652,8 +719,13 @@ class TupleGetItemPatternNode : public DFPatternNode {
 class TupleGetItemPattern : public DFPattern {
  public:
   TVM_DLL TupleGetItemPattern(DFPattern tuple, int index);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TupleGetItemPattern, DFPattern,
-                                             TupleGetItemPatternNode);
+  explicit TupleGetItemPattern(ffi::ObjectPtr<TupleGetItemPatternNode> n)
+      : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TupleGetItemPattern, DFPattern,
+                                                TupleGetItemPatternNode);
 };
 
 /*!
@@ -662,6 +734,10 @@ class TupleGetItemPattern : public DFPattern {
  */
 class AndPatternNode : public DFPatternNode {
  public:
+  explicit AndPatternNode(DFPattern left, DFPattern right)
+      : left(std::move(left)), right(std::move(right)) {}
+  explicit AndPatternNode(ffi::UnsafeInit) : left(ffi::UnsafeInit{}), right(ffi::UnsafeInit{}) {}
+
   DFPattern left;  /*!< The left hand side of the conjunction */
   DFPattern right; /*!< The right hand side of the conjunction */
 
@@ -681,7 +757,11 @@ class AndPatternNode : public DFPatternNode {
 class AndPattern : public DFPattern {
  public:
   TVM_DLL AndPattern(DFPattern lhs, DFPattern rhs);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AndPattern, DFPattern, AndPatternNode);
+  explicit AndPattern(ffi::ObjectPtr<AndPatternNode> n) : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AndPattern, DFPattern, AndPatternNode);
 };
 
 /*!
@@ -690,6 +770,10 @@ class AndPattern : public DFPattern {
  */
 class OrPatternNode : public DFPatternNode {
  public:
+  explicit OrPatternNode(DFPattern left, DFPattern right)
+      : left(std::move(left)), right(std::move(right)) {}
+  explicit OrPatternNode(ffi::UnsafeInit) : left(ffi::UnsafeInit{}), right(ffi::UnsafeInit{}) {}
+
   DFPattern left;  /*!< The left hand side of the disjunction */
   DFPattern right; /*!< The right hand side of the disjunction */
 
@@ -709,7 +793,11 @@ class OrPatternNode : public DFPatternNode {
 class OrPattern : public DFPattern {
  public:
   TVM_DLL OrPattern(DFPattern left, DFPattern right);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(OrPattern, DFPattern, OrPatternNode);
+  explicit OrPattern(ffi::ObjectPtr<OrPatternNode> n) : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(OrPattern, DFPattern, OrPatternNode);
 };
 
 /*!
@@ -718,6 +806,9 @@ class OrPattern : public DFPattern {
  */
 class NotPatternNode : public DFPatternNode {
  public:
+  explicit NotPatternNode(DFPattern reject) : reject(std::move(reject)) {}
+  explicit NotPatternNode(ffi::UnsafeInit) : reject(ffi::UnsafeInit{}) {}
+
   DFPattern reject; /*!< The pattern to reject */
 
   static void RegisterReflection() {
@@ -734,7 +825,11 @@ class NotPatternNode : public DFPatternNode {
 class NotPattern : public DFPattern {
  public:
   TVM_DLL NotPattern(DFPattern reject);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(NotPattern, DFPattern, NotPatternNode);
+  explicit NotPattern(ffi::ObjectPtr<NotPatternNode> n) : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(NotPattern, DFPattern, NotPatternNode);
 };
 
 /*!
@@ -778,6 +873,9 @@ class WildcardPattern : public DFPattern {
  */
 class TypePatternNode : public DFPatternNode {
  public:
+  explicit TypePatternNode(DFPattern pattern) : pattern(std::move(pattern)) {}
+  explicit TypePatternNode(ffi::UnsafeInit) : pattern(ffi::UnsafeInit{}) {}
+
   DFPattern pattern;         /*!< The pattern to match */
   Type ty = Type::Missing(); /*!< The type to match */
 
@@ -793,7 +891,11 @@ class TypePatternNode : public DFPatternNode {
 class TypePattern : public DFPattern {
  public:
   TVM_DLL TypePattern(DFPattern pattern, Type ty);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TypePattern, DFPattern, TypePatternNode);
+  explicit TypePattern(ffi::ObjectPtr<TypePatternNode> n) : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TypePattern, DFPattern, TypePatternNode);
 };
 
 /*!
@@ -802,6 +904,9 @@ class TypePattern : public DFPattern {
  */
 class ShapePatternNode : public DFPatternNode {
  public:
+  explicit ShapePatternNode(DFPattern pattern) : pattern(std::move(pattern)) {}
+  explicit ShapePatternNode(ffi::UnsafeInit) : pattern(ffi::UnsafeInit{}) {}
+
   DFPattern pattern;          /*!< The root pattern to match */
   ffi::Array<PrimExpr> shape; /*!< The shape to match */
 
@@ -821,7 +926,11 @@ class ShapePatternNode : public DFPatternNode {
 class ShapePattern : public DFPattern {
  public:
   TVM_DLL ShapePattern(DFPattern pattern, ffi::Array<PrimExpr> type);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ShapePattern, DFPattern, ShapePatternNode);
+  explicit ShapePattern(ffi::ObjectPtr<ShapePatternNode> n) : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ShapePattern, DFPattern, ShapePatternNode);
 };
 
 /*!
@@ -852,8 +961,13 @@ class SameShapeConstraintNode : public DFConstraintNode {
 class SameShapeConstraint : public DFConstraint {
  public:
   TVM_DLL SameShapeConstraint(ffi::Array<DFPattern> args);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SameShapeConstraint, DFConstraint,
-                                             SameShapeConstraintNode);
+  explicit SameShapeConstraint(ffi::ObjectPtr<SameShapeConstraintNode> n)
+      : DFConstraint(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SameShapeConstraint, DFConstraint,
+                                                SameShapeConstraintNode);
 };
 
 /*!
@@ -862,6 +976,9 @@ class SameShapeConstraint : public DFConstraint {
  */
 class DataTypePatternNode : public DFPatternNode {
  public:
+  explicit DataTypePatternNode(DFPattern pattern) : pattern(std::move(pattern)) {}
+  explicit DataTypePatternNode(ffi::UnsafeInit) : pattern(ffi::UnsafeInit{}) {}
+
   DFPattern pattern; /*!< The root pattern to match */
   DLDataType dtype;  /*!< The data type to match */
 
@@ -882,7 +999,11 @@ class DataTypePatternNode : public DFPatternNode {
 class DataTypePattern : public DFPattern {
  public:
   TVM_DLL DataTypePattern(DFPattern pattern, DLDataType dtype);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataTypePattern, DFPattern, DataTypePatternNode);
+  explicit DataTypePattern(ffi::ObjectPtr<DataTypePatternNode> n) : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DataTypePattern, DFPattern, DataTypePatternNode);
 };
 
 /*!
@@ -891,6 +1012,9 @@ class DataTypePattern : public DFPattern {
  */
 class AttrPatternNode : public DFPatternNode {
  public:
+  explicit AttrPatternNode(DFPattern pattern) : pattern(std::move(pattern)) {}
+  explicit AttrPatternNode(ffi::UnsafeInit) : pattern(ffi::UnsafeInit{}) {}
+
   DFPattern pattern; /*!< The root pattern to match */
   DictAttrs attrs;   /*!< The attributes (a map/dictionary) to match */
 
@@ -910,7 +1034,11 @@ class AttrPatternNode : public DFPatternNode {
 class AttrPattern : public DFPattern {
  public:
   TVM_DLL AttrPattern(DFPattern pattern, DictAttrs attrs);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AttrPattern, DFPattern, AttrPatternNode);
+  explicit AttrPattern(ffi::ObjectPtr<AttrPatternNode> n) : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AttrPattern, DFPattern, AttrPatternNode);
 };
 
 /*!
@@ -941,7 +1069,13 @@ class ExternFuncPatternNode : public DFPatternNode {
 class ExternFuncPattern : public DFPattern {
  public:
   TVM_DLL ExternFuncPattern(ffi::String global_symbol);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExternFuncPattern, DFPattern, ExternFuncPatternNode);
+  explicit ExternFuncPattern(ffi::ObjectPtr<ExternFuncPatternNode> n)
+      : DFPattern(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExternFuncPattern, DFPattern,
+                                                ExternFuncPatternNode);
 };
 
 /*! \brief Syntatic Sugar for creating a VarPattern with a name */

@@ -59,7 +59,12 @@ class AttrsNode : public ffi::Object {
  */
 class Attrs : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Attrs, ffi::ObjectRef, AttrsNode);
+  explicit Attrs(ffi::ObjectPtr<AttrsNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
+    TVM_FFI_ICHECK(n != nullptr);
+    data_ = std::move(n);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Attrs, ffi::ObjectRef, AttrsNode);
 };
 
 /*!
@@ -108,7 +113,7 @@ class DictAttrs : public Attrs {
    * The no-argument form constructs an empty (but always defined) DictAttrs.
    * \param dict The attributes.
    */
-  explicit DictAttrs(ffi::Map<ffi::String, Any> dict = {}) {
+  explicit DictAttrs(ffi::Map<ffi::String, Any> dict = {}) : Attrs(ffi::UnsafeInit{}) {
     ffi::ObjectPtr<DictAttrsNode> n = ffi::make_object<DictAttrsNode>();
     n->dict = std::move(dict);
     data_ = std::move(n);

@@ -47,7 +47,8 @@ ffi::Array<PrimExpr> ExternOpNode::output_shape(size_t i) const {
 
 ExternOp::ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi::Any> attrs,
                    ffi::Array<Tensor> inputs, ffi::Array<TensorVar> input_placeholders,
-                   ffi::Array<TensorVar> output_placeholders, SeqStmt body) {
+                   ffi::Array<TensorVar> output_placeholders, SeqStmt body)
+    : Operation(ffi::UnsafeInit{}) {
   if (!attrs.defined()) {
     attrs = ffi::Map<ffi::String, ffi::Any>();
   }

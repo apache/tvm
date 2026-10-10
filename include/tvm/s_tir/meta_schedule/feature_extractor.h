@@ -89,6 +89,11 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
  */
 class FeatureExtractor : public ffi::ObjectRef {
  public:
+  explicit FeatureExtractor(ffi::ObjectPtr<FeatureExtractorNode> data)
+      : ffi::ObjectRef(std::move(data)) {
+    TVM_FFI_ICHECK(data_ != nullptr);
+  }
+
   /*!
    * \brief Create a feature extractor that extracts features from each TensorStore
    * \param buffers_per_store The number of buffers in each TensorStore; Pad or truncate if
@@ -110,8 +115,8 @@ class FeatureExtractor : public ffi::ObjectRef {
    */
   TVM_DLL static FeatureExtractor PyFeatureExtractor(
       PyFeatureExtractorNode::FExtractFrom f_extract_from);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FeatureExtractor, ffi::ObjectRef,
-                                             FeatureExtractorNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FeatureExtractor, ffi::ObjectRef,
+                                                FeatureExtractorNode);
 };
 
 }  // namespace meta_schedule

@@ -79,7 +79,7 @@ class MutateUnrollNode : public MutatorNode {
 /*! \brief A candidate to be mutated */
 struct MutateUnrollNode::Candidate {
   /*! \brief The sampling instruction to be mutated */
-  Instruction inst;
+  ffi::Optional<Instruction> inst;
   /*! \brief The probability */
   std::vector<double> probs;
   /*! \brief The decision made */
@@ -142,7 +142,7 @@ ffi::Optional<Trace> MutateUnrollNode::Apply(const Trace& trace, TRandState* ran
   if (result >= candidate.decision) {
     result += 1;
   }
-  return trace->WithDecision(candidate.inst, static_cast<int64_t>(result),
+  return trace->WithDecision(candidate.inst.value(), static_cast<int64_t>(result),
                              /*remove_postproc=*/true);
 }
 

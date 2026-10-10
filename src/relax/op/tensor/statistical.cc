@@ -156,7 +156,7 @@ InferLayoutOutput InferLayoutStatistical(
 
   LayoutDecision exisiting_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   auto new_axis_str = TransposeSubLayoutStrLike(axis_str, InitialLayout(ndim).name(),
-                                                exisiting_layout->layout.name());
+                                                exisiting_layout->layout.value().name());
   std::string output_layout_ref = new_axis_str;
   new_axis_str.erase(std::remove_if(new_axis_str.begin(), new_axis_str.end(),
                                     [](unsigned char c) { return std::isdigit(c); }),

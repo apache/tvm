@@ -74,7 +74,7 @@ ffi::Optional<ExprDoc> CallDPSPackedDocTranslate(DocTranslatorObj* d, ffi::AnyVi
                                                  const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (call->attrs.defined() || call->args.size() != 2 || !call->args[1].as<TupleNode>() ||
+  if (call->attrs.has_value() || call->args.size() != 2 || !call->args[1].as<TupleNode>() ||
       call->ty_args.size() != 1 || InlineTupleNeedsRawCall(d, call->args[1])) {
     return RawCall(d, call);
   }

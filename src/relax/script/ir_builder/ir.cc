@@ -34,7 +34,7 @@ using namespace tvm::prim;
 namespace ir_builder {
 namespace relax {
 
-tvm::relax::VDevice LookupVDevice(ffi::String target_kind, int device_index) {
+ffi::Optional<tvm::relax::VDevice> LookupVDevice(ffi::String target_kind, int device_index) {
   if (IRBuilder::IsInScope()) {
     ir::IRModuleFrame frame = ir::FindModuleFrame();
     if (frame->global_infos.empty()) {
@@ -51,7 +51,7 @@ tvm::relax::VDevice LookupVDevice(ffi::String target_kind, int device_index) {
     int count = 0;
     for (auto vdevice : vdevices) {
       auto vdev = vdevice.as_or_throw<tvm::relax::VDevice>();
-      if (vdev->target->kind->name == target_kind) {
+      if (vdev->target.has_value() && vdev->target.value()->kind->name == target_kind) {
         if (count == device_index) {
           return vdev;
         }
@@ -60,7 +60,7 @@ tvm::relax::VDevice LookupVDevice(ffi::String target_kind, int device_index) {
     }
   }
   LOG(WARNING) << "The annotated device was not found, please check your vdevice list.";
-  return tvm::relax::VDevice();
+  return std::nullopt;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -84,15 +84,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /////////////////////////////// Function ////////////////////////////////
 
 FunctionFrame Function(bool is_pure, bool is_private) {
-  ffi::ObjectPtr<FunctionFrameNode> n = ffi::make_object<FunctionFrameNode>();
   const IRBuilder& ir_builder = IRBuilder::Current();
   ffi::Optional<tvm::IRModule> mod = std::nullopt;
   if (const ffi::Optional<ir::IRModuleFrame> mod_frame =
           ir_builder->GetLastFrame<ir::IRModuleFrame>()) {
     mod = tvm::IRModule(mod_frame.value()->functions);
   }
-  n->block_builder = tvm::relax::BlockBuilder::Create(
-      /*mod=*/mod, tvm::relax::BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript());
+  auto n = ffi::make_object<FunctionFrameNode>(tvm::relax::BlockBuilder::Create(
+      /*mod=*/mod, tvm::relax::BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript()));
   n->is_pure = is_pure;
   n->is_private = is_private;
   return FunctionFrame(n);

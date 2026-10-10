@@ -49,8 +49,8 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const SBlockNode* op) {
 ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBlock(tirx::StmtExprVisitor* visitor,
                                                           const SBlockNode* op) {
   for (const IterVar& iter_var : op->iter_vars) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(iter_var->dom->min));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(iter_var->dom->extent));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(iter_var->dom.value()->min));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(iter_var->dom.value()->extent));
   }
   for (const TensorVar& buf : op->alloc_buffers) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
@@ -107,9 +107,10 @@ UnchangedOr<Stmt> StmtExprMutator::MutateBlock(tirx::StmtExprMutator* mutator, c
   std::vector<std::pair<size_t, IterVar>> replacements;
   for (size_t i = 0; i < iters->size(); ++i) {
     const auto* iter = (*iters)[i].as<IterVarNode>();
+    if (!iter->dom.has_value()) continue;
     InplaceMode domain_mode = iter->unique() ? iter_mode : InplaceMode::kDisallow;
-    auto domain = mutator->Mutate(iter->dom, domain_mode).as_or_throw<UnchangedOr<Range>>();
-    if (domain.UnchangedOrSameAs(iter->dom)) continue;
+    auto domain = mutator->Mutate(iter->dom.value(), domain_mode).as_or_throw<UnchangedOr<Range>>();
+    if (domain.UnchangedOrSameAs(iter->dom.value())) continue;
     if (domain_mode == InplaceMode::kAllow) {
       const_cast<IterVarNode*>(iter)->dom = std::move(domain).ValueUnchecked();
     } else {

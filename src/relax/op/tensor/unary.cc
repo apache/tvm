@@ -42,157 +42,157 @@ Type InferTypeUnaryCheck(const CallNode* call_node) {
 
 Expr abs(Expr x) {
   static const Op op = Op::Get("relax.abs");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr acos(Expr x) {
   static const Op op = Op::Get("relax.acos");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr acosh(Expr x) {
   static const Op op = Op::Get("relax.acosh");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr asin(Expr x) {
   static const Op op = Op::Get("relax.asin");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr asinh(Expr x) {
   static const Op op = Op::Get("relax.asinh");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr atan(Expr x) {
   static const Op op = Op::Get("relax.atan");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr atanh(Expr x) {
   static const Op op = Op::Get("relax.atanh");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr bitwise_not(Expr x) {
   static const Op op = Op::Get("relax.bitwise_not");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr ceil(Expr x) {
   static const Op op = Op::Get("relax.ceil");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr cos(Expr x) {
   static const Op op = Op::Get("relax.cos");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr cosh(Expr x) {
   static const Op op = Op::Get("relax.cosh");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr exp(Expr x) {
   static const Op op = Op::Get("relax.exp");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr floor(Expr x) {
   static const Op op = Op::Get("relax.floor");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr log(Expr x) {
   static const Op op = Op::Get("relax.log");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr logical_not(Expr x) {
   static const Op op = Op::Get("relax.logical_not");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr negative(Expr x) {
   static const Op op = Op::Get("relax.negative");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr round(Expr x) {
   static const Op op = Op::Get("relax.round");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr rsqrt(Expr x) {
   static const Op op = Op::Get("relax.rsqrt");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr sigmoid(Expr x) {
   static const Op op = Op::Get("relax.sigmoid");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr sign(Expr x) {
   static const Op op = Op::Get("relax.sign");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr sin(Expr x) {
   static const Op op = Op::Get("relax.sin");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr sinh(Expr x) {
   static const Op op = Op::Get("relax.sinh");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr square(Expr x) {
   static const Op op = Op::Get("relax.square");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr sqrt(Expr x) {
   static const Op op = Op::Get("relax.sqrt");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr tan(Expr x) {
   static const Op op = Op::Get("relax.tan");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr tanh(Expr x) {
   static const Op op = Op::Get("relax.tanh");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr trunc(Expr x) {
   static const Op op = Op::Get("relax.trunc");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr erf(Expr x) {
   static const Op op = Op::Get("relax.erf");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr isfinite(Expr x) {
   static const Op op = Op::Get("relax.isfinite");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr isinf(Expr x) {
   static const Op op = Op::Get("relax.isinf");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 Expr isnan(Expr x) {
   static const Op op = Op::Get("relax.isnan");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x)}, std::nullopt, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

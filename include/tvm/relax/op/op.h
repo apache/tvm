@@ -74,6 +74,8 @@ struct CallInplacePackedAttrs : public AttrsNode {
 
 /*! \brief Attributes used in to_vdevice */
 struct ToVDeviceAttrs : public AttrsNode {
+  explicit ToVDeviceAttrs(VDevice value) : dst_vdevice(std::move(value)) {}
+  explicit ToVDeviceAttrs(ffi::UnsafeInit) : dst_vdevice(ffi::UnsafeInit{}) {}
   VDevice dst_vdevice;
 
   static void RegisterReflection();
