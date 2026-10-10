@@ -51,6 +51,8 @@ class IfHoister : public StmtExprMutator {
     if (input.as<StmtNode>() && !input.as<ForNode>() && !input.as<IfNode>() &&
         !input.as<SeqStmtNode>()) {
       // Bindings, regions and unknown statements have no code-motion contract.
+      // Hide outer loops and their variable depths while visiting this subtree;
+      // active_loops_/split_in_nest_ still bound duplication of the enclosing nest.
       return scopes_.WithNewScope([&] { return StmtExprMutator::Mutate(input, inplace_mode); });
     }
     return StmtExprMutator::Mutate(input, inplace_mode);
@@ -73,6 +75,7 @@ class IfHoister : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
     // Sibling statements isolate loop placement; a singleton stays transparent.
+    // An If inside one sibling must not move outside the loop executing all siblings.
     if (op->seq.size() == 1) return StmtExprMutator::Mutate_(op, inplace_mode);
     return scopes_.WithNewScope([&] { return StmtExprMutator::Mutate_(op, inplace_mode); });
   }
@@ -85,7 +88,8 @@ class IfHoister : public StmtExprMutator {
     size_t destination = 0;
     std::unordered_set<const ExprNode*> visited;
     auto advance = [&](const ExprNode* op) -> ffi::Expected<ffi::WalkResult> {
-      // StructuralWalk visits occurrences; prune shared expression subtrees.
+      // StructuralWalk visits occurrences. For Add(e, e), safety and dependencies
+      // need checking only once per shared e, within this predicate's fixed scope.
       return visited.insert(op).second ? ffi::WalkResult::Advance() : ffi::WalkResult::Skip();
     };
     auto division = [&](const ExprNode* op,
@@ -98,6 +102,8 @@ class IfHoister : public StmtExprMutator {
     auto blocked = ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
         condition,
         [&](const VarNode* op) -> ffi::Expected<ffi::WalkResult> {
+          // Stay inside every referenced loop variable's definition. Other
+          // variables remain in scope at every candidate destination.
           auto it = scope.loop_depths.find(op);
           if (it != scope.loop_depths.end()) destination = std::max(destination, it->second + 1);
           // An innermost-loop dependency already rules out every destination.
@@ -156,15 +162,24 @@ class IfHoister : public StmtExprMutator {
       return scopes_.WithNewScope([&] { return StmtExprMutator::Mutate_(op, inplace_mode); });
     }
     auto& scope = scopes_.Current();
+    // A new outermost eligible loop gets one two-sided split. Do not reset at
+    // scope barriers: an outer i / SeqStmt / inner j still shares this budget.
     if (active_loops_++ == 0) split_in_nest_ = false;
+    // Snapshot ancestors outside this loop so they do not require a false-path copy.
     LoopState loop{else_depth_, {}};
     const VarNode* var = op->loop_var.get();
+    // Register this destination and its variable together. An index in loops
+    // identifies both where to wrap a lifted If and which variables it must avoid.
     scope.loop_depths[var] = scope.loops.size();
     scope.loops.push_back(&loop);
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    // Only descendants can lift to this loop; remove both entries before siblings.
+    // The local LoopState remains alive below to emit its collected conditions.
     scope.loops.pop_back();
     scope.loop_depths.erase(var);
+    // Reaching zero lets the next independent nest start with a fresh split budget.
     --active_loops_;
+    // Collected p then q must become if p: if q: loop, so wrap q before p.
     for (auto it = loop.conditions.rbegin(); it != loop.conditions.rend(); ++it) {
       // Duplicate only when an alternate branch must remain reachable.
       const auto& [condition, preserve_else] = *it;
@@ -185,20 +200,28 @@ class IfHoister : public StmtExprMutator {
       if (destination < scope.loops.size()) {
         // A false predicate must still execute an enclosing alternate branch
         // inside the destination loop, even when this If has no else of its own.
-        // Branches outside that loop remain guarded and need no extra loop copy.
+        // In for i: if p(i) { if q { A } } else { B }, q=false still needs B.
+        // The entry snapshot excludes Ifs outside this loop,
+        // whose alternate branches remain reachable without duplicating it.
         bool preserve_else =
             has_else || else_depth_ > scope.loops[destination]->else_depth_at_entry;
         auto* loop = scope.loops[destination];
         // Each two-sided predicate doubles the enclosing loop subtree. Limit
         // splitting to once per loop nest, even across code-motion barriers.
         if (!preserve_else || !split_in_nest_) {
+          // Record at the destination now; its For unwind wraps the complete
+          // rewritten body. Preorder collection preserves enclosing predicate order.
           loop->conditions.emplace_back(op->condition, preserve_else);
+          // Hoists needing no false-path copy spend no budget. A copy consumes
+          // it for the rest of this nest, including loops behind scope barriers.
           split_in_nest_ |= preserve_else;
         }
       }
     }
+    // Descendant hoists must preserve this If's alternate arm, in either branch.
     else_depth_ += has_else;
     auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+    // Restore the ancestor count so following siblings do not inherit this If.
     else_depth_ -= has_else;
     return result;
   }
