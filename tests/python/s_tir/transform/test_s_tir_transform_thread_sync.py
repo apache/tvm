@@ -20,6 +20,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import s_tir
+from tvm.script import ir as I
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
@@ -235,6 +236,30 @@ def test_sync_bind():
     mod = tvm.IRModule({"main": func})
     mod = tvm.s_tir.transform.ThreadSync("shared")(mod)
     tvm.ir.assert_structural_equal(mod["main"], expected)
+
+
+@pytest.mark.parametrize("loop", [T.serial, T.unroll])
+def test_hoist_if_preserves_sync_placement(loop):
+    @I.ir_module
+    class Before:
+        @T.function
+        def main(A: T.Tensor((4,), "int32")):
+            B = T.alloc_tensor((4,), "int32", scope="shared")
+            tx = T.launch_thread("threadIdx.x", 4)
+            B[tx] = A[tx]
+            for i in loop(1, 4):
+                if tx == 0:
+                    B[i] = B[i - 1] + 1
+            A[tx] = B[tx]
+
+    # Each iteration must keep its own guard so synchronization can be inserted
+    # between shared-memory accesses, outside conditional control flow.
+    finish = tvm.transform.Sequential(
+        [tvm.tirx.transform.UnrollLoop(), tvm.s_tir.transform.ThreadSync("shared")]
+    )
+    Expected = finish(Before)
+    After = finish(tvm.tirx.transform.HoistIf()(Before))
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

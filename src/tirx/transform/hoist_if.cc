@@ -25,6 +25,7 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/op/region.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -158,9 +159,19 @@ class IfHoister : public StmtExprMutator {
     return blocked.has_value() ? scope.loops.size() : destination;
   }
 
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    // Moving guards inside a thread launch can prevent later synchronization
+    // insertion, even when the guards themselves are loop-invariant.
+    if (op->op.same_as(launch_thread_op())) return ffi::Unchanged();
+    return StmtExprMutator::Mutate_(op, inplace_mode);
+  }
+
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    // Hoisting must not suppress evaluation of an effectful loop header.
-    if (HasEffects(op->min) || HasEffects(op->extent) ||
+    // Preserve the same synchronization boundary before thread-binding lowering.
+    if (GetThreadBinding(op).has_value()) return ffi::Unchanged();
+    // Only ordinary serial loops permit code motion across their execution scope.
+    // Hoisting must not suppress evaluation of an effectful loop header either.
+    if (op->kind != ForKind::kDefault || HasEffects(op->min) || HasEffects(op->extent) ||
         (op->step && HasEffects(op->step.value()))) {
       return scopes_.WithNewScope([&] { return StmtExprMutator::Mutate_(op, inplace_mode); });
     }

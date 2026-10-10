@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
 import tvm
 import tvm.testing
 from tvm.script import ir as I
@@ -208,16 +210,7 @@ def test_thread_region_boundary():
                         if 0 < n:
                             A[i, tx] = j
 
-    @I.ir_module
-    class Expected:
-        @T.function
-        def main(A: T.Tensor((4, 4), "int32"), n: T.int32):
-            for i in T.serial(4):
-                with T.launch_thread("threadIdx.x", 4) as tx:
-                    if 0 < n:
-                        for j in T.serial(4):
-                            A[i, tx] = j
-
+    Expected = Before
     After = tvm.tirx.transform.HoistIf()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
@@ -278,6 +271,150 @@ def test_enclosing_else_is_preserved():
                     if not i < 2:
                         A[i] = 2
 
+    After = tvm.tirx.transform.HoistIf()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_effectful_enclosing_condition():
+    @I.ir_module
+    class Before:
+        @T.function
+        def main(A: T.Tensor((4,), "int32"), n: T.int32):
+            for i in T.serial(4):
+                if 0 < i + T.call_extern("predicate", ty="int32"):
+                    if 0 < n:
+                        A[i] = 1
+
+    Expected = Before
+    After = tvm.tirx.transform.HoistIf()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+@pytest.mark.parametrize("field", ["min", "extent", "step"])
+def test_effectful_loop_header(field):
+    value = tvm.tirx.call_extern("int32", "loop_header")
+    start = value if field == "min" else 0
+    stop = value if field == "extent" else 4
+    step = value if field == "step" else 1
+
+    @I.ir_module
+    class Before:
+        @T.function
+        def main(A: T.Tensor((4,), "int32"), n: T.int32):
+            for i in T.serial(start, stop, step=step):
+                if 0 < n:
+                    A[i] = 1
+
+    Expected = Before
+    After = tvm.tirx.transform.HoistIf()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+@pytest.mark.parametrize("loop", [T.parallel, T.vectorized, T.unroll])
+def test_non_default_loop_boundary(loop):
+    @I.ir_module
+    class Before:
+        @T.function
+        def main(A: T.Tensor((4, 4, 4), "int32"), n: T.int32):
+            for i in T.serial(4):
+                for j in loop(4):
+                    for k in T.serial(4):
+                        if 0 < n:
+                            A[i, j, k] = 1
+
+    @I.ir_module
+    class Expected:
+        @T.function
+        def main(A: T.Tensor((4, 4, 4), "int32"), n: T.int32):
+            for i in T.serial(4):
+                for j in loop(4):
+                    if 0 < n:
+                        for k in T.serial(4):
+                            A[i, j, k] = 1
+
+    After = tvm.tirx.transform.HoistIf()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_nested_else_splits_once():
+    @I.ir_module
+    class Before:
+        @T.function
+        def main(A: T.Tensor((4,), "int32"), n: T.int32, m: T.int32):
+            for i in T.serial(4):
+                if 0 < n:
+                    if 0 < m:
+                        A[i] = 1
+                    else:
+                        A[i] = 2
+                else:
+                    A[i] = 3
+
+    @I.ir_module
+    class Expected:
+        @T.function
+        def main(A: T.Tensor((4,), "int32"), n: T.int32, m: T.int32):
+            if 0 < n:
+                for i in T.serial(4):
+                    if 0 < m:
+                        A[i] = 1
+                    else:
+                        A[i] = 2
+            else:
+                for i in T.serial(4):
+                    A[i] = 3
+
+    After = tvm.tirx.transform.HoistIf()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_nested_loop_splits_once():
+    @I.ir_module
+    class Before:
+        @T.function
+        def main(A: T.Tensor((4, 4, 4), "int32")):
+            for i in T.serial(4):
+                for j in T.serial(4):
+                    for k in T.serial(4):
+                        if i < 2:
+                            A[i, j, k] = 1
+                        elif j < 2:
+                            A[i, j, k] = 2
+                        else:
+                            A[i, j, k] = 3
+
+    @I.ir_module
+    class Expected:
+        @T.function
+        def main(A: T.Tensor((4, 4, 4), "int32")):
+            for i in T.serial(4):
+                if i < 2:
+                    for j in T.serial(4):
+                        for k in T.serial(4):
+                            A[i, j, k] = 1
+                else:
+                    for j in T.serial(4):
+                        for k in T.serial(4):
+                            if j < 2:
+                                A[i, j, k] = 2
+                            else:
+                                A[i, j, k] = 3
+
+    After = tvm.tirx.transform.HoistIf()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_thread_binding_boundary():
+    @I.ir_module
+    class Before:
+        @T.function
+        def main(A: T.Tensor((4, 4), "int32"), n: T.int32):
+            for tx in T.thread_binding(4, thread="threadIdx.x"):
+                for i in T.serial(4):
+                    if 0 < n:
+                        A[tx, i] = 1
+
+    Expected = Before
     After = tvm.tirx.transform.HoistIf()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
