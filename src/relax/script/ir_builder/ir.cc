@@ -307,27 +307,25 @@ tvm::Var EmitVarBinding(const tvm::relax::VarBinding& binding) {
 
 namespace {
 
-tvm::Var RecordBindingSpan(tvm::Var var, const ffi::Optional<Span>& name_span,
-                           const ffi::Optional<Span>& statement_span) {
-  Span span = IRBuilder::Current()->GetCurrentSourceSpan(statement_span.value_or(Span()));
-  if (span.defined()) {
-    CheckBindingBlockFrameExistAndUnended()->binding_spans.Set(var, span);
+tvm::Var RecordBindingLoc(tvm::Var var, const Location& name_loc, const Location& statement_loc) {
+  Location loc = IRBuilder::Current()->GetCurrentLoc(statement_loc);
+  if (!loc.as<UnknownLocNode>()) {
+    CheckBindingBlockFrameExistAndUnended()->binding_locs.Set(var, loc);
   }
-  var->span = name_span.value_or(span);
+  var->loc = name_loc.as<UnknownLocNode>() ? loc : name_loc;
   return var;
 }
 
 }  // namespace
 
-tvm::Var EmitWithSpan(const tvm::relax::Expr& value, const ffi::Optional<tvm::Type>& annotate_ty,
-                      const ffi::Optional<Span>& name_span, const ffi::Optional<Span>& span) {
-  return RecordBindingSpan(Emit(value, annotate_ty), name_span, span);
+tvm::Var EmitWithLoc(const tvm::relax::Expr& value, const ffi::Optional<tvm::Type>& annotate_ty,
+                     const Location& name_loc, const Location& loc) {
+  return RecordBindingLoc(Emit(value, annotate_ty), name_loc, loc);
 }
 
-tvm::Var EmitMatchCastWithSpan(const tvm::relax::Expr& value, const tvm::Type& ty,
-                               const ffi::Optional<Span>& name_span,
-                               const ffi::Optional<Span>& span) {
-  return RecordBindingSpan(EmitMatchCast(value, ty), name_span, span);
+tvm::Var EmitMatchCastWithLoc(const tvm::relax::Expr& value, const tvm::Type& ty,
+                              const Location& name_loc, const Location& loc) {
+  return RecordBindingLoc(EmitMatchCast(value, ty), name_loc, loc);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -336,8 +334,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.relax.Emit", Emit)
       .def("script.ir_builder.relax.EmitMatchCast", EmitMatchCast)
       .def("script.ir_builder.relax.EmitVarBinding", EmitVarBinding)
-      .def("script.ir_builder.relax.EmitWithSpan", EmitWithSpan)
-      .def("script.ir_builder.relax.EmitMatchCastWithSpan", EmitMatchCastWithSpan);
+      .def("script.ir_builder.relax.EmitWithLoc", EmitWithLoc)
+      .def("script.ir_builder.relax.EmitMatchCastWithLoc", EmitMatchCastWithLoc);
 }
 
 /////////////////////////////// SeqExpr ///////////////////////////////

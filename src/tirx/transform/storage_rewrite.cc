@@ -541,7 +541,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     TensorVar remapped = RemapBuffer(buffer, it->second->alloc_var);
     ffi::Array<PrimExpr> indices = node->indices;
     indices.Set(indices.size() - 1, RemapIndex(buffer->dtype, indices.back(), it->second));
-    return MakeTensorLoad(remapped, indices, node->span);
+    return MakeTensorLoad(remapped, indices, node->loc);
   }
 
   TensorVar RemapBuffer(TensorVar buf, Var new_backing_array) {
@@ -573,7 +573,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                            ? ffi::GetRef<TensorStore>(op)
                            : TensorStore(op->dest.as_or_throw<TensorVar>(),
                                          std::move(indices).ValueOrUnchanged(op->indices),
-                                         std::move(value).ValueOrUnchanged(op->value), op->span);
+                                         std::move(value).ValueOrUnchanged(op->value), op->loc);
     return VisitBufferAccess(std::move(node));
   }
 
@@ -583,7 +583,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     TensorLoad node = indices.UnchangedOrSameAs(op->indices)
                           ? ffi::GetRef<TensorLoad>(op)
                           : MakeTensorLoad(op->source.as_or_throw<TensorVar>(),
-                                           std::move(indices).ValueUnchecked(), op->span);
+                                           std::move(indices).ValueUnchecked(), op->loc);
     return VisitBufferAccess(std::move(node));
   }
 
@@ -613,7 +613,7 @@ class StoragePlanRewriter : public StmtExprMutator {
             return Call(
                 op->ty, tirx::ptr_byte_offset_op(),
                 {data, IntImm(PrimType::Int(64), static_cast<int64_t>(entry->bits_offset / 8))}, {},
-                {}, op->span);
+                {}, op->loc);
           }
           return data;
         }
@@ -631,23 +631,23 @@ class StoragePlanRewriter : public StmtExprMutator {
             this->Mutate(op->args[i]).ValueOrUnchanged(op->args[i]).as_or_throw<PrimExpr>());
       }
       if (is_load) {
-        TensorLoad access = MakeTensorLoad(buffer, indices, op->span);
+        TensorLoad access = MakeTensorLoad(buffer, indices, op->loc);
         access = VisitBufferAccess(std::move(access));
         ffi::Array<Expr> args{access->source.as_or_throw<TensorVar>().var()};
         for (const PrimExpr& index : access->indices) args.push_back(index);
         args.push_back(this->Mutate(op->args[op->args.size() - 1])
                            .ValueOrUnchanged(op->args[op->args.size() - 1])
                            .as_or_throw<Expr>());
-        return Call(access->ty, op->op, args, op->attrs, op->ty_args, op->span);
+        return Call(access->ty, op->op, args, op->attrs, op->ty_args, op->loc);
       } else {
-        TensorStore access(buffer, indices, value.value(), op->span);
+        TensorStore access(buffer, indices, value.value(), op->loc);
         access = VisitBufferAccess(std::move(access));
         ffi::Array<Expr> args{access->dest.as_or_throw<TensorVar>().var(), access->value};
         for (const PrimExpr& index : access->indices) args.push_back(index);
         args.push_back(this->Mutate(op->args[op->args.size() - 1])
                            .ValueOrUnchanged(op->args[op->args.size() - 1])
                            .as_or_throw<Expr>());
-        return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);
+        return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->loc);
       }
     } else {
       return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -712,8 +712,8 @@ class StoragePlanRewriter : public StmtExprMutator {
           Call(buf.type(), tirx::decl_tensor_op(),
                {it->second->alloc_var.as_or_throw<TensorVar>().data(), tvm::Tuple(buf->shape),
                 DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
-               {}, buffer_call->ty_args, buffer_call->span),
-          op->span);
+               {}, buffer_call->ty_args, buffer_call->loc),
+          op->loc);
     }
     // If not in alloc_map (e.g. unused), strip entirely.
     return Evaluate(0);
@@ -730,8 +730,8 @@ class StoragePlanRewriter : public StmtExprMutator {
           Call(buffer.type(), tirx::decl_tensor_op(),
                {it->second->alloc_var.as_or_throw<TensorVar>().data(), tvm::Tuple(buffer->shape),
                 DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
-               buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
-          op->span);
+               buffer_call->attrs, buffer_call->ty_args, buffer_call->loc),
+          op->loc);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
@@ -1785,7 +1785,7 @@ class VectorTypeRewriter : public StmtExprMutator {
           }
           return Var(old_buffer_var->name,
                      PointerType(preferred, GetPtrStorageScope(old_buffer_var)),
-                     old_buffer_var->span);
+                     old_buffer_var->loc);
         }();
 
         rewrite_map_.insert_or_assign(
@@ -1833,7 +1833,7 @@ class VectorTypeRewriter : public StmtExprMutator {
         TVM_FFI_ICHECK(info.factor() && lanes % info.factor() == 0);
         int new_lanes = lanes / info.factor();
         new_index =
-            prim::Ramp(new_index * new_lanes, ramp_index->stride, new_lanes, ramp_index->span);
+            prim::Ramp(new_index * new_lanes, ramp_index->stride, new_lanes, ramp_index->loc);
       }
       indices.Set(indices.size() - 1, new_index);
     } else if (last_dim_index.ty().lanes() == 1 && info.factor() > 1) {
@@ -1878,7 +1878,7 @@ class VectorTypeRewriter : public StmtExprMutator {
         TVM_FFI_ICHECK(info.factor() && lanes % info.factor() == 0);
         int new_lanes = lanes / info.factor();
         new_index =
-            prim::Ramp(new_index * new_lanes, ramp_index->stride, new_lanes, ramp_index->span);
+            prim::Ramp(new_index * new_lanes, ramp_index->stride, new_lanes, ramp_index->loc);
       }
       indices.Set(indices.size() - 1, new_index);
     } else if (last_dim_index.ty().lanes() == 1 && info.factor() > 1) {
@@ -1889,7 +1889,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       indices.Set(indices.size() - 1, new_index);
     }
 
-    return {MakeTensorLoad(RemapBuffer(buffer), indices, node->span), shuffle_index};
+    return {MakeTensorLoad(RemapBuffer(buffer), indices, node->loc), shuffle_index};
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
@@ -1898,7 +1898,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     TensorLoad node = indices.UnchangedOrSameAs(op->indices)
                           ? ffi::GetRef<TensorLoad>(op)
                           : MakeTensorLoad(op->source.as_or_throw<TensorVar>(),
-                                           std::move(indices).ValueUnchecked(), op->span);
+                                           std::move(indices).ValueUnchecked(), op->loc);
     auto [modified, shuffle_index] = VisitBufferAccess(node);
 
     // Not needed for TensorStoreNode, so we can't just call
@@ -1922,7 +1922,7 @@ class VectorTypeRewriter : public StmtExprMutator {
                            ? ffi::GetRef<TensorStore>(op)
                            : TensorStore(op->dest.as_or_throw<TensorVar>(),
                                          std::move(indices).ValueOrUnchanged(op->indices),
-                                         std::move(value).ValueOrUnchanged(op->value), op->span);
+                                         std::move(value).ValueOrUnchanged(op->value), op->loc);
     auto [modified, shuffle_index] = VisitBufferAccess(std::move(node));
     TVM_FFI_ICHECK(shuffle_index < 0);
     return modified;
@@ -1936,14 +1936,14 @@ class VectorTypeRewriter : public StmtExprMutator {
         indices.push_back(this->Mutate(op->args[i].as_or_throw<PrimExpr>())
                               .ValueOrUnchanged(op->args[i].as_or_throw<PrimExpr>()));
       }
-      TensorLoad access = MakeTensorLoad(buffer, indices, op->span);
+      TensorLoad access = MakeTensorLoad(buffer, indices, op->loc);
       auto [modified, shuffle_index] = VisitBufferAccess(access);
       TVM_FFI_ICHECK_LT(shuffle_index, 0)
           << "A masked vector load cannot be rewritten into a scalar shuffle.";
       ffi::Array<Expr> args{modified->source.as_or_throw<TensorVar>().var()};
       for (const PrimExpr& index : modified->indices) args.push_back(index);
       args.push_back(this->Mutate(op->args.back()).ValueOrUnchanged(op->args.back()));
-      return Call(modified->ty, op->op, args, op->attrs, op->ty_args, op->span);
+      return Call(modified->ty, op->op, args, op->attrs, op->ty_args, op->loc);
     }
     if (op->op.same_as(tirx::masked_store_op())) {
       TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
@@ -1954,7 +1954,7 @@ class VectorTypeRewriter : public StmtExprMutator {
         indices.push_back(this->Mutate(op->args[i].as_or_throw<PrimExpr>())
                               .ValueOrUnchanged(op->args[i].as_or_throw<PrimExpr>()));
       }
-      TensorStore access(buffer, indices, value, op->span);
+      TensorStore access(buffer, indices, value, op->loc);
       auto [modified, shuffle_index] = VisitBufferAccess(std::move(access));
       TVM_FFI_ICHECK_LT(shuffle_index, 0)
           << "A masked vector store cannot be rewritten into a scalar shuffle.";
@@ -1962,7 +1962,7 @@ class VectorTypeRewriter : public StmtExprMutator {
                             modified->value};
       for (const PrimExpr& index : modified->indices) args.push_back(index);
       args.push_back(this->Mutate(op->args.back()).ValueOrUnchanged(op->args.back()));
-      return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);
+      return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->loc);
     }
     return std::nullopt;
   }
@@ -1980,7 +1980,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     Var var = (it == rewrite_map_.end()) ? op->var : it->second.new_buffer_var;
     if (!ffi::StructuralEqual()(value->ty, var->ty)) {
       auto call = value.as_or_throw<Call>();
-      value = Call(var->ty, call->op, call->args, call->attrs, call->ty_args, call->span);
+      value = Call(var->ty, call->op, call->args, call->attrs, call->ty_args, call->loc);
       value_unchanged = false;
     }
     if (var.same_as(op->var) && value_unchanged) {
@@ -1999,13 +1999,13 @@ class VectorTypeRewriter : public StmtExprMutator {
     if (new_buf.same_as(op->var.as_or_throw<TensorVar>()) && args.same_as(buffer_call->args)) {
       return ffi::Unchanged();
     }
-    args.Set(0, tvm::Tuple(new_buf->shape, buffer_call->args[0]->span));
-    args.Set(1, DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span));
-    args.Set(2, StringImm(new_buf.scope(), buffer_call->args[2]->span));
+    args.Set(0, tvm::Tuple(new_buf->shape, buffer_call->args[0]->loc));
+    args.Set(1, DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->loc));
+    args.Set(2, StringImm(new_buf.scope(), buffer_call->args[2]->loc));
     return Bind(new_buf.var(),
                 Call(new_buf.type(), tirx::alloc_tensor_op(), args, buffer_call->attrs,
-                     buffer_call->ty_args, buffer_call->span),
-                op->span);
+                     buffer_call->ty_args, buffer_call->loc),
+                op->loc);
   }
 
   UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, const CallNode* buffer_call,
@@ -2018,8 +2018,8 @@ class VectorTypeRewriter : public StmtExprMutator {
                 Call(buffer.type(), tirx::decl_tensor_op(),
                      {data, tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                       StringImm(buffer.scope())},
-                     buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
-                op->span);
+                     buffer_call->attrs, buffer_call->ty_args, buffer_call->loc),
+                op->loc);
   }
 
   TensorVar RemapBuffer(TensorVar buf) {

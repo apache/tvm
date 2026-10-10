@@ -50,8 +50,9 @@ def test_func_type():
     tf = tvm.ir.FuncType(arg_types, ret_type)
     assert tf.arg_types == arg_types
     assert tf.ret_type == ret_type
-    assert tf.span is None
-    # TODO make sure we can set span
+    assert isinstance(tf.loc, tvm.ir.UnknownLoc)
+    assert tf.loc.same_as(tvm.ir.UnknownLoc())
+    # TODO make sure we can set loc
     str(tf)
     check_json_roundtrip(tf)
 

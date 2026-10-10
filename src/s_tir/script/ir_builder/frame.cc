@@ -88,17 +88,17 @@ void SBlockFrameNode::ExitWithScope() {
   }
   tvm::s_tir::SBlock block(iter_vars, reads.value_or(ffi::Array<tvm::TensorRegion>()),
                            writes.value_or(ffi::Array<tvm::TensorRegion>()), name, AsStmt(stmts),
-                           init, tir_alloc_buffers, match_buffers, attrs, source_span);
+                           init, tir_alloc_buffers, match_buffers, attrs, loc);
   if (no_realize) {
     TVM_FFI_CHECK(iter_values.empty(), ValueError)
         << "Block bindings are not allowed when `no_realize=True`";
     TVM_FFI_CHECK(!predicate.has_value(), ValueError)
         << "`Ts.where` is not allowed when `no_realize=True`";
-    AddToParent(block, source_span);
+    AddToParent(block, loc);
   } else {
-    AddToParent(tvm::s_tir::SBlockRealize(iter_values, predicate.value_or(IntImm::Bool(true)),
-                                          block, source_span),
-                source_span);
+    AddToParent(
+        tvm::s_tir::SBlockRealize(iter_values, predicate.value_or(IntImm::Bool(true)), block, loc),
+        loc);
   }
 }
 

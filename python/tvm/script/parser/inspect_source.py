@@ -17,7 +17,7 @@
 """Inspect source text, AST coordinates and the explicit definition context.
 
 ``Source`` exposes dedented text and relative AST coordinates with conversion to
-absolute IR spans. ``acquire_source`` returns an AST whose original coordinates
+absolute IR locs. ``acquire_source`` returns an AST whose original coordinates
 are already restored for compilation. Both keep inspection in this module;
 source ownership and execution remain with the parser entry point.
 """
@@ -37,7 +37,7 @@ from typing import Any
 
 from tvm_ffi.dataclasses import MISSING
 
-from tvm.ir import SourceName, Span
+from tvm.ir import Location, SourceLoc, SourceName
 
 from . import protocol_registry
 from .prescan import collect_annotation_free_reads, resolve_namespace_key, resolve_namespace_value
@@ -149,14 +149,14 @@ class Source:
         end_col_offset += self.start_column + 1
         return lineno, col_offset, end_lineno, end_col_offset
 
-    def to_span(self, node: ast.AST) -> Span:
-        """Convert an AST node to the canonical IR source span."""
+    def to_loc(self, node: ast.AST) -> Location:
+        """Convert an AST node to the canonical IR source location."""
         lineno, col_offset, end_lineno, end_col_offset = self.location(node)
-        return Span(
+        return SourceLoc(
             SourceName(self.source_name or "<unknown>"),
             lineno,
-            end_lineno,
             col_offset,
+            end_lineno,
             end_col_offset,
         )
 

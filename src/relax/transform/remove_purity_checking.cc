@@ -43,7 +43,7 @@ class PurityRemover : public ExprMutator {
     }
     auto new_body = VisitExpr(ret->body);
     if (!new_body.same_as(ret->body)) {
-      return Function(ret->params, new_body, ret->ret_ty, ret->is_pure, ret->attrs, ret->span);
+      return Function(ret->params, new_body, ret->ret_ty, ret->is_pure, ret->attrs, ret->loc);
     }
     return ret;
   }

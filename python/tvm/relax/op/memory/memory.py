@@ -17,6 +17,7 @@
 
 from tvm.ir import Call, DataTypeImm, GenericConst, StringImm
 from tvm.ir import Call as _Call
+from tvm.ir.base import UnknownLoc
 
 from ...expr import Expr, prim_value
 from ...utils import convert_to_expr
@@ -29,7 +30,7 @@ def alloc_storage(
     dtype: str | Expr,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Call:
     """Construct a Call to allocate a storage with specific size, virtual_device_index,
     storage_scope and dtype.
@@ -65,7 +66,7 @@ def alloc_storage(
         "relax.memory.alloc_storage",
         [size, virtual_device_index, storage_scope, dtype],
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -77,7 +78,7 @@ def alloc_tensor(
     runtime_device_ind: int | Expr = prim_value(0),
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Call:
     """Construct a Call to allocate a tensor on a certain storage starting from the given offset.
 
@@ -115,11 +116,11 @@ def alloc_tensor(
         "relax.memory.alloc_tensor",
         [storage, offset, shape, dtype, runtime_device_ind],
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
-def kill_storage(storage: Expr, *, ty=None, span=None) -> Call:
+def kill_storage(storage: Expr, *, ty=None, loc=UnknownLoc()) -> Call:
     """Construct a Call to kill a storage.
 
     Parameters
@@ -136,11 +137,11 @@ def kill_storage(storage: Expr, *, ty=None, span=None) -> Call:
         "relax.memory.kill_storage",
         [storage],
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
-def kill_tensor(tensor: Expr, *, ty=None, span=None) -> Call:
+def kill_tensor(tensor: Expr, *, ty=None, loc=UnknownLoc()) -> Call:
     """Construct a Call to kill a tensor.
 
     Parameters
@@ -157,5 +158,5 @@ def kill_tensor(tensor: Expr, *, ty=None, span=None) -> Call:
         "relax.memory.kill_tensor",
         [tensor],
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore

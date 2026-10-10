@@ -122,13 +122,13 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
       if (buffer.same_as(original_buffer) && args.same_as(call->args)) {
         return ffi::Unchanged();
       }
-      args.Set(0, tvm::Tuple(buffer->shape, call->args[0]->span));
-      args.Set(1, DataTypeImm(buffer->dtype->dtype, call->args[1]->span));
-      args.Set(2, StringImm(buffer.scope(), call->args[2]->span));
-      return Bind(buffer.var(),
-                  Call(buffer.type(), tirx::alloc_tensor_op(), args, call->attrs, call->ty_args,
-                       call->span),
-                  op->span);
+      args.Set(0, tvm::Tuple(buffer->shape, call->args[0]->loc));
+      args.Set(1, DataTypeImm(buffer->dtype->dtype, call->args[1]->loc));
+      args.Set(2, StringImm(buffer.scope(), call->args[2]->loc));
+      return Bind(
+          buffer.var(),
+          Call(buffer.type(), tirx::alloc_tensor_op(), args, call->attrs, call->ty_args, call->loc),
+          op->loc);
     }
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::decl_tensor_op())) {
@@ -145,8 +145,8 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
                   Call(buffer.type(), tirx::decl_tensor_op(),
                        {std::move(data), tvm::Tuple(buffer->shape),
                         DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
-                       call->attrs, call->ty_args, call->span),
-                  op->span);
+                       call->attrs, call->ty_args, call->loc),
+                  op->loc);
     }
     return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
@@ -307,10 +307,10 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     TVM_FFI_ICHECK(logical_buffer.defined());
     if (!logical_buffer->layout.has_value()) {
       if (node->source.same_as(logical_buffer.var())) return node;
-      return MakeTensorLoad(node->source.as_or_throw<TensorVar>(), node->indices, node->span);
+      return MakeTensorLoad(node->source.as_or_throw<TensorVar>(), node->indices, node->loc);
     }
     return MakeTensorLoad(GetFlattenedTensor(logical_buffer),
-                          GetSimplifiedElemOffset(logical_buffer, node->indices), node->span);
+                          GetSimplifiedElemOffset(logical_buffer, node->indices), node->loc);
   }
 };
 

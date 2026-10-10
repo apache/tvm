@@ -86,7 +86,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     if (unchanged) {
       return ffi::GetRef<Expr>(op);
     }
-    return Call(Type::Missing(), new_op, new_args, op->attrs, {out_ty}, op->span);
+    return Call(Type::Missing(), new_op, new_args, op->attrs, {out_ty}, op->loc);
   }
 
   /*!
@@ -106,13 +106,13 @@ class SymbolicVarCanonicalizer : public ExprMutator {
       for (size_t i = 0; i < out_tuple->fields.size(); ++i) {
         fields.push_back(ReconcileOutType(implied_tuple->fields[i], out_tuple->fields[i]));
       }
-      return TupleType(fields, out_tuple->span);
+      return TupleType(fields, out_tuple->loc);
     }
     const auto* implied_tensor = implied.as<TensorTypeNode>();
     const auto* out_tensor = out_ty.as<TensorTypeNode>();
     if (implied_tensor && out_tensor && implied_tensor->shape.has_value()) {
       return TensorType(implied_tensor->shape.value(), out_tensor->dtype, out_tensor->vdevice,
-                        out_tensor->span);
+                        out_tensor->loc);
     }
     return implied;
   }
@@ -124,7 +124,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     if (values.same_as(op->values)) {
       return ffi::GetRef<Expr>(op);
     }
-    return ShapeExpr(values, op->span);
+    return ShapeExpr(values, op->loc);
   }
 
   Expr VisitExpr_(const FunctionNode* func) override {
@@ -214,7 +214,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
                         output_var);
     }
 
-    return IfExpr(guard, true_b, false_b, op->span);
+    return IfExpr(guard, true_b, false_b, op->loc);
   }
 
  private:

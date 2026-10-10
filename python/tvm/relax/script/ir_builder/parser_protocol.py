@@ -19,7 +19,7 @@
 Hooks normalize syntax operands and construct native builder frames and IR directly.
 For example, generated ``X.if_(condition)`` creates the native conditional frame;
 ``X.then_()`` and ``X.else_()`` enter its branches. See the corresponding shared
-``tvm.script.ir_builder.parser_protocol`` hooks for operand and span contracts.
+``tvm.script.ir_builder.parser_protocol`` hooks for operand and loc contracts.
 """
 
 from __future__ import annotations
@@ -32,6 +32,7 @@ import tvm_ffi as _ffi
 
 from tvm import ir as _ir
 from tvm import relax as _relax
+from tvm.ir.base import UnknownLoc
 from tvm.relax import Call, Expr, Var, VarBinding
 from tvm.relax.type import Type
 from tvm.relax.utils import gen_call_tir_inputs
@@ -46,7 +47,7 @@ from . import ir as _native
 from . import op as _op
 from .ir import resolve_global_info_
 
-_Span = _base.SpanEntry | _ir.Span | None
+_Loc = _base.LocationEntry | _ir.Location
 
 
 # --------------------------------------
@@ -80,23 +81,25 @@ def function_(
     decl: bool = False,
     local: bool = False,
     reference: _ir.Var | None = None,
-    span: _Span = None,
+    loc: _Loc = UnknownLoc(),
 ) -> _frame.FunctionFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.function_`.
 
     Public pure/private options pass to native purity and visibility controls.
     Local function bodies require their previously declared reference.
     """
+    if loc is None:
+        raise TypeError("Location arguments must not be None")
     if decl:
-        return _base.at_(span, _ffi_api.DeclFunction(pure, private, local))
+        return _base.at_(loc, _ffi_api.DeclFunction(pure, private, local))
     if local:
         if reference is None:
             raise ValueError("A local function requires its declared reference")
-        return _base.at_(span, _ffi_api.LocalFunction(pure, reference))
-    return _base.at_(span, _ffi_api.Function(pure, private))
+        return _base.at_(loc, _ffi_api.LocalFunction(pure, reference))
+    return _base.at_(loc, _ffi_api.Function(pure, private))
 
 
-def arg_(name: str, ty: Any, *, span: _Span = None) -> _ir.Var:
+def arg_(name: str, ty: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Var:
     """Declare a Relax parameter using the shared argument-hook contract.
 
     Parameters
@@ -108,19 +111,21 @@ def arg_(name: str, ty: Any, *, span: _Span = None) -> _ir.Var:
         :func:`tvm.script.ir_builder.parser_protocol.arg_` contract. Primitive
         annotations create a fresh parameter; an existing variable retains
         its identity.
-    span : SpanEntry, Span or None, optional
-        Source location attached to the constructed IR; None leaves it unspecified.
+    loc : LocationEntry, Location, optional
+        Source location attached to the constructed IR; UnknownLoc leaves it unspecified.
 
     Returns
     -------
     result : Var
         The parameter registered in the current function frame.
     """
+    if loc is None:
+        raise TypeError("Location arguments must not be None")
     if not isinstance(ty, _ir.Var):
         ty = _native._type(ty)
     if isinstance(ty, _ir.Var):
         return _ffi_api.ArgVar(name, ty)
-    return _base.at_(span, _ffi_api.Arg(name, _native._type(ty)))
+    return _base.at_(loc, _ffi_api.Arg(name, _native._type(ty)))
 
 
 def func_name_(name: str) -> None:
@@ -139,8 +144,10 @@ def func_attr(attrs: dict[str, tvm_Object]) -> None:
     return _ffi_api.FuncAttrs(attrs)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def func_ret_type_(annotation: Any, *, span: _Span = None) -> None:
+def func_ret_type_(annotation: Any, *, loc: _Loc = UnknownLoc()) -> None:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.func_ret_type_`."""
+    if loc is None:
+        raise TypeError("Location arguments must not be None")
     return _ffi_api.FuncRetType(_native._type(_base._return_annotation(annotation)))
 
 
@@ -198,12 +205,12 @@ def call_global_var_(function: _ir.GlobalVar, args: Sequence[Any]) -> _ir.Expr:
     return _relax.Call(function, [_relax.utils.convert_to_expr(value) for value in args])
 
 
-def dataflow(*, span=None):
+def dataflow(*, loc=UnknownLoc()):
     """Create a dataflow context with explicit finalized exports.
 
     Parameters
     ----------
-    span : SpanEntry, Span or None, optional
+    loc : LocationEntry, Location, optional
         Source location attached to the constructed IR.
 
     Returns
@@ -211,7 +218,9 @@ def dataflow(*, span=None):
     res : frame.BindingBlockFrame
         The constructed frame, retaining source metadata.
     """
-    return _base.at_(span, _ffi_api.Dataflow())
+    if loc is None:
+        raise TypeError("Location arguments must not be None")
+    return _base.at_(loc, _ffi_api.Dataflow())
 
 
 def output(*vars: tuple[Var]) -> None:
@@ -241,55 +250,57 @@ def bind_(
     *,
     ty: Any = None,
     name: str | None = None,
-    span: _Span = None,
-    value_span: _Span = None,
-    name_span: _Span = None,
+    loc: _Loc = UnknownLoc(),
+    value_loc: _Loc = UnknownLoc(),
+    name_loc: _Loc = UnknownLoc(),
     frame_value: bool = False,
 ) -> Any:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.bind_`.
 
-    Relax values emit a binding or MatchCast; value_span belongs to the actual
-    RHS and span to the binding target. Metadata passes through unchanged.
+    Relax values emit a binding or MatchCast; value_loc belongs to the actual
+    RHS and loc to the binding target. Metadata passes through unchanged.
     """
-    if isinstance(span, _base.SpanEntry):
-        span = span.span
-    name_span = span if name_span is None else name_span
-    if isinstance(name_span, _base.SpanEntry):
-        name_span = name_span.span
+    if loc is None or value_loc is None or name_loc is None:
+        raise TypeError("Location arguments must not be None")
+    if isinstance(loc, _base.LocationEntry):
+        loc = loc.loc
+    name_loc = loc if isinstance(name_loc, UnknownLoc) else name_loc
+    if isinstance(name_loc, _base.LocationEntry):
+        name_loc = name_loc.loc
     if frame_value:
         if isinstance(value, _python.list | _python.tuple | _ir.Array):
             for index, item in enumerate(value):
                 bind_(
                     item,
                     name=None if name is None else f"{name}_{index}",
-                    span=span,
-                    name_span=name_span,
+                    loc=loc,
+                    name_loc=name_loc,
                     frame_value=True,
                 )
         elif isinstance(value, _ir.Var):
             if name is not None:
                 _IRBuilder.name(name, value)
-            _base.at_(name_span if name_span is not None else span, value)
+            _base.at_(name_loc if not isinstance(name_loc, UnknownLoc) else loc, value)
         return value
     if value is _base.MISSING:
         raise ValueError("Relax bindings require an initializer")
     ty = None if ty is None else _native._type(ty)
     if isinstance(value, _base.AlreadyEmitted):
-        return _base.at_(value_span, value)
+        return _base.at_(value_loc, value)
     value = _native._value(value, ty)
     if isinstance(value, _relax.MatchCast):
-        _base.at_(value_span, value.value)
+        _base.at_(value_loc, value.value)
         if ty is not None and not _ffi.structural_equal(ty, value.ty):
             raise TypeError("The binding annotation differs from the match-cast type")
-        result = _ffi_api.EmitMatchCastWithSpan(value.value, value.ty, name_span, span)
+        result = _ffi_api.EmitMatchCastWithLoc(value.value, value.ty, name_loc, loc)
     elif isinstance(value, _relax.Expr):
-        _base.at_(value_span, value)
-        result = _ffi_api.EmitWithSpan(value, ty, name_span, span)
+        _base.at_(value_loc, value)
+        result = _ffi_api.EmitWithLoc(value, ty, name_loc, loc)
     else:
         return value
     if name is not None:
         _IRBuilder.name(name, result)
-    return _base.at_(name_span if name_span is not None else span, result)
+    return _base.at_(name_loc if not isinstance(name_loc, UnknownLoc) else loc, result)
 
 
 def decl_mutable_cell_(
@@ -297,21 +308,25 @@ def decl_mutable_cell_(
     *,
     ty: Any = None,
     name: str | None = None,
-    span: _Span = None,
-    name_span: _Span = None,
+    loc: _Loc = UnknownLoc(),
+    name_loc: _Loc = UnknownLoc(),
 ) -> NoReturn:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.decl_mutable_cell_`.
 
     Relax has immutable bindings and rejects mutable storage declarations.
     """
+    if loc is None or name_loc is None:
+        raise TypeError("Location arguments must not be None")
     raise TypeError("Relax does not support mutable local storage")
 
 
-def set_mutable_cell_(target: Any, value: Any, *, span: _Span = None) -> NoReturn:
+def set_mutable_cell_(target: Any, value: Any, *, loc: _Loc = UnknownLoc()) -> NoReturn:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.set_mutable_cell_`.
 
     Relax has immutable bindings and rejects mutable storage updates.
     """
+    if loc is None:
+        raise TypeError("Location arguments must not be None")
     raise TypeError("Relax does not support mutable local storage")
 
 
@@ -408,14 +423,16 @@ def emit_var_binding(value: VarBinding) -> Var:
     return _ffi_api.EmitVarBinding(value)  # type: ignore
 
 
-def emit_(value: Any, *, span: _Span = None) -> None:
+def emit_(value: Any, *, loc: _Loc = UnknownLoc()) -> None:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.emit_`.
 
     Only void expressions may be discarded. Receipts and None emit nothing;
     non-void expressions raise ValueError and unsupported host values raise TypeError.
     """
+    if loc is None:
+        raise TypeError("Location arguments must not be None")
     if isinstance(value, _base.AlreadyEmitted):
-        _base.at_(span, value)
+        _base.at_(loc, value)
         return None
     if value is None:
         return
@@ -423,7 +440,7 @@ def emit_(value: Any, *, span: _Span = None) -> None:
         value = _relax.Tuple([])
     if not isinstance(value, _relax.Expr):
         raise TypeError(f"Unsupported expression statement value: {type(value).__name__}")
-    result = bind_(_base.at_(span, value), name="_", span=span)
+    result = bind_(_base.at_(loc, value), name="_", loc=loc)
     if not isinstance(result.ty, _ir.TupleType) or len(result.ty.fields) != 0:
         raise ValueError(
             "Non-void expressions must be bound to a variable; "
@@ -431,13 +448,17 @@ def emit_(value: Any, *, span: _Span = None) -> None:
         )
 
 
-def setitem_(target: Any, key: Any, value: Any, *, span: _Span = None) -> NoReturn:
+def setitem_(target: Any, key: Any, value: Any, *, loc: _Loc = UnknownLoc()) -> NoReturn:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.setitem_`."""
+    if loc is None:
+        raise TypeError("Location arguments must not be None")
     raise TypeError("Relax does not support indexed assignment")
 
 
-def setattr_(target: Any, name: str, value: Any, *, span: _Span = None) -> NoReturn:
+def setattr_(target: Any, name: str, value: Any, *, loc: _Loc = UnknownLoc()) -> NoReturn:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.setattr_`."""
+    if loc is None:
+        raise TypeError("Location arguments must not be None")
     raise TypeError("Relax does not support attribute assignment")
 
 
@@ -454,35 +475,45 @@ def setattr_(target: Any, name: str, value: Any, *, span: _Span = None) -> NoRet
 # --------------------------------------
 
 
-def if_(condition: Any, *, span: _Span = None) -> _frame.IfFrame:
+def if_(condition: Any, *, loc: _Loc = UnknownLoc()) -> _frame.IfFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.if_`."""
+    if loc is None:
+        raise TypeError("Location arguments must not be None")
     if not isinstance(condition, _relax.Expr):
         condition = _relax.prim_value(condition)
-    return _base.at_(span, _ffi_api.If(condition))
+    return _base.at_(loc, _ffi_api.If(condition))
 
 
-def then_(*, span: _Span = None) -> _frame.ThenFrame:
+def then_(*, loc: _Loc = UnknownLoc()) -> _frame.ThenFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.then_`."""
-    return _base.at_(span, _ffi_api.Then())
+    if loc is None:
+        raise TypeError("Location arguments must not be None")
+    return _base.at_(loc, _ffi_api.Then())
 
 
-def else_(*, span: _Span = None) -> _frame.ElseFrame:
+def else_(*, loc: _Loc = UnknownLoc()) -> _frame.ElseFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.else_`."""
-    return _base.at_(span, _ffi_api.Else())
+    if loc is None:
+        raise TypeError("Location arguments must not be None")
+    return _base.at_(loc, _ffi_api.Else())
 
 
 def for_(
-    iterable: Any, *, names: str | Sequence[str] | None = None, span: _Span = None
+    iterable: Any, *, names: str | Sequence[str] | None = None, loc: _Loc = UnknownLoc()
 ) -> NoReturn:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.for_`.
 
     Relax rejects source loops; use supported functional control flow.
     """
+    if loc is None:
+        raise TypeError("Location arguments must not be None")
     raise TypeError("Relax does not support imperative for loops")
 
 
-def while_(condition: Any, *, span: _Span = None) -> NoReturn:
+def while_(condition: Any, *, loc: _Loc = UnknownLoc()) -> NoReturn:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.while_`."""
+    if loc is None:
+        raise TypeError("Location arguments must not be None")
     raise TypeError("Relax does not support imperative while loops")
 
 
@@ -491,19 +522,23 @@ def range_(*args: Any, annotations: dict[str, Any] | None = None) -> NoReturn:
     raise TypeError("Relax does not support imperative for loops")
 
 
-def break_(*, span: _Span = None) -> NoReturn:
+def break_(*, loc: _Loc = UnknownLoc()) -> NoReturn:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.break_`.
 
     Relax rejects loop-control statements.
     """
+    if loc is None:
+        raise TypeError("Location arguments must not be None")
     raise TypeError("Relax does not support break")
 
 
-def continue_(*, span: _Span = None) -> NoReturn:
+def continue_(*, loc: _Loc = UnknownLoc()) -> NoReturn:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.continue_`.
 
     Relax rejects loop-control statements.
     """
+    if loc is None:
+        raise TypeError("Location arguments must not be None")
     raise TypeError("Relax does not support continue")
 
 
@@ -518,24 +553,28 @@ def func_ret_value(value: Expr) -> None:
     return _ffi_api.FuncRetValue(value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def return_(value: Any = None, *, span: _Span = None) -> None:
+def return_(value: Any = None, *, loc: _Loc = UnknownLoc()) -> None:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.return_`."""
+    if loc is None:
+        raise TypeError("Location arguments must not be None")
     if value is None:
         value = _relax.Tuple([])
-    # Normalization may emit bindings, but an existing result keeps its own span.
-    _base.with_at_group_(span, lambda: _ffi_api.FuncRetValue(_native._value(value)))
+    # Normalization may emit bindings, but an existing result keeps its own loc.
+    _base.with_at_group_(loc, lambda: _ffi_api.FuncRetValue(_native._value(value)))
 
 
 def assert_(
     condition: Any,
     message: str | tuple[str, Sequence[Any]] | Sequence[Any] = "",
     *,
-    span: _Span = None,
+    loc: _Loc = UnknownLoc(),
 ) -> None:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.assert_`."""
+    if loc is None:
+        raise TypeError("Location arguments must not be None")
     if not isinstance(message, _python.str):
         raise TypeError("An assertion message must be construction-time text")
-    emit_(_base.at_(span, _op.assert_op(condition, message)), span=span)
+    emit_(_base.at_(loc, _op.assert_op(condition, message)), loc=loc)
 
 
 # --------------------------------------

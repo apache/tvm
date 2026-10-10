@@ -21,6 +21,7 @@ import tvm_ffi
 from tvm.ir import Attrs, GenericConst
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
+from tvm.ir.base import UnknownLoc
 
 from ..expr import Expr
 
@@ -36,7 +37,7 @@ def sort(
     descending: bool = False,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     """Performs sorting along the given axis and returns an array
     in sorted order.
@@ -64,7 +65,7 @@ def sort(
         [x],
         attrs=_make_attrs("relax.attrs.SortAttrs", axis=axis, descending=descending),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -80,7 +81,7 @@ def argsort(
     dtype: str = "int32",
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     """Performs sorting along the given axis and returns an array of indices
     having same shape as an input array that index data in sorted order.
@@ -111,7 +112,7 @@ def argsort(
             "relax.attrs.ArgsortAttrs", axis=axis, descending=descending, dtype=dtype
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -129,7 +130,7 @@ def topk(
     dtype: str = "int32",
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     """Get the top k elements in an input tensor along the given axis.
 
@@ -173,5 +174,5 @@ def topk(
             "relax.attrs.TopKAttrs", k=k, axis=axis, ret_type=ret_type, largest=largest, dtype=dtype
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore

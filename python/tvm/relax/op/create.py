@@ -22,6 +22,7 @@ from tvm import DataType, DataTypeCode
 from tvm.ir import Attrs, PrimType, is_prim_expr
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
+from tvm.ir.base import UnknownLoc
 
 from ..expr import Expr, ShapeExpr, prim_value
 
@@ -51,7 +52,7 @@ def full(
     dtype: str | DataType | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Fill array with scalar value.
 
@@ -78,7 +79,7 @@ def full(
         [shape, fill_value],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -88,7 +89,7 @@ def full_like(
     dtype: str | DataType | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Construct a tensor such that
     - its shape is the same as the input data tensor's shape,
@@ -117,7 +118,7 @@ def full_like(
         [x, fill_value],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -126,7 +127,7 @@ def ones(
     dtype: str | DataType,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Construct a tensor of all ones, with the input shape and dtype.
 
@@ -149,11 +150,11 @@ def ones(
         [shape],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
-def ones_like(x: Expr, dtype: str | DataType | None = None, *, ty=None, span=None) -> Expr:
+def ones_like(x: Expr, dtype: str | DataType | None = None, *, ty=None, loc=UnknownLoc()) -> Expr:
     """Construct a tensor with all ones, with shape of the input tensor shape.
 
     Parameters
@@ -176,7 +177,7 @@ def ones_like(x: Expr, dtype: str | DataType | None = None, *, ty=None, span=Non
         [x],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -185,7 +186,7 @@ def zeros(
     dtype: str | DataType,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Construct a tensor of all zeros, with the input shape and dtype.
 
@@ -208,11 +209,11 @@ def zeros(
         [shape],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
-def zeros_like(x: Expr, dtype: str | DataType | None = None, *, ty=None, span=None) -> Expr:
+def zeros_like(x: Expr, dtype: str | DataType | None = None, *, ty=None, loc=UnknownLoc()) -> Expr:
     """Construct a tensor with all zeros, with shape of the input tensor shape.
 
     Parameters
@@ -235,7 +236,7 @@ def zeros_like(x: Expr, dtype: str | DataType | None = None, *, ty=None, span=No
         [x],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -246,7 +247,7 @@ def eye(
     dtype: str | DataType = "float32",
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Construct a 2-D tensor with ones on the diagonal and zeros elsewhere.
 
@@ -280,7 +281,7 @@ def eye(
         [n, m, k],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -290,7 +291,7 @@ def eye_like(
     dtype: str | DataType | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Return a 2-D tensor with ones on the diagonal and zeros elsewhere,
     with the same shape as the input tensor.
@@ -321,7 +322,7 @@ def eye_like(
         [x, k],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -332,7 +333,7 @@ def arange(
     dtype: str | DataType | PrimType | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Construct a tensor with evenly spaced elements.
 
@@ -380,11 +381,11 @@ def arange(
         [start, end, step],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=_raw_dtype(dtype)),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
-def hamming_window(window_size, periodic, alpha, beta, dtype, *, ty=None, span=None):
+def hamming_window(window_size, periodic, alpha, beta, dtype, *, ty=None, loc=UnknownLoc()):
     """Hamming window function.
 
     Parameters
@@ -421,7 +422,7 @@ def hamming_window(window_size, periodic, alpha, beta, dtype, *, ty=None, span=N
         [window_size, periodic, alpha, beta],
         attrs=_make_attrs("relax.attrs.InitAttrs", dtype=dtype),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -430,7 +431,7 @@ class TriluAttrs(Attrs):
     """Attributes used in tril and triu operator"""
 
 
-def tril(x: Expr, k: int | Expr = 0, *, ty=None, span=None) -> Expr:
+def tril(x: Expr, k: int | Expr = 0, *, ty=None, loc=UnknownLoc()) -> Expr:
     """Return the lower triangular part of a matrix or a batch of matrices.
 
     Parameters
@@ -453,10 +454,10 @@ def tril(x: Expr, k: int | Expr = 0, *, ty=None, span=None) -> Expr:
     if not is_prim_expr(k):
         k = prim_value(k)
 
-    return _Call("relax.tril", [x, k], ty=ty, span=span)  # type: ignore
+    return _Call("relax.tril", [x, k], ty=ty, loc=loc)  # type: ignore
 
 
-def triu(x: Expr, k: int | Expr = 0, *, ty=None, span=None) -> Expr:
+def triu(x: Expr, k: int | Expr = 0, *, ty=None, loc=UnknownLoc()) -> Expr:
     """Return the upper triangular part of a matrix or a batch of matrices.
 
     Parameters
@@ -479,4 +480,4 @@ def triu(x: Expr, k: int | Expr = 0, *, ty=None, span=None) -> Expr:
     if not is_prim_expr(k):
         k = prim_value(k)
 
-    return _Call("relax.triu", [x, k], ty=ty, span=span)  # type: ignore
+    return _Call("relax.triu", [x, k], ty=ty, loc=loc)  # type: ignore

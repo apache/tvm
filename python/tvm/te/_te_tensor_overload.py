@@ -16,6 +16,8 @@
 # under the License.
 """Tensor overload hooks for TE tensors and tensor slices."""
 
+from tvm.ir.base import UnknownLoc
+
 
 def __add__(_lhs, _rhs):
     return NotImplemented
@@ -57,5 +59,5 @@ def __rtruediv__(_lhs, _rhs):
     return NotImplemented
 
 
-def astype(_value, _dtype, _span=None):
+def astype(_value, _dtype, _loc=UnknownLoc()):
     return NotImplemented

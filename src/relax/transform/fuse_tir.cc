@@ -800,7 +800,7 @@ class FusedTIRConstructor : public ExprVisitor {
       tirx::TensorType new_type(buffer->storage_scope, buffer->dtype, output_shapes[i],
                                 buffer->strides, buffer->elem_offset, buffer->data_alignment,
                                 buffer->offset_factor, buffer->layout);
-      tirx::TensorVar new_buffer(unify_name_hints(), std::move(new_type), buffer.span());
+      tirx::TensorVar new_buffer(unify_name_hints(), std::move(new_type), buffer.loc());
       func_info_.alloc_buffers.push_back(new_buffer);
       output_buffers.push_back(new_buffer);
 

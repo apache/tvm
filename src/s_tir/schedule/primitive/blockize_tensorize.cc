@@ -754,13 +754,13 @@ class BlockizeRewriter : public StmtExprMutator {
       }
       ++cur_idx;
     }
-    return SeqStmt(new_seq, seq->span);
+    return SeqStmt(new_seq, seq->loc);
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     if (loop == lca_->stmt) {
       return For(loop->loop_var, loop->min, loop->extent, loop->kind, RewriteSeq(loop->body),
-                 loop->annotations, loop->step, loop->span);
+                 loop->annotations, loop->step, loop->loc);
     }
     return StmtExprMutator::Mutate_(loop, inplace_mode);
   }
@@ -769,7 +769,7 @@ class BlockizeRewriter : public StmtExprMutator {
     if (block == lca_->stmt) {
       return SBlock(block->iter_vars, block->reads, block->writes, block->name_hint,
                     RewriteSeq(block->body), block->init, block->alloc_buffers,
-                    block->match_buffers, block->annotations, block->span);
+                    block->match_buffers, block->annotations, block->loc);
     }
     for (const StmtSRef& block_sref : blocks_) {
       if (block_sref->stmt == block) {

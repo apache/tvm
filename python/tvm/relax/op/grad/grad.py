@@ -24,11 +24,12 @@ ty of the input.
 
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
+from tvm.ir.base import UnknownLoc
 
 from ...expr import Expr
 
 
-def no_grad(input: Expr, *, ty=None, span=None) -> Expr:
+def no_grad(input: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
     """No gradient dummy operator w.r.t. the input.
 
     Parameters
@@ -41,10 +42,10 @@ def no_grad(input: Expr, *, ty=None, span=None) -> Expr:
     result : relax.Expr
       The no-gradient representation w.r.t. input.
     """
-    return _Call("relax.grad.no_grad", [input], ty=ty, span=span)  # type: ignore
+    return _Call("relax.grad.no_grad", [input], ty=ty, loc=loc)  # type: ignore
 
 
-def start_checkpoint(input: Expr, *, ty=None, span=None) -> Expr:
+def start_checkpoint(input: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
     """Mark the start of the checkpoint stage. The computation between start_checkpoint and
     end_checkpoint will be marked as the checkpoint stage.
 
@@ -82,11 +83,11 @@ def start_checkpoint(input: Expr, *, ty=None, span=None) -> Expr:
         "relax.grad.start_checkpoint",
         [input],
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
-def end_checkpoint(input: Expr, *, ty=None, span=None) -> Expr:
+def end_checkpoint(input: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
     """Mark the end of checkpoint stage. See tvm.relax.op.grad.start_checkpoint.
 
     Parameters
@@ -103,7 +104,7 @@ def end_checkpoint(input: Expr, *, ty=None, span=None) -> Expr:
         "relax.grad.end_checkpoint",
         [input],
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -116,7 +117,7 @@ def nll_loss_backward(
     ignore_index: int = -100,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Backward operator of relax.nn.nll_loss. All parameters except output_grad is the same as
     relax.nn.nll_loss. Returns the gradient w.r.t. predictions.
@@ -138,7 +139,7 @@ def nll_loss_backward(
             "relax.attrs.NLLLossAttrs", reduction=reduction, ignore_index=ignore_index
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -155,7 +156,7 @@ def max_pool2d_backward(
     out_layout: str | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Backward operator of relax.nn.max_pool2d. All parameters except output_grad is the same as
     relax.nn.max_pool2d. Returns the gradient w.r.t. data.
@@ -193,7 +194,7 @@ def max_pool2d_backward(
             out_layout=(layout if out_layout is None else out_layout),
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -210,7 +211,7 @@ def avg_pool2d_backward(
     out_layout: str | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Backward operator of relax.nn.avg_pool2d. All parameters except output_grad is the same as
     relax.nn.avg_pool2d. Returns the gradient w.r.t. data.
@@ -248,7 +249,7 @@ def avg_pool2d_backward(
             out_layout=(layout if out_layout is None else out_layout),
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -259,7 +260,7 @@ def take_backward(
     axis: int | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Backward operator of relax.take. All parameters except output_grad is the same as
     relax.take. Returns the gradient w.r.t. x.
@@ -279,5 +280,5 @@ def take_backward(
         [output_grad, x, indices],
         attrs=_make_attrs("relax.attrs.TakeBackwardAttrs", axis=axis),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore

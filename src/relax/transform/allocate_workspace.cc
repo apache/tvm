@@ -91,7 +91,7 @@ class ExternFunctionRewriter : ExprMutator {
         TVM_FFI_ICHECK(workspace_var_param_.defined());
         new_args.push_back(workspace_var_param_.value());
         return Call(Type::Missing(), new_op, new_args, call_node->attrs, call_node->ty_args,
-                    call_node->span);
+                    call_node->loc);
       }
     }
     return ExprMutator::VisitExpr_(call_node);
@@ -179,7 +179,7 @@ class WorkspaceProvider : ExprMutator {
         TVM_FFI_ICHECK(workspace_var_main_.defined());
         new_args.push_back(workspace_var_main_.value());
         return Call(Type::Missing(), new_op, new_args, call_node->attrs, call_node->ty_args,
-                    call_node->span);
+                    call_node->loc);
       }
     }
 

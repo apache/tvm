@@ -19,6 +19,7 @@
 
 from tvm.ir import Call, Op
 from tvm.ir.attrs import make_node
+from tvm.ir.base import UnknownLoc
 from tvm.ir.op import _make_op_api
 from tvm.relax.distributed import DeviceMesh, Placement
 
@@ -31,7 +32,7 @@ def annotate_sharding(
     placement: Placement,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Annotate sharding plan for tensor
 
@@ -56,7 +57,7 @@ def annotate_sharding(
             "relax.attrs.DistributionAttrs", device_mesh=device_mesh, placement=placement
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -66,7 +67,7 @@ def redistribute(
     placement: Placement,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Redistribute tensor
 
@@ -90,7 +91,7 @@ def redistribute(
             "relax.attrs.DistributionAttrs", device_mesh=device_mesh, placement=placement
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -98,7 +99,7 @@ call_tir_local_view = _make_op_api(Op.get("relax.dist.call_tir_local_view"), __n
 
 
 def redistribute_replica_to_shard(
-    input: Expr, num_workers: int, axis: int, *, ty=None, span=None
+    input: Expr, num_workers: int, axis: int, *, ty=None, loc=UnknownLoc()
 ) -> Expr:
     """Slice tensor into several parts along one axis,
         and each worker takes one part.
@@ -127,5 +128,5 @@ def redistribute_replica_to_shard(
         [input],
         attrs=make_node("relax.attrs.ScatterCollectiveAttrs", num_workers=num_workers, axis=axis),
         ty=ty,
-        span=span,
+        loc=loc,
     )

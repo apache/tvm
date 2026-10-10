@@ -31,8 +31,9 @@ import tvm.relax
 import tvm.runtime
 from tvm import DataType
 from tvm.ir import Scriptable
+from tvm.ir.base import UnknownLoc
 
-from ..ir import BaseFunc, Node, Span
+from ..ir import BaseFunc, Location, Node
 from ..ir.expr import _CallableExprWithOp
 from . import _ffi_api
 
@@ -135,25 +136,27 @@ class IfExpr(_CallableExprWithOp):
     false_branch: Expr
         The expression evaluated when condition is false.
 
-    span: Optional[Span]
-        Span that points to original source code
+    loc: Location
+        Location that points to original source code
     """
 
     cond: Expr
     true_branch: Expr
     false_branch: Expr
-    span: Span | None
+    loc: Location
 
     def __bool__(self) -> bool:
         return True
 
-    def __init__(self, cond: Expr, true_branch: Expr, false_branch: Expr, span: Span | None = None):
+    def __init__(
+        self, cond: Expr, true_branch: Expr, false_branch: Expr, loc: Location = UnknownLoc()
+    ):
         self.__init_handle_by_constructor__(
             _ffi_api.IfExpr,
             cond,
             true_branch,
             false_branch,
-            span,  # type: ignore
+            loc,  # type: ignore
         )
 
 
@@ -171,19 +174,19 @@ class ShapeExpr(_CallableExprWithOp):
     values: Union[List[Expr], typing.Tuple[Expr, ...], tvm_ffi.Array]
         The values of the shape expression.
 
-    span: Optional[Span]
-        Span that points to original source code
+    loc: Location
+        Location that points to original source code
     """
 
     values: list[Expr]
-    span: Span | None
+    loc: Location
 
     def __init__(
         self,
         values: list[Expr] | tuple[Expr, ...] | tvm_ffi.Array,
-        span: Span | None = None,
+        loc: Location = UnknownLoc(),
     ) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values, span)  # type: ignore
+        self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values, loc)  # type: ignore
 
     def __getitem__(self, index):
         if index >= len(self) or index < -len(self):
@@ -224,18 +227,18 @@ class DataflowVar(Var):
     ty: Optional[Type]
         The type annotation of the variable.
 
-    span: Optional[Span]
-        Span that points to original source code
+    loc: Location
+        Location that points to original source code
     """
 
     name: str
-    span: Span | None
+    loc: Location
 
     def __init__(
         self,
         name: str | None = None,
         ty: Type | None = None,
-        span: Span | None = None,
+        loc: Location = UnknownLoc(),
         *,
         name_hint: str | None = None,
     ) -> None:
@@ -256,7 +259,7 @@ class DataflowVar(Var):
                     "use relax.TensorType(shape, dtype)."
                 )
 
-        self.__init_handle_by_constructor__(_ffi_api.DataflowVar, name, ty, span)  # type: ignore
+        self.__init_handle_by_constructor__(_ffi_api.DataflowVar, name, ty, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.expr.Binding")
@@ -264,7 +267,7 @@ class Binding(Node, Scriptable):
     """The base class of a binding in Relax."""
 
     var: Var
-    span: Span | None
+    loc: Location
 
 
 @tvm_ffi.register_object("relax.expr.MatchCast")
@@ -289,15 +292,15 @@ class MatchCast(Binding):
 
     ty: Type
     value: Expr
-    span: Span | None
+    loc: Location
 
-    def __init__(self, var: Var, value: Expr, ty: Type, span: Span | None = None) -> None:
+    def __init__(self, var: Var, value: Expr, ty: Type, loc: Location = UnknownLoc()) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.MatchCast,
             var,
             value,
             ty,
-            span,  # type: ignore
+            loc,  # type: ignore
         )
 
 
@@ -317,10 +320,10 @@ class VarBinding(Binding):
 
     var: Var
     value: Expr
-    span: Span | None
+    loc: Location
 
-    def __init__(self, var: Var, value: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.VarBinding, var, value, span)  # type: ignore
+    def __init__(self, var: Var, value: Expr, loc: Location = UnknownLoc()) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.VarBinding, var, value, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.expr.BindingBlock")
@@ -329,10 +332,10 @@ class BindingBlock(Node, Scriptable):
     (with side effect or control flow)"""
 
     bindings: list[Binding]
-    span: Span | None
+    loc: Location
 
-    def __init__(self, bindings: list[Binding], span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.BindingBlock, bindings, span)  # type: ignore
+    def __init__(self, bindings: list[Binding], loc: Location = UnknownLoc()) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.BindingBlock, bindings, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.expr.DataflowBlock")
@@ -340,11 +343,11 @@ class DataflowBlock(BindingBlock):
     """dataflow block, bindings inside are pure (no side effect and no control flow)"""
 
     bindings: list[Binding]
-    span: Span | None
+    loc: Location
 
-    def __init__(self, bindings: list[Binding], span: Span | None = None) -> None:
+    def __init__(self, bindings: list[Binding], loc: Location = UnknownLoc()) -> None:
         # pylint: disable=super-init-not-called
-        self.__init_handle_by_constructor__(_ffi_api.DataflowBlock, bindings, span)  # type: ignore
+        self.__init_handle_by_constructor__(_ffi_api.DataflowBlock, bindings, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.expr.SeqExpr")
@@ -353,13 +356,15 @@ class SeqExpr(_CallableExprWithOp):
 
     blocks: list[BindingBlock]
     body: Expr
-    span: Span | None
+    loc: Location
 
     def __bool__(self) -> bool:
         return True
 
-    def __init__(self, blocks: list[BindingBlock], body: Expr, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, body, span)  # type: ignore
+    def __init__(
+        self, blocks: list[BindingBlock], body: Expr, loc: Location = UnknownLoc()
+    ) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, body, loc)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.expr.Function")
@@ -371,7 +376,7 @@ class Function(BaseFunc, Scriptable):
     ret_ty: Type
     is_pure: bool
     attrs: tvm.ir.DictAttrs
-    span: Span | None
+    loc: Location
 
     def __init__(
         self,
@@ -380,7 +385,7 @@ class Function(BaseFunc, Scriptable):
         ret_ty: Type | None = None,
         is_pure: bool | None = True,
         attrs: tvm.ir.DictAttrs | None = None,
-        span: Span | None = None,
+        loc: Location = UnknownLoc(),
     ) -> None:
         if attrs is None:
             attrs = tvm.ir.DictAttrs({})
@@ -391,7 +396,7 @@ class Function(BaseFunc, Scriptable):
             ret_ty,
             is_pure,
             attrs,
-            span,
+            loc,
         )  # type: ignore
 
     @staticmethod
@@ -400,12 +405,12 @@ class Function(BaseFunc, Scriptable):
         ret_ty: Type,
         is_pure: bool | None = True,
         attrs: tvm.ir.DictAttrs | None = None,
-        span: Span | None = None,
+        loc: Location = UnknownLoc(),
     ):
         """Construct a relax.Function but without body"""
         if attrs is None:
             attrs = tvm.ir.DictAttrs({})
-        return _ffi_api.FunctionCreateEmpty(params, ret_ty, is_pure, attrs, span)  # type: ignore
+        return _ffi_api.FunctionCreateEmpty(params, ret_ty, is_pure, attrs, loc)  # type: ignore
 
     def __call__(self, *args):
         """Invoke the global function.
@@ -506,25 +511,25 @@ class ExternFunc(BaseFunc):
     """extern function, which represents a PackedFunc."""
 
     global_symbol: String
-    span: Span | None
+    loc: Location
 
     def __init__(
         self,
         global_symbol: String,
         ty: Type | None = None,
-        span: Span | None = None,
+        loc: Location = UnknownLoc(),
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ExternFunc,
             global_symbol,
             ty,
-            span,  # type: ignore
+            loc,  # type: ignore
         )
 
 
-def extern(name: str, ty: Type | None = None, span: Span | None = None):
+def extern(name: str, ty: Type | None = None, loc: Location = UnknownLoc()):
     """Create extern function."""
-    return ExternFunc(name, ty, span)
+    return ExternFunc(name, ty, loc)
 
 
 def const(
@@ -576,7 +581,7 @@ def const(
     if not isinstance(value, tvm.runtime.Tensor):
         raise ValueError("value has to be scalar or Tensor")
 
-    return _ffi_api.MakeTensorConst(value, None, None)
+    return _ffi_api.MakeTensorConst(value, None, UnknownLoc())
 
 
 @tvm_ffi.register_object("relax.TEPlaceholderOp")

@@ -21,7 +21,7 @@ import tvm
 import tvm.runtime
 import tvm.testing
 from tvm import s_tir, tirx
-from tvm.ir.base import SourceName, Span, assert_structural_equal
+from tvm.ir.base import SourceLoc, SourceName, assert_structural_equal
 from tvm.s_tir.script.ir_builder import function as build_function
 from tvm.script import s_tir as Ts
 from tvm.script.ir_builder import IRBuilder
@@ -57,16 +57,21 @@ def test_ir_builder_tir_function_base():
     assert_structural_equal(function_actual, function_expected, map_free_vars=True)
 
 
-def test_ir_builder_source_span_applies_to_emitted_stmt():
-    span = Span(SourceName("builder_test.py"), 7, 7, 5, 18)
+def test_ir_builder_loc_applies_to_emitted_stmt():
+    loc = SourceLoc(SourceName("builder_test.py"), 7, 5, 7, 18)
     with IRBuilder() as ib:
         with build_function():
-            with ib.with_source_span(span):
+            with ib.with_loc(loc):
                 T.evaluate(1)
 
-    actual = ib.get().body[0].span
+    actual = ib.get().body[0].loc
     assert actual.source_name.name == "builder_test.py"
-    assert (actual.line, actual.column, actual.end_line, actual.end_column) == (7, 5, 7, 18)
+    assert (actual.start_line, actual.start_column, actual.end_line, actual.end_column) == (
+        7,
+        5,
+        7,
+        18,
+    )
 
 
 def test_ir_builder_tir_function_complete():

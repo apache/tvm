@@ -20,6 +20,7 @@
 import tvm_ffi
 
 from tvm.ir import OpaqueExpr, SeqStmt, const, is_prim_expr
+from tvm.ir.base import UnknownLoc
 from tvm.runtime import Object, ObjectConvertible
 from tvm.tirx import expr as _expr
 
@@ -189,11 +190,11 @@ class TensorSlice(ObjectConvertible):
     def __bool__(self):
         return self.__nonzero__()
 
-    def equal(self, other, span=None):
-        return _expr.ExprOp.equal(self.asobject(), _as_scalar_operand(other), span)
+    def equal(self, other, loc=UnknownLoc()):
+        return _expr.ExprOp.equal(self.asobject(), _as_scalar_operand(other), loc)
 
-    def astype(self, dtype, span=None):
-        return _expr.ExprOp.astype(self.asobject(), dtype, span)
+    def astype(self, dtype, loc=UnknownLoc()):
+        return _expr.ExprOp.astype(self.asobject(), dtype, loc)
 
 
 class TensorOpBase:
@@ -238,11 +239,11 @@ class TensorOpBase:
     def __bool__(self):
         return self.__nonzero__()
 
-    def equal(self, other, span=None):
-        return _expr.ExprOp.equal(self, other, span)
+    def equal(self, other, loc=UnknownLoc()):
+        return _expr.ExprOp.equal(self, other, loc)
 
-    def astype(self, dtype, span=None):
-        result = _te_tensor_overload.astype(self, dtype, span)
+    def astype(self, dtype, loc=UnknownLoc()):
+        result = _te_tensor_overload.astype(self, dtype, loc)
         if result is NotImplemented:
             raise TypeError("TE Tensor overload astype is not registered")
         return result

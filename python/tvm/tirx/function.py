@@ -27,6 +27,7 @@ import tvm_ffi
 import tvm
 import tvm.runtime
 from tvm.ir import BaseFunc, Range, Scriptable, SeqStmt, Stmt, Var
+from tvm.ir.base import UnknownLoc
 from tvm.runtime import Object
 
 from ..runtime._tensor import Tensor
@@ -52,14 +53,19 @@ class Function(BaseFunc, Scriptable):
     attrs: Optional[tvm.Attrs]
         Attributes of the function, can be None
 
-    span : Optional[Span]
+    loc : Location
         The location of this itervar in the source code.
     """
 
     body: SeqStmt | None
 
     def __init__(
-        self, params, body: Stmt | Sequence[Stmt] | None, ret_type=None, attrs=None, span=None
+        self,
+        params,
+        body: Stmt | Sequence[Stmt] | None,
+        ret_type=None,
+        attrs=None,
+        loc=UnknownLoc(),
     ):
         if ret_type is None:
             ret_type = tvm.ir.Type.missing()
@@ -79,7 +85,7 @@ class Function(BaseFunc, Scriptable):
             body,
             ret_type,
             attrs,
-            span,
+            loc,
         )  # type: ignore
 
     @property
@@ -87,7 +93,7 @@ class Function(BaseFunc, Scriptable):
         """Whether this primitive function uses the TIRx dialect."""
         return not bool(self.attrs.get("s_tir", False))
 
-    def with_body(self, new_body: Stmt | Sequence[Stmt] | None, span=None):
+    def with_body(self, new_body: Stmt | Sequence[Stmt] | None, loc=UnknownLoc()):
         """Create a new Function with the same set signatures but a new body.
 
         Parameters
@@ -95,7 +101,7 @@ class Function(BaseFunc, Scriptable):
         new_body : Stmt | Sequence[Stmt] | None
             The new body, or None for a declaration.
 
-        span : Optional[Span]
+        loc : Location
             The location of this itervar in the source code.
 
         Returns
@@ -108,7 +114,7 @@ class Function(BaseFunc, Scriptable):
             new_body,
             ret_type=self.ret_type,
             attrs=self.attrs,
-            span=span,
+            loc=loc,
         )
 
     def specialize(self, param_map: Mapping[Var, Expr | Var]):

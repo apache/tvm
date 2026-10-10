@@ -536,7 +536,7 @@ class WorkspaceAnnotator(PyExprMutator):
     def visit_function_(self, f):
         if "Composite" not in f.attrs:
             body = super().visit_expr(f.body)
-            new_f = Function(f.params, body, f.ret_ty, f.is_pure, f.attrs, f.span)
+            new_f = Function(f.params, body, f.ret_ty, f.is_pure, f.attrs, f.loc)
 
             if "global_symbol" in f.attrs and "cutlass" in f.attrs["global_symbol"]:
                 composite_func = body.blocks[0].bindings[0].value

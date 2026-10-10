@@ -474,7 +474,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   // Step 7. Create new scope
   SBlock new_scope_block = [&]() {
     ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*scope_block);
-    n->body = SeqStmt(new_scope_body, scope_block->body->span);
+    n->body = SeqStmt(new_scope_body, scope_block->body->loc);
     n->alloc_buffers.insert(n->alloc_buffers.end(), alloc_buffers.begin(), alloc_buffers.end());
     return SBlock(n);
   }();

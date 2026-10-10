@@ -73,16 +73,16 @@ _LEGACY_RELAX_VAR_JSON = """{
   "root_index": 9,
   "nodes": [
     {"type": "ir.SourceName", "data": "legacy_relax.py"},
-    {"type": "ir.Span", "data": {"source_name": 0, "line": 3, "column": 3,
+    {"type": "ir.SourceLoc", "data": {"source_name": 0, "start_line": 3, "start_column": 3,
       "end_line": 5, "end_column": 11}},
-    {"type": "None"},
-    {"type": "ir.PrimType", "data": {"span": 2, "dtype": "int64"}},
+    {"type": "ir.UnknownLoc", "data": null},
+    {"type": "ir.PrimType", "data": {"loc": 2, "dtype": "int64"}},
     {"type": "ffi.Array", "data": [3, 3]},
-    {"type": "ir.TupleType", "data": {"span": 2, "fields": 4}},
+    {"type": "ir.TupleType", "data": {"loc": 2, "fields": 4}},
     {"type": "ffi.String", "data": "legacy"},
-    {"type": "relax.expr.Var", "data": {"span": 1, "ty": 3, "name_hint": 6}},
+    {"type": "relax.expr.Var", "data": {"loc": 1, "ty": 3, "name_hint": 6}},
     {"type": "ffi.Array", "data": [7, 7]},
-    {"type": "ir.Tuple", "data": {"span": 1, "ty": 5, "fields": 8}}
+    {"type": "ir.Tuple", "data": {"loc": 1, "ty": 5, "fields": 8}}
   ],
   "metadata": {"tvm_version": "0.26.dev0"}
 }"""
@@ -91,13 +91,13 @@ _LEGACY_TIRX_VAR_JSON = """{
   "root_index": 6,
   "nodes": [
     {"type": "ir.SourceName", "data": "legacy_tirx.py"},
-    {"type": "ir.Span", "data": {"source_name": 0, "line": 7, "column": 2,
+    {"type": "ir.SourceLoc", "data": {"source_name": 0, "start_line": 7, "start_column": 2,
       "end_line": 9, "end_column": 14}},
-    {"type": "None"},
-    {"type": "ir.PrimType", "data": {"span": 2, "dtype": "int64"}},
+    {"type": "ir.UnknownLoc", "data": null},
+    {"type": "ir.PrimType", "data": {"loc": 2, "dtype": "int64"}},
     {"type": "ffi.String", "data": "legacy"},
-    {"type": "tirx.Var", "data": {"span": 1, "ty": 3, "name": 4}},
-    {"type": "tirx.Add", "data": {"span": 1, "ty": 3, "a": 5, "b": 5}}
+    {"type": "tirx.Var", "data": {"loc": 1, "ty": 3, "name": 4}},
+    {"type": "tirx.Add", "data": {"loc": 1, "ty": 3, "a": 5, "b": 5}}
   ],
   "metadata": {"tvm_version": "0.26.dev0"}
 }"""
@@ -150,11 +150,11 @@ def _check_legacy_var(
     assert type(var) is expected_type
     assert var.name == "legacy"
     assert var.ty == tvm.ir.PrimType("int64")
-    assert var.span.source_name.name == source_name
-    assert var.span.line == line
-    assert var.span.end_line == end_line
-    assert var.span.column == column
-    assert var.span.end_column == end_column
+    assert var.loc.source_name.name == source_name
+    assert var.loc.start_line == line
+    assert var.loc.end_line == end_line
+    assert var.loc.start_column == column
+    assert var.loc.end_column == end_column
 
 
 def test_var_exact_base_legacy_relax_json_load():
@@ -162,7 +162,7 @@ def test_var_exact_base_legacy_relax_json_load():
     assert isinstance(restored, tvm.relax.Tuple)
     assert restored.fields[0].same_as(restored.fields[1])
     _check_legacy_var(restored.fields[0], "legacy_relax.py", 3, 5, 3, 11)
-    assert restored.span.same_as(restored.fields[0].span)
+    assert restored.loc.same_as(restored.fields[0].loc)
     assert {node["type"] for node in json.loads(tvm.ir.save_json(restored))["nodes"]}.isdisjoint(
         {"relax.expr.Var", "tirx.Var"}
     )
@@ -173,7 +173,7 @@ def test_var_exact_base_legacy_tirx_json_load():
     assert isinstance(restored, tvm.tirx.Add)
     assert restored.a.same_as(restored.b)
     _check_legacy_var(restored.a, "legacy_tirx.py", 7, 9, 2, 14)
-    assert restored.span.same_as(restored.a.span)
+    assert restored.loc.same_as(restored.a.loc)
     assert {node["type"] for node in json.loads(tvm.ir.save_json(restored))["nodes"]}.isdisjoint(
         {"relax.expr.Var", "tirx.Var", "tirx.Add"}
     )
@@ -241,7 +241,9 @@ def test_make_smap():
 
 
 def test_make_node():
-    x = tvm.ir.make_node("ir.IntImm", ty=tvm.ir.PrimType("int32"), value=10, span=None)
+    x = tvm.ir.make_node(
+        "ir.IntImm", ty=tvm.ir.PrimType("int32"), value=10, loc=tvm.ir.UnknownLoc()
+    )
     assert isinstance(x, tvm.tirx.IntImm)
     assert x.value == 10
     A = te.placeholder((10,), name="A")
@@ -252,10 +254,15 @@ def test_make_node():
     assert AA.value_index == A.value_index
 
     y = tvm.ir.make_node(
-        "ir.IntImm", ty=tvm.ir.PrimType(tvm_ffi.core.String("int32")), value=10, span=None
+        "ir.IntImm",
+        ty=tvm.ir.PrimType(tvm_ffi.core.String("int32")),
+        value=10,
+        loc=tvm.ir.UnknownLoc(),
     )
     assert isinstance(y, tvm.tirx.IntImm)
     assert y.value == 10
+    assert x.loc.same_as(y.loc)
+    assert tvm.ir.load_json(tvm.ir.save_json(x)).loc.same_as(tvm.ir.UnknownLoc())
 
 
 def test_make_sum():

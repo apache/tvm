@@ -19,62 +19,63 @@
 from __future__ import annotations
 
 from tvm.ir import Call
+from tvm.ir.base import UnknownLoc
 
 
-def nki_load(res, data, *, ty=None, span=None):
-    return Call("tirx.nki.load", [res, data], ty=ty, span=span)
+def nki_load(res, data, *, ty=None, loc=UnknownLoc()):
+    return Call("tirx.nki.load", [res, data], ty=ty, loc=loc)
 
 
-def nki_store(res, data, *, ty=None, span=None):
-    return Call("tirx.nki.store", [res, data], ty=ty, span=span)
+def nki_store(res, data, *, ty=None, loc=UnknownLoc()):
+    return Call("tirx.nki.store", [res, data], ty=ty, loc=loc)
 
 
-def nki_tensor_copy(res, data, *, ty=None, span=None):
-    return Call("tirx.nki.tensor_copy", [res, data], ty=ty, span=span)
+def nki_tensor_copy(res, data, *, ty=None, loc=UnknownLoc()):
+    return Call("tirx.nki.tensor_copy", [res, data], ty=ty, loc=loc)
 
 
-def nki_matmul(res, lhs, rhs, accum=True, *, ty=None, span=None):
+def nki_matmul(res, lhs, rhs, accum=True, *, ty=None, loc=UnknownLoc()):
     return Call(
         "tirx.nki.matmul",
         [res, lhs, rhs, accum],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
-def nki_activation(result, data, opcode, bias=0.0, scale=1.0, *, ty=None, span=None):
+def nki_activation(result, data, opcode, bias=0.0, scale=1.0, *, ty=None, loc=UnknownLoc()):
     return Call(
         "tirx.nki.activation",
         [result, data, opcode, bias, scale],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
-def nki_reciprocal(result, data, *, ty=None, span=None):
+def nki_reciprocal(result, data, *, ty=None, loc=UnknownLoc()):
     return Call(
         "tirx.nki.reciprocal",
         [result, data],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
-def nki_tensorreduce(result, data, opcode, negate, *axes, ty=None, span=None):
+def nki_tensorreduce(result, data, opcode, negate, *axes, ty=None, loc=UnknownLoc()):
     return Call(
         "tirx.nki.tensorreduce",
         [result, data, opcode, negate, *axes],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
-def nki_tensortensor(result, operand0, operand1, opcode, *, ty=None, span=None):
+def nki_tensortensor(result, operand0, operand1, opcode, *, ty=None, loc=UnknownLoc()):
     return Call(
         "tirx.nki.tensortensor",
         [result, operand0, operand1, opcode],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -86,18 +87,18 @@ def nki_tensorscalar(
     reverse=False,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     return Call(
         "tirx.nki.tensorscalar",
         [result, operand0, operand1, opcode, reverse],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
-def nki_memset(result, value, *, ty=None, span=None):
-    return Call("tirx.nki.memset", [result, value], ty=ty, span=span)
+def nki_memset(result, value, *, ty=None, loc=UnknownLoc()):
+    return Call("tirx.nki.memset", [result, value], ty=ty, loc=loc)
 
 
 def nki_activation_reduce(
@@ -110,13 +111,13 @@ def nki_activation_reduce(
     scale=1.0,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     return Call(
         "tirx.nki.activation_reduce",
         [reduce_res, act_res, data, opcode, reduce_opcode, bias, scale],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -130,18 +131,18 @@ def nki_tensorscalar_reduce(
     reverse=False,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     return Call(
         "tirx.nki.tensorscalar_reduce",
         [reduce_res, tensorscalar_res, operand0, operand1, opcode, reduce_opcode, reverse],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
-def nki_identity(result, size, *, ty=None, span=None):
-    return Call("tirx.nki.identity", [result, size], ty=ty, span=span)
+def nki_identity(result, size, *, ty=None, loc=UnknownLoc()):
+    return Call("tirx.nki.identity", [result, size], ty=ty, loc=loc)
 
 
 def nki_scalar_tensor_tensor(
@@ -155,13 +156,13 @@ def nki_scalar_tensor_tensor(
     reverse1=False,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     return Call(
         "tirx.nki.scalar_tensor_tensor",
         [result, data, operand0, operand1, opcode0, opcode1, reverse0, reverse1],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -176,22 +177,22 @@ def nki_scalar_tensor_scalar(
     reverse1=False,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     return Call(
         "tirx.nki.scalar_tensor_scalar",
         [result, data, operand0, operand1, opcode0, opcode1, reverse0, reverse1],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
-def nki_affine_select(result, pred, true_value, false_value, *, ty=None, span=None):
+def nki_affine_select(result, pred, true_value, false_value, *, ty=None, loc=UnknownLoc()):
     return Call(
         "tirx.nki.affine_select",
         [result, pred, true_value, false_value],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 

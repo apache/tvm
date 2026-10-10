@@ -27,6 +27,7 @@ import tvm.sym._ffi_api
 import tvm.tirx
 import tvm.tirx._ffi_api
 from tvm.ir import is_prim_expr
+from tvm.ir.base import UnknownLoc
 from tvm.runtime import convert
 
 from . import _ffi_api
@@ -438,7 +439,7 @@ def extern_function(input_tensors: list[_tensor.Tensor], function: tvm.tirx.Func
     return output
 
 
-def var(name="tindex", dtype="int32", span=None):
+def var(name="tindex", dtype="int32", loc=UnknownLoc()):
     """Create a new variable with specified name and dtype
 
     Parameters
@@ -449,7 +450,7 @@ def var(name="tindex", dtype="int32", span=None):
     dtype : str
         The data type
 
-    span : Optional[Span]
+    loc : Location
         The location of this variable in the source.
 
     Returns
@@ -457,10 +458,10 @@ def var(name="tindex", dtype="int32", span=None):
     var : tirx.Var
         The result symbolic variable.
     """
-    return tvm.tirx.Var(name, dtype, span)
+    return tvm.tirx.Var(name, dtype, loc)
 
 
-def const(value, dtype="int32", span=None):
+def const(value, dtype="int32", loc=UnknownLoc()):
     """Create a new constant with specified value and dtype
 
     Parameters
@@ -471,7 +472,7 @@ def const(value, dtype="int32", span=None):
     dtype : str
         The data type
 
-    span : Optional[Span]
+    loc : Location
         The location of this variable in the source.
 
     Returns
@@ -479,10 +480,10 @@ def const(value, dtype="int32", span=None):
     const : Expr
         The result constant expr.
     """
-    return tvm.tirx.const(value, dtype, span)
+    return tvm.tirx.const(value, dtype, loc)
 
 
-def thread_axis(dom=None, tag="", name="", span=None):
+def thread_axis(dom=None, tag="", name="", loc=UnknownLoc()):
     """Create a new IterVar to represent thread index.
 
     Parameters
@@ -497,7 +498,7 @@ def thread_axis(dom=None, tag="", name="", span=None):
     name : str, optional
         The name of the var.
 
-    span : Optional[Span]
+    loc : Location
         The location of this variable in the source.
 
     Returns
@@ -510,10 +511,10 @@ def thread_axis(dom=None, tag="", name="", span=None):
     if not tag:
         raise ValueError("tag must be given as Positional or keyword argument")
     name = name if name else tag
-    return _iter_var_type()(dom, name, 1, tag, span)
+    return _iter_var_type()(dom, name, 1, tag, loc)
 
 
-def reduce_axis(dom, name="rv", thread_tag="", span=None):
+def reduce_axis(dom, name="rv", thread_tag="", loc=UnknownLoc()):
     """Create a new IterVar for reduction.
 
     Parameters
@@ -527,7 +528,7 @@ def reduce_axis(dom, name="rv", thread_tag="", span=None):
     thread_tag : Optional[str]
         The name of the thread_tag.
 
-    span : Optional[Span]
+    loc : Location
         The location of this variable in the source.
 
     Returns
@@ -535,7 +536,7 @@ def reduce_axis(dom, name="rv", thread_tag="", span=None):
     axis : IterVar
         An iteration variable representing the value.
     """
-    return _iter_var_type()(dom, name, 2, thread_tag, span)
+    return _iter_var_type()(dom, name, 2, thread_tag, loc)
 
 
 def create_function(

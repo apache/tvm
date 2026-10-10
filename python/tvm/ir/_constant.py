@@ -16,6 +16,8 @@
 # under the License.
 """Construction of primitive IR constants."""
 
+from tvm.ir.base import UnknownLoc
+
 from . import _ffi_api
 
 
@@ -40,7 +42,7 @@ def _scalar_type_inference(value):
         raise NotImplementedError(f"Cannot automatically inference the type. value={value}")
 
 
-def const(value, dtype=None, span=None):
+def const(value, dtype=None, loc=UnknownLoc()):
     """construct a constant
 
     Parameters
@@ -51,7 +53,7 @@ def const(value, dtype=None, span=None):
     dtype : str or None, optional
         The data type.
 
-    span : Optional[Span]
+    loc : Location
         The location of the constant value in the source.
 
     Returns
@@ -61,4 +63,4 @@ def const(value, dtype=None, span=None):
     """
     if dtype is None:
         dtype = _scalar_type_inference(value)
-    return _ffi_api._const(value, dtype, span)
+    return _ffi_api._const(value, dtype, loc)

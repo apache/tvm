@@ -58,7 +58,7 @@ TVM_FFI_INLINE TensorVar FlattenedTensor(const TensorVar& buffer) {
                      TensorType(self->storage_scope, self->dtype, output_shape, {},
                                 self->elem_offset, self->data_alignment, self->offset_factor,
                                 TileLayoutNode::DefaultLayout(output_shape)),
-                     buffer.span());
+                     buffer.loc());
   }
 }
 

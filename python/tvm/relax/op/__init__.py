@@ -18,6 +18,8 @@
 # pylint: disable= redefined-builtin
 """Relax core operators."""
 
+from tvm.ir.base import UnknownLoc
+
 # Operator families register their attrs before exposure.
 from . import builtin, ccl, distributed, grad, image, memory, nn
 
@@ -281,7 +283,7 @@ def _register_op_make():
             return NotImplemented
         return expr.tvm.ir.Call(func, args, attrs=attrs)
 
-    _tensor_expr_overload.astype = lambda lhs, dtype, _span=None: (
+    _tensor_expr_overload.astype = lambda lhs, dtype, _loc=UnknownLoc(): (
         _ffi_api.astype(lhs, dtype) if expr._is_tensor_or_missing_type(lhs.ty) else NotImplemented
     )
     _tensor_expr_overload.__call__ = _call

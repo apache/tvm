@@ -163,7 +163,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
 
     // Direct call to vm.builtin.call_py_func
     return Call(Type::Missing(), builtin_call_py_func_, {combined_tuple}, call_node->attrs,
-                call_node->ty_args, call_node->span);
+                call_node->ty_args, call_node->loc);
   }
 
   Expr ToDevice(const Call& call_node) {

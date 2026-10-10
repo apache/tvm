@@ -296,7 +296,7 @@ UnchangedOr<Expr> IRMutatorWithAnalyzer::Mutate_(const CallNode* op, InplaceMode
         false_value.same_as(op->args[2])) {
       return ffi::Unchanged();
     } else {
-      return Call(op->ty, op->op, {cond, true_value, false_value}, op->attrs, {}, op->span);
+      return Call(op->ty, op->op, {cond, true_value, false_value}, op->attrs, {}, op->loc);
     }
   }
   return StmtExprMutator::Mutate_(op, inplace_mode);

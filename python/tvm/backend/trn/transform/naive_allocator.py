@@ -97,10 +97,10 @@ def _allocate_missing_buffers(stmt, alloc_pool_start: int):
                     args,
                     attrs=op.value.attrs,
                     ty_args=op.value.ty_args,
-                    span=op.value.span,
+                    loc=op.value.loc,
                     ty=op.value.ty,
                 ),
-                op.span,
+                op.loc,
             )
         return op
 

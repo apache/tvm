@@ -24,6 +24,7 @@ import tvm_ffi
 
 import tvm
 from tvm.ir import Call, PointerType, PrimType, Type, Var
+from tvm.ir.base import UnknownLoc
 
 from . import _buffer_view, _ffi_api
 
@@ -159,7 +160,7 @@ class TensorType(Type):
             The shape of the local view for indexing.  Without ``layout=``,
             its product must equal the per-thread physical storage span.
             With an explicit layout, the shape is not constrained by the raw
-            span.  If omitted, a matching 1D shape is computed automatically.
+            loc.  If omitted, a matching 1D shape is computed automatically.
 
         layout : optional
             Override layout. If None, the default (identity) layout is used.
@@ -315,7 +316,7 @@ def decl_tensor(
     scope="",
     data_alignment=-1,
     offset_factor=0,
-    span=None,
+    loc=UnknownLoc(),
     layout="default",
 ):
     # pylint: disable=import-outside-toplevel
@@ -348,17 +349,17 @@ def decl_tensor(
         data_alignment,
         offset_factor,
         layout,
-        span,
+        loc,
     )
-    return _ffi_api.TensorVar(name, buffer_type, span)  # type: ignore
+    return _ffi_api.TensorVar(name, buffer_type, loc)  # type: ignore
 
 
-def tensor_data_ptr(tensor, *, ty=None, span=None):
+def tensor_data_ptr(tensor, *, ty=None, loc=UnknownLoc()):
     """Project a tensor variable's physical pointer.
 
     The result type is inferred from its element type and storage scope.
-    ``ty`` may supply an explicit result type; ``span`` records the source location.
+    ``ty`` may supply an explicit result type; ``loc`` records the source location.
     """
     if not is_tensor_var(tensor):
         raise TypeError("tensor_data_ptr expects a Var with TensorType")
-    return Call("tirx.tensor_data_ptr", [tensor], ty=ty, span=span)
+    return Call("tirx.tensor_data_ptr", [tensor], ty=ty, loc=loc)

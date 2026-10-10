@@ -1851,7 +1851,7 @@ class SingleBlockFusionReplacer : public StmtExprMutator {
       Stmt new_stmt = Mutate(stmt).ValueOrUnchanged(stmt).as_or_throw<Stmt>();
       new_stmts.push_back(new_stmt);
     }
-    return SeqStmt(new_stmts, seq->span);
+    return SeqStmt(new_stmts, seq->loc);
   }
 
   SBlock new_fused_block_;

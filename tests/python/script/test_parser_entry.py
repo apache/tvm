@@ -16,7 +16,7 @@
 # under the License.
 """Public string and callable entries build fresh script objects.
 
-A small spans-off callable also documents the generated builder program exactly.
+A small locs-off callable also documents the generated builder program exactly.
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ def test_parse_string_returns_fresh_symbols(language):
 
 
 def test_callable_entry_emits_the_expected_builder_program(language, monkeypatch):
-    # Normal callable parsing must construct the documented builder program without span
+    # Normal callable parsing must construct the documented builder program without loc
     # scaffolding.
     M = language.M
 
@@ -60,10 +60,10 @@ def test_callable_entry_emits_the_expected_builder_program(language, monkeypatch
     monkeypatch.setattr(entry, "_recompose_builder", observe)
     parse = entry.parse
 
-    def without_spans(*args, **kwargs):
-        return parse(*args, track_span=False, **kwargs)
+    def without_locs(*args, **kwargs):
+        return parse(*args, track_loc=False, **kwargs)
 
-    monkeypatch.setattr(entry, "parse", without_spans)
+    monkeypatch.setattr(entry, "parse", without_locs)
 
     @M.function
     def identity(x: M.Tensor((4,))):

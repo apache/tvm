@@ -849,7 +849,7 @@ class ModuleInplaceTransformer : public ExprMutator {
       return;
     }
     Expr new_value = ReplaceBoundCall(binding_ref);
-    builder_->EmitNormalized(VarBinding(binding->var, new_value, binding->span));
+    builder_->EmitNormalized(VarBinding(binding->var, new_value, binding->loc));
   }
 
   void VisitBinding_(const MatchCastNode* binding) override {
@@ -859,7 +859,7 @@ class ModuleInplaceTransformer : public ExprMutator {
       return;
     }
     Expr new_value = ReplaceBoundCall(binding_ref);
-    builder_->EmitNormalized(MatchCast(binding->var, new_value, binding->ty, binding->span));
+    builder_->EmitNormalized(MatchCast(binding->var, new_value, binding->ty, binding->loc));
   }
 
   // Given the call and indices of arguments that could be done in-place,
@@ -925,7 +925,7 @@ class ModuleInplaceTransformer : public ExprMutator {
                                     old_function->params.begin() + (num_params - num_outs));
 
     tirx::Function new_function(new_params, tvm::SeqStmt(new_body), old_function->ret_type,
-                                old_function->attrs, old_function->span);
+                                old_function->attrs, old_function->loc);
 
     // note: this might be a good time to get rid of the old legalized function, but we don't do it
     // now because later ops might need the same one. Instead, we will clean up at the end

@@ -29,14 +29,14 @@ from tvm_ffi import structural_walk
 import tvm
 import tvm.testing
 from tvm import ir, tirx
-from tvm.ir import Call, SequentialSpan, TensorLoad, assert_structural_equal, prim
+from tvm.ir import Call, CallSiteLoc, TensorLoad, assert_structural_equal, prim
 from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.script.ir_builder.base import AlreadyEmitted
 from tvm.script.parser.inspect_source import Source
 
 
-def test_parser_attaches_span_to_direct_call():
+def test_parser_attaches_loc_to_direct_call():
     sources = []
 
     @T.function
@@ -59,7 +59,7 @@ def test_parser_attaches_span_to_direct_call():
         ),
     )
 
-    assert _span_range(call.span) == _span_range(source.to_span(call_ast))
+    assert _loc_range(call.loc) == _loc_range(source.to_loc(call_ast))
 
 
 def _capture_source(sources):
@@ -72,13 +72,13 @@ def _capture_source(sources):
     return capture
 
 
-def _span_range(span):
+def _loc_range(loc):
     return (
-        span.source_name.name,
-        span.line,
-        span.column,
-        span.end_line,
-        span.end_column,
+        loc.source_name.name,
+        loc.start_line,
+        loc.start_column,
+        loc.end_line,
+        loc.end_column,
     )
 
 
@@ -90,7 +90,7 @@ def _find_ir_node(func, predicate):
     return matches[0]
 
 
-def test_parser_attaches_span_to_nested_tensor_load():
+def test_parser_attaches_loc_to_nested_tensor_load():
     sources = []
 
     @T.function
@@ -110,10 +110,10 @@ def test_parser_attaches_span_to_nested_tensor_load():
         ),
     )
 
-    assert _span_range(load.span) == _span_range(source.to_span(load_ast))
+    assert _loc_range(load.loc) == _loc_range(source.to_loc(load_ast))
 
 
-def test_parser_retains_inline_call_site_and_definition_spans():
+def test_parser_retains_inline_call_site_and_definition_locs():
     @T.inline
     def wait_impl(barrier):
         T.cuda.mbarrier_wait(barrier, 0)
@@ -141,14 +141,14 @@ def test_parser_retains_inline_call_site_and_definition_spans():
         ),
     )
 
-    assert isinstance(call.span, SequentialSpan)
-    assert [_span_range(span) for span in call.span.spans] == [
-        _span_range(caller_source.to_span(caller_call_ast)),
-        _span_range(wait_source.to_span(wait_call_ast)),
+    assert isinstance(call.loc, CallSiteLoc)
+    assert [_loc_range(loc) for loc in (call.loc.caller, call.loc.callee)] == [
+        _loc_range(caller_source.to_loc(caller_call_ast)),
+        _loc_range(wait_source.to_loc(wait_call_ast)),
     ]
 
 
-def test_parser_attaches_span_to_tile_primitive_call():
+def test_parser_attaches_loc_to_tile_primitive_call():
     sources = []
 
     @T.function
@@ -167,36 +167,36 @@ def test_parser_attaches_span_to_tile_primitive_call():
         and node.op.name == "tirx.cuda.tile.mov",
     )
 
-    assert _span_range(call.span) == _span_range(source.to_span(call_ast))
+    assert _loc_range(call.loc) == _loc_range(source.to_loc(call_ast))
 
 
-def test_parser_spans_do_not_affect_structural_identity():
+def test_parser_locs_do_not_affect_structural_identity():
     source_a = """@T.function\ndef f():\n    T.evaluate(1)\n"""
     source_b = """\n\n@T.function\ndef f():\n    T.evaluate(1)\n"""
 
     func_a = tvm.script.from_source(source_a, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
     func_b = tvm.script.from_source(source_b, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
 
-    assert _span_range(func_a.body[0].span) == ("<str>", 3, 5, 3, 18)
-    assert _span_range(func_b.body[0].span) == ("<str>", 5, 5, 5, 18)
+    assert _loc_range(func_a.body[0].loc) == ("<str>", 3, 5, 3, 18)
+    assert _loc_range(func_b.body[0].loc) == ("<str>", 5, 5, 5, 18)
     assert tvm_ffi.structural_hash(func_a) == tvm_ffi.structural_hash(func_b)
     assert_structural_equal(func_a, func_b)
 
 
-def test_statement_receipts_keep_emitted_nodes_and_spans():
+def test_statement_receipts_keep_emitted_nodes_and_locs():
     # Direct statement hooks return the stored nodes, with no extra emit or duplicate statement.
-    location = ir.Span(ir.SourceName("direct_builder.py"), 5, 5, 3, 17)
+    location = ir.SourceLoc(ir.SourceName("direct_builder.py"), 5, 3, 5, 17)
     with I.IRBuilder():
         with T.function_(private=True) as frame:
             T.func_name_("receipts")
             output = T.arg_("output", T.Tensor((1,), "int32"))
-            stored = T.setitem_(value=3, target=output, key=0, span=location)
+            stored = T.setitem_(value=3, target=output, key=0, loc=location)
             holder = SimpleNamespace(value=output)
-            updated = T.setattr_(holder, "value", 4, span=location)
+            updated = T.setattr_(holder, "value", 4, loc=location)
             with T.while_(T.bool(True)):
-                continued = T.continue_(span=location)
-                broken = T.break_(span=location)
-            returned = T.return_(T.int32(7), span=location)
+                continued = T.continue_(loc=location)
+                broken = T.break_(loc=location)
+            returned = T.return_(T.int32(7), loc=location)
 
     body = frame.function.body.seq
     assert len(body) == 4 and len(body[2].body.seq) == 2
@@ -205,15 +205,15 @@ def test_statement_receipts_keep_emitted_nodes_and_spans():
     for receipt, statement in zip(receipts, statements):
         assert isinstance(receipt, AlreadyEmitted)
         assert receipt.value.same_as(statement)
-        assert statement.span.same_as(location)
+        assert statement.loc.same_as(location)
 
 
 def test_native_bind_keeps_returned_and_stored_variable_identity():
-    # Aliases of an explicitly produced native variable must not rename, respan or bind it again.
+    # Aliases of an explicitly produced native variable must not rename, reloc or bind it again.
     from tvm import ir
 
-    span = ir.Span(ir.SourceName("producer.py"), 7, 7, 2, 19)
-    produced = ir.Var("producer_name", "int32", span)
+    loc = ir.SourceLoc(ir.SourceName("producer.py"), 7, 2, 7, 19)
+    produced = ir.Var("producer_name", "int32", loc)
     calls, observed = [], []
 
     def argument(value):
@@ -222,7 +222,7 @@ def test_native_bind_keeps_returned_and_stored_variable_identity():
 
     def observe(value):
         observed.append(value)
-        assert value.same_as(produced) and value.span.same_as(span)
+        assert value.same_as(produced) and value.loc.same_as(loc)
         assert value.name == "producer_name"
 
     @T.function
@@ -242,8 +242,8 @@ def test_native_bind_keeps_returned_and_stored_variable_identity():
     assert calls[0].same_as(main.params[0]) and calls[1].same_as(produced)
 
 
-def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
-    # A native view must preserve its producer name/span and declare its storage exactly once.
+def test_native_view_keeps_producer_identity_name_and_loc(monkeypatch):
+    # A native view must preserve its producer name/loc and declare its storage exactly once.
     from functools import wraps
 
     from tvm import ir
@@ -251,13 +251,13 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
 
     original = tvm.tirx.TensorType.view
     seen, produced, observed = [], [], []
-    span = ir.Span(ir.SourceName("producer.py"), 7, 7, 2, 19)
+    loc = ir.SourceLoc(ir.SourceName("producer.py"), 7, 2, 7, 19)
 
     @wraps(original)
     def view(ty, buffer, *args):
         seen.append("view")
-        value = base.at_(span, original(ty, buffer, *args))
-        produced.append((value, value.name, value.span))
+        value = base.at_(loc, original(ty, buffer, *args))
+        produced.append((value, value.name, value.loc))
         return value
 
     def mark():
@@ -265,7 +265,7 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
         return 16
 
     def observe(value):
-        observed.append((value, value.span))
+        observed.append((value, value.loc))
 
     monkeypatch.setattr(tvm.tirx.TensorType, "view", view)
 
@@ -280,11 +280,11 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
 
     captured = main.params[0]
     assert seen == ["argument", "view", "argument", "view"]
-    value, name, produced_span = produced[0]
+    value, name, produced_loc = produced[0]
     assert len(produced) == len(observed) == 2
     assert name != "renamed" and value.name == name
     assert all(
-        item.same_as(value) and location.same_as(produced_span) for item, location in observed
+        item.same_as(value) and location.same_as(produced_loc) for item, location in observed
     )
     nodes = list(main.body.seq)
     assert len(nodes) == 3 and isinstance(nodes[0], tvm.ir.Bind)
@@ -301,7 +301,7 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
     from tvm import ir
     from tvm.script.ir_builder import base
 
-    producer_span = ir.Span(ir.SourceName("producer.py"), 7, 7, 2, 19)
+    producer_loc = ir.SourceLoc(ir.SourceName("producer.py"), 7, 2, 7, 19)
     layout = T.TileLayout(T.S[4])
 
     @T.meta_class
@@ -312,13 +312,13 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
     values = []
 
     def initialize(buffer):
-        base.at_(producer_span, buffer)
+        base.at_(producer_loc, buffer)
         values.extend([layout, Holder(buffer), ir.TupleGetItem(ir.Tuple([buffer]), 0)])
 
-    calls, observed, resource_spans = [], [], []
+    calls, observed, relocs = [], [], []
 
     def make(index):
-        resource_spans.append(values[1].resource.span)
+        relocs.append(values[1].resource.loc)
         calls.append(index)
         return values[index]
 
@@ -340,7 +340,7 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
     assert calls == [0, 1, 2, 0, 1]
     assert observed[0].same_as(layout)
     assert observed[1] is holder and holder.resource.same_as(buffer)
-    assert all(buffer.span.same_as(span) for span in resource_spans)
+    assert all(buffer.loc.same_as(loc) for loc in relocs)
     binding = main.body[0]
     assert isinstance(binding, tvm.ir.Bind) and binding.value.same_as(projection)
     assert binding.var.name == "bound"
@@ -349,12 +349,16 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
     line = _line_of(
         test_native_binding_preserves_metadata_but_binds_buffer_expressions, "bound = make(2)"
     )
-    assert (binding.var.span.line, binding.var.span.column, binding.var.span.end_column) == (
+    assert (
+        binding.var.loc.start_line,
+        binding.var.loc.start_column,
+        binding.var.loc.end_column,
+    ) == (
         line,
         9,
         14,
     )
-    assert (projection.span.line, projection.span.column, projection.span.end_column) == (
+    assert (projection.loc.start_line, projection.loc.start_column, projection.loc.end_column) == (
         line,
         17,
         24,
@@ -408,8 +412,8 @@ def test_non_call_expression_reads_keep_their_source_range():
         expected = _position(
             test_non_call_expression_reads_keep_their_source_range, expression, expression
         )
-        assert _span_position(node.span) == expected
-        assert node.span.source_name.name == __file__
+        assert _loc_position(node.loc) == expected
+        assert node.loc.source_name.name == __file__
 
 
 def _position(test, statement, expression):
@@ -419,5 +423,5 @@ def _position(test, statement, expression):
     return start + index, column, start + index, column + len(expression)
 
 
-def _span_position(span):
-    return span.line, span.column, span.end_line, span.end_column
+def _loc_position(loc):
+    return loc.start_line, loc.start_column, loc.end_line, loc.end_column

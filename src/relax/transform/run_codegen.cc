@@ -160,7 +160,7 @@ class CodeGenRunner : ExprMutator {
       }
     }
     return Call(ret_ty, call_node->op, new_args, call_node->attrs, call_node->ty_args,
-                call_node->span);
+                call_node->loc);
   }
 
   Expr VisitExpr_(const FunctionNode* func_node) override {

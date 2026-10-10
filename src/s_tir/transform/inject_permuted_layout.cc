@@ -247,7 +247,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     return MakeTensorLoad(
         load->source.as_or_throw<tvm::tirx::TensorVar>(),
         HandleTensorIndices(load->source.as_or_throw<tvm::tirx::TensorVar>(), load->indices),
-        load->span);
+        load->loc);
   }
 
   // Decode physical byte additions around a logical tensor address.  Keep the
@@ -324,7 +324,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     } else {
       args.Set(pointer_index, PermutePointer(args[pointer_index]));
     }
-    return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
+    return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->loc);
   }
 
   static constexpr size_t VECTORIZE_FACTOR = 8;

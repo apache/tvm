@@ -37,6 +37,7 @@ from tvm.ir import (
     StringImm,
     TensorRegion,
     Tuple,
+    UnknownLoc,
     const,
     make_node,
 )
@@ -121,7 +122,7 @@ class Instruction:
     def make(self, *values, **kw):
         if len(values) > len(self.operands):
             raise TypeError(f"{self.name} expects at most {len(self.operands)} operands")
-        span = kw.pop("span", None)
+        loc = kw.pop("loc", UnknownLoc())
         explicit_attrs = kw.pop("attrs", None)
         result_ty = kw.pop("ty", "void")
         if kw.pop("ty_args", ()):
@@ -175,7 +176,7 @@ class Instruction:
             attrs = explicit_attrs
         else:
             attrs = make_node("tirx.tensor." + self.schema, **attrs_values)
-        call = Call(self.name, args, attrs=attrs, ty=result_ty, span=span)
+        call = Call(self.name, args, attrs=attrs, ty=result_ty, loc=loc)
         call.validate()
         return call
 
@@ -357,7 +358,7 @@ class TensorCall:
         for name, value in values.items():
             index = next(i for i, arg in enumerate(self.spec.operands) if arg.name == name)
             args[index] = value
-        return Call(self.op, args, attrs=self.call.attrs, ty=self.call.ty, span=self.call.span)
+        return Call(self.op, args, attrs=self.call.attrs, ty=self.call.ty, loc=self.call.loc)
 
 
 @tvm_ffi.register_global_func("tirx.TensorCallScope")

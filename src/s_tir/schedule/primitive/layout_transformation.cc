@@ -900,7 +900,7 @@ class TransformLayoutRewriter : public s_tir::IRMutatorWithAnalyzer {
       TensorVar buffer = buffer_load->source.as_or_throw<tvm::tirx::TensorVar>();
       ffi::Array<PrimExpr> indices = buffer_load->indices;
       RewriteBufferAccess(&buffer, &indices);
-      return MakeTensorLoad(buffer, indices, buffer_load->span);
+      return MakeTensorLoad(buffer, indices, buffer_load->loc);
     }
     return buffer_load;
   }
@@ -1320,7 +1320,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
     });
 
     Function ref_new_func(new_params, old_func->body, old_func->ret_type, old_func->attrs,
-                          old_func->span);
+                          old_func->loc);
     new_map->at(g_var) = std::move(ref_new_func);
   }
 

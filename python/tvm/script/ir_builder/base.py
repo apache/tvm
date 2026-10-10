@@ -26,6 +26,7 @@ from tvm_ffi import register_object as _register_object
 from tvm_ffi.dataclasses import MISSING as MISSING
 
 from tvm import ir
+from tvm.ir.base import UnknownLoc
 from tvm.runtime import Object as _Object
 
 from . import _ffi_api
@@ -203,30 +204,30 @@ class IRBuilder(_Object):
         return _ffi_api.IRBuilderGet(self)  # type: ignore[attr-defined] # pylint: disable=no-member
 
     @contextmanager
-    def with_source_span(self, span):
-        """Attach ``span`` to IR nodes constructed in the nested scope.
+    def with_loc(self, loc):
+        """Attach ``loc`` to IR nodes constructed in the nested scope.
 
-        Nested scopes are retained as a ``SequentialSpan`` when they describe
+        Nested scopes are retained as a ``CallSiteLoc`` when they describe
         distinct source ranges, such as a TVMScript inline expansion.
 
         Parameters
         ----------
-        span : tvm.ir.Span
+        loc : tvm.ir.Location
             The frontend source range active in the nested scope.
         """
-        _ffi_api.IRBuilderPushSourceSpan(  # type: ignore[attr-defined] # pylint: disable=no-member
-            self, span
+        _ffi_api.IRBuilderPushLoc(  # type: ignore[attr-defined] # pylint: disable=no-member
+            self, loc
         )
         try:
             yield
         finally:
-            _ffi_api.IRBuilderPopSourceSpan(  # type: ignore[attr-defined] # pylint: disable=no-member
+            _ffi_api.IRBuilderPopLoc(  # type: ignore[attr-defined] # pylint: disable=no-member
                 self
             )
 
-    def _set_current_source_span(self, value):
-        """Compose the active source span onto the same supported IR node or frame."""
-        return _ffi_api.IRBuilderSetCurrentSourceSpan(  # type: ignore[attr-defined] # pylint: disable=no-member
+    def _set_current_loc(self, value):
+        """Compose the active source location onto the same supported IR node or frame."""
+        return _ffi_api.IRBuilderSetCurrentLoc(  # type: ignore[attr-defined] # pylint: disable=no-member
             self, value
         )
 
@@ -287,7 +288,7 @@ class AlreadyEmitted(Generic[_T]):
     Attributes
     ----------
     value : Any
-        The same emitted object, available for identity checks and source-span
+        The same emitted object, available for identity checks and source-location
         attachment.
     """
 
@@ -297,46 +298,48 @@ class AlreadyEmitted(Generic[_T]):
         self.value = value
 
 
-class SpanEntry:
+class LocationEntry:
     """A materialized source range shared by generated builder operations.
 
     Entries retain only fixed source metadata. Calling an entry attaches its
-    span to the same result; ``ctx(thunk)`` additionally supplies call provenance
+    loc to the same result; ``ctx(thunk)`` additionally supplies call provenance
     during evaluation. ``ctx(thunk, attach_result=False)`` supplies only the
     evaluation context, leaving result attachment to the binding operation.
     Both compose the active caller context at invocation.
-    Builders accepting an explicit span unwrap the entry at native boundaries.
+    Builders accepting an explicit loc unwrap the entry at native boundaries.
     """
 
-    __slots__ = ("span",)
+    __slots__ = ("loc",)
 
-    def __init__(self, span: ir.Span) -> None:
-        self.span = span
+    def __init__(self, loc: ir.Location) -> None:
+        if not isinstance(loc, ir.Location):
+            raise TypeError("loc must be a Location")
+        self.loc = loc
 
     def __call__(self, value: _T) -> _T:
         """Attach this range to the same value, receipt, or native frame."""
-        return at(self.span, value)
+        return at(self.loc, value)
 
     def ctx(self, thunk: Callable[[], _T], *, attach_result: bool = True) -> _T:
         """Evaluate once under this range, optionally attaching it to the result.
 
         Context is restored even on failure. Frames constructed during the call
-        retain their native construction span regardless of result attachment.
+        retain their native construction location regardless of result attachment.
         """
-        return with_at_group_(self.span, thunk, attach_result=attach_result)
+        return with_at_group_(self.loc, thunk, attach_result=attach_result)
 
 
-def at(span: SpanEntry | ir.Span | None, value: _T) -> _T:
+def at(loc: LocationEntry | ir.Location, value: _T) -> _T:
     """Attach source context to the same IR node, emission receipt, or frame.
 
     Parameters
     ----------
-    span : SpanEntry, Span or None
+    loc : LocationEntry, Location
         Source location to compose with the active construction context.
-        None leaves the value unchanged.
+        UnknownLoc leaves the value unchanged.
     value : Any
         Native object, :class:`AlreadyEmitted` receipt, or list/tuple of native
-        objects to annotate. A receipt's contained object receives the span.
+        objects to annotate. A receipt's contained object receives the loc.
 
     Returns
     -------
@@ -350,20 +353,22 @@ def at(span: SpanEntry | ir.Span | None, value: _T) -> _T:
     the original Python facade as well, including callable objects and frames.
     Unsupported objects and ordinary Python values pass through unchanged.
     """
-    if span is None or not IRBuilder.is_in_scope():
+    if isinstance(loc, LocationEntry):
+        loc = loc.loc
+    if not isinstance(loc, ir.Location):
+        raise TypeError("loc must be a Location")
+    if isinstance(loc, UnknownLoc) or not IRBuilder.is_in_scope():
         return value
-    if isinstance(span, SpanEntry):
-        span = span.span
     target = value.value if isinstance(value, AlreadyEmitted) else value
     targets = target if isinstance(target, list | tuple) else (target,)
     for item in targets:
         if isinstance(item, _Object):
-            _ffi_api.IRBuilderSetSourceSpan(IRBuilder.current(), item, span)
+            _ffi_api.IRBuilderSetLoc(IRBuilder.current(), item, loc)
     return value
 
 
 def with_at_group_(
-    location: SpanEntry | ir.Span | None,
+    location: LocationEntry | ir.Location,
     thunk: Callable[[], _T],
     *,
     attach_result: bool = True,
@@ -372,8 +377,8 @@ def with_at_group_(
 
     Parameters
     ----------
-    location : SpanEntry, Span or None
-        Source context for the call. None, or the absence of an active builder,
+    location : LocationEntry, Location
+        Source context for the call. UnknownLoc, or the absence of an active builder,
         leaves construction context unchanged.
     thunk : Callable[[], Any]
         Zero-argument callable evaluated exactly once inside that context.
@@ -391,17 +396,19 @@ def with_at_group_(
     -----
     The prior source context is restored even if the callable raises; its
     exception propagates unchanged. Frames created during the call retain their
-    construction spans regardless of ``attach_result``.
+    construction locations regardless of ``attach_result``.
     """
-    span = location.span if isinstance(location, SpanEntry) else location
+    loc = location.loc if isinstance(location, LocationEntry) else location
+    if not isinstance(loc, ir.Location):
+        raise TypeError("loc must be a Location")
     context = (
-        IRBuilder.current().with_source_span(span)
-        if span is not None and IRBuilder.is_in_scope()
+        IRBuilder.current().with_loc(loc)
+        if not isinstance(loc, UnknownLoc) and IRBuilder.is_in_scope()
         else nullcontext()
     )
     with context:
         value = thunk()
-        return at(span, value) if attach_result else value
+        return at(loc, value) if attach_result else value
 
 
 at_ = at

@@ -25,6 +25,7 @@ import tvm_ffi
 
 from tvm import DataType, tirx
 from tvm.ir import Attrs, Call, Op, StringImm, const
+from tvm.ir.base import UnknownLoc
 from tvm.ir.op import _init_op_api, _make_op_api
 from tvm.ir.type import PointerType, PrimType
 from tvm.tirx.op import bitwise_and, call_intrin, ptr_byte_offset
@@ -90,16 +91,16 @@ def cuda_iket_official_event(event_id, source_code="", payload=None):
     return call_intrin("uint32", "tirx.cuda.iket_official_event", event_id, source_code)
 
 
-def cuda_func_call(func_name, *args, ty=None, span=None):
+def cuda_func_call(func_name, *args, ty=None, loc=UnknownLoc()):
     """Call a CUDA function with its source code as the final operand.
 
     ``args`` contains the function arguments followed by the source string.
     ``ty`` specifies an explicit result; omitted results are void.
     """
-    return Call("tirx.cuda.func_call", [func_name, *args], ty=ty, span=span)
+    return Call("tirx.cuda.func_call", [func_name, *args], ty=ty, loc=loc)
 
 
-def cuda_warp_reduce(value, op, width=32, *, ty=None, span=None):
+def cuda_warp_reduce(value, op, width=32, *, ty=None, loc=UnknownLoc()):
     """Warp-level butterfly shuffle-XOR reduction.
 
     Reduces ``value`` across ``width`` adjacent lanes using the specified
@@ -127,7 +128,7 @@ def cuda_warp_reduce(value, op, width=32, *, ty=None, span=None):
         "tirx.cuda.warp_reduce",
         [value, op, width],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -146,7 +147,7 @@ def cuda_warp_min(value, width=32):
     return cuda_warp_reduce(value, "min", width)
 
 
-def cuda_cta_reduce(value, op, num_warps, scratch, *, ty=None, span=None):
+def cuda_cta_reduce(value, op, num_warps, scratch, *, ty=None, loc=UnknownLoc()):
     """CTA-wide reduction via warp shuffle + shared memory.
 
     Two-step reduction: (1) intra-warp shuffle reduction, (2) warp-0
@@ -176,7 +177,7 @@ def cuda_cta_reduce(value, op, num_warps, scratch, *, ty=None, span=None):
         "tirx.cuda.cta_reduce",
         [value, op, num_warps, scratch],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -216,7 +217,7 @@ _WAIT_UNTIL_PTX_TYPES = {
     "b64": 64,
     "s64": 64,
     "u64": 64,
-    # A 128-bit word is a 16-byte naturally aligned span, moved by the `.b128`
+    # A 128-bit word is a 16-byte naturally aligned loc, moved by the `.b128`
     # forms of `ld`/`st` (PTX ISA 8.3, sm_70). It carries a value no scalar
     # predicate can test, so `wait` rejects it; `store` and `load` take it.
     "b128": 128,
@@ -266,7 +267,7 @@ def cuda_wait_until(
     backoff_ns=None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     """Read the global word at ``ptr`` into ``dst`` until ``predicate`` holds,
     and leave the exit value there.
@@ -339,7 +340,7 @@ def cuda_wait_until(
             tirx.convert(0 if backoff_ns is None else backoff_ns),
         ],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -368,7 +369,7 @@ def ptx_cp_async_legacy(
     *,
     elem_dtype="int8",
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     """Fold element offsets into the raw cp.async pointer operands.
 
@@ -378,7 +379,7 @@ def ptx_cp_async_legacy(
     elem_bits = dtype.bits * dtype.lanes
     dst_ptr = ptr_byte_offset(dst_ptr, dst_offset * elem_bits // 8, ty=dst_ptr.ty)
     src_ptr = ptr_byte_offset(src_ptr, src_offset * elem_bits // 8, ty=src_ptr.ty)
-    return _cp_async_raw(dst_ptr, 0, src_ptr, 0, cp_size, ty=ty, span=span)
+    return _cp_async_raw(dst_ptr, 0, src_ptr, 0, cp_size, ty=ty, loc=loc)
 
 
 def _is_static_unicast_cta_mask(cta_mask):
@@ -390,7 +391,7 @@ def _is_static_unicast_cta_mask(cta_mask):
     return False
 
 
-def cuda_mov_sreg(bits, reg_name, *, ty=None, span=None):
+def cuda_mov_sreg(bits, reg_name, *, ty=None, loc=UnknownLoc()):
     """TVM intrinsic to tvm instrinsics to fetch PTX pre-defined registers
 
     Parameters
@@ -410,7 +411,7 @@ def cuda_mov_sreg(bits, reg_name, *, ty=None, span=None):
         "tirx.cuda.mov_sreg",
         [bits, reg_name],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -434,7 +435,7 @@ def ptx_legacy_mma(
     operator=None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     """Construct legacy MMA with element offsets and an optional bit operator."""
     args = [
@@ -454,7 +455,7 @@ def ptx_legacy_mma(
     ]
     if operator is not None:
         args.append(operator)
-    return _legacy_mma(*args, ty=ty, span=span)
+    return _legacy_mma(*args, ty=ty, loc=loc)
 
 
 def bmma_sync(
@@ -468,7 +469,7 @@ def bmma_sync(
     index_c,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     """TVM intrinsic for tensor core bmma_sync operators
 
@@ -514,7 +515,7 @@ def bmma_sync(
         index_b,
         fragment_c,
         index_c,
-        span=span,
+        loc=loc,
     )
 
 
@@ -569,7 +570,7 @@ def ptx_legacy_ldmatrix(
     smem_offset,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     """Load a matrix with explicit pointer and element-offset operands.
 
@@ -585,7 +586,7 @@ def ptx_legacy_ldmatrix(
         smem_ptr,
         smem_offset,
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -822,7 +823,7 @@ def timer_init(
     group_id,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     """TVM intrinsic for initializing the CUDA profiler, and store profiling result in a buffer.
 
@@ -854,7 +855,7 @@ def timer_init(
         "tirx.cuda.timer_init",
         [profiler_buffer, profiler_tag, profiler_write_offset, num_groups, group_id],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -867,7 +868,7 @@ def timer_start(
     leader_cond,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     """TVM intrinsic for starting the timer for profiling a specific event, and storing profiling result in a buffer.
 
@@ -909,7 +910,7 @@ def timer_start(
             leader_cond,
         ],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -922,7 +923,7 @@ def timer_end(
     leader_cond,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     """TVM intrinsic for ending the timer for profiling a specific event, and storing profiling result in a buffer.
 
@@ -964,7 +965,7 @@ def timer_end(
             leader_cond,
         ],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -976,7 +977,7 @@ def timer_finalize(
     leader_cond,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     """TVM intrinsic for finalizing the CUDA profiler, and store profiling result in a buffer.
 
@@ -1008,11 +1009,11 @@ def timer_finalize(
         "tirx.cuda.timer_finalize",
         [profiler_buffer, profiler_tag, profiler_write_offset, profiler_write_stride, leader_cond],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
-def cuda_atomic_add(res_addr, value, *, ty=None, span=None):
+def cuda_atomic_add(res_addr, value, *, ty=None, loc=UnknownLoc()):
     """TVM intrinsic to call cuda atomic add instruction
 
     Parameters
@@ -1033,7 +1034,7 @@ def cuda_atomic_add(res_addr, value, *, ty=None, span=None):
         "tirx.cuda.atomic_add",
         [res_addr, value],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -1163,7 +1164,7 @@ def _validate_ptx_address(addr, space, op_name):
             )
 
 
-def cuda_atomic_cas(ptr, old_val, new_val, *, ty=None, span=None):
+def cuda_atomic_cas(ptr, old_val, new_val, *, ty=None, loc=UnknownLoc()):
     """TVM intrinsic to call cuda atomic cas instruction
 
     Parameters
@@ -1187,7 +1188,7 @@ def cuda_atomic_cas(ptr, old_val, new_val, *, ty=None, span=None):
         "tirx.cuda.atomic_cas",
         [ptr, old_val, new_val],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -1196,7 +1197,7 @@ def cuda_atomic_cas(ptr, old_val, new_val, *, ty=None, span=None):
 ########################################################
 
 
-def nvshmem_my_pe(*, ty=None, span=None):
+def nvshmem_my_pe(*, ty=None, loc=UnknownLoc()):
     """TVM intrinsic to call nvshmem_my_pe()
 
     Returns
@@ -1205,10 +1206,10 @@ def nvshmem_my_pe(*, ty=None, span=None):
         The call expression.
     """
 
-    return Call("tirx.nvshmem.my_pe", [], ty=ty, span=span)
+    return Call("tirx.nvshmem.my_pe", [], ty=ty, loc=loc)
 
 
-def nvshmem_n_pes(*, ty=None, span=None):
+def nvshmem_n_pes(*, ty=None, loc=UnknownLoc()):
     """TVM intrinsic to call nvshmem_n_pes()
 
     Returns
@@ -1217,10 +1218,10 @@ def nvshmem_n_pes(*, ty=None, span=None):
         The call expression.
     """
 
-    return Call("tirx.nvshmem.n_pes", [], ty=ty, span=span)
+    return Call("tirx.nvshmem.n_pes", [], ty=ty, loc=loc)
 
 
-def nvshmem_getmem_nbi(dst, src, nelems, pe, *, ty=None, span=None):
+def nvshmem_getmem_nbi(dst, src, nelems, pe, *, ty=None, loc=UnknownLoc()):
     """TVM intrinsic to call nvshmem_getmem_nbi()
 
     Parameters
@@ -1247,11 +1248,11 @@ def nvshmem_getmem_nbi(dst, src, nelems, pe, *, ty=None, span=None):
         "tirx.nvshmem.getmem_nbi",
         [dst, src, nelems, pe],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
-def nvshmem_putmem_nbi(dst, src, nelems, pe, *, ty=None, span=None):
+def nvshmem_putmem_nbi(dst, src, nelems, pe, *, ty=None, loc=UnknownLoc()):
     """TVM intrinsic to call nvshmem_putmem_nbi()
 
     Parameters
@@ -1278,11 +1279,11 @@ def nvshmem_putmem_nbi(dst, src, nelems, pe, *, ty=None, span=None):
         "tirx.nvshmem.putmem_nbi",
         [dst, src, nelems, pe],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
-def nvshmem_getmem_nbi_warp(dst, src, nelems, pe, *, ty=None, span=None):
+def nvshmem_getmem_nbi_warp(dst, src, nelems, pe, *, ty=None, loc=UnknownLoc()):
     """TVM intrinsic to call nvshmem_getmem_nbi_warp()
 
     Parameters
@@ -1309,11 +1310,11 @@ def nvshmem_getmem_nbi_warp(dst, src, nelems, pe, *, ty=None, span=None):
         "tirx.nvshmem.getmem_nbi_warp",
         [dst, src, nelems, pe],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
-def nvshmem_putmem_nbi_warp(dst, src, nelems, pe, *, ty=None, span=None):
+def nvshmem_putmem_nbi_warp(dst, src, nelems, pe, *, ty=None, loc=UnknownLoc()):
     """TVM intrinsic to call nvshmem_putmem_nbi_warp()
 
     Parameters
@@ -1340,11 +1341,11 @@ def nvshmem_putmem_nbi_warp(dst, src, nelems, pe, *, ty=None, span=None):
         "tirx.nvshmem.putmem_nbi_warp",
         [dst, src, nelems, pe],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
-def nvshmem_getmem_nbi_block(dst, src, nelems, pe, *, ty=None, span=None):
+def nvshmem_getmem_nbi_block(dst, src, nelems, pe, *, ty=None, loc=UnknownLoc()):
     """TVM intrinsic to call nvshmem_getmem_nbi_block()
 
     Parameters
@@ -1371,11 +1372,11 @@ def nvshmem_getmem_nbi_block(dst, src, nelems, pe, *, ty=None, span=None):
         "tirx.nvshmem.getmem_nbi_block",
         [dst, src, nelems, pe],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
-def nvshmem_putmem_nbi_block(dst, src, nelems, pe, *, ty=None, span=None):
+def nvshmem_putmem_nbi_block(dst, src, nelems, pe, *, ty=None, loc=UnknownLoc()):
     """TVM intrinsic to call nvshmem_putmem_nbi_block()
 
     Parameters
@@ -1402,11 +1403,11 @@ def nvshmem_putmem_nbi_block(dst, src, nelems, pe, *, ty=None, span=None):
         "tirx.nvshmem.putmem_nbi_block",
         [dst, src, nelems, pe],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
-def nvshmem_signal_op(sig_addr, signal, sig_op, pe, *, ty=None, span=None):
+def nvshmem_signal_op(sig_addr, signal, sig_op, pe, *, ty=None, loc=UnknownLoc()):
     """TVM intrinsic to call nvshmem_signal_op()
 
     Parameters
@@ -1434,11 +1435,11 @@ def nvshmem_signal_op(sig_addr, signal, sig_op, pe, *, ty=None, span=None):
         "tirx.nvshmem.signal_op",
         [sig_addr, signal, sig_op, pe],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
-def nvshmem_wait_until(ivar, cmp, cmp_value, type="uint64_t", *, ty=None, span=None):
+def nvshmem_wait_until(ivar, cmp, cmp_value, type="uint64_t", *, ty=None, loc=UnknownLoc()):
     """TVM intrinsic to call nvshmem_wait_until()
 
     Parameters
@@ -1466,11 +1467,11 @@ def nvshmem_wait_until(ivar, cmp, cmp_value, type="uint64_t", *, ty=None, span=N
         "tirx.nvshmem.wait_until",
         [ivar, cmp, cmp_value, type],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
-def nvshmem_quiet(*, ty=None, span=None):
+def nvshmem_quiet(*, ty=None, loc=UnknownLoc()):
     """TVM intrinsic to call nvshmem_quiet()
 
     Returns
@@ -1479,11 +1480,11 @@ def nvshmem_quiet(*, ty=None, span=None):
         The call expression.
     """
 
-    return Call("tirx.nvshmem.quiet", [], ty=ty, span=span)
+    return Call("tirx.nvshmem.quiet", [], ty=ty, loc=loc)
 
 
 def nvshmem_putmem_signal_nbi(
-    dst, src, nelems, sig_addr, signal, sig_op, pe, *, ty=None, span=None
+    dst, src, nelems, sig_addr, signal, sig_op, pe, *, ty=None, loc=UnknownLoc()
 ):
     """TVM intrinsic to call nvshmem_putmem_signal_nbi()
 
@@ -1520,12 +1521,12 @@ def nvshmem_putmem_signal_nbi(
         "tirx.nvshmem.putmem_signal_nbi",
         [dst, src, nelems, sig_addr, signal, sig_op, pe],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
 def nvshmem_putmem_signal_nbi_warp(
-    dst, src, nelems, sig_addr, signal, sig_op, pe, *, ty=None, span=None
+    dst, src, nelems, sig_addr, signal, sig_op, pe, *, ty=None, loc=UnknownLoc()
 ):
     """TVM intrinsic to call nvshmem_putmem_signal_nbi_warp()
 
@@ -1562,12 +1563,12 @@ def nvshmem_putmem_signal_nbi_warp(
         "tirx.nvshmem.putmem_signal_nbi_warp",
         [dst, src, nelems, sig_addr, signal, sig_op, pe],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
 def nvshmem_putmem_signal_nbi_block(
-    dst, src, nelems, sig_addr, signal, sig_op, pe, *, ty=None, span=None
+    dst, src, nelems, sig_addr, signal, sig_op, pe, *, ty=None, loc=UnknownLoc()
 ):
     """TVM intrinsic to call nvshmem_putmem_signal_nbi_block()
 
@@ -1604,11 +1605,11 @@ def nvshmem_putmem_signal_nbi_block(
         "tirx.nvshmem.putmem_signal_nbi_block",
         [dst, src, nelems, sig_addr, signal, sig_op, pe],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
-def nvshmem_fence(*, ty=None, span=None):
+def nvshmem_fence(*, ty=None, loc=UnknownLoc()):
     """TVM intrinsic to call nvshmem_fence()
 
     Returns
@@ -1617,10 +1618,10 @@ def nvshmem_fence(*, ty=None, span=None):
         The call expression.
     """
 
-    return Call("tirx.nvshmem.fence", [], ty=ty, span=span)
+    return Call("tirx.nvshmem.fence", [], ty=ty, loc=loc)
 
 
-def nvshmem_barrier_all(*, ty=None, span=None):
+def nvshmem_barrier_all(*, ty=None, loc=UnknownLoc()):
     """TVM intrinsic to call nvshmem_barrier_all()
 
     Returns
@@ -1629,7 +1630,7 @@ def nvshmem_barrier_all(*, ty=None, span=None):
         The call expression.
     """
 
-    return Call("tirx.nvshmem.barrier_all", [], ty=ty, span=span)
+    return Call("tirx.nvshmem.barrier_all", [], ty=ty, loc=loc)
 
 
 # Canonical Op builders also supply the historical direct-import aliases.
@@ -1670,7 +1671,7 @@ def tensormap_encode_tiled(
     l2_promotion=0,
     oob_fill=0,
     force_cu_dtype=-1,
-    span=None,
+    loc=UnknownLoc(),
 ):
     """Encode a tiled tensor map using runtime pointers and shape operands.
 
@@ -1688,7 +1689,7 @@ def tensormap_encode_tiled(
             descriptor_dtype, rank, interleave, swizzle, l2_promotion, oob_fill, force_cu_dtype
         ),
         ty="int32",
-        span=span,
+        loc=loc,
     )
 
 

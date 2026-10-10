@@ -22,6 +22,7 @@ from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir import PrimType as _PrimType
 from tvm.ir.attrs import make_node as _make_attrs
+from tvm.ir.base import UnknownLoc
 
 from ..expr import Expr
 
@@ -39,7 +40,7 @@ def quantize(
     out_dtype: str = "int8",
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     r"""Quantize op
     This operator takes input and produces quantized output. The input tensor can be of any shape.
@@ -79,7 +80,7 @@ def quantize(
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -91,7 +92,7 @@ def dequantize(
     out_dtype: str = "float32",
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     r"""Dequantize op
     This operator takes input and produces dequantized output. The input tensor can be of any shape.
@@ -131,5 +132,5 @@ def dequantize(
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )

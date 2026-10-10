@@ -174,7 +174,7 @@ class BindingBlockFrameNode : public RelaxFrameNode {
    */
   ffi::Array<tvm::Var> output_vars;
   /*! \brief Statement ranges for explicitly emitted bindings. */
-  ffi::Map<tvm::Var, Span> binding_spans;
+  ffi::Map<tvm::Var, Location> binding_locs;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

@@ -353,8 +353,8 @@ class ConstantFolder : public ExprMutator {
         !infer_type_with_builder_map.count(op)) {
       ret_ty = post_call->ty.as_or_throw<Type>();
     }
-    post_call = Call(ret_ty, post_call->op, new_args, post_call->attrs, post_call->ty_args,
-                     post_call->span);
+    post_call =
+        Call(ret_ty, post_call->op, new_args, post_call->attrs, post_call->ty_args, post_call->loc);
 
     // If we are in a dataflow block, we can fold ops.
     if (builder_->CurrentBlockIsDataFlow()) {

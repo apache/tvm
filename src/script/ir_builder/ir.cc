@@ -168,8 +168,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  details::SourceSpanAccessor::vtable().SetDispatch<tvm::StmtNode>(
-      [](const ffi::ObjectRef& obj) -> Span* { return &obj.as<tvm::StmtNode>()->span; });
+  details::LocationAccessor::vtable().SetDispatch<tvm::StmtNode>(
+      [](const ffi::ObjectRef& obj) -> Location* { return &obj.as<tvm::StmtNode>()->loc; });
 }
 
 /*!
@@ -224,13 +224,13 @@ PrimExpr ConvertLoopBound(const PrimExpr& e, const PrimType& var_ty) {
     n->steps = {step};                                                                             \
     n->f_make_for_loop = [annotations](ffi::Array<Var> vars, ffi::Array<Range> doms,               \
                                        ffi::Array<ffi::Optional<PrimExpr>> steps,                  \
-                                       tvm::SeqStmt body, Span span) {                             \
+                                       tvm::SeqStmt body, Location loc) {                          \
       TVM_FFI_ICHECK_EQ(vars.size(), 1);                                                           \
       TVM_FFI_ICHECK_EQ(doms.size(), 1);                                                           \
       TVM_FFI_ICHECK_EQ(steps.size(), 1);                                                          \
       auto loop =                                                                                  \
           tvm::For(vars[0].as_or_throw<tvm::PrimVar>(), doms[0]->min, doms[0]->extent, Kind, body, \
-                   annotations.value_or(ffi::Map<ffi::String, Any>()), steps[0], span);            \
+                   annotations.value_or(ffi::Map<ffi::String, Any>()), steps[0], loc);             \
       return loop;                                                                                 \
     };                                                                                             \
     return ForFrame(n);                                                                            \
@@ -270,7 +270,7 @@ ForFrame Grid(ffi::Array<ffi::Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>>
   }
   n->f_make_for_loop = [](ffi::Array<Var> vars, ffi::Array<Range> doms,
                           ffi::Array<ffi::Optional<PrimExpr>> steps, SeqStmt body,
-                          Span span) -> Stmt {
+                          Location loc) -> Stmt {
     TVM_FFI_ICHECK_EQ(vars.size(), doms.size());
     TVM_FFI_ICHECK_EQ(vars.size(), steps.size());
     Stmt result = std::move(body);
@@ -280,7 +280,7 @@ ForFrame Grid(ffi::Array<ffi::Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>>
       Var var = vars[i];
       result = For(var.as_or_throw<tvm::PrimVar>(), dom->min, dom->extent, ForKind::kDefault,
                    SeqStmt(std::move(result)),
-                   /*annotations=*/{}, /*step=*/steps[i], span);
+                   /*annotations=*/{}, /*step=*/steps[i], loc);
     }
     return result;
   };
@@ -333,19 +333,19 @@ WhileFrame While(PrimExpr condition) {
 }
 
 tvm::Stmt Return(Expr value) {
-  tvm::Stmt stmt = tvm::Return(std::move(value), Span());
+  tvm::Stmt stmt = tvm::Return(std::move(value), Location());
   AddToParent(stmt);
   return stmt;
 }
 
 tvm::Stmt Break() {
-  tvm::Stmt stmt = tvm::Break(Span());
+  tvm::Stmt stmt = tvm::Break(Location());
   AddToParent(stmt);
   return stmt;
 }
 
 tvm::Stmt Continue() {
-  tvm::Stmt stmt = tvm::Continue(Span());
+  tvm::Stmt stmt = tvm::Continue(Location());
   AddToParent(stmt);
   return stmt;
 }

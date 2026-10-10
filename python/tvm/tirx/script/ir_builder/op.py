@@ -30,6 +30,7 @@ from tvm import ir as _ir
 from tvm import tirx as _tir
 from tvm import tirx as tir
 from tvm.ir import Call, Var
+from tvm.ir.base import UnknownLoc
 from tvm.ir.prim import _ffi_api as _prim_ffi
 from tvm.ir.prim import _ffi_api as _prim_ffi_api
 from tvm.script.ir_builder import base as _base
@@ -98,9 +99,9 @@ def _call_global(func: ir.GlobalVar, *args: Expr) -> Call:
     return Call(func, args)
 
 
-def cast(value, dtype, span=None):
+def cast(value, dtype, loc=UnknownLoc()):
     """Cast an expression to the requested data type."""
-    return _prim_ffi_api._cast(dtype, value, span)  # type: ignore[attr-defined]
+    return _prim_ffi_api._cast(dtype, value, loc)  # type: ignore[attr-defined]
 
 
 def Let(  # pylint: disable=invalid-name
@@ -155,8 +156,8 @@ def _llvm_result_type(func):
     """Keep symbolic intrinsic-name conversion when spelling the result as ty."""
 
     @functools.wraps(func)
-    def wrapped(name, *args, ty, span=None):
-        return func(ty, name, *args, span=span)
+    def wrapped(name, *args, ty, loc=UnknownLoc()):
+        return func(ty, name, *args, loc=loc)
 
     return wrapped
 
@@ -165,36 +166,36 @@ class WebGPUNamespace:
     """The WebGPU intrinsics submodule."""
 
     @staticmethod
-    def subgroup_shuffle(var, lane, *, ty=None, span=None):
+    def subgroup_shuffle(var, lane, *, ty=None, loc=UnknownLoc()):
         if is_tensor_var(var):
             var = var[0]
         return Call(
             "tirx.webgpu.subgroup_shuffle",
             [var, lane],
             ty=ty,
-            span=span,
+            loc=loc,
         )
 
     @staticmethod
-    def subgroup_shuffle_up(var, delta, *, ty=None, span=None):
+    def subgroup_shuffle_up(var, delta, *, ty=None, loc=UnknownLoc()):
         if is_tensor_var(var):
             var = var[0]
         return Call(
             "tirx.webgpu.subgroup_shuffle_up",
             [var, delta],
             ty=ty,
-            span=span,
+            loc=loc,
         )
 
     @staticmethod
-    def subgroup_shuffle_down(var, delta, *, ty=None, span=None):
+    def subgroup_shuffle_down(var, delta, *, ty=None, loc=UnknownLoc()):
         if is_tensor_var(var):
             var = var[0]
         return Call(
             "tirx.webgpu.subgroup_shuffle_down",
             [var, delta],
             ty=ty,
-            span=span,
+            loc=loc,
         )
 
 
@@ -547,9 +548,9 @@ reinterpret = _ir.op._make_op_api(_ir.Op.get("tirx.reinterpret"), __name__)
 call_extern = _ir.op._make_op_api(_ir.Op.get("tirx.call_extern"), __name__)
 
 
-def call_intrin(func_name, *args, ty, attrs=None, span=None):
+def call_intrin(func_name, *args, ty, attrs=None, loc=UnknownLoc()):
     """Call an intrinsic with an explicit result type."""
-    return _tir_op.call_intrin(ty, func_name, *args, attrs=attrs, span=span)
+    return _tir_op.call_intrin(ty, func_name, *args, attrs=attrs, loc=loc)
 
 
 call_llvm_intrin = _llvm_result_type(_tir_op.call_llvm_intrin)
@@ -871,7 +872,7 @@ __all__ = [
     "webgpu",
 ]
 
-_Span = _base.SpanEntry | _ir.Span | None
+_Loc = _base.LocationEntry | _ir.Location
 
 
 def if_then_else_(condition: Any, true_value: Any, false_value: Any) -> Any:
@@ -894,34 +895,34 @@ def not_(value: Any) -> Any:
     return logical_not(value)
 
 
-def lt_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
+def lt_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.lt_`."""
-    return _prim_ffi._OpLT(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
+    return _prim_ffi._OpLT(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
-def le_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
+def le_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.le_`."""
-    return _prim_ffi._OpLE(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
+    return _prim_ffi._OpLE(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
-def gt_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
+def gt_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.gt_`."""
-    return _prim_ffi._OpGT(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
+    return _prim_ffi._OpGT(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
-def ge_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
+def ge_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.ge_`."""
-    return _prim_ffi._OpGE(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
+    return _prim_ffi._OpGE(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
-def eq_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
+def eq_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.eq_`."""
-    return _prim_ffi._OpEQ(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
+    return _prim_ffi._OpEQ(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
-def ne_(lhs: Any, rhs: Any, *, span: _Span = None) -> _ir.Expr:
+def ne_(lhs: Any, rhs: Any, *, loc: _Loc = UnknownLoc()) -> _ir.Expr:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.ne_`."""
-    return _prim_ffi._OpNE(lhs, rhs, span.span if isinstance(span, _base.SpanEntry) else span)
+    return _prim_ffi._OpNE(lhs, rhs, loc.loc if isinstance(loc, _base.LocationEntry) else loc)
 
 
 __all__ += ["and_", "eq_", "ge_", "gt_", "if_then_else_", "le_", "lt_", "ne_", "not_", "or_"]

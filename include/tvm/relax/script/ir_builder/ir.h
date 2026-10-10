@@ -130,15 +130,13 @@ TVM_DLL tvm::Var EmitMatchCast(const tvm::relax::Expr& value, const tvm::Type& t
 TVM_DLL tvm::Var EmitVarBinding(const tvm::relax::VarBinding& binding);
 
 /*! \brief Emit a binding with separate statement and variable-name ranges. */
-TVM_DLL tvm::Var EmitWithSpan(const tvm::relax::Expr& value,
-                              const ffi::Optional<tvm::Type>& annotate_ty,
-                              const ffi::Optional<Span>& name_span,
-                              const ffi::Optional<Span>& span = std::nullopt);
+TVM_DLL tvm::Var EmitWithLoc(const tvm::relax::Expr& value,
+                             const ffi::Optional<tvm::Type>& annotate_ty, const Location& name_loc,
+                             const Location& loc = Location());
 
 /*! \brief Emit a match cast with separate statement and variable-name ranges. */
-TVM_DLL tvm::Var EmitMatchCastWithSpan(const tvm::relax::Expr& value, const tvm::Type& ty,
-                                       const ffi::Optional<Span>& name_span,
-                                       const ffi::Optional<Span>& span = std::nullopt);
+TVM_DLL tvm::Var EmitMatchCastWithLoc(const tvm::relax::Expr& value, const tvm::Type& ty,
+                                      const Location& name_loc, const Location& loc = Location());
 
 ///////////////////////////// If Then Else /////////////////////////////
 

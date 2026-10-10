@@ -79,7 +79,7 @@ class CallTIRWithGradEliminator : private ExprMutator {
       return ExprMutator::VisitExpr_(call_node);
     }
     return Call(Type::Missing(), Op::Get("relax.call_tir"), call_node->args, {}, call_node->ty_args,
-                call_node->span);
+                call_node->loc);
   }
 };
 

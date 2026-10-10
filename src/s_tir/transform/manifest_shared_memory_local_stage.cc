@@ -270,7 +270,7 @@ class SharedMemoryLocalStageInserter : public StmtExprMutator {
     if (new_alloc_buffers.size() > 0) {
       new_block_node->alloc_buffers = Concat(new_block_node->alloc_buffers, new_alloc_buffers);
     }
-    new_block_node->body = SeqStmt(new_seq, op->body->span);
+    new_block_node->body = SeqStmt(new_seq, op->body->loc);
     return new_block;
   }
 

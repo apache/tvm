@@ -361,16 +361,16 @@ class VDeviceTypeUpdater : ExprMutator {
         auto vdevice = opt.value();
         TensorType new_ty = [&]() {
           if (tinfo->shape.has_value()) {
-            return TensorType(tinfo->shape.value(), tinfo->dtype, vdevice, tinfo->span);
+            return TensorType(tinfo->shape.value(), tinfo->dtype, vdevice, tinfo->loc);
           } else {
-            return TensorType(tinfo->dtype, tinfo->ndim, vdevice, tinfo->span);
+            return TensorType(tinfo->dtype, tinfo->ndim, vdevice, tinfo->loc);
           }
         }();
 
         if (var->IsInstance<DataflowVarNode>()) {
-          var = DataflowVar(var->name, new_ty, var->span);
+          var = DataflowVar(var->name, new_ty, var->loc);
         } else {
-          var = Var(var->name, new_ty, var->span);
+          var = Var(var->name, new_ty, var->loc);
         }
       }
     }

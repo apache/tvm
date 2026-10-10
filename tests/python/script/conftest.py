@@ -25,7 +25,7 @@ from tvm.script.parser import entry
 @pytest.fixture
 def language(monkeypatch):
     """Use the shared recording language without selecting a native dialect."""
-    from minilang import Language, RecordingSpanEntry
+    from minilang import Language, RecordingLocationEntry
 
     from tvm.script.parser import entry
 
@@ -36,13 +36,13 @@ def language(monkeypatch):
     )
     language = Language()
     monkeypatch.setattr(entry, "builder_ir", language.I)
-    monkeypatch.setattr(entry, "SpanEntry", lambda span: RecordingSpanEntry(language, span))
+    monkeypatch.setattr(entry, "LocationEntry", lambda loc: RecordingLocationEntry(language, loc))
     return language
 
 
 @pytest.fixture
-def spanned_language(language, monkeypatch):
-    monkeypatch.setattr(entry, "SpanEntry", base.SpanEntry)
+def located_language(language, monkeypatch):
+    monkeypatch.setattr(entry, "LocationEntry", base.LocationEntry)
     language.I.at_ = base.at_
     language.I.with_at_group_ = base.with_at_group_
     language.M.inline = entry.make_macro_decorator(language.M, namespace_path="M.inline")
@@ -50,17 +50,19 @@ def spanned_language(language, monkeypatch):
 
 
 @pytest.fixture
-def primitive_language(spanned_language):
+def primitive_language(located_language):
     """Use native primitive operators for minilang expression examples."""
     from functools import reduce
 
-    from tvm.ir import prim
+    from tvm.ir import UnknownLoc, prim
 
-    language = spanned_language
+    language = located_language
     for kind in ("LT", "LE", "GT", "GE", "EQ", "NE"):
         constructor = getattr(prim._ffi_api, "_Op" + kind)
         setattr(
-            language.M, kind.lower() + "_", lambda lhs, rhs, make=constructor: make(lhs, rhs, None)
+            language.M,
+            kind.lower() + "_",
+            lambda lhs, rhs, make=constructor: make(lhs, rhs, UnknownLoc()),
         )
     language.M.and_ = lambda *conditions: reduce(
         lambda rhs, lhs: prim.And(lhs, rhs), reversed(conditions)

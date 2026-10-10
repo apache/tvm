@@ -325,7 +325,7 @@ class LayoutConvertMutator : public ExprMutator {
             shape->values[from.LeafValue()->layout.IndexOf(to.LeafValue()->layout[i])]);
       }
       VDevice vdev = tensor_ty->vdevice.value_or(VDevice());
-      return TensorType(ShapeExpr(new_shape), tensor_ty->dtype, vdev, tensor_ty->span);
+      return TensorType(ShapeExpr(new_shape), tensor_ty->dtype, vdev, tensor_ty->loc);
     };
     Type new_ty = TransformTupleLeaf<LayoutDecision>(
         binding->ty, std::array<NLayout, 2>({from_layout, input_layout}), fvisitleaf);

@@ -122,7 +122,7 @@ class TIRxOpaqueLower : public StmtExprMutator {
     if (tvm::tirx::GetThreadBinding(op).has_value()) {
       return RegionStmt(tirx::launch_thread_op(),
                         {StringImm(tvm::tirx::GetThreadBinding(op).value()), extent}, {launch_var},
-                        DictAttrs(), body, {}, op->span);
+                        DictAttrs(), body, {}, op->loc);
     }
     return body;
   }

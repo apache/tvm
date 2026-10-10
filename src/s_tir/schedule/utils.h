@@ -129,7 +129,7 @@ inline SeqStmt RemoveFromSeqStmt(const SeqStmt& seq, const Stmt& to_remove) {
     }
     new_stmts.push_back(stmt);
   }
-  return SeqStmt(new_stmts, seq->span);
+  return SeqStmt(new_stmts, seq->loc);
 }
 
 /*!

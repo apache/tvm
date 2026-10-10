@@ -24,6 +24,7 @@ from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir import PrimType as _PrimType
 from tvm.ir.attrs import make_node as _make_attrs
+from tvm.ir.base import UnknownLoc
 from tvm.tirx import FloatImm
 
 from ...expr import Expr
@@ -48,7 +49,7 @@ def conv1d(
     *,
     ty_args=None,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""1D convolution.
 
@@ -148,7 +149,7 @@ def conv1d(
         ),
         ty_args=ty_args,
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -171,7 +172,7 @@ def conv2d(
     *,
     ty_args=None,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""2D convolution.
 
@@ -275,7 +276,7 @@ def conv2d(
         ),
         ty_args=ty_args,
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -298,7 +299,7 @@ def conv3d(
     *,
     ty_args=None,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""3D convolution.
 
@@ -408,7 +409,7 @@ def conv3d(
         ),
         ty_args=ty_args,
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -432,7 +433,7 @@ def conv1d_transpose(
     *,
     ty_args=None,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""1D transposed convolution operator.
 
@@ -526,7 +527,7 @@ def conv1d_transpose(
         ),
         ty_args=ty_args,
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -550,7 +551,7 @@ def conv2d_transpose(
     *,
     ty_args=None,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""Two dimensional transposed convolution operator.
 
@@ -661,7 +662,7 @@ def conv2d_transpose(
         ),
         ty_args=ty_args,
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -685,7 +686,7 @@ def conv3d_transpose(
     *,
     ty_args=None,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""Three dimensional transposed convolution operator.
 
@@ -797,7 +798,7 @@ def conv3d_transpose(
         ),
         ty_args=ty_args,
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -813,7 +814,7 @@ def pad(
     pad_value: float | None = 0.0,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     r"""Padding
 
@@ -849,7 +850,7 @@ def pad(
             "relax.attrs.PadAttrs", pad_width=pad_width, pad_mode=pad_mode, pad_value=pad_value
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -858,7 +859,7 @@ class PixelShuffleAttrs(Attrs):
     """Attributes used in pixel_shuffle operator"""
 
 
-def pixel_shuffle(data: Expr, upscale_factor: int, *, ty=None, span=None):
+def pixel_shuffle(data: Expr, upscale_factor: int, *, ty=None, loc=UnknownLoc()):
     r"""
     Pixel Shuffle Operator
 
@@ -893,7 +894,7 @@ def pixel_shuffle(data: Expr, upscale_factor: int, *, ty=None, span=None):
         [data],
         attrs=_make_attrs("relax.attrs.PixelShuffleAttrs", upscale_factor=upscale_factor),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -914,7 +915,7 @@ def max_pool1d(
     out_layout: str | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""1D maximum pooling operator.
 
@@ -998,7 +999,7 @@ def max_pool1d(
             out_layout=(layout if out_layout is None else out_layout),
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -1020,7 +1021,7 @@ def max_pool2d(
     *,
     ty_args=None,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""2D maximum pooling operator.
 
@@ -1118,7 +1119,7 @@ def max_pool2d(
         ),
         ty_args=ty_args,
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -1139,7 +1140,7 @@ def max_pool3d(
     out_layout: str | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""3D maximum pooling operator.
 
@@ -1230,7 +1231,7 @@ def max_pool3d(
             out_layout=(layout if out_layout is None else out_layout),
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -1246,7 +1247,7 @@ def avg_pool1d(
     out_layout: str | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""1D average pooling operator.
 
@@ -1329,7 +1330,7 @@ def avg_pool1d(
             out_layout=(layout if out_layout is None else out_layout),
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -1345,7 +1346,7 @@ def avg_pool2d(
     out_layout: str | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""2D average pooling operator.
 
@@ -1442,7 +1443,7 @@ def avg_pool2d(
             out_layout=(layout if out_layout is None else out_layout),
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -1458,7 +1459,7 @@ def avg_pool3d(
     out_layout: str | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""2D average pooling operator.
 
@@ -1549,7 +1550,7 @@ def avg_pool3d(
             out_layout=(layout if out_layout is None else out_layout),
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -1565,7 +1566,7 @@ def adaptive_avg_pool1d(
     out_layout: str | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""1D adaptive average pooling operator. This operator is experimental.
 
@@ -1623,7 +1624,7 @@ def adaptive_avg_pool1d(
             out_layout=(layout if out_layout is None else out_layout),
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -1640,7 +1641,7 @@ def adaptive_avg_pool2d(
     *,
     ty_args=None,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""2D adaptive average pooling operator. This operator is experimental.
 
@@ -1702,7 +1703,7 @@ def adaptive_avg_pool2d(
         ),
         ty_args=ty_args,
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -1718,7 +1719,7 @@ def adaptive_avg_pool3d(
     out_layout: str | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""3D adaptive average pooling operator. This operator is experimental.
 
@@ -1779,11 +1780,11 @@ def adaptive_avg_pool3d(
             out_layout=(layout if out_layout is None else out_layout),
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
-def relu(data: Expr, *, ty_args=None, ty=None, span=None) -> Expr:
+def relu(data: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     r"""Rectified linear unit.
 
     .. math::
@@ -1799,7 +1800,7 @@ def relu(data: Expr, *, ty_args=None, ty=None, span=None) -> Expr:
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.nn.relu", [data], ty_args=ty_args, ty=ty, span=span)  # type: ignore
+    return _Call("relax.nn.relu", [data], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
 def relu6(data: Expr) -> Expr:
@@ -1826,7 +1827,7 @@ class LeakyReluAttrs(Attrs):
     """Attributes used in leaky_relu operator"""
 
 
-def leakyrelu(data: Expr, alpha: float = 0.01, *, ty_args=None, ty=None, span=None) -> Expr:
+def leakyrelu(data: Expr, alpha: float = 0.01, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     """Rectified linear unit.
 
     .. math::
@@ -1852,11 +1853,11 @@ def leakyrelu(data: Expr, alpha: float = 0.01, *, ty_args=None, ty=None, span=No
         attrs=_make_attrs("relax.attrs.LeakyReluAttrs", alpha=alpha),
         ty_args=ty_args,
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
-def gelu(data: Expr, *, ty_args=None, ty=None, span=None) -> Expr:
+def gelu(data: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     r"""Gaussian Error Linear Units function
 
     .. math::
@@ -1878,10 +1879,10 @@ def gelu(data: Expr, *, ty_args=None, ty=None, span=None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.nn.gelu", [data], ty_args=ty_args, ty=ty, span=span)  # type: ignore
+    return _Call("relax.nn.gelu", [data], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def gelu_tanh(data: Expr, *, ty_args=None, ty=None, span=None) -> Expr:
+def gelu_tanh(data: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     r"""Gaussian Error Linear Units function with tanh approximation
 
     .. math::
@@ -1901,10 +1902,10 @@ def gelu_tanh(data: Expr, *, ty_args=None, ty=None, span=None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.nn.gelu_tanh", [data], ty_args=ty_args, ty=ty, span=span)  # type: ignore
+    return _Call("relax.nn.gelu_tanh", [data], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
-def selu(data: Expr, *, ty_args=None, ty=None, span=None) -> Expr:
+def selu(data: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     r"""Scaled Exponential Linear Unit (SELU).
 
     .. math::
@@ -1925,10 +1926,10 @@ def selu(data: Expr, *, ty_args=None, ty=None, span=None) -> Expr:
     result : relax.Expr
         The computed result.
     """
-    return _Call("relax.nn.selu", [data], ty_args=ty_args, ty=ty, span=span)
+    return _Call("relax.nn.selu", [data], ty_args=ty_args, ty=ty, loc=loc)
 
 
-def silu(data: Expr, *, ty_args=None, ty=None, span=None) -> Expr:
+def silu(data: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()) -> Expr:
     r"""Sigmoid Linear Unit function
 
     .. math::
@@ -1948,7 +1949,7 @@ def silu(data: Expr, *, ty_args=None, ty=None, span=None) -> Expr:
     ----
     The input tensor is required to have float dtype
     """
-    return _Call("relax.nn.silu", [data], ty_args=ty_args, ty=ty, span=span)  # type: ignore
+    return _Call("relax.nn.silu", [data], ty_args=ty_args, ty=ty, loc=loc)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.attrs.SoftmaxAttrs")
@@ -1956,7 +1957,7 @@ class SoftmaxAttrs(Attrs):
     """Attributes for nn.softmax"""
 
 
-def softmax(data: Expr, axis: int = -1, *, ty=None, span=None) -> Expr:
+def softmax(data: Expr, axis: int = -1, *, ty=None, loc=UnknownLoc()) -> Expr:
     r"""Computes softmax.
 
     .. math:: \text{softmax}(x)_i = \frac{\exp(x_i)}{\sum_j \exp(x_j)}
@@ -1985,7 +1986,7 @@ def softmax(data: Expr, axis: int = -1, *, ty=None, span=None) -> Expr:
         [data],
         attrs=_make_attrs("relax.attrs.SoftmaxAttrs", axis=axis),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -2001,7 +2002,7 @@ def softplus(
     *,
     ty_args=None,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""Softplus activation function.
 
@@ -2030,11 +2031,11 @@ def softplus(
         attrs=_make_attrs("relax.attrs.SoftplusAttrs", beta=beta, threshold=threshold),
         ty_args=ty_args,
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
-def log_softmax(data: Expr, axis: int = -1, *, ty=None, span=None) -> Expr:
+def log_softmax(data: Expr, axis: int = -1, *, ty=None, loc=UnknownLoc()) -> Expr:
     r"""Computes log softmax.
 
     .. math::
@@ -2064,7 +2065,7 @@ def log_softmax(data: Expr, axis: int = -1, *, ty=None, span=None) -> Expr:
         [data],
         attrs=_make_attrs("relax.attrs.SoftmaxAttrs", axis=axis),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -2073,7 +2074,7 @@ class PReluAttrs(Attrs):
     """Attributes used in prelu operator"""
 
 
-def prelu(data: Expr, alpha: Expr, axis: int = 1, *, ty=None, span=None) -> Expr:
+def prelu(data: Expr, alpha: Expr, axis: int = 1, *, ty=None, loc=UnknownLoc()) -> Expr:
     r"""Parametric Rectified Linear Unit (PReLU).
 
     .. math::
@@ -2101,7 +2102,7 @@ def prelu(data: Expr, alpha: Expr, axis: int = 1, *, ty=None, span=None) -> Expr
         [data, alpha],
         attrs=_make_attrs("relax.attrs.PReluAttrs", axis=axis),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -2124,7 +2125,7 @@ def batch_norm(
     training: bool = True,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""
     Batch normalization layer (Ioffe and Szegedy, 2014).
@@ -2236,7 +2237,7 @@ def batch_norm(
             training=training,
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -2255,7 +2256,7 @@ def layer_norm(
     scale: bool = True,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""
     Layer normalization (Lei Ba and et al., 2016).
@@ -2313,7 +2314,7 @@ def layer_norm(
             "relax.attrs.LayerNormAttrs", axes=axes, epsilon=epsilon, center=center, scale=scale
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -2334,7 +2335,7 @@ def group_norm(
     scale: bool = True,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""
     Group normalization (Yuxin Wu and et al., 2016).
@@ -2391,7 +2392,7 @@ def group_norm(
             scale=scale,
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -2411,7 +2412,7 @@ def instance_norm(
     scale: bool = True,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""
     Instance normalization
@@ -2458,7 +2459,7 @@ def instance_norm(
             scale=scale,
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -2474,7 +2475,7 @@ def rms_norm(
     epsilon: float = 1e-5,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""
     Root mean square normalization (Biao Zhang and et al., 2019).
@@ -2512,7 +2513,7 @@ def rms_norm(
         [data, weight],
         attrs=_make_attrs("relax.attrs.RMSNormAttrs", axes=axes, epsilon=epsilon),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -2521,7 +2522,7 @@ class DropoutAttrs(Attrs):
     """Attributes for dropout operator"""
 
 
-def dropout(data: Expr, rate: float = 0.5, *, ty=None, span=None) -> Expr:
+def dropout(data: Expr, rate: float = 0.5, *, ty=None, loc=UnknownLoc()) -> Expr:
     """Applies the dropout operation to the input tensor.
 
     During training, each element of the input is set to zero with
@@ -2548,12 +2549,12 @@ def dropout(data: Expr, rate: float = 0.5, *, ty=None, span=None) -> Expr:
         [data],
         attrs=_make_attrs("relax.attrs.DropoutAttrs", rate=rate),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
 def cross_entropy_with_logits(
-    predictions: Expr, labels: Expr, *, ty_args=None, ty=None, span=None
+    predictions: Expr, labels: Expr, *, ty_args=None, ty=None, loc=UnknownLoc()
 ) -> Expr:
     r"""CrossEntropy with logits between the predictions and labels.
 
@@ -2583,7 +2584,7 @@ def cross_entropy_with_logits(
         [predictions, labels],
         ty_args=ty_args,
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -2601,7 +2602,7 @@ def nll_loss(
     *,
     ty_args=None,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Negative log likelihood loss.
 
@@ -2648,7 +2649,7 @@ def nll_loss(
         ),
         ty_args=ty_args,
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -2667,7 +2668,7 @@ def attention(
     window_size: int | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""Computes fused multi head attention.
 
@@ -2758,7 +2759,7 @@ def attention(
             window_size=window_size,
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -2772,7 +2773,7 @@ def attention_bias(
     window_size: int | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     r"""Computes fused multi head attention.
 
@@ -2867,7 +2868,7 @@ def attention_bias(
             window_size=window_size,
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -2884,7 +2885,7 @@ def attention_var_len(
     window_size: int | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Computes fused multi head attention over batched sequences of variable lengths.
 
@@ -2985,11 +2986,11 @@ def attention_var_len(
             window_size=window_size,
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
-def batch_flatten(data: Expr, *, ty=None, span=None) -> Expr:
+def batch_flatten(data: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
     """Flatten all dimensions except the first (batch) dimension.
 
     This operation flattens a tensor of shape `(N, C, H, W, ...)` into
@@ -3005,4 +3006,4 @@ def batch_flatten(data: Expr, *, ty=None, span=None) -> Expr:
     result : relax.Expr
         The flattened result with shape `(batch_size, flattened_features)`.
     """
-    return _Call("relax.nn.batch_flatten", [data], ty=ty, span=span)  # type: ignore
+    return _Call("relax.nn.batch_flatten", [data], ty=ty, loc=loc)  # type: ignore

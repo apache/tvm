@@ -25,6 +25,7 @@ from tvm.ir import Attrs, is_prim_expr
 from tvm.ir import Call as _Call
 from tvm.ir import PrimType as _PrimType
 from tvm.ir.attrs import make_node as _make_attrs
+from tvm.ir.base import UnknownLoc
 
 from ...expr import Expr, ShapeExpr
 
@@ -51,7 +52,7 @@ def resize2d(
     out_dtype: str | DataType | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Image resize2d operator.
 
@@ -146,7 +147,7 @@ def resize2d(
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -164,7 +165,7 @@ def resize3d(
     out_dtype: str | DataType | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Image resize3d operator.
 
@@ -206,7 +207,7 @@ def resize3d(
             out_dtype=(out_dtype.dtype if isinstance(out_dtype, _PrimType) else out_dtype),
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -219,7 +220,7 @@ def grid_sample(
     align_corners: bool = False,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Applies grid sampling to input feature map.
 
@@ -263,7 +264,7 @@ def grid_sample(
             align_corners=align_corners,
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -273,7 +274,7 @@ def affine_grid(
     align_corners: bool = True,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Generate a 2D or 3D sampling grid using an affine transformation matrix.
 
@@ -314,6 +315,6 @@ def affine_grid(
             [data, size],
             attrs=_make_attrs("relax.attrs.AffineGridAttrs", align_corners=align_corners),
             ty=ty,
-            span=span,
+            loc=loc,
         ),
     )

@@ -141,7 +141,7 @@ class PipelineOpaqueAccessRewriter {
         new_args.Set(0, new_buffer.data());
         new_args.Set(
             4, RewriteWmmaFragmentIndex(buffer, new_buffer, call->args[4].as_or_throw<PrimExpr>()));
-        return Call(call->ty, call->op, new_args, call->attrs, call->ty_args, call->span);
+        return Call(call->ty, call->op, new_args, call->attrs, call->ty_args, call->loc);
       }
     } else if (call->op.same_as(mma_sync)) {
       ffi::Array<Expr> new_args = call->args;
@@ -157,7 +157,7 @@ class PipelineOpaqueAccessRewriter {
           new_args.Set(i * 2 + 1, new_index);
         }
       }
-      return Call(call->ty, call->op, new_args, call->attrs, call->ty_args, call->span);
+      return Call(call->ty, call->op, new_args, call->attrs, call->ty_args, call->loc);
     } else if (call->op.same_as(ptx_mma_legacy)) {
       return RewriteBufferAccess(call, {6, 8, 10});
     } else if (call->op.same_as(ptx_ldmatrix_legacy)) {
@@ -180,7 +180,7 @@ class PipelineOpaqueAccessRewriter {
 
     int fragment_size = GetWmmaFragmentSize(old_buffer);
     PrimExpr offset =
-        floordiv(foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
+        floordiv(foldl([](PrimExpr a, PrimExpr b, Location loc) { return mul(a, b, loc); },
                        IntImm::Int32(1), old_buffer->shape),
                  fragment_size);
     new_buffer_offset +=
@@ -190,7 +190,7 @@ class PipelineOpaqueAccessRewriter {
 
   Expr RewriteBufferAccess(const Call& call, const std::vector<int> arg_indices) {
     auto product = [](const ffi::Array<PrimExpr>& input) {
-      return foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
+      return foldl([](PrimExpr a, PrimExpr b, Location loc) { return mul(a, b, loc); },
                    IntImm::Int32(1), input);
     };
     ffi::Array<Expr> new_args = call->args;
@@ -215,7 +215,7 @@ class PipelineOpaqueAccessRewriter {
         new_args.Set(i + 1, new_index);
       }
     }
-    return Call(call->ty, call->op, new_args, call->attrs, call->ty_args, call->span);
+    return Call(call->ty, call->op, new_args, call->attrs, call->ty_args, call->loc);
   }
 
   const ffi::Map<Var, TensorVar>& buffer_data_to_buffer_;
@@ -327,7 +327,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
     PrimExpr version =
         floormod((pipeline_loop_->loop_var - pipeline_loop_->min), new_buffer->shape[0]);
     indices.insert(indices.begin(), version);
-    return MakeTensorLoad(new_buffer, indices, op->span);
+    return MakeTensorLoad(new_buffer, indices, op->loc);
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
@@ -349,7 +349,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
         PrimExpr version =
             floormod(pipeline_loop_->loop_var - pipeline_loop_->min, new_buffer->shape[0]);
         return Call(op->ty, tirx::ptr_byte_offset_op(),
-                    {new_buffer.data(), version * stride * bytes}, {}, {}, op->span);
+                    {new_buffer.data(), version * stride * bytes}, {}, {}, op->loc);
       }
     }
     Call call = opaque_access_rewriter_.Rewrite(ffi::GetRef<Call>(op)).as_or_throw<Call>();

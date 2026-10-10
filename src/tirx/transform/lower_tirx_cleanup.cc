@@ -130,7 +130,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
       Call declaration(buffer.type(), decl_tensor_op(),
                        {source.value().data(), tvm::Tuple(buffer->shape),
                         DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())});
-      Bind binding(op->var, declaration, op->span);
+      Bind binding(op->var, declaration, op->loc);
       return MutateDeclTensor(binding.get(), declaration.get(), inplace_mode)
           .ValueOrUnchanged(binding);
     }
@@ -145,7 +145,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
                          {Call(buffer->DataPointerType(), reinterpret_op(), {call->args[0]}),
                           tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                           StringImm(buffer.scope())});
-        Bind binding(op->var, declaration, op->span);
+        Bind binding(op->var, declaration, op->loc);
         return MutateDeclTensor(binding.get(), declaration.get(), inplace_mode)
             .ValueOrUnchanged(binding);
       }
@@ -164,16 +164,16 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     };
     auto buffer = mutate(op->var.as_or_throw<TensorVar>());
     ffi::Array<Expr> args = buffer_call->args;
-    args.Set(0, tvm::Tuple(buffer->shape, buffer_call->args[0]->span));
-    args.Set(1, DataTypeImm(buffer->dtype->dtype, buffer_call->args[1]->span));
-    args.Set(2, StringImm(buffer.scope(), buffer_call->args[2]->span));
+    args.Set(0, tvm::Tuple(buffer->shape, buffer_call->args[0]->loc));
+    args.Set(1, DataTypeImm(buffer->dtype->dtype, buffer_call->args[1]->loc));
+    args.Set(2, StringImm(buffer.scope(), buffer_call->args[2]->loc));
     if (args.size() == 4) {
       args.Set(3, Mutate(args[3], inplace_mode).ValueOrUnchanged(args[3]));
     }
     return Bind(buffer.var(),
                 Call(buffer.type(), tirx::alloc_tensor_op(), args, buffer_call->attrs,
-                     buffer_call->ty_args, buffer_call->span),
-                op->span);
+                     buffer_call->ty_args, buffer_call->loc),
+                op->loc);
   }
 
   UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, const CallNode* buffer_call,
@@ -190,8 +190,8 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
                 Call(buffer.type(), decl_tensor_op(),
                      {std::move(data), tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                       StringImm(buffer.scope())},
-                     buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
-                op->span);
+                     buffer_call->attrs, buffer_call->ty_args, buffer_call->loc),
+                op->loc);
   }
 
   TensorVar GetFlattenedTensor(TensorVar buf, bool is_alloc = false) {
@@ -215,7 +215,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     } else if (is_alloc) {
       if (auto tile_layout = buf->layout.as<TileLayoutNode>();
           tile_layout && tile_layout->HasThreadAxis()) {
-        // Logical alloc_tensor with thread axes: physical shape = memory-axis span
+        // Logical alloc_tensor with thread axes: physical shape = memory-axis loc
         sym::Analyzer ana;
         PrimExpr mem_span = IntImm::Int32(1);
         for (const auto& iter : tile_layout->shard) {
@@ -352,7 +352,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     TVM_FFI_ICHECK(buffer.defined());
     if (target_->kind->name == "trn" && !buffer->layout.has_value()) return node;
     return MakeTensorLoad(GetFlattenedTensor(buffer),
-                          GetSimplifiedElemOffset(buffer, node->indices), node->span);
+                          GetSimplifiedElemOffset(buffer, node->indices), node->loc);
   }
 
   /*! \brief Map of variables being remapped, including buffer variables. */

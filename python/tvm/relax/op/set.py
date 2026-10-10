@@ -21,6 +21,7 @@ import numpy as np  # type: ignore
 
 import tvm
 from tvm.ir import Call as _Call
+from tvm.ir.base import UnknownLoc
 
 from ..expr import Expr, prim_value
 
@@ -34,7 +35,7 @@ def unique(
     axis: int | Expr | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Find the unique elements in a given tensor.
     In addition, it optionally returns
@@ -86,7 +87,7 @@ def unique(
         "relax.unique",
         [x, sorted, return_index, return_inverse, return_counts, *([] if axis is None else [axis])],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -185,7 +186,7 @@ def numpy_unique(
     return tuple(output_list)
 
 
-def nonzero(x: Expr, *, ty=None, span=None) -> Expr:
+def nonzero(x: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
     """Find the indices of elements of a tensor that are non-zero.
 
     Parameters
@@ -213,7 +214,7 @@ def nonzero(x: Expr, *, ty=None, span=None) -> Expr:
                       [1, 0]]
 
     """
-    return _Call("relax.nonzero", [x], ty=ty, span=span)  # type: ignore
+    return _Call("relax.nonzero", [x], ty=ty, loc=loc)  # type: ignore
 
 
 @tvm.register_global_func("relax.run.nonzero")

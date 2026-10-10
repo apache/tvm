@@ -355,7 +355,7 @@ class TileDispatcher : public StmtExprMutator {
         return ffi::GetRef<Stmt>(entry_node);
       }
       return RegionStmt(entry_node->op, entry_node->args, entry_node->body_params,
-                        entry_node->attrs, body, entry_node->result_vars, entry_node->span);
+                        entry_node->attrs, body, entry_node->result_vars, entry_node->loc);
     }
 
     // Insert device init stmts into kernel body.
@@ -422,7 +422,7 @@ class TileDispatcher : public StmtExprMutator {
     if (!changed) {
       return stmt;
     }
-    return SeqStmt(rebuilt, seq->span);
+    return SeqStmt(rebuilt, seq->loc);
   }
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
@@ -1389,36 +1389,36 @@ class TileDispatcher : public StmtExprMutator {
       PrimExpr a = RewriteFilterCalls(op->a);
       PrimExpr b = RewriteFilterCalls(op->b);
       if (a.same_as(op->a) && b.same_as(op->b)) return pred;
-      return tvm::left_shift(a, b, op->span);
+      return tvm::left_shift(a, b, op->loc);
     }
     if (const auto* op = pred.as<prim::RShiftNode>()) {
       PrimExpr a = RewriteFilterCalls(op->a);
       PrimExpr b = RewriteFilterCalls(op->b);
       if (a.same_as(op->a) && b.same_as(op->b)) return pred;
-      return tvm::right_shift(a, b, op->span);
+      return tvm::right_shift(a, b, op->loc);
     }
     if (const auto* op = pred.as<prim::BitwiseAndNode>()) {
       PrimExpr a = RewriteFilterCalls(op->a);
       PrimExpr b = RewriteFilterCalls(op->b);
       if (a.same_as(op->a) && b.same_as(op->b)) return pred;
-      return tvm::bitwise_and(a, b, op->span);
+      return tvm::bitwise_and(a, b, op->loc);
     }
     if (const auto* op = pred.as<prim::BitwiseOrNode>()) {
       PrimExpr a = RewriteFilterCalls(op->a);
       PrimExpr b = RewriteFilterCalls(op->b);
       if (a.same_as(op->a) && b.same_as(op->b)) return pred;
-      return tvm::bitwise_or(a, b, op->span);
+      return tvm::bitwise_or(a, b, op->loc);
     }
     if (const auto* op = pred.as<prim::BitwiseXorNode>()) {
       PrimExpr a = RewriteFilterCalls(op->a);
       PrimExpr b = RewriteFilterCalls(op->b);
       if (a.same_as(op->a) && b.same_as(op->b)) return pred;
-      return tvm::bitwise_xor(a, b, op->span);
+      return tvm::bitwise_xor(a, b, op->loc);
     }
     if (const auto* op = pred.as<prim::BitwiseNotNode>()) {
       PrimExpr a = RewriteFilterCalls(op->a);
       if (a.same_as(op->a)) return pred;
-      return prim::BitwiseNot(a, op->span);
+      return prim::BitwiseNot(a, op->loc);
     }
     if (const auto* call = pred.as<CallNode>()) {
       if (call->op.same_as(tirx::gpu_thread_filter_op())) {
@@ -1436,7 +1436,7 @@ class TileDispatcher : public StmtExprMutator {
         args.push_back(new_arg);
       }
       if (changed) {
-        return Call(call->ty, call->op, args, call->attrs, {}, call->span).as_or_throw<PrimExpr>();
+        return Call(call->ty, call->op, args, call->attrs, {}, call->loc).as_or_throw<PrimExpr>();
       }
     }
     return pred;

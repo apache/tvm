@@ -171,7 +171,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       FDocTranslate::FromNative<&TupleGetItemDocTranslate>());
 }
 
-template <typename T, OperationDocNode::Kind kind, PrimExpr (*operation)(PrimExpr, PrimExpr, Span)>
+template <typename T, OperationDocNode::Kind kind,
+          PrimExpr (*operation)(PrimExpr, PrimExpr, Location)>
 ffi::Optional<ExprDoc> BinaryOpDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                             const ffi::Object*) {
   const auto* node = ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const T>(input);
@@ -181,7 +182,7 @@ ffi::Optional<ExprDoc> BinaryOpDocTranslate(DocTranslatorObj* d, ffi::AnyView in
   // simplify an explicit node, while two plain Python literals fold earlier.
   if (!(a.as<LiteralDocNode>() && b.as<LiteralDocNode>())) {
     try {
-      PrimExpr replay = operation(node->a, node->b, Span());
+      PrimExpr replay = operation(node->a, node->b, Location());
       if (const auto* result = replay.template as<T>();
           result && result->a.same_as(node->a) && result->b.same_as(node->b)) {
         return OperationDoc(kind, {a, b});
@@ -193,12 +194,12 @@ ffi::Optional<ExprDoc> BinaryOpDocTranslate(DocTranslatorObj* d, ffi::AnyView in
   return NamespaceDoc("tirx")->Attr(std::strrchr(T::_type_key, '.') + 1)->Call({a, b});
 }
 
-template <typename T, OperationDocNode::Kind kind, PrimExpr (*operation)(PrimExpr, Span)>
+template <typename T, OperationDocNode::Kind kind, PrimExpr (*operation)(PrimExpr, Location)>
 ExprDoc UnaryOpDocTranslate(DocTranslatorObj* d, const T* node) {
   ExprDoc value = d->Translate(node->a).value();
   if (!value.as<LiteralDocNode>()) {
     try {
-      PrimExpr replay = operation(node->a, Span());
+      PrimExpr replay = operation(node->a, Location());
       if (const auto* result = replay.template as<T>(); result && result->a.same_as(node->a)) {
         return OperationDoc(kind, {value});
       }
@@ -209,12 +210,12 @@ ExprDoc UnaryOpDocTranslate(DocTranslatorObj* d, const T* node) {
   return NamespaceDoc("tirx")->Attr(std::strrchr(T::_type_key, '.') + 1)->Call({value});
 }
 
-template <typename T, PrimExpr (*operation)(PrimExpr, PrimExpr, Span)>
+template <typename T, PrimExpr (*operation)(PrimExpr, PrimExpr, Location)>
 ExprDoc BinaryHelperDocTranslate(DocTranslatorObj* d, const T* node, const char* helper) {
   ExprDoc a = d->Translate(node->a).value();
   ExprDoc b = d->Translate(node->b).value();
   try {
-    PrimExpr replay = operation(node->a, node->b, Span());
+    PrimExpr replay = operation(node->a, node->b, Location());
     if (const auto* result = replay.template as<T>();
         result && result->a.same_as(node->a) && result->b.same_as(node->b)) {
       return NamespaceDoc("tirx")->Attr(helper)->Call({a, b});

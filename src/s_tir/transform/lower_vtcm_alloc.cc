@@ -66,8 +66,8 @@ class VtcmAllocator : public StmtExprMutator {
                              tvm::backend::opencl::nd_mem_alloc_with_scope_op(), args),
                         tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                         StringImm(buffer.scope())},
-                       {}, call->ty_args, call->span),
-                  op->span);
+                       {}, call->ty_args, call->loc),
+                  op->loc);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }

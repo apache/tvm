@@ -28,7 +28,7 @@ from .global_info import DummyGlobalInfo, VDevice
 # Expr
 from .expr import (
     Expr,
-    Span,
+    Location,
     GlobalVar,
     Var,
     DataflowVar,

@@ -19,19 +19,20 @@
 from __future__ import annotations
 
 from tvm.ir import Call, Expr, Op, Var
+from tvm.ir.base import UnknownLoc
 from tvm.ir.op import _make_op_api
 from tvm.tirx import is_tensor_var
 from tvm.tirx.op import call_intrin
 
 
-def make_filled_simdgroup_matrix(d, index, value, col=8, row=8, *, ty=None, span=None):
+def make_filled_simdgroup_matrix(d, index, value, col=8, row=8, *, ty=None, loc=UnknownLoc()):
     """Create a filled SIMDGroup matrix."""
 
     return Call(
         "tirx.metal.make_filled_simdgroup_matrix",
         [d, index, value, col, row],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -45,7 +46,7 @@ def simdgroup_load(
     transpose_matrix=False,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     """Load data from device or threadgroup memory to simdgroup."""
 
@@ -53,7 +54,7 @@ def simdgroup_load(
         "tirx.metal.simdgroup_load",
         [d, index, ptr, stride, col, row, transpose_matrix],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -67,7 +68,7 @@ def simdgroup_store(
     transpose_matrix=False,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     """Store data from simdgroup to device or threadgroup memory."""
 
@@ -75,12 +76,12 @@ def simdgroup_store(
         "tirx.metal.simdgroup_store",
         [d, index, ptr, stride, col, row, transpose_matrix],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
 def simdgroup_multiply_accumulate(
-    d, index_d, a, index_a, b, index_b, c, index_c, *, ty=None, span=None
+    d, index_d, a, index_a, b, index_b, c, index_c, *, ty=None, loc=UnknownLoc()
 ):
     """Multiply and accumulate two matrices in simdgroup."""
 
@@ -88,7 +89,7 @@ def simdgroup_multiply_accumulate(
         "tirx.metal.simdgroup_multiply_accumulate",
         [d, index_d, a, index_a, b, index_b, c, index_c],
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -97,25 +98,25 @@ _simd_shuffle_up = _make_op_api(Op.get("tirx.metal.simd_shuffle_up"), __name__)
 _simd_shuffle_down = _make_op_api(Op.get("tirx.metal.simd_shuffle_down"), __name__)
 
 
-def simd_shuffle(var, lane, *, ty=None, span=None):
+def simd_shuffle(var, lane, *, ty=None, loc=UnknownLoc()):
     """Shuffle a value from the selected SIMD lane."""
     if is_tensor_var(var):
         var = var[0]
-    return _simd_shuffle(var, lane, ty=ty, span=span)
+    return _simd_shuffle(var, lane, ty=ty, loc=loc)
 
 
-def simd_shuffle_up(var, delta, *, ty=None, span=None):
+def simd_shuffle_up(var, delta, *, ty=None, loc=UnknownLoc()):
     """Shuffle a value from a lower SIMD lane."""
     if is_tensor_var(var):
         var = var[0]
-    return _simd_shuffle_up(var, delta, ty=ty, span=span)
+    return _simd_shuffle_up(var, delta, ty=ty, loc=loc)
 
 
-def simd_shuffle_down(var, delta, *, ty=None, span=None):
+def simd_shuffle_down(var, delta, *, ty=None, loc=UnknownLoc()):
     """Shuffle a value from a higher SIMD lane."""
     if is_tensor_var(var):
         var = var[0]
-    return _simd_shuffle_down(var, delta, ty=ty, span=span)
+    return _simd_shuffle_down(var, delta, ty=ty, loc=loc)
 
 
 __all__ = [
@@ -141,7 +142,7 @@ def cooperative_tensor_fill(
     cols: int,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     return call_intrin(
         ty,
@@ -151,7 +152,7 @@ def cooperative_tensor_fill(
         value,
         rows,
         cols,
-        span=span,
+        loc=loc,
     )
 
 
@@ -169,7 +170,7 @@ def cooperative_tensor_load(
     operand_role: int = 0,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     return call_intrin(
         ty,
@@ -185,7 +186,7 @@ def cooperative_tensor_load(
         mma_N,
         mma_K,
         operand_role,
-        span=span,
+        loc=loc,
     )
 
 
@@ -203,7 +204,7 @@ def cooperative_tensor_store(
     operand_role: int = 0,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     return call_intrin(
         ty,
@@ -219,7 +220,7 @@ def cooperative_tensor_store(
         mma_N,
         mma_K,
         operand_role,
-        span=span,
+        loc=loc,
     )
 
 
@@ -239,7 +240,7 @@ def cooperative_tensor_multiply_accumulate(
     transpose_b: bool = False,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     return call_intrin(
         ty,
@@ -257,5 +258,5 @@ def cooperative_tensor_multiply_accumulate(
         K,
         transpose_a,
         transpose_b,
-        span=span,
+        loc=loc,
     )

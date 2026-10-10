@@ -86,7 +86,7 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
     std::sort(fields.begin(), fields.end(),
               [](const auto& a, const auto& b) { return a.first < b.first; });
     for (const auto& [key, value] : fields) {
-      if (key == "ty" || key == "attrs" || key == "ty_args" || key == "span" || key == "type_key" ||
+      if (key == "ty" || key == "attrs" || key == "ty_args" || key == "loc" || key == "type_key" ||
           std::any_of(op->args_info.begin(), op->args_info.end(),
                       [&](const ArgumentInfo& info) { return info->name == key; })) {
         return RawCall(d, call);

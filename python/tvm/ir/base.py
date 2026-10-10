@@ -54,48 +54,49 @@ class SourceName(Object):
         self.__init_handle_by_constructor__(_ffi_api.SourceName, name)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("ir.Span")
-class Span(Object):
-    """Specifies a location in a source program.
+@register_object("ir.Location")
+class Location(Object):
+    """Non-null source-location metadata attached to IR nodes."""
+
+
+@register_object("ir.UnknownLoc")
+class UnknownLoc(Location):
+    """The canonical immutable location used when source information is unavailable."""
+
+    def __init__(self):
+        self.__init_handle_by_constructor__(_ffi_api.UnknownLoc)
+
+
+@register_object("ir.SourceLoc")
+class SourceLoc(Location):
+    """A source range with unchanged frontend coordinate units and endpoints.
 
     Parameters
     ----------
-    source : SourceName
-        The source name.
-
-    lineno : int
-        The line number.
-
-    col_offset : int
-        The column offset of the location.
+    source_name : SourceName
+        The name of the source.
+    start_line : int
+        The starting line number.
+    start_column : int
+        The starting column offset.
+    end_line : int
+        The ending line number.
+    end_column : int
+        The ending column offset.
     """
 
-    def __init__(self, source_name, line, end_line, column, end_column):
+    def __init__(self, source_name, start_line, start_column, end_line, end_column):
         self.__init_handle_by_constructor__(
-            _ffi_api.Span,
-            source_name,
-            line,
-            end_line,
-            column,
-            end_column,  # type: ignore # pylint: disable=no-member
+            _ffi_api.SourceLoc, source_name, start_line, start_column, end_line, end_column
         )
 
 
-@register_object("ir.SequentialSpan")
-class SequentialSpan(Object):
-    """A sequence of source spans
+@register_object("ir.CallSiteLoc")
+class CallSiteLoc(Location):
+    """A callee's location together with the location of its caller."""
 
-    This span is specific for an expression, which is from multiple expressions
-    after an IR transform.
-
-    Parameters
-    ----------
-    spans : Array
-        The array of spans.
-    """
-
-    def __init__(self, spans):
-        self.__init_handle_by_constructor__(_ffi_api.SequentialSpan, spans)
+    def __init__(self, callee: Location, caller: Location):
+        self.__init_handle_by_constructor__(_ffi_api.CallSiteLoc, callee, caller)
 
 
 @register_object("ir.EnvFunc")

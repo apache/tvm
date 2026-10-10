@@ -17,11 +17,11 @@
  * under the License.
  */
 /*!
- * \file source_map.h
- * \brief A map from source names to source code.
+ * \file location.h
+ * \brief Source locations and source-text lookup.
  */
-#ifndef TVM_IR_SOURCE_MAP_H_
-#define TVM_IR_SOURCE_MAP_H_
+#ifndef TVM_IR_LOCATION_H_
+#define TVM_IR_LOCATION_H_
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
@@ -36,8 +36,8 @@
 namespace tvm {
 
 /*!
- * \brief The source name in the Span
- * \sa SourceNameNode, Span
+ * \brief The source name in the Location
+ * \sa SourceNameNode, Location
  */
 class SourceName;
 /*!
@@ -58,8 +58,8 @@ class SourceNameNode : public ffi::Object {
 };
 
 /*!
- * \brief The source name of a file span.
- * \sa SourceNameNode, Span
+ * \brief The source name of a file loc.
+ * \sa SourceNameNode, Location
  */
 class SourceName : public ffi::ObjectRef {
  public:
@@ -74,76 +74,100 @@ class SourceName : public ffi::ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SourceName, ffi::ObjectRef, SourceNameNode);
 };
 
-/*!
- * \brief Span information for debugging purposes
- */
-class Span;
-/*!
- * \brief Stores locations in frontend source that generated a node.
- */
-class SpanNode : public ffi::Object {
+/*! \brief Base class for immutable source-location metadata. */
+class LocationNode : public ffi::Object {
+ public:
+  static void RegisterReflection() { ffi::reflection::ObjectDef<LocationNode>(); }
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.Location", LocationNode, ffi::Object);
+};
+
+/*! \brief A source location, defaulting to the canonical UnknownLoc. */
+class Location : public ffi::ObjectRef {
+ public:
+  TVM_DLL Location();
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Location, ffi::ObjectRef, LocationNode);
+};
+
+/*! \brief No source-location information is available. */
+class UnknownLocNode : public LocationNode {
+ public:
+  static void RegisterReflection() { ffi::reflection::ObjectDef<UnknownLocNode>(); }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.UnknownLoc", UnknownLocNode, LocationNode);
+};
+
+/*! \brief Reference to the shared immutable unknown location. */
+class UnknownLoc : public Location {
+ public:
+  TVM_DLL UnknownLoc();
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(UnknownLoc, Location, UnknownLocNode);
+};
+
+/*! \brief A range in one source, retaining frontend coordinate conventions. */
+class SourceLocNode : public LocationNode {
  public:
   /*! \brief The source name. */
   SourceName source_name;
-  /*! \brief The line number. */
-  int line;
-  /*! \brief The column offset. */
-  int column;
-  /*! \brief The end line number. */
+  /*! \brief The starting line number. */
+  int start_line;
+  /*! \brief The starting column offset. */
+  int start_column;
+  /*! \brief The ending line number. */
   int end_line;
-  /*! \brief The end column number. */
+  /*! \brief The ending column offset. */
   int end_column;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<SpanNode>()
-        .def_ro("source_name", &SpanNode::source_name)
-        .def_ro("line", &SpanNode::line)
-        .def_ro("column", &SpanNode::column)
-        .def_ro("end_line", &SpanNode::end_line)
-        .def_ro("end_column", &SpanNode::end_column);
+    refl::ObjectDef<SourceLocNode>()
+        .def_ro("source_name", &SourceLocNode::source_name)
+        .def_ro("start_line", &SourceLocNode::start_line)
+        .def_ro("start_column", &SourceLocNode::start_column)
+        .def_ro("end_line", &SourceLocNode::end_line)
+        .def_ro("end_column", &SourceLocNode::end_column);
   }
 
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.Span", SpanNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.SourceLoc", SourceLocNode, LocationNode);
 };
 
-class Span : public ffi::ObjectRef {
+/*! \brief A concrete source range. */
+class SourceLoc : public Location {
  public:
-  TVM_DLL Span(SourceName source_name, int line, int end_line, int column, int end_column);
+  TVM_DLL SourceLoc(SourceName source_name, int start_line, int start_column, int end_line,
+                    int end_column);
 
-  /*! \brief Merge two spans into one which captures the combined regions. */
-  TVM_DLL Span Merge(const Span& other) const;
+  /*! \brief Merge two ranges in the same source. */
+  TVM_DLL SourceLoc Merge(const SourceLoc& other) const;
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Span, ffi::ObjectRef, SpanNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SourceLoc, Location, SourceLocNode);
 };
 
-/*!
- * \brief Store a list of spans for an expr generated from mulitple source exprs
- */
-class SequentialSpanNode : public SpanNode {
+/*! \brief The location of a callee together with its caller's provenance. */
+class CallSiteLocNode : public LocationNode {
  public:
-  /*! \brief The original source list of spans to construct a sequential span. */
-  ffi::Array<Span> spans;
+  Location callee;
+  Location caller;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<SequentialSpanNode>().def_ro("spans", &SequentialSpanNode::spans);
+    refl::ObjectDef<CallSiteLocNode>()
+        .def_ro("callee", &CallSiteLocNode::callee)
+        .def_ro("caller", &CallSiteLocNode::caller);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.SequentialSpan", SequentialSpanNode, SpanNode);
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.CallSiteLoc", CallSiteLocNode, LocationNode);
 };
 
-/*!
- * \brief Reference class of SequentialSpanNode.
- * \sa SequentialSpanNode
- */
-class SequentialSpan : public Span {
+/*! \brief Explicit inline callee/caller provenance. */
+class CallSiteLoc : public Location {
  public:
-  TVM_DLL SequentialSpan(ffi::Array<Span> spans);
+  TVM_DLL CallSiteLoc(Location callee, Location caller);
 
-  TVM_DLL SequentialSpan(std::initializer_list<Span> init);
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SequentialSpan, Span, SequentialSpanNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CallSiteLoc, Location, CallSiteLocNode);
 };
 
 /*! \brief A program source in any language.
@@ -223,4 +247,4 @@ class SourceMap : public ffi::ObjectRef {
 
 }  // namespace tvm
 
-#endif  // TVM_IR_SOURCE_MAP_H_
+#endif  // TVM_IR_LOCATION_H_

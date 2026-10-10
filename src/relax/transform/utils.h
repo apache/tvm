@@ -247,9 +247,9 @@ class SymbolicVarRenewMutator : public ExprMutator {
     ffi::Optional<Type> ty_annotation =
         ty.as<MissingType>().has_value() ? std::nullopt : ffi::Optional<Type>(ty);
     if (op->IsInstance<DataflowVarNode>()) {
-      return DataflowVar(op->name, std::move(ty_annotation), op->span);
+      return DataflowVar(op->name, std::move(ty_annotation), op->loc);
     }
-    return Var(op->name, std::move(ty_annotation), op->span);
+    return Var(op->name, std::move(ty_annotation), op->loc);
   }
 
   Type RenewType(const VarNode* op) {

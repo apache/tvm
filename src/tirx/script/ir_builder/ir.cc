@@ -149,8 +149,8 @@ ForFrame WithThreadBindingValidation(ForFrame frame) {
   auto make_loop = frame->f_make_for_loop;
   frame->f_make_for_loop = [make_loop](ffi::Array<Var> vars, ffi::Array<Range> doms,
                                        ffi::Array<ffi::Optional<PrimExpr>> steps, tvm::SeqStmt body,
-                                       Span span) {
-    auto loop = make_loop(vars, doms, steps, body, span).as_or_throw<tvm::For>();
+                                       Location loc) {
+    auto loop = make_loop(vars, doms, steps, body, loc).as_or_throw<tvm::For>();
     tvm::tirx::GetThreadBinding(loop);
     return loop;
   };
@@ -197,7 +197,7 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
   n->steps = {std::nullopt};
   n->f_make_for_loop = [annotations, thread, dtype](ffi::Array<Var> vars, ffi::Array<Range> doms,
                                                     ffi::Array<ffi::Optional<PrimExpr>> steps,
-                                                    SeqStmt body, Span span) -> For {
+                                                    SeqStmt body, Location loc) -> For {
     TVM_FFI_ICHECK_EQ(vars.size(), 1);
     TVM_FFI_ICHECK_EQ(doms.size(), 1);
     TVM_FFI_ICHECK(steps.size() == 1 && (!steps[0].has_value() || IsOne(*steps[0])));
@@ -208,7 +208,7 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
     }
     loop_annotations.Set(tvm::tirx::attr::kThreadBinding, thread);
     return For(vars[0].as_or_throw<tvm::PrimVar>(), doms[0]->min, doms[0]->extent,
-               ForKind::kParallel, body, std::move(loop_annotations), std::nullopt, span);
+               ForKind::kParallel, body, std::move(loop_annotations), std::nullopt, loc);
   };
   return ForFrame(n);
 }
@@ -299,11 +299,11 @@ TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buf
   if (scope == "tmem" && allocated_addr.has_value()) {
     TVM_FFI_CHECK(!data.has_value(), ValueError)
         << "A TMEM declaration cannot have both data and an address";
-    Span span = IRBuilder::Current()->GetCurrentSourceSpan();
+    Location loc = IRBuilder::Current()->GetCurrentLoc();
     AddToParent(tvm::Bind(buffer.var(),
                           Call(std::nullopt, Op::Get("tirx.cuda.decl_tmem"),
-                               {allocated_addr.value()}, {}, {buffer.type()}, span),
-                          span));
+                               {allocated_addr.value()}, {}, {buffer.type()}, loc),
+                          loc));
     return buffer;
   }
   TVM_FFI_CHECK(!allocated_addr.has_value() || !data.has_value(), ValueError)
@@ -312,22 +312,22 @@ TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buf
                                                 scope != "shared.dyn" && scope != "local"),
                 ValueError)
       << "This storage scope does not support allocation placement";
-  Span span = IRBuilder::Current()->GetCurrentSourceSpan();
+  Location loc = IRBuilder::Current()->GetCurrentLoc();
   if (data.has_value()) {
     AddToParent(tvm::Bind(buffer.var(),
                           Call(buffer.type(), tvm::tirx::decl_tensor_op(),
                                {data.value(), tvm::Tuple(buffer->shape),
                                 DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
-                               {}, {}, span),
-                          span));
+                               {}, {}, loc),
+                          loc));
   } else {
     // Without a backing pointer, declare and allocate the tensor together.
     ffi::Array<Expr> args{tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                           StringImm(buffer.scope())};
     if (allocated_addr.has_value()) args.push_back(tvm::Tuple({allocated_addr.value()}));
     AddToParent(tvm::Bind(
-        buffer.var(),
-        Call(buffer.type(), tvm::tirx::alloc_tensor_op(), args, DictAttrs(), {}, span), span));
+        buffer.var(), Call(buffer.type(), tvm::tirx::alloc_tensor_op(), args, DictAttrs(), {}, loc),
+        loc));
   }
   return buffer;
 }

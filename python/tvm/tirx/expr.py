@@ -37,7 +37,7 @@ from tvm.ir._overload_prim_expr import (  # noqa: F401
     NotEqualOp,
     div_ambiguity_error,
 )
-from tvm.ir.base import Span
+from tvm.ir.base import Location, UnknownLoc
 from tvm.ir.prim import convert as convert
 
 # Retain historical imports as aliases of the canonical shared definitions.
@@ -92,23 +92,23 @@ class IntImmEnum(ObjectConvertible):
     value : int
         The enum value
 
-    span : Optional[Span]
+    loc : Location
         The location of the cast in the source.
     """
 
-    def __init__(self, value: int, span: Span | None = None) -> None:
+    def __init__(self, value: int, loc: Location = UnknownLoc()) -> None:
         self.value = value
-        self.span = span
+        self.loc = loc
 
     def asobject(self) -> "IntImm":
         """Convert object."""
-        return IntImm("int32", self.value, self.span)  # type: ignore
+        return IntImm("int32", self.value, self.loc)  # type: ignore
 
 
 Var = ir.Var
 
 
-def TensorLoad(buffer: Var, indices: list[Expr], span: Span | None = None) -> ir.TensorLoad:
+def TensorLoad(buffer: Var, indices: list[Expr], loc: Location = UnknownLoc()) -> ir.TensorLoad:
     """Construct a validated buffer load.
 
     Parameters
@@ -119,12 +119,12 @@ def TensorLoad(buffer: Var, indices: list[Expr], span: Span | None = None) -> ir
     indices : List[Expr]
         The buffer indices to load values from.
 
-    span : Optional[Span]
+    loc : Location
         The location of this expression in the source code.
 
     """
 
-    return _ffi_api.TensorLoad(buffer, indices, span)
+    return _ffi_api.TensorLoad(buffer, indices, loc)
 
 
 class CallEffectKind:

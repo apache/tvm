@@ -232,7 +232,7 @@ class DTypeDecisionCollector : public ExprVisitor {
 
   // override the following methods to visit in backward order
   void VisitExpr_(const SeqExprNode* op) final {
-    this->VisitSpan(op->span);
+    this->VisitLoc(op->loc);
     this->VisitExpr(op->body);
     for (auto it = op->blocks.rbegin(); it != op->blocks.rend(); it++) {
       this->VisitBindingBlock(*it);
@@ -252,7 +252,7 @@ class DTypeDecisionCollector : public ExprVisitor {
   }
 
   void VisitExpr_(const IfExprNode* op) final {
-    this->VisitSpan(op->span);
+    this->VisitLoc(op->loc);
     this->VisitExpr(op->true_branch);
     this->VisitExpr(op->false_branch);
     this->VisitExpr(op->cond);
@@ -290,8 +290,8 @@ class ToMixedPrecisionRewriter : public ExprMutator {
           if (tensor_ty->vdevice.has_value()) {
             vdev = tensor_ty->vdevice.value();
           }
-          TensorType fp16_ty(tensor_ty->shape.value(), PrimType::Float(16), vdev, tensor_ty->span);
-          Var fp16_var(var->name, fp16_ty, var->span);
+          TensorType fp16_ty(tensor_ty->shape.value(), PrimType::Float(16), vdev, tensor_ty->loc);
+          Var fp16_var(var->name, fp16_ty, var->loc);
           var_remap_.insert_or_assign(var, fp16_var);
           return fp16_var;
         }

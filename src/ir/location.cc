@@ -17,13 +17,13 @@
  * under the License.
  */
 /*!
- * \file source_map.cc
+ * \file location.cc
  * \brief The implementation of the source map data structure.
  */
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/source_map.h>
+#include <tvm/ir/location.h>
 #include <tvm/ir/transform.h>
 #include <tvm/runtime/logging.h>
 
@@ -79,106 +79,79 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("ir.SourceName", SourceName::Get);
 }
 
-Span::Span(SourceName source_name, int line, int end_line, int column, int end_column) {
-  auto n = ffi::make_object<SpanNode>();
+namespace {
+
+const ffi::ObjectPtr<UnknownLocNode>& UnknownLocation() {
+  static const auto unknown = ffi::make_object<UnknownLocNode>();
+  return unknown;
+}
+
+}  // namespace
+
+Location::Location() { data_ = UnknownLocation(); }
+
+UnknownLoc::UnknownLoc() = default;
+
+SourceLoc::SourceLoc(SourceName source_name, int start_line, int start_column, int end_line,
+                     int end_column) {
+  auto n = ffi::make_object<SourceLocNode>();
   n->source_name = std::move(source_name);
-  n->line = line;
+  n->start_line = start_line;
+  n->start_column = start_column;
   n->end_line = end_line;
-  n->column = column;
   n->end_column = end_column;
   data_ = std::move(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  SpanNode::RegisterReflection();
-  refl::TypeAttrDef<SpanNode>().def(
-      refl::type_attr::kRepr, [](Span span, ffi::Function fn_repr) -> ffi::String {
-        std::ostringstream os;
-        os << "Span(" << fn_repr(ffi::AnyView(span->source_name)).cast<ffi::String>() << ", "
-           << span->line << ", " << span->end_line << ", " << span->column << ", "
-           << span->end_column << ")";
-        return os.str();
-      });
-
-  refl::GlobalDef().def(
-      "ir.Span", [](SourceName source_name, int line, int end_line, int column, int end_column) {
-        return Span(source_name, line, end_line, column, end_column);
-      });
-}
-
-Span Span::Merge(const Span& other) const {
-  TVM_FFI_ICHECK(this->defined() && other.defined()) << "Span::Merge: both spans must be defined";
-
+SourceLoc SourceLoc::Merge(const SourceLoc& other) const {
   TVM_FFI_ICHECK((*this)->source_name == other->source_name);
-  return Span((*this)->source_name, std::min((*this)->line, other->line),
-              std::max((*this)->end_line, other->end_line),
-              std::min((*this)->column, other->column),
-              std::max((*this)->end_column, other->end_column));
+  return SourceLoc((*this)->source_name, std::min((*this)->start_line, other->start_line),
+                   std::min((*this)->start_column, other->start_column),
+                   std::max((*this)->end_line, other->end_line),
+                   std::max((*this)->end_column, other->end_column));
 }
 
-SequentialSpan::SequentialSpan(tvm::ffi::Array<Span> spans) {
-  auto n = ffi::make_object<SequentialSpanNode>();
-  tvm::ffi::Array<Span> tmp_spans;
-  for (const Span& s : spans) {
-    if (const SequentialSpanNode* seq_s = s.as<SequentialSpanNode>()) {
-      tmp_spans.insert(tmp_spans.end(), seq_s->spans.begin(), seq_s->spans.end());
-    } else {
-      tmp_spans.push_back(s);
-    }
-  }
-  n->spans = std::move(tmp_spans);
-
-  n->line = 0;
-  n->end_line = 0;
-  n->column = 0;
-  n->end_column = 0;
-
-  data_ = std::move(n);
-}
-
-SequentialSpan::SequentialSpan(std::initializer_list<Span> init) {
-  auto n = ffi::make_object<SequentialSpanNode>();
-  tvm::ffi::Array<Span> spans = tvm::ffi::Array<Span>(init);
-  tvm::ffi::Array<Span> tmp_spans;
-  for (const Span& s : spans) {
-    if (const SequentialSpanNode* seq_s = s.as<SequentialSpanNode>()) {
-      tmp_spans.insert(tmp_spans.end(), seq_s->spans.begin(), seq_s->spans.end());
-    } else {
-      tmp_spans.push_back(s);
-    }
-  }
-  n->spans = std::move(tmp_spans);
-
-  n->line = 0;
-  n->end_line = 0;
-  n->column = 0;
-  n->end_column = 0;
-
+CallSiteLoc::CallSiteLoc(Location callee, Location caller) {
+  auto n = ffi::make_object<CallSiteLocNode>();
+  n->callee = std::move(callee);
+  n->caller = std::move(caller);
   data_ = std::move(n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  SequentialSpanNode::RegisterReflection();
-  refl::TypeAttrDef<SequentialSpanNode>().def(
-      refl::type_attr::kRepr, [](SequentialSpan seq, ffi::Function fn_repr) -> ffi::String {
-        // Fix typo: was "SequentailSpan", now "SequentialSpan"
+  LocationNode::RegisterReflection();
+  UnknownLocNode::RegisterReflection();
+  SourceLocNode::RegisterReflection();
+  CallSiteLocNode::RegisterReflection();
+  refl::TypeAttrDef<UnknownLocNode>()
+      .def(refl::type_attr::kRepr,
+           [](UnknownLoc, ffi::Function) -> ffi::String { return "UnknownLoc()"; })
+      .def(refl::type_attr::kDataToJson, [](const UnknownLocNode*) { return nullptr; })
+      .def(refl::type_attr::kDataFromJson, [](ffi::AnyView) { return UnknownLoc(); });
+  refl::TypeAttrDef<SourceLocNode>().def(
+      refl::type_attr::kRepr, [](SourceLoc loc, ffi::Function fn_repr) -> ffi::String {
         std::ostringstream os;
-        os << "SequentialSpan([ ";
-        const int last = static_cast<int>(seq->spans.size()) - 1;
-        for (int i = 0; i < last; ++i) {
-          os << fn_repr(ffi::AnyView(seq->spans[i])).cast<ffi::String>() << ", ";
-        }
-        if (last >= 0) {
-          os << fn_repr(ffi::AnyView(seq->spans[last])).cast<ffi::String>();
-        }
-        os << " ])";
+        os << "SourceLoc(" << fn_repr(ffi::AnyView(loc->source_name)).cast<ffi::String>() << ", "
+           << loc->start_line << ", " << loc->start_column << ", " << loc->end_line << ", "
+           << loc->end_column << ")";
         return os.str();
       });
-
-  refl::GlobalDef().def("ir.SequentialSpan",
-                        [](tvm::ffi::Array<Span> spans) { return SequentialSpan(spans); });
+  refl::TypeAttrDef<CallSiteLocNode>().def(
+      refl::type_attr::kRepr, [](CallSiteLoc loc, ffi::Function fn_repr) -> ffi::String {
+        return "CallSiteLoc(" + fn_repr(loc->callee).cast<ffi::String>() + ", " +
+               fn_repr(loc->caller).cast<ffi::String>() + ")";
+      });
+  refl::GlobalDef()
+      .def("ir.UnknownLoc", []() { return UnknownLoc(); })
+      .def("ir.SourceLoc",
+           [](SourceName source_name, int start_line, int start_column, int end_line,
+              int end_column) {
+             return SourceLoc(source_name, start_line, start_column, end_line, end_column);
+           })
+      .def("ir.CallSiteLoc", [](Location callee, Location caller) {
+        return CallSiteLoc(std::move(callee), std::move(caller));
+      });
 }
 
 /*! \brief Construct a source from a string. */

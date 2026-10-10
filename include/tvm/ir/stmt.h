@@ -37,17 +37,17 @@ namespace tvm {
 class StmtNode : public ffi::Object {
  public:
   /*!
-   * \brief Span that points to the original source code.
+   * \brief Location that points to the original source code.
    *        Reserved debug information.
    */
-  mutable Span span;
+  mutable Location loc;
 
   StmtNode() = default;
-  explicit StmtNode(Span span) : span(span) {}
+  explicit StmtNode(Location loc) : loc(loc) {}
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<StmtNode>().def_ro("span", &StmtNode::span,
+    refl::ObjectDef<StmtNode>().def_ro("loc", &StmtNode::loc,
                                        refl::AttachFieldFlag::SEqHashIgnore());
   }
 
@@ -94,13 +94,13 @@ class SeqStmt : public Stmt {
   /*!
    * \brief Construct SeqStmt.
    * \param seq The sequence.
-   * \param span The location of this object in the source code.
+   * \param loc The location of this object in the source code.
    */
-  TVM_DLL explicit SeqStmt(ffi::Array<Stmt> seq, Span span = Span());
+  TVM_DLL explicit SeqStmt(ffi::Array<Stmt> seq, Location loc = Location());
   /*! \brief Wrap a statement, reusing an existing sequence when possible. */
-  TVM_DLL SeqStmt(Stmt stmt, Span span = Span());
-  SeqStmt(std::initializer_list<Stmt> seq, Span span = Span())
-      : SeqStmt(ffi::Array<Stmt>(seq), std::move(span)) {}
+  TVM_DLL SeqStmt(Stmt stmt, Location loc = Location());
+  SeqStmt(std::initializer_list<Stmt> seq, Location loc = Location())
+      : SeqStmt(ffi::Array<Stmt>(seq), std::move(loc)) {}
 
   /*! \return get the size of the sequence */
   size_t size() const { return operator->()->size(); }
@@ -158,7 +158,7 @@ class BindNode : public StmtNode {
  */
 class Bind : public Stmt {
  public:
-  TVM_DLL Bind(Var var, Expr value, Span span = Span());
+  TVM_DLL Bind(Var var, Expr value, Location loc = Location());
 
   explicit Bind(ffi::ObjectPtr<BindNode> node) : Stmt(std::move(node)) {}
 
@@ -224,7 +224,7 @@ class RegionStmtNode : public StmtNode {
 class RegionStmt : public Stmt {
  public:
   TVM_DLL RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, DictAttrs attrs,
-                     SeqStmt body, ffi::Array<Var> result_vars = {}, Span span = Span());
+                     SeqStmt body, ffi::Array<Var> result_vars = {}, Location loc = Location());
 
   explicit RegionStmt(ffi::ObjectPtr<RegionStmtNode> node) : Stmt(std::move(node)) {}
 
@@ -287,7 +287,7 @@ class AssertStmtNode : public StmtNode {
 class AssertStmt : public Stmt {
  public:
   TVM_DLL AssertStmt(PrimExpr condition, StringImm error_kind, ffi::Array<StringImm> message_parts,
-                     Span span = Span());
+                     Location loc = Location());
 
   explicit AssertStmt(ffi::ObjectPtr<AssertStmtNode> node) : Stmt(std::move(node)) {}
 
@@ -334,7 +334,7 @@ class TensorStoreNode : public StmtNode {
 class TensorStore : public Stmt {
  public:
   TVM_DLL explicit TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value,
-                               Span span = Span());
+                               Location loc = Location());
 
   explicit TensorStore(ffi::ObjectPtr<TensorStoreNode> node) : Stmt(std::move(node)) {}
 
@@ -370,9 +370,9 @@ class EvaluateNode : public StmtNode {
  */
 class Evaluate : public Stmt {
  public:
-  TVM_DLL explicit Evaluate(Expr value, Span span = Span());
+  TVM_DLL explicit Evaluate(Expr value, Location loc = Location());
 
-  explicit Evaluate(int value, Span span = Span()) : Evaluate(PrimExpr(value), span) {}
+  explicit Evaluate(int value, Location loc = Location()) : Evaluate(PrimExpr(value), loc) {}
 
   explicit Evaluate(ffi::ObjectPtr<EvaluateNode> node) : Stmt(std::move(node)) {}
 
@@ -414,7 +414,7 @@ class IfNode : public StmtNode {
 class If : public Stmt {
  public:
   TVM_DLL If(PrimExpr condition, SeqStmt then_case, ffi::Optional<SeqStmt> else_case = std::nullopt,
-             Span span = Span());
+             Location loc = Location());
 
   explicit If(ffi::ObjectPtr<IfNode> node) : Stmt(std::move(node)) {}
 
@@ -511,7 +511,7 @@ class For : public Stmt {
  public:
   TVM_DLL For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, SeqStmt body,
               ffi::Map<ffi::String, ffi::Any> annotations = {},
-              ffi::Optional<PrimExpr> step = std::nullopt, Span span = Span());
+              ffi::Optional<PrimExpr> step = std::nullopt, Location loc = Location());
 
   explicit For(ffi::ObjectPtr<ForNode> node) : Stmt(std::move(node)) {}
 
@@ -556,7 +556,7 @@ class WhileNode : public StmtNode {
  */
 class While : public Stmt {
  public:
-  TVM_DLL While(PrimExpr condition, SeqStmt body, Span span = Span());
+  TVM_DLL While(PrimExpr condition, SeqStmt body, Location loc = Location());
 
   explicit While(ffi::ObjectPtr<WhileNode> node) : Stmt(std::move(node)) {}
 
@@ -590,7 +590,7 @@ class ReturnNode : public StmtNode {
  */
 class Return : public Stmt {
  public:
-  TVM_DLL explicit Return(Expr value, Span span = Span());
+  TVM_DLL explicit Return(Expr value, Location loc = Location());
 
   explicit Return(ffi::ObjectPtr<ReturnNode> node) : Stmt(std::move(node)) {}
 
@@ -617,7 +617,7 @@ class BreakNode : public StmtNode {
  */
 class Break : public Stmt {
  public:
-  TVM_DLL explicit Break(Span span);
+  TVM_DLL explicit Break(Location loc);
 
   explicit Break(ffi::ObjectPtr<BreakNode> node) : Stmt(std::move(node)) {}
 
@@ -644,7 +644,7 @@ class ContinueNode : public StmtNode {
  */
 class Continue : public Stmt {
  public:
-  TVM_DLL explicit Continue(Span span);
+  TVM_DLL explicit Continue(Location loc);
 
   explicit Continue(ffi::ObjectPtr<ContinueNode> node) : Stmt(std::move(node)) {}
 

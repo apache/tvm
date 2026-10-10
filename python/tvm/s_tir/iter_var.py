@@ -21,7 +21,7 @@ import tvm_ffi
 
 from tvm import ir
 from tvm.ir import ExprWithOp, OpaqueExpr, Var
-from tvm.ir.base import Span
+from tvm.ir.base import Location, UnknownLoc
 
 from . import _ffi_api
 
@@ -49,7 +49,7 @@ class IterVar(OpaqueExpr, ExprWithOp):
     thread_tag : str
         The thread type tag.
 
-    span : Optional[Span]
+    loc : Location
         The location of this expression in the source code.
 
     See Also
@@ -79,7 +79,7 @@ class IterVar(OpaqueExpr, ExprWithOp):
         var: Var | str,
         iter_type: int,
         thread_tag: str = "",
-        span: Span | None = None,
+        loc: Location = UnknownLoc(),
     ) -> None:
         if dom is not None:
             if isinstance(dom, list | tuple):
@@ -92,7 +92,7 @@ class IterVar(OpaqueExpr, ExprWithOp):
 
         name = var if var is not None else "iter"
         dtype = "int32" if dom is None else dom.extent.ty
-        var = Var(name, ty=dtype, span=span) if not isinstance(var, Var) else var
+        var = Var(name, ty=dtype, loc=loc) if not isinstance(var, Var) else var
         if dom is not None:
             assert var.ty == dom.extent.ty, "IterVar's Var type must match its domain's extent type"
         self.__init_handle_by_constructor__(
@@ -101,5 +101,5 @@ class IterVar(OpaqueExpr, ExprWithOp):
             var,
             iter_type,
             thread_tag,
-            span,  # type: ignore
+            loc,  # type: ignore
         )

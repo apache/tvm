@@ -66,175 +66,175 @@ TVM_DLL const Op& likely_op();
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr add(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr add(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief subtraction operator
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr sub(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr sub(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief negation.
  *
  * \param a input.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr neg(PrimExpr a, Span span = Span());
+TVM_DLL PrimExpr neg(PrimExpr a, Location loc = Location());
 
 /*!
  * \brief multiplication operator
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr mul(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr mul(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief left shift operator
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr left_shift(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr left_shift(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief right shift operator
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr right_shift(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr right_shift(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief greater
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr greater(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr greater(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief greater_equal
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr greater_equal(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr greater_equal(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief less
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr less(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr less(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief less_equal
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr less_equal(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr less_equal(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief equal
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr equal(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr equal(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief not_equal
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr not_equal(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr not_equal(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief and
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note This operator does eager constant folding.
  */
-TVM_DLL PrimExpr logical_and(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr logical_and(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief or
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note This operator does eager constant folding.
  */
-TVM_DLL PrimExpr logical_or(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr logical_or(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief not
  *
  * \param a left operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note This operator does eager constant folding.
  */
-TVM_DLL PrimExpr logical_not(PrimExpr a, Span span = Span());
+TVM_DLL PrimExpr logical_not(PrimExpr a, Location loc = Location());
 
 /*!
  * \brief compute division in C semantics.
@@ -245,12 +245,12 @@ TVM_DLL PrimExpr logical_not(PrimExpr a, Span span = Span());
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr div(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr div(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief compute trunc(a / b)
@@ -259,12 +259,12 @@ TVM_DLL PrimExpr div(PrimExpr a, PrimExpr b, Span span = Span());
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr truncdiv(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr truncdiv(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief compute the remainder of truncdiv
@@ -273,12 +273,12 @@ TVM_DLL PrimExpr truncdiv(PrimExpr a, PrimExpr b, Span span = Span());
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr truncmod(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr truncmod(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief compute floor(a / b) where a and b are non-negative.
@@ -290,12 +290,12 @@ TVM_DLL PrimExpr truncmod(PrimExpr a, PrimExpr b, Span span = Span());
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr indexdiv(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr indexdiv(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief compute ceil(a / b) where a and b are non-negative.
@@ -307,12 +307,12 @@ TVM_DLL PrimExpr indexdiv(PrimExpr a, PrimExpr b, Span span = Span());
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       shape types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr shapediv(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr shapediv(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief compute the remainder floor(a / b) where a and b are non-negative.
@@ -323,120 +323,120 @@ TVM_DLL PrimExpr shapediv(PrimExpr a, PrimExpr b, Span span = Span());
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr indexmod(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr indexmod(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief compute floor(a / b)
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr floordiv(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr floordiv(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief compute ceil(a / b)
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
 
-TVM_DLL PrimExpr ceildiv(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr ceildiv(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief compute the remainder of floordiv
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr floormod(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr floormod(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief take maximum of two values
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr max(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr max(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief take minimum of two values
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr min(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr min(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief take bitwise and of two values
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief take bitwise or of two values
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief take bitwise xor of two values
  *
  * \param a left operand
  * \param b right operand
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Span span = Span());
+TVM_DLL PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Location loc = Location());
 
 /*!
  * \brief take bitwise negation of two values
  *
  * \param a the input expression.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL PrimExpr bitwise_neg(PrimExpr a, Span span = Span());
+TVM_DLL PrimExpr bitwise_neg(PrimExpr a, Location loc = Location());
 
 /*!
  * \brief Conditional expression.
@@ -444,58 +444,58 @@ TVM_DLL PrimExpr bitwise_neg(PrimExpr a, Span span = Span());
  * \param cond The condition
  * \param true_value The value when results are true.
  * \param false_value The value when results are false.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
 TVM_DLL PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value,
-                              Span span = Span());
+                              Location loc = Location());
 
 /*!
  * \brief Mark condition as likely.
  * \param cond The condition
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The marked expression.
  */
-TVM_DLL PrimExpr likely(PrimExpr cond, Span span = Span());
+TVM_DLL PrimExpr likely(PrimExpr cond, Location loc = Location());
 /*! \brief Round up to the nearest integral value, preserving the input type. */
-TVM_DLL PrimExpr ceil(PrimExpr x, Span span = Span());
+TVM_DLL PrimExpr ceil(PrimExpr x, Location loc = Location());
 /*! \brief Construct a base-two logarithm with the input's primitive type. */
-TVM_DLL PrimExpr log2(PrimExpr x, Span span = Span());
+TVM_DLL PrimExpr log2(PrimExpr x, Location loc = Location());
 namespace prim {
 /*! \brief Count leading zero bits, preserving the input primitive type. */
-TVM_DLL PrimExpr clz(PrimExpr x, Span span = Span());
+TVM_DLL PrimExpr clz(PrimExpr x, Location loc = Location());
 /*!
  * Query the minimum possible value of dtype.
  * \param dtype The primitive type.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return the minimum possible value in this format.
  */
-TVM_DLL PrimExpr min_value(PrimType dtype, Span span = Span());
+TVM_DLL PrimExpr min_value(PrimType dtype, Location loc = Location());
 
 /*!
  * Query the maximum possible value of dtype.
  * \param dtype The primitive type.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return the maximum possible value in this format.
  */
-TVM_DLL PrimExpr max_value(PrimType dtype, Span span = Span());
+TVM_DLL PrimExpr max_value(PrimType dtype, Location loc = Location());
 
 /*!
  * \brief cast value to type.
  *
  * \param t the target type.
  * \param value The value
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  * \note This function may return value if the type is the same. Constant folding
  * uses MakeConst for scalar and vector constants.
  */
-TVM_DLL PrimExpr cast(PrimType t, PrimExpr value, Span span = Span());
-TVM_DLL PrimExpr cast(DLDataType t, PrimExpr value, Span span = Span());
+TVM_DLL PrimExpr cast(PrimType t, PrimExpr value, Location loc = Location());
+TVM_DLL PrimExpr cast(DLDataType t, PrimExpr value, Location loc = Location());
 /*! \brief Construct integer absolute value; floating absolute value belongs to TIRX. */
-TVM_DLL PrimExpr IntegerAbs(PrimExpr x, Span span = Span());
+TVM_DLL PrimExpr IntegerAbs(PrimExpr x, Location loc = Location());
 /*!
  * \brief Make a const value with certain data type.
  *
@@ -509,26 +509,26 @@ TVM_DLL PrimExpr IntegerAbs(PrimExpr x, Span span = Span());
  * \param value The input value
  * \return the result expression.
  * \tparam ValueType The constant value type
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  */
 template <typename ValueType,
           typename = typename std::enable_if<(std::is_standard_layout<ValueType>::value &&
                                               std::is_trivial<ValueType>::value) ||
                                              std::is_same<ValueType, ffi::BigInt>::value>::type>
-inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span = Span());
+inline PrimExpr MakeConst(PrimType dtype, ValueType value, Location loc = Location());
 
 template <typename ValueType>
-inline PrimExpr MakeConstScalar(PrimType dtype, ValueType value, Span span = Span()) {
+inline PrimExpr MakeConstScalar(PrimType dtype, ValueType value, Location loc = Location()) {
   if constexpr (std::is_enum_v<ValueType>) {
-    return MakeConstScalar(dtype, static_cast<std::underlying_type_t<ValueType>>(value), span);
+    return MakeConstScalar(dtype, static_cast<std::underlying_type_t<ValueType>>(value), loc);
   } else {
     DLDataTypeCode code = dtype.code();
     if (code == DLDataTypeCode::kDLInt || code == DLDataTypeCode::kDLBool) {
-      return IntImm(dtype, ffi::BigInt(value), span);
+      return IntImm(dtype, ffi::BigInt(value), loc);
     }
     if (code == DLDataTypeCode::kDLUInt) {
       TVM_FFI_ICHECK(value >= 0) << "cannot make uint from negative value " << value;
-      return IntImm(dtype, ffi::BigInt(value), span);
+      return IntImm(dtype, ffi::BigInt(value), loc);
     }
     if (dtype.MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLFloat8_e3m4,
                           DLDataTypeCode::kDLFloat8_e4m3, DLDataTypeCode::kDLFloat8_e4m3b11fnuz,
@@ -537,7 +537,7 @@ inline PrimExpr MakeConstScalar(PrimType dtype, ValueType value, Span span = Spa
                           DLDataTypeCode::kDLFloat8_e8m0fnu, DLDataTypeCode::kDLFloat6_e2m3fn,
                           DLDataTypeCode::kDLFloat6_e3m2fn, DLDataTypeCode::kDLFloat4_e2m1fn) ||
         dtype.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
-      return FloatImm(dtype, static_cast<double>(value), span);
+      return FloatImm(dtype, static_cast<double>(value), loc);
     }
     TVM_FFI_THROW(InternalError) << "cannot make const for type " << dtype;
     throw;
@@ -545,22 +545,22 @@ inline PrimExpr MakeConstScalar(PrimType dtype, ValueType value, Span span = Spa
 }
 
 template <>
-inline PrimExpr MakeConstScalar(PrimType dtype, bool value, Span span) {
-  return MakeConstScalar(dtype, static_cast<int>(value), span);
+inline PrimExpr MakeConstScalar(PrimType dtype, bool value, Location loc) {
+  return MakeConstScalar(dtype, static_cast<int>(value), loc);
 }
 
 template <typename ValueType, typename>
-inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span) {
+inline PrimExpr MakeConst(PrimType dtype, ValueType value, Location loc) {
   if (!dtype.IsScalableVector() && !dtype.IsFixedLengthVector()) {
-    return MakeConstScalar(dtype, value, span);
+    return MakeConstScalar(dtype, value, loc);
   }
   PrimType elem_ty = dtype.WithLanes(1);
   if (dtype.IsFixedLengthVector()) {
-    return prim::Broadcast(MakeConstScalar(elem_ty, value, span), dtype.lanes(), span);
+    return prim::Broadcast(MakeConstScalar(elem_ty, value, loc), dtype.lanes(), loc);
   }
   PrimExpr lanes = prim::Mul(Call(PrimType::Int(32), prim::vscale_op(), {}).as_or_throw<PrimExpr>(),
                              dtype.VScaleFactor());
-  return prim::Broadcast(MakeConstScalar(elem_ty, value, span), lanes, span);
+  return prim::Broadcast(MakeConstScalar(elem_ty, value, loc), lanes, loc);
 }
 
 }  // namespace prim
@@ -581,45 +581,45 @@ inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span) {
     return Name(a, FloatImm(PrimType::Float(64), b));                                            \
   }
 
-#define TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD_SPANNED(Name)                 \
-  inline PrimExpr Name(const PrimExpr& a, float b, Span span = Span()) {  \
-    return Name(a, PrimExpr(b), span);                                    \
-  }                                                                       \
-  inline PrimExpr Name(float a, const PrimExpr& b, Span span = Span()) {  \
-    return Name(PrimExpr(a), b, span);                                    \
-  }                                                                       \
-  inline PrimExpr Name(int a, const PrimExpr& b, Span span = Span()) {    \
-    return Name(prim::MakeConst(b.ty(), a), b, span);                     \
-  }                                                                       \
-  inline PrimExpr Name(const PrimExpr& a, int b, Span span = Span()) {    \
-    return Name(a, prim::MakeConst(a.ty(), b), span);                     \
-  }                                                                       \
-  inline PrimExpr Name(const PrimExpr& a, double b, Span span = Span()) { \
-    return Name(a, FloatImm(PrimType::Float(64), b), span);               \
+#define TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD_SPANNED(Name)                        \
+  inline PrimExpr Name(const PrimExpr& a, float b, Location loc = Location()) {  \
+    return Name(a, PrimExpr(b), loc);                                            \
+  }                                                                              \
+  inline PrimExpr Name(float a, const PrimExpr& b, Location loc = Location()) {  \
+    return Name(PrimExpr(a), b, loc);                                            \
+  }                                                                              \
+  inline PrimExpr Name(int a, const PrimExpr& b, Location loc = Location()) {    \
+    return Name(prim::MakeConst(b.ty(), a), b, loc);                             \
+  }                                                                              \
+  inline PrimExpr Name(const PrimExpr& a, int b, Location loc = Location()) {    \
+    return Name(a, prim::MakeConst(a.ty(), b), loc);                             \
+  }                                                                              \
+  inline PrimExpr Name(const PrimExpr& a, double b, Location loc = Location()) { \
+    return Name(a, FloatImm(PrimType::Float(64), b), loc);                       \
   }
 
 #define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(Name)                             \
   inline PrimExpr Name(const PrimExpr& a, bool b) { return Name(a, PrimExpr(b)); } \
   inline PrimExpr Name(bool a, const PrimExpr& b) { return Name(PrimExpr(a), b); }
 
-#define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD_SPANNED(Name)          \
-  inline PrimExpr Name(const PrimExpr& a, bool b, Span span = Span()) { \
-    return Name(a, PrimExpr(b), span);                                  \
-  }                                                                     \
-  inline PrimExpr Name(bool a, const PrimExpr& b, Span span = Span()) { \
-    return Name(PrimExpr(a), b, span);                                  \
+#define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD_SPANNED(Name)                 \
+  inline PrimExpr Name(const PrimExpr& a, bool b, Location loc = Location()) { \
+    return Name(a, PrimExpr(b), loc);                                          \
+  }                                                                            \
+  inline PrimExpr Name(bool a, const PrimExpr& b, Location loc = Location()) { \
+    return Name(PrimExpr(a), b, loc);                                          \
   }
 
 #define TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(Name)                                               \
   inline PrimExpr Name(const PrimExpr& a, int b) { return Name(a, prim::MakeConst(a.ty(), b)); } \
   inline PrimExpr Name(int a, const PrimExpr& b) { return Name(prim::MakeConst(b.ty(), a), b); }
 
-#define TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(Name)             \
-  inline PrimExpr Name(const PrimExpr& a, int b, Span span = Span()) { \
-    return Name(a, prim::MakeConst(a.ty(), b), span);                  \
-  }                                                                    \
-  inline PrimExpr Name(int a, const PrimExpr& b, Span span = Span()) { \
-    return Name(prim::MakeConst(b.ty(), a), b, span);                  \
+#define TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(Name)                    \
+  inline PrimExpr Name(const PrimExpr& a, int b, Location loc = Location()) { \
+    return Name(a, prim::MakeConst(a.ty(), b), loc);                          \
+  }                                                                           \
+  inline PrimExpr Name(int a, const PrimExpr& b, Location loc = Location()) { \
+    return Name(prim::MakeConst(b.ty(), a), b, loc);                          \
   }
 
 TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator+=, operator+);
@@ -796,59 +796,59 @@ inline bool IsZero(const PrimExpr& x) { return IsConstInt(x, 0); }
 /*!
  * Get the value of infinity.
  * \param dtype The primitive type.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return the infinity value in this format.
  */
-TVM_DLL PrimExpr infinity(PrimType dtype, Span span = Span());
+TVM_DLL PrimExpr infinity(PrimType dtype, Location loc = Location());
 
 /*!
  * \brief Calculate power(x, y)
  * \param x The left operand.
  * \param y The right operand.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  */
-TVM_DLL PrimExpr pow(PrimExpr x, PrimExpr y, Span span = Span());
+TVM_DLL PrimExpr pow(PrimExpr x, PrimExpr y, Location loc = Location());
 
 /*!
  * \brief Calculate absolute value of x.
  * \param x The input data
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  *
  * \return The absolute value of input data x
  */
-TVM_DLL PrimExpr abs(PrimExpr x, Span span = Span());
+TVM_DLL PrimExpr abs(PrimExpr x, Location loc = Location());
 
 /*!
  * \brief Check if x is NaN.
  * \param x The input data
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr isnan(PrimExpr x, Span span = Span());
+TVM_DLL PrimExpr isnan(PrimExpr x, Location loc = Location());
 
 /*!
  * \brief Check if x is finite.
  * \param x The input data
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr isfinite(PrimExpr x, Span span = Span());
+TVM_DLL PrimExpr isfinite(PrimExpr x, Location loc = Location());
 
 /*!
  * \brief Check if x is infinite.
  * \param x The input data
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr isinf(PrimExpr x, Span span = Span());
+TVM_DLL PrimExpr isinf(PrimExpr x, Location loc = Location());
 
 /*!
  * \brief Calculate floor(x)
  * \param x The input expression.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr floor(PrimExpr x, Span span = Span());
+TVM_DLL PrimExpr floor(PrimExpr x, Location loc = Location());
 
 /*!
  * \brief Round x to the nearest integer, ties to even.
@@ -857,10 +857,10 @@ TVM_DLL PrimExpr floor(PrimExpr x, Span span = Span());
  * Constant-folding and all backends consistently use std::nearbyint semantics.
  *
  * \param x The input expression.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr round(PrimExpr x, Span span = Span());
+TVM_DLL PrimExpr round(PrimExpr x, Location loc = Location());
 
 /*!
  * \brief Round x to the nearest integer, ties to even.
@@ -868,21 +868,21 @@ TVM_DLL PrimExpr round(PrimExpr x, Span span = Span());
  * Equivalent to round(). Both use IEEE 754 default rounding mode (ties-to-even).
  *
  * \param x The input expression.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr nearbyint(PrimExpr x, Span span = Span());
+TVM_DLL PrimExpr nearbyint(PrimExpr x, Location loc = Location());
 
 /*!
  * \brief Calculate trunc(x)
  * \param x The input expression.
- * \param span The location of this operation in the source.
+ * \param loc The location of this operation in the source.
  * \return The result expression.
  */
-TVM_DLL PrimExpr trunc(PrimExpr x, Span span = Span());
+TVM_DLL PrimExpr trunc(PrimExpr x, Location loc = Location());
 
 /*! \brief Floating-point remainder of x divided by y. */
-TVM_DLL PrimExpr fmod(PrimExpr x, PrimExpr y, Span span = Span());
+TVM_DLL PrimExpr fmod(PrimExpr x, PrimExpr y, Location loc = Location());
 /*! \brief Raise x to the power y. Arguments: x, y. */
 TVM_DLL const Op& pow_op();
 /*! \brief Absolute value. Argument: x. */
@@ -960,11 +960,11 @@ TVM_DLL const Op& fma_op();
 /*! \brief Record a known condition for simplification. Argument: condition. */
 TVM_DLL const Op& assume_op();
 /*! \brief Record a known condition for compile-time simplification. */
-TVM_DLL PrimExpr assume(PrimExpr condition, Span span = Span());
+TVM_DLL PrimExpr assume(PrimExpr condition, Location loc = Location());
 
 /*! \brief Fused multiply-add of x, y and z, in that order. */
-inline PrimExpr fma(PrimExpr x, PrimExpr y, PrimExpr z, Span span = Span()) {
-  return Call(x.ty(), fma_op(), {x, y, z}, {}, {}, span).as_or_throw<PrimExpr>();
+inline PrimExpr fma(PrimExpr x, PrimExpr y, PrimExpr z, Location loc = Location()) {
+  return Call(x.ty(), fma_op(), {x, y, z}, {}, {}, loc).as_or_throw<PrimExpr>();
 }
 
 inline void CheckMathUnaryOpInputDType(const char* op_name, const PrimType& dtype) {
@@ -975,23 +975,23 @@ inline void CheckMathUnaryOpInputDType(const char* op_name, const PrimType& dtyp
 }
 
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)                           \
-  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {                                     \
-    static const Op op = Op::Get("prim." #OpName);                                             \
-    PrimType x_ty = x.ty();                                                                    \
-    CheckInputDType(#OpName, x_ty);                                                            \
-    if (x_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {                              \
-      PrimType bf16_ty = x_ty;                                                                 \
-      PrimType f32_ty =                                                                        \
-          x_ty.IsScalableVector()                                                              \
-              ? PrimType::ScalableVector(DLDataTypeCode::kDLFloat, 32, x_ty.VScaleFactor())    \
-              : PrimType::Float(32, x_ty.lanes());                                             \
-      PrimExpr x_fp32 = prim::Cast(f32_ty, x, span);                                           \
-      PrimExpr result_fp32 = Call(f32_ty, op, {x_fp32}, {}, {}, span).as_or_throw<PrimExpr>(); \
-      return prim::Cast(bf16_ty, result_fp32, span);                                           \
-    } else {                                                                                   \
-      return Call(x_ty, op, {x}, {}, {}, span).as_or_throw<PrimExpr>();                        \
-    }                                                                                          \
+#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)                          \
+  inline PrimExpr OpName(PrimExpr x, Location loc = Location()) {                             \
+    static const Op op = Op::Get("prim." #OpName);                                            \
+    PrimType x_ty = x.ty();                                                                   \
+    CheckInputDType(#OpName, x_ty);                                                           \
+    if (x_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {                             \
+      PrimType bf16_ty = x_ty;                                                                \
+      PrimType f32_ty =                                                                       \
+          x_ty.IsScalableVector()                                                             \
+              ? PrimType::ScalableVector(DLDataTypeCode::kDLFloat, 32, x_ty.VScaleFactor())   \
+              : PrimType::Float(32, x_ty.lanes());                                            \
+      PrimExpr x_fp32 = prim::Cast(f32_ty, x, loc);                                           \
+      PrimExpr result_fp32 = Call(f32_ty, op, {x_fp32}, {}, {}, loc).as_or_throw<PrimExpr>(); \
+      return prim::Cast(bf16_ty, result_fp32, loc);                                           \
+    } else {                                                                                  \
+      return Call(x_ty, op, {x}, {}, {}, loc).as_or_throw<PrimExpr>();                        \
+    }                                                                                         \
   }
 
 #define TVM_DECLARE_INTRIN_UNARY(OpName) \
@@ -1024,10 +1024,10 @@ TVM_DECLARE_FLOAT_INTRIN_UNARY(acosh);
 TVM_DECLARE_FLOAT_INTRIN_UNARY(asinh);
 TVM_DECLARE_FLOAT_INTRIN_UNARY(atanh);
 
-#define TVM_DECLARE_INTRIN_BINARY(OpName)                                  \
-  inline PrimExpr OpName(PrimExpr x, PrimExpr y, Span span = Span()) {     \
-    static const Op op = Op::Get("prim." #OpName);                         \
-    return Call(x.ty(), op, {x, y}, {}, {}, span).as_or_throw<PrimExpr>(); \
+#define TVM_DECLARE_INTRIN_BINARY(OpName)                                     \
+  inline PrimExpr OpName(PrimExpr x, PrimExpr y, Location loc = Location()) { \
+    static const Op op = Op::Get("prim." #OpName);                            \
+    return Call(x.ty(), op, {x, y}, {}, {}, loc).as_or_throw<PrimExpr>();     \
   }
 
 TVM_DECLARE_INTRIN_BINARY(atan2);
@@ -1038,9 +1038,9 @@ TVM_DECLARE_INTRIN_BINARY(ldexp);
 
 template <typename FReduce>
 inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const ffi::Array<PrimExpr>& values,
-                      Span span = Span()) {
+                      Location loc = Location()) {
   for (PrimExpr val : values) {
-    init_value = freduce(init_value, val, span);
+    init_value = freduce(init_value, val, loc);
   }
   return init_value;
 }

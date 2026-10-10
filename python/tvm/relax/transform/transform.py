@@ -1804,7 +1804,7 @@ def dataflowblock_pass(pass_func=None, opt_level=None, name=None) -> Callable | 
                 # just for demo purposes
                 # Replace the first binding in the DataflowBlock
                 new_bindings = [self.new_binding, block.bindings[1]]
-                new_block = relax.expr.DataflowBlock(new_bindings, block.span)
+                new_block = relax.expr.DataflowBlock(new_bindings, block.loc)
                 return new_block
 
         @tvm.script.ir_module

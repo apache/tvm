@@ -30,7 +30,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/ir/source_map.h>
+#include <tvm/ir/location.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -54,15 +54,15 @@ namespace tvm {
 class TypeNode : public ffi::Object {
  public:
   /*!
-   * \brief Span that points to the original source code.
+   * \brief Location that points to the original source code.
    *        Reserved debug information.
    */
-  mutable Span span;
+  mutable Location loc;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    // span do not participate in structural equal and hash.
-    refl::ObjectDef<TypeNode>().def_ro("span", &TypeNode::span, refl::DefaultValue(Span()),
+    // loc do not participate in structural equal and hash.
+    refl::ObjectDef<TypeNode>().def_ro("loc", &TypeNode::loc, refl::DefaultValue(Location()),
                                        refl::AttachFieldFlag::SEqHashIgnore());
   }
 
@@ -324,10 +324,10 @@ inline bool operator!=(const PrimType& lhs, const PrimType& rhs) { return !(lhs 
 class ExprNode : public ffi::Object {
  public:
   /*!
-   * \brief Span that points to the original source code.
+   * \brief Location that points to the original source code.
    *        Reserved debug information.
    */
-  mutable Span span;
+  mutable Location loc;
 
   /*!
    * \brief The deduced or annotated type of the expression.
@@ -339,9 +339,9 @@ class ExprNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    // span does not participate in structural equal and hash.
+    // loc does not participate in structural equal and hash.
     refl::ObjectDef<ExprNode>()
-        .def_ro("span", &ExprNode::span, refl::DefaultValue(Span()),
+        .def_ro("loc", &ExprNode::loc, refl::DefaultValue(Location()),
                 refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("ty", &ExprNode::ty, refl::DefaultValue(MissingType()));
   }

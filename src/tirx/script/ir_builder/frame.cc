@@ -102,7 +102,7 @@ void FunctionFrameNode::ExitWithScope() {
       /*body=*/body,
       /*ret_type=*/ret_type.value_or(TupleType::Empty()),
       /*attrs=*/attrs.defined() ? DictAttrs(attrs) : DictAttrs(),
-      /*span=*/source_span);
+      /*loc=*/loc);
   func = FinalizeFunction(std::move(func));
   function = func;
   IRBuilder builder = IRBuilder::Current();

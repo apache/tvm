@@ -63,7 +63,7 @@ class OpaqueArtifactVerifier : public ObjectVisitor {
         Visit(axis->dom);
         Visit(axis->var);
         Visit(axis->ty);
-        Visit(axis->span);
+        Visit(axis->loc);
       }
       Visit(block->reads);
       Visit(block->writes);
@@ -72,7 +72,7 @@ class OpaqueArtifactVerifier : public ObjectVisitor {
       Visit(block->alloc_buffers);
       Visit(block->match_buffers);
       Visit(block->annotations);
-      Visit(block->span);
+      Visit(block->loc);
       return std::nullopt;
     }
     if (const auto* expr = value.as<OpaqueExprNode>()) {
@@ -105,7 +105,7 @@ class TensorLoadToBufferTransformer : public s_tir::StmtExprMutator {
   TensorVar NormalizeBufferType(const TensorVar& buffer) {
     auto type = Mutate(buffer.var()->ty).ValueOrUnchanged(buffer.var()->ty).cast<TensorType>();
     if (type.same_as(buffer.var()->ty)) return buffer;
-    return TensorVar(buffer.name(), type, buffer.span());
+    return TensorVar(buffer.name(), type, buffer.loc());
   }
 
   s_tir::IterVar NormalizeAxisDomain(const s_tir::IterVar& axis) {
@@ -150,7 +150,7 @@ class TensorLoadToBufferTransformer : public s_tir::StmtExprMutator {
       return ffi::Unchanged();
     }
     return te::Reduce(reduce->combiner, source, axis, condition, reduce->value_index, init,
-                      reduce->span);
+                      reduce->loc);
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
@@ -164,7 +164,7 @@ class TensorLoadToBufferTransformer : public s_tir::StmtExprMutator {
     auto it = tensor2buffers_.find(tensor);
     TVM_FFI_ICHECK(it != tensor2buffers_.end()) << "IndexError: Cannot find the tensor " << tensor;
     const TensorVar& buffer = it->second;
-    return MakeTensorLoad(buffer, te::GetTensorLoadIndices(call), call->span);
+    return MakeTensorLoad(buffer, te::GetTensorLoadIndices(call), call->loc);
   }
 
  private:
@@ -639,7 +639,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
         }
         Range dom = Range::FromMinExtent(analyzer->Simplify(min), analyzer->Simplify(extent));
         s_tir::IterVar new_block_iter(dom, block_var.as_or_throw<PrimVar>(), axis->iter_type,
-                                      axis->thread_tag, axis->span);
+                                      axis->thread_tag, axis->loc);
         cur_scope.loop_vars.emplace_back(loop_var, dom);
         cur_scope.AddBlockIter(axis, new_block_iter, loop_var.as_or_throw<PrimExpr>());
         defined_axes.insert(axis->var);
@@ -650,7 +650,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
         Var block_var("v_" + axis->var->name, index_type);
         Range dom = Range::FromMinExtent(prev_binding, MakeConst(index_type, 1));
         s_tir::IterVar new_block_iter(dom, block_var.as_or_throw<PrimVar>(), axis->iter_type,
-                                      axis->thread_tag, axis->span);
+                                      axis->thread_tag, axis->loc);
         cur_scope.AddBlockIter(axis, new_block_iter, prev_binding);
       }
     }

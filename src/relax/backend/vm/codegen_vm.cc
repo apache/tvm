@@ -145,7 +145,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
         call_node->args[0].same_as(Op::Get("relax.call_tir_packed"))) {
       Call inner = Call(call_node->ty, call_node->args[0],
                         ffi::Array<Expr>(call_node->args.begin() + 1, call_node->args.end()),
-                        call_node->attrs, call_node->ty_args, call_node->span);
+                        call_node->attrs, call_node->ty_args, call_node->loc);
       return VisitExpr(inner);
     }
 

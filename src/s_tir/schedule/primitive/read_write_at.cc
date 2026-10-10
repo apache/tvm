@@ -133,7 +133,7 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
                           .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_load))
                           .as_or_throw<TensorLoad>();
     if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(src_)) {
-      return MakeTensorLoad(dst_, load->indices, load->span);
+      return MakeTensorLoad(dst_, load->indices, load->loc);
     }
     return load;
   }
@@ -316,7 +316,7 @@ struct ReadWriteAtImpl {
           return ffi::Any((*it).second);
         }
         Range range = loop_domain.at(var);
-        Var v("v" + std::to_string(iter_vars.size()), var->ty, var->span);
+        Var v("v" + std::to_string(iter_vars.size()), var->ty, var->loc);
         bindings.Set(var, v.as_or_throw<PrimExpr>());
         iter_values.push_back(var.as_or_throw<PrimExpr>());
         iter_vars.push_back(IterVar(range, v.as_or_throw<PrimVar>(), IterVarType::kDataPar));

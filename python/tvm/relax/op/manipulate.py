@@ -24,6 +24,7 @@ from tvm.error import InternalError as _InternalError
 from tvm.ir import Attrs, is_prim_expr
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
+from tvm.ir.base import UnknownLoc
 from tvm.runtime import DataTypeCode
 from tvm.tirx import FloatImm, IndexMap, IntImm
 
@@ -34,7 +35,7 @@ from . import _ffi_api
 PrimExprLike = int | Expr
 
 
-def broadcast_to(x: Expr, shape: tuple[PrimExprLike] | Expr, *, ty=None, span=None) -> Expr:
+def broadcast_to(x: Expr, shape: tuple[PrimExprLike] | Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
     """Broadcasts a tensor to a specified shape.
 
     Parameters
@@ -52,7 +53,7 @@ def broadcast_to(x: Expr, shape: tuple[PrimExprLike] | Expr, *, ty=None, span=No
     """
     if isinstance(shape, tuple | list):
         shape = ShapeExpr(shape)
-    return _Call("relax.broadcast_to", [x, shape], ty=ty, span=span)  # type: ignore
+    return _Call("relax.broadcast_to", [x, shape], ty=ty, loc=loc)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.attrs.ConcatAttrs")
@@ -65,7 +66,7 @@ def concat(
     axis: int | None = 0,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Concatenate the input tensors along the given axis.
 
@@ -91,7 +92,7 @@ def concat(
         [tensors],
         attrs=_make_attrs("relax.attrs.ConcatAttrs", axis=axis),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -100,7 +101,7 @@ class ExpandDimsAttrs(Attrs):
     """Attributes for expand_dims operator"""
 
 
-def expand_dims(x: Expr, axis: int | list[int], *, ty=None, span=None) -> Expr:
+def expand_dims(x: Expr, axis: int | list[int], *, ty=None, loc=UnknownLoc()) -> Expr:
     """Insert new axes at the positions given by `axis`.
 
     Parameters
@@ -125,11 +126,11 @@ def expand_dims(x: Expr, axis: int | list[int], *, ty=None, span=None) -> Expr:
         [x],
         attrs=_make_attrs("relax.attrs.ExpandDimsAttrs", axis=axis),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
-def flatten(x: Expr, *, ty=None, span=None) -> Expr:
+def flatten(x: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
     """Flatten all the tensor dimensions into one.
 
     Parameters
@@ -142,7 +143,7 @@ def flatten(x: Expr, *, ty=None, span=None) -> Expr:
     result : relax.Expr
         The flattened result.
     """
-    return _Call("relax.flatten", [x], ty=ty, span=span)  # type: ignore
+    return _Call("relax.flatten", [x], ty=ty, loc=loc)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.attrs.LayoutTransformAttrs")
@@ -156,7 +157,7 @@ def layout_transform(
     pad_value: int | float | Expr | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     """Modifies the layout of a tensor.
 
@@ -203,7 +204,7 @@ def layout_transform(
             "relax.attrs.LayoutTransformAttrs", index_map=index_map, pad_value=pad_value
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -212,7 +213,7 @@ class PermuteDimsAttrs(Attrs):
     """Attributes for permute_dims operator"""
 
 
-def permute_dims(x: Expr, axes: list[int] | None = None, *, ty=None, span=None) -> Expr:
+def permute_dims(x: Expr, axes: list[int] | None = None, *, ty=None, loc=UnknownLoc()) -> Expr:
     """Permutes the dimensions of an array.
 
     Parameters
@@ -233,11 +234,11 @@ def permute_dims(x: Expr, axes: list[int] | None = None, *, ty=None, span=None) 
         [x],
         attrs=_make_attrs("relax.attrs.PermuteDimsAttrs", axes=axes),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
-def reshape(x: Expr, shape: tuple[PrimExprLike] | Expr, *, ty=None, span=None) -> Expr:
+def reshape(x: Expr, shape: tuple[PrimExprLike] | Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
     """Reshape the input array.
 
     ``-1`` infers the dimension of the output shape by using the remainder of
@@ -272,7 +273,7 @@ def reshape(x: Expr, shape: tuple[PrimExprLike] | Expr, *, ty=None, span=None) -
     if not isinstance(shape, tuple | list | Expr) or is_prim_expr(shape):
         raise TypeError("shape must be a tuple/list or a Relax shape expression")
     shape = _ffi_api._NormalizeReshapeShape(x, shape)
-    return _Call("relax.reshape", [x, shape], ty=ty, span=span)  # type: ignore
+    return _Call("relax.reshape", [x, shape], ty=ty, loc=loc)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.attrs.SplitAttrs")
@@ -286,7 +287,7 @@ def split(
     axis: int = 0,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Split input tensor along axis by sections or indices.
 
@@ -329,7 +330,7 @@ def split(
             "relax.attrs.SplitAttrs", indices_or_sections=indices_or_sections, axis=axis
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -338,7 +339,7 @@ class SqueezeAttrs(Attrs):
     """Attributes for squeeze operator"""
 
 
-def squeeze(x: Expr, axis: int | list[int] | None = None, *, ty=None, span=None) -> Expr:
+def squeeze(x: Expr, axis: int | list[int] | None = None, *, ty=None, loc=UnknownLoc()) -> Expr:
     """Squeeze axes in the array.
 
     Parameters
@@ -363,7 +364,7 @@ def squeeze(x: Expr, axis: int | list[int] | None = None, *, ty=None, span=None)
         [x],
         attrs=_make_attrs("relax.attrs.SqueezeAttrs", axis=axis),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -372,7 +373,7 @@ class StackAttrs(Attrs):
     """Attributes for concat operator"""
 
 
-def stack(tensors: Expr | list[Expr], axis: int = 0, *, ty=None, span=None) -> Expr:
+def stack(tensors: Expr | list[Expr], axis: int = 0, *, ty=None, loc=UnknownLoc()) -> Expr:
     """Stack the input tensors along a new axis.
 
     Parameters
@@ -398,11 +399,11 @@ def stack(tensors: Expr | list[Expr], axis: int = 0, *, ty=None, span=None) -> E
         [tensors],
         attrs=_make_attrs("relax.attrs.StackAttrs", axis=axis),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
-def collapse_sum_like(data: Expr, collapse_target: Expr, *, ty=None, span=None) -> Expr:
+def collapse_sum_like(data: Expr, collapse_target: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
     """Return a summation of data to the shape of collapse_target.
 
     For details, please see relax.op.collapse_sum_to.
@@ -424,11 +425,13 @@ def collapse_sum_like(data: Expr, collapse_target: Expr, *, ty=None, span=None) 
         "relax.collapse_sum_like",
         [data, collapse_target],
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
-def collapse_sum_to(data: Expr, shape: tuple[PrimExprLike] | Expr, *, ty=None, span=None) -> Expr:
+def collapse_sum_to(
+    data: Expr, shape: tuple[PrimExprLike] | Expr, *, ty=None, loc=UnknownLoc()
+) -> Expr:
     """Return a summation of data to the given shape.
 
     collapse_sum_to is intended as the backward operator of tvm.relax.op.broadcast_to and
@@ -461,7 +464,7 @@ def collapse_sum_to(data: Expr, shape: tuple[PrimExprLike] | Expr, *, ty=None, s
         "relax.collapse_sum_to",
         [data, shape],
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -476,7 +479,7 @@ def repeat(
     axis: int | None = None,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Repeats elements of an array.
 
@@ -512,7 +515,7 @@ def repeat(
         [data],
         attrs=_make_attrs("relax.attrs.RepeatAttrs", repeats=repeats, axis=axis),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -526,7 +529,7 @@ def tile(
     repeats: int | tuple[int] | list[int],
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Construct an array by repeating data the number of times given by repeats.
 
@@ -571,7 +574,7 @@ def tile(
         [data],
         attrs=_make_attrs("relax.attrs.TileAttrs", repeats=repeats),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -580,7 +583,7 @@ class FlipAttrs(Attrs):
     """Attributes for flip operator"""
 
 
-def flip(data, axis, *, ty=None, span=None):
+def flip(data, axis, *, ty=None, loc=UnknownLoc()):
     """Reverses the order of elements along given axis while preserving array shape.
 
     Parameters
@@ -610,7 +613,7 @@ def flip(data, axis, *, ty=None, span=None):
         [data],
         attrs=_make_attrs("relax.attrs.FlipAttrs", axis=axis),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -626,7 +629,7 @@ def reverse_sequence(
     batch_axis: int = 0,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Reverses variable length slices.
 
@@ -656,7 +659,7 @@ def reverse_sequence(
             "relax.attrs.ReverseSequenceAttrs", seq_axis=seq_axis, batch_axis=batch_axis
         ),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -665,7 +668,7 @@ class GatherElementsAttrs(Attrs):
     """Attributes for gather_elements operator"""
 
 
-def gather_elements(data: Expr, indices: Expr, axis: int = 0, *, ty=None, span=None) -> Expr:
+def gather_elements(data: Expr, indices: Expr, axis: int = 0, *, ty=None, loc=UnknownLoc()) -> Expr:
     """Gather elements from data according to indices along the specified axis.
 
     Parameters
@@ -703,7 +706,7 @@ def gather_elements(data: Expr, indices: Expr, axis: int = 0, *, ty=None, span=N
         [data, indices],
         attrs=_make_attrs("relax.attrs.GatherElementsAttrs", axis=axis),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -712,7 +715,7 @@ class GatherNDAttrs(Attrs):
     """Attributes for gather_nd operator"""
 
 
-def gather_nd(data: Expr, indices: Expr, batch_dims: int = 0, *, ty=None, span=None) -> Expr:
+def gather_nd(data: Expr, indices: Expr, batch_dims: int = 0, *, ty=None, loc=UnknownLoc()) -> Expr:
     """Update data at positions defined by indices with values in updates.
 
     Parameters
@@ -751,11 +754,11 @@ def gather_nd(data: Expr, indices: Expr, batch_dims: int = 0, *, ty=None, span=N
         [data, indices],
         attrs=_make_attrs("relax.attrs.GatherNDAttrs", batch_dims=batch_dims),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
-def index_tensor(data: Expr, indices: Expr | list[Expr], *, ty=None, span=None) -> Expr:
+def index_tensor(data: Expr, indices: Expr | list[Expr], *, ty=None, loc=UnknownLoc()) -> Expr:
     """Advanced-tensor indexing (NumPy/PyTorch-style).
 
     Given k index tensors ``indices = (I0, I1, …, Ik-1)`` this
@@ -819,7 +822,7 @@ def index_tensor(data: Expr, indices: Expr | list[Expr], *, ty=None, span=None) 
         "relax.index_tensor",
         [data, indices],
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -835,7 +838,7 @@ def index_put(
     accumulate: bool = False,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """This operation updates values in `data` at positions
     specified by `indices` with corresponding values from `values`. The `indices` is a tuple
@@ -885,7 +888,7 @@ def index_put(
         [data, indices, values],
         attrs=_make_attrs("relax.attrs.IndexPutAttrs", accumulate=accumulate),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -899,7 +902,7 @@ def meshgrid(
     indexing: str | None = "ij",
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Generate coordinate grids from input tensors.
 
@@ -925,7 +928,7 @@ def meshgrid(
         [tensors],
         attrs=_make_attrs("relax.attrs.MeshgridAttrs", indexing=indexing),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -942,7 +945,7 @@ def scatter_elements(
     reduction: str = "update",
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     """ONNX style scatter elements. This operation updates its value in `data` to values
     specified by `updates` at specific index positions specified by `indices`.
@@ -1021,7 +1024,7 @@ def scatter_elements(
         [data, indices, updates],
         attrs=_make_attrs("relax.attrs.ScatterElementsAttrs", axis=axis, reduction=reduction),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -1037,7 +1040,7 @@ def scatter_nd(
     reduction: str = "update",
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Scatter updates into an array according to indices.
 
@@ -1079,7 +1082,7 @@ def scatter_nd(
         [data, indices, updates],
         attrs=_make_attrs("relax.attrs.ScatterNDAttrs", reduction=reduction),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -1097,7 +1100,7 @@ def slice_scatter(
     axis=0,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     """Embeds the values of the src tensor into input at the given dimension.
 
@@ -1138,7 +1141,7 @@ def slice_scatter(
         [input_tensor, src, start, end, step],
         attrs=_make_attrs("relax.attrs.SliceScatterAttrs", axis=axis),
         ty=ty,
-        span=span,
+        loc=loc,
     )
 
 
@@ -1155,7 +1158,7 @@ def one_hot(
     axis: int = -1,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Returns a one-hot tensor.
 
@@ -1204,5 +1207,5 @@ def one_hot(
         [indices, on_value, off_value],
         attrs=_make_attrs("relax.attrs.OneHotAttrs", depth=depth, axis=axis),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore

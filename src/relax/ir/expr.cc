@@ -399,11 +399,11 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMaybeInplaceMut
 
 TVM_FFI_STATIC_INIT_BLOCK() { BindingNode::RegisterReflection(); }
 
-IfExpr::IfExpr(Expr cond, Expr true_branch, Expr false_branch, Span span)
+IfExpr::IfExpr(Expr cond, Expr true_branch, Expr false_branch, Location loc)
     : Expr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<IfExprNode> n = ffi::make_object<IfExprNode>(
       std::move(cond), std::move(true_branch), std::move(false_branch));
-  n->span = std::move(span);
+  n->loc = std::move(loc);
   data_ = std::move(n);
 }
 
@@ -417,12 +417,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&IfExprMaybeInplaceMutate>());
 
   refl::GlobalDef().def("relax.IfExpr",
-                        [](Expr cond, Expr true_branch, Expr false_branch, Span span) {
-                          return IfExpr(cond, true_branch, false_branch, span);
+                        [](Expr cond, Expr true_branch, Expr false_branch, Location loc) {
+                          return IfExpr(cond, true_branch, false_branch, loc);
                         });
 }
 
-ShapeExpr::ShapeExpr(ffi::Array<PrimExpr> values, Span span) : Expr(ffi::UnsafeInit{}) {
+ShapeExpr::ShapeExpr(ffi::Array<PrimExpr> values, Location loc) : Expr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<ShapeExprNode> n = ffi::make_object<ShapeExprNode>();
 
   n->values = values.Map([](PrimExpr value) {
@@ -433,8 +433,8 @@ ShapeExpr::ShapeExpr(ffi::Array<PrimExpr> values, Span span) : Expr(ffi::UnsafeI
         << "the value in ShapeType can only have dtype of int64";
     return value;
   });
-  n->span = span;
-  n->ty = ShapeType(values, span);
+  n->loc = loc;
+  n->ty = ShapeType(values, loc);
   data_ = std::move(n);
 }
 
@@ -448,19 +448,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&ShapeExprMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("relax.ShapeExpr", [](ffi::Array<PrimExpr> values, Span span) {
-    return ShapeExpr(values, span);
+  refl::GlobalDef().def("relax.ShapeExpr", [](ffi::Array<PrimExpr> values, Location loc) {
+    return ShapeExpr(values, loc);
   });
 }
 
-DataflowVar::DataflowVar(ffi::String name, ffi::Optional<Type> ty_annotation, Span span)
+DataflowVar::DataflowVar(ffi::String name, ffi::Optional<Type> ty_annotation, Location loc)
     : Var(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<DataflowVarNode> n = ffi::make_object<DataflowVarNode>();
   n->name = std::move(name);
   if (ty_annotation.has_value()) {
     n->ty = ty_annotation.value();
   }
-  n->span = std::move(span);
+  n->loc = std::move(loc);
   data_ = std::move(n);
 }
 
@@ -476,33 +476,34 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&DataflowVarMaybeInplaceMutate>());
 
   refl::GlobalDef().def("relax.DataflowVar",
-                        [](ffi::String name, ffi::Optional<Type> ty_annotation, Span span) {
-                          return DataflowVar(name, ty_annotation, span);
+                        [](ffi::String name, ffi::Optional<Type> ty_annotation, Location loc) {
+                          return DataflowVar(name, ty_annotation, loc);
                         });
 }
 
-GenericConst MakeTensorConst(runtime::Tensor data, ffi::Optional<Type> ty_annotation, Span span) {
+GenericConst MakeTensorConst(runtime::Tensor data, ffi::Optional<Type> ty_annotation,
+                             Location loc) {
   if (ty_annotation.has_value()) {
-    return GenericConst(std::move(data), ty_annotation.value(), std::move(span));
+    return GenericConst(std::move(data), ty_annotation.value(), std::move(loc));
   }
   ffi::Array<PrimExpr> shape;
   for (int64_t dim : data.Shape()) {
     shape.push_back(IntImm::Int64(dim));
   }
-  TensorType ty(ShapeExpr(shape), PrimType(data.DataType()), VDevice(), span);
-  return GenericConst(std::move(data), std::move(ty), std::move(span));
+  TensorType ty(ShapeExpr(shape), PrimType(data.DataType()), VDevice(), loc);
+  return GenericConst(std::move(data), std::move(ty), std::move(loc));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::GlobalDef().def("relax.MakeTensorConst", MakeTensorConst);
 }
 
-MatchCast::MatchCast(Var var, Expr value, Type ty, Span span) {
+MatchCast::MatchCast(Var var, Expr value, Type ty, Location loc) {
   TVM_FFI_ICHECK(var.defined()) << "MatchCast requires var to be defined";
   ffi::ObjectPtr<MatchCastNode> n =
       ffi::make_object<MatchCastNode>(std::move(var), std::move(value));
   n->ty = std::move(ty);
-  n->span = span;
+  n->loc = loc;
   data_ = std::move(n);
 }
 
@@ -510,15 +511,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   MatchCastNode::RegisterReflection();
 
-  refl::GlobalDef().def("relax.MatchCast", [](Var var, Expr value, Type ty, Span span) {
-    return MatchCast(var, value, ty, span);
+  refl::GlobalDef().def("relax.MatchCast", [](Var var, Expr value, Type ty, Location loc) {
+    return MatchCast(var, value, ty, loc);
   });
 }
 
-VarBinding::VarBinding(Var var, Expr value, Span span) {
+VarBinding::VarBinding(Var var, Expr value, Location loc) {
   ffi::ObjectPtr<VarBindingNode> n =
       ffi::make_object<VarBindingNode>(std::move(var), std::move(value));
-  n->span = span;
+  n->loc = loc;
   data_ = std::move(n);
 }
 
@@ -554,15 +555,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   VarBindingNode::RegisterReflection();
 
-  refl::GlobalDef().def("relax.VarBinding", [](Var var, Expr value, Span span) {
-    return VarBinding(var, value, span);
+  refl::GlobalDef().def("relax.VarBinding", [](Var var, Expr value, Location loc) {
+    return VarBinding(var, value, loc);
   });
 }
 
-BindingBlock::BindingBlock(ffi::Array<Binding> bindings, Span span) {
+BindingBlock::BindingBlock(ffi::Array<Binding> bindings, Location loc) {
   ffi::ObjectPtr<BindingBlockNode> n = ffi::make_object<BindingBlockNode>();
   n->bindings = std::move(bindings);
-  n->span = span;
+  n->loc = loc;
   data_ = std::move(n);
 }
 
@@ -570,8 +571,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   BindingBlockNode::RegisterReflection();
 
-  refl::GlobalDef().def("relax.BindingBlock", [](ffi::Array<Binding> bindings, Span span) {
-    return BindingBlock(bindings, span);
+  refl::GlobalDef().def("relax.BindingBlock", [](ffi::Array<Binding> bindings, Location loc) {
+    return BindingBlock(bindings, loc);
   });
 }
 
@@ -594,10 +595,10 @@ BindingBlockNode* BindingBlock::CopyOnWrite() {
   return static_cast<BindingBlockNode*>(data_.get());
 }
 
-DataflowBlock::DataflowBlock(ffi::Array<Binding> bindings, Span span) {
+DataflowBlock::DataflowBlock(ffi::Array<Binding> bindings, Location loc) {
   ffi::ObjectPtr<DataflowBlockNode> n = ffi::make_object<DataflowBlockNode>();
   n->bindings = std::move(bindings);
-  n->span = span;
+  n->loc = loc;
   data_ = std::move(n);
 }
 
@@ -605,8 +606,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   DataflowBlockNode::RegisterReflection();
 
-  refl::GlobalDef().def("relax.DataflowBlock", [](ffi::Array<Binding> bindings, Span span) {
-    return DataflowBlock(bindings, span);
+  refl::GlobalDef().def("relax.DataflowBlock", [](ffi::Array<Binding> bindings, Location loc) {
+    return DataflowBlock(bindings, loc);
   });
 }
 
@@ -618,10 +619,11 @@ SeqExpr::SeqExpr(Expr body) : Expr(ffi::UnsafeInit{}) {
   }
 }
 
-SeqExpr::SeqExpr(ffi::Array<BindingBlock> blocks, Expr body, Span span) : Expr(ffi::UnsafeInit{}) {
+SeqExpr::SeqExpr(ffi::Array<BindingBlock> blocks, Expr body, Location loc)
+    : Expr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<SeqExprNode> n = ffi::make_object<SeqExprNode>(std::move(body));
   n->blocks = std::move(blocks);
-  n->span = span;
+  n->loc = loc;
   data_ = std::move(n);
 }
 
@@ -635,13 +637,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&SeqExprMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("relax.SeqExpr", [](ffi::Array<BindingBlock> blocks, Expr body, Span span) {
-    return SeqExpr(blocks, body, span);
-  });
+  refl::GlobalDef().def("relax.SeqExpr", [](ffi::Array<BindingBlock> blocks, Expr body,
+                                            Location loc) { return SeqExpr(blocks, body, loc); });
 }
 
 Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty, bool is_pure,
-                   DictAttrs attrs, Span span)
+                   DictAttrs attrs, Location loc)
     : BaseFunc(ffi::UnsafeInit{}) {
   // Set the function type.
   // For function, we take a conservative approach and require the function type
@@ -698,7 +699,7 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty
   n->is_pure = is_pure;
   n->ty = std::move(func_ty);
   n->attrs = std::move(attrs);
-  n->span = std::move(span);
+  n->loc = std::move(loc);
   data_ = std::move(n);
 }
 
@@ -714,13 +715,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   refl::GlobalDef().def("relax.Function",
                         [](ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty,
-                           bool is_pure, DictAttrs attrs, Span span) {
-                          return Function(params, body, ret_ty, is_pure, attrs, span);
+                           bool is_pure, DictAttrs attrs, Location loc) {
+                          return Function(params, body, ret_ty, is_pure, attrs, loc);
                         });
 }
 
 Function Function::CreateEmpty(ffi::Array<Var> params, Type ret_ty, bool is_pure, DictAttrs attrs,
-                               Span span) {
+                               Location loc) {
   ffi::Array<Type> param_ty;
   for (const Var& param : params) {
     TVM_FFI_ICHECK(!param->ty.as<MissingType>().has_value())
@@ -745,16 +746,17 @@ Function Function::CreateEmpty(ffi::Array<Var> params, Type ret_ty, bool is_pure
   n->ty = std::move(finfo);
   n->ret_ty = std::move(ret_ty);
   n->attrs = std::move(attrs);
-  n->span = std::move(span);
+  n->loc = std::move(loc);
   return Function(std::move(n));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.FunctionCreateEmpty", [](ffi::Array<Var> params, Type ret_ty,
-                                                        bool is_pure, DictAttrs attrs, Span span) {
-    return Function::CreateEmpty(params, ret_ty, is_pure, attrs, span);
-  });
+  refl::GlobalDef().def(
+      "relax.FunctionCreateEmpty",
+      [](ffi::Array<Var> params, Type ret_ty, bool is_pure, DictAttrs attrs, Location loc) {
+        return Function::CreateEmpty(params, ret_ty, is_pure, attrs, loc);
+      });
 }
 
 // Special opaque derivation function for ExternFunc
@@ -782,10 +784,10 @@ FuncType GetExternFuncType() {
   return FuncType::OpaqueFunc(derive);
 }
 
-ExternFunc::ExternFunc(ffi::String global_symbol, Span span)
-    : ExternFunc(global_symbol, GetExternFuncType(), span) {}
+ExternFunc::ExternFunc(ffi::String global_symbol, Location loc)
+    : ExternFunc(global_symbol, GetExternFuncType(), loc) {}
 
-ExternFunc::ExternFunc(ffi::String global_symbol, Type ty, Span span)
+ExternFunc::ExternFunc(ffi::String global_symbol, Type ty, Location loc)
     : BaseFunc(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(ty.as<FuncTypeNode>())
       << "ExternFunc must have FuncType, "
@@ -793,7 +795,7 @@ ExternFunc::ExternFunc(ffi::String global_symbol, Type ty, Span span)
 
   ffi::ObjectPtr<ExternFuncNode> n = ffi::make_object<ExternFuncNode>();
   n->global_symbol = std::move(global_symbol);
-  n->span = span;
+  n->loc = loc;
   n->ty = ty;
   data_ = std::move(n);
 }
@@ -810,11 +812,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&TypeOnlyExprMaybeInplaceMutate<ExternFuncNode>>());
 
   refl::GlobalDef().def("relax.ExternFunc",
-                        [](ffi::String global_symbol, ffi::Optional<Type> ty, Span span) {
+                        [](ffi::String global_symbol, ffi::Optional<Type> ty, Location loc) {
                           if (ty.has_value()) {
-                            return ExternFunc(global_symbol, ty.value(), span);
+                            return ExternFunc(global_symbol, ty.value(), loc);
                           } else {
-                            return ExternFunc(global_symbol, span);
+                            return ExternFunc(global_symbol, loc);
                           }
                         });
 }

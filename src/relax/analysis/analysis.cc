@@ -117,7 +117,7 @@ class VarVisitor : protected ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* call_node) final {
-    VisitSpan(call_node->span);
+    VisitLoc(call_node->loc);
     VisitExpr(call_node->op);
 
     for (Type ty_arg : call_node->ty_args) {

@@ -106,7 +106,7 @@ UnchangedOr<Expr> SimplifierBase::Mutate_(const CallNode* op, InplaceMode inplac
       // Reuse the original node identity; there is no replacement to process.
       return ffi::Unchanged();
     }
-    return Call(op->ty, op->op, {cond, true_value, false_value}, op->attrs, op->ty_args, op->span);
+    return Call(op->ty, op->op, {cond, true_value, false_value}, op->attrs, op->ty_args, op->loc);
   }
   auto args_u = Mutate(op->args, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Expr>>>();
   if (args_u.UnchangedOrSameAs(op->args)) return ffi::Unchanged();
@@ -129,7 +129,7 @@ UnchangedOr<PrimExpr> SimplifierBase::Mutate_(const prim::LetNode* op, InplaceMo
     // Reuse the original node identity; there is no replacement to process.
     return ffi::Unchanged();
   }
-  return prim::Let(op->var, value, body, op->span);
+  return prim::Let(op->var, value, body, op->loc);
 }
 
 UnchangedOr<PrimExpr> SimplifierBase::Mutate_(const prim::SelectNode* op,
@@ -157,7 +157,7 @@ UnchangedOr<PrimExpr> SimplifierBase::Mutate_(const prim::SelectNode* op,
     // Reuse the original node identity; there is no replacement to process.
     return ffi::Unchanged();
   }
-  return prim::Select(cond, true_value, false_value, op->span);
+  return prim::Select(cond, true_value, false_value, op->loc);
 }
 
 }  // namespace sym

@@ -43,8 +43,7 @@ namespace tirx {
 Var WithStorageScope(const VarNode* buffer_var, ffi::String storage_scope) {
   auto* ptr_type = buffer_var->ty.as<PointerTypeNode>();
   TVM_FFI_ICHECK(ptr_type) << "The provided variable is not of pointer type";
-  return Var(buffer_var->name, PointerType(ptr_type->element_type, storage_scope),
-             buffer_var->span);
+  return Var(buffer_var->name, PointerType(ptr_type->element_type, storage_scope), buffer_var->loc);
 }
 
 UpdatePointerStorageScope::UpdatePointerStorageScope(
@@ -85,7 +84,7 @@ UnchangedOr<Expr> UpdatePointerStorageScope::Mutate_(const CallNode* op, Inplace
     size_t scope_index = call->op.same_as(tirx::alloc_tensor_op()) ? 2 : 3;
     if (call->args[scope_index].as_or_throw<StringImm>()->value != it->second) {
       auto copy = ffi::make_object<CallNode>(*call.get());
-      copy->args.Set(scope_index, StringImm(it->second, call->args[scope_index]->span));
+      copy->args.Set(scope_index, StringImm(it->second, call->args[scope_index]->loc));
       return ReinferMutatedCallType(Expr(std::move(copy)), op, inplace_mode);
     }
     return value;

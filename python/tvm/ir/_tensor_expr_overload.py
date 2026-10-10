@@ -16,6 +16,8 @@
 # under the License.
 """Tensor-expression overload hooks for shared IR expressions."""
 
+from tvm.ir.base import UnknownLoc
+
 
 def __add__(_lhs, _rhs):
     return NotImplemented
@@ -105,5 +107,5 @@ def __call__(_value, *_args, **_kwargs):
     return NotImplemented
 
 
-def astype(_value, _dtype, _span=None):
+def astype(_value, _dtype, _loc=UnknownLoc()):
     return NotImplemented

@@ -41,10 +41,10 @@ from .expr import (
     Function,
     GlobalVar,
     IfExpr,
+    Location,
     MatchCast,
     SeqExpr,
     ShapeExpr,
-    Span,
     Tuple,
     TupleGetItem,
     Var,
@@ -463,7 +463,7 @@ class _PyExprVisitor(tvm_ffi.core.Object):
         f_visit_var_def: Callable | None = None,
         f_visit_var_def_: Callable | None = None,
         f_visit_dataflow_var_def_: Callable | None = None,
-        f_visit_span: Callable | None = None,
+        f_visit_loc: Callable | None = None,
     ) -> None:
         """Constructor."""
 
@@ -495,7 +495,7 @@ class _PyExprVisitor(tvm_ffi.core.Object):
             f_visit_var_def,
             f_visit_var_def_,
             f_visit_dataflow_var_def_,
-            f_visit_span,
+            f_visit_loc,
         )
 
     def visit_expr(self, expr: Expr) -> None:
@@ -590,7 +590,7 @@ class PyExprVisitor:
             "visit_var_def",
             "visit_var_def_",
             "visit_dataflow_var_def_",
-            "visit_span",
+            "visit_loc",
         ],
     }
 
@@ -929,17 +929,17 @@ class PyExprVisitor:
         # Using self._outer() to ref _PyExprVisitor
         return _ffi_api.ExprVisitorVisitVarDef(self._outer(), var)  # type: ignore
 
-    def visit_span(self, span: Span) -> None:
-        """Visit Span.
-        Users can customized this function to overwrite VisitSpan(const Span& span) on the C++ side.
+    def visit_loc(self, loc: Location) -> None:
+        """Visit Location.
+        Override this function to customize VisitLoc(const Location& loc) on the C++ side.
 
         Parameters
         ----------
-        span : Span
-            The Span to be visited.
+        loc : Location
+            The Location to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitSpan(self._outer(), span)  # type: ignore
+        return _ffi_api.ExprVisitorVisitLoc(self._outer(), loc)  # type: ignore
 
 
 @tvm_ffi.register_object("expr_functor.PyExprMutator")
@@ -982,7 +982,7 @@ class _PyExprMutator(Object):
         f_visit_var_def: Callable | None = None,
         f_visit_var_def_: Callable | None = None,
         f_visit_dataflow_var_def_: Callable | None = None,
-        f_visit_span: Callable | None = None,
+        f_visit_loc: Callable | None = None,
     ) -> None:
         """Constructor."""
 
@@ -1015,7 +1015,7 @@ class _PyExprMutator(Object):
             f_visit_var_def,
             f_visit_var_def_,
             f_visit_dataflow_var_def_,
-            f_visit_span,
+            f_visit_loc,
         )
 
     def visit_expr(self, expr: Expr) -> Expr:
@@ -1126,7 +1126,7 @@ class PyExprMutator:
             "visit_var_def",
             "visit_var_def_",
             "visit_dataflow_var_def_",
-            "visit_span",
+            "visit_loc",
         ],
     }
 
@@ -1584,19 +1584,19 @@ class PyExprMutator:
         # Using self._outer() to ref _PyExprMutator
         return _ffi_api.ExprMutatorVisitVarDef(self._outer(), var)  # type: ignore
 
-    def visit_span(self, span: Span) -> Span:
-        """Visit Span.
-        Users can customized this function to overwrite VisitSpan(const Span& span) on the C++ side.
+    def visit_loc(self, loc: Location) -> Location:
+        """Visit Location.
+        Override this function to customize VisitLoc(const Location& loc) on the C++ side.
 
         Parameters
         ----------
-        span : Span
-            The Span to be visited.
+        loc : Location
+            The Location to be visited.
 
         Returns
         -------
-        result : Span
-            The span after transformation.
+        result : Location
+            The loc after transformation.
         """
         raise NotImplementedError
 

@@ -22,11 +22,12 @@ import tvm_ffi
 from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
+from tvm.ir.base import UnknownLoc
 
 from ..expr import Expr
 
 
-def where(condition: Expr, x1: Expr, x2: Expr, *, ty=None, span=None) -> Expr:
+def where(condition: Expr, x1: Expr, x2: Expr, *, ty=None, loc=UnknownLoc()) -> Expr:
     """Selecting elements from either the input tensors depending on the value of the
     condition.
 
@@ -53,7 +54,7 @@ def where(condition: Expr, x1: Expr, x2: Expr, *, ty=None, span=None) -> Expr:
     result : relax.Expr
         The result tensor.
     """
-    return _Call("relax.where", [condition, x1, x2], ty=ty, span=span)  # type: ignore
+    return _Call("relax.where", [condition, x1, x2], ty=ty, loc=loc)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.attrs.ArgmaxArgminAttrs")
@@ -67,7 +68,7 @@ def argmax(
     keepdims: bool = False,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Computes the argmax of tensor elements over given axis.
 
@@ -96,7 +97,7 @@ def argmax(
         [x],
         attrs=_make_attrs("relax.attrs.ArgmaxArgminAttrs", axis=axis, keepdims=keepdims),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -106,7 +107,7 @@ def argmin(
     keepdims: bool = False,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     """Computes the argmin of tensor elements over given axis.
 
@@ -135,7 +136,7 @@ def argmin(
         [x],
         attrs=_make_attrs("relax.attrs.ArgmaxArgminAttrs", axis=axis, keepdims=keepdims),
         ty=ty,
-        span=span,
+        loc=loc,
     )  # type: ignore
 
 
@@ -146,7 +147,7 @@ def bucketize(
     right=False,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ):
     """Returns the indices of the buckets to which each value in the input belongs.
 
@@ -174,5 +175,5 @@ def bucketize(
         [input_tensor, boundaries],
         attrs=_make_attrs("relax.attrs.BucketizeAttrs", out_int32=out_int32, right=right),
         ty=ty,
-        span=span,
+        loc=loc,
     )

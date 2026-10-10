@@ -727,7 +727,7 @@ class DefineVDevice : ExprMutator {
           const VDevice& vdev = MakeGlobalVDevice(VDevice(target_, 0, scope));
           TVM_FFI_ICHECK(tensor_ty->shape.has_value())
               << "Shape not defined for a constant tensor ..!";
-          arg->ty = TensorType(tensor_ty->shape.value(), tensor_ty->dtype, vdev, tensor_ty->span);
+          arg->ty = TensorType(tensor_ty->shape.value(), tensor_ty->dtype, vdev, tensor_ty->loc);
           return arg;
         }
       }

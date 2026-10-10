@@ -20,7 +20,8 @@ from collections.abc import Mapping, Sequence
 
 import tvm_ffi
 
-from tvm.ir import Expr, Scriptable, SeqStmt, Span, Stmt, TensorRegion, Var, const
+from tvm.ir import Expr, Location, Scriptable, SeqStmt, Stmt, TensorRegion, Var, const
+from tvm.ir.base import UnknownLoc
 from tvm.runtime import Object
 from tvm.s_tir import IterVar
 
@@ -84,7 +85,7 @@ class SBlock(Stmt):
     annotations: Optional[Mapping[str, Object]]
         Additional annotation hints.
 
-    span : Optional[Span]
+    loc : Location
         The location of this block in the source code.
     """
 
@@ -97,7 +98,7 @@ class SBlock(Stmt):
     alloc_buffers: list[Var]
     match_buffers: list[MatchBufferRegion]
     annotations: Mapping[str, Object]
-    span: Span | None
+    loc: Location
 
     def __init__(
         self,
@@ -110,7 +111,7 @@ class SBlock(Stmt):
         alloc_buffers: list[Var] | None = None,
         match_buffers: list[MatchBufferRegion] | None = None,
         annotations: Mapping[str, Object] | None = None,
-        span: Span | None = None,
+        loc: Location = UnknownLoc(),
     ) -> None:
         if alloc_buffers is None:
             alloc_buffers = []
@@ -129,7 +130,7 @@ class SBlock(Stmt):
             alloc_buffers,
             match_buffers,
             annotations,
-            span,
+            loc,
         )  # type: ignore
 
 
@@ -148,21 +149,21 @@ class SBlockRealize(Stmt):
     block : SBlock
         The block to realize
 
-    span : Optional[Span]
+    loc : Location
         The location of this block_realize in the source code.
     """
 
     iter_values: list[Expr]
     predicate: Expr
     block: SBlock
-    span: Span | None
+    loc: Location
 
     def __init__(
         self,
         iter_values: list[Expr],
         predicate: Expr | bool,
         block: SBlock,
-        span: Span | None = None,
+        loc: Location = UnknownLoc(),
     ) -> None:
         if isinstance(predicate, bool):
             predicate = const(predicate, "bool")
@@ -171,5 +172,5 @@ class SBlockRealize(Stmt):
             iter_values,
             predicate,
             block,
-            span,
+            loc,
         )  # type: ignore

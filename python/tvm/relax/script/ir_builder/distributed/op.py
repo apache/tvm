@@ -17,6 +17,7 @@
 # pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name
 """Distributed Relax expression operators."""
 
+from tvm.ir.base import UnknownLoc
 from tvm.relax.distributed import DeviceMesh, Placement
 from tvm.relax.expr import Expr
 from tvm.relax.op import call_tir as call_tir
@@ -35,13 +36,13 @@ def annotate_sharding(
     placement: py_str | Placement,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     if isinstance(device_mesh, py_str):
         device_mesh = _lookup_device_mesh(device_mesh)
     if isinstance(placement, py_str):
         placement = Placement.from_text(placement)
-    return _annotate_sharding(value, device_mesh, placement, ty=ty, span=span)
+    return _annotate_sharding(value, device_mesh, placement, ty=ty, loc=loc)
 
 
 def redistribute(
@@ -50,13 +51,13 @@ def redistribute(
     placement: py_str | Placement,
     *,
     ty=None,
-    span=None,
+    loc=UnknownLoc(),
 ) -> Expr:
     if isinstance(device_mesh, py_str):
         device_mesh = _lookup_device_mesh(device_mesh)
     if isinstance(placement, py_str):
         placement = Placement.from_text(placement)
-    return _redistribute(value, device_mesh, placement, ty=ty, span=span)
+    return _redistribute(value, device_mesh, placement, ty=ty, loc=loc)
 
 
 __all__ = [

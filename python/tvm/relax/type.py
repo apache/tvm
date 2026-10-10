@@ -21,7 +21,8 @@
 import tvm_ffi
 from tvm_ffi import Array
 
-from tvm.ir import AnyType, EnvFunc, PrimType, Span, TupleType
+from tvm.ir import AnyType, EnvFunc, Location, PrimType, TupleType
+from tvm.ir.base import UnknownLoc
 from tvm.relax.global_info import VDevice
 
 from . import _ffi_api
@@ -50,14 +51,16 @@ class ShapeType(Type):
 
     values: list[Expr] | None
     ndim: int
-    span: Span
+    loc: Location
 
-    def __init__(self, values: list[Expr] | None = None, ndim: int = -1, span: Span = None) -> None:
+    def __init__(
+        self, values: list[Expr] | None = None, ndim: int = -1, loc: Location = UnknownLoc()
+    ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ShapeType,
             values,
             ndim,
-            span,  # type: ignore
+            loc,  # type: ignore
         )
 
 
@@ -88,7 +91,7 @@ class TensorType(Type):
     dtype: PrimType
     vdevice: VDevice | None
     ndim: int
-    span: Span
+    loc: Location
 
     def __init__(
         self,
@@ -96,7 +99,7 @@ class TensorType(Type):
         dtype: str | PrimType | None = "float32",
         vdevice: VDevice | None | str = None,
         ndim: int = -1,
-        span: Span = None,
+        loc: Location = UnknownLoc(),
     ) -> None:
         if isinstance(shape, list | tuple | Array):
             shape = ShapeExpr(shape)
@@ -108,7 +111,7 @@ class TensorType(Type):
             dtype,
             ndim,
             vdevice,
-            span,  # type: ignore
+            loc,  # type: ignore
         )
 
 
@@ -135,17 +138,17 @@ class FuncType(Type):
     ret: Type
     derive_func: EnvFunc | None
     purity: bool
-    span: Span
+    loc: Location
 
     def __init__(
-        self, params: list[Type], ret: Type, purity: bool = True, span: Span = None
+        self, params: list[Type], ret: Type, purity: bool = True, loc: Location = UnknownLoc()
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.FuncType,
             params,
             ret,
             purity,
-            span,  # type: ignore
+            loc,  # type: ignore
         )
 
     @staticmethod
@@ -154,7 +157,7 @@ class FuncType(Type):
         ret: Type | None = None,
         derive_func: str | EnvFunc | None = None,
         purity: bool = False,
-        span: Span = None,
+        loc: Location = UnknownLoc(),
     ) -> "FuncType":
         """
         Create an opaque FuncType.
@@ -174,8 +177,8 @@ class FuncType(Type):
         purity: bool
            Whether the function is pure (false by default, as most opaque functions are not pure)
 
-        span: Optional[Span]
-           Optional span information of the ast.
+        loc: Location
+           Optional loc information of the ast.
 
         Returns
         -------
@@ -188,4 +191,4 @@ class FuncType(Type):
 
         if isinstance(derive_func, str):
             derive_func = EnvFunc.get(derive_func)
-        return _ffi_api.FuncTypeOpaqueFunc(ret, derive_func, purity, span)  # type: ignore
+        return _ffi_api.FuncTypeOpaqueFunc(ret, derive_func, purity, loc)  # type: ignore

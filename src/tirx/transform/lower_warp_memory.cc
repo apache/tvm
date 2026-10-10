@@ -383,13 +383,13 @@ class WarpAccessRewriter : public StmtExprMutator {
     if (args.size() == 4) {
       args.Set(3, Mutate(args[3], InplaceMode::kDisallow).ValueOrUnchanged(args[3]));
     }
-    args.Set(0, tvm::Tuple(new_buf->shape, buffer_call->args[0]->span));
-    args.Set(1, DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span));
-    args.Set(2, StringImm(new_buf.scope(), buffer_call->args[2]->span));
+    args.Set(0, tvm::Tuple(new_buf->shape, buffer_call->args[0]->loc));
+    args.Set(1, DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->loc));
+    args.Set(2, StringImm(new_buf.scope(), buffer_call->args[2]->loc));
     return SeqStmt({Bind(new_buf.var(),
                          Call(new_buf.type(), tirx::alloc_tensor_op(), args, buffer_call->attrs,
-                              buffer_call->ty_args, buffer_call->span),
-                         op->span),
+                              buffer_call->ty_args, buffer_call->loc),
+                         op->loc),
                     rewritten_body});
   }
 
@@ -409,7 +409,7 @@ class WarpAccessRewriter : public StmtExprMutator {
     active_bindings_ = std::move(previous_bindings);
     warp_index_ = previous_index;
     return RegionStmt(op->op, {op->args[0], extent}, op->body_params, op->attrs, body,
-                      op->result_vars, op->span);
+                      op->result_vars, op->loc);
   }
 
   Expr RewriteIndicesAt(const CallNode* op, const std::vector<int>& indices) {
@@ -422,7 +422,7 @@ class WarpAccessRewriter : public StmtExprMutator {
         new_args.Set(i + 1, local_index);
       }
     }
-    return Call(op->ty, op->op, new_args, op->attrs, {}, op->span);
+    return Call(op->ty, op->op, new_args, op->attrs, {}, op->loc);
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
@@ -512,7 +512,7 @@ class WarpAccessRewriter : public StmtExprMutator {
         << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->indices[0]
         << " local_index=" << local_index;
 
-    load = MakeTensorLoad(new_buffer_, {local_index}, load->span);
+    load = MakeTensorLoad(new_buffer_, {local_index}, load->loc);
 
     if (analyzer_->CanProveEqual(group, warp_index_.as_or_throw<PrimExpr>())) {
       return load;
@@ -662,8 +662,7 @@ class WarpMemoryRewriter : public StmtExprMutator {
     Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     active_bindings_ = std::move(previous_bindings);
     warp_index_ = previous_index;
-    return RegionStmt(op->op, op->args, op->body_params, op->attrs, body, op->result_vars,
-                      op->span);
+    return RegionStmt(op->op, op->args, op->body_params, op->attrs, body, op->result_vars, op->loc);
   }
 
   UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) {
@@ -696,7 +695,7 @@ class WarpMemoryRewriter : public StmtExprMutator {
       }
     }
     if (!changed) return ffi::Unchanged();
-    return SeqStmt(new_seq, op->span);
+    return SeqStmt(new_seq, op->loc);
   }
 
   int warp_size_{0};
