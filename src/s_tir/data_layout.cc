@@ -597,7 +597,7 @@ ffi::Optional<SBijectiveLayout> SBijectiveLayout::Create(SLayout src_layout, SLa
   }
   TVM_FFI_ICHECK(
       GetStoreRule(&n->index_backward_rule, &n->shape_backward_rule, n->dst_layout, n->src_layout));
-  return SBijectiveLayout(std::move(n));
+  return SBijectiveLayout(ffi::UnsafeInit{}, std::move(n));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

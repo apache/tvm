@@ -70,8 +70,8 @@ class WorkloadNode : public ffi::Object {
 class Workload : public ffi::ObjectRef {
  public:
   using THashCode = WorkloadNode::THashCode;
-  explicit Workload(ffi::ObjectPtr<WorkloadNode> data) : ffi::ObjectRef(std::move(data)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
+  explicit Workload(ffi::UnsafeInit tag, ffi::ObjectPtr<WorkloadNode> data) : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
   }
   /*!
    * \brief Constructor of Workload.

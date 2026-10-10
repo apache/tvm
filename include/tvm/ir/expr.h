@@ -1043,8 +1043,7 @@ class Range : public ffi::ObjectRef {
    */
   TVM_DLL static Range FromMinExtent(PrimExpr min, PrimExpr extent, Location loc = UnknownLoc());
   // declare range.
-  explicit Range(ffi::ObjectPtr<RangeNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
+  explicit Range(ffi::UnsafeInit tag, ffi::ObjectPtr<RangeNode> n) : ffi::ObjectRef(tag) {
     data_ = std::move(n);
   }
 

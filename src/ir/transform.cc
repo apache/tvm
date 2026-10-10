@@ -180,7 +180,9 @@ ffi::Map<ffi::String, ffi::Map<ffi::String, ffi::String>> PassContext::ListConfi
   return PassConfigManager::Global()->ListConfigs();
 }
 
-PassContext PassContext::Create() { return PassContext(ffi::make_object<PassContextNode>()); }
+PassContext PassContext::Create() {
+  return PassContext(ffi::UnsafeInit{}, ffi::make_object<PassContextNode>());
+}
 
 namespace {
 struct ClearOnError {
@@ -458,11 +460,6 @@ class ModulePassNode : public PassNode {
 class ModulePass : public Pass {
  public:
   ModulePass(std::function<IRModule(IRModule, PassContext)> pass_func, PassInfo pass_info);
-
-  explicit ModulePass(ffi::ObjectPtr<ModulePassNode> n) : Pass(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
-    data_ = std::move(n);
-  }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ModulePass, Pass, ModulePassNode);
 };

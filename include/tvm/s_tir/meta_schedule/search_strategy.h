@@ -142,9 +142,9 @@ class SearchStrategyNode : public ffi::Object {
  */
 class SearchStrategy : public ffi::ObjectRef {
  public:
-  explicit SearchStrategy(ffi::ObjectPtr<SearchStrategyNode> data)
-      : ffi::ObjectRef(std::move(data)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
+  explicit SearchStrategy(ffi::UnsafeInit tag, ffi::ObjectPtr<SearchStrategyNode> data)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
   }
 
   /*!

@@ -35,7 +35,7 @@ FeatureExtractor FeatureExtractor::PyFeatureExtractor(
     PyFeatureExtractorNode::FExtractFrom f_extract_from) {
   ffi::ObjectPtr<PyFeatureExtractorNode> n = ffi::make_object<PyFeatureExtractorNode>();
   n->f_extract_from = std::move(f_extract_from);
-  return FeatureExtractor(n);
+  return FeatureExtractor(ffi::UnsafeInit{}, n);
 }
 
 // Pattern A (RM): auto-default repr from reflection.

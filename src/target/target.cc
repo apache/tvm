@@ -52,7 +52,7 @@ class TargetInternal {
   static Target WithHost(const Target& target, const ffi::Optional<Target>& target_host) {
     ffi::ObjectPtr<TargetNode> n = ffi::make_object<TargetNode>(*target.get());
     n->host = target_host;
-    return Target(std::move(n));
+    return Target(ffi::UnsafeInit{}, std::move(n));
   }
 
  private:
@@ -170,7 +170,7 @@ Target Target::WithoutHost() const {
   if ((*this)->GetHost()) {
     auto output = ffi::make_object<TargetNode>(*get());
     output->host = std::nullopt;
-    return Target(std::move(output));
+    return Target(ffi::UnsafeInit{}, std::move(output));
   } else {
     return *this;
   }

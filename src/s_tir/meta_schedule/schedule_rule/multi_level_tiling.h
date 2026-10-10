@@ -140,8 +140,8 @@ class StateNode : public ffi::Object {
 /*! \brief Managed reference to StateNode */
 class State : public ffi::ObjectRef {
  public:
-  explicit State(ffi::ObjectPtr<StateNode> data) : ffi::ObjectRef(std::move(data)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
+  explicit State(ffi::UnsafeInit tag, ffi::ObjectPtr<StateNode> data) : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
   }
 
   /*! \brief Default constructor */

@@ -72,10 +72,6 @@ class MatchResult : public ffi::ObjectRef {
   TVM_DLL explicit MatchResult(TIRPattern pattern, ffi::Array<PrimExpr> symbol_values,
                                ffi::Array<tirx::TensorVar> matched_buffers);
 
-  explicit MatchResult(ffi::ObjectPtr<MatchResultNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
-    data_ = std::move(n);
-  }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MatchResult, ffi::ObjectRef, MatchResultNode);
 };
 

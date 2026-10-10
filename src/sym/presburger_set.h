@@ -146,10 +146,6 @@ class PresburgerSet : public IntSet {
   TVM_DLL PresburgerSet(const PrimExpr& constraint);
 
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PresburgerSetNode);
-  explicit PresburgerSet(ffi::ObjectPtr<PresburgerSetNode> node) : IntSet(std::move(node)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
-
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PresburgerSet, IntSet, PresburgerSetNode);
 };
 #endif  // TVM_MLIR_VERSION >= 150

@@ -200,7 +200,7 @@ class MutateParallelNode : public MutatorNode {
   // Inherit from `MutatorNode`
   Mutator Clone() const final {
     ffi::ObjectPtr<MutateParallelNode> n = ffi::make_object<MutateParallelNode>(*this);
-    return Mutator(n);
+    return Mutator(ffi::UnsafeInit{}, n);
   }
 };
 
@@ -317,7 +317,7 @@ ffi::Optional<Trace> MutateParallelNode::Apply(const Trace& trace, TRandState* r
 Mutator Mutator::MutateParallel(int64_t max_jobs_per_core) {
   ffi::ObjectPtr<MutateParallelNode> n = ffi::make_object<MutateParallelNode>();
   n->max_jobs_per_core = max_jobs_per_core;
-  return Mutator(n);
+  return Mutator(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { MutateParallelNode::RegisterReflection(); }

@@ -415,11 +415,6 @@ class PatternContextRewriter : public PatternMatchingRewriter {
       ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, Expr>)>
           rewriter_func);
 
-  explicit PatternContextRewriter(ffi::ObjectPtr<PatternContextRewriterNode> n)
-      : PatternMatchingRewriter(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
-    data_ = std::move(n);
-  }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PatternContextRewriter, PatternMatchingRewriter,
                                                 PatternContextRewriterNode);
 };

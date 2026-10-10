@@ -886,8 +886,8 @@ class ScheduleNode : public ffi::Object {
  */
 class Schedule : public ffi::ObjectRef {
  public:
-  explicit Schedule(ffi::ObjectPtr<ScheduleNode> data) : ffi::ObjectRef(std::move(data)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
+  explicit Schedule(ffi::UnsafeInit tag, ffi::ObjectPtr<ScheduleNode> data) : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
   }
 
   /*!

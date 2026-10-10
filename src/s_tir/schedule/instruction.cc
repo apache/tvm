@@ -118,7 +118,7 @@ class InstructionKindRegistry {
     if (auto kind = kinds_.Get(name)) {
       return *kind;
     }
-    InstructionKind kind(ffi::make_object<InstructionKindNode>());
+    InstructionKind kind(ffi::UnsafeInit{}, ffi::make_object<InstructionKindNode>());
     kinds_.Set(name, kind);
     return kind;
   }

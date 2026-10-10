@@ -127,10 +127,6 @@ class IterMark : public ffi::ObjectRef {
    */
   TVM_DLL IterMark(PrimExpr source, PrimExpr extent);
 
-  explicit IterMark(ffi::ObjectPtr<IterMarkNode> node) : ffi::ObjectRef(std::move(node)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
-
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IterMark, ffi::ObjectRef, IterMarkNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterMarkNode);
 };

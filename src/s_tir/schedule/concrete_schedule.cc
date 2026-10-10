@@ -44,7 +44,7 @@ Schedule Schedule::Concrete(IRModule mod, LinearCongruentialEngine::TRandState s
   } else {
     n->func_working_on_ = std::nullopt;
   }
-  return Schedule(std::move(n));
+  return Schedule(ffi::UnsafeInit{}, std::move(n));
 }
 
 /******** Copy ********/
@@ -68,7 +68,7 @@ class ScheduleCopier {
     n->stmt2ref = copier.Copy(src_state->stmt2ref);
     n->debug_mask = src_state->debug_mask;
     n->enable_check = src_state->enable_check;
-    *new_state = ScheduleState(std::move(n));
+    *new_state = ScheduleState(ffi::UnsafeInit{}, std::move(n));
     *new_symbol_table = copier.Copy(self->symbol_table_);
   }
 
@@ -206,7 +206,7 @@ Schedule ConcreteScheduleNode::Copy() {
   ConcreteScheduleNode::Copy(&n->state_, &n->symbol_table_);
   n->analyzer_ = sym::Analyzer();  // new analyzer needed because it is stateful
   n->rand_state_ = ForkSeed();
-  return Schedule(std::move(n));
+  return Schedule(ffi::UnsafeInit{}, std::move(n));
 }
 
 /*! \brief Macro that guards the beginning of each invocation of TensorIR schedule primitive */

@@ -158,10 +158,6 @@ class IntSet : public ffi::ObjectRef {
    */
   static IntSet Interval(PrimExpr min, PrimExpr max);
 
-  explicit IntSet(ffi::ObjectPtr<IntSetNode> node) : ffi::ObjectRef(std::move(node)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
-
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IntSet, ffi::ObjectRef, IntSetNode);
 };
 

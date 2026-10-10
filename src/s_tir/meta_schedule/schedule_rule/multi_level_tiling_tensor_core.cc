@@ -108,10 +108,6 @@ class TensorCoreStateNode : public StateNode {
 
 class TensorCoreState : public State {
  public:
-  explicit TensorCoreState(ffi::ObjectPtr<TensorCoreStateNode> data) : State(std::move(data)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
-
   explicit TensorCoreState(TensorCoreIntrinGroup intrin_group,
                            s_tir::AutoTensorizeMappingInfo mapping_info, Schedule sch,
                            SBlockRV block_rv, bool use_async,
@@ -138,7 +134,7 @@ TensorCoreState::TensorCoreState(TensorCoreIntrinGroup intrin_group,
 State TensorCoreStateNode::Copy() const {
   ffi::ObjectPtr<TensorCoreStateNode> node = ffi::make_object<TensorCoreStateNode>(*this);
   node->sch = sch->Copy();
-  return State(node);
+  return State(ffi::UnsafeInit{}, node);
 }
 
 /*!
@@ -181,7 +177,7 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
   ScheduleRule Clone() const final {
     ffi::ObjectPtr<MultiLevelTilingTensorCoreNode> n =
         ffi::make_object<MultiLevelTilingTensorCoreNode>(*this);
-    return ScheduleRule(n);
+    return ScheduleRule(ffi::UnsafeInit{}, n);
   }
 
   /*!
@@ -969,7 +965,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
   }
 
   node->use_software_pipeline = use_software_pipeline;
-  return ScheduleRule(node);
+  return ScheduleRule(ffi::UnsafeInit{}, node);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

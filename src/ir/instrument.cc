@@ -116,12 +116,6 @@ class BasePassInstrument : public PassInstrument {
       ffi::TypedFunction<void(const IRModule&, const PassInfo&)> run_before_pass_callback,
       ffi::TypedFunction<void(const IRModule&, const PassInfo&)> run_after_pass_callback);
 
-  explicit BasePassInstrument(ffi::ObjectPtr<BasePassInstrumentNode> n)
-      : PassInstrument(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
-    data_ = std::move(n);
-  }
-
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BasePassInstrument, PassInstrument,
                                                 BasePassInstrumentNode);
 };

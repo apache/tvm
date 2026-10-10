@@ -76,8 +76,8 @@ class PostprocNode : public ffi::Object {
  */
 class Postproc : public ffi::ObjectRef {
  public:
-  explicit Postproc(ffi::ObjectPtr<PostprocNode> data) : ffi::ObjectRef(std::move(data)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
+  explicit Postproc(ffi::UnsafeInit tag, ffi::ObjectPtr<PostprocNode> data) : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
   }
 
   /*!

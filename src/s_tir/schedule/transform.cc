@@ -92,7 +92,7 @@ ffi::Array<MatchBufferRegion> ReplaceBuffer(ffi::Array<MatchBufferRegion> match_
           ffi::ObjectPtr<MatchBufferRegionNode> n =
               ffi::make_object<MatchBufferRegionNode>(*match_buffer.get());
           n->source = BufferRegion(target, n->source->region);
-          return MatchBufferRegion(n);
+          return MatchBufferRegion(ffi::UnsafeInit{}, n);
         }
         return match_buffer;
       });
@@ -120,7 +120,7 @@ ffi::Array<MatchBufferRegion> ReplaceBufferRegion(ffi::Array<MatchBufferRegion> 
       ffi::ObjectPtr<MatchBufferRegionNode> n =
           ffi::make_object<MatchBufferRegionNode>(*match_buffer.get());
       n->source = target;
-      return MatchBufferRegion(n);
+      return MatchBufferRegion(ffi::UnsafeInit{}, n);
     }
     return match_buffer;
   });

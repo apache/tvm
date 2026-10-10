@@ -66,7 +66,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
   ScheduleRule Clone() const final {
     ffi::ObjectPtr<RandomComputeLocationNode> n =
         ffi::make_object<RandomComputeLocationNode>(*this);
-    return ScheduleRule(n);
+    return ScheduleRule(ffi::UnsafeInit{}, n);
   }
 
  private:
@@ -126,7 +126,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
 };
 
 ScheduleRule ScheduleRule::RandomComputeLocation() {
-  return ScheduleRule(ffi::make_object<RandomComputeLocationNode>());
+  return ScheduleRule(ffi::UnsafeInit{}, ffi::make_object<RandomComputeLocationNode>());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { RandomComputeLocationNode::RegisterReflection(); }

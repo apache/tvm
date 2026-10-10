@@ -89,8 +89,8 @@ class CUDAIPCMemory : public ffi::ObjectRef {
    */
   TVM_RUNTIME_DLL static CUDAIPCMemory GetIPCMemoryFromDevicePtr(void* ptr);
 
-  explicit CUDAIPCMemory(ffi::ObjectPtr<CUDAIPCMemoryObj> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
+  explicit CUDAIPCMemory(ffi::UnsafeInit tag, ffi::ObjectPtr<CUDAIPCMemoryObj> n)
+      : ffi::ObjectRef(tag) {
     data_ = std::move(n);
   }
 

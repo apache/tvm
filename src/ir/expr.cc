@@ -1097,8 +1097,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Range
 Range::Range(PrimExpr begin, PrimExpr end, Location loc)
-    : Range(ffi::make_object<RangeNode>(begin, tvm::prim::IsZero(begin) ? end : (end - begin),
-                                        loc)) {}
+    : Range(ffi::UnsafeInit{}, ffi::make_object<RangeNode>(
+                                   begin, tvm::prim::IsZero(begin) ? end : (end - begin), loc)) {}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -1120,7 +1120,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Location loc) {
-  return Range(ffi::make_object<RangeNode>(min, extent, loc));
+  return Range(ffi::UnsafeInit{}, ffi::make_object<RangeNode>(min, extent, loc));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

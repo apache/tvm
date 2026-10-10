@@ -90,7 +90,7 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
   ScheduleRule Clone() const final {
     ffi::ObjectPtr<ParallelizeVectorizeUnrollNode> n =
         ffi::make_object<ParallelizeVectorizeUnrollNode>(*this);
-    return ScheduleRule(n);
+    return ScheduleRule(ffi::UnsafeInit{}, n);
   }
 
  public:
@@ -138,7 +138,7 @@ ScheduleRule ScheduleRule::ParallelizeVectorizeUnroll(int max_jobs_per_core,
   n->unroll_max_steps = unroll_max_steps;
   n->unroll_explicit = unroll_explicit;
   n->max_parallel_extent_ = -1;
-  return ScheduleRule(n);
+  return ScheduleRule(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { ParallelizeVectorizeUnrollNode::RegisterReflection(); }

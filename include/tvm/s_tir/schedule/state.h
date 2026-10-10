@@ -212,8 +212,9 @@ class ScheduleStateNode : public ffi::Object {
  */
 class ScheduleState : public ffi::ObjectRef {
  public:
-  explicit ScheduleState(ffi::ObjectPtr<ScheduleStateNode> data) : ffi::ObjectRef(std::move(data)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
+  explicit ScheduleState(ffi::UnsafeInit tag, ffi::ObjectPtr<ScheduleStateNode> data)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
   }
 
   /*!

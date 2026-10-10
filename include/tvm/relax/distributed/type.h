@@ -68,8 +68,8 @@ class PlacementSpec : public ffi::ObjectRef {
 
   TVM_DLL static PlacementSpec Replica();
 
-  explicit PlacementSpec(ffi::ObjectPtr<PlacementSpecNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
+  explicit PlacementSpec(ffi::UnsafeInit tag, ffi::ObjectPtr<PlacementSpecNode> n)
+      : ffi::ObjectRef(tag) {
     data_ = std::move(n);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PlacementSpec, ffi::ObjectRef, PlacementSpecNode);
@@ -114,10 +114,6 @@ class Placement : public ffi::ObjectRef {
   TVM_DLL explicit Placement(ffi::Array<PlacementSpec> dim_specs);
   /*! \brief replica dim is printed as "R" and sharding dim is printed as "S[i]".]*/
   static Placement FromText(ffi::String text_repr);
-  explicit Placement(ffi::ObjectPtr<PlacementNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
-    data_ = std::move(n);
-  }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Placement, ffi::ObjectRef, PlacementNode);
 };
 

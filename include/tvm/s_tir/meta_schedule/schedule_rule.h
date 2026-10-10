@@ -80,8 +80,9 @@ class ScheduleRuleNode : public ffi::Object {
  */
 class ScheduleRule : public ffi::ObjectRef {
  public:
-  explicit ScheduleRule(ffi::ObjectPtr<ScheduleRuleNode> data) : ffi::ObjectRef(std::move(data)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
+  explicit ScheduleRule(ffi::UnsafeInit tag, ffi::ObjectPtr<ScheduleRuleNode> data)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
   }
 
   /*!

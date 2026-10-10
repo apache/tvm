@@ -74,7 +74,7 @@ State::State(s_tir::Schedule sch, s_tir::SBlockRV block_rv,
 State StateNode::Copy() const {
   ffi::ObjectPtr<StateNode> node = ffi::make_object<StateNode>(*this);
   node->sch = sch->Copy();
-  return State(node);
+  return State(ffi::UnsafeInit{}, node);
 }
 
 // Do nothing; Inherited from ScheduleRuleNode
@@ -126,7 +126,7 @@ ffi::Array<Schedule> MultiLevelTilingNode::Apply(const Schedule& sch, const SBlo
 // Inherited from ScheduleRuleNode
 ScheduleRule MultiLevelTilingNode::Clone() const {
   ffi::ObjectPtr<MultiLevelTilingNode> n = ffi::make_object<MultiLevelTilingNode>(*this);
-  return ScheduleRule(n);
+  return ScheduleRule(ffi::UnsafeInit{}, n);
 }
 
 std::vector<State> MultiLevelTilingNode::ApplySubRules(std::vector<State> states) {
@@ -416,7 +416,7 @@ ScheduleRule ScheduleRule::MultiLevelTiling(
   auto node = MultiLevelTilingInitCommon<MultiLevelTilingNode>(
       structure, tile_binds, max_innermost_factor, vector_load_lens, reuse_read, reuse_write);
   node->filter_fn_ = filter_fn;
-  return ScheduleRule(node);
+  return ScheduleRule(ffi::UnsafeInit{}, node);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

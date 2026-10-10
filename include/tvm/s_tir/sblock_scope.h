@@ -107,10 +107,6 @@ class StmtSRefNode : public ffi::Object {
  */
 class StmtSRef : public ffi::ObjectRef {
  public:
-  explicit StmtSRef(ffi::ObjectPtr<StmtSRefNode> data) : ffi::ObjectRef(std::move(data)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
-
   /*!
    * \brief The constructor
    * \param stmt The corresponding stmt node, can be either block or for loop.

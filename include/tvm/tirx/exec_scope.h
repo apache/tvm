@@ -134,10 +134,6 @@ class ExecScope : public ffi::ObjectRef {
   /*! \brief Construct from a name string (FATALs on unknown name). */
   TVM_DLL explicit ExecScope(const ffi::String& name) : ExecScope(StringToScopeKind(name)) {}
 
-  explicit ExecScope(ffi::ObjectPtr<ExecScopeNode> node) : ffi::ObjectRef(std::move(node)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
-
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExecScope, ffi::ObjectRef, ExecScopeNode);
 };
 

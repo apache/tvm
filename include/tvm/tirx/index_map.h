@@ -268,10 +268,6 @@ class IndexMap : public ffi::ObjectRef {
   std::pair<IndexMap, PrimExpr> NonSurjectiveInverse(ffi::Array<Range> initial_ranges,
                                                      const sym::Analyzer& analyzer) const;
 
-  explicit IndexMap(ffi::ObjectPtr<IndexMapNode> node) : ffi::ObjectRef(std::move(node)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
-
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IndexMap, ffi::ObjectRef, IndexMapNode);
 };
 

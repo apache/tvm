@@ -58,7 +58,7 @@ class VerifyVTCMLimitNode : public PostprocNode {
 
   Postproc Clone() const {
     ffi::ObjectPtr<VerifyVTCMLimitNode> n = ffi::make_object<VerifyVTCMLimitNode>(*this);
-    return Postproc(n);
+    return Postproc(ffi::UnsafeInit{}, n);
   }
 
   static void RegisterReflection() {
@@ -72,7 +72,7 @@ class VerifyVTCMLimitNode : public PostprocNode {
 
 Postproc Postproc::VerifyVTCMLimit() {
   ffi::ObjectPtr<VerifyVTCMLimitNode> n = ffi::make_object<VerifyVTCMLimitNode>();
-  return Postproc(n);
+  return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

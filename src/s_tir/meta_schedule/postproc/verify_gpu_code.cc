@@ -222,7 +222,7 @@ class VerifyGPUCodeNode : public PostprocNode {
   Postproc Clone() const {
     ffi::ObjectPtr<VerifyGPUCodeNode> n = ffi::make_object<VerifyGPUCodeNode>(*this);
     n->target_constraints_ = this->target_constraints_;
-    return Postproc(n);
+    return Postproc(ffi::UnsafeInit{}, n);
   }
 
   static void RegisterReflection() {
@@ -236,7 +236,7 @@ class VerifyGPUCodeNode : public PostprocNode {
 
 Postproc Postproc::VerifyGPUCode() {
   ffi::ObjectPtr<VerifyGPUCodeNode> n = ffi::make_object<VerifyGPUCodeNode>();
-  return Postproc(n);
+  return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

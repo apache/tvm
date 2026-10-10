@@ -48,7 +48,7 @@ Postproc Postproc::PyPostproc(
   n->f_initialize_with_tune_context = std::move(f_initialize_with_tune_context);
   n->f_apply = std::move(f_apply);
   n->f_clone = std::move(f_clone);
-  return Postproc(n);
+  return Postproc(ffi::UnsafeInit{}, n);
 }
 
 ffi::Array<Postproc> Postproc::DefaultLLVM() {

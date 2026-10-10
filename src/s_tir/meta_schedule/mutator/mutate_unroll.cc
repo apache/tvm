@@ -72,7 +72,7 @@ class MutateUnrollNode : public MutatorNode {
   // Inherit from `MutatorNode`
   Mutator Clone() const final {
     ffi::ObjectPtr<MutateUnrollNode> n = ffi::make_object<MutateUnrollNode>(*this);
-    return Mutator(n);
+    return Mutator(ffi::UnsafeInit{}, n);
   }
 };
 
@@ -146,7 +146,9 @@ ffi::Optional<Trace> MutateUnrollNode::Apply(const Trace& trace, TRandState* ran
                              /*remove_postproc=*/true);
 }
 
-Mutator Mutator::MutateUnroll() { return Mutator(ffi::make_object<MutateUnrollNode>()); }
+Mutator Mutator::MutateUnroll() {
+  return Mutator(ffi::UnsafeInit{}, ffi::make_object<MutateUnrollNode>());
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() { MutateUnrollNode::RegisterReflection(); }
 

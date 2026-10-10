@@ -123,7 +123,7 @@ void LoadMetaDataFromFile(const std::string& file_name, ffi::Map<ffi::String, Fu
   for (const auto& kv : func_info_obj) {
     auto info_node = ffi::make_object<FunctionInfoObj>();
     info_node->LoadFromJSON(kv.second.cast<json::Object>());
-    fmap->Set(kv.first.cast<ffi::String>(), FunctionInfo(std::move(info_node)));
+    fmap->Set(kv.first.cast<ffi::String>(), FunctionInfo(ffi::UnsafeInit{}, std::move(info_node)));
   }
 }
 
@@ -243,7 +243,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         for (const auto& kv : func_info_obj) {
           auto info_node = ffi::make_object<FunctionInfoObj>();
           info_node->LoadFromJSON(kv.second.cast<json::Object>());
-          fmap.Set(kv.first.cast<ffi::String>(), FunctionInfo(std::move(info_node)));
+          fmap.Set(kv.first.cast<ffi::String>(),
+                   FunctionInfo(ffi::UnsafeInit{}, std::move(info_node)));
         }
         return fmap;
       });

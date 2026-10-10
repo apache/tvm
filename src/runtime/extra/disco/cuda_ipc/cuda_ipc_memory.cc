@@ -113,7 +113,7 @@ class CUDAIPCMemoryAllocator final : public memory::PooledAllocator {
     ipc_memory->barrier_flag = 1;
     ipc_memory->num_workers = nccl_ctx->worker->num_workers;
     ipc_memory->worker_id = nccl_ctx->worker->worker_id;
-    ipc_memory_map_[data_ptr] = CUDAIPCMemory(std::move(ipc_memory));
+    ipc_memory_map_[data_ptr] = CUDAIPCMemory(ffi::UnsafeInit{}, std::move(ipc_memory));
     return data_ptr;
   }
 

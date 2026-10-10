@@ -117,7 +117,7 @@ class RewriteUnboundBlockNode : public PostprocNode {
 
   Postproc Clone() const {
     ffi::ObjectPtr<RewriteUnboundBlockNode> n = ffi::make_object<RewriteUnboundBlockNode>(*this);
-    return Postproc(n);
+    return Postproc(ffi::UnsafeInit{}, n);
   }
 
  public:
@@ -158,7 +158,7 @@ Postproc Postproc::RewriteUnboundBlock(int max_threadblocks) {
   ffi::ObjectPtr<RewriteUnboundBlockNode> n = ffi::make_object<RewriteUnboundBlockNode>();
   n->max_threadblocks_ = max_threadblocks;
   n->max_threads_per_block_ = -1;
-  return Postproc(n);
+  return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { RewriteUnboundBlockNode::RegisterReflection(); }

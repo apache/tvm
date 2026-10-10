@@ -1593,7 +1593,7 @@ FeatureExtractor FeatureExtractor::PerStoreFeature(int buffers_per_store,
   if (extract_workload) {
     n->feature_vector_length += s_tir::group6::Feature::kCount;
   }
-  return FeatureExtractor(n);
+  return FeatureExtractor(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { PerStoreFeatureNode::RegisterReflection(); }

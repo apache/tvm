@@ -54,7 +54,7 @@ class MutateThreadBindingNode : public MutatorNode {
   // Inherit from `MutatorNode`
   Mutator Clone() const final {
     ffi::ObjectPtr<MutateThreadBindingNode> n = ffi::make_object<MutateThreadBindingNode>(*this);
-    return Mutator(n);
+    return Mutator(ffi::UnsafeInit{}, n);
   }
 
  private:
@@ -174,7 +174,7 @@ ffi::Optional<Trace> MutateThreadBindingNode::Apply(const Trace& trace, TRandSta
 }
 
 Mutator Mutator::MutateThreadBinding() {
-  return Mutator(ffi::make_object<MutateThreadBindingNode>());
+  return Mutator(ffi::UnsafeInit{}, ffi::make_object<MutateThreadBindingNode>());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { MutateThreadBindingNode::RegisterReflection(); }

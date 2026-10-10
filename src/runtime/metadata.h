@@ -165,8 +165,8 @@ class FunctionInfo : public ffi::ObjectRef {
     data_ = std::move(n);
   }
 
-  explicit FunctionInfo(ffi::ObjectPtr<FunctionInfoObj> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
+  explicit FunctionInfo(ffi::UnsafeInit tag, ffi::ObjectPtr<FunctionInfoObj> n)
+      : ffi::ObjectRef(tag) {
     data_ = std::move(n);
   }
 
@@ -206,7 +206,7 @@ struct Serializer<runtime::FunctionInfo> {
       if (!Serializer<ffi::Map<ffi::String, int64_t>>::Read(strm, &(n->cuda_kernel_attrs)))
         return false;
     }
-    *info = runtime::FunctionInfo(std::move(n));
+    *info = runtime::FunctionInfo(ffi::UnsafeInit{}, std::move(n));
     return true;
   }
 };

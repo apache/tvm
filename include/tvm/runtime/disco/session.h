@@ -312,8 +312,7 @@ class Session : public ffi::ObjectRef {
                                                 ffi::String process_pool_creator,
                                                 ffi::String entrypoint);
 
-  explicit Session(ffi::ObjectPtr<SessionObj> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
+  explicit Session(ffi::UnsafeInit tag, ffi::ObjectPtr<SessionObj> n) : ffi::ObjectRef(tag) {
     data_ = std::move(n);
   }
 

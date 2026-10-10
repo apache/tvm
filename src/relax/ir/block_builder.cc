@@ -1028,11 +1028,11 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
         if (const auto* dataflow_block = ret.back().as<DataflowBlockNode>()) {
           auto n = ffi::make_object<DataflowBlockNode>(*dataflow_block);
           n->bindings.insert(n->bindings.end(), block->bindings.begin(), block->bindings.end());
-          merged = DataflowBlock(n);
+          merged = DataflowBlock(ffi::UnsafeInit{}, std::move(n));
         } else if (const auto* binding_block = ret.back().as<BindingBlockNode>()) {
           auto n = ffi::make_object<BindingBlockNode>(*binding_block);
           n->bindings.insert(n->bindings.end(), block->bindings.begin(), block->bindings.end());
-          merged = BindingBlock(n);
+          merged = BindingBlock(ffi::UnsafeInit{}, std::move(n));
         } else {
           TVM_FFI_THROW(InternalError) << "Unknown block type: " << ret.back()->GetTypeKey();
         }
@@ -1065,14 +1065,14 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
 BlockBuilder BlockBuilder::Create(ffi::Optional<IRModule> mod) {
   ffi::ObjectPtr<BlockBuilderNode> n = ffi::make_object<Normalizer>(mod.value_or(IRModule()));
-  return BlockBuilder(n);
+  return BlockBuilder(ffi::UnsafeInit{}, std::move(n));
 }
 
 BlockBuilder BlockBuilder::Create(ffi::Optional<IRModule> mod,
                                   BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript) {
   ffi::ObjectPtr<BlockBuilderNode> n = ffi::make_object<Normalizer>(
       mod.value_or(IRModule()), BlockBuilder::DisableOperatorSpecificNormalizationForTVMScript());
-  return BlockBuilder(n);
+  return BlockBuilder(ffi::UnsafeInit{}, std::move(n));
 }
 
 //---------------------------------------

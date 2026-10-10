@@ -46,11 +46,6 @@ class GlobalInfoNode : public ffi::Object {
  */
 class GlobalInfo : public ffi::ObjectRef {
  public:
-  explicit GlobalInfo(ffi::ObjectPtr<GlobalInfoNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
-    data_ = std::move(n);
-  }
-
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(GlobalInfo, ffi::ObjectRef, GlobalInfoNode);
 };
 

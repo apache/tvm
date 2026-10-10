@@ -160,8 +160,7 @@ class Target : public ffi::ObjectRef {
    * \param host The Target typed object for target host
    */
   TVM_DLL explicit Target(Target target, ffi::Optional<Target> host);
-  explicit Target(ffi::ObjectPtr<TargetNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
+  explicit Target(ffi::UnsafeInit tag, ffi::ObjectPtr<TargetNode> n) : ffi::ObjectRef(tag) {
     data_ = std::move(n);
   }
 

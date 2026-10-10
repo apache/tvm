@@ -52,7 +52,7 @@ te::Tensor TETensor(Expr value, ffi::Map<tvm::Var, PrimExpr> tir_var_map, std::s
       shape.push_back(IntImm::Int64(shape_tuple[i]));
     }
     n->shape = std::move(shape);
-    return te::PlaceholderOp(n).output(0);
+    return te::PlaceholderOp(ffi::UnsafeInit{}, std::move(n)).output(0);
   }
   TVM_FFI_ICHECK(!value->ty.as<MissingType>().has_value())
       << "value must be normalized and contain Type";
@@ -73,7 +73,7 @@ te::Tensor TETensor(Expr value, ffi::Map<tvm::Var, PrimExpr> tir_var_map, std::s
         .as_or_throw<PrimExpr>();
   });
   n->dtype = tensor_ty->dtype.value();
-  return te::PlaceholderOp(n).output(0);
+  return te::PlaceholderOp(ffi::UnsafeInit{}, std::move(n)).output(0);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

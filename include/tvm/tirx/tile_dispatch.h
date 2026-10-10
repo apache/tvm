@@ -130,11 +130,6 @@ class DispatchContext : public ffi::ObjectRef {
                           ffi::Map<ffi::String, ffi::Array<PrimExpr>> intra = {},
                           ffi::String scope_kind = "");
 
-  explicit DispatchContext(ffi::ObjectPtr<DispatchContextNode> node)
-      : ffi::ObjectRef(std::move(node)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
-
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DispatchContext, ffi::ObjectRef,
                                                 DispatchContextNode);
 };

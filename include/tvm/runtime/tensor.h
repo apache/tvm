@@ -49,13 +49,6 @@ namespace runtime {
 class Tensor : public tvm::ffi::Tensor {
  public:
   static constexpr bool _type_is_nullable = false;
-  /*!
-   * \brief constructor.
-   * \param data ffi::ObjectPtr to the data container.
-   */
-  explicit Tensor(ffi::ObjectPtr<ffi::TensorObj> data) : tvm::ffi::Tensor(data) {
-    TVM_FFI_ICHECK(data != nullptr);
-  }
   explicit Tensor(ffi::UnsafeInit tag) : tvm::ffi::Tensor(tag) {}
   Tensor(ffi::Tensor&& other) : tvm::ffi::Tensor(std::move(other)) {
     TVM_FFI_ICHECK(defined());

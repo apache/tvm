@@ -63,9 +63,6 @@ class Tensor;
 class Operation : public ffi::ObjectRef {
  public:
   static constexpr bool _type_is_nullable = false;
-  explicit Operation(ffi::ObjectPtr<ffi::Object> n) : ffi::ObjectRef(std::move(n)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
   explicit Operation(ffi::UnsafeInit tag) : ffi::ObjectRef(tag) {}
   /*!
    * \brief access the internal node container

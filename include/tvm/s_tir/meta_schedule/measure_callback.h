@@ -109,9 +109,9 @@ class PyMeasureCallbackNode : public MeasureCallbackNode {
  */
 class MeasureCallback : public ffi::ObjectRef {
  public:
-  explicit MeasureCallback(ffi::ObjectPtr<MeasureCallbackNode> data)
-      : ffi::ObjectRef(std::move(data)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
+  explicit MeasureCallback(ffi::UnsafeInit tag, ffi::ObjectPtr<MeasureCallbackNode> data)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
   }
 
   /*!

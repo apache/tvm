@@ -71,8 +71,7 @@ class SourceName : public ffi::ObjectRef {
    */
   TVM_DLL static SourceName Get(const ffi::String& name);
 
-  explicit SourceName(ffi::ObjectPtr<SourceNameNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
+  explicit SourceName(ffi::UnsafeInit tag, ffi::ObjectPtr<SourceNameNode> n) : ffi::ObjectRef(tag) {
     data_ = std::move(n);
   }
 

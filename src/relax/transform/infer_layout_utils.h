@@ -93,11 +93,6 @@ class LayoutDecision : public ffi::ObjectRef {
     return operator->()->layout.has_value() ? operator->()->layout.value().name() : "__undef__";
   }
 
-  explicit LayoutDecision(ffi::ObjectPtr<LayoutDecisionNode> n)
-      : ffi::ObjectRef(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
-    data_ = std::move(n);
-  }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LayoutDecision, ffi::ObjectRef, LayoutDecisionNode);
 };
 
@@ -139,11 +134,6 @@ class InferLayoutOutput : public ffi::ObjectRef {
     n->new_attrs = std::move(new_attrs);
     n->new_args = std::move(new_args);
     data_ = n;
-  }
-  explicit InferLayoutOutput(ffi::ObjectPtr<InferLayoutOutputNode> n)
-      : ffi::ObjectRef(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
-    data_ = std::move(n);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(InferLayoutOutput, ffi::ObjectRef,
                                                 InferLayoutOutputNode);

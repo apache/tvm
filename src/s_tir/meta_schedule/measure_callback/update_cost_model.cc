@@ -68,7 +68,7 @@ class UpdateCostModelNode : public MeasureCallbackNode {
 
 MeasureCallback MeasureCallback::UpdateCostModel() {
   ffi::ObjectPtr<UpdateCostModelNode> n = ffi::make_object<UpdateCostModelNode>();
-  return MeasureCallback(n);
+  return MeasureCallback(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

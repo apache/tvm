@@ -130,10 +130,6 @@ class LayoutNode : public ffi::Object {
 
 class Layout : public ffi::ObjectRef {
  public:
-  explicit Layout(ffi::ObjectPtr<LayoutNode> node) : ffi::ObjectRef(std::move(node)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
-
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Layout, ffi::ObjectRef, LayoutNode);
 };
 
@@ -208,10 +204,6 @@ class IterNode : public ffi::Object {
 class Iter : public ffi::ObjectRef {
  public:
   TVM_DLL explicit Iter(PrimExpr extent, PrimExpr stride, Axis axis);
-  explicit Iter(ffi::ObjectPtr<IterNode> node) : ffi::ObjectRef(std::move(node)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
-
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Iter, ffi::ObjectRef, IterNode);
 };
 
@@ -312,10 +304,6 @@ class TileLayout : public Layout {
   TVM_DLL explicit TileLayout(ffi::Array<Iter> shard, ffi::Array<Iter> replica,
                               ffi::Map<Axis, PrimExpr> offset);
 
-  explicit TileLayout(ffi::ObjectPtr<TileLayoutNode> node) : Layout(std::move(node)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
-
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TileLayout, Layout, TileLayoutNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TileLayoutNode);
 };
@@ -405,10 +393,6 @@ class ComposeLayout : public Layout {
  public:
   TVM_DLL explicit ComposeLayout(int per_element, int swizzle_len, int atom_len,
                                  TileLayout tile_layout, bool swizzle_inner = true);
-
-  explicit ComposeLayout(ffi::ObjectPtr<ComposeLayoutNode> node) : Layout(std::move(node)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ComposeLayout, Layout, ComposeLayoutNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComposeLayoutNode);

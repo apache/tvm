@@ -138,7 +138,7 @@ class RewriteReductionBlockNode : public PostprocNode {
   Postproc Clone() const {
     ffi::ObjectPtr<RewriteReductionBlockNode> n =
         ffi::make_object<RewriteReductionBlockNode>(*this);
-    return Postproc(n);
+    return Postproc(ffi::UnsafeInit{}, n);
   }
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RewriteReductionBlock",
@@ -189,7 +189,7 @@ bool RewriteReductionBlockNode::Apply(const s_tir::Schedule& sch) {
 
 Postproc Postproc::RewriteReductionBlock() {
   ffi::ObjectPtr<RewriteReductionBlockNode> n = ffi::make_object<RewriteReductionBlockNode>();
-  return Postproc(n);
+  return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

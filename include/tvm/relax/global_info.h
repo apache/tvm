@@ -66,10 +66,6 @@ class VDeviceNode : public GlobalInfoNode {
 class VDevice : public GlobalInfo {
  public:
   TVM_DLL explicit VDevice(ffi::Optional<Target> tgt, int dev_id, MemoryScope mem_scope);
-  explicit VDevice(ffi::ObjectPtr<VDeviceNode> n) : GlobalInfo(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
-    data_ = std::move(n);
-  }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(VDevice, GlobalInfo, VDeviceNode);
 };
 
@@ -92,8 +88,8 @@ class DummyGlobalInfoNode : public GlobalInfoNode {
  */
 class DummyGlobalInfo : public GlobalInfo {
  public:
-  explicit DummyGlobalInfo(ffi::ObjectPtr<DummyGlobalInfoNode> n) : GlobalInfo(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
+  explicit DummyGlobalInfo(ffi::UnsafeInit tag, ffi::ObjectPtr<DummyGlobalInfoNode> n)
+      : GlobalInfo(tag) {
     data_ = std::move(n);
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DummyGlobalInfo, GlobalInfo, DummyGlobalInfoNode);

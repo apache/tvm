@@ -305,7 +305,7 @@ Session SocketSession(int num_nodes, int num_workers_per_node, int num_groups,
                       const ffi::String& host, int port) {
   auto n =
       ffi::make_object<SocketSessionObj>(num_nodes, num_workers_per_node, num_groups, host, port);
-  return Session(n);
+  return Session(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

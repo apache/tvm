@@ -39,7 +39,7 @@ Schedule Schedule::Traced(IRModule mod, LinearCongruentialEngine::TRandState see
   } else {
     n->func_working_on_ = std::nullopt;
   }
-  return Schedule(std::move(n));
+  return Schedule(ffi::UnsafeInit{}, std::move(n));
 }
 
 Schedule TracedScheduleNode::Copy() {
@@ -50,7 +50,7 @@ Schedule TracedScheduleNode::Copy() {
   n->analyzer_ = sym::Analyzer();  // new analyzer needed because it is stateful
   n->rand_state_ = ForkSeed();
   n->trace_ = Trace(this->trace_->insts, this->trace_->decisions);
-  return Schedule(std::move(n));
+  return Schedule(ffi::UnsafeInit{}, std::move(n));
 }
 
 /******** Schedule: Sampling ********/

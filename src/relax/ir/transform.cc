@@ -100,10 +100,6 @@ class FunctionPass : public Pass {
   TVM_DLL FunctionPass(std::function<Function(Function, IRModule, PassContext)> pass_func,
                        PassInfo pass_info);
 
-  explicit FunctionPass(ffi::ObjectPtr<FunctionPassNode> n) : Pass(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
-    data_ = std::move(n);
-  }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionPass, Pass, FunctionPassNode);
 };
 
@@ -284,10 +280,6 @@ class DataflowBlockPass : public Pass {
       std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func,
       PassInfo pass_info);
 
-  explicit DataflowBlockPass(ffi::ObjectPtr<DataflowBlockPassNode> n) : Pass(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
-    data_ = std::move(n);
-  }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DataflowBlockPass, Pass, DataflowBlockPassNode);
 };
 

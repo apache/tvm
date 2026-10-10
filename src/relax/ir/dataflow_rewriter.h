@@ -77,11 +77,6 @@ class PatternMatchingRewriter : public tvm::transform::Pass {
   Expr operator()(Expr expr);
   using Pass::operator();
 
-  explicit PatternMatchingRewriter(ffi::ObjectPtr<PatternMatchingRewriterNode> n)
-      : Pass(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
-    data_ = std::move(n);
-  }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PatternMatchingRewriter, Pass,
                                                 PatternMatchingRewriterNode);
 };
@@ -117,11 +112,6 @@ class ExprPatternRewriter : public PatternMatchingRewriter {
                       ffi::Optional<ffi::Array<DFPattern>> additional_bindings = std::nullopt,
                       ffi::Map<GlobalVar, BaseFunc> new_subroutines = {});
 
-  explicit ExprPatternRewriter(ffi::ObjectPtr<ExprPatternRewriterNode> n)
-      : PatternMatchingRewriter(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
-    data_ = std::move(n);
-  }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExprPatternRewriter, PatternMatchingRewriter,
                                                 ExprPatternRewriterNode);
 };
@@ -149,11 +139,6 @@ class OrRewriter : public PatternMatchingRewriter {
  public:
   OrRewriter(PatternMatchingRewriter lhs, PatternMatchingRewriter rhs);
 
-  explicit OrRewriter(ffi::ObjectPtr<OrRewriterNode> n)
-      : PatternMatchingRewriter(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
-    data_ = std::move(n);
-  }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(OrRewriter, PatternMatchingRewriter,
                                                 OrRewriterNode);
 };
@@ -198,11 +183,6 @@ class TupleRewriter : public PatternMatchingRewriter {
                 ffi::Optional<ffi::Array<DFPattern>> additional_bindings = std::nullopt,
                 ffi::Map<GlobalVar, BaseFunc> new_subroutines = {});
 
-  explicit TupleRewriter(ffi::ObjectPtr<TupleRewriterNode> n)
-      : PatternMatchingRewriter(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
-    data_ = std::move(n);
-  }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TupleRewriter, PatternMatchingRewriter,
                                                 TupleRewriterNode);
 };

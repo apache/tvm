@@ -56,7 +56,9 @@ ffi::ObjectPtr<SourceNameNode> GetSourceNameNodeByStr(const std::string& name) {
   return GetSourceNameNode(name);
 }
 
-SourceName SourceName::Get(const ffi::String& name) { return SourceName(GetSourceNameNode(name)); }
+SourceName SourceName::Get(const ffi::String& name) {
+  return SourceName(ffi::UnsafeInit{}, GetSourceNameNode(name));
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

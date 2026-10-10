@@ -78,7 +78,7 @@ class RewriteTensorizeNode : public PostprocNode {
 
   Postproc Clone() const {
     ffi::ObjectPtr<RewriteTensorizeNode> n = ffi::make_object<RewriteTensorizeNode>(*this);
-    return Postproc(n);
+    return Postproc(ffi::UnsafeInit{}, n);
   }
 
   bool vectorize_init_loop = false;
@@ -111,7 +111,7 @@ bool RewriteTensorizeNode::Apply(const s_tir::Schedule& sch) {
 Postproc Postproc::RewriteTensorize(bool vectorize_init_loop) {
   ffi::ObjectPtr<RewriteTensorizeNode> n = ffi::make_object<RewriteTensorizeNode>();
   n->vectorize_init_loop = vectorize_init_loop;
-  return Postproc(n);
+  return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

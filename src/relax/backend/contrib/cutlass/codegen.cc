@@ -102,10 +102,6 @@ class CodegenResult : public ffi::ObjectRef {
     data_ = std::move(n);
   }
 
-  explicit CodegenResult(ffi::ObjectPtr<CodegenResultNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
-    data_ = std::move(n);
-  }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CodegenResult, ffi::ObjectRef, CodegenResultNode);
 };
 

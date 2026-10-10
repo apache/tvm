@@ -140,7 +140,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   ConstantPatternNode::RegisterReflection();
   refl::GlobalDef().def("relax.dpl.ConstantPattern", []() {
-    auto c = ConstantPattern(ffi::make_object<ConstantPatternNode>());
+    auto c = ConstantPattern(ffi::UnsafeInit{}, ffi::make_object<ConstantPatternNode>());
     return c;
   });
 }
@@ -431,7 +431,7 @@ class DFPatternDuplicator : public DFPatternFunctor<DFPattern(const DFPattern&)>
   DFPattern VisitDFPattern_(const NotPatternNode* op) override { return NotPattern(op->reject); }
   DFPattern VisitDFPattern_(const VarPatternNode* op) override { return VarPattern(op->name); }
   DFPattern VisitDFPattern_(const ConstantPatternNode* op) override {
-    return ConstantPattern(ffi::make_object<ConstantPatternNode>());
+    return ConstantPattern(ffi::UnsafeInit{}, ffi::make_object<ConstantPatternNode>());
   }
   DFPattern VisitDFPattern_(const WildcardPatternNode* op) override {
     return WildcardPattern(ffi::make_object<WildcardPatternNode>());
@@ -664,7 +664,9 @@ PatternSeq OnlyUsedBy(const PatternSeq& lhs, const PatternSeq& rhs, int index) {
 PatternSeq operator>>(const PatternSeq& lhs, const PatternSeq& rhs) { return lhs.OnlyUsedBy(rhs); }
 
 VarPattern IsVar(const ffi::String& name) { return VarPattern(name); }
-ConstantPattern IsConst() { return ConstantPattern(ffi::make_object<ConstantPatternNode>()); }
+ConstantPattern IsConst() {
+  return ConstantPattern(ffi::UnsafeInit{}, ffi::make_object<ConstantPatternNode>());
+}
 WildcardPattern Wildcard() { return WildcardPattern(ffi::make_object<WildcardPatternNode>()); }
 ExprPattern IsExpr(const Expr& expr) { return ExprPattern(expr); }
 ExprPattern IsOp(const ffi::String& op_name) { return IsExpr(Op::Get(op_name)); }

@@ -79,8 +79,8 @@ class MutatorNode : public ffi::Object {
  */
 class Mutator : public ffi::ObjectRef {
  public:
-  explicit Mutator(ffi::ObjectPtr<MutatorNode> data) : ffi::ObjectRef(std::move(data)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
+  explicit Mutator(ffi::UnsafeInit tag, ffi::ObjectPtr<MutatorNode> data) : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
   }
 
   /*!

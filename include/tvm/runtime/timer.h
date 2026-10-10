@@ -126,15 +126,14 @@ class Timer : public ffi::ObjectRef {
    *  TVM_FFI_STATIC_INIT_BLOCK() {
    *    namespace refl = tvm::ffi::reflection;
    *    refl::GlobalDef().def("runtime.timer.cpu", [](Device dev) {
-   *      return Timer(ffi::make_object<CPUTimerNode>());
+   *      return Timer(ffi::UnsafeInit{}, ffi::make_object<CPUTimerNode>());
    *    });
    *  }
    * \endcode
    */
   static TVM_RUNTIME_DLL Timer Start(Device dev);
 
-  explicit Timer(ffi::ObjectPtr<TimerNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
+  explicit Timer(ffi::UnsafeInit tag, ffi::ObjectPtr<TimerNode> n) : ffi::ObjectRef(tag) {
     data_ = std::move(n);
   }
 

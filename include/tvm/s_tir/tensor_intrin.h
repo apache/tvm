@@ -58,10 +58,6 @@ class TensorIntrinNode : public ffi::Object {
  */
 class TensorIntrin : public ffi::ObjectRef {
  public:
-  explicit TensorIntrin(ffi::ObjectPtr<TensorIntrinNode> data) : ffi::ObjectRef(std::move(data)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
-
   /*!
    * \brief Constructor
    * \param desc The function to describe the computation.

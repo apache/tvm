@@ -60,7 +60,9 @@ class DefaultTimerNode : public TimerNode {
   Device device_;
 };
 
-static Timer DefaultTimer(Device dev) { return Timer(ffi::make_object<DefaultTimerNode>(dev)); }
+static Timer DefaultTimer(Device dev) {
+  return Timer(ffi::UnsafeInit{}, ffi::make_object<DefaultTimerNode>(dev));
+}
 
 class CPUTimerNode : public TimerNode {
  public:
@@ -77,8 +79,9 @@ class CPUTimerNode : public TimerNode {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.timer.cpu",
-                        [](Device dev) { return Timer(ffi::make_object<CPUTimerNode>()); });
+  refl::GlobalDef().def("runtime.timer.cpu", [](Device dev) {
+    return Timer(ffi::UnsafeInit{}, ffi::make_object<CPUTimerNode>());
+  });
 }
 
 Timer Timer::Start(Device dev) {

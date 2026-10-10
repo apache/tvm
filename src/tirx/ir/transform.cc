@@ -99,10 +99,6 @@ class FunctionPass : public Pass {
       std::function<ffi::Optional<Function>(Function, IRModule, PassContext)> pass_func,
       PassInfo pass_info);
 
-  explicit FunctionPass(ffi::ObjectPtr<FunctionPassNode> node) : Pass(std::move(node)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
-
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionPass, Pass, FunctionPassNode);
 };
 

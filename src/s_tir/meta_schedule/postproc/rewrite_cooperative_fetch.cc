@@ -141,7 +141,7 @@ class RewriteCooperativeFetchNode : public PostprocNode {
   Postproc Clone() const {
     ffi::ObjectPtr<RewriteCooperativeFetchNode> n =
         ffi::make_object<RewriteCooperativeFetchNode>(*this);
-    return Postproc(n);
+    return Postproc(ffi::UnsafeInit{}, n);
   }
 
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RewriteCooperativeFetch",
@@ -238,7 +238,7 @@ bool RewriteCooperativeFetchNode::Apply(const s_tir::Schedule& sch) {
 
 Postproc Postproc::RewriteCooperativeFetch() {
   ffi::ObjectPtr<RewriteCooperativeFetchNode> n = ffi::make_object<RewriteCooperativeFetchNode>();
-  return Postproc(n);
+  return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { RewriteCooperativeFetchNode::RegisterReflection(); }

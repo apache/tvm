@@ -127,9 +127,9 @@ class InstructionKindNode : public ffi::Object {
  */
 class InstructionKind : public ffi::ObjectRef {
  public:
-  explicit InstructionKind(ffi::ObjectPtr<InstructionKindNode> data)
-      : ffi::ObjectRef(std::move(data)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
+  explicit InstructionKind(ffi::UnsafeInit tag, ffi::ObjectPtr<InstructionKindNode> data)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
   }
 
   /*!
@@ -193,10 +193,6 @@ class InstructionNode : public ffi::Object {
  */
 class Instruction : public ffi::ObjectRef {
  public:
-  explicit Instruction(ffi::ObjectPtr<InstructionNode> data) : ffi::ObjectRef(std::move(data)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
-
   /*!
    * \brief Constructor
    * \param kind The kind of the instruction

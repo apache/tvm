@@ -455,14 +455,16 @@ VulkanDevice& VulkanDeviceAPI::device(size_t device_id) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("profiling.timer.vulkan",
-                        [](Device dev) { return Timer(ffi::make_object<VulkanTimerNode>(dev)); });
+  refl::GlobalDef().def("profiling.timer.vulkan", [](Device dev) {
+    return Timer(ffi::UnsafeInit{}, ffi::make_object<VulkanTimerNode>(dev));
+  });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.timer.vulkan",
-                        [](Device dev) { return Timer(ffi::make_object<VulkanTimerNode>(dev)); });
+  refl::GlobalDef().def("runtime.timer.vulkan", [](Device dev) {
+    return Timer(ffi::UnsafeInit{}, ffi::make_object<VulkanTimerNode>(dev));
+  });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

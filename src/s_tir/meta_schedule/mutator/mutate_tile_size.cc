@@ -79,7 +79,7 @@ class MutateTileSizeNode : public MutatorNode {
   // Inherit from `MutatorNode`
   Mutator Clone() const final {
     ffi::ObjectPtr<MutateTileSizeNode> n = ffi::make_object<MutateTileSizeNode>(*this);
-    return Mutator(n);
+    return Mutator(ffi::UnsafeInit{}, n);
   }
 };
 
@@ -279,7 +279,9 @@ ffi::Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* r
   }
 }
 
-Mutator Mutator::MutateTileSize() { return Mutator(ffi::make_object<MutateTileSizeNode>()); }
+Mutator Mutator::MutateTileSize() {
+  return Mutator(ffi::UnsafeInit{}, ffi::make_object<MutateTileSizeNode>());
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() { MutateTileSizeNode::RegisterReflection(); }
 

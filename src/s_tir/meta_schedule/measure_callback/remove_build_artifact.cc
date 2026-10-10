@@ -51,7 +51,7 @@ class RemoveBuildArtifactNode : public MeasureCallbackNode {
 
 MeasureCallback MeasureCallback::RemoveBuildArtifact() {
   ffi::ObjectPtr<RemoveBuildArtifactNode> n = ffi::make_object<RemoveBuildArtifactNode>();
-  return MeasureCallback(n);
+  return MeasureCallback(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

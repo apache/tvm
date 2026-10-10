@@ -79,8 +79,8 @@ class ArgumentInfoNode : public ffi::Object {
 /*! \brief Managed reference to an argument descriptor. */
 class ArgumentInfo : public ffi::ObjectRef {
  public:
-  explicit ArgumentInfo(ffi::ObjectPtr<ArgumentInfoNode> n) : ffi::ObjectRef(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(n != nullptr);
+  explicit ArgumentInfo(ffi::UnsafeInit tag, ffi::ObjectPtr<ArgumentInfoNode> n)
+      : ffi::ObjectRef(tag) {
     data_ = std::move(n);
   }
 
@@ -273,7 +273,7 @@ struct arg : SignatureTrait {
     auto info = ffi::make_object<ArgumentInfoNode>();
     info->name = name;
     info->doc = doc;
-    op->args_info.push_back(ArgumentInfo(std::move(info)));
+    op->args_info.push_back(ArgumentInfo(ffi::UnsafeInit{}, std::move(info)));
   }
 
   static bool Validate(ValidateState* state, ffi::Expected<void>* out) {
@@ -308,7 +308,7 @@ struct var_args : SignatureTrait {
     auto info = ffi::make_object<ArgumentInfoNode>();
     info->name = name;
     info->doc = doc;
-    op->var_args_info = ArgumentInfo(std::move(info));
+    op->var_args_info = ArgumentInfo(ffi::UnsafeInit{}, std::move(info));
   }
 
   static bool Validate(ValidateState* state, ffi::Expected<void>* out) {
@@ -347,7 +347,7 @@ struct ty_arg : SignatureTrait {
     auto info = ffi::make_object<ArgumentInfoNode>();
     info->name = name;
     info->doc = doc;
-    op->ty_args_info.push_back(ArgumentInfo(std::move(info)));
+    op->ty_args_info.push_back(ArgumentInfo(ffi::UnsafeInit{}, std::move(info)));
   }
 
   static bool Validate(ValidateState* state, ffi::Expected<void>* out) {
@@ -382,7 +382,7 @@ struct var_ty_args : SignatureTrait {
     auto info = ffi::make_object<ArgumentInfoNode>();
     info->name = name;
     info->doc = doc;
-    op->var_ty_args_info = ArgumentInfo(std::move(info));
+    op->var_ty_args_info = ArgumentInfo(ffi::UnsafeInit{}, std::move(info));
   }
 
   static bool Validate(ValidateState* state, ffi::Expected<void>* out) {

@@ -295,7 +295,7 @@ class RewriteLayoutNode : public PostprocNode {
 
   Postproc Clone() const {
     ffi::ObjectPtr<RewriteLayoutNode> n = ffi::make_object<RewriteLayoutNode>(*this);
-    return Postproc(n);
+    return Postproc(ffi::UnsafeInit{}, n);
   }
 
   static void RegisterReflection() {
@@ -309,7 +309,7 @@ class RewriteLayoutNode : public PostprocNode {
 
 Postproc Postproc::RewriteLayout() {
   auto n = ffi::make_object<RewriteLayoutNode>();
-  return Postproc(n);
+  return Postproc(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -134,8 +134,9 @@ class PyCostModelNode : public CostModelNode {
  */
 class CostModel : public ffi::ObjectRef {
  public:
-  explicit CostModel(ffi::ObjectPtr<CostModelNode> data) : ffi::ObjectRef(std::move(data)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
+  explicit CostModel(ffi::UnsafeInit tag, ffi::ObjectPtr<CostModelNode> data)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
   }
 
   /*!

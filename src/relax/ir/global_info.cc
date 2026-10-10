@@ -34,7 +34,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  auto make_dummy = []() { return DummyGlobalInfo(ffi::make_object<DummyGlobalInfoNode>()); };
+  auto make_dummy = []() {
+    return DummyGlobalInfo(ffi::UnsafeInit{}, ffi::make_object<DummyGlobalInfoNode>());
+  };
   refl::GlobalDef().def("relax.DummyGlobalInfo", make_dummy);
 }
 

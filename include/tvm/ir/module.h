@@ -268,12 +268,9 @@ class IRModule : public ffi::ObjectRef {
 
   /*! \brief default constructor */
   IRModule() : IRModule(ffi::Map<GlobalVar, BaseFunc>({})) {}
-  /*!
-   * \brief constructor
-   * \param n The object pointer.
-   */
-  explicit IRModule(ffi::ObjectPtr<IRModuleNode> n) : ffi::ObjectRef(n) {
-    TVM_FFI_ICHECK(n != nullptr);
+  /*! \brief Checked pointer construction required by ffi::RValueRef. */
+  explicit IRModule(ffi::ObjectPtr<IRModuleNode> n) : ffi::ObjectRef(std::move(n)) {
+    TVM_FFI_ICHECK(data_ != nullptr);
   }
   /*!
    * \brief constructor with UnsafeInit

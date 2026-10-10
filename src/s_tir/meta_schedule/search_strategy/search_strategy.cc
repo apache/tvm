@@ -83,7 +83,7 @@ SearchStrategy SearchStrategy::PySearchStrategy(
   n->f_generate_measure_candidates = f_generate_measure_candidates;
   n->f_notify_runner_results = f_notify_runner_results;
   n->f_clone = f_clone;
-  return SearchStrategy(n);
+  return SearchStrategy(ffi::UnsafeInit{}, n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -92,10 +92,6 @@ class CommReducer : public ffi::ObjectRef {
  public:
   TVM_DLL CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs, ffi::Array<PrimExpr> result,
                       ffi::Array<PrimExpr> identity_element, Location loc = UnknownLoc());
-  explicit CommReducer(ffi::ObjectPtr<CommReducerNode> node) : ffi::ObjectRef(std::move(node)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
-
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(CommReducer, ffi::ObjectRef, CommReducerNode);
 };
 
@@ -238,8 +234,9 @@ class PlaceholderOp : public Operation {
  public:
   TVM_DLL PlaceholderOp(std::string name, ffi::Array<PrimExpr> shape, PrimType dtype);
 
-  explicit PlaceholderOp(ffi::ObjectPtr<PlaceholderOpNode> node) : Operation(std::move(node)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
+  explicit PlaceholderOp(ffi::UnsafeInit tag, ffi::ObjectPtr<PlaceholderOpNode> node)
+      : Operation(tag) {
+    data_ = std::move(node);
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PlaceholderOp, Operation, PlaceholderOpNode);
@@ -296,10 +293,6 @@ class ComputeOp : public Operation {
  public:
   TVM_DLL ComputeOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi::Any> attrs,
                     ffi::Array<IterVar> axis, ffi::Array<PrimExpr> body);
-
-  explicit ComputeOp(ffi::ObjectPtr<ComputeOpNode> node) : Operation(std::move(node)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ComputeOp, Operation, ComputeOpNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeOpNode);
@@ -365,10 +358,6 @@ class ScanOp : public Operation {
                  ffi::Array<Tensor> init, ffi::Array<Tensor> update,
                  ffi::Array<Tensor> state_placeholder, ffi::Array<Tensor> input);
 
-  explicit ScanOp(ffi::ObjectPtr<ScanOpNode> node) : Operation(std::move(node)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
-
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ScanOp, Operation, ScanOpNode);
 };
 
@@ -415,10 +404,6 @@ class ExternOp : public Operation {
   TVM_DLL ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi::Any> attrs,
                    ffi::Array<Tensor> inputs, ffi::Array<TensorVar> input_placeholders,
                    ffi::Array<TensorVar> output_placeholders, SeqStmt body);
-
-  explicit ExternOp(ffi::ObjectPtr<ExternOpNode> node) : Operation(std::move(node)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExternOp, Operation, ExternOpNode);
 };

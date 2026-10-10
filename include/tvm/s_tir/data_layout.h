@@ -127,10 +127,6 @@ class SLayoutNode : public ffi::Object {
  */
 class SLayout : public ffi::ObjectRef {
  public:
-  explicit SLayout(ffi::ObjectPtr<SLayoutNode> data) : ffi::ObjectRef(std::move(data)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
-
   explicit SLayout(const ffi::Array<s_tir::IterVar>& axes);
 
   /*! \brief construct from a string */
@@ -392,9 +388,9 @@ class SBijectiveLayoutNode : public ffi::Object {
  */
 class SBijectiveLayout : public ffi::ObjectRef {
  public:
-  explicit SBijectiveLayout(ffi::ObjectPtr<SBijectiveLayoutNode> data)
-      : ffi::ObjectRef(std::move(data)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
+  explicit SBijectiveLayout(ffi::UnsafeInit tag, ffi::ObjectPtr<SBijectiveLayoutNode> data)
+      : ffi::ObjectRef(tag) {
+    data_ = std::move(data);
   }
 
   /*!

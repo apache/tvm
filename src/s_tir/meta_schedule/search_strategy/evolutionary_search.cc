@@ -474,7 +474,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     n->ctx_ = this->ctx_;
     n->rand_state_ = this->rand_state_;
     n->state_ = nullptr;  // cleared the state
-    return SearchStrategy(n);
+    return SearchStrategy(ffi::UnsafeInit{}, n);
   }
 };
 
@@ -798,7 +798,7 @@ SearchStrategy SearchStrategy::EvolutionarySearch(int population_size,         /
   n->genetic_max_fail_count = genetic_max_fail_count;
   n->genetic_mutate_prob = genetic_mutate_prob;
   n->eps_greedy = eps_greedy;
-  return SearchStrategy(n);
+  return SearchStrategy(ffi::UnsafeInit{}, n);
 }
 
 class EvolutionarySearch : public SearchStrategy {

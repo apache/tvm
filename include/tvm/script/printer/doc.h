@@ -77,9 +77,6 @@ class DocNode : public ffi::Object {
 class Doc : public ffi::ObjectRef {
  protected:
   Doc() = default;
-  explicit Doc(ffi::ObjectPtr<DocNode> data) : ffi::ObjectRef(std::move(data)) {
-    TVM_FFI_ICHECK(data_ != nullptr);
-  }
 
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Doc, ffi::ObjectRef, DocNode);
@@ -145,8 +142,9 @@ class ExprDoc : public Doc {
    */
   TVM_DLL ExprDoc operator[](ffi::Array<Doc> indices) const;
 
-  explicit ExprDoc(ffi::ObjectPtr<ExprDocNode> data) : Doc(data) {
+  explicit ExprDoc(ffi::ObjectPtr<ExprDocNode> data) : Doc(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
+    data_ = std::move(data);
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExprDoc, Doc, ExprDocNode);
