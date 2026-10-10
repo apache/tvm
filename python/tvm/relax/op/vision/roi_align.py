@@ -21,7 +21,8 @@ import tvm_ffi
 from tvm.ir import Attrs
 from tvm.ir import Call as _Call
 from tvm.ir.attrs import make_node as _make_attrs
-from tvm.ir.location import UNKNOWN_LOC, Location
+from tvm.ir.location import UNKNOWN_LOC as _UNKNOWN_LOC
+from tvm.ir.location import Location as _Location
 
 from ..base import Expr
 
@@ -42,7 +43,7 @@ def roi_align(
     mode: str = "avg",
     *,
     ty=None,
-    loc: Location = UNKNOWN_LOC,
+    loc: _Location = _UNKNOWN_LOC,
 ):
     """ROI Align operator.
 

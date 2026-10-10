@@ -113,7 +113,7 @@ class Expr(Node):
 
         indices = tuple(index) if isinstance(index, tuple | list) else (index,)
         return _ffi_api.SubscriptExprRealize(
-            self, [_convert_subscript_index(item) for item in indices], None
+            self, [_convert_subscript_index(item) for item in indices], UNKNOWN_LOC
         )
 
 

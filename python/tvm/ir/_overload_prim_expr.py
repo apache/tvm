@@ -76,117 +76,117 @@ class ExprOp:
     def __add__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
-        return _prim_ffi_api._OpAdd(self, other, None)  # type: ignore
+        return _prim_ffi_api._OpAdd(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __radd__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
-        return _prim_ffi_api._OpAdd(other, self, None)  # type: ignore
+        return _prim_ffi_api._OpAdd(other, self, UNKNOWN_LOC)  # type: ignore
 
     def __sub__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
-        return _prim_ffi_api._OpSub(self, other, None)  # type: ignore
+        return _prim_ffi_api._OpSub(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __rsub__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
-        return _prim_ffi_api._OpSub(other, self, None)  # type: ignore
+        return _prim_ffi_api._OpSub(other, self, UNKNOWN_LOC)  # type: ignore
 
     def __mul__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
-        return _prim_ffi_api._OpMul(self, other, None)  # type: ignore
+        return _prim_ffi_api._OpMul(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __rmul__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
-        return _prim_ffi_api._OpMul(other, self, None)  # type: ignore
+        return _prim_ffi_api._OpMul(other, self, UNKNOWN_LOC)  # type: ignore
 
     def __div__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()
-        return _prim_ffi_api._OpDiv(self, other, None)  # type: ignore
+        return _prim_ffi_api._OpDiv(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __rdiv__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()
-        return _prim_ffi_api._OpDiv(other, self, None)  # type: ignore
+        return _prim_ffi_api._OpDiv(other, self, UNKNOWN_LOC)  # type: ignore
 
     def __truediv__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()
-        return _prim_ffi_api._OpDiv(self, other, None)  # type: ignore
+        return _prim_ffi_api._OpDiv(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __rtruediv__(self, other: Expr) -> Expr:
         if not _is_scalar_operand(other):
             return NotImplemented
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()
-        return _prim_ffi_api._OpDiv(other, self, None)  # type: ignore
+        return _prim_ffi_api._OpDiv(other, self, UNKNOWN_LOC)  # type: ignore
 
     def __floordiv__(self, other: Expr) -> Expr:
-        return _prim_ffi_api._OpFloorDiv(self, other, None)  # type: ignore
+        return _prim_ffi_api._OpFloorDiv(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __rfloordiv__(self, other: Expr) -> Expr:
-        return _prim_ffi_api._OpFloorDiv(other, self, None)  # type: ignore
+        return _prim_ffi_api._OpFloorDiv(other, self, UNKNOWN_LOC)  # type: ignore
 
     def __mod__(self, other: Expr) -> Expr:
-        return _prim_ffi_api._OpFloorMod(self, other, None)  # type: ignore
+        return _prim_ffi_api._OpFloorMod(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __rmod__(self, other: Expr) -> Expr:
-        return _prim_ffi_api._OpFloorMod(other, self, None)  # type: ignore
+        return _prim_ffi_api._OpFloorMod(other, self, UNKNOWN_LOC)  # type: ignore
 
     def __neg__(self) -> Expr:
         neg_one = const(-1, self.expr_ty().dtype)
         return self.__mul__(neg_one)
 
     def __lshift__(self, other: Expr) -> Expr:
-        return _prim_ffi_api.left_shift(self, other, None)  # type: ignore
+        return _prim_ffi_api.left_shift(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __rlshift__(self, other: Expr) -> Expr:
-        return _prim_ffi_api.left_shift(other, self, None)  # type: ignore
+        return _prim_ffi_api.left_shift(other, self, UNKNOWN_LOC)  # type: ignore
 
     def __rshift__(self, other: Expr) -> Expr:
-        return _prim_ffi_api.right_shift(self, other, None)  # type: ignore
+        return _prim_ffi_api.right_shift(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __rrshift__(self, other: Expr) -> Expr:
-        return _prim_ffi_api.right_shift(other, self, None)  # type: ignore
+        return _prim_ffi_api.right_shift(other, self, UNKNOWN_LOC)  # type: ignore
 
     def __and__(self, other: Expr) -> Expr:
-        return _prim_ffi_api.bitwise_and(self, other, None)  # type: ignore
+        return _prim_ffi_api.bitwise_and(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __rand__(self, other: Expr) -> Expr:
-        return _prim_ffi_api.bitwise_and(other, self, None)  # type: ignore
+        return _prim_ffi_api.bitwise_and(other, self, UNKNOWN_LOC)  # type: ignore
 
     def __or__(self, other: Expr) -> Expr:
-        return _prim_ffi_api.bitwise_or(self, other, None)  # type: ignore
+        return _prim_ffi_api.bitwise_or(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __ror__(self, other: Expr) -> Expr:
-        return _prim_ffi_api.bitwise_or(other, self, None)  # type: ignore
+        return _prim_ffi_api.bitwise_or(other, self, UNKNOWN_LOC)  # type: ignore
 
     def __xor__(self, other: Expr) -> Expr:
-        return _prim_ffi_api.bitwise_xor(self, other, None)  # type: ignore
+        return _prim_ffi_api.bitwise_xor(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __rxor__(self, other: Expr) -> Expr:
-        return _prim_ffi_api.bitwise_xor(other, self, None)  # type: ignore
+        return _prim_ffi_api.bitwise_xor(other, self, UNKNOWN_LOC)  # type: ignore
 
     def __invert__(self) -> Expr:
         if _dtype_is_float(self):
             raise RuntimeError("Cannot use ~ operator on float type Expr.")
-        return _prim_ffi_api.bitwise_not(self, None)  # type: ignore
+        return _prim_ffi_api.bitwise_not(self, UNKNOWN_LOC)  # type: ignore
 
     def __lt__(self, other: Expr) -> Expr:
-        return _prim_ffi_api._OpLT(self, other, None)  # type: ignore
+        return _prim_ffi_api._OpLT(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __le__(self, other: Expr) -> Expr:
-        return _prim_ffi_api._OpLE(self, other, None)  # type: ignore
+        return _prim_ffi_api._OpLE(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __eq__(self, other: Expr) -> Expr:
         return EqualOp(self, other)
@@ -195,10 +195,10 @@ class ExprOp:
         return NotEqualOp(self, other)
 
     def __gt__(self, other: Expr) -> Expr:
-        return _prim_ffi_api._OpGT(self, other, None)  # type: ignore
+        return _prim_ffi_api._OpGT(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __ge__(self, other: Expr) -> Expr:
-        return _prim_ffi_api._OpGE(self, other, None)  # type: ignore
+        return _prim_ffi_api._OpGE(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __nonzero__(self):
         raise ValueError(

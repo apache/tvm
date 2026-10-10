@@ -32,7 +32,7 @@ class SourceMap(Object):
 
 @register_object("ir.SourceName")
 class SourceName(Object):
-    """A identifier for a source location.
+    """An identifier for a source location.
 
     Parameters
     ----------

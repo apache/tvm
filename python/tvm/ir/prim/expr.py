@@ -110,10 +110,10 @@ class IntImm(Constant):
         return self.value != 0
 
     def __eq__(self, other: Expr) -> Expr:
-        return _prim_ffi_api._OpEQ(self, other, None)  # type: ignore
+        return _prim_ffi_api._OpEQ(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __ne__(self, other: Expr) -> Expr:
-        return _prim_ffi_api._OpNE(self, other, None)  # type: ignore
+        return _prim_ffi_api._OpNE(self, other, UNKNOWN_LOC)  # type: ignore
 
     def __bool__(self) -> bool:
         return self.__nonzero__()

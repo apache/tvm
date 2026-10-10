@@ -579,7 +579,7 @@ def const(
     if not isinstance(value, tvm.runtime.Tensor):
         raise ValueError("value has to be scalar or Tensor")
 
-    return _ffi_api.MakeTensorConst(value, None, None)
+    return _ffi_api.MakeTensorConst(value, None, UNKNOWN_LOC)
 
 
 @tvm_ffi.register_object("relax.TEPlaceholderOp")
