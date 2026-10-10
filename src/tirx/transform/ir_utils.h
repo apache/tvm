@@ -323,39 +323,6 @@ ffi::String GetPtrStorageScope(Var buffer_var);
  */
 ffi::Array<PrimExpr> GetBufferAllocationShape(const TensorVar& buffer);
 
-// Information of tensor core fragment.
-struct FragmentInfo {
-  // fragment shape
-  int m, n, k;
-  // fragment layout (row-major or column-major)
-  std::string layout;
-  // scope of the fragment (wmma.matrix_a, wmma.matrix_b, or wmma.accumulator)
-  std::string scope;
-  FragmentInfo() = default;
-  FragmentInfo(int _m, int _n, int _k, const std::string& _layout, const std::string& _scope)
-      : m(_m), n(_n), k(_k), layout(_layout), scope(_scope) {}
-
-  int GetSize() const {
-    if (scope == "wmma.matrix_a") {
-      return m * k;
-    } else if (scope == "wmma.matrix_b") {
-      return n * k;
-    } else if (scope == "wmma.accumulator") {
-      return m * n;
-    } else {
-      TVM_FFI_ICHECK(0);
-      throw;
-    }
-  }
-};
-
-/*!
- * \brief Extract information of tensor core fragment from the IR.
- * \param stmt The stmt to visit.
- * \return Map from buffer variables to the fragment info.
- */
-std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt);
-
 /*!
  * \brief Split string separated by "," to get wmma fragment dimension size.
  * \param  shape_str The string to split.

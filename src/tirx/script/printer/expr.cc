@@ -45,7 +45,6 @@ namespace script {
 namespace printer {
 namespace details {
 
-
 namespace {
 
 ffi::Optional<ExprDoc> IndexMapDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
