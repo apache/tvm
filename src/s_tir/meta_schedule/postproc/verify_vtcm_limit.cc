@@ -46,10 +46,9 @@ class VerifyVTCMLimitNode : public PostprocNode {
 
   bool Apply(const s_tir::Schedule& sch) final {
     IRModule mod = sch->mod();
-    IRModule lowered{nullptr};
     auto pass_list = s_tir::GetVTCMCompactionPasses();
     tvm::transform::PassContext pass_ctx = tvm::transform::PassContext::Current();
-    lowered = tvm::transform::Sequential(pass_list)(std::move(mod));
+    IRModule lowered = tvm::transform::Sequential(pass_list)(std::move(mod));
     if (!Verify(lowered)) {
       return false;
     }
