@@ -1395,7 +1395,8 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     return llvm::Constant::getNullValue(target);
   } else if (op->op.same_as(tirx::isnullptr_op())) {
     return builder_->CreateIsNull(MakeValue(args[0]));
-  } else if (op->op.same_as(tirx::handle_add_byte_offset_op())) {
+  } else if (op->op.same_as(tirx::handle_add_byte_offset_op()) ||
+             op->op.same_as(tirx::ptr_byte_offset_op())) {
     llvm::Value* ptr = MakeValue(args[0]);
     llvm::Value* offset = MakeValue(args[1]);
     llvm::Value* result = builder_->CreateInBoundsGEP(t_int8_, ptr, offset);

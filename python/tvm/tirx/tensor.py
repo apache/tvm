@@ -17,7 +17,6 @@
 """Tensor types, declarations, and type-owned expression methods."""
 
 from collections.abc import Callable
-from enum import IntEnum
 from numbers import Integral
 from typing import ClassVar
 
@@ -25,7 +24,6 @@ import tvm_ffi
 
 import tvm
 from tvm.ir import Call, PointerType, PrimType, Type, Var
-from tvm.runtime import convert
 
 from . import _buffer_view, _ffi_api
 
@@ -60,13 +58,7 @@ class TensorType(Type):
     layout: object | None
 
     __expr_methods__ = (
-        "access_ptr",
-        "vload",
-        "vstore",
         "scope",
-        "get_flattened_buffer",
-        "with_dtype",
-        "offset_of",
         "is_scalar",
         "ptr_to",
         "view",
@@ -77,121 +69,18 @@ class TensorType(Type):
         "chunk",
     )
 
-    def access_ptr(
-        self, expr, access_mask, ptr_type="handle", content_lanes=1, offset=0, extent=None
-    ):
-        """Get an access pointer to the head of buffer.
-
-        This is the recommended method to get buffer data
-        pointers when interacting with external functions.
-
-        Parameters
-        ----------
-        access_mask : int
-            The access pattern MASK. Indicate whether the
-            access will read or write to the data content.
-
-        ptr_type : str or tvm.ir.Type, optional
-            The data type of the result pointer. Do not specify
-            unless we want to cast pointer to specific type.
-
-        content_lanes: int, optional
-            The number of lanes for the data type. This value
-            is greater than one for vector types.
-
-        offset: Expr, optional
-            The offset of pointer. We can use it to offset by
-            the number of elements from the address of ptr.
-
-        extent: Expr, optional
-            The extent of pointer.
-
-        Examples
-        --------
-        .. code-block:: python
-
-          # Get access ptr for read
-          buffer.access_ptr("r")
-          # Get access ptr for read/write with bitmask
-          buffer.access_ptr(BufferAccessKind.READ | BufferAccessKind.WRITE)
-          # Get access ptr for read/write with str flag
-          buffer.access_ptr("rw")
-          # Get access ptr for read with offset
-          buffer.access_ptr("r", offset = 100)
-          # Get access ptr for read with extent
-          buffer.access_ptr("r", extent = 100)
-        """
-        _check_tensor_receiver(self, expr)
-        if isinstance(access_mask, str):
-            mask = 0
-            for value in access_mask:
-                if value == "r":
-                    mask = mask | BufferAccessKind.READ
-                elif value == "w":
-                    mask = mask | BufferAccessKind.WRITE
-                else:
-                    raise ValueError(f"Unknown access_mask {access_mask}")
-            access_mask = mask
-        if isinstance(ptr_type, str):
-            ptr_type = (
-                PointerType(PrimType("void"))
-                if ptr_type == "handle"
-                else PointerType(PrimType(ptr_type))
-            )
-        elif isinstance(ptr_type, PrimType):
-            ptr_type = PointerType(ptr_type)
-        offset = convert(offset)
-        extent = convert(extent)
-        return _ffi_api.TensorAccessPtr(
-            expr,
-            access_mask,
-            ptr_type,
-            content_lanes,
-            offset,
-            extent,  # type: ignore
-        )
-
-    def vload(self, expr, begin, dtype=None):
-        """Generate an Expr that loads dtype from begin index.
-
-        Parameters
-        ----------
-        begin : Array of Expr
-            The beginning index in unit of Var.dtype
-
-        dtype : str
-            The data type to be loaded,
-            can be vector type which have lanes that is multiple of Var.dtype
-
-        Returns
-        -------
-        load : Expr
-            The corresponding load expression.
-        """
-        _check_tensor_receiver(self, expr)
-        begin = (begin,) if isinstance(begin, int) or tvm.ir.is_prim_expr(begin) else begin
-        dtype = dtype if dtype else self.dtype
-        return _ffi_api.TensorVLoad(expr, begin, dtype)  # type: ignore
-
-    def vstore(self, expr, begin, value):
-        """Generate a Stmt that store value into begin index.
-
-        Parameters
-        ----------
-        begin : Array of Expr
-            The beginning index in unit of Var.dtype
-
-        value : Expr
-            The value to be stored.
-
-        Returns
-        -------
-        store : Stmt
-            The corresponding store stmt.
-        """
-        _check_tensor_receiver(self, expr)
-        begin = (begin,) if isinstance(begin, int) or tvm.ir.is_prim_expr(begin) else begin
-        return _ffi_api.TensorVStore(expr, begin, value)  # type: ignore
+    __expr_properties__: ClassVar[dict[str, Callable]] = {
+        "shape": _tensor_type_field("shape"),
+        "strides": _tensor_type_field("strides"),
+        "elem_offset": _tensor_type_field("elem_offset"),
+        "data_alignment": _tensor_type_field("data_alignment"),
+        "offset_factor": _tensor_type_field("offset_factor"),
+        "layout": _tensor_type_field("layout"),
+        "data": lambda ty, expr: ty._data(expr),
+        "dtype": lambda ty, expr: ty._dtype(expr),
+        "byte_offset": lambda ty, expr: ty._byte_offset(expr),
+        "sub": lambda ty, expr: ty._sub(expr),
+    }
 
     def scope(self, expr):
         """Return the storage scope associated with this buffer.
@@ -202,40 +91,6 @@ class TensorType(Type):
         """
         _check_tensor_receiver(self, expr)
         return _ffi_api.TensorStorageScope(expr)  # type: ignore
-
-    def get_flattened_buffer(self, expr):
-        """Generate a Var that is a flattened version of this buffer.
-
-        Returns
-        -------
-        flattened : Var
-            The corresponding flat buffer.
-        """
-        _check_tensor_receiver(self, expr)
-        return _ffi_api.TensorGetFlattenedTensor(expr)  # type: ignore
-
-    def with_dtype(self, expr, dtype):
-        """Return a new buffer with the dtype."""
-        _check_tensor_receiver(self, expr)
-        return _ffi_api.TensorWithDtype(expr, dtype)  # type: ignore
-
-    def offset_of(self, expr, indices):
-        """Determine the offset of the provided indices in the flattened buffer.
-
-        Parameters
-        ----------
-        indices : Union[Expr, List[Expr]]
-
-            The indices of the element in the original buffer.
-
-        Returns
-        -------
-        flattened_indices: List[Expr]
-
-            The offset indices of the element in the flattened buffer.
-        """
-        _check_tensor_receiver(self, expr)
-        return _ffi_api.TensorOffsetOf(expr, indices)  # type: ignore
 
     def is_scalar(self, expr, alloc_or_decl=True):
         """Check if the buffer is a scalar.
@@ -426,19 +281,6 @@ class TensorType(Type):
         _check_tensor_property_receiver(self, expr)
         return _buffer_view.sub(expr)
 
-    __expr_properties__: ClassVar[dict[str, Callable]] = {
-        "shape": _tensor_type_field("shape"),
-        "strides": _tensor_type_field("strides"),
-        "elem_offset": _tensor_type_field("elem_offset"),
-        "data_alignment": _tensor_type_field("data_alignment"),
-        "offset_factor": _tensor_type_field("offset_factor"),
-        "layout": _tensor_type_field("layout"),
-        "data": _data,
-        "dtype": _dtype,
-        "byte_offset": _byte_offset,
-        "sub": _sub,
-    }
-
 
 def is_tensor_var(value) -> bool:
     """Return whether ``value`` is an ordinary Var carrying TensorType.
@@ -448,13 +290,6 @@ def is_tensor_var(value) -> bool:
     """
 
     return isinstance(value, tvm.ir.Var) and isinstance(value.ty, TensorType)
-
-
-class BufferAccessKind(IntEnum):
-    """Buffer access modes accepted by :func:`buffer_access_ptr`."""
-
-    READ = 1
-    WRITE = 2
 
 
 def _check_tensor_receiver(ty, expr):
@@ -527,11 +362,3 @@ def tensor_data_ptr(tensor, *, ty=None, span=None):
     if not is_tensor_var(tensor):
         raise TypeError("tensor_data_ptr expects a Var with TensorType")
     return Call("tirx.tensor_data_ptr", [tensor], ty=ty, span=span)
-
-
-def buffer_data_pointer_type(buffer):
-    """Return the pointer type produced by :func:`tensor_data_ptr`."""
-
-    if not is_tensor_var(buffer):
-        raise TypeError("buffer_data_pointer_type expects a Var with TensorType")
-    return _ffi_api.TensorDataPointerType(buffer)

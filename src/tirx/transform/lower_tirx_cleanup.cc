@@ -39,6 +39,7 @@
 #include <vector>
 
 #include "../ir/ir_mutator_with_analyzer.h"
+#include "flattened_tensor.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -236,11 +237,11 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
         type->shape = {ana->Simplify(mem_span)};
         type->strides = {};
       } else {
-        flattened = buf.GetFlattenedTensor();
+        flattened = FlattenedTensor(buf);
         type = CopyTensorType(flattened);
       }
     } else {
-      flattened = buf.GetFlattenedTensor();
+      flattened = FlattenedTensor(buf);
       type = CopyTensorType(flattened);
     }
     // Remap variables the pass has already rebuilt (a shape may load from

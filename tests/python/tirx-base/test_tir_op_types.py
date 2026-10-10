@@ -103,16 +103,13 @@ def test_tir_op_tvm_thread_allreduce():
     assert expr.op.name == "tirx.gpu_thread_allreduce"
 
 
-def test_tir_op_tvm_access_ptr():
-    buffer = tirx.decl_tensor((128), "float32")
-    for ptype in ("float32", tvm.ir.PrimType("float32")):
-        expr = tirx.access_ptr(ptype, buffer.data, 0, 1, 2)
-        assert expr.op.name == "tirx.access_ptr"
-        assert expr.ty == tvm.ir.PointerType(tvm.ir.PrimType("float32"))
-
-    for dtype in ("uint8", tvm.ir.PrimType("uint8")):
-        offset_expr = tirx.ptr_byte_offset(buffer.data, 16, dtype)
-        assert offset_expr.ty == tvm.ir.PointerType(tvm.ir.PrimType("uint8"))
+def test_tir_op_ptr_byte_offset():
+    buffer = tirx.decl_tensor((128,), "float32", scope="shared")
+    ty = tvm.ir.PointerType(tvm.ir.PrimType("uint8"), "shared")
+    offset_expr = tirx.ptr_byte_offset(buffer.data, 16, ty=ty)
+    assert offset_expr.op.name == "tirx.ptr_byte_offset"
+    assert offset_expr.ty == ty
+    assert offset_expr.args[1] == 16
 
 
 def test_tir_op_tvm_throw_last_error():
@@ -195,7 +192,7 @@ def test_tir_op_mma_store():
         "int32",
         16,
         16,
-        buffer.access_ptr("w"),
+        buffer.ptr_to([0, 0]),
         buffer_w.data,
         buffer_w.ty.elem_offset,
         x,
@@ -215,28 +212,29 @@ def test_op_ptx_cp_async():
     expr = _cuda_op.ptx_cp_async_legacy(buffer_shared.data, 0, buffer_local.data, 0, 16)
     assert expr.op.name == "tirx.s_tir.cp_async_raw"
 
-    inner_dst = tirx.access_ptr("float16", buffer_shared.data, 2, 8, 1)
-    inner_src = tirx.access_ptr("float16", buffer_local.data, 4, 8, 1)
+    inner_dst = tirx.ptr_byte_offset(buffer_shared.data, 4, ty=buffer_shared.data.ty)
+    inner_src = tirx.ptr_byte_offset(buffer_local.data, 8, ty=buffer_local.data.ty)
     expr = _cuda_op.ptx_cp_async_legacy(inner_dst, 3, inner_src, 5, 16, elem_dtype="float16")
-    # Raw-form layout: (dst, dst_off, src, src_off, cp_size), offsets folded.
-    for access_ptr, expected_offset in zip((expr.args[0], expr.args[2]), [5, 9]):
-        assert access_ptr.op.name == "tirx.access_ptr"
-        assert access_ptr.args[0].op.name == "tirx.tensor_data_ptr"
-        assert isinstance(access_ptr.args[0].args[0], tirx.Var)
-        simplified_offset = tvm.sym.Analyzer().simplify(access_ptr.args[1])
-        assert int(simplified_offset) == expected_offset
+    # Element offsets are converted to bytes while preserving each pointer's scope.
+    for pointer, inner, expected_offset in zip(
+        (expr.args[0], expr.args[2]), (inner_dst, inner_src), (6, 10)
+    ):
+        assert pointer.op.name == "tirx.ptr_byte_offset"
+        tvm.ir.assert_structural_equal(pointer.args[0], inner)
+        assert pointer.ty == inner.ty
+        assert int(tvm.sym.Analyzer().simplify(pointer.args[1])) == expected_offset
 
 
 def test_tir_op_vector_low():
     buffer = tirx.decl_tensor((4, 4), "int8", offset_factor=1)
-    vec = buffer.vload([0, 0], dtype="int8x16")
+    vec = buffer[0, tirx.Ramp(0, 1, 16)]
     expr = tirx.vector_low("int8x8", vec)
     assert expr.op.name == "tirx.vector_low"
 
 
 def test_tir_op_vector_high():
     buffer = tirx.decl_tensor((4, 4), "int8", offset_factor=1)
-    vec = buffer.vload([0, 0], dtype="int8x16")
+    vec = buffer[0, tirx.Ramp(0, 1, 16)]
     expr = tirx.vector_high("int8x8", vec)
     assert expr.op.name == "tirx.vector_high"
 
@@ -251,7 +249,7 @@ def test_tir_op_dp4a():
 
 def test_tir_op_vector_combine():
     buffer = tirx.decl_tensor((4, 4), "int8", offset_factor=1)
-    vec = buffer.vload([0, 0], dtype="int8x16")
+    vec = buffer[0, tirx.Ramp(0, 1, 16)]
     expr = tirx.vector_combine("int8x8", vec, vec)
     assert expr.op.name == "tirx.vector_combine"
 

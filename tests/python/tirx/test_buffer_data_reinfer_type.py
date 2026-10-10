@@ -24,8 +24,8 @@ from tvm import ir, tirx
 def test_buffer_data_reinfer_type_from_rewritten_argument():
     global_buffer = tirx.decl_tensor((8,), "float32", name="global_buffer", scope="global")
     local_buffer = tirx.decl_tensor((8,), "float16", name="local_buffer", scope="local")
-    stale_type = tirx.buffer_data_pointer_type(global_buffer)
-    expected_type = tirx.buffer_data_pointer_type(local_buffer)
+    stale_type = global_buffer.data.ty
+    expected_type = local_buffer.data.ty
 
     call = ir.Call("tirx.tensor_data_ptr", [local_buffer], ty=stale_type)
     ir.assert_structural_equal(ir.reinfer_type(call), expected_type)

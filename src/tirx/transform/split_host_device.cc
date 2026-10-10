@@ -200,7 +200,7 @@ class HostDeviceSplitter : public StmtExprMutator {
       if (param->ty.as<TensorTypeNode>()) {
         TensorVar buffer = param.as_or_throw<TensorVar>();
         TensorVar kernel_buffer(buffer.name(), buffer.type(), buffer.span());
-        Var data_param(buffer.name() + "_ptr", buffer.DataPointerType());
+        Var data_param(buffer.name() + "_ptr", buffer.type()->DataPointerType());
         kernel_params.push_back(data_param);
         call_args.push_back(buffer.data());
         buffer_data_params.Set(param, data_param);

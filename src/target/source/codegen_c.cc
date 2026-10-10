@@ -832,9 +832,13 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << " == NULL)";
     } else if (op->op.same_as(tirx::ptr_byte_offset_op())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
+      const auto& pointer_type = op->ty.as_or_throw<PointerType>();
       os << "((";
-      PrintType(op->ty.as_or_throw<PointerType>()->element_type, os);
-      os << "*)(((char*)";
+      if (IsScopePartOfType()) PrintStorageScope(pointer_type->storage_scope, os);
+      PrintType(pointer_type->element_type, os);
+      os << "*)(((";
+      if (IsScopePartOfType()) PrintStorageScope(pointer_type->storage_scope, os);
+      os << "char*)";
       this->PrintExpr(op->args[0], os);
       os << ") + ";
       this->PrintExpr(op->args[1], os);

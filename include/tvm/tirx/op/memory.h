@@ -116,18 +116,6 @@ TVM_DLL const Op& isnullptr_op();
 TVM_DLL const Op& prefetch_op();
 
 /*!
- * \brief Get head access address with memory access pattern info.
- *
- * Arguments, in order:
- * - args[0]: data, The input data.
- * - args[1]: offset, The offset in access elements.
- * - args[2]: extent, The extent in access elements.
- * - args[3]: rw_mask, The read/write mask.
- * - ty_args[0]: The independent access element type.
- */
-TVM_DLL const Op& access_ptr_op();
-
-/*!
  * \brief Cast a handle to a typed pointer after adding a byte offset.
  *
  * Arguments, in order:
