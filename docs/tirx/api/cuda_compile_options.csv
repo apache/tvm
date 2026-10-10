@@ -1,0 +1,264 @@
+tool,option,aliases,category,current_route,raw_validation,notes,source
+nvcc,--cubin,-cubin,artifact,field: target_format,--cubin: rejected; -cubin: rejected,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--fatbin,-fatbin,artifact,field: target_format,--fatbin: rejected; -fatbin: rejected,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--ptx,-ptx,artifact,field: target_format,--ptx: rejected; -ptx: rejected,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--device-stack-protector,-device-stack-protector,compiler-specific,raw argument; compilation not certified,--device-stack-protector: accepted; -device-stack-protector: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--dont-use-profile,-noprof,compiler-specific,raw argument; compilation not certified,--dont-use-profile: accepted; -noprof: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--objdir-as-tempdir,-objtemp,compiler-specific,raw argument; compilation not certified,--objdir-as-tempdir: accepted; -objtemp: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--output-directory,-odir,compiler-specific,raw argument; compilation not certified,--output-directory: accepted; -odir: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--qpp-config,-qpp-config,compiler-specific,raw argument; compilation not certified,--qpp-config: accepted; -qpp-config: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--skip-ptx-semantics-check,-skip-ptx-semantics-check,compiler-specific,raw argument; compilation not certified,--skip-ptx-semantics-check: accepted; -skip-ptx-semantics-check: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--Wdefault-stream-launch,-Wdefault-stream-launch,diagnostics,raw argument; compilation not certified,--Wdefault-stream-launch: accepted; -Wdefault-stream-launch: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--Werror,-Werror,diagnostics,raw argument; compilation not certified,--Werror: accepted; -Werror: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--Wext-lambda-captures-this,-Wext-lambda-captures-this,diagnostics,raw argument; compilation not certified,--Wext-lambda-captures-this: accepted; -Wext-lambda-captures-this: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--Wmissing-launch-bounds,-Wmissing-launch-bounds,diagnostics,raw argument; compilation not certified,--Wmissing-launch-bounds: accepted; -Wmissing-launch-bounds: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--Wno-deprecated-declarations,-Wno-deprecated-declarations,diagnostics,raw argument; compilation not certified,--Wno-deprecated-declarations: accepted; -Wno-deprecated-declarations: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--Wno-deprecated-gpu-targets,-Wno-deprecated-gpu-targets,diagnostics,raw argument; compilation not certified,--Wno-deprecated-gpu-targets: accepted; -Wno-deprecated-gpu-targets: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--Wreorder,-Wreorder,diagnostics,raw argument; compilation not certified,--Wreorder: accepted; -Wreorder: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--brief-diagnostics,-brief-diag,diagnostics,raw argument; compilation not certified,--brief-diagnostics: accepted; -brief-diag: accepted,,local 13.2 help
+nvcc,--diag-error,-diag-error,diagnostics,raw argument; compilation not certified,--diag-error: accepted; -diag-error: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--diag-suppress,-diag-suppress,diagnostics,raw argument; compilation not certified,--diag-suppress: accepted; -diag-suppress: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--diag-warn,-diag-warn,diagnostics,raw argument; compilation not certified,--diag-warn: accepted; -diag-warn: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--disable-warnings,-w,diagnostics,raw argument; compilation not certified,--disable-warnings: accepted; -w: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--display-error-number,-err-no,diagnostics,raw argument; compilation not certified,--display-error-number: accepted; -err-no: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--fdevice-sanitize,-fdevice-sanitize,diagnostics,raw argument; compilation not certified,--fdevice-sanitize: accepted; -fdevice-sanitize: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--fdevice-time-trace,-fdevice-time-trace,diagnostics,raw argument; compilation not certified,--fdevice-time-trace: accepted; -fdevice-time-trace: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--keep,-keep,diagnostics,raw argument; compilation not certified,--keep: accepted; -keep: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--keep-dir,-keep-dir,diagnostics,raw argument; compilation not certified,--keep-dir: accepted; -keep-dir: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--no-display-error-number,-no-err-no,diagnostics,raw argument; compilation not certified,--no-display-error-number: accepted; -no-err-no: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--optimization-info,-opt-info,diagnostics,raw argument; compilation not certified,--optimization-info: accepted; -opt-info: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--resource-usage,-res-usage,diagnostics,raw argument; compilation not certified,--resource-usage: accepted; -res-usage: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--sanitize,-sanitize,diagnostics,raw argument; compilation not certified,--sanitize: accepted; -sanitize: accepted,,CUDA 13.2 documentation
+nvcc,--save-temps,-save-temps,diagnostics,raw argument; compilation not certified,--save-temps: accepted; -save-temps: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--source-in-ptx,-src-in-ptx,diagnostics,raw argument; compilation not certified,--source-in-ptx: accepted; -src-in-ptx: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--time,-time,diagnostics,raw argument; compilation not certified,--time: accepted; -time: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--verbose,-v,diagnostics,raw argument; compilation not certified,--verbose: accepted; -v: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--verbose2,-v2,diagnostics,raw argument; compilation not certified,--verbose2: accepted; -v2: accepted,,local 13.2 help
+nvcc,--entries,-e,driver/artifact ownership,driver policy or unsupported artifact shape,--entries: accepted; -e: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--generate-code,-gencode,driver/artifact ownership,driver policy or unsupported artifact shape,--generate-code: rejected; -gencode: rejected,One real architecture per group; no multi-architecture fatbin API,CUDA 13.2 documentation; local 13.2 help
+nvcc,--gpu-code,-code,driver/artifact ownership,driver policy or unsupported artifact shape,--gpu-code: rejected; -code: rejected,One real architecture per group; no multi-architecture fatbin API,CUDA 13.2 documentation; local 13.2 help
+nvcc,--m64,-m64,driver/artifact ownership,driver policy or unsupported artifact shape,--m64: accepted; -m64: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--machine,-m,driver/artifact ownership,driver policy or unsupported artifact shape,--machine: accepted; -m: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--options-file,-optf,driver/artifact ownership,driver policy or unsupported artifact shape,--options-file: rejected; -optf: rejected,Intentionally blocked: hides effective arguments from configuration identity,CUDA 13.2 documentation; local 13.2 help
+nvcc,--output-file,-o,driver/artifact ownership,driver policy or unsupported artifact shape,--output-file: rejected; -o: rejected,Temporary output path is controlled by the driver,CUDA 13.2 documentation; local 13.2 help
+nvcc,--x,-x,driver/artifact ownership,driver policy or unsupported artifact shape,--x: accepted; -x: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--allow-unsupported-compiler,-allow-unsupported-compiler,host,NVCC host-toolchain concern,--allow-unsupported-compiler: accepted; -allow-unsupported-compiler: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--archive-options,-Xarchive,host,NVCC host-toolchain concern,--archive-options: accepted; -Xarchive: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--archiver-binary,-arbin,host,NVCC host-toolchain concern,--archiver-binary: accepted; -arbin: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--augment-host-linker-script,-aug-hls,host,NVCC host-toolchain concern,--augment-host-linker-script: accepted; -aug-hls: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--compiler-bindir,-ccbin,host,NVCC host-toolchain concern,--compiler-bindir: accepted; -ccbin: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--compiler-options,-Xcompiler,host,NVCC host-toolchain concern,--compiler-options: accepted; -Xcompiler: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--cudart,-cudart,host,NVCC host-toolchain concern,--cudart: accepted; -cudart: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--debug,-g,host,NVCC host-toolchain concern,--debug: accepted; -g: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--default-stream,-default-stream,host,NVCC host-toolchain concern,--default-stream: accepted; -default-stream: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--device-entity-has-hidden-visibility,-device-entity-has-hidden-visibility,host,NVCC host-toolchain concern,--device-entity-has-hidden-visibility: accepted; -device-entity-has-hidden-visibility: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--drive-prefix,-dp,host,NVCC host-toolchain concern,--drive-prefix: accepted; -dp: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--force-cl-env-setup,-force-cl-env-setup,host,NVCC host-toolchain concern,--force-cl-env-setup: accepted; -force-cl-env-setup: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--forward-slash-prefix-opts,-forward-slash-prefix-opts,host,NVCC host-toolchain concern,--forward-slash-prefix-opts: accepted; -forward-slash-prefix-opts: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation
+nvcc,--forward-unknown-opts,-forward-unknown-opts,host,NVCC host-toolchain concern,--forward-unknown-opts: accepted; -forward-unknown-opts: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--forward-unknown-to-host-compiler,-forward-unknown-to-host-compiler,host,NVCC host-toolchain concern,--forward-unknown-to-host-compiler: accepted; -forward-unknown-to-host-compiler: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--forward-unknown-to-host-linker,-forward-unknown-to-host-linker,host,NVCC host-toolchain concern,--forward-unknown-to-host-linker: accepted; -forward-unknown-to-host-linker: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--host-linker-script,-hls,host,NVCC host-toolchain concern,--host-linker-script: accepted; -hls: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--input-drive-prefix,-idp,host,NVCC host-toolchain concern,--input-drive-prefix: accepted; -idp: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--linker-options,-Xlinker,host,NVCC host-toolchain concern,--linker-options: accepted; -Xlinker: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--no-align-double,,host,NVCC host-toolchain concern,--no-align-double: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--no-exceptions,-noeh,host,NVCC host-toolchain concern,--no-exceptions: accepted; -noeh: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--profile,-pg,host,NVCC host-toolchain concern,--profile: accepted; -pg: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--static-global-template-stub,-static-global-template-stub,host,NVCC host-toolchain concern,--static-global-template-stub: accepted; -static-global-template-stub: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--use-local-env,-use-local-env,host,NVCC host-toolchain concern,--use-local-env: accepted; -use-local-env: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--optimize,-O,host optimization,driver currently inserts -O3,--optimize: accepted; -O: rejected,NVCC -O is host optimization; it is not ptxas_opt_level,CUDA 13.2 documentation; local 13.2 help
+nvcc,--expt-extended-lambda,-expt-extended-lambda,language/preprocessing,raw argument; compilation not certified,--expt-extended-lambda: accepted; -expt-extended-lambda: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--expt-relaxed-constexpr,-expt-relaxed-constexpr,language/preprocessing,raw argument; compilation not certified,--expt-relaxed-constexpr: accepted; -expt-relaxed-constexpr: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--extended-lambda,-extended-lambda,language/preprocessing,raw argument; compilation not certified,--extended-lambda: accepted; -extended-lambda: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--ftemplate-backtrace-limit,-ftemplate-backtrace-limit,language/preprocessing,raw argument; compilation not certified,--ftemplate-backtrace-limit: accepted; -ftemplate-backtrace-limit: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--ftemplate-depth,-ftemplate-depth,language/preprocessing,raw argument; compilation not certified,--ftemplate-depth: accepted; -ftemplate-depth: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--libdevice-directory,-ldir,language/preprocessing,raw argument; compilation not certified,--libdevice-directory: accepted; -ldir: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--no-host-device-initializer-list,-nohdinitlist,language/preprocessing,raw argument; compilation not certified,--no-host-device-initializer-list: accepted; -nohdinitlist: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--no-host-device-move-forward,-nohdmoveforward,language/preprocessing,raw argument; compilation not certified,--no-host-device-move-forward: accepted; -nohdmoveforward: accepted,,local 13.2 help
+nvcc,--pre-include,-include,language/preprocessing,raw argument; compilation not certified,--pre-include: accepted; -include: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--restrict,-restrict,language/preprocessing,raw argument; compilation not certified,--restrict: accepted; -restrict: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--system-include,-isystem,language/preprocessing,raw argument; compilation not certified,--system-include: accepted; -isystem: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--target-directory,-target-dir,language/preprocessing,raw argument; compilation not certified,--target-directory: accepted; -target-dir: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--undefine-macro,-U,language/preprocessing,raw argument; compilation not certified,--undefine-macro: accepted; -U: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--Ofast-compile,-Ofc,optimization/build-time,raw argument; compilation not certified,--Ofast-compile: accepted; -Ofc: rejected,Short alias -Ofc is incorrectly rejected by the current prefix check,CUDA 13.2 documentation; local 13.2 help
+nvcc,--compress-mode,-compress-mode,optimization/build-time,raw argument; compilation not certified,--compress-mode: accepted; -compress-mode: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--dopt,-dopt,optimization/build-time,raw argument; compilation not certified,--dopt: accepted; -dopt: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--extra-device-vectorization,-extra-device-vectorization,optimization/build-time,raw argument; compilation not certified,--extra-device-vectorization: accepted; -extra-device-vectorization: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--frandom-seed,-frandom-seed,optimization/build-time,raw argument; compilation not certified,--frandom-seed: accepted; -frandom-seed: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--jobserver,-jobserver,optimization/build-time,raw argument; compilation not certified,--jobserver: accepted; -jobserver: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--jump-table-density,-jtd,optimization/build-time,raw argument; compilation not certified,--jump-table-density: accepted; -jtd: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--no-compress,-no-compress,optimization/build-time,raw argument; compilation not certified,--no-compress: accepted; -no-compress: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--relocatable-ptx,-reloc-ptx,optimization/build-time,requires compilation/link/artifact workflow,--relocatable-ptx: accepted; -reloc-ptx: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--split-compile,-split-compile,optimization/build-time,raw argument; compilation not certified,--split-compile: accepted; -split-compile: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--split-compile-extended,-split-compile-extended,optimization/build-time,raw argument; compilation not certified,--split-compile-extended: accepted; -split-compile-extended: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--threads,-t,optimization/build-time,raw argument; compilation not certified,--threads: accepted; -t: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--maxrregcount,-maxrregcount,resource/declaration policy,needs explicit precedence with KernelAttributes/LaunchConfig,--maxrregcount: rejected; -maxrregcount: rejected,A compilation-wide cap differs from a kernel declaration attribute,CUDA 13.2 documentation; local 13.2 help
+nvcc,--define-macro,-D,structured,field: defines,--define-macro: rejected; -D: rejected,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--device-debug,-G,structured,field: device_debug,--device-debug: rejected; -G: rejected,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--fmad,-fmad,structured,field: fmad,--fmad: rejected; -fmad: rejected,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--ftz,-ftz,structured,field: ftz,--ftz: rejected; -ftz: rejected,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--generate-line-info,-lineinfo,structured,field: lineinfo,--generate-line-info: rejected; -lineinfo: rejected,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--gpu-architecture,-arch,structured,field: arch,--gpu-architecture: rejected; -arch: rejected,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--include-path,-I,structured,field: include_dirs,--include-path: rejected; -I: rejected,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--prec-div,-prec-div,structured,field: prec_div,--prec-div: rejected; -prec-div: rejected,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--prec-sqrt,-prec-sqrt,structured,field: prec_sqrt,--prec-sqrt: rejected; -prec-sqrt: rejected,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--ptxas-options,-Xptxas,structured,field: ptxas_options,--ptxas-options: rejected; -Xptxas: rejected,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--std,-std,structured,field: cxx_standard,--std: rejected; -std: rejected,Only C++11/14/17/20 accepted by the current field,CUDA 13.2 documentation; local 13.2 help
+nvcc,--use_fast_math,-use_fast_math,structured,field: fast_math,--use_fast_math: rejected; -use_fast_math: rejected,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--clean-targets,-clean,utility,driver utility; not a kernel compilation setting,--clean-targets: accepted; -clean: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--dependency-drive-prefix,-ddp,utility,driver utility; not a kernel compilation setting,--dependency-drive-prefix: accepted; -ddp: accepted,Does not configure the separate cuda_host C++ export build or runtime launch stream,CUDA 13.2 documentation; local 13.2 help
+nvcc,--dependency-output,-MF,utility,driver utility; not a kernel compilation setting,--dependency-output: accepted; -MF: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--dependency-target-name,-MT,utility,driver utility; not a kernel compilation setting,--dependency-target-name: accepted; -MT: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--dryrun,-dryrun,utility,driver utility; not a kernel compilation setting,--dryrun: accepted; -dryrun: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--generate-dependencies,-M,utility,driver utility; not a kernel compilation setting,--generate-dependencies: accepted; -M: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--generate-dependencies-with-compile,-MD,utility,driver utility; not a kernel compilation setting,--generate-dependencies-with-compile: accepted; -MD: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--generate-dependency-targets,-MP,utility,driver utility; not a kernel compilation setting,--generate-dependency-targets: accepted; -MP: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--generate-nonsystem-dependencies,-MM,utility,driver utility; not a kernel compilation setting,--generate-nonsystem-dependencies: accepted; -MM: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--generate-nonsystem-dependencies-with-compile,-MMD,utility,driver utility; not a kernel compilation setting,--generate-nonsystem-dependencies-with-compile: accepted; -MMD: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--help,-h,utility,driver utility; not a kernel compilation setting,--help: accepted; -h: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--list-gpu-arch,-arch-ls,utility,driver utility; not a kernel compilation setting,--list-gpu-arch: accepted; -arch-ls: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--list-gpu-code,-code-ls,utility,driver utility; not a kernel compilation setting,--list-gpu-code: accepted; -code-ls: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--run-args,-run-args,utility,driver utility; not a kernel compilation setting,--run-args: accepted; -run-args: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--version,-V,utility,driver utility; not a kernel compilation setting,--version: accepted; -V: accepted,,CUDA 13.2 documentation; local 13.2 help
+nvcc,--compile,-c,workflow,requires compilation/link/artifact workflow,--compile: accepted; -c: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--compile-as-tools-patch,-astoolspatch,workflow,requires compilation/link/artifact workflow,--compile-as-tools-patch: accepted; -astoolspatch: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--cuda,-cuda,workflow,requires compilation/link/artifact workflow,--cuda: accepted; -cuda: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--cudadevrt,-cudadevrt,workflow,requires compilation/link/artifact workflow,--cudadevrt: accepted; -cudadevrt: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--device-c,-dc,workflow,requires compilation/link/artifact workflow,--device-c: accepted; -dc: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--device-link,-dlink,workflow,requires compilation/link/artifact workflow,--device-link: accepted; -dlink: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--device-w,-dw,workflow,requires compilation/link/artifact workflow,--device-w: accepted; -dw: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--dlink-time-opt,-dlto,workflow,requires compilation/link/artifact workflow,--dlink-time-opt: accepted; -dlto: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--extensible-whole-program,-ewp,workflow,requires compilation/link/artifact workflow,--extensible-whole-program: accepted; -ewp: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--fdevice-syntax-only,-fdevice-syntax-only,workflow,requires compilation/link/artifact workflow,--fdevice-syntax-only: accepted; -fdevice-syntax-only: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,local 13.2 help
+nvcc,--gen-opt-lto,-gen-opt-lto,workflow,requires compilation/link/artifact workflow,--gen-opt-lto: accepted; -gen-opt-lto: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--keep-device-functions,-keep-device-functions,workflow,requires compilation/link/artifact workflow,--keep-device-functions: accepted; -keep-device-functions: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--lib,-lib,workflow,requires compilation/link/artifact workflow,--lib: accepted; -lib: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--library,-l,workflow,requires compilation/link/artifact workflow,--library: accepted; -l: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--library-path,-L,workflow,requires compilation/link/artifact workflow,--library-path: accepted; -L: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--link,-link,workflow,requires compilation/link/artifact workflow,--link: accepted; -link: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--lto,-lto,workflow,requires compilation/link/artifact workflow,--lto: accepted; -lto: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,local 13.2 help
+nvcc,--ltoir,-ltoir,workflow,requires compilation/link/artifact workflow,--ltoir: accepted; -ltoir: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--no-device-link,-nodlink,workflow,requires compilation/link/artifact workflow,--no-device-link: accepted; -nodlink: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--nvlink-options,-Xnvlink,workflow,requires compilation/link/artifact workflow,--nvlink-options: accepted; -Xnvlink: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--optix-ir,-optix-ir,workflow,requires compilation/link/artifact workflow,--optix-ir: accepted; -optix-ir: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--preprocess,-E,workflow,requires compilation/link/artifact workflow,--preprocess: accepted; -E: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--relocatable-device-code,-rdc,workflow,requires compilation/link/artifact workflow,--relocatable-device-code: accepted; -rdc: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--relocatable-link,-r,workflow,requires compilation/link/artifact workflow,--relocatable-link: accepted; -r: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--run,-run,workflow,requires compilation/link/artifact workflow,--run: accepted; -run: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvcc,--shared,-shared,workflow,requires compilation/link/artifact workflow,--shared: accepted; -shared: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation; local 13.2 help
+nvrtc,--device-stack-protector,-device-stack-protector,compiler-specific,raw argument; compilation not certified,--device-stack-protector: accepted; -device-stack-protector: accepted,,CUDA 13.2 documentation
+nvrtc,--Wreorder,-Wreorder,diagnostics,raw argument; compilation not certified,--Wreorder: accepted; -Wreorder: accepted,,CUDA 13.2 documentation
+nvrtc,--brief-diagnostics,-brief-diag,diagnostics,raw argument; compilation not certified,--brief-diagnostics: accepted; -brief-diag: accepted,,CUDA 13.2 documentation
+nvrtc,--diag-error,-diag-error,diagnostics,raw argument; compilation not certified,--diag-error: accepted; -diag-error: accepted,,CUDA 13.2 documentation
+nvrtc,--diag-suppress,-diag-suppress,diagnostics,raw argument; compilation not certified,--diag-suppress: accepted; -diag-suppress: accepted,,CUDA 13.2 documentation
+nvrtc,--diag-warn,-diag-warn,diagnostics,raw argument; compilation not certified,--diag-warn: accepted; -diag-warn: accepted,,CUDA 13.2 documentation
+nvrtc,--disable-warnings,-w,diagnostics,raw argument; compilation not certified,--disable-warnings: accepted; -w: accepted,,CUDA 13.2 documentation
+nvrtc,--display-error-number,-err-no,diagnostics,raw argument; compilation not certified,--display-error-number: accepted; -err-no: accepted,,CUDA 13.2 documentation
+nvrtc,--fdevice-time-trace,-fdevice-time-trace,diagnostics,raw argument; compilation not certified,--fdevice-time-trace: accepted; -fdevice-time-trace: accepted,,CUDA 13.2 documentation
+nvrtc,--no-display-error-number,-no-err-no,diagnostics,raw argument; compilation not certified,--no-display-error-number: accepted; -no-err-no: accepted,,CUDA 13.2 documentation
+nvrtc,--optimization-info,-opt-info,diagnostics,raw argument; compilation not certified,--optimization-info: accepted; -opt-info: accepted,,CUDA 13.2 documentation
+nvrtc,--time,-time,diagnostics,raw argument; compilation not certified,--time: accepted; -time: accepted,,CUDA 13.2 documentation
+nvrtc,--warning-as-error,-Werror,diagnostics,raw argument; compilation not certified,--warning-as-error: accepted; -Werror: accepted,,CUDA 13.2 documentation
+nvrtc,--device-as-default-execution-space,-default-device,driver defaults,inserted by the current NVRTC driver,--device-as-default-execution-space: accepted; -default-device: accepted,,CUDA 13.2 documentation
+nvrtc,--device-int128,-device-int128,driver defaults,inserted by the current NVRTC driver,--device-int128: accepted; -device-int128: accepted,,CUDA 13.2 documentation
+nvrtc,--no-cache,-no-cache,driver defaults,inserted by the current NVRTC driver,--no-cache: accepted; -no-cache: accepted,Added for NVRTC >=12.9; avoids implicit driver initialization and measured FTZ cache reuse,CUDA 13.2 documentation
+nvrtc,--builtin-initializer-list,-builtin-initializer-list,language/preprocessing,raw argument; compilation not certified,--builtin-initializer-list: accepted; -builtin-initializer-list: accepted,,CUDA 13.2 documentation
+nvrtc,--builtin-move-forward,-builtin-move-forward,language/preprocessing,raw argument; compilation not certified,--builtin-move-forward: accepted; -builtin-move-forward: accepted,,CUDA 13.2 documentation
+nvrtc,--device-float128,-device-float128,language/preprocessing,raw argument; compilation not certified,--device-float128: accepted; -device-float128: accepted,,CUDA 13.2 documentation
+nvrtc,--minimal,-minimal,language/preprocessing,raw argument; compilation not certified,--minimal: accepted; -minimal: accepted,,CUDA 13.2 documentation
+nvrtc,--no-source-include,-no-source-include,language/preprocessing,raw argument; compilation not certified,--no-source-include: accepted; -no-source-include: accepted,,CUDA 13.2 documentation
+nvrtc,--pre-include,-include,language/preprocessing,raw argument; compilation not certified,--pre-include: accepted; -include: accepted,,CUDA 13.2 documentation
+nvrtc,--restrict,-restrict,language/preprocessing,raw argument; compilation not certified,--restrict: accepted; -restrict: accepted,,CUDA 13.2 documentation
+nvrtc,--undefine-macro,-U,language/preprocessing,raw argument; compilation not certified,--undefine-macro: accepted; -U: accepted,,CUDA 13.2 documentation
+nvrtc,--Ofast-compile,-Ofc,optimization/build-time,raw argument; compilation not certified,--Ofast-compile: accepted; -Ofc: rejected,Short alias -Ofc is incorrectly rejected by the current prefix check,CUDA 13.2 documentation
+nvrtc,--dopt,-dopt,optimization/build-time,raw argument; compilation not certified,--dopt: accepted; -dopt: accepted,,CUDA 13.2 documentation
+nvrtc,--extra-device-vectorization,-extra-device-vectorization,optimization/build-time,raw argument; compilation not certified,--extra-device-vectorization: accepted; -extra-device-vectorization: accepted,,CUDA 13.2 documentation
+nvrtc,--frandom-seed,-frandom-seed,optimization/build-time,raw argument; compilation not certified,--frandom-seed: accepted; -frandom-seed: accepted,,CUDA 13.2 documentation
+nvrtc,--jump-table-density,-jtd,optimization/build-time,raw argument; compilation not certified,--jump-table-density: accepted; -jtd: accepted,,CUDA 13.2 documentation
+nvrtc,--modify-stack-limit,-modify-stack-limit,optimization/build-time,raw argument; compilation not certified,--modify-stack-limit: accepted; -modify-stack-limit: accepted,,CUDA 13.2 documentation
+nvrtc,--split-compile,-split-compile,optimization/build-time,raw argument; compilation not certified,--split-compile: accepted; -split-compile: accepted,,CUDA 13.2 documentation
+nvrtc,--create-pch,-create-pch,precompiled headers,raw argument; compilation not certified,--create-pch: accepted; -create-pch: accepted,Needs external-file lifetime and cache-identity policy,CUDA 13.2 documentation
+nvrtc,--instantiate-templates-in-pch,-instantiate-templates-in-pch,precompiled headers,raw argument; compilation not certified,--instantiate-templates-in-pch: accepted; -instantiate-templates-in-pch: accepted,Needs external-file lifetime and cache-identity policy,CUDA 13.2 documentation
+nvrtc,--pch,-pch,precompiled headers,raw argument; compilation not certified,--pch: accepted; -pch: accepted,Needs external-file lifetime and cache-identity policy,CUDA 13.2 documentation
+nvrtc,--pch-dir,-pch-dir,precompiled headers,raw argument; compilation not certified,--pch-dir: accepted; -pch-dir: accepted,Needs external-file lifetime and cache-identity policy,CUDA 13.2 documentation
+nvrtc,--pch-messages,-pch-messages,precompiled headers,raw argument; compilation not certified,--pch-messages: accepted; -pch-messages: accepted,Needs external-file lifetime and cache-identity policy,CUDA 13.2 documentation
+nvrtc,--pch-verbose,-pch-verbose,precompiled headers,raw argument; compilation not certified,--pch-verbose: accepted; -pch-verbose: accepted,Needs external-file lifetime and cache-identity policy,CUDA 13.2 documentation
+nvrtc,--use-pch,-use-pch,precompiled headers,raw argument; compilation not certified,--use-pch: accepted; -use-pch: accepted,Needs external-file lifetime and cache-identity policy,CUDA 13.2 documentation
+nvrtc,--maxrregcount,-maxrregcount,resource/declaration policy,needs explicit precedence with KernelAttributes/LaunchConfig,--maxrregcount: rejected; -maxrregcount: rejected,A compilation-wide cap differs from a kernel declaration attribute,CUDA 13.2 documentation
+nvrtc,--define-macro,-D,structured,field: defines,--define-macro: rejected; -D: rejected,,CUDA 13.2 documentation
+nvrtc,--device-debug,-G,structured,field: device_debug,--device-debug: rejected; -G: rejected,,CUDA 13.2 documentation
+nvrtc,--fmad,-fmad,structured,field: fmad,--fmad: rejected; -fmad: rejected,,CUDA 13.2 documentation
+nvrtc,--ftz,-ftz,structured,field: ftz,--ftz: rejected; -ftz: rejected,,CUDA 13.2 documentation
+nvrtc,--generate-line-info,-lineinfo,structured,field: lineinfo,--generate-line-info: rejected; -lineinfo: rejected,,CUDA 13.2 documentation
+nvrtc,--gpu-architecture,-arch,structured,field: arch,--gpu-architecture: rejected; -arch: rejected,,CUDA 13.2 documentation
+nvrtc,--include-path,-I,structured,field: include_dirs,--include-path: rejected; -I: rejected,,CUDA 13.2 documentation
+nvrtc,--prec-div,-prec-div,structured,field: prec_div,--prec-div: rejected; -prec-div: rejected,,CUDA 13.2 documentation
+nvrtc,--prec-sqrt,-prec-sqrt,structured,field: prec_sqrt,--prec-sqrt: rejected; -prec-sqrt: rejected,,CUDA 13.2 documentation
+nvrtc,--ptxas-options,-Xptxas,structured,field: ptxas_options,--ptxas-options: rejected; -Xptxas: rejected,,CUDA 13.2 documentation
+nvrtc,--std,-std,structured,field: cxx_standard,--std: rejected; -std: rejected,Only C++11/14/17/20 accepted by the current field,CUDA 13.2 documentation
+nvrtc,--use_fast_math,-use_fast_math,structured,field: fast_math,--use_fast_math: rejected; -use_fast_math: rejected,,CUDA 13.2 documentation
+nvrtc,--device-c,-dc,workflow,requires compilation/link/artifact workflow,--device-c: accepted; -dc: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation
+nvrtc,--device-w,-dw,workflow,requires compilation/link/artifact workflow,--device-w: accepted; -dw: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation
+nvrtc,--dlink-time-opt,-dlto,workflow,requires compilation/link/artifact workflow,--dlink-time-opt: accepted; -dlto: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation
+nvrtc,--extensible-whole-program,-ewp,workflow,requires compilation/link/artifact workflow,--extensible-whole-program: accepted; -ewp: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation
+nvrtc,--fdevice-syntax-only,-fdevice-syntax-only,workflow,requires compilation/link/artifact workflow,--fdevice-syntax-only: accepted; -fdevice-syntax-only: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation
+nvrtc,--gen-opt-lto,-gen-opt-lto,workflow,requires compilation/link/artifact workflow,--gen-opt-lto: accepted; -gen-opt-lto: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation
+nvrtc,--optix-ir,-optix-ir,workflow,requires compilation/link/artifact workflow,--optix-ir: accepted; -optix-ir: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation
+nvrtc,--relocatable-device-code,-rdc,workflow,requires compilation/link/artifact workflow,--relocatable-device-code: accepted; -rdc: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,CUDA 13.2 documentation
+ptxas,--device-debug,-g,compiler-specific,use frontend field; separate ptxas override has no policy,--device-debug: rejected; -g: accepted,,local 13.2 help
+ptxas,--device-stack-protector,-device-stack-protector,compiler-specific,raw argument; compilation not certified,--device-stack-protector: accepted; -device-stack-protector: accepted,,local 13.2 help
+ptxas,--fmad,-fmad,compiler-specific,use frontend field; separate ptxas override has no policy,--fmad: rejected; -fmad: rejected,,local 13.2 help
+ptxas,--g-tensor-memory-access-check,-g-tmem-access-check,compiler-specific,raw argument; compilation not certified,--g-tensor-memory-access-check: accepted; -g-tmem-access-check: accepted,,local 13.2 help
+ptxas,--generate-line-info,-lineinfo,compiler-specific,use frontend field; separate ptxas override has no policy,--generate-line-info: rejected; -lineinfo: rejected,,local 13.2 help
+ptxas,--gno-tensor-memory-access-check,-gno-tmem-access-check,compiler-specific,raw argument; compilation not certified,--gno-tensor-memory-access-check: accepted; -gno-tmem-access-check: accepted,,local 13.2 help
+ptxas,--legacy-bar-warp-wide-behavior,-legacy-bar-warp-wide-behavior,compiler-specific,raw argument; compilation not certified,--legacy-bar-warp-wide-behavior: accepted; -legacy-bar-warp-wide-behavior: accepted,,local 13.2 help
+ptxas,--sp-bounds-check,-sp-bounds-check,compiler-specific,raw argument; compilation not certified,--sp-bounds-check: accepted; -sp-bounds-check: accepted,,local 13.2 help
+ptxas,--suppress-debug-info,-suppress-debug-info,compiler-specific,raw argument; compilation not certified,--suppress-debug-info: accepted; -suppress-debug-info: accepted,,local 13.2 help
+ptxas,--suppress-sparse-mma-advisory-info,-suppress-sparse-mma-advisory-info,compiler-specific,raw argument; compilation not certified,--suppress-sparse-mma-advisory-info: accepted; -suppress-sparse-mma-advisory-info: accepted,,local 13.2 help
+ptxas,--compiler-annotations,-annotate,diagnostics,raw argument; compilation not certified,--compiler-annotations: accepted; -annotate: accepted,,local 13.2 help
+ptxas,--disable-warnings,-w,diagnostics,raw argument; compilation not certified,--disable-warnings: accepted; -w: accepted,,local 13.2 help
+ptxas,--make-errors-visible-at-exit,-make-errors-visible-at-exit,diagnostics,raw argument; compilation not certified,--make-errors-visible-at-exit: accepted; -make-errors-visible-at-exit: accepted,,local 13.2 help
+ptxas,--sanitize,-sanitize,diagnostics,raw argument; compilation not certified,--sanitize: accepted; -sanitize: accepted,,local 13.2 help
+ptxas,--suppress-async-bulk-multicast-advisory-warning,-suppress-async-bulk-multicast-advisory-warning,diagnostics,raw argument; compilation not certified,--suppress-async-bulk-multicast-advisory-warning: accepted; -suppress-async-bulk-multicast-advisory-warning: accepted,,local 13.2 help
+ptxas,--suppress-double-demote-warning,-suppress-double-demote-warning,diagnostics,raw argument; compilation not certified,--suppress-double-demote-warning: accepted; -suppress-double-demote-warning: accepted,,local 13.2 help
+ptxas,--suppress-stack-size-warning,-suppress-stack-size-warning,diagnostics,raw argument; compilation not certified,--suppress-stack-size-warning: accepted; -suppress-stack-size-warning: accepted,,local 13.2 help
+ptxas,--verbose,-v,diagnostics,always inserted into ptxas options by compiler_options(),--verbose: accepted; -v: accepted,,local 13.2 help
+ptxas,--verbose2,-v2,diagnostics,raw argument; compilation not certified,--verbose2: accepted; -v2: accepted,,local 13.2 help
+ptxas,--warn-on-double-precision-use,-warn-double-usage,diagnostics,raw argument; compilation not certified,--warn-on-double-precision-use: accepted; -warn-double-usage: accepted,,local 13.2 help
+ptxas,--warn-on-local-memory-usage,-warn-lmem-usage,diagnostics,always inserted into ptxas options by compiler_options(),--warn-on-local-memory-usage: accepted; -warn-lmem-usage: accepted,,local 13.2 help
+ptxas,--warn-on-spills,-warn-spills,diagnostics,raw argument; compilation not certified,--warn-on-spills: accepted; -warn-spills: accepted,,local 13.2 help
+ptxas,--warning-as-error,-Werror,diagnostics,raw argument; compilation not certified,--warning-as-error: accepted; -Werror: accepted,,local 13.2 help
+ptxas,--entry,-e,driver/artifact ownership,driver policy or unsupported artifact shape,--entry: accepted; -e: accepted,,local 13.2 help
+ptxas,--gpu-name,-arch,driver/artifact ownership,driver policy or unsupported artifact shape,--gpu-name: accepted; -arch: rejected,Long spelling currently bypasses the arch guard; -arch is blocked,local 13.2 help
+ptxas,--input-as-string,-ias,driver/artifact ownership,driver policy or unsupported artifact shape,--input-as-string: accepted; -ias: accepted,,local 13.2 help
+ptxas,--machine,-m,driver/artifact ownership,driver policy or unsupported artifact shape,--machine: accepted; -m: accepted,,local 13.2 help
+ptxas,--options-file,-optf,driver/artifact ownership,driver policy or unsupported artifact shape,--options-file: rejected; -optf: rejected,Intentionally blocked: hides effective arguments from configuration identity,local 13.2 help
+ptxas,--output-file,-o,driver/artifact ownership,driver policy or unsupported artifact shape,--output-file: rejected; -o: rejected,Temporary output path is controlled by the driver,local 13.2 help
+ptxas,--def-load-cache,-dlcm,memory code generation,raw argument; compilation not certified,--def-load-cache: accepted; -dlcm: accepted,,local 13.2 help
+ptxas,--def-store-cache,-dscm,memory code generation,raw argument; compilation not certified,--def-store-cache: accepted; -dscm: accepted,,local 13.2 help
+ptxas,--force-load-cache,-flcm,memory code generation,raw argument; compilation not certified,--force-load-cache: accepted; -flcm: accepted,,local 13.2 help
+ptxas,--force-store-cache,-fscm,memory code generation,raw argument; compilation not certified,--force-store-cache: accepted; -fscm: accepted,,local 13.2 help
+ptxas,--Ofast-compile,-Ofc,optimization/build-time,raw argument; compilation not certified,--Ofast-compile: accepted; -Ofc: rejected,Short alias -Ofc is incorrectly rejected by the current prefix check,local 13.2 help
+ptxas,--allow-expensive-optimizations,-allow-expensive-optimizations,optimization/build-time,raw argument; compilation not certified,--allow-expensive-optimizations: accepted; -allow-expensive-optimizations: accepted,,local 13.2 help
+ptxas,--disable-optimizer-constants,-disable-optimizer-consts,optimization/build-time,raw argument; compilation not certified,--disable-optimizer-constants: accepted; -disable-optimizer-consts: accepted,,local 13.2 help
+ptxas,--dont-merge-basicblocks,-no-bb-merge,optimization/build-time,raw argument; compilation not certified,--dont-merge-basicblocks: accepted; -no-bb-merge: accepted,,local 13.2 help
+ptxas,--jobserver,-jobserver,optimization/build-time,raw argument; compilation not certified,--jobserver: accepted; -jobserver: accepted,,local 13.2 help
+ptxas,--optimize-float-atomics,-opt-fp-atomics,optimization/build-time,raw argument; compilation not certified,--optimize-float-atomics: accepted; -opt-fp-atomics: accepted,,local 13.2 help
+ptxas,--return-at-end,-ret-end,optimization/build-time,raw argument; compilation not certified,--return-at-end: accepted; -ret-end: accepted,,local 13.2 help
+ptxas,--split-compile,-split-compile,optimization/build-time,raw argument; compilation not certified,--split-compile: accepted; -split-compile: accepted,,local 13.2 help
+ptxas,--device-function-maxrregcount,-func-maxrregcount,resource/declaration policy,needs explicit precedence with KernelAttributes/LaunchConfig,--device-function-maxrregcount: accepted; -func-maxrregcount: accepted,A compilation-wide cap differs from a kernel declaration attribute,local 13.2 help
+ptxas,--maxntid,-maxntid,resource/declaration policy,needs explicit precedence with KernelAttributes/LaunchConfig,--maxntid: accepted; -maxntid: accepted,A compilation-wide cap differs from a kernel declaration attribute,local 13.2 help
+ptxas,--maxrregcount,-maxrregcount,resource/declaration policy,needs explicit precedence with KernelAttributes/LaunchConfig,--maxrregcount: rejected; -maxrregcount: rejected,A compilation-wide cap differs from a kernel declaration attribute,local 13.2 help
+ptxas,--minnctapersm,-minnctapersm,resource/declaration policy,needs explicit precedence with KernelAttributes/LaunchConfig,--minnctapersm: accepted; -minnctapersm: accepted,A compilation-wide cap differs from a kernel declaration attribute,local 13.2 help
+ptxas,--override-directive-values,-override-directive-values,resource/declaration policy,needs explicit precedence with KernelAttributes/LaunchConfig,--override-directive-values: accepted; -override-directive-values: accepted,A compilation-wide cap differs from a kernel declaration attribute,local 13.2 help
+ptxas,--opt-level,-O,structured,field: ptxas_opt_level,--opt-level: rejected; -O: rejected,,local 13.2 help
+ptxas,--register-usage-level,-regUsageLevel,structured,field: ptxas_reg_usage_level,--register-usage-level: rejected; -regUsageLevel: accepted,Alias -regUsageLevel currently bypasses the structured-field guard,local 13.2 help
+ptxas,--help,-h,utility,driver utility; not a kernel compilation setting,--help: accepted; -h: accepted,,local 13.2 help
+ptxas,--list-arch,-arch-ls,utility,driver utility; not a kernel compilation setting,--list-arch: accepted; -arch-ls: accepted,,local 13.2 help
+ptxas,--list-version,-version-ls,utility,driver utility; not a kernel compilation setting,--list-version: accepted; -version-ls: accepted,,local 13.2 help
+ptxas,--version,-V,utility,driver utility; not a kernel compilation setting,--version: accepted; -V: accepted,,local 13.2 help
+ptxas,--compile-as-tools-patch,-astoolspatch,workflow,requires compilation/link/artifact workflow,--compile-as-tools-patch: accepted; -astoolspatch: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,local 13.2 help
+ptxas,--compile-only,-c,workflow,requires compilation/link/artifact workflow,--compile-only: accepted; -c: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,local 13.2 help
+ptxas,--extensible-whole-program,-ewp,workflow,requires compilation/link/artifact workflow,--extensible-whole-program: accepted; -ewp: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,local 13.2 help
+ptxas,--position-independent-code,-pic,workflow,requires compilation/link/artifact workflow,--position-independent-code: accepted; -pic: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,local 13.2 help
+ptxas,--preserve-relocs,-preserve-relocs,workflow,requires compilation/link/artifact workflow,--preserve-relocs: accepted; -preserve-relocs: accepted,General workflow is not exposed; NVSHMEM has a separate internal linking path,local 13.2 help

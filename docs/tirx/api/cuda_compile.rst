@@ -31,3 +31,6 @@ for validation and compiler-flag translation. Every field defaults to ``None``
 (unspecified) at the API boundary. Resolution fills compiler defaults only after
 entry overrides have been applied. See :doc:`../native_basics/cuda/compiling`
 for precedence, defaults, artifacts and migration examples.
+
+See :doc:`cuda_compile_options` for the NVCC/NVRTC/ptxas option inventory,
+current coverage, version differences, and known validation gaps.

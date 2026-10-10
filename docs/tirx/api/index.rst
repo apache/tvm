@@ -39,6 +39,7 @@ Target APIs
 
    cuda
    cuda_compile
+   cuda_compile_options
    cuda_launch
    ptx
    trainium
