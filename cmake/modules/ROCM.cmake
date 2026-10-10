@@ -34,11 +34,6 @@ if(USE_ROCM)
 
   tvm_file_glob(GLOB RUNTIME_ROCM_SRCS src/backend/rocm/runtime/*.cc)
 
-  set(_rocm_libs ${ROCM_HIPHCC_LIBRARY})
-  if(ROCM_HSA_LIBRARY)
-    list(APPEND _rocm_libs ${ROCM_HSA_LIBRARY})
-  endif()
-
   add_library(tvm_runtime_rocm_objs OBJECT ${RUNTIME_ROCM_SRCS})
   target_link_libraries(tvm_runtime_rocm_objs PUBLIC tvm_ffi_header)
   set_target_properties(tvm_runtime_rocm_objs PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -47,7 +42,7 @@ if(USE_ROCM)
   endif()
   add_library(tvm_runtime_rocm SHARED $<TARGET_OBJECTS:tvm_runtime_rocm_objs>)
   list(APPEND TVM_RUNTIME_BACKEND_LIBS tvm_runtime_rocm)
-  target_link_libraries(tvm_runtime_rocm PUBLIC tvm_runtime ${_rocm_libs})
+  target_link_libraries(tvm_runtime_rocm PUBLIC tvm_runtime ${ROCM_HIPHCC_LIBRARY})
   tvm_configure_target_library(tvm_runtime_rocm RUNTIME_MODULE)
 endif(USE_ROCM)
 
