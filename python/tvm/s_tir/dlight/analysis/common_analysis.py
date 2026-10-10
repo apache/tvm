@@ -438,8 +438,19 @@ def detect_dominant_read(block: s_tir.SBlock) -> tirx.Expr:
             num_read_iters = len(tir_vars)
             dominant_read = buffer_region
     assert dominant_read is not None
-    (result,) = dominant_read.source.offset_of([e.min for e in dominant_read.region])
-    return result
+    return _buffer_region_offset(dominant_read)
+
+
+def _buffer_region_offset(region):
+    """Linear element offset of a region's first element."""
+    buffer = region.source
+    offset = 0
+    for axis, bounds in enumerate(region.region):
+        if buffer.strides:
+            offset += bounds.min * buffer.strides[axis]
+        else:
+            offset = offset * buffer.shape[axis] + bounds.min
+    return tvm.sym.Analyzer().simplify(offset + buffer.elem_offset)
 
 
 def is_broadcast_epilogue(

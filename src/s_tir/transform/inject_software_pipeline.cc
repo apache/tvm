@@ -126,7 +126,6 @@ class PipelineOpaqueAccessRewriter {
   Expr Rewrite(const Call& call) {
     // Intrinsic calls should be handled explicitly here as they are opaque accesses to
     // buffer.
-    static const auto& access_ptr = tirx::access_ptr_op();
     static const Op load_matrix_sync = Op::Get("tirx.gpu_load_matrix_sync");
     static const Op store_matrix_sync = Op::Get("tirx.gpu_store_matrix_sync");
     static const Op mma_sync = Op::Get("tirx.gpu_mma_sync");
@@ -158,8 +157,6 @@ class PipelineOpaqueAccessRewriter {
         }
       }
       return Call(call->ty, call->op, new_args, call->attrs, call->ty_args, call->span);
-    } else if (call->op.same_as(access_ptr)) {
-      return RewriteBufferAccess(call, {0});
     } else if (call->op.same_as(ptx_mma_legacy)) {
       return RewriteBufferAccess(call, {6, 8, 10});
     } else if (call->op.same_as(ptx_ldmatrix_legacy)) {
@@ -333,6 +330,27 @@ class PipelineBodyRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
+    if (op->op.same_as(tirx::tensor_data_ptr_op())) {
+      TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
+      if (auto replacement = VarRemapGet(buffer).as<TensorVar>()) {
+        TensorVar new_buffer = replacement.value();
+        PrimExpr stride = new_buffer->strides.empty() ? PrimExpr(1) : new_buffer->strides[0];
+        if (new_buffer->strides.empty()) {
+          for (const PrimExpr& extent : buffer->shape) stride = stride * extent;
+        }
+        if (buffer.scope() == "m16n8k8.matrixA" || buffer.scope() == "m16n8k8.matrixB") {
+          // These logical matrix allocations are distributed over a warp.
+          TVM_FFI_ICHECK_EQ(floormod(stride, 32).as_or_throw<IntImm>()->value, 0);
+          stride = floordiv(stride, 32);
+        }
+        PrimType dtype = buffer->dtype;
+        int bytes = (dtype.bits() * dtype.lanes() + 7) / 8;
+        PrimExpr version =
+            floormod(pipeline_loop_->loop_var - pipeline_loop_->min, new_buffer->shape[0]);
+        return Call(op->ty, tirx::ptr_byte_offset_op(),
+                    {new_buffer.data(), version * stride * bytes}, {}, {}, op->span);
+      }
+    }
     Call call = opaque_access_rewriter_.Rewrite(ffi::GetRef<Call>(op)).as_or_throw<Call>();
     return StmtExprMutator::Mutate_(call.get(), InplaceMode::kDisallow).ValueOrUnchanged(call);
   }

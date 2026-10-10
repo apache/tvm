@@ -204,7 +204,7 @@ def get_ldmatrix_intrin(
                         ".b16",
                         warp.data,
                         warp.elem_offset + lift(local_size) * tx,
-                        shared.access_ptr("r"),
+                        shared.ptr_to([0, 0]),
                         smem_offset(tx, s0),
                         ty=dtype,
                     )
@@ -600,7 +600,7 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
                         T.cuda.mma_store(
                             M_DIM,
                             N_DIM,
-                            C.access_ptr("w"),
+                            C.ptr_to([0, 0]),
                             C_warp.data,
                             C_warp.elem_offset,
                             s0,
@@ -895,7 +895,7 @@ def get_mma_load_intrin(
                         ".b16",
                         dst.data,
                         get_index(dst.elem_offset, d0),
-                        src.access_ptr("r"),
+                        src.ptr_to([0, 0]),
                         get_tx_index(tx, s0),
                         ty=dtype,
                     )

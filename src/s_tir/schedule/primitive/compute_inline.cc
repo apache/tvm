@@ -20,6 +20,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/tirx/op/memory.h>
 
 #include "../utils.h"
 
@@ -362,6 +363,21 @@ class BaseInliner : public StmtExprMutator {
       CheckOpaqueAccess(var);
     }
     return StmtExprMutator::Mutate_(var, inplace_mode);
+  }
+
+  UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
+    if (op->op.same_as(tirx::address_of_op())) {
+      if (const auto* load = op->args[0].as<TensorLoadNode>()) {
+        CheckOpaqueAccess(load->source.as_or_throw<TensorVar>().get());
+        // An address operand must remain a TensorLoad, not the inlined value.
+        auto operand = BaseInliner::Mutate_(load, inplace_mode);
+        if (operand.UnchangedOrSameAs(ffi::GetRef<TensorLoad>(load))) return ffi::Unchanged();
+        Call call = ffi::GetRef<Call>(op);
+        call.CopyOnWrite()->args.Set(0, std::move(operand).ValueUnchecked());
+        return call;
+      }
+    }
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {

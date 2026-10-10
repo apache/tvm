@@ -42,11 +42,22 @@ namespace {
 
 ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
   if (auto var = data.as<Var>()) {
-    return var;
+    if (var.value()->ty.as<PointerTypeNode>() || var.value()->ty.as<TensorTypeNode>()) return var;
+    return std::nullopt;
   }
   if (const auto* call = data.as<CallNode>();
       call && call->op.same_as(tirx::tensor_data_ptr_op()) && call->args.size() == 1) {
     return call->args[0].as<Var>();
+  }
+  if (const auto* call = data.as<CallNode>()) {
+    if (call->op.same_as(tirx::ptr_byte_offset_op()) || call->op.same_as(tirx::reinterpret_op())) {
+      return GetBufferDataVar(call->args[0]);
+    }
+    if (call->op.same_as(tirx::address_of_op())) {
+      if (const auto* load = call->args[0].as<TensorLoadNode>()) {
+        return load->source.as<Var>();
+      }
+    }
   }
   return std::nullopt;
 }
@@ -65,6 +76,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const TensorLoadNode*
     for (const auto& index : op->indices) {
       e.touched.push_back(sym::IntSet::Vector(index));
     }
+    if (offset_aliases_.count(op->source.as_or_throw<TensorVar>().get())) e.touched.clear();
     e.type = kRead;
     e.scope = scope;
     curr_stmt_.access.emplace_back(std::move(e));
@@ -88,6 +100,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const TensorStoreNode
     for (const auto& index : op->indices) {
       e.touched.push_back(sym::IntSet::Vector(index));
     }
+    if (offset_aliases_.count(op->dest.as_or_throw<TensorVar>().get())) e.touched.clear();
     e.type = kWrite;
     e.scope = scope;
     curr_stmt_.access.emplace_back(std::move(e));
@@ -117,8 +130,16 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const EvaluateNode* o
 }
 
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BindNode* op) {
+  if (op->var->ty.as<PointerTypeNode>()) {
+    pointer_values_.insert_or_assign(op->var.get(), op->value);
+    if (HasOffsetPointer(op->value)) offset_aliases_.insert(op->var.get());
+    if (auto source = GetBufferDataVar(op->value)) {
+      buffer_aliases_.insert_or_assign(op->var.get(), ResolveBuffer(source.value()));
+    }
+  }
   if (const auto* call = op->value.as<CallNode>();
       call && call->op.same_as(tirx::decl_tensor_op())) {
+    if (HasOffsetPointer(call->args[0])) offset_aliases_.insert(op->var.get());
     if (auto source = GetBufferDataVar(call->args[0])) {
       buffer_aliases_.insert_or_assign(op->var.as_or_throw<TensorVar>().get(),
                                        ResolveBuffer(source.value()));
@@ -264,8 +285,69 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const WhileNode* op) 
   return std::nullopt;
 }
 
+bool StorageAccessVisitor::HasOffsetPointer(const Expr& value) const {
+  if (const auto* var = value.as<VarNode>()) return offset_aliases_.count(var);
+  if (const auto* call = value.as<CallNode>()) {
+    if (call->op.same_as(tirx::ptr_byte_offset_op()) || call->op.same_as(tirx::address_of_op()) ||
+        call->op.same_as(tirx::reinterpret_op()))
+      return true;
+    if (call->op.same_as(tirx::tensor_data_ptr_op())) return HasOffsetPointer(call->args[0]);
+  }
+  return false;
+}
+
+void StorageAccessVisitor::RecordOpaqueAccess(Var source) {
+  Var root = ResolveBuffer(source);
+  StorageScope scope = GetScope(root);
+  if (!Enabled(root.get(), scope)) return;
+  AccessEntry entry;
+  entry.threads = env_threads();
+  entry.buffer = root;
+  entry.scope = scope;
+  auto buffer = root.as<TensorVar>();
+  if (!buffer.has_value()) buffer = source.as<TensorVar>();
+  if (buffer.has_value()) {
+    entry.dtype = buffer.value()->dtype;
+    for (const PrimExpr& extent : buffer.value()->shape) {
+      entry.touched.push_back(sym::IntSet::FromRange(Range::FromMinExtent(0, extent)));
+    }
+  } else {
+    // Raw pointers have no shape or direction information. An empty region
+    // denotes unknown storage, which synchronization treats conservatively.
+    entry.dtype = source->ty.as_or_throw<PointerType>()->element_type.as<PrimType>().value_or(
+        PrimType::UInt(8));
+  }
+  entry.type = kRead;
+  curr_stmt_.access.push_back(entry);
+  entry.type = kWrite;
+  curr_stmt_.access.push_back(std::move(entry));
+}
+
+ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const VarNode* op) {
+  if (allow_append_ && in_opaque_call_) {
+    if (auto it = pointer_values_.find(op); it != pointer_values_.end()) {
+      return Visit(it->second);
+    }
+    if (op->ty.as<PointerTypeNode>()) RecordOpaqueAccess(ffi::GetRef<Var>(op));
+  }
+  return StmtExprVisitor::Visit_(op);
+}
+
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
   Call call = ffi::GetRef<Call>(op);
+  if (allow_append_ && in_opaque_call_) {
+    ffi::Optional<TensorVar> buffer;
+    if (op->op.same_as(tirx::tensor_data_ptr_op())) {
+      buffer = op->args[0].as<TensorVar>();
+    } else if (op->op.same_as(tirx::address_of_op())) {
+      if (const auto* load = op->args[0].as<TensorLoadNode>()) {
+        buffer = load->source.as<TensorVar>();
+      }
+    }
+    if (buffer.has_value()) {
+      RecordOpaqueAccess(buffer.value());
+    }
+  }
   if (op->op.same_as(tirx::masked_load_op()) || op->op.same_as(tirx::masked_store_op())) {
     bool is_load = op->op.same_as(tirx::masked_load_op());
     TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
@@ -282,6 +364,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
       for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
         e.touched.push_back(sym::IntSet::Vector(op->args[i].as_or_throw<PrimExpr>()));
       }
+      if (offset_aliases_.count(buffer.get())) e.touched.clear();
       e.type = is_load ? kRead : kWrite;
       e.scope = scope;
       curr_stmt_.access.emplace_back(std::move(e));
@@ -297,41 +380,6 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
       // Recurse without assuming the argument is a TensorLoad.
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
-  } else if (op->op.same_as(tirx::access_ptr_op())) {
-    TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
-    PrimType dtype = op->ty_args[0].as_or_throw<PrimType>();
-    auto buffer_var = GetBufferDataVar(op->args[0]);
-    if (!buffer_var.has_value()) {
-      // args[0] is not a raw Var — e.g. a nested access_ptr or some
-      // other PrimExpr. Recurse into sub-exprs so any inner buffer var
-      // refs still get visited, but don't try to record an access entry
-      // here (GetScope on a null Var would dereference a null pointer).
-      return StmtExprVisitor::Visit_(op);
-    }
-    Var buffer = ResolveBuffer(buffer_var.value());
-    PrimExpr offset = op->args[1].as_or_throw<PrimExpr>();
-    PrimExpr extent = op->args[2].as_or_throw<PrimExpr>();
-    const IntImmNode* flag = op->args[3].as<IntImmNode>();
-    StorageScope scope = GetScope(buffer_var.value());
-    // The buffer scope.
-    if (Enabled(buffer.get(), scope)) {
-      TVM_FFI_ICHECK(allow_append_);
-      AccessEntry e;
-      e.threads = env_threads();
-      e.dtype = dtype;
-      e.buffer = buffer;
-      e.touched = {sym::IntSet::FromRange(Range::FromMinExtent(offset, extent))};
-      e.scope = scope;
-      if (flag->value & 1) {
-        e.type = kRead;
-        curr_stmt_.access.emplace_back(e);
-      }
-      if (flag->value & 2) {
-        e.type = kWrite;
-        curr_stmt_.access.emplace_back(e);
-      }
-    }
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
   } else if (op->op.same_as(tirx::gpu_storage_sync_op())) {
     TVM_FFI_ICHECK(allow_append_);
     const std::string& s = op->args[0].as<StringImmNode>()->value;
@@ -344,7 +392,16 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
       curr_stmt_.access.emplace_back(std::move(e));
     }
   } else {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+    bool previous = in_opaque_call_;
+    auto effect_map = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
+    auto callee = op->op.as<Op>();
+    if (!callee.has_value() || !effect_map.count(callee.value()) ||
+        effect_map[callee.value()] > static_cast<int>(CallEffectKind::kPure)) {
+      in_opaque_call_ = true;
+    }
+    auto result = StmtExprVisitor::Visit_(op);
+    in_opaque_call_ = previous;
+    return result;
   }
   return std::nullopt;
 }

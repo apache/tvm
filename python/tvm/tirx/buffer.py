@@ -17,18 +17,14 @@
 """Compatibility imports for the tensor module."""
 
 from .tensor import (
-    BufferAccessKind,
     TensorType,
-    buffer_data_pointer_type,
     decl_tensor,
     is_tensor_var,
     tensor_data_ptr,
 )
 
 __all__ = [
-    "BufferAccessKind",
     "TensorType",
-    "buffer_data_pointer_type",
     "decl_tensor",
     "is_tensor_var",
     "tensor_data_ptr",

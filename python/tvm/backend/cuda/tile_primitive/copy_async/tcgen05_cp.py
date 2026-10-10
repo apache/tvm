@@ -772,7 +772,7 @@ def copy_smem_tmem_impl(op_call: TensorCall, sctx: DispatchContext) -> Function 
     s_rank = len(s_buf.shape)
 
     def _cp_desc(off_16B):
-        addr = T.ptr_byte_offset(s_buf.ptr_to([0] * s_rank), off_16B * 16, s_buf.dtype)
+        addr = T.ptr_byte_offset(s_buf.ptr_to([0] * s_rank), off_16B * 16, ty=s_buf.data.ty)
         return _desc_set_addr(desc_buf[0], addr)
 
     # Flatten the N-D middle loop into one T.unroll: per-dim index is

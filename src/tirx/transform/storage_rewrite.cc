@@ -604,9 +604,16 @@ class StoragePlanRewriter : public StmtExprMutator {
       if (auto var = op->args[0].as<Var>()) {
         Var root = buffer_aliases_.Get(var.value()).value_or(var.value());
         if (auto it = alloc_map_.find(root.get()); it != alloc_map_.end()) {
-          // Visit the use for the merged-address diagnostic before selecting its backing.
-          Mutate(var.value());
-          return it->second->alloc_var.as_or_throw<TensorVar>().data();
+          const StorageEntry* entry = it->second;
+          TVM_FFI_ICHECK_EQ(entry->bits_offset % 8, 0U);
+          Expr data = entry->alloc_var.as_or_throw<TensorVar>().data();
+          if (entry->bits_offset != 0 || !ffi::StructuralEqual()(data->ty, op->ty)) {
+            return Call(
+                op->ty, tirx::ptr_byte_offset_op(),
+                {data, IntImm(PrimType::Int(64), static_cast<int64_t>(entry->bits_offset / 8))}, {},
+                {}, op->span);
+          }
+          return data;
         }
       }
     }
@@ -640,35 +647,6 @@ class StoragePlanRewriter : public StmtExprMutator {
                            .as_or_throw<Expr>());
         return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);
       }
-    } else if (op->op.same_as(access_ptr_op())) {
-      TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
-      PrimType dtype = op->ty_args[0].as_or_throw<PrimType>();
-      auto buffer_var = GetBufferDataVar(op->args[0]);
-      if (!buffer_var.has_value()) {
-        return StmtExprMutator::Mutate_(op, inplace_mode);
-      }
-      const VarNode* buffer = buffer_var.value().get();
-      if (buffer->ty.as<TensorTypeNode>()) {
-        Var var = buffer_var.value();
-        buffer = buffer_aliases_.Get(var).value_or(var).get();
-      }
-      auto it = alloc_map_.find(buffer);
-      if (it == alloc_map_.end()) {
-        return StmtExprMutator::Mutate_(op, inplace_mode);
-      }
-      const StorageEntry* se = it->second;
-      PrimExpr offset =
-          this->Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
-      PrimExpr extent =
-          this->Mutate(op->args[2]).ValueOrUnchanged(op->args[2]).as_or_throw<PrimExpr>();
-      uint64_t elem_bits = dtype.bits() * dtype.lanes();
-      TVM_FFI_ICHECK_EQ(se->bits_offset % elem_bits, 0U);
-      if (se->bits_offset != 0) {
-        offset = MakeConst(offset.ty(), se->bits_offset / elem_bits) + offset;
-      }
-      return Call(op->ty, op->op,
-                  {se->alloc_var, offset, extent, op->args[3].as_or_throw<PrimExpr>()}, op->attrs,
-                  op->ty_args, op->span);
     } else {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
@@ -1496,21 +1474,13 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
         indices.push_back(op->args[i].as_or_throw<PrimExpr>());
       }
       OnArrayAccess(dtype, buffer.get(), indices, is_load);
-    } else if (op->op.same_as(access_ptr_op())) {
-      PrimType dtype = op->ty_args[0].as_or_throw<PrimType>();
-      auto buffer_var = GetBufferDataVar(op->args[0]);
-      PrimExpr index = op->args[1].as_or_throw<PrimExpr>();
-      // args[0] may be a nested Call (e.g. another access_ptr) rather
-      // than a raw Var; OnArrayAccess derefs `buffer` so skip the record
-      // here and let the recursive visit handle any inner buffer var.
-      if (buffer_var.has_value()) {
-        OnArrayAccess(dtype, buffer_var.value().get(), {index}, false);
-      }
     } else if (op->op.same_as(tirx::address_of_op())) {
       if (const auto* load = op->args[0].as<TensorLoadNode>()) {
         OnArrayAccess(load->ty.as_or_throw<PrimType>(),
                       load->source.as_or_throw<tvm::tirx::TensorVar>().get(), load->indices,
                       /*is_buffer_load=*/false);
+        // Preserve the address use without treating its operand as a value load.
+        return StmtExprVisitor::Visit_(load);
       }
     }
     return StmtExprVisitor::Visit_(op);
@@ -2088,43 +2058,7 @@ class VectorTypeRewriter : public StmtExprMutator {
         return RemapBuffer(var.value().as_or_throw<TensorVar>()).data();
       }
     }
-    if (op->op.same_as(access_ptr_op())) {
-      auto buffer = GetBufferDataVar(op->args[0]);
-      Expr expr =
-          StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Expr>(op));
-      op = expr.as<CallNode>();
-
-      if (!rewrite_indices_) {
-        return expr;
-      }
-
-      if (!buffer.has_value()) {
-        return expr;
-      }
-      Var var = buffer.value();
-      Var root = buffer_aliases_.Get(var).value_or(var);
-      auto it = rewrite_map_.find(root.get());
-      if (it == rewrite_map_.end()) {
-        return expr;
-      }
-      const auto& info = it->second;
-
-      PrimExpr index = op->args[1].as_or_throw<PrimExpr>();
-      PrimExpr extent = op->args[2].as_or_throw<PrimExpr>();
-      PrimExpr flag = op->args[3].as_or_throw<PrimExpr>();
-
-      int factor = info.factor();
-      extent = extent / MakeConst(extent.ty(), factor);
-      index = index / MakeConst(index.ty(), factor);
-      Expr data = info.new_buffer_var->ty.as<TensorTypeNode>()
-                      ? info.new_buffer_var.as_or_throw<TensorVar>().data()
-                      : Expr(info.new_buffer_var);
-      ffi::Array<Expr> acc_args{data, index, extent, flag};
-      return Call(op->ty, access_ptr_op(), acc_args, op->attrs, {info.new_element_dtype}, op->span);
-
-    } else {
-      return StmtExprMutator::Mutate_(op, inplace_mode);
-    }
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   /* Update the parameters and all remaining variable references
@@ -2151,7 +2085,7 @@ class VectorTypeRewriter : public StmtExprMutator {
           if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
         }
         if (!op->op.same_as(tirx::tensor_data_ptr_op()) || op->args.size() != 1) return result;
-        PointerType type = op->args[0].as_or_throw<TensorVar>().DataPointerType();
+        PointerType type = op->args[0].as_or_throw<TensorVar>().type()->DataPointerType();
         if (ffi::StructuralEqual()(op->ty, type)) return result;
         if (inplace_mode == InplaceMode::kAllow) {
           const_cast<CallNode*>(op)->ty = std::move(type);

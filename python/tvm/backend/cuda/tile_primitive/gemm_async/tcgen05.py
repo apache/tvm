@@ -1177,7 +1177,7 @@ def gemm_async_tcgen05_impl(op_call: TensorCall, sctx: DispatchContext) -> Funct
         const_hi = (int(sdo) & 0x3FFF) | (1 << 14) | (layout << 29)
         lo_const = (int(ldo) & 0x3FFF) << 16
         base_ptr = smem_buf.ptr_to([0] * len(smem_buf.shape))
-        addr = T.ptr_byte_offset(base_ptr, off16 * 16, smem_buf.dtype)
+        addr = T.ptr_byte_offset(base_ptr, off16 * 16, ty=base_ptr.ty)
         sa = T.bitwise_and(
             T.shift_right(T.cuda.cvta_generic_to_shared(addr), T.uint32(4)),
             T.uint32(0x3FFF),

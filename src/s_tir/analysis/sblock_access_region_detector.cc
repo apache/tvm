@@ -283,37 +283,15 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const CallNode* op)
     }
     return std::nullopt;
   }
-  if (op->op.same_as(tirx::access_ptr_op())) {
-    const VarNode* buffer_var = op->args[0].as<VarNode>();
-    if (const auto* data = op->args[0].as<CallNode>();
-        data && data->op.same_as(tirx::tensor_data_ptr_op())) {
-      buffer_var = data->args[0].as<VarNode>();
-    }
-    const IntImmNode* access_mask = op->args[3].as<IntImmNode>();
-    if (buffer_var && access_mask) {
-      auto it = buffer_var_map_.find(ffi::GetRef<Var>(buffer_var));
-      if (it != buffer_var_map_.end()) {
-        const TensorVar& buffer = (*it).second;
-        const TensorRegion buffer_region = FullBufferRegion(buffer);
-        const ffi::Array<Range>& region = buffer_region->region;
-        std::vector<sym::IntSet> int_set;
-        int_set.reserve(region.size());
-        for (const Range& range : region) {
-          int_set.push_back(sym::EvalSet(range, dom_map_));
-        }
-        // read access, write access or opaque access
-        if ((access_mask->value & 1) && (access_mask->value & 2)) {
-          Update(&opaque_buffers_, &opaque_regions_, buffer, int_set);
-        } else if (access_mask->value & 1) {
-          Update(&read_buffers_, &read_regions_, buffer, int_set);
-        } else if (access_mask->value & 2) {
-          Update(&writes_buffers_, &write_regions_, buffer, int_set);
-        }
+  if (op->op.same_as(tirx::address_of_op())) {
+    if (const auto* load = op->args[0].as<TensorLoadNode>()) {
+      // A tensor address is an opaque use, not a load of its pointed-to value.
+      UpdateOpaque(load->source.as_or_throw<TensorVar>().var());
+      for (const PrimExpr& index : load->indices) {
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
       }
-    } else {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
+      return std::nullopt;
     }
-    return std::nullopt;
   }
   if (op->op.same_as(prim::if_then_else_op())) {
     PrimExpr condition = op->args[0].as_or_throw<PrimExpr>();

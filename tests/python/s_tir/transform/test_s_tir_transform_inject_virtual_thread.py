@@ -50,7 +50,7 @@ def test_vthread():
                 vt_y = T.launch_thread("vthread", nthread)
                 B = T.alloc_tensor((m,), scope="shared")
                 B[i] = A_buf[i * nthread + vt_x]
-                T.evaluate(T.call_extern("Run", B.access_ptr("r"), vt_x, ty="int32"))
+                T.evaluate(T.call_extern("Run", B.ptr_to([0] * len(B.shape)), vt_x, ty="int32"))
                 C_buf[i * nthread + vt_x] = B[i] + T.float32(1)
 
     # For vthread, expected allocation is m * nthread
@@ -91,15 +91,17 @@ def test_vthread_extern():
                 B[vt_y] = T.Cast("float32", vt_y) + T.float32(1)
                 T.evaluate(
                     T.call_extern(
-                        "Run", A.access_ptr("r"), B.access_ptr("r"), C.access_ptr("rw"), ty="int32"
+                        "Run",
+                        A.ptr_to([0] * len(A.shape)),
+                        B.ptr_to([0] * len(B.shape)),
+                        C.ptr_to([0] * len(C.shape)),
+                        ty="int32",
                     )
                 )
 
-    # For vthread:
-    # A, B expected allocation is m * nthread (used with single vthread each)
-    A_expected_alloc = m * nthread
-    # C expected allocation is m * nthread * nthread (used in extern with both vthreads)
-    C_expected_alloc = m * nthread * nthread
+    # The opaque call may write through any pointer.  Without direction metadata,
+    # all three buffers conservatively depend on both virtual thread axes.
+    expected_alloc = m * nthread * nthread
 
     stmt = tvm.s_tir.transform.InjectVirtualThread()(Module)["main"]
 
@@ -114,7 +116,7 @@ def test_vthread_extern():
     assert len(allocates) == 3
     # Check that we have the expected extents (order may vary)
     extents = sorted([int(a.var.ty.shape[0]) for a in allocates])
-    assert extents == sorted([A_expected_alloc, A_expected_alloc, C_expected_alloc])
+    assert extents == [expected_alloc] * 3
 
 
 def test_vthread_if_then_else():

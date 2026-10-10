@@ -30,6 +30,7 @@
 #include <tvm/sym/int_set.h>
 
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "../../runtime/thread_storage_scope.h"
@@ -91,6 +92,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const IfNode* op) final;
   ffi::Optional<VisitInterrupt> Visit_(const WhileNode* op) final;
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final;
 
  protected:
   StorageAccessVisitor() { scope_.push_back(std::vector<StmtEntry>()); }
@@ -130,8 +132,12 @@ class StorageAccessVisitor : public StmtExprVisitor {
   std::vector<std::vector<StmtEntry>> scope_;
 
  private:
+  void RecordOpaqueAccess(Var source);
+  bool HasOffsetPointer(const Expr& value) const;
   // whether access appending is enabled.
   bool allow_append_{false};
+  // Pointer operands of an opaque call may be read or written by that call.
+  bool in_opaque_call_{false};
   // Whether we are in device environment
   bool in_device_env_{false};
   // Whether we are inside condition.
@@ -142,6 +148,10 @@ class StorageAccessVisitor : public StmtExprVisitor {
   ffi::Array<IterVar> env_threads_;
   // Physical storage root for each declared logical buffer view.
   std::unordered_map<const VarNode*, Var> buffer_aliases_;
+  // Resolve pointer bindings at their use, without treating address construction as access.
+  std::unordered_map<const VarNode*, Expr> pointer_values_;
+  // Shifted or retyped aliases cannot compare coordinates with their storage root.
+  std::unordered_set<const VarNode*> offset_aliases_;
 };
 }  // namespace s_tir
 }  // namespace tvm

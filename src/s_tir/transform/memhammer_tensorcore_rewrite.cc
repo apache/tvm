@@ -184,17 +184,8 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                   /*4:*/ floordiv(new_tgt_buffer->elem_offset, 256) +
                       floordiv(floormod(new_tgt_buffer->elem_offset, 256), 16),
                   /*5:*/
-                  Call(
-                      /*dtype=*/new_src_buffer.data()->ty,
-                      /*op=*/tirx::access_ptr_op(),
-                      /*args=*/
-                      ffi::Array<Expr>{
-                          /*0:*/ new_src_buffer.data(),
-                          /*1:*/ new_src_buffer->elem_offset,
-                          /*2:*/ new_src_buffer->strides[new_src_buffer->strides.size() - 2] * 16,
-                          /*3:*/ PrimExpr(1),
-                      },
-                      {}, {new_src_buffer->dtype}),
+                  Call(new_src_buffer.data()->ty, tirx::address_of_op(),
+                       {MakeTensorLoad(new_src_buffer, {PrimExpr(0), PrimExpr(0)})}),
                   /*6:*/ new_src_buffer->strides[new_src_buffer->strides.size() - 2],
                   /*7:*/ StringImm(layout),
               })),
@@ -269,40 +260,33 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   Stmt wmma_body = SBlockRealize(
       /*iter_values=*/{},  //
       /*predicate=*/IntImm::Bool(true),
-      SBlock(/*iter_vars=*/{},
-             /*reads=*/{BufferRegion(src_buffer, read_region)},
-             /*writes=*/{BufferRegion(tgt_buffer, write_region)},
-             /*name_hint=*/"wmma_store",
-             Evaluate(Call(
-                 /*data=*/PrimType::Void(),
-                 /*op=*/gpu_store_matrix_sync_op,
-                 ffi::Array<Expr>{/*0:*/ new_src_buffer.data(),
-                                  /*1:*/ PrimExpr(16),
-                                  /*2:*/ PrimExpr(16),
-                                  /*3:*/ PrimExpr(16),
-                                  /*4:*/ floordiv(new_src_buffer->elem_offset, 256) +
-                                      floordiv(floormod(new_src_buffer->elem_offset, 256), 16),
-                                  /*5:*/
-                                  Call(
-                                      /*data=*/new_tgt_buffer.data()->ty,
-                                      /*op=*/tirx::access_ptr_op(),
-                                      ffi::Array<Expr>{
-                                          /*0:*/ new_tgt_buffer.data(),
-                                          /*1:*/ new_tgt_buffer->elem_offset,
-                                          /*2:*/ new_tgt_buffer->strides[0] * 16,
-                                          /*3:*/ PrimExpr(2),
-                                      },
-                                      {}, {new_tgt_buffer->dtype}),
-                                  /*6:*/ new_tgt_buffer->strides[0],
-                                  /*7:*/ StringImm("row_major")})),
-             /*init=*/std::nullopt,
-             /*alloc_buffers=*/{},
-             /*match_buffers=*/
-             {
-                 MatchBufferRegion(new_src_buffer, BufferRegion(src_buffer, read_region)),
-                 MatchBufferRegion(new_tgt_buffer, BufferRegion(tgt_buffer, write_region)),
-             },
-             /*annotations=*/{}));
+      SBlock(
+          /*iter_vars=*/{},
+          /*reads=*/{BufferRegion(src_buffer, read_region)},
+          /*writes=*/{BufferRegion(tgt_buffer, write_region)},
+          /*name_hint=*/"wmma_store",
+          Evaluate(Call(
+              /*data=*/PrimType::Void(),
+              /*op=*/gpu_store_matrix_sync_op,
+              ffi::Array<Expr>{/*0:*/ new_src_buffer.data(),
+                               /*1:*/ PrimExpr(16),
+                               /*2:*/ PrimExpr(16),
+                               /*3:*/ PrimExpr(16),
+                               /*4:*/ floordiv(new_src_buffer->elem_offset, 256) +
+                                   floordiv(floormod(new_src_buffer->elem_offset, 256), 16),
+                               /*5:*/
+                               Call(new_tgt_buffer.data()->ty, tirx::address_of_op(),
+                                    {MakeTensorLoad(new_tgt_buffer, {PrimExpr(0), PrimExpr(0)})}),
+                               /*6:*/ new_tgt_buffer->strides[0],
+                               /*7:*/ StringImm("row_major")})),
+          /*init=*/std::nullopt,
+          /*alloc_buffers=*/{},
+          /*match_buffers=*/
+          {
+              MatchBufferRegion(new_src_buffer, BufferRegion(src_buffer, read_region)),
+              MatchBufferRegion(new_tgt_buffer, BufferRegion(tgt_buffer, write_region)),
+          },
+          /*annotations=*/{}));
   for (int i = n - 3; i >= 0; i--) {
     auto new_loop = ffi::GetRef<For>(loops[i]);
     new_loop.CopyOnWrite()->body = std::move(wmma_body);

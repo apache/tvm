@@ -22,7 +22,6 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
-from tvm.tirx import BufferAccessKind
 
 
 def test_buffer():
@@ -69,12 +68,9 @@ def test_buffer_data_is_typed_projection():
     buffer = tvm.tirx.decl_tensor((8,), "bool", scope="shared")
 
     assert buffer.ty.dtype == tvm.ir.PrimType("bool")
-    assert tvm.tirx.buffer_data_pointer_type(buffer) == tvm.ir.PointerType(
-        tvm.ir.PrimType("bool"), "shared"
-    )
+    assert buffer.data.ty == tvm.ir.PointerType(tvm.ir.PrimType("bool"), "shared")
     assert buffer.data.op.name == "tirx.tensor_data_ptr"
     assert buffer.data.args[0].same_as(buffer)
-    assert buffer.data.ty == tvm.tirx.buffer_data_pointer_type(buffer)
 
 
 def test_buffer_pointer_type_derived_from_dtype_and_scope():
@@ -107,77 +103,42 @@ def test_decl_buffer_physical_data_binding():
     assert decl.value.args[0].same_as(data)
 
 
-def test_buffer_access_ptr():
+def test_buffer_ptr_to():
     m = tvm.tirx.Var("m", "int32")
     n = tvm.tirx.Var("n", "int32")
-    Ab = tvm.tirx.decl_tensor((m, n), "float32", strides=[n + 1, 1])
-    aptr = Ab.access_ptr("rw")
-    assert isinstance(aptr.ty, tvm.ir.PointerType)
-    assert aptr.ty.element_type == tvm.ir.PrimType("void")
-    tvm.ir.assert_structural_equal(aptr.args[2], Ab.ty.strides[0] * m)
-    assert aptr.ty_args[0] == Ab.ty.dtype
-    assert aptr.args[3].value == BufferAccessKind.READ | BufferAccessKind.WRITE
-    typed_ptr = Ab.access_ptr("r", ptr_type="uint8")
-    assert typed_ptr.ty == tvm.ir.PointerType(tvm.ir.PrimType("uint8"))
+    buffer = tvm.tirx.decl_tensor((m, n), "float32", strides=[n + 1, 1], elem_offset=7)
+    pointer = buffer.ptr_to([2, 3])
+    assert pointer.op.name == "tirx.address_of"
+    assert pointer.ty == tvm.ir.PointerType(tvm.ir.PrimType("float32"))
+    assert pointer.args[0].source.same_as(buffer)
+    tvm.ir.assert_structural_equal(pointer.args[0].indices, [T.int32(2), T.int32(3)])
     shared = tvm.tirx.decl_tensor((m, n), "float32", scope="shared")
-    assert shared.access_ptr("r").ty == tvm.ir.PointerType(tvm.ir.PrimType("void"), "shared")
-    assert shared.access_ptr("r", ptr_type="uint8").ty == tvm.ir.PointerType(
-        tvm.ir.PrimType("uint8"), "shared"
-    )
-    aptr = Ab.access_ptr("w")
-    assert aptr.args[3].value == BufferAccessKind.WRITE
+    assert shared.ptr_to([0, 0]).ty == tvm.ir.PointerType(tvm.ir.PrimType("float32"), "shared")
 
 
-def test_buffer_access_ptr_offset():
-    m = tvm.tirx.Var("m", "int32")
-    n = tvm.tirx.Var("n", "int32")
-    Ab = tvm.tirx.decl_tensor((m, n), "float32")
-    aptr = Ab.access_ptr("rw", offset=100)
-    tvm.testing.assert_prim_expr_equal(aptr.args[1], 100)
-    assert aptr.args[3].value == BufferAccessKind.READ | BufferAccessKind.WRITE
-    v = tvm.tirx.Var("int32", "int32")
-    aptr = Ab.access_ptr("rw", offset=100 + 100 + v)
-    tvm.testing.assert_prim_expr_equal(aptr.args[1], 200 + v)
-    assert aptr.args[3].value == BufferAccessKind.READ | BufferAccessKind.WRITE
-    aptr = Ab.access_ptr("rw", offset=tvm.tirx.call_extern("int32", "test_call", 100 + 100 + v))
-    tvm.testing.assert_prim_expr_equal(
-        aptr.args[1], tvm.tirx.call_extern("int32", "test_call", 200 + v)
-    )
-    assert aptr.args[3].value == BufferAccessKind.READ | BufferAccessKind.WRITE
+def _flattened_load(buffer, indices):
+    function = tvm.tirx.Function([buffer], [tvm.ir.Evaluate(buffer[tuple(indices)])])
+    module = tvm.tirx.transform.FlattenBuffer()(tvm.IRModule({"main": function}))
+    return module["main"].body[-1].value
 
 
-def test_buffer_access_ptr_extent():
-    m = tvm.tirx.Var("m", "int32")
-    n = tvm.tirx.Var("n", "int32")
-    Ab = tvm.tirx.decl_tensor((m, n), "float32")
-    aptr = Ab.access_ptr("rw")
-    tvm.ir.assert_structural_equal(aptr.args[2], m * n)
-    aptr = Ab.access_ptr("rw", offset=100)
-    tvm.ir.assert_structural_equal(aptr.args[2], m * n - 100)
-    Ab = tvm.tirx.decl_tensor((m, n), "float32", strides=[n + 1, 1])
-    aptr = Ab.access_ptr("rw", offset=100)
-    tvm.ir.assert_structural_equal(aptr.args[2], Ab.ty.strides[0] * m - 100)
-
-    # Test extent from input params
-    aptr = Ab.access_ptr("rw", extent=200)
-    tvm.ir.assert_structural_equal(aptr.args[2], T.int32(200))
-    aptr = Ab.access_ptr("rw", offset=100, extent=100)
-    tvm.ir.assert_structural_equal(aptr.args[2], T.int32(100))
+def _flattened_indices(buffer, indices):
+    return _flattened_load(buffer, indices).indices
 
 
-def test_buffer_vload():
+def test_buffer_load():
     m = tvm.tirx.Var("m", "int32")
     n = tvm.tirx.Var("n", "int32")
     Ab = tvm.tirx.decl_tensor((m, n), "float32", elem_offset=100)
-    load = Ab.vload([2, 3])
+    load = Ab[2, 3]
     tvm.ir.assert_structural_equal(load.indices, [T.int32(2), T.int32(3)])
 
 
-def test_buffer_offset_of():
+def test_buffer_flatten_offset():
     m = tvm.tirx.Var("m", "int32")
     n = tvm.tirx.Var("n", "int32")
     Ab = tvm.tirx.decl_tensor((m, n), "float32", elem_offset=100)
-    offset = Ab.offset_of([2, 3])
+    offset = _flattened_indices(Ab, [2, 3])
     tvm.ir.assert_structural_equal(offset, [n * 2 + 103])
 
 
@@ -200,33 +161,34 @@ def test_buffer_index_merge_mult_mod():
     idxm = tvm.tirx.indexmod
 
     # Test Case1
-    index_simplified = A_stride.offset_of(
-        (idxd(idxm(k0, k1), s), idxm(idxm(k0, k1), s) + idxd(k0, k1) * k1)
+    index_simplified = _flattened_indices(
+        A_stride, (idxd(idxm(k0, k1), s), idxm(idxm(k0, k1), s) + idxd(k0, k1) * k1)
     )
-    index_direct = A_stride.offset_of((0, k0))
+    index_direct = _flattened_indices(A_stride, (0, k0))
     assert_simplified_equal(index_simplified, index_direct)
 
     # Test Case2
-    index_simplified = A.offset_of(
-        (idxd(idxm(k0, idxd(k1, s)), n), idxm(idxm(k0, idxd(k1, s)), n) + idxm(k0, k1))
+    index_simplified = _flattened_indices(
+        A, (idxd(idxm(k0, idxd(k1, s)), n), idxm(idxm(k0, idxd(k1, s)), n) + idxm(k0, k1))
     )
-    index_direct = A.offset_of((0, idxm(k0, idxd(k1, s)) + idxm(k0, k1)))
+    index_direct = _flattened_indices(A, (0, idxm(k0, idxd(k1, s)) + idxm(k0, k1)))
     assert_simplified_equal(index_simplified, index_direct)
     # Test Case3
-    index_simplified = A.offset_of(
+    index_simplified = _flattened_indices(
+        A,
         (
             idxd((idxd(k0, idxd(k1, s)) * idxd(k1, s)), n) + idxd(idxm(k0, idxd(k1, s)), n),
             idxm((idxd(k0, idxd(k1, s)) * idxd(k1, s)), n) + idxm(idxm(k0, idxd(k1, s)), n),
-        )
+        ),
     )
-    index_direct = A.offset_of((0, k0))
+    index_direct = _flattened_indices(A, (0, k0))
     assert_simplified_equal(index_simplified, index_direct)
     # Test Case4 (not able to simplify)
-    index_simplified = A.offset_of(
-        (idxd(idxm(k0, idxd(k1, s)), n), idxm(idxm(k0, idxd(k1, n)), n) + idxm(k0, k1))
+    index_simplified = _flattened_indices(
+        A, (idxd(idxm(k0, idxd(k1, s)), n), idxm(idxm(k0, idxd(k1, n)), n) + idxm(k0, k1))
     )
-    index_direct = A.offset_of(
-        (0, idxd(idxm(k0, idxd(k1, s)), n) * n + (idxm(idxm(k0, idxd(k1, n)), n) + idxm(k0, k1)))
+    index_direct = _flattened_indices(
+        A, (0, idxd(idxm(k0, idxd(k1, s)), n) * n + (idxm(idxm(k0, idxd(k1, n)), n) + idxm(k0, k1)))
     )
     assert_simplified_equal(index_simplified, index_direct)
 
@@ -236,45 +198,41 @@ def test_buffer_index_merge_mult_mod():
     j = tvm.tirx.Var("j", "int32")
     k = tvm.tirx.Var("k", "int32")
 
-    index_simplified1 = B.offset_of(
+    index_simplified1 = _flattened_indices(
+        B,
         (
             idxd(idxd(idxd((i * 50176 + j * 28672 + k), 1024), 14), 14),
             idxm(idxd(idxd((i * 50176 + j * 28672 + k), 1024), 14), 14),
             idxm(idxd((i * 50176 + j * 28672 + k), 1024), 14),
             idxm((i * 50176 + j * 28672 + k), 1024),
-        )
+        ),
     )
-    index_simplified2 = B.offset_of(
+    index_simplified2 = _flattened_indices(
+        B,
         (
             idxd(idxd(i * 49 + j * 28 + idxd(k, 1024), 14), 14),
             idxm(idxd(i * 49 + j * 28 + idxd(k, 1024), 14), 14),
             idxm(i * 7 + idxd(k, 1024), 14),
             idxm(k, 1024),
-        )
+        ),
     )
-    index_direct = B.offset_of((0, 0, 0, (i * 50176 + j * 28672 + k)))
+    index_direct = _flattened_indices(B, (0, 0, 0, (i * 50176 + j * 28672 + k)))
     assert_simplified_equal(index_simplified1, index_direct)
     assert_simplified_equal(index_simplified2, index_direct)
 
 
-def test_buffer_flatten():
-    """A buffer should flatten to a 1-d shape"""
-    buf = tvm.tirx.decl_tensor([16, 32])
-    flat = buf.get_flattened_buffer()
-    # A metadata-changing rewrite creates a fresh typed Var.  The physical
-    # pointer is always derived from that Var instead of being stored as a
-    # second buffer identity.
+@pytest.mark.parametrize(
+    "shape,strides,expected",
+    [([16, 32], None, 512), ([16], None, 16), ([], None, 1), ([16, 32], [40, 1], 640)],
+)
+def test_buffer_flatten(shape, strides, expected):
+    """Flattening derives the storage span and binds a fresh physical view."""
+    buf = tvm.tirx.decl_tensor(shape, strides=strides)
+    flat = _flattened_load(buf, [0] * len(shape)).source
     assert not buf.same_as(flat)
     assert flat.data.args[0].same_as(flat)
     assert flat.data.op.name == "tirx.tensor_data_ptr"
-    tvm.ir.assert_structural_equal(flat.ty.shape, [T.int32(16 * 32)])
-
-
-def test_buffer_flatten_preserves_identity():
-    """Flattening a 1-d buffer should return the original"""
-    buf = tvm.tirx.decl_tensor([16])
-    flat = buf.get_flattened_buffer()
-    assert buf.same_as(flat)
+    tvm.ir.assert_structural_equal(flat.ty.shape, [T.int32(expected)])
 
 
 if __name__ == "__main__":

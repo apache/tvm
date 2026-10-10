@@ -480,13 +480,7 @@ class TransformedSharedToWmma:
                                                 16,
                                                 tgt.elem_offset // 256
                                                 + tgt.elem_offset % 256 // 16,
-                                                T.access_ptr(
-                                                    "float16",
-                                                    src.data,
-                                                    src.elem_offset,
-                                                    s1 * 16,
-                                                    1,
-                                                ),
+                                                src.ptr_to([0] * len(src.shape)),
                                                 s1,
                                                 "row_major",
                                             )
@@ -561,13 +555,7 @@ class TransformedWmmaToShared:
                                                 16,
                                                 src.elem_offset // 256
                                                 + src.elem_offset % 256 // 16,
-                                                T.access_ptr(
-                                                    "float32",
-                                                    tgt.data,
-                                                    tgt.elem_offset,
-                                                    s1 * 16,
-                                                    2,
-                                                ),
+                                                tgt.ptr_to([0] * len(tgt.shape)),
                                                 s1,
                                                 "row_major",
                                             )
@@ -631,13 +619,7 @@ class TransformedWmmaToGlobal:
                                                 16,
                                                 src.elem_offset // 256
                                                 + src.elem_offset % 256 // 16,
-                                                T.access_ptr(
-                                                    "float32",
-                                                    tgt.data,
-                                                    tgt.elem_offset,
-                                                    s1 * 16,
-                                                    2,
-                                                ),
+                                                tgt.ptr_to([0] * len(tgt.shape)),
                                                 s1,
                                                 "row_major",
                                             )
@@ -835,13 +817,7 @@ class TransformedWmmaToGlobalWithFusion:
                                                 16,
                                                 src.elem_offset // 256
                                                 + src.elem_offset % 256 // 16,
-                                                T.access_ptr(
-                                                    "float32",
-                                                    tgt.data,
-                                                    tgt.elem_offset,
-                                                    s1_1 * 16,
-                                                    2,
-                                                ),
+                                                tgt.ptr_to([0] * len(tgt.shape)),
                                                 s1_1,
                                                 "row_major",
                                             )

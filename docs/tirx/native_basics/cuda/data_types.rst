@@ -44,8 +44,8 @@ shared buffers across several dtypes, plus a vectorized ``float32x4`` load/store
         b1 = Tx.alloc_local((1,), "bool")
         sm = Tx.alloc_shared((64,), "float16")  # ... and a shared tile
         v = Tx.alloc_local((1,), "float32x4")  # a vector-dtype local (float4)
-        v[0] = A.vload([tx * 4], dtype="float32x4")  # vectorized load
-        O.vstore([tx * 4], v[0])  # vectorized store
+        v[0] = A[Tx.Ramp(tx * 4, 1, 4)]  # vectorized load
+        O[Tx.Ramp(tx * 4, 1, 4)] = v[0]  # vectorized store
         # ... (use f16/bf16/i32/u8/b1/sm) ...
 
 lowers to (generated CUDA, elided):
@@ -64,8 +64,8 @@ lowers to (generated CUDA, elided):
 
 A buffer's dtype can itself be a **vector type**: ``Tx.alloc_local((1,), "float32x4")``
 declares a per-thread ``float4`` value (you index it as ``v[0]``), and a
-``float32x4`` ``vload`` / ``vstore`` then moves it as one 16-byte access. The vector
-dtype is not tied to ``vload`` — any buffer or scalar can carry it.
+Indexing a scalar buffer with a four-lane ``Ramp`` moves the vector as one
+16-byte access. Any buffer or scalar can carry a vector dtype.
 
 The dtype → CUDA mapping is:
 

@@ -371,7 +371,7 @@ TEST(IRF, StmtExprMutator) {
     // AllocTensor and DeclTensor are flat (no body), placed as siblings in SeqStmt
     Stmt eval_body = Evaluate(x + 1);
     TensorVar buffer = decl_tensor({16});
-    tvm::Var buffer_data("buffer_data", buffer.DataPointerType());
+    tvm::Var buffer_data("buffer_data", buffer.type()->DataPointerType());
     Stmt decl = Bind(buffer, Call(buffer.type(), tvm::tirx::decl_tensor_op(),
                                   {buffer_data, tvm::Tuple(buffer->shape),
                                    DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())}));

@@ -97,6 +97,8 @@ def rvv_vec_dot_product_kernels(
     # data type widening case
     o_dtype_lanes = max(o_dtype_lanes, 2)
 
+    weight_bytes = DataType(weight_dtype).bits // 8
+    output_bytes = DataType(out_dtype).bits // 8
     mask_args = () if data_dtype[0] in ("i", "u") else (T.uint64(7),)
 
     wide_dtype = out_dtype
@@ -118,7 +120,7 @@ def rvv_vec_dot_product_kernels(
             vec_A = T.call_llvm_intrin(
                 "llvm.riscv.vle",
                 T.broadcast(T.Cast(data_dtype, 0), T.vscale() * d_dtype_lanes),
-                T.access_ptr(data_dtype, A.data, 0, n_elems, 1),
+                A.data,
                 T.int64(n_elems), ty=f"{data_dtype}xvscalex{d_dtype_lanes}")
 
             for i in range(n_lanes):
@@ -129,7 +131,7 @@ def rvv_vec_dot_product_kernels(
                     vec_B_row = T.call_llvm_intrin(
                         "llvm.riscv.vle",
                         T.broadcast(T.Cast(data_dtype, 0), T.vscale() * w_dtype_lanes),
-                        T.access_ptr(weight_dtype, B.data, i * n_elems, n_elems, 1),
+                        T.ptr_byte_offset(B.data, i * n_elems * weight_bytes, ty=B.data.ty),
                         T.int64(n_elems), ty=f"{weight_dtype}xvscalex{w_dtype_lanes}")
 
                     product = T.call_llvm_intrin(
@@ -145,7 +147,7 @@ def rvv_vec_dot_product_kernels(
                     ini_acc = T.call_llvm_intrin(
                         "llvm.riscv.vle",
                         T.broadcast(T.Cast(out_dtype, 0), T.vscale() * o_dtype_lanes),
-                        T.access_ptr(out_dtype, C.data, i, 1, 1),
+                        T.ptr_byte_offset(C.data, i * output_bytes, ty=C.data.ty),
                         T.int64(1), ty=f"{out_dtype}xvscalex{o_dtype_lanes}")
 
                     red_sum = T.call_llvm_intrin(

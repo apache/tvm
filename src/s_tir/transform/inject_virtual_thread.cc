@@ -97,26 +97,21 @@ class ExprTouched final : public StmtExprVisitor {
       for (size_t i = 1; i < op->args.size(); ++i) {
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->args[i]));
       }
-    } else if (op->op.same_as(tirx::access_ptr_op())) {
-      const auto* rw_mask = op->args[3].as<IntImmNode>();
-      auto buffer = GetBufferDataVar(op->args[0]);
-      if (!buffer.has_value()) {
-        // Nested access pointers are valid pointer expressions.  Visit the
-        // inner pointer and this access's offset instead of assuming a raw
-        // buffer Var at every level.
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->args[0]));
-        return this->Visit(op->args[1].as_or_throw<PrimExpr>());
+    } else if (op->op.same_as(tirx::tensor_data_ptr_op())) {
+      const VarNode* buffer = op->args[0].as_or_throw<Var>().get();
+      HandleUseVar(buffer);
+      // An escaping address carries no direction information.  Conservatively
+      // connect it to the other operands of an opaque statement so virtual
+      // threads never share storage that the statement may write.
+      if (check_write_) HandleWriteVar(buffer);
+    } else if (op->op.same_as(tirx::address_of_op()) && op->args[0].as<TensorLoadNode>()) {
+      const auto* load = op->args[0].as<TensorLoadNode>();
+      const VarNode* buffer = load->source.as_or_throw<TensorVar>().get();
+      HandleUseVar(buffer);
+      if (check_write_) HandleWriteVar(buffer);
+      for (const PrimExpr& index : load->indices) {
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
       }
-      const VarNode* buffer_var = buffer.value().get();
-      TVM_FFI_ICHECK(rw_mask);
-      // read
-      if (rw_mask->value & 1) {
-        HandleUseVar(buffer_var);
-      }
-      if (rw_mask->value & 2) {
-        HandleWriteVar(buffer_var);
-      }
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->args[1].as_or_throw<PrimExpr>()));
     } else {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
@@ -338,28 +333,13 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
         return StmtExprMutator::Mutate_(op, inplace_mode);
       }
       visit_touched_var_ = true;
-      return GetRemappedBuffer(buffer.as_or_throw<TensorVar>(), it->second).data();
-    } else if (op->op.same_as(tirx::access_ptr_op())) {
-      TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
-      PrimType dtype = op->ty_args[0].as_or_throw<PrimType>();
-      auto buffer = GetBufferDataVar(op->args[0]);
-      if (!buffer.has_value()) {
-        return StmtExprMutator::Mutate_(op, inplace_mode);
-      }
-      auto it = alloc_remap_.find(buffer.value().get());
-      if (it == alloc_remap_.end()) return StmtExprMutator::Mutate_(op, inplace_mode);
-      visit_touched_var_ = true;
-      PrimExpr offset = Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
-      PrimExpr extent = Mutate(op->args[2]).ValueOrUnchanged(op->args[2]).as_or_throw<PrimExpr>();
-      PrimExpr stride = it->second / prim::MakeConst(offset.ty(), dtype.lanes());
-      offset = RewriteIndex(offset, stride);
-      Expr data =
-          buffer.value()->ty.as<TensorTypeNode>()
-              ? GetRemappedBuffer(buffer.value().as_or_throw<TensorVar>(), it->second).data()
-              : op->args[0];
-
-      return Call(op->ty, op->op, {data, offset, extent, op->args[3]}, op->attrs, op->ty_args,
-                  op->span);
+      TensorVar tensor = buffer.as_or_throw<TensorVar>();
+      PrimType dtype = tensor->dtype;
+      int bytes = (dtype.bits() * dtype.lanes() + 7) / 8;
+      return Call(op->ty, tirx::ptr_byte_offset_op(),
+                  {GetRemappedBuffer(tensor, it->second).data(),
+                   RewriteIndex(PrimExpr(0), it->second) * bytes},
+                  {}, {}, op->span);
     } else {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }

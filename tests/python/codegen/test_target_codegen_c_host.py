@@ -256,17 +256,17 @@ def test_local_alloc_buffer_uses_plain_c_pointer():
     tvm.testing.assert_allclose(data.numpy(), np.array([2.0], dtype="float32"))
 
 
-def test_vector_access_ptr_address_uses_ramp_base():
+def test_vector_pointer_uses_byte_offset():
     buffer = tvm.tirx.decl_tensor((8,), "float32x2", name="A")
-    access_ptr = buffer.access_ptr(access_mask=3, offset=2, extent=4)
-    body = tvm.ir.Evaluate(tvm.tirx.call_extern("void", "consume", access_ptr))
+    pointer = tvm.tirx.ptr_byte_offset(buffer.data, 16, ty=buffer.data.ty)
+    body = tvm.ir.Evaluate(tvm.tirx.call_extern("void", "consume", pointer))
     func = tvm.tirx.Function([buffer], body).with_attr("global_symbol", "main")
 
     source = tvm.tirx.build(tvm.IRModule.from_expr(func), target="c").inspect_source()
     call = next(line.strip() for line in source.splitlines() if line.strip().startswith("consume("))
     assert "int32_t2" not in call
     assert "float2*" in call
-    assert " + 4" in call
+    assert " + 16" in call
 
 
 def test_if_then_else_avoids_extraneous_parentheses():

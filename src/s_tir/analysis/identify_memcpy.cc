@@ -87,9 +87,9 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   // non-flat physical indices are target-dependent, only handle cases
   // where the buffer will be flattened to a 1-d physical buffer.
   ffi::Array<PrimExpr> flattened_dst =
-      store->dest.as_or_throw<TensorVar>().OffsetOf(store->indices);
+      store->dest.as_or_throw<TensorVar>().type()->ElemOffset(store->indices);
   ffi::Array<PrimExpr> flattened_src =
-      load->source.as_or_throw<tvm::tirx::TensorVar>().OffsetOf(load->indices);
+      load->source.as_or_throw<tvm::tirx::TensorVar>().type()->ElemOffset(load->indices);
 
   if (flattened_dst.size() != 1 || flattened_src.size() != 1) {
     return static_cast<const std::stringstream&>(

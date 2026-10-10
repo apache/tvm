@@ -733,7 +733,7 @@ def test_lower_opcall_fail():
         LowerTIRx()(tvm.IRModule({"main": test}))
 
 
-def test_lower_decl_buffer_access_ptr():
+def test_lower_decl_buffer_pointer():
     @T.function(private=True)
     def before():
         T.device_entry()
@@ -741,7 +741,7 @@ def test_lower_decl_buffer_access_ptr():
         T.thread_id([128])
         buf = T.alloc_tensor([1024], "uint8", scope="shared.dyn")
         A = T.decl_tensor([128], "float16", buf.data, elem_offset=32)
-        T.evaluate(A.access_ptr("rw", ptr_type="float16", offset=64))
+        T.evaluate(A.ptr_to([64]))
 
     @T.function(private=True)
     def after():
@@ -756,7 +756,7 @@ def test_lower_decl_buffer_access_ptr():
         A = T.decl_tensor(
             (128,), "float16", data=buf.data, elem_offset=32, scope="shared.dyn", layout=None
         )
-        T.access_ptr("float16", buf.data, 96, 64, 3)
+        T.address_of(A[64])
 
     compare(before, after, LowerTIRx)
 

@@ -475,7 +475,7 @@ def test_cp_async_bulk_tensor_global_to_shared_unicast(dtype, inputs):
                     if threadIdx == 0:
                         T.ptx[
                             f"cp.async.bulk.tensor.{len(shape)}d.global.shared::cta.tile.bulk_group"
-                        ](T.address_of(B_map), *coord, A_smem.access_ptr("r", offset=0))
+                        ](T.address_of(B_map), *coord, A_smem.ptr_to([0] * len(A_smem.shape)))
                         T.ptx.cp.async_.bulk.commit_group()
                         T.ptx.cp.async_.bulk.wait_group(0)
             # fmt: on
@@ -677,7 +677,7 @@ def test_cp_async_bulk_tensor_global_to_shared_swizzle(swizzle, dtype):
                     if threadIdx == 0:
                         T.ptx[
                             f"cp.async.bulk.tensor.{len(shape)}d.global.shared::cta.tile.bulk_group"
-                        ](T.address_of(B_map), *coord, A_smem.access_ptr("r", offset=0))
+                        ](T.address_of(B_map), *coord, A_smem.ptr_to([0] * len(A_smem.shape)))
                         T.ptx.cp.async_.bulk.commit_group()
                         T.ptx.cp.async_.bulk.wait_group(0)
             # fmt: on
@@ -790,7 +790,10 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast1(inputs):
                             if tx == 0:
                                 T.ptx[
                                     f"cp.async.bulk.tensor.{len(shape)}d.global.shared::cta.tile.bulk_group"
-                                ](T.address_of(B_map), *coord, A_smem.access_ptr("r", offset=0))
+                                ](
+                                    T.address_of(B_map), *coord,
+                                    A_smem.ptr_to([0] * len(A_smem.shape))
+                                )
                                 T.ptx.cp.async_.bulk.commit_group()
                                 T.ptx.cp.async_.bulk.wait_group(0)
             # fmt: on
@@ -926,7 +929,10 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast2(inputs):
                             if tx == 0:
                                 T.ptx[
                                     f"cp.async.bulk.tensor.{len(shape)}d.global.shared::cta.tile.bulk_group"
-                                ](T.address_of(B_map), *coord0, A_smem.access_ptr("r", offset=0))
+                                ](
+                                    T.address_of(B_map), *coord0,
+                                    A_smem.ptr_to([0] * len(A_smem.shape))
+                                )
                                 T.ptx.cp.async_.bulk.commit_group()
                                 T.ptx.cp.async_.bulk.wait_group(0)
             # fmt: on
@@ -990,7 +996,7 @@ def test_cp_async_bulk_tensor_shared_to_global(inputs):
             T.cuda.cta_sync()
 
             if tx == 0:
-                T.ptx[f"cp.async.bulk.tensor.{len(shape)}d.global.shared::cta.tile.bulk_group"](T.address_of(A_map), *coord, A_smem.access_ptr("r", offset=0))  # noqa: E501
+                T.ptx[f"cp.async.bulk.tensor.{len(shape)}d.global.shared::cta.tile.bulk_group"](T.address_of(A_map), *coord, A_smem.ptr_to([0] * len(A_smem.shape)))  # noqa: E501
                 T.ptx.cp.async_.bulk.commit_group()
                 T.ptx.cp.async_.bulk.wait_group(0)
             # fmt: on
