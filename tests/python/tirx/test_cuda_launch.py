@@ -35,6 +35,7 @@ from tvm.backend.cuda.launch import (
 )
 from tvm.backend.cuda.launch._impl import pack_kernel_attrs, pack_launch
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 @pytest.mark.parametrize(
@@ -150,7 +151,8 @@ def test_launch_region_roundtrip_and_host_only_operands():
 def _compile(kernel, host, tmp_path):
     from tvm.backend.cuda import export_cuda_host
 
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"}, host=host)
+    arch = env.cuda_arch(0)
+    target = tvm.target.Target({"kind": "cuda", "arch": arch}, host=host)
     built = tvm.compile(kernel, target=target).mod
     if host == "llvm":
         return built, None
@@ -162,7 +164,7 @@ def _compile(kernel, host, tmp_path):
     library = tvm_ffi.cpp.build_inline(
         name="launch_" + kernel.attrs["global_symbol"],
         cuda_sources=source,
-        extra_cuda_cflags=["-arch=sm_100a"],
+        extra_cuda_cflags=[f"-arch={arch}"],
         build_directory=str(tmp_path),
         backend="cuda",
     )
@@ -223,10 +225,13 @@ assert "tvm" not in sys.modules
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm.cuda().exist, reason="requires CUDA")
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="requires CUDA compute >= 9.0")
 @pytest.mark.parametrize("host", ["llvm", "cuda_host"])
 @pytest.mark.parametrize("required", [False, True])
 def test_cluster_launch_and_required_block_dimensions(host, required, tmp_path):
+    if required and not env.has_nvcc_version(13):
+        pytest.skip("required block dimensions need CUDA 13 or newer")
+
     @T.function
     def clusters(A: T.Tensor((8, 3), "int32")):
         T.device_entry(
@@ -251,7 +256,8 @@ def test_cluster_launch_and_required_block_dimensions(host, required, tmp_path):
 
 
 @pytest.mark.gpu
-@pytest.mark.skipif(not tvm.cuda().exist, reason="requires CUDA")
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="requires CUDA compute >= 10.0")
+@pytest.mark.skipif(not env.has_nvcc_version(12, 8), reason="requires CUDA 12.8 or newer")
 @pytest.mark.parametrize("host", ["llvm", "cuda_host"])
 def test_preferred_cluster_keeps_actual_hardware_coordinates(host, tmp_path):
     @T.function
@@ -286,6 +292,8 @@ def test_preferred_cluster_keeps_actual_hardware_coordinates(host, tmp_path):
 @pytest.mark.skipif(not tvm.cuda().exist, reason="requires CUDA")
 @pytest.mark.parametrize("host", ["llvm", "cuda_host"])
 def test_increasing_dynamic_shared_memory(host, tmp_path):
+    import torch
+
     @T.function
     def shared(A: T.Tensor((1,), "int32"), n: T.int32, bytes_: T.int32):
         T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=32, dynamic_smem_bytes=bytes_))
@@ -298,7 +306,9 @@ def test_increasing_dynamic_shared_memory(host, tmp_path):
 
     def check():
         out = tvm.runtime.empty((1,), "int32", tvm.cuda(0))
-        for n in (256, 16384, 32768, 256):
+        limit = torch.cuda.get_device_properties(0).shared_memory_per_block_optin
+        max_n = min(32768, limit // 4)
+        for n in (256, max_n // 2, max_n, 256):
             module["shared"](out, n, n * 4)
             assert out.numpy()[0] == n
         with pytest.raises(Exception, match="smaller than"):
