@@ -83,11 +83,9 @@ class LocationNode : public ffi::Object {
   TVM_FFI_DECLARE_OBJECT_INFO("ir.Location", LocationNode, ffi::Object);
 };
 
-/*! \brief A source location, defaulting to the canonical UnknownLoc. */
+/*! \brief Non-nullable source-location metadata. */
 class Location : public ffi::ObjectRef {
  public:
-  TVM_DLL Location();
-
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Location, ffi::ObjectRef, LocationNode);
 };
 
@@ -149,8 +147,8 @@ class SourceLoc : public Location {
 /*! \brief The location of a callee together with its caller's provenance. */
 class CallSiteLocNode : public LocationNode {
  public:
-  Location callee;
-  Location caller;
+  Location callee = UnknownLoc();
+  Location caller = UnknownLoc();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

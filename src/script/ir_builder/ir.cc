@@ -333,19 +333,19 @@ WhileFrame While(PrimExpr condition) {
 }
 
 tvm::Stmt Return(Expr value) {
-  tvm::Stmt stmt = tvm::Return(std::move(value), Location());
+  tvm::Stmt stmt = tvm::Return(std::move(value), UnknownLoc());
   AddToParent(stmt);
   return stmt;
 }
 
 tvm::Stmt Break() {
-  tvm::Stmt stmt = tvm::Break(Location());
+  tvm::Stmt stmt = tvm::Break(UnknownLoc());
   AddToParent(stmt);
   return stmt;
 }
 
 tvm::Stmt Continue() {
-  tvm::Stmt stmt = tvm::Continue(Location());
+  tvm::Stmt stmt = tvm::Continue(UnknownLoc());
   AddToParent(stmt);
   return stmt;
 }

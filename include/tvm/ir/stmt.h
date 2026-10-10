@@ -40,7 +40,7 @@ class StmtNode : public ffi::Object {
    * \brief Location that points to the original source code.
    *        Reserved debug information.
    */
-  mutable Location loc;
+  mutable Location loc = UnknownLoc();
 
   StmtNode() = default;
   explicit StmtNode(Location loc) : loc(loc) {}

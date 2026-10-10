@@ -94,7 +94,7 @@ void AppendNormalizedLoc(const Location& loc, std::vector<Location>* normalized)
 
 Location NormalizedLoc(const std::vector<Location>& normalized) {
   if (normalized.empty()) {
-    return Location();
+    return UnknownLoc();
   }
   Location loc = normalized[0];
   for (size_t i = 1; i < normalized.size(); ++i) {
@@ -173,7 +173,7 @@ Location IRBuilderNode::GetCurrentLoc(Location location) const {
 }
 
 ffi::ObjectRef IRBuilderNode::SetCurrentLoc(ffi::ObjectRef obj) const {
-  return SetLoc(std::move(obj), Location());
+  return SetLoc(std::move(obj), UnknownLoc());
 }
 
 ffi::ObjectRef IRBuilderNode::SetLoc(ffi::ObjectRef obj, Location loc) const {

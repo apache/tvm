@@ -64,7 +64,7 @@ TensorLoad MakeTensorLoad(TensorVar buffer, ffi::Array<PrimExpr> indices,
   ffi::ObjectPtr<TensorLoadNode> node = ffi::make_object<TensorLoadNode>(std::move(buffer));
   node->ty = std::move(result_ty);
   node->indices = std::move(indices);
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   return TensorLoad(std::move(node));
 }
 

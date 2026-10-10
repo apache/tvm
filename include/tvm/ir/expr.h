@@ -1003,10 +1003,10 @@ class RangeNode : public ffi::Object {
   /*! \brief the extend of range */
   PrimExpr extent;
   /*! \brief the location of this range in the source */
-  mutable Location loc;
+  mutable Location loc = UnknownLoc();
   /*! \brief constructor */
   explicit RangeNode(ffi::UnsafeInit tag) : min(tag), extent(tag) {}
-  RangeNode(PrimExpr min, PrimExpr extent, Location loc = Location())
+  RangeNode(PrimExpr min, PrimExpr extent, Location loc = UnknownLoc())
       : min(min), extent(extent), loc(loc) {}
 
   static void RegisterReflection() {

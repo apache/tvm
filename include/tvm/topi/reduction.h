@@ -162,7 +162,7 @@ inline Tensor DoCommReduce(const Tensor& data, FReduce func,
       arg_counter++;
     }
 
-    return func(data(eval_range), r_axes, {}, loc.value_or(Location()));
+    return func(data(eval_range), r_axes, {}, loc.value_or(UnknownLoc()));
   };
 
   return tvm::te::compute(target_shape, compute, data->op->name + "_red", kCommReduce);

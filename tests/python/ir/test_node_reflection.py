@@ -241,11 +241,10 @@ def test_make_smap():
 
 
 def test_make_node():
-    x = tvm.ir.make_node(
-        "ir.IntImm", ty=tvm.ir.PrimType("int32"), value=10, loc=tvm.ir.UnknownLoc()
-    )
+    x = tvm.ir.make_node("ir.IntImm", ty=tvm.ir.PrimType("int32"), value=10)
     assert isinstance(x, tvm.tirx.IntImm)
     assert x.value == 10
+    assert x.loc.same_as(tvm.ir.UnknownLoc())
     A = te.placeholder((10,), name="A")
     AA = tvm.ir.make_node(
         "te.Tensor", shape=A.shape, dtype=A.dtype, op=A.op, value_index=A.value_index

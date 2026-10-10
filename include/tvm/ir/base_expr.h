@@ -57,12 +57,12 @@ class TypeNode : public ffi::Object {
    * \brief Location that points to the original source code.
    *        Reserved debug information.
    */
-  mutable Location loc;
+  mutable Location loc = UnknownLoc();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     // loc do not participate in structural equal and hash.
-    refl::ObjectDef<TypeNode>().def_ro("loc", &TypeNode::loc, refl::DefaultValue(Location()),
+    refl::ObjectDef<TypeNode>().def_ro("loc", &TypeNode::loc, refl::DefaultValue(UnknownLoc()),
                                        refl::AttachFieldFlag::SEqHashIgnore());
   }
 
@@ -327,7 +327,7 @@ class ExprNode : public ffi::Object {
    * \brief Location that points to the original source code.
    *        Reserved debug information.
    */
-  mutable Location loc;
+  mutable Location loc = UnknownLoc();
 
   /*!
    * \brief The deduced or annotated type of the expression.
@@ -341,7 +341,7 @@ class ExprNode : public ffi::Object {
     namespace refl = tvm::ffi::reflection;
     // loc does not participate in structural equal and hash.
     refl::ObjectDef<ExprNode>()
-        .def_ro("loc", &ExprNode::loc, refl::DefaultValue(Location()),
+        .def_ro("loc", &ExprNode::loc, refl::DefaultValue(UnknownLoc()),
                 refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("ty", &ExprNode::ty, refl::DefaultValue(MissingType()));
   }

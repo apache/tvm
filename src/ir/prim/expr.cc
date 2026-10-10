@@ -391,7 +391,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> LetMaybeInplaceMutate(
         << "mismatched types. " << a_ty->dtype << " vs. " << b_ty->dtype << "\n";                 \
     ffi::ObjectPtr<T> node = ffi::make_object<T>(a, b);                                           \
     node->ExprNode::ty = a.get()->ExprNode::ty;                                                   \
-    node->loc = loc.value_or(Location());                                                         \
+    node->loc = loc.value_or(UnknownLoc());                                                       \
     data_ = std::move(node);                                                                      \
   }
 
@@ -410,7 +410,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> LetMaybeInplaceMutate(
         << #Name << " requires integer" << (AllowBool ? " or boolean" : "") << " operands";       \
     ffi::ObjectPtr<T> node = ffi::make_object<T>(a, b);                                           \
     node->ExprNode::ty = a.get()->ExprNode::ty;                                                   \
-    node->loc = loc.value_or(Location());                                                         \
+    node->loc = loc.value_or(UnknownLoc());                                                       \
     data_ = std::move(node);                                                                      \
   }
 
@@ -425,7 +425,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> LetMaybeInplaceMutate(
         << "mismatched types. " << a_ty->dtype << " vs. " << b_ty->dtype << "\n";                 \
     ffi::ObjectPtr<T> node = ffi::make_object<T>(a, b);                                           \
     node->ExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});                     \
-    node->loc = loc.value_or(Location());                                                         \
+    node->loc = loc.value_or(UnknownLoc());                                                       \
     data_ = std::move(node);                                                                      \
   }
 
@@ -444,7 +444,7 @@ Cast::Cast(PrimType value_ty, PrimExpr value, ffi::Optional<Location> loc)
   TVM_FFI_ICHECK_EQ(value_ty->dtype.lanes, value_expr_ty->dtype.lanes);
   ffi::ObjectPtr<CastNode> node = ffi::make_object<CastNode>(value);
   node->ExprNode::ty = std::move(value_ty);
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -829,7 +829,7 @@ And::And(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) : PrimExpr(ffi::Un
 
   ffi::ObjectPtr<AndNode> node = ffi::make_object<AndNode>(a, b);
   node->ExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -860,7 +860,7 @@ Or::Or(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) : PrimExpr(ffi::Unsa
 
   ffi::ObjectPtr<OrNode> node = ffi::make_object<OrNode>(a, b);
   node->ExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -886,7 +886,7 @@ Not::Not(PrimExpr a, ffi::Optional<Location> loc) : PrimExpr(ffi::UnsafeInit{}) 
 
   ffi::ObjectPtr<NotNode> node = ffi::make_object<NotNode>(a);
   node->ExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -914,7 +914,7 @@ BitwiseNot::BitwiseNot(PrimExpr a, ffi::Optional<Location> loc) : PrimExpr(ffi::
 
   ffi::ObjectPtr<BitwiseNotNode> node = ffi::make_object<BitwiseNotNode>(a);
   node->ExprNode::ty = a_ty;
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -953,7 +953,7 @@ Select::Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value,
   ffi::ObjectPtr<SelectNode> node =
       ffi::make_object<SelectNode>(condition, true_value, false_value);
   node->ExprNode::ty = true_ty;
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -981,7 +981,7 @@ Let::Let(Var var, PrimExpr value, PrimExpr body, ffi::Optional<Location> loc)
 
   ffi::ObjectPtr<LetNode> node = ffi::make_object<LetNode>(var, value, body);
   node->ExprNode::ty = body.ty();
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 

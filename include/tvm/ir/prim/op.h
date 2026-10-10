@@ -1043,7 +1043,7 @@ template <typename FReduce>
 inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const ffi::Array<PrimExpr>& values,
                       ffi::Optional<Location> loc = std::nullopt) {
   for (PrimExpr val : values) {
-    init_value = freduce(init_value, val, loc.value_or(Location()));
+    init_value = freduce(init_value, val, loc.value_or(UnknownLoc()));
   }
   return init_value;
 }

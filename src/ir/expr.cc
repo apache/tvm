@@ -701,7 +701,7 @@ TensorRegion::TensorRegion(Expr source, ffi::Array<Range> region, Type ty,
   auto node = ffi::make_object<TensorRegionNode>(source);
   node->region = std::move(region);
   node->ty = std::move(ty);
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -774,7 +774,7 @@ Tuple::Tuple(ffi::Array<Expr> fields, ffi::Optional<Location> loc) : Expr(ffi::U
 
   ffi::ObjectPtr<TupleNode> node = ffi::make_object<TupleNode>();
   node->fields = std::move(fields);
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   if (tuple_ty.has_value()) {
     node->ty = tuple_ty.value();
   }
@@ -808,7 +808,7 @@ TupleGetItem::TupleGetItem(Expr tuple, int index, ffi::Optional<Location> loc)
     node->ty = tuple_type->fields[index];
   }
   node->index = index;
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -856,7 +856,7 @@ GenericConst::GenericConst(ffi::Any value, Type ty, ffi::Optional<Location> loc)
   auto node = ffi::make_object<GenericConstNode>();
   node->value = std::move(value);
   node->ty = std::move(ty);
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -864,7 +864,7 @@ StringImm::StringImm(ffi::String value, ffi::Optional<Location> loc) : Constant(
   auto node = ffi::make_object<StringImmNode>();
   node->value = std::move(value);
   node->ty = StringType();
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -873,7 +873,7 @@ DataTypeImm::DataTypeImm(DLDataType value, ffi::Optional<Location> loc)
   auto node = ffi::make_object<DataTypeImmNode>();
   node->value = std::move(value);
   node->ty = AnyType();
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -959,7 +959,7 @@ IntImm::IntImm(PrimType value_ty, ffi::BigInt value, ffi::Optional<Location> loc
   ffi::ObjectPtr<IntImmNode> node = ffi::make_object<IntImmNode>();
   node->ExprNode::ty = std::move(value_ty);
   node->value = std::move(value);
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -1088,7 +1088,7 @@ FloatImm::FloatImm(PrimType value_ty, double value, ffi::Optional<Location> loc)
   ffi::ObjectPtr<FloatImmNode> node = ffi::make_object<FloatImmNode>();
   node->ExprNode::ty = std::move(value_ty);
   node->value = value;
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -1111,7 +1111,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // Range
 Range::Range(PrimExpr begin, PrimExpr end, ffi::Optional<Location> loc)
     : Range(ffi::make_object<RangeNode>(begin, tvm::prim::IsZero(begin) ? end : (end - begin),
-                                        loc.value_or(Location()))) {}
+                                        loc.value_or(UnknownLoc()))) {}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -1134,7 +1134,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, ffi::Optional<Location> loc) {
-  return Range(ffi::make_object<RangeNode>(min, extent, loc.value_or(Location())));
+  return Range(ffi::make_object<RangeNode>(min, extent, loc.value_or(UnknownLoc())));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1150,7 +1150,7 @@ Var::Var(ffi::String name, ffi::Optional<Type> ty_annotation, ffi::Optional<Loca
   if (ty_annotation.has_value()) {
     n->ty = ty_annotation.value();
   }
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 
@@ -1194,7 +1194,7 @@ Var Var::CopyWithType(Type type) const {
 GlobalVar::GlobalVar(ffi::String name_hint, ffi::Optional<Location> loc) : Expr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<GlobalVarNode> n = ffi::make_object<GlobalVarNode>();
   n->name_hint = std::move(name_hint);
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 
@@ -1222,7 +1222,7 @@ Call::Call(ffi::Optional<Type> ret_ty, Expr op, ffi::Array<Expr> args, Attrs att
   node->args = std::move(args);
   node->attrs = std::move(attrs);
   node->ty_args = std::move(ty_args);
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   if (!ret_ty.has_value()) node->ExprNode::ty = ReinferType(node.get());
   data_ = std::move(node);
 }

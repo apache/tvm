@@ -277,7 +277,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 AnyType::AnyType(ffi::Optional<Location> loc) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<AnyTypeNode> n = ffi::make_object<AnyTypeNode>();
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 
@@ -448,7 +448,7 @@ FuncType::FuncType(tvm::ffi::Array<Type> arg_types, Type ret_type, ffi::Optional
   ffi::ObjectPtr<FuncTypeNode> n = ffi::make_object<FuncTypeNode>();
   n->arg_types = std::move(arg_types);
   n->ret_type = std::move(ret_type);
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 
@@ -471,7 +471,7 @@ TupleType::TupleType(ffi::Array<Type> fields, ffi::Optional<Location> loc)
     : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<TupleTypeNode> n = ffi::make_object<TupleTypeNode>();
   n->fields = std::move(fields);
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 

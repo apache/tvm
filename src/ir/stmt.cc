@@ -660,7 +660,7 @@ Bind::Bind(Var var, Expr value, ffi::Optional<Location> loc) : Stmt(ffi::UnsafeI
   TVM_FFI_ICHECK(ffi::StructuralEqual()(value->ty, var->ty));
 
   ffi::ObjectPtr<BindNode> node = ffi::make_object<BindNode>(std::move(var), std::move(value));
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -730,7 +730,7 @@ RegionStmt::RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params
   n->body_params = std::move(body_params);
   n->attrs = std::move(attrs);
   n->result_vars = std::move(result_vars);
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   if (Op::HasAttrMap(tvm::op_attr::kRegionValidate)) {
     static auto validate = Op::GetAttrMap<FRegionValidate>(tvm::op_attr::kRegionValidate);
     if (validate.count(n->op)) validate[n->op].CallExpected(n.get()).value();
@@ -770,7 +770,7 @@ AssertStmt::AssertStmt(PrimExpr condition, StringImm error_kind,
   ffi::ObjectPtr<AssertStmtNode> node =
       ffi::make_object<AssertStmtNode>(std::move(condition), std::move(error_kind));
   node->message_parts = std::move(message_parts);
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -850,7 +850,7 @@ For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, SeqStmt 
   node->kind = kind;
   node->annotations = std::move(annotations);
   node->step = std::move(step);
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -901,7 +901,7 @@ While::While(PrimExpr condition, SeqStmt body, ffi::Optional<Location> loc)
 
   ffi::ObjectPtr<WhileNode> node =
       ffi::make_object<WhileNode>(std::move(condition), std::move(body));
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -925,7 +925,7 @@ Return::Return(Expr value, ffi::Optional<Location> loc) : Stmt(ffi::UnsafeInit{}
   TVM_FFI_ICHECK(value.defined());
 
   ffi::ObjectPtr<ReturnNode> node = ffi::make_object<ReturnNode>(std::move(value));
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -945,7 +945,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // Break
 Break::Break(ffi::Optional<Location> loc) : Stmt(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<BreakNode> node = ffi::make_object<BreakNode>();
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -964,7 +964,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // Continue
 Continue::Continue(ffi::Optional<Location> loc) : Stmt(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<ContinueNode> node = ffi::make_object<ContinueNode>();
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -1000,7 +1000,7 @@ SeqStmt::SeqStmt(ffi::Array<Stmt> seq, ffi::Optional<Location> loc) : Stmt(ffi::
   }
   auto node = ffi::make_object<SeqStmtNode>();
   node->seq = std::move(seq);
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -1056,7 +1056,7 @@ If::If(PrimExpr condition, SeqStmt then_case, ffi::Optional<SeqStmt> else_case,
   ffi::ObjectPtr<IfNode> node =
       ffi::make_object<IfNode>(std::move(condition), std::move(then_case));
   node->else_case = std::move(else_case);
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -1084,7 +1084,7 @@ Evaluate::Evaluate(Expr value, ffi::Optional<Location> loc) : Stmt(ffi::UnsafeIn
   }
 
   ffi::ObjectPtr<EvaluateNode> node = ffi::make_object<EvaluateNode>(std::move(value));
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -1114,7 +1114,7 @@ TensorStore::TensorStore(Expr dest, ffi::Array<PrimExpr> indices, PrimExpr value
   validate.cast<ffi::Function>()(dest, indices, value);
   auto node = ffi::make_object<TensorStoreNode>(std::move(dest), std::move(value));
   node->indices = std::move(indices);
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 

@@ -56,7 +56,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         TVM_FFI_CHECK(packed_realize != nullptr, TypeError)
             << "Type " << value->ty->GetTypeKey() << " does not support subscript";
         ffi::ObjectRef result =
-            packed_realize.cast<ffi::Function>()(value, slice, loc.value_or(Location()))
+            packed_realize.cast<ffi::Function>()(value, slice, loc.value_or(UnknownLoc()))
                 .cast<ffi::ObjectRef>();
         TVM_FFI_CHECK(result.defined(), TypeError)
             << "__subscript_expr_realize__ for type " << value->ty->GetTypeKey()

@@ -88,12 +88,11 @@ const ffi::ObjectPtr<UnknownLocNode>& UnknownLocation() {
 
 }  // namespace
 
-Location::Location() { data_ = UnknownLocation(); }
-
-UnknownLoc::UnknownLoc() = default;
+UnknownLoc::UnknownLoc() : Location(ffi::UnsafeInit{}) { data_ = UnknownLocation(); }
 
 SourceLoc::SourceLoc(SourceName source_name, int start_line, int start_column, int end_line,
-                     int end_column) {
+                     int end_column)
+    : Location(ffi::UnsafeInit{}) {
   auto n = ffi::make_object<SourceLocNode>();
   n->source_name = std::move(source_name);
   n->start_line = start_line;
@@ -111,7 +110,7 @@ SourceLoc SourceLoc::Merge(const SourceLoc& other) const {
                    std::max((*this)->end_column, other->end_column));
 }
 
-CallSiteLoc::CallSiteLoc(Location callee, Location caller) {
+CallSiteLoc::CallSiteLoc(Location callee, Location caller) : Location(ffi::UnsafeInit{}) {
   auto n = ffi::make_object<CallSiteLocNode>();
   n->callee = std::move(callee);
   n->caller = std::move(caller);

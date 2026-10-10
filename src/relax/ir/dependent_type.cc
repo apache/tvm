@@ -196,7 +196,7 @@ ShapeType::ShapeType(ffi::Array<PrimExpr> values, ffi::Optional<Location> loc)
         << "the value in ShapeType can only have dtype of int64";
     return value;
   });
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 
@@ -204,7 +204,7 @@ ShapeType::ShapeType(int ndim, ffi::Optional<Location> loc) : Type(ffi::UnsafeIn
   ffi::ObjectPtr<ShapeTypeNode> n = ffi::make_object<ShapeTypeNode>();
   TVM_FFI_ICHECK(ndim >= -1) << "ndim of ShapeType must be >= -1, but got " << ndim;
   n->ndim = ndim;
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 
@@ -248,7 +248,7 @@ TensorType::TensorType(Expr shape, ffi::Optional<PrimType> dtype, ffi::Optional<
   n->shape = std::move(shape);
   n->dtype = dtype;
   n->vdevice = vdevice;
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 
@@ -260,7 +260,7 @@ TensorType::TensorType(ffi::Optional<PrimType> dtype, int ndim, ffi::Optional<VD
   n->ndim = ndim;
   n->dtype = dtype;
   n->vdevice = vdevice;
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 
@@ -314,7 +314,7 @@ FuncType::FuncType(ffi::Array<Type> params, Type ret, bool purity, ffi::Optional
   n->params = std::move(params);
   n->ret = std::move(ret);
   n->purity = std::move(purity);
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 
@@ -340,7 +340,7 @@ FuncType FuncType::OpaqueFunc(TypeDeriveFunc derive_func, bool purity,
   n->derive_func = std::move(derive_func);
   n->ret = AnyType();
   n->purity = std::move(purity);
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   return FuncType(n);
 }
 
@@ -348,7 +348,7 @@ FuncType FuncType::OpaqueFunc(Type ret, bool purity, ffi::Optional<Location> loc
   ffi::ObjectPtr<FuncTypeNode> n = ffi::make_object<FuncTypeNode>();
   n->ret = std::move(ret);
   n->purity = std::move(purity);
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   return FuncType(n);
 }
 

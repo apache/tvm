@@ -389,7 +389,7 @@ bool IsPowerOfTwoInt(const PrimExpr& x, int* shift) {
 PrimExpr operator+(PrimExpr a, PrimExpr b) { return add(a, b); }
 
 PrimExpr add(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   if (auto ret = prim::detail::TryConstFold<prim::Add>(a, b)) return ret.value();
   return prim::Add(a, b, loc);
 }
@@ -414,20 +414,20 @@ PrimExpr neg(PrimExpr a, ffi::Optional<Location> loc) {
 PrimExpr operator-(PrimExpr a, PrimExpr b) { return sub(a, b); }
 
 PrimExpr sub(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   if (auto ret = prim::detail::TryConstFold<prim::Sub>(a, b)) return ret.value();
   return prim::Sub(a, b, loc);
 }
 
 PrimExpr operator*(PrimExpr a, PrimExpr b) { return mul(a, b); }
 PrimExpr mul(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   if (auto ret = prim::detail::TryConstFold<prim::Mul>(a, b)) return ret.value();
   return prim::Mul(a, b, loc);
 }
 
 PrimExpr div(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   if (auto ret = prim::detail::TryConstFold<prim::Div>(a, b)) return ret.value();
   return prim::Div(a, b, loc);
 }
@@ -439,7 +439,7 @@ PrimExpr truncdiv(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
 }
 
 PrimExpr truncmod(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   if (auto ret = prim::detail::TryConstFold<prim::Mod>(a, b)) return ret.value();
   return prim::Mod(a, b, loc);
 }
@@ -464,7 +464,7 @@ PrimExpr indexmod(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
 PrimExpr floordiv(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << a;
   TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << b;
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   if (auto ret = prim::detail::TryConstFold<prim::FloorDiv>(a, b)) return ret.value();
   return prim::FloorDiv(a, b, loc);
 }
@@ -472,7 +472,7 @@ PrimExpr floordiv(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
 PrimExpr ceildiv(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << a;
   TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << b;
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   if (auto ret = prim::detail::TryConstFold<prim::FloorDiv>(a + b - 1, b)) return ret.value();
   return prim::FloorDiv(a + b - 1, b, loc);
 }
@@ -480,7 +480,7 @@ PrimExpr ceildiv(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
 PrimExpr floormod(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
   TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << a;
   TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) << b;
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   if (auto ret = prim::detail::TryConstFold<prim::FloorMod>(a, b)) return ret.value();
   return prim::FloorMod(a, b, loc);
 }
@@ -493,7 +493,7 @@ PrimExpr min(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
   if (is_neg_inf(a)) return a;
   if (is_pos_inf(b)) return a;
   if (is_neg_inf(b)) return b;
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   if (auto ret = prim::detail::TryConstFold<prim::Min>(a, b)) return ret.value();
   return prim::Min(a, b, loc);
 }
@@ -506,7 +506,7 @@ PrimExpr max(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
   if (is_neg_inf(a)) return b;
   if (is_pos_inf(b)) return b;
   if (is_neg_inf(b)) return a;
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   if (auto ret = prim::detail::TryConstFold<prim::Max>(a, b)) return ret.value();
   return prim::Max(a, b, loc);
 }
@@ -516,7 +516,7 @@ PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value,
                       ffi::Optional<Location> loc) {
   TVM_FFI_ICHECK(cond.ty().MatchesCode(DLDataTypeCode::kDLBool))
       << "if_then_else only accept the condition to be boolean type.";
-  BinaryOpMatchTypes(true_value, false_value, loc.value_or(Location()));
+  BinaryOpMatchTypes(true_value, false_value, loc.value_or(UnknownLoc()));
   if (const IntImmNode* op = cond.as<IntImmNode>()) {
     if (op->value != 0) {
       return true_value;
@@ -539,35 +539,35 @@ PrimExpr likely(PrimExpr cond, ffi::Optional<Location> loc) {
 // operator>
 PrimExpr operator>(PrimExpr a, PrimExpr b) { return greater(a, b); }
 PrimExpr greater(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   if (auto ret = prim::detail::TryConstFold<prim::GT>(a, b)) return ret.value();
   return prim::GT(a, b, loc);
 }
 
 PrimExpr operator>=(PrimExpr a, PrimExpr b) { return greater_equal(a, b); }
 PrimExpr greater_equal(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   if (auto ret = prim::detail::TryConstFold<prim::GE>(a, b)) return ret.value();
   return prim::GE(a, b, loc);
 }
 
 PrimExpr operator<(PrimExpr a, PrimExpr b) { return less(a, b); }
 PrimExpr less(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   if (auto ret = prim::detail::TryConstFold<prim::LT>(a, b)) return ret.value();
   return prim::LT(a, b, loc);
 }
 
 PrimExpr operator<=(PrimExpr a, PrimExpr b) { return less_equal(a, b); }
 PrimExpr less_equal(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   if (auto ret = prim::detail::TryConstFold<prim::LE>(a, b)) return ret.value();
   return prim::LE(a, b, loc);
 }
 
 PrimExpr operator==(PrimExpr a, PrimExpr b) { return equal(a, b); }
 PrimExpr equal(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   if (auto ret = prim::detail::TryConstFold<prim::EQ>(a, b)) return ret.value();
   if (IsVScaleCall(a) && IsVScaleCall(b)) return true;
   return prim::EQ(a, b, loc);
@@ -575,7 +575,7 @@ PrimExpr equal(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
 
 PrimExpr operator!=(PrimExpr a, PrimExpr b) { return not_equal(a, b); }
 PrimExpr not_equal(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   if (auto ret = prim::detail::TryConstFold<prim::NE>(a, b)) return ret.value();
   return prim::NE(a, b, loc);
 }
@@ -624,7 +624,7 @@ PrimExpr right_shift(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
       << "Expected integer argument as RHS of >> operator (right shift), but received " << b
       << " of type " << b.ty();
 
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
     if (pb)
@@ -651,7 +651,7 @@ PrimExpr left_shift(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
   TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))
       << "Expected integer argument as RHS of << operator (left shift), but received " << b
       << " of type " << b.ty();
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
     if (pb)
@@ -681,7 +681,7 @@ PrimExpr bitwise_and(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
       b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLBool))
       << "Expected integer argument as RHS of & operator (bitwise AND), but received " << b
       << " of type " << b.ty();
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
     if (pa && pb) return IntImm(result_ty, (pa->value & pb->value), loc);
@@ -700,7 +700,7 @@ PrimExpr bitwise_or(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
       b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLBool))
       << "Expected integer argument as RHS of | operator (bitwise OR), but received " << b
       << " of type " << b.ty();
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
     if (pa && pb) return IntImm(result_ty, (pa->value | pb->value), loc);
@@ -719,7 +719,7 @@ PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, ffi::Optional<Location> loc) {
       b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLBool))
       << "Expected integer argument as RHS of ^ operator (bitwise XOR), but received " << b
       << " of type " << b.ty();
-  BinaryOpMatchTypes(a, b, loc.value_or(Location()));
+  BinaryOpMatchTypes(a, b, loc.value_or(UnknownLoc()));
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
     if (pa && pb) return IntImm(result_ty, (pa->value ^ pb->value), loc);

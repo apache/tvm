@@ -195,7 +195,7 @@ DTensorType::DTensorType(TensorType tensor_ty, DeviceMesh device_mesh, Placement
   }
   ffi::ObjectPtr<DTensorTypeNode> n = ffi::make_object<DTensorTypeNode>(
       std::move(tensor_ty), std::move(device_mesh), std::move(placement));
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 

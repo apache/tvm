@@ -85,7 +85,7 @@ TEST(StmtFunctor, ExtendedTableForwardingAndAncestorDispatch) {
   EXPECT_EQ(calls, 3);
 
   // An inherited default hook receives the same move-only and reference arguments.
-  EXPECT_EQ(functor(Break(Location()), std::make_unique<int>(6), calls), -6);
+  EXPECT_EQ(functor(Break(UnknownLoc()), std::make_unique<int>(6), calls), -6);
   EXPECT_EQ(calls, 4);
   // Extending one finalized table does not alter the base signature's default table.
   ForwardFunctor base;

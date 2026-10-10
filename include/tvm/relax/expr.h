@@ -101,7 +101,7 @@ class BindingNode : public ffi::Object {
   explicit BindingNode(Var var) : var(std::move(var)) {}
   explicit BindingNode(ffi::UnsafeInit) : var(ffi::UnsafeInit{}) {}
 
-  mutable Location loc;
+  mutable Location loc = UnknownLoc();
   /*! \brief The return variable to bound to. */
   Var var;
 
@@ -211,14 +211,14 @@ class VarBinding : public Binding {
 class BindingBlockNode : public ffi::Object {
  public:
   ffi::Array<Binding> bindings;
-  mutable Location loc;
+  mutable Location loc = UnknownLoc();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BindingBlockNode>()
         .def_ro("bindings", &BindingBlockNode::bindings)
         .def_ro("loc", &BindingBlockNode::loc, refl::AttachFieldFlag::SEqHashIgnore(),
-                refl::DefaultValue(Location()));
+                refl::DefaultValue(UnknownLoc()));
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;

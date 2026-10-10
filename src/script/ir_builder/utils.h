@@ -99,7 +99,7 @@ inline void AddToParent(tvm::Stmt stmt, Location loc) {
 inline void AddToParent(tvm::Stmt stmt) {
   // Some builder paths use an undefined statement as an omitted branch.
   if (stmt.defined()) IRBuilder::Current()->SetCurrentLoc(stmt);
-  AddToParent(std::move(stmt), Location());
+  AddToParent(std::move(stmt), UnknownLoc());
 }
 
 /*!

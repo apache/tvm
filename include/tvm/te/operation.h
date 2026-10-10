@@ -68,7 +68,7 @@ class CommReducerNode : public ffi::Object {
    * \brief Location that points to the original source code.
    *        Reserved debug information.
    */
-  mutable Location loc;
+  mutable Location loc = UnknownLoc();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

@@ -182,7 +182,7 @@ ffi::Optional<ExprDoc> BinaryOpDocTranslate(DocTranslatorObj* d, ffi::AnyView in
   // simplify an explicit node, while two plain Python literals fold earlier.
   if (!(a.as<LiteralDocNode>() && b.as<LiteralDocNode>())) {
     try {
-      PrimExpr replay = operation(node->a, node->b, Location());
+      PrimExpr replay = operation(node->a, node->b, UnknownLoc());
       if (const auto* result = replay.template as<T>();
           result && result->a.same_as(node->a) && result->b.same_as(node->b)) {
         return OperationDoc(kind, {a, b});
@@ -200,7 +200,7 @@ ExprDoc UnaryOpDocTranslate(DocTranslatorObj* d, const T* node) {
   ExprDoc value = d->Translate(node->a).value();
   if (!value.as<LiteralDocNode>()) {
     try {
-      PrimExpr replay = operation(node->a, Location());
+      PrimExpr replay = operation(node->a, UnknownLoc());
       if (const auto* result = replay.template as<T>(); result && result->a.same_as(node->a)) {
         return OperationDoc(kind, {value});
       }
@@ -216,7 +216,7 @@ ExprDoc BinaryHelperDocTranslate(DocTranslatorObj* d, const T* node, const char*
   ExprDoc a = d->Translate(node->a).value();
   ExprDoc b = d->Translate(node->b).value();
   try {
-    PrimExpr replay = operation(node->a, node->b, Location());
+    PrimExpr replay = operation(node->a, node->b, UnknownLoc());
     if (const auto* result = replay.template as<T>();
         result && result->a.same_as(node->a) && result->b.same_as(node->b)) {
       return NamespaceDoc("tirx")->Attr(helper)->Call({a, b});

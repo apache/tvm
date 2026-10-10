@@ -51,7 +51,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PackedFuncTypeMaybeInpl
 
 PackedFuncType::PackedFuncType(ffi::Optional<Location> loc) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<PackedFuncTypeNode> n = ffi::make_object<PackedFuncTypeNode>();
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 

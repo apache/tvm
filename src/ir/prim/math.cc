@@ -254,7 +254,7 @@ PrimExpr infinity(PrimType value_ty, ffi::Optional<Location> loc) {
 }
 
 PrimExpr pow(PrimExpr x, PrimExpr y, ffi::Optional<Location> loc) {
-  BinaryOpMatchTypes(x, y, loc.value_or(Location()));
+  BinaryOpMatchTypes(x, y, loc.value_or(UnknownLoc()));
   TVM_FFI_ICHECK(x.ty().MatchesCode(DLDataTypeCode::kDLFloat)) << "power only applies to float";
 
   // If we detect pow(x, 3), suggest using x * x * x
@@ -326,7 +326,7 @@ PrimExpr isfinite(PrimExpr x, ffi::Optional<Location> loc) {
 }
 
 PrimExpr fmod(PrimExpr x, PrimExpr y, ffi::Optional<Location> loc) {
-  BinaryOpMatchTypes(x, y, loc.value_or(Location()));
+  BinaryOpMatchTypes(x, y, loc.value_or(UnknownLoc()));
   TVM_FFI_ICHECK(x.ty().MatchesCode(DLDataTypeCode::kDLFloat)) << "fmod only applies to float";
   static const Op fmod_op = Op::Get("prim.fmod");
   return Call(x.ty(), fmod_op, {x, y}, {}, {}, loc).as_or_throw<PrimExpr>();

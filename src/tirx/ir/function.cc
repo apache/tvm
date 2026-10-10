@@ -118,7 +118,7 @@ Function::Function(ffi::Array<tvm::Var> params, ffi::Optional<SeqStmt> body, Typ
   n->body = std::move(body);
   n->ret_type = std::move(ret_type);
   n->attrs = std::move(attrs);
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   n->ty = n->func_type_annotation();
   data_ = std::move(n);
 }

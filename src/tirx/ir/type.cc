@@ -181,7 +181,7 @@ TensorType::TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<Pri
       data_alignment <= 0 ? static_cast<int>(runtime::kAllocAlignment) : data_alignment;
   n->offset_factor = offset_factor == 0 ? 1 : offset_factor;
   n->layout = std::move(layout);
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 
@@ -209,7 +209,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TensorMapType::TensorMapType(ffi::Optional<Location> loc) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<TensorMapTypeNode> n = ffi::make_object<TensorMapTypeNode>();
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 

@@ -132,11 +132,11 @@ TVM_DLL tvm::Var EmitVarBinding(const tvm::relax::VarBinding& binding);
 /*! \brief Emit a binding with separate statement and variable-name ranges. */
 TVM_DLL tvm::Var EmitWithLoc(const tvm::relax::Expr& value,
                              const ffi::Optional<tvm::Type>& annotate_ty, const Location& name_loc,
-                             const Location& loc = Location());
+                             const Location& loc = UnknownLoc());
 
 /*! \brief Emit a match cast with separate statement and variable-name ranges. */
 TVM_DLL tvm::Var EmitMatchCastWithLoc(const tvm::relax::Expr& value, const tvm::Type& ty,
-                                      const Location& name_loc, const Location& loc = Location());
+                                      const Location& name_loc, const Location& loc = UnknownLoc());
 
 ///////////////////////////// If Then Else /////////////////////////////
 

@@ -47,7 +47,7 @@ class IRBuilderFrameNode : public ffi::Object {
   /*! \brief A list of callbacks used when exiting the frame. */
   std::vector<ffi::TypedFunction<void()>> callbacks;
   /*! \brief Source context retained until this frame constructs its result. */
-  mutable Location loc;
+  mutable Location loc = UnknownLoc();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -180,7 +180,7 @@ class IRBuilderNode : public ffi::Object {
   /*! \brief Pop the innermost frontend source location. */
   void PopLoc();
   /*! \brief Return the normalized active source loc, including expansion history. */
-  Location GetCurrentLoc(Location location = Location()) const;
+  Location GetCurrentLoc(Location location = UnknownLoc()) const;
   /*! \brief Compose active source context onto a supported node or construction frame. */
   ffi::ObjectRef SetCurrentLoc(ffi::ObjectRef obj) const;
   /*! \brief Attach an explicit location composed with the active source-call context. */

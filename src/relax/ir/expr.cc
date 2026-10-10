@@ -403,7 +403,7 @@ IfExpr::IfExpr(Expr cond, Expr true_branch, Expr false_branch, ffi::Optional<Loc
     : Expr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<IfExprNode> n = ffi::make_object<IfExprNode>(
       std::move(cond), std::move(true_branch), std::move(false_branch));
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 
@@ -434,7 +434,7 @@ ShapeExpr::ShapeExpr(ffi::Array<PrimExpr> values, ffi::Optional<Location> loc)
         << "the value in ShapeType can only have dtype of int64";
     return value;
   });
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   n->ty = ShapeType(values, loc);
   data_ = std::move(n);
 }
@@ -463,7 +463,7 @@ DataflowVar::DataflowVar(ffi::String name, ffi::Optional<Type> ty_annotation,
   if (ty_annotation.has_value()) {
     n->ty = ty_annotation.value();
   }
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 
@@ -506,7 +506,7 @@ MatchCast::MatchCast(Var var, Expr value, Type ty, ffi::Optional<Location> loc) 
   ffi::ObjectPtr<MatchCastNode> n =
       ffi::make_object<MatchCastNode>(std::move(var), std::move(value));
   n->ty = std::move(ty);
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 
@@ -523,7 +523,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 VarBinding::VarBinding(Var var, Expr value, ffi::Optional<Location> loc) {
   ffi::ObjectPtr<VarBindingNode> n =
       ffi::make_object<VarBindingNode>(std::move(var), std::move(value));
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 
@@ -567,7 +567,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 BindingBlock::BindingBlock(ffi::Array<Binding> bindings, ffi::Optional<Location> loc) {
   ffi::ObjectPtr<BindingBlockNode> n = ffi::make_object<BindingBlockNode>();
   n->bindings = std::move(bindings);
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 
@@ -603,7 +603,7 @@ BindingBlockNode* BindingBlock::CopyOnWrite() {
 DataflowBlock::DataflowBlock(ffi::Array<Binding> bindings, ffi::Optional<Location> loc) {
   ffi::ObjectPtr<DataflowBlockNode> n = ffi::make_object<DataflowBlockNode>();
   n->bindings = std::move(bindings);
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 
@@ -629,7 +629,7 @@ SeqExpr::SeqExpr(ffi::Array<BindingBlock> blocks, Expr body, ffi::Optional<Locat
     : Expr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<SeqExprNode> n = ffi::make_object<SeqExprNode>(std::move(body));
   n->blocks = std::move(blocks);
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 
@@ -707,7 +707,7 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty
   n->is_pure = is_pure;
   n->ty = std::move(func_ty);
   n->attrs = std::move(attrs);
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 
@@ -754,7 +754,7 @@ Function Function::CreateEmpty(ffi::Array<Var> params, Type ret_ty, bool is_pure
   n->ty = std::move(finfo);
   n->ret_ty = std::move(ret_ty);
   n->attrs = std::move(attrs);
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   return Function(std::move(n));
 }
 
@@ -803,7 +803,7 @@ ExternFunc::ExternFunc(ffi::String global_symbol, Type ty, ffi::Optional<Locatio
 
   ffi::ObjectPtr<ExternFuncNode> n = ffi::make_object<ExternFuncNode>();
   n->global_symbol = std::move(global_symbol);
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   n->ty = ty;
   data_ = std::move(n);
 }

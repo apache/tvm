@@ -237,7 +237,7 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, ffi::Optional<Locatio
                 vscale_factor.value());
     node->lanes = lanes;
   }
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -281,7 +281,7 @@ Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, ffi::Optional<Location> loc
                 vscale_factor.value());
     node->lanes = lanes;
   }
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = node;
 }
 
@@ -322,7 +322,7 @@ Shuffle::Shuffle(ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices,
   node->ExprNode::ty = base_type.WithLanes(static_cast<int>(indices.size()));
   node->vectors = std::move(vectors);
   node->indices = std::move(indices);
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = node;
 }
 

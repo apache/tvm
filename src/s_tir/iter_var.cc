@@ -104,7 +104,7 @@ IterVar::IterVar(Range dom, PrimVar var, IterVarType t, ffi::String thread_tag,
   n->dom = dom;
   n->iter_type = t;
   n->thread_tag = thread_tag;
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 

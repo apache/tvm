@@ -89,7 +89,7 @@ CommReducer::CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs,
   node->rhs = rhs;
   node->result = result;
   node->identity_element = identity_element;
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -162,7 +162,7 @@ Reduce::Reduce(CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<Ite
   n->init = std::move(init);
   n->axis = std::move(axis);
   n->value_index = value_index;
-  n->loc = loc.value_or(Location());
+  n->loc = loc.value_or(UnknownLoc());
   data_ = std::move(n);
 }
 

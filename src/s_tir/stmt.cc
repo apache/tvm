@@ -423,7 +423,7 @@ SBlock::SBlock(ffi::Array<IterVar> iter_vars, ffi::Array<TensorRegion> reads,
   node->alloc_buffers = std::move(alloc_buffers);
   node->match_buffers = std::move(match_buffers);
   node->annotations = std::move(annotations);
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -439,7 +439,7 @@ SBlock::SBlock(ffi::String name_hint, SeqStmt body, ffi::Array<TensorVar> alloc_
   node->alloc_buffers = std::move(alloc_buffers);
   node->match_buffers = {};
   node->annotations = {};
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
@@ -475,7 +475,7 @@ SBlockRealize::SBlockRealize(ffi::Array<PrimExpr> values, PrimExpr predicate, SB
   ffi::ObjectPtr<SBlockRealizeNode> node =
       ffi::make_object<SBlockRealizeNode>(std::move(predicate), std::move(block));
   node->iter_values = std::move(values);
-  node->loc = loc.value_or(Location());
+  node->loc = loc.value_or(UnknownLoc());
   data_ = std::move(node);
 }
 
