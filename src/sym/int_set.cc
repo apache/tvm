@@ -1099,7 +1099,7 @@ class SubExprIntervalSetEvaluator : public IntervalSetEvaluator {
 
   IntervalSet Dispatch(const Expr& n) final {
     IntervalSet ret = IntervalSetEvaluator::Dispatch(n);
-    expr_map[n.as_or_throw<PrimExpr>()] = ret;
+    expr_map.insert_or_assign(n.as_or_throw<PrimExpr>(), ret);
     return ret;
   }
 

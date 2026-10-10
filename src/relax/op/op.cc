@@ -216,8 +216,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<bool>(tvm::relax::op_attr::kPurity, true);
 }
 
-Expr MakeCallPurePacked(const Expr& callee, ffi::Array<Expr> args, const ffi::Optional<Attrs>& attrs,
-                        ffi::Array<Type> ty_args) {
+Expr MakeCallPurePacked(const Expr& callee, ffi::Array<Expr> args,
+                        const ffi::Optional<Attrs>& attrs, ffi::Array<Type> ty_args) {
   static const Op op = Op::Get("relax.call_pure_packed");
   ffi::Array<Expr> call_args = {callee};
   for (auto arg : args) {

@@ -147,7 +147,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 RELAX_PATTERN_PRINTER_DEF(ConstantPatternNode,
                           [](auto p, auto node) { p->stream << "ConstantPattern()"; });
 
-CallPattern::CallPattern(DFPattern op, ffi::Array<DFPattern> args, bool varg_default_wildcard) : DFPattern(ffi::UnsafeInit{}) {
+CallPattern::CallPattern(DFPattern op, ffi::Array<DFPattern> args, bool varg_default_wildcard)
+    : DFPattern(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<CallPatternNode> n = ffi::make_object<CallPatternNode>(std::move(op));
   n->args = std::move(args);
   n->varg_default_wildcard = varg_default_wildcard;
@@ -191,7 +192,8 @@ RELAX_PATTERN_PRINTER_DEF(PrimArrPatternNode, [](auto p, auto node) {
   p->stream << "PrimArrPattern(" << node->fields << ")";
 });
 
-FunctionPattern::FunctionPattern(ffi::Array<DFPattern> params, DFPattern body) : DFPattern(ffi::UnsafeInit{}) {
+FunctionPattern::FunctionPattern(ffi::Array<DFPattern> params, DFPattern body)
+    : DFPattern(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<FunctionPatternNode> n = ffi::make_object<FunctionPatternNode>(std::move(body));
   n->params = std::move(params);
   data_ = std::move(n);
@@ -224,7 +226,8 @@ RELAX_PATTERN_PRINTER_DEF(TuplePatternNode, [](auto p, auto node) {
   p->stream << "TuplePattern(" << node->fields << ")";
 });
 
-UnorderedTuplePattern::UnorderedTuplePattern(tvm::ffi::Array<DFPattern> fields) : DFPattern(ffi::UnsafeInit{}) {
+UnorderedTuplePattern::UnorderedTuplePattern(tvm::ffi::Array<DFPattern> fields)
+    : DFPattern(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<UnorderedTuplePatternNode> n = ffi::make_object<UnorderedTuplePatternNode>();
   n->fields = std::move(fields);
   data_ = std::move(n);
@@ -241,7 +244,8 @@ RELAX_PATTERN_PRINTER_DEF(UnorderedTuplePatternNode, [](auto p, auto node) {
   p->stream << "UnorderedTuplePattern(" << node->fields << ")";
 });
 
-TupleGetItemPattern::TupleGetItemPattern(DFPattern tuple, int index) : DFPattern(ffi::UnsafeInit{}) {
+TupleGetItemPattern::TupleGetItemPattern(DFPattern tuple, int index)
+    : DFPattern(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<TupleGetItemPatternNode> n =
       ffi::make_object<TupleGetItemPatternNode>(std::move(tuple));
   n->index = index;
@@ -305,7 +309,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 RELAX_PATTERN_PRINTER_DEF(NotPatternNode,
                           [](auto p, auto node) { p->stream << "!(" << node->reject << ")"; });
 
-WildcardPattern::WildcardPattern() : DFPattern(ffi::UnsafeInit{}) { data_ = ffi::make_object<WildcardPatternNode>(); }
+WildcardPattern::WildcardPattern() : DFPattern(ffi::UnsafeInit{}) {
+  data_ = ffi::make_object<WildcardPatternNode>();
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -330,7 +336,8 @@ RELAX_PATTERN_PRINTER_DEF(TypePatternNode, [](auto p, auto node) {
   p->stream << "TypePattern(" << node->pattern << " has relax Type " << node->ty << ")";
 });
 
-ShapePattern::ShapePattern(DFPattern pattern, ffi::Array<PrimExpr> shape) : DFPattern(ffi::UnsafeInit{}) {
+ShapePattern::ShapePattern(DFPattern pattern, ffi::Array<PrimExpr> shape)
+    : DFPattern(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<ShapePatternNode> n = ffi::make_object<ShapePatternNode>(std::move(pattern));
   n->shape = std::move(shape);
   data_ = std::move(n);
@@ -347,7 +354,8 @@ RELAX_PATTERN_PRINTER_DEF(ShapePatternNode, [](auto p, auto node) {
   p->stream << "ShapePattern(" << node->pattern << " has shape " << node->shape << ")";
 });
 
-SameShapeConstraint::SameShapeConstraint(ffi::Array<DFPattern> args) : DFConstraint(ffi::UnsafeInit{}) {
+SameShapeConstraint::SameShapeConstraint(ffi::Array<DFPattern> args)
+    : DFConstraint(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<SameShapeConstraintNode> n = ffi::make_object<SameShapeConstraintNode>();
   n->args = std::move(args);
   data_ = std::move(n);
@@ -374,7 +382,8 @@ RELAX_PATTERN_PRINTER_DEF(SameShapeConstraintNode, [](auto p, auto node) {
   p->stream << ")";
 });
 
-DataTypePattern::DataTypePattern(DFPattern pattern, DLDataType dtype) : DFPattern(ffi::UnsafeInit{}) {
+DataTypePattern::DataTypePattern(DFPattern pattern, DLDataType dtype)
+    : DFPattern(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<DataTypePatternNode> n = ffi::make_object<DataTypePatternNode>(std::move(pattern));
   n->dtype = dtype;
   data_ = std::move(n);

@@ -125,7 +125,8 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
         analyzer_->CanProve(extent_range.max() <= 0)) {
       return Evaluate(0);
     }
-    var_range_map_[op->loop_var.get()] = sym::IntSet::FromMinExtent(op->min, op->extent);
+    var_range_map_.insert_or_assign(op->loop_var.get(),
+                                    sym::IntSet::FromMinExtent(op->min, op->extent));
     Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     var_range_map_.erase(op->loop_var.get());
     op = stmt.as<ForNode>();

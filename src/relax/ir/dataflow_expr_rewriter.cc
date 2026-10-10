@@ -274,7 +274,8 @@ ExprPatternRewriter::ExprPatternRewriter(
     DFPattern pattern,
     ffi::TypedFunction<ffi::Optional<Expr>(Expr, ffi::Map<DFPattern, Expr>)> func,
     ffi::Optional<ffi::Array<DFPattern>> additional_bindings,
-    ffi::Map<GlobalVar, BaseFunc> new_subroutines) : PatternMatchingRewriter(ffi::UnsafeInit{}) {
+    ffi::Map<GlobalVar, BaseFunc> new_subroutines)
+    : PatternMatchingRewriter(ffi::UnsafeInit{}) {
   auto node = ffi::make_object<ExprPatternRewriterNode>(pattern);
   node->func = std::move(func);
   node->additional_bindings = std::move(additional_bindings);
@@ -320,7 +321,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         });
 }
 
-OrRewriter::OrRewriter(PatternMatchingRewriter lhs, PatternMatchingRewriter rhs) : PatternMatchingRewriter(ffi::UnsafeInit{}) {
+OrRewriter::OrRewriter(PatternMatchingRewriter lhs, PatternMatchingRewriter rhs)
+    : PatternMatchingRewriter(ffi::UnsafeInit{}) {
   auto node = ffi::make_object<OrRewriterNode>(std::move(lhs), std::move(rhs));
   data_ = std::move(node);
 }
@@ -623,7 +625,8 @@ TupleRewriter::TupleRewriter(
     ffi::Array<DFPattern> patterns,
     ffi::TypedFunction<ffi::Optional<Expr>(Expr, ffi::Map<DFPattern, Expr>)> func,
     ffi::Optional<ffi::Array<DFPattern>> additional_bindings,
-    ffi::Map<GlobalVar, BaseFunc> new_subroutines) : PatternMatchingRewriter(ffi::UnsafeInit{}) {
+    ffi::Map<GlobalVar, BaseFunc> new_subroutines)
+    : PatternMatchingRewriter(ffi::UnsafeInit{}) {
   auto node = ffi::make_object<TupleRewriterNode>();
   node->patterns = std::move(patterns);
   node->func = std::move(func);

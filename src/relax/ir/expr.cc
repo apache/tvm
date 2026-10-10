@@ -595,7 +595,8 @@ BindingBlockNode* BindingBlock::CopyOnWrite() {
   return static_cast<BindingBlockNode*>(data_.get());
 }
 
-DataflowBlock::DataflowBlock(ffi::Array<Binding> bindings, Location loc) : BindingBlock(ffi::UnsafeInit{}) {
+DataflowBlock::DataflowBlock(ffi::Array<Binding> bindings, Location loc)
+    : BindingBlock(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<DataflowBlockNode> n = ffi::make_object<DataflowBlockNode>();
   n->bindings = std::move(bindings);
   n->loc = loc;

@@ -105,7 +105,7 @@ class BoundDeducer : public tvm::ExprFunctor<void(const Expr&)> {
     if (e_ty.MatchesCode(DLDataTypeCode::kDLUInt)) {
       return kPositive;
     }
-    return expr_map_[e].GetSignType();
+    return expr_map_.at(e).GetSignType();
   }
 
   void Dispatch_(const VarNode* op) final {}
@@ -395,11 +395,11 @@ IntSet DeduceBound(PrimExpr v, PrimExpr e, const ffi::Map<Var, IntSet>& hint_map
                    const ffi::Map<Var, IntSet>& relax_map) {
   std::unordered_map<const VarNode*, IntSet> hmap;
   for (auto kv : hint_map) {
-    hmap[kv.first.get()] = kv.second;
+    hmap.emplace(kv.first.get(), kv.second);
   }
   std::unordered_map<const VarNode*, IntSet> rmap;
   for (auto kv : relax_map) {
-    rmap[kv.first.get()] = kv.second;
+    rmap.emplace(kv.first.get(), kv.second);
   }
   return DeduceBound(v, e, hmap, rmap);
 }
