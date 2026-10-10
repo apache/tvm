@@ -154,9 +154,73 @@ class Expected:
         return gv
 
 
+@I.ir_module
+class GlobalModule:
+    @R.function
+    def entry(x: R.Tensor((4,), "float32")) -> R.Tensor((4,), "float32"):
+        cls = GlobalModule
+        with R.dataflow():
+            gv = cls.cutlass(x)
+            R.output(gv)
+        return gv
+
+    @R.function
+    def cutlass(x: R.Tensor((4,), "float32")) -> R.Tensor((4,), "float32"):
+        R.func_attr({"Codegen": "cutlass", "WorkspaceSize": 65536})
+        cls = GlobalModule
+        gv = cls.cutlass_gv(x)
+        return gv
+
+    @R.function(private=True)
+    def cutlass_gv(x: R.Tensor((4,), "float32")) -> R.Tensor((4,), "float32"):
+        R.func_attr({"Composite": "cutlass.add", "Primitive": True, "WorkspaceSize": 65536})
+        with R.dataflow():
+            gv = R.add(x, x)
+            R.output(gv)
+        return gv
+
+
+@I.ir_module
+class GlobalExpected:
+    @R.function
+    def entry(x: R.Tensor((4,), "float32")) -> R.Tensor((4,), "float32"):
+        cls = GlobalExpected
+        with R.dataflow():
+            workspace_main = R.builtin.alloc_tensor(
+                R.shape([65536]), R.dtype("uint8"), R.prim_value(0)
+            )
+            gv = cls.cutlass1(x, workspace_main)
+            R.output(gv)
+        return gv
+
+    @R.function
+    def cutlass1(x: R.Tensor((4,), "float32"), workspace: R.Tensor((65536,), "uint8")) -> R.Tensor(
+        (4,), "float32"
+    ):
+        R.func_attr({"Codegen": "cutlass", "global_symbol": "cutlass1"})
+        cls = GlobalExpected
+        gv = cls.cutlass_gv1(x, workspace)
+        return gv
+
+    @R.function
+    def cutlass_gv1(
+        x: R.Tensor((4,), "float32"), workspace: R.Tensor((65536,), "uint8")
+    ) -> R.Tensor((4,), "float32"):
+        R.func_attr({"Composite": "cutlass.add", "Primitive": True})
+        with R.dataflow():
+            gv = R.add(x, x)
+            R.output(gv)
+        return gv
+
+
 def test_single_attention():
     rewritten = relax.transform.AllocateWorkspace()(Module)
     tvm.ir.assert_structural_equal(rewritten, Expected)
+
+
+def test_global_composite_function():
+    rewritten = relax.transform.AllocateWorkspace()(GlobalModule)
+    tvm.ir.assert_structural_equal(rewritten, GlobalExpected)
 
 
 if __name__ == "__main__":
