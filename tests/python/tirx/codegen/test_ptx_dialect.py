@@ -74,9 +74,8 @@ def test_ptx_registration():
 def test_ptx_prefetch_codegen():
     @T.function
     def kernel(A: T.Tensor((32,), "float32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         T.ptx.prefetch.global_.L2(A.ptr_to([0]))
         A[tx] = T.float32(0)  # keep-alive store so the buffer is not elided
 
@@ -88,9 +87,8 @@ def test_ptx_prefetch_codegen():
 def test_ptx_ld_st_codegen():
     @T.function
     def kernel(A: T.Tensor((32,), "uint32"), B: T.Tensor((32,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         if tx == 0:
             # Declare the register, then name it as an operand — the PTX model.
             val = T.local_scalar("uint32")
@@ -113,9 +111,8 @@ def test_ptx_ld_s32_wide_destination_codegen():
 
     @T.function
     def kernel(A: T.Tensor((32,), "int32"), Out: T.Tensor((32,), "int64")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         wide = T.local_scalar("int64")
         T.ptx.ld.global_.s32(wide, A.ptr_to([tx]))
         Out[tx] = wide
@@ -130,9 +127,8 @@ def test_ptx_ld_s32_wide_destination_codegen():
 def test_ptx_st_shared_coercion():
     @T.function
     def kernel(out: T.Tensor((1,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         smem = T.alloc_tensor((4,), "uint32", scope="shared")
         if tx == 0:
             # Shared-space slot fed a shared-scope pointer: engine must
@@ -149,9 +145,8 @@ def test_ptx_st_shared_coercion():
 def test_ptx_explicit_cvta():
     @T.function
     def kernel(out: T.Tensor((1,), "uint64")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         smem = T.alloc_tensor((4,), "uint32", scope="shared")
         smem[tx % 4] = T.uint32(0)
         if tx == 0:
@@ -165,9 +160,8 @@ def test_ptx_explicit_cvta():
 def test_ptx_red_codegen():
     @T.function
     def kernel(A: T.Tensor((1,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         if tx == 0:
             T.ptx.red.relaxed.gpu.global_.add.u32(A.ptr_to([0]), T.uint32(1))
         A[0] = A[0]
@@ -179,9 +173,8 @@ def test_ptx_red_codegen():
 def test_ptx_predication_codegen():
     @T.function
     def kernel(A: T.Tensor((32,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         flag: T.uint32 = T.uint32(0)
         if tx == 0:
             flag = T.uint32(1)
@@ -196,9 +189,8 @@ def test_ptx_predication_codegen():
 def test_ptx_red_vector_codegen_and_roundtrip():
     @T.function
     def kernel(A: T.Tensor((16,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         half = T.local_scalar("uint16")
         packed = T.local_scalar("uint32")
         value = T.local_scalar("float32")
@@ -246,9 +238,8 @@ def test_ptx_red_vector_codegen_and_roundtrip():
 def test_ptx_atom_bitbucket_codegen_and_roundtrip():
     @T.function
     def kernel(A: T.Tensor((16,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         word = T.local_scalar("uint32")
         half = T.local_scalar("uint16")
         value = T.local_scalar("float32")
@@ -282,9 +273,8 @@ def test_ptx_atom_bitbucket_codegen_and_roundtrip():
 def test_ptx_predicated_destination_preserves_old_value():
     @T.function
     def kernel(A: T.Tensor((1,), "float32"), Out: T.Tensor((32,), "float32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         value: T.float32 = T.float32(0)
         pred: T.uint32 = T.cast(tx == 0, "uint32")
         T.ptx.ld.global_.f32(value, A.ptr_to([0]), pred=pred, preserve_dst=True)
@@ -302,9 +292,8 @@ def test_ptx_predicated_destination_preserves_old_value():
 def test_ptx_predicated_destination_is_undefined_by_default():
     @T.function
     def kernel(A: T.Tensor((1,), "float32"), Out: T.Tensor((32,), "float32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         value = T.local_scalar("float32")
         pred: T.uint32 = T.cast(tx == 0, "uint32")
         T.ptx.ld.global_.f32(value, A.ptr_to([0]), pred=pred)
@@ -324,9 +313,8 @@ def test_ptx_string_form_matches_chain():
     def make(fn):
         @T.function
         def kernel(A: T.Tensor((32,), "uint32"), B: T.Tensor((32,), "uint32")):
-            T.device_entry()
-            T.cta_id([1])
-            tx = T.thread_id([32])
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+            tx = T.cuda.thread_idx("x")
             if tx == 0:
                 fn(B[0], A.ptr_to([0]))
             B[tx] = B[tx]
@@ -750,9 +738,8 @@ def test_ptx_register_group_codegen():
 
     @T.function
     def kernel(A: T.Tensor((4,), "float32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         packed = T.local_scalar("uint64")
         lo = T.local_scalar("float32")
         hi = T.local_scalar("float32")
@@ -821,9 +808,8 @@ def test_ptx_register_group_errors():
     # An explicit constant is accepted and picks the float32 helper.
     @T.function
     def typed_literal(A: T.Tensor((4,), "float32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         packed = T.local_scalar("uint64")
         T.ptx.mov.b64(packed, T.float32(1.5), T.float32(2.5))
         A[tx % 4] = A[tx % 4]
@@ -843,9 +829,8 @@ def test_ptx_optional_operand_arity_dispatch():
 
     @T.function
     def kernel(A: T.Tensor((4,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         bar = T.alloc_tensor((2,), "uint64", scope="shared")
         T.ptx.bar.sync(T.uint32(0))
         T.ptx.bar.sync(T.uint32(0), T.uint32(64))
@@ -875,9 +860,8 @@ def test_ptx_mbarrier_92_shapes_render_and_roundtrip():
 
     @T.function
     def kernel(out: T.Tensor((4,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         bar = T.alloc_tensor((2,), "uint64", scope="shared")
         state = T.local_scalar("uint64")
         pending = T.local_scalar("uint32")
@@ -962,9 +946,8 @@ def test_ptx_bit_width_axis():
 
     @T.function
     def kernel(A: T.Tensor((4,), "float32"), Out: T.Tensor((4,), "float32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         fv = T.local_scalar("float32")
         sv = T.local_scalar("int32")
         T.ptx.ld.global_.b32(fv, A.ptr_to([0]))  # .b32 destination, float32
@@ -996,9 +979,8 @@ def test_ptx_relaxed_load_store_typing():
 
     @T.function
     def kernel(A: T.Tensor((8,), "uint64")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         wide = T.local_scalar("uint64")
         signed0 = T.local_scalar("int64")
         signed1 = T.local_scalar("int64")
@@ -1145,9 +1127,7 @@ def test_ptx_st_bulk_size_carriers_and_st_async_byte_bridge():
 
     @T.function
     def carrier_calls(A: T.Tensor((8,), "uint8")):
-        T.device_entry()
-        T.cta_id([1])
-        T.thread_id([1])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
         T.ptx.st_async.release.sys.global_.b8(A.ptr_to([0]), T.uint8(0x00))
         T.ptx.st_async.release.sys.global_.b8(A.ptr_to([1]), T.uint8(0x7F))
         T.ptx.st_async.release.sys.global_.b8(A.ptr_to([2]), T.uint8(0x80))
@@ -1189,9 +1169,8 @@ def test_ptx_integer_arithmetic_dispatch():
 
     @T.function
     def kernel(A: T.Tensor((4,), "int32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         si = T.local_scalar("int32")
         sw = T.local_scalar("int64")
         fv = T.local_scalar("float32")
@@ -1279,9 +1258,8 @@ def test_ptx_floating_point_dispatch():
 
     @T.function
     def kernel(A: T.Tensor((4,), "float32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         f = T.local_scalar("float32")
         d = T.local_scalar("float64")
         si = T.local_scalar("int32")
@@ -1366,9 +1344,8 @@ def test_ptx_half_precision_dispatch():
 
     @T.function
     def kernel(A: T.Tensor((4,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         h = T.local_scalar("uint16")  # .f16 / .bf16 carrier
         p = T.local_scalar("uint32")  # .f16x2 / .bf16x2 carrier
         f = T.local_scalar("float32")
@@ -1456,9 +1433,8 @@ def test_ptx_mixed_precision_dispatch():
 
     @T.function
     def kernel(A: T.Tensor((4,), "float32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         f = T.local_scalar("float32")
         h = T.local_scalar("uint16")  # the .f16/.bf16 source carrier
         T.ptx.fma.rn.f32.f16(f, h, h, A[0])  # both sources converted
@@ -1521,9 +1497,8 @@ def test_ptx_comparison_selection_dispatch():
 
     @T.function
     def kernel(A: T.Tensor((4,), "int32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         p = T.local_scalar("uint32")
         q = T.local_scalar("uint32")
         d = T.local_scalar("uint32")
@@ -1663,9 +1638,8 @@ def test_ptx_half_comparison_dispatch():
 
     @T.function
     def kernel(A: T.Tensor((4,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         h = T.local_scalar("uint16")  # f16 / bf16 carrier
         x2 = T.local_scalar("uint32")  # f16x2 / bf16x2 carrier
         p = T.local_scalar("uint32")
@@ -1774,9 +1748,8 @@ def test_ptx_logic_shift_dispatch():
 
     @T.function
     def kernel(A: T.Tensor((4,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         d = T.local_scalar("uint32")
         p = T.local_scalar("uint32")
         q = T.local_scalar("uint32")
@@ -1851,8 +1824,8 @@ def test_ptx_logic_shift_dispatch():
     # rejected at CUDA codegen.
     @T.function
     def lut_runtime(A: T.Tensor((1,), "uint32")):
-        T.device_entry()
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
+        tx = T.cuda.thread_idx("x")
         if tx == 0:
             d = T.local_scalar("uint32")
             T.ptx.lop3.b32(d, A[0], A[0], A[0], A[0])
@@ -1862,8 +1835,8 @@ def test_ptx_logic_shift_dispatch():
 
     @T.function
     def lut_unrolled(A: T.Tensor((1,), "uint32")):
-        T.device_entry()
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
+        tx = T.cuda.thread_idx("x")
         if tx == 0:
             d = T.local_scalar("uint32")
             for i in T.unroll(2):
@@ -1875,9 +1848,7 @@ def test_ptx_logic_shift_dispatch():
 
     @T.function
     def lut_boundaries(A: T.Tensor((1,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        T.thread_id([1])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
         d = T.local_scalar("uint32")
         T.ptx.lop3.b32(d, A[0], A[0], A[0], 0)
         T.ptx.lop3.b32(d, A[0], A[0], A[0], 255)
@@ -1904,9 +1875,7 @@ def test_ptx_logic_shift_dispatch():
 
     @T.function
     def lut_unrolled_out_of_range(A: T.Tensor((1,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        T.thread_id([1])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(1,)))
         d = T.local_scalar("uint32")
         for i in T.unroll(2):
             T.ptx.lop3.b32(d, A[0], A[0], A[0], i * 256)
@@ -1927,9 +1896,8 @@ def test_ptx_data_movement_dispatch():
 
     @T.function
     def kernel(A: T.Tensor((8,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         smem = T.alloc_tensor((4,), "uint32", scope="shared")
         d = T.local_scalar("uint32")
         p = T.local_scalar("uint32")
@@ -2060,9 +2028,8 @@ def test_ptx_parallel_sync_dispatch():
 
     @T.function
     def kernel(A: T.Tensor((8,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         d = T.local_scalar("uint32")
         p = T.local_scalar("uint32")
         m = T.local_scalar("uint32")
@@ -2147,9 +2114,7 @@ def test_ptx_lazy_subscript_operands_realize():
 
     @T.function
     def kernel(A: T.Tensor((1,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         regs = T.alloc_tensor((2,), "uint32", scope="local")
         full = T.uint32(0xFFFFFFFF)
         T.ptx.elect_sync(regs[0], regs[1], full)
@@ -2168,9 +2133,8 @@ def test_ptx_parser_roundtrip():
 
     @T.function
     def kernel(A: T.Tensor((32,), "uint32"), B: T.Tensor((32,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         smem = T.alloc_tensor((4,), "uint32", scope="shared")
         if tx == 0:
             val = T.local_scalar("uint32")
@@ -2208,9 +2172,8 @@ def test_ptx_pred_operand_roundtrip():
 
     @T.function
     def kernel(A: T.Tensor((32,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         if tx == 0:
             tmem = T.local_scalar("uint32")
             desc = T.local_scalar("uint64")
@@ -2232,9 +2195,8 @@ def test_ptx_wgmma_scale_d_runtime_predicate_roundtrip():
 
     @T.function
     def kernel(Out: T.Tensor((128,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        tx = T.cuda.thread_idx("x")
         scale_d: T.uint32 = T.cast(tx < 128, "uint32")
         d0: T.uint32 = T.uint32(0)
         d1: T.uint32 = T.uint32(0)
@@ -2321,9 +2283,7 @@ def test_ptx_tcgen05_mma_ws_collector_dispatch(form, collector):
 
     @T.function
     def kernel():
-        T.device_entry()
-        T.cta_id([1])
-        T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
         T.ptx[opcode](
             T.uint32(0),
             T.cast(0, a_dtype),
@@ -2398,9 +2358,8 @@ def test_ptx_codegen_rejects_stale_table_layout(mismatch):
 def test_ptx_tcgen05_mma_block_size_form():
     @T.function
     def kernel(A: T.Tensor((32,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         if tx == 0:
             tmem = T.local_scalar("uint32")
             desc = T.local_scalar("uint64")
@@ -2439,9 +2398,8 @@ def test_ptx_tcgen05_mma_block_size_collector_form():
 
     @T.function
     def sm107_collector_kernel(A: T.Tensor((32,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         if tx == 0:
             tmem = T.local_scalar("uint32")
             desc = T.local_scalar("uint64")
@@ -2483,9 +2441,8 @@ def test_ptx_tcgen05_mma_block_scale_collector_a_without_block_size():
 
     @T.function
     def kernel(A: T.Tensor((32,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         if tx == 0:
             tmem = T.local_scalar("uint32")
             desc = T.local_scalar("uint64")
@@ -2584,8 +2541,7 @@ def test_ptx_pred_operand_rejects_untagged_integer():
 
         @T.function
         def untagged_integer():
-            T.device_entry()
-            T.cta_id([1])
+            T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=32))
             tmem = T.local_scalar("uint32")
             desc = T.local_scalar("uint64")
             idesc = T.local_scalar("uint32")
@@ -2595,9 +2551,8 @@ def test_ptx_pred_operand_rejects_untagged_integer():
     # A bool expression carries the class in its own dtype, so it needs no tag.
     @T.function
     def bool_needs_no_tag(A: T.Tensor((32,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         if tx == 0:
             tmem = T.local_scalar("uint32")
             desc = T.local_scalar("uint64")
@@ -2621,9 +2576,8 @@ def test_ptx_sink_lane_codegen_and_roundtrip():
 
     @T.function
     def kernel(A: T.Tensor((32,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         if tx == 0:
             hi = T.local_scalar("uint32")
             packed = T.local_scalar("uint64")
@@ -2671,9 +2625,8 @@ def test_ptx_sink_rejected_where_the_isa_has_no_underscore():
 def test_ptx_printer_form():
     @T.function
     def kernel(A: T.Tensor((32,), "uint32"), B: T.Tensor((32,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         if tx == 0:
             T.ptx.ld.global_.acquire.gpu.b32(B[0], A.ptr_to([0]))
         B[tx] = B[tx]
@@ -4552,9 +4505,8 @@ def test_ptx_all_helpers_certify(shard):
 def test_ptx_nvcc_smoke():
     @T.function
     def kernel(A: T.Tensor((32,), "uint32"), B: T.Tensor((32,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         smem = T.alloc_tensor((4,), "uint32", scope="shared")
         if tx == 0:
             val = T.local_scalar("uint32")
@@ -4573,9 +4525,8 @@ def test_ptx_nvcc_smoke():
 def test_ptx_ld_st_gpu_roundtrip():
     @T.function
     def kernel(A: T.Tensor((32,), "uint32"), B: T.Tensor((32,), "uint32")):
-        T.device_entry()
-        T.cta_id([1])
-        tx = T.thread_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(32,)))
+        tx = T.cuda.thread_idx("x")
         val = T.local_scalar("uint32")
         T.ptx.ld.global_.acquire.gpu.b32(val, A.ptr_to([tx]))
         T.ptx.st.release.gpu.global_.b32(B.ptr_to([tx]), val)

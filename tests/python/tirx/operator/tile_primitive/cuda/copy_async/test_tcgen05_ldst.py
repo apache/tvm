@@ -278,13 +278,11 @@ def _run_roundtrip_16b(
         # warpgroup-collective fragment; B[tid_in_wg, i] is what comes back
         # after a .16x*b.st → .16x*b.ld round-trip.
 
-        T.device_entry()
-        warp_id = T.warp_id([128 // 32])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        tid_in_wg = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
+        tid_in_wg = T.cuda.thread_idx("x")
 
         tmem_addr = T.alloc_shared([1], "uint32")
 
@@ -520,13 +518,11 @@ def test_tcgen05_16xnb_sub_slab_view_read(shape, rep):
         B0: T.Tensor((128, regs64), dtype),
         B1: T.Tensor((128, regs64), dtype),
     ) -> None:
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        tid = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
+        tid = T.cuda.thread_idx("x")
         tmem_addr = T.alloc_shared([1], "uint32")
         if wg_id == 0:
             if warp_id == 0:
@@ -635,13 +631,9 @@ def test_layout_F_rejects_incompatible_atoms(atom_kind, frag_rows):
 
     @T.function
     def kernel() -> None:
-        T.device_entry()
-        T.warp_id([128 // 32])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
         tmem_addr = T.alloc_shared([1], "uint32")
         if wg_id == 0:
             T.gpu_storage_sync("shared")
@@ -674,11 +666,8 @@ def test_layout_B_rejects_16xnb_fragment():
 
     @T.function
     def kernel() -> None:
-        T.device_entry()
-        T.cta_id([1])
-        T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 128))
+        _lane = T.cuda.lane_id()
         tmem_addr = T.alloc_shared([1], "uint32")
         tmem = T.cuda.decl_tmem(
             tmem_addr[0],
@@ -700,11 +689,8 @@ def test_layout_B_rejects_partial_column_copy():
 
     @T.function
     def kernel() -> None:
-        T.device_entry()
-        T.cta_id([1])
-        T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 128))
+        _lane = T.cuda.lane_id()
         tmem_addr = T.alloc_shared([1], "uint32")
         tmem = T.cuda.decl_tmem(
             tmem_addr[0],
@@ -733,11 +719,8 @@ def test_datapath_B_codegen(direction):
 
     @T.function
     def kernel() -> None:
-        T.device_entry()
-        T.cta_id([1])
-        T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=1 * 128))
+        _lane = T.cuda.lane_id()
         tmem_addr = T.alloc_shared([1], "uint32")
         tmem = T.cuda.decl_tmem(
             tmem_addr[0] + 32,
@@ -777,13 +760,11 @@ def test_datapath_B_ld_st_roundtrip(n_cols, col_offset):
     def kernel(
         A: T.Tensor((128, n_half), "float32"), B: T.Tensor((128, n_half), "float32")
     ) -> None:
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        T.cta_id([1])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        tid = T.thread_id_in_wg([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=4 * 32))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
+        tid = T.cuda.thread_in_warpgroup()
         tmem_addr = T.alloc_shared([1], "uint32")
 
         if wg_id == 0:
@@ -893,13 +874,11 @@ def _run_load_test(shape: str, rep: int, dtype: str):
 
         A_flat = A.view(-1)
 
-        T.device_entry()
-        warp_id = T.warp_id([128 // 32])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        tid_in_wg = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
+        tid_in_wg = T.cuda.thread_idx("x")
 
         tmem_addr = T.alloc_shared([1], "uint32")
 
@@ -1068,13 +1047,11 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
 
         B_flat = B.view(-1)
 
-        T.device_entry()
-        warp_id = T.warp_id([128 // 32])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        tid_in_wg = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
+        tid_in_wg = T.cuda.thread_idx("x")
 
         tmem_addr = T.alloc_shared([1], "uint32")
 
@@ -1201,13 +1178,10 @@ def test_alloc_tcgen05_frag_wrapper_compiles(shape, frag_rows, K_cols):
 
     @T.function
     def kernel(A: T.Tensor((128, K_cols), "float32")) -> None:
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
 
         tmem_addr = T.alloc_shared([1], "uint32")
         if wg_id == 0:
@@ -1258,13 +1232,10 @@ def test_tcgen05_32x32b_float32_keeps_typed_register_operands():
 
     @T.function
     def kernel(A: T.Tensor((128, K_cols), "float32")) -> None:
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
 
         tmem_addr = T.alloc_shared([1], "uint32")
         if wg_id == 0:
@@ -1318,13 +1289,9 @@ def test_tcgen05_ldst_constant_tmem_address_is_uint32():
 
     @T.function
     def kernel() -> None:
-        T.device_entry()
-        T.warp_id([4])
-        T.cta_id([1])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
 
         if wg_id == 0:
             tmem = T.cuda.decl_tmem(
@@ -1409,13 +1376,11 @@ def _run_sliced_vs_full_load(shape, full_rep, n_chunks):
         # sliced-load dump
         A_flat = A.view(-1)
 
-        T.device_entry()
-        warp_id = T.warp_id([4])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        tid_in_wg = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
+        tid_in_wg = T.cuda.thread_idx("x")
 
         tmem_addr = T.alloc_shared([1], "uint32")
         if wg_id == 0:
@@ -1558,13 +1523,13 @@ def test_copy_tmem2reg_async(dtype, width_32b):
         A_flat = A.view(-1)
         B_flat = B.view(-1)
 
-        T.device_entry()
-        warp_id = T.warp_id([(128) // 32])
-        cta_id = T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        warp_id_in_wg = T.warp_id_in_wg([4])
-        lane_id = T.lane_id([32])
-        tid_in_wg = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        cta_id = T.cuda.block_idx('x')
+        wg_id = T.cuda.warpgroup_id()
+        warp_id_in_wg = T.cuda.warp_in_warpgroup()
+        lane_id = T.cuda.lane_id()
+        tid_in_wg = T.cuda.thread_idx('x')
 
         tmem_addr = T.alloc_shared([1], "uint32")
 
@@ -1661,13 +1626,11 @@ def test_copy_tmem2reg(dtype, width_32b, offset_32b):
         A_flat = A.view(-1)
         B_flat = B.view(-1)
 
-        T.device_entry()
-        warp_id = T.warp_id([(128) // 32])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        tid_in_wg = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
+        tid_in_wg = T.cuda.thread_idx('x')
 
         tmem_addr = T.alloc_shared([1], "uint32")
 
@@ -1761,13 +1724,11 @@ def test_copy_tmem2reg_sliced_local(dtype, width_32b, local_offset_32b):
         A_flat = A.view(-1)
         B_flat = B.view(-1)
 
-        T.device_entry()
-        warp_id = T.warp_id([(128) // 32])
-        T.cta_id([2])
-        wg_id = T.warpgroup_id([1])
-        T.warp_id_in_wg([4])
-        T.lane_id([32])
-        tid_in_wg = T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2,), block=(128,)))
+        warp_id = T.cuda.warp_id()
+        wg_id = T.cuda.warpgroup_id()
+        _lane = T.cuda.lane_id()
+        tid_in_wg = T.cuda.thread_idx('x')
 
         tmem_addr = T.alloc_shared([1], "uint32")
 

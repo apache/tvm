@@ -186,7 +186,7 @@ class ActiveSet:
 
 @dataclass(frozen=True)
 class LaneBinding:
-    """Resolution of a user-declared ScopeIdDef Var to one active-set axis."""
+    """Resolution of a user-declared CUDA index binding to one active-set axis."""
 
     axis: str
     kind: str

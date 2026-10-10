@@ -49,7 +49,7 @@ from tvm.target import Target
 
 # pylint: disable=unused-import
 from tvm.tirx import Expr, IndexMap, Var, is_tensor_var
-from tvm.tirx.exec_scope import ExecScope, ScopeIdDef
+from tvm.tirx.exec_scope import ExecScope
 
 # import tirx.expr for direct ir construction to pass structural_equal comparison
 from tvm.tirx.expr import (
@@ -306,148 +306,6 @@ def elected():
         "T.elected() is no longer available. Write explicitly: "
         "`if T.cuda.elect_sync(): ...` (thread is the default scope)"
     )
-
-
-def scope_id(
-    extents: list[Expr | int] | None, parent: str, cur: str, dtype: str = "int32"
-) -> Var | tuple[Var, ...]:
-    """Declare scope IDs between execution levels and return their native variables.
-
-    One dimension returns a variable; multiple dimensions return a tuple in
-    declaration order. ``None`` defers extent inference to LowerTIRx.
-    """
-    ret = _ffi_api.ScopeId(extents, parent, "T.scope_id", cur, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
-
-
-def cluster_id(
-    extents: list[Expr | int] | None = None, dtype: str = "int32"
-) -> Var | tuple[Var, ...]:
-    """Define a kernel→cluster scope id. Pass ``None`` (the default) to defer the
-    extent; it will be inferred at LowerTIRx from sibling ScopeIdDef closure.
-
-    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``).
-    """
-    ret = _ffi_api.ClusterId(extents, "kernel", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
-
-
-def cta_id(
-    extents: list[Expr | int] | None = None, preferred=None, dtype: str = "int32"
-) -> Var | tuple[Var, ...]:
-    """Define a kernel→cta scope id. Pass ``None`` (the default) to defer the
-    extent; it will be inferred at LowerTIRx from sibling ScopeIdDef closure.
-
-    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``).
-    """
-    ret = _ffi_api.CtaId(extents, "kernel", preferred, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
-
-
-def cta_id_in_cluster(
-    extents: list[Expr | int] | None = None, preferred=None, dtype: str = "int32"
-) -> Var | tuple[Var, ...]:
-    """Define a cluster→cta scope id. Pass ``None`` (the default) to defer the
-    extent; it will be inferred at LowerTIRx from sibling ScopeIdDef closure.
-
-    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``).
-    """
-    ret = _ffi_api.CtaId(extents, "cluster", preferred, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
-
-
-def cta_id_in_pair(dtype: str = "int32") -> Var:
-    """Return the native CTA index within its two-CTA pair."""
-    ret = _ffi_api.CtaIdInPair(dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    return ret[0]
-
-
-def warpgroup_id(
-    extents: list[Expr | int] | None = None, dtype: str = "int32"
-) -> Var | tuple[Var, ...]:
-    """Define a cta→warpgroup scope id. Pass ``None`` (the default) to defer
-    the extent; it will be inferred at LowerTIRx from sibling closure.
-
-    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``).
-    """
-    ret = _ffi_api.WarpgroupId(extents, "cta", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
-
-
-def warp_id(extents: list[Expr | int] | None = None, dtype: str = "int32") -> Var | tuple[Var, ...]:
-    """Define a cta→warp scope id. Pass ``None`` (the default) to defer the
-    extent; it will be inferred at LowerTIRx from sibling closure.
-
-    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``).
-    """
-    ret = _ffi_api.WarpId(extents, "cta", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
-
-
-def warp_id_in_wg(
-    extents: list[Expr | int] | None = None, dtype: str = "int32"
-) -> Var | tuple[Var, ...]:
-    """Define a warpgroup→warp scope id. Pass ``None`` (the default) to defer
-    the extent; it will be inferred at LowerTIRx from sibling closure.
-
-    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``).
-    """
-    ret = _ffi_api.WarpId(extents, "warpgroup", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
-
-
-def lane_id(extents: list[Expr | int] | None = None, dtype: str = "int32") -> Var | tuple[Var, ...]:
-    """Define a warp→thread scope id. Pass ``None`` (the default) to defer the
-    extent; it will be inferred at LowerTIRx from sibling closure.
-
-    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``).
-    """
-    ret = _ffi_api.ThreadId(extents, "warp", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
-
-
-def thread_id(
-    extents: list[Expr | int] | None = None, dtype: str = "int32"
-) -> Var | tuple[Var, ...]:
-    """Define a cta→thread scope id. Pass ``None`` (the default) to defer the
-    extent; it will be inferred at LowerTIRx from sibling closure.
-
-    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``).
-    """
-    ret = _ffi_api.ThreadId(extents, "cta", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
-
-
-def thread_id_in_wg(
-    extents: list[Expr | int] | None = None, dtype: str = "int32"
-) -> Var | tuple[Var, ...]:
-    """Define a warpgroup→thread scope id. Pass ``None`` (the default) to defer
-    the extent; it will be inferred at LowerTIRx from sibling closure.
-
-    ``dtype`` selects the dtype of the introduced vars (``"int32"`` or ``"uint32"``).
-    """
-    ret = _ffi_api.ThreadId(extents, "warpgroup", dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
-    if len(ret) == 1:
-        return ret[0]
-    return tuple(ret)
 
 
 @_register_mutable_decl("tirx.alloc_tensor")
@@ -1591,7 +1449,6 @@ __all__ = [
     "R",
     "Range",
     "S",
-    "ScopeIdDef",
     "Tensor",
     "TensorLoad",
     "TensorMap",
@@ -1607,10 +1464,6 @@ __all__ = [
     "bf16",
     "bfloat16",
     "boolean",
-    "cluster_id",
-    "cta_id",
-    "cta_id_in_cluster",
-    "cta_id_in_pair",
     "decl_scalar",
     "decl_tensor",
     "f16",
@@ -1748,19 +1601,15 @@ __all__ = [
     "int64x16",
     "int64x32",
     "int64x64",
-    "lane_id",
     "let",
     "local_scalar",
     "meta_class",
     "meta_var",
     "ptr",
-    "scope_id",
     "shared_scalar",
     "smem",
     "static_assert",
     "target",
-    "thread_id",
-    "thread_id_in_wg",
     "tmem",
     "u8",
     "u16",
@@ -1795,8 +1644,5 @@ __all__ = [
     "uint64x32",
     "uint64x64",
     "void",
-    "warp_id",
-    "warp_id_in_wg",
-    "warpgroup_id",
     "wg_reg_tile",
 ]

@@ -351,11 +351,17 @@ class CallFFIKernelAttr(tvm.ir.Attrs):
 
     launch_params: list[str]
 
-    def __init__(self, launch_params):
-        self.__init_handle_by_constructor__(_ffi_api.CallFFIKernelAttr, launch_params)
+    def __init__(self, launch_params=(), launch_fields=(), num_kernel_args=-1, kernel_attrs=None):
+        self.__init_handle_by_constructor__(
+            _ffi_api.CallFFIKernelAttr,
+            launch_params,
+            launch_fields,
+            num_kernel_args,
+            kernel_attrs or {},
+        )
 
 
-def call_ffi_kernel(*args, launch_params, ty="int32", span=None):
+def call_ffi_kernel(*args, launch=None, launch_params=None, ty="int32", span=None):
     """Call a kernel with its symbol, kernel operands, then launch values.
 
     ``launch_params`` contains ordered tags for the launch-value suffix.
@@ -363,10 +369,22 @@ def call_ffi_kernel(*args, launch_params, ty="int32", span=None):
     last when present. Host codegen may launch directly; other hosts use the
     existing packed-function calling convention.
     """
+    if launch is not None:
+        if launch_params is not None:
+            raise TypeError("call_ffi_kernel cannot mix launch and legacy launch_params")
+        from tvm.backend.cuda.launch._impl import pack_launch
+
+        names, values = pack_launch(launch)
+        attrs = CallFFIKernelAttr(launch_fields=names, num_kernel_args=len(args) - 1)
+        args = [*args, *values]
+    else:
+        if launch_params is None:
+            raise TypeError("call_ffi_kernel requires launch configuration")
+        attrs = CallFFIKernelAttr(launch_params)
     return Call(
         "tirx.call_ffi_kernel",
         args,
-        attrs=CallFFIKernelAttr(launch_params),
+        attrs=attrs,
         ty=ty,
         span=span,
     )
@@ -1183,7 +1201,7 @@ def gpu_thread_filter(var, pred, *, span=None, ty=None):
     the lowering pass directly from ``if cond:``, so the wrapper is redundant
     for them.
 
-    When wrapped: ``var`` (a ``ScopeIdDef``-declared scope identifier) tells
+    When wrapped: ``var`` (a CUDA-index-bound scope identifier) tells
     the compiler which active-set axis to collapse to a singleton when the
     opaque predicate evaluates true; ``pred`` is preserved verbatim and
     evaluated at runtime.

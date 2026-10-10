@@ -282,8 +282,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterScriptRepr<tirx::IndexMapNode>();
   RegisterScriptRepr<tirx::IterNode>();
   RegisterScriptRepr<tirx::FunctionNode>();
-  RegisterScriptRepr<tirx::ScopeIdDefNode>();
-  RegisterScriptRepr<tirx::ScopeIdDefStmtNode>();
   RegisterScriptRepr<tirx::TileLayoutNode>();
 }
 

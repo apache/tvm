@@ -300,9 +300,8 @@ TVM_DLL Pass Filter(ffi::TypedFunction<bool(Function)> fcond);
 /*!
  * \brief Lower TIRx op calls using registered op dispatchers for the given target.
  *
- * Also resolves ScopeIdDef declarations: gathers them at kernel scope, verifies
- * consistency, extracts launch parameters, and emits Bind statements +
- * launch_thread RegionStmts wrapping the dispatched body.
+ * Lowers CUDA index calls to ordinary bindings using the independent device-entry
+ * launch configuration, preserving execution-context information during dispatch.
  * \return The pass.
  */
 TVM_DLL Pass TileDispatch();

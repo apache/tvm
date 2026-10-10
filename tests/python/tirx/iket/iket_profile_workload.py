@@ -36,9 +36,9 @@ from tvm.tirx.cuda import iket
 
 @T.function
 def canonical_iket_workload(out: T.Tensor((32,), "int32")):
-    T.device_entry()
+    T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
     profiler = iket.IketProfiler()
-    tx = T.thread_id([32])
+    tx = T.cuda.thread_idx("x")
     token: T.uint32 = profiler.sentinel_token("token")
     profiler.range_end(token)
     token = profiler.range_start("token")
@@ -52,9 +52,9 @@ def canonical_iket_workload(out: T.Tensor((32,), "int32")):
 
 @T.function
 def native_payload_workload(out: T.Tensor((32,), "int32")):
-    T.device_entry()
+    T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
     profiler = iket.IketProfiler()
-    tx = T.thread_id([32])
+    tx = T.cuda.thread_idx("x")
     profiler.mark("lane_payload", tx + 100)
     if tx >= 5:
         profiler.mark("first_active_lane", tx)
@@ -73,9 +73,9 @@ def native_payload_workload(out: T.Tensor((32,), "int32")):
 
 @T.function
 def extended_payload_workload(out: T.Tensor((32,), "int32")):
-    T.device_entry()
+    T.device_entry(launch=T.cuda.LaunchConfig(grid=1, block=(32,)))
     profiler = iket.IketProfiler()
-    tx = T.thread_id([32])
+    tx = T.cuda.thread_idx("x")
     profiler.mark("extended_lane_payload", tx + 500)
     profiler.mark("extended01")
     profiler.mark("extended02")

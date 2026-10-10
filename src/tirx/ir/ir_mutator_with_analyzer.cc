@@ -220,6 +220,22 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const RegionStmtNode* op,
       analyzer_->Bind(var, dom);
       iter_vars_.Set(var, dom);
     }
+    // Native CUDA coordinates are ordinary calls. Their bounds come from the
+    // enclosing launch configuration, including when no variable binds them.
+    if (auto description = op->attrs->dict.Get("cuda.launch_fields")) {
+      auto fields = description->as_or_throw<ffi::Array<ffi::String>>();
+      for (size_t i = 0; i < fields.size(); ++i) {
+        std::string field(fields[i]);
+        std::string intrinsic;
+        if (field.rfind("grid.", 0) == 0) intrinsic = "tirx.cuda.block_idx";
+        if (field.rfind("block.", 0) == 0) intrinsic = "tirx.cuda.thread_idx";
+        if (intrinsic.empty()) continue;
+        PrimExpr index = Call(PrimType::Int(32), Op::Get(intrinsic),
+                              {StringImm(field.substr(field.size() - 1))});
+        constraint_scope_.Current().Emplace(analyzer_, index >= 0);
+        constraint_scope_.Current().Emplace(analyzer_, index < op->args[i].as_or_throw<PrimExpr>());
+      }
+    }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   });
 }

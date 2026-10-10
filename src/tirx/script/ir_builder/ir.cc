@@ -142,83 +142,6 @@ tvm::Type FuncRet(tvm::Type ret_type) {
   return ret_type;
 }
 
-ffi::Array<tvm::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                             ffi::String name, ffi::String cur, PrimType dtype) {
-  ir::CheckExplicitIndexDtype(dtype);
-  // Determine the number of Vars to introduce. Deferred form (extents=None)
-  // is always 1-axis; the verifier closure fills the extent at LowerTIRx.
-  size_t n_vars = extents.has_value() ? extents.value().size() : 1;
-  if (cur == "warp" || cur == "warpgroup") {
-    TVM_FFI_ICHECK_EQ(n_vars, 1) << "ValueError: " << cur << " scope only supports 1D extents, got "
-                                 << n_vars << "D";
-  }
-  ffi::Array<tvm::Var> scope_ids;
-  for (size_t i = 0; i < n_vars; ++i) {
-    scope_ids.push_back(tvm::PrimVar("", dtype));
-  }
-  // Emit a standalone ScopeIdDefStmt to the current TIRFrame's stmts list.
-  // The def is visible to all subsequent stmts within the same enclosing
-  // scope (Function body, RegionStmt body, ExecScope body, etc.).
-  tvm::tirx::ScopeIdDef def(
-      scope_ids.Map([](tvm::Var var) { return var.as_or_throw<tvm::PrimVar>(); }), extents,
-      tvm::tirx::StringPairToScopeBinding(parent, cur));
-  AddToParent(tvm::tirx::ScopeIdDefStmt(def));
-  return scope_ids;
-}
-
-ffi::Array<tvm::Var> ClusterId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                               PrimType dtype) {
-  return ScopeId(extents, parent, "T.cluster_id", "cluster", dtype);
-}
-
-ffi::Array<tvm::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                           ffi::Optional<ffi::Array<PrimExpr>> preferred, PrimType dtype) {
-  if (preferred.has_value()) {
-    ir::CheckExplicitIndexDtype(dtype);
-    TVM_FFI_ICHECK(parent == "cluster")
-        << "ValueError: preferred is only valid when parent=\"cluster\", got parent=\"" << parent
-        << "\"";
-    TVM_FFI_ICHECK(extents.has_value())
-        << "ValueError: preferred=... requires explicit extents (deferred form is incompatible)";
-    ffi::Array<tvm::Var> scope_ids;
-    for (size_t i = 0; i < extents.value().size(); ++i) {
-      scope_ids.push_back(tvm::PrimVar("", dtype));
-    }
-    tvm::tirx::ScopeIdDef def(
-        scope_ids.Map([](tvm::Var var) { return var.as_or_throw<tvm::PrimVar>(); }), extents,
-        tvm::tirx::StringPairToScopeBinding(parent, "cta"), preferred);
-    AddToParent(tvm::tirx::ScopeIdDefStmt(def));
-    return scope_ids;
-  }
-  return ScopeId(extents, parent, "T.cta_id", "cta", dtype);
-}
-
-ffi::Array<tvm::Var> CtaIdInPair(PrimType dtype) {
-  ir::CheckExplicitIndexDtype(dtype);
-  ffi::Array<tvm::Var> scope_ids{tvm::PrimVar("", dtype)};
-  tvm::tirx::ScopeIdDef def(
-      scope_ids.Map([](tvm::Var var) { return var.as_or_throw<tvm::PrimVar>(); }),
-      ffi::Array<PrimExpr>{IntImm::Int32(2)}, tvm::tirx::ScopeBinding::kClusterCtaPair);
-  AddToParent(tvm::tirx::ScopeIdDefStmt(def));
-  return scope_ids;
-}
-
-ffi::Array<tvm::Var> WarpgroupId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                                 PrimType dtype) {
-  return ScopeId(extents, parent, "T.warpgroup_id", "warpgroup", dtype);
-}
-
-ffi::Array<tvm::Var> WarpId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                            PrimType dtype) {
-  return ScopeId(extents, parent, "T.warp_id", "warp", dtype);
-}
-
-ffi::Array<tvm::Var> ThreadId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-                              PrimType dtype) {
-  return ScopeId(extents, parent, "T.thread_id", "thread", dtype);
-}
-
-// Thread-placement annotations are interpreted by the TIRx dialect at frame exit.
 namespace {
 ForFrame WithThreadBindingValidation(ForFrame frame) {
   auto make_loop = frame->f_make_for_loop;
@@ -449,6 +372,23 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
+      .def("script.ir_builder.tirx.CudaSharedMemoryRequirement",
+           [](int64_t bytes) {
+             TVM_FFI_CHECK_GE(bytes, 0, ValueError);
+             const auto& frames = IRBuilder::Current()->frames;
+             for (auto it = frames.rbegin(); it != frames.rend(); ++it) {
+               if (auto region = (*it).as<RegionFrame>();
+                   region && region.value()->op->name == "tirx.device_entry") {
+                 auto attrs = region.value()->attrs->dict;
+                 int64_t previous =
+                     attrs.Get("cuda.smem_required").value_or(int64_t{0}).cast<int64_t>();
+                 attrs.Set("cuda.smem_required", std::max(previous, bytes));
+                 region.value()->attrs = DictAttrs(attrs);
+                 return;
+               }
+             }
+             TVM_FFI_THROW(ValueError) << "SMEMPool.commit() requires an enclosing device_entry";
+           })
       .def("script.ir_builder.tirx.TensorType", TensorTypeDecl)
       .def("script.ir_builder.tirx.Function", Function)
       .def("script.ir_builder.tirx.DeclFunction", DeclFunction)
@@ -465,31 +405,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.FuncName", FuncName)
       .def("script.ir_builder.tirx.FuncAttrs", FuncAttrs)
       .def("script.ir_builder.tirx.FuncRet", FuncRet)
-      .def("script.ir_builder.tirx.ClusterId",
-           [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent, PrimType dtype) {
-             return ClusterId(extents, parent, dtype);
-           })
-      .def("script.ir_builder.tirx.CtaId",
-           [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
-              ffi::Optional<ffi::Array<PrimExpr>> preferred,
-              PrimType dtype) { return CtaId(extents, parent, preferred, dtype); })
-      .def("script.ir_builder.tirx.CtaIdInPair", CtaIdInPair)
-      .def("script.ir_builder.tirx.WarpgroupId",
-           [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent, PrimType dtype) {
-             return WarpgroupId(extents, parent, dtype);
-           })
-      .def("script.ir_builder.tirx.WarpId",
-           [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent, PrimType dtype) {
-             return WarpId(extents, parent, dtype);
-           })
-      .def("script.ir_builder.tirx.ThreadId",
-           [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent, PrimType dtype) {
-             return ThreadId(extents, parent, dtype);
-           })
-      .def("script.ir_builder.tirx.ScopeId",
-           [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent, ffi::String name,
-              ffi::String cur,
-              PrimType dtype) { return ScopeId(extents, parent, name, cur, dtype); })
       .def("script.ir_builder.tirx.AllocTensor", AllocTensor)
       .def("script.ir_builder.tirx.Serial", Serial)
       .def("script.ir_builder.tirx.Parallel", Parallel)

@@ -25,7 +25,6 @@ def test_root_scope():
     @T.function(check_well_formed=False)
     def test1() -> None:
         T.device_entry()
-        pass
 
     @T.function(check_well_formed=False)
     def test2() -> None:
@@ -38,7 +37,6 @@ def test_root_scope():
     @T.function(check_well_formed=False)
     def test4() -> None:
         T.device_entry()
-        pass
 
         # fmt: on
 
@@ -53,23 +51,17 @@ def test_nested_scope():
     @T.function(check_well_formed=False)
     def test1() -> None:
         T.device_entry()
-        pass
-        pass
 
     @T.function(check_well_formed=False)
     def test2() -> None:
         T.device_entry()
-        pass
 
     @T.function(check_well_formed=False)
     def test3() -> None:
         T.device_entry()
-        pass
     @T.function(check_well_formed=False)
     def test4() -> None:
         T.device_entry()
-        pass
-        pass
 
         # fmt: on
 
@@ -79,86 +71,16 @@ def test_nested_scope():
     verify(test4)
 
 
-def test_scope_id_consistency():
-    # fmt: off
-    @T.function(check_well_formed=False)
-    def test1():
-        T.device_entry()
-        T.cta_id([32])
-        T.warp_id([4])
-        T.lane_id([32])
-        pass
+def test_cuda_index_binds_are_independent():
+    @T.function
+    def kernel():
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(8, 10, 12), block=128, cluster=(2, 2)))
+        bx, by, bz = T.cuda.block_idx("x"), T.cuda.block_idx("y"), T.cuda.block_idx("z")
+        same_bx = T.cuda.block_idx("x")
+        alias = bx
+        T.evaluate(alias + same_bx + by + bz)
 
-    @T.function(check_well_formed=False)
-    def test2():
-        T.device_entry()
-        T.cta_id([32])
-        T.warp_id([4])
-        T.lane_id([32])
-        T.thread_id([128])
-        pass
-
-    @T.function(check_well_formed=False)
-    def test3():
-        T.device_entry()
-        T.cta_id([32])
-        T.warp_id([2])
-        T.lane_id([32])
-        T.thread_id([128])
-        pass
-
-    @T.function(check_well_formed=False)
-    def test4():
-        T.device_entry()
-        bx, by, bz = T.cta_id([8, 10, 12])
-        cbx, cby, cbz = T.cta_id_in_cluster([2, 2, 1])
-        clx, cly, clz = T.cluster_id([4, 5, 12])
-        T.evaluate(bx + by + bz)
-        T.evaluate(cbx + cby + cbz)
-        T.evaluate(clx + cly + clz)
-
-    @T.function(check_well_formed=False)
-    def test5():
-        T.device_entry()
-        bx, by, bz = T.cta_id([8, 10, 12])
-        cbx, cby, cbz = T.cta_id_in_cluster([2, 2, 1])
-        clx, cly, clz = T.cluster_id([3, 5, 12])
-        T.evaluate(bx + by + bz)
-        T.evaluate(cbx + cby + cbz)
-        T.evaluate(clx + cly + clz)
-
-    @T.function(check_well_formed=False)
-    def test6():
-        T.device_entry()
-        clx, cly, clz = T.cluster_id([4, 5, 12])
-        bx, by, bz = T.cta_id([8, 10, 12])
-        cbx, cby, cbz = T.cta_id_in_cluster([2, 2, 1])
-        T.evaluate(bx + by + bz)
-        T.evaluate(cbx + cby + cbz)
-        T.evaluate(clx + cly + clz)
-
-    @T.function(check_well_formed=False)
-    def test7():
-        T.device_entry()
-        clx, cly, clz = T.cluster_id([3, 5, 12])
-        bx, by, bz = T.cta_id([8, 10, 12])
-        cbx, cby, cbz = T.cta_id_in_cluster([2, 2, 1])
-        T.evaluate(bx + by + bz)
-        T.evaluate(cbx + cby + cbz)
-        T.evaluate(clx + cly + clz)
-
-        # fmt: on
-
-    verify(test1)
-    verify(test2)
-    with pytest.raises(Exception, match="Inconsistent extents for scope"):
-        verify(test3)
-    verify(test4)
-    with pytest.raises(Exception, match="Inconsistent extents|non-divisible extents"):
-        verify(test5)
-    verify(test6)
-    with pytest.raises(Exception, match="Inconsistent extents|non-divisible extents"):
-        verify(test7)
+    verify(kernel)
 
 
 def test_layout():
@@ -166,10 +88,8 @@ def test_layout():
     # fmt: off
     @T.function(check_well_formed=False)
     def test1():
-        T.device_entry()
-        T.cta_id([32])
-        T.warp_id([4])
-        T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(32,), block=4 * 32))
+        _lane = T.cuda.lane_id()
         A = T.alloc_tensor((2,), layout=T.TileLayout(T.S[2, 1]))
 
         A[0] = 0
@@ -180,10 +100,8 @@ def test_layout():
     # fmt: off
     @T.function(check_well_formed=False)
     def test2():
-        T.device_entry()
-        T.cta_id([32])
-        T.warp_id([4])
-        T.lane_id([32])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(32,), block=4 * 32))
+        _lane = T.cuda.lane_id()
         A = T.alloc_tensor(
             (512,), scope="shared", layout=T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(512,)]))
         )
@@ -231,16 +149,12 @@ def test_device_func():
     # fmt: off
     @T.function(check_well_formed=False)
     def test1(A: T.Tensor((128,), "float32")):
-        T.device_entry()
-        T.cta_id([1])
-        T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(1,), block=(128,)))
         T.cuda.tile.mov(A, 0., scope='cta')
 
     @T.function(check_well_formed=False)
     def test2(A: T.Tensor((128,), "float32")):
-        T.device_entry()
-        T.cta_id([128])
-        T.thread_id([128])
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(128,), block=(128,)))
         T.cuda.tile.mov(A, 0.)
     # fmt: on
     verify(test1)
@@ -248,124 +162,54 @@ def test_device_func():
 
 
 def test_preferred_cluster_validation():
-    # fmt: off
-    # Valid: cluster→cta with preferred_extents matching size
-    @T.function(check_well_formed=False)
-    def test1() -> None:
-        T.device_entry()
-        cbx, cby = T.cta_id_in_cluster([2, 1], preferred=[2, 2])
-        tx = T.thread_id([128])
-        T.evaluate(cbx + cby + tx)
-
-        # Invalid: preferred size doesn't match extents size (caught at verify time)
-    @T.function(check_well_formed=False)
-    def test2() -> None:
-        T.device_entry()
-        cbx, cby = T.cta_id_in_cluster([2, 1], preferred=[2])
-        tx = T.thread_id([128])
-        T.evaluate(cbx + cby + tx)
+    T.cuda.LaunchConfig(grid=(8, 4), block=128, cluster=(2, 1), preferred_cluster=(2, 2))
+    with pytest.raises(ValueError, match="requires an explicit cluster"):
+        T.cuda.LaunchConfig(grid=8, block=128, preferred_cluster=2)
+    with pytest.raises(ValueError, match="divisible"):
+        T.cuda.LaunchConfig(grid=(8, 3), block=128, cluster=(2, 1), preferred_cluster=(2, 2))
+    with pytest.raises(ValueError, match="cluster.z"):
+        T.cuda.LaunchConfig(grid=(8, 4, 2), block=128, cluster=(2, 1), preferred_cluster=(2, 2, 2))
         # fmt: on
 
-    verify(test1)
-    with pytest.raises(Exception, match="preferred_extents must have the same size"):
-        verify(test2)
 
-    # Invalid: preferred on a non-cluster→cta scope (caught at IR build time)
-    with pytest.raises(Exception):
-        # fmt: off
-        @T.function(check_well_formed=False)
-        def test3() -> None:
-            T.device_entry()
-            bx = T.cta_id([128], preferred=[256])
-            tx = T.thread_id([128])
-            T.evaluate(bx + tx)
-            # fmt: on
+def test_index_calls_do_not_define_launch_extents():
+    @T.function
+    def kernel():
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=8, block=128))
+        bx = T.cuda.block_idx("x")
+        lane = T.cuda.lane_id()
+        T.evaluate(bx + lane)
+
+    verify(kernel)
 
 
-def test_scope_id_deferred_relaxed_at_construction():
-    """Deferred scope_id (no extents) must pass the well-formed check even when
-    no sibling provides enough info to resolve it -- strict resolution is
-    deferred to LowerTIRx."""
-
-    # fmt: off
-    @T.function(check_well_formed=False)
-    def partial_only_cta():
-        T.device_entry()
-        bx = T.cta_id()           # deferred kernel→cta, no closure source
-        tx = T.thread_id([128])   # explicit
-        T.evaluate(bx + tx)
-
-    @T.function(check_well_formed=False)
-    def all_deferred():
-        T.device_entry()
-        bx = T.cta_id()
-        wg = T.warpgroup_id()
-        warp = T.warp_id_in_wg()
-        lane = T.lane_id()
-        T.evaluate(bx + wg + warp + lane)
-
-    @T.function(check_well_formed=False)
-    def mixed():
-        T.device_entry()
-                # kCtaWarp=4, kWarpThread=32 → kCtaThread=128 derivable.
-        T.warp_id([4])
-        T.lane_id([32])
-        T.thread_id()             # deferred kCtaThread, resolvable via closure
-        pass
-        # fmt: on
-
-        # All three accepted by well-formed: deferred extents are tolerated.
-    verify(partial_only_cta)
-    verify(all_deferred)
-    verify(mixed)
+@pytest.mark.parametrize("grid,cluster", [(1, 2), (7, 2), ((8, 1), (2, 2))])
+def test_invalid_launch_geometry(grid, cluster):
+    with pytest.raises(ValueError, match="divisible"):
+        T.cuda.LaunchConfig(grid=grid, block=128, cluster=cluster)
 
 
-def test_scope_id_deferred_consistency_still_enforced():
-    """Even with deferred defs, known-known consistency between sibling defs
-    must still be enforced by the closure check."""
+def test_tuple_indices_use_separate_binds():
+    import tvm_ffi
 
-    # fmt: off
-    @T.function(check_well_formed=False)
-    def inconsistent():
-        # 4 warps * 32 lanes = 128 threads, but explicit thread_id says 64 -> error.
-        T.device_entry()
-        T.cta_id([32])
-        T.warp_id([4])
-        T.lane_id([32])
-        T.thread_id()       # deferred (shouldn't shadow the conflict)
-        T.thread_id([64])   # conflicts with derived kCtaThread=128
-        pass
-        # fmt: on
+    import tvm
 
-    with pytest.raises(Exception, match="Inconsistent extents for scope"):
-        verify(inconsistent)
+    @T.function
+    def kernel():
+        T.device_entry(launch=T.cuda.LaunchConfig(grid=(2, 3, 4), block=32))
+        bx, by, bz = T.cuda.block_idx("x"), T.cuda.block_idx("y"), T.cuda.block_idx("z")
+        T.evaluate(bx + by + bz)
 
-
-def test_scope_id_deferred_multi_var_rejected():
-    """Deferred form (no extents) requires exactly one Var. Multi-var defers
-    have no well-defined recovery from fused closure values."""
-
-    # The C++ ScopeIdDef ctor enforces this; constructing such a def from the
-    # parser path is not currently expressible (parser only emits single-Var
-    # deferred), but we exercise the FFI-level guard directly.
-    from tvm.tirx.exec_scope import ScopeIdDef
-    from tvm.tirx.expr import Var
-
-    # Single-Var deferred form is fine.
-    ScopeIdDef([Var("", "int32")], None, "kernel", "cta")
-
-    # Two-Var deferred should be rejected.
-    with pytest.raises(Exception, match="Deferred ScopeIdDef.*must define exactly one Var"):
-        ScopeIdDef([Var("", "int32"), Var("", "int32")], None, "kernel", "cta")
+    binds = []
+    tvm_ffi.structural_walk(
+        kernel.body, lambda node: binds.append(node) if isinstance(node, tvm.ir.Bind) else None
+    )
+    assert [bind.var.name for bind in binds] == ["bx", "by", "bz"]
+    assert [bind.value.args[0].value for bind in binds] == ["x", "y", "z"]
+    verify(kernel)
 
 
 if __name__ == "__main__":
-    test_root_scope()
-    test_nested_scope()
-    test_scope_id_consistency()
-    test_layout()
-    test_host()
-    test_device_func()
-    test_scope_id_deferred_relaxed_at_construction()
-    test_scope_id_deferred_consistency_still_enforced()
-    test_scope_id_deferred_multi_var_rejected()
+    import tvm.testing
+
+    tvm.testing.main()
